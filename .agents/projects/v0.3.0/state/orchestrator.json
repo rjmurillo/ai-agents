@@ -1,15 +1,89 @@
 {
   "version": "0.3.0",
-  "started": null,
+  "started": "2026-01-24T15:53:01-08:00",
   "current_week": 1,
   "chains": {
-    "1": {"status": "pending", "current_issue": null, "completed_issues": []},
-    "2": {"status": "pending", "current_issue": null, "completed_issues": []},
-    "3": {"status": "pending", "current_issue": null, "completed_issues": []},
-    "4": {"status": "pending", "current_issue": null, "completed_issues": []},
-    "5": {"status": "pending", "current_issue": null, "completed_issues": []},
-    "6": {"status": "pending", "current_issue": null, "completed_issues": []}
+    "1": {
+      "status": "running",
+      "current_issue": 998,
+      "completed_issues": [
+        997
+      ]
+    },
+    "2": {
+      "status": "running",
+      "current_issue": 734,
+      "completed_issues": [
+        751
+      ]
+    },
+    "3": {
+      "status": "complete",
+      "current_issue": null,
+      "completed_issues": [721, 722, 723, 724],
+      "pr": 1011
+    },
+    "4": {
+      "status": "pending",
+      "current_issue": null,
+      "completed_issues": []
+    },
+    "5": {
+      "status": "pending",
+      "current_issue": null,
+      "completed_issues": []
+    },
+    "6": {
+      "status": "pending",
+      "current_issue": null,
+      "completed_issues": []
+    }
   },
-  "issues": {},
+  "issues": {
+    "751": {
+      "status": "completed",
+      "started": "2026-01-24T13:39:20-08:00",
+      "completed": "2026-01-24T13:46:22-08:00",
+      "pr": 1007
+    },
+    "734": {
+      "status": "in_progress",
+      "started": "2026-01-24T15:53:02-08:00"
+    },
+    "997": {
+      "status": "completed",
+      "started": "2026-01-24T16:34:21-08:00",
+      "completed": "2026-01-24T16:55:00-08:00"
+    },
+    "721": {
+      "status": "completed",
+      "started": "2026-01-24T16:41:00-08:00",
+      "completed": "2026-01-26T02:42:16-08:00",
+      "pr": 1011
+    },
+    "722": {
+      "status": "completed",
+      "started": "2026-01-24T16:41:00-08:00",
+      "completed": "2026-01-26T02:42:16-08:00",
+      "pr": 1011
+    },
+    "723": {
+      "status": "completed",
+      "started": "2026-01-24T16:41:00-08:00",
+      "completed": "2026-01-26T02:42:16-08:00",
+      "pr": 1011
+    },
+    "724": {
+      "status": "completed",
+      "started": "2026-01-24T16:41:00-08:00",
+      "completed": "2026-01-26T02:42:16-08:00",
+      "pr": 1011
+    },
+    "998": {
+      "status": "in_progress",
+      "error": "Exit code 1",
+      "started": "2026-01-25T17:19:22-08:00"
+    }
+  },
   "messages": []
 }

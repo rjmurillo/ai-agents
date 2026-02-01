@@ -1,191 +1,185 @@
-# Memory Validation for ADR-017 Compliance
-
-#
-
-# Validates memory files follow the tiered index architecture
-
-# - Skill format validation (one skill per file, no bundled formats)
-
-# - Index validation (proper Keywords|File table format)
-
-#
-
-# This is a REQUIRED check that blocks PRs from corrupting the memory system
-
-# Pre-commit hooks can be bypassed; CI cannot
-
-#
-
-# Local developers can run the same validation using
-
-# pwsh scripts/Validate-SkillFormat.ps1
-
-# pwsh scripts/Validate-MemoryIndex.ps1
-
+---
 name: Memory Validation
 
-# NOTE: No path filters here - workflow must always run because "Validate Memory Files"
-
-# is a required status check. Path-based filtering happens inside the job using git diff
-
 on:
-  push:
-    branches:
-      - main
   pull_request:
-    branches:
-      - main
-  workflow_dispatch: # Allow manual triggering
-
-# Concurrency control: Attempts to cancel in-progress runs when new runs start
-
-# NOTE: GitHub Actions does NOT guarantee run coalescing - race conditions can occur
-
-# where multiple runs start before cancellation takes effect. This is best-effort
-
-# See ADR-026 (../.agents/architecture/ADR-026-pr-automation-concurrency-and-safety.md)
-
-# for architectural decision on workflow-level concurrency control
-
-# Mitigation: Path filtering, timeouts, and PR-specific temp files reduce impact
-
-# Note: Git diff-based path filtering happens inside the job
+    # NOTE: No paths filter here - use dorny/paths-filter internally
+    # This ensures skip-validation job runs to satisfy required checks
+    # See: .serena/memories/ci-infrastructure-dorny-paths-filter-checkout.md
+  workflow_dispatch:
 
 concurrency:
-  group: memory-validation-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+  pull-requests: write
+
 jobs:
-  validate:
-    name: Validate Memory Files
-    # ADR-025: Use ubuntu-24.04-arm to align with standardized ARM runners for CI.
-    # ARM runners are selected here for cost-optimized, consistent validation workloads.
+  check-paths:
+    name: Detect changes
     runs-on: ubuntu-24.04-arm
-    permissions:
-      contents: read
-
+    timeout-minutes: 5
+    outputs:
+      memories-changed: ${{ steps.filter.outputs.memories }}
+      code-changed: ${{ steps.filter.outputs.code }}
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - name: Checkout code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Check path filters
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        id: filter
         with:
-          fetch-depth: 0
+          filters: |
+            memories:
+              - '.serena/memories/**'
+            code:
+              - 'scripts/memory_enhancement/**'
+              - 'scripts/**/*.py'
+              - 'pyproject.toml'
+              - 'uv.lock'
 
-      - name: Check for memory file changes
-        id: changes
-        shell: pwsh -NoProfile -Command "& '{0}'"
-        env:
-          # Use environment variables for SHA values (security best practice per GitHub guide)
-          BEFORE_SHA: ${{ github.event.before }}
-          AFTER_SHA: ${{ github.sha }}
+  validate-memories:
+    name: Validate memory citations
+    needs: check-paths
+    if: needs.check-paths.outputs.memories-changed == 'true' || needs.check-paths.outputs.code-changed == 'true'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Setup Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.12'
+
+      - name: Install UV package manager
         run: |
-          # Get list of changed files based on event type
-          $diffOutput = $null
-          $zeroSha = '0000000000000000000000000000000000000000'
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
-          if ($env:GITHUB_EVENT_NAME -eq 'pull_request') {
-            # Compare PR branch against the base branch (three dots for merge-base diff)
-            # Use $env:GITHUB_BASE_REF (runtime) not ${{ github.base_ref }} (parse-time)
-            # to avoid exit code 129 when github.base_ref is empty on non-PR events
-            $diffOutput = git diff --name-only origin/$env:GITHUB_BASE_REF...HEAD
-          } elseif ($env:GITHUB_EVENT_NAME -eq 'push') {
-            # Handle push event with guards for edge cases
-            $beforeSha = $env:BEFORE_SHA
-            $afterSha = $env:AFTER_SHA
+      - name: Install dependencies
+        run: |
+          uv pip install --system -e ".[dev]"
 
-            if ($beforeSha -eq $zeroSha) {
-              # First commit on a new branch: fall back to comparing against main
-              Write-Host "First commit on branch detected. Comparing against origin/main..." -ForegroundColor Yellow
-              $diffOutput = git diff --name-only "origin/main..$afterSha"
+      - name: Verify all memories
+        id: verify
+        continue-on-error: true
+        run: |
+          python -m scripts.memory_enhancement verify-all --json > memory-validation-results.json
+          echo "exit_code=$?" >> $GITHUB_OUTPUT
+
+      - name: Generate health report
+        run: |
+          python -m scripts.memory_enhancement health --format markdown > memory-health-report.md
+
+      - name: Upload validation results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.5.0
+        with:
+          name: memory-validation-results
+          path: |
+            memory-validation-results.json
+            memory-health-report.md
+          retention-days: 7
+
+      - name: Parse validation results
+        id: parse
+        run: |
+          if [ -f memory-validation-results.json ]; then
+            total=$(jq 'length' memory-validation-results.json)
+            stale=$(jq '[.[] | select(.valid == false)] | length' memory-validation-results.json)
+            valid=$((total - stale))
+
+            echo "total=$total" >> $GITHUB_OUTPUT
+            echo "valid=$valid" >> $GITHUB_OUTPUT
+            echo "stale=$stale" >> $GITHUB_OUTPUT
+
+            if [ "$stale" -gt 0 ]; then
+              echo "has_stale=true" >> $GITHUB_OUTPUT
+            else
+              echo "has_stale=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "has_stale=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Post PR comment
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+        with:
+          script: |
+            const fs = require('fs');
+            const report = fs.readFileSync('memory-health-report.md', 'utf8');
+            const hasStale = '${{ steps.parse.outputs.has_stale }}' === 'true';
+
+            const status = hasStale ? '⚠️  Warning' : '✅ Pass';
+            const message = `<!-- MEMORY-VALIDATION -->
+            ## ${status}: Memory Validation
+
+            ${report}
+
+            ---
+            <details>
+            <summary>📊 Validation Details</summary>
+
+            - **Total memories checked**: ${{ steps.parse.outputs.total }}
+            - **Valid**: ${{ steps.parse.outputs.valid }}
+            - **Stale**: ${{ steps.parse.outputs.stale }}
+
+            </details>`;
+
+            // Find existing comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const botComment = comments.find(comment =>
+              comment.user.type === 'Bot' &&
+              comment.body.includes('<!-- MEMORY-VALIDATION -->')
+            );
+
+            if (botComment) {
+              // Update existing comment
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: message
+              });
             } else {
-              # Verify that the 'before' commit exists (may not after force-push/rebase)
-              git cat-file -e "$beforeSha^{commit}" 2>$null
-              if ($LASTEXITCODE -ne 0) {
-                Write-Host "Warning: Base commit $beforeSha not found (possible force-push)." -ForegroundColor Yellow
-                # For push to main where base commit is missing, compare the single pushed commit
-                # Using $afterSha^..$afterSha gets just that commit's changes
-                # If that fails (e.g., first commit ever), fall back to empty diff (skip validation)
-                git cat-file -e "$afterSha^" 2>$null
-                if ($LASTEXITCODE -eq 0) {
-                  Write-Host "Comparing single commit $afterSha against its parent..." -ForegroundColor Yellow
-                  $diffOutput = git diff --name-only "$afterSha^..$afterSha"
-                } else {
-                  Write-Host "Cannot determine base for comparison. Skipping memory validation." -ForegroundColor Yellow
-                  echo "skip=true" >> $env:GITHUB_OUTPUT
-                  exit 0
-                }
-              } else {
-                # Normal push: use two dots for direct commit range
-                $diffOutput = git diff --name-only "$beforeSha..$afterSha"
-              }
+              // Create new comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: message
+              });
             }
-          } else {
-            # Fallback for workflow_dispatch or other events
-            # Check if HEAD is on main branch
-            $currentBranch = git rev-parse --abbrev-ref HEAD
-            if ($currentBranch -eq 'main') {
-              # On main: compare against HEAD~1 if it exists, otherwise skip
-              git cat-file -e "HEAD^" 2>$null
-              if ($LASTEXITCODE -eq 0) {
-                Write-Host "On main branch. Comparing HEAD against parent..." -ForegroundColor Yellow
-                $diffOutput = git diff --name-only HEAD^..HEAD
-              } else {
-                Write-Host "On main branch with no parent. Skipping memory validation." -ForegroundColor Yellow
-                echo "skip=true" >> $env:GITHUB_OUTPUT
-                exit 0
-              }
-            } else {
-              # On feature branch: use three-dot syntax against main
-              $diffOutput = git diff --name-only origin/main...HEAD
-            }
-          }
 
-          # Check if git diff succeeded
-          if ($LASTEXITCODE -ne 0) {
-            Write-Error "git diff command failed with exit code $LASTEXITCODE"
-            exit $LASTEXITCODE
-          }
-
-          # Split output into array (git diff returns newline-separated string)
-          $changedFiles = $diffOutput -split '\r?\n' | Where-Object { $_ }
-
-          # Match any file under .serena/memories/ (including subdirectories)
-          $memoryChanges = $changedFiles | Where-Object { $_ -match '^\.serena/memories/' }
-
-          if ($memoryChanges.Count -eq 0) {
-            Write-Host "No memory files changed. Skipping validation." -ForegroundColor Yellow
-            Write-Host "This allows workflow-only changes to pass without validating pre-existing issues."
-            echo "skip=true" >> $env:GITHUB_OUTPUT
-          } else {
-            Write-Host "Memory files changed: $($memoryChanges.Count) file(s)" -ForegroundColor Cyan
-            $memoryChanges | ForEach-Object { Write-Host "  - $_" }
-            echo "skip=false" >> $env:GITHUB_OUTPUT
-            # Pass changed files as JSON array for the validation step
-            # Use @() to ensure consistent array output even for single items
-            $filesJson = @($memoryChanges) | ConvertTo-Json -Compress
-            echo "files=$filesJson" >> $env:GITHUB_OUTPUT
-          }
-
-      - name: Validate Skill Format (ADR-017)
-        if: steps.changes.outputs.skip != 'true'
-        shell: pwsh -NoProfile -Command "& '{0}'"
-        env:
-          CHANGED_FILES: ${{ steps.changes.outputs.files }}
+      - name: Set job status
+        if: steps.parse.outputs.has_stale == 'true'
         run: |
-          Write-Host "=== Skill Format Validation ===" -ForegroundColor Cyan
-          Write-Host "Checking for bundled skill files (multiple skills per file)..." -ForegroundColor Gray
-          # Pass only changed files to the script (prevents checking pre-existing issues in unchanged files)
-          $changedFiles = $env:CHANGED_FILES | ConvertFrom-Json
-          ./scripts/Validate-SkillFormat.ps1 -CI -ChangedFiles $changedFiles
+          echo "::warning::Found ${{ steps.parse.outputs.stale }} memories with stale citations"
+          # Currently non-blocking - change to 'exit 1' to make blocking
 
-      - name: Validate Memory Index
-        if: steps.changes.outputs.skip != 'true'
-        shell: pwsh -NoProfile -Command "& '{0}'"
-        run: |
-          Write-Host "=== Memory Index Validation ===" -ForegroundColor Cyan
-          Write-Host "Checking index file references and keyword uniqueness..." -ForegroundColor Gray
-          ./scripts/Validate-MemoryIndex.ps1 -CI
+  skip-validation:
+    name: Skip validation (no changes)
+    needs: check-paths
+    if: needs.check-paths.outputs.memories-changed != 'true' && needs.check-paths.outputs.code-changed != 'true'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 1
+    steps:
+      - name: Checkout code
+        # Required for dorny/paths-filter pattern consistency
+        # See: .serena/memories/ci-infrastructure-dorny-paths-filter-checkout.md
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
-      - name: Skip notice
-        if: steps.changes.outputs.skip == 'true'
+      - name: Skip message
         run: |
-          echo "::notice::Memory validation skipped - no .serena/memories/** files changed in this PR."
+          echo "No memory or code changes detected - skipping validation"

@@ -580,6 +580,16 @@ Files distributed to end-users (`src/claude/`, `src/copilot-cli/`, `src/vs-code-
 
 ---
 
+## Memory Interface Selection
+
+> **Confused about which memory interface to use?** The project has 4 memory backends (Forgetful, Serena, Memory Router, slash commands). Use the `context-retrieval` agent when you need to gather context before planning or implementation.
+
+**When to invoke**: Before starting complex tasks that require understanding existing patterns, prior decisions, or cross-project knowledge.
+
+**Full decision matrix**: See [context-retrieval agent](.claude/agents/context-retrieval.md#memory-interface-decision-matrix) for the complete interface selection guide.
+
+---
+
 ## Agent Catalog
 
 > **Persona-Based Definitions**: Each agent has a specific expertise and persona for focused task execution.
@@ -1130,6 +1140,67 @@ Read `.serena/memories/usage-mandatory.md`
 | **retrospective** | Search all related entities; create skill entities from learnings |
 | **skillbook** | Search for duplicates; create/update skill entities |
 
+### Memory Enhancement Layer (Citations & Confidence)
+
+The memory-enhancement skill provides citation management and confidence scoring for Serena memories.
+
+**Purpose:** Link memories to specific code locations and track validity over time.
+
+**When to Use:**
+
+- Adding citations when documenting code-specific learnings
+- Verifying citations after refactoring or code changes
+- Monitoring memory health (stale citations detection)
+- Calculating confidence scores based on citation validity
+
+**CLI Commands:**
+
+| Command | Purpose | Example |
+|---------|---------|---------|
+| `add-citation` | Link memory to code location | `python -m memory_enhancement add-citation memory-001 --file src/api.py --line 42` |
+| `verify` | Check citation validity | `python -m memory_enhancement verify memory-001` |
+| `verify-all` | Batch verification | `python -m memory_enhancement verify-all` |
+| `update-confidence` | Recalculate confidence score | `python -m memory_enhancement update-confidence memory-001` |
+| `list-citations` | Show citations with status | `python -m memory_enhancement list-citations memory-001` |
+| `health` | Generate health report | `python -m memory_enhancement health` |
+
+**Confidence Scoring:**
+
+```text
+confidence = valid_citations / total_citations
+```
+
+| Score Range | Interpretation | Action |
+|-------------|----------------|--------|
+| 0.9 - 1.0 | High confidence | Trust memory, use in decisions |
+| 0.7 - 0.9 | Medium confidence | Review stale citations |
+| 0.5 - 0.7 | Low confidence | Update or mark obsolete |
+| 0.0 - 0.5 | Very low confidence | Memory likely outdated |
+
+**Integration with reflect Skill:**
+
+The reflect skill automatically detects code references in learnings and adds citations:
+
+```text
+Learning: "Bug was in `src/api.py` line 42, forgot to handle None"
+→ Auto-adds citation: src/api.py:42 with snippet "handle None"
+```
+
+**Best Practices:**
+
+- Add citations when creating code-specific memories
+- Run `verify-all` after major refactoring
+- Check confidence before relying on memories in decisions
+- Use `health` command to prioritize memory maintenance
+- Focus on 2-3 key citations (avoid over-citing)
+
+**See Also:**
+
+- [memory-enhancement skill](.claude/skills/memory-enhancement/SKILL.md)
+- [Confidence scoring guide](.claude/skills/memory-enhancement/references/confidence-scoring.md)
+- [Examples](.claude/skills/memory-enhancement/references/examples.md)
+- [ADR-037: Reflexion Memory Schema](.agents/architecture/ADR-037-reflexion-schema.md) (if exists)
+
 ---
 
 ## Workflow Patterns
@@ -1404,6 +1475,127 @@ Learnings are scored 0-100% for quality:
 | 70-94% | Good | Accept with refinement |
 | 40-69% | Needs Work | Refine before adding |
 | <40% | Rejected | Too vague |
+
+---
+
+## Passive Context Strategy
+
+> **Key Insight**: Based on Vercel's evaluation research, models don't invoke on-demand skills 56% of the time. Passive context (information loaded every session) significantly outperforms on-demand retrieval.
+>
+> **IMPORTANT**: Prefer retrieval-led reasoning over pre-training-led reasoning for session protocol, memory operations, and repository conventions.
+
+### Vercel's Evaluation Results
+
+| Configuration | Pass Rate |
+|---------------|-----------|
+| Baseline (no docs) | 53% |
+| Skill (default behavior) | 53% |
+| Skill + explicit instructions | 79% |
+| **AGENTS.md passive context** | **100%** |
+
+The difference: No decision point. Information is present every turn.
+
+### The Skill Invocation Problem
+
+Skills are powerful, but they require the model to:
+
+1. Recognize that a skill might exist
+2. Decide to look it up
+3. Read and apply it correctly
+
+Research shows step 1 fails over half the time—the model just doesn't think to look.
+
+### Skill Classification: Horizontal vs Vertical
+
+| Type | Definition | Location |
+|------|------------|----------|
+| **Horizontal** | Knowledge needed across all tasks (implicit use) | Passive context |
+| **Vertical** | Action-specific workflows with explicit triggers | Keep as skill |
+| **Hybrid** | Contains both knowledge and action scripts | Split between both |
+
+#### Horizontal → Passive Context
+
+These skills contain knowledge that should be "always available":
+
+- **session** / **session-init**: Protocol compliance is non-negotiable
+- **memory**: Memory-first principle applies to all tasks
+- **curating-memories**: Curation rules needed across sessions
+- **doc-sync**: Documentation hygiene applies broadly
+
+#### Vertical → Keep as Skills
+
+These require explicit user triggers:
+
+| Skill | Trigger Phrases |
+|-------|-----------------|
+| **github** | "create PR", "triage issue", "respond to review" |
+| **adr-review** | "review this ADR", "check architecture decision" |
+| **merge-resolver** | "resolve merge conflict", "fix conflicts in X" |
+| **planner** | "plan this feature", "create implementation plan" |
+| **decision-critic** | "critique this decision", "devil's advocate on" |
+| **security-detection** | "scan for security changes" |
+
+#### Hybrid → Split Knowledge from Actions
+
+| Skill | Knowledge → Passive | Actions → Skill |
+|-------|---------------------|-----------------|
+| **pr-comment-responder** | Comment classification tree, routing rules | Comment response execution |
+| **session-log-fixer** | Validation failure patterns | `Fix-SessionLog.ps1` execution |
+
+### Our Solution: Layered Context
+
+We use a three-tier approach:
+
+| Tier | File | Purpose | Size |
+|------|------|---------|------|
+| 1 | `CLAUDE.md` | Minimal entry point | ~2.5KB |
+| 2 | `CRITICAL-CONTEXT.md` | Blocking constraints | ~2.5KB |
+| 3 | `SKILL-QUICK-REF.md` | Skill awareness + routing | ~3.5KB |
+
+**Context Budget**: ~8.5KB always-loaded (target ceiling: 10KB). Full skills (`.claude/skills/`) are on-demand.
+
+### Compression Strategy
+
+Vercel compressed 40KB → 8KB (80% reduction) while maintaining 100% pass rate.
+
+We use pipe-delimited compressed indexes in `SKILL-QUICK-REF.md`:
+
+```text
+[Session Protocol]
+|BLOCKING-START: serena-init, handoff-read, log-create, branch-verify
+|BLOCKING-END: log-complete, serena-update, lint-check, validate-pass
+```
+
+This packs horizontal knowledge into minimal space while remaining readable.
+
+### Pattern Recognition > Skill Lookup
+
+Instead of hoping the model looks up skills, we teach pattern recognition:
+
+```markdown
+# This passive context approach:
+"When addressing PR review comments → use pr-comment-responder skill"
+
+# Is more effective than:
+"Skills are in .claude/skills/, read them when needed"
+```
+
+The first version activates on pattern match; the second requires the model to initiate a search.
+
+### Explore First Pattern
+
+When skills ARE needed, wording matters:
+
+| Instruction | Outcome |
+|-------------|---------|
+| "You MUST invoke the skill" | Misses project context |
+| "Explore project first, then invoke skill" | Better results |
+
+Before invoking any skill:
+
+1. Explore the relevant project context
+2. Build mental model of current state
+3. Then invoke skill as reference, not prescription
 
 ---
 
