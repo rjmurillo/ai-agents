@@ -1173,7 +1173,7 @@ class TestHandlerErrorPaths:
         assert "missing file" in result.stderr
 
     def test_update_confidence_io_error(self, tmp_path, call_main, monkeypatch):
-        """update-confidence returns 3 when update raises IOError."""
+        """update-confidence returns 3 when update raises OSError."""
         memories_dir = tmp_path / ".serena" / "memories"
         memories_dir.mkdir(parents=True)
         memory_file = memories_dir / "test-mem.md"
@@ -1194,6 +1194,49 @@ class TestHandlerErrorPaths:
 
         assert result.returncode == 3
         assert "write failed" in result.stderr
+
+    def test_add_citation_os_error(self, tmp_path, call_main, monkeypatch):
+        """add-citation returns 3 when add_citation_to_memory raises OSError."""
+        memories_dir = tmp_path / ".serena" / "memories"
+        memories_dir.mkdir(parents=True)
+        memory_file = memories_dir / "test-mem.md"
+        memory_file.write_text("---\nid: test-mem\nsubject: T\n---\nContent")
+
+        def _raise_os(**kwargs):
+            raise OSError("disk full")
+
+        monkeypatch.setattr(
+            "scripts.memory_enhancement.__main__.add_citation_to_memory", _raise_os
+        )
+
+        result = call_main(
+            "add-citation", str(memory_file),
+            "--file", "src/test.py", cwd=tmp_path,
+        )
+
+        assert result.returncode == 3
+        assert "disk full" in result.stderr
+
+    def test_list_citations_os_error(self, tmp_path, call_main, monkeypatch):
+        """list-citations returns 3 when list_citations_with_status raises OSError."""
+        memories_dir = tmp_path / ".serena" / "memories"
+        memories_dir.mkdir(parents=True)
+        memory_file = memories_dir / "test-mem.md"
+        memory_file.write_text("---\nid: test-mem\nsubject: T\n---\nContent")
+
+        def _raise_os(path, **kwargs):
+            raise OSError("permission denied")
+
+        monkeypatch.setattr(
+            "scripts.memory_enhancement.__main__.list_citations_with_status", _raise_os
+        )
+
+        result = call_main(
+            "list-citations", str(memory_file), cwd=tmp_path,
+        )
+
+        assert result.returncode == 3
+        assert "permission denied" in result.stderr
 
     def test_list_citations_file_not_found(self, tmp_path, call_main, monkeypatch):
         """list-citations returns 2 when list_citations_with_status raises FileNotFoundError."""

@@ -351,6 +351,12 @@ def test_traverse_bfs_branching(memories_dir_branching):
     depths = [n.depth for n in result.nodes]
     assert depths == [0, 1, 1, 2, 2]
 
+    parents = [n.parent for n in result.nodes]
+    assert parents == [None, "memory-a", "memory-a", "memory-b", "memory-d"]
+
+    link_types = [n.link_type for n in result.nodes]
+    assert link_types == [None, LinkType.RELATED, LinkType.RELATED, LinkType.RELATED, LinkType.RELATED]
+
 
 @pytest.mark.unit
 def test_traverse_dfs_branching(memories_dir_branching):
@@ -370,6 +376,12 @@ def test_traverse_dfs_branching(memories_dir_branching):
 
     depths = [n.depth for n in result.nodes]
     assert depths == [0, 1, 2, 1, 2]
+
+    parents = [n.parent for n in result.nodes]
+    assert parents == [None, "memory-a", "memory-d", "memory-a", "memory-b"]
+
+    link_types = [n.link_type for n in result.nodes]
+    assert link_types == [None, LinkType.RELATED, LinkType.RELATED, LinkType.RELATED, LinkType.RELATED]
 
 
 @pytest.mark.unit

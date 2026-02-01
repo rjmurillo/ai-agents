@@ -93,7 +93,7 @@ class MemoryGraph:
             try:
                 memory = Memory.from_serena_file(memory_file)
                 self._memory_cache[memory.id] = memory
-            except (OSError, IOError, UnicodeDecodeError, ValueError, KeyError, yaml.YAMLError) as e:
+            except (OSError, UnicodeDecodeError, ValueError, KeyError, yaml.YAMLError) as e:
                 # Skip invalid memory files but continue loading others
                 print(f"Warning: Failed to load {memory_file}: {e}", file=sys.stderr)
 
@@ -138,6 +138,41 @@ class MemoryGraph:
 
         return related
 
+    def _enqueue_children(
+        self,
+        current: TraversalNode,
+        visited: set[str],
+        queue: deque,
+        cycles: list[tuple[str, str]],
+        link_types: Optional[list[LinkType]],
+    ) -> None:
+        """Enqueue unvisited children of the current node.
+
+        Mutates *visited*, *queue*, and *cycles* in place.
+        Records cycles when a link target has already been visited.
+        Skips links whose type is not in *link_types* (when provided)
+        and targets not present in the graph.
+        """
+        for link in current.memory.links:
+            if link_types and link.link_type not in link_types:
+                continue
+
+            target = self.get_memory(link.target_id)
+            if not target:
+                continue
+
+            if link.target_id in visited:
+                cycles.append((current.memory.id, link.target_id))
+                continue
+
+            visited.add(link.target_id)
+            queue.append(TraversalNode(
+                memory=target,
+                depth=current.depth + 1,
+                parent=current.memory.id,
+                link_type=link.link_type,
+            ))
+
     def traverse(
         self,
         root_id: str,
@@ -163,58 +198,22 @@ class MemoryGraph:
         if not root:
             raise ValueError(f"Root memory not found: {root_id}")
 
-        visited: set[str] = set()
+        visited: set[str] = {root_id}
         nodes: list[TraversalNode] = []
         cycles: list[tuple[str, str]] = []
-
-        # Initialize with root node
-        root_node = TraversalNode(memory=root, depth=0)
-        queue = deque([root_node])
-        visited.add(root_id)
-
+        queue: deque[TraversalNode] = deque([TraversalNode(memory=root, depth=0)])
         current_max_depth = 0
+        pop = queue.popleft if strategy == TraversalStrategy.BFS else queue.pop
 
         while queue:
-            # Pop from front (BFS) or back (DFS)
-            if strategy == TraversalStrategy.BFS:
-                current = queue.popleft()
-            else:  # DFS
-                current = queue.pop()
-
+            current = pop()
             nodes.append(current)
             current_max_depth = max(current_max_depth, current.depth)
 
-            # Check depth limit
             if max_depth is not None and current.depth >= max_depth:
                 continue
 
-            # Get all links from current memory
-            for link in current.memory.links:
-                # Filter by link type if specified
-                if link_types and link.link_type not in link_types:
-                    continue
-
-                target_id = link.target_id
-                target = self.get_memory(target_id)
-
-                if not target:
-                    # Skip invalid references
-                    continue
-
-                # Detect cycle
-                if target_id in visited:
-                    cycles.append((current.memory.id, target_id))
-                    continue
-
-                # Add to queue
-                visited.add(target_id)
-                child_node = TraversalNode(
-                    memory=target,
-                    depth=current.depth + 1,
-                    parent=current.memory.id,
-                    link_type=link.link_type,
-                )
-                queue.append(child_node)
+            self._enqueue_children(current, visited, queue, cycles, link_types)
 
         return TraversalResult(
             root_id=root_id,

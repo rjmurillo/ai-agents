@@ -29,7 +29,7 @@ from typing import Optional
 import yaml
 
 from .citations import verify_memory, verify_all_memories
-from .graph import MemoryGraph, TraversalStrategy
+from .graph import MemoryGraph, TraversalResult, TraversalStrategy
 from .health import generate_health_report
 from .models import Memory
 from .serena import add_citation_to_memory, update_confidence, list_citations_with_status
@@ -40,6 +40,12 @@ EXIT_VALIDATION_ERROR = 1
 EXIT_NOT_FOUND = 2
 EXIT_IO_ERROR = 3
 EXIT_SECURITY_ERROR = 4
+
+# Exceptions raised when parsing memory YAML frontmatter.
+# Split into two tuples so handlers can route OSError to EXIT_IO_ERROR
+# while keeping parse-only errors on EXIT_VALIDATION_ERROR.
+_PARSE_ERRORS = (yaml.YAMLError, ValueError, KeyError, UnicodeDecodeError)
+_PARSE_ERRORS_WITH_OS = _PARSE_ERRORS + (OSError,)
 
 
 class CLIError(Exception):
@@ -125,7 +131,7 @@ def _handle_verify(args) -> int:
     path = _resolve_memory_path(args.memory, EXIT_VALIDATION_ERROR)
     try:
         memory = Memory.from_serena_file(path)
-    except (yaml.YAMLError, ValueError, KeyError, UnicodeDecodeError, OSError) as e:
+    except _PARSE_ERRORS_WITH_OS as e:
         print(f"Error: Failed to parse memory file: {e}", file=sys.stderr)
         return EXIT_VALIDATION_ERROR
     result = verify_memory(memory)
@@ -195,6 +201,51 @@ def _handle_health(args) -> int:
     return EXIT_SUCCESS
 
 
+def _format_graph_json(result: TraversalResult) -> str:
+    """Format traversal result as JSON string."""
+    return json.dumps({
+        "root_id": result.root_id,
+        "strategy": result.strategy.value,
+        "max_depth": result.max_depth,
+        "nodes": [
+            {
+                "memory_id": node.memory.id,
+                "depth": node.depth,
+                "parent": node.parent,
+                "link_type": node.link_type.value if node.link_type else None,
+            }
+            for node in result.nodes
+        ],
+        "cycles": [{"from": from_id, "to": to_id} for from_id, to_id in result.cycles],
+    })
+
+
+def _format_graph_text(result: TraversalResult) -> str:
+    """Format traversal result as human-readable text."""
+    lines = [
+        f"Graph Traversal ({result.strategy.value.upper()})",
+        f"Root: {result.root_id}",
+        f"Nodes visited: {len(result.nodes)}",
+        f"Max depth: {result.max_depth}",
+        f"Cycles detected: {len(result.cycles)}",
+        "",
+        "Traversal order:",
+    ]
+    for node in result.nodes:
+        indent = "  " * node.depth
+        link_info = f" [{node.link_type.value}]" if node.link_type else ""
+        parent_info = f" (from {node.parent})" if node.parent else " (root)"
+        lines.append(f"{indent}- {node.memory.id}{link_info}{parent_info}")
+
+    if result.cycles:
+        lines.append("")
+        lines.append("Cycles:")
+        for from_id, to_id in result.cycles:
+            lines.append(f"  - {from_id} -> {to_id}")
+
+    return "\n".join(lines)
+
+
 def _handle_graph(args) -> int:
     """Handle the graph command."""
     dir_path = _resolve_directory_path(args.dir)
@@ -215,48 +266,13 @@ def _handle_graph(args) -> int:
         result = graph.traverse(
             root_id=args.root,
             strategy=strategy,
-            max_depth=args.max_depth
+            max_depth=args.max_depth,
         )
     except ValueError as e:
         print(f"Error: {e}", file=sys.stderr)
         return EXIT_VALIDATION_ERROR
 
-    if args.json:
-        print(json.dumps({
-            "root_id": result.root_id,
-            "strategy": result.strategy.value,
-            "max_depth": result.max_depth,
-            "nodes": [
-                {
-                    "memory_id": node.memory.id,
-                    "depth": node.depth,
-                    "parent": node.parent,
-                    "link_type": node.link_type.value if node.link_type else None
-                }
-                for node in result.nodes
-            ],
-            "cycles": [{"from": f, "to": t} for f, t in result.cycles]
-        }))
-    else:
-        print(f"Graph Traversal ({result.strategy.value.upper()})")
-        print(f"Root: {result.root_id}")
-        print(f"Nodes visited: {len(result.nodes)}")
-        print(f"Max depth: {result.max_depth}")
-        print(f"Cycles detected: {len(result.cycles)}")
-        print()
-        print("Traversal order:")
-        for node in result.nodes:
-            indent = "  " * node.depth
-            link_info = f" [{node.link_type.value}]" if node.link_type else ""
-            parent_info = f" (from {node.parent})" if node.parent else " (root)"
-            print(f"{indent}- {node.memory.id}{link_info}{parent_info}")
-
-        if result.cycles:
-            print()
-            print("Cycles:")
-            for from_id, to_id in result.cycles:
-                print(f"  - {from_id} -> {to_id}")
-
+    print(_format_graph_json(result) if args.json else _format_graph_text(result))
     return EXIT_SUCCESS
 
 
@@ -283,10 +299,10 @@ def _handle_add_citation(args) -> int:
     except FileNotFoundError as e:
         print(f"Error: {e}", file=sys.stderr)
         return EXIT_NOT_FOUND
-    except (yaml.YAMLError, ValueError, KeyError, UnicodeDecodeError, OSError) as e:
+    except _PARSE_ERRORS as e:
         print(f"Validation failed: {e}", file=sys.stderr)
         return EXIT_VALIDATION_ERROR
-    except IOError as e:
+    except OSError as e:
         print(f"I/O error: {e}", file=sys.stderr)
         return EXIT_IO_ERROR
 
@@ -297,7 +313,7 @@ def _handle_update_confidence(args) -> int:
 
     try:
         memory = Memory.from_serena_file(path)
-    except (yaml.YAMLError, ValueError, KeyError, UnicodeDecodeError, OSError) as e:
+    except _PARSE_ERRORS_WITH_OS as e:
         print(f"Error: Failed to parse memory file: {e}", file=sys.stderr)
         return EXIT_VALIDATION_ERROR
 
@@ -313,7 +329,7 @@ def _handle_update_confidence(args) -> int:
     except FileNotFoundError as e:
         print(f"Error: {e}", file=sys.stderr)
         return EXIT_NOT_FOUND
-    except IOError as e:
+    except OSError as e:
         print(f"I/O error: {e}", file=sys.stderr)
         return EXIT_IO_ERROR
 
@@ -339,10 +355,10 @@ def _handle_list_citations(args) -> int:
     except FileNotFoundError as e:
         print(f"Error: {e}", file=sys.stderr)
         return EXIT_NOT_FOUND
-    except (yaml.YAMLError, ValueError, KeyError, UnicodeDecodeError, OSError) as e:
+    except _PARSE_ERRORS as e:
         print(f"Error: Failed to process memory file: {e}", file=sys.stderr)
         return EXIT_VALIDATION_ERROR
-    except IOError as e:
+    except OSError as e:
         print(f"I/O error: {e}", file=sys.stderr)
         return EXIT_IO_ERROR
 

@@ -27,7 +27,7 @@ def update_confidence(memory: Memory, verification: VerificationResult) -> None:
 
     Raises:
         FileNotFoundError: If memory file doesn't exist
-        IOError: If file write fails
+        OSError: If file write fails
     """
     if not memory.path.exists():
         raise FileNotFoundError(f"Memory file not found: {memory.path}")
@@ -89,7 +89,7 @@ def add_citation_to_memory(
     Raises:
         FileNotFoundError: If memory file or cited file doesn't exist
         ValueError: If citation is invalid (line out of bounds, etc.)
-        IOError: If file write fails
+        OSError: If file write fails
     """
     if repo_root is None:
         repo_root = Path.cwd()

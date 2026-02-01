@@ -69,7 +69,7 @@ def verify_citation(citation: Citation, repo_root: Path) -> Citation:
             return citation
 
         citation.valid = True
-    except (OSError, IOError, UnicodeDecodeError) as e:
+    except (OSError, UnicodeDecodeError) as e:
         citation.valid = False
         citation.mismatch_reason = f"File read error: {e}"
 
@@ -129,7 +129,7 @@ def verify_all_memories(
             memory = Memory.from_serena_file(md_file)
             if memory.citations:
                 results.append(verify_memory(memory, repo_root))
-        except (OSError, IOError, UnicodeDecodeError, ValueError, KeyError, yaml.YAMLError) as e:
+        except (OSError, UnicodeDecodeError, ValueError, KeyError, yaml.YAMLError) as e:
             print(f"Warning: Could not parse {md_file}: {e}", file=sys.stderr)
             parse_failures += 1
 
