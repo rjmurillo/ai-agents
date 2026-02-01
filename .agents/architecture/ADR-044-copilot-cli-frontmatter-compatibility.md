@@ -20,21 +20,21 @@ The `available` list shows only built-in agents. Our 18 custom agents in `.githu
 
 ### Root Cause
 
-Copilot CLI 0.0.400 introduced strict frontmatter field validation. Custom agent `.agent.md` files with unsupported frontmatter fields are rejected silently. Rejection is logged as WARNING in debug logs but not surfaced to users.
+Copilot CLI 0.0.398+ introduced a regression in frontmatter field validation (tracked upstream as [github/copilot-cli#1195](https://github.com/github/copilot-cli/issues/1195)). Previously supported fields (`model`, `handoffs`, `argument-hint`) are now rejected as "unsupported." Custom agent `.agent.md` files with these fields are rejected silently. Rejection is logged as WARNING in debug logs but not surfaced to users.
 
 Specific failures:
 
-1. **`argument-hint` field**: All 18 shared agents had this field. Debug logs show `agent uses unsupported fields: argument-hint`.
-2. **`model` field**: 6 agents had this field (VS Code-targeted agents that were synced to `.github/agents/`). The `model` field controlled model selection for VS Code Copilot Chat but had no effect in Copilot CLI. Removing it has no impact on CI agent behavior.
+1. **`argument-hint` field**: All 18 shared agents had this field. Debug logs show `agent uses unsupported fields: argument-hint`. This was a working, supported field prior to 0.0.398.
+2. **`model` field**: 6 agents had this field with an incorrect value (`Claude Opus 4.5 (anthropic)`) synced from VS Code platform config. The `model` field is a valid Copilot CLI parameter for specifying which model an agent should use, but it is also affected by the same regression. The incorrect value is a separate issue from the regression.
 3. **YAML parse errors**: 4 agents (code-reviewer, code-simplifier, comment-analyzer, pr-test-analyzer) had YAML parse errors from complex description values. These are Claude Code-only agents not used in CI, so they did not affect CI functionality.
 
-The supported frontmatter fields in 0.0.400 are: `name`, `description`, `tools`. Only these three fields are allowed.
+The only fields accepted in 0.0.398+ are: `name`, `description`, `tools`. This is a regression from previous behavior where `model`, `handoffs`, and `argument-hint` were all valid.
 
 ### Origin of Removed Fields
 
-The `argument-hint` field was introduced when Copilot CLI added interactive agent invocation. It provided a cosmetic prompt suggestion in interactive mode (e.g., "Describe the topic to research"). No Copilot CLI documentation confirmed `argument-hint` as a supported field. It worked in 0.0.382 because earlier versions did not validate frontmatter fields. This project was using an undocumented feature that happened to work.
+The `argument-hint` field was introduced when Copilot CLI added interactive agent invocation. It provided a prompt suggestion in interactive mode (e.g., "Describe the topic to research"). This was a supported feature that worked through 0.0.382 and was broken by the regression in 0.0.398+.
 
-The `model` field was defined in the VS Code agent platform configuration (`templates/platforms/vscode.yaml`). The build system incorrectly included it in some `.github/agents/` files that were synced from VS Code output. It was never intended for Copilot CLI agents.
+The `model` field is a valid Copilot CLI parameter for specifying which AI model an agent should use. It is also affected by the 0.0.398+ regression. In our agents, the `model` value was incorrect: `Claude Opus 4.5 (anthropic)` was the VS Code platform value from `templates/platforms/vscode.yaml`, not a valid Copilot CLI model identifier. The build system (`copilot-cli.yaml`) had `model: null`, so the field should not have appeared in Copilot CLI output. The 6 affected agents had the field from an earlier sync before the build system properly separated platform configs.
 
 ### Auto-Update Bypass
 
@@ -61,8 +61,11 @@ These warnings appear only with `--log-level all` flag. Default output shows no 
 
 ## Decision
 
-1. Remove `argument-hint` and `model` fields from all Copilot CLI agent frontmatter. Use only fields confirmed supported: `name`, `description`, `tools`.
-2. Add pre-flight agent validation to the CI quality gate workflow. Before running agent reviews, validate that required agents are loadable via `copilot --list-agents`.
+1. **Pin Copilot CLI to 0.0.397** in CI (`npm install -g @github/copilot@0.0.397`) with `--no-auto-update` flag on all invocations. This is the last version before the frontmatter regression.
+2. **Fix `model` field value** from VS Code format (`Claude Opus 4.5 (anthropic)`) to Copilot CLI format (`claude-opus-4.5`). Update `templates/platforms/copilot-cli.yaml` to generate correct values.
+3. **Retain `argument-hint` and `model` fields** in all agent frontmatter. These are valid Copilot CLI fields broken by an upstream regression, not unsupported features.
+4. **Add version verification** to CI. After install, verify `copilot --no-auto-update --version` matches the pinned version and warn if the binary auto-updated.
+5. **Monitor [github/copilot-cli#1195](https://github.com/github/copilot-cli/issues/1195)** for resolution. When the regression is fixed, evaluate upgrading past 0.0.397.
 
 ## Rationale
 
@@ -70,97 +73,94 @@ These warnings appear only with `--log-level all` flag. Default output shows no 
 
 | Alternative | Pros | Cons | Why Not Chosen |
 |-------------|------|------|----------------|
-| Pin Copilot CLI version in CI | Prevents future breakage | Auto-update mechanism bypasses npm version pinning | Ineffective due to binary auto-update; listed as defense-in-depth only |
-| Add `--no-auto-update` flag | Prevents updates | Flag does not prevent initial binary download from being latest version | Does not solve version pinning |
-| Keep `argument-hint` and wait | No code changes needed | Blocks CI indefinitely, no timeline from GitHub | Unacceptable business impact |
-| Wrap `argument-hint` in extension | Could enable custom fields | No extension mechanism exists in Copilot CLI | Not technically feasible |
+| Remove unsupported fields and upgrade | Works with any CLI version | Loses `model` and `argument-hint` functionality | Fields are valid; the CLI is broken, not the fields |
+| Keep broken version and wait | No code changes needed | Blocks CI indefinitely, no timeline from GitHub | Unacceptable business impact |
+| Pin version without `--no-auto-update` | Simple npm pin | Binary auto-update may bypass npm pin | `--no-auto-update` flag adds defense-in-depth |
+| Migrate to Claude Code CLI | Eliminates Copilot CLI dependency | Different feature set, significant migration | Disproportionate effort for a regression that will be fixed |
 | Do nothing (status quo) | No effort | CI remains broken for all PRs | Unacceptable |
 
 ### Trade-offs
 
-**Accepted**: Loss of `argument-hint` UI suggestion feature. This field provided cosmetic prompt suggestions in Copilot CLI interactive mode. It was an undocumented feature, not a supported API.
+**Accepted**: Pinning to 0.0.397 means CI does not receive Copilot CLI improvements until we explicitly upgrade. npm deprecation warning notes "a bug in this version caused invalid session id errors." This is acceptable because CI runs are non-interactive and session IDs do not affect agent review output.
 
-**Accepted**: Ongoing monitoring burden. Future Copilot CLI releases may change frontmatter field support again. Mitigated by pre-flight validation in CI.
+**Accepted**: Ongoing monitoring of [github/copilot-cli#1195](https://github.com/github/copilot-cli/issues/1195) for when to upgrade.
 
-**Avoided**: CI pipeline remains functional. Agent execution logic unaffected (argument hints were not used in agent behavior).
+**Avoided**: No loss of agent functionality. `argument-hint` and `model` fields remain operational.
 
 ## Consequences
 
 ### Positive
 
-- CI pipeline restored to working state
-- All 18 custom agents load successfully in Copilot CLI 0.0.400
-- Agents validate successfully with debug logging enabled
-- Template architecture maintained consistency across all generated agents
-- Pre-flight validation prevents future silent agent rejection in CI
+- CI pipeline restored to working state on 0.0.397
+- All 18 custom agents load with full frontmatter (`argument-hint`, `model`, `tools`)
+- `model` field corrected from VS Code format to Copilot CLI format (`claude-opus-4.5`)
+- Build system now generates platform-correct model values for both Copilot CLI and VS Code
+- Version verification in CI detects binary auto-update bypass
 
 ### Negative
 
-- `argument-hint` field content removed from all templates and generated files
-- Interactive Copilot CLI UI no longer shows argument suggestions for custom agents
-- Must monitor future Copilot CLI releases for frontmatter schema changes
+- Pinned to 0.0.397 until upstream regression is fixed; no new CLI features
+- npm deprecation warning on 0.0.397 ("invalid session id errors") visible in CI logs
+- Must monitor github/copilot-cli#1195 for regression fix
 
 ### Neutral
 
-- Build system field order updated to remove `argument-hint` from generation pipeline
 - `.github/agents/` synced from `src/copilot-cli/` build output (18 shared agents; 6 additional Claude Code-only agents maintained separately)
-- No functional change to agent execution logic (argument hints were cosmetic)
+- `--no-auto-update` flag added to all CI copilot invocations
 
 ## Reversibility Assessment
 
-**Rollback capability**: `argument-hint` values are preserved in git history. Restoring them requires reverting the template changes and regenerating. Low effort, no data loss.
+**Rollback capability**: Version pin can be changed to any version. Fields are preserved in templates and regenerated via build system.
 
-**Vendor lock-in**: Copilot CLI controls the frontmatter schema. We have no influence over future changes. The pre-flight validation step mitigates this by detecting breakage early rather than silently failing.
+**Vendor lock-in**: Copilot CLI controls the frontmatter schema. We have no influence over future changes. Version pinning with `--no-auto-update` and version verification provide defense-in-depth.
 
 **Exit strategy**: If Copilot CLI continues to introduce breaking changes, the CI quality gate can be migrated to use Claude Code CLI directly. The agent prompt content (body of `.agent.md` files) is platform-independent. Only the frontmatter differs between platforms, and the build system already handles this separation.
 
-**Auto-update risk**: The binary auto-update mechanism means any CI run could receive a new Copilot CLI version without warning. npm version pinning is ineffective. The `--no-auto-update` flag is recommended as defense-in-depth but is not guaranteed to work. The pre-flight validation is the primary defense.
+**Auto-update risk**: The binary auto-update mechanism means any CI run could receive a new version without warning. npm version pinning alone is insufficient. The `--no-auto-update` flag on all invocations plus version verification after install provides layered defense.
 
 ## Confirmation
 
 Implementation compliance will be confirmed by:
 
-1. **CI pre-flight check**: `copilot --list-agents | grep -q analyst` runs before quality gate. Exit code 1 blocks the pipeline with a clear error message.
-2. **Local verification**: `copilot --log-level all --agent analyst --prompt "test"` produces no validation warnings.
-3. **Build system verification**: `pwsh build/Generate-Agents.ps1` succeeds and produces no `argument-hint` in Copilot CLI output.
+1. **Version verification**: CI installs `@github/copilot@0.0.397` and `copilot --no-auto-update --version` outputs `0.0.397`. Warning emitted if binary auto-updated.
+2. **Local validation**: `copilot --no-auto-update --log-level all --agent analyst --prompt "test"` produces no validation warnings on 0.0.397.
+3. **Build system verification**: `pwsh build/Generate-Agents.ps1` generates `model: claude-opus-4.5` for Copilot CLI and `model: Claude Opus 4.5 (copilot)` for VS Code.
 
 ## Implementation Notes
 
 ### Files Modified
 
-**Template Layer** (18 files):
+**CI Action**:
 
-- `templates/agents/*.shared.md` - Removed `argument-hint` from frontmatter
+- `.github/actions/ai-review/action.yml` - Pin `npm install -g @github/copilot@0.0.397`, add `--no-auto-update` to all invocations, add version verification
+
+**Platform Config**:
+
+- `templates/platforms/copilot-cli.yaml` - Changed `model: null` to `model: "claude-opus-4.5"`
 
 **Build System**:
 
-- `build/Generate-Agents.Common.psm1` - Removed `argument-hint` from field order array
+- `build/Generate-Agents.Common.psm1` - Restored `argument-hint` in field order array
+
+**Template Layer** (18 files):
+
+- `templates/agents/*.shared.md` - `argument-hint` retained (was already present)
 
 **Generated Output** (36 files):
 
-- `src/copilot-cli/*.agent.md` - Regenerated via `pwsh build/Generate-Agents.ps1`
-- `src/vs-code-agents/*.agent.md` - Regenerated (VS Code agents retain `model` field per platform config)
+- `src/copilot-cli/*.agent.md` - Regenerated with `argument-hint` and `model: claude-opus-4.5`
+- `src/vs-code-agents/*.agent.md` - Regenerated with `model: Claude Opus 4.5 (copilot)`
 - `.github/agents/*.agent.md` - 18 shared agents synced from `src/copilot-cli/` build output
 
 Note: `.github/agents/` contains 24 total agent files. 18 are shared agents generated from templates. 6 are Claude Code-only agents (code-reviewer, code-simplifier, comment-analyzer, pr-test-analyzer, silent-failure-hunter, type-design-analyzer) maintained separately outside the build system.
-
-### CI Hardening (Required)
-
-1. **Pre-flight validation** (REQUIRED): Add `copilot --list-agents | grep -q analyst` before quality gate runs. Failure blocks pipeline with clear error.
-2. **Version logging** (REQUIRED): Log `copilot --version` output at start of CI job for diagnostics.
-
-### CI Hardening (Defense-in-Depth)
-
-3. Add `--no-auto-update` to CI copilot installation (may not be effective, but low cost)
-4. Pin Copilot CLI npm version despite auto-update behavior (establishes intent, even if binary updates independently)
 
 ### Monitoring Strategy
 
 **Owner**: DevOps review during quarterly dependency audit.
 
-**Detection**: Pre-flight validation in CI catches agent loading failures before they silently skip reviews. This is the primary detection mechanism.
+**Detection**: Version verification in CI warns if binary auto-updated past 0.0.397. Agent loading failures caught by non-zero exit code from copilot invocation.
 
-**Escalation**: If pre-flight validation fails in CI, the pipeline blocks and produces a clear error message. This replaces the previous failure mode (silent agent rejection with no diagnostic output).
+**Escalation**: Monitor [github/copilot-cli#1195](https://github.com/github/copilot-cli/issues/1195) for resolution. When fixed, evaluate upgrading and removing the version pin.
 
 ## Related Decisions
 
@@ -168,11 +168,73 @@ Note: `.github/agents/` contains 24 total agent files. 18 are shared agents gene
 - ADR-040: Skill Frontmatter Standardization (parallel effort for Claude Code skills)
 - Issue #19: Copilot CLI user-level agents not loading (prior agent loading bug, different root cause)
 - Issue #907: Epic: Claude Code Compatibility for VSCode and Copilot CLI
+- [github/copilot-cli#1195](https://github.com/github/copilot-cli/issues/1195): Regression: Agent frontmatter fields model, handoffs, argument-hint now marked as unsupported
+
+## Cross-Platform Frontmatter Reference
+
+Our agents target three platforms. Each platform defines its own frontmatter schema. The build system (`Generate-Agents.ps1`) transforms shared templates into platform-specific output.
+
+### GitHub Copilot Custom Agents (`.github/agents/*.agent.md`)
+
+Source: <https://docs.github.com/en/copilot/reference/custom-agents-configuration>
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | No | Agent name (defaults to filename) |
+| `description` | string | No | Agent description shown in selection UI |
+| `tools` | array | No | Tools available to the agent |
+| `infer` | boolean | No | Allow model to infer tool use |
+| `mcp-servers` | object | No | MCP server configuration |
+| `metadata` | object | No | Custom metadata key-value pairs |
+| `target` | string | No | Target platform (`vscode`, `github-copilot`) |
+
+Additional fields supported in Copilot CLI (pre-0.0.398):
+
+| Field | Type | Description | Status |
+|-------|------|-------------|--------|
+| `model` | string | AI model identifier (e.g., `claude-opus-4.5`) | Regressed in 0.0.398+ |
+| `argument-hint` | string | Prompt suggestion for interactive mode | Regressed in 0.0.398+ |
+| `handoffs` | array | Agent-to-agent handoff configuration | Regressed in 0.0.398+ |
+
+### Claude Code Subagents (`.claude/agents/*.md`)
+
+Source: <https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields>
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | Display name for the agent |
+| `description` | string | Yes | Agent description and usage guidance |
+| `tools` | array | No | Allowed tools (e.g., `Bash`, `Read`, `Edit`) |
+| `disallowedTools` | array | No | Explicitly blocked tools |
+| `model` | enum | No | `sonnet`, `opus`, `haiku`, or `inherit` |
+| `permissionMode` | string | No | Permission level for tool use |
+| `skills` | array | No | Skills available to the agent |
+| `hooks` | object | No | Event hooks configuration |
+
+### Platform Model Value Mapping
+
+| Platform | Model Field Value | Source Config |
+|----------|-------------------|--------------|
+| Copilot CLI | `claude-opus-4.5` | `templates/platforms/copilot-cli.yaml` |
+| VS Code | `Claude Opus 4.5 (copilot)` | `templates/platforms/vscode.yaml` |
+| Claude Code | `opus` | Hardcoded in `.claude/agents/` (not generated) |
+
+### Build System Field Handling
+
+The build system uses platform config to determine which fields appear in output:
+
+- `includeNameField: true` (Copilot CLI) or `false` (VS Code) controls `name` field presence
+- `model` value is sourced from platform config; `null` suppresses the field entirely
+- `argument-hint` is passed through from shared templates to both platforms
+- `tools_vscode` and `tools_copilot` template keys map to `tools` in platform output
 
 ## References
 
-- GitHub Copilot CLI: <https://githubnext.com/projects/copilot-cli>
+- GitHub Copilot custom agents configuration: <https://docs.github.com/en/copilot/reference/custom-agents-configuration>
+- Claude Code subagent frontmatter: <https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields>
 - Copilot CLI npm package: <https://www.npmjs.com/package/@github/copilot>
+- [github/copilot-cli#1195](https://github.com/github/copilot-cli/issues/1195): Regression: frontmatter fields marked unsupported
+- [github/copilot-cli#1199](https://github.com/github/copilot-cli/discussions/1199): Discussion: reverting to older version
 - Agent template architecture: `templates/agents/README.md`
 - Build system documentation: `build/README.md`
 - CI workflow: `.github/workflows/ai-pr-quality-gate.yml`

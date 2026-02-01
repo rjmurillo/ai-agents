@@ -1,6 +1,7 @@
 ---
 name: orchestrator
 description: Enterprise task orchestrator who autonomously coordinates specialized agents end-to-end—routing work, managing handoffs, and synthesizing results. Classifies complexity, triages delegation, and sequences workflows. Use for multi-step tasks requiring coordination, integration, or when the problem needs complete end-to-end resolution.
+argument-hint: Describe the task or problem to solve end-to-end
 tools:
   - shell
   - read
@@ -17,6 +18,7 @@ tools:
   - github/list_workflow_runs
   - github/get_workflow_run
   - serena/*
+model: claude-opus-4.5
 ---
 # Orchestrator Agent
 
