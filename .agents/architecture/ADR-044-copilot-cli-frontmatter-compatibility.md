@@ -87,6 +87,17 @@ These warnings appear only with `--log-level all` flag. Default output shows no 
 
 **Avoided**: No loss of agent functionality. `argument-hint` and `model` fields remain operational.
 
+### Model Field Behavior (Validated)
+
+Testing on 0.0.397 revealed that the frontmatter `model` field is accepted without warnings but does **not** override the default model for agent invocations. All agents default to `claude-sonnet-4.5` unless `--model` is passed on the CLI.
+
+| Invocation | Model Used |
+|------------|-----------|
+| `copilot --agent analyst --prompt "..."` | `claude-sonnet-4.5` (CLI default) |
+| `copilot --agent analyst --model claude-opus-4.5 --prompt "..."` | `claude-opus-4.5` |
+
+The CI action already passes `--model claude-opus-4.5` via the `copilot-model` input (default value). The frontmatter `model` field serves as declarative metadata for the agent's intended model, but the CLI flag is the mechanism that controls actual model selection. This means the `model` field in agent frontmatter functions as documentation of intent rather than runtime configuration on 0.0.397. Future Copilot CLI versions may change this behavior.
+
 ## Consequences
 
 ### Positive
@@ -120,11 +131,13 @@ These warnings appear only with `--log-level all` flag. Default output shows no 
 
 ## Confirmation
 
-Implementation compliance will be confirmed by:
+Implementation compliance confirmed by testing on 2026-02-01:
 
 1. **Version verification**: CI installs `@github/copilot@0.0.397` and `copilot --no-auto-update --version` outputs `0.0.397`. Warning emitted if binary auto-updated.
-2. **Local validation**: `copilot --no-auto-update --log-level all --agent analyst --prompt "test"` produces no validation warnings on 0.0.397.
+2. **Local validation**: 9 agents tested (analyst, explainer, security, architect, critic, devops, qa, roadmap, skillbook). All produce exit code 0 with zero validation warnings on 0.0.397 with `--log-level all`.
 3. **Build system verification**: `pwsh build/Generate-Agents.ps1` generates `model: claude-opus-4.5` for Copilot CLI and `model: Claude Opus 4.5 (copilot)` for VS Code.
+4. **Model behavior**: Frontmatter `model` field is accepted but does not control runtime model selection. CI uses `--model` CLI flag (default: `claude-opus-4.5`).
+5. **Regression confirmation**: Same agents fail on 0.0.400 with `agent uses unsupported fields: argument-hint`, confirming the regression.
 
 ## Implementation Notes
 
