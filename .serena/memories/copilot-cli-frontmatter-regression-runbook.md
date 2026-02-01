@@ -119,6 +119,72 @@ npm-loader.js delegates to a platform-specific binary that auto-updates independ
 - Agent templates: `templates/agents/*.shared.md`
 - Generated output: `src/copilot-cli/`, `src/vs-code-agents/`, `.github/agents/`
 
+## Investigation Narrative (2026-02-01)
+
+This section documents the full investigation sequence including wrong turns. Future agents should read this to avoid repeating the same mistakes.
+
+### Initial Misdiagnosis
+
+1. CI failed after Copilot CLI auto-updated from 0.0.382 to 0.0.400.
+2. Error: "No such agent: analyst, available: adr-generator, debug, janitor, prompt-builder"
+3. Initial analysis: `argument-hint` was assumed to be an undocumented/unsupported field. `model` value `Claude Opus 4.5 (anthropic)` was clearly wrong (VS Code format, not CLI format).
+4. **Wrong action**: Removed `argument-hint` and `model` from all agents. This worked on 0.0.400 but lost valid functionality.
+
+### Course Correction
+
+5. User identified that `model` is a valid Copilot CLI parameter; only the value was incorrect. Filed as github/copilot-cli#1195.
+6. Issue #1195 confirmed: `model`, `argument-hint`, and `handoffs` are valid fields broken by a regression in 0.0.398+.
+7. **Corrected action**: Pin to 0.0.397 (last working version), restore all fields, fix model value.
+
+### Key Lesson
+
+When an upstream tool rejects previously working configuration, verify whether it is a regression before adapting to the new behavior. Check the tool's issue tracker. The tool may be broken, not your configuration.
+
+### Validation Sequence
+
+1. Installed 0.0.397 locally, tested analyst agent with `argument-hint` and `model: claude-opus-4.5`. Passed with zero warnings.
+2. Tested same agent on 0.0.400. Failed with `agent uses unsupported fields: argument-hint`. Confirmed regression.
+3. Tested 9 agents (analyst, explainer, security, architect, critic, devops, qa, roadmap, skillbook). All exit 0, zero warnings.
+4. Discovered model field is accepted but does not control runtime model selection. `--model` CLI flag is required.
+5. Validated CI action YAML structurally (Python yaml.safe_load, version pin checks, --no-auto-update checks).
+6. Ran `gh act` Docker simulation. Agent loaded, ran full review, produced PASS verdict.
+
+## Local Workflow Testing with gh act
+
+`gh act` (nektos/gh-act) can simulate GitHub Actions locally in Docker.
+
+### Setup
+
+```bash
+gh extension list | grep act
+docker pull catthehacker/ubuntu:act-latest
+```
+
+### Dry Run (Structure Validation)
+
+```bash
+gh act pull_request -n -W .github/workflows/ai-pr-quality-gate.yml
+```
+
+### Full Run (Single Job)
+
+```bash
+TOKEN=$(gh auth token)
+gh act pull_request \
+  -j "analyst-review" \
+  -W .github/workflows/ai-pr-quality-gate.yml \
+  -s "GITHUB_TOKEN=$TOKEN" \
+  -s "BOT_PAT=$TOKEN" \
+  -e event.json \
+  -P ubuntu-latest=catthehacker/ubuntu:act-latest
+```
+
+### Known act Limitations
+
+- PowerShell composite action steps fail with "Exec format error"
+- actions/upload-artifact produces warnings in local mode
+- Some GitHub context variables may be missing
+
 ## Anti-Pattern
 
 Do NOT remove valid frontmatter fields to accommodate a regression. Pin the version instead. Fields like `model` and `argument-hint` are valid Copilot CLI features. The CLI is broken, not the fields.
