@@ -136,7 +136,9 @@ jobs:
           branch_prefix: "claude/"
 
           # Enable progress tracking for visibility
-          track_progress: true
+          # Note: track_progress is only supported for specific pull_request actions
+          # (opened, synchronize, ready_for_review, reopened) - not for 'labeled'
+          track_progress: ${{ github.event.action != 'labeled' }}
 
           # Enable commit signing for security
           use_commit_signing: true
