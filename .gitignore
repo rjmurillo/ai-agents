@@ -5,6 +5,7 @@
 # Build artifacts
 artifacts/
 coverage.xml
+testResults.xml
 
 # Python (ADR-042)
 __pycache__/
@@ -65,3 +66,9 @@ worktree--/
 .codeql/db/
 .codeql/results/
 .codeql/logs/
+
+# Traceability cache
+.agents/.cache/
+
+# Serena runtime state (caches and memories)
+.serena/

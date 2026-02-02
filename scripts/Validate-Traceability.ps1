@@ -51,6 +51,7 @@
     2 = Warnings found with -Strict flag (orphaned REQs/DESIGNs)
 
     See: ADR-035 Exit Code Standardization
+    See: Issue #721 (Graph performance optimization)
 #>
 
 [CmdletBinding()]
@@ -83,6 +84,11 @@ if (Test-Path $cacheModulePath) {
 } else {
     $script:CacheAvailable = $false
 }
+
+# Initialize caching state
+$CachingEnabled = $script:CacheAvailable -and (-not $NoCache)
+$script:CacheHits = 0
+$script:CacheMisses = 0
 
 # Clear cache if -NoCache specified
 if ($NoCache -and $script:CacheAvailable) {
@@ -147,9 +153,23 @@ function Write-ColorOutput {
 function Get-YamlFrontMatter {
     <#
     .SYNOPSIS
-        Extracts YAML front matter from a markdown file.
+        Extracts YAML front matter from a markdown file with caching support.
     #>
     param([string]$FilePath)
+
+    # Try cache first if caching is enabled
+    if ($CachingEnabled) {
+        $fileHash = Get-TraceabilityFileHash -FilePath $FilePath
+        if ($fileHash) {
+            $cached = Get-CachedSpec -FilePath $FilePath -CurrentHash $fileHash
+            if ($cached) {
+                $script:CacheHits++
+                return $cached
+            }
+        }
+    }
+
+    $script:CacheMisses++
 
     $content = Get-Content -Path $FilePath -Raw -ErrorAction SilentlyContinue
     if (-not $content) { return $null }
@@ -185,6 +205,11 @@ function Get-YamlFrontMatter {
             $relatedBlock = $Matches[1]
             $result.related = [regex]::Matches($relatedBlock, '-\s+([A-Z]+-[A-Z0-9]+)') |
                 ForEach-Object { $_.Groups[1].Value }
+        }
+
+        # Cache the result if caching is enabled
+        if ($CachingEnabled -and $fileHash) {
+            Set-CachedSpec -FilePath $FilePath -FileHash $fileHash -Spec $result
         }
 
         return $result
@@ -511,18 +536,31 @@ if (-not $resolvedPath) {
     exit 1
 }
 
-# Path traversal protection: When running from a git repository, ensure paths stay within repo root
-# Skip this check for absolute paths (e.g., test fixtures in /tmp) to allow legitimate test scenarios
-$repoRoot = try { git rev-parse --show-toplevel 2>$null } catch { $null }
-if ($repoRoot) {
-    $normalizedPath = [System.IO.Path]::GetFullPath($resolvedPath.Path)
-    $allowedBase = [System.IO.Path]::GetFullPath($repoRoot) + [System.IO.Path]::DirectorySeparatorChar
+# Path traversal protection
+$normalizedPath = [System.IO.Path]::GetFullPath($resolvedPath.Path)
+$isAbsolutePath = [System.IO.Path]::IsPathRooted($SpecsPath)
 
-    # Only enforce path traversal check if the original path was relative (not an absolute temp path)
-    $isRelativePath = -not [System.IO.Path]::IsPathRooted($SpecsPath)
-    if ($isRelativePath -and -not $normalizedPath.StartsWith($allowedBase, [System.StringComparison]::OrdinalIgnoreCase)) {
-        Write-Error "Path traversal attempt detected: '$SpecsPath' is outside the repository root." -ErrorAction Continue
-        exit 1
+if (-not $isAbsolutePath) {
+    # Relative path: enforce path traversal protection
+    $repoRoot = try { git rev-parse --show-toplevel 2>$null } catch { $null }
+
+    if ($repoRoot) {
+        # Git context: relative paths must resolve within repository root
+        $allowedBase = [System.IO.Path]::GetFullPath($repoRoot) + [System.IO.Path]::DirectorySeparatorChar
+        if (-not $normalizedPath.StartsWith($allowedBase, [System.StringComparison]::OrdinalIgnoreCase)) {
+            Write-Error "Path traversal attempt detected: '$SpecsPath' resolves to '$normalizedPath' which is outside the repository root '$allowedBase'." -ErrorAction Continue
+            exit 1
+        }
+    }
+    else {
+        # Non-git context: block ".." traversal sequences
+        if ($SpecsPath -match '\.\.[\\/]' -or $SpecsPath -match '[\\/]\.\.') {
+            $currentDir = [System.IO.Path]::GetFullPath((Get-Location).Path) + [System.IO.Path]::DirectorySeparatorChar
+            if (-not $normalizedPath.StartsWith($currentDir, [System.StringComparison]::OrdinalIgnoreCase)) {
+                Write-Error "Path traversal attempt detected: '$SpecsPath' resolves outside the current directory." -ErrorAction Continue
+                exit 1
+            }
+        }
     }
 }
 
