@@ -234,7 +234,7 @@ warm(n) ≈ 2.95 × n (ms)
 | **Concurrent writes** | Not handled | N/A | ⚠️ |
 
 **Test Coverage Analysis**:
-- Existing tests: 43 Pester tests covering all 5 validation rules
+- Existing tests: 3 Pester tests (basic functionality)
 - Edge cases tested: malformed YAML, missing frontmatter, broken references
 - **Gap**: Circular reference detection not currently validated
 
@@ -313,7 +313,7 @@ warm(n) ≈ 2.95 × n (ms)
 
 **Mitigation Strategies**:
 - Pre-commit hook validates before commit (enforces consistency)
-- Extensive test coverage (43 tests covering all rules)
+- Basic test coverage (3 tests for core functionality)
 - Backup → modify → cleanup pattern (atomic file operations)
 - Git rollback available for recovery
 
@@ -669,7 +669,7 @@ if ($metrics.WarmCacheMs -gt ($metrics.Baseline * 2)) {
 **Robustness** (✅ PRODUCTION-READY):
 - Comprehensive error handling with graceful degradation
 - Path traversal protection (production-grade security)
-- 43 Pester tests covering all 5 validation rules
+- 3 Pester tests (basic functionality)
 - Edge cases handled correctly (empty arrays, mixed line endings, etc.)
 - Minor gaps: Invalid YAML logging, concurrent access protection
 

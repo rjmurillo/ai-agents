@@ -6,7 +6,7 @@ version: 1.0.0
 created: 2025-12-31
 phase: 2
 related:
-  - enhancement-PROJECT-PLAN
+  - enhancement-PROJECT-PLAN.md
 ---
 
 # Traceability Protocol

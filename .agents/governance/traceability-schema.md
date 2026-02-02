@@ -5,7 +5,7 @@ status: active
 version: 1.0.0
 created: 2025-12-31
 related:
-  - enhancement-PROJECT-PLAN.md Phase 2
+  - enhancement-PROJECT-PLAN.md
 ---
 
 # Traceability Graph Schema

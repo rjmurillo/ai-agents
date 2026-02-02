@@ -108,11 +108,6 @@ exit $LASTEXITCODE
             -RedirectStandardError $tempError `
             -PassThru -Wait -NoNewWindow
 
-        # Clean up environment variables
-        foreach ($key in $envVars.Keys) {
-            [System.Environment]::SetEnvironmentVariable($key, $null, 'Process')
-        }
-
         $output = Get-Content $tempOutput -Raw -ErrorAction SilentlyContinue
         $errorOutput = Get-Content $tempError -Raw -ErrorAction SilentlyContinue
 
@@ -122,6 +117,10 @@ exit $LASTEXITCODE
         }
     }
     finally {
+        # Clean up environment variables (must be in finally to prevent leaks on failure)
+        foreach ($key in $envVars.Keys) {
+            [System.Environment]::SetEnvironmentVariable($key, $null, 'Process')
+        }
         Remove-Item $tempInput, $tempOutput, $tempError, $tempScript -Force -ErrorAction SilentlyContinue
     }
 }
