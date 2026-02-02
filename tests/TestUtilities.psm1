@@ -72,22 +72,35 @@ function Invoke-HookInNewProcess {
     $tempOutput = [System.IO.Path]::GetTempFileName()
     $tempError = [System.IO.Path]::GetTempFileName()
     $tempScript = [System.IO.Path]::GetTempFileName() + ".ps1"
+    $envVars = @{}
 
     try {
         Set-Content -Path $tempInput -Value $inputJson -NoNewline
 
-        # Create wrapper script - use escaped double quotes for paths
-        $escapedProjectDir = $ProjectDir -replace '"', '\"'
-        $escapedHookPath = $HookPath -replace '"', '\"'
-        $escapedWorkingDir = if ($WorkingDir) { $WorkingDir -replace '"', '\"' } else { $null }
-
-        $wrapperContent = @"
-`$env:CLAUDE_PROJECT_DIR = "$escapedProjectDir"
-$(if ($WorkingDir) { "Set-Location `"$escapedWorkingDir`"" })
-& "$escapedHookPath"
-exit `$LASTEXITCODE
-"@
+        # Security: Use environment variables to pass paths instead of string interpolation
+        # This prevents command injection via malicious paths containing special characters
+        # The wrapper script reads paths from environment variables, avoiding any escaping issues
+        $wrapperContent = @'
+$env:CLAUDE_PROJECT_DIR = $env:TEST_PROJECT_DIR
+if ($env:TEST_WORKING_DIR) { Set-Location $env:TEST_WORKING_DIR }
+& $env:TEST_HOOK_PATH
+exit $LASTEXITCODE
+'@
         Set-Content -Path $tempScript -Value $wrapperContent
+
+        # Build environment variable hashtable for the subprocess
+        $envVars = @{
+            TEST_PROJECT_DIR = $ProjectDir
+            TEST_HOOK_PATH = $HookPath
+        }
+        if ($WorkingDir) {
+            $envVars.TEST_WORKING_DIR = $WorkingDir
+        }
+
+        # Set environment variables before starting the process
+        foreach ($key in $envVars.Keys) {
+            [System.Environment]::SetEnvironmentVariable($key, $envVars[$key], 'Process')
+        }
 
         $process = Start-Process -FilePath "pwsh" `
             -ArgumentList "-NoProfile", "-File", $tempScript `
@@ -105,6 +118,10 @@ exit `$LASTEXITCODE
         }
     }
     finally {
+        # Clean up environment variables (must be in finally to prevent leaks on failure)
+        foreach ($key in $envVars.Keys) {
+            [System.Environment]::SetEnvironmentVariable($key, $null, 'Process')
+        }
         Remove-Item $tempInput, $tempOutput, $tempError, $tempScript -Force -ErrorAction SilentlyContinue
     }
 }

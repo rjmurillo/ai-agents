@@ -27,7 +27,7 @@ def update_confidence(memory: Memory, verification: VerificationResult) -> None:
 
     Raises:
         FileNotFoundError: If memory file doesn't exist
-        IOError: If file write fails
+        OSError: If file write fails
     """
     if not memory.path.exists():
         raise FileNotFoundError(f"Memory file not found: {memory.path}")
@@ -43,8 +43,7 @@ def update_confidence(memory: Memory, verification: VerificationResult) -> None:
     # Update citation validity in frontmatter
     if "citations" in post.metadata:
         citations_list = post.metadata["citations"]
-        for i, citation_data in enumerate(citations_list):
-            # Find matching citation in verification result
+        for citation_data in citations_list:
             citation_path = citation_data.get("path")
             citation_line = citation_data.get("line")
 
@@ -89,7 +88,7 @@ def add_citation_to_memory(
     Raises:
         FileNotFoundError: If memory file or cited file doesn't exist
         ValueError: If citation is invalid (line out of bounds, etc.)
-        IOError: If file write fails
+        OSError: If file write fails
     """
     if repo_root is None:
         repo_root = Path.cwd()

@@ -9,6 +9,7 @@ tools:
   - search
   - cloudmcp-manager/*
   - serena/*
+model: claude-opus-4.5
 ---
 # QA Agent
 

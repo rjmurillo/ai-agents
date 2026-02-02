@@ -13,6 +13,7 @@ Thank you for your interest in contributing to this project. This guide explains
 - [Pre-Commit Hooks](#pre-commit-hooks)
 - [Session Protocol](#session-protocol)
 - [Running Tests](#running-tests)
+- [Copilot CLI Version Management](#copilot-cli-version-management)
 - [Pull Request Guidelines](#pull-request-guidelines)
   - [Commit Count Thresholds](#commit-count-thresholds)
 
@@ -227,6 +228,7 @@ Use this template structure (see existing agents in `templates/agents/` for exam
 ```yaml
 ---
 description: Brief description of the agent's purpose
+argument-hint: Describe the input expected from the user
 tools_vscode:
   - vscode
   - read
@@ -316,7 +318,7 @@ outputDir: src/vs-code-agents
 fileExtension: .agent.md
 
 frontmatter:
-  model: "Claude Opus 4.5 (anthropic)"
+  model: "Claude Opus 4.5 (copilot)"
   includeNameField: false
 
 handoffSyntax: "#runSubagent"
@@ -330,7 +332,8 @@ outputDir: src/copilot-cli
 fileExtension: .agent.md
 
 frontmatter:
-  model: null
+  # Copilot CLI model: use CLI model identifiers (not VS Code display names)
+  model: "claude-opus-4.5"
   includeNameField: true
 
 handoffSyntax: "/agent"
@@ -340,10 +343,13 @@ handoffSyntax: "/agent"
 
 | Feature | VS Code | Copilot CLI |
 |---------|---------|-------------|
-| Model field | Required | Not used |
-| Name field | Not used | Required |
+| Model field | `Claude Opus 4.5 (copilot)` | `claude-opus-4.5` |
+| Name field | Not included | Required |
 | Handoff syntax | `#runSubagent` | `/agent` |
 | Tools prefix | `tools_vscode` | `tools_copilot` |
+| `argument-hint` | Included | Included |
+
+> **Note:** The Copilot CLI `model` frontmatter field is accepted but does not control runtime model selection on version 0.0.397. The `--model` CLI flag is required. See ADR-044 for details.
 
 ## Important: Do Not Edit Generated Files
 
@@ -464,6 +470,73 @@ pwsh build/scripts/Invoke-PesterTests.ps1 -TestPath "./tests/Validate-SessionJso
 # Run generation tests
 pwsh build/scripts/Invoke-PesterTests.ps1 -TestPath "./build/tests/Generate-Agents.Tests.ps1"
 ```
+
+## Copilot CLI Version Management
+
+The CI pipeline uses GitHub Copilot CLI to run agent reviews. The CLI version is pinned to prevent regressions from auto-updates.
+
+### Current Pin
+
+The CI action (`.github/actions/ai-review/action.yml`) pins `@github/copilot@0.0.397` with `--no-auto-update` on all invocations. This is documented in [ADR-044](.agents/architecture/ADR-044-copilot-cli-frontmatter-compatibility.md).
+
+### Why Version Pinning
+
+Copilot CLI's npm package contains a loader that delegates to a platform-specific binary. This binary auto-updates independently of the npm package version. npm version pinning alone is insufficient; the `--no-auto-update` flag prevents the binary from self-updating during CI runs.
+
+### Validating Agent Frontmatter
+
+After modifying agent templates or platform configs, validate agents load correctly:
+
+```bash
+# Check installed version
+copilot --no-auto-update --version
+
+# Test a single agent with debug logging (check for warnings)
+copilot --no-auto-update --log-level all --agent analyst --prompt "Reply with only the word OK"
+
+# Test all shared agents
+for agent in analyst architect critic devops explainer high-level-advisor implementer independent-thinker memory orchestrator planner pr-comment-responder qa retrospective roadmap security skillbook task-generator; do
+  copilot --no-auto-update --log-level all --agent "$agent" --prompt "Reply OK" 2>&1 | grep -i warning && echo "FAIL: $agent" || echo "PASS: $agent"
+done
+```
+
+### Local Workflow Testing with gh act
+
+Use `gh act` (nektos/gh-act) to simulate CI workflows locally:
+
+```bash
+# Install gh act extension (one time)
+gh extension install nektos/gh-act
+
+# Pull Docker image (one time, ~600MB)
+docker pull catthehacker/ubuntu:act-latest
+
+# Dry run (validate workflow structure)
+gh act pull_request -n -W .github/workflows/ai-pr-quality-gate.yml
+
+# Full run (single job)
+TOKEN=$(gh auth token)
+gh act pull_request \
+  -j "analyst-review" \
+  -W .github/workflows/ai-pr-quality-gate.yml \
+  -s "GITHUB_TOKEN=$TOKEN" \
+  -s "BOT_PAT=$TOKEN" \
+  -P ubuntu-latest=catthehacker/ubuntu:act-latest
+```
+
+**Known limitation:** PowerShell composite action steps fail with "Exec format error" in `act`. This is a known `act` limitation, not a workflow bug. The Copilot CLI install and agent invocation steps run correctly.
+
+### Upgrading the Copilot CLI Pin
+
+When the upstream regression ([github/copilot-cli#1195](https://github.com/github/copilot-cli/issues/1195)) is fixed:
+
+1. Install the new version locally: `npm install -g @github/copilot@X.Y.Z`
+2. Run the agent validation loop above
+3. Update the version in `.github/actions/ai-review/action.yml`
+4. Run `gh act` dry-run to validate workflow structure
+5. Update ADR-044 with the new version and test results
+
+See `.serena/memories/copilot-cli-frontmatter-regression-runbook.md` for the full diagnostic runbook.
 
 ## Pull Request Guidelines
 

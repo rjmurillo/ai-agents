@@ -138,7 +138,7 @@ function Set-CachedSpec {
         spec = $Spec
     }
 
-    # Store on disk (async write to avoid blocking)
+    # Store on disk
     $cacheFile = Join-Path $script:CacheDir "$cacheKey.json"
     $cacheData = @{
         hash = $FileHash
