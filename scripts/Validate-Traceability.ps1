@@ -546,7 +546,7 @@ if (-not $isAbsolutePath) {
 
     if ($repoRoot) {
         # Git context: relative paths must resolve within repository root
-        $allowedBase = [System.IO.Path]::GetFullPath($repoRoot)
+        $allowedBase = [System.IO.Path]::GetFullPath($repoRoot) + [System.IO.Path]::DirectorySeparatorChar
         if (-not $normalizedPath.StartsWith($allowedBase, [System.StringComparison]::OrdinalIgnoreCase)) {
             Write-Error "Path traversal attempt detected: '$SpecsPath' resolves to '$normalizedPath' which is outside the repository root '$allowedBase'." -ErrorAction Continue
             exit 1
@@ -555,7 +555,7 @@ if (-not $isAbsolutePath) {
     else {
         # Non-git context: block ".." traversal sequences
         if ($SpecsPath -match '\.\.[\\/]' -or $SpecsPath -match '[\\/]\.\.') {
-            $currentDir = [System.IO.Path]::GetFullPath((Get-Location).Path)
+            $currentDir = [System.IO.Path]::GetFullPath((Get-Location).Path) + [System.IO.Path]::DirectorySeparatorChar
             if (-not $normalizedPath.StartsWith($currentDir, [System.StringComparison]::OrdinalIgnoreCase)) {
                 Write-Error "Path traversal attempt detected: '$SpecsPath' resolves outside the current directory." -ErrorAction Continue
                 exit 1

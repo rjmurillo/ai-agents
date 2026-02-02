@@ -72,6 +72,7 @@ function Invoke-HookInNewProcess {
     $tempOutput = [System.IO.Path]::GetTempFileName()
     $tempError = [System.IO.Path]::GetTempFileName()
     $tempScript = [System.IO.Path]::GetTempFileName() + ".ps1"
+    $envVars = @{}
 
     try {
         Set-Content -Path $tempInput -Value $inputJson -NoNewline
