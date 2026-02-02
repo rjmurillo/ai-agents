@@ -22,10 +22,10 @@
     Default: "console"
 
 .PARAMETER NoCache
-    Bypass cache and force full re-parse of all spec files.
+    Disable caching. Forces re-parsing of all spec files.
 
 .PARAMETER Benchmark
-    Display execution timing and cache statistics.
+    Display timing information for performance analysis.
 
 .EXAMPLE
     .\Validate-Traceability.ps1
@@ -37,7 +37,12 @@
     .\Validate-Traceability.ps1 -SpecsPath ".agents/specs" -Format markdown
 
 .EXAMPLE
-    .\Validate-Traceability.ps1 -NoCache -Benchmark
+    .\Validate-Traceability.ps1 -NoCache
+    # Run validation without using cached data
+
+.EXAMPLE
+    .\Validate-Traceability.ps1 -Benchmark
+    # Run validation and display timing information
 
 .NOTES
     Exit codes:
@@ -70,20 +75,58 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+#region Caching and Benchmarking
 # Import caching module
 $cacheModulePath = Join-Path $PSScriptRoot "traceability/TraceabilityCache.psm1"
 if (Test-Path $cacheModulePath) {
     Import-Module $cacheModulePath -Force
-    $CachingEnabled = -not $NoCache
-}
-else {
-    $CachingEnabled = $false
+    $script:CacheAvailable = $true
+} else {
+    $script:CacheAvailable = $false
 }
 
-# Start timing for benchmark
-$startTime = [System.Diagnostics.Stopwatch]::StartNew()
-$script:CacheHits = 0
-$script:CacheMisses = 0
+# Clear cache if -NoCache specified
+if ($NoCache -and $script:CacheAvailable) {
+    Clear-TraceabilityCache
+}
+
+# Benchmark timing
+$script:BenchmarkTimings = @{}
+function Measure-Step {
+    param([string]$StepName, [scriptblock]$ScriptBlock)
+    if ($Benchmark) {
+        $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+        $result = & $ScriptBlock
+        $stopwatch.Stop()
+        $script:BenchmarkTimings[$StepName] = $stopwatch.ElapsedMilliseconds
+        return $result
+    } else {
+        return & $ScriptBlock
+    }
+}
+
+function Write-BenchmarkReport {
+    if ($Benchmark -and $script:BenchmarkTimings.Count -gt 0) {
+        Write-Host ""
+        Write-Host "Benchmark Results:" -ForegroundColor Cyan
+        Write-Host "==================" -ForegroundColor Cyan
+        $total = 0
+        foreach ($step in $script:BenchmarkTimings.GetEnumerator() | Sort-Object Name) {
+            Write-Host ("  {0,-25}: {1,6} ms" -f $step.Name, $step.Value)
+            $total += $step.Value
+        }
+        Write-Host ("  {0,-25}: {1,6} ms" -f "TOTAL", $total) -ForegroundColor Green
+
+        if ($script:CacheAvailable) {
+            $cacheStats = Get-CacheStat
+            Write-Host ""
+            Write-Host "Cache Statistics:" -ForegroundColor Cyan
+            Write-Host ("  Memory entries: {0}" -f $cacheStats.MemoryCacheEntries)
+            Write-Host ("  Disk entries:   {0}" -f $cacheStats.DiskCacheEntries)
+        }
+    }
+}
+#endregion
 
 #region Color Output
 $ColorReset = "`e[0m"
@@ -488,12 +531,12 @@ if (-not $resolvedPath) {
     exit 1
 }
 
-# Path traversal protection: Detect and block path traversal attacks
-# Security model:
-# - Absolute paths (e.g., /tmp/test, C:\Test): Allowed as-is (tests, CI scenarios)
-# - Relative paths from git repo: Must resolve within repository root
-# - Relative paths with ".." traversal: Must not escape allowed boundaries
-# The attack vector is a relative path like "../../etc/passwd" that resolves outside the repo
+# Path traversal protection: When running from a git repository, ensure paths stay within repo root
+# Skip this check for absolute paths (e.g., test fixtures in /tmp) to allow legitimate test scenarios
+$repoRoot = try { git rev-parse --show-toplevel 2>$null } catch { $null }
+if ($repoRoot) {
+    $normalizedPath = [System.IO.Path]::GetFullPath($resolvedPath.Path)
+    $allowedBase = [System.IO.Path]::GetFullPath($repoRoot) + [System.IO.Path]::DirectorySeparatorChar
 
 $normalizedPath = [System.IO.Path]::GetFullPath($resolvedPath.Path)
 $isAbsolutePath = [System.IO.Path]::IsPathRooted($SpecsPath)
@@ -523,10 +566,14 @@ if (-not $isAbsolutePath) {
 }
 
 # Load all specs
-$specs = Get-AllSpecs -BasePath $resolvedPath.Path
+$specs = Measure-Step -StepName "Load Specs" -ScriptBlock {
+    Get-AllSpecs -BasePath $resolvedPath.Path
+}
 
 # Validate traceability
-$results = Test-Traceability -Specs $specs
+$results = Measure-Step -StepName "Validate Traceability" -ScriptBlock {
+    Test-Traceability -Specs $specs
+}
 
 # Stop timing
 $startTime.Stop()
@@ -550,10 +597,15 @@ if ($Benchmark) {
 }
 
 # Output results
-$output = Format-Results -Results $results -OutputFormat $Format
+$output = Measure-Step -StepName "Format Results" -ScriptBlock {
+    Format-Results -Results $results -OutputFormat $Format
+}
 if ($output) {
     Write-Output $output
 }
+
+# Display benchmark results if requested
+Write-BenchmarkReport
 
 # Determine exit code
 if ($results.errors.Count -gt 0) {

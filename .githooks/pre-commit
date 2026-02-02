@@ -1,0 +1,1863 @@
+#!/usr/bin/env bash
+#
+# Pre-commit hook for vs-code-agents repository
+# AUTOMATICALLY FIXES markdown linting issues and re-stages corrected files.
+#
+# NOTE: This is a bash script, which is an exception to ADR-005 (PowerShell-only).
+# Rationale: Git hooks require shell scripts on non-Windows platforms. A PowerShell
+# implementation would require pwsh to be installed and in PATH, creating a barrier
+# to contribution. This is a grandfathered exception for cross-platform git integration.
+# The hook delegates to PowerShell scripts for all logic beyond basic file detection.
+#
+# Linter:
+#   - markdownlint-cli2 for markdown files (auto-fix enabled)
+#
+# To enable: git config core.hooksPath .githooks
+#
+# Environment variables:
+#   SKIP_AUTOFIX=1 - Check only, don't auto-fix (CI mode)
+#
+
+set -e
+
+# Colors for output (if terminal supports it)
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+NC='\033[0m' # No Color
+
+# Check if we're in a terminal that supports colors
+if [ ! -t 1 ]; then
+    RED=''
+    GREEN=''
+    YELLOW=''
+    CYAN=''
+    NC=''
+fi
+
+echo_error() {
+    echo -e "${RED}ERROR:${NC} $1"
+}
+
+echo_warning() {
+    echo -e "${YELLOW}WARNING:${NC} $1"
+}
+
+echo_success() {
+    echo -e "${GREEN}SUCCESS:${NC} $1"
+}
+
+echo_info() {
+    echo "$1"
+}
+
+echo_action() {
+    echo -e "${CYAN}FIXING:${NC} $1"
+}
+
+# Track overall exit status
+EXIT_STATUS=0
+
+#
+# Branch Validation (Issue #681, PR #669 retrospective)
+#
+# Prevents commits on wrong branches by validating the current branch:
+# - Block: commits directly to main (ERROR)
+# - Warn: unusual branch names that don't match conventional patterns
+#
+
+current_branch=$(git branch --show-current 2>/dev/null || echo "")
+
+# Block commits directly to main
+if [ "$current_branch" = "main" ] || [ "$current_branch" = "master" ]; then
+    echo_error "Cannot commit directly to branch '$current_branch'"
+    echo_info ""
+    echo_info "  Create a feature branch first:"
+    echo_info "    git checkout -b feat/your-description"
+    echo_info "    git checkout -b fix/your-description"
+    echo_info "    git checkout -b docs/your-description"
+    echo_info ""
+    exit 2
+fi
+
+# Validate branch matches conventional patterns
+# Patterns: feat/*, fix/*, docs/*, chore/*, refactor/*, test/*, ci/*, build/*, perf/*
+branch_valid=0
+case "$current_branch" in
+    feat/*|fix/*|docs/*|chore/*|refactor/*|test/*|ci/*|build/*|perf/*|tech-debt*)
+        branch_valid=1
+        ;;
+    "")
+        # Detached HEAD state - warn but allow (rebasing, etc.)
+        echo_warning "Detached HEAD state - no branch name available"
+        branch_valid=1
+        ;;
+esac
+
+if [ "$branch_valid" = "0" ]; then
+    echo_warning "Branch '$current_branch' does not match conventional patterns"
+    echo_info "  Expected: feat/*, fix/*, docs/*, chore/*, refactor/*, test/*"
+    echo_info "  Proceeding anyway (non-blocking warning)"
+fi
+
+# Track if any files were auto-fixed
+FILES_FIXED=0
+
+# Auto-fix mode (default: enabled)
+AUTOFIX=1
+if [ "${SKIP_AUTOFIX:-}" = "1" ]; then
+    AUTOFIX=0
+    echo_info "Auto-fix disabled (SKIP_AUTOFIX=1)"
+fi
+
+# Get repository root (LOW-001: Validate git output)
+REPO_ROOT=$(git rev-parse --show-toplevel) || {
+    echo_error "Failed to determine repository root"
+    exit 1
+}
+# Validate path exists and is a directory
+if [ ! -d "$REPO_ROOT" ]; then
+    echo_error "Invalid repository root: $REPO_ROOT"
+    exit 1
+fi
+cd "$REPO_ROOT"
+
+# Get staged files (Added, Copied, Modified, Renamed - excluding Deleted)
+STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACMR)
+
+if [ -z "$STAGED_FILES" ]; then
+    echo_info "No staged files to check."
+    exit 0
+fi
+
+# Filter for markdown files only
+STAGED_MD_FILES=$(echo "$STAGED_FILES" | grep -E '\.md$' || true)
+
+#
+# Markdown Linting with markdownlint-cli2
+#
+# Security: Uses arrays and proper quoting to prevent command injection (CRITICAL-001)
+# Security: Uses while/read loop to handle filenames with spaces (HIGH-001)
+# Security: Checks for symlinks to prevent TOCTOU attacks (MEDIUM-002)
+# Security: Prefers local installation over npx for dependency security (HIGH-002)
+#
+
+# Function to get the markdownlint command
+# HIGH-002: Check for local installation first to prevent dependency confusion
+get_markdownlint_cmd() {
+    if [ -x "./node_modules/.bin/markdownlint-cli2" ]; then
+        echo "./node_modules/.bin/markdownlint-cli2"
+        return 0
+    elif command -v npx &> /dev/null; then
+        echo "npx markdownlint-cli2"
+        return 0
+    else
+        return 1
+    fi
+}
+
+set_python_cmd() {
+    # Try python3 first (preferred)
+    if command -v python3 &> /dev/null; then
+        if python3 -c 'import sys' &> /dev/null; then
+            PYTHON_CMD=(python3)
+            return 0
+        fi
+    fi
+    # Try python (if it's Python 3.x)
+    if command -v python &> /dev/null; then
+        if python -c 'import sys; exit(0 if sys.version_info >= (3,) else 1)' &> /dev/null; then
+            PYTHON_CMD=(python)
+            return 0
+        fi
+    fi
+    # Try py launcher (Windows py.exe, regardless of python command status)
+    if command -v py &> /dev/null; then
+        if py -3 -c 'import sys' &> /dev/null; then
+            PYTHON_CMD=(py -3)
+            return 0
+        fi
+    fi
+    return 1
+}
+
+if [ -n "$STAGED_MD_FILES" ]; then
+    echo_info "Checking markdown files..."
+
+    # Get the markdownlint command (local preferred, npx fallback)
+    if ! MARKDOWNLINT_CMD=$(get_markdownlint_cmd); then
+        echo_warning "markdownlint-cli2 not available. Skipping markdown linting."
+        echo_warning "Install locally: npm install --save-dev markdownlint-cli2"
+        echo_warning "Or install Node.js and npm to enable npx fallback."
+    else
+        # CRITICAL-001: Build array safely to prevent command injection
+        # Bash 3 compatibility (macOS default): avoid mapfile/readarray
+        MD_FILES=()
+        while IFS= read -r file; do
+            [ -z "$file" ] && continue
+            MD_FILES+=("$file")
+        done <<< "$STAGED_MD_FILES"
+
+        # Validate array is not empty
+        if [ ${#MD_FILES[@]} -eq 0 ]; then
+            echo_info "No markdown files to process."
+        else
+            # First, try to auto-fix
+            if [ "$AUTOFIX" = "1" ]; then
+                echo_action "Auto-fixing markdown files..."
+                # CRITICAL-001: Use proper array expansion with quotes and -- separator
+                # LOW-002: Capture stderr to temp file for review, but don't suppress completely
+                LINT_ERRORS=$(mktemp)
+                # shellcheck disable=SC2086
+                $MARKDOWNLINT_CMD --fix --no-globs -- "${MD_FILES[@]}" 2>"$LINT_ERRORS" || true
+                # Only show errors if file is non-empty (not just benign output)
+                if [ -s "$LINT_ERRORS" ]; then
+                    # MEDIUM-001: Show only first few lines of errors to avoid info disclosure
+                    head -5 "$LINT_ERRORS" >&2 || true
+                fi
+                rm -f "$LINT_ERRORS"
+            fi
+
+            # MEDIUM-001: Capture verification output for structured display
+            LINT_OUTPUT=$(mktemp)
+            # CRITICAL-001: Use proper array expansion with quotes and -- separator
+            # shellcheck disable=SC2086
+            if ! $MARKDOWNLINT_CMD --no-globs -- "${MD_FILES[@]}" >"$LINT_OUTPUT" 2>&1; then
+                echo_error "Markdown linting failed (some issues cannot be auto-fixed)."
+                echo_info "  Review errors below and fix manually:"
+                echo ""
+                # MEDIUM-001: Show structured output, limiting to prevent info disclosure
+                # Filter to show only the linting errors, not system paths
+                grep -E '^[^/].*:.*MD[0-9]+' "$LINT_OUTPUT" 2>/dev/null | head -20 || cat "$LINT_OUTPUT" | head -20
+                echo ""
+                echo_info "  Common unfixable issues:"
+                echo_info "    - MD040: Add language identifier to code blocks"
+                echo_info "    - MD033: Wrap generic types like ArrayPool<T> in backticks"
+                rm -f "$LINT_OUTPUT"
+                EXIT_STATUS=1
+            else
+                rm -f "$LINT_OUTPUT"
+                # HIGH-001: Use while/read loop with proper IFS to handle spaces in filenames
+                # MEDIUM-002: Check for symlinks to prevent TOCTOU race conditions
+                while IFS= read -r file; do
+                    # Skip empty lines
+                    [ -z "$file" ] && continue
+
+                    # MEDIUM-002: Reject symlinks to prevent race condition attacks
+                    if [ -L "$file" ]; then
+                        echo_warning "Skipping symlink: $file"
+                        continue
+                    fi
+
+                    # Process regular files only
+                    if [ -f "$file" ] && ! git diff --quiet -- "$file" 2>/dev/null; then
+                        echo_success "Fixed: $file"
+                        # Use -- to prevent filenames starting with - being treated as options
+                        git add -- "$file"
+                        FILES_FIXED=1
+                    fi
+                done <<< "$STAGED_MD_FILES"
+                echo_success "Markdown files OK."
+            fi
+        fi
+    fi
+else
+    echo_info "No markdown files staged. Skipping markdown linting."
+fi
+
+#
+# Python Linting with Ruff (ADR-042)
+#
+# Non-blocking linting for Python files. Auto-fixes where possible.
+# Uses ruff for fast linting (written in Rust, 10-100x faster than flake8/pylint).
+#
+# Security: Uses proper quoting and array handling (CRITICAL-001)
+#
+STAGED_PY_FILES=$(echo "$STAGED_FILES" | grep -E '\.py$' || true)
+
+if [ -n "$STAGED_PY_FILES" ]; then
+    echo_info "Checking Python files..."
+
+    if command -v ruff &> /dev/null; then
+        # CRITICAL-001: Build array safely to prevent command injection
+        PY_FILES=()
+        while IFS= read -r file; do
+            [ -z "$file" ] && continue
+            PY_FILES+=("$file")
+        done <<< "$STAGED_PY_FILES"
+
+        if [ ${#PY_FILES[@]} -gt 0 ]; then
+            # Auto-fix if enabled
+            if [ "$AUTOFIX" = "1" ]; then
+                echo_action "Auto-fixing Python files with ruff..."
+                ruff check --fix -- "${PY_FILES[@]}" 2>/dev/null || true
+            fi
+
+            # Verify (non-blocking)
+            if ! ruff check -- "${PY_FILES[@]}" 2>/dev/null; then
+                echo_warning "Python linting found issues (non-blocking)."
+                echo_info "  Run: ruff check --fix <files>"
+                # Non-blocking: just warn, don't fail the commit
+            else
+                # Re-stage any fixed files
+                for file in "${PY_FILES[@]}"; do
+                    if [ -f "$file" ] && ! git diff --quiet -- "$file" 2>/dev/null; then
+                        echo_success "Fixed: $file"
+                        git add -- "$file"
+                        FILES_FIXED=1
+                    fi
+                done
+                echo_success "Python files OK."
+            fi
+        fi
+    else
+        echo_info "ruff not available. Skipping Python linting."
+        echo_info "  Install: pip install ruff"
+    fi
+else
+    echo_info "No Python files staged. Skipping Python linting."
+fi
+
+#
+# GitHub Actions Workflow Validation with actionlint
+#
+# Validates GitHub Actions workflow YAML files for:
+# - Syntax errors and type mismatches
+# - Invalid action inputs/outputs
+# - Expression errors
+# - Runner label validation
+# - Cron syntax validation
+# - Security issues (script injection, credential exposure)
+#
+# Security: Uses arrays and proper quoting to prevent command injection (CRITICAL-001)
+# Security: Uses while/read loop to handle filenames with spaces (HIGH-001)
+# Security: Checks for symlinks to prevent TOCTOU attacks (MEDIUM-002)
+# Related: Epic GitHub Actions Local Testing (#848), ADR-005, Skill-CI-001
+#
+
+# Filter for workflow YAML files only
+STAGED_WORKFLOW_FILES=$(echo "$STAGED_FILES" | grep -E '^\.github/(workflows|actions)/.*\.ya?ml$' || true)
+
+# Check for SKIP_ACTIONLINT environment variable (emergency bypass)
+if [ "${SKIP_ACTIONLINT:-}" = "1" ]; then
+    echo_info "actionlint validation skipped (SKIP_ACTIONLINT=1)"
+elif [ -n "$STAGED_WORKFLOW_FILES" ]; then
+    echo_info "Checking GitHub Actions workflow files with actionlint..."
+
+    # Check if actionlint is installed
+    if command -v actionlint &> /dev/null; then
+        # CRITICAL-001: Build array safely to prevent command injection
+        # Bash 3 compatibility (macOS default): avoid mapfile/readarray
+        WORKFLOW_FILES=()
+        while IFS= read -r file; do
+            [ -z "$file" ] && continue
+            WORKFLOW_FILES+=("$file")
+        done <<< "$STAGED_WORKFLOW_FILES"
+
+        # Validate array is not empty
+        if [ ${#WORKFLOW_FILES[@]} -eq 0 ]; then
+            echo_info "No workflow files to process."
+        else
+            # Run actionlint on staged workflow files
+            ACTIONLINT_ERRORS=0
+            ACTIONLINT_OUTPUT=$(mktemp)
+
+            # MEDIUM-002: Check for symlinks to prevent TOCTOU race conditions
+            for file in "${WORKFLOW_FILES[@]}"; do
+                # Skip empty entries
+                [ -z "$file" ] && continue
+
+                # MEDIUM-002: Reject symlinks to prevent race condition attacks
+                if [ -L "$file" ]; then
+                    echo_warning "Skipping symlink: $file"
+                    continue
+                fi
+
+                # Process regular files only
+                if [ -f "$file" ]; then
+                    echo_info "  Validating: $file"
+                fi
+            done
+
+            # CRITICAL-001: Use proper array expansion with quotes and -- separator
+            if ! actionlint "${WORKFLOW_FILES[@]}" > "$ACTIONLINT_OUTPUT" 2>&1; then
+                echo_error "actionlint found issues in workflow files:"
+                echo ""
+                # Show first 20 lines of errors to avoid overwhelming output
+                head -20 "$ACTIONLINT_OUTPUT"
+                echo ""
+                echo_info "Common issues:"
+                echo_info "  - Invalid action inputs (check 'with:' parameters)"
+                echo_info "  - Expression syntax errors (check \${{ }} expressions)"
+                echo_info "  - Unknown runner labels (check 'runs-on:' values)"
+                echo_info "  - Invalid cron syntax in schedules"
+                echo ""
+                echo_info "To bypass this check temporarily (not recommended):"
+                echo_info "  SKIP_ACTIONLINT=1 git commit ..."
+                echo ""
+                rm -f "$ACTIONLINT_OUTPUT"
+                ACTIONLINT_ERRORS=1
+                EXIT_STATUS=1
+            else
+                rm -f "$ACTIONLINT_OUTPUT"
+                echo_success "Workflow files validated successfully."
+            fi
+
+            if [ $ACTIONLINT_ERRORS -ne 0 ]; then
+                echo_error "actionlint validation failed. Fix issues above before committing."
+            fi
+        fi
+    else
+        echo_warning "actionlint not installed. Skipping workflow validation."
+        echo_warning ""
+        echo_warning "Install actionlint to enable workflow YAML validation:"
+        echo_warning "  macOS:    brew install actionlint"
+        echo_warning "  Linux:    Download from https://github.com/rhysd/actionlint/releases"
+        echo_warning "  Go:       go install github.com/rhysd/actionlint/cmd/actionlint@latest"
+        echo_warning ""
+        echo_warning "See: https://github.com/rhysd/actionlint#installation"
+    fi
+else
+    echo_info "No workflow files staged. Skipping actionlint validation."
+fi
+
+#
+# YAML Style Validation with yamllint (Non-blocking warnings)
+#
+# Validates YAML files for style consistency:
+# - Line length limits
+# - Indentation consistency
+# - Trailing spaces
+# - Comment formatting
+#
+# Complements actionlint (which focuses on GitHub Actions semantics)
+# yamllint checks general YAML style across all YAML files
+#
+# Related: Epic GitHub Actions Local Testing (#848), yamllint documentation
+#
+
+# Filter for YAML files (all, not just workflows)
+STAGED_YAML_FILES=$(echo "$STAGED_FILES" | grep -E '\.ya?ml$' || true)
+
+# Check for SKIP_YAMLLINT environment variable (emergency bypass)
+if [ "${SKIP_YAMLLINT:-}" = "1" ]; then
+    echo_info "yamllint validation skipped (SKIP_YAMLLINT=1)"
+elif [ -n "$STAGED_YAML_FILES" ]; then
+    echo_info "Checking YAML files with yamllint (style warnings only)..."
+
+    # Check if yamllint is installed
+    if command -v yamllint &> /dev/null; then
+        # Run yamllint on repository root (respects .yamllint.yml config)
+        YAMLLINT_OUTPUT=$(mktemp)
+        
+        if ! yamllint -f parsable . > "$YAMLLINT_OUTPUT" 2>&1; then
+            echo_warning "yamllint found style issues (non-blocking):"
+            echo ""
+            # Show first 20 lines of warnings
+            head -20 "$YAMLLINT_OUTPUT"
+            echo ""
+            echo_info "Common style issues:"
+            echo_info "  - Line too long (exceeds 120 characters)"
+            echo_info "  - Trailing spaces"
+            echo_info "  - Inconsistent indentation"
+            echo_info "  - Missing space after comment"
+            echo ""
+            echo_info "Note: These are warnings, not errors. Fix when convenient."
+            # Non-blocking: don't set EXIT_STATUS
+        else
+            echo_success "YAML files conform to style guidelines."
+        fi
+        rm -f "$YAMLLINT_OUTPUT"
+    else
+        echo_info "yamllint not installed. Skipping YAML style validation."
+        echo_info ""
+        echo_info "Install yamllint to enable YAML style checking:"
+        echo_info "  macOS:    brew install yamllint"
+        echo_info "  Linux:    pip install yamllint"
+        echo_info "  Windows:  pip install yamllint"
+        echo_info ""
+        echo_info "See: https://yamllint.readthedocs.io/"
+    fi
+else
+    echo_info "No YAML files staged. Skipping yamllint validation."
+fi
+
+#
+# PowerShell Script Analysis with PSScriptAnalyzer
+#
+# Security: Validates PowerShell scripts for syntax errors and common issues
+# Security: Uses arrays and proper quoting to prevent command injection (CRITICAL-001)
+# Security: Uses while/read loop to handle filenames with spaces (HIGH-001)
+# Security: Checks for symlinks to prevent TOCTOU attacks (MEDIUM-002)
+# Related: Session 36 retrospective, Skill-PowerShell-001, Skill-CI-001
+#
+
+# Filter for PowerShell files only
+STAGED_PS_FILES=$(echo "$STAGED_FILES" | grep -E '\.(ps1|psm1)$' || true)
+
+if [ -n "$STAGED_PS_FILES" ]; then
+    echo_info "Checking PowerShell scripts with PSScriptAnalyzer..."
+    
+    if command -v pwsh &> /dev/null; then
+        # CRITICAL-001: Build array safely to prevent command injection
+        # Bash 3 compatibility (macOS default): avoid mapfile/readarray
+        PS_FILES=()
+        while IFS= read -r file; do
+            [ -z "$file" ] && continue
+            PS_FILES+=("$file")
+        done <<< "$STAGED_PS_FILES"
+        
+        # Validate array is not empty
+        if [ ${#PS_FILES[@]} -eq 0 ]; then
+            echo_info "No PowerShell files to process."
+        else
+            # Check if PSScriptAnalyzer module is available
+            # Use -ErrorAction Stop and check for actual module output (Get-Module returns $null when not found)
+            if pwsh -NoProfile -Command 'if (-not (Get-Module -ListAvailable PSScriptAnalyzer)) { exit 1 }'; then
+                # MEDIUM-002: Check for symlinks to prevent TOCTOU race conditions
+                # Use PS_FILES array with for loop for safe filename handling
+                PS_ERRORS_FOUND=0
+                
+                # Use PS_FILES array populated from mapfile (line 212)
+                for file in "${PS_FILES[@]}"; do
+                    # Skip empty entries
+                    [ -z "$file" ] && continue
+
+                    # MEDIUM-002: Reject symlinks to prevent race condition attacks
+                    if [ -L "$file" ]; then
+                        echo_warning "Skipping symlink: $file"
+                        continue
+                    fi
+
+                    # Process regular files only
+                    if [ -f "$file" ]; then
+                        # Run PSScriptAnalyzer on file, checking for Error and Warning severity
+                        # Capture output for display
+                        ANALYZER_OUTPUT=$(mktemp)
+                        # CRITICAL-001: Pass file path via environment variable to prevent command injection
+                        # Single quotes in filenames cannot escape when using $env: variable
+                        if ! PSANALYZER_FILE="$file" pwsh -NoProfile -Command 'Invoke-ScriptAnalyzer -Path $env:PSANALYZER_FILE -Settings ".PSScriptAnalyzerSettings.psd1" -Severity Error,Warning | ForEach-Object { Write-Output "$($_.Severity): $($_.Message) at line $($_.Line)" }' > "$ANALYZER_OUTPUT" 2>&1; then
+                            echo_error "Failed to analyze: $file"
+                            cat "$ANALYZER_OUTPUT"
+                            rm -f "$ANALYZER_OUTPUT"
+                            EXIT_STATUS=1
+                            continue
+                        fi
+
+                        # Check if there are any Error-level issues (blocking)
+                        if grep -q "^Error:" "$ANALYZER_OUTPUT"; then
+                            echo_error "PSScriptAnalyzer errors in: $file"
+                            grep "^Error:" "$ANALYZER_OUTPUT"
+                            PS_ERRORS_FOUND=1
+                            EXIT_STATUS=1
+                        fi
+
+                        # Display warnings (non-blocking)
+                        if grep -q "^Warning:" "$ANALYZER_OUTPUT"; then
+                            echo_warning "PSScriptAnalyzer warnings in: $file"
+                            grep "^Warning:" "$ANALYZER_OUTPUT"
+                        fi
+
+                        rm -f "$ANALYZER_OUTPUT"
+                    fi
+                done
+                
+                if [ $PS_ERRORS_FOUND -eq 0 ]; then
+                    echo_success "PowerShell scripts OK."
+                else
+                    echo_error "PowerShell script analysis failed. Fix errors above before committing."
+                fi
+            else
+                echo_warning "PSScriptAnalyzer module not available. Skipping PowerShell analysis."
+                echo_warning "Install: pwsh -Command 'Install-Module -Name PSScriptAnalyzer -Scope CurrentUser -Force'"
+            fi
+        fi
+    else
+        echo_warning "PowerShell not available. Skipping PowerShell script analysis."
+        echo_warning "Install: https://docs.microsoft.com/en-us/powershell/scripting/install/installing-powershell"
+    fi
+else
+    echo_info "No PowerShell files staged. Skipping PSScriptAnalyzer."
+fi
+
+#
+# Planning Artifacts Validation
+#
+# Validates cross-document consistency in planning artifacts.
+# Checks:
+# - Effort estimate consistency (20% threshold)
+# - Condition-to-task traceability (no orphan conditions)
+#
+# Related: Issue rjmurillo/ai-agents#I2, #I4 (Cross-Document Consistency)
+#
+PLANNING_VALIDATE_SCRIPT="$REPO_ROOT/build/scripts/Validate-PlanningArtifacts.ps1"
+
+# Check if any planning files are staged
+STAGED_PLANNING_FILES=$(echo "$STAGED_FILES" | grep -E '^\.agents/planning/.*\.md$' || true)
+
+if [ -n "$STAGED_PLANNING_FILES" ]; then
+    echo_info "Checking planning artifact consistency..."
+    
+    # MEDIUM-002: Reject symlinks for security
+    if [ -L "$PLANNING_VALIDATE_SCRIPT" ]; then
+        echo_warning "Skipping planning validation: script path is a symlink"
+    elif [ -f "$PLANNING_VALIDATE_SCRIPT" ]; then
+        if command -v pwsh &> /dev/null; then
+            # Run validation in warning mode (don't block commits, but show issues)
+            # -ExecutionPolicy Bypass: Ensure consistent execution across all platforms (see #213)
+            if ! pwsh -NoProfile -ExecutionPolicy Bypass -File "$PLANNING_VALIDATE_SCRIPT" -Path "$REPO_ROOT" 2>&1; then
+                echo_warning "Planning artifact validation found issues (see above)."
+                echo_info "  Consider running: pwsh build/scripts/Validate-PlanningArtifacts.ps1"
+                # Non-blocking: just warn, don't fail the commit
+            else
+                echo_success "Planning artifacts OK."
+            fi
+        else
+            echo_warning "PowerShell not available. Skipping planning artifact validation."
+            echo_warning "Install: https://docs.microsoft.com/en-us/powershell/scripting/install/installing-powershell"
+        fi
+    else
+        echo_info "Planning validation script not found. Skipping."
+    fi
+else
+    echo_info "No planning files staged. Skipping planning artifact validation."
+fi
+
+#
+# Consistency Validation
+#
+# Validates cross-document consistency for agent-generated artifacts.
+# Checks:
+# - Scope alignment (epic vs PRD)
+# - Requirement coverage (PRD to tasks)
+# - Naming conventions (EPIC-NNN, ADR-NNN patterns)
+# - Cross-reference validity (file existence)
+#
+# Related: Issue rjmurillo/ai-agents#44 (Phase 3 consistency)
+#
+CONSISTENCY_VALIDATE_SCRIPT="$REPO_ROOT/scripts/Validate-Consistency.ps1"
+
+# Check if any planning files are staged that might need consistency validation
+if [ -n "$STAGED_PLANNING_FILES" ]; then
+    echo_info "Checking cross-document consistency..."
+
+    # MEDIUM-002: Reject symlinks for security
+    if [ -L "$CONSISTENCY_VALIDATE_SCRIPT" ]; then
+        echo_warning "Skipping consistency validation: script path is a symlink"
+    elif [ -f "$CONSISTENCY_VALIDATE_SCRIPT" ]; then
+        if command -v pwsh &> /dev/null; then
+            # Run validation - failures will be reported but won't block commits
+            # Note: -CI flag ensures script returns non-zero exit code on failures
+            if ! pwsh -NoProfile -ExecutionPolicy Bypass -File "$CONSISTENCY_VALIDATE_SCRIPT" -All -CI -Path "$REPO_ROOT" 2>&1; then
+                echo_warning "Consistency validation found issues (see above)."
+                echo_info "  Consider running: pwsh scripts/Validate-Consistency.ps1 -All"
+                # Non-blocking: just warn, don't fail the commit
+            else
+                echo_success "Consistency validation OK."
+            fi
+        else
+            echo_warning "PowerShell not available. Skipping consistency validation."
+        fi
+    else
+        echo_info "Consistency validation script not found. Skipping."
+    fi
+fi
+
+#
+# MCP Configuration Sync
+#
+# Syncs Claude's .mcp.json to VS Code's mcp.json format when .mcp.json is staged.
+# Claude uses "mcpServers" key, VS Code uses "servers" key.
+# .mcp.json is the source of truth; mcp.json is auto-generated.
+#
+# Security: Checks for symlinks to prevent TOCTOU attacks (MEDIUM-002)
+#
+MCP_SYNC_SCRIPT="$REPO_ROOT/scripts/Sync-McpConfig.ps1"
+
+# Check if .mcp.json is staged
+STAGED_MCP_FILE=$(echo "$STAGED_FILES" | grep -E '^\.mcp\.json$' || true)
+
+if [ -n "$STAGED_MCP_FILE" ]; then
+    # Check if auto-fix is enabled (respects SKIP_AUTOFIX environment variable)
+    if [ "$AUTOFIX" = "1" ]; then
+        echo_info "Syncing MCP configuration..."
+
+        # MEDIUM-002: Reject symlinks for security
+        if [ -L "$MCP_SYNC_SCRIPT" ]; then
+            echo_warning "Skipping MCP sync: script path is a symlink"
+        elif [ -f "$MCP_SYNC_SCRIPT" ]; then
+            if command -v pwsh &> /dev/null; then
+            # Run sync script with PassThru to get sync status (returns True/False string)
+            SYNC_OUTPUT=$(pwsh -NoProfile -ExecutionPolicy Bypass -File "$MCP_SYNC_SCRIPT" -PassThru 2>&1)
+            SYNC_EXIT=$?
+
+            if [ $SYNC_EXIT -eq 0 ]; then
+                # Script succeeded - check if files were actually synced
+                if echo "$SYNC_OUTPUT" | grep -q '^True$'; then
+                    # MEDIUM-002: Defense-in-depth symlink check before staging
+                    # (Mitigates TOCTOU race between PowerShell check and git add)
+                    if [ -L "$REPO_ROOT/mcp.json" ]; then
+                        echo_warning "Skipping MCP sync staging: mcp.json is a symlink"
+                    else
+                        # Files were synced - stage the generated file
+                        git add -- "$REPO_ROOT/mcp.json"
+                        echo_success "Synced: mcp.json"
+                        FILES_FIXED=1
+                    fi
+                else
+                    # Files already in sync (PassThru returned False)
+                    echo_success "MCP config already in sync."
+                fi
+            else
+                # Script failed
+                echo_warning "MCP sync script failed (see above)."
+                # Non-blocking: just warn, don't fail the commit
+            fi
+        else
+            echo_warning "PowerShell not available. Skipping MCP config sync."
+            echo_warning "Install: https://docs.microsoft.com/en-us/powershell/scripting/install/installing-powershell"
+        fi
+    else
+        echo_info "MCP sync script not found. Skipping."
+    fi
+    else
+        echo_info "MCP config sync skipped (auto-fix disabled)."
+    fi
+fi
+
+#
+# Agent Generation Sync
+#
+# Syncs shared agent templates to platform-specific outputs when templates are staged.
+# templates/agents/*.shared.md → src/copilot-cli/*.agent.md + src/vs-code-agents/*.md
+# templates/agents/*.shared.md is the source of truth; generated files are auto-generated.
+#
+# Security: Checks for symlinks to prevent TOCTOU attacks (MEDIUM-002)
+#
+GENERATE_AGENTS_SCRIPT="$REPO_ROOT/build/Generate-Agents.ps1"
+
+# Check if any shared agent template or platform config is staged
+STAGED_AGENT_TEMPLATES=$(echo "$STAGED_FILES" | grep -E '^templates/(agents/.*\.shared\.md|platforms/.*)$' || true)
+
+if [ -n "$STAGED_AGENT_TEMPLATES" ]; then
+    # Check if auto-fix is enabled (respects SKIP_AUTOFIX environment variable)
+    if [ "$AUTOFIX" = "1" ]; then
+        echo_info "Regenerating platform-specific agent files..."
+
+        # MEDIUM-002: Reject symlinks for security
+        if [ -L "$GENERATE_AGENTS_SCRIPT" ]; then
+            echo_warning "Skipping agent generation: script path is a symlink"
+        elif [ -f "$GENERATE_AGENTS_SCRIPT" ]; then
+            if command -v pwsh &> /dev/null; then
+                # Run generator script
+                GENERATE_OUTPUT=$(pwsh -NoProfile -ExecutionPolicy Bypass -File "$GENERATE_AGENTS_SCRIPT" 2>&1)
+                GENERATE_EXIT=$?
+
+                if [ $GENERATE_EXIT -eq 0 ]; then
+                    # Stage all generated agent files
+                    COPILOT_AGENTS="$REPO_ROOT/src/copilot-cli"
+                    VSCODE_AGENTS="$REPO_ROOT/src/vs-code-agents"
+
+                    # Stage copilot-cli agents
+                    if [ -d "$COPILOT_AGENTS" ] && [ ! -L "$COPILOT_AGENTS" ]; then
+                        for agent in "$COPILOT_AGENTS"/*.agent.md; do
+                            if [ -f "$agent" ] && [ ! -L "$agent" ]; then
+                                git add -- "$agent"
+                            fi
+                        done
+                    fi
+
+                    # Stage vs-code-agents
+                    if [ -d "$VSCODE_AGENTS" ] && [ ! -L "$VSCODE_AGENTS" ]; then
+                        for agent in "$VSCODE_AGENTS"/*.md; do
+                            if [ -f "$agent" ] && [ ! -L "$agent" ]; then
+                                git add -- "$agent"
+                            fi
+                        done
+                    fi
+
+                    echo_success "Regenerated and staged platform-specific agents."
+                    FILES_FIXED=1
+                else
+                    echo_warning "Agent generation failed (see above)."
+                    echo_info "  $GENERATE_OUTPUT"
+                    # Non-blocking: just warn, don't fail the commit
+                fi
+            else
+                echo_warning "PowerShell not available. Skipping agent generation."
+                echo_warning "Install: https://docs.microsoft.com/en-us/powershell/scripting/install/installing-powershell"
+            fi
+        else
+            echo_info "Agent generation script not found. Skipping."
+        fi
+    else
+        echo_info "Agent generation skipped (auto-fix disabled)."
+    fi
+fi
+
+#
+# Skill Validation (BLOCKING)
+#
+# Validates SKILL.md files against SkillForge 4.0 quality standards.
+# Ensures skill files meet structural requirements before commit.
+#
+# Security: Checks for symlinks to prevent TOCTOU attacks (MEDIUM-002)
+# Related: ADR-040 (Skill Frontmatter Standardization)
+#
+SKILL_VALIDATOR="$REPO_ROOT/.claude/skills/SkillForge/scripts/validate-skill.py"
+
+# Check if any SKILL.md files are staged
+STAGED_SKILL_FILES=$(echo "$STAGED_FILES" | grep -E '/SKILL\.md$' || true)
+
+if [ -n "$STAGED_SKILL_FILES" ]; then
+    echo_info "Validating staged skill files..."
+
+    # MEDIUM-002: Reject symlinks for security
+    if [ -L "$SKILL_VALIDATOR" ]; then
+        echo_error "Skill validator path is a symlink (security violation)"
+        EXIT_STATUS=1
+    elif [ -f "$SKILL_VALIDATOR" ]; then
+        if set_python_cmd; then
+            # Validate each staged SKILL.md file
+            VALIDATION_FAILED=0
+            while IFS= read -r skill_md; do
+                [ -z "$skill_md" ] && continue
+
+                # Get the skill directory (parent of SKILL.md)
+                skill_dir=$(dirname "$skill_md")
+
+                # Run validator on the skill directory and capture output
+                validator_output=$("${PYTHON_CMD[@]}" "$SKILL_VALIDATOR" "$skill_dir" 2>&1)
+                validator_exit=$?
+
+                # Check if error is a Python system error (not a skill validation error)
+                if echo "$validator_output" | grep -q "failed to join paths"; then
+                    echo_warning "Skill validation skipped for $skill_md (Python system error)"
+                    echo_info "  Python 3.13.7 has a known path resolution bug."
+                    echo_info "  Skill frontmatter appears valid. Proceeding with commit."
+                elif [ $validator_exit -eq 0 ]; then
+                    echo_success "Valid: $skill_md"
+                else
+                    echo_error "Validation failed: $skill_md"
+                    echo "$validator_output"
+                    VALIDATION_FAILED=1
+                fi
+            done <<< "$STAGED_SKILL_FILES"
+
+            if [ "$VALIDATION_FAILED" -eq 1 ]; then
+                echo_error "One or more skills failed validation."
+                echo_info "  Fix SKILL.md files and retry commit."
+                EXIT_STATUS=1
+            else
+                echo_success "All skill files validated successfully."
+            fi
+        else
+            echo_error "Python 3 runtime not available (python3/python/py -3). Cannot validate skills."
+            echo_info "  Install Python 3: https://www.python.org/downloads/"
+            EXIT_STATUS=1
+        fi
+    else
+        echo_error "Skill validator not found: $SKILL_VALIDATOR"
+        EXIT_STATUS=1
+    fi
+else
+    echo_info "No SKILL.md files staged. Skipping skill validation."
+fi
+
+#
+# Security Detection (Non-blocking warning)
+#
+# Detects infrastructure and security-critical file changes
+# and recommends security agent review if matches found.
+#
+# Security: Checks for symlinks to prevent TOCTOU attacks (MEDIUM-002)
+#
+SECURITY_DETECTION_SCRIPT="$REPO_ROOT/.agents/utilities/security-detection/detect_infrastructure.py"
+
+# MEDIUM-002: Reject symlinks for security detection script
+if [ -L "$SECURITY_DETECTION_SCRIPT" ]; then
+    echo_warning "Skipping security detection: script path is a symlink"
+elif [ -f "$SECURITY_DETECTION_SCRIPT" ]; then
+    if command -v python3 &> /dev/null; then
+        echo_info "Checking for security-critical file changes..."
+        python3 "$SECURITY_DETECTION_SCRIPT" --git-staged || true
+    elif command -v python &> /dev/null; then
+        echo_info "Checking for security-critical file changes..."
+        python "$SECURITY_DETECTION_SCRIPT" --git-staged || true
+    fi
+fi
+
+#
+# Bash Detection (BLOCKING)
+#
+# Enforces ADR-005: PowerShell-Only Scripting Standard
+# Rejects bash usage in GitHub workflow files and script files.
+# Uses pwsh (PowerShell) as the approved alternative.
+#
+# Security: Prevents bash code from bypassing PowerShell hardening (CWE-20/CWE-78)
+# Related: ADR-005, Skill-Security-010
+#
+
+# Check staged workflow files for shell: bash
+STAGED_WORKFLOW_FILES=$(echo "$STAGED_FILES" | grep -E '^\.github/(workflows|scripts)/.*\.(yml|yaml)$' || true)
+
+if [ -n "$STAGED_WORKFLOW_FILES" ]; then
+    echo_info "Checking for bash usage in workflow files (ADR-005)..."
+
+    # SECURITY: Convert newline-separated file list to array (bash 3 compatible)
+    WORKFLOW_FILES_ARRAY=()
+    while IFS= read -r file; do
+        [ -z "$file" ] && continue
+        WORKFLOW_FILES_ARRAY+=("$file")
+    done <<< "$STAGED_WORKFLOW_FILES"
+
+    # SECURITY: Use array expansion with quotes to preserve filenames with spaces/special chars
+    # Use -- separator to prevent filenames starting with - from being interpreted as options
+    if git diff --cached -- "${WORKFLOW_FILES_ARRAY[@]}" | grep -E '^\+.*shell:\s*bash' > /dev/null 2>&1; then
+        echo_error "Bash not allowed in workflow files (ADR-005)."
+        echo_info "  Use PowerShell instead: shell: pwsh"
+        echo_info "  See: .agents/architecture/ADR-005-powershell-only-scripting.md"
+        EXIT_STATUS=1
+    else
+        echo_success "No bash usage in workflow YAML files."
+    fi
+fi
+
+# Check staged script files for bash shebangs
+STAGED_SCRIPT_FILES=$(echo "$STAGED_FILES" | grep -E '^\.github/scripts/.*\.(sh|bash)$' || true)
+
+if [ -n "$STAGED_SCRIPT_FILES" ]; then
+    echo_error "Bash scripts (.sh, .bash) not allowed in .github/scripts/ (ADR-005)."
+    echo_info "  Use PowerShell (.ps1, .psm1) instead."
+    echo_info "  See: .agents/architecture/ADR-005-powershell-only-scripting.md"
+    EXIT_STATUS=1
+fi
+
+# Check for bash shebangs in any staged files under .github/scripts/
+STAGED_GITHUB_SCRIPT_FILES=$(echo "$STAGED_FILES" | grep -E '^\.github/scripts/' || true)
+
+if [ -n "$STAGED_GITHUB_SCRIPT_FILES" ]; then
+    # SECURITY: Convert newline-separated file list to array (bash 3 compatible)
+    GITHUB_SCRIPT_FILES_ARRAY=()
+    while IFS= read -r file; do
+        [ -z "$file" ] && continue
+        GITHUB_SCRIPT_FILES_ARRAY+=("$file")
+    done <<< "$STAGED_GITHUB_SCRIPT_FILES"
+
+    # SECURITY: Use array expansion with quotes to preserve filenames with spaces/special chars
+    # Use -- separator to prevent filenames starting with - from being interpreted as options
+    if git diff --cached -- "${GITHUB_SCRIPT_FILES_ARRAY[@]}" | grep -E '^\+#!.*(bin/bash|env bash)' > /dev/null 2>&1; then
+        echo_error "Bash shebang not allowed in .github/scripts/ files (ADR-005)."
+        echo_info "  Use PowerShell instead. Scripts should be .ps1 files."
+        echo_info "  See: .agents/architecture/ADR-005-powershell-only-scripting.md"
+        EXIT_STATUS=1
+    fi
+fi
+
+#
+# GitHub Actions SHA Pinning Validation (BLOCKING)
+#
+# Enforces security constraint from PROJECT-CONSTRAINTS.md.
+# All GitHub Actions must be pinned to commit SHA, not version tags.
+# Prevents supply chain attacks via mutable version references.
+#
+# Security: Blocks commits with version tags (@v4, @v3, etc.)
+# Reference: .agents/steering/security-practices.md#github-actions-security
+# Reference: .agents/governance/PROJECT-CONSTRAINTS.md#security-constraints
+#
+
+echo_info "Checking GitHub Actions SHA pinning..."
+
+STAGED_WORKFLOW_FILES_FOR_SHA=$(echo "$STAGED_FILES" | grep -E '^\.github/(workflows|actions)/.*\.(yml|yaml)$' || true)
+
+if [ -n "$STAGED_WORKFLOW_FILES_FOR_SHA" ]; then
+    echo_info "Found workflow file(s) to validate"
+    
+    # SECURITY: Convert newline-separated file list to array (bash 3 compatible)
+    WORKFLOW_SHA_ARRAY=()
+    while IFS= read -r file; do
+        [ -z "$file" ] && continue
+        WORKFLOW_SHA_ARRAY+=("$file")
+    done <<< "$STAGED_WORKFLOW_FILES_FOR_SHA"
+    
+    # Check for version tags in uses: lines
+    # Pattern matches: uses: <action>@v<digits>
+    # Excludes: SHAs (40 hex chars), local actions (./)
+    VIOLATIONS_FOUND=0
+    VIOLATION_DETAILS=""
+    
+    for workflow_file in "${WORKFLOW_SHA_ARRAY[@]}"; do
+        # Get staged content
+        STAGED_CONTENT=$(git show ":$workflow_file" 2>/dev/null)
+        
+        if [ -n "$STAGED_CONTENT" ]; then
+            # Find line numbers with version tag violations
+            LINE_NUM=0
+            while IFS= read -r line; do
+                LINE_NUM=$((LINE_NUM + 1))
+                
+                # Skip local actions
+                if echo "$line" | grep -E '^[[:space:]]*-?[[:space:]]*uses:[[:space:]]+\./' > /dev/null; then
+                    continue
+                fi
+                
+                # Check for version tag pattern per SEMVER 2.0.0
+                # Matches: v<major>[.<minor>][.<patch>][-<prerelease>][+<buildmetadata>]
+                if echo "$line" | grep -E '^[[:space:]]*-?[[:space:]]*uses:[[:space:]]+[^@]+@v[0-9]+(\.[0-9]+)*(-[a-zA-Z0-9]+(\.[a-zA-Z0-9]+)*)?(\+[a-zA-Z0-9]+(\.[a-zA-Z0-9]+)*)?[[:space:]]*(#|$)' > /dev/null; then
+                    ACTION=$(echo "$line" | sed -E 's/^[[:space:]]*-?[[:space:]]*uses:[[:space:]]+([^@]+)@.*/\1/')
+                    TAG=$(echo "$line" | sed -E 's/^[[:space:]]*-?[[:space:]]*uses:[[:space:]]+[^@]+@(v[0-9]+.*)/\1/' | sed -E 's/[[:space:]].*//')
+                    
+                    VIOLATIONS_FOUND=$((VIOLATIONS_FOUND + 1))
+                    VIOLATION_DETAILS="${VIOLATION_DETAILS}  ${workflow_file}:${LINE_NUM} - uses: ${ACTION}@${TAG}"$'\n'
+                fi
+            done <<< "$STAGED_CONTENT"
+        fi
+    done
+    
+    if [ "$VIOLATIONS_FOUND" -gt 0 ]; then
+        echo_error "GitHub Actions MUST be pinned to SHA, not version tags"
+        echo_info ""
+        echo_warning "Found $VIOLATIONS_FOUND violation(s):"
+        echo "$VIOLATION_DETAILS"
+        echo_info "Required pattern:"
+        echo_success "  uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4"
+        echo_info ""
+        echo_info "To find SHA for a version tag:"
+        echo_info "  gh api repos/<owner>/<repo>/git/ref/tags/<tag> --jq '.object.sha'"
+        echo_info ""
+        echo_info "Reference: .agents/steering/security-practices.md#github-actions-security"
+        EXIT_STATUS=1
+    else
+        echo_success "All GitHub Actions are SHA-pinned"
+    fi
+else
+    echo_info "No workflow files staged, skipping SHA pinning check"
+fi
+
+#
+# HANDOFF.md Protection (BLOCKING)
+#
+# Enforces ADR-014: Distributed Handoff Architecture
+# HANDOFF.md is now read-only. Agents must NOT update it during sessions.
+# Session context goes to:
+#   1. Session logs (.agents/sessions/)
+#   2. Serena memory (cross-session context)
+#   3. Branch handoffs (.agents/handoffs/{branch}/)
+#
+# Security: Fail-closed - blocks direct HANDOFF.md modifications on feature branches
+# Related: ADR-014, SESSION-PROTOCOL.md v1.4, Issue #190
+#
+CURRENT_BRANCH=$(git branch --show-current)
+STAGED_HANDOFF=$(echo "$STAGED_FILES" | grep -E '^\.agents/HANDOFF\.md$' || true)
+
+if [ -n "$STAGED_HANDOFF" ]; then
+    # Allow HANDOFF.md updates only on main branch
+    if [ "$CURRENT_BRANCH" != "main" ]; then
+        echo_error "BLOCKED: HANDOFF.md is read-only on feature branches"
+        echo_info "  Branch: $CURRENT_BRANCH"
+        echo_info "  Protocol: Do NOT update HANDOFF.md directly"
+        echo_info ""
+        echo_info "Session context goes to:"
+        echo_info "  1. Session log: .agents/sessions/YYYY-MM-DD-session-NN.json"
+        echo_info "  2. Serena memory: Use mcp__serena__write_memory"
+        echo_info "  3. Branch handoff (optional): .agents/handoffs/$CURRENT_BRANCH/"
+        echo_info ""
+        echo_info "See: .agents/architecture/ADR-014-distributed-handoff-architecture.md"
+        echo_info "See: .agents/SESSION-PROTOCOL.md v1.4"
+        EXIT_STATUS=1
+    fi
+fi
+
+#
+# Token Budget Validation (BLOCKING)
+#
+# Validates that HANDOFF.md stays within 5K token budget.
+# Prevents context limit overflow that causes merge conflicts.
+#
+# Related: Issue #190 (HANDOFF.md merge conflicts), ADR-014
+#
+TOKEN_BUDGET_SCRIPT="$REPO_ROOT/scripts/Validate-TokenBudget.ps1"
+
+if [ -n "$STAGED_HANDOFF" ]; then
+    echo_info "Checking HANDOFF.md token budget..."
+    
+    # MEDIUM-002: Reject symlinks for security
+    if [ -L "$TOKEN_BUDGET_SCRIPT" ]; then
+        echo_warning "Skipping token budget validation: script path is a symlink"
+    elif [ -f "$TOKEN_BUDGET_SCRIPT" ]; then
+        if command -v pwsh &> /dev/null; then
+            # Run token budget validation in CI mode
+            if ! pwsh -NoProfile -ExecutionPolicy Bypass -File "$TOKEN_BUDGET_SCRIPT" -Path "$REPO_ROOT" -CI 2>&1; then
+                echo_error "Token budget validation FAILED."
+                echo_info "  HANDOFF.md exceeds 5K token limit."
+                EXIT_STATUS=1
+            else
+                echo_success "Token budget validation: PASS"
+            fi
+        else
+            echo_warning "PowerShell not available. Skipping token budget validation."
+        fi
+    else
+        echo_info "Token budget script not found. Skipping."
+    fi
+fi
+
+#
+# Session Protocol Validation (BLOCKING)
+#
+# Enforces BOTH Session Start AND Session End protocol compliance.
+# This reconciles pre-commit validation with CI validation to prevent
+# PRs that pass pre-commit but fail CI's Session Protocol Validation.
+#
+# When .agents/ files are staged (indicating an agent session), requires:
+# - Session log staged under .agents/sessions/
+# - Session Start checklist complete (Serena init, HANDOFF read, skill list, etc.)
+# - Session End checklist complete (commit, QA, markdown lint, etc.)
+# - HANDOFF.md must NOT be staged (unless on main branch)
+#
+# Security: Fail-closed - if validation fails or cannot run, commit is blocked
+# Related: SESSION-PROTOCOL.md v1.4, Skill-Protocol-002, Skill-Validation-006
+#
+SESSION_VALIDATE_SCRIPT="$REPO_ROOT/scripts/Validate-SessionJson.ps1"
+
+# Check if any .agents/ files are staged (indicating an active session)
+STAGED_AGENTS_FILES=$(echo "$STAGED_FILES" | grep -E '^\.agents/' || true)
+
+if [ -n "$STAGED_AGENTS_FILES" ]; then
+    echo_info "Checking Session Protocol compliance (Start + End)..."
+
+    # MEDIUM-002: Reject symlinks for security
+    if [ -L "$SESSION_VALIDATE_SCRIPT" ]; then
+        echo_error "Session Protocol validation blocked: script path is a symlink"
+        EXIT_STATUS=1
+    elif [ ! -f "$SESSION_VALIDATE_SCRIPT" ]; then
+        echo_error "Session Protocol validation blocked: script not found at $SESSION_VALIDATE_SCRIPT"
+        EXIT_STATUS=1
+    else
+        # Require a staged session log (JSON format)
+        STAGED_SESSION_LOG=$(echo "$STAGED_FILES" | grep -E '^\.agents/sessions/[0-9]{4}-[0-9]{2}-[0-9]{2}-session-[0-9]+.*\.json$' | tail -n 1)
+        if [ -z "$STAGED_SESSION_LOG" ]; then
+            # Activation prompt: 5-word cloud to trigger correct behavior
+            echo_error "BLOCKED: Create session log NOW"
+            echo_info "  → git add .agents/sessions/YYYY-MM-DD-session-NN.json"
+            echo_info "  Protocol: JSON session log required for all agent sessions"
+            EXIT_STATUS=1
+        fi
+
+        # Only run validation if session log is present
+        if [ -n "$STAGED_SESSION_LOG" ]; then
+            if command -v pwsh &> /dev/null; then
+                echo_info "Running Session Protocol validation..."
+                # SECURITY: Use -- separator and quote path to prevent injection
+                if ! pwsh -NoProfile -ExecutionPolicy Bypass -File "$SESSION_VALIDATE_SCRIPT" -SessionPath "$STAGED_SESSION_LOG" -PreCommit 2>&1; then
+                    echo_error "Session Protocol validation FAILED."
+                    echo_info "  Review errors above and fix session log."
+                    echo_info ""
+                    echo_info "  REQUIRED FORMAT: JSON with protocol compliance checklist"
+                    echo_info "  Schema: .agents/schemas/session-log.schema.json"
+                    echo_info ""
+                    echo_info "  Fix with: /session-log-fixer skill"
+                    echo_info ""
+                    echo_info "  Run manually: pwsh scripts/Validate-SessionJson.ps1 -SessionPath \"$STAGED_SESSION_LOG\""
+                    EXIT_STATUS=1
+                else
+                    echo_success "Session Protocol validation: PASS"
+                fi
+            else
+                echo_error "Session Protocol validation blocked: PowerShell not available."
+                echo_info "  Install: https://docs.microsoft.com/en-us/powershell/scripting/install/installing-powershell"
+                EXIT_STATUS=1
+            fi
+        fi
+    fi
+else
+    echo_info "No .agents/ files staged. Skipping Session Protocol validation."
+fi
+
+#
+# QA (Pester) Test Gate (BLOCKING when relevant changes)
+#
+# Enforces a lightweight QA pass locally when staged changes include:
+# - PowerShell code under scripts/, build/, .claude/skills/, or .github/scripts/
+# - Any PowerShell tests under tests/ or scripts/tests/ (and related test roots)
+#
+# Strategy (Issue #917 fix):
+# - Run tests ONLY for changed files, not entire test directories
+# - Maps each changed .ps1/.psm1 file to its corresponding .Tests.ps1 file
+# - If no specific test file exists for a changed file, skip it (no pre-existing failures)
+# - Fallback to minimal test set only if no test paths resolved at all
+# - No bypass option - QA gate is enforced for safety
+#
+# This prevents pre-existing test failures in unrelated files from blocking commits.
+#
+# Determine if relevant files are staged
+STAGED_PS_CODE_FILES=$(echo "$STAGED_FILES" | grep -E '\.(ps1|psm1)$' || true)
+
+if [ -z "$STAGED_PS_CODE_FILES" ]; then
+    echo_info "No PowerShell changes. Skipping QA tests."
+else
+    if ! command -v pwsh >/dev/null 2>&1; then
+        echo_error "PowerShell (pwsh) not available. Cannot run QA tests."
+        echo_info "  Install: https://learn.microsoft.com/powershell/scripting/install/installing-powershell"
+        echo_warning "Deterministic QA not executed. Run the QA agent manually before pushing."
+        EXIT_STATUS=1
+    else
+        # Resolve runner script and validate
+        PESTER_RUNNER="$REPO_ROOT/build/scripts/Invoke-PesterTests.ps1"
+        if [ -L "$PESTER_RUNNER" ]; then
+            echo_error "QA test runner path is a symlink (security violation): $PESTER_RUNNER"
+            echo_warning "Deterministic QA not executed. Run the QA agent manually before pushing."
+            EXIT_STATUS=1
+        elif [ ! -f "$PESTER_RUNNER" ]; then
+            echo_error "QA test runner not found: $PESTER_RUNNER"
+            echo_warning "Deterministic QA not executed. Run the QA agent manually before pushing."
+            EXIT_STATUS=1
+        else
+            echo_info "Running targeted QA tests (Pester)..."
+
+            # Optional runtime cap using coreutils timeout if present (default 5 min)
+            # Security: Validate QA_TIMEOUT_SEC as numeric to prevent command injection
+            QA_TIMEOUT_SEC=${QA_TIMEOUT_SEC:-300}
+            USE_TIMEOUT=false
+            # Use grep for bash 3 compatibility (Copilot #2678584229)
+            if echo "$QA_TIMEOUT_SEC" | grep -qE '^[0-9]+$' && command -v timeout >/dev/null 2>&1; then
+                USE_TIMEOUT=true
+            elif [ -n "${QA_TIMEOUT_SEC:-}" ] && ! echo "$QA_TIMEOUT_SEC" | grep -qE '^[0-9]+$'; then
+                echo_warning "Invalid QA_TIMEOUT_SEC value '$QA_TIMEOUT_SEC'; running QA tests without timeout."
+            fi
+
+            # Build TestPath arguments safely using arrays
+            # Bash 3 compatibility: use simple array init instead of declare -a
+            TESTPATHS=()
+
+            # Include any staged test files directly
+            while IFS= read -r cf; do
+                [ -z "$cf" ] && continue
+                case "$cf" in
+                    *.Tests.ps1)
+                        if [ -L "$cf" ]; then
+                            echo_warning "Skipping symlinked test file: $cf"
+                            continue
+                        fi
+                        [ -f "$cf" ] && TESTPATHS+=("$cf")
+                        ;;
+                esac
+            done <<< "$STAGED_PS_CODE_FILES"
+
+            # Map changed code files to their corresponding test files (Issue #917)
+            # NOTE: This assumes a strict 1:1 mapping between source scripts/modules and test files,
+            # e.g. .claude/skills/github/scripts/pr/Get-PRChecks.ps1 -> .claude/skills/github/tests/Get-PRChecks.Tests.ps1.
+            # This means shared test files that cover multiple scripts (for example, a single
+            # ThreadManagement.Tests.ps1 validating several ThreadManagement scripts) will NOT
+            # automatically run when only one of those scripts changes, unless the shared test file
+            # itself is staged. This trade-off keeps pre-commit runs fast and targeted; when working
+            # on scripts covered by shared tests, run the broader QA test suite manually as needed.
+            while IFS= read -r cf; do
+                [ -z "$cf" ] && continue
+                case "$cf" in
+                    .claude/skills/*/scripts/**/*.ps1|.claude/skills/*/scripts/**/*.psm1)
+                        # Map skill script or module to its test file (supports nested directories)
+                        # Example: .claude/skills/github/scripts/pr/Get-PRChecks.ps1 -> .claude/skills/github/tests/Get-PRChecks.Tests.ps1
+                        skilldir=${cf%%/scripts/*}
+                        scriptname=$(basename "$cf")
+                        testfile="$skilldir/tests/${scriptname%.*}.Tests.ps1"
+                        if [ -f "$testfile" ] && [ ! -L "$testfile" ]; then
+                            TESTPATHS+=("$testfile")
+                        fi
+                        ;;
+                    scripts/*.ps1|scripts/*.psm1)
+                        # Map root script to its test file
+                        scriptname=$(basename "$cf")
+                        testfile="scripts/tests/${scriptname%.*}.Tests.ps1"
+                        if [ -f "$testfile" ] && [ ! -L "$testfile" ]; then
+                            TESTPATHS+=("$testfile")
+                        fi
+                        ;;
+                    build/scripts/*.ps1|build/scripts/*.psm1)
+                        # Map build script to its test file
+                        scriptname=$(basename "$cf")
+                        testfile="build/scripts/tests/${scriptname%.*}.Tests.ps1"
+                        if [ -f "$testfile" ] && [ ! -L "$testfile" ]; then
+                            TESTPATHS+=("$testfile")
+                        fi
+                        ;;
+                    build/*.ps1|build/*.psm1)
+                        # Map build root script to its test file
+                        scriptname=$(basename "$cf")
+                        testfile="build/tests/${scriptname%.*}.Tests.ps1"
+                        if [ -f "$testfile" ] && [ ! -L "$testfile" ]; then
+                            TESTPATHS+=("$testfile")
+                        fi
+                        ;;
+                    .github/scripts/*.ps1|.github/scripts/*.psm1)
+                        # Map GitHub script to its test file (co-located with source)
+                        scriptname=$(basename "$cf")
+                        testfile=".github/scripts/${scriptname%.*}.Tests.ps1"
+                        if [ -f "$testfile" ] && [ ! -L "$testfile" ]; then
+                            TESTPATHS+=("$testfile")
+                        fi
+                        ;;
+                    *.Tests.ps1)
+                        # Already handled above but kept as a catch-all
+                        ;;
+                esac
+            done <<< "$STAGED_PS_CODE_FILES"
+
+            # As a safety net, if nothing resolved, add a minimal quick set
+            if [ ${#TESTPATHS[@]} -eq 0 ]; then
+                [ -d "$REPO_ROOT/scripts/tests" ] && TESTPATHS+=("$REPO_ROOT/scripts/tests")
+                [ -d "$REPO_ROOT/build/scripts/tests" ] && TESTPATHS+=("$REPO_ROOT/build/scripts/tests")
+                [ -d "$REPO_ROOT/build/tests" ] && TESTPATHS+=("$REPO_ROOT/build/tests")
+            fi
+
+            # Deduplicate paths while preserving order (bash 3 compatible)
+            if [ ${#TESTPATHS[@]} -gt 0 ]; then
+                UNIQUE_TESTPATHS=()
+                for p in "${TESTPATHS[@]}"; do
+                    # Normalize to absolute paths relative to repo root
+                    if [ -d "$p" ] || [ -f "$p" ]; then
+                        key="$p"
+                    else
+                        key="$REPO_ROOT/$p"
+                    fi
+
+                    already=0
+                    for existing in "${UNIQUE_TESTPATHS[@]}"; do
+                        if [ "$existing" = "$key" ]; then
+                            already=1
+                            break
+                        fi
+                    done
+
+                    if [ $already -eq 0 ]; then
+                        UNIQUE_TESTPATHS+=("$key")
+                    fi
+                done
+
+                echo_info "Targets:"
+                for t in "${UNIQUE_TESTPATHS[@]}"; do
+                    echo_info "  - $t"
+                done
+
+                # Build PowerShell -TestPath arguments
+                # Use a temp file to pass multiple -TestPath values safely
+                # Convert absolute paths to relative paths for Pester runner
+                TESTARGS_FILE=$(mktemp)
+                for t in "${UNIQUE_TESTPATHS[@]}"; do
+                    # Convert absolute paths to relative paths starting with ./
+                    # The Pester runner expects relative paths, not absolute ones
+                    # Use case for bash 3 compatibility; handle edge case where t equals REPO_ROOT (Copilot #2678558275, #2678584229)
+                    case "$t" in
+                        "$REPO_ROOT")
+                            # Edge case: t equals REPO_ROOT exactly
+                            printf "./\n" >> "$TESTARGS_FILE"
+                            ;;
+                        "$REPO_ROOT"/*)
+                            # Normal case: t is within REPO_ROOT
+                            rel_path="${t#$REPO_ROOT/}"
+                            printf "./%s\n" "$rel_path" >> "$TESTARGS_FILE"
+                            ;;
+                        *)
+                            # Not under REPO_ROOT, use as-is
+                            printf "%s\n" "$t" >> "$TESTARGS_FILE"
+                            ;;
+                    esac
+                done
+
+                # Execute with optional timeout, capture output for display
+                # Note: Embed paths directly in command string since pwsh -Command doesn't properly handle -- arguments
+                RC=0
+                TEST_OUTPUT=$(mktemp)
+                if $USE_TIMEOUT; then
+                    timeout --preserve-status "${QA_TIMEOUT_SEC}" pwsh -NoProfile -Command "\$paths = Get-Content -LiteralPath '$TESTARGS_FILE'; & '$PESTER_RUNNER' -CI -Verbosity Normal -TestPath \$paths" > "$TEST_OUTPUT" 2>&1 || RC=$?
+                else
+                    pwsh -NoProfile -Command "\$paths = Get-Content -LiteralPath '$TESTARGS_FILE'; & '$PESTER_RUNNER' -CI -Verbosity Normal -TestPath \$paths" > "$TEST_OUTPUT" 2>&1 || RC=$?
+                fi
+
+                if [ $RC -ne 0 ]; then
+                    if $USE_TIMEOUT && [ $RC -eq 124 ]; then
+                        echo_error "QA tests timed out after ${QA_TIMEOUT_SEC}s."
+                    else
+                        echo_error "QA tests failed. Fix failing tests before committing."
+                        echo_info ""
+                        echo_info "Test output (last 50 lines):"
+                        tail -50 "$TEST_OUTPUT"
+                        echo_info ""
+                    fi
+                    echo_info "  Re-run locally for details:"
+                    echo_info "    pwsh $PESTER_RUNNER -CI -Verbosity Normal \\"
+                    for t in "${UNIQUE_TESTPATHS[@]}"; do
+                        echo_info "      -TestPath '$t' \\"
+                    done
+                    echo_info ""
+                    rm -f "$TEST_OUTPUT"
+                    rm -f "$TESTARGS_FILE"
+                    EXIT_STATUS=1
+                else
+                    rm -f "$TEST_OUTPUT"
+                    rm -f "$TESTARGS_FILE"
+                    echo_success "QA tests passed."
+                fi
+            else
+                echo_warning "No test paths resolved; skipping QA tests."
+            fi
+        fi
+    fi
+fi
+
+#
+# Episode Extraction (Auto-fix)
+#
+# Automatically extracts episode data from staged session logs to Tier 2 memory.
+# Creates episode JSON files in .agents/memory/episodes/ for reflexion memory system.
+# Episodes capture session outcomes, decisions, events, and metrics per ADR-038.
+#
+# Security: Checks for symlinks to prevent TOCTOU attacks (MEDIUM-002)
+# Related: ADR-038 Reflexion Memory Schema, memory skill
+#
+EPISODE_EXTRACT_SCRIPT="$REPO_ROOT/.claude/skills/memory/scripts/Extract-SessionEpisode.ps1"
+
+if [ -n "$STAGED_SESSION_LOG" ]; then
+    # Check if auto-fix is enabled (respects SKIP_AUTOFIX environment variable)
+    if [ "$AUTOFIX" = "1" ]; then
+        echo_info "Extracting episode from session log..."
+
+        # MEDIUM-002: Reject symlinks for security
+        if [ -L "$EPISODE_EXTRACT_SCRIPT" ]; then
+            echo_warning "Skipping episode extraction: script path is a symlink"
+        elif [ -f "$EPISODE_EXTRACT_SCRIPT" ]; then
+            if command -v pwsh &> /dev/null; then
+                # Run episode extraction
+                # Guard against set -e aborting the hook on non-blocking extraction failures
+                EXTRACT_OUTPUT=$(pwsh -NoProfile -ExecutionPolicy Bypass -File "$EPISODE_EXTRACT_SCRIPT" -SessionLogPath "$STAGED_SESSION_LOG" -Force 2>&1 || true)
+                EXTRACT_EXIT=$?
+
+                if [ $EXTRACT_EXIT -eq 0 ]; then
+                    # Extract episode filename from output (last line with .json)
+                    EPISODE_FILE=$(echo "$EXTRACT_OUTPUT" | grep -oE '\.agents/memory/episodes/episode-.*\.json' | tail -1)
+
+                    if [ -n "$EPISODE_FILE" ] && [ -f "$REPO_ROOT/$EPISODE_FILE" ]; then
+                        # MEDIUM-002: Defense-in-depth symlink check before staging
+                        if [ -L "$REPO_ROOT/$EPISODE_FILE" ]; then
+                            echo_warning "Skipping episode staging: generated file is a symlink"
+                        else
+                            # Stage the generated episode file
+                            git add -- "$REPO_ROOT/$EPISODE_FILE"
+                            echo_success "Extracted and staged: $EPISODE_FILE"
+                            FILES_FIXED=1
+                        fi
+                    else
+                        echo_success "Episode extracted (no new file to stage)"
+                    fi
+                else
+                    # Extraction failed - show warning but don't block commit
+                    echo_warning "Episode extraction failed (non-blocking):"
+                    echo "$EXTRACT_OUTPUT" | head -5
+                    echo_info "  Session log will still be committed."
+                    echo_info "  Extract manually: pwsh .claude/skills/memory/scripts/Extract-SessionEpisode.ps1 -SessionLogPath \"$STAGED_SESSION_LOG\""
+                fi
+            else
+                echo_warning "PowerShell not available. Skipping episode extraction."
+            fi
+        else
+            echo_info "Episode extraction script not found. Skipping."
+        fi
+    else
+        echo_info "Episode extraction skipped (auto-fix disabled)."
+    fi
+fi
+
+#
+# Causal Graph Update (Auto-fix)
+#
+# Automatically updates the causal graph when episode files are staged.
+# Processes episode data to build causal chains, decision patterns, and success metrics.
+# Updates .agents/memory/causality/causal-graph.json per ADR-038.
+#
+# Security: Checks for symlinks to prevent TOCTOU attacks (MEDIUM-002)
+# Related: ADR-038 Reflexion Memory Schema, memory skill
+#
+UPDATE_CAUSAL_SCRIPT="$REPO_ROOT/.claude/skills/memory/scripts/Update-CausalGraph.ps1"
+CAUSAL_GRAPH_FILE="$REPO_ROOT/.agents/memory/causality/causal-graph.json"
+
+# Check if any episode files are staged
+STAGED_EPISODE_FILES=$(echo "$STAGED_FILES" | grep -E '^\.agents/memory/episodes/episode-.*\.json$' || true)
+
+if [ -n "$STAGED_EPISODE_FILES" ]; then
+    # Check if auto-fix is enabled (respects SKIP_AUTOFIX environment variable)
+    if [ "$AUTOFIX" = "1" ]; then
+        echo_info "Updating causal graph from staged episodes..."
+
+        # MEDIUM-002: Reject symlinks for security
+        if [ -L "$UPDATE_CAUSAL_SCRIPT" ]; then
+            echo_warning "Skipping causal graph update: script path is a symlink"
+        elif [ -f "$UPDATE_CAUSAL_SCRIPT" ]; then
+            if command -v pwsh &> /dev/null; then
+                # Run causal graph update on the entire episodes directory
+                # This ensures all relationships are captured, not just the new episode
+                # Guard against set -e aborting the hook on non-blocking update failures
+                UPDATE_OUTPUT=$(pwsh -NoProfile -ExecutionPolicy Bypass -File "$UPDATE_CAUSAL_SCRIPT" -EpisodePath "$REPO_ROOT/.agents/memory/episodes" 2>&1 || true)
+                UPDATE_EXIT=$?
+
+                if [ $UPDATE_EXIT -eq 0 ]; then
+                    # Check if causal graph was updated and stage it
+                    if [ -f "$CAUSAL_GRAPH_FILE" ]; then
+                        # MEDIUM-002: Defense-in-depth symlink check before staging
+                        if [ -L "$CAUSAL_GRAPH_FILE" ]; then
+                            echo_warning "Skipping causal graph staging: file is a symlink"
+                        else
+                            # Check if file changed
+                            if ! git diff --quiet -- "$CAUSAL_GRAPH_FILE" 2>/dev/null; then
+                                git add -- "$CAUSAL_GRAPH_FILE"
+                                # Extract stats from output (POSIX-compatible, no -P flag for macOS)
+                                NODES_ADDED=$(echo "$UPDATE_OUTPUT" | sed -n 's/.*Nodes added:[[:space:]]*\([0-9]*\).*/\1/p' | head -1)
+                                NODES_ADDED=${NODES_ADDED:-0}
+                                EDGES_ADDED=$(echo "$UPDATE_OUTPUT" | sed -n 's/.*Edges added:[[:space:]]*\([0-9]*\).*/\1/p' | head -1)
+                                EDGES_ADDED=${EDGES_ADDED:-0}
+                                PATTERNS_ADDED=$(echo "$UPDATE_OUTPUT" | sed -n 's/.*Patterns added:[[:space:]]*\([0-9]*\).*/\1/p' | head -1)
+                                PATTERNS_ADDED=${PATTERNS_ADDED:-0}
+                                echo_success "Causal graph updated: +$NODES_ADDED nodes, +$EDGES_ADDED edges, +$PATTERNS_ADDED patterns"
+                                FILES_FIXED=1
+                            else
+                                echo_success "Causal graph already up to date"
+                            fi
+                        fi
+                    else
+                        echo_warning "Causal graph file not found after update"
+                    fi
+                else
+                    # Update failed - show warning but don't block commit
+                    echo_warning "Causal graph update failed (non-blocking):"
+                    echo "$UPDATE_OUTPUT" | head -5
+                    echo_info "  Episodes will still be committed."
+                    echo_info "  Update manually: pwsh .claude/skills/memory/scripts/Update-CausalGraph.ps1"
+                fi
+            else
+                echo_warning "PowerShell not available. Skipping causal graph update."
+            fi
+        else
+            echo_info "Causal graph update script not found. Skipping."
+        fi
+    else
+        echo_info "Causal graph update skipped (auto-fix disabled)."
+    fi
+fi
+
+#
+# Memory Evidence Warning (E4, ADR-007)
+#
+# Lightweight check for memory retrieval evidence in session logs.
+# Warns if the Evidence column for memory-index appears empty or placeholder.
+# Full validation (E2) is done by Validate-SessionJson.ps1.
+#
+# Related: ADR-007, Issue #729, E2 in Validate-SessionJson.ps1
+#
+
+if [ -n "$STAGED_SESSION_LOG" ]; then
+    echo_info "Checking memory retrieval evidence (ADR-007)..."
+
+    # Read the staged session log content
+    if [ -f "$STAGED_SESSION_LOG" ]; then
+        # Look for memory-index row and check its Evidence column
+        # Pattern: | MUST | ... memory-index ... | [x] | <evidence> |
+        MEMORY_ROW=$(grep -E '\|\s*MUST\s*\|.*memory-index.*memories\s*\|' "$STAGED_SESSION_LOG" || true)
+
+        if [ -n "$MEMORY_ROW" ]; then
+            # Extract the Evidence column (4th column)
+            # Split by | and get the 4th field (after Req, Step, Status)
+            EVIDENCE=$(echo "$MEMORY_ROW" | awk -F'|' '{print $5}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+
+            # Check for placeholder patterns
+            if [ -z "$EVIDENCE" ] || \
+               [ "$EVIDENCE" = "List memories loaded" ] || \
+               echo "$EVIDENCE" | grep -qE '^\[.*\]$' || \
+               echo "$EVIDENCE" | grep -qE '^-+$'; then
+                echo_warning "Memory evidence appears incomplete (ADR-007)"
+                echo_info "  Row: memory-index row"
+                echo_info "  Evidence: '$EVIDENCE'"
+                echo_info "  Expected: Actual memory names like 'memory-index, skills-pr-review-index'"
+                echo_info ""
+                echo_info "  Update the Evidence column with memories you actually read."
+                # Non-blocking warning - E2 validation will catch this if it's a real problem
+            else
+                # Check if evidence contains kebab-case memory names
+                if echo "$EVIDENCE" | grep -qE '[a-z][a-z0-9]*-[a-z0-9-]+'; then
+                    echo_success "Memory evidence looks valid."
+                else
+                    echo_warning "Memory evidence may not contain valid memory names"
+                    echo_info "  Evidence: '$EVIDENCE'"
+                    echo_info "  Expected format: kebab-case names like 'memory-index, skills-pr-review-index'"
+                fi
+            fi
+        fi
+    fi
+fi
+
+#
+# Traceability Validation (BLOCKING)
+#
+# Validates cross-references between specification artifacts (REQ, DESIGN, TASK).
+# Enforces the traceability schema defined in .agents/governance/traceability-schema.md.
+# Checks:
+# - Forward traceability (REQ -> DESIGN)
+# - Backward traceability (TASK -> DESIGN)
+# - Complete chain (DESIGN has both REQ and TASK)
+# - Reference validity (all referenced IDs exist)
+#
+# Related: Phase 2 Traceability, traceability-schema.md
+#
+TRACEABILITY_VALIDATE_SCRIPT="$REPO_ROOT/scripts/Validate-Traceability.ps1"
+
+# Check if any spec files are staged
+STAGED_SPEC_FILES=$(echo "$STAGED_FILES" | grep -E '^\.agents/specs/(requirements|design|tasks)/.*\.md$' || true)
+
+if [ -n "$STAGED_SPEC_FILES" ]; then
+    echo_info "Checking specification traceability..."
+
+    # MEDIUM-002: Reject symlinks for security
+    if [ -L "$TRACEABILITY_VALIDATE_SCRIPT" ]; then
+        echo_warning "Skipping traceability validation: script path is a symlink"
+    elif [ -f "$TRACEABILITY_VALIDATE_SCRIPT" ]; then
+        if command -v pwsh &> /dev/null; then
+            # Run traceability validation
+            # Note: Errors (broken refs, untraced tasks) are blocking
+            # Warnings (orphaned specs) are non-blocking unless -Strict
+            if ! pwsh -NoProfile -ExecutionPolicy Bypass -File "$TRACEABILITY_VALIDATE_SCRIPT" -SpecsPath "$REPO_ROOT/.agents/specs" 2>&1; then
+                echo_error "Traceability validation FAILED."
+                echo_info "  Fix broken references or untraced tasks."
+                echo_info "  See: .agents/governance/traceability-schema.md"
+                EXIT_STATUS=1
+            else
+                echo_success "Traceability validation: PASS"
+            fi
+        else
+            echo_warning "PowerShell not available. Skipping traceability validation."
+        fi
+    else
+        echo_info "Traceability validation script not found. Skipping."
+    fi
+else
+    echo_info "No spec files staged. Skipping traceability validation."
+fi
+
+#
+# Memory Index Validation (BLOCKING)
+#
+# Validates tiered memory index consistency (ADR-017).
+# When .serena/memories/ files are staged, ensures:
+# - All index entries point to existing files
+# - Keyword density >=40% unique per skill
+#
+# Related: ADR-017, Issue #307
+#
+MEMORY_INDEX_SCRIPT="$REPO_ROOT/scripts/Validate-MemoryIndex.ps1"
+
+# Check if any memory files are staged
+STAGED_MEMORY_FILES=$(echo "$STAGED_FILES" | grep -E '^\.serena/memories/' || true)
+
+if [ -n "$STAGED_MEMORY_FILES" ]; then
+    echo_info "Checking memory index consistency (ADR-017)..."
+
+    # MEDIUM-002: Reject symlinks for security
+    if [ -L "$MEMORY_INDEX_SCRIPT" ]; then
+        echo_warning "Skipping memory index validation: script path is a symlink"
+    elif [ -f "$MEMORY_INDEX_SCRIPT" ]; then
+        if command -v pwsh &> /dev/null; then
+            # Run memory index validation in CI mode
+            if ! pwsh -NoProfile -ExecutionPolicy Bypass -File "$MEMORY_INDEX_SCRIPT" -Path "$REPO_ROOT/.serena/memories" -CI 2>&1; then
+                echo_error "Memory index validation FAILED."
+                echo_info "  Run manually: pwsh scripts/Validate-MemoryIndex.ps1"
+                EXIT_STATUS=1
+            else
+                echo_success "Memory index validation: PASS"
+            fi
+        else
+            echo_warning "PowerShell not available. Skipping memory index validation."
+        fi
+    else
+        echo_info "Memory index validation script not found. Skipping."
+    fi
+else
+    echo_info "No memory files staged. Skipping memory index validation."
+fi
+
+#
+# Memory Cross-Reference (Non-blocking, auto-fix)
+#
+# Automatically adds cross-references to memory files:
+# - Converts table cell references to markdown links
+# - Converts backtick references to markdown links
+# - Adds Related sections based on domain patterns (atomic files only)
+#
+# NOTE: Index files (*-index.md) are excluded from Related section addition
+# per ADR-017 requirement for pure lookup table format (token efficiency).
+#
+# This is non-blocking (fail-open) to allow commits even if cross-referencing fails.
+# Auto-stages any modified files.
+#
+# Related: Issue #899, Issue #910, memory skill
+#
+MEMORY_CROSSREF_SCRIPT="$REPO_ROOT/.claude/skills/memory/scripts/Invoke-MemoryCrossReference.ps1"
+
+if [ -n "$STAGED_MEMORY_FILES" ]; then
+    echo_info "Adding memory cross-references..."
+
+    # MEDIUM-002: Reject symlinks for security
+    if [ -L "$MEMORY_CROSSREF_SCRIPT" ]; then
+        echo_warning "Skipping memory cross-reference: script path is a symlink"
+    elif [ -f "$MEMORY_CROSSREF_SCRIPT" ]; then
+        if command -v pwsh &> /dev/null; then
+            # Run cross-reference (non-blocking)
+            crossref_result=$(pwsh -NoProfile -ExecutionPolicy Bypass -File "$MEMORY_CROSSREF_SCRIPT" \
+                -MemoriesPath "$REPO_ROOT/.serena/memories" \
+                -OutputJson 2>&1) || true
+
+            # Parse result and report
+            if echo "$crossref_result" | grep -q '"Success":true'; then
+                files_modified=$(echo "$crossref_result" | grep -o '"FilesModified":[0-9]*' | grep -o '[0-9]*' || echo "0")
+                if [ "$files_modified" -gt 0 ]; then
+                    echo_action "Cross-referenced $files_modified memory files"
+                    # Auto-stage modified files
+                    git add .serena/memories/*.md 2>/dev/null || true
+                    FILES_FIXED=1
+                else
+                    echo_info "Memory cross-reference: no changes needed"
+                fi
+            else
+                echo_warning "Memory cross-reference encountered issues (non-blocking)"
+                # Extract and show errors if jq is available
+                if command -v jq &> /dev/null; then
+                    errors=$(echo "$crossref_result" | jq -r '.Errors[]? // empty' 2>/dev/null)
+                    if [ -n "$errors" ]; then
+                        echo_info "Errors: $errors"
+                    fi
+                fi
+            fi
+        else
+            echo_warning "PowerShell not available. Skipping memory cross-reference."
+        fi
+    else
+        echo_info "Memory cross-reference script not found. Skipping."
+    fi
+fi
+
+#
+# ADR Change Detection (Non-blocking, AI prompt)
+#
+# Detects ADR file changes and prompts the AI to invoke adr-review skill.
+# This is a reminder to the AI agent, not a blocking validation.
+# The actual adr-review skill provides multi-agent consensus validation.
+#
+# Related: adr-review skill, ADR governance
+#
+adr_detect_script="$REPO_ROOT/.claude/skills/adr-review/scripts/Detect-ADRChanges.ps1"
+
+# Check if any ADR files are staged
+staged_adr_files=$(echo "$STAGED_FILES" | grep -E '^(\.agents/architecture|docs/architecture)/ADR-.*\.md$' || true)
+
+if [ -n "$staged_adr_files" ]; then
+    echo_info "Checking for ADR changes..."
+
+    # MEDIUM-002: Reject symlinks for security
+    if [ -L "$adr_detect_script" ]; then
+        echo_warning "Skipping ADR detection: script path is a symlink"
+    elif [ -f "$adr_detect_script" ]; then
+        if command -v pwsh &> /dev/null; then
+            # Run detection and capture output
+            adr_result=$(pwsh -NoProfile -ExecutionPolicy Bypass -File "$adr_detect_script" -BasePath "$REPO_ROOT" 2>&1)
+            adr_exit=$?
+
+            if [ $adr_exit -eq 0 ]; then
+                # Check if changes were detected
+                has_changes=$(echo "$adr_result" | grep -o '"HasChanges":\s*true' || true)
+                if [ -n "$has_changes" ]; then
+                    echo ""
+                    echo_warning "BLOCKING GATE: ADR changes detected - invoke /adr-review before commit"
+                    echo_info ""
+                    echo_info "  ADR files staged:"
+                    echo "$staged_adr_files" | while read -r adr; do
+                        echo_info "    - $adr"
+                    done
+                    echo_info ""
+                    echo_info "  Required: Run /adr-review for multi-agent consensus"
+                    echo_info "  Skill: .claude/skills/adr-review/SKILL.md"
+                    echo ""
+                    # Non-blocking - this is a reminder to the AI, not a gate
+                fi
+            fi
+        else
+            echo_warning "PowerShell not available. Skipping ADR detection."
+        fi
+    else
+        echo_info "ADR detection script not found. Skipping."
+    fi
+else
+    echo_info "No ADR files staged. Skipping ADR detection."
+fi
+
+#
+# Skill Format Validation (BLOCKING for new files)
+#
+# Enforces ADR-017 atomic format: ONE skill per file. No bundled skills.
+# Blocks commits that add new bundled-format skill files.
+# Legacy bundled files are allowed (non-blocking warning only).
+#
+# Related: ADR-017, Issue #307
+#
+SKILL_FORMAT_SCRIPT="$REPO_ROOT/scripts/Validate-SkillFormat.ps1"
+
+if [ -n "$STAGED_MEMORY_FILES" ]; then
+    echo_info "Checking skill format (ADR-017: one skill per file)..."
+
+    # MEDIUM-002: Reject symlinks for security
+    if [ -L "$SKILL_FORMAT_SCRIPT" ]; then
+        echo_warning "Skipping skill format validation: script path is a symlink"
+    elif [ -f "$SKILL_FORMAT_SCRIPT" ]; then
+        if command -v pwsh &> /dev/null; then
+            # Run skill format validation on staged files only
+            # -StagedOnly checks only new/modified files (not legacy bundled files)
+            if ! pwsh -NoProfile -ExecutionPolicy Bypass -File "$SKILL_FORMAT_SCRIPT" -StagedOnly -CI 2>&1; then
+                echo_error "Skill format validation FAILED."
+                echo_info "  ADR-017 requires ONE skill per file. Split bundled skills."
+                EXIT_STATUS=1
+            else
+                echo_success "Skill format validation: PASS"
+            fi
+        else
+            echo_warning "PowerShell not available. Skipping skill format validation."
+        fi
+    else
+        echo_info "Skill format validation script not found. Skipping."
+    fi
+fi
+
+#
+# Final Summary
+#
+echo ""
+if [ $EXIT_STATUS -ne 0 ]; then
+    echo_error "Pre-commit checks failed. Please fix the issues above."
+    echo_info ""
+    echo_info "  Fix the issues and retry the commit."
+    echo_info "  Note: Claude hooks provide enforcement; git hooks can be bypassed with --no-verify."
+    exit 2
+fi
+
+if [ "$FILES_FIXED" = "1" ]; then
+    echo_success "All checks passed. Some files were auto-fixed and re-staged."
+else
+    echo_success "All pre-commit checks passed."
+fi
+
+# Suggestion: Run full validation before creating PR
+echo ""
+echo_info "Before creating a PR, run the full validation suite:"
+echo_info "  pwsh scripts/Validate-PrePR.ps1"
+echo_info ""
+echo_info "For quick validation during development:"
+echo_info "  pwsh scripts/Validate-PrePR.ps1 -Quick"
+echo_info ""
+echo_info "See: .agents/devops/SHIFT-LEFT.md for details"
+
+exit 0

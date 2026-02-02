@@ -1,0 +1,853 @@
+<#
+.SYNOPSIS
+    Pester tests for Post-IssueComment.ps1 script.
+
+.DESCRIPTION
+    Tests the issue comment posting functionality including:
+    - Basic comment posting
+    - Idempotency marker handling (skip behavior)
+    - UpdateIfExists switch (upsert behavior)
+    - Error handling and exit codes
+
+.NOTES
+    Requires Pester 5.x or later.
+#>
+
+BeforeAll {
+    # Script location relative to repository root tests/ folder
+    $Script:ScriptPath = Join-Path $PSScriptRoot ".." ".claude" "skills" "github" "scripts" "issue" "Post-IssueComment.ps1"
+    $Script:ModulePath = Join-Path $PSScriptRoot ".." ".claude" "skills" "github" "modules" "GitHubCore.psm1"
+
+    # Verify script exists
+    if (-not (Test-Path $Script:ScriptPath)) {
+        throw "Script not found at: $Script:ScriptPath"
+    }
+
+    # Import the module for helper functions
+    Import-Module $Script:ModulePath -Force
+
+    # Create test temp directory
+    $Script:TestTempDir = Join-Path ([System.IO.Path]::GetTempPath()) "Post-IssueComment-Tests-$(Get-Random)"
+    New-Item -ItemType Directory -Path $Script:TestTempDir -Force | Out-Null
+}
+
+AfterAll {
+    # Cleanup test temp directory
+    if (Test-Path $Script:TestTempDir) {
+        Remove-Item -Path $Script:TestTempDir -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
+Describe "Post-IssueComment.ps1" {
+
+    Context "Parameter Validation" {
+
+        It "Should accept -Body parameter" {
+            # Just verify parameter structure, don't execute
+            $command = Get-Command $Script:ScriptPath
+            $command.Parameters.Keys | Should -Contain 'Body'
+        }
+
+        It "Should accept -BodyFile parameter" {
+            $command = Get-Command $Script:ScriptPath
+            $command.Parameters.Keys | Should -Contain 'BodyFile'
+        }
+
+        It "Should accept -Marker parameter" {
+            $command = Get-Command $Script:ScriptPath
+            $command.Parameters.Keys | Should -Contain 'Marker'
+        }
+
+        It "Should accept -UpdateIfExists switch parameter" {
+            $command = Get-Command $Script:ScriptPath
+            $command.Parameters.Keys | Should -Contain 'UpdateIfExists'
+            $command.Parameters['UpdateIfExists'].SwitchParameter | Should -BeTrue
+        }
+
+        It "Should accept -Issue parameter as mandatory" {
+            $command = Get-Command $Script:ScriptPath
+            $command.Parameters.Keys | Should -Contain 'Issue'
+        }
+
+        It "Should accept -Owner parameter" {
+            $command = Get-Command $Script:ScriptPath
+            $command.Parameters.Keys | Should -Contain 'Owner'
+        }
+
+        It "Should accept -Repo parameter" {
+            $command = Get-Command $Script:ScriptPath
+            $command.Parameters.Keys | Should -Contain 'Repo'
+        }
+    }
+
+    Context "Marker HTML Generation" {
+
+        It "Should generate correct marker HTML format" {
+            # Test the marker format logic
+            $marker = "AI-TRIAGE"
+            $expectedMarkerHtml = "<!-- AI-TRIAGE -->"
+
+            # The script prepends this marker to the body
+            $markerHtml = "<!-- $marker -->"
+            $markerHtml | Should -Be $expectedMarkerHtml
+        }
+
+        It "Should handle markers with special characters" {
+            $marker = "AI-PR-QUALITY-GATE"
+            $expectedMarkerHtml = "<!-- AI-PR-QUALITY-GATE -->"
+
+            $markerHtml = "<!-- $marker -->"
+            $markerHtml | Should -Be $expectedMarkerHtml
+        }
+    }
+
+    Context "Body File Handling" {
+
+        BeforeEach {
+            $Script:TestBodyFile = Join-Path $Script:TestTempDir "test-body.md"
+        }
+
+        AfterEach {
+            if (Test-Path $Script:TestBodyFile) {
+                Remove-Item $Script:TestBodyFile -Force
+            }
+        }
+
+        It "Should read content from body file" {
+            $testContent = "Test comment content"
+            Set-Content -Path $Script:TestBodyFile -Value $testContent -Encoding UTF8
+
+            $content = Get-Content -Path $Script:TestBodyFile -Raw -Encoding UTF8
+            $content.Trim() | Should -Be $testContent
+        }
+
+        It "Should handle multiline body file content" {
+            $testContent = @"
+Line 1
+Line 2
+Line 3
+"@
+            Set-Content -Path $Script:TestBodyFile -Value $testContent -Encoding UTF8
+
+            $content = Get-Content -Path $Script:TestBodyFile -Raw -Encoding UTF8
+            $content | Should -Match 'Line 1'
+            $content | Should -Match 'Line 2'
+            $content | Should -Match 'Line 3'
+        }
+
+        It "Should handle body file with markdown formatting" {
+            $testContent = @"
+## Summary
+
+- Item 1
+- Item 2
+
+**Bold** and *italic* text.
+"@
+            Set-Content -Path $Script:TestBodyFile -Value $testContent -Encoding UTF8
+
+            $content = Get-Content -Path $Script:TestBodyFile -Raw -Encoding UTF8
+            $content | Should -Match '## Summary'
+            $content | Should -Match '\*\*Bold\*\*'
+        }
+    }
+
+    Context "UpdateIfExists Switch Behavior" {
+
+        It "Should have UpdateIfExists as a switch parameter type" {
+            $command = Get-Command $Script:ScriptPath
+            $param = $command.Parameters['UpdateIfExists']
+            $param.ParameterType.Name | Should -Be 'SwitchParameter'
+        }
+
+        It "Should default UpdateIfExists to false when not specified" {
+            $command = Get-Command $Script:ScriptPath
+            $param = $command.Parameters['UpdateIfExists']
+            # Switch parameters default to false
+            $param.SwitchParameter | Should -BeTrue
+        }
+    }
+
+    Context "Marker Detection Logic" {
+
+        It "Should correctly detect marker in comment body" {
+            $markerHtml = "<!-- AI-TRIAGE -->"
+            $commentBody = @"
+<!-- AI-TRIAGE -->
+
+This is the comment content.
+"@
+            $commentBody -match [regex]::Escape($markerHtml) | Should -BeTrue
+        }
+
+        It "Should correctly detect marker in middle of comment" {
+            $markerHtml = "<!-- MARKER-123 -->"
+            $commentBody = @"
+Some preamble text.
+
+<!-- MARKER-123 -->
+
+Main content here.
+"@
+            $commentBody -match [regex]::Escape($markerHtml) | Should -BeTrue
+        }
+
+        It "Should not detect marker when not present" {
+            $markerHtml = "<!-- AI-TRIAGE -->"
+            $commentBody = "This comment has no marker."
+
+            $commentBody -match [regex]::Escape($markerHtml) | Should -BeFalse
+        }
+
+        It "Should handle regex special characters in marker safely" {
+            $marker = "TEST.MARKER+123"
+            $markerHtml = "<!-- $marker -->"
+            $commentBody = "<!-- TEST.MARKER+123 --> content"
+
+            # Using regex escape to safely match
+            $commentBody -match [regex]::Escape($markerHtml) | Should -BeTrue
+        }
+    }
+
+    Context "Body with Marker Prepending" {
+
+        It "Should prepend marker when not already in body" {
+            $marker = "AI-GATE"
+            $markerHtml = "<!-- $marker -->"
+            $body = "Comment without marker"
+
+            $escapedMarker = [regex]::Escape($markerHtml)
+            if ($body -notmatch $escapedMarker) {
+                $body = "$markerHtml`n`n$body"
+            }
+
+            $body | Should -Match $escapedMarker
+            $body | Should -Match 'Comment without marker'
+        }
+
+        It "Should not duplicate marker if already in body" {
+            $marker = "AI-GATE"
+            $markerHtml = "<!-- $marker -->"
+            $body = "<!-- AI-GATE -->`n`nComment with marker"
+
+            if ($body -notmatch [regex]::Escape($markerHtml)) {
+                $body = "$markerHtml`n`n$body"
+            }
+
+            # Count occurrences - should be exactly 1
+            $matchResults = [regex]::Matches($body, [regex]::Escape($markerHtml))
+            $matchResults.Count | Should -Be 1
+        }
+    }
+
+    Context "Exit Codes Documentation" {
+
+        It "Should document exit code 0 for success" {
+            # Exit code 0 = Success (including skip due to marker)
+            $exitCode = 0
+            $exitCode | Should -Be 0
+        }
+
+        It "Should document exit code 1 for invalid params" {
+            # Exit code 1 = Invalid params
+            $exitCode = 1
+            $exitCode | Should -Be 1
+        }
+
+        It "Should document exit code 2 for file not found" {
+            # Exit code 2 = File not found
+            $exitCode = 2
+            $exitCode | Should -Be 2
+        }
+
+        It "Should document exit code 3 for API error" {
+            # Exit code 3 = API error
+            $exitCode = 3
+            $exitCode | Should -Be 3
+        }
+
+        It "Should document exit code 4 for not authenticated" {
+            # Exit code 4 = Not authenticated
+            $exitCode = 4
+            $exitCode | Should -Be 4
+        }
+    }
+
+    Context "GitHub Actions Output Format" {
+
+        It "Should produce correct output format for success" {
+            $outputs = @(
+                "success=true",
+                "skipped=false",
+                "issue=123",
+                "comment_id=456789"
+            )
+
+            foreach ($output in $outputs) {
+                $output | Should -Match '^\w+='
+            }
+        }
+
+        It "Should produce correct output format for skipped" {
+            $outputs = @(
+                "success=true",
+                "skipped=true",
+                "issue=123",
+                "marker=AI-TRIAGE"
+            )
+
+            foreach ($output in $outputs) {
+                $output | Should -Match '^\w+='
+            }
+        }
+
+        It "Should produce correct output format for updated" {
+            $outputs = @(
+                "success=true",
+                "skipped=false",
+                "updated=true",
+                "issue=123",
+                "comment_id=456789"
+            )
+
+            foreach ($output in $outputs) {
+                $output | Should -Match '^\w+='
+            }
+        }
+    }
+
+    Context "Idempotency Scenarios" {
+
+        It "Scenario: First run without marker - should post new comment" {
+            # When: No marker specified
+            # Then: Should post new comment
+            $hasMarker = $false
+            $existingCommentWithMarker = $null
+
+            $action = if (-not $hasMarker) { 
+                "post_new" 
+            } elseif ($existingCommentWithMarker) { 
+                "handle_existing" 
+            } else { 
+                "post_new" 
+            }
+
+            $action | Should -Be "post_new"
+        }
+
+        It "Scenario: First run with marker - should post new comment with marker" {
+            # When: Marker specified but no existing comment has it
+            # Then: Should post new comment with marker prepended
+            $hasMarker = $true
+            $existingCommentWithMarker = $null
+
+            $action = if ($hasMarker -and -not $existingCommentWithMarker) { "post_new_with_marker" } else { "other" }
+            $action | Should -Be "post_new_with_marker"
+        }
+
+        It "Scenario: Subsequent run with marker, no UpdateIfExists - should skip" {
+            # When: Marker specified, existing comment has marker, UpdateIfExists = $false
+            # Then: Should skip (write-once idempotency)
+            $hasMarker = $true
+            $existingCommentWithMarker = @{ id = 123; body = "<!-- MARKER --> content" }
+            $updateIfExists = $false
+
+            $action = if ($hasMarker -and $existingCommentWithMarker -and -not $updateIfExists) { "skip" } else { "other" }
+            $action | Should -Be "skip"
+        }
+
+        It "Scenario: Subsequent run with marker and UpdateIfExists - should update" {
+            # When: Marker specified, existing comment has marker, UpdateIfExists = $true
+            # Then: Should update existing comment (upsert behavior)
+            $hasMarker = $true
+            $existingCommentWithMarker = @{ id = 123; body = "<!-- MARKER --> content" }
+            $updateIfExists = $true
+
+            $action = if ($hasMarker -and $existingCommentWithMarker -and $updateIfExists) { "update" } else { "other" }
+            $action | Should -Be "update"
+        }
+    }
+
+    Context "CI/CD Status Comment Use Case" {
+
+        It "Should support updating status on each commit" {
+            # This is the primary use case for UpdateIfExists
+            # CI/CD status comments should reflect latest state
+            $marker = "AI-PR-QUALITY-GATE"
+            $updateIfExists = $true
+
+            # Verify the parameters work together
+            $updateIfExists | Should -BeTrue
+            $marker | Should -Not -BeNullOrEmpty
+        }
+
+        It "Should preserve marker in updated content" {
+            $marker = "CI-STATUS"
+            $markerHtml = "<!-- $marker -->"
+            $newBody = "## Updated Status`n`n✅ All checks passed"
+
+            $escapedMarker = [regex]::Escape($markerHtml)
+            # Prepend marker if not in body
+            if ($newBody -notmatch $escapedMarker) {
+                $newBody = "$markerHtml`n`n$newBody"
+            }
+
+            $newBody | Should -Match $escapedMarker
+            $newBody | Should -Match 'Updated Status'
+        }
+    }
+
+    Context "Edge Cases" {
+
+        It "Should handle empty marker string gracefully" {
+            $marker = ""
+
+            # When marker is empty, no marker logic should apply
+            [string]::IsNullOrEmpty($marker) | Should -BeTrue
+        }
+
+        It "Should handle whitespace-only body as empty" {
+            $body = "   "
+            [string]::IsNullOrWhiteSpace($body) | Should -BeTrue
+        }
+
+        It "Should handle body with only newlines" {
+            $body = "`n`n`n"
+            [string]::IsNullOrWhiteSpace($body) | Should -BeTrue
+        }
+
+        It "Should handle very long marker names" {
+            $marker = "A" * 100
+            $markerHtml = "<!-- $marker -->"
+            $markerHtml.Length | Should -BeGreaterThan 100
+        }
+
+        It "Should handle marker with unicode characters" {
+            $marker = "MARKER-✅-🔒"
+            $markerHtml = "<!-- $marker -->"
+            $markerHtml | Should -Be "<!-- MARKER-✅-🔒 -->"
+        }
+    }
+
+    # Issue #117: Behavior Verification Tests
+    # Note: Full mocked integration tests require script execution, but Pester mocks
+    # don't persist when scripts re-import modules with -Force. These tests verify
+    # the script's behavior through source code analysis and logic verification.
+    Context "Idempotent Skip (write-once) Behavior Verification" {
+
+        It "Should have skip logic when marker exists without UpdateIfExists" {
+            $scriptContent = Get-Content $Script:ScriptPath -Raw
+
+            # Verify skip path condition exists
+            $scriptContent | Should -Match 'if.*\$existingComment'
+            $scriptContent | Should -Match 'else\s*\{[^}]*Skipping'
+
+            # Verify skip writes success=true and skipped=true
+            $scriptContent | Should -Match 'success=true'
+            $scriptContent | Should -Match 'skipped=true'
+        }
+
+        It "Should write skip status to GITHUB_OUTPUT with all required fields" {
+            $scriptContent = Get-Content $Script:ScriptPath -Raw
+
+            # Verify all skip path GITHUB_OUTPUT fields
+            $scriptContent | Should -Match 'Add-Content.*GITHUB_OUTPUT.*success=true'
+            $scriptContent | Should -Match 'Add-Content.*GITHUB_OUTPUT.*skipped=true'
+            $scriptContent | Should -Match 'Add-Content.*GITHUB_OUTPUT.*issue='
+            $scriptContent | Should -Match 'Add-Content.*GITHUB_OUTPUT.*marker='
+        }
+
+        It "Should exit 0 on idempotent skip" {
+            $scriptContent = Get-Content $Script:ScriptPath -Raw
+
+            # The skip path ends with exit 0 (idempotent skip is success)
+            # Use [\s\S]*? to match across multiple lines (GITHUB_OUTPUT writes between message and exit)
+            $scriptContent | Should -Match 'Skipping[\s\S]*?exit\s+0'
+        }
+    }
+
+    # Note: Full integration tests for UpdateIfExists require mocking gh api PATCH
+    # inside the GitHubCore module. However, since Post-IssueComment.ps1 re-imports
+    # the module with -Force, Pester mocks don't persist into the fresh module scope.
+    # These tests verify the update path logic through the Update-IssueComment function unit tests.
+    # The "Idempotency Scenarios" context above validates the decision logic.
+    Context "Upsert (UpdateIfExists) Behavior Verification" {
+
+        It "Should have UpdateIfExists parameter that triggers update path in script" {
+            # Verify the script calls Update-IssueComment when UpdateIfExists is specified
+            # by checking the script source code structure
+            $scriptContent = Get-Content $Script:ScriptPath -Raw
+
+            # Verify UpdateIfExists condition exists
+            $scriptContent | Should -Match 'if\s*\(\s*\$UpdateIfExists\s*\)'
+
+            # Verify Update-IssueComment is called in the update path
+            $scriptContent | Should -Match 'Update-IssueComment'
+
+            # Verify updated=true is written to GITHUB_OUTPUT in update path
+            $scriptContent | Should -Match 'updated=true'
+        }
+
+        It "Should verify Add-MarkerToBody helper prepends marker correctly" {
+            # Verify the helper function logic for marker prepending
+            $scriptContent = Get-Content $Script:ScriptPath -Raw
+
+            # Verify Add-MarkerToBody function exists
+            $scriptContent | Should -Match 'function Add-MarkerToBody'
+
+            # Verify it checks for existing marker before prepending
+            $scriptContent | Should -Match '-notmatch.*MarkerHtml'
+        }
+
+        It "Should verify GITHUB_OUTPUT includes all update path fields" {
+            # Verify all expected output fields for update path are in script
+            $scriptContent = Get-Content $Script:ScriptPath -Raw
+
+            # Update path specific outputs
+            $scriptContent | Should -Match 'updated=true'
+            $scriptContent | Should -Match 'updated_at='
+            $scriptContent | Should -Match 'html_url='
+        }
+    }
+
+    Context "New Comment Creation Behavior Verification" {
+
+        It "Should have new comment creation path when no marker exists" {
+            $scriptContent = Get-Content $Script:ScriptPath -Raw
+
+            # Verify POST API call for new comments
+            $scriptContent | Should -Match 'gh api.*-X POST'
+
+            # Verify success output fields for new comments
+            $scriptContent | Should -Match 'skipped=false'
+            $scriptContent | Should -Match 'created_at='
+        }
+
+        It "Should only prepend marker when marker parameter is provided" {
+            $scriptContent = Get-Content $Script:ScriptPath -Raw
+
+            # Verify marker is only added conditionally
+            $scriptContent | Should -Match 'if\s*\(\s*\$Marker\s*\)'
+
+            # Verify Add-MarkerToBody is called to prepend marker
+            $scriptContent | Should -Match 'Add-MarkerToBody'
+        }
+
+        It "Should write all required GITHUB_OUTPUT fields for new comments" {
+            $scriptContent = Get-Content $Script:ScriptPath -Raw
+
+            # Verify output fields for new comment path
+            $scriptContent | Should -Match 'success=true'
+            $scriptContent | Should -Match 'skipped=false'
+            $scriptContent | Should -Match 'comment_id='
+            $scriptContent | Should -Match 'html_url='
+            $scriptContent | Should -Match 'created_at='
+        }
+    }
+
+    Context "Exit Code Behavior Verification" {
+
+        It "Should exit 0 on successful post" {
+            $scriptContent = Get-Content $Script:ScriptPath -Raw
+
+            # The script ends with implicit exit 0 or explicit exit 0 after posting
+            # Check that success path has exit 0
+            $scriptContent | Should -Match 'Posted comment.*\n.*exit\s+0|Success.*CommentId.*\n'
+        }
+
+        It "Should have exit 0 in skip path" {
+            $scriptContent = Get-Content $Script:ScriptPath -Raw
+
+            # Skip path explicitly exits with 0
+            # Use [\s\S]*? to match across GITHUB_OUTPUT writes between message and exit
+            $scriptContent | Should -Match 'Skipped:\s*True[\s\S]*?exit\s+0'
+        }
+
+        It "Should have exit 0 in update success path" {
+            $scriptContent = Get-Content $Script:ScriptPath -Raw
+
+            # Update path has exit 0 after success
+            # Use [\s\S]*? to match across GITHUB_OUTPUT writes between message and exit
+            $scriptContent | Should -Match 'Updated:\s*True[\s\S]*?exit\s+0'
+        }
+
+        It "Should exit 3 on API error via Write-ErrorAndExit" {
+            $scriptContent = Get-Content $Script:ScriptPath -Raw
+
+            # API errors use Write-ErrorAndExit with code 3
+            $scriptContent | Should -Match 'Write-ErrorAndExit.*Failed to post comment.*3'
+        }
+    }
+
+    Context "403 Permission Denied Error Handling" {
+
+        It "Should have Write-PermissionDeniedError function with CmdletBinding" {
+            $scriptContent = Get-Content $Script:ScriptPath -Raw
+
+            # Function must have CmdletBinding attribute
+            $scriptContent | Should -Match 'function Write-PermissionDeniedError\s*\{\s*\[CmdletBinding\(\)\]'
+        }
+
+        It "Should detect 403 status code in error response" {
+            $scriptContent = Get-Content $Script:ScriptPath -Raw
+
+            # Must detect 403 pattern
+            $scriptContent | Should -Match "'403'"
+        }
+
+        It "Should detect 'Resource not accessible by integration' message" {
+            $scriptContent = Get-Content $Script:ScriptPath -Raw
+
+            # Must detect GitHub's specific error message
+            $scriptContent | Should -Match 'Resource not accessible by integration'
+        }
+
+        It "Should exit 4 for permission denied errors (per ADR-035)" {
+            $scriptContent = Get-Content $Script:ScriptPath -Raw
+
+            # Permission denied uses exit code 4 (Auth error per ADR-035)
+            $scriptContent | Should -Match 'exit\s+4'
+        }
+
+        It "Should save failed comment payload to artifact file" {
+            $scriptContent = Get-Content $Script:ScriptPath -Raw
+
+            # Must save to .github/artifacts directory
+            $scriptContent | Should -Match '\.github.*artifacts'
+            $scriptContent | Should -Match 'failed-comment-.*\.json'
+        }
+
+        It "Should use git rev-parse for artifact directory (not Get-Location)" {
+            $scriptContent = Get-Content $Script:ScriptPath -Raw
+
+            # Must use git rev-parse --show-toplevel for robust path handling
+            $scriptContent | Should -Match 'git rev-parse --show-toplevel'
+        }
+
+        It "Should provide actionable guidance for common permission issues" {
+            $scriptContent = Get-Content $Script:ScriptPath -Raw
+
+            # Must include guidance for common scenarios
+            # Note: GitHub App manifest uses "issues": "write" (JSON format)
+            $scriptContent | Should -Match '"issues".*"write"'
+            $scriptContent | Should -Match 'GITHUB_TOKEN'
+            $scriptContent | Should -Match 'Fine-grained PAT'
+        }
+
+        It "Should write structured GITHUB_OUTPUT for 403 errors" {
+            $scriptContent = Get-Content $Script:ScriptPath -Raw
+
+            # Must write status and artifact path to GITHUB_OUTPUT
+            $scriptContent | Should -Match 'success=false'
+            $scriptContent | Should -Match 'error=PERMISSION_DENIED'
+            $scriptContent | Should -Match 'status_code=403'
+            $scriptContent | Should -Match 'artifact_path='
+        }
+
+        It "Should use case-insensitive matching for 403 detection" {
+            $scriptContent = Get-Content $Script:ScriptPath -Raw
+
+            # Must use -imatch for case-insensitive matching
+            $scriptContent | Should -Match '-imatch.*forbidden'
+        }
+
+        It "Should have mandatory parameter validation on Write-PermissionDeniedError" {
+            $scriptContent = Get-Content $Script:ScriptPath -Raw
+
+            # Parameters must have Mandatory attribute
+            $scriptContent | Should -Match '\[Parameter\(Mandatory\)\][\s\S]*?\[ValidateNotNullOrEmpty\(\)\][\s\S]*?\[string\]\$Owner'
+            $scriptContent | Should -Match '\[Parameter\(Mandatory\)\][\s\S]*?\[ValidateNotNullOrEmpty\(\)\][\s\S]*?\[string\]\$Repo'
+        }
+
+        It "Should handle git rev-parse fallback with warning" {
+            $scriptContent = Get-Content $Script:ScriptPath -Raw
+
+            # Must log warning when fallback occurs
+            $scriptContent | Should -Match 'Write-Warning.*git.*rev-parse.*failed'
+        }
+
+        It "Should use -ErrorAction Stop for file operations" {
+            $scriptContent = Get-Content $Script:ScriptPath -Raw
+
+            # New-Item and Set-Content must use -ErrorAction Stop
+            $scriptContent | Should -Match 'New-Item.*-ErrorAction Stop'
+            $scriptContent | Should -Match 'Set-Content.*-ErrorAction Stop'
+        }
+    }
+
+    Context "403 Error Detection Behavioral Tests" {
+        # Test the 403 pattern matching logic directly
+
+        It "Should detect 403 status code in various error formats" -ForEach @(
+            @{ ErrorMsg = "HTTP 403: Forbidden"; ShouldMatch = $true; Description = "HTTP 403 format" }
+            @{ ErrorMsg = "status: 403"; ShouldMatch = $true; Description = "status 403 format" }
+            @{ ErrorMsg = "gh: Resource not accessible by integration (HTTP 403)"; ShouldMatch = $true; Description = "GitHub specific message" }
+            @{ ErrorMsg = "403 Forbidden"; ShouldMatch = $true; Description = "Simple 403" }
+            @{ ErrorMsg = "FORBIDDEN"; ShouldMatch = $true; Description = "Uppercase FORBIDDEN" }
+            @{ ErrorMsg = "Forbidden"; ShouldMatch = $true; Description = "Title case Forbidden" }
+            @{ ErrorMsg = "HTTP 401: Not authenticated"; ShouldMatch = $false; Description = "401 should not match" }
+            @{ ErrorMsg = "HTTP 500: Internal Server Error"; ShouldMatch = $false; Description = "500 should not match" }
+            @{ ErrorMsg = "Connection refused"; ShouldMatch = $false; Description = "Network error should not match" }
+        ) {
+            $errorString = $ErrorMsg
+
+            # Apply the same pattern from the script
+            $is403 = $errorString -imatch 'HTTP 403' -or
+                     $errorString -imatch 'status.*403' -or
+                     $errorString -match '403' -or
+                     $errorString -imatch 'Resource not accessible by integration' -or
+                     $errorString -imatch '\bforbidden\b'
+
+            $is403 | Should -Be $ShouldMatch -Because $Description
+        }
+    }
+
+    Context "ConvertFrom-Json Error Handling - Comments List Parsing (L94-102)" {
+        # Tests for Issue #700: Error handling when parsing comments list from GitHub API
+
+        It "Should have try-catch around comments list ConvertFrom-Json" {
+            $scriptContent = Get-Content $Script:ScriptPath -Raw
+
+            # Verify try-catch structure exists around the comments parsing
+            $scriptContent | Should -Match 'try\s*\{[\s\S]*?\$comments\s*=\s*\$commentsJson\s*\|\s*ConvertFrom-Json\s*-ErrorAction\s*Stop'
+        }
+
+        It "Should use -ErrorAction Stop for proper exception capture" {
+            $scriptContent = Get-Content $Script:ScriptPath -Raw
+
+            # The ConvertFrom-Json for comments must use -ErrorAction Stop
+            $scriptContent | Should -Match '\$commentsJson\s*\|\s*ConvertFrom-Json\s*-ErrorAction\s*Stop'
+        }
+
+        It "Should log warning on parse failure with exception message only (no raw response)" {
+            $scriptContent = Get-Content $Script:ScriptPath -Raw
+
+            # Must log a warning when parsing fails
+            $scriptContent | Should -Match 'Write-Warning\s*"Failed to parse comments response'
+            # Must NOT log raw response (security: could contain sensitive data)
+            $scriptContent | Should -Not -Match 'Write-Warning.*Raw response.*commentsJson'
+        }
+
+        It "Should continue with empty array when comments parsing fails" {
+            $scriptContent = Get-Content $Script:ScriptPath -Raw
+
+            # Must set comments to empty array on failure to allow new comment posting
+            $scriptContent | Should -Match '\$comments\s*=\s*@\(\)'
+        }
+
+        It "Should handle malformed JSON gracefully without script termination" {
+            # Verify the script handles the error case and continues execution
+            $scriptContent = Get-Content $Script:ScriptPath -Raw
+
+            # After the catch block, the script should continue (no exit in the catch)
+            # Verify there's no 'exit' in the catch block for this scenario
+            $scriptContent | Should -Match 'catch\s*\{[\s\S]*?\$comments\s*=\s*@\(\)[\s\S]*?\}'
+        }
+    }
+
+    Context "ConvertFrom-Json Error Handling - Response Parsing After Post (L317-341)" {
+        # Tests for Issue #700: Error handling when parsing response after posting comment
+
+        It "Should have try-catch around response ConvertFrom-Json" {
+            $scriptContent = Get-Content $Script:ScriptPath -Raw
+
+            # Verify try-catch structure exists around the response parsing
+            $scriptContent | Should -Match 'try\s*\{[\s\S]*?\$response\s*=\s*\$result\s*\|\s*ConvertFrom-Json\s*-ErrorAction\s*Stop'
+        }
+
+        It "Should use -ErrorAction Stop for response parsing" {
+            $scriptContent = Get-Content $Script:ScriptPath -Raw
+
+            # The ConvertFrom-Json for response must use -ErrorAction Stop
+            $scriptContent | Should -Match '\$result\s*\|\s*ConvertFrom-Json\s*-ErrorAction\s*Stop'
+        }
+
+        It "Should log warning when response parsing fails (no raw response)" {
+            $scriptContent = Get-Content $Script:ScriptPath -Raw
+
+            # Must log a warning when response parsing fails
+            $scriptContent | Should -Match 'Write-Warning\s*"Comment posted but failed to parse API response'
+            # Must NOT log raw response (security: could contain sensitive data)
+            $scriptContent | Should -Not -Match 'Write-Warning.*Raw response.*\$result'
+        }
+
+        It "Should exit 0 when comment was posted but response parsing fails" {
+            $scriptContent = Get-Content $Script:ScriptPath -Raw
+
+            # Comment was posted successfully, just couldn't parse response - exit 0
+            $scriptContent | Should -Match 'Comment posted but failed to parse[\s\S]*?exit\s+0\s*#\s*Comment was posted successfully'
+        }
+
+        It "Should write GITHUB_OUTPUT with parse_error=true on response parse failure" {
+            $scriptContent = Get-Content $Script:ScriptPath -Raw
+
+            # Must write parse_error=true to indicate degraded response
+            $scriptContent | Should -Match 'parse_error=true'
+        }
+
+        It "Should write success=true to GITHUB_OUTPUT even when parse fails" {
+            $scriptContent = Get-Content $Script:ScriptPath -Raw
+
+            # The catch block for response parsing should still indicate success
+            # since the comment was posted, only the response couldn't be parsed
+            $scriptContent | Should -Match 'catch\s*\{[\s\S]*?"success=true"[\s\S]*?parse_error=true'
+        }
+
+        It "Should display user-friendly message on response parse failure" {
+            $scriptContent = Get-Content $Script:ScriptPath -Raw
+
+            # Must inform user the comment was posted despite parse failure
+            $scriptContent | Should -Match 'Posted comment to issue.*response parsing failed'
+        }
+    }
+
+    Context "ConvertFrom-Json Error Handling - Malformed JSON Scenarios" {
+        # Test the error handling behavior with various malformed JSON inputs
+
+        It "Should handle HTML error page (rate limiting) gracefully" {
+            # Rate limiting returns HTML pages, not JSON
+            $htmlResponse = "<html><head><title>Rate Limit Exceeded</title></head><body>...</body></html>"
+
+            # Verify ConvertFrom-Json throws on HTML
+            { $htmlResponse | ConvertFrom-Json -ErrorAction Stop } | Should -Throw
+        }
+
+        It "Should handle truncated JSON gracefully" {
+            $truncatedJson = '[{"id": 123, "body": "test'
+
+            # Verify ConvertFrom-Json throws on truncated JSON
+            { $truncatedJson | ConvertFrom-Json -ErrorAction Stop } | Should -Throw
+        }
+
+        It "Should handle empty string gracefully" {
+            $emptyResponse = ""
+
+            # PowerShell's ConvertFrom-Json returns null/empty on empty string
+            # The script's try-catch protects against this scenario
+            $result = $emptyResponse | ConvertFrom-Json -ErrorAction SilentlyContinue
+            $result | Should -BeNullOrEmpty
+        }
+
+        It "Should handle plain text error message gracefully" {
+            $textResponse = "Bad Gateway"
+
+            # Verify ConvertFrom-Json throws on plain text
+            { $textResponse | ConvertFrom-Json -ErrorAction Stop } | Should -Throw
+        }
+
+        It "Should handle null input gracefully" {
+            $nullResponse = $null
+
+            # Verify ConvertFrom-Json throws or returns null on null input
+            # Note: PowerShell handles null differently - it may not throw but returns nothing
+            $result = $nullResponse | ConvertFrom-Json -ErrorAction SilentlyContinue
+            $result | Should -BeNullOrEmpty
+        }
+
+        It "Should handle partial JSON array gracefully" {
+            $partialArray = '[{"id": 1}, {"id":'
+
+            { $partialArray | ConvertFrom-Json -ErrorAction Stop } | Should -Throw
+        }
+    }
+}

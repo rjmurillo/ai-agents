@@ -1,0 +1,898 @@
+name: 'AI Review'
+description: 'Invoke GitHub Copilot CLI for AI-powered code review with structured verdict output'
+
+inputs:
+  agent:
+    description: 'Agent to invoke (security, qa, analyst, critic, roadmap, etc.)'
+    required: true
+  context-type:
+    description: 'Context type: pr-diff, issue, session-log, spec-file'
+    required: true
+  context-path:
+    description: 'Path to context file (for session-log, spec-file types)'
+    required: false
+    default: ''
+  pr-number:
+    description: 'PR number (for pr-diff context type)'
+    required: false
+    default: ''
+  issue-number:
+    description: 'Issue number (for issue context type)'
+    required: false
+    default: ''
+  additional-context:
+    description: 'Additional context to inject (text or JSON)'
+    required: false
+    default: ''
+  prompt-file:
+    description: 'Path to prompt template file (relative to repo root)'
+    required: false
+    default: ''
+  timeout-minutes:
+    description: 'Timeout in minutes for Copilot CLI invocation'
+    required: false
+    default: '5'
+  max-diff-lines:
+    description: 'Maximum diff lines before switching to summary mode'
+    required: false
+    default: '500'
+  bot-pat:
+    description: 'GitHub PAT for GitHub CLI operations (gh commands). Can be classic or fine-grained PAT with repo access.'
+    required: true
+  copilot-token:
+    description: |
+      Fine-grained PAT with "Copilot Requests" permission for Copilot CLI.
+      Required for AI review functionality. See docs/copilot-cli-setup.md.
+      If not provided, falls back to bot-pat (which may fail without Copilot permission).
+    required: false
+    default: ''
+  copilot-model:
+    description: |
+      AI model to use (e.g., choices: "claude-sonnet-4.5", "claude-haiku-4.5", "claude-opus-4.5",
+      "claude-sonnet-4", "gpt-5", "gpt-5.1", "gpt-5.1-codex-mini", "gpt-5.1-codex-max",
+      "gpt-5.1-codex", "gpt-5-mini", "gpt-4.1", "gemini-3-pro-preview")'
+    required: false
+    default: 'claude-opus-4.5'
+  enable-diagnostics:
+    description: |
+      Enable Copilot CLI diagnostic test before main invocation.
+      WARNING: This runs a test prompt which costs money! Only enable for debugging.
+      Default is false to minimize costs.
+    required: false
+    default: 'false'
+  execute-script:
+    description: |
+      Optional PowerShell script to run after analysis.
+      The script receives AI findings via environment variables:
+      - AI_VERDICT: The parsed verdict (PASS, WARN, CRITICAL_FAIL, etc.)
+      - AI_FINDINGS: Raw output from the AI model (JSON if prompt requested it)
+      - AI_LABELS: Parsed labels (JSON array)
+      - PR_NUMBER: The PR number being analyzed
+      Use this for post-analysis mutations (acknowledge comments, apply fixes, etc.)
+    required: false
+    default: ''
+
+outputs:
+  verdict:
+    description: 'Review verdict (PASS, WARN, CRITICAL_FAIL, REJECTED, NEEDS_REVIEW, etc.)'
+    value: ${{ steps.parse.outputs.verdict }}
+  labels:
+    description: 'Labels to apply (JSON array)'
+    value: ${{ steps.parse.outputs.labels }}
+  milestone:
+    description: 'Milestone to assign'
+    value: ${{ steps.parse.outputs.milestone }}
+  findings:
+    description: 'Detailed findings (raw output from model)'
+    value: ${{ steps.invoke.outputs.raw_output }}
+  exit-code:
+    description: 'Exit code (0=pass, 1=fail)'
+    value: ${{ steps.parse.outputs.exit_code }}
+  # Retry/infrastructure failure tracking (Issue #328)
+  infrastructure-failure:
+    description: 'Whether failure was infrastructure-related (true/false)'
+    value: ${{ steps.invoke.outputs.infrastructure_failure }}
+  retry-count:
+    description: 'Number of retry attempts made (0 = no retries)'
+    value: ${{ steps.invoke.outputs.retry_count }}
+  # Debug outputs for AI agents and humans
+  full-prompt:
+    description: 'Complete prompt sent to the model (for debugging)'
+    value: ${{ steps.invoke.outputs.full_prompt }}
+  agent-definition:
+    description: 'Agent definition used (for debugging)'
+    value: ${{ steps.agent.outputs.agent_definition }}
+  prompt-template:
+    description: 'Prompt template used (for debugging)'
+    value: ${{ steps.prompt.outputs.prompt_template }}
+  context-built:
+    description: 'Context built from PR/issue (for debugging)'
+    value: ${{ steps.context.outputs.context_built }}
+  context-mode:
+    description: 'Context mode used (full or summary)'
+    value: ${{ steps.context.outputs.context_mode }}
+  copilot-exit-code:
+    description: 'Raw exit code from Copilot CLI'
+    value: ${{ steps.invoke.outputs.copilot_exit_code }}
+  copilot-version:
+    description: 'Copilot CLI version used'
+    value: ${{ steps.install.outputs.copilot_version }}
+  # Enhanced diagnostic outputs
+  copilot-diagnostic:
+    description: 'Copilot CLI diagnostic information (health check results)'
+    value: ${{ steps.diagnose.outputs.diagnostic }}
+  copilot-health:
+    description: 'Copilot CLI health status (healthy, degraded, failed)'
+    value: ${{ steps.diagnose.outputs.health_status }}
+  copilot-stderr:
+    description: 'Stderr output from Copilot CLI (if any)'
+    value: ${{ steps.invoke.outputs.stderr_output }}
+  auth-status:
+    description: 'GitHub authentication status details'
+    value: ${{ steps.diagnose.outputs.auth_status }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      with:
+        node-version: 'lts/*'
+
+    - name: Cache npm packages
+      uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4
+      with:
+        path: ~/.npm
+        key: ${{ runner.os }}-copilot-cli-v1
+        restore-keys: |
+          ${{ runner.os }}-copilot-cli-
+
+    - name: Install GitHub Copilot CLI
+      id: install
+      shell: bash
+      run: |
+        set -e  # Exit on any error
+
+        # Pin to 0.0.397 (last known good version before frontmatter regression)
+        # See: github/copilot-cli#1195, ADR-044
+        COPILOT_VERSION="0.0.397"
+        echo "Installing GitHub Copilot CLI@${COPILOT_VERSION}..."
+        if ! npm install -g "@github/copilot@${COPILOT_VERSION}"; then
+          echo "::error::Failed to install GitHub Copilot CLI@${COPILOT_VERSION}"
+          exit 1
+        fi
+
+        echo "Verifying installation..."
+        if ! command -v copilot &> /dev/null; then
+          echo "::error::copilot command not found after installation"
+          exit 1
+        fi
+
+        echo "Copilot CLI version:"
+        VERSION_FULL=$(copilot --no-auto-update --version 2>&1 || echo "unknown")
+        echo "$VERSION_FULL"
+        # Extract just the version number (first line) for output
+        VERSION=$(echo "$VERSION_FULL" | head -1 | tr -d '\n')
+        echo "copilot_version=$VERSION" >> $GITHUB_OUTPUT
+
+        # Verify pinned version (binary may auto-update despite npm pin)
+        if ! echo "$VERSION" | grep -q "${COPILOT_VERSION}"; then
+          echo "::warning::Expected version ${COPILOT_VERSION} but got ${VERSION}. Binary may have auto-updated."
+          echo "::warning::See ADR-044 for auto-update bypass details."
+        fi
+
+    - name: Verify GitHub authentication
+      if: inputs.enable-diagnostics == 'true'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.bot-pat }}
+      run: |
+        set -e  # Exit on any error
+
+        echo "Verifying GitHub authentication..."
+        # GH_TOKEN env var is automatically used by gh CLI - no explicit login needed
+        if ! gh auth status; then
+          echo "::error::GitHub CLI authentication failed"
+          echo "::error::Ensure bot-pat has valid token with required scopes"
+          exit 1
+        fi
+
+        echo "Testing API access..."
+        if ! gh api user -q '.login'; then
+          echo "::error::GitHub API access verification failed"
+          echo "::error::Ensure bot-pat has 'repo' scope for API access"
+          exit 1
+        fi
+        echo "Authentication verified successfully"
+
+    - name: Diagnose Copilot CLI
+      id: diagnose
+      if: inputs.enable-diagnostics == 'true'
+      shell: bash
+      env:
+        # Use dedicated Copilot token if provided, otherwise fall back to bot-pat
+        COPILOT_GITHUB_TOKEN: ${{ inputs.copilot-token || inputs.bot-pat }}
+        GH_TOKEN: ${{ inputs.bot-pat }}
+        COPILOT_AGENT: ${{ inputs.agent }}
+        COPILOT_MODEL: ${{ inputs.copilot-model }}
+      run: |
+        echo "=== COPILOT CLI DIAGNOSTICS ==="
+        echo ""
+
+        HEALTH_STATUS="healthy"
+        DIAGNOSTIC=""
+        AUTH_STATUS=""
+
+        # 1. Check if copilot command exists
+        echo "1. Checking copilot command availability..."
+        if ! command -v copilot &> /dev/null; then
+          echo "::error::copilot command not found in PATH"
+          HEALTH_STATUS="failed"
+          DIAGNOSTIC+="ERROR: copilot command not found\n"
+        else
+          echo "   ✓ copilot command found: $(which copilot)"
+          DIAGNOSTIC+="copilot binary: $(which copilot)\n"
+        fi
+
+        # 2. Check copilot version (detailed)
+        echo ""
+        echo "2. Checking copilot version..."
+        VERSION_OUTPUT=$(copilot --version 2>&1) || true
+        echo "   Version output: $VERSION_OUTPUT"
+        DIAGNOSTIC+="version: $VERSION_OUTPUT\n"
+
+        # 3. Check copilot help (validates basic functionality)
+        echo ""
+        echo "3. Checking copilot --help..."
+        if copilot --help > /dev/null 2>&1; then
+          echo "   ✓ copilot --help works"
+          DIAGNOSTIC+="help: OK\n"
+        else
+          echo "   ✗ copilot --help failed"
+          HEALTH_STATUS="degraded"
+          DIAGNOSTIC+="help: FAILED\n"
+        fi
+
+        # 4. Check GitHub API authentication scopes
+        echo ""
+        echo "4. Checking GitHub API authentication..."
+        AUTH_RESPONSE=$(gh api user 2>&1) || true
+        if echo "$AUTH_RESPONSE" | grep -q '"login"'; then
+          AUTH_USER=$(echo "$AUTH_RESPONSE" | jq -r '.login' 2>/dev/null || echo "unknown")
+          echo "   ✓ Authenticated as: $AUTH_USER"
+          AUTH_STATUS="authenticated as $AUTH_USER"
+
+          # Check token scopes
+          SCOPES=$(gh api -i user 2>&1 | grep -i "x-oauth-scopes" | cut -d':' -f2 | tr -d ' ' || echo "unknown")
+          echo "   Token scopes: ${SCOPES:-none detected}"
+          AUTH_STATUS+=", scopes: ${SCOPES:-unknown}"
+          DIAGNOSTIC+="auth_user: $AUTH_USER\n"
+          DIAGNOSTIC+="auth_scopes: $SCOPES\n"
+        else
+          echo "   ✗ GitHub API authentication failed"
+          echo "   Response: $AUTH_RESPONSE"
+          HEALTH_STATUS="degraded"
+          AUTH_STATUS="authentication failed"
+          DIAGNOSTIC+="auth_error: $AUTH_RESPONSE\n"
+        fi
+
+        # 5. Check for Copilot-specific access (try to access Copilot API)
+        echo ""
+        echo "5. Checking Copilot API access..."
+        # Note: This is a heuristic check - Copilot CLI doesn't expose direct API check
+        # We test with a minimal prompt to see if it works
+
+        set +e
+        COPILOT_TEST_OUTPUT=""
+        COPILOT_TEST_STDERR=""
+
+        # Create temp files for capturing output
+        STDOUT_FILE=$(mktemp)
+        STDERR_FILE=$(mktemp)
+
+        # Run minimal test with very short timeout
+        echo "   Running minimal test prompt (10s timeout)..."
+        echo "   Agent: $COPILOT_AGENT, Model: $COPILOT_MODEL"
+        timeout 10 copilot --no-auto-update --agent "$COPILOT_AGENT" --model "$COPILOT_MODEL" --prompt "Reply with only the word OK" > "$STDOUT_FILE" 2> "$STDERR_FILE"
+        TEST_EXIT_CODE=$?
+
+        COPILOT_TEST_OUTPUT=$(cat "$STDOUT_FILE")
+        COPILOT_TEST_STDERR=$(cat "$STDERR_FILE")
+        rm -f "$STDOUT_FILE" "$STDERR_FILE"
+        set -e
+
+        echo "   Test exit code: $TEST_EXIT_CODE"
+
+        if [ $TEST_EXIT_CODE -eq 0 ]; then
+          echo "   ✓ Copilot CLI test prompt succeeded"
+          echo "   Output: $COPILOT_TEST_OUTPUT"
+          DIAGNOSTIC+="test_prompt: PASSED\n"
+        elif [ $TEST_EXIT_CODE -eq 124 ]; then
+          echo "   ⚠ Copilot CLI test prompt timed out"
+          HEALTH_STATUS="degraded"
+          DIAGNOSTIC+="test_prompt: TIMEOUT\n"
+        else
+          echo "   ✗ Copilot CLI test prompt failed (exit code: $TEST_EXIT_CODE)"
+          HEALTH_STATUS="failed"
+          DIAGNOSTIC+="test_prompt: FAILED (exit $TEST_EXIT_CODE)\n"
+
+          if [ -n "$COPILOT_TEST_STDERR" ]; then
+            echo "   Stderr: $COPILOT_TEST_STDERR"
+            DIAGNOSTIC+="test_stderr: $COPILOT_TEST_STDERR\n"
+          fi
+
+          if [ -n "$COPILOT_TEST_OUTPUT" ]; then
+            echo "   Stdout: $COPILOT_TEST_OUTPUT"
+            DIAGNOSTIC+="test_stdout: $COPILOT_TEST_OUTPUT\n"
+          fi
+
+          # Analyze common failure modes
+          if [ -z "$COPILOT_TEST_OUTPUT" ] && [ -z "$COPILOT_TEST_STDERR" ]; then
+            echo ""
+            echo "   ⚠ DIAGNOSIS: CLI produced no output at all"
+            echo "   This typically indicates one of:"
+            echo "   - The GitHub account does not have Copilot access enabled"
+            echo "   - The PAT token lacks Copilot permissions"
+            echo "   - Network connectivity issues to Copilot API"
+            DIAGNOSTIC+="diagnosis: NO_OUTPUT - likely missing Copilot access\n"
+          fi
+        fi
+
+        # 6. Environment check
+        echo ""
+        echo "6. Environment variables check..."
+        echo "   GH_TOKEN: ${GH_TOKEN:+[SET - ${#GH_TOKEN} chars]}"
+        echo "   GITHUB_TOKEN: ${GITHUB_TOKEN:+[SET - ${#GITHUB_TOKEN} chars]}"
+        echo "   HOME: $HOME"
+        echo "   PATH includes npm: $(echo $PATH | grep -q npm && echo yes || echo no)"
+        DIAGNOSTIC+="gh_token_set: ${GH_TOKEN:+yes}\n"
+        DIAGNOSTIC+="github_token_set: ${GITHUB_TOKEN:+yes}\n"
+
+        # Summary
+        echo ""
+        echo "=== DIAGNOSTIC SUMMARY ==="
+        echo "Health Status: $HEALTH_STATUS"
+        echo "Auth Status: $AUTH_STATUS"
+        echo ""
+
+        # Set outputs
+        echo "health_status=$HEALTH_STATUS" >> $GITHUB_OUTPUT
+        echo "auth_status=$AUTH_STATUS" >> $GITHUB_OUTPUT
+        {
+          echo "diagnostic<<EOF_DIAG"
+          echo -e "$DIAGNOSTIC"
+          echo "EOF_DIAG"
+        } >> $GITHUB_OUTPUT
+
+        # Warn but don't fail - let the main invoke step handle failures
+        if [ "$HEALTH_STATUS" = "failed" ]; then
+          echo "::warning::Copilot CLI diagnostics indicate problems - main invocation may fail"
+        fi
+
+    - name: Build context
+      id: context
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.bot-pat }}
+        CONTEXT_TYPE: ${{ inputs.context-type }}
+        PR_NUMBER: ${{ inputs.pr-number }}
+        ISSUE_NUMBER: ${{ inputs.issue-number }}
+        CONTEXT_PATH: ${{ inputs.context-path }}
+        MAX_DIFF_LINES: ${{ inputs.max-diff-lines }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+      run: |
+        CONTEXT=""
+        CONTEXT_MODE="full"
+
+        case "$CONTEXT_TYPE" in
+          pr-diff)
+            if [ -n "$PR_NUMBER" ]; then
+              # Fetch PR title for validation (sanitize to prevent shell injection)
+              PR_TITLE=$(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json title -q '.title' 2>/dev/null | tr -d '$`"\\' || echo "Unknown PR")
+              echo "Building context for PR #$PR_NUMBER: $PR_TITLE"
+              echo "Fetching diff for PR #$PR_NUMBER from repository $GITHUB_REPOSITORY"
+
+              # Validate we got the correct PR
+              ACTUAL_PR=$(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json number -q '.number' 2>/dev/null || echo "0")
+              if [ "$ACTUAL_PR" != "$PR_NUMBER" ]; then
+                echo "::error::PR number mismatch: requested $PR_NUMBER, got $ACTUAL_PR"
+                CONTEXT="ERROR: Failed to fetch PR #$PR_NUMBER from $GITHUB_REPOSITORY"
+                echo "$CONTEXT" > /tmp/ai-review-context-pr${PR_NUMBER:-$GITHUB_RUN_ID}.txt
+                echo "context_mode=error" >> $GITHUB_OUTPUT
+                echo "context_file=/tmp/ai-review-context-pr${PR_NUMBER:-$GITHUB_RUN_ID}.txt" >> $GITHUB_OUTPUT
+                echo "context_built<<EOF_CONTEXT" >> $GITHUB_OUTPUT
+                echo "$CONTEXT" >> $GITHUB_OUTPUT
+                echo "EOF_CONTEXT" >> $GITHUB_OUTPUT
+                exit 1
+              fi
+
+              # Graceful degradation for large PRs (>300 files triggers HTTP 406)
+              # Strategy: 1) Try gh pr diff, 2) Fall back to API with pagination, 3) Use --name-only summary
+              DIFF_ERROR_FILE=$(mktemp)
+              DIFF_OUTPUT=$(gh pr diff "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" 2>"$DIFF_ERROR_FILE" || true)
+              DIFF_ERROR=$(cat "$DIFF_ERROR_FILE")
+              rm -f "$DIFF_ERROR_FILE"
+
+              # Check if diff failed due to size limit (HTTP 406)
+              if echo "$DIFF_ERROR" | grep -qiE "(HTTP 406|too_large|exceeded the maximum number of files)"; then
+                echo "::warning::PR diff unavailable via gh pr diff (>300 files). Falling back to API pagination..."
+                CONTEXT_MODE="summary"
+
+                # Fallback 1: Use GitHub API with pagination to get file list
+                FILE_LIST=""
+                PAGE=1
+                PER_PAGE=100
+                MAX_PAGES=5  # Cap at 500 files to prevent excessive API calls
+
+                while [ $PAGE -le $MAX_PAGES ]; do
+                  PAGE_FILES=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=$PER_PAGE&page=$PAGE" --jq '.[].filename' 2>/dev/null || true)
+
+                  if [ -z "$PAGE_FILES" ]; then
+                    break
+                  fi
+
+                  FILE_LIST="${FILE_LIST}${PAGE_FILES}"$'\n'
+
+                  # Check if we got less than per_page (last page)
+                  FILE_COUNT=$(echo "$PAGE_FILES" | wc -l)
+                  if [ "$FILE_COUNT" -lt "$PER_PAGE" ]; then
+                    break
+                  fi
+
+                  PAGE=$((PAGE + 1))
+                done
+
+                if [ -n "$FILE_LIST" ]; then
+                  TOTAL_FILES=$(echo "$FILE_LIST" | grep -v '^$' | wc -l)
+                  echo "Retrieved $TOTAL_FILES changed files via API pagination"
+
+                  # Warn if file list was truncated at max pages
+                  if [ $PAGE -gt $MAX_PAGES ]; then
+                    echo "::warning::File list truncated at $((MAX_PAGES * PER_PAGE)) files. PR may have additional changes not shown in review context."
+                  fi
+
+                  CONTEXT="[Large PR - >300 files (GitHub diff limit exceeded), showing file list only]"$'\n\n'"Changed files:"$'\n'"$FILE_LIST"
+                else
+                  # Fallback 2: Try --name-only as last resort
+                  echo "::warning::API pagination failed. Attempting --name-only fallback..."
+                  NAME_ONLY=$(gh pr diff "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --name-only 2>/dev/null || true)
+
+                  if [ -n "$NAME_ONLY" ]; then
+                    echo "Retrieved file list using --name-only"
+                    CONTEXT="[Large PR - showing file list only]"$'\n'"$NAME_ONLY"
+                  else
+                    echo "::error::All fallback methods failed for PR #$PR_NUMBER"
+                    echo "::error::PR may have structural issues or GitHub API may be unavailable"
+                    exit 1
+                  fi
+                fi
+              else
+                # Standard path: diff succeeded, check size
+                LINE_COUNT=$(echo "$DIFF_OUTPUT" | wc -l)
+                echo "PR diff has $LINE_COUNT lines"
+
+                if [ "$LINE_COUNT" -eq 0 ]; then
+                  echo "::error::Failed to fetch PR diff for #$PR_NUMBER from $GITHUB_REPOSITORY"
+                  if [ -n "$DIFF_ERROR" ]; then
+                    echo "::error::Error details: $DIFF_ERROR"
+                  fi
+                  exit 1
+                fi
+
+                if [ "$LINE_COUNT" -gt "$MAX_DIFF_LINES" ]; then
+                  CONTEXT_MODE="summary"
+                  CONTEXT=$(gh pr diff "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --name-only 2>/dev/null)
+                  if [ -z "$CONTEXT" ]; then
+                    echo "::error::Failed to fetch PR diff summary for #$PR_NUMBER"
+                    exit 1
+                  fi
+                  CONTEXT="[Large PR - $LINE_COUNT lines, showing summary only]"$'\n'"$CONTEXT"
+                else
+                  CONTEXT="$DIFF_OUTPUT"
+                fi
+              fi
+
+              # Also get PR description
+              PR_BODY=$(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json body -q '.body' 2>/dev/null || echo "")
+              if [ -n "$PR_BODY" ]; then
+                CONTEXT="## PR #$PR_NUMBER: $PR_TITLE"$'\n\n'"## PR Description"$'\n'"$PR_BODY"$'\n\n'"## Changes"$'\n'"$CONTEXT"
+              else
+                CONTEXT="## PR #$PR_NUMBER: $PR_TITLE"$'\n\n'"## Changes"$'\n'"$CONTEXT"
+              fi
+            else
+              CONTEXT="No PR number provided"
+            fi
+            ;;
+
+          issue)
+            if [ -n "$ISSUE_NUMBER" ]; then
+              CONTEXT=$(gh issue view "$ISSUE_NUMBER" --json title,body,labels -q '"Title: " + .title + "\n\nBody:\n" + .body + "\n\nLabels: " + ([.labels[].name] | join(", "))' 2>/dev/null || echo "Unable to get issue")
+            else
+              CONTEXT="No issue number provided"
+            fi
+            ;;
+
+          session-log)
+            if [ -n "$CONTEXT_PATH" ] && [ -f "$CONTEXT_PATH" ]; then
+              CONTEXT=$(cat "$CONTEXT_PATH")
+            else
+              CONTEXT="Session log file not found: $CONTEXT_PATH"
+            fi
+            ;;
+
+          spec-file)
+            if [ -n "$CONTEXT_PATH" ] && [ -f "$CONTEXT_PATH" ]; then
+              CONTEXT=$(cat "$CONTEXT_PATH")
+              # If PR number also provided, append the diff
+              if [ -n "$PR_NUMBER" ]; then
+                PR_DIFF=$(gh pr diff "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" 2>/dev/null | head -500 || echo "")
+                CONTEXT="## Specification"$'\n'"$CONTEXT"$'\n\n'"## Implementation Changes"$'\n'"$PR_DIFF"
+              fi
+            else
+              CONTEXT="Spec file not found: $CONTEXT_PATH"
+            fi
+            ;;
+
+          *)
+            CONTEXT="Unknown context type: $CONTEXT_TYPE"
+            ;;
+        esac
+
+        # Save context to file (handles multiline safely)
+        echo "$CONTEXT" > /tmp/ai-review-context-pr${PR_NUMBER:-$GITHUB_RUN_ID}.txt
+        echo "context_mode=$CONTEXT_MODE" >> $GITHUB_OUTPUT
+        echo "context_file=/tmp/ai-review-context-pr${PR_NUMBER:-$GITHUB_RUN_ID}.txt" >> $GITHUB_OUTPUT
+
+        # Output context for debugging (using heredoc for multiline)
+        {
+          echo "context_built<<EOF_CONTEXT"
+          echo "$CONTEXT"
+          echo "EOF_CONTEXT"
+        } >> $GITHUB_OUTPUT
+
+    - name: Load prompt template
+      id: prompt
+      shell: bash
+      env:
+        PROMPT_FILE: ${{ inputs.prompt-file }}
+      run: |
+        if [ -n "$PROMPT_FILE" ] && [ -f "$PROMPT_FILE" ]; then
+          echo "Using prompt template: $PROMPT_FILE"
+          cat "$PROMPT_FILE" > /tmp/ai-review-prompt.md
+          echo "prompt_source=$PROMPT_FILE" >> $GITHUB_OUTPUT
+        elif [ -f ".github/prompts/default-ai-review.md" ]; then
+          echo "Using default prompt template"
+          cat ".github/prompts/default-ai-review.md" > /tmp/ai-review-prompt.md
+          echo "prompt_source=.github/prompts/default-ai-review.md" >> $GITHUB_OUTPUT
+        else
+          echo "Warning: No prompt template found, using minimal prompt"
+          echo "Analyze the provided context and give your assessment." > /tmp/ai-review-prompt.md
+          echo "" >> /tmp/ai-review-prompt.md
+          echo "End with: VERDICT: [PASS|WARN|CRITICAL_FAIL|REJECTED]" >> /tmp/ai-review-prompt.md
+          echo "prompt_source=generated" >> $GITHUB_OUTPUT
+        fi
+        echo "prompt_file=/tmp/ai-review-prompt.md" >> $GITHUB_OUTPUT
+
+        # Output prompt template for debugging
+        {
+          echo "prompt_template<<EOF_PROMPT"
+          cat /tmp/ai-review-prompt.md
+          echo "EOF_PROMPT"
+        } >> $GITHUB_OUTPUT
+
+    - name: Invoke Copilot CLI (with retry for infrastructure failures)
+      id: invoke
+      shell: bash
+      env:
+        # Use dedicated Copilot token if provided, otherwise fall back to bot-pat
+        COPILOT_GITHUB_TOKEN: ${{ inputs.copilot-token || inputs.bot-pat }}
+        GH_TOKEN: ${{ inputs.bot-pat }}
+        ADDITIONAL_CONTEXT: ${{ inputs.additional-context }}
+        TIMEOUT_MINUTES: ${{ inputs.timeout-minutes }}
+        COPILOT_AGENT: ${{ inputs.agent }}
+        COPILOT_MODEL: ${{ inputs.copilot-model }}
+      run: |
+        # Assemble prompt from template + context
+        # Note: Agent definition is loaded automatically by Copilot CLI via --agent flag
+        FULL_PROMPT=""
+
+        # Add prompt template (task instructions)
+        if [ -f /tmp/ai-review-prompt.md ]; then
+          FULL_PROMPT=$(cat /tmp/ai-review-prompt.md)
+          FULL_PROMPT="$FULL_PROMPT"$'\n\n'
+        fi
+
+        # Add context (PR diff, issue, etc.)
+        FULL_PROMPT="$FULL_PROMPT## Context"$'\n\n'
+        CONTEXT_FILE="${{ steps.context.outputs.context_file }}"
+        if [ -n "$CONTEXT_FILE" ] && [ -f "$CONTEXT_FILE" ]; then
+          FULL_PROMPT="$FULL_PROMPT$(cat "$CONTEXT_FILE")"
+        fi
+
+        # Add additional context if provided
+        if [ -n "$ADDITIONAL_CONTEXT" ]; then
+          FULL_PROMPT="$FULL_PROMPT"$'\n\n'"## Additional Context"$'\n\n'"$ADDITIONAL_CONTEXT"
+        fi
+
+        # Save full prompt for debugging
+        echo "$FULL_PROMPT" > /tmp/ai-review-full-prompt.md
+
+        # Calculate timeout in seconds
+        TIMEOUT_SECONDS=$((TIMEOUT_MINUTES * 60))
+
+        # Retry configuration (Issue #328, #338, #163: Handle infrastructure failures)
+        # Spec from #163: attempts at 0s, 30s, 60s (total 90s max wait, exponential backoff)
+        # Updated from #338 spec (0s, 10s, 30s) to provide longer backoff for rate limit recovery
+        MAX_RETRIES=2
+        RETRY_DELAYS=(0 30 60)  # seconds before each attempt
+        ATTEMPT=0
+        RETRY_COUNT=0
+        INFRASTRUCTURE_FAILURE=false
+
+        # Function to check if failure is infrastructure-related
+        is_infrastructure_failure() {
+          local exit_code=$1
+          local output=$2
+          local stderr=$3
+
+          # Timeout (exit code 124)
+          if [ $exit_code -eq 124 ]; then
+            return 0
+          fi
+
+          # Non-zero exit with no output (indicates infrastructure issue)
+          if [ $exit_code -ne 0 ] && [ -z "$output" ] && [ -z "$stderr" ]; then
+            return 0
+          fi
+
+          # Check stderr for infrastructure keywords
+          if [ -n "$stderr" ]; then
+            if echo "$stderr" | grep -qiE "(rate limit|timeout|network error|connection refused|connection reset|ECONNREFUSED|ETIMEDOUT|503|502|504)"; then
+              return 0
+            fi
+          fi
+
+          # Not an infrastructure failure
+          return 1
+        }
+
+        # Retry loop
+        while [ $ATTEMPT -le $MAX_RETRIES ]; do
+          RETRY_DELAY=${RETRY_DELAYS[$ATTEMPT]}
+          if [ $ATTEMPT -gt 0 ]; then
+            echo ""
+            echo "=== RETRY ATTEMPT $ATTEMPT/$MAX_RETRIES ==="
+            echo "Infrastructure failure detected. Retrying in ${RETRY_DELAY}s..."
+            sleep $RETRY_DELAY
+          fi
+
+          echo "Invoking Copilot CLI (attempt $((ATTEMPT + 1))/$((MAX_RETRIES + 1)), timeout: ${TIMEOUT_MINUTES}m)..."
+          echo "Agent: $COPILOT_AGENT, Model: $COPILOT_MODEL"
+          echo "Prompt size: $(wc -c < /tmp/ai-review-full-prompt.md) bytes"
+
+          # Create temp files for separate stdout/stderr capture
+          STDOUT_FILE=$(mktemp)
+          STDERR_FILE=$(mktemp)
+
+          set +e
+          timeout "$TIMEOUT_SECONDS" copilot --no-auto-update --no-color --silent --agent "$COPILOT_AGENT" --model "$COPILOT_MODEL" --prompt "$FULL_PROMPT" > "$STDOUT_FILE" 2> "$STDERR_FILE"
+          EXIT_CODE=$?
+
+          OUTPUT=$(cat "$STDOUT_FILE")
+          STDERR_OUTPUT=$(cat "$STDERR_FILE")
+          rm -f "$STDOUT_FILE" "$STDERR_FILE"
+          set -e
+
+          # Log what we captured
+          echo "Exit code: $EXIT_CODE"
+          echo "Stdout length: ${#OUTPUT} chars"
+          echo "Stderr length: ${#STDERR_OUTPUT} chars"
+
+          # Check if this is an infrastructure failure
+          if is_infrastructure_failure $EXIT_CODE "$OUTPUT" "$STDERR_OUTPUT"; then
+            INFRASTRUCTURE_FAILURE=true
+            echo "::warning::Infrastructure failure detected (exit code: $EXIT_CODE)"
+            if [ -n "$STDERR_OUTPUT" ]; then
+              echo "::warning::stderr (truncated): $(echo "$STDERR_OUTPUT" | head -c 500)"
+              if echo "$STDERR_OUTPUT" | grep -qi "rate limit"; then
+                echo "::warning::Copilot may be rate limited. No public Copilot rate-limit API is available; relying on CLI response and backoff."
+              fi
+            fi
+
+            if [ $ATTEMPT -lt $MAX_RETRIES ]; then
+              ATTEMPT=$((ATTEMPT + 1))
+              RETRY_COUNT=$((RETRY_COUNT + 1))
+              continue  # Retry
+            else
+              TOTAL_ATTEMPTS=$((ATTEMPT + 1))
+              ATTEMPT=$TOTAL_ATTEMPTS
+
+              OUTPUT="VERDICT: CRITICAL_FAIL"$'\n'"MESSAGE: Copilot CLI infrastructure failure after ${TOTAL_ATTEMPTS} attempts (exit code $EXIT_CODE). Check COPILOT_GITHUB_TOKEN scope, rate limits, or network connectivity."
+              if [ -z "$STDERR_OUTPUT" ]; then
+                STDERR_OUTPUT="Infrastructure failure detected after retries."
+              fi
+              break
+            fi
+          else
+            # Success or code quality failure (not infrastructure) - don't retry
+            INFRASTRUCTURE_FAILURE=false
+            ATTEMPT=$((ATTEMPT + 1))
+            break
+          fi
+
+        done
+
+        # Detailed error analysis
+        # Infrastructure failures (including timeout exit code 124) are handled in the retry loop
+        # via is_infrastructure_failure(). This section handles non-infra errors only.
+        if [ "$INFRASTRUCTURE_FAILURE" != true ]; then
+          if [ $EXIT_CODE -ne 0 ]; then
+            echo "::error::Copilot CLI exited with code $EXIT_CODE"
+
+            # Log stderr for debugging
+            if [ -n "$STDERR_OUTPUT" ]; then
+              echo "Stderr output:"
+              echo "$STDERR_OUTPUT"
+            fi
+
+            # Analyze failure mode
+            if [ -z "$OUTPUT" ] && [ -z "$STDERR_OUTPUT" ]; then
+              # No output at all - this is an infrastructure issue, fail fast
+              # (Note: This should have been caught in the retry loop, but handle defensively)
+              echo ""
+              echo "::error::=== NO OUTPUT - JOB FAILED ==="
+              echo "::error::Copilot CLI produced no output (stdout or stderr)."
+              echo "::error::"
+              echo "::error::LIKELY CAUSES:"
+              echo "::error::  1. MISSING COPILOT ACCESS - GitHub account does not have Copilot enabled"
+              echo "::error::  2. INVALID PAT TOKEN - Token expired or missing 'copilot' scope"
+              echo "::error::  3. NETWORK ISSUES - Unable to reach Copilot API"
+              echo "::error::  4. RATE LIMITING - Too many requests"
+              echo "::error::"
+              echo "::error::TO FIX: Check COPILOT_GITHUB_TOKEN in Repository Settings > Secrets"
+              exit 1
+            elif [ -z "$OUTPUT" ]; then
+              # Has stderr but no stdout - infrastructure issue, fail fast
+              echo ""
+              echo "::error::=== CLI ERROR - JOB FAILED ==="
+              echo "::error::Copilot CLI failed (exit code $EXIT_CODE) with error output."
+              echo "::error::Stderr: $STDERR_OUTPUT"
+              exit 1
+            fi
+            # If OUTPUT is not empty, keep it as-is (may contain legitimate code quality findings)
+          fi
+        else
+          if [ -z "$OUTPUT" ]; then
+            OUTPUT="VERDICT: CRITICAL_FAIL"$'\n'"MESSAGE: Copilot CLI infrastructure failure (exit code $EXIT_CODE). Output unavailable after retries."
+          fi
+        fi
+
+        # Save output
+        echo "$OUTPUT" > /tmp/ai-review-output.txt
+
+        # Set outputs (escape for GitHub Actions using heredoc)
+        {
+          echo "raw_output<<EOF_RAW"
+          echo "$OUTPUT"
+          echo "EOF_RAW"
+        } >> $GITHUB_OUTPUT
+
+        # Output stderr separately for debugging
+        {
+          echo "stderr_output<<EOF_STDERR"
+          echo "$STDERR_OUTPUT"
+          echo "EOF_STDERR"
+        } >> $GITHUB_OUTPUT
+
+        # Output full prompt for debugging
+        {
+          echo "full_prompt<<EOF_FULL_PROMPT"
+          cat /tmp/ai-review-full-prompt.md
+          echo "EOF_FULL_PROMPT"
+        } >> $GITHUB_OUTPUT
+
+        # Output Copilot exit code for debugging
+        echo "copilot_exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
+
+        # Output infrastructure failure flag for labeling
+        echo "infrastructure_failure=$INFRASTRUCTURE_FAILURE" >> $GITHUB_OUTPUT
+
+        # Output retry count for observability
+        echo "retry_count=$RETRY_COUNT" >> $GITHUB_OUTPUT
+
+    - name: Parse output
+      id: parse
+      shell: bash
+      run: |
+        output=$(cat /tmp/ai-review-output.txt 2>/dev/null || echo "")
+
+        # Extract verdict using explicit VERDICT: TOKEN pattern only
+        # Fix for Issue #470: Removed fallback keyword matching that caused context contamination
+        # (keywords like "CRITICAL_FAIL" in issue descriptions were being matched)
+        # Fix: Use [A-Z_][A-Z_]* to require at least one character (prevents empty match)
+        # Fix for Issue #575: Handle optional brackets around verdict (AI sometimes outputs VERDICT: [PASS])
+        verdict=$(echo "$output" | sed -n 's/.*VERDICT:[[:space:]]*\[\?\([A-Z_]*\)\]\?.*/\1/p' | tail -n 1)
+
+        # Validate verdict is a known token
+        case "$verdict" in
+          PASS|WARN|CRITICAL_FAIL|REJECTED|COMPLIANT|NON_COMPLIANT|PARTIAL|FAIL)
+            # Valid verdict token - use as-is
+            ;;
+          *)
+            # No valid verdict found - emit warning and return NEEDS_REVIEW
+            # This is safer than guessing based on keywords that may appear in context
+            if [ -z "$verdict" ]; then
+              echo "::warning::No explicit VERDICT: TOKEN found in AI output"
+            else
+              echo "::warning::Unrecognized verdict token: $verdict"
+            fi
+            echo "::warning::AI output should end with: VERDICT: [PASS|WARN|CRITICAL_FAIL|REJECTED|COMPLIANT|NON_COMPLIANT|PARTIAL|FAIL]"
+            verdict="NEEDS_REVIEW"
+            ;;
+        esac
+
+        # Extract labels using sed (avoids lookbehind issues)
+        labels_raw=$(echo "$output" | sed -n 's/.*LABEL:[[:space:]]*\([^[:space:]]*\).*/\1/p' | tr '\n' ',' | sed 's/,$//')
+        if [ -n "$labels_raw" ]; then
+          labels=$(echo "$labels_raw" | jq -R -c 'split(",") | map(select(length > 0))')
+        else
+          labels="[]"
+        fi
+
+        # Extract milestone using sed
+        milestone=$(echo "$output" | sed -n 's/.*MILESTONE:[[:space:]]*\([^[:space:]]*\).*/\1/p' | head -1)
+
+        # Determine exit code based on verdict
+        # Failure verdicts: CRITICAL_FAIL, REJECTED, FAIL, NON_COMPLIANT, NEEDS_REVIEW
+        # Pass/warning verdicts: PASS, WARN, COMPLIANT, PARTIAL
+        exit_code=0
+        case "$verdict" in
+          CRITICAL_FAIL|REJECTED|FAIL|NON_COMPLIANT|NEEDS_REVIEW)
+            exit_code=1
+            ;;
+        esac
+
+        echo "verdict=$verdict" >> $GITHUB_OUTPUT
+        echo "labels=$labels" >> $GITHUB_OUTPUT
+        echo "milestone=$milestone" >> $GITHUB_OUTPUT
+        echo "exit_code=$exit_code" >> $GITHUB_OUTPUT
+
+        echo "Parsed results:"
+        echo "  Verdict: $verdict"
+        echo "  Labels: $labels"
+        echo "  Milestone: $milestone"
+        echo "  Exit Code: $exit_code"
+
+    - name: Execute post-analysis script
+      if: inputs.execute-script != ''
+      shell: pwsh -NoProfile -Command "& '{0}'"
+      env:
+        GH_TOKEN: ${{ inputs.bot-pat }}
+        AI_VERDICT: ${{ steps.parse.outputs.verdict }}
+        AI_FINDINGS: ${{ steps.invoke.outputs.raw_output }}
+        AI_LABELS: ${{ steps.parse.outputs.labels }}
+        PR_NUMBER: ${{ inputs.pr-number }}
+        EXECUTE_SCRIPT: ${{ inputs.execute-script }}
+      run: |
+        Write-Host "Executing post-analysis script: $env:EXECUTE_SCRIPT"
+        Write-Host "PR Number: $env:PR_NUMBER"
+        Write-Host "AI Verdict: $env:AI_VERDICT"
+
+        # Validate script exists (use -LiteralPath to prevent path injection)
+        if (-not (Test-Path -LiteralPath $env:EXECUTE_SCRIPT)) {
+          Write-Error "Execute script not found: $env:EXECUTE_SCRIPT"
+          exit 1
+        }
+
+        # Execute the script with parameters
+        & $env:EXECUTE_SCRIPT `
+          -PRNumber ([int]$env:PR_NUMBER) `
+          -Verdict $env:AI_VERDICT `
+          -FindingsJson $env:AI_FINDINGS
+
+        if ($LASTEXITCODE -ne 0) {
+          Write-Error "Execute script failed with exit code $LASTEXITCODE"
+          exit $LASTEXITCODE
+        }
+
+        Write-Host "Post-analysis script completed successfully"

@@ -1,0 +1,119 @@
+rules:
+  - id: name_adr_format
+    agent: consistency
+    title: "ADR file name does not follow convention"
+    description: |
+      ADR files must follow ADR-NNN-kebab-case-title.md pattern with
+      3-digit zero-padded number and kebab-case title.
+    importance: 7
+
+    match:
+      file_glob:
+        - ".agents/architecture/ADR-*.md"
+        - "docs/architecture/ADR-*.md"
+
+    checklist:
+      - "Verify file name matches ADR-NNN-[title].md pattern"
+      - "Check NNN is 3-digit zero-padded (001, 002, not 1, 2)"
+      - "Verify title uses kebab-case (lowercase with hyphens)"
+      - "Check no underscores or camelCase in title"
+
+    examples:
+      bad: |
+        ADR-5-UseOAuth.md              # Not zero-padded, not kebab-case
+        ADR-042-use_oauth.md           # Underscores instead of hyphens
+        adr-042-use-oauth.md           # Lowercase prefix
+      good: |
+        ADR-005-use-oauth-for-auth.md  # Correct format
+        ADR-042-powershell-only.md     # Correct format
+
+    tags:
+      - naming-conventions
+      - consistency
+      - architecture
+
+    why_important: |
+      Consistent naming enables automated validation, sorting,
+      and cross-referencing across documentation.
+
+    link: .agents/governance/naming-conventions.md
+
+
+  - id: name_session_log_format
+    agent: consistency
+    title: "Session log does not follow naming convention"
+    description: |
+      Session logs must follow YYYY-MM-DD-session-NN.md pattern for
+      chronological sorting and automated discovery.
+    importance: 6
+
+    match:
+      file_glob:
+        - ".agents/sessions/*.md"
+
+    checklist:
+      - "Verify file name matches YYYY-MM-DD-session-NN.md"
+      - "Check date is valid and properly formatted"
+      - "Verify session number is zero-padded (01, 02, not 1, 2)"
+      - "Check no additional suffixes or prefixes"
+
+    examples:
+      bad: |
+        session-1.md                    # Missing date
+        2025-1-5-session-1.md          # Date not zero-padded
+        2025-01-05-session-1-fix.md    # Additional suffix
+      good: |
+        2025-01-05-session-01.md       # Correct format
+        2025-12-24-session-86.md       # Correct format
+
+    tags:
+      - naming-conventions
+      - consistency
+      - session-protocol
+
+    why_important: |
+      Standard format enables chronological sorting and automated
+      session log discovery by validation scripts.
+
+    link: .agents/governance/naming-conventions.md
+
+
+  - id: name_skill_format
+    agent: consistency
+    title: "Skill memory does not follow naming pattern"
+    description: |
+      Skill memories must follow Skill-[Category]-NNN pattern for
+      categorization and automated indexing.
+    importance: 6
+
+    match:
+      file_glob:
+        - ".serena/memories/Skill-*.md"
+        - ".agents/skills/Skill-*.md"
+
+    checklist:
+      - "Verify file name matches Skill-[Category]-NNN.md"
+      - "Check category uses PascalCase"
+      - "Verify NNN is 3-digit zero-padded"
+      - "Check no additional prefixes or suffixes"
+
+    examples:
+      bad: |
+        skill-build-1.md               # Lowercase, not zero-padded
+        Skill-Build.md                 # Missing number
+        Skill-build-001-extra.md       # Additional suffix
+      good: |
+        Skill-Build-001.md             # Correct format
+        Skill-Testing-002.md           # Correct format
+        Skill-Protocol-013.md          # Correct format
+
+    tags:
+      - naming-conventions
+      - consistency
+      - memory-management
+
+    why_important: |
+      Standard format enables skill categorization, indexing,
+      and cross-referencing in skill indexes.
+
+    link: .agents/governance/naming-conventions.md

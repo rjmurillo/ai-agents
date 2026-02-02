@@ -1,0 +1,40 @@
+# Skill-Security-008: First-Run Gap Analysis
+
+**Statement**: When reviewing conditional security checks, verify they cover creation scenarios, not just modification scenarios.
+
+**Context**: When security code uses existence checks (`if file exists then validate`)
+
+**Evidence**: PR #52 - `if (Test-Path $DestinationPath)` meant symlink check only ran on updates, not creates
+
+**Atomicity**: 91%
+
+**Pattern**:
+
+```powershell
+# WRONG: Only validates when file exists
+if (Test-Path $Path) {
+    if ((Get-Item $Path).LinkType) { throw "symlink" }
+}
+# First-run creates file without validation!
+
+# RIGHT: Validate after creation too
+$result = Create-File $Path
+if ((Get-Item $Path).LinkType) { throw "symlink detected" }
+```
+
+**Checklist**:
+
+- [ ] Does security check run on file creation?
+- [ ] Does security check run on file modification?
+- [ ] Does security check run on file deletion?
+- [ ] Is there a gap between check and action?
+
+**Source**: `.agents/retrospective/pr-52-symlink-retrospective.md`
+
+## Related
+
+- [security-002-input-validation-first](security-002-input-validation-first.md)
+- [security-003-secure-error-handling](security-003-secure-error-handling.md)
+- [security-004-security-event-logging](security-004-security-event-logging.md)
+- [security-007-defense-in-depth-for-cross-process-security-checks](security-007-defense-in-depth-for-cross-process-security-checks.md)
+- [security-009-domain-adjusted-signal-quality](security-009-domain-adjusted-signal-quality.md)

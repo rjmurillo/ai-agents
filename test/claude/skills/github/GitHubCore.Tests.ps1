@@ -1,0 +1,551 @@
+#Requires -Modules Pester
+
+<#
+.SYNOPSIS
+    Tests for GitHubCore.psm1 shared module
+#>
+
+BeforeAll {
+    # Correct path: from .github/tests/skills/github -> .claude/skills/github/modules
+    $ModulePath = Join-Path $PSScriptRoot ".." ".." ".." ".." ".claude" "skills" "github" "modules" "GitHubCore.psm1"
+    Import-Module $ModulePath -Force
+}
+
+Describe "GitHubCore Module" {
+
+    Context "Module Loading" {
+        It "Exports Get-RepoInfo function" {
+            Get-Command -Module GitHubCore -Name Get-RepoInfo | Should -Not -BeNullOrEmpty
+        }
+
+        It "Exports Resolve-RepoParams function" {
+            Get-Command -Module GitHubCore -Name Resolve-RepoParams | Should -Not -BeNullOrEmpty
+        }
+
+        It "Exports Test-GhAuthenticated function" {
+            Get-Command -Module GitHubCore -Name Test-GhAuthenticated | Should -Not -BeNullOrEmpty
+        }
+
+        It "Exports Assert-GhAuthenticated function" {
+            Get-Command -Module GitHubCore -Name Assert-GhAuthenticated | Should -Not -BeNullOrEmpty
+        }
+
+        It "Exports Write-ErrorAndExit function" {
+            Get-Command -Module GitHubCore -Name Write-ErrorAndExit | Should -Not -BeNullOrEmpty
+        }
+
+        It "Exports Invoke-GhApiPaginated function" {
+            Get-Command -Module GitHubCore -Name Invoke-GhApiPaginated | Should -Not -BeNullOrEmpty
+        }
+
+        It "Exports Get-PriorityEmoji function" {
+            Get-Command -Module GitHubCore -Name Get-PriorityEmoji | Should -Not -BeNullOrEmpty
+        }
+
+        It "Exports Get-ReactionEmoji function" {
+            Get-Command -Module GitHubCore -Name Get-ReactionEmoji | Should -Not -BeNullOrEmpty
+        }
+
+        It "Exports Get-BotAuthorsConfig function" {
+            Get-Command -Module GitHubCore -Name Get-BotAuthorsConfig | Should -Not -BeNullOrEmpty
+        }
+
+        It "Exports Get-BotAuthors function" {
+            Get-Command -Module GitHubCore -Name Get-BotAuthors | Should -Not -BeNullOrEmpty
+        }
+
+        It "Exports Test-WorkflowRateLimit function" {
+            Get-Command -Module GitHubCore -Name Test-WorkflowRateLimit | Should -Not -BeNullOrEmpty
+        }
+
+        It "Exports Get-UnresolvedReviewThreads function" {
+            Get-Command -Module GitHubCore -Name Get-UnresolvedReviewThreads | Should -Not -BeNullOrEmpty
+        }
+    }
+
+    Context "Get-UnresolvedReviewThreads" {
+        It "Has correct parameter structure" {
+            $params = (Get-Command Get-UnresolvedReviewThreads).Parameters
+            $params.ContainsKey('Owner') | Should -Be $true
+            $params.ContainsKey('Repo') | Should -Be $true
+            $params.ContainsKey('PullRequest') | Should -Be $true
+        }
+
+        It "PullRequest parameter is mandatory" {
+            $param = (Get-Command Get-UnresolvedReviewThreads).Parameters['PullRequest']
+            $param.Attributes.Where({$_ -is [Parameter]}).Mandatory | Should -Be $true
+        }
+
+        It "Returns array type" {
+            # Test with source code analysis since gh is external command
+            $modulePath = Join-Path $PSScriptRoot ".." ".." ".." ".." ".claude" "skills" "github" "modules" "GitHubCore.psm1"
+            $content = Get-Content $modulePath -Raw
+            
+            # Verify it returns arrays (looking for return @() patterns)
+            $content | Should -Match 'return\s+@\(\)'
+            $content | Should -Match 'return\s+\$unresolved'
+        }
+
+        It "Has error handling for API failures" {
+            $modulePath = Join-Path $PSScriptRoot ".." ".." ".." ".." ".claude" "skills" "github" "modules" "GitHubCore.psm1"
+            $content = Get-Content $modulePath -Raw
+            
+            # Verify error handling exists
+            $content | Should -Match 'LASTEXITCODE\s*-ne\s*0'
+            $content | Should -Match 'Write-Warning.*Failed to query review threads'
+        }
+
+        It "Uses GraphQL variables for injection prevention" {
+            $modulePath = Join-Path $PSScriptRoot ".." ".." ".." ".." ".claude" "skills" "github" "modules" "GitHubCore.psm1"
+            $content = Get-Content $modulePath -Raw
+            
+            # Verify GraphQL variables are used
+            $content | Should -Match '-f\s+owner='
+            $content | Should -Match '-f\s+name='
+            $content | Should -Match '-F\s+prNumber='
+        }
+
+        It "Filters for unresolved threads" {
+            $modulePath = Join-Path $PSScriptRoot ".." ".." ".." ".." ".claude" "skills" "github" "modules" "GitHubCore.psm1"
+            $content = Get-Content $modulePath -Raw
+            
+            # Verify filtering logic
+            $content | Should -Match 'Where-Object.*-not\s+\$_\.isResolved'
+        }
+
+        It "Queries first 100 threads" {
+            $modulePath = Join-Path $PSScriptRoot ".." ".." ".." ".." ".claude" "skills" "github" "modules" "GitHubCore.psm1"
+            $content = Get-Content $modulePath -Raw
+            
+            # Verify pagination limit
+            $content | Should -Match 'first:\s*100'
+        }
+
+        It "Documents Skill-PowerShell-002 compliance" {
+            $modulePath = Join-Path $PSScriptRoot ".." ".." ".." ".." ".claude" "skills" "github" "modules" "GitHubCore.psm1"
+            $content = Get-Content $modulePath -Raw
+            
+            # Verify documentation mentions never returning null
+            $content | Should -Match 'Never\s+returns.*null|never.*\$null'
+        }
+    }
+
+    Context "Get-PriorityEmoji" {
+        It "Returns fire emoji for P0" {
+            Get-PriorityEmoji -Priority "P0" | Should -Be "🔥"
+        }
+
+        It "Returns exclamation for P1" {
+            Get-PriorityEmoji -Priority "P1" | Should -Be "❗"
+        }
+
+        It "Returns dash for P2" {
+            Get-PriorityEmoji -Priority "P2" | Should -Be "➖"
+        }
+
+        It "Returns down arrow for P3" {
+            Get-PriorityEmoji -Priority "P3" | Should -Be "⬇️"
+        }
+
+        It "Returns question mark for unknown" {
+            Get-PriorityEmoji -Priority "unknown" | Should -Be "❔"
+        }
+    }
+
+    Context "Get-ReactionEmoji" {
+        It "Returns thumbs up for +1" {
+            Get-ReactionEmoji -Reaction "+1" | Should -Be "👍"
+        }
+
+        It "Returns thumbs down for -1" {
+            Get-ReactionEmoji -Reaction "-1" | Should -Be "👎"
+        }
+
+        It "Returns laugh emoji" {
+            Get-ReactionEmoji -Reaction "laugh" | Should -Be "😄"
+        }
+
+        It "Returns confused emoji" {
+            Get-ReactionEmoji -Reaction "confused" | Should -Be "😕"
+        }
+
+        It "Returns heart emoji" {
+            Get-ReactionEmoji -Reaction "heart" | Should -Be "❤️"
+        }
+
+        It "Returns hooray emoji" {
+            Get-ReactionEmoji -Reaction "hooray" | Should -Be "🎉"
+        }
+
+        It "Returns rocket emoji" {
+            Get-ReactionEmoji -Reaction "rocket" | Should -Be "🚀"
+        }
+
+        It "Returns eyes emoji" {
+            Get-ReactionEmoji -Reaction "eyes" | Should -Be "👀"
+        }
+    }
+
+    Context "Get-RepoInfo" {
+        It "Returns null when not in git repo" {
+            # This test depends on environment - mock if needed
+            # For now, just verify it doesn't throw
+            { Get-RepoInfo } | Should -Not -Throw
+        }
+    }
+
+    Context "Test-GhAuthenticated" {
+        It "Returns boolean" {
+            $result = Test-GhAuthenticated
+            $result | Should -BeOfType [bool]
+        }
+    }
+
+    Context "Get-BotAuthorsConfig" {
+        It "Returns hashtable with required keys" {
+            $result = Get-BotAuthorsConfig
+            $result | Should -BeOfType [hashtable]
+            $result.Keys | Should -Contain 'reviewer'
+            $result.Keys | Should -Contain 'automation'
+            $result.Keys | Should -Contain 'repository'
+        }
+
+        It "Returns arrays for each category" {
+            $result = Get-BotAuthorsConfig
+            # Each category should contain at least one bot
+            @($result['reviewer']).Count | Should -BeGreaterThan 0
+            @($result['automation']).Count | Should -BeGreaterThan 0
+            @($result['repository']).Count | Should -BeGreaterThan 0
+        }
+
+        It "Uses cached result on second call" {
+            $result1 = Get-BotAuthorsConfig
+            $result2 = Get-BotAuthorsConfig
+            $result1 | Should -Be $result2
+        }
+
+        It "Reloads when Force is specified" {
+            $result1 = Get-BotAuthorsConfig
+            $result2 = Get-BotAuthorsConfig -Force
+            $result2 | Should -Not -BeNullOrEmpty
+        }
+
+        It "Falls back to defaults when config file is missing" {
+            $result = Get-BotAuthorsConfig -ConfigPath '/nonexistent/path/config.yml'
+            $result | Should -BeOfType [hashtable]
+            $result['reviewer'] | Should -Contain 'coderabbitai[bot]'
+        }
+    }
+
+    Context "Get-BotAuthors" {
+        It "Returns collection of strings" {
+            $result = @(Get-BotAuthors)
+            $result.Count | Should -BeGreaterThan 0
+            $result | ForEach-Object { $_ | Should -BeOfType [string] }
+        }
+
+        It "Returns all bots by default" {
+            $result = Get-BotAuthors
+            $result | Should -Contain "coderabbitai[bot]"
+            $result | Should -Contain "github-actions[bot]"
+            $result | Should -Contain "rjmurillo-bot"
+        }
+
+        It "Returns only reviewer bots for Category 'reviewer'" {
+            $result = Get-BotAuthors -Category 'reviewer'
+            $result | Should -Contain "coderabbitai[bot]"
+            $result | Should -Contain "github-copilot[bot]"
+            $result | Should -Not -Contain "github-actions[bot]"
+            $result | Should -Not -Contain "rjmurillo-bot"
+        }
+
+        It "Returns only automation bots for Category 'automation'" {
+            $result = Get-BotAuthors -Category 'automation'
+            $result | Should -Contain "github-actions[bot]"
+            $result | Should -Contain "dependabot[bot]"
+            $result | Should -Not -Contain "coderabbitai[bot]"
+        }
+
+        It "Returns only repository bots for Category 'repository'" {
+            $result = Get-BotAuthors -Category 'repository'
+            $result | Should -Contain "rjmurillo-bot"
+            $result | Should -Contain "copilot-swe-agent[bot]"
+            $result | Should -Not -Contain "github-actions[bot]"
+        }
+
+        It "Returns all bots for Category 'all'" {
+            $result = Get-BotAuthors -Category 'all'
+            $result | Should -Contain "coderabbitai[bot]"
+            $result | Should -Contain "github-actions[bot]"
+            $result | Should -Contain "rjmurillo-bot"
+        }
+
+        It "Returns sorted list" {
+            $result = Get-BotAuthors
+            $sorted = $result | Sort-Object
+            $result | Should -Be $sorted
+        }
+    }
+
+    Context "Test-WorkflowRateLimit" {
+        It "Returns PSCustomObject with required properties" {
+            Mock gh { '{"resources":{"core":{"remaining":5000,"limit":5000,"reset":1234567890},"search":{"remaining":30,"limit":30,"reset":1234567890},"code_search":{"remaining":10,"limit":10,"reset":1234567890},"graphql":{"remaining":5000,"limit":5000,"reset":1234567890}}}' }
+
+            $result = Test-WorkflowRateLimit
+            $result | Should -BeOfType [PSCustomObject]
+            $result.Success | Should -BeOfType [bool]
+            $result.Resources | Should -BeOfType [hashtable]
+            $result.SummaryMarkdown | Should -BeOfType [string]
+            $result.CoreRemaining | Should -BeOfType [int]
+        }
+
+        It "Returns Success=true when all resources above threshold" {
+            Mock gh { '{"resources":{"core":{"remaining":5000,"limit":5000,"reset":1234567890},"search":{"remaining":30,"limit":30,"reset":1234567890},"code_search":{"remaining":10,"limit":10,"reset":1234567890},"graphql":{"remaining":5000,"limit":5000,"reset":1234567890}}}' }
+
+            $result = Test-WorkflowRateLimit
+            $result.Success | Should -Be $true
+        }
+
+        It "Returns Success=false when any resource below threshold" {
+            Mock gh { '{"resources":{"core":{"remaining":50,"limit":5000,"reset":1234567890},"search":{"remaining":5,"limit":30,"reset":1234567890},"code_search":{"remaining":2,"limit":10,"reset":1234567890},"graphql":{"remaining":50,"limit":5000,"reset":1234567890}}}' }
+
+            $result = Test-WorkflowRateLimit
+            $result.Success | Should -Be $false
+        }
+
+        It "Handles missing resource with warning" {
+            Mock gh { '{"resources":{"core":{"remaining":5000,"limit":5000,"reset":1234567890},"search":{"remaining":30,"limit":30,"reset":1234567890},"graphql":{"remaining":5000,"limit":5000,"reset":1234567890}}}' }
+            Mock Write-Warning { }
+
+            $result = Test-WorkflowRateLimit
+            Should -Invoke Write-Warning -Times 1 -ParameterFilter { $Message -like "*code_search*" }
+            $result.Success | Should -Be $false
+        }
+
+        It "Throws when gh api fails" {
+            Mock gh { $global:LASTEXITCODE = 1; "API error" }
+
+            { Test-WorkflowRateLimit } | Should -Throw "*Failed to fetch rate limits*"
+        }
+
+        It "Uses custom thresholds" {
+            Mock gh { '{"resources":{"core":{"remaining":500,"limit":5000,"reset":1234567890}}}' }
+
+            $result = Test-WorkflowRateLimit -ResourceThresholds @{ 'core' = 100 }
+            $result.Success | Should -Be $true
+        }
+
+        It "Includes SummaryMarkdown with table" {
+            Mock gh { '{"resources":{"core":{"remaining":5000,"limit":5000,"reset":1234567890}}}' }
+
+            $result = Test-WorkflowRateLimit -ResourceThresholds @{ 'core' = 100 }
+            $result.SummaryMarkdown | Should -Match '### API Rate Limit Status'
+            $result.SummaryMarkdown | Should -Match '\| Resource \| Remaining \| Threshold \| Status \|'
+            $result.SummaryMarkdown | Should -Match '\| core \| 5000 \| 100 \|'
+        }
+    }
+}
+
+Describe "Script Parameter Validation" {
+
+    # Scripts with Import-Module can't be parsed with Get-Command directly
+    # Use AST parsing instead to validate parameter definitions
+
+    Context "Get-PRContext.ps1" {
+        BeforeAll {
+            $ScriptPath = Join-Path $PSScriptRoot ".." ".." ".." ".." ".claude" "skills" "github" "scripts" "pr" "Get-PRContext.ps1"
+            $content = Get-Content $ScriptPath -Raw
+        }
+
+        It "Has PullRequest as mandatory parameter" {
+            $content | Should -Match '\[Parameter\(Mandatory\)\].*\[int\]\$PullRequest'
+        }
+
+        It "Has optional Owner parameter" {
+            $content | Should -Match '\[string\]\$Owner'
+        }
+
+        It "Has optional Repo parameter" {
+            $content | Should -Match '\[string\]\$Repo'
+        }
+
+        It "Has IncludeDiff switch parameter" {
+            $content | Should -Match '\[switch\]\$IncludeDiff'
+        }
+
+        It "Has IncludeChangedFiles switch parameter" {
+            $content | Should -Match '\[switch\]\$IncludeChangedFiles'
+        }
+
+        It "Imports GitHubCore module" {
+            $content | Should -Match 'Import-Module.*GitHubCore\.psm1'
+        }
+    }
+
+    Context "Post-IssueComment.ps1" {
+        BeforeAll {
+            $ScriptPath = Join-Path $PSScriptRoot ".." ".." ".." ".." ".claude" "skills" "github" "scripts" "issue" "Post-IssueComment.ps1"
+            $content = Get-Content $ScriptPath -Raw
+        }
+
+        It "Has Issue as mandatory parameter" {
+            $content | Should -Match '\[Parameter\(Mandatory\)\].*\[int\]\$Issue'
+        }
+
+        It "Has Body and BodyFile in different parameter sets" {
+            $content | Should -Match "ParameterSetName\s*=\s*'BodyText'"
+            $content | Should -Match "ParameterSetName\s*=\s*'BodyFile'"
+        }
+
+        It "Has optional Marker parameter" {
+            $content | Should -Match '\[string\]\$Marker'
+        }
+
+        It "Uses correct API endpoint" {
+            $content | Should -Match 'repos/\$Owner/\$Repo/issues/\$Issue/comments'
+        }
+    }
+
+    Context "Set-IssueLabels.ps1" {
+        BeforeAll {
+            $ScriptPath = Join-Path $PSScriptRoot ".." ".." ".." ".." ".claude" "skills" "github" "scripts" "issue" "Set-IssueLabels.ps1"
+            $content = Get-Content $ScriptPath -Raw
+        }
+
+        It "Has Issue as mandatory parameter" {
+            $content | Should -Match '\[Parameter\(Mandatory\)\].*\[int\]\$Issue'
+        }
+
+        It "Has Priority parameter with validation" {
+            $content | Should -Match '\[ValidateSet\("P0",\s*"P1",\s*"P2",\s*"P3"'
+        }
+
+        It "Has Labels array parameter" {
+            $content | Should -Match '\[string\[\]\]\$Labels'
+        }
+    }
+
+    Context "Add-CommentReaction.ps1" {
+        BeforeAll {
+            $ScriptPath = Join-Path $PSScriptRoot ".." ".." ".." ".." ".claude" "skills" "github" "scripts" "reactions" "Add-CommentReaction.ps1"
+            $content = Get-Content $ScriptPath -Raw
+        }
+
+        It "Has CommentId as mandatory parameter" {
+            $content | Should -Match '\[Parameter\(Mandatory\)\].*\[long\]\$CommentId'
+        }
+
+        It "Has Reaction as mandatory parameter with validation" {
+            $content | Should -Match '\[Parameter\(Mandatory\)\].*\[ValidateSet\('
+            $content | Should -Match '"eyes"'
+        }
+
+        It "Has CommentType parameter with validation" {
+            $content | Should -Match '\[ValidateSet\("review",\s*"issue"\)\]'
+        }
+
+        It "Uses correct API endpoints for reactions" {
+            $content | Should -Match 'pulls/comments/\$CommentId/reactions'
+            $content | Should -Match 'issues/comments/\$CommentId/reactions'
+        }
+    }
+
+    Context "Post-PRCommentReply.ps1" {
+        BeforeAll {
+            $ScriptPath = Join-Path $PSScriptRoot ".." ".." ".." ".." ".claude" "skills" "github" "scripts" "pr" "Post-PRCommentReply.ps1"
+            $content = Get-Content $ScriptPath -Raw
+        }
+
+        It "Has PullRequest as mandatory parameter" {
+            $content | Should -Match '\[Parameter\(Mandatory\)\].*\[int\]\$PullRequest'
+        }
+
+        It "Uses dedicated /replies endpoint for thread replies" {
+            $content | Should -Match 'pulls/\$PullRequest/comments/\$CommentId/replies'
+        }
+
+        It "Uses issues API for top-level comments" {
+            $content | Should -Match 'issues/\$PullRequest/comments'
+        }
+    }
+}
+
+Describe "Update-IssueComment 403 Error Handling" {
+
+    Context "403 Pattern Matching in Module" {
+        BeforeAll {
+            $ModulePath = Join-Path $PSScriptRoot ".." ".." ".." ".." ".claude" "skills" "github" "modules" "GitHubCore.psm1"
+            $content = Get-Content $ModulePath -Raw
+        }
+
+        It "Should have 403 detection pattern in Update-IssueComment" {
+            # Must detect 403 pattern with negative lookarounds
+            $content | Should -Match '403'
+        }
+
+        It "Should use case-insensitive matching for forbidden" {
+            # Must use -imatch for the combined pattern
+            $content | Should -Match '-imatch.*forbidden'
+        }
+
+        It "Should detect 'Resource not accessible by integration' message" {
+            # Must detect GitHub's specific error message
+            $content | Should -Match 'Resource not accessible by integration'
+        }
+
+        It "Should exit 4 for permission denied errors (per ADR-035)" {
+            # Permission denied uses exit code 4 (Auth error per ADR-035)
+            # This check validates the function calls Write-ErrorAndExit with code 4
+            $content | Should -Match 'Write-ErrorAndExit.*\$guidance\s+4'
+        }
+
+        It "Should exit 3 for generic API errors" {
+            # Generic API errors use exit code 3
+            $content | Should -Match 'Write-ErrorAndExit.*Failed to update comment.*3'
+        }
+
+        It "Should provide actionable guidance for common permission issues" {
+            # Must include guidance for common scenarios
+            $content | Should -Match '"issues".*"write"'
+            $content | Should -Match 'GITHUB_TOKEN'
+            $content | Should -Match 'Fine-grained PAT'
+        }
+
+        It "Should mention unique Update-specific guidance" {
+            # Update-IssueComment has unique constraint: must be comment author
+            $content | Should -Match 'Not the comment author'
+        }
+
+        It "Should use negative lookarounds for 403 pattern to prevent false positives" {
+            # Pattern should use (?<!\d)403(?!\d) to avoid matching IDs like ID403
+            # Note: Regex escaping - matching literal (?<!\d) in source code
+            $content | Should -Match '\(\?\<!\\d\)403\(\?\!\\d\)'
+        }
+    }
+
+    Context "403 Error Detection Behavioral Tests" {
+        # Test the 403 pattern matching logic directly with the improved regex
+
+        It "Should detect 403 status code in various error formats" -ForEach @(
+            @{ ErrorMsg = "HTTP 403: Forbidden"; ShouldMatch = $true; Description = "HTTP 403 format" }
+            @{ ErrorMsg = "status: 403"; ShouldMatch = $true; Description = "status 403 format" }
+            @{ ErrorMsg = "gh: Resource not accessible by integration (HTTP 403)"; ShouldMatch = $true; Description = "GitHub specific message" }
+            @{ ErrorMsg = "403 Forbidden"; ShouldMatch = $true; Description = "Simple 403" }
+            @{ ErrorMsg = "FORBIDDEN"; ShouldMatch = $true; Description = "Uppercase FORBIDDEN" }
+            @{ ErrorMsg = "Forbidden"; ShouldMatch = $true; Description = "Title case Forbidden" }
+            @{ ErrorMsg = "Error code: 403"; ShouldMatch = $true; Description = "Error code format" }
+            @{ ErrorMsg = "HTTP 401: Not authenticated"; ShouldMatch = $false; Description = "401 should not match" }
+            @{ ErrorMsg = "HTTP 500: Internal Server Error"; ShouldMatch = $false; Description = "500 should not match" }
+            @{ ErrorMsg = "Connection refused"; ShouldMatch = $false; Description = "Network error should not match" }
+            @{ ErrorMsg = "Comment ID 4030 not found"; ShouldMatch = $false; Description = "ID containing 403 should not match" }
+            @{ ErrorMsg = "Reference 1403245 is invalid"; ShouldMatch = $false; Description = "Number containing 403 should not match" }
+        ) {
+            $errorString = $ErrorMsg
+
+            # Apply the same pattern from the module (with negative lookarounds)
+            $is403 = $errorString -imatch '((?<!\d)403(?!\d)|\bforbidden\b|Resource not accessible by integration)'
+
+            $is403 | Should -Be $ShouldMatch -Because $Description
+        }
+    }
+}

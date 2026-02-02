@@ -1,0 +1,35 @@
+# Gemini Code Assist Configuration
+# Documentation: https://developers.google.com/gemini-code-assist/docs/customize-gemini-behavior-github
+#
+# Tuned to reduce noise per Issue #326
+# - Target: <20 review comments per PR (down from 97 on PR #249)
+# - Current actionability: 24% (needs improvement)
+# - Focus: High-confidence issues, not style suggestions
+
+# Enable code review on all PRs including drafts
+code_review:
+  disable: false
+  pull_request_opened:
+    code_review: true      # Enable code review comments on PR open
+    summary: false         # Disable PR summaries (too noisy)
+    include_drafts: true   # Review draft PRs for early feedback
+    help: false            # Don't post help message on PR open
+  comment_severity_threshold: HIGH  # Only HIGH severity (was MEDIUM)
+  # max_review_comments: 10  # Removed per PR #331 - let bot surface all HIGH severity issues
+
+# Exclude agent artifacts and memory files from review
+ignore_patterns:
+  - ".agents/**"           # Agent artifacts, session logs, analysis files
+  - ".serena/memories/**"  # Serena memory files
+  - ".serena/**"           # Other Serena configuration files
+  - "**/*.generated.*"     # Generated files
+  - "**/bin/**"            # Build output
+  - "**/obj/**"            # Build intermediate files
+  - "**/artifacts/**"      # Artifact directories
+
+# Disable fun features for professional context
+have_fun: false
+
+# Keep persistent memory enabled for context retention
+memory_config:
+  disabled: false

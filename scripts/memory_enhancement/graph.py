@@ -5,13 +5,16 @@ supporting all Serena link types (RELATED, SUPERSEDES, BLOCKS, etc.)
 with cycle detection and configurable depth limits.
 """
 
+import sys
 from collections import deque
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from typing import Optional
 
-from .models import Link, LinkType, Memory
+import yaml
+
+from .models import LinkType, Memory
 
 
 class TraversalStrategy(Enum):
@@ -75,8 +78,11 @@ class MemoryGraph:
 
     @property
     def memories(self) -> dict[str, Memory]:
-        """Public access to memory cache."""
-        return self._memory_cache
+        """Public access to memory cache.
+
+        Returns a shallow copy to prevent external modification of the internal cache.
+        """
+        return dict(self._memory_cache)
 
     def _load_memories(self):
         """Load all memories from directory into cache."""
@@ -87,9 +93,9 @@ class MemoryGraph:
             try:
                 memory = Memory.from_serena_file(memory_file)
                 self._memory_cache[memory.id] = memory
-            except Exception as e:
+            except (OSError, UnicodeDecodeError, ValueError, KeyError, yaml.YAMLError) as e:
                 # Skip invalid memory files but continue loading others
-                print(f"Warning: Failed to load {memory_file}: {e}")
+                print(f"Warning: Failed to load {memory_file}: {e}", file=sys.stderr)
 
     def get_memory(self, memory_id: str) -> Optional[Memory]:
         """Retrieve a memory by ID.
@@ -118,19 +124,50 @@ class MemoryGraph:
         if not memory:
             return []
 
-        # Filter links by type if specified
         links = memory.links
         if link_type:
             links = [link for link in links if link.link_type == link_type]
 
-        # Resolve link targets
-        related = []
-        for link in links:
-            target = self.get_memory(link.target_id)
-            if target:
-                related.append(target)
+        return [
+            target
+            for link in links
+            if (target := self.get_memory(link.target_id))
+        ]
 
-        return related
+    def _enqueue_children(
+        self,
+        current: TraversalNode,
+        visited: set[str],
+        queue: deque,
+        cycles: list[tuple[str, str]],
+        link_types: Optional[list[LinkType]],
+    ) -> None:
+        """Enqueue unvisited children of the current node.
+
+        Mutates *visited*, *queue*, and *cycles* in place.
+        Records cycles when a link target has already been visited.
+        Skips links whose type is not in *link_types* (when provided)
+        and targets not present in the graph.
+        """
+        for link in current.memory.links:
+            if link_types and link.link_type not in link_types:
+                continue
+
+            target = self.get_memory(link.target_id)
+            if not target:
+                continue
+
+            if link.target_id in visited:
+                cycles.append((current.memory.id, link.target_id))
+                continue
+
+            visited.add(link.target_id)
+            queue.append(TraversalNode(
+                memory=target,
+                depth=current.depth + 1,
+                parent=current.memory.id,
+                link_type=link.link_type,
+            ))
 
     def traverse(
         self,
@@ -157,58 +194,22 @@ class MemoryGraph:
         if not root:
             raise ValueError(f"Root memory not found: {root_id}")
 
-        visited: set[str] = set()
+        visited: set[str] = {root_id}
         nodes: list[TraversalNode] = []
         cycles: list[tuple[str, str]] = []
-
-        # Initialize with root node
-        root_node = TraversalNode(memory=root, depth=0)
-        queue = deque([root_node])
-        visited.add(root_id)
-
+        queue: deque[TraversalNode] = deque([TraversalNode(memory=root, depth=0)])
         current_max_depth = 0
+        pop = queue.popleft if strategy == TraversalStrategy.BFS else queue.pop
 
         while queue:
-            # Pop from front (BFS) or back (DFS)
-            if strategy == TraversalStrategy.BFS:
-                current = queue.popleft()
-            else:  # DFS
-                current = queue.pop()
-
+            current = pop()
             nodes.append(current)
             current_max_depth = max(current_max_depth, current.depth)
 
-            # Check depth limit
             if max_depth is not None and current.depth >= max_depth:
                 continue
 
-            # Get all links from current memory
-            for link in current.memory.links:
-                # Filter by link type if specified
-                if link_types and link.link_type not in link_types:
-                    continue
-
-                target_id = link.target_id
-                target = self.get_memory(target_id)
-
-                if not target:
-                    # Skip invalid references
-                    continue
-
-                # Detect cycle
-                if target_id in visited:
-                    cycles.append((current.memory.id, target_id))
-                    continue
-
-                # Add to queue
-                visited.add(target_id)
-                child_node = TraversalNode(
-                    memory=target,
-                    depth=current.depth + 1,
-                    parent=current.memory.id,
-                    link_type=link.link_type,
-                )
-                queue.append(child_node)
+            self._enqueue_children(current, visited, queue, cycles, link_types)
 
         return TraversalResult(
             root_id=root_id,
@@ -224,20 +225,16 @@ class MemoryGraph:
         Returns:
             List of memory IDs that are not referenced by any other memory
         """
-        # Collect all target IDs
-        referenced_ids: set[str] = set()
-        for memory in self._memory_cache.values():
-            for link in memory.links:
-                referenced_ids.add(link.target_id)
-
-        # Find memories not in referenced set
-        roots = [
+        referenced_ids = {
+            link.target_id
+            for memory in self._memory_cache.values()
+            for link in memory.links
+        }
+        return [
             memory_id
-            for memory_id in self._memory_cache.keys()
+            for memory_id in self._memory_cache
             if memory_id not in referenced_ids
         ]
-
-        return roots
 
     def get_adjacency_list(self) -> dict[str, list[tuple[str, LinkType]]]:
         """Build adjacency list representation of the graph.
@@ -245,11 +242,7 @@ class MemoryGraph:
         Returns:
             Dictionary mapping memory IDs to lists of (target_id, link_type) pairs
         """
-        adjacency: dict[str, list[tuple[str, LinkType]]] = {}
-
-        for memory_id, memory in self._memory_cache.items():
-            adjacency[memory_id] = [
-                (link.target_id, link.link_type) for link in memory.links
-            ]
-
-        return adjacency
+        return {
+            memory_id: [(link.target_id, link.link_type) for link in memory.links]
+            for memory_id, memory in self._memory_cache.items()
+        }

@@ -1,0 +1,201 @@
+# Weekly Agent Drift Detection
+#
+# Detects drift between Claude agents and shared templates.
+# Runs weekly on Monday at 9 AM UTC and can be triggered manually.
+# Creates a GitHub issue when drift is detected.
+#
+# Local developers and AI agents can run the same detection using:
+#   pwsh -NoProfile ./build/scripts/Detect-AgentDrift.ps1
+
+name: Agent Drift Detection
+
+on:
+  schedule:
+    # Run weekly on Monday at 9 AM UTC
+    - cron: '0 9 * * 1'
+  workflow_dispatch: # Allow manual triggering
+
+jobs:
+  detect-drift:
+    name: Detect Agent Drift
+    # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+      issues: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - name: Run drift detection
+        id: drift
+        shell: pwsh -NoProfile -Command "& '{0}'"
+        run: |
+          Write-Host "Running agent drift detection..."
+
+          # Run detection script and capture exit code
+          $output = & ./build/scripts/Detect-AgentDrift.ps1 -OutputFormat Text 2>&1
+          $exitCode = $LASTEXITCODE
+
+          # Output results
+          $output | ForEach-Object { Write-Host $_ }
+
+          # Set outputs based on exit code
+          if ($exitCode -eq 1) {
+            echo "drift_detected=true" >> $env:GITHUB_OUTPUT
+          } else {
+            echo "drift_detected=false" >> $env:GITHUB_OUTPUT
+          }
+
+          # Exit with original code for workflow status
+          exit $exitCode
+        continue-on-error: true
+
+      - name: Collect drift details
+        id: details
+        if: steps.drift.outputs.drift_detected == 'true'
+        shell: pwsh -NoProfile -Command "& '{0}'"
+        run: |
+          # Re-run to get JSON output for issue body
+          $results = ./build/scripts/Detect-AgentDrift.ps1 -OutputFormat JSON 2>$null | ConvertFrom-Json
+
+          # Build markdown details
+          $details = @()
+          foreach ($agent in $results.Results) {
+            if ($agent.Status -eq 'DRIFT DETECTED') {
+              $entry = "### $($agent.AgentName)`n"
+              $entry += "- **Overall similarity**: $($agent.OverallSimilarity)%`n"
+
+              if ($agent.DriftingSections -and $agent.DriftingSections.Count -gt 0) {
+                $entry += "- **Drifting sections**: $($agent.DriftingSections -join ', ')`n"
+              }
+
+              # Add section details
+              $driftSections = $agent.Sections | Where-Object { $_.Status -eq 'DRIFT' }
+              if ($driftSections) {
+                $entry += "`n**Section Details:**`n"
+                foreach ($section in $driftSections) {
+                  $entry += "- $($section.Section): $($section.Similarity)% similar`n"
+                }
+              }
+
+              $details += $entry
+            }
+          }
+
+          $driftBody = $details -join "`n"
+
+          # Write to file for issue creation (handles multiline)
+          $driftBody | Out-File -FilePath drift-details.md -Encoding utf8
+
+          echo "agents_count=$($results.Summary.DriftDetected)" >> $env:GITHUB_OUTPUT
+        continue-on-error: true
+
+      - name: Check for existing drift issue
+        id: check-issue
+        if: steps.drift.outputs.drift_detected == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Check for open drift issues
+          EXISTING=$(gh issue list --label "drift-detected" --state open --json number --jq 'length')
+          echo "existing_issues=$EXISTING" >> $GITHUB_OUTPUT
+
+      - name: Create drift alert issue
+        if: steps.drift.outputs.drift_detected == 'true' && steps.check-issue.outputs.existing_issues == '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Read drift details
+          DRIFT_DETAILS=$(cat drift-details.md)
+
+          # Create issue body (unquoted EOF allows variable expansion)
+          cat << EOF > issue-body.md
+          ## Agent Drift Detected
+
+          **Detection Date**: $(date -u +"%Y-%m-%d %H:%M UTC")
+          **Workflow Run**: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+          ### Agents with Drift
+
+          EOF
+
+          cat drift-details.md >> issue-body.md
+
+          cat << 'EOF' >> issue-body.md
+
+          ### Recommended Actions
+
+          1. Review the differences listed above
+          2. Determine if drift is intentional or accidental
+          3. Either:
+             - Update Claude agents to match shared content
+             - Update shared templates to include Claude improvements
+             - Document the intentional difference
+
+          ### Related Files
+
+          - Claude agents: `src/claude/`
+          - Shared templates: `templates/agents/`
+          - VS Code agents: `src/vs-code-agents/`
+
+          ### Commands
+
+          ```bash
+          # Run drift detection locally
+          pwsh -NoProfile build/scripts/Detect-AgentDrift.ps1
+
+          # See detailed JSON output
+          pwsh -NoProfile build/scripts/Detect-AgentDrift.ps1 -OutputFormat json
+          ```
+          EOF
+
+          # Create the issue
+          gh issue create \
+            --title "Agent Drift Detected - $(date -u +"%Y-%m-%d")" \
+            --body-file issue-body.md \
+            --label "drift-detected,automated"
+
+      - name: Update existing drift issue
+        if: steps.drift.outputs.drift_detected == 'true' && steps.check-issue.outputs.existing_issues != '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Get the existing issue number
+          ISSUE_NUMBER=$(gh issue list --label "drift-detected" --state open --json number --jq '.[0].number')
+
+          # Add a comment to the existing issue
+          cat << EOF > comment-body.md
+          ## Updated Drift Detection - $(date -u +"%Y-%m-%d %H:%M UTC")
+
+          **Workflow Run**: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+          ### Current Status
+
+          $(cat drift-details.md)
+
+          ---
+          *This comment was automatically added by the weekly drift detection workflow.*
+          EOF
+
+          gh issue comment "$ISSUE_NUMBER" --body-file comment-body.md
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Drift Detection Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ steps.drift.outputs.drift_detected }}" == "true" ]; then
+            echo ":warning: **Drift detected** in Claude agents" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "See the created/updated GitHub issue for details." >> $GITHUB_STEP_SUMMARY
+          else
+            echo ":white_check_mark: **No drift detected** - All Claude agents are in sync with templates" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Files Checked" >> $GITHUB_STEP_SUMMARY
+          echo "- Claude agents: \`src/claude/\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Shared templates: \`templates/agents/\`" >> $GITHUB_STEP_SUMMARY

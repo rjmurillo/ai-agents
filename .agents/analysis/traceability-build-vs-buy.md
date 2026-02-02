@@ -1,15 +1,3 @@
----
-type: analysis
-id: traceability-build-vs-buy
-status: complete
-created: 2026-01-24
-issue: "#724"
-related:
-  - "#721"
-  - "#722"
-  - "#723"
----
-
 # Traceability Graph: Build vs Buy Analysis
 
 **Issue**: [#724](https://github.com/rjmurillo/ai-agents/issues/724)

@@ -3,6 +3,7 @@
 Dataclasses for Memory, Citation, and Link per PRD section 4.5.1.
 """
 
+import sys
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
@@ -72,18 +73,25 @@ class Memory:
 
         links = []
         for link_data in meta.get("links", []):
+            # Support both 'link_type' and 'type' field names for compatibility
+            type_value = link_data.get("link_type") or link_data.get("type")
+            if type_value is None:
+                print(f"Warning: link missing type in {path}, skipping", file=sys.stderr)
+                continue  # Skip links without a type
             try:
-                # Support both 'link_type' and 'type' field names for compatibility
-                type_value = link_data.get("link_type") or link_data.get("type")
-                if type_value is None:
-                    continue  # Skip links without a type
                 link_type = LinkType(type_value)
-                # Support both 'target_id' and 'target' field names for compatibility
-                target = link_data.get("target_id") or link_data.get("target", "")
-                if target:  # Only add links with non-empty targets
-                    links.append(Link(link_type=link_type, target_id=target))
             except ValueError:
-                pass  # Skip invalid link types
+                valid_types = [lt.value for lt in LinkType]
+                print(
+                    f"Warning: invalid link type '{type_value}' in {path}, "
+                    f"valid types: {valid_types}",
+                    file=sys.stderr,
+                )
+                continue  # Skip invalid link types
+            # Support both 'target_id' and 'target' field names for compatibility
+            target = link_data.get("target_id") or link_data.get("target", "")
+            if target:  # Only add links with non-empty targets
+                links.append(Link(link_type=link_type, target_id=target))
 
         # Parse confidence with error handling
         try:

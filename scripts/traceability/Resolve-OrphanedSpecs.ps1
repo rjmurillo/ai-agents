@@ -663,7 +663,7 @@ if (-not $resolvedPath) {
 $repoRoot = try { git rev-parse --show-toplevel 2>$null } catch { $null }
 if ($repoRoot) {
     $normalizedPath = [System.IO.Path]::GetFullPath($resolvedPath.Path)
-    $allowedBase = [System.IO.Path]::GetFullPath($repoRoot)
+    $allowedBase = [System.IO.Path]::GetFullPath($repoRoot) + [System.IO.Path]::DirectorySeparatorChar
     $isRelativePath = -not [System.IO.Path]::IsPathRooted($SpecsPath)
 
     if ($isRelativePath -and -not $normalizedPath.StartsWith($allowedBase, [System.StringComparison]::OrdinalIgnoreCase)) {

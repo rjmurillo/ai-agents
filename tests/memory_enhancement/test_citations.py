@@ -82,6 +82,37 @@ def test_verify_citation_invalid_line_number(tmp_repo):
 
 
 @pytest.mark.unit
+def test_verify_citation_path_traversal(tmp_path):
+    """verify_citation rejects paths that escape repo_root (CWE-22)."""
+    citation = Citation(path="../../../etc/passwd", line=1)
+    result = verify_citation(citation, tmp_path)
+
+    assert result.valid is False
+    assert "Path traversal detected" in result.mismatch_reason
+
+
+@pytest.mark.unit
+def test_verify_citation_file_read_error(tmp_path, monkeypatch):
+    """verify_citation handles OSError during file read."""
+    target = tmp_path / "unreadable.py"
+    target.write_text("content\n")
+    citation = Citation(path="unreadable.py", line=1)
+
+    original_read_text = Path.read_text
+
+    def _broken_read_text(self, *args, **kwargs):
+        if self.name == "unreadable.py":
+            raise OSError("Permission denied")
+        return original_read_text(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", _broken_read_text)
+    result = verify_citation(citation, tmp_path)
+
+    assert result.valid is False
+    assert "File read error" in result.mismatch_reason
+
+
+@pytest.mark.unit
 def test_verify_memory_all_valid(sample_memory_file):
     """Test memory with all valid citations."""
     memory = Memory.from_serena_file(sample_memory_file)
@@ -193,11 +224,13 @@ citations:
     # Create the valid file
     (tmp_path / "valid.py").write_text("# valid")
 
-    results = verify_all_memories(memories_dir, tmp_path)
+    verify_result = verify_all_memories(memories_dir, tmp_path)
+    results = verify_result.results
 
     assert len(results) == 2
     assert sum(1 for r in results if r.valid) == 1
     assert sum(1 for r in results if not r.valid) == 1
+    assert verify_result.parse_failures == 0
 
 
 @pytest.mark.unit
@@ -227,11 +260,13 @@ id: no-cit
 """
     (memories_dir / "no-cit.md").write_text(no_cit)
 
-    results = verify_all_memories(memories_dir, tmp_path)
+    verify_result = verify_all_memories(memories_dir, tmp_path)
+    results = verify_result.results
 
     # Only the memory with citations should be included
     assert len(results) == 1
     assert results[0].memory_id == "with-cit"
+    assert verify_result.parse_failures == 0
 
 
 @pytest.mark.unit
@@ -263,8 +298,11 @@ citations: [[[invalid yaml
     (memories_dir / "malformed.md").write_text(malformed)
 
     # Should not raise, just skip malformed and continue
-    results = verify_all_memories(memories_dir, tmp_path)
+    verify_result = verify_all_memories(memories_dir, tmp_path)
+    results = verify_result.results
 
     # Should only get the valid memory
     assert len(results) == 1
     assert results[0].memory_id == "valid"
+    # Malformed file should be counted as a parse failure
+    assert verify_result.parse_failures == 1

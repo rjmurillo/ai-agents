@@ -1,0 +1,54 @@
+name: Workflow Coalescing Metrics
+
+on:
+  schedule:
+    - cron: '0 9 * * 1'  # Weekly on Monday 9 AM UTC
+  workflow_dispatch:
+    inputs:
+      since:
+        description: 'Days to analyze'
+        required: false
+        default: 30
+        type: number
+
+permissions:
+  contents: write  # To commit report to repository
+  actions: read    # To query workflow runs
+
+jobs:
+  collect-metrics:
+    name: Collect Coalescing Metrics
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Collect metrics
+        id: collect
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SINCE_DAYS: ${{ inputs.since || '30' }}
+        run: |
+          $since = [int]$env:SINCE_DAYS
+          .github/scripts/Measure-WorkflowCoalescing.ps1 `
+            -Since $since `
+            -Output Markdown `
+            -OutputPath .agents/metrics/workflow-coalescing.md
+
+      - name: Commit report
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .agents/metrics/workflow-coalescing.md
+          git commit -m "chore: update workflow coalescing metrics [skip ci]" || echo "No changes"
+          git push
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: coalescing-metrics
+          path: .agents/metrics/workflow-coalescing.md
+          retention-days: 90
