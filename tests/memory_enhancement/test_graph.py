@@ -1,19 +1,15 @@
 """Tests for memory_enhancement.graph module.
 
 Tests BFS/DFS traversal, cycle detection, root finding,
-and adjacency list construction.
+adjacency list construction, and memory loading behaviors.
 """
 
 import pytest
-from pathlib import Path
-
 from scripts.memory_enhancement.graph import (
     MemoryGraph,
-    TraversalNode,
-    TraversalResult,
     TraversalStrategy,
 )
-from scripts.memory_enhancement.models import LinkType, Memory
+from scripts.memory_enhancement.models import LinkType
 
 
 @pytest.fixture
@@ -153,6 +149,80 @@ subject: {mem_id.title().replace('-', ' ')}
     return memories_dir
 
 
+@pytest.fixture
+def memories_dir_branching(tmp_path):
+    """Create a branching graph that differentiates BFS from DFS.
+
+    Graph structure:
+        A -> B, D
+        B -> C
+        D -> E
+
+    BFS visits level-order: A, B, D, C, E
+    DFS visits depth-first: A, D, E, B, C
+    """
+    memories_dir = tmp_path / "memories"
+    memories_dir.mkdir()
+
+    (memories_dir / "memory-a.md").write_text("""---
+id: memory-a
+subject: Memory A
+links:
+  - link_type: RELATED
+    target_id: memory-b
+  - link_type: RELATED
+    target_id: memory-d
+---
+
+# Memory A
+Root with two branches.
+""")
+
+    (memories_dir / "memory-b.md").write_text("""---
+id: memory-b
+subject: Memory B
+links:
+  - link_type: RELATED
+    target_id: memory-c
+---
+
+# Memory B
+Left branch parent.
+""")
+
+    (memories_dir / "memory-c.md").write_text("""---
+id: memory-c
+subject: Memory C
+---
+
+# Memory C
+Left branch leaf.
+""")
+
+    (memories_dir / "memory-d.md").write_text("""---
+id: memory-d
+subject: Memory D
+links:
+  - link_type: RELATED
+    target_id: memory-e
+---
+
+# Memory D
+Right branch parent.
+""")
+
+    (memories_dir / "memory-e.md").write_text("""---
+id: memory-e
+subject: Memory E
+---
+
+# Memory E
+Right branch leaf.
+""")
+
+    return memories_dir
+
+
 @pytest.mark.unit
 def test_memory_graph_init(memories_dir_simple):
     """Test MemoryGraph initialization."""
@@ -260,6 +330,60 @@ def test_traverse_dfs_simple(memories_dir_simple):
     assert result.nodes[0].memory.id == "memory-a"
     assert result.nodes[1].memory.id == "memory-b"
     assert result.nodes[2].memory.id == "memory-c"
+
+
+@pytest.mark.unit
+def test_traverse_bfs_branching(memories_dir_branching):
+    """BFS visits level-order on a branching graph."""
+    graph = MemoryGraph(memories_dir_branching)
+
+    result = graph.traverse("memory-a", strategy=TraversalStrategy.BFS)
+
+    assert len(result.nodes) == 5
+    assert result.strategy == TraversalStrategy.BFS
+    assert result.max_depth == 2
+    assert len(result.cycles) == 0
+
+    # BFS: FIFO popleft -> A(0), B(1), D(1), C(2), E(2)
+    ids = [n.memory.id for n in result.nodes]
+    assert ids == ["memory-a", "memory-b", "memory-d", "memory-c", "memory-e"]
+
+    depths = [n.depth for n in result.nodes]
+    assert depths == [0, 1, 1, 2, 2]
+
+    parents = [n.parent for n in result.nodes]
+    assert parents == [None, "memory-a", "memory-a", "memory-b", "memory-d"]
+
+    link_types = [n.link_type for n in result.nodes]
+    expected_types = [None, LinkType.RELATED, LinkType.RELATED, LinkType.RELATED, LinkType.RELATED]
+    assert link_types == expected_types
+
+
+@pytest.mark.unit
+def test_traverse_dfs_branching(memories_dir_branching):
+    """DFS visits depth-first on a branching graph, diverging from BFS order."""
+    graph = MemoryGraph(memories_dir_branching)
+
+    result = graph.traverse("memory-a", strategy=TraversalStrategy.DFS)
+
+    assert len(result.nodes) == 5
+    assert result.strategy == TraversalStrategy.DFS
+    assert result.max_depth == 2
+    assert len(result.cycles) == 0
+
+    # DFS: LIFO pop takes D before B -> A(0), D(1), E(2), B(1), C(2)
+    ids = [n.memory.id for n in result.nodes]
+    assert ids == ["memory-a", "memory-d", "memory-e", "memory-b", "memory-c"]
+
+    depths = [n.depth for n in result.nodes]
+    assert depths == [0, 1, 2, 1, 2]
+
+    parents = [n.parent for n in result.nodes]
+    assert parents == [None, "memory-a", "memory-d", "memory-a", "memory-b"]
+
+    link_types = [n.link_type for n in result.nodes]
+    expected_types = [None, LinkType.RELATED, LinkType.RELATED, LinkType.RELATED, LinkType.RELATED]
+    assert link_types == expected_types
 
 
 @pytest.mark.unit
@@ -415,50 +539,6 @@ def test_get_adjacency_list(memories_dir_simple):
 
 
 @pytest.mark.unit
-def test_traversal_node_dataclass(tmp_path):
-    """Test TraversalNode dataclass."""
-    test_path = tmp_path / "test-memory.md"
-    memory = Memory(
-        id="test-memory",
-        subject="Test",
-        path=test_path,
-        content="# Test content",
-        tags=[],
-        citations=[],
-        links=[],
-        confidence=1.0,
-    )
-
-    node = TraversalNode(
-        memory=memory, depth=2, parent="parent-id", link_type=LinkType.RELATED
-    )
-
-    assert node.memory.id == "test-memory"
-    assert node.depth == 2
-    assert node.parent == "parent-id"
-    assert node.link_type == LinkType.RELATED
-
-
-@pytest.mark.unit
-def test_traversal_result_dataclass():
-    """Test TraversalResult dataclass."""
-    result = TraversalResult(
-        root_id="root",
-        nodes=[],
-        cycles=[("a", "b")],
-        strategy=TraversalStrategy.BFS,
-        max_depth=3,
-    )
-
-    assert result.root_id == "root"
-    assert len(result.nodes) == 0
-    assert len(result.cycles) == 1
-    assert result.cycles[0] == ("a", "b")
-    assert result.strategy == TraversalStrategy.BFS
-    assert result.max_depth == 3
-
-
-@pytest.mark.unit
 def test_invalid_memory_file_skipped(tmp_path):
     """Test that invalid memory files are skipped during loading."""
     memories_dir = tmp_path / "memories"
@@ -524,3 +604,33 @@ subject: Memory B
     assert len(result.nodes) == 2
     assert result.nodes[0].memory.id == "memory-a"
     assert result.nodes[1].memory.id == "memory-b"
+
+
+@pytest.mark.unit
+def test_memory_graph_loads_alternate_yaml_field_names(tmp_path):
+    """MemoryGraph parses both type/target and link_type/target_id field names."""
+    memories_dir = tmp_path / "memories"
+    memories_dir.mkdir()
+
+    # Uses type/target format (alternate field names)
+    (memories_dir / "memory-a.md").write_text(
+        "---\n"
+        "id: memory-a\n"
+        "links:\n"
+        "  - target: memory-b\n"
+        "    type: RELATED\n"
+        "---\n"
+        "Content A"
+    )
+    (memories_dir / "memory-b.md").write_text(
+        "---\n"
+        "id: memory-b\n"
+        "---\n"
+        "Content B"
+    )
+
+    graph = MemoryGraph(memories_dir)
+    assert len(graph.memories) == 2
+    related = graph.get_related_memories("memory-a")
+    assert len(related) == 1
+    assert related[0].id == "memory-b"

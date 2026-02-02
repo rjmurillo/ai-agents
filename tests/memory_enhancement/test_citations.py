@@ -82,6 +82,37 @@ def test_verify_citation_invalid_line_number(tmp_repo):
 
 
 @pytest.mark.unit
+def test_verify_citation_path_traversal(tmp_path):
+    """verify_citation rejects paths that escape repo_root (CWE-22)."""
+    citation = Citation(path="../../../etc/passwd", line=1)
+    result = verify_citation(citation, tmp_path)
+
+    assert result.valid is False
+    assert "Path traversal detected" in result.mismatch_reason
+
+
+@pytest.mark.unit
+def test_verify_citation_file_read_error(tmp_path, monkeypatch):
+    """verify_citation handles OSError during file read."""
+    target = tmp_path / "unreadable.py"
+    target.write_text("content\n")
+    citation = Citation(path="unreadable.py", line=1)
+
+    original_read_text = Path.read_text
+
+    def _broken_read_text(self, *args, **kwargs):
+        if self.name == "unreadable.py":
+            raise OSError("Permission denied")
+        return original_read_text(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", _broken_read_text)
+    result = verify_citation(citation, tmp_path)
+
+    assert result.valid is False
+    assert "File read error" in result.mismatch_reason
+
+
+@pytest.mark.unit
 def test_verify_memory_all_valid(sample_memory_file):
     """Test memory with all valid citations."""
     memory = Memory.from_serena_file(sample_memory_file)

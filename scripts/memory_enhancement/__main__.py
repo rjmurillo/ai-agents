@@ -24,10 +24,11 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Optional
+
+import yaml
 
 from .citations import verify_memory, verify_all_memories
-from .graph import MemoryGraph, TraversalStrategy
+from .graph import MemoryGraph, TraversalResult, TraversalStrategy
 from .health import generate_health_report
 from .models import Memory
 from .serena import add_citation_to_memory, update_confidence, list_citations_with_status
@@ -38,6 +39,45 @@ EXIT_VALIDATION_ERROR = 1
 EXIT_NOT_FOUND = 2
 EXIT_IO_ERROR = 3
 EXIT_SECURITY_ERROR = 4
+
+# Exceptions from parsing memory YAML frontmatter (maps to EXIT_VALIDATION_ERROR).
+# Handlers catch OSError separately to route I/O failures to EXIT_IO_ERROR.
+_PARSE_ERRORS = (yaml.YAMLError, ValueError, KeyError, UnicodeDecodeError)
+
+
+class CLIError(Exception):
+    """Raised by resolve functions for structured error handling in main()."""
+
+    def __init__(self, message: str, exit_code: int) -> None:
+        super().__init__(message)
+        self.message = message
+        self.exit_code = exit_code
+
+
+def _assert_within_cwd(path: Path, label: str) -> Path:
+    """Resolve *path* and verify it stays within cwd (CWE-22 protection).
+
+    Args:
+        path: Filesystem path to validate
+        label: Original user-supplied string shown in error messages
+
+    Returns:
+        Fully resolved absolute path
+
+    Raises:
+        CLIError: If the resolved path escapes the working directory
+    """
+    try:
+        resolved = path.resolve()
+        resolved.relative_to(Path.cwd().resolve())
+    except ValueError:
+        raise CLIError(
+            f"Security error: Path traversal detected: {label}",
+            EXIT_SECURITY_ERROR,
+        )
+    except OSError as e:
+        raise CLIError(f"Invalid path: {e}", EXIT_SECURITY_ERROR)
+    return resolved
 
 
 def _resolve_memory_path(memory_arg: str, exit_code: int = EXIT_NOT_FOUND) -> Path:
@@ -50,30 +90,16 @@ def _resolve_memory_path(memory_arg: str, exit_code: int = EXIT_NOT_FOUND) -> Pa
     Returns:
         Resolved Path to the memory file
 
-    Exits:
-        With exit_code if memory not found
-        With EXIT_SECURITY_ERROR if path traversal detected
+    Raises:
+        CLIError: If memory not found or path traversal detected
     """
     path = Path(memory_arg)
     if not path.exists():
         path = Path(f".serena/memories/{memory_arg}.md")
     if not path.exists():
-        print(f"Memory not found: {memory_arg}", file=sys.stderr)
-        sys.exit(exit_code)
+        raise CLIError(f"Memory not found: {memory_arg}", exit_code)
 
-    # CWE-22 path traversal protection using relative_to() for robust containment check
-    try:
-        resolved = path.resolve()
-        cwd_resolved = Path.cwd().resolve()
-        resolved.relative_to(cwd_resolved)
-    except ValueError:
-        print(f"Security error: Path traversal detected: {memory_arg}", file=sys.stderr)
-        sys.exit(EXIT_SECURITY_ERROR)
-    except OSError as e:
-        print(f"Invalid path: {e}", file=sys.stderr)
-        sys.exit(EXIT_SECURITY_ERROR)
-
-    return path
+    return _assert_within_cwd(path, memory_arg)
 
 
 def _resolve_directory_path(dir_arg: str) -> Path:
@@ -85,37 +111,29 @@ def _resolve_directory_path(dir_arg: str) -> Path:
     Returns:
         Resolved Path to the directory
 
-    Exits:
-        With EXIT_NOT_FOUND if directory not found
-        With EXIT_SECURITY_ERROR if path traversal detected
+    Raises:
+        CLIError: If directory not found, not a directory, or path traversal detected
     """
     dir_path = Path(dir_arg)
     if not dir_path.exists():
-        print(f"Directory not found: {dir_arg}", file=sys.stderr)
-        sys.exit(EXIT_NOT_FOUND)
+        raise CLIError(f"Directory not found: {dir_arg}", EXIT_NOT_FOUND)
     if not dir_path.is_dir():
-        print(f"Not a directory: {dir_arg}", file=sys.stderr)
-        sys.exit(EXIT_VALIDATION_ERROR)
+        raise CLIError(f"Not a directory: {dir_arg}", EXIT_VALIDATION_ERROR)
 
-    # CWE-22 path traversal protection
-    try:
-        resolved = dir_path.resolve()
-        cwd_resolved = Path.cwd().resolve()
-        resolved.relative_to(cwd_resolved)
-    except ValueError:
-        print(f"Security error: Path traversal detected: {dir_arg}", file=sys.stderr)
-        sys.exit(EXIT_SECURITY_ERROR)
-    except OSError as e:
-        print(f"Invalid path: {e}", file=sys.stderr)
-        sys.exit(EXIT_SECURITY_ERROR)
-
-    return dir_path
+    return _assert_within_cwd(dir_path, dir_arg)
 
 
 def _handle_verify(args) -> int:
     """Handle the verify command."""
     path = _resolve_memory_path(args.memory, EXIT_VALIDATION_ERROR)
-    memory = Memory.from_serena_file(path)
+    try:
+        memory = Memory.from_serena_file(path)
+    except _PARSE_ERRORS as e:
+        print(f"Error: Failed to parse memory file: {e}", file=sys.stderr)
+        return EXIT_VALIDATION_ERROR
+    except OSError as e:
+        print(f"I/O error: {e}", file=sys.stderr)
+        return EXIT_IO_ERROR
     result = verify_memory(memory)
 
     if args.json:
@@ -183,6 +201,51 @@ def _handle_health(args) -> int:
     return EXIT_SUCCESS
 
 
+def _format_graph_json(result: TraversalResult) -> str:
+    """Format traversal result as JSON string."""
+    return json.dumps({
+        "root_id": result.root_id,
+        "strategy": result.strategy.value,
+        "max_depth": result.max_depth,
+        "nodes": [
+            {
+                "memory_id": node.memory.id,
+                "depth": node.depth,
+                "parent": node.parent,
+                "link_type": node.link_type.value if node.link_type else None,
+            }
+            for node in result.nodes
+        ],
+        "cycles": [{"from": from_id, "to": to_id} for from_id, to_id in result.cycles],
+    })
+
+
+def _format_graph_text(result: TraversalResult) -> str:
+    """Format traversal result as human-readable text."""
+    lines = [
+        f"Graph Traversal ({result.strategy.value.upper()})",
+        f"Root: {result.root_id}",
+        f"Nodes visited: {len(result.nodes)}",
+        f"Max depth: {result.max_depth}",
+        f"Cycles detected: {len(result.cycles)}",
+        "",
+        "Traversal order:",
+    ]
+    for node in result.nodes:
+        indent = "  " * node.depth
+        link_info = f" [{node.link_type.value}]" if node.link_type else ""
+        parent_info = f" (from {node.parent})" if node.parent else " (root)"
+        lines.append(f"{indent}- {node.memory.id}{link_info}{parent_info}")
+
+    if result.cycles:
+        lines.append("")
+        lines.append("Cycles:")
+        for from_id, to_id in result.cycles:
+            lines.append(f"  - {from_id} -> {to_id}")
+
+    return "\n".join(lines)
+
+
 def _handle_graph(args) -> int:
     """Handle the graph command."""
     dir_path = _resolve_directory_path(args.dir)
@@ -203,48 +266,13 @@ def _handle_graph(args) -> int:
         result = graph.traverse(
             root_id=args.root,
             strategy=strategy,
-            max_depth=args.max_depth
+            max_depth=args.max_depth,
         )
     except ValueError as e:
         print(f"Error: {e}", file=sys.stderr)
         return EXIT_VALIDATION_ERROR
 
-    if args.json:
-        print(json.dumps({
-            "root_id": result.root_id,
-            "strategy": result.strategy.value,
-            "max_depth": result.max_depth,
-            "nodes": [
-                {
-                    "memory_id": node.memory.id,
-                    "depth": node.depth,
-                    "parent": node.parent,
-                    "link_type": node.link_type.value if node.link_type else None
-                }
-                for node in result.nodes
-            ],
-            "cycles": [{"from": f, "to": t} for f, t in result.cycles]
-        }))
-    else:
-        print(f"Graph Traversal ({result.strategy.value.upper()})")
-        print(f"Root: {result.root_id}")
-        print(f"Nodes visited: {len(result.nodes)}")
-        print(f"Max depth: {result.max_depth}")
-        print(f"Cycles detected: {len(result.cycles)}")
-        print()
-        print("Traversal order:")
-        for node in result.nodes:
-            indent = "  " * node.depth
-            link_info = f" [{node.link_type.value}]" if node.link_type else ""
-            parent_info = f" (from {node.parent})" if node.parent else " (root)"
-            print(f"{indent}- {node.memory.id}{link_info}{parent_info}")
-
-        if result.cycles:
-            print()
-            print("Cycles:")
-            for from_id, to_id in result.cycles:
-                print(f"  - {from_id} -> {to_id}")
-
+    print(_format_graph_json(result) if args.json else _format_graph_text(result))
     return EXIT_SUCCESS
 
 
@@ -271,10 +299,10 @@ def _handle_add_citation(args) -> int:
     except FileNotFoundError as e:
         print(f"Error: {e}", file=sys.stderr)
         return EXIT_NOT_FOUND
-    except ValueError as e:
+    except _PARSE_ERRORS as e:
         print(f"Validation failed: {e}", file=sys.stderr)
         return EXIT_VALIDATION_ERROR
-    except IOError as e:
+    except OSError as e:
         print(f"I/O error: {e}", file=sys.stderr)
         return EXIT_IO_ERROR
 
@@ -285,6 +313,14 @@ def _handle_update_confidence(args) -> int:
 
     try:
         memory = Memory.from_serena_file(path)
+    except _PARSE_ERRORS as e:
+        print(f"Error: Failed to parse memory file: {e}", file=sys.stderr)
+        return EXIT_VALIDATION_ERROR
+    except OSError as e:
+        print(f"I/O error: {e}", file=sys.stderr)
+        return EXIT_IO_ERROR
+
+    try:
         verification = verify_memory(memory)
         update_confidence(memory, verification)
         print(f"Confidence updated: {verification.confidence:.0%}")
@@ -296,7 +332,7 @@ def _handle_update_confidence(args) -> int:
     except FileNotFoundError as e:
         print(f"Error: {e}", file=sys.stderr)
         return EXIT_NOT_FOUND
-    except IOError as e:
+    except OSError as e:
         print(f"I/O error: {e}", file=sys.stderr)
         return EXIT_IO_ERROR
 
@@ -322,6 +358,12 @@ def _handle_list_citations(args) -> int:
     except FileNotFoundError as e:
         print(f"Error: {e}", file=sys.stderr)
         return EXIT_NOT_FOUND
+    except _PARSE_ERRORS as e:
+        print(f"Error: Failed to process memory file: {e}", file=sys.stderr)
+        return EXIT_VALIDATION_ERROR
+    except OSError as e:
+        print(f"I/O error: {e}", file=sys.stderr)
+        return EXIT_IO_ERROR
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -384,7 +426,11 @@ def main() -> int:
         "list-citations": _handle_list_citations,
     }
 
-    return handlers[args.command](args)
+    try:
+        return handlers[args.command](args)
+    except CLIError as e:
+        print(e.message, file=sys.stderr)
+        return e.exit_code
 
 
 if __name__ == "__main__":
