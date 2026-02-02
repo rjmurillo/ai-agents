@@ -31,9 +31,10 @@ Authentication (line ~225)
 Error Handling (line ~260)
   - Write-ErrorAndExit       Context-aware error handling (script vs module)
 
-API Helpers (line ~320)
+API Helpers (line ~365)
   - Invoke-GhApiPaginated    Fetch all pages from API
   - Invoke-GhGraphQL         Execute GraphQL queries/mutations
+  - Get-AllPRsWithComments   Fetch PRs with review comments via GraphQL
 
 Issue Comments (line ~380)
   - Get-IssueComments        Fetch all comments for an issue
@@ -512,6 +513,147 @@ function Invoke-GhGraphQL {
     }
 
     return $parsed.data
+}
+
+function Get-AllPRsWithComments {
+    <#
+    .SYNOPSIS
+        Query PRs with review comments using GitHub GraphQL API with pagination.
+
+    .DESCRIPTION
+        Fetches all PRs (open and closed) from the specified time range that have
+        review comments. Uses GraphQL for efficient querying with cursor-based
+        pagination. PRs are ordered by updatedAt DESC, so pagination stops when
+        PRs fall outside the requested time range.
+
+        Limitations:
+        - Maximum 50 pages (2500 PRs) per invocation as a safety limit.
+        - Only first 50 comments per review thread are fetched.
+
+    .PARAMETER Owner
+        Repository owner.
+
+    .PARAMETER Repo
+        Repository name.
+
+    .PARAMETER Since
+        Only include PRs updated since this date.
+
+    .PARAMETER MaxPages
+        Maximum number of pagination pages. Default: 50.
+
+    .OUTPUTS
+        Array of PR objects with review thread data. Each PR includes:
+        number, title, state, author, createdAt, updatedAt, mergedAt, closedAt,
+        and reviewThreads with comments.
+    #>
+    [CmdletBinding()]
+    [OutputType([array])]
+    param(
+        [Parameter(Mandatory)]
+        [string]$Owner,
+
+        [Parameter(Mandatory)]
+        [string]$Repo,
+
+        [Parameter(Mandatory)]
+        [datetime]$Since,
+
+        [Parameter()]
+        [ValidateRange(1, [int]::MaxValue)]
+        [int]$MaxPages = 50
+    )
+
+    $allPRs = [System.Collections.ArrayList]::new()
+    $cursor = $null
+    $hasNextPage = $true
+    $pageCount = 0
+
+    Write-Verbose "Fetching PRs updated since $($Since.ToString('yyyy-MM-dd'))..."
+
+    $query = @'
+query($owner: String!, $repo: String!, $cursor: String) {
+  repository(owner: $owner, name: $repo) {
+    pullRequests(first: 50, orderBy: {field: UPDATED_AT, direction: DESC}, after: $cursor) {
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+      nodes {
+        number
+        title
+        state
+        author { login }
+        createdAt
+        updatedAt
+        mergedAt
+        closedAt
+        reviewThreads(first: 100) {
+          nodes {
+            isResolved
+            isOutdated
+            comments(first: 50) {
+              nodes {
+                id
+                body
+                author { login }
+                createdAt
+                path
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+'@
+
+    while ($hasNextPage -and $pageCount -lt $MaxPages) {
+        $pageCount++
+
+        $variables = @{
+            owner = $Owner
+            repo  = $Repo
+        }
+        if ($cursor) {
+            $variables.cursor = $cursor
+        }
+
+        $result = Invoke-GhGraphQL -Query $query -Variables $variables
+        $prData = $result.repository.pullRequests
+
+        foreach ($pr in $prData.nodes) {
+            # Check if PR was updated within our time range
+            $updatedAt = [datetime]::Parse($pr.updatedAt)
+            if ($updatedAt -lt $Since) {
+                # PRs are ordered by updatedAt DESC, so we can stop here
+                $hasNextPage = $false
+                break
+            }
+
+            # Only include PRs that have review comments
+            $hasComments = $pr.reviewThreads.nodes | Where-Object { $_.comments.nodes.Count -gt 0 }
+            if ($hasComments) {
+                $null = $allPRs.Add($pr)
+            }
+        }
+
+        # Check pagination
+        if ($hasNextPage) {
+            $hasNextPage = $prData.pageInfo.hasNextPage
+            $cursor = $prData.pageInfo.endCursor
+        }
+
+        Write-Verbose "Page $pageCount processed, total PRs with comments: $($allPRs.Count)"
+    }
+
+    if ($pageCount -ge $MaxPages) {
+        Write-Warning "Reached maximum page limit ($MaxPages)"
+    }
+
+    Write-Verbose "Found $($allPRs.Count) PRs with review comments"
+    return , $allPRs.ToArray()
 }
 
 #endregion
@@ -1232,6 +1374,7 @@ Export-ModuleMember -Function @(
     # API helpers
     'Invoke-GhApiPaginated'
     'Invoke-GhGraphQL'
+    'Get-AllPRsWithComments'
     # Issue comments
     'Get-IssueComments'
     'Update-IssueComment'

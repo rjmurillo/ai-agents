@@ -18,6 +18,7 @@ tools:
   - github/list_workflow_runs
   - github/get_workflow_run
   - serena/*
+model: claude-opus-4.5
 ---
 # Orchestrator Agent
 

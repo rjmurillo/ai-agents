@@ -17,6 +17,7 @@ tools:
   - github/issue_read
   - github/add_issue_comment
   - serena/*
+model: claude-opus-4.5
 ---
 # Implementer Agent
 

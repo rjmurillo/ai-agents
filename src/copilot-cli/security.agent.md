@@ -14,6 +14,7 @@ tools:
   - github/list_dependabot_alerts
   - serena/*
   - perplexity/*
+model: claude-opus-4.5
 ---
 # Security Agent
 

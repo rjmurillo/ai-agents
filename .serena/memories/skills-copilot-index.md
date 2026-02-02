@@ -7,3 +7,4 @@
 | synthesis verdict parsing workflow condition PASS output comment posting token | [copilot-synthesis-verdict-parsing](copilot-synthesis-verdict-parsing.md) |
 | directive issue-comment review-comment noise signal anti-pattern best-practice relocation PR-249 | [copilot-directive-relocation](copilot-directive-relocation.md) |
 | cli model configuration token authentication bot PAT GPT Claude Gemini | [copilot-cli-model-configuration](copilot-cli-model-configuration.md) |
+| frontmatter regression agent argument-hint model version pin auto-update diagnostic runbook validation | [copilot-cli-frontmatter-regression-runbook](copilot-cli-frontmatter-regression-runbook.md) |
