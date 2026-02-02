@@ -43,7 +43,7 @@ Issue #724 requested evaluation of the "poor man's graph database" implementatio
 - Comparison against best practices for file-based caching
 
 **Tools Used**:
-- Read tool for code inspection (772 LOC total implementation)
+- Read tool for code inspection (~800 LOC total implementation, approximate)
 - Bash for runtime benchmarks (134.64ms for 3 specs)
 - Grep for pattern analysis across codebase
 - Review of related analysis documents
@@ -84,7 +84,7 @@ Issue #724 requested evaluation of the "poor man's graph database" implementatio
 - Overall: O(n × m) linear in total relationships
 
 **Implementation Metrics**:
-- Total LOC: 772 (569 validation script + 203 cache module)
+- Total LOC: ~800 (validation script + cache module, approximate at time of analysis)
 - Test coverage: 3 Pester tests (basic functionality only)
 - Cache storage format: JSON (human-readable)
 - Cache invalidation: File modification time (ticks) + file size
@@ -790,7 +790,7 @@ ERROR: Invalid YAML in REQ-001.md
 - `traceability-schema.md`: Graph structure and rules (255 lines)
 
 **Implementation Files**:
-- `scripts/Validate-Traceability.ps1`: Main validation script (569 lines)
+- `scripts/Validate-Traceability.ps1`: Main validation script (~600 lines)
 - `scripts/traceability/TraceabilityCache.psm1`: Caching module (203 lines)
 - `scripts/traceability/Show-TraceabilityGraph.ps1`: Visualization tool (634 lines)
 - `scripts/traceability/Rename-SpecId.ps1`: ID renaming utility
@@ -808,7 +808,7 @@ ERROR: Invalid YAML in REQ-001.md
 ## Sources Consulted
 
 **Code Inspection**:
-- `scripts/Validate-Traceability.ps1` (full read, 569 lines)
+- `scripts/Validate-Traceability.ps1` (full read, ~600 lines)
 - `scripts/traceability/TraceabilityCache.psm1` (full read, 203 lines)
 - `scripts/traceability/Show-TraceabilityGraph.ps1` (full read, 634 lines)
 - `tests/Validate-Traceability.Tests.ps1` (full read, 71 lines)
@@ -821,7 +821,7 @@ ERROR: Invalid YAML in REQ-001.md
 
 **Empirical Data**:
 - Benchmark execution: 134.64ms for 3 specs (cold cache)
-- LOC count: 772 total implementation lines
+- LOC count: ~800 total implementation lines (approximate)
 - Test count: 3 Pester tests (basic coverage)
 
 ## Data Transparency

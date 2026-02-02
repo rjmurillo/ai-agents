@@ -264,7 +264,7 @@ warm(n) ≈ 2.95 × n (ms)
 - ✅ Detects `../../etc/passwd` traversal attempts
 - ✅ Validates paths resolve within repository root
 - ✅ Differentiates git context vs non-git context
-- ✅ Protects against symbolic link exploitation
+- ⚠️ Symlinks: partially mitigated by `GetFullPath` resolution (no explicit symlink validation)
 
 **Test Coverage**:
 - ✅ Absolute paths (CI scenarios)
@@ -285,7 +285,7 @@ warm(n) ≈ 2.95 × n (ms)
 | Alphanumeric IDs (`REQ-ABC`) | Supported (line 158) | ✅ Future-proof | |
 | Corrupted markdown files | Silent skip | ⚠️ Gap | Should log warning |
 | Permission errors | Continue with `-ErrorAction SilentlyContinue` | ✅ Graceful | |
-| Symlinks | Followed | ✅ Correct | Within repo bounds |
+| Symlinks | Followed via `GetFullPath` | ⚠️ Partial | No explicit symlink validation; targets outside repo may pass |
 
 ---
 

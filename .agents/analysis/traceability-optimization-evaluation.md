@@ -18,7 +18,7 @@ related:
 
 The current traceability graph implementation in `scripts/Validate-Traceability.ps1` is well-architected for the "markdown-first, no special tools" principle. This analysis evaluates the implementation across three dimensions:
 
-1. **Speed**: O(n) algorithmic complexity with intelligent caching
+1. **Speed**: O(n * r) algorithmic complexity with intelligent caching (r = avg related items per spec)
 2. **Robustness**: Comprehensive error handling and path traversal protection
 3. **Durability**: File-based caching with modification time tracking
 
@@ -36,7 +36,7 @@ The current traceability graph implementation in `scripts/Validate-Traceability.
 | **YAML Parsing** | O(n·k) | Regex-based parsing; k = average YAML size |
 | **Reference Building** | O(r) | r = total number of cross-references |
 | **Validation** | O(n+r) | Single pass over specs + references |
-| **Overall** | **O(n)** | Linear with number of spec files |
+| **Overall** | **O(n * r)** | Linear in spec count times average references per spec |
 
 **Key Insight**: The graph is recomposed on every run, but complexity remains linear. For 100 specs, this is acceptable. For 1000+, caching becomes critical.
 
@@ -262,7 +262,7 @@ Explicitly **NOT** recommended:
 
 ## 6. Conclusion
 
-The current markdown-first implementation is **architecturally sound**. The O(n) complexity is optimal for a file-based system, and the caching strategy is well-designed.
+The current markdown-first implementation is **architecturally sound**. The O(n * r) complexity is expected for a file-based system with cross-references, and the caching strategy is well-designed.
 
 **Performance verdict**: Acceptable for current scale (3 specs), optimization needed for 100+ specs (addressed in #721).
 
