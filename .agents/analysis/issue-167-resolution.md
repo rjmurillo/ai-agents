@@ -24,7 +24,7 @@ Forgetful MCP provides comprehensive semantic memory capabilities:
 
 | Feature | Capability | Benefit |
 |---------|-----------|---------|
-| **HNSW Indexing** | 96-164x faster search | Performance exceeds original proposal |
+| **HNSW Indexing** | Semantic vector search | Performance exceeds original proposal (96-164x per claude-flow benchmarks, not independently verified for Forgetful) |
 | **Multi-stage Retrieval** | Dense → Sparse → RRF → Cross-encoder | Higher precision than basic vector search |
 | **Auto-linking** | Cosine similarity ≥0.7 | Automatic knowledge graph construction |
 | **Dual Graphs** | Memory + Entity graphs | Richer semantic relationships |
@@ -64,10 +64,12 @@ Comparing #167 requirements against Forgetful implementation:
 | Semantic search | ✅ COMPLETE | HNSW + multi-stage retrieval |
 | Vector embeddings | ✅ COMPLETE | Dense + sparse vectors |
 | Similarity matching | ✅ COMPLETE | Cosine similarity with auto-linking |
-| Fast retrieval | ✅ EXCEEDED | 96-164x faster than baseline |
-| Context preservation | ✅ EXCEEDED | Meta-tools pattern + token budgets |
+| Fast retrieval | ✅ COMPLETE | HNSW indexing (specific benchmarks not independently verified) |
+| Context preservation | ✅ COMPLETE | Meta-tools pattern + token budgets |
+| Tiered architecture | ⚠️ PARTIAL | Forgetful uses single-tier vector store. #167 proposed primary (vector), secondary (file-based), fallback (in-memory). File-based fallback exists via Serena. |
+| Quantization | ❌ NOT EVALUATED | #167 proposed binary/scalar quantization for memory efficiency. Forgetful does not document quantization support. |
 
-**Conclusion**: No gaps identified. Forgetful meets or exceeds all #167 requirements.
+**Conclusion**: Core semantic search requirements are met. Two lower-priority requirements (tiered architecture, quantization) are partially addressed or not evaluated. These do not block closure since the primary use case (semantic search) is fully covered.
 
 ## Recommendation
 
@@ -92,10 +94,7 @@ Comparing #167 requirements against Forgetful implementation:
 
 ## Impact
 
-- **Code Debt**: Removes stale P3 item from backlog
-- **Clarity**: Documents that vector memory capability exists
-- **Adoption**: Encourages use of Forgetful for semantic search
-- **Backlog Hygiene**: Reduces noise in issue tracker
+- **Backlog hygiene**: Removes stale P3 item and documents that vector memory capability already exists via Forgetful MCP
 
 ## References
 
