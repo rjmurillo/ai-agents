@@ -866,6 +866,52 @@ else
 fi
 
 #
+# Skill Frontmatter Validation (BLOCKING)
+#
+# Validates YAML frontmatter in SKILL.md files against schema requirements.
+# Enforces frontmatter constraints to catch issues before commit.
+#
+# Validates:
+#   - YAML syntax (delimiters, indentation)
+#   - Required fields: name, description
+#   - Name format: lowercase alphanumeric + hyphens, max 64 chars
+#   - Description: non-empty, max 1024 chars, no XML tags
+#   - Model: valid identifiers (aliases or dated snapshots)
+#   - Allowed-tools: valid Claude Code tool names
+#
+# Security: Checks for symlinks to prevent TOCTOU attacks (MEDIUM-002)
+# Related: Issue #4, ADR-040 (Skill Frontmatter Standardization)
+# Reference: .agents/analysis/claude-code-skill-frontmatter-2026.md
+#
+FRONTMATTER_VALIDATOR="$REPO_ROOT/scripts/Validate-SkillFrontmatter.ps1"
+
+# Check if any SKILL.md files are staged
+if [ -n "$STAGED_SKILL_FILES" ]; then
+    echo_info "Validating skill frontmatter..."
+
+    # MEDIUM-002: Reject symlinks for security
+    if [ -L "$FRONTMATTER_VALIDATOR" ]; then
+        echo_error "Frontmatter validator path is a symlink (security violation)"
+        EXIT_STATUS=1
+    elif [ -f "$FRONTMATTER_VALIDATOR" ]; then
+        # Run frontmatter validation in CI mode (blocking)
+        if pwsh -NoProfile -ExecutionPolicy Bypass -File "$FRONTMATTER_VALIDATOR" -StagedOnly -CI; then
+            echo_success "All skill frontmatter validated successfully."
+        else
+            echo_error "Skill frontmatter validation failed."
+            echo_info "  Fix SKILL.md frontmatter and retry commit."
+            echo_info "  See: .agents/analysis/claude-code-skill-frontmatter-2026.md"
+            EXIT_STATUS=1
+        fi
+    else
+        echo_error "Frontmatter validator not found: $FRONTMATTER_VALIDATOR"
+        EXIT_STATUS=1
+    fi
+else
+    echo_info "No SKILL.md files staged. Skipping frontmatter validation."
+fi
+
+#
 # Security Detection (Non-blocking warning)
 #
 # Detects infrastructure and security-critical file changes
