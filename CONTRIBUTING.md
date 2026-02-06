@@ -387,13 +387,22 @@ pwsh build/Generate-Agents.ps1 -Verbose
 
 ## Pre-Commit Hooks
 
-Enable markdown linting auto-fix on commits:
+Enable automated validation on commits:
 
 ```bash
 git config core.hooksPath .githooks
 ```
 
-This automatically fixes markdown violations before each commit. See [docs/markdown-linting.md](docs/markdown-linting.md) for details.
+The pre-commit hook automatically runs checks including, depending on staged files:
+
+- **markdownlint**: Fixes markdown violations before each commit. See [docs/markdown-linting.md](docs/markdown-linting.md) for details.
+- **PSScriptAnalyzer**: Validates PowerShell (`.ps1`/`.psm1`) scripts for syntax errors and coding standard violations. Error-level issues block commits; warnings are displayed but non-blocking. Skips gracefully if PowerShell is not installed.
+  - **Install**: `pwsh -Command 'Install-Module -Name PSScriptAnalyzer -Scope CurrentUser -Force'`
+- **ruff**: Lints Python files for style and common issues when Python files are staged.
+- **actionlint**: Validates GitHub Actions workflow files (`.github/workflows/*.yml`) when they are staged.
+- **yamllint**: Validates general YAML files when they are staged.
+
+Refer to `.githooks/pre-commit` for the authoritative, up-to-date list of all checks.
 
 ## Session Protocol
 
