@@ -14,7 +14,7 @@
 
 BeforeAll {
     # Import shared functions from module (ensures tests use actual implementations)
-    $ModulePath = Join-Path $PSScriptRoot "..\Generate-Agents.Common.psm1"
+    $ModulePath = Join-Path $PSScriptRoot ".." "build" "Generate-Agents.Common.psm1"
     Import-Module $ModulePath -Force
 
     # Create temp directory for test artifacts (cross-platform)
@@ -451,12 +451,12 @@ handoffSyntax: "/agent"
         }
 
         It "Script file exists" {
-            $ScriptPath = Join-Path $PSScriptRoot "..\Generate-Agents.ps1"
+            $ScriptPath = Join-Path $PSScriptRoot ".." "build" "Generate-Agents.ps1"
             Test-Path $ScriptPath | Should -Be $true
         }
 
         It "Script has required parameters" {
-            $ScriptPath = Join-Path $PSScriptRoot "..\Generate-Agents.ps1"
+            $ScriptPath = Join-Path $PSScriptRoot ".." "build" "Generate-Agents.ps1"
             $scriptContent = Get-Content $ScriptPath -Raw
 
             $scriptContent | Should -Match '\[switch\]\$Validate'
@@ -484,6 +484,188 @@ Body
 
             # Should complete 100 iterations in under 1 second
             $measure.TotalSeconds | Should -BeLessThan 1
+        }
+    }
+}
+
+Describe "Read-ToolsetDefinitions" {
+    BeforeAll {
+        $Script:ToolsetTestDir = Join-Path $Script:TestTempDir "toolsets"
+        New-Item -ItemType Directory -Path $Script:ToolsetTestDir -Force | Out-Null
+    }
+
+    Context "Valid toolset file" {
+        It "Parses toolset definitions with shared tools" {
+            $toolsetContent = @"
+github-research:
+  description: GitHub search and context gathering
+  tools:
+    - github/search_code
+    - github/search_issues
+    - github/issue_read
+"@
+            $toolsetFile = Join-Path $Script:ToolsetTestDir "shared-tools.yaml"
+            Set-Content -Path $toolsetFile -Value $toolsetContent
+
+            $result = Read-ToolsetDefinitions -ToolsetsPath $toolsetFile
+
+            $result.ContainsKey('github-research') | Should -Be $true
+            $result['github-research']['tools'] | Should -HaveCount 3
+            $result['github-research']['tools'][0] | Should -Be 'github/search_code'
+            $result['github-research']['description'] | Should -Be 'GitHub search and context gathering'
+        }
+
+        It "Parses toolset definitions with platform-specific tools" {
+            $toolsetContent = @"
+editor:
+  description: Core reading and editing
+  tools_vscode:
+    - vscode
+    - read
+    - edit
+    - search
+  tools_copilot:
+    - read
+    - edit
+    - search
+"@
+            $toolsetFile = Join-Path $Script:ToolsetTestDir "platform-tools.yaml"
+            Set-Content -Path $toolsetFile -Value $toolsetContent
+
+            $result = Read-ToolsetDefinitions -ToolsetsPath $toolsetFile
+
+            $result.ContainsKey('editor') | Should -Be $true
+            $result['editor']['tools_vscode'] | Should -HaveCount 4
+            $result['editor']['tools_copilot'] | Should -HaveCount 3
+            $result['editor']['tools_vscode'][0] | Should -Be 'vscode'
+        }
+
+        It "Parses multiple toolsets" {
+            $toolsetContent = @"
+editor:
+  description: Core editor
+  tools:
+    - read
+    - edit
+
+knowledge:
+  description: Memory tools
+  tools:
+    - serena/*
+    - memory
+"@
+            $toolsetFile = Join-Path $Script:ToolsetTestDir "multi-toolsets.yaml"
+            Set-Content -Path $toolsetFile -Value $toolsetContent
+
+            $result = Read-ToolsetDefinitions -ToolsetsPath $toolsetFile
+
+            $result.Keys.Count | Should -Be 2
+            $result.ContainsKey('editor') | Should -Be $true
+            $result.ContainsKey('knowledge') | Should -Be $true
+        }
+    }
+
+    Context "Missing file" {
+        It "Returns empty hashtable for nonexistent file" {
+            $result = Read-ToolsetDefinitions -ToolsetsPath "/nonexistent/file.yaml" 3>$null
+
+            $result | Should -BeOfType [hashtable]
+            $result.Keys.Count | Should -Be 0
+        }
+    }
+}
+
+Describe "Expand-ToolsetReferences" {
+    BeforeAll {
+        $Script:TestToolsets = @{
+            'editor' = @{
+                'tools_vscode' = @('vscode', 'read', 'edit', 'search')
+                'tools_copilot' = @('read', 'edit', 'search')
+            }
+            'knowledge' = @{
+                'tools_vscode' = @('cloudmcp-manager/*', 'serena/*', 'memory')
+                'tools_copilot' = @('cloudmcp-manager/*', 'serena/*')
+            }
+            'github-research' = @{
+                'tools' = @('github/search_code', 'github/search_issues', 'github/issue_read')
+            }
+        }
+    }
+
+    Context "Toolset expansion for VS Code" {
+        It "Expands single toolset reference" {
+            $toolsArray = "['`$toolset:editor']"
+            $result = Expand-ToolsetReferences -ToolsArrayString $toolsArray -Toolsets $Script:TestToolsets -PlatformName "vscode"
+
+            $result | Should -Match "'vscode'"
+            $result | Should -Match "'read'"
+            $result | Should -Match "'edit'"
+            $result | Should -Match "'search'"
+        }
+
+        It "Expands multiple toolset references" {
+            $toolsArray = "['`$toolset:editor', '`$toolset:knowledge']"
+            $result = Expand-ToolsetReferences -ToolsArrayString $toolsArray -Toolsets $Script:TestToolsets -PlatformName "vscode"
+
+            $result | Should -Match "'vscode'"
+            $result | Should -Match "'memory'"
+            $result | Should -Match "'serena/\*'"
+        }
+
+        It "Mixes toolset references with individual tools" {
+            $toolsArray = "['`$toolset:editor', 'web', '`$toolset:knowledge']"
+            $result = Expand-ToolsetReferences -ToolsArrayString $toolsArray -Toolsets $Script:TestToolsets -PlatformName "vscode"
+
+            $result | Should -Match "'vscode'"
+            $result | Should -Match "'web'"
+            $result | Should -Match "'memory'"
+        }
+
+        It "Uses platform-specific tools over shared tools" {
+            $toolsArray = "['`$toolset:editor']"
+            $resultVscode = Expand-ToolsetReferences -ToolsArrayString $toolsArray -Toolsets $Script:TestToolsets -PlatformName "vscode"
+            $resultCopilot = Expand-ToolsetReferences -ToolsArrayString $toolsArray -Toolsets $Script:TestToolsets -PlatformName "copilot-cli"
+
+            $resultVscode | Should -Match "'vscode'"
+            $resultCopilot | Should -Not -Match "'vscode'"
+        }
+
+        It "Falls back to shared tools when no platform-specific tools exist" {
+            $toolsArray = "['`$toolset:github-research']"
+            $result = Expand-ToolsetReferences -ToolsArrayString $toolsArray -Toolsets $Script:TestToolsets -PlatformName "vscode"
+
+            $result | Should -Match "'github/search_code'"
+            $result | Should -Match "'github/issue_read'"
+        }
+    }
+
+    Context "Deduplication" {
+        It "Removes duplicate tools from expanded result" {
+            $toolsArray = "['`$toolset:editor', 'read']"
+            $result = Expand-ToolsetReferences -ToolsArrayString $toolsArray -Toolsets $Script:TestToolsets -PlatformName "vscode"
+
+            # Count occurrences of 'read' - should appear only once
+            $readCount = ([regex]::Matches($result, "'read'")).Count
+            $readCount | Should -Be 1
+        }
+    }
+
+    Context "Pass-through" {
+        It "Returns input unchanged when no toolset references exist" {
+            $toolsArray = "['read', 'edit', 'search']"
+            $result = Expand-ToolsetReferences -ToolsArrayString $toolsArray -Toolsets $Script:TestToolsets -PlatformName "vscode"
+
+            $result | Should -Be $toolsArray
+        }
+    }
+
+    Context "Error handling" {
+        It "Warns on unknown toolset reference" {
+            $toolsArray = "['`$toolset:nonexistent']"
+            $result = Expand-ToolsetReferences -ToolsArrayString $toolsArray -Toolsets $Script:TestToolsets -PlatformName "vscode" -WarningVariable warnings 3>$null
+
+            # Result should not contain the reference
+            $result | Should -Not -Match '\$toolset:'
         }
     }
 }

@@ -197,6 +197,17 @@ if ($platforms.Count -eq 0) {
 
 Write-Host "Loaded $($platforms.Count) platform configuration(s)" -ForegroundColor Green
 
+# Load toolset definitions
+$toolsetsFile = Join-Path $TemplatesPath "toolsets.yaml"
+$toolsets = @{}
+if (Test-Path $toolsetsFile) {
+    $toolsets = Read-ToolsetDefinitions -ToolsetsPath $toolsetsFile
+    Write-Host "Loaded $($toolsets.Count) toolset definition(s)" -ForegroundColor Green
+}
+else {
+    Write-Verbose "No toolsets.yaml found; toolset expansion disabled"
+}
+
 # Find all shared source files
 $agentsPath = Join-Path $TemplatesPath "agents"
 $sharedFiles = Get-ChildItem -Path $agentsPath -Filter "*.shared.md" -ErrorAction SilentlyContinue
@@ -258,6 +269,14 @@ foreach ($sharedFile in $sharedFiles) {
             -Frontmatter $frontmatter `
             -PlatformConfig $platform `
             -AgentName $agentName
+
+        # Expand toolset references in tools array
+        if ($toolsets.Count -gt 0 -and $transformedFrontmatter.ContainsKey('tools') -and $transformedFrontmatter['tools'] -match '\$toolset:') {
+            $transformedFrontmatter['tools'] = Expand-ToolsetReferences `
+                -ToolsArrayString $transformedFrontmatter['tools'] `
+                -Toolsets $toolsets `
+                -PlatformName $platformName
+        }
 
         # Transform body (handoff syntax and memory prefix)
         $handoffSyntax = $platform['handoffSyntax']

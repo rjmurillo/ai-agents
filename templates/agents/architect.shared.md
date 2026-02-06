@@ -2,19 +2,11 @@
 description: Technical authority on system design who guards architectural coherence, enforces patterns, and maintains boundaries. Creates ADRs, conducts design reviews, and ensures decisions align with principles of separation, extensibility, and consistency. Use for governance, trade-off analysis, and blueprints that protect long-term system health.
 argument-hint: Describe the design decision, review request, or ADR topic
 tools_vscode:
-  - vscode
-  - read
-  - edit
-  - search
-  - cloudmcp-manager/*
-  - serena/*
-  - memory
+  - $toolset:editor
+  - $toolset:knowledge
 tools_copilot:
-  - read
-  - edit
-  - search
-  - cloudmcp-manager/*
-  - serena/*
+  - $toolset:editor
+  - $toolset:knowledge
 ---
 # Architect Agent
 

@@ -8,8 +8,8 @@ tools:
   - search
   - web
   - cognitionai/deepwiki/*
-  - cloudmcp-manager/*
   - perplexity/*
+  - cloudmcp-manager/*
   - serena/*
 model: claude-opus-4.5
 ---

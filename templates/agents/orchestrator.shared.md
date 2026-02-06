@@ -2,37 +2,20 @@
 description: Enterprise task orchestrator who autonomously coordinates specialized agents end-to-end—routing work, managing handoffs, and synthesizing results. Classifies complexity, triages delegation, and sequences workflows. Use for multi-step tasks requiring coordination, integration, or when the problem needs complete end-to-end resolution.
 argument-hint: Describe the task or problem to solve end-to-end
 tools_vscode:
-  - vscode
-  - execute
-  - read
-  - edit
-  - search
+  - $toolset:executor
   - agent
   - memory
   - todo
+  - $toolset:github-oversight
   - cloudmcp-manager/*
-  - github/list_issues
-  - github/list_pull_requests
-  - github/issue_read
-  - github/pull_request_read
-  - github/list_workflow_runs
-  - github/get_workflow_run
   - serena/*
 tools_copilot:
-  - shell
-  - read
-  - edit
-  - search
+  - $toolset:executor
   - agent
   - memory
   - todo
+  - $toolset:github-oversight
   - cloudmcp-manager/*
-  - github/list_issues
-  - github/list_pull_requests
-  - github/issue_read
-  - github/pull_request_read
-  - github/list_workflow_runs
-  - github/get_workflow_run
   - serena/*
 ---
 # Orchestrator Agent

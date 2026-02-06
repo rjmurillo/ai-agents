@@ -5,9 +5,7 @@ tools_vscode:
   - vscode
   - read
   - edit
-  - memory
-  - cloudmcp-manager/*
-  - serena/*
+  - $toolset:knowledge
 tools_copilot:
   - read
   - edit

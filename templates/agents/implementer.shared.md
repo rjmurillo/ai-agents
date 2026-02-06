@@ -2,36 +2,13 @@
 description: Execution-focused engineering expert who implements approved plans with production-quality code. Applies rigorous software design methodology with explicit quality standards. Enforces testability, encapsulation, and intentional coupling. Uses Commonality/Variability Analysis (CVA) for design. Follows bottom-up emergence model where patterns emerge from enforcing qualities, not from picking patterns first. Writes tests alongside code, commits atomically with conventional messages. Use when you need to ship code.
 argument-hint: Specify the plan file path and task to implement
 tools_vscode:
-  - vscode
-  - execute
-  - read
-  - edit
-  - search
-  - cloudmcp-manager/*
-  - github/create_branch
-  - github/push_files
-  - github/create_or_update_file
-  - github/create_pull_request
-  - github/update_pull_request
-  - github/pull_request_read
-  - github/issue_read
-  - github/add_issue_comment
-  - serena/*
-  - memory
+  - $toolset:executor
+  - $toolset:github-code
+  - $toolset:knowledge
 tools_copilot:
-  - shell
-  - read
-  - edit
-  - search
+  - $toolset:executor
+  - $toolset:github-code
   - cloudmcp-manager/*
-  - github/create_branch
-  - github/push_files
-  - github/create_or_update_file
-  - github/create_pull_request
-  - github/update_pull_request
-  - github/pull_request_read
-  - github/issue_read
-  - github/add_issue_comment
   - serena/*
 ---
 # Implementer Agent
