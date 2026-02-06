@@ -35,6 +35,10 @@ inputs:
   copilot-token:
     description: 'GitHub Copilot token'
     required: true
+  additional-context:
+    description: 'Additional context to pass to the AI agent (e.g., pre-executed test results)'
+    required: false
+    default: ''
 
 outputs:
   verdict:
@@ -65,6 +69,7 @@ runs:
         timeout-minutes: 5
         bot-pat: ${{ inputs.bot-pat }}
         copilot-token: ${{ inputs.copilot-token }}
+        additional-context: ${{ inputs.additional-context }}
 
     - name: Save review results
       if: inputs.should-run == 'true'

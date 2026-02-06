@@ -132,6 +132,15 @@ Describe "Quality Gate Prompt Structure" {
         It "Should have CODE verdict rules" {
             Test-VerdictThresholdForType -PromptPath $script:QAPrompt -PRType "CODE" | Should -Be $true
         }
+
+        It "Should have Pre-executed Test Results section" {
+            Test-PromptSection -PromptPath $script:QAPrompt -SectionHeader "Pre-executed Test Results" | Should -Be $true
+        }
+
+        It "Should include test execution in evidence requirements" {
+            $content = Get-Content $script:QAPrompt -Raw
+            $content | Should -Match "Test execution:.*PASS.*FAIL.*SKIPPED"
+        }
     }
 
     Context "Security Prompt Structure" {
