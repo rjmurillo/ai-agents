@@ -594,8 +594,8 @@ Describe "Expand-ToolsetReferences" {
 
     Context "Toolset expansion for VS Code" {
         It "Expands single toolset reference" {
-            $input = "['`$toolset:editor']"
-            $result = Expand-ToolsetReferences -ToolsArrayString $input -Toolsets $Script:TestToolsets -PlatformName "vscode"
+            $toolsArray = "['`$toolset:editor']"
+            $result = Expand-ToolsetReferences -ToolsArrayString $toolsArray -Toolsets $Script:TestToolsets -PlatformName "vscode"
 
             $result | Should -Match "'vscode'"
             $result | Should -Match "'read'"
@@ -604,8 +604,8 @@ Describe "Expand-ToolsetReferences" {
         }
 
         It "Expands multiple toolset references" {
-            $input = "['`$toolset:editor', '`$toolset:knowledge']"
-            $result = Expand-ToolsetReferences -ToolsArrayString $input -Toolsets $Script:TestToolsets -PlatformName "vscode"
+            $toolsArray = "['`$toolset:editor', '`$toolset:knowledge']"
+            $result = Expand-ToolsetReferences -ToolsArrayString $toolsArray -Toolsets $Script:TestToolsets -PlatformName "vscode"
 
             $result | Should -Match "'vscode'"
             $result | Should -Match "'memory'"
@@ -613,8 +613,8 @@ Describe "Expand-ToolsetReferences" {
         }
 
         It "Mixes toolset references with individual tools" {
-            $input = "['`$toolset:editor', 'web', '`$toolset:knowledge']"
-            $result = Expand-ToolsetReferences -ToolsArrayString $input -Toolsets $Script:TestToolsets -PlatformName "vscode"
+            $toolsArray = "['`$toolset:editor', 'web', '`$toolset:knowledge']"
+            $result = Expand-ToolsetReferences -ToolsArrayString $toolsArray -Toolsets $Script:TestToolsets -PlatformName "vscode"
 
             $result | Should -Match "'vscode'"
             $result | Should -Match "'web'"
@@ -622,17 +622,17 @@ Describe "Expand-ToolsetReferences" {
         }
 
         It "Uses platform-specific tools over shared tools" {
-            $input = "['`$toolset:editor']"
-            $resultVscode = Expand-ToolsetReferences -ToolsArrayString $input -Toolsets $Script:TestToolsets -PlatformName "vscode"
-            $resultCopilot = Expand-ToolsetReferences -ToolsArrayString $input -Toolsets $Script:TestToolsets -PlatformName "copilot-cli"
+            $toolsArray = "['`$toolset:editor']"
+            $resultVscode = Expand-ToolsetReferences -ToolsArrayString $toolsArray -Toolsets $Script:TestToolsets -PlatformName "vscode"
+            $resultCopilot = Expand-ToolsetReferences -ToolsArrayString $toolsArray -Toolsets $Script:TestToolsets -PlatformName "copilot-cli"
 
             $resultVscode | Should -Match "'vscode'"
             $resultCopilot | Should -Not -Match "'vscode'"
         }
 
         It "Falls back to shared tools when no platform-specific tools exist" {
-            $input = "['`$toolset:github-research']"
-            $result = Expand-ToolsetReferences -ToolsArrayString $input -Toolsets $Script:TestToolsets -PlatformName "vscode"
+            $toolsArray = "['`$toolset:github-research']"
+            $result = Expand-ToolsetReferences -ToolsArrayString $toolsArray -Toolsets $Script:TestToolsets -PlatformName "vscode"
 
             $result | Should -Match "'github/search_code'"
             $result | Should -Match "'github/issue_read'"
@@ -641,8 +641,8 @@ Describe "Expand-ToolsetReferences" {
 
     Context "Deduplication" {
         It "Removes duplicate tools from expanded result" {
-            $input = "['`$toolset:editor', 'read']"
-            $result = Expand-ToolsetReferences -ToolsArrayString $input -Toolsets $Script:TestToolsets -PlatformName "vscode"
+            $toolsArray = "['`$toolset:editor', 'read']"
+            $result = Expand-ToolsetReferences -ToolsArrayString $toolsArray -Toolsets $Script:TestToolsets -PlatformName "vscode"
 
             # Count occurrences of 'read' - should appear only once
             $readCount = ([regex]::Matches($result, "'read'")).Count
@@ -652,17 +652,17 @@ Describe "Expand-ToolsetReferences" {
 
     Context "Pass-through" {
         It "Returns input unchanged when no toolset references exist" {
-            $input = "['read', 'edit', 'search']"
-            $result = Expand-ToolsetReferences -ToolsArrayString $input -Toolsets $Script:TestToolsets -PlatformName "vscode"
+            $toolsArray = "['read', 'edit', 'search']"
+            $result = Expand-ToolsetReferences -ToolsArrayString $toolsArray -Toolsets $Script:TestToolsets -PlatformName "vscode"
 
-            $result | Should -Be $input
+            $result | Should -Be $toolsArray
         }
     }
 
     Context "Error handling" {
         It "Warns on unknown toolset reference" {
-            $input = "['`$toolset:nonexistent']"
-            $result = Expand-ToolsetReferences -ToolsArrayString $input -Toolsets $Script:TestToolsets -PlatformName "vscode" -WarningVariable warnings 3>$null
+            $toolsArray = "['`$toolset:nonexistent']"
+            $result = Expand-ToolsetReferences -ToolsArrayString $toolsArray -Toolsets $Script:TestToolsets -PlatformName "vscode" -WarningVariable warnings 3>$null
 
             # Result should not contain the reference
             $result | Should -Not -Match '\$toolset:'
