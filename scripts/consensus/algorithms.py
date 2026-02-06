@@ -13,6 +13,9 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Literal
 
+# Type alias for decision outcomes
+DecisionOutcome = Literal["approved", "rejected", "no_consensus"]
+
 
 class ConsensusAlgorithm(StrEnum):
     """Supported consensus algorithms."""
@@ -23,7 +26,7 @@ class ConsensusAlgorithm(StrEnum):
     UNANIMOUS = "unanimous"
 
 
-@dataclass
+@dataclass(frozen=True)
 class Vote:
     """Individual agent vote with rationale.
 
@@ -46,7 +49,7 @@ class Vote:
             raise ValueError(msg)
 
 
-@dataclass
+@dataclass(frozen=True)
 class ConsensusResult:
     """Result of consensus evaluation.
 
@@ -80,7 +83,14 @@ def majority_consensus(votes: list[Vote]) -> ConsensusResult:
 
     Returns:
         ConsensusResult with decision based on simple majority
+
+    Raises:
+        ValueError: If votes list is empty
     """
+    if not votes:
+        msg = "Cannot determine consensus from empty vote list"
+        raise ValueError(msg)
+
     approvals = [v for v in votes if v.position == "approve"]
     rejections = [v for v in votes if v.position == "reject"]
     abstentions = [v for v in votes if v.position == "abstain"]
@@ -89,6 +99,7 @@ def majority_consensus(votes: list[Vote]) -> ConsensusResult:
     votes_against = len(rejections)
     abstain_count = len(abstentions)
 
+    decision: DecisionOutcome
     # Calculate weighted confidence from approvers or rejectors
     if votes_for > votes_against:
         decision = "approved"
@@ -134,7 +145,14 @@ def weighted_consensus(
 
     Returns:
         ConsensusResult with weighted decision
+
+    Raises:
+        ValueError: If votes list is empty
     """
+    if not votes:
+        msg = "Cannot determine consensus from empty vote list"
+        raise ValueError(msg)
+
     approvals = [v for v in votes if v.position == "approve"]
     rejections = [v for v in votes if v.position == "reject"]
     abstentions = [v for v in votes if v.position == "abstain"]
@@ -156,6 +174,7 @@ def weighted_consensus(
         weights.get(v.agent, 1.0) for v in votes if v.position != "abstain"
     )
 
+    decision: DecisionOutcome
     if weighted_for > weighted_against:
         decision = "approved"
         confidence = weighted_for / total_weight if total_weight > 0 else 0.0
@@ -200,13 +219,20 @@ def quorum_consensus(
 
     Returns:
         ConsensusResult with quorum-checked decision
+
+    Raises:
+        ValueError: If votes list is empty or threshold is out of range
     """
+    if not votes:
+        msg = "Cannot determine consensus from empty vote list"
+        raise ValueError(msg)
+
     if not 0.0 <= quorum_threshold <= 1.0:
         msg = f"Quorum threshold must be 0.0-1.0, got {quorum_threshold}"
         raise ValueError(msg)
 
     non_abstain = [v for v in votes if v.position != "abstain"]
-    participation_rate = len(non_abstain) / len(votes) if votes else 0.0
+    participation_rate = len(non_abstain) / len(votes)
 
     if participation_rate < quorum_threshold:
         return ConsensusResult(
@@ -221,9 +247,15 @@ def quorum_consensus(
 
     # Quorum met, apply majority voting
     result = majority_consensus(votes)
-    result.algorithm = ConsensusAlgorithm.QUORUM
-    result.summary = f"Quorum met ({participation_rate:.1%}). " + result.summary
-    return result
+    return ConsensusResult(
+        decision=result.decision,
+        algorithm=ConsensusAlgorithm.QUORUM,
+        confidence_score=result.confidence_score,
+        votes_for=result.votes_for,
+        votes_against=result.votes_against,
+        abstentions=result.abstentions,
+        summary=f"Quorum met ({participation_rate:.1%}). {result.summary}",
+    )
 
 
 def unanimous_consensus(votes: list[Vote]) -> ConsensusResult:
@@ -237,7 +269,14 @@ def unanimous_consensus(votes: list[Vote]) -> ConsensusResult:
 
     Returns:
         ConsensusResult requiring unanimous agreement
+
+    Raises:
+        ValueError: If votes list is empty
     """
+    if not votes:
+        msg = "Cannot determine consensus from empty vote list"
+        raise ValueError(msg)
+
     approvals = [v for v in votes if v.position == "approve"]
     rejections = [v for v in votes if v.position == "reject"]
     abstentions = [v for v in votes if v.position == "abstain"]
@@ -246,6 +285,7 @@ def unanimous_consensus(votes: list[Vote]) -> ConsensusResult:
     votes_against = len(rejections)
     abstain_count = len(abstentions)
 
+    decision: DecisionOutcome
     # All non-abstaining votes must be approvals
     if votes_against > 0:
         decision = "rejected"

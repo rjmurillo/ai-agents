@@ -25,7 +25,7 @@ from scripts.consensus.algorithms import (
     weighted_consensus,
 )
 from scripts.consensus.decision_recorder import DecisionRecorder
-from scripts.consensus.weights import get_agent_weight
+from scripts.consensus.weights import get_agent_weight, get_all_weights
 
 __all__ = [
     "ConsensusAlgorithm",
@@ -37,4 +37,5 @@ __all__ = [
     "weighted_consensus",
     "DecisionRecorder",
     "get_agent_weight",
+    "get_all_weights",
 ]

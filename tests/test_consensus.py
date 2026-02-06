@@ -121,6 +121,11 @@ class TestMajorityConsensus:
         assert result.votes_against == 0
         assert result.abstentions == 2
 
+    def test_empty_votes_raises_error(self) -> None:
+        """Empty vote list raises ValueError."""
+        with pytest.raises(ValueError, match="Cannot determine consensus from empty vote list"):
+            majority_consensus([])
+
 
 class TestWeightedConsensus:
     """Tests for expertise-weighted voting."""
@@ -163,6 +168,25 @@ class TestWeightedConsensus:
         result = weighted_consensus(votes, weights)
 
         assert result.decision == "approved"
+
+    def test_weighted_rejection(self) -> None:
+        """Higher-weighted rejector causes rejection."""
+        votes = [
+            Vote("architect", "approve", "Good design", 0.8),
+            Vote("security", "reject", "Critical vulnerability", 0.9),
+        ]
+        weights = {"architect": 1.0, "security": 2.0}
+
+        result = weighted_consensus(votes, weights)
+
+        assert result.decision == "rejected"
+        assert result.algorithm == ConsensusAlgorithm.WEIGHTED
+        # security (2.0 * 0.9 = 1.8) > architect (1.0 * 0.8 = 0.8)
+
+    def test_empty_votes_raises_error(self) -> None:
+        """Empty vote list raises ValueError."""
+        with pytest.raises(ValueError, match="Cannot determine consensus from empty vote list"):
+            weighted_consensus([], {})
 
 
 class TestQuorumConsensus:
@@ -215,6 +239,11 @@ class TestQuorumConsensus:
 
         with pytest.raises(ValueError, match="Quorum threshold must be 0.0-1.0"):
             quorum_consensus(votes, quorum_threshold=1.5)
+
+    def test_empty_votes_raises_error(self) -> None:
+        """Empty vote list raises ValueError."""
+        with pytest.raises(ValueError, match="Cannot determine consensus from empty vote list"):
+            quorum_consensus([])
 
 
 class TestUnanimousConsensus:
@@ -276,6 +305,11 @@ class TestUnanimousConsensus:
         assert result.decision == "no_consensus"
         assert "all abstained" in result.summary
 
+    def test_empty_votes_raises_error(self) -> None:
+        """Empty vote list raises ValueError."""
+        with pytest.raises(ValueError, match="Cannot determine consensus from empty vote list"):
+            unanimous_consensus([])
+
 
 class TestAgentWeights:
     """Tests for agent expertise weights."""
@@ -305,6 +339,18 @@ class TestAgentWeights:
         assert isinstance(weights, dict)
         assert weights["architect"] == 2.0
         assert "implementer" in weights
+
+    def test_get_all_weights_returns_copy(self) -> None:
+        """Returned weights dict is a copy, not a mutable reference."""
+        weights = get_all_weights("architecture")
+        original_value = weights["architect"]
+
+        # Mutate the returned dict
+        weights["architect"] = 999.0
+
+        # Verify internal state is unchanged
+        fresh_weights = get_all_weights("architecture")
+        assert fresh_weights["architect"] == original_value
 
 
 class TestDecisionRecorder:

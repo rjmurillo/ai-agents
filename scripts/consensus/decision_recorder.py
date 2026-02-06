@@ -53,7 +53,7 @@ class DecisionRecorder:
         """
         if decisions_dir is None:
             decisions_dir = Path(".agents/decisions")
-        self.decisions_dir = Path(decisions_dir)
+        self.decisions_dir = decisions_dir
         self.decisions_dir.mkdir(parents=True, exist_ok=True)
 
     def record_decision(

@@ -96,10 +96,12 @@ def get_agent_weight(agent: str, domain: DecisionDomain) -> float:
 def get_all_weights(domain: DecisionDomain) -> dict[str, float]:
     """Get all agent weights for a specific domain.
 
+    Returns a copy to prevent mutation of the internal weight table.
+
     Args:
         domain: Decision domain
 
     Returns:
         Dict mapping agent name to weight
     """
-    return AGENT_WEIGHTS.get(domain, {})
+    return dict(AGENT_WEIGHTS.get(domain, {}))
