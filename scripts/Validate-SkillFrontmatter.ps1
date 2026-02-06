@@ -167,16 +167,11 @@ function Test-YamlFrontmatter {
     .PARAMETER Content
         Full content of the SKILL.md file.
     
-    .PARAMETER FilePath
-        Path to the file being validated (for error messages, currently unused).
-    
     .RETURNS
         Hashtable with: IsValid (bool), Frontmatter (hashtable), Errors (string[])
     #>
-    [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', 'FilePath', Justification='Reserved for future error reporting')]
     param(
-        [string]$Content,
-        [string]$FilePath
+        [string]$Content
     )
 
     $result = @{
@@ -219,7 +214,13 @@ function Test-YamlFrontmatter {
     }
 
     # Parse YAML using simple key-value parsing
-    # Note: PowerShell doesn't have native YAML parsing, so we use a simple approach
+    # LIMITATIONS: This parser is simplified and does NOT support:
+    #   - Quoted strings with embedded colons or special characters
+    #   - Complex nested structures beyond simple arrays
+    #   - YAML anchors, aliases, or advanced features
+    #   - Precise indentation-based structure parsing
+    # It is designed for simple skill frontmatter with key-value pairs and basic arrays.
+    # For complex YAML, consider using a dedicated YAML parsing library.
     try {
         $frontmatter = @{}
         $currentKey = $null
@@ -476,7 +477,7 @@ function Test-SkillFrontmatter {
     }
 
     # Validate YAML frontmatter structure
-    $yamlResult = Test-YamlFrontmatter -Content $content -FilePath $relativePath
+    $yamlResult = Test-YamlFrontmatter -Content $content
     
     $allValidationErrors = @()
     $allValidationErrors += $yamlResult.Errors
