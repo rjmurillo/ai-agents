@@ -184,17 +184,10 @@ function Invoke-SerenaSearch {
             $score = [math]::Round(($matchCount / $keywordCount) * 100, 2)
             $currentFile = $files[$idx]
 
-            if ($SkipContent) {
-                $results.Add([PSCustomObject]@{
-                    Name    = $currentFile.BaseName
-                    Content = $null
-                    Source  = "Serena"
-                    Score   = $score
-                    Path    = $currentFile.FullName
-                    Hash    = $null
-                })
-            }
-            else {
+            $content = $null
+            $hash = $null
+
+            if (-not $SkipContent) {
                 try {
                     $content = Get-Content -Path $currentFile.FullName -Raw -ErrorAction Stop
                 }
@@ -202,16 +195,17 @@ function Invoke-SerenaSearch {
                     Write-Warning "Failed to read memory file '$($currentFile.FullName)': $($_.Exception.Message)"
                     continue
                 }
-
-                $results.Add([PSCustomObject]@{
-                    Name    = $currentFile.BaseName
-                    Content = $content
-                    Source  = "Serena"
-                    Score   = $score
-                    Path    = $currentFile.FullName
-                    Hash    = Get-ContentHash -Content ($content ?? "")
-                })
+                $hash = Get-ContentHash -Content ($content ?? "")
             }
+
+            $results.Add([PSCustomObject]@{
+                Name    = $currentFile.BaseName
+                Content = $content
+                Source  = "Serena"
+                Score   = $score
+                Path    = $currentFile.FullName
+                Hash    = $hash
+            })
         }
     }
 
@@ -355,14 +349,21 @@ function Merge-MemoryResults {
 
     # Add Serena results first (canonical)
     foreach ($result in $SerenaResults) {
-        if ($seenHashes.Add($result.Hash)) {
+        if ($null -eq $result.Hash) {
+            # No hash (SkipContent path), cannot deduplicate, include as-is
+            $merged.Add($result)
+        }
+        elseif ($seenHashes.Add($result.Hash)) {
             $merged.Add($result)
         }
     }
 
     # Add unique Forgetful results
     foreach ($result in $ForgetfulResults) {
-        if ($seenHashes.Add($result.Hash)) {
+        if ($null -eq $result.Hash) {
+            $merged.Add($result)
+        }
+        elseif ($seenHashes.Add($result.Hash)) {
             $merged.Add($result)
         }
     }
@@ -554,8 +555,8 @@ function Search-Memory {
     # Augmented mode: check Forgetful availability before deciding on content loading
     $forgetfulAvailable = Test-ForgetfulAvailable
     if (-not $forgetfulAvailable) {
-        Write-Verbose "Forgetful unavailable, returning Serena-only results (fast path)"
-        return Invoke-SerenaSearch -Query $Query -MaxResults $MaxResults -SkipContent
+        Write-Verbose "Forgetful unavailable, returning Serena-only results"
+        return Invoke-SerenaSearch -Query $Query -MaxResults $MaxResults
     }
 
     # Forgetful is available: need content/hashes for dedup during merge

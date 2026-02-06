@@ -415,6 +415,18 @@ Describe "Merge-MemoryResults" {
 
         $merged | Should -BeNullOrEmpty
     }
+
+    It "Preserves all results with null Hash values" {
+        $serena = @(
+            [PSCustomObject]@{ Name = "s1"; Content = $null; Source = "Serena"; Score = 100; Hash = $null },
+            [PSCustomObject]@{ Name = "s2"; Content = $null; Source = "Serena"; Score = 90; Hash = $null },
+            [PSCustomObject]@{ Name = "s3"; Content = $null; Source = "Serena"; Score = 80; Hash = $null }
+        )
+
+        $merged = & $mergeResults -SerenaResults $serena
+
+        $merged.Count | Should -Be 3
+    }
 }
 
 Describe "Invoke-ForgetfulSearch Error Handling" {
@@ -628,8 +640,8 @@ Describe "Search-Memory Performance Path" {
         }
     }
 
-    Context "Serena-only fallback uses fast path" {
-        It "Returns results with null Content when Forgetful unavailable" {
+    Context "Serena-only fallback preserves content contract" {
+        It "Returns results with populated Content when Forgetful unavailable" {
             if (-not (Test-Path ".serena/memories")) {
                 Set-ItResult -Skipped -Because "No .serena/memories directory"
                 return
@@ -645,7 +657,8 @@ Describe "Search-Memory Performance Path" {
             $results = Search-Memory -Query "memory router"
 
             $results.Count | Should -BeGreaterThan 0
-            $results[0].Content | Should -BeNullOrEmpty
+            # Default mode preserves Content even when Forgetful is unavailable
+            $results[0].Content | Should -Not -BeNullOrEmpty
         }
     }
 }
