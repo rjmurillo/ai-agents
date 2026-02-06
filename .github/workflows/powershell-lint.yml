@@ -1,0 +1,44 @@
+# PowerShell Lint
+#
+# Runs PSScriptAnalyzer on pull requests that modify PowerShell files.
+# Serves as a CI safety net for syntax validation, complementing pre-commit hooks.
+# Pre-commit hooks can be bypassed with --no-verify; this workflow ensures
+# no syntax errors reach the main branch regardless of local developer setup.
+#
+# This workflow uses the existing Invoke-PSScriptAnalyzer.ps1 script which
+# scans all PowerShell files and reports Error-level issues.
+#
+# Local developers can run the same analysis using:
+#   pwsh ./build/scripts/Invoke-PSScriptAnalyzer.ps1
+
+name: PowerShell Lint
+
+on:
+  pull_request:
+    paths:
+      - '**/*.ps1'
+      - '**/*.psm1'
+      - '**/*.psd1'
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: PSScriptAnalyzer Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Run PSScriptAnalyzer
+        shell: pwsh
+        run: ./build/scripts/Invoke-PSScriptAnalyzer.ps1 -CI
+
+      - name: Upload Analysis Results
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: powershell-lint-results
+          path: ./artifacts/psscriptanalyzer-results.xml
+          retention-days: 7
