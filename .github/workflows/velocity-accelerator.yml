@@ -1,0 +1,198 @@
+name: "🚀 Velocity Accelerator"
+
+# Detect development acceleration opportunities from repository events
+# ADR-006: Thin workflow, business logic in scripts/velocity_accelerator.py
+
+on:
+  pull_request:
+    types: [closed]
+  issues:
+    types: [opened, labeled]
+  push:
+    paths:
+      - '.agents/**'
+  schedule:
+    - cron: '0 9 * * 1-5' # Weekdays at 9 AM UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+
+concurrency:
+  group: velocity-accelerator-${{ github.event_name }}-${{ github.event.pull_request.number || github.event.issue.number || github.sha }}
+  cancel-in-progress: false
+
+env:
+  GH_TOKEN: ${{ secrets.BOT_PAT }}
+
+jobs:
+  detect-opportunities:
+    name: Detect Velocity Opportunities
+    # ADR-025: ARM runner for cost optimization
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 5
+
+    # Skip bot-generated events
+    if: >-
+      github.actor != 'dependabot[bot]' &&
+      github.actor != 'github-actions[bot]'
+
+    outputs:
+      opportunities: ${{ steps.detect.outputs.opportunities }}
+      count: ${{ steps.detect.outputs.count }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.12'
+
+      - name: Detect opportunities
+        id: detect
+        shell: pwsh -NoProfile -Command "& '{0}'"
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_ACTION: ${{ github.event.action }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_MERGED: ${{ github.event.pull_request.merged }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          BEFORE_SHA: ${{ github.event.before }}
+          AFTER_SHA: ${{ github.sha }}
+        run: |
+          $args = @('scripts/velocity_accelerator.py', '--event', $env:EVENT_NAME, '--output-format', 'json')
+
+          if ($env:EVENT_ACTION) { $args += @('--action', $env:EVENT_ACTION) }
+          if ($env:PR_NUMBER -and $env:PR_NUMBER -ne '') { $args += @('--pr-number', $env:PR_NUMBER) }
+          if ($env:PR_MERGED -eq 'true') { $args += '--pr-merged' }
+          if ($env:ISSUE_NUMBER -and $env:ISSUE_NUMBER -ne '') { $args += @('--issue-number', $env:ISSUE_NUMBER) }
+          if ($env:ISSUE_TITLE) { $args += @('--issue-title', $env:ISSUE_TITLE) }
+          if ($env:ISSUE_BODY) { $args += @('--issue-body', $env:ISSUE_BODY) }
+
+          $env:GITHUB_EVENT_BEFORE = $env:BEFORE_SHA
+          $env:GITHUB_SHA = $env:AFTER_SHA
+
+          $output = python @args 2>&1
+          $exitCode = $LASTEXITCODE
+
+          if ($exitCode -eq 2) {
+            Write-Error "Configuration error running velocity accelerator"
+            exit 1
+          }
+
+          try {
+            $opportunities = $output | ConvertFrom-Json
+            $count = ($opportunities | Measure-Object).Count
+          } catch {
+            $opportunities = @()
+            $count = 0
+          }
+
+          $json = $opportunities | ConvertTo-Json -Compress -Depth 10
+          if (-not $json -or $json -eq 'null') { $json = '[]' }
+
+          "opportunities=$json" >> $env:GITHUB_OUTPUT
+          "count=$count" >> $env:GITHUB_OUTPUT
+
+          Write-Host "Detected $count velocity opportunities"
+
+  post-summary:
+    name: Post Velocity Summary
+    needs: detect-opportunities
+    if: needs.detect-opportunities.outputs.count > 0
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Post summary comment
+        if: github.event_name == 'pull_request' || github.event_name == 'issues'
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+        env:
+          OPPORTUNITIES_JSON: ${{ needs.detect-opportunities.outputs.opportunities }}
+          OPPORTUNITIES_COUNT: ${{ needs.detect-opportunities.outputs.count }}
+        with:
+          github-token: ${{ secrets.BOT_PAT }}
+          script: |
+            const opportunities = JSON.parse(process.env.OPPORTUNITIES_JSON || '[]');
+            const count = parseInt(process.env.OPPORTUNITIES_COUNT || '0', 10);
+
+            if (count === 0) return;
+
+            const lines = [`## 🚀 Velocity Accelerator: ${count} Opportunities Detected\n`];
+            for (const opp of opportunities) {
+              lines.push(`### ${opp.title}`);
+              lines.push(`- **Type**: \`${opp.opportunity_type}\``);
+              lines.push(`- **Priority**: ${opp.priority}`);
+              if (opp.suggested_agent) {
+                lines.push(`- **Suggested Agent**: ${opp.suggested_agent}`);
+              }
+              lines.push(`- ${opp.description}\n`);
+            }
+            lines.push('<!-- VELOCITY-ACCELERATOR -->');
+
+            const marker = '<!-- VELOCITY-ACCELERATOR -->';
+            const body = lines.join('\n');
+            const eventName = context.eventName;
+
+            if (eventName === 'pull_request') {
+              const prNumber = context.payload.pull_request.number;
+              const { data: comments } = await github.rest.issues.listComments({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+              });
+              const existing = comments.find(c => c.body && c.body.includes(marker));
+              if (existing) {
+                await github.rest.issues.updateComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: existing.id,
+                  body,
+                });
+              } else {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: prNumber,
+                  body,
+                });
+              }
+            } else if (eventName === 'issues') {
+              const issueNumber = context.payload.issue.number;
+              const { data: comments } = await github.rest.issues.listComments({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+              });
+              const existing = comments.find(c => c.body && c.body.includes(marker));
+              if (existing) {
+                await github.rest.issues.updateComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: existing.id,
+                  body,
+                });
+              } else {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issueNumber,
+                  body,
+                });
+              }
+            }
+
+      - name: Log summary to workflow
+        env:
+          OPPORTUNITIES_COUNT: ${{ needs.detect-opportunities.outputs.count }}
+        run: |
+          echo "::notice::Velocity Accelerator detected $OPPORTUNITIES_COUNT opportunities"
