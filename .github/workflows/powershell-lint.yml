@@ -5,6 +5,9 @@
 # Pre-commit hooks can be bypassed with --no-verify; this workflow ensures
 # no syntax errors reach the main branch regardless of local developer setup.
 #
+# IMPORTANT: This workflow runs on ALL PRs to satisfy required status checks,
+# but skips actual linting when no PowerShell files are changed.
+#
 # This workflow uses the existing Invoke-PSScriptAnalyzer.ps1 script which
 # scans all PowerShell files and reports Error-level issues.
 #
@@ -15,18 +18,52 @@ name: PowerShell Lint
 
 on:
   pull_request:
-    paths:
-      - '**/*.ps1'
-      - '**/*.psm1'
-      - '**/*.psd1'
+    branches:
+      - main
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
+  check-paths:
+    name: Check Changed Paths
+    # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+    outputs:
+      has-powershell: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.powershell }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Check for PowerShell file changes
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3
+        id: filter
+        if: github.event_name != 'workflow_dispatch'
+        with:
+          filters: |
+            powershell:
+              - '**/*.ps1'
+              - '**/*.psm1'
+              - '**/*.psd1'
+
+      - name: Report path check result
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "Manual trigger - running lint on all PowerShell files"
+          else
+            echo "PowerShell files changed: ${{ steps.filter.outputs.powershell }}"
+          fi
+
   lint:
-    name: PSScriptAnalyzer Lint
+    name: Run PowerShell Lint
+    needs: check-paths
+    if: needs.check-paths.outputs.has-powershell == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -42,3 +79,47 @@ jobs:
           name: powershell-lint-results
           path: ./artifacts/psscriptanalyzer-results.xml
           retention-days: 7
+
+      - name: Publish Lint Report
+        uses: dorny/test-reporter@31a54ee7ebcacc03a09ea97a7e5465a47b84aea5 # v1
+        if: always()
+        with:
+          name: PowerShell Lint Report
+          path: ./artifacts/psscriptanalyzer-results.xml
+          reporter: java-junit
+          fail-on-error: true
+
+  skip-lint:
+    name: Skip PowerShell Lint (No Changes)
+    needs: check-paths
+    if: needs.check-paths.outputs.has-powershell != 'true'
+    # ADR-025: ARM runner for cost optimization
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+      checks: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Skip lint (no PowerShell files changed)
+        run: |
+          echo "No PowerShell files changed - skipping PSScriptAnalyzer lint"
+
+      - name: Create empty lint result for required check
+        shell: pwsh
+        run: |
+          Import-Module ./.github/scripts/TestResultHelpers.psm1
+          New-SkippedTestResult `
+            -OutputPath "./artifacts/psscriptanalyzer-results.xml" `
+            -TestSuiteName "PowerShell Lint (Skipped)" `
+            -SkipReason "No PowerShell files changed - lint skipped"
+
+      - name: Publish Lint Report (skipped)
+        uses: dorny/test-reporter@31a54ee7ebcacc03a09ea97a7e5465a47b84aea5 # v1
+        if: always()
+        with:
+          name: PowerShell Lint Report
+          path: ./artifacts/psscriptanalyzer-results.xml
+          reporter: java-junit
+          fail-on-error: false
