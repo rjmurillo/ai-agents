@@ -77,7 +77,7 @@ python3 --version  # Should show Python 3.12.8
 7. Make your changes following the guidelines below
 8. Submit a pull request
 
-**After setup, quality gates are automated.** Pre-commit hooks run ruff (Python) and markdownlint. CI runs full test suites. No manual test commands needed for routine development.
+**After setup, quality gates are automated.** Pre-commit hooks run ruff (Python), markdownlint, and PSScriptAnalyzer (PowerShell). CI runs full test suites. No manual test commands needed for routine development.
 
 ## Git Configuration
 
@@ -387,13 +387,17 @@ pwsh build/Generate-Agents.ps1 -Verbose
 
 ## Pre-Commit Hooks
 
-Enable markdown linting auto-fix on commits:
+Enable automated validation on commits:
 
 ```bash
 git config core.hooksPath .githooks
 ```
 
-This automatically fixes markdown violations before each commit. See [docs/markdown-linting.md](docs/markdown-linting.md) for details.
+The pre-commit hook automatically runs:
+
+- **markdownlint**: Fixes markdown violations before each commit. See [docs/markdown-linting.md](docs/markdown-linting.md) for details.
+- **PSScriptAnalyzer**: Validates PowerShell (`.ps1`/`.psm1`) scripts for syntax errors and coding standard violations. Error-level issues block commits; warnings are displayed but non-blocking. Skips gracefully if PowerShell is not installed.
+  - **Install**: `pwsh -Command 'Install-Module -Name PSScriptAnalyzer -Scope CurrentUser -Force'`
 
 ## Session Protocol
 
