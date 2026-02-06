@@ -13,6 +13,7 @@
 | **Verify branch before git ops** | SESSION-PROTOCOL: Prevent wrong-branch commits | `git branch --show-current` |
 | **HANDOFF.md is read-only** | ADR-014: Distributed handoff architecture | Never edit, only read |
 | **ADR created/edited → adr-review** | AGENTS.md: Multi-agent consensus required | Run adr-review skill |
+| **Local workflow test before push** | Shift-left: Catch workflow errors locally | `gh act` on changed `.github/workflows/` files |
 
 ## Session Protocol Gates
 

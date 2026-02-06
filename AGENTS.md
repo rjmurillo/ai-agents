@@ -195,6 +195,11 @@ pwsh scripts/Validate-Consistency.ps1
 
 # Build
 pwsh build/Generate-Agents.ps1
+
+# Workflow Local Testing (REQUIRED before pushing workflow changes)
+gh act -W .github/workflows/<workflow>.yml     # Run specific workflow
+gh act -l                                       # List available workflows
+gh act push                                     # Simulate push event
 ```
 
 ### CodeQL Security Analysis
@@ -328,6 +333,7 @@ wt merge
 - **Commit atomically** (max 5 files OR single logical change)
 - **Run scoped linting** before commits (ADR-043): `git diff --name-only --diff-filter=d HEAD '*.md' | xargs npx markdownlint-cli2 --fix --no-globs`
 - **Pin GitHub Actions to SHA** with version comment (security-practices)
+- **Run `gh act` locally** before pushing workflow changes (`.github/workflows/`). Catches syntax errors, missing inputs, and runtime failures without burning CI cycles.
 
 ### ⚠️ Ask First
 
@@ -350,6 +356,7 @@ wt merge
 - **Force push to main/master** (extremely destructive, warn user if requested)
 - **Skip hooks** (no `--no-verify`, `--no-gpg-sign`)
 - **Reference internal PR/issue numbers** in user-facing files (src/, templates/)
+- **Push workflow changes without local testing** (`gh act` must pass on changed workflows)
 
 **Source**: [.agents/governance/PROJECT-CONSTRAINTS.md](.agents/governance/PROJECT-CONSTRAINTS.md)
 
