@@ -186,7 +186,7 @@ You can start to chain different workflows together as subagents to keep the orc
 | **independent-thinker** | Challenge assumptions |
 | **pr-comment-responder** | PR review handling |
 
-See [USING-AGENTS.md](USING-AGENTS.md) for detailed agent documentation.
+See [AGENTS.md](AGENTS.md) for detailed agent documentation.
 
 ### Directory Structure
 
@@ -201,9 +201,9 @@ ai-agents/
 ├── docs/                    # Documentation
 ├── .agents/                 # Agent artifacts (ADRs, plans, etc.)
 ├── .claude-plugin/          # skill-installer manifest
-├── copilot-instructions.md  # GitHub Copilot instructions
-├── CLAUDE.md                # Claude Code instructions
-└── USING-AGENTS.md          # Detailed usage guide
+├── .github/copilot-instructions.md  # GitHub Copilot instructions
+├── CLAUDE.md                        # Claude Code instructions
+└── AGENTS.md                        # Detailed usage guide
 ```
 
 ---
@@ -235,8 +235,8 @@ This project uses a **template-based generation system**. To modify agents:
 |----------|-------------|
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Contribution guidelines and agent development |
 | [docs/installation.md](docs/installation.md) | Complete installation guide |
-| [USING-AGENTS.md](USING-AGENTS.md) | Comprehensive usage guide |
-| [copilot-instructions.md](copilot-instructions.md) | GitHub Copilot integration |
+| [AGENTS.md](AGENTS.md) | Comprehensive usage guide |
+| [copilot-instructions.md](.github/copilot-instructions.md) | GitHub Copilot integration |
 | [CLAUDE.md](CLAUDE.md) | Claude Code integration |
 | [docs/ideation-workflow.md](docs/ideation-workflow.md) | Ideation workflow documentation |
 | [docs/markdown-linting.md](docs/markdown-linting.md) | Markdown standards |
