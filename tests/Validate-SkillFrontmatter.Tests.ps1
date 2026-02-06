@@ -25,7 +25,7 @@
 #>
 
 BeforeAll {
-    $script:ScriptPath = Join-Path $PSScriptRoot ".." "Validate-SkillFrontmatter.ps1"
+    $script:ScriptPath = Join-Path $PSScriptRoot ".." "scripts" "Validate-SkillFrontmatter.ps1"
     $script:TestSkillsPath = Join-Path $TestDrive ".claude" "skills"
 
     # Create test directory structure
