@@ -65,8 +65,8 @@ class Opportunity:
     metadata: dict[str, str] = field(default_factory=dict)
 
 
-# Patterns to detect in changed files
-TODO_PATTERN = re.compile(
+# Patterns to detect in changed files (TODO, FIXME, HACK, XXX, FOLLOW-UP)
+ACTION_COMMENT_PATTERN = re.compile(
     r"^\+.*\b(TODO|FIXME|HACK|XXX|FOLLOW[- ]?UP)\b[:\s]*(.*)",
     re.IGNORECASE | re.MULTILINE,
 )
@@ -138,7 +138,7 @@ def extract_todos_from_diff(diff: str, pr_number: int) -> list[Opportunity]:
             current_file = parts[1] if len(parts) > 1 else ""
             continue
 
-        match = TODO_PATTERN.match(line)
+        match = ACTION_COMMENT_PATTERN.match(line)
         if match:
             tag = match.group(1).upper()
             comment = match.group(2).strip()
