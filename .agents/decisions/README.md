@@ -12,8 +12,8 @@ Each decision is stored as a JSON file with the following structure:
 
 ```json
 {
-  "id": "decision-2026-02-06T14-30-00",
-  "timestamp": "2026-02-06T14:30:00Z",
+  "id": "decision-2026-02-06T14-30-00-123456+00-00",
+  "timestamp": "2026-02-06T14:30:00.123456+00:00",
   "topic": "Brief description of the decision",
   "context": "Detailed context explaining the situation",
   "votes": [
