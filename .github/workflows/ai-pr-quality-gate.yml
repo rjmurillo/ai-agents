@@ -126,6 +126,171 @@ jobs:
           fi
 
 # ==============================================================================
+# Pre-execute Tests (Issue #77: QA agent cannot run tests directly)
+# ==============================================================================
+#
+# The QA agent runs via Copilot CLI (text-in/text-out) with no shell access.
+# This job executes tests and passes results as context to the QA agent,
+# enabling empirical test verification in QA verdicts.
+
+  run-tests:
+    name: Run Tests
+    # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
+    runs-on: ubuntu-24.04-arm
+    needs: check-changes
+    if: always() && needs.check-changes.result == 'success' && needs.check-changes.outputs.should-run == 'true'
+    timeout-minutes: 10
+    permissions:
+      contents: read
+
+    outputs:
+      test-summary: ${{ steps.summary.outputs.test_summary }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - name: Setup code environment
+        uses: ./.github/actions/setup-code-env
+        with:
+          gh-token: ${{ github.token }}
+          enable-pester: 'true'
+          enable-python: 'true'
+          enable-git-hooks: 'false'
+
+      - name: Run Pester tests
+        id: pester
+        shell: pwsh -NoProfile -Command "& '{0}'"
+        continue-on-error: true
+        run: |
+          $ErrorActionPreference = 'Continue'
+
+          try {
+            # Pester is installed by setup-code-env action
+            $config = [PesterConfiguration]::Default
+            $config.Run.Path = './tests'
+            $config.Run.Exit = $false
+            $config.Output.Verbosity = 'Normal'
+            $config.Run.PassThru = $true
+
+            $result = Invoke-Pester -Configuration $config
+
+            "pester_total=$($result.TotalCount)" >> $env:GITHUB_OUTPUT
+            "pester_passed=$($result.PassedCount)" >> $env:GITHUB_OUTPUT
+            "pester_failed=$($result.FailedCount)" >> $env:GITHUB_OUTPUT
+            "pester_skipped=$($result.SkippedCount)" >> $env:GITHUB_OUTPUT
+            "pester_duration=$([math]::Round($result.Duration.TotalSeconds, 1))" >> $env:GITHUB_OUTPUT
+
+            if ($result.FailedCount -gt 0) {
+              "pester_status=FAIL" >> $env:GITHUB_OUTPUT
+              $failedNames = ($result.Failed | ForEach-Object { "  - $($_.ExpandedName)" }) -join "`n"
+              # Limit output size to stay within GitHub Actions output constraints
+              $maxFailureLength = 2000
+              if ($failedNames.Length -gt $maxFailureLength) {
+                $failedNames = $failedNames.Substring(0, $maxFailureLength) + "`n  ... (truncated)"
+              }
+              $delimiter = "EOF_PESTER_$(Get-Random)"
+              "pester_failures<<$delimiter" >> $env:GITHUB_OUTPUT
+              $failedNames >> $env:GITHUB_OUTPUT
+              "$delimiter" >> $env:GITHUB_OUTPUT
+            } else {
+              "pester_status=PASS" >> $env:GITHUB_OUTPUT
+            }
+          }
+          catch {
+            "pester_status=ERROR" >> $env:GITHUB_OUTPUT
+            "pester_error=$($_.Exception.Message -replace "`n",' ')" >> $env:GITHUB_OUTPUT
+          }
+
+      - name: Run pytest
+        id: pytest
+        continue-on-error: true
+        shell: pwsh -NoProfile -Command "& '{0}'"
+        run: |
+          $ErrorActionPreference = 'Continue'
+
+          $pythonAvailable = Get-Command python -ErrorAction SilentlyContinue
+          $pyprojectExists = Test-Path "pyproject.toml"
+
+          if ($pythonAvailable -and $pyprojectExists) {
+            try {
+              # Prefer uv (installed by setup-code-env), fall back to python -m pytest
+              $uvAvailable = Get-Command uv -ErrorAction SilentlyContinue
+              if ($uvAvailable) {
+                $output = & uv run pytest --tb=short -q 2>&1 | Out-String
+              } else {
+                $output = & python -m pytest --tb=short -q 2>&1 | Out-String
+              }
+              $exitCode = $LASTEXITCODE
+              Write-Output $output
+
+              # Extract summary line for reporting context
+              $summaryLine = ($output -split "`n" | Where-Object { $_ -match "passed|failed|error" } | Select-Object -Last 1)
+              if (-not $summaryLine) {
+                $summaryLine = "No test summary available"
+              }
+              "pytest_summary=$summaryLine" >> $env:GITHUB_OUTPUT
+
+              # Use exit code as primary signal (not output parsing)
+              if ($exitCode -ne 0) {
+                "pytest_status=FAIL" >> $env:GITHUB_OUTPUT
+              } else {
+                "pytest_status=PASS" >> $env:GITHUB_OUTPUT
+              }
+            }
+            catch {
+              "pytest_status=ERROR" >> $env:GITHUB_OUTPUT
+              "pytest_summary=$($_.Exception.Message -replace "`n",' ')" >> $env:GITHUB_OUTPUT
+            }
+          } else {
+            "pytest_status=SKIPPED" >> $env:GITHUB_OUTPUT
+            "pytest_summary=Python test environment not available" >> $env:GITHUB_OUTPUT
+          }
+
+      - name: Generate test summary
+        id: summary
+        shell: pwsh -NoProfile -Command "& '{0}'"
+        env:
+          PESTER_STATUS: ${{ steps.pester.outputs.pester_status || 'SKIPPED' }}
+          PESTER_TOTAL: ${{ steps.pester.outputs.pester_total || '0' }}
+          PESTER_PASSED: ${{ steps.pester.outputs.pester_passed || '0' }}
+          PESTER_FAILED: ${{ steps.pester.outputs.pester_failed || '0' }}
+          PESTER_SKIPPED: ${{ steps.pester.outputs.pester_skipped || '0' }}
+          PESTER_DURATION: ${{ steps.pester.outputs.pester_duration || '0' }}
+          PESTER_FAILURES: ${{ steps.pester.outputs.pester_failures || '' }}
+          PESTER_ERROR: ${{ steps.pester.outputs.pester_error || '' }}
+          PYTEST_STATUS: ${{ steps.pytest.outputs.pytest_status || 'SKIPPED' }}
+          PYTEST_SUMMARY: ${{ steps.pytest.outputs.pytest_summary || 'Not executed' }}
+        run: |
+          $summary = "## Pre-executed Test Results`n`n"
+          $summary += "### Pester Tests (PowerShell)`n"
+          $summary += "- **Status**: $env:PESTER_STATUS`n"
+
+          if ($env:PESTER_STATUS -notin @('SKIPPED', 'ERROR')) {
+            $summary += "- **Total**: $env:PESTER_TOTAL | **Passed**: $env:PESTER_PASSED | **Failed**: $env:PESTER_FAILED | **Skipped**: $env:PESTER_SKIPPED`n"
+            $summary += "- **Duration**: $($env:PESTER_DURATION)s`n"
+          }
+
+          if ($env:PESTER_STATUS -eq 'FAIL' -and $env:PESTER_FAILURES) {
+            $summary += "`n**Failed Tests**:`n$env:PESTER_FAILURES`n"
+          }
+          elseif ($env:PESTER_STATUS -eq 'ERROR' -and $env:PESTER_ERROR) {
+            $summary += "- **Error**: $env:PESTER_ERROR`n"
+          }
+
+          $summary += "`n### pytest (Python)`n"
+          $summary += "- **Status**: $env:PYTEST_STATUS`n"
+          $summary += "- **Summary**: $env:PYTEST_SUMMARY`n"
+
+          $delimiter = "EOF_SUMMARY_$(Get-Random)"
+          "test_summary<<$delimiter" >> $env:GITHUB_OUTPUT
+          $summary >> $env:GITHUB_OUTPUT
+          "$delimiter" >> $env:GITHUB_OUTPUT
+
+          Write-Output "Generated test summary:"
+          Write-Output $summary
+
+# ==============================================================================
 # Agent Review Jobs (6 Static Jobs)
 # ==============================================================================
 #
@@ -170,7 +335,7 @@ jobs:
   qa-review:
     name: QA Review
     runs-on: ubuntu-24.04-arm
-    needs: check-changes
+    needs: [check-changes, run-tests]
     if: always() && needs.check-changes.result == 'success'
     timeout-minutes: 10
     permissions:
@@ -191,6 +356,7 @@ jobs:
           pr-number: ${{ env.PR_NUMBER }}
           bot-pat: ${{ secrets.BOT_PAT }}
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+          additional-context: ${{ needs.run-tests.outputs.test-summary || 'Test execution was skipped (no relevant file changes or test job did not run).' }}
 
   analyst-review:
     name: Analyst Review
