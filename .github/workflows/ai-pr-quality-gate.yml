@@ -150,6 +150,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
+      - name: Setup code environment
+        uses: ./.github/actions/setup-code-env
+        with:
+          gh-token: ${{ github.token }}
+          enable-pester: 'true'
+          enable-python: 'true'
+          enable-git-hooks: 'false'
+
       - name: Run Pester tests
         id: pester
         shell: pwsh -NoProfile -Command "& '{0}'"
@@ -158,9 +166,7 @@ jobs:
           $ErrorActionPreference = 'Continue'
 
           try {
-            Set-PSRepository -Name 'PSGallery' -InstallationPolicy Trusted
-            Install-Module -Name Pester -RequiredVersion 5.7.1 -Force -Scope CurrentUser
-
+            # Pester is installed by setup-code-env action
             $config = [PesterConfiguration]::Default
             $config.Run.Path = './tests'
             $config.Run.Exit = $false
@@ -203,21 +209,30 @@ jobs:
         run: |
           $ErrorActionPreference = 'Continue'
 
-          $uvAvailable = Get-Command uv -ErrorAction SilentlyContinue
+          $pythonAvailable = Get-Command python -ErrorAction SilentlyContinue
           $pyprojectExists = Test-Path "pyproject.toml"
 
-          if ($uvAvailable -and $pyprojectExists) {
+          if ($pythonAvailable -and $pyprojectExists) {
             try {
-              $output = & uv run pytest --tb=short -q 2>&1 | Out-String
+              # Prefer uv (installed by setup-code-env), fall back to python -m pytest
+              $uvAvailable = Get-Command uv -ErrorAction SilentlyContinue
+              if ($uvAvailable) {
+                $output = & uv run pytest --tb=short -q 2>&1 | Out-String
+              } else {
+                $output = & python -m pytest --tb=short -q 2>&1 | Out-String
+              }
+              $exitCode = $LASTEXITCODE
               Write-Output $output
 
+              # Extract summary line for reporting context
               $summaryLine = ($output -split "`n" | Where-Object { $_ -match "passed|failed|error" } | Select-Object -Last 1)
               if (-not $summaryLine) {
                 $summaryLine = "No test summary available"
               }
               "pytest_summary=$summaryLine" >> $env:GITHUB_OUTPUT
 
-              if ($summaryLine -match "failed|error") {
+              # Use exit code as primary signal (not output parsing)
+              if ($exitCode -ne 0) {
                 "pytest_status=FAIL" >> $env:GITHUB_OUTPUT
               } else {
                 "pytest_status=PASS" >> $env:GITHUB_OUTPUT
