@@ -39,6 +39,15 @@ $script:Config = @{
     MaxResults       = 10
 }
 
+# File list cache to avoid repeated Get-ChildItem calls
+$script:FileListCache = @{
+    Path        = ""
+    Files       = @()
+    LowerNames  = [string[]]@()  # Pre-computed lowercase basenames for fast matching
+    LastChecked = [datetime]::MinValue
+    CacheTTL    = [timespan]::FromSeconds(10)
+}
+
 #endregion
 
 #region Private Functions
@@ -62,15 +71,9 @@ function Get-ContentHash {
         [string]$Content
     )
 
-    $sha256 = [System.Security.Cryptography.SHA256]::Create()
-    try {
-        $bytes = [System.Text.Encoding]::UTF8.GetBytes($Content)
-        $hashBytes = $sha256.ComputeHash($bytes)
-        return [System.BitConverter]::ToString($hashBytes).Replace("-", "").ToLowerInvariant()
-    }
-    finally {
-        $sha256.Dispose()
-    }
+    $bytes = [System.Text.Encoding]::UTF8.GetBytes($Content)
+    $hashBytes = [System.Security.Cryptography.SHA256]::HashData($bytes)
+    return [System.BitConverter]::ToString($hashBytes).Replace("-", "").ToLowerInvariant()
 }
 
 function Invoke-SerenaSearch {
@@ -81,6 +84,7 @@ function Invoke-SerenaSearch {
     .DESCRIPTION
         Searches .serena/memories/ for files matching query keywords.
         Scoring: based on percentage of query keywords matching in filename.
+        Use -SkipContent to avoid file I/O and hashing for search-only queries.
 
     .PARAMETER Query
         Search query string.
@@ -90,6 +94,11 @@ function Invoke-SerenaSearch {
 
     .PARAMETER MaxResults
         Maximum results to return.
+
+    .PARAMETER SkipContent
+        When set, skips file content reading and SHA-256 hashing.
+        Content and Hash properties will be $null on returned objects.
+        Use this for search-only queries where content is not needed.
 
     .OUTPUTS
         Array of [PSCustomObject] with: Name, Content, Source, Score, Path, Hash
@@ -104,10 +113,13 @@ function Invoke-SerenaSearch {
         [string]$MemoryPath = ".serena/memories",
 
         [Parameter()]
-        [int]$MaxResults = 10
+        [int]$MaxResults = 10,
+
+        [Parameter()]
+        [switch]$SkipContent
     )
 
-    $results = @()
+    $results = [System.Collections.Generic.List[PSCustomObject]]::new()
 
     # Verify path exists
     if (-not (Test-Path $MemoryPath)) {
@@ -115,57 +127,93 @@ function Invoke-SerenaSearch {
         return @()
     }
 
-    # Extract keywords (>2 chars)
-    $keywords = @($Query.ToLowerInvariant() -split '\s+' | Where-Object { $_.Length -gt 2 })
+    # Extract keywords (>2 chars), avoid pipeline overhead
+    $lowerQuery = $Query.ToLowerInvariant()
+    $allTokens = $lowerQuery.Split(' ', [System.StringSplitOptions]::RemoveEmptyEntries)
+    $keywords = [System.Collections.Generic.List[string]]::new()
+    foreach ($token in $allTokens) {
+        if ($token.Length -gt 2) { $keywords.Add($token) }
+    }
     if ($keywords.Count -eq 0) {
         Write-Verbose "No valid keywords extracted from query"
         return @()
     }
+    $keywordCount = $keywords.Count
 
-    # Get all memory files
-    try {
-        $files = @(Get-ChildItem -Path $MemoryPath -Filter "*.md" -ErrorAction Stop)
+    # Get memory files (cached for 10s to avoid repeated filesystem scans)
+    $now = [datetime]::UtcNow
+    $cacheValid = ($script:FileListCache.Path -eq $MemoryPath) -and
+                  ($script:FileListCache.LastChecked -gt [datetime]::MinValue) -and
+                  (($now - $script:FileListCache.LastChecked) -lt $script:FileListCache.CacheTTL)
+
+    if ($cacheValid) {
+        $files = $script:FileListCache.Files
+        $lowerNames = $script:FileListCache.LowerNames
+        Write-Verbose "Using cached file list ($($files.Count) files)"
     }
-    catch {
-        Write-Warning "Failed to enumerate memory files in '$MemoryPath': $($_.Exception.Message)"
-        return @()
+    else {
+        try {
+            $files = @(Get-ChildItem -Path $MemoryPath -Filter "*.md" -ErrorAction Stop)
+        }
+        catch {
+            Write-Warning "Failed to enumerate memory files in '$MemoryPath': $($_.Exception.Message)"
+            return @()
+        }
+        # Pre-compute lowercase basenames to avoid per-iteration string allocation
+        $lowerNames = [string[]]::new($files.Count)
+        for ($j = 0; $j -lt $files.Count; $j++) {
+            $lowerNames[$j] = $files[$j].BaseName.ToLowerInvariant()
+        }
+        $script:FileListCache.Path = $MemoryPath
+        $script:FileListCache.Files = $files
+        $script:FileListCache.LowerNames = $lowerNames
+        $script:FileListCache.LastChecked = $now
+        Write-Verbose "Refreshed file list cache ($($files.Count) files)"
     }
-    Write-Verbose "Found $($files.Count) memory files"
 
-    # Score each file by keyword matches
-    foreach ($file in $files) {
-        $fileName = $file.BaseName.ToLowerInvariant()
-        $matchingKeywords = @($keywords | Where-Object { $fileName -match [regex]::Escape($_) })
+    # Score each file by keyword matches using string Contains (faster than regex)
+    $fileCount = $files.Count
+    for ($idx = 0; $idx -lt $fileCount; $idx++) {
+        $fileName = $lowerNames[$idx]
+        $matchCount = 0
+        foreach ($kw in $keywords) {
+            if ($fileName.Contains($kw)) { $matchCount++ }
+        }
 
-        if ($matchingKeywords.Count -gt 0) {
-            # Score based on percentage of keywords matched
-            $score = [math]::Round(($matchingKeywords.Count / $keywords.Count) * 100, 2)
+        if ($matchCount -gt 0) {
+            $score = [math]::Round(($matchCount / $keywordCount) * 100, 2)
+            $currentFile = $files[$idx]
 
-            # Read content for return
-            try {
-                $content = Get-Content -Path $file.FullName -Raw -ErrorAction Stop
+            $content = $null
+            $hash = $null
+
+            if (-not $SkipContent) {
+                try {
+                    $content = Get-Content -Path $currentFile.FullName -Raw -ErrorAction Stop
+                }
+                catch {
+                    Write-Warning "Failed to read memory file '$($currentFile.FullName)': $($_.Exception.Message)"
+                    continue
+                }
+                $hash = Get-ContentHash -Content ($content ?? "")
             }
-            catch {
-                Write-Warning "Failed to read memory file '$($file.FullName)': $($_.Exception.Message)"
-                continue
-            }
 
-            $results += [PSCustomObject]@{
-                Name    = $file.BaseName
+            $results.Add([PSCustomObject]@{
+                Name    = $currentFile.BaseName
                 Content = $content
                 Source  = "Serena"
                 Score   = $score
-                Path    = $file.FullName
-                Hash    = Get-ContentHash -Content ($content ?? "")
-            }
+                Path    = $currentFile.FullName
+                Hash    = $hash
+            })
         }
     }
 
     # Sort by score descending, limit results
-    $results = @($results | Sort-Object -Property Score -Descending | Select-Object -First $MaxResults)
+    $sorted = @($results | Sort-Object -Property Score -Descending | Select-Object -First $MaxResults)
 
-    Write-Verbose "Serena search returned $($results.Count) results"
-    return $results
+    Write-Verbose "Serena search returned $($sorted.Count) results"
+    return $sorted
 }
 
 function Invoke-ForgetfulSearch {
@@ -296,22 +344,27 @@ function Merge-MemoryResults {
         [int]$MaxResults = 10
     )
 
-    $merged = @()
-    $seenHashes = @{}
+    $merged = [System.Collections.Generic.List[PSCustomObject]]::new()
+    $seenHashes = [System.Collections.Generic.HashSet[string]]::new()
 
     # Add Serena results first (canonical)
     foreach ($result in $SerenaResults) {
-        if (-not $seenHashes.ContainsKey($result.Hash)) {
-            $seenHashes[$result.Hash] = $true
-            $merged += $result
+        if ($null -eq $result.Hash) {
+            # No hash (SkipContent path), cannot deduplicate, include as-is
+            $merged.Add($result)
+        }
+        elseif ($seenHashes.Add($result.Hash)) {
+            $merged.Add($result)
         }
     }
 
     # Add unique Forgetful results
     foreach ($result in $ForgetfulResults) {
-        if (-not $seenHashes.ContainsKey($result.Hash)) {
-            $seenHashes[$result.Hash] = $true
-            $merged += $result
+        if ($null -eq $result.Hash) {
+            $merged.Add($result)
+        }
+        elseif ($seenHashes.Add($result.Hash)) {
+            $merged.Add($result)
         }
     }
 
@@ -494,21 +547,21 @@ function Search-Memory {
         return $forgetfulResults
     }
 
-    # Always query Serena (unless SemanticOnly)
-    $serenaResults = Invoke-SerenaSearch -Query $Query -MaxResults $MaxResults
-
-    # Skip Forgetful if LexicalOnly
+    # LexicalOnly: skip content reading and hashing entirely
     if ($LexicalOnly) {
-        return $serenaResults
+        return Invoke-SerenaSearch -Query $Query -MaxResults $MaxResults -SkipContent
     }
 
-    # Augment with Forgetful if available
-    if (Test-ForgetfulAvailable) {
-        $forgetfulResults = Invoke-ForgetfulSearch -Query $Query -MaxResults $MaxResults
-    }
-    else {
+    # Augmented mode: check Forgetful availability before deciding on content loading
+    $forgetfulAvailable = Test-ForgetfulAvailable
+    if (-not $forgetfulAvailable) {
         Write-Verbose "Forgetful unavailable, returning Serena-only results"
+        return Invoke-SerenaSearch -Query $Query -MaxResults $MaxResults
     }
+
+    # Forgetful is available: need content/hashes for dedup during merge
+    $serenaResults = Invoke-SerenaSearch -Query $Query -MaxResults $MaxResults
+    $forgetfulResults = Invoke-ForgetfulSearch -Query $Query -MaxResults $MaxResults
 
     # Merge and deduplicate
     return Merge-MemoryResults -SerenaResults $serenaResults -ForgetfulResults $forgetfulResults -MaxResults $MaxResults

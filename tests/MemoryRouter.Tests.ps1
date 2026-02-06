@@ -415,6 +415,18 @@ Describe "Merge-MemoryResults" {
 
         $merged | Should -BeNullOrEmpty
     }
+
+    It "Preserves all results with null Hash values" {
+        $serena = @(
+            [PSCustomObject]@{ Name = "s1"; Content = $null; Source = "Serena"; Score = 100; Hash = $null },
+            [PSCustomObject]@{ Name = "s2"; Content = $null; Source = "Serena"; Score = 90; Hash = $null },
+            [PSCustomObject]@{ Name = "s3"; Content = $null; Source = "Serena"; Score = 80; Hash = $null }
+        )
+
+        $merged = & $mergeResults -SerenaResults $serena
+
+        $merged.Count | Should -Be 3
+    }
 }
 
 Describe "Invoke-ForgetfulSearch Error Handling" {
@@ -558,6 +570,95 @@ Describe "Invoke-SerenaSearch Error Handling" {
             finally {
                 Remove-Item $emptyDir -Force -ErrorAction SilentlyContinue
             }
+        }
+    }
+}
+
+Describe "Invoke-SerenaSearch -SkipContent" {
+    BeforeAll {
+        $module = Get-Module MemoryRouter
+        $invokeSerenaSearch = & $module { ${function:Invoke-SerenaSearch} }
+
+        # Create temp directory with test files
+        $script:TestDir = Join-Path ([System.IO.Path]::GetTempPath()) "MemoryRouter-SkipContent-$(Get-Random)"
+        New-Item -Path $script:TestDir -ItemType Directory -Force | Out-Null
+        "# PowerShell Array Patterns" | Set-Content (Join-Path $script:TestDir "powershell-arrays.md")
+        "# Git Hook Validation" | Set-Content (Join-Path $script:TestDir "git-hooks-validation.md")
+    }
+
+    AfterAll {
+        if (Test-Path $script:TestDir) {
+            Remove-Item $script:TestDir -Recurse -Force
+        }
+    }
+
+    It "Returns results with null Content when -SkipContent specified" {
+        $results = & $invokeSerenaSearch -Query "powershell arrays" -MemoryPath $script:TestDir -SkipContent
+
+        $results.Count | Should -BeGreaterThan 0
+        $results[0].Content | Should -BeNullOrEmpty
+    }
+
+    It "Returns results with null Hash when -SkipContent specified" {
+        $results = & $invokeSerenaSearch -Query "powershell arrays" -MemoryPath $script:TestDir -SkipContent
+
+        $results.Count | Should -BeGreaterThan 0
+        $results[0].Hash | Should -BeNullOrEmpty
+    }
+
+    It "Preserves Name, Source, Score, Path properties" {
+        $results = & $invokeSerenaSearch -Query "powershell" -MemoryPath $script:TestDir -SkipContent
+
+        $results.Count | Should -BeGreaterThan 0
+        $results[0].Name | Should -Be "powershell-arrays"
+        $results[0].Source | Should -Be "Serena"
+        $results[0].Score | Should -BeGreaterThan 0
+        $results[0].Path | Should -Not -BeNullOrEmpty
+    }
+
+    It "Returns same match count as with content" {
+        $withContent = & $invokeSerenaSearch -Query "powershell" -MemoryPath $script:TestDir
+        $skipContent = & $invokeSerenaSearch -Query "powershell" -MemoryPath $script:TestDir -SkipContent
+
+        $withContent.Count | Should -Be $skipContent.Count
+    }
+}
+
+Describe "Search-Memory Performance Path" {
+    Context "LexicalOnly uses fast path" {
+        It "Returns results with null Content in LexicalOnly mode" {
+            if (-not (Test-Path ".serena/memories")) {
+                Set-ItResult -Skipped -Because "No .serena/memories directory"
+                return
+            }
+
+            $results = Search-Memory -Query "memory" -LexicalOnly
+
+            $results.Count | Should -BeGreaterThan 0
+            # LexicalOnly now uses SkipContent for performance
+            $results[0].Content | Should -BeNullOrEmpty
+        }
+    }
+
+    Context "Serena-only fallback preserves content contract" {
+        It "Returns results with populated Content when Forgetful unavailable" {
+            if (-not (Test-Path ".serena/memories")) {
+                Set-ItResult -Skipped -Because "No .serena/memories directory"
+                return
+            }
+
+            # Ensure Forgetful is marked unavailable
+            $module = Get-Module MemoryRouter
+            & $module {
+                $script:HealthCache.Available = $false
+                $script:HealthCache.LastChecked = [datetime]::UtcNow
+            }
+
+            $results = Search-Memory -Query "memory router"
+
+            $results.Count | Should -BeGreaterThan 0
+            # Default mode preserves Content even when Forgetful is unavailable
+            $results[0].Content | Should -Not -BeNullOrEmpty
         }
     }
 }
