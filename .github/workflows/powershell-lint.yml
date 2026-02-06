@@ -8,8 +8,15 @@
 # IMPORTANT: This workflow runs on ALL PRs to satisfy required status checks,
 # but skips actual linting when no PowerShell files are changed.
 #
+# NOTE: pester-tests.yml also runs Invoke-PSScriptAnalyzer.ps1 in its
+# script-analysis job, but only when "testable" paths change (scripts/,
+# build/, .github/scripts/, .claude/skills/, etc.). This workflow provides
+# broader coverage by triggering on ANY PowerShell file change, catching
+# .ps1/.psm1 files outside those directories.
+#
 # This workflow uses the existing Invoke-PSScriptAnalyzer.ps1 script which
-# scans all PowerShell files and reports Error-level issues.
+# scans all PowerShell files, reports Warning- and Error-level issues, and
+# fails the workflow on errors.
 #
 # Local developers can run the same analysis using:
 #   pwsh ./build/scripts/Invoke-PSScriptAnalyzer.ps1
@@ -46,7 +53,6 @@ jobs:
             powershell:
               - '**/*.ps1'
               - '**/*.psm1'
-              - '**/*.psd1'
 
       - name: Report path check result
         run: |
