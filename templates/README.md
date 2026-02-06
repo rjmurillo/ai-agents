@@ -17,6 +17,7 @@ templates/
   platforms/                 # Platform-specific configurations
     vscode.yaml              # VS Code / GitHub Copilot settings
     copilot-cli.yaml         # Copilot CLI settings
+  toolsets.yaml              # Named tool groups for reducing duplication
   README.md                  # This file
 ```
 
@@ -27,8 +28,47 @@ templates/
 The template system maintains a single source of truth for agent behavior while generating platform-specific outputs:
 
 1. **Shared Templates** (`agents/*.shared.md`): Define agent behavior, responsibilities, and content
-2. **Platform Configs** (`platforms/*.yaml`): Specify platform-specific settings (model, tools, syntax)
-3. **Generation Script** (`build/Generate-Agents.ps1`): Transforms templates into platform-specific files
+2. **Toolset Definitions** (`toolsets.yaml`): Named groups of tools to reduce duplication
+3. **Platform Configs** (`platforms/*.yaml`): Specify platform-specific settings (model, tools, syntax)
+4. **Generation Script** (`build/Generate-Agents.ps1`): Transforms templates into platform-specific files
+
+### Toolsets
+
+Toolsets are named collections of tools that reduce duplication across agent templates.
+Instead of listing the same tools in every agent, define them once and reference by name.
+
+This concept aligns with [GitHub MCP Server toolsets](https://github.blog/changelog/2025-12-10-the-github-mcp-server-adds-support-for-tool-specific-configuration-and-more/) where related tools are grouped (e.g., `repos`, `issues`, `pull_requests`).
+
+**Defined toolsets** (`toolsets.yaml`):
+
+| Toolset | Tools | Used By |
+|---------|-------|---------|
+| `editor` | vscode, read, edit, search | architect, critic, planner, and 5 more |
+| `executor` | vscode, execute, read, edit, search | orchestrator, implementer, qa, devops |
+| `knowledge` | cloudmcp-manager/\*, serena/\*, memory | Most agents |
+| `github-research` | 7 GitHub search/read tools | analyst |
+| `github-oversight` | 6 GitHub issue/PR/workflow tools | orchestrator |
+| `github-code` | 8 GitHub repo management tools | implementer |
+| `github-cicd` | 8 GitHub CI/CD tools | devops |
+| `github-security` | 4 GitHub security scanning tools | security |
+| `research` | web, deepwiki, context7, perplexity | analyst |
+
+**Usage in templates**: Reference with `$toolset:name` in the tools array:
+
+```yaml
+tools_vscode:
+  - $toolset:editor
+  - $toolset:github-research
+  - $toolset:knowledge
+tools_copilot:
+  - $toolset:editor
+  - $toolset:github-research
+  - $toolset:knowledge
+```
+
+The generation script expands `$toolset:` references into individual tools using platform-specific variants when available. Generated agent files contain fully expanded tool lists.
+
+**Platform-specific variants**: Some toolsets differ between platforms. For example, the `editor` toolset includes `vscode` for VS Code but not for Copilot CLI. Define platform variants with `tools_vscode` and `tools_copilot` keys in `toolsets.yaml`.
 
 ### Generation Flow
 
@@ -87,23 +127,36 @@ For **Claude-specific changes** (MCP tools, Serena integration):
 ### Add a New Agent
 
 1. Create `templates/agents/{name}.shared.md`
-2. Define frontmatter with platform-specific tools:
+2. Define frontmatter with platform-specific tools (use toolset references to reduce duplication):
 
    ```yaml
    ---
    description: Agent description
    tools_vscode:
-     - vscode
-     - read
-     - search
-     - cloudmcp-manager/*
+     - $toolset:editor
+     - $toolset:knowledge
    tools_copilot:
-     - shell
-     - read
-     - edit
-     - search
-     - agent
+     - $toolset:editor
+     - $toolset:knowledge
+   ---
+   ```
+
+   Or mix toolset references with individual tools:
+
+   ```yaml
+   ---
+   description: Agent description
+   tools_vscode:
+     - $toolset:executor
+     - web
+     - $toolset:github-research
+     - $toolset:knowledge
+   tools_copilot:
+     - $toolset:executor
+     - web
+     - $toolset:github-research
      - cloudmcp-manager/*
+     - serena/*
    ---
    ```
 
@@ -182,6 +235,7 @@ When drift is detected:
 
 - [ADR-036: Two-Source Agent Template Architecture](../.agents/architecture/ADR-036-two-source-agent-template-architecture.md) - Governing architecture decision
 - [src/claude/AGENTS.md](../src/claude/AGENTS.md) - Claude agent synchronization rules
+- [.vscode/toolsets.jsonc](../.vscode/toolsets.jsonc) - VS Code native toolset definitions
 - [CONTRIBUTING.md](../CONTRIBUTING.md) - Full contribution guide
 - [build/Generate-Agents.ps1](../build/Generate-Agents.ps1) - Generation script
 - [build/scripts/Detect-AgentDrift.ps1](../build/scripts/Detect-AgentDrift.ps1) - Drift detection script
@@ -192,21 +246,36 @@ When drift is detected:
 
 ### Frontmatter
 
+Use `$toolset:name` references to reduce duplication (see Toolsets section above):
+
 ```yaml
 ---
 description: Brief description of the agent's purpose
 tools_vscode:
-  - vscode
-  - read
-  - search
-  - cloudmcp-manager/*
+  - $toolset:editor
+  - $toolset:knowledge
 tools_copilot:
-  - shell
-  - read
-  - edit
-  - search
-  - agent
+  - $toolset:editor
+  - $toolset:knowledge
+---
+```
+
+Individual tools can be mixed with toolset references:
+
+```yaml
+---
+description: Brief description of the agent's purpose
+tools_vscode:
+  - $toolset:editor
+  - web
+  - perplexity/*
+  - $toolset:knowledge
+tools_copilot:
+  - $toolset:editor
+  - web
+  - perplexity/*
   - cloudmcp-manager/*
+  - serena/*
 ---
 ```
 
