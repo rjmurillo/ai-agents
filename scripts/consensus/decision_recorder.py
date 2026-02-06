@@ -135,12 +135,20 @@ class DecisionRecorder:
         """List recorded decisions.
 
         Args:
-            limit: Maximum number of decisions to return (newest first)
+            limit: Maximum number of decisions to return (newest first).
+                   Must be >= 1 if provided.
             topic_filter: Filter by topic substring (case-insensitive)
 
         Returns:
             List of Decision objects
+
+        Raises:
+            ValueError: If limit is not a positive integer
         """
+        if limit is not None and limit < 1:
+            msg = f"Limit must be >= 1, got {limit}"
+            raise ValueError(msg)
+
         files = sorted(
             self.decisions_dir.glob("*.json"),
             key=lambda p: p.stat().st_mtime,
@@ -160,7 +168,7 @@ class DecisionRecorder:
                 decisions.append(decision)
 
                 # Apply limit
-                if limit and len(decisions) >= limit:
+                if limit is not None and len(decisions) >= limit:
                     break
 
         return decisions

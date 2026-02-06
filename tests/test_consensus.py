@@ -439,6 +439,16 @@ class TestDecisionRecorder:
 
         assert len(decisions) == 3
 
+    def test_list_with_invalid_limit(self, tmp_path: Path) -> None:
+        """Limit of 0 or negative raises ValueError."""
+        recorder = DecisionRecorder(tmp_path)
+
+        with pytest.raises(ValueError, match="Limit must be >= 1"):
+            recorder.list_decisions(limit=0)
+
+        with pytest.raises(ValueError, match="Limit must be >= 1"):
+            recorder.list_decisions(limit=-1)
+
     def test_list_with_topic_filter(self, tmp_path: Path) -> None:
         """List filters by topic substring."""
         recorder = DecisionRecorder(tmp_path)
