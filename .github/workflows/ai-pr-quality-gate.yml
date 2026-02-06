@@ -178,8 +178,10 @@ jobs:
             if ($result.FailedCount -gt 0) {
               "pester_status=FAIL" >> $env:GITHUB_OUTPUT
               $failedNames = ($result.Failed | ForEach-Object { "  - $($_.ExpandedName)" }) -join "`n"
-              if ($failedNames.Length -gt 2000) {
-                $failedNames = $failedNames.Substring(0, 2000) + "`n  ... (truncated)"
+              # Limit output size to stay within GitHub Actions output constraints
+              $maxFailureLength = 2000
+              if ($failedNames.Length -gt $maxFailureLength) {
+                $failedNames = $failedNames.Substring(0, $maxFailureLength) + "`n  ... (truncated)"
               }
               $delimiter = "EOF_PESTER_$(Get-Random)"
               "pester_failures<<$delimiter" >> $env:GITHUB_OUTPUT
