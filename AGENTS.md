@@ -823,6 +823,100 @@ Each specialist creates: `.agents/planning/impact-analysis-[domain]-[feature].md
 
 ---
 
+## Consensus Mechanisms for Multi-Agent Decisions
+
+When specialist agents disagree during impact analysis or complex decisions, the system uses formal consensus algorithms to reach a decision. All decisions are recorded with votes, rationale, algorithm used, and confidence scores.
+
+### Consensus Algorithms
+
+| Algorithm | Description | Use Cases |
+|-----------|-------------|-----------|
+| **majority** | Simple majority voting (>50% approval) | Standard decisions with equal agent expertise |
+| **weighted** | Expertise-weighted by agent type and domain | Domain-specific decisions (architecture, security, implementation) |
+| **quorum** | Requires minimum participation (default 67%) before deciding | Important decisions requiring broad input |
+| **unanimous** | All participating agents must agree, single rejection blocks | Critical decisions (breaking changes, security-sensitive) |
+
+### Agent Expertise Weights
+
+Weighted consensus uses domain-specific expertise weights defined in `scripts/consensus/weights.py`:
+
+| Domain | High Expertise (2.0) | Medium Expertise (1.5) | Standard (1.0) |
+|--------|---------------------|----------------------|----------------|
+| **architecture** | architect | independent-thinker, high-level-advisor | implementer, analyst |
+| **security** | security | architect | implementer, analyst |
+| **implementation** | implementer | analyst, qa | architect, devops, security |
+| **testing** | qa | implementer | security, analyst |
+| **operations** | devops | security | implementer, architect |
+| **breaking_change** | architect, high-level-advisor | security | implementer, qa, devops |
+
+### Integration Points
+
+Consensus mechanisms are invoked during:
+
+1. **Impact Analysis Consultations**: When multiple specialists disagree on approach
+2. **Architecture Decision Reviews**: For ADR approval requiring multiple viewpoints
+3. **Security-Sensitive Changes**: When security and implementation conflict
+4. **Breaking Change Approvals**: Requiring unanimous or weighted consensus
+
+### Usage Example
+
+```python
+from scripts.consensus import (
+    Vote,
+    majority_consensus,
+    weighted_consensus,
+    DecisionRecorder,
+    get_all_weights,
+)
+
+# Collect votes from specialist agents
+votes = [
+    Vote("architect", "approve", "Design aligns with system architecture", 0.9),
+    Vote("security", "reject", "Introduces authentication risk", 0.8),
+    Vote("implementer", "approve", "Implementation is feasible", 0.85),
+]
+
+# Apply weighted consensus for architecture decision
+weights = get_all_weights("architecture")
+result = weighted_consensus(votes, weights)
+
+# Record decision
+recorder = DecisionRecorder()
+decision = recorder.record_decision(
+    topic="Add OAuth authentication",
+    context="Feature requires secure authentication mechanism",
+    votes=votes,
+    result=result,
+)
+
+print(f"Decision: {result.decision}")
+print(f"Confidence: {result.confidence_score:.2f}")
+print(f"Summary: {result.summary}")
+```
+
+### Decision Recording
+
+All consensus decisions are stored in `.agents/decisions/` as JSON files containing:
+
+- Decision ID and timestamp
+- Topic and detailed context
+- Individual agent votes with rationale and confidence
+- Consensus result with algorithm and confidence score
+- Escalation flag and rationale (if applicable)
+
+See `.agents/decisions/README.md` for complete format specification.
+
+### Escalation Path
+
+If consensus fails (tie vote, quorum not met, blocking objection):
+
+1. Decision is recorded with `escalated: true`
+2. Escalation rationale is documented
+3. Orchestrator escalates to high-level-advisor for final decision
+4. Disagree-and-commit protocol is applied (see below)
+
+---
+
 ## Disagree and Commit Protocol
 
 When specialists have conflicting recommendations, the system applies the "Disagree and Commit" principle to avoid endless consensus-seeking.
