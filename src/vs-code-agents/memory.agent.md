@@ -5,9 +5,9 @@ tools:
   - vscode
   - read
   - edit
-  - memory
   - cloudmcp-manager/*
   - serena/*
+  - memory
 model: Claude Opus 4.5 (copilot)
 ---
 # Memory Agent

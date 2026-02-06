@@ -10,13 +10,13 @@ tools:
   - agent
   - memory
   - todo
-  - cloudmcp-manager/*
   - github/list_issues
   - github/list_pull_requests
   - github/issue_read
   - github/pull_request_read
   - github/list_workflow_runs
   - github/get_workflow_run
+  - cloudmcp-manager/*
   - serena/*
 model: Claude Opus 4.5 (copilot)
 ---

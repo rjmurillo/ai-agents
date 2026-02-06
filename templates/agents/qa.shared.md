@@ -2,19 +2,10 @@
 description: Quality assurance specialist who verifies implementations work correctly for real users—not just passing tests. Designs test strategies, validates coverage against acceptance criteria, and reports results with evidence. Use when you need confidence through verification, regression testing, edge-case coverage, or user-scenario validation.
 argument-hint: Provide the implementation or feature to verify
 tools_vscode:
-  - vscode
-  - execute
-  - read
-  - edit
-  - search
-  - cloudmcp-manager/*
-  - serena/*
-  - memory
+  - $toolset:executor
+  - $toolset:knowledge
 tools_copilot:
-  - shell
-  - read
-  - edit
-  - search
+  - $toolset:executor
   - cloudmcp-manager/*
   - serena/*
 ---

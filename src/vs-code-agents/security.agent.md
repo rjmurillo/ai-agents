@@ -7,13 +7,13 @@ tools:
   - edit
   - search
   - web
-  - cloudmcp-manager/*
   - github/list_code_scanning_alerts
   - github/get_code_scanning_alert
   - github/list_secret_scanning_alerts
   - github/list_dependabot_alerts
-  - serena/*
   - perplexity/*
+  - cloudmcp-manager/*
+  - serena/*
   - memory
 model: Claude Opus 4.5 (copilot)
 ---

@@ -6,7 +6,6 @@ tools:
   - read
   - edit
   - search
-  - web
   - github/search_code
   - github/search_issues
   - github/search_pull_requests
@@ -14,10 +13,11 @@ tools:
   - github/pull_request_read
   - github/get_file_contents
   - github/list_commits
-  - cloudmcp-manager/*
+  - web
   - cognitionai/deepwiki/*
   - context7/*
   - perplexity/*
+  - cloudmcp-manager/*
   - serena/*
   - memory
 model: Claude Opus 4.5 (copilot)

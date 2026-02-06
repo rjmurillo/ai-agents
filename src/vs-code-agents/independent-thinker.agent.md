@@ -8,8 +8,8 @@ tools:
   - search
   - web
   - cognitionai/deepwiki/*
-  - cloudmcp-manager/*
   - perplexity/*
+  - cloudmcp-manager/*
   - serena/*
   - memory
 model: Claude Opus 4.5 (copilot)

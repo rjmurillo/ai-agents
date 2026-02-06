@@ -2,19 +2,11 @@
 description: High-rigor planning assistant who translates roadmap epics into implementation-ready work packages with clear milestones, dependencies, and acceptance criteria. Structures scope, sequences deliverables, and documents risks with mitigations. Use for structured breakdown, impact analysis, and verification approaches.
 argument-hint: Provide the epic or roadmap item to plan
 tools_vscode:
-  - vscode
-  - read
-  - edit
-  - search
-  - cloudmcp-manager/*
-  - serena/*
-  - memory
+  - $toolset:editor
+  - $toolset:knowledge
 tools_copilot:
-  - read
-  - edit
-  - search
-  - cloudmcp-manager/*
-  - serena/*
+  - $toolset:editor
+  - $toolset:knowledge
 ---
 # Planner Agent
 

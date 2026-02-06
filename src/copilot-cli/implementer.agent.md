@@ -7,7 +7,6 @@ tools:
   - read
   - edit
   - search
-  - cloudmcp-manager/*
   - github/create_branch
   - github/push_files
   - github/create_or_update_file
@@ -16,6 +15,7 @@ tools:
   - github/pull_request_read
   - github/issue_read
   - github/add_issue_comment
+  - cloudmcp-manager/*
   - serena/*
 model: claude-opus-4.5
 ---

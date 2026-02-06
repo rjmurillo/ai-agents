@@ -5,14 +5,11 @@ tools_vscode:
   - vscode
   - read
   - edit
-  - cloudmcp-manager/*
-  - serena/*
-  - memory
+  - $toolset:knowledge
 tools_copilot:
   - read
   - edit
-  - cloudmcp-manager/*
-  - serena/*
+  - $toolset:knowledge
 ---
 # Explainer Agent
 

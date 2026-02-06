@@ -383,6 +383,197 @@ function Convert-MemoryPrefix {
 
     return $Body -replace '\{\{MEMORY_PREFIX\}\}', $MemoryPrefix
 }
+function Read-ToolsetDefinitions {
+    <#
+    .SYNOPSIS
+        Reads toolset definitions from a YAML file.
+    .DESCRIPTION
+        Parses the toolsets.yaml file which defines named groups of tools
+        with optional platform-specific variants. Each toolset can have:
+        - tools: shared tools for all platforms
+        - tools_vscode: VS Code-specific tools (overrides tools)
+        - tools_copilot: Copilot CLI-specific tools (overrides tools)
+    .OUTPUTS
+        Hashtable mapping toolset names to their definitions.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$ToolsetsPath
+    )
+
+    if (-not (Test-Path $ToolsetsPath)) {
+        Write-Warning "Toolsets file not found: $ToolsetsPath"
+        return @{}
+    }
+
+    $content = Get-Content -Path $ToolsetsPath -Raw
+    $lines = $content -split '\r?\n'
+    $toolsets = @{}
+    $currentToolset = $null
+    $currentKey = $null
+    $currentArray = $null
+
+    foreach ($line in $lines) {
+        # Skip comments and empty lines
+        if ($line -match '^\s*#' -or $line -match '^\s*$') { continue }
+
+        # Top-level toolset name (no indentation, ends with colon)
+        if ($line -match '^([a-zA-Z][\w-]*):\s*$') {
+            # Save previous array if collecting
+            if ($null -ne $currentToolset -and $null -ne $currentKey -and $null -ne $currentArray) {
+                $toolsets[$currentToolset][$currentKey] = $currentArray
+                $currentKey = $null
+                $currentArray = $null
+            }
+            $currentToolset = $Matches[1]
+            $toolsets[$currentToolset] = @{}
+            continue
+        }
+
+        # Nested key (indented, ends with colon - start of array)
+        if ($line -match '^\s{2}(\w[\w_]*):\s*$') {
+            # Save previous array if collecting
+            if ($null -ne $currentToolset -and $null -ne $currentKey -and $null -ne $currentArray) {
+                $toolsets[$currentToolset][$currentKey] = $currentArray
+            }
+            $currentKey = $Matches[1]
+            $currentArray = @()
+            continue
+        }
+
+        # Nested key-value pair (indented, has value)
+        if ($line -match '^\s{2}(\w[\w_]*):\s+(.+)$') {
+            # Save previous array if collecting
+            if ($null -ne $currentToolset -and $null -ne $currentKey -and $null -ne $currentArray) {
+                $toolsets[$currentToolset][$currentKey] = $currentArray
+                $currentKey = $null
+                $currentArray = $null
+            }
+            if ($null -ne $currentToolset) {
+                $toolsets[$currentToolset][$Matches[1]] = $Matches[2].Trim()
+            }
+            continue
+        }
+
+        # Array item (indented with "    - ")
+        if ($line -match '^\s{4}-\s+(.+)$') {
+            if ($null -ne $currentArray) {
+                $currentArray += $Matches[1].Trim()
+            }
+            continue
+        }
+    }
+
+    # Save final array if still collecting
+    if ($null -ne $currentToolset -and $null -ne $currentKey -and $null -ne $currentArray) {
+        $toolsets[$currentToolset][$currentKey] = $currentArray
+    }
+
+    return $toolsets
+}
+
+function Expand-ToolsetReferences {
+    <#
+    .SYNOPSIS
+        Expands $toolset:name references in a tools array string.
+    .DESCRIPTION
+        Takes a tools array in inline format (e.g., "['$toolset:editor', 'web', '$toolset:knowledge']")
+        and expands each $toolset:name reference into its individual tools based on the toolset
+        definitions and the target platform.
+    .PARAMETER ToolsArrayString
+        The inline array string potentially containing $toolset:name references.
+    .PARAMETER Toolsets
+        Hashtable of toolset definitions from Read-ToolsetDefinitions.
+    .PARAMETER PlatformName
+        The target platform name (e.g., "vscode" or "copilot-cli") for platform-specific resolution.
+    .OUTPUTS
+        The expanded inline array string with all toolset references resolved.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$ToolsArrayString,
+
+        [Parameter(Mandatory)]
+        [hashtable]$Toolsets,
+
+        [Parameter(Mandatory)]
+        [string]$PlatformName
+    )
+
+    # Check if the string contains any toolset references
+    if ($ToolsArrayString -notmatch '\$toolset:') {
+        return $ToolsArrayString
+    }
+
+    # Parse the inline array to extract individual items
+    if ($ToolsArrayString -notmatch '^\[(.*)\]$') {
+        Write-Warning "Expand-ToolsetReferences: Not an inline array: $ToolsArrayString"
+        return $ToolsArrayString
+    }
+
+    $arrayContent = $Matches[1]
+    $items = @()
+    $pattern = "'([^']+)'|""([^""]+)""|([^,\s]+)"
+    $itemMatches = [regex]::Matches($arrayContent, $pattern)
+    foreach ($match in $itemMatches) {
+        if ($match.Groups[1].Success) { $items += $match.Groups[1].Value }
+        elseif ($match.Groups[2].Success) { $items += $match.Groups[2].Value }
+        elseif ($match.Groups[3].Success) { $items += $match.Groups[3].Value }
+    }
+
+    # Expand each item
+    $expandedTools = @()
+    foreach ($item in $items) {
+        if ($item -match '^\$toolset:(.+)$') {
+            $toolsetName = $Matches[1]
+            if (-not $Toolsets.ContainsKey($toolsetName)) {
+                Write-Warning "Expand-ToolsetReferences: Unknown toolset '$toolsetName'"
+                continue
+            }
+
+            $toolset = $Toolsets[$toolsetName]
+
+            # Determine platform key for lookup
+            $platformKey = "tools_$($PlatformName -replace '-', '')"  # tools_vscode, tools_copilotcli
+            $platformKeyAlt = "tools_$($PlatformName -replace '-cli$', '')"  # tools_copilot
+
+            # Resolve tools in priority order: platform-specific > shared
+            $tools = $null
+            if ($toolset.ContainsKey($platformKey)) {
+                $tools = $toolset[$platformKey]
+            }
+            elseif ($toolset.ContainsKey($platformKeyAlt)) {
+                $tools = $toolset[$platformKeyAlt]
+            }
+            elseif ($toolset.ContainsKey('tools')) {
+                $tools = $toolset['tools']
+            }
+
+            if ($null -ne $tools) {
+                foreach ($tool in $tools) {
+                    if ($tool -notin $expandedTools) {
+                        $expandedTools += $tool
+                    }
+                }
+            }
+            else {
+                Write-Warning "Expand-ToolsetReferences: No tools found for toolset '$toolsetName' on platform '$PlatformName'"
+            }
+        }
+        else {
+            # Regular tool - add if not duplicate
+            if ($item -notin $expandedTools) {
+                $expandedTools += $item
+            }
+        }
+    }
+
+    # Rebuild the inline array string
+    $quotedItems = $expandedTools | ForEach-Object { "'$_'" }
+    return "[" + ($quotedItems -join ", ") + "]"
+}
 
 # Export all functions
 Export-ModuleMember -Function @(
@@ -393,4 +584,6 @@ Export-ModuleMember -Function @(
     'Format-FrontmatterYaml'
     'Convert-HandoffSyntax'
     'Convert-MemoryPrefix'
+    'Read-ToolsetDefinitions'
+    'Expand-ToolsetReferences'
 )

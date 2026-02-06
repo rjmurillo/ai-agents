@@ -1,0 +1,96 @@
+{
+  // Toolset definitions for GitHub Copilot agents in VS Code.
+  // These named tool groups reduce repetition in agent configurations
+  // and align with the GitHub MCP Server toolset concept.
+  //
+  // See: https://github.blog/changelog/2025-12-10-the-github-mcp-server-adds-support-for-tool-specific-configuration-and-more/
+
+  "editor": {
+    "tools": ["vscode", "read", "edit", "search"],
+    "description": "Core reading and editing with search",
+    "icon": "edit"
+  },
+  "executor": {
+    "tools": ["vscode", "execute", "read", "edit", "search"],
+    "description": "Editor with shell execution capabilities",
+    "icon": "terminal"
+  },
+  "knowledge": {
+    "tools": ["cloudmcp-manager/*", "serena/*", "memory"],
+    "description": "Cross-session memory and knowledge persistence",
+    "icon": "database"
+  },
+  "github-research": {
+    "tools": [
+      "github/search_code",
+      "github/search_issues",
+      "github/search_pull_requests",
+      "github/issue_read",
+      "github/pull_request_read",
+      "github/get_file_contents",
+      "github/list_commits"
+    ],
+    "description": "GitHub search and context gathering",
+    "icon": "search"
+  },
+  "github-oversight": {
+    "tools": [
+      "github/list_issues",
+      "github/list_pull_requests",
+      "github/issue_read",
+      "github/pull_request_read",
+      "github/list_workflow_runs",
+      "github/get_workflow_run"
+    ],
+    "description": "Issue and PR monitoring with CI/CD status",
+    "icon": "eye"
+  },
+  "github-code": {
+    "tools": [
+      "github/create_branch",
+      "github/push_files",
+      "github/create_or_update_file",
+      "github/create_pull_request",
+      "github/update_pull_request",
+      "github/pull_request_read",
+      "github/issue_read",
+      "github/add_issue_comment"
+    ],
+    "description": "Repository code management",
+    "icon": "git-pull-request"
+  },
+  "github-cicd": {
+    "tools": [
+      "github/list_workflows",
+      "github/list_workflow_runs",
+      "github/get_workflow_run",
+      "github/get_job_logs",
+      "github/run_workflow",
+      "github/rerun_failed_jobs",
+      "github/list_releases",
+      "github/get_file_contents"
+    ],
+    "description": "CI/CD workflow management",
+    "icon": "rocket"
+  },
+  "github-security": {
+    "tools": [
+      "github/list_code_scanning_alerts",
+      "github/get_code_scanning_alert",
+      "github/list_secret_scanning_alerts",
+      "github/list_dependabot_alerts"
+    ],
+    "description": "Security scanning alerts",
+    "icon": "shield"
+  },
+  "research": {
+    "tools": [
+      "web",
+      "cognitionai/deepwiki/*",
+      "context7/*",
+      "perplexity/*"
+    ],
+    "description": "External research and documentation tools",
+    "icon": "book"
+  }
+}
