@@ -561,3 +561,91 @@ Describe "Invoke-SerenaSearch Error Handling" {
         }
     }
 }
+
+Describe "Invoke-SerenaSearch -SkipContent" {
+    BeforeAll {
+        $module = Get-Module MemoryRouter
+        $invokeSerenaSearch = & $module { ${function:Invoke-SerenaSearch} }
+
+        # Create temp directory with test files
+        $script:TestDir = Join-Path ([System.IO.Path]::GetTempPath()) "MemoryRouter-SkipContent-$(Get-Random)"
+        New-Item -Path $script:TestDir -ItemType Directory -Force | Out-Null
+        "# PowerShell Array Patterns" | Set-Content (Join-Path $script:TestDir "powershell-arrays.md")
+        "# Git Hook Validation" | Set-Content (Join-Path $script:TestDir "git-hooks-validation.md")
+    }
+
+    AfterAll {
+        if (Test-Path $script:TestDir) {
+            Remove-Item $script:TestDir -Recurse -Force
+        }
+    }
+
+    It "Returns results with null Content when -SkipContent specified" {
+        $results = & $invokeSerenaSearch -Query "powershell arrays" -MemoryPath $script:TestDir -SkipContent
+
+        $results.Count | Should -BeGreaterThan 0
+        $results[0].Content | Should -BeNullOrEmpty
+    }
+
+    It "Returns results with null Hash when -SkipContent specified" {
+        $results = & $invokeSerenaSearch -Query "powershell arrays" -MemoryPath $script:TestDir -SkipContent
+
+        $results.Count | Should -BeGreaterThan 0
+        $results[0].Hash | Should -BeNullOrEmpty
+    }
+
+    It "Preserves Name, Source, Score, Path properties" {
+        $results = & $invokeSerenaSearch -Query "powershell" -MemoryPath $script:TestDir -SkipContent
+
+        $results.Count | Should -BeGreaterThan 0
+        $results[0].Name | Should -Be "powershell-arrays"
+        $results[0].Source | Should -Be "Serena"
+        $results[0].Score | Should -BeGreaterThan 0
+        $results[0].Path | Should -Not -BeNullOrEmpty
+    }
+
+    It "Returns same match count as with content" {
+        $withContent = & $invokeSerenaSearch -Query "powershell" -MemoryPath $script:TestDir
+        $skipContent = & $invokeSerenaSearch -Query "powershell" -MemoryPath $script:TestDir -SkipContent
+
+        $withContent.Count | Should -Be $skipContent.Count
+    }
+}
+
+Describe "Search-Memory Performance Path" {
+    Context "LexicalOnly uses fast path" {
+        It "Returns results with null Content in LexicalOnly mode" {
+            if (-not (Test-Path ".serena/memories")) {
+                Set-ItResult -Skipped -Because "No .serena/memories directory"
+                return
+            }
+
+            $results = Search-Memory -Query "memory" -LexicalOnly
+
+            $results.Count | Should -BeGreaterThan 0
+            # LexicalOnly now uses SkipContent for performance
+            $results[0].Content | Should -BeNullOrEmpty
+        }
+    }
+
+    Context "Serena-only fallback uses fast path" {
+        It "Returns results with null Content when Forgetful unavailable" {
+            if (-not (Test-Path ".serena/memories")) {
+                Set-ItResult -Skipped -Because "No .serena/memories directory"
+                return
+            }
+
+            # Ensure Forgetful is marked unavailable
+            $module = Get-Module MemoryRouter
+            & $module {
+                $script:HealthCache.Available = $false
+                $script:HealthCache.LastChecked = [datetime]::UtcNow
+            }
+
+            $results = Search-Memory -Query "memory router"
+
+            $results.Count | Should -BeGreaterThan 0
+            $results[0].Content | Should -BeNullOrEmpty
+        }
+    }
+}
