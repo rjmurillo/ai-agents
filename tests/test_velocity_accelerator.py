@@ -11,11 +11,13 @@ from scripts.velocity_accelerator import (
     EventType,
     Opportunity,
     OpportunityType,
+    _word_match,
     detect_artifact_changes,
     detect_opportunities,
     extract_todos_from_diff,
     format_summary,
     main,
+    process_issue_event,
     process_issue_opened,
     score_issue_complexity,
     suggest_agents,
@@ -28,10 +30,14 @@ class TestEventType:
     def test_values(self) -> None:
         assert EventType.PR_MERGED == "pull_request_merged"
         assert EventType.ISSUE_OPENED == "issue_opened"
-        assert EventType.SCHEDULED == "scheduled"
+        assert EventType.ISSUE_LABELED == "issue_labeled"
 
     def test_is_str(self) -> None:
         assert isinstance(EventType.PR_MERGED, str)
+
+    def test_no_scheduled_type(self) -> None:
+        """SCHEDULED was removed since the schedule trigger is not implemented."""
+        assert not hasattr(EventType, "SCHEDULED")
 
 
 class TestOpportunityType:
@@ -40,7 +46,10 @@ class TestOpportunityType:
     def test_values(self) -> None:
         assert OpportunityType.TODO_FOLLOWUP == "todo_followup"
         assert OpportunityType.FIXME_FOLLOWUP == "fixme_followup"
-        assert OpportunityType.STALE_ISSUE == "stale_issue"
+
+    def test_no_stale_issue_type(self) -> None:
+        """STALE_ISSUE was removed since it was never produced."""
+        assert not hasattr(OpportunityType, "STALE_ISSUE")
 
 
 class TestOpportunity:
@@ -57,6 +66,32 @@ class TestOpportunity:
         assert opp.suggested_agent == ""
         assert opp.priority == "medium"
         assert opp.metadata == {}
+
+
+class TestWordMatch:
+    """Test word boundary matching helper."""
+
+    def test_exact_match(self) -> None:
+        assert _word_match("fix", "fix the bug")
+
+    def test_no_substring_match(self) -> None:
+        assert not _word_match("fix", "prefix the value")
+
+    def test_no_suffix_match(self) -> None:
+        assert not _word_match("fix", "fixup the code")
+
+    def test_compound_keyword(self) -> None:
+        assert _word_match("breaking change", "this is a breaking change")
+
+    def test_case_sensitive(self) -> None:
+        # _word_match itself is case-sensitive; callers lower() the text
+        assert not _word_match("fix", "FIX the bug")
+
+    def test_ci_no_false_positive(self) -> None:
+        assert not _word_match("ci", "critical infrastructure")
+
+    def test_cd_no_false_positive(self) -> None:
+        assert not _word_match("cd", "credential store")
 
 
 class TestExtractTodosFromDiff:
@@ -176,6 +211,16 @@ class TestScoreIssueComplexity:
         result = score_issue_complexity("Unrelated title", "No keywords here")
         assert result == "medium"
 
+    def test_no_false_positive_prefix(self) -> None:
+        """Word boundary matching prevents 'prefix' from matching 'fix'."""
+        result = score_issue_complexity("Add prefix to variables", "")
+        assert result == "medium"
+
+    def test_no_false_positive_fixture(self) -> None:
+        """Word boundary matching prevents 'fixture' from matching 'fix'."""
+        result = score_issue_complexity("Test fixture setup", "")
+        assert result == "medium"
+
 
 class TestSuggestAgents:
     """Test agent routing suggestions."""
@@ -189,7 +234,7 @@ class TestSuggestAgents:
         assert "agent-architect" in agents
 
     def test_devops_keywords(self) -> None:
-        agents = suggest_agents("Update CI pipeline", "")
+        agents = suggest_agents("Update the pipeline config", "")
         assert "agent-devops" in agents
 
     def test_multiple_agents(self) -> None:
@@ -211,34 +256,62 @@ class TestSuggestAgents:
         agents = suggest_agents("Create milestone for Q3", "")
         assert "agent-planner" in agents
 
+    def test_no_false_positive_ci_in_critical(self) -> None:
+        """'ci' should not match inside 'critical'."""
+        agents = suggest_agents("Critical infrastructure down", "")
+        # Should not match agent-devops via "ci"
+        assert "agent-devops" not in agents
 
-class TestProcessIssueOpened:
-    """Test issue processing."""
+    def test_no_false_positive_cd_in_credential(self) -> None:
+        """'cd' should not match inside 'credential'."""
+        agents = suggest_agents("Store credential safely", "")
+        # 'credential' contains 'credential' which matches agent-security
+        assert "agent-devops" not in agents
+
+
+class TestProcessIssueEvent:
+    """Test issue event processing."""
 
     def test_returns_complexity_triage(self) -> None:
-        result = process_issue_opened(1, "New feature: add auth", "Implement OAuth")
+        result = process_issue_event(1, "New feature: add auth", "Implement OAuth")
         types = [o.opportunity_type for o in result]
         assert OpportunityType.COMPLEXITY_TRIAGE in types
 
     def test_returns_agent_routing(self) -> None:
-        result = process_issue_opened(1, "Security vulnerability", "CVE fix needed")
+        result = process_issue_event(1, "Security vulnerability", "CVE fix needed")
         types = [o.opportunity_type for o in result]
         assert OpportunityType.AGENT_ROUTING in types
 
     def test_high_complexity_gets_high_priority(self) -> None:
-        result = process_issue_opened(1, "Architecture migration", "")
+        result = process_issue_event(1, "Architecture migration", "")
         triage = [o for o in result if o.opportunity_type == OpportunityType.COMPLEXITY_TRIAGE]
         assert triage[0].priority == "high"
 
     def test_low_complexity_gets_medium_priority(self) -> None:
-        result = process_issue_opened(1, "Fix typo", "")
+        result = process_issue_event(1, "Fix typo", "")
         triage = [o for o in result if o.opportunity_type == OpportunityType.COMPLEXITY_TRIAGE]
         assert triage[0].priority == "medium"
 
     def test_no_routing_if_no_agent_match(self) -> None:
-        result = process_issue_opened(1, "Generic title", "Generic body")
+        result = process_issue_event(1, "Generic title", "Generic body")
         types = [o.opportunity_type for o in result]
         assert OpportunityType.AGENT_ROUTING not in types
+
+    def test_opened_event_uses_issue_opened_type(self) -> None:
+        result = process_issue_event(1, "Security vulnerability", "CVE", event_action="opened")
+        assert result[0].source_event == EventType.ISSUE_OPENED
+        assert "New issue opened" in result[0].description
+
+    def test_labeled_event_uses_issue_labeled_type(self) -> None:
+        result = process_issue_event(1, "Security vulnerability", "CVE", event_action="labeled")
+        assert result[0].source_event == EventType.ISSUE_LABELED
+        assert "Issue labeled" in result[0].description
+
+    def test_backward_compat_alias(self) -> None:
+        """process_issue_opened is an alias for process_issue_event."""
+        result = process_issue_opened(1, "New feature: add auth", "Implement OAuth")
+        types = [o.opportunity_type for o in result]
+        assert OpportunityType.COMPLEXITY_TRIAGE in types
 
 
 class TestDetectArtifactChanges:
@@ -324,6 +397,17 @@ class TestDetectOpportunities:
             issue_body="Found a CVE",
         )
         assert len(result) >= 1
+
+    def test_issue_labeled_uses_labeled_event(self) -> None:
+        result = detect_opportunities(
+            event_name="issues",
+            event_action="labeled",
+            issue_number=5,
+            issue_title="Security vulnerability",
+            issue_body="Found a CVE",
+        )
+        assert len(result) >= 1
+        assert result[0].source_event == EventType.ISSUE_LABELED
 
     def test_push_with_agent_files(self) -> None:
         result = detect_opportunities(

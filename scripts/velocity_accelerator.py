@@ -37,7 +37,6 @@ class EventType(StrEnum):
     ISSUE_OPENED = "issue_opened"
     ISSUE_LABELED = "issue_labeled"
     ARTIFACT_PUSH = "artifact_push"
-    SCHEDULED = "scheduled"
 
 
 class OpportunityType(StrEnum):
@@ -45,7 +44,6 @@ class OpportunityType(StrEnum):
 
     TODO_FOLLOWUP = "todo_followup"
     FIXME_FOLLOWUP = "fixme_followup"
-    STALE_ISSUE = "stale_issue"
     NEW_ARTIFACT = "new_artifact"
     COMPLEXITY_TRIAGE = "complexity_triage"
     AGENT_ROUTING = "agent_routing"
@@ -101,13 +99,19 @@ COMPLEXITY_KEYWORDS = {
 AGENT_KEYWORDS: dict[str, list[str]] = {
     "agent-security": ["security", "vulnerability", "cve", "auth", "credential", "secret"],
     "agent-architect": ["architecture", "adr", "design", "pattern", "structure"],
-    "agent-devops": ["ci", "cd", "pipeline", "workflow", "deploy", "action"],
+    "agent-devops": ["pipeline", "workflow", "deploy", "action", "cicd", "ci/cd"],
     "agent-implementer": ["implement", "code", "develop", "build", "create"],
     "agent-qa": ["test", "coverage", "quality", "verify", "validate"],
     "agent-analyst": ["investigate", "research", "analyze", "benchmark"],
     "agent-planner": ["plan", "milestone", "epic", "roadmap", "schedule"],
     "agent-explainer": ["document", "explain", "prd", "guide", "readme"],
 }
+
+
+def _word_match(keyword: str, text: str) -> bool:
+    """Check if keyword appears as a whole word in text."""
+    pattern = r"\b" + re.escape(keyword) + r"\b"
+    return bool(re.search(pattern, text))
 
 
 def get_pr_diff(pr_number: int) -> str:
@@ -122,8 +126,9 @@ def get_pr_diff(pr_number: int) -> str:
         )
         if result.returncode == 0:
             return result.stdout
-    except (subprocess.TimeoutExpired, FileNotFoundError):
-        pass
+    except (subprocess.TimeoutExpired, FileNotFoundError) as exc:
+        # Best-effort: log and fall back to empty diff if gh is unavailable or times out.
+        print(f"Warning: failed to fetch diff for PR #{pr_number}: {exc}", file=sys.stderr)
     return ""
 
 
@@ -168,38 +173,56 @@ def extract_todos_from_diff(diff: str, pr_number: int) -> list[Opportunity]:
 
 
 def score_issue_complexity(title: str, body: str) -> str:
-    """Score issue complexity based on keyword analysis."""
+    """Score issue complexity based on keyword analysis.
+
+    Uses word boundary matching to avoid false positives
+    (e.g. "prefix" should not match "fix").
+    """
     text = f"{title} {body}".lower()
 
     for level, keywords in COMPLEXITY_KEYWORDS.items():
         for keyword in keywords:
-            if keyword in text:
+            if _word_match(keyword, text):
                 return level
 
     return "medium"
 
 
 def suggest_agents(title: str, body: str) -> list[str]:
-    """Suggest agent routing based on issue content."""
+    """Suggest agent routing based on issue content.
+
+    Uses word boundary matching to avoid false positives
+    (e.g. "critical" should not match "ci").
+    """
     text = f"{title} {body}".lower()
     suggested: list[str] = []
 
     for agent, keywords in AGENT_KEYWORDS.items():
         for keyword in keywords:
-            if keyword in text:
+            if _word_match(keyword, text):
                 suggested.append(agent)
                 break
 
     return suggested
 
 
-def process_issue_opened(
+def process_issue_event(
     issue_number: int,
     title: str,
     body: str,
+    event_action: str = "opened",
 ) -> list[Opportunity]:
-    """Process a newly opened issue for triage opportunities."""
+    """Process an issue event (opened or labeled) for triage opportunities."""
     opportunities: list[Opportunity] = []
+
+    source_event = (
+        EventType.ISSUE_LABELED if event_action == "labeled"
+        else EventType.ISSUE_OPENED
+    )
+    event_description = (
+        "Issue labeled" if event_action == "labeled"
+        else "New issue opened"
+    )
 
     complexity = score_issue_complexity(title, body)
     agents = suggest_agents(title, body)
@@ -209,10 +232,10 @@ def process_issue_opened(
             opportunity_type=OpportunityType.COMPLEXITY_TRIAGE,
             title=f"Triage issue #{issue_number}: {title[:60]}",
             description=(
-                f"New issue opened with {complexity} complexity.\n"
+                f"{event_description} with {complexity} complexity.\n"
                 f"Suggested agents: {', '.join(agents) if agents else 'none detected'}"
             ),
-            source_event=EventType.ISSUE_OPENED,
+            source_event=source_event,
             source_ref=f"Issue #{issue_number}",
             suggested_agent=agents[0] if agents else "orchestrator",
             priority="high" if complexity == "high" else "medium",
@@ -233,7 +256,7 @@ def process_issue_opened(
                     f"Issue content suggests routing to: {', '.join(agents)}\n"
                     f"Complexity: {complexity}"
                 ),
-                source_event=EventType.ISSUE_OPENED,
+                source_event=source_event,
                 source_ref=f"Issue #{issue_number}",
                 suggested_agent=agents[0],
                 priority="low",
@@ -245,6 +268,10 @@ def process_issue_opened(
         )
 
     return opportunities
+
+
+# Keep backward compatibility alias
+process_issue_opened = process_issue_event
 
 
 def detect_artifact_changes(changed_files: Sequence[str]) -> list[Opportunity]:
@@ -324,8 +351,11 @@ def get_changed_files_from_push() -> list[str]:
         )
         if result.returncode == 0:
             return [f for f in result.stdout.strip().splitlines() if f]
-    except (subprocess.TimeoutExpired, FileNotFoundError):
-        pass
+    except (subprocess.TimeoutExpired, FileNotFoundError) as exc:
+        print(
+            f"[velocity-accelerator] Warning: failed to compute changed files from push: {exc}",
+            file=sys.stderr,
+        )
 
     return []
 
@@ -351,7 +381,7 @@ def detect_opportunities(
     elif event_name == "issues" and event_action in ("opened", "labeled"):
         if issue_number > 0 and issue_title:
             opportunities.extend(
-                process_issue_opened(issue_number, issue_title, issue_body)
+                process_issue_event(issue_number, issue_title, issue_body, event_action)
             )
 
     elif event_name == "push":
@@ -416,7 +446,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--event",
         required=True,
-        help="GitHub event name (pull_request, issues, push, schedule)",
+        help="GitHub event name (pull_request, issues, push)",
     )
     parser.add_argument(
         "--action",
@@ -486,7 +516,7 @@ def format_summary(opportunities: list[Opportunity]) -> str:
     if not opportunities:
         return "No velocity opportunities detected."
 
-    lines = [f"## 🚀 Velocity Accelerator: {len(opportunities)} Opportunities Detected\n"]
+    lines = [f"## Velocity Accelerator: {len(opportunities)} Opportunities Detected\n"]
 
     for i, opp in enumerate(opportunities, 1):
         lines.append(f"### {i}. {opp.title}")
