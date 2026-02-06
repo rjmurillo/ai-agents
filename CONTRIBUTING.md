@@ -77,7 +77,7 @@ python3 --version  # Should show Python 3.12.8
 7. Make your changes following the guidelines below
 8. Submit a pull request
 
-**After setup, quality gates are automated.** Pre-commit hooks run ruff (Python), markdownlint, and PSScriptAnalyzer (PowerShell). CI runs full test suites. No manual test commands needed for routine development.
+**After setup, quality gates are automated.** Pre-commit hooks run ruff (Python) and markdownlint. CI runs full test suites. No manual test commands needed for routine development.
 
 ## Git Configuration
 
@@ -393,11 +393,16 @@ Enable automated validation on commits:
 git config core.hooksPath .githooks
 ```
 
-The pre-commit hook automatically runs:
+The pre-commit hook automatically runs checks including, depending on staged files:
 
 - **markdownlint**: Fixes markdown violations before each commit. See [docs/markdown-linting.md](docs/markdown-linting.md) for details.
 - **PSScriptAnalyzer**: Validates PowerShell (`.ps1`/`.psm1`) scripts for syntax errors and coding standard violations. Error-level issues block commits; warnings are displayed but non-blocking. Skips gracefully if PowerShell is not installed.
   - **Install**: `pwsh -Command 'Install-Module -Name PSScriptAnalyzer -Scope CurrentUser -Force'`
+- **ruff**: Lints Python files for style and common issues when Python files are staged.
+- **actionlint**: Validates GitHub Actions workflow files (`.github/workflows/*.yml`) when they are staged.
+- **yamllint**: Validates general YAML files when they are staged.
+
+Refer to `.githooks/pre-commit` for the authoritative, up-to-date list of all checks.
 
 ## Session Protocol
 
