@@ -78,6 +78,16 @@
       "phase": "planning",
       "description": "Gathered user decisions on 4 design questions",
       "outcome": "No deprecation period, delete dead code first, promote high-traffic skills to P1, include Validate-SessionJson in P0"
+    },
+    {
+      "phase": "implementation",
+      "description": "Created GitHub milestone v0.3.1 and Epic issue structure",
+      "outcome": "Milestone v0.3.1 created, Epic #1049 with 15 sub-issues (#1050-#1058, #1060-#1066) mirroring plan phases"
+    },
+    {
+      "phase": "implementation",
+      "description": "Updated plan with Mermaid charts and issue links",
+      "outcome": "Added dependency flowchart, Gantt chart, Agent Quick Context, Parallel Tracks sections; linked all issue numbers throughout plan"
     }
   ],
   "outcomes": {
@@ -86,13 +96,20 @@
     ],
     "filesModified": [],
     "testsAdded": 0,
-    "testResults": "N/A (documentation-only session)"
+    "testResults": "N/A (documentation-only session)",
+    "githubArtifacts": {
+      "milestone": "v0.3.1",
+      "epic": "#1049",
+      "subIssues": ["#1050", "#1051", "#1052", "#1053", "#1054", "#1055", "#1056", "#1057", "#1058", "#1060", "#1061", "#1062", "#1063", "#1064", "#1065", "#1066"]
+    }
   },
   "decisions": [
     "No deprecation period: delete PS1 immediately after Python passes tests (internal project)",
     "Delete dead code before migrating to reduce scope",
     "Promote workflow-coupled skills (Post-IssueComment.ps1 etc.) to Phase 1",
-    "Include Validate-SessionJson.ps1 in Phase 0 cleanup"
+    "Include Validate-SessionJson.ps1 in Phase 0 cleanup",
+    "Structure sub-issues to mirror plan phases for 1:1 traceability",
+    "Use v0.3.0 PLAN.md structure as template for Mermaid charts and parallel tracks"
   ],
   "learnings": [
     {

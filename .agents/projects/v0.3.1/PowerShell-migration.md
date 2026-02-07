@@ -1,19 +1,138 @@
-# PowerShell-to-Python Migration Plan
+# v0.3.1 Milestone: PowerShell-to-Python Migration
 
-**Version**: v0.3.1
+**Status**: 🟢 ACTIVE
+**Created**: 2026-02-07
+**Last Updated**: 2026-02-07
+**Milestone**: [v0.3.1](https://github.com/rjmurillo/ai-agents/milestone/7)
+**Epic**: [#1049](https://github.com/rjmurillo/ai-agents/issues/1049)
 **Authority**: ADR-042 (Accepted 2026-01-17)
 **Supersedes**: ADR-005 (PowerShell-Only Scripting, status: Superseded)
-**Date**: 2026-02-07
+**Current Scope**: 16 issues (3 P0, 3 P1, 3 P2, 3 P3, 3 P4, 1 P5)
 
-## Executive Summary
+---
 
-ADR-042 established Python as the primary scripting language, superseding ADR-005.
-This plan provides a prioritized, phased migration of PowerShell scripts to Python with pytest.
+## Agent Quick Context
 
-After dead code removal, the migration scope is approximately **~136 non-test scripts**,
-**14 modules**, and **~107 Pester test files**. 21 workflows reference PowerShell.
+> **Token-efficient summary for agents.** Full details in sections below.
 
-### Design Decisions
+### P0 (Start Here)
+
+| Issue | Title | Summary |
+|-------|-------|---------|
+| [#1050](https://github.com/rjmurillo/ai-agents/issues/1050) | Delete dead code | Remove 3 unused PS1 files |
+| [#1051](https://github.com/rjmurillo/ai-agents/issues/1051) | Remove duplicates | Delete 5 PS1 files that have .py equivalents |
+| [#1052](https://github.com/rjmurillo/ai-agents/issues/1052) | SessionJson switchover | Switch 148+ references from PS1 to Python |
+
+### Dependency Flowchart
+
+```mermaid
+flowchart LR
+    subgraph P0["Phase 0: Cleanup"]
+        A[#1050<br/>Dead Code<br/>P0] ~~~ B[#1051<br/>Duplicates<br/>P0]
+        B ~~~ C[#1052<br/>SessionJson<br/>P0]
+    end
+
+    subgraph P1["Phase 1: High Traffic"]
+        D[#1053<br/>Shared Modules<br/>P1 ⭐]
+        E[#1054<br/>High-Churn<br/>P1]
+        F[#1055<br/>WF Skills<br/>P1]
+    end
+
+    subgraph P2["Phase 2: CI Infrastructure"]
+        G[#1056<br/>Build System<br/>P2]
+        H[#1057<br/>Validation<br/>P2]
+        I[#1058<br/>GH Actions<br/>P2]
+    end
+
+    subgraph P3["Phase 3: Remaining Skills"]
+        J[#1060<br/>GitHub Skills<br/>P3]
+        K[#1061<br/>Memory Skills<br/>P3]
+        L[#1062<br/>Other Skills<br/>P3]
+    end
+
+    subgraph P4["Phase 4: Long Tail"]
+        M[#1063<br/>CodeQL<br/>P4]
+        N[#1064<br/>Traceability<br/>P4]
+        O[#1065<br/>Hooks<br/>P4]
+    end
+
+    subgraph P5["Phase 5: Retirement"]
+        P[#1066<br/>Retire CI<br/>P5]
+    end
+
+    D --> E
+    D --> F
+    D --> J
+    D --> O
+    F --> J
+    P0 --> P1
+    P1 --> P2
+    P2 --> P3
+    P3 --> P4
+    P4 --> P5
+
+    classDef p0 fill:#ff6b6b,stroke:#c92a2a,color:#fff
+    classDef p1 fill:#4dabf7,stroke:#1971c2,color:#fff
+    classDef p2 fill:#ffd43b,stroke:#f59f00,color:#333
+    classDef p3 fill:#51cf66,stroke:#2f9e44,color:#fff
+    classDef p4 fill:#cc5de8,stroke:#9c36b5,color:#fff
+    classDef p5 fill:#868e96,stroke:#495057,color:#fff
+
+    class A,B,C p0
+    class D,E,F p1
+    class G,H,I p2
+    class J,K,L p3
+    class M,N,O p4
+    class P p5
+```
+
+### Gantt Timeline (12 months)
+
+```mermaid
+gantt
+    title v0.3.1 PowerShell-to-Python Migration (ADR-042)
+    dateFormat YYYY-MM-DD
+
+    section P0 Cleanup
+    #1050 Dead code deletion          :crit, i1050, 2026-02-10, 1d
+    #1051 Remove duplicates           :crit, i1051, 2026-02-10, 2d
+    #1052 SessionJson switchover      :crit, i1052, after i1051, 3d
+
+    section P1 Shared Modules
+    #1053 Migrate shared modules      :i1053, 2026-02-17, 15d
+    #1054 High-churn scripts          :i1054, after i1053, 10d
+    #1055 Workflow-coupled skills     :i1055, after i1053, 10d
+
+    section P2 CI Infrastructure
+    #1056 Build system scripts        :i1056, 2026-04-13, 10d
+    #1057 Validation scripts          :i1057, 2026-04-13, 15d
+    #1058 GH Actions helpers          :i1058, after i1057, 5d
+
+    section P3 Remaining Skills
+    #1060 Remaining GitHub skills     :i1060, 2026-07-06, 15d
+    #1061 Memory skills               :i1061, 2026-07-06, 15d
+    #1062 Other skills                :i1062, after i1060, 10d
+
+    section P4 Long Tail
+    #1063 CodeQL scripts              :i1063, 2026-10-05, 10d
+    #1064 Traceability + utilities    :i1064, 2026-10-05, 15d
+    #1065 Hook scripts                :i1065, after i1064, 10d
+
+    section P5 Retirement
+    #1066 Retire Pester + PS lint     :milestone, i1066, 2027-01-25, 0d
+```
+
+### Parallel Tracks
+
+- **Track A**: #1050 -> #1051 -> #1052 (P0 cleanup, sequential)
+- **Track B**: #1053 -> #1054 + #1055 (Modules unblock scripts + skills, parallel after module)
+- **Track C**: #1056 + #1057 -> #1058 (Build + validation, then GH Actions)
+- **Track D**: #1060 + #1061 -> #1062 (GitHub + memory skills, then other skills)
+- **Track E**: #1063 + #1064 -> #1065 -> #1066 (Long tail, then retirement)
+
+---
+
+## Design Decisions
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
@@ -22,7 +141,9 @@ After dead code removal, the migration scope is approximately **~136 non-test sc
 | High-traffic skills | Promote to Phase 1 | Post-IssueComment.ps1 referenced by 7 workflows |
 | Validate-SessionJson.ps1 | Include in Phase 0 | Python version exists with pytest coverage |
 
-### Current State
+---
+
+## Current State
 
 | Category | .ps1 (non-test) | .psm1 | .Tests.ps1 | .py (already migrated) |
 |----------|-----------------|-------|------------|------------------------|
@@ -39,11 +160,8 @@ After dead code removal, the migration scope is approximately **~136 non-test sc
 
 ### Already Migrated (Dual Existence)
 
-These scripts have both `.ps1` and `.py` versions. Remove the PowerShell version
-after verifying callers point to Python:
-
-| PowerShell | Python | pytest |
-|-----------|--------|--------|
+| PowerShell (to delete) | Python (keep) | pytest (keep) |
+|------------------------|---------------|---------------|
 | `scripts/Detect-SkillViolation.ps1` | `scripts/detect_skill_violation.py` | `tests/test_detect_skill_violation.py` |
 | `scripts/Check-SkillExists.ps1` | `scripts/check_skill_exists.py` | `tests/test_check_skill_exists.py` |
 | `scripts/Validate-SessionJson.ps1` | `scripts/validate_session_json.py` | `tests/test_validate_session_json.py` |
@@ -53,107 +171,73 @@ after verifying callers point to Python:
 
 ---
 
-## Prioritization Criteria
-
-Scripts are prioritized by four factors:
-
-1. **Modification frequency**: High-churn files benefit most from migration
-2. **Workflow coupling**: Scripts called by CI workflows require coordinated updates
-3. **Size/complexity**: Larger files yield more value
-4. **Dependency depth**: Shared modules (.psm1) must migrate before their consumers
-
-### Priority Tiers
-
-| Tier | Criteria | Timeline |
-|------|----------|----------|
-| **P0 - Cleanup** | Delete dead code + remove already-migrated duplicates | Immediate |
-| **P1 - High Traffic** | Shared modules + high-churn scripts + workflow-coupled skills | Months 1-3 |
-| **P2 - CI Infrastructure** | Build system + validation scripts + workflow updates | Months 3-6 |
-| **P3 - Skills** | Remaining skills (memory, session, merge-resolver, etc.) | Months 6-9 |
-| **P4 - Long Tail** | CodeQL, traceability, hooks, remaining utilities | Months 9-12+ |
-
----
-
 ## Phase 0: Cleanup (Immediate)
 
-### 0.1 Delete dead code
+### [#1050](https://github.com/rjmurillo/ai-agents/issues/1050) - Delete dead code
 
-These scripts have zero active references (confirmed via codebase audit):
+Scripts with zero active references:
 
-- [ ] `scripts/Fix-PR964-Validation.ps1` (one-off PR fix, never called)
-- [ ] `.agents/benchmarks/test-parent-shell-impact.ps1` (abandoned benchmark)
-- [ ] `.agents/retrospective/analyze-compliance.ps1` (one-off 2025-12-20 analysis)
+- [ ] `scripts/Fix-PR964-Validation.ps1`
+- [ ] `.agents/benchmarks/test-parent-shell-impact.ps1`
+- [ ] `.agents/retrospective/analyze-compliance.ps1`
 
-### 0.2 Remove already-migrated PowerShell duplicates
+### [#1051](https://github.com/rjmurillo/ai-agents/issues/1051) - Remove already-migrated duplicates
 
-For each pair, verify the Python version is the active caller, then delete the `.ps1`:
+- [ ] Verify Python versions are active callers
+- [ ] Delete 5 PowerShell duplicates + their Pester tests
 
-- [ ] Verify `scripts/detect_skill_violation.py` is wired up, delete `Detect-SkillViolation.ps1` + `Detect-SkillViolation.Tests.ps1`
-- [ ] Verify `scripts/check_skill_exists.py` is wired up, delete `Check-SkillExists.ps1` + `Check-SkillExists.Tests.ps1`
-- [ ] Verify `.claude/skills/security-detection/detect_infrastructure.py` is wired up, delete `detect-infrastructure.ps1`
-- [ ] Verify `.claude/skills/metrics/collect_metrics.py` is wired up, delete `collect-metrics.ps1`
-- [ ] Verify `.claude/skills/fix-markdown-fences/fix_fences.py` is wired up, delete `fix_fences.ps1`
+### [#1052](https://github.com/rjmurillo/ai-agents/issues/1052) - Validate-SessionJson switchover
 
-### 0.3 Validate-SessionJson.ps1
-
-This script is referenced in SESSION-PROTOCOL.md, CLAUDE.md, CRITICAL-CONTEXT.md,
-and 3 workflows (`ai-session-protocol.yml` primarily). The Python equivalent
-`validate_session_json.py` exists with `test_validate_session_json.py`.
-
-- [ ] Compare output format: both must produce identical JSON validation results
-- [ ] Update `ai-session-protocol.yml` to call `python scripts/validate_session_json.py`
+- [ ] Compare output format compatibility
+- [ ] Update `ai-session-protocol.yml` to call Python version
 - [ ] Update SESSION-PROTOCOL.md, CLAUDE.md, CRITICAL-CONTEXT.md references
 - [ ] Delete `scripts/Validate-SessionJson.ps1` + `tests/Validate-SessionJson.Tests.ps1`
 
-**Scope reduction**: Phase 0 removes ~9 PowerShell files and ~6 Pester test files.
+**Scope reduction**: Phase 0 removes ~9 .ps1 files and ~6 .Tests.ps1 files.
 
 ---
 
 ## Phase 1: High-Traffic Scripts + Workflow-Coupled Skills (Months 1-3)
 
-### 1.1 Shared Modules (migrate first, blocks consumers)
+### [#1053](https://github.com/rjmurillo/ai-agents/issues/1053) - Shared modules (CRITICAL PATH)
 
-| Module | Lines | Consumers | Notes |
-|--------|-------|-----------|-------|
-| `.github/scripts/AIReviewCommon.psm1` | 1312 | AI quality gate, issue triage, spec validation | 9 modifications since Dec |
-| `.claude/skills/github/modules/GitHubCore.psm1` | 1394 | All 23 GitHub skill scripts | Largest module, critical path |
-| `.github/scripts/PRMaintenanceModule.psm1` | ~200 | pr-maintenance workflow | |
-| `.github/scripts/TestResultHelpers.psm1` | ~150 | Test workflows | |
-| `.claude/hooks/Common/HookUtilities.psm1` | ~100 | All hook scripts | |
+| Module | Lines | Consumers |
+|--------|-------|-----------|
+| `.github/scripts/AIReviewCommon.psm1` | 1312 | AI quality gate, issue triage, spec validation |
+| `.claude/skills/github/modules/GitHubCore.psm1` | 1394 | All 23 GitHub skill scripts |
+| `.github/scripts/PRMaintenanceModule.psm1` | ~200 | pr-maintenance workflow |
+| `.github/scripts/TestResultHelpers.psm1` | ~150 | Test workflows |
+| `.claude/hooks/Common/HookUtilities.psm1` | ~100 | All hook scripts |
 
-**Migration pattern**:
+**Blocks**: #1054, #1055, #1060, #1065
 
-1. Create Python module (e.g., `scripts/lib/github_core.py`)
-2. Write pytest equivalents for existing Pester tests
-3. Update consumers to import the Python module
-4. Delete the `.psm1` immediately after all consumers are switched
+### [#1054](https://github.com/rjmurillo/ai-agents/issues/1054) - High-churn scripts
 
-### 1.2 High-Churn Scripts
-
-| Script | Modifications (since Dec) | Lines | Workflows |
-|--------|--------------------------|-------|-----------|
+| Script | Modifications (since Dec) | Lines | Workflow |
+|--------|--------------------------|-------|----------|
 | `scripts/Invoke-PRMaintenance.ps1` | 12 | 849 | pr-maintenance |
 | `.claude/skills/github/scripts/pr/Detect-CopilotFollowUpPR.ps1` | 10 | ~300 | (hook) |
 | `build/Generate-Agents.Common.psm1` | 6 | 589 | validate-generated-agents |
 
-### 1.3 Workflow-Coupled GitHub Skills (promoted from Phase 3)
+**Depends on**: #1053
 
-These GitHub skills are called by multiple workflows and have high modification counts.
-They depend on GitHubCore.psm1 (1.1), so migrate them immediately after the module.
+### [#1055](https://github.com/rjmurillo/ai-agents/issues/1055) - Workflow-coupled GitHub skills
 
-| Script | Modifications | Lines | Workflows |
-|--------|--------------|-------|-----------|
-| `.claude/skills/github/scripts/issue/Post-IssueComment.ps1` | 8 | ~200 | **7 workflows** |
-| `.claude/skills/github/scripts/issue/Invoke-CopilotAssignment.ps1` | 6 | 736 | 3 workflows |
-| `.claude/skills/github/scripts/milestone/Set-ItemMilestone.ps1` | N/A | ~200 | 2 workflows |
-| `.claude/skills/github/scripts/pr/Invoke-PRCommentProcessing.ps1` | N/A | ~300 | 1 workflow |
-| `.claude/skills/github/scripts/pr/Get-PRReviewComments.ps1` | 7 | 835 | (skill) |
+| Script | Lines | Workflows |
+|--------|-------|-----------|
+| `Post-IssueComment.ps1` | ~200 | **7 workflows** |
+| `Invoke-CopilotAssignment.ps1` | 736 | 3 workflows |
+| `Set-ItemMilestone.ps1` | ~200 | 2 workflows |
+| `Invoke-PRCommentProcessing.ps1` | ~300 | 1 workflow |
+| `Get-PRReviewComments.ps1` | 835 | (skill) |
+
+**Depends on**: #1053
 
 ---
 
 ## Phase 2: CI Infrastructure (Months 3-6)
 
-### 2.1 Build System
+### [#1056](https://github.com/rjmurillo/ai-agents/issues/1056) - Build system
 
 | Script | Lines | Workflow |
 |--------|-------|----------|
@@ -164,11 +248,7 @@ They depend on GitHubCore.psm1 (1.1), so migrate them immediately after the modu
 | `build/scripts/Validate-PlanningArtifacts.ps1` | ~200 | validate-planning-artifacts |
 | `build/scripts/Invoke-PesterTests.ps1` | 528 | pester-tests |
 
-`Invoke-PesterTests.ps1` runs Pester. As scripts migrate to Python, this is
-gradually replaced by the existing `pytest.yml` workflow. Remove the Pester
-workflow once no Pester tests remain.
-
-### 2.2 Validation Scripts (CI-coupled)
+### [#1057](https://github.com/rjmurillo/ai-agents/issues/1057) - Validation scripts
 
 | Script | Lines | Workflow |
 |--------|-------|----------|
@@ -181,7 +261,7 @@ workflow once no Pester tests remain.
 | `scripts/Validate-Traceability.ps1` | 599 | (manual) |
 | `scripts/Validate-MemoryIndex.ps1` | 922 | memory-validation |
 
-### 2.3 GitHub Actions Scripts
+### [#1058](https://github.com/rjmurillo/ai-agents/issues/1058) - GitHub Actions helpers
 
 | Script | Lines | Workflow |
 |--------|-------|----------|
@@ -189,21 +269,18 @@ workflow once no Pester tests remain.
 | `.github/scripts/Measure-WorkflowCoalescing.ps1` | 571 | workflow-coalescing-metrics |
 | `scripts/Update-ReviewerSignalStats.ps1` | 709 | update-reviewer-stats |
 
-### 2.4 Workflow Updates
+### Workflow Updates (Phase 2)
 
-Each migrated script requires a corresponding workflow update.
-Change `pwsh` to `python` in the `run:` block and update the script path.
-
-| Workflow | Scripts Referenced | Effort |
-|----------|--------------------|--------|
+| Workflow | Scripts | Effort |
+|----------|---------|--------|
 | `ai-pr-quality-gate.yml` | Post-IssueComment.ps1 | Low (done in P1) |
-| `ai-session-protocol.yml` | Validate-SessionJson.ps1, Convert-SessionToJson.ps1 | Low (done in P0) |
+| `ai-session-protocol.yml` | Validate-SessionJson.ps1 | Low (done in P0) |
 | `drift-detection.yml` | Detect-AgentDrift.ps1 | Low |
 | `milestone-tracking.yml` | Set-ItemMilestone.ps1 | Low (done in P1) |
 | `pester-tests.yml` | Invoke-PesterTests.ps1 | High (gradual retirement) |
-| `powershell-lint.yml` | PSScriptAnalyzer | Retire (replace with ruff) |
-| `pr-maintenance.yml` | Invoke-PRMaintenance.ps1, Test-RateLimitForWorkflow.ps1 | High |
-| `pr-validation.yml` | Validate-PRDescription.ps1, Validate-ActionSHAPinning.ps1 | Medium |
+| `powershell-lint.yml` | PSScriptAnalyzer | Retire (ruff covers Python) |
+| `pr-maintenance.yml` | Invoke-PRMaintenance.ps1 | High |
+| `pr-validation.yml` | Validate-PRDescription.ps1 | Medium |
 | `slash-command-quality.yml` | Validate-SlashCommand.ps1 | Low |
 | `validate-generated-agents.yml` | Generate-Agents.ps1 | Medium |
 | `validate-paths.yml` | Validate-PathNormalization.ps1 | Low |
@@ -214,116 +291,58 @@ Change `pwsh` to `python` in the `run:` block and update the script path.
 
 ## Phase 3: Remaining Skills (Months 6-9)
 
-### 3.1 GitHub Skills (remaining after Phase 1 promotions)
+### [#1060](https://github.com/rjmurillo/ai-agents/issues/1060) - Remaining GitHub skills
 
-**Dependency**: GitHubCore.psm1 migrated in Phase 1.1.
+| Directory | Remaining Scripts |
+|-----------|-------------------|
+| `.claude/skills/github/scripts/pr/` | ~9 scripts |
+| `.claude/skills/github/scripts/issue/` | ~5 scripts |
+| `.claude/skills/github/scripts/reactions/` | 1 script |
+| `.claude/skills/github/scripts/utils/` | 1 script |
 
-| Directory | Remaining Scripts | Notes |
-|-----------|-------------------|-------|
-| `.claude/skills/github/scripts/pr/` | ~9 scripts | After P1 promotions |
-| `.claude/skills/github/scripts/issue/` | ~5 scripts | After P1 promotions |
-| `.claude/skills/github/scripts/reactions/` | 1 script | |
-| `.claude/skills/github/scripts/utils/` | 1 script | |
+**Depends on**: #1053, #1055
 
-### 3.2 Memory Skills
+### [#1061](https://github.com/rjmurillo/ai-agents/issues/1061) - Memory skills
 
 | Script | Lines | Notes |
 |--------|-------|-------|
-| `.claude/skills/memory/scripts/MemoryRouter.psm1` | 577 | Core routing module |
-| `.claude/skills/memory/scripts/ReflexionMemory.psm1` | 996 | Largest module |
-| `.claude/skills/memory/scripts/Search-Memory.ps1` | ~200 | |
-| `.claude/skills/memory/scripts/Extract-SessionEpisode.ps1` | 530 | |
-| `.claude/skills/memory/scripts/Measure-MemoryPerformance.ps1` | ~200 | |
-| `.claude/skills/memory/scripts/Update-CausalGraph.ps1` | ~200 | |
-| `.claude/skills/memory/modules/SchemaValidation.psm1` | ~200 | |
+| `MemoryRouter.psm1` | 577 | Core routing module |
+| `ReflexionMemory.psm1` | 996 | Largest module |
+| `Search-Memory.ps1` | ~200 | |
+| `Extract-SessionEpisode.ps1` | 530 | |
+| `Measure-MemoryPerformance.ps1` | ~200 | |
+| `Update-CausalGraph.ps1` | ~200 | |
+| `SchemaValidation.psm1` | ~200 | |
 
-### 3.3 Other Skills
+### [#1062](https://github.com/rjmurillo/ai-agents/issues/1062) - Session, merge-resolver, and other skills
 
-| Skill | Scripts | Notes |
-|-------|---------|-------|
-| `session-init` | 2 .ps1 + 2 .psm1 | New-SessionLogJson.ps1, GitHelpers.psm1 |
-| `session-log-fixer` | 1 .ps1 | Get-ValidationErrors.ps1 |
-| `session-migration` | 1 .ps1 | Convert-SessionToJson.ps1 |
-| `session` | 1 .ps1 | Session scripts |
-| `session-qa-eligibility` | 1 .ps1 | Eligibility check |
-| `merge-resolver` | 1 .ps1 | Resolve-PRConflicts.ps1 |
-| `steering-matcher` | 1 .ps1 | Get-ApplicableSteering.ps1 |
-| `github-url-intercept` | 1 .ps1 | Test-UrlRouting.ps1 |
-| `slashcommandcreator` | 2 .ps1 | Validate-SlashCommand.ps1 |
-| `adr-review` | 1 .ps1 | ADR review scripts |
-| `codeql-scan` | 1 .ps1 | CodeQL scan scripts |
+11 skills with 1-4 scripts each.
 
 ---
 
 ## Phase 4: Long Tail (Months 9-12+)
 
-### 4.1 CodeQL Scripts
+### [#1063](https://github.com/rjmurillo/ai-agents/issues/1063) - CodeQL scripts
 
-| Script | Lines |
-|--------|-------|
-| `.codeql/scripts/Invoke-CodeQLScan.ps1` | 846 |
-| `.codeql/scripts/Get-CodeQLDiagnostics.ps1` | 722 |
-| `.codeql/scripts/Test-CodeQLConfig.ps1` | 559 |
-| `.codeql/scripts/Test-CodeQLRollout.ps1` | 541 |
-| `.codeql/scripts/Install-CodeQL.ps1` | ~200 |
-| `.codeql/scripts/Install-CodeQLIntegration.ps1` | ~200 |
+6 scripts totaling ~3,068 lines.
 
-### 4.2 Traceability Scripts
+### [#1064](https://github.com/rjmurillo/ai-agents/issues/1064) - Traceability and utilities
 
-| Script | Lines |
-|--------|-------|
-| `scripts/traceability/Resolve-OrphanedSpecs.ps1` | 698 |
-| `scripts/traceability/Show-TraceabilityGraph.ps1` | 634 |
-| `scripts/traceability/TraceabilityCache.psm1` | ~200 |
+3 traceability scripts + 10 utility scripts.
 
-### 4.3 Remaining Utilities
+### [#1065](https://github.com/rjmurillo/ai-agents/issues/1065) - Hook scripts
 
-| Script | Lines | Notes |
-|--------|-------|-------|
-| `scripts/Invoke-BatchPRReview.ps1` | ~300 | Batch operations |
-| `scripts/New-ValidatedPR.ps1` | ~300 | PR creation |
-| `scripts/Normalize-LineEndings.ps1` | ~100 | File utility |
-| `scripts/Review-MemoryExportSecurity.ps1` | ~200 | Security gate (52+ references) |
-| `scripts/Sync-McpConfig.ps1` | ~200 | MCP sync |
-| `scripts/Split-BundledSkills.ps1` | ~200 | Skill management |
-| `scripts/Invoke-SessionStartGate.ps1` | ~200 | Session gate (ADR-033) |
-| `scripts/Convert-SessionToJson.ps1` | ~200 | Session conversion |
-| `.serena/scripts/Import-ObservationsToForgetful.ps1` | 630 | Serena integration |
-| `.claude-mem/scripts/` | 4 .ps1 | Claude-mem scripts |
-
-### 4.4 Hook Scripts
-
-| Hook | Scripts | Notes |
-|------|---------|-------|
-| `PreToolUse/` | 4 .ps1 | Branch protection guards |
-| `PostToolUse/` | 2 .ps1 | Post-tool processing |
-| `Stop/` | 1 .ps1 | Session validator |
-| `SubagentStop/` | 1 .ps1 | QA agent validator |
-| `PermissionRequest/` | 1 .ps1 | Test auto-approval |
-| `SessionStart/` | 2 .ps1 | Session start hooks |
-| `UserPromptSubmit/` | 1 .ps1 | Prompt hooks |
+12 hook scripts across 7 hook directories.
+**Depends on**: #1053 (HookUtilities.psm1)
 
 ---
 
-## Phase 5: Test Migration and Workflow Retirement
+## Phase 5: Retirement
 
-### 5.1 Pester-to-pytest Migration
-
-Each `.Tests.ps1` maps to a `test_*.py`. Migrate tests alongside their scripts.
-
-**Current state**:
-
-- 110 Pester test files (`.Tests.ps1`)
-- 14 pytest test files (`test_*.py`) already exist
-
-**Pattern**: When migrating `Foo.ps1` to `foo.py`, also create `test_foo.py`.
-
-### 5.2 CI Workflow Retirement
-
-Once all Pester tests are migrated:
+### [#1066](https://github.com/rjmurillo/ai-agents/issues/1066) - Retire Pester and PSScriptAnalyzer CI
 
 - [ ] Remove `pester-tests.yml` workflow
-- [ ] Remove `powershell-lint.yml` workflow (ruff covers Python linting)
+- [ ] Remove `powershell-lint.yml` workflow
 - [ ] Remove `build/scripts/Invoke-PesterTests.ps1`
 - [ ] Remove `tests/TestUtilities.psm1`
 
@@ -340,8 +359,6 @@ No deprecation period. Delete PowerShell immediately after Python passes tests.
 5. [ ] Delete PowerShell version (`.ps1` and `.Tests.ps1`)
 6. [ ] Update any CLAUDE.md / SKILL.md / SKILL-QUICK-REF.md references
 
----
-
 ## Naming Convention
 
 | PowerShell | Python |
@@ -349,7 +366,6 @@ No deprecation period. Delete PowerShell immediately after Python passes tests.
 | `Verb-Noun.ps1` | `verb_noun.py` (snake_case) |
 | `Module.psm1` | `module.py` or `module/` package |
 | `Noun.Tests.ps1` | `test_noun.py` |
-| Inline `Import-Module` | Python `import` |
 
 ---
 
@@ -357,20 +373,20 @@ No deprecation period. Delete PowerShell immediately after Python passes tests.
 
 ### Blocking Dependencies
 
-| Dependency | Impact | Mitigation |
-|-----------|--------|------------|
-| GitHubCore.psm1 | Blocks all 23 GitHub skill migrations | Migrate first in Phase 1.1 |
-| AIReviewCommon.psm1 | Blocks AI quality gate migrations | Migrate first in Phase 1.1 |
-| HookUtilities.psm1 | Blocks hook migrations | Migrate first in Phase 1.1 |
+| Dependency | Blocks | Issue |
+|-----------|--------|-------|
+| GitHubCore.psm1 | 23 GitHub skill scripts | #1053 |
+| AIReviewCommon.psm1 | 3 AI quality gate workflows | #1053 |
+| HookUtilities.psm1 | 12 hook scripts | #1053 |
 
 ### Risks
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|-----------|--------|------------|
-| Output format differences | Medium | High | Verify output compatibility before switching callers |
-| Python 3.13 bugs | Low | Medium | Pin to 3.12 via `.python-version` (already done) |
+| Output format differences | Medium | High | Verify output compatibility before switching |
+| Python 3.13 bugs | Low | Medium | Pin to 3.12 via `.python-version` |
 | Workflow breakage | Medium | High | Expand-contract: add Python, verify, delete PS1 |
-| Test coverage regression | Medium | Medium | Require pytest coverage >= Pester before deletion |
+| Test coverage regression | Medium | Medium | Require pytest >= Pester before deletion |
 
 ---
 
@@ -379,19 +395,17 @@ No deprecation period. Delete PowerShell immediately after Python passes tests.
 | Metric | Target |
 |--------|--------|
 | PowerShell files remaining | 0 by end of migration |
-| pytest coverage | >= Pester coverage for each migrated script |
-| CI failures during migration | 0 (expand-contract prevents breakage) |
-| Pester workflow | Retired after last .Tests.ps1 removed |
-| PSScriptAnalyzer workflow | Retired after last .ps1 removed |
+| pytest coverage | >= Pester for each migrated script |
+| CI failures during migration | 0 |
+| Pester workflow | Retired (#1066) |
+| PSScriptAnalyzer workflow | Retired (#1066) |
 
 ---
 
 ## ADR Status
 
-- **ADR-005**: Status is `Superseded` (correctly marked, no changes needed)
-- **ADR-042**: Status is `Accepted` (active, governs this migration)
-
-Both ADRs have proper cross-references. No ADR status changes are required.
+- **ADR-005**: `Superseded` (correctly marked, no changes needed)
+- **ADR-042**: `Accepted` (active, governs this migration)
 
 ---
 
@@ -400,3 +414,5 @@ Both ADRs have proper cross-references. No ADR status changes are required.
 - [ADR-042: Python Migration Strategy](../../.agents/architecture/ADR-042-python-migration-strategy.md)
 - [ADR-005: PowerShell-Only Scripting](../../.agents/architecture/ADR-005-powershell-only-scripting.md) (Superseded)
 - [ADR-006: Thin Workflows, Testable Modules](../../.agents/architecture/ADR-006-thin-workflows-testable-modules.md) (still active)
+- [Epic #1049](https://github.com/rjmurillo/ai-agents/issues/1049)
+- [Milestone v0.3.1](https://github.com/rjmurillo/ai-agents/milestone/7)
