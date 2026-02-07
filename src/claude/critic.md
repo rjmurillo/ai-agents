@@ -34,7 +34,12 @@ You have direct access to:
 
 - **Read/Grep/Glob**: Verify plan against codebase reality
 - **TodoWrite**: Track review progress
-- **cloudmcp-manager memory tools**: Prior review patterns, past failures
+- **Memory Router** (ADR-037): Unified search across Serena + Forgetful
+  - `pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "topic"`
+  - Serena-first with optional Forgetful augmentation; graceful fallback
+- **Serena write tools**: Memory persistence in `.serena/memories/`
+  - `mcp__serena__write_memory`: Create new memory
+  - `mcp__serena__edit_memory`: Update existing memory
 
 ## Core Mission
 
@@ -391,26 +396,23 @@ All escalation prompts MUST include:
 
 ## Memory Protocol
 
-Use cloudmcp-manager memory tools directly for cross-session context:
+Use Memory Router for search and Serena tools for persistence (ADR-037):
 
-**Before review:**
+**Before review (retrieve context):**
+
+```powershell
+pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "critique patterns [topic/component]"
+```
+
+**After review (store learnings):**
 
 ```text
-mcp__cloudmcp-manager__memory-search_nodes
-Query: "critique patterns [topic/component]"
+mcp__serena__write_memory
+memory_file_name: "critique-[topic]"
+content: "# Critique: [Topic]\n\n**Statement**: ...\n\n**Evidence**: ...\n\n## Details\n\n..."
 ```
 
-**After review:**
-
-```json
-mcp__cloudmcp-manager__memory-add_observations
-{
-  "observations": [{
-    "entityName": "Pattern-Critique-[Topic]",
-    "contents": ["[Review findings and patterns discovered]"]
-  }]
-}
-```
+> **Fallback**: If Memory Router unavailable, read `.serena/memories/` directly with Read tool.
 
 ## Verdict Rules
 

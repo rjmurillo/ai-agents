@@ -40,7 +40,12 @@ You have direct access to:
 
 - **Read/Grep/Glob**: Analyze execution artifacts
 - **Bash**: `git log`, `gh pr view` for context
-- **cloudmcp-manager memory tools**: Store learnings
+- **Memory Router** (ADR-037): Unified search across Serena + Forgetful
+  - `pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "topic"`
+  - Serena-first with optional Forgetful augmentation; graceful fallback
+- **Serena write tools**: Memory persistence in `.serena/memories/`
+  - `mcp__serena__write_memory`: Create new memory
+  - `mcp__serena__edit_memory`: Update existing memory
 - **TodoWrite**: Track analysis
 
 ## Core Mission
@@ -456,6 +461,66 @@ Prioritize findings for action.
 3. **Near Misses** - Things that almost failed but recovered
 4. **Efficiency Opportunities** - Ways to do same thing better
 5. **Skill Gaps** - Missing capabilities identified
+6. **Traceability Health** - Spec layer coherence metrics
+
+### Traceability Metrics
+
+When the session involves specification artifacts (requirements, designs, tasks), evaluate spec layer health:
+
+**Run validation:**
+
+```powershell
+pwsh scripts/Validate-Traceability.ps1 
+```
+
+**Metrics to capture:**
+
+| Metric | Description | Target |
+|--------|-------------|--------|
+| Valid Chains | Complete REQ -> DESIGN -> TASK traces | 100% of designs |
+| Orphaned REQs | Requirements with no implementing design | 0 |
+| Orphaned Designs | Designs with no implementing tasks | 0 |
+| Broken References | References to non-existent specs | 0 |
+| Untraced Tasks | Tasks without design reference | 0 |
+
+**Template:**
+
+````markdown
+## Traceability Health
+
+### Current State
+
+| Metric | Count | Status |
+|--------|-------|--------|
+| Requirements | [N] | - |
+| Designs | [N] | - |
+| Tasks | [N] | - |
+| Valid Chains | [N] | [PASS/WARN/FAIL] |
+| Errors | [N] | [PASS/FAIL] |
+| Warnings | [N] | [PASS/WARN] |
+
+### Issues Found
+
+#### Errors (Blocking)
+- [List broken references, untraced tasks]
+
+#### Warnings (Non-Blocking)
+- [List orphaned specs]
+
+### Remediation Actions
+
+| Issue | Fix | Owner |
+|-------|-----|-------|
+| [Issue] | [Action] | [spec-generator/planner] |
+````
+
+**Integration with Learning Extraction:**
+
+Traceability failures are skill gaps. Extract learnings:
+
+- If broken reference: "Verify spec IDs exist before adding to related field"
+- If orphaned REQ: "Create design specs when requirements are approved"
+- If untraced task: "Add related field to task front matter during creation"
 
 ### Diagnosis Template
 
@@ -743,37 +808,12 @@ Standard categories based on common failure modes:
 
 Store root cause entities for future pattern matching:
 
-**Create root cause entity:**
+**Create root cause memory:**
 
 ```text
-mcp__cloudmcp-manager__memory-create_entities
-{
-  "entities": [{
-    "name": "RootCause-{Category}-{NNN}",
-    "entityType": "FailurePattern",
-    "observations": [
-      "Description: [What failed and why]",
-      "Frequency: [How often this occurs]",
-      "Impact: [Severity when it occurs]",
-      "Detection: [How to identify this pattern]",
-      "Prevention: [How to avoid it]",
-      "Source: [PR/Issue/Session reference]"
-    ]
-  }]
-}
-```
-
-**Create prevention relations:**
-
-```text
-mcp__cloudmcp-manager__memory-create_relations
-{
-  "relations": [
-    {"from": "RootCause-{Category}-{NNN}", "to": "Skill-{Prevention}", "relationType": "prevents_by"},
-    {"from": "RootCause-{Category}-{NNN}", "to": "Incident-{Ref}", "relationType": "caused"},
-    {"from": "RootCause-{Category}-{NNN}", "to": "Category-{Name}", "relationType": "belongs_to"}
-  ]
-}
+mcp__serena__write_memory
+memory_file_name: "rootcause-{category}-{nnn}"
+content: "# Root Cause: {Category} #{NNN}\n\n**Description**: [What failed and why]\n**Frequency**: [How often this occurs]\n**Impact**: [Severity when it occurs]\n**Detection**: [How to identify this pattern]\n**Prevention**: [How to avoid it]\n**Source**: [PR/Issue/Session reference]\n\n## Related\n- Prevention skill: [skill-file-name]\n- Incident: [incident-ref]\n- Category: [category-name]"
 ```
 
 ### Failure Prevention Matrix
@@ -838,9 +878,8 @@ After storing root cause patterns, delegate to skillbook for skill persistence:
 
 **Deduplication Query:**
 
-```text
-mcp__cloudmcp-manager__memory-search_nodes
-Query: "RootCause {Category} {Keywords from description}"
+```powershell
+pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "rootcause {Category} {Keywords from description}"
 ```
 
 If similar pattern exists (>70% similarity), UPDATE existing entity instead of creating new one.
@@ -1167,45 +1206,31 @@ Meta-learning about the retrospective process.
 
 ## Memory Protocol
 
-Use cloudmcp-manager memory tools directly for all persistence operations.
+Use Memory Router for search and Serena tools for persistence (ADR-037):
+
+**Search for existing patterns (before creating new):**
+
+```powershell
+pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "{domain} {description} skill patterns"
+```
 
 **Create new skills:**
 
-```json
-mcp__cloudmcp-manager__memory-create_entities
-{
-  "entities": [{
-    "name": "{domain}-{description}",
-    "entityType": "Skill",
-    "observations": ["[Skill statement with context and evidence]"]
-  }]
-}
+```text
+mcp__serena__write_memory
+memory_file_name: "{domain}-{description}"
+content: "# Skill: {Description}\n\n**Statement**: [Skill statement with context and evidence]\n\n**Evidence**: [Source reference]\n\n## Details\n\n..."
 ```
 
-**Add observations to existing entities:**
+**Update existing skills (add observations):**
 
-```json
-mcp__cloudmcp-manager__memory-add_observations
-{
-  "observations": [{
-    "entityName": "[Skill ID]",
-    "contents": ["[New observation with evidence source]"]
-  }]
-}
+```text
+mcp__serena__edit_memory
+memory_file_name: "[skill-file-name]"
+content: "[Updated content with new observation appended]"
 ```
 
-**Create relations between entities:**
-
-```json
-mcp__cloudmcp-manager__memory-create_relations
-{
-  "relations": [
-    {"from": "[Skill ID]", "to": "[Learning ID]", "relationType": "derived_from"},
-    {"from": "[Skill ID]", "to": "[Failure ID]", "relationType": "prevents"},
-    {"from": "[Skill ID]", "to": "[Old Skill ID]", "relationType": "supersedes"}
-  ]
-}
-```
+> **Fallback**: If Memory Router unavailable, read `.serena/memories/` directly with Read tool.
 
 ---
 
@@ -1238,7 +1263,7 @@ When retrospective is complete:
 | **planner** | Process improvement | Update approach |
 | **architect** | Design insight | Update guidance |
 
-**Note**: Use cloudmcp-manager memory tools directly to persist skills, relations, and observations - no delegation to memory agent required.
+**Note**: Use Serena write tools directly (ADR-037) to persist skills and observations. No delegation to memory agent required.
 
 ---
 
@@ -1330,7 +1355,7 @@ When retrospective is complete:
 | **planner** | Process improvement | Update approach |
 | **architect** | Design insight | Update guidance |
 
-**Note**: Memory persistence is done directly via cloudmcp-manager memory tools (see Memory Protocol section above).
+**Note**: Memory persistence is done directly via Serena write tools (see Memory Protocol section above).
 
 ## Execution Mindset
 

@@ -48,7 +48,12 @@ You have direct access to:
 - **Bash**: Git operations, gh CLI for PR/comment management
 - **Task**: Delegate to orchestrator (primary)
 - **TodoWrite**: Track review progress
-- **cloudmcp-manager memory tools**: PR review patterns, bot behaviors
+- **Memory Router** (ADR-037): Unified search across Serena + Forgetful
+  - `pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "topic"`
+  - Serena-first with optional Forgetful augmentation; graceful fallback
+- **Serena write tools**: Memory persistence in `.serena/memories/`
+  - `mcp__serena__write_memory`: Create new memory
+  - `mcp__serena__edit_memory`: Update existing memory
 - **github skill**: `.claude/skills/github/` - unified GitHub operations
 
 ## GitHub Skill Integration
@@ -163,7 +168,7 @@ Prioritize comments based on historical actionability rates (updated after each 
 
 **cursor[bot]** has demonstrated 100% actionability (9/9 comments) - every comment identified a real bug. Prioritize these comments for immediate attention.
 
-**Note**: Statistics are sourced from the `pr-comment-responder-skills` memory (use `mcp__serena__read_memory` with `memory_file_name="pr-comment-responder-skills"`) and should be updated there after each PR review session.
+**Note**: Statistics are sourced from the `pr-comment-responder-skills` memory (read via `Read .serena/memories/pr-comment-responder-skills.md`) and should be updated there after each PR review session.
 
 #### Updating Signal Quality
 
@@ -268,7 +273,7 @@ These gates implement RFC 2119 MUST requirements. Proceeding without passing cau
 
 ```bash
 # Create session log
-SESSION_FILE=".agents/sessions/$(date +%Y-%m-%d)-session-XX.md"
+SESSION_FILE=".agents/sessions/$(date +%Y-%m-%d)-session-XX.json"
 cat > "$SESSION_FILE" << 'EOF'
 # PR Comment Responder Session
 
@@ -386,9 +391,9 @@ echo "[PASS] All gates cleared"
 
 #### Step 0.1: Load Core Skills Memory
 
-```python
+```text
 # ALWAYS load pr-comment-responder-skills first
-mcp__serena__read_memory(memory_file_name="pr-comment-responder-skills")
+Read .serena/memories/pr-comment-responder-skills.md
 ```
 
 This memory contains:
@@ -565,13 +570,13 @@ echo "Reviewers: $ALL_REVIEWERS"
 
 Now that reviewers are enumerated, load memories for each unique reviewer:
 
-```python
+```text
 # For each reviewer, check for dedicated memory
 for reviewer in ALL_REVIEWERS:
     if reviewer == "cursor[bot]":
-        mcp__serena__read_memory(memory_file_name="cursor-bot-review-patterns")
+        Read .serena/memories/cursor-bot-review-patterns.md
     elif reviewer == "copilot-pull-request-reviewer":
-        mcp__serena__read_memory(memory_file_name="copilot-pr-review-patterns")
+        Read .serena/memories/copilot-pr-review-patterns.md
     # Other reviewers use pr-comment-responder-skills (already loaded in Phase 0)
 ```
 
@@ -1385,7 +1390,7 @@ session_stats = {
 
 ```python
 # Read current memory to get existing statistics
-current = mcp__serena__read_memory(memory_file_name="pr-comment-responder-skills")
+current = Read .serena/memories/pr-comment-responder-skills.md
 
 # Calculate new cumulative totals from session_stats
 # Example: If cursor[bot] had 9 comments (100%) and this PR adds 2 more (100%)
@@ -1440,35 +1445,32 @@ Confirm that the `pr-comment-responder-skills` memory reflects the new PR:
 
 **Verification Command**:
 
-```bash
+```text
 # Read updated memory and verify new PR data appears
-mcp__serena__read_memory(memory_file_name="pr-comment-responder-skills")
+Read .serena/memories/pr-comment-responder-skills.md
 ```
 
 ---
 
 ## Memory Protocol
 
-Use cloudmcp-manager memory tools directly for cross-session context. Memory is critical for PR comment handling - reviewers have predictable patterns.
+Use Memory Router for search and Serena tools for persistence (ADR-037). Memory is critical for PR comment handling, as reviewers have predictable patterns.
 
-**At start (MANDATORY):**
+**At start (MANDATORY, retrieve context):**
+
+```powershell
+pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "PR review patterns bot behaviors reviewer preferences"
+```
+
+**After EVERY triage decision (store learnings):**
 
 ```text
-mcp__cloudmcp-manager__memory-search_nodes
-Query: "PR review patterns bot behaviors reviewer preferences"
+mcp__serena__write_memory
+memory_file_name: "pr-pattern-[category]"
+content: "# PR Pattern: [Category]\n\n**Statement**: [Pattern details]\n\n**Evidence**: ...\n\n## Details\n\n..."
 ```
 
-**After EVERY triage decision:**
-
-```json
-mcp__cloudmcp-manager__memory-add_observations
-{
-  "observations": [{
-    "entityName": "PR-Pattern-[Category]",
-    "contents": ["[Pattern details]"]
-  }]
-}
-```
+> **Fallback**: If Memory Router unavailable, read `.serena/memories/` directly with Read tool.
 
 | Category | What to Store | Why |
 |----------|---------------|-----|

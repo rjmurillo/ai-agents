@@ -58,9 +58,11 @@ Load these memories based on what you are doing:
 
 ### Memory Loading Protocol
 
-```python
+```powershell
 # REQUIRED: Load before implementation starts
-mcp__serena__read_memory(memory_file_name="[memory-from-table-above]")
+pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "[memory-from-table-above]" -LexicalOnly
+# Or read directly:
+Read .serena/memories/[memory-name].md
 ```
 
 ### Agent Delegation (Handoff Triggers)
@@ -227,7 +229,12 @@ You have direct access to:
 - **Bash**: `dotnet build`, `dotnet test`, `dotnet format`, git commands
 - **WebSearch/WebFetch**: Research APIs, best practices
 - **TodoWrite**: Track implementation progress
-- **cloudmcp-manager memory tools**: Implementation patterns
+- **Memory Router** (ADR-037): Unified search across Serena + Forgetful
+  - `pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "topic"`
+  - Serena-first with optional Forgetful augmentation; graceful fallback
+- **Serena write tools**: Memory persistence in `.serena/memories/`
+  - `mcp__serena__write_memory`: Create new memory
+  - `mcp__serena__edit_memory`: Update existing memory
 
 ## Core Mission
 
@@ -678,26 +685,23 @@ Feedback categories:
 
 ## Memory Protocol
 
-Use cloudmcp-manager memory tools directly for cross-session context:
+Use Memory Router for search and Serena tools for persistence (ADR-037):
 
-**Before implementation:**
+**Before implementation (retrieve context):**
+
+```powershell
+pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "implementation patterns [component/feature]"
+```
+
+**After implementation (store learnings):**
 
 ```text
-mcp__cloudmcp-manager__memory-search_nodes
-Query: "implementation patterns [component/feature]"
+mcp__serena__write_memory
+memory_file_name: "pattern-implementation-[topic]"
+content: "# Implementation: [Topic]\n\n**Statement**: ...\n\n**Evidence**: ...\n\n## Details\n\n..."
 ```
 
-**After implementation:**
-
-```json
-mcp__cloudmcp-manager__memory-add_observations
-{
-  "observations": [{
-    "entityName": "Pattern-Implementation-[Topic]",
-    "contents": ["[Implementation notes and patterns discovered]"]
-  }]
-}
-```
+> **Fallback**: If Memory Router unavailable, read `.serena/memories/` directly with Read tool.
 
 ## Code Requirements
 

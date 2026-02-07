@@ -198,7 +198,7 @@ argument-hint: Guidance for users
 | `## Core Mission` | Primary objective |
 | `## Key Responsibilities` | Numbered responsibilities |
 | `## Constraints` | What agent must NOT do |
-| `## Memory Protocol` | cloudmcp-manager usage |
+| `## Memory Protocol` | Memory Router + Serena usage |
 | `## Handoff Options` | When to delegate |
 | `## Output Format` | Expected deliverables |
 
@@ -239,15 +239,17 @@ PR Review:
 Claude agents use MCP tool prefix syntax:
 
 ```text
-mcp__cloudmcp-manager__memory-search_nodes
-mcp__cognitionai-deepwiki__ask_question
+pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "topic"  # Memory Router (ADR-037)
+mcp__serena__write_memory  # Serena write tools
+mcp__deepwiki__ask_question
 mcp__serena__find_symbol
 ```
 
 VS Code/Copilot use path notation:
 
 ```text
-cloudmcp-manager/memory-search_nodes
+Search-Memory.ps1  # Memory Router (ADR-037)
+serena/write_memory
 cognitionai/deepwiki/ask_question
 serena/find_symbol
 ```
@@ -344,4 +346,4 @@ Invoke-Pester ./build/tests/
 - [build/AGENTS.md](../../build/AGENTS.md) - Build automation
 - [Root AGENTS.md](../../AGENTS.md) - Agent usage instructions
 - [AGENT-SYSTEM.md](../../.agents/AGENT-SYSTEM.md) - Full system documentation
-- usage-mandatory (use `mcp__serena__read_memory` with `memory_file_name="usage-mandatory"`) - GitHub skill rules
+- usage-mandatory (read via `Read .serena/memories/usage-mandatory.md`) - GitHub skill rules

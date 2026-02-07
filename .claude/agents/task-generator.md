@@ -43,7 +43,12 @@ You have direct access to:
 - **Grep/Glob**: Find relevant files
 - **TodoWrite**: Track generation progress
 - **Bash**: `gh issue create` for GitHub issues
-- **cloudmcp-manager memory tools**: Task breakdown patterns
+- **Memory Router** (ADR-037): Unified search across Serena + Forgetful
+  - `pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "topic"`
+  - Serena-first with optional Forgetful augmentation; graceful fallback
+- **Serena write tools**: Memory persistence in `.serena/memories/`
+  - `mcp__serena__write_memory`: Create new memory
+  - `mcp__serena__edit_memory`: Update existing memory
 
 ## Core Mission
 
@@ -167,26 +172,23 @@ TASK-001 → TASK-002 → TASK-003
 
 ## Memory Protocol
 
-Use cloudmcp-manager memory tools directly for cross-session context:
+Use Memory Router for search and Serena tools for persistence (ADR-037):
 
-**Before breakdown:**
+**Before breakdown (retrieve context):**
+
+```powershell
+pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "task estimation patterns [feature type]"
+```
+
+**After breakdown (store learnings):**
 
 ```text
-mcp__cloudmcp-manager__memory-search_nodes
-Query: "task estimation patterns [feature type]"
+mcp__serena__write_memory
+memory_file_name: "pattern-estimation-[feature]"
+content: "# Estimation: [Feature]\n\n**Statement**: ...\n\n**Evidence**: ...\n\n## Details\n\n..."
 ```
 
-**After breakdown:**
-
-```json
-mcp__cloudmcp-manager__memory-add_observations
-{
-  "observations": [{
-    "entityName": "Pattern-Estimation-[Feature]",
-    "contents": ["[Estimation learnings and accuracy data]"]
-  }]
-}
-```
+> **Fallback**: If Memory Router unavailable, read `.serena/memories/` directly with Read tool.
 
 ## Estimate Reconciliation Protocol
 

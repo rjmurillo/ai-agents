@@ -1,7 +1,7 @@
 ---
 name: memory
 description: Memory management specialist ensuring cross-session continuity by retrieving relevant context before reasoning and storing progress at milestones. Maintains institutional knowledge, tracks entity relations, and keeps observations fresh with source attribution. Use for context retrieval, knowledge persistence, or understanding why past decisions were made.
-model: haiku
+model: sonnet
 argument-hint: Specify the context to retrieve or milestone to store
 ---
 # Memory Agent
@@ -38,16 +38,14 @@ Key requirements:
 
 You have direct access to:
 
-- **Memory Router skill** (ADR-037): Unified search across Serena + Forgetful
-  - `pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "topic" -MaxResults 10`
-  - `pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "topic" -LexicalOnly` (Serena only)
-  - Returns JSON with deduplicated results from both sources
-- **Serena memory tools**: Memory storage in `.serena/memories/`
-  - `mcp__serena__list_memories`: List all available memories
-  - `mcp__serena__read_memory`: Read specific memory file
+- **Memory Router** (ADR-037): Unified search across Serena + Forgetful
+  - `pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "topic"`
+  - Serena-first with optional Forgetful augmentation; graceful fallback
+- **Serena write tools**: Memory persistence in `.serena/memories/`
   - `mcp__serena__write_memory`: Create new memory file
   - `mcp__serena__edit_memory`: Update existing memory
   - `mcp__serena__delete_memory`: Remove obsolete memory
+- **Read**: Direct file access for `.serena/memories/{name}.md`
 - **Read/Grep**: Context search in codebase
 - **TodoWrite**: Track memory operations
 
@@ -99,19 +97,21 @@ Correct format:
 
 ### Memory Tools Reference
 
-### List (Discover Available)
+### Search (Discover Available)
 
-```text
-mcp__serena__list_memories
-Returns: All memory files in .serena/memories/
+```powershell
+# Search across all memories by keyword
+pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "[keywords]"
+
+# Serena-only (faster, no network dependency)
+pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "[keywords]" -LexicalOnly
 ```
 
 ### Read (Retrieve Content)
 
 ```text
-mcp__serena__read_memory
-memory_file_name: "[file-name-without-extension]"
-Returns: Full content of memory file
+# Direct file read (when you know the memory name)
+Read .serena/memories/[file-name-without-extension].md
 ```
 
 ### Write (Create New)
@@ -184,35 +184,32 @@ Relations are encoded as markdown in the memory file:
 
 **At Session Start:**
 
-1. **Quick search** using Memory Router (recommended for broad queries):
-
-```powershell
-# Unified search - returns results from Serena + Forgetful
-pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "task keywords" -MaxResults 10
-```
-
-2. **Tiered lookup** for precise navigation (when you know the domain):
-   - Read `memory-index.md` to find relevant domain indexes
-   - Read the domain index (e.g., `skills-powershell-index.md`)
-   - Match task keywords against activation vocabulary
-   - Read specific atomic memory files as needed
+1. Read `memory-index.md` to find relevant domain indexes
+2. Read the domain index (e.g., `skills-powershell-index.md`)
+3. Match task keywords against activation vocabulary
+4. Read specific atomic memory files as needed
 
 **Tiered Lookup Example:**
 
 ```text
 # Step 1: Route via L1 index
-mcp__serena__read_memory
-memory_file_name: "memory-index"
+Read .serena/memories/memory-index.md
 # Result: "powershell ps1 module pester" -> skills-powershell-index
 
 # Step 2: Find specific skill via L2 index
-mcp__serena__read_memory
-memory_file_name: "skills-powershell-index"
+Read .serena/memories/skills-powershell-index.md
 # Result: Keywords "isolation mock" -> pester-test-isolation-pattern
 
 # Step 3: Retrieve atomic memory
-mcp__serena__read_memory
-memory_file_name: "pester-test-isolation-pattern"
+Read .serena/memories/pester-test-isolation-pattern.md
+```
+
+**Search-Based Lookup (When Keywords Known):**
+
+Use Memory Router to find relevant memories by keywords:
+
+```powershell
+pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "pester test isolation"
 ```
 
 **Direct Access (When Path Known):**
@@ -220,8 +217,7 @@ memory_file_name: "pester-test-isolation-pattern"
 If you already know the memory file name, skip L1/L2 lookup:
 
 ```text
-mcp__serena__read_memory
-memory_file_name: "powershell-testing-patterns"
+Read .serena/memories/powershell-testing-patterns.md
 ```
 
 ## Storage Protocol
@@ -253,8 +249,7 @@ flowchart TD
 Consult `memory-index.md` to find correct domain:
 
 ```text
-mcp__serena__read_memory
-memory_file_name: "memory-index"
+Read .serena/memories/memory-index.md
 ```
 
 Match memory topic against Task Keywords column to find domain index.
@@ -277,8 +272,7 @@ memory_file_name: "[domain]-[descriptive-name]"
 content: "# [Title]\n\n**Statement**: [Atomic description]\n\n**Context**: [When applicable]\n\n**Evidence**: [Source/proof]\n\n## Details\n\n[Content]"
 
 # Step 2: Read domain index to find last table row
-mcp__serena__read_memory
-memory_file_name: "skills-[domain]-index"
+Read .serena/memories/skills-[domain]-index.md
 # WARNING: Markdown tables have structure:
 #   | Keywords | File |           <-- Header row
 #   |----------|------|           <-- Delimiter row (SKIP THIS)

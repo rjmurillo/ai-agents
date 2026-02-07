@@ -34,7 +34,12 @@ You have direct access to:
 
 - **Read/Grep/Glob**: Verify plan against codebase reality
 - **TodoWrite**: Track review progress
-- **cloudmcp-manager memory tools**: Prior review patterns, past failures
+- **Memory Router** (ADR-037): Unified search across Serena + Forgetful
+  - `pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "topic"`
+  - Serena-first with optional Forgetful augmentation; graceful fallback
+- **Serena write tools**: Memory persistence in `.serena/memories/`
+  - `mcp__serena__write_memory`: Create new memory
+  - `mcp__serena__edit_memory`: Update existing memory
 
 ## Core Mission
 
@@ -124,6 +129,50 @@ When reviewing plans that introduce dependencies or architectural changes:
 - [ ] Overall complexity assessment reasonable
 - [ ] Issues Discovered sections populated and triaged
 - [ ] Implementation sequence addresses dependencies from all domains
+
+### Traceability Validation (Spec-Layer Plans)
+
+When reviewing plans that create or modify specification artifacts (requirements, designs, tasks), validate traceability compliance per `.agents/governance/traceability-schema.md`:
+
+#### Forward Traceability (REQ -> DESIGN)
+
+- [ ] Each requirement references at least one design document
+- [ ] REQ files include `related: [DESIGN-NNN]` in YAML front matter
+- [ ] No orphaned requirements (REQs without DESIGN references)
+
+#### Backward Traceability (TASK -> DESIGN)
+
+- [ ] Each task references at least one design document
+- [ ] TASK files include `related: [DESIGN-NNN]` in YAML front matter
+- [ ] No untraced tasks (TASKs without DESIGN references)
+
+#### Complete Chain Validation
+
+- [ ] Every DESIGN has backward trace to REQ(s)
+- [ ] Every DESIGN has forward trace from TASK(s)
+- [ ] Chain complete: REQ -> DESIGN -> TASK
+
+#### Reference Validity
+
+- [ ] All referenced IDs exist as files
+- [ ] No broken references (e.g., DESIGN-999 when file does not exist)
+- [ ] ID patterns match: `REQ-NNN`, `DESIGN-NNN`, `TASK-NNN`
+
+#### Validation Script
+
+Run traceability validation before approving spec-related plans:
+
+```powershell
+pwsh scripts/Validate-Traceability.ps1 -SpecsPath ".agents/specs"
+```
+
+#### Traceability Verdict
+
+| Result | Verdict | Action |
+|--------|---------|--------|
+| No errors, no warnings | [PASS] | Approve traceability |
+| Warnings only | [WARNING] | Note orphans, approve with caveats |
+| Errors found | [FAIL] | Block approval until fixed |
 
 ## Pre-PR Readiness Validation
 
@@ -347,26 +396,23 @@ All escalation prompts MUST include:
 
 ## Memory Protocol
 
-Use cloudmcp-manager memory tools directly for cross-session context:
+Use Memory Router for search and Serena tools for persistence (ADR-037):
 
-**Before review:**
+**Before review (retrieve context):**
+
+```powershell
+pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "critique patterns [topic/component]"
+```
+
+**After review (store learnings):**
 
 ```text
-mcp__cloudmcp-manager__memory-search_nodes
-Query: "critique patterns [topic/component]"
+mcp__serena__write_memory
+memory_file_name: "critique-[topic]"
+content: "# Critique: [Topic]\n\n**Statement**: ...\n\n**Evidence**: ...\n\n## Details\n\n..."
 ```
 
-**After review:**
-
-```json
-mcp__cloudmcp-manager__memory-add_observations
-{
-  "observations": [{
-    "entityName": "Pattern-Critique-[Topic]",
-    "contents": ["[Review findings and patterns discovered]"]
-  }]
-}
-```
+> **Fallback**: If Memory Router unavailable, read `.serena/memories/` directly with Read tool.
 
 ## Verdict Rules
 

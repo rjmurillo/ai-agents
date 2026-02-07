@@ -69,45 +69,6 @@ When comparing options across multiple dimensions:
 3. Score each option per criterion (1-5 scale)
 4. Calculate weighted score: Sum(weight x score)
 
-## Time Horizon Planning: Three Horizons
-
-Balance investments across time horizons to avoid myopic focus on immediate delivery:
-
-| Horizon | Time Frame | Focus | Risk | Investment |
-|---------|------------|-------|------|------------|
-| **H1** | 0-1 years | Optimize current systems | Low | ~70% |
-| **H2** | 1-3 years | Emerging opportunities | Medium | ~20% |
-| **H3** | 3-10 years | Future bets | High | ~10% |
-
-**Planning Application**:
-
-- **H1 tasks**: Bug fixes, performance optimization, technical debt paydown
-- **H2 tasks**: Architecture transitions, new capabilities, platform shifts
-- **H3 tasks**: Experimental features, proof-of-concepts, research spikes
-
-**Critical Insight**: You cannot use H1 metrics on H3 projects. "What's the ROI?" on an 8-week-old experiment will always be zero.
-
-**Actual Allocation Check**: Most teams drift to 95/4/1 when desired is 70/20/10. Explicitly track horizon allocation.
-
-## Critical Path Method (Constraint Focus)
-
-Identify the longest sequence of dependent tasks (critical path) to focus optimization efforts:
-
-**Process**:
-
-1. List all tasks and dependencies
-2. Calculate earliest start/finish times (forward pass)
-3. Calculate latest start/finish times (backward pass)
-4. Identify critical path (zero slack)
-5. Focus on optimizing critical path tasks
-
-**Key Terms**:
-
-- **Float/Slack**: Time a task can be delayed without impacting overall completion
-- **Critical Activities**: Zero float, any delay affects project duration
-
-**Application**: When estimating milestones, identify which tasks are on critical path vs. which have slack.
-
 ## Activation Profile
 
 **Keywords**: Milestones, Breakdown, Work-packages, Scope, Dependencies, Sequencing, Objectives, Deliverables, Acceptance-criteria, Risks, Roadmap, Blueprint, Epics, Phases, Structured, Impact-analysis, Consultation, Integration, Approach, Verification
@@ -121,28 +82,12 @@ You have direct access to:
 - **Read/Grep/Glob**: Analyze codebase scope
 - **Write/Edit**: Create `.agents/planning/` files
 - **TodoWrite**: Track planning progress
-- **cloudmcp-manager memory tools**: Prior planning patterns
-
-## Strategic Knowledge Available
-
-Query these Serena memories when relevant:
-
-**Strategic Planning** (Primary):
-
-- `three-horizons-framework`: Balance time horizons in milestone planning
-- `critical-path-method`: Identify constraints and sequencing dependencies
-- `cynefin-framework`: Classify task complexity for appropriate breakdown
-
-**Decision Frameworks** (Secondary):
-
-- `wardley-mapping`: Technology evolution for sequencing decisions
-- `ooda-loop`: Structured decision cycle for plan iterations
-
-Access via:
-
-```python
-mcp__serena__read_memory(memory_file_name="[memory-name]")
-```
+- **Memory Router** (ADR-037): Unified search across Serena + Forgetful
+  - `pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "topic"`
+  - Serena-first with optional Forgetful augmentation; graceful fallback
+- **Serena write tools**: Memory persistence in `.serena/memories/`
+  - `mcp__serena__write_memory`: Create new memory
+  - `mcp__serena__edit_memory`: Update existing memory
 
 ## Core Mission
 
@@ -222,45 +167,27 @@ Save to: `.agents/planning/NNN-[feature]-plan.md`
 How we know the plan is complete:
 - [ ] [Criterion]
 - [ ] [Criterion]
-
-## Time Horizon Classification
-
-| Milestone | Horizon | Rationale |
-|-----------|---------|-----------|
-| [Milestone 1] | H1 | [Current system optimization] |
-| [Milestone 2] | H2 | [Emerging capability] |
-
-**Allocation Check**: H1: [%], H2: [%], H3: [%]
-
-## Critical Path Analysis
-
-**Critical Path**: [Milestone X] -> [Milestone Y] -> [Milestone Z]
-**Estimated Duration**: [Total days on critical path]
-**Slack Tasks**: [Tasks with float/can be delayed]
 ```
 
 ## Memory Protocol
 
-Use cloudmcp-manager memory tools directly for cross-session context:
+Use Memory Router for search and Serena tools for persistence (ADR-037):
 
-**Before planning:**
+**Before planning (retrieve context):**
+
+```powershell
+pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "planning patterns [feature/epic]"
+```
+
+**After planning (store learnings):**
 
 ```text
-mcp__cloudmcp-manager__memory-search_nodes
-Query: "planning patterns [feature/epic]"
+mcp__serena__write_memory
+memory_file_name: "plan-[feature]"
+content: "# Plan: [Feature]\n\n**Statement**: ...\n\n**Evidence**: ...\n\n## Details\n\n..."
 ```
 
-**After planning:**
-
-```json
-mcp__cloudmcp-manager__memory-add_observations
-{
-  "observations": [{
-    "entityName": "Plan-[Feature]",
-    "contents": ["[Planning decisions and rationale]"]
-  }]
-}
-```
+> **Fallback**: If Memory Router unavailable, read `.serena/memories/` directly with Read tool.
 
 ## Planning Principles
 

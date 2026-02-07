@@ -40,7 +40,12 @@ You have direct access to:
 - **Read/Grep/Glob**: Analyze code and tests
 - **Bash**: `dotnet test`, `dotnet test --collect:"XPlat Code Coverage"`
 - **Write/Edit**: Create test files
-- **cloudmcp-manager memory tools**: Testing patterns
+- **Memory Router** (ADR-037): Unified search across Serena + Forgetful
+  - `pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "topic"`
+  - Serena-first with optional Forgetful augmentation; graceful fallback
+- **Serena write tools**: Memory persistence in `.serena/memories/`
+  - `mcp__serena__write_memory`: Create new memory
+  - `mcp__serena__edit_memory`: Update existing memory
 
 ## Core Mission
 
@@ -560,26 +565,23 @@ dotnet reportgenerator -reports:coverage.xml -targetdir:coverage-report
 
 ## Memory Protocol
 
-Use cloudmcp-manager memory tools directly for cross-session context:
+Use Memory Router for search and Serena tools for persistence (ADR-037):
 
-**Before testing:**
+**Before testing (retrieve context):**
+
+```powershell
+pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "test strategies [feature/component]"
+```
+
+**After testing (store learnings):**
 
 ```text
-mcp__cloudmcp-manager__memory-search_nodes
-Query: "test strategies [feature/component]"
+mcp__serena__write_memory
+memory_file_name: "pattern-testing-[topic]"
+content: "# Testing: [Topic]\n\n**Statement**: ...\n\n**Evidence**: ...\n\n## Details\n\n..."
 ```
 
-**After testing:**
-
-```json
-mcp__cloudmcp-manager__memory-add_observations
-{
-  "observations": [{
-    "entityName": "Pattern-Testing-[Topic]",
-    "contents": ["[Testing insights and patterns discovered]"]
-  }]
-}
-```
+> **Fallback**: If Memory Router unavailable, read `.serena/memories/` directly with Read tool.
 
 ## Constraints
 

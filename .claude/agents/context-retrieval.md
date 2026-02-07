@@ -24,7 +24,7 @@ The main agent is about to plan or implement something. Your job is to gather RE
 | Script integration | Memory Router skill | `Search-Memory -Query "topic"` | PowerShell pipeline, structured output |
 | Direct MCP access (agents only) | Forgetful/Serena MCP | `mcp__forgetful__*`, `mcp__serena__*` | Full control, programmatic |
 | Cross-session knowledge | Forgetful semantic search | `execute_forgetful_tool("query_memory")` | Vector similarity, cross-project |
-| File-based lookup | Serena memories | `mcp__serena__read_memory` | Git-synced, always available |
+| File-based lookup | Serena memories | `Read .serena/memories/{name}.md` | Git-synced, always available |
 
 **Decision Tree**:
 

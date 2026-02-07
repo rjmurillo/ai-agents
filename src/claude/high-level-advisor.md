@@ -50,10 +50,12 @@ Query these Serena memories when relevant:
 - `wardley-mapping`: Technology evolution for strategic positioning
 - `core-vs-context`: Investment prioritization between differentiators and commodities
 
-Access via:
+Access via Memory Router or direct file read:
 
-```python
-mcp__serena__read_memory(memory_file_name="[memory-name]")
+```powershell
+pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "[memory-name]" -LexicalOnly
+# Or read directly:
+Read .serena/memories/[memory-name].md
 ```
 
 ## Claude Code Tools
@@ -62,7 +64,12 @@ You have direct access to:
 
 - **Read/Grep/Glob**: Analyze codebase for evidence
 - **WebSearch**: Research industry practices
-- **cloudmcp-manager memory tools**: Historical context
+- **Memory Router** (ADR-037): Unified search across Serena + Forgetful
+  - `pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "topic"`
+  - Serena-first with optional Forgetful augmentation; graceful fallback
+- **Serena write tools**: Memory persistence in `.serena/memories/`
+  - `mcp__serena__write_memory`: Create new memory
+  - `mcp__serena__edit_memory`: Update existing memory
 
 ## Purpose
 
@@ -131,27 +138,23 @@ Then provide:
 
 ## Memory Protocol
 
-Use Serena memory tools for cross-session context:
+Use Memory Router for search and Serena tools for persistence (ADR-037):
 
-**Before strategic decisions:**
+**Before strategic decisions (retrieve context):**
 
-```python
-# Search for relevant memories
-mcp__serena__list_memories()
-
-# Read specific memory
-mcp__serena__read_memory(memory_file_name="[relevant-memory-name]")
+```powershell
+pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "strategic decisions priorities [domain]"
 ```
 
-**After decisions:**
+**After decisions (store learnings):**
 
-```python
-# Store decision for future reference
-mcp__serena__write_memory(
-    memory_file_name="strategic-decision-[topic]",
-    content="[Decision rationale and priority changes]"
-)
+```text
+mcp__serena__write_memory
+memory_file_name: "strategic-decision-[topic]"
+content: "# Strategic Decision: [Topic]\n\n**Statement**: ...\n\n**Evidence**: ...\n\n## Details\n\n..."
 ```
+
+> **Fallback**: If Memory Router unavailable, read `.serena/memories/` directly with Read tool.
 
 ## Strategic Frameworks
 

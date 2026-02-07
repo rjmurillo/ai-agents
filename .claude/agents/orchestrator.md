@@ -1,7 +1,7 @@
 ---
 name: orchestrator
 description: Enterprise task orchestrator who autonomously coordinates specialized agents end-to-end—routing work, managing handoffs, and synthesizing results. Classifies complexity, triages delegation, and sequences workflows. Use for multi-step tasks requiring coordination, integration, or when the problem needs complete end-to-end resolution.
-model: sonnet
+model: opus
 argument-hint: Describe the task or problem to solve end-to-end
 ---
 # Orchestrator Agent
@@ -109,7 +109,12 @@ You have direct access to:
 - **Task**: Delegate to specialized agents
 - **TodoWrite**: Track orchestration progress
 - **Bash**: Execute commands
-- **Serena memory tools**: Cross-session context (`mcp__serena__list_memories`, `mcp__serena__read_memory`, `mcp__serena__write_memory`)
+- **Memory Router** (ADR-037): Unified search across Serena + Forgetful
+  - `pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "topic"`
+  - Serena-first with optional Forgetful augmentation; graceful fallback
+- **Serena write tools**: Memory persistence in `.serena/memories/`
+  - `mcp__serena__write_memory`: Create new memory
+  - `mcp__serena__edit_memory`: Update existing memory
 
 ## Reliability Principles
 
@@ -226,43 +231,23 @@ These are normal occurrences. Continue orchestrating.
 
 ## Memory Protocol
 
-Use Serena memory tools for cross-session context:
+Use Memory Router for search and Serena tools for persistence (ADR-037):
 
-**Before multi-step reasoning:**
+**Before multi-step reasoning (retrieve context):**
 
-```python
-# Search for relevant memories
-mcp__serena__list_memories()
-
-# Read specific orchestration patterns
-mcp__serena__read_memory(memory_file_name="orchestration-[relevant-pattern]")
+```powershell
+pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "orchestration [relevant-pattern]"
 ```
 
-**At milestones (or every 5 turns):**
+**At milestones (or every 5 turns, store learnings):**
 
-```python
-# Store orchestration decisions
-mcp__serena__write_memory(
-    memory_file_name="orchestration-[topic]",
-    content="""
-## Orchestration Decision: [Topic]
-
-**Agent Performance:**
-- Success patterns: [what worked]
-- Failure modes: [what failed]
-
-**Routing Decisions:**
-- Effective: [what worked]
-- Ineffective: [what failed]
-
-**Solutions:**
-- Recurring problems resolved: [solutions]
-
-**Conventions:**
-- Project patterns discovered: [patterns]
-"""
-)
+```text
+mcp__serena__write_memory
+memory_file_name: "orchestration-[topic]"
+content: "# Orchestration Decision: [Topic]\n\n**Agent Performance**:\n- Success patterns: [what worked]\n- Failure modes: [what failed]\n\n**Routing Decisions**:\n- Effective: [what worked]\n- Ineffective: [what failed]\n\n**Solutions**:\n- Recurring problems resolved: [solutions]\n\n**Conventions**:\n- Project patterns discovered: [patterns]"
 ```
+
+> **Fallback**: If Memory Router unavailable, read `.serena/memories/` directly with Read tool.
 
 ## Execution Protocol
 
@@ -1047,12 +1032,11 @@ See also: `.agents/governance/consistency-protocol.md` for the complete validati
 
 **Tools to use**:
 
-- `mcp__cloudmcp-manager__commicrosoftmicrosoft-learn-mcp-microsoft_code_sample_search` - Code samples
-- `mcp__cloudmcp-manager__commicrosoftmicrosoft-learn-mcp-microsoft_docs_search` - Microsoft docs
-- `mcp__cloudmcp-manager__upstashcontext7-mcp-get-library-docs` - Library documentation
+- `WebSearch` (query: "site:learn.microsoft.com [topic]") - Microsoft docs and code samples
+- `mcp__context7__get-library-docs` - Library documentation
 - `mcp__deepwiki__ask_question`, `mcp__deepwiki__read_wiki_contents` - Repository knowledge
-- `mcp__cloudmcp-manager__perplexity-aimcp-server-perplexity_research` - Deep research
-- `mcp__cloudmcp-manager__perplexity-aimcp-server-perplexity_search` - Web search
+- `mcp__plugin_perplexity_perplexity__perplexity_research` - Deep research
+- `mcp__plugin_perplexity_perplexity__perplexity_search` - Web search
 - `WebSearch`, `WebFetch` - General web research
 
 **Output**: Research findings document at `.agents/analysis/ideation-[topic].md`
@@ -1332,7 +1316,7 @@ Retrospective agent returns output containing `## Retrospective Handoff` section
                               v
 ┌─────────────────────────────────────────────────────────────┐
 │ Step 3: Persist Memory Updates (IF memory updates exist)    │
-│   - Use cloudmcp-manager memory tools directly              │
+│   - Use Serena write tools directly (ADR-037)               │
 │   - OR route to memory agent for complex updates            │
 │   - Create/update entities in specified files               │
 └─────────────────────────────────────────────────────────────┘
@@ -1401,16 +1385,12 @@ Task(
 
 #### Step 3: Memory Persistence
 
-For simple updates, use cloudmcp-manager directly:
+For simple updates, use Serena write tools directly (ADR-037):
 
-```json
-mcp__cloudmcp-manager__memory-add_observations
-{
-  "observations": [{
-    "entityName": "[Entity from table]",
-    "contents": ["[Content from table]"]
-  }]
-}
+```text
+mcp__serena__write_memory
+memory_file_name: "[entity-from-table]"
+content: "[Content from table]"
 ```
 
 For complex updates, route to memory agent.
@@ -1655,7 +1635,7 @@ You CANNOT claim "session complete", "done", "finished", or any completion langu
 Before claiming completion, run:
 
 ```bash
-pwsh scripts/Validate-SessionJson.ps1 -SessionLogPath ".agents/sessions/[session-log].md"
+pwsh scripts/Validate-SessionJson.ps1 -SessionLogPath ".agents/sessions/[session-log].json"
 ```
 
 ### Gate Outcomes

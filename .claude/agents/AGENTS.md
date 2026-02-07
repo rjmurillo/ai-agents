@@ -6,6 +6,8 @@ This document describes the 18 AI agents defined for Claude Code CLI and the cri
 
 The `src/claude/` directory contains **hand-maintained** agent definitions for Claude Code CLI. Unlike VS Code and Copilot CLI agents (which are generated from templates), Claude agents are the primary source for Claude-specific features.
 
+> **Governing ADR**: [ADR-036: Two-Source Agent Template Architecture](../../.agents/architecture/ADR-036-two-source-agent-template-architecture.md)
+
 ## Source vs Installation Relationship
 
 ```text
@@ -38,21 +40,40 @@ src/claude/*.md  ─────────────────────
 
 ## Critical Workflow Rules
 
-### Rule 1: Synchronization with Templates
+### Rule 1: Bidirectional Synchronization (CRITICAL - ADR-036)
 
-**IMPORTANT**: When modifying Claude agents, consider if the change should apply across all platforms.
+**The pre-commit hook handles generation but NOT content synchronization between sources.**
+
+Per ADR-036 §Synchronization Requirement, when adding content that applies to ALL platforms, you MUST update BOTH sources:
+
+| Scenario | Action Required |
+|----------|-----------------|
+| Universal content added HERE | Also add to `templates/agents/{agent}.shared.md` |
+| Universal content added in Templates | Also add to `src/claude/{agent}.md` (MANUAL!) |
+| Claude-specific content (MCP tools, Serena) | Do NOT add to templates |
+| Template-specific content | Do NOT add to Claude |
+
+**Procedure (from Claude to template):**
 
 ```text
-IF change is Claude-specific (tool syntax, Claude Code features)
-THEN modify only src/claude/*.md
-
-IF change is universal (responsibilities, constraints, workflows)
-THEN:
-  1. Modify src/claude/*.md
-  2. Duplicate changes to templates/agents/*.shared.md
-  3. Run: pwsh build/Generate-Agents.ps1
-  4. Commit all changed files together
+1. Edit src/claude/{agent}.md
+2. Duplicate universal changes to templates/agents/{agent}.shared.md
+3. Run: pwsh build/Generate-Agents.ps1
+4. Commit all changed files together
 ```
+
+**Procedure (from template to Claude):**
+
+```text
+1. Edit templates/agents/{agent}.shared.md
+2. Edit src/claude/{agent}.md (MANUAL - not auto-synced!)
+3. Run: pwsh build/Generate-Agents.ps1
+4. Commit all files atomically
+```
+
+**Anti-pattern (ADR-036 §Common Mistake):**
+
+> Editing only `templates/agents/*.shared.md` and forgetting `src/claude/*.md` causes Claude agents to miss the new content while Copilot platforms have it.
 
 ### Rule 2: Drift Detection
 
@@ -177,7 +198,7 @@ argument-hint: Guidance for users
 | `## Core Mission` | Primary objective |
 | `## Key Responsibilities` | Numbered responsibilities |
 | `## Constraints` | What agent must NOT do |
-| `## Memory Protocol` | cloudmcp-manager usage |
+| `## Memory Protocol` | Memory Router + Serena usage |
 | `## Handoff Options` | When to delegate |
 | `## Output Format` | Expected deliverables |
 
@@ -218,15 +239,17 @@ PR Review:
 Claude agents use MCP tool prefix syntax:
 
 ```text
-mcp__cloudmcp-manager__memory-search_nodes
-mcp__cognitionai-deepwiki__ask_question
+pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "topic"  # Memory Router (ADR-037)
+mcp__serena__write_memory  # Serena write tools
+mcp__deepwiki__ask_question
 mcp__serena__find_symbol
 ```
 
 VS Code/Copilot use path notation:
 
 ```text
-cloudmcp-manager/memory-search_nodes
+Search-Memory.ps1  # Memory Router (ADR-037)
+serena/write_memory
 cognitionai/deepwiki/ask_question
 serena/find_symbol
 ```
@@ -318,8 +341,9 @@ Invoke-Pester ./build/tests/
 
 ## Related Documentation
 
-- [templates/AGENTS.md](../../templates/AGENTS.md) - Template system
+- [ADR-036: Two-Source Agent Template Architecture](../../.agents/architecture/ADR-036-two-source-agent-template-architecture.md) - Governing architecture decision
+- [templates/AGENTS.md](../../templates/AGENTS.md) - Template system synchronization rules
 - [build/AGENTS.md](../../build/AGENTS.md) - Build automation
 - [Root AGENTS.md](../../AGENTS.md) - Agent usage instructions
 - [AGENT-SYSTEM.md](../../.agents/AGENT-SYSTEM.md) - Full system documentation
-- usage-mandatory (use `mcp__serena__read_memory` with `memory_file_name="usage-mandatory"`) - GitHub skill rules
+- usage-mandatory (read via `Read .serena/memories/usage-mandatory.md`) - GitHub skill rules
