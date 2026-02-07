@@ -178,9 +178,9 @@ Describe "Invoke-ADRReviewGuard" {
             # Threat model addressed: Malicious or confused agent claims "adr-review skill ran"
             # in session log without actually executing multi-agent consensus process.
             # Mitigation: Hook requires BOTH session log evidence (soft check) AND debate log
-            # artifact (hard check). The debate log is an immutable filesystem artifact created
-            # by the adr-review skill during actual consensus, providing cryptographic-strength
-            # evidence that cannot be forged by simply editing session log JSON. This prevents:
+            # artifact (hard check). The debate log is a separate filesystem artifact created
+            # by the adr-review skill during actual consensus, raising the bar beyond session
+            # log manipulation alone. This prevents:
             # 1. Agent hallucinating that it ran adr-review when it didn't
             # 2. Agent editing session log to claim review without actual multi-agent debate
             # 3. Bypassing consensus requirement by exploiting session log as single point of failure
@@ -636,7 +636,7 @@ Consensus achieved after thorough review.
             # Create debate log artifact (required by hook per rjmurillo #2679845429)
             # Security rationale: Dual verification (session log + debate log artifact) prevents
             # bypass where agent claims consensus in session log without actual multi-agent review.
-            # The debate log provides immutable evidence that architect, critic, and qa agents
+            # The debate log provides persistent evidence that architect, critic, and qa agents
             # participated in consensus process, not just a single agent's unverified claim.
             Set-Content -Path (Join-Path $Script:TestRootReviewed ".agents/analysis/ADR-999-debate-log.md") -Value "# ADR-999 Debate Log`n`nConsensus achieved."
 

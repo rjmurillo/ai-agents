@@ -24,8 +24,9 @@ function Get-ProjectDirectory {
 
     .DESCRIPTION
         Returns the project root by checking CLAUDE_PROJECT_DIR environment
-        variable first, then walking up from script location to find .git directory.
-        Falls back to current directory if project root cannot be determined.
+        variable first, then walking up from the current working directory to find
+        .git directory. Falls back to current directory if project root cannot be
+        determined.
 
     .OUTPUTS
         String - Project root directory path (never null).
@@ -140,8 +141,6 @@ function Get-TodaySessionLog {
     catch {
         $errorMsg = "Failed to read session logs from $SessionsDir : $($_.Exception.Message)"
         Write-Warning $errorMsg
-        # Audit logging deferred to caller - HookUtilities cannot import audit function
-        # to avoid circular dependencies with hook scripts
         return $null
     }
 

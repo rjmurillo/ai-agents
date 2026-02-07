@@ -195,7 +195,7 @@ try {
             Add-Content -Path $auditLogPath -Value "[$timestamp] [ADRReviewGuard] $errorMsg" -ErrorAction SilentlyContinue
         }
         catch {
-            # Silent fallback if audit log write fails
+            [Console]::Error.WriteLine("[ADRReviewGuard] CRITICAL: Audit log write failed. Original error: $errorMsg")
         }
         exit 2
     }
@@ -298,7 +298,7 @@ catch {
         Add-Content -Path $auditLogPath -Value $logEntry -ErrorAction SilentlyContinue
     }
     catch {
-        # Silent fallback if audit log write fails
+        [Console]::Error.WriteLine("[ADRReviewGuard] CRITICAL: All audit log paths failed. Original error: $errorMsg")
     }
 
     exit 0
