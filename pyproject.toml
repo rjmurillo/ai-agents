@@ -28,7 +28,7 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = [".", ".claude/skills/memory-enhancement/src"]
-include = ["scripts*", "memory_enhancement*"]
+include = ["scripts*", "scripts.memory_sync*", "memory_enhancement*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -43,7 +43,7 @@ markers = [
 ]
 
 [tool.coverage.run]
-source = [".claude", "scripts", ".claude/skills/memory-enhancement/src/memory_enhancement"]
+source = [".claude", "scripts", "scripts/memory_sync", ".claude/skills/memory-enhancement/src/memory_enhancement"]
 omit = ["**/tests/*", "**/__pycache__/*"]
 
 [tool.coverage.report]
