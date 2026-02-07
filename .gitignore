@@ -74,6 +74,3 @@ worktree--/
 .memory_sync_queue.json
 .memory_sync_state.json
 
-# Serena runtime caches (NOT memories, which must be persisted)
-.serena/cache/
-.serena/index/
