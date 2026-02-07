@@ -95,6 +95,17 @@ class TestDetectChanges:
         changes = detect_changes(lines)
         assert len(changes) == 0
 
+    def test_path_traversal_rejected(self) -> None:
+        """Path traversal sequences are rejected (CWE-22)."""
+        lines = [
+            "A\t.serena/memories/../../etc/passwd.md",
+            "A\t.serena/memories/../../../tmp/evil.md",
+            "A\t.serena/memories/legit.md",
+        ]
+        changes = detect_changes(lines)
+        assert len(changes) == 1
+        assert changes[0][0] == Path(".serena/memories/legit.md")
+
 
 class TestStateManagement:
     """Test sync state file operations."""

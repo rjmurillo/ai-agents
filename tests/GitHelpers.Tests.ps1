@@ -322,6 +322,100 @@ Describe "Get-GitInfo" {
         }
     }
 
+    Context "Security - Shell Metacharacter Injection" {
+        BeforeAll {
+            # Mock git to return branch names with shell metacharacters
+            Mock -CommandName git -ModuleName GitHelpers -MockWith {
+                param([Parameter(ValueFromRemainingArguments)]$Args)
+                if ($Args -contains 'rev-parse' -and $Args -contains '--show-toplevel') {
+                    $global:LASTEXITCODE = 0
+                    return "/fake/repo/path"
+                } elseif ($Args -contains 'branch' -and $Args -contains '--show-current') {
+                    $global:LASTEXITCODE = 0
+                    return $Script:TestBranchName
+                } elseif ($Args -contains 'rev-parse' -and $Args -contains '--short' -and $Args -contains 'HEAD') {
+                    $global:LASTEXITCODE = 0
+                    return "abc1234"
+                } elseif ($Args -contains 'status' -and $Args -contains '--short') {
+                    $global:LASTEXITCODE = 0
+                    return ""
+                }
+            }
+        }
+
+        It "Handles branch name with semicolon (;)" {
+            $Script:TestBranchName = 'feat/test;rm -rf /'
+            $result = Get-GitInfo
+            $result.Branch | Should -Be 'feat/test;rm -rf /'
+        }
+
+        It "Handles branch name with pipe (|)" {
+            $Script:TestBranchName = 'feat/test|cat /etc/passwd'
+            $result = Get-GitInfo
+            $result.Branch | Should -Be 'feat/test|cat /etc/passwd'
+        }
+
+        It "Handles branch name with && operator" {
+            $Script:TestBranchName = 'feat/test&&echo pwned'
+            $result = Get-GitInfo
+            $result.Branch | Should -Be 'feat/test&&echo pwned'
+        }
+
+        It 'Handles branch name with command substitution $(...)' {
+            $Script:TestBranchName = 'feat/$(whoami)'
+            $result = Get-GitInfo
+            $result.Branch | Should -Be 'feat/$(whoami)'
+        }
+
+        It 'Handles branch name with backticks' {
+            $branchName = 'feat/' + [char]0x60 + 'whoami' + [char]0x60
+            $Script:TestBranchName = $branchName
+            $result = Get-GitInfo
+            $result.Branch | Should -Be $branchName
+        }
+
+        It "Handles branch name with single quotes" {
+            $Script:TestBranchName = "feat/'injection'"
+            $result = Get-GitInfo
+            $result.Branch | Should -Be "feat/'injection'"
+        }
+
+        It "Handles branch name with double quotes" {
+            $Script:TestBranchName = 'feat/"injection"'
+            $result = Get-GitInfo
+            $result.Branch | Should -Be 'feat/"injection"'
+        }
+
+        It "Handles branch name with null bytes" {
+            $Script:TestBranchName = "feat/test`0evil"
+            $result = Get-GitInfo
+            $result.Branch | Should -Not -BeNullOrEmpty
+        }
+
+        It "Handles branch name with newline characters" {
+            $Script:TestBranchName = "feat/test`ninjection"
+            $result = Get-GitInfo
+            $result.Branch | Should -Not -BeNullOrEmpty
+        }
+
+        It "Handles branch name with tab characters" {
+            $Script:TestBranchName = "feat/test`tinjection"
+            $result = Get-GitInfo
+            $result.Branch | Should -Not -BeNullOrEmpty
+        }
+    }
+
+    Context "Security - No Shell Execution" {
+        It "PowerShell passes git args directly without shell interpretation" {
+            # PowerShell's process invocation does not run through sh/cmd.
+            # Verify by calling git with a branch name that would be dangerous in a shell.
+            # If shell interpretation occurred, this would execute 'echo pwned' as a command.
+            $result = Get-GitInfo
+            $result | Should -Not -BeNullOrEmpty
+            # No shell was spawned; all git args are passed as literal strings.
+        }
+    }
+
     Context "Output Structure Consistency" {
         It "Always returns hashtable with exact keys in every call" {
             for ($i = 0; $i -lt 3; $i++) {

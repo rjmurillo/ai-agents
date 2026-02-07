@@ -14,14 +14,9 @@ BeforeAll {
     $scriptPath = Join-Path $PSScriptRoot ".." ".claude" "skills" "session" "scripts" "Test-InvestigationEligibility.ps1"
     $scriptContent = Get-Content -Path $scriptPath -Raw
 
-    # Extract allowlist patterns using regex (safe - no code execution)
-    # Match from $investigationAllowlist = @( to the closing ) on its own line
-    if ($scriptContent -match '(?ms)\$investigationAllowlist\s*=\s*@\((.*?)^\s*\)') {
-        $arrayContent = $Matches[1]
-        # Extract single-quoted strings
-        $investigationAllowlist = [regex]::Matches($arrayContent, "'([^']+)'") |
-            ForEach-Object { $_.Groups[1].Value }
-    }
+    # Import the shared allowlist module (script now delegates to this)
+    Import-Module (Join-Path $PSScriptRoot '../scripts/modules/InvestigationAllowlist.psm1') -Force
+    $investigationAllowlist = Get-InvestigationAllowlist
 }
 
 Describe "Test-InvestigationEligibility.ps1" {
@@ -33,24 +28,19 @@ Describe "Test-InvestigationEligibility.ps1" {
             $investigationAllowlist | Should -Contain '^\.serena/memories($|/)'
             $investigationAllowlist | Should -Contain '^\.agents/security/'
             $investigationAllowlist | Should -Contain '^\.agents/memory/'
+            $investigationAllowlist | Should -Contain '^\.agents/architecture/REVIEW-'
+            $investigationAllowlist | Should -Contain '^\.agents/critique/'
+            $investigationAllowlist | Should -Contain '^\.agents/memory/episodes/'
         }
 
-        It "Has exactly 6 allowlist patterns per ADR-034" {
-            $investigationAllowlist.Count | Should -Be 6
+        It "Has exactly 9 allowlist patterns (ADR-034 base + Issue #732 extensions)" {
+            $investigationAllowlist.Count | Should -Be 9
         }
     }
 
     Context "Pattern Matching Behavior" {
         BeforeEach {
-            # Patterns to test against
-            $patterns = @(
-                '^\.agents/sessions/',
-                '^\.agents/analysis/',
-                '^\.agents/retrospective/',
-                '^\.serena/memories($|/)',
-                '^\.agents/security/',
-                '^\.agents/memory/'
-            )
+            $patterns = Get-InvestigationAllowlist
         }
 
         It "Matches session log files" {
@@ -95,6 +85,27 @@ Describe "Test-InvestigationEligibility.ps1" {
             $matched | Should -Not -BeNullOrEmpty
         }
 
+        It "Matches ADR review artifacts" {
+            $file = '.agents/architecture/REVIEW-ADR-042.md'
+            $normalizedFile = $file -replace '\\', '/'
+            $matched = $patterns | Where-Object { $normalizedFile -match $_ }
+            $matched | Should -Not -BeNullOrEmpty
+        }
+
+        It "Matches critique debate logs" {
+            $file = '.agents/critique/debate-log.md'
+            $normalizedFile = $file -replace '\\', '/'
+            $matched = $patterns | Where-Object { $normalizedFile -match $_ }
+            $matched | Should -Not -BeNullOrEmpty
+        }
+
+        It "Matches memory episode extractions" {
+            $file = '.agents/memory/episodes/episode-001.json'
+            $normalizedFile = $file -replace '\\', '/'
+            $matched = $patterns | Where-Object { $normalizedFile -match $_ }
+            $matched | Should -Not -BeNullOrEmpty
+        }
+
         It "Does NOT match code files" {
             $file = 'scripts/Validate-Session.ps1'
             $normalizedFile = $file -replace '\\', '/'
@@ -130,6 +141,13 @@ Describe "Test-InvestigationEligibility.ps1" {
             $matched | Should -BeNullOrEmpty
         }
 
+        It "Does NOT match non-REVIEW architecture files" {
+            $file = '.agents/architecture/ADR-042.md'
+            $normalizedFile = $file -replace '\\', '/'
+            $matched = $patterns | Where-Object { $normalizedFile -match $_ }
+            $matched | Should -BeNullOrEmpty
+        }
+
         It "Matches .serena/memories directory itself" {
             $file = '.serena/memories'
             $normalizedFile = $file -replace '\\', '/'
@@ -155,6 +173,17 @@ Describe "Test-InvestigationEligibility.ps1" {
             $normalizedFile = $file -replace '\\', '/'
             $matched = $patterns | Where-Object { $normalizedFile -match $_ }
             $matched | Should -Not -BeNullOrEmpty
+        }
+    }
+
+    Context "Shared Module Import" {
+        It "Script imports InvestigationAllowlist module" {
+            $scriptContent | Should -Match 'InvestigationAllowlist'
+            $scriptContent | Should -Match 'Import-Module'
+        }
+
+        It "Script uses Test-FileMatchesAllowlist function" {
+            $scriptContent | Should -Match 'Test-FileMatchesAllowlist'
         }
     }
 

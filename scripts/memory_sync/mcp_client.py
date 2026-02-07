@@ -8,6 +8,7 @@ See: ADR-037, Issue #747
 
 from __future__ import annotations
 
+import collections
 import json
 import logging
 import os
@@ -49,7 +50,7 @@ class McpClient:
         self._process = process
         self._timeout = timeout
         self._request_id = 0
-        self._stderr_lines: list[str] = []
+        self._stderr_lines: collections.deque[str] = collections.deque(maxlen=100)
         self._stderr_thread = threading.Thread(
             target=self._drain_stderr, daemon=True
         )
@@ -247,10 +248,10 @@ class McpClient:
                 )
         chunk = os.read(fd, 4096)
         if not chunk:
-            stderr_output = "\n".join(self._stderr_lines[-10:])
-            raise McpError(
-                f"MCP server closed stdout. stderr: {stderr_output}"
-            )
+            stderr_tail = list(self._stderr_lines)[-10:]
+            if stderr_tail:
+                _logger.debug("MCP server stderr: %s", "\n".join(stderr_tail))
+            raise McpError("MCP server closed stdout unexpectedly")
         return chunk
 
     @staticmethod
@@ -258,7 +259,12 @@ class McpClient:
         """Parse Content-Length from HTTP-style header."""
         for line in header.strip().split("\r\n"):
             if line.lower().startswith("content-length:"):
-                return int(line.split(":", 1)[1].strip())
+                value = int(line.split(":", 1)[1].strip())
+                if value <= 0:
+                    raise McpError(f"Invalid Content-Length: {value}")
+                if value > 10 * 1024 * 1024:  # 10 MB
+                    raise McpError(f"Content-Length too large: {value}")
+                return value
         raise McpError(f"Missing Content-Length in header: {header!r}")
 
     def _drain_stderr(self) -> None:

@@ -74,7 +74,7 @@ def detect_changes(
             continue
         status, filepath = parts[0], parts[1]
         path = Path(filepath)
-        if not _is_memory_file(path):
+        if not is_memory_file(path):
             continue
         operation = _status_to_operation(status)
         if operation is not None:
@@ -146,94 +146,102 @@ def sync_memory(
 ) -> SyncResult:
     """Sync a single memory to Forgetful.
 
-    Args:
-        client: Active MCP client connection.
-        path: Path to the Serena memory file (relative to project root).
-        operation: The sync operation to perform.
-        project_root: Absolute path to the project root.
-        force: Skip hash-based deduplication check.
-        dry_run: Log what would happen without making changes.
-
-    Returns:
-        SyncResult with operation outcome.
+    Delegates to operation-specific helpers for CREATE, UPDATE,
+    DELETE, and SKIP operations.
     """
     start = time.monotonic()
-    abs_path = project_root / path
 
     if operation == SyncOperation.SKIP:
-        return SyncResult(
-            path=path,
-            operation=operation,
-            success=True,
-            duration_ms=_elapsed_ms(start),
-        )
+        return _make_result(path, operation, True, start=start)
 
     if operation == SyncOperation.DELETE:
         return _sync_delete(client, path, project_root, dry_run, start)
 
-    # CREATE or UPDATE: parse the memory file
+    return _sync_create_or_update(
+        client, path, operation, project_root, force, dry_run, start,
+    )
+
+
+def _sync_create_or_update(
+    client: McpClient,
+    path: Path,
+    operation: SyncOperation,
+    project_root: Path,
+    force: bool,
+    dry_run: bool,
+    start: float,
+) -> SyncResult:
+    """Handle CREATE or UPDATE: parse, dedup check, and dispatch."""
+    abs_path = project_root / path
+
     try:
         memory = _parse_memory(abs_path)
     except Exception as exc:
         _logger.warning("Failed to parse %s: %s", path, exc)
-        return SyncResult(
-            path=path,
-            operation=operation,
-            success=False,
-            error=f"Parse error: {exc}",
-            duration_ms=_elapsed_ms(start),
-        )
+        return _make_result(path, operation, False, error=f"Parse error: {exc}", start=start)
 
     content_hash = compute_content_hash(abs_path.read_text("utf-8"))
     state = load_state(project_root)
-    memory_key = path.stem
-
-    # Deduplication check
-    if not force and operation == SyncOperation.UPDATE:
-        existing = state.get(memory_key, {})
-        if existing.get("hash") == content_hash:
-            _logger.info("Skipping %s: content unchanged", path)
-            return SyncResult(
-                path=path,
-                operation=SyncOperation.SKIP,
-                success=True,
-                forgetful_id=existing.get("forgetful_id"),
-                duration_ms=_elapsed_ms(start),
-            )
+    skip_result = _check_dedup(path, operation, force, content_hash, state, start)
+    if skip_result is not None:
+        return skip_result
 
     if dry_run:
         _logger.info("[DRY RUN] Would %s: %s", operation.value, path)
-        return SyncResult(
-            path=path,
-            operation=operation,
-            success=True,
-            duration_ms=_elapsed_ms(start),
-        )
+        return _make_result(path, operation, True, start=start)
 
     try:
         if operation == SyncOperation.CREATE:
             result = _sync_create(client, memory, path, content_hash, state, project_root)
         else:
-            result = _sync_update(
-                client, memory, path, content_hash, state, project_root
-            )
-        result = SyncResult(
-            path=result.path,
-            operation=result.operation,
-            success=result.success,
-            error=result.error,
-            forgetful_id=result.forgetful_id,
-            duration_ms=_elapsed_ms(start),
+            result = _sync_update(client, memory, path, content_hash, state, project_root)
+        return _make_result(
+            result.path, result.operation, result.success,
+            error=result.error, forgetful_id=result.forgetful_id, start=start,
         )
     except McpError as exc:
-        result = SyncResult(
-            path=path,
-            operation=operation,
-            success=False,
-            error=str(exc),
-            duration_ms=_elapsed_ms(start),
-        )
-    return result
+        return _make_result(path, operation, False, error=str(exc), start=start)
+
+
+def _check_dedup(
+    path: Path,
+    operation: SyncOperation,
+    force: bool,
+    content_hash: str,
+    state: dict[str, Any],
+    start: float,
+) -> SyncResult | None:
+    """Return a SKIP result if content is unchanged, else None."""
+    if force or operation != SyncOperation.UPDATE:
+        return None
+    existing = state.get(path.stem, {})
+    if existing.get("hash") != content_hash:
+        return None
+    _logger.info("Skipping %s: content unchanged", path)
+    return _make_result(
+        path, SyncOperation.SKIP, True,
+        forgetful_id=existing.get("forgetful_id"), start=start,
+    )
+
+
+def _make_result(
+    path: Path,
+    operation: SyncOperation,
+    success: bool,
+    *,
+    error: str | None = None,
+    forgetful_id: str | None = None,
+    start: float = 0.0,
+) -> SyncResult:
+    """Build a SyncResult with elapsed time."""
+    return SyncResult(
+        path=path,
+        operation=operation,
+        success=success,
+        error=error,
+        forgetful_id=forgetful_id,
+        duration_ms=_elapsed_ms(start),
+    )
 
 
 def sync_batch(
@@ -262,13 +270,18 @@ def sync_batch(
     return results
 
 
-def _is_memory_file(path: Path) -> bool:
-    """Check if a path is a Serena memory file."""
+def is_memory_file(path: Path) -> bool:
+    """Check if a path is a Serena memory file.
+
+    Validates structural path components and rejects traversal sequences
+    (CWE-22) to ensure the path stays within .serena/memories/.
+    """
     parts = path.parts
     return (
         len(parts) >= 3
         and parts[0] == ".serena"
         and parts[1] == "memories"
+        and ".." not in parts
         and path.suffix == ".md"
     )
 
