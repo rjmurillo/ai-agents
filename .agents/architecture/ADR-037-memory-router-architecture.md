@@ -418,17 +418,20 @@ function Sync-MemoryToForgetful {
 | Phase | Status | Notes |
 |-------|--------|-------|
 | Planning | ✅ COMPLETE | `.agents/planning/phase2b-memory-sync-strategy.md` |
-| Core Scripts | 🔲 PENDING | Milestone 1 (Week 1) |
-| Git Hook | 🔲 PENDING | Milestone 2 (Week 2) |
-| Manual Sync | 🔲 PENDING | Milestone 3 (Week 2) |
-| Validation | 🔲 PENDING | Milestone 4 (Week 3) |
-| ADR Update | 🔲 IN PROGRESS | This revision (adr-review pending) |
+| Core Scripts | ✅ COMPLETE | `scripts/memory_sync/` (Python + MCP subprocess) |
+| Git Hook | ✅ COMPLETE | `.githooks/pre-commit` queue-based integration |
+| Manual Sync | ✅ COMPLETE | `python -m memory_sync sync` / `sync-batch` CLI |
+| Validation | ✅ COMPLETE | `python -m memory_sync validate` freshness report |
+| ADR Update | ✅ COMPLETE | Implementation status updated |
 
-**Next Steps**:
-1. Get ADR-037 update approved via adr-review (6-agent consensus)
-2. Implement core sync scripts (Milestone 1)
-3. Integrate git hook (Milestone 2)
-4. Validate with Test-MemoryFreshness (Milestone 4)
+**Implementation Details**:
+
+- **Approach**: Python + MCP subprocess (JSON-RPC 2.0 over stdio)
+- **MCP Command**: `uvx forgetful-ai` spawned as subprocess
+- **Sync Direction**: Unidirectional (Serena -> Forgetful)
+- **State Tracking**: `.memory_sync_state.json` maps memory names to Forgetful IDs + content hashes
+- **Hook Behavior**: Queue-based by default (<10ms), optional immediate sync with `MEMORY_SYNC_IMMEDIATE=1`
+- **Graceful Degradation**: Hook never blocks commits, CLI reports failures with ADR-035 exit codes
 
 **Related**:
 - **Issue #747**: Serena-Forgetful Memory Synchronization
