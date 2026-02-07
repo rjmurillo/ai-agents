@@ -78,6 +78,16 @@
       "phase": "review",
       "description": "Ran mandatory 6-agent ADR review debate per CLAUDE.md constraint",
       "outcome": "Consolidated verdict: NEEDS-REVISION (5 of 6), 1 BLOCK. 9 P0 issues, 10 P1 issues identified"
+    },
+    {
+      "phase": "revision",
+      "description": "Revised ADR-045 and PLAN.md to address all 9 P0 + relevant P1 issues from debate",
+      "outcome": "ADR-045 revised with Decision Drivers, Stakeholders, Security Model, Reversibility, path validation, updated inventory. PLAN.md revised with 30-39 session estimate, Q1 2027 timeline, security model, path validation"
+    },
+    {
+      "phase": "analysis",
+      "description": "Formal inventory audit of 168 files across 5 categories",
+      "outcome": "Actual split: 55% framework, 8% domain, 37% hybrid (vs claimed 65/25/10). 63 files need path parameterization. Audit at .agents/analysis/adr-045-inventory-audit.md"
     }
   ],
   "outcomes": {
@@ -87,9 +97,13 @@
       ".agents/critique/ADR-045-debate-log.md",
       ".agents/critique/ADR-045-critique.md",
       ".agents/security/ADR-045-framework-extraction-security-review.md",
-      ".agents/analysis/adr-045-feasibility-analysis.md"
+      ".agents/analysis/adr-045-feasibility-analysis.md",
+      ".agents/analysis/adr-045-inventory-audit.md"
     ],
-    "filesModified": [],
+    "filesModified": [
+      ".agents/architecture/ADR-045-framework-extraction-via-plugin-marketplace.md",
+      ".agents/projects/v0.4.0/PLAN.md"
+    ],
     "testsAdded": 0,
     "testResults": "N/A (planning-only session)",
     "githubArtifacts": {
