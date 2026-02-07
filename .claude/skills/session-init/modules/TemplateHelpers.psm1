@@ -14,8 +14,10 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-# Only define ApplicationFailedException if not already defined (e.g., by GitHelpers.psm1)
-# This prevents type redefinition errors when both modules are imported
+# Import shared exception type (single source of truth per Issue #840)
+Import-Module (Join-Path $PSScriptRoot 'CommonTypes.psm1') -Force
+
+# Fallback: define locally if type not available (e.g., module scoping edge cases)
 if (-not ([System.Management.Automation.PSTypeName]'ApplicationFailedException').Type) {
     class ApplicationFailedException : System.ApplicationException {
         ApplicationFailedException([string]$Message, [Exception]$InnerException) : base($Message, $InnerException) {}

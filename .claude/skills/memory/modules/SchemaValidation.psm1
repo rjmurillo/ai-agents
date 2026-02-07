@@ -209,7 +209,9 @@ function Test-SchemaValid {
             # Type validation
             switch ($fieldSchema.type) {
                 "string" {
-                    if ($null -ne $fieldValue -and $fieldValue -isnot [string]) {
+                    # Accept DateTime as valid string type because PowerShell's ConvertFrom-Json
+                    # auto-converts ISO 8601 date strings to DateTime during hashtable round-trips
+                    if ($null -ne $fieldValue -and $fieldValue -isnot [string] -and $fieldValue -isnot [datetime]) {
                         $errors += "Field '$fieldName' should be string, got $($fieldValue.GetType().Name)"
                     }
                 }

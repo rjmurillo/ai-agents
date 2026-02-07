@@ -59,10 +59,12 @@ Describe "Invoke-SkillFirstGuard" {
             $Script:TestRootNoSkill = Join-Path ([System.IO.Path]::GetTempPath()) "hook-test-no-skill-$(Get-Random)"
             New-Item -ItemType Directory -Path $Script:TestRootNoSkill -Force | Out-Null
             New-Item -ItemType Directory -Path (Join-Path $Script:TestRootNoSkill ".claude/hooks/PreToolUse") -Force | Out-Null
+            New-Item -ItemType Directory -Path (Join-Path $Script:TestRootNoSkill ".claude/hooks/Common") -Force | Out-Null
 
-            # Copy hook
+            # Copy hook and its dependency
             $Script:TempHookPathNoSkill = Join-Path $Script:TestRootNoSkill ".claude/hooks/PreToolUse/Invoke-SkillFirstGuard.ps1"
             Copy-Item -Path $Script:HookPath -Destination $Script:TempHookPathNoSkill -Force
+            Copy-Item -Path (Join-Path $PSScriptRoot ".." ".claude" "hooks" "Common" "HookUtilities.psm1") -Destination (Join-Path $Script:TestRootNoSkill ".claude/hooks/Common/HookUtilities.psm1") -Force
         }
 
         AfterAll {
@@ -93,12 +95,14 @@ Describe "Invoke-SkillFirstGuard" {
             $Script:TestRootWithSkill = Join-Path ([System.IO.Path]::GetTempPath()) "hook-test-with-skill-$(Get-Random)"
             New-Item -ItemType Directory -Path $Script:TestRootWithSkill -Force | Out-Null
             New-Item -ItemType Directory -Path (Join-Path $Script:TestRootWithSkill ".claude/hooks/PreToolUse") -Force | Out-Null
+            New-Item -ItemType Directory -Path (Join-Path $Script:TestRootWithSkill ".claude/hooks/Common") -Force | Out-Null
             New-Item -ItemType Directory -Path (Join-Path $Script:TestRootWithSkill ".claude/skills/github/scripts/pr") -Force | Out-Null
             New-Item -ItemType Directory -Path (Join-Path $Script:TestRootWithSkill ".claude/skills/github/scripts/issue") -Force | Out-Null
 
-            # Copy hook
+            # Copy hook and its dependency
             $Script:TempHookPathWithSkill = Join-Path $Script:TestRootWithSkill ".claude/hooks/PreToolUse/Invoke-SkillFirstGuard.ps1"
             Copy-Item -Path $Script:HookPath -Destination $Script:TempHookPathWithSkill -Force
+            Copy-Item -Path (Join-Path $PSScriptRoot ".." ".claude" "hooks" "Common" "HookUtilities.psm1") -Destination (Join-Path $Script:TestRootWithSkill ".claude/hooks/Common/HookUtilities.psm1") -Force
 
             # Create skill scripts (exact mapping names)
             Set-Content -Path (Join-Path $Script:TestRootWithSkill ".claude/skills/github/scripts/pr/Get-PRContext.ps1") -Value "# Stub"
@@ -148,11 +152,13 @@ Describe "Invoke-SkillFirstGuard" {
             $Script:TestRootFuzzy = Join-Path ([System.IO.Path]::GetTempPath()) "hook-test-fuzzy-$(Get-Random)"
             New-Item -ItemType Directory -Path $Script:TestRootFuzzy -Force | Out-Null
             New-Item -ItemType Directory -Path (Join-Path $Script:TestRootFuzzy ".claude/hooks/PreToolUse") -Force | Out-Null
+            New-Item -ItemType Directory -Path (Join-Path $Script:TestRootFuzzy ".claude/hooks/Common") -Force | Out-Null
             New-Item -ItemType Directory -Path (Join-Path $Script:TestRootFuzzy ".claude/skills/github/scripts/pr") -Force | Out-Null
 
-            # Copy hook
+            # Copy hook and its dependency
             $Script:TempHookPathFuzzy = Join-Path $Script:TestRootFuzzy ".claude/hooks/PreToolUse/Invoke-SkillFirstGuard.ps1"
             Copy-Item -Path $Script:HookPath -Destination $Script:TempHookPathFuzzy -Force
+            Copy-Item -Path (Join-Path $PSScriptRoot ".." ".claude" "hooks" "Common" "HookUtilities.psm1") -Destination (Join-Path $Script:TestRootFuzzy ".claude/hooks/Common/HookUtilities.psm1") -Force
 
             # Create a script with "diff" in name but not in exact mapping
             Set-Content -Path (Join-Path $Script:TestRootFuzzy ".claude/skills/github/scripts/pr/Get-PRDiff.ps1") -Value "# Stub for diff"

@@ -155,7 +155,7 @@ function Get-WorkflowRuns {
         
         $response = gh api $apiUrl --repo "$Owner/$Repo" --jq '.workflow_runs' | ConvertFrom-Json
         
-        if (-not $response -or $response.Count -eq 0) {
+        if (-not $response -or @($response).Count -eq 0) {
             break
         }
 
@@ -179,7 +179,7 @@ function Get-WorkflowRuns {
         }
         
         # Stop if we got fewer results than requested (last page)
-        if ($response.Count -lt $perPage) {
+        if (@($response).Count -lt $perPage) {
             break
         }
         
@@ -496,7 +496,8 @@ function Format-MarkdownReport {
     return $report
 }
 
-# Main execution
+# Main execution (skip when dot-sourced for testing)
+if ($MyInvocation.InvocationName -eq '.') { return }
 try {
     Test-Prerequisites
     
