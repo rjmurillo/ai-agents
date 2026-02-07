@@ -209,10 +209,17 @@ function Test-SchemaValid {
             # Type validation
             switch ($fieldSchema.type) {
                 "string" {
-                    # Accept DateTime as valid string type because PowerShell's ConvertFrom-Json
-                    # auto-converts ISO 8601 date strings to DateTime during hashtable round-trips
-                    if ($null -ne $fieldValue -and $fieldValue -isnot [string] -and $fieldValue -isnot [datetime]) {
-                        $errors += "Field '$fieldName' should be string, got $($fieldValue.GetType().Name)"
+                    if ($null -ne $fieldValue) {
+                        if ($fieldValue -is [datetime]) {
+                            # Accept DateTime only for fields with format: date-time.
+                            # PowerShell's ConvertFrom-Json auto-converts ISO 8601 strings to DateTime.
+                            if ($fieldSchema.format -ne 'date-time') {
+                                $errors += "Field '$fieldName' should be string, got DateTime (add format: 'date-time' to schema if this field holds dates)"
+                            }
+                        }
+                        elseif ($fieldValue -isnot [string]) {
+                            $errors += "Field '$fieldName' should be string, got $($fieldValue.GetType().Name)"
+                        }
                     }
                 }
                 "number" {
