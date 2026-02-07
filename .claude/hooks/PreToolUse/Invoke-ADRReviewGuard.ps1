@@ -177,7 +177,28 @@ try {
     }
 
     # Check for ADR file changes
-    $adrChanges = @(Get-StagedADRChanges)
+    # Wrap in dedicated try/catch: Get-StagedADRChanges throws on git errors for fail-closed.
+    # The outer catch exits 0 (fail-open for infrastructure), so we must catch git errors here
+    # and exit 2 to preserve the fail-closed security posture.
+    try {
+        $adrChanges = @(Get-StagedADRChanges)
+    }
+    catch {
+        $errorMsg = "Staged ADR check failed (fail-closed): $($_.Exception.Message)"
+        Write-Warning $errorMsg
+        [Console]::Error.WriteLine($errorMsg)
+        try {
+            $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+            $hookDir = Split-Path -Parent $scriptDir
+            $auditLogPath = Join-Path $hookDir "audit.log"
+            $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+            Add-Content -Path $auditLogPath -Value "[$timestamp] [ADRReviewGuard] $errorMsg" -ErrorAction SilentlyContinue
+        }
+        catch {
+            # Silent fallback if audit log write fails
+        }
+        exit 2
+    }
     if ($adrChanges.Count -eq 0) {
         # No ADR changes, allow commit
         exit 0
