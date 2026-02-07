@@ -35,7 +35,17 @@ def verify_citation(citation: Citation, repo_root: Path) -> Citation:
     Mutates citation.valid and citation.mismatch_reason in place.
     Returns the same citation object.
     """
-    file_path = repo_root / citation.path
+    file_path = (repo_root / citation.path).resolve()
+    repo_root_resolved = repo_root.resolve()
+
+    try:
+        file_path.relative_to(repo_root_resolved)
+    except (ValueError, OSError):
+        citation.valid = False
+        citation.mismatch_reason = (
+            f"Path traversal blocked: {citation.path}"
+        )
+        return citation
 
     if not file_path.exists():
         citation.valid = False

@@ -122,6 +122,21 @@ class TestVerifyCitation:
         finally:
             os.chmod(target, 0o644)
 
+    def test_path_traversal_blocked(self, tmp_path):
+        citation = Citation(path="../../../etc/passwd", line=1)
+        result = verify_citation(citation, tmp_path)
+
+        assert result.valid is False
+        assert "Path traversal blocked" in result.mismatch_reason
+
+    def test_path_traversal_with_dotdot_in_middle(self, tmp_path):
+        (tmp_path / "src").mkdir()
+        citation = Citation(path="src/../../etc/passwd")
+        result = verify_citation(citation, tmp_path)
+
+        assert result.valid is False
+        assert "Path traversal blocked" in result.mismatch_reason
+
     def test_success_path_with_line_has_none_mismatch_reason(self, tmp_path):
         (tmp_path / "code.py").write_text("import os\ndef main():\n    pass\n")
         citation = Citation(path="code.py", line=2, snippet="def main():")

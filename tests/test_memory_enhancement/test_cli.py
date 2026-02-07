@@ -149,6 +149,19 @@ class TestVerifyCommand:
 
         assert result.returncode == 2
 
+    def test_verify_path_traversal_blocked(self, tmp_path):
+        mem_dir = tmp_path / ".serena" / "memories"
+        mem_dir.mkdir(parents=True)
+
+        result = run_cli(
+            "verify", "../../../etc/passwd",
+            "--dir", str(mem_dir),
+            "--repo-root", str(tmp_path),
+        )
+
+        # Should fail to find memory (path outside repo root is ignored)
+        assert result.returncode == 2
+
     def test_verify_by_file_path(self, tmp_path):
         (tmp_path / "code.py").write_text("content\n")
         mem_file = tmp_path / "direct-path.md"

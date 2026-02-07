@@ -16,17 +16,24 @@ from .models import Memory
 DEFAULT_MEMORIES_DIR = ".serena/memories"
 
 
-def _find_memory(memory_id: str, memories_dir: Path) -> Path:
+def _find_memory(memory_id: str, memories_dir: Path, repo_root: Path) -> Path:
     """Resolve a memory ID or path to a file path.
 
-    Tries: literal path, then {memory_id}.md in memories_dir,
-    then bare filename in memories_dir.
+    Tries: literal path (if within repo_root), then {memory_id}.md in
+    memories_dir, then bare filename in memories_dir.
 
     Raises FileNotFoundError if not found.
     """
+    repo_root_resolved = repo_root.resolve()
+
+    # Check if memory_id is a direct path within the repo root.
     candidate = Path(memory_id)
     if candidate.exists():
-        return candidate
+        try:
+            candidate.resolve().relative_to(repo_root_resolved)
+            return candidate
+        except (ValueError, OSError):
+            pass  # Outside repo root, fall through to ID-based search.
 
     candidate = memories_dir / f"{memory_id}.md"
     if candidate.exists():
@@ -87,7 +94,7 @@ def cmd_verify(args: argparse.Namespace) -> int:
     repo_root = Path(args.repo_root)
 
     try:
-        memory_path = _find_memory(args.memory_id, memories_dir)
+        memory_path = _find_memory(args.memory_id, memories_dir, repo_root)
     except FileNotFoundError as e:
         print(f"Error: {e}", file=sys.stderr)
         return 2
