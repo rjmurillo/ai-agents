@@ -1,7 +1,7 @@
 # Skill Observations: documentation
 
-**Last Updated**: 2026-01-18
-**Sessions Analyzed**: 6
+**Last Updated**: 2026-02-07
+**Sessions Analyzed**: 8
 
 ## Purpose
 
@@ -11,21 +11,48 @@ This memory captures learnings from documentation standards, maintenance, and qu
 
 These are corrections that MUST be followed:
 
+- **Agent orchestration examples must use orchestrator agent, not native team spawning** (Session 1180, 2026-02-07)
+  - Agent teams (native Claude Code feature) are behind a feature flag
+  - CLIs like Codex and GitHub Copilot do not have team spawning capability
+  - The orchestrator agent exists specifically to provide cross-platform coordination
+  - All documentation examples MUST use orchestrator-driven patterns for portability
+  - Source: User correction: "Concept of agent-teams is new; however, it's still behind a feature flag and CLIs like Codex and GitHub Copilot do not have the capability (yet). This is why the orchestrator agent exists."
+  - Result: Rewrote "Multi-Agent Team Exploration" as "Multi-Agent Deep Dive" using orchestrator delegation
+
 ## Preferences (MED confidence)
 
 These are preferences that SHOULD be followed:
 
+- **Use prompt-engineer skill for user-facing example prompts** (Session 1180, 2026-02-07)
+  - When updating README or AGENTS.md with example prompts, use prompt-engineer skill or prompt-builder agent
+  - Example prompts should demonstrate real-world scenarios with @file references and concrete outcomes
+  - Source: User instruction: "prompt-engineer skill or prompt-builder agent can help make those better and create new and impactful example prompts for end-users to get the most out of the agents"
+  - Result: Prompt-engineer produced 4 new orchestrator patterns (Deep Dive, Due Diligence, Feature Pipeline, Strategic Prioritization)
+
+- **Agent Catalog tables should include Output column** (Session 1180, 2026-02-07)
+  - README Agent Catalog should describe what each agent produces (verdict formats, data types, artifacts)
+  - Helps users write better prompts and interpret results
+  - Examples: critic produces APPROVE/CONDITIONS/REJECT, security produces CWE/CVSS matrices, roadmap produces RICE scores
+  - Source: Gap identified comparing actual agent usage vs documented capabilities during 8-agent exploration
+  - Result: Added Output column to README, added Agent Output Formats table to AGENTS.md
+
 - Use full paths (e.g., `scripts/Validate-SessionJson.ps1`) not relative paths in documentation for clarity and direct invocation (Session 2026-01-16-session-07, 2026-01-16)
+
 - Follow-up issue creation for deferred concerns - when ADR debate results in DISAGREE AND COMMIT with P0 concern, create explicit follow-up issue to track resolution (Session 826, 2026-01-13)
   - Evidence: Independent-thinker raised P0 concern about CRLF line endings during ADR-040 amendment debate, deferred to issue #896 for investigation
+
 - Comprehensive documentation suite pattern for feature rollouts - create user guide, architecture doc, ADR, and rollout checklist for significant features (Session 382, 2026-01-16)
   - Evidence: CodeQL integration - created codeql-integration.md (user guide), codeql-architecture.md (design), ADR-041 (decision record), codeql-rollout-checklist.md (deployment validation), updated AGENTS.md with commands section
+
 - Research consolidation pattern - consolidate external documentation with project-specific requirements for new developer onboarding instead of standalone guides (Session 819, 2026-01-10)
   - Evidence: GitHub keywords research - created comprehensive guide covering GitHub keywords, Conventional Commits, and PR etiquette integrated with ADR-005, ADR-006, and usage-mandatory constraints
+
 - Document purpose drift detection - identify when documents evolve beyond original intent (routing-index becomes comprehensive reference) (Session 02, PR #871, 2026-01-11)
   - Evidence: .gemini/styleguide.md grew from routing-index (183 lines) to comprehensive reference (491 lines), refactored back to routing-index pattern to reduce token bloat
+
 - Research documentation pattern - create comprehensive main document + atomic memories for individual concepts + domain index for discoverability (Session 813, 2026-01-10)
   - Evidence: Foundational engineering knowledge - created 3500-word foundational-engineering-knowledge.md, extracted 8 atomic Serena memories (Hyrum's Law, Conway's Law, etc.), created foundational-knowledge-index for central navigation
+
 - ADR implementation notes belong in dedicated Implementation Notes subsection, not Confirmation section (Session 03, 2026-01-16)
   - Evidence: Batch 36 - Moved implementation details from Confirmation to new Implementation Notes subsection for clarity
 
@@ -41,6 +68,9 @@ These are observations that may become patterns:
 
 | Date | Session | Type | Learning |
 |------|---------|------|----------|
+| 2026-02-07 | Session 1180 | HIGH | Agent orchestration examples must use orchestrator, not native teams |
+| 2026-02-07 | Session 1180 | MED | Use prompt-engineer skill for user-facing example prompts |
+| 2026-02-07 | Session 1180 | MED | Agent Catalog tables should include Output column |
 | 2026-01-16 | 2026-01-16-session-07 | MED | Use full paths not relative paths in documentation |
 | 2026-01-13 | Session 826 | MED | Follow-up issue creation for deferred P0 concerns |
 | 2026-01-16 | Session 382 | MED | Comprehensive documentation suite pattern for feature rollouts |
