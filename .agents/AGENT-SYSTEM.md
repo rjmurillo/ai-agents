@@ -206,8 +206,15 @@ REQ-NNN (WHAT/WHY) → DESIGN-NNN (HOW) → TASK-NNN (IMPLEMENTATION)
 
 **Output**:
 - Implementation code
-- Unit tests (100% coverage target)
+- Unit tests (coverage varies by risk tier)
 - Documentation updates
+
+**Security-Critical Coverage** (100% required):
+- Secret handling (API keys, tokens, credentials)
+- Input validation (user input, external data)
+- Command execution (subprocess, shell invocation)
+- Path sanitization (file system traversal prevention)
+- Auth checks (authentication, authorization gates)
 
 **Delegates To**: None (returns to orchestrator)
 
@@ -221,7 +228,7 @@ REQ-NNN (WHAT/WHY) → DESIGN-NNN (HOW) → TASK-NNN (IMPLEMENTATION)
 **Example Invocation**:
 ```text
 @implementer Implement the GetUserPreferences method as specified in TASK-042.
-Follow the design in ADR-015. Ensure 100% test coverage.
+Follow the design in ADR-015. Security-critical paths require 100% coverage.
 ```
 
 ---
@@ -342,6 +349,20 @@ Validate scope, risks, and alignment with requirements.
 
 **Specialization**: Test strategy, coverage validation, user scenario testing
 
+**Testing Philosophy** (Dan North + Rico Mariani):
+- Evaluate every test: "Does this increase stakeholder confidence through evidence?"
+- Not a red flag: 70% coverage with all critical paths tested
+- Red flag: Security-critical code without tests
+- Coverage targets vary by risk tier (see table below)
+
+**Coverage Targets by Risk Tier**:
+
+| Code Category | Target | Examples |
+|---------------|--------|----------|
+| Security-critical | 100% | Secret handling, input validation, command execution, path sanitization, auth checks |
+| Business logic | 80% | Text parsing, workflow orchestration, non-sensitive utilities |
+| Read-only/docs | 60-70% | Documentation generation, read-only analysis |
+
 **Input**:
 - Implementation to verify
 - Acceptance criteria
@@ -350,7 +371,7 @@ Validate scope, risks, and alignment with requirements.
 **Output**:
 - Test strategies in `.agents/qa/NNN-*-test-strategy.md`
 - Test reports in `.agents/qa/NNN-*-test-report.md`
-- Coverage analysis
+- Coverage analysis with risk-tier classification
 
 **Delegates To**: None (returns to orchestrator)
 
@@ -359,12 +380,13 @@ Validate scope, risks, and alignment with requirements.
 **When to Use**:
 - Immediately after implementer changes
 - Verifying acceptance criteria
-- Assessing test coverage
+- Assessing test coverage against risk tiers
 
 **Example Invocation**:
 ```text
 @qa Verify the UserAuthentication implementation.
-Run tests, check coverage, and validate user scenarios.
+Run tests, check coverage by risk tier, and validate user scenarios.
+Classify security-critical paths (auth, input validation) for 100% target.
 ```
 
 ---

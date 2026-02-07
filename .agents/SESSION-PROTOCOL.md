@@ -410,13 +410,21 @@ The agent MUST route to the qa agent after feature implementation. This is a **b
 
 Session logs (`.agents/sessions/`), analysis artifacts (`.agents/analysis/`), and memory updates (`.serena/memories/`) are **audit trail, not implementation**. They are automatically filtered out when determining if QA validation is required. This allows session logs to be committed alongside implementation files without requiring separate commits or investigation-only skips.
 
+**Testing Quality Checklist** (evidence-based, per `.agents/governance/TESTING-ANTI-PATTERNS.md`):
+
+- [ ] Security-critical paths have 100% coverage (secret handling, input validation, command execution, path sanitization, auth checks)
+- [ ] Tests verify behavior, not just execution (meaningful assertions)
+- [ ] Coverage gaps exist only in low-risk code (read-only, documentation generation)
+- [ ] No coverage theater (tests exist for evidence, not metrics)
+
 **Verification:**
 
 - QA report exists in `.agents/qa/`
 - QA agent confirms validation passed
 - No critical issues remain unaddressed
+- Testing quality checklist items satisfied
 
-**Rationale:** Untested code may contain bugs or security vulnerabilities. QA validation catches issues before they are committed to the repository.
+**Rationale:** Untested code may contain bugs or security vulnerabilities. QA validation catches issues before they are committed to the repository. Testing should increase stakeholder confidence through evidence (Dan North), with 100% coverage required for security-critical code (Rico Mariani).
 
 #### Investigation Session Examples
 
