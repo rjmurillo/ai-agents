@@ -607,7 +607,7 @@ Files distributed to end-users (`src/claude/`, `src/copilot-cli/`, `src/vs-code-
 |-------|---------|----------|
 | **orchestrator** | Workflow coordinator who routes tasks to specialized agents based on complexity and domain analysis | Complex multi-step tasks requiring multiple specialists |
 | **analyst** | Technical investigator who researches unknowns, benchmarks solutions, and evaluates trade-offs with evidence | Root cause analysis, API research, performance investigation |
-| **architect** | System designer who maintains architectural coherence, enforces patterns, and documents decisions via ADRs | Design governance, technical decisions, pattern enforcement |
+| **architect** | System designer who evaluates proposed architectures, maintains coherence, enforces patterns, and documents decisions via ADRs | Design evaluation, architecture review, ADRs, pattern enforcement |
 | **planner** | Implementation strategist who breaks epics into milestones with clear acceptance criteria and dependencies | Epic breakdown, work packages, impact analysis coordination |
 | **implementer** | Senior engineer who writes production-ready PowerShell following SOLID principles with Pester tests | Production code, tests, implementation per approved plans |
 | **critic** | Plan validator who stress-tests proposals, identifies gaps, and blocks approval when risks aren't mitigated | Pre-implementation review, impact analysis validation, quality gate |
@@ -620,14 +620,81 @@ Files distributed to end-users (`src/claude/`, `src/copilot-cli/`, `src/vs-code-
 |-------|---------|----------|
 | **memory** | Context manager who retrieves and stores cross-session knowledge using Serena (project) and Forgetful (semantic) memory | Cross-session persistence, context continuity, knowledge retrieval |
 | **skillbook** | Knowledge curator who transforms reflections into atomic, reusable strategies with deduplication and quality scoring | Learned strategy management, skill updates, pattern documentation |
-| **devops** | Infrastructure specialist fluent in CI/CD pipelines, GitHub Actions, and deployment workflows | Build automation, deployment, infrastructure as code |
+| **devops** | Infrastructure specialist fluent in CI/CD pipelines, GitHub Actions, operational planning, and deployment workflows | Build automation, deployment, operational burden analysis, infrastructure as code |
 | **security** | Security engineer who performs threat modeling, OWASP Top 10 assessment, and vulnerability analysis before approving implementations | Threat modeling, secure coding, penetration testing, compliance |
-| **independent-thinker** | Contrarian analyst who challenges assumptions with evidence, presents alternative viewpoints, and declares uncertainty | Alternative perspectives, assumption validation, devil's advocate |
+| **independent-thinker** | Contrarian analyst who challenges assumptions with evidence, presents alternative viewpoints, proposes concrete alternatives, and declares uncertainty | Alternative perspectives, assumption validation, devil's advocate, alternative proposals |
 | **high-level-advisor** | Strategic advisor who cuts through complexity, prioritizes ruthlessly, and resolves decision paralysis with clear verdicts | Strategic decisions, prioritization, unblocking, P0 identification |
 | **retrospective** | Learning facilitator who extracts actionable insights from completed work using structured frameworks (Five Whys, timeline analysis) | Post-project learning, outcome analysis, skill extraction |
 | **explainer** | Technical writer who creates PRDs, specifications, and documentation that junior developers understand without questions | PRDs, feature docs, technical specifications, user guides |
 | **task-generator** | Task decomposition specialist who breaks PRDs into atomic, estimable work items with clear done criteria | Epic-to-task breakdown, backlog grooming, sprint planning |
 | **pr-comment-responder** | PR review coordinator who gathers comment context, acknowledges every piece of feedback, and ensures systematic resolution | PR review responses, comment triage, feedback tracking |
+
+### Agent Output Formats
+
+Agents produce structured outputs that follow consistent patterns. Understanding these helps you write better prompts and interpret results.
+
+| Agent | Verdict Format | Key Outputs |
+|-------|---------------|-------------|
+| **analyst** | Findings rated PASS / WARNING / FAIL | Quantitative data, confidence intervals, calibrated estimates |
+| **architect** | Aspects rated Strong / Adequate / Needs-Work | Coupling analysis, dependency graphs, design recommendations |
+| **critic** | APPROVE / APPROVE WITH CONDITIONS / REJECT | Gap lists (Critical / Important / Minor), numbered conditions |
+| **security** | Risk score (X/10) | Threat matrices with CWE identifiers and CVSS ratings |
+| **roadmap** | Priority stacks | RICE scores, KANO classifications, opportunity cost tables |
+| **high-level-advisor** | GO / CONDITIONAL GO / NO-GO | Kill criteria, strategic tradeoffs, unfiltered verdicts |
+| **independent-thinker** | Counter-arguments | Alternative approaches with comparison matrices |
+| **devops** | Operational assessments | Maintenance burden estimates (hours/month), edge case tables |
+
+### Invocation Patterns
+
+#### Direct Invocation
+
+Use a specific agent when you know the expertise needed:
+
+```text
+analyst: assess the feasibility of [plan]. Verify the data,
+calibrate estimates, and identify the top 3 risks.
+```
+
+```text
+security: produce a threat matrix for [design] with CWE
+identifiers, CVSS ratings, and mitigation recommendations.
+```
+
+```text
+critic: review the plan at @path/to/plan.md. Deliver an
+APPROVE / APPROVE WITH CONDITIONS / REJECT verdict.
+```
+
+Direct invocation preserves context window by avoiding orchestrator routing overhead.
+
+#### Orchestrated Chains
+
+Use orchestrator when the task requires multiple agents in sequence:
+
+```text
+orchestrator: research the options (analyst), design the
+approach (architect), validate the plan (critic), then
+implement (implementer) and verify (qa).
+```
+
+The orchestrator classifies the task, identifies affected domains, and routes to agents in the right order. See [Task Classification](#orchestrator-task-classification--domain-identification) for routing logic.
+
+#### Multi-Agent Deep Dive
+
+Route a single artifact through every relevant agent to build a complete picture:
+
+```text
+orchestrator: conduct a full review of @path/to/PLAN.md.
+Route through analyst, architect, security, critic,
+independent-thinker, roadmap, devops, and high-level-advisor.
+Synthesize findings with consensus areas and disagreements.
+```
+
+The orchestrator delegates to each agent, collecting independent assessments. Each agent analyzes through its own lens. The orchestrator then synthesizes findings into a unified view highlighting where agents agree and diverge. Best for:
+
+- Architectural decisions requiring broad expertise
+- Milestone plans needing due diligence before commitment
+- Go/no-go decisions where multiple perspectives reduce blind spots
 
 ---
 
