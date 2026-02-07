@@ -483,12 +483,12 @@ class TestMainCLI:
         captured = capsys.readouterr()
         assert "Velocity Accelerator" in captured.out
 
-    def test_no_opportunities_returns_1(self) -> None:
+    def test_no_opportunities_returns_0(self) -> None:
         exit_code = main([
             "--event", "push",
             "--changed-files", "README.md",
         ])
-        assert exit_code == 1
+        assert exit_code == 0
 
     def test_push_with_agent_files(self, capsys: pytest.CaptureFixture[str]) -> None:
         exit_code = main([

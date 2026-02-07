@@ -4,8 +4,7 @@ Scans GitHub events (PR merges, issue opens, artifact changes) and extracts
 actionable opportunities for follow-up work.
 
 Exit Codes (ADR-035):
-    0 - Success, opportunities detected and output
-    1 - Success, no opportunities found
+    0 - Success (with or without opportunities)
     2 - Configuration or input error
 
 Standards:
@@ -555,7 +554,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     else:
         print(format_summary(opportunities))
 
-    return 0 if opportunities else 1
+    return 0
 
 
 if __name__ == "__main__":
