@@ -31,6 +31,21 @@
     "Branch protection on main is redundant in SessionStart since PreToolUse hooks enforce at commit time",
     "ADR-035 documentation updated to distinguish blockable vs non-blockable hook types"
   ],
+  "adrReview": {
+    "adr": "ADR-035-exit-code-standardization.md",
+    "amendment": "Hook exit code per-type semantics",
+    "verdicts": {
+      "architect": "ACCEPT",
+      "critic": "ACCEPT",
+      "security": "ACCEPT",
+      "independent-thinker": "DISAGREE-AND-COMMIT",
+      "analyst": "PASS",
+      "high-level-advisor": "ACCEPT"
+    },
+    "consensus": "5 ACCEPT + 1 D&C = CONSENSUS",
+    "dcResolution": "Independent-thinker feedback incorporated: expanded blocking hook list",
+    "debateLog": ".agents/critique/ADR-035-amendment-debate-log.md"
+  },
   "verification": {
     "testsRun": true,
     "testsPassed": 25,

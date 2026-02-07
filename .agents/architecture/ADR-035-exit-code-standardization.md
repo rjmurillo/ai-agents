@@ -352,13 +352,29 @@ Claude Code hooks have **predefined exit code semantics** defined by Claude Code
 
 ### Hook Exit Code Reference
 
-| Exit Code | Claude Hook Behavior | This ADR Equivalent |
-|-----------|---------------------|---------------------|
-| 0 | Allow action / JSON decision processed | Success (aligned) |
-| 1 | Hook error (fail-open: action allowed) | Logic Error (aligned) |
-| 2 | **Block action immediately** | Config Error (DIFFERENT) |
+Exit code semantics vary by hook type. Exit 2 blocks for some hook types but
+not others. The table below shows the complete categorization.
 
-### JSON Decision Mode (Recommended)
+**Blocking hooks** (exit 2 blocks the action):
+PreToolUse, PermissionRequest, UserPromptSubmit, Stop, SubagentStop,
+TeammateIdle, TaskCompleted
+
+**Non-blocking hooks** (exit 2 is an error, not a block):
+PostToolUse, PostToolUseFailure, Notification, SubagentStart,
+SessionStart, SessionEnd, PreCompact
+
+| Exit Code | Blocking Hooks | Non-Blocking Hooks |
+|-----------|----------------|---------------------|
+| 0 | Allow action, stdout injected as context | Success, stdout injected as context |
+| 1 | Hook error (fail-open) | Hook error (stderr shown in verbose mode) |
+| 2 | **Block action immediately** | Error only (no blocking, stderr shown to user) |
+
+**Key constraint**: Non-blocking hooks (SessionStart, PostToolUse, etc.) MUST
+always exit 0. Exit 2 does not block these hooks. It shows stderr to the user
+as an error and prevents stdout from being injected into Claude's context,
+losing any guidance the hook intended to provide.
+
+### JSON Decision Mode (Recommended for PreToolUse)
 
 To align hook scripts with this ADR while maintaining Claude semantics, use **JSON decision mode**:
 
@@ -377,23 +393,30 @@ This approach:
 - Uses exit 0 (aligned with this ADR's "success" semantic)
 - Blocks the action via JSON `decision: "deny"`
 - Provides structured error messages to Claude
+- Only works for PreToolUse hooks (the only type that processes JSON decisions)
 
-### When Exit 2 Is Required
+### When Exit 2 Is Appropriate
 
-Only use exit 2 in hooks when:
+Only use exit 2 in **blocking hooks** (PreToolUse, PermissionRequest,
+UserPromptSubmit, Stop, SubagentStop, TeammateIdle, TaskCompleted) when:
 
 1. **Immediate block required** without structured message
 2. **Fallback** when JSON output fails
 
 ```powershell
-# Emergency block (hook-specific, not ADR-035 aligned)
+# Emergency block (blocking hooks only, not ADR-035 aligned)
 Write-Error "CRITICAL: Cannot proceed"
 exit 2  # Claude blocks action
 ```
 
+Never use exit 2 in non-blocking hooks (SessionStart, SessionEnd, PostToolUse,
+PostToolUseFailure, Notification, SubagentStart, PreCompact). It does not block
+and causes confusing "hook error" messages while suppressing the stdout context
+injection.
+
 ### Hook Script Documentation
 
-Hook scripts should document this exemption:
+Hook scripts should document this exemption and the hook-type-specific behavior:
 
 ```powershell
 <#
@@ -404,7 +427,13 @@ Hook scripts should document this exemption:
     EXIT CODES (Claude Hook Semantics - exempt from ADR-035):
     0  - Allow action OR JSON decision (deny/allow)
     1  - Hook error (fail-open)
-    2  - Block action immediately (hook-specific)
+    2  - Block action (blocking hooks only)
+
+    BLOCKING HOOKS: PreToolUse, PermissionRequest, UserPromptSubmit,
+                    Stop, SubagentStop, TeammateIdle, TaskCompleted
+    NON-BLOCKING:   PostToolUse, PostToolUseFailure, Notification,
+                    SubagentStart, SessionStart, SessionEnd, PreCompact
+    Non-blocking hooks must always exit 0.
 
     See: ADR-033 Routing-Level Enforcement Gates
     See: https://docs.anthropic.com/en/docs/claude-code/hooks
