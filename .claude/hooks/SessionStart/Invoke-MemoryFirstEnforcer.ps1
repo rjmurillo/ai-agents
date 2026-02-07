@@ -1,13 +1,13 @@
 <#
 .SYNOPSIS
-    Enforces ADR-007 memory-first protocol with hybrid education/blocking strategy.
+    Enforces ADR-007 memory-first protocol with hybrid education/escalation strategy.
 
 .DESCRIPTION
     Claude Code SessionStart hook that verifies memory retrieval evidence before
     allowing work to proceed. Uses hybrid enforcement:
 
-    - First 3 invocations: Educational guidance (exit 0, inject context)
-    - After threshold: BLOCKING gate (exit 2) if evidence missing
+    - First 3 invocations: Educational guidance (inject context)
+    - After threshold: Strong warning with escalated urgency (inject context)
 
     Evidence verification checks session log protocolCompliance.sessionStart for:
     1. serenaActivated.Complete = true
@@ -16,15 +16,14 @@
 
     Part of Tier 2 enforcement hooks (Issue #773, Protocol enforcement).
 
+    NOTE: SessionStart hooks cannot block (exit 2 only shows stderr as error,
+    does not block the session, and prevents stdout from being injected).
+    All enforcement is via context injection (exit 0 with stdout).
+
 .NOTES
     Hook Type: SessionStart
     Exit Codes:
-        0 = Success (guidance injected or evidence complete)
-        2 = Block session (evidence missing after education threshold)
-
-    EXIT CODE SEMANTICS (Claude Hook Convention):
-    Exit code 2 signals BLOCKING. Claude interprets this as "stop processing
-    and show user the reason."
+        0 = Success (guidance or warning injected into Claude's context)
 
 .LINK
     .agents/SESSION-PROTOCOL.md
@@ -257,14 +256,10 @@ Complete these steps NOW to build evidence:
         exit 0
     }
     else {
-        # Blocking phase
+        # Escalated warning phase (SessionStart cannot block, only inject context)
         $output = @"
 
-## ⛔ BLOCKING: Memory-First Protocol Violation (ADR-007)
-
-**YOU MUST retrieve context BEFORE reasoning. This is non-negotiable.**
-
-### Missing Required Evidence
+## ADR-007: Memory-First Protocol Violation (Warning $count, past threshold)
 
 **Reason**: $($evidence.Reason)
 
@@ -285,15 +280,13 @@ Complete these steps NOW (in order):
    - Session log MUST show tool outputs from steps 1-2
    - ``protocolCompliance.sessionStart.memoriesLoaded`` MUST list specific memories
 
-**Why This Matters**: Without memory retrieval, you will repeat past mistakes, violate learned constraints, and ignore architectural decisions. Verification-based enforcement achieves 100% compliance vs <50% with guidance alone.
+**Why This Matters**: Without memory retrieval, you will repeat past mistakes, violate learned constraints, and ignore architectural decisions.
 
-**Cannot proceed until complete.** See: ``.agents/SESSION-PROTOCOL.md`` Phase 1-2
+See: ``.agents/SESSION-PROTOCOL.md`` Phase 1-2
 
 "@
         Write-Output $output
-        # Use Console.Error to avoid exception from Write-Error with Stop action preference
-        [Console]::Error.WriteLine("Session blocked: ADR-007 memory-first evidence missing after $count invocations")
-        exit 2
+        exit 0
     }
 }
 catch {

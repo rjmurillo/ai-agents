@@ -3,25 +3,24 @@
     Enforces session protocol initialization at session start.
 
 .DESCRIPTION
-    Claude Code SessionStart hook that provides BLOCKING protection against
-    working on main/master branches and injects git state into Claude's context.
+    Claude Code SessionStart hook that warns against working on main/master
+    branches and injects git state into Claude's context.
 
     Checks:
-    1. Current branch is not main/master (BLOCKING if violated)
+    1. Current branch is not main/master (WARNING injected into context)
     2. Git status and recent commits (injected into context)
     3. Session log status for today (reported, not blocking)
 
     Part of Tier 1 enforcement hooks (Session initialization).
 
+    NOTE: SessionStart hooks cannot block (exit 2 only shows stderr as error,
+    does not block the session, and prevents stdout from being injected).
+    Branch protection at commit time is enforced by PreToolUse hooks.
+
 .NOTES
     Hook Type: SessionStart
     Exit Codes:
-        0 = Allow (not on protected branch)
-        2 = Block (on main/master branch)
-
-    EXIT CODE SEMANTICS (Claude Hook Convention):
-    Exit code 2 signals BLOCKING. Claude interprets this as "stop processing
-    and show user the reason."
+        0 = Success (stdout injected into Claude's context)
 
 .LINK
     .agents/SESSION-PROTOCOL.md
@@ -93,43 +92,28 @@ try {
     $projectDir = Get-ProjectDirectory
     $currentBranch = Get-CurrentBranch
 
-    # BLOCKING: Check if on protected branch
+    # WARNING: Check if on protected branch
+    # NOTE: SessionStart hooks cannot block (exit 2 only shows stderr, prevents
+    # stdout injection). Commit-time protection is enforced by PreToolUse hooks.
     if (Test-IsMainOrMasterBranch -Branch $currentBranch) {
         $output = @"
 
-## ⛔ BLOCKED: Cannot Work on Protected Branch
+## WARNING: On Protected Branch
 
-**YOU MUST switch to a feature branch before starting work.**
+**Switch to a feature branch before making changes.**
 
 **Current Branch**: ``$currentBranch``
 
-### Why This Matters
-- Direct commits to main/master violate workflow policy
-- All work must go through PR review
-- Protected branches are for integration only
-
-### How to Fix
-
+Direct commits to main/master are blocked by pre-commit hooks.
 Create or switch to a feature branch:
 
 ``````bash
-# Create new feature branch
 git checkout -b feat/your-feature-name
-
-# Or switch to existing branch
-git checkout existing-branch-name
-
-# Or use worktrunk
-wt switch feat/your-feature-name --create
 ``````
-
-**This is a BLOCKING error. Session cannot proceed on $currentBranch.**
 
 "@
         Write-Output $output
-        # Use Console.Error to avoid exception from Write-Error with Stop action preference
-        [Console]::Error.WriteLine("Blocked: Cannot work on protected branch '$currentBranch'")
-        exit 2
+        exit 0
     }
 
     # NON-BLOCKING: Inject git state into context
