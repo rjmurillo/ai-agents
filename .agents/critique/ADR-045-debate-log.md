@@ -207,15 +207,20 @@ The alternatives table did not evaluate the simpler option of reorganizing direc
 
 **Analyst (D&C)**: All claims now evidence-backed. The 37% hybrid percentage justification could be more quantitative, but the re-evaluation decision (proceed because path parameterization is one-time cost) is reasonable. Recommends Phase 0 include explicit plugin count re-evaluation checkpoint.
 
-**High-Level Advisor (D&C)**: Maintains this is over-investment for a single-consumer project. 30-39 sessions is significant capacity commitment. However, the ADR now honestly scopes the motivation (separation of concerns, dog-fooding) rather than claiming external demand. The in-repo directory reorganization alternative addresses the key concern. Commits because the Q1 2027 timeline means no capacity is consumed until v0.3.1 completes.
+**High-Level Advisor (D&C, Round 2)**: Maintained this was over-investment for a single-consumer project. Committed because Q1 2027 timeline means no capacity consumed until v0.3.1 completes.
 
-### Round 2 Conclusion
+**High-Level Advisor (ACCEPT, Round 2.5)**: Vote upgraded from D&C to ACCEPT after context correction. The ADR originally stated "no validated external demand" and "single-maintainer project," which were factually wrong. Corrected context: ~400 target users in organizational rollout within 30 days of extraction. This transforms the cost-benefit from 30 sessions / 1 consumer to 30 sessions / 400 consumers. Plugin marketplace is justified as distribution infrastructure, not a validation exercise. All three D&C pillars invalidated or weakened: (1) ROI justified by 400 consumers, (2) distribution replaces dog-fooding, (3) 453 commits in 2 months demonstrates execution velocity despite 11-month prerequisite. Recommends Phase 0 gate to confirm organizational rollout is still on track.
 
-Consensus reached per debate protocol: all 6 agents voted Accept or Disagree-and-Commit. No BLOCKs.
+### Round 2 Conclusion (Updated)
 
-**ADR-045 status changed to: Accepted.**
+Final tally: **4 ACCEPT** (Architect, Critic, Security, High-Level Advisor) + **2 D&C** (Independent Thinker, Analyst). No BLOCKs.
+
+High-Level Advisor upgraded from D&C to ACCEPT in Round 2.5 after ADR corrected to reflect organizational scaling context (~400 users, distribution mechanism, project velocity).
+
+**ADR-045 status: Accepted.**
 
 D&C conditions addressed:
 1. "In-repo directory reorganization" added to Alternatives Considered table
 2. Phase 0 checkpoint for plugin consolidation documented in PLAN.md scope
-3. All dissent formally recorded in this log
+3. Organizational context corrected (400 users, distribution mechanism)
+4. All dissent formally recorded in this log

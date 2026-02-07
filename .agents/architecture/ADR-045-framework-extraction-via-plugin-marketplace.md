@@ -10,9 +10,9 @@ Accepted
 
 ## Decision Drivers
 
+- **Organizational scaling**: The framework must be distributed to ~400 users within 30 days. Plugin marketplace is the distribution mechanism, not an experiment.
 - **Separation of concerns**: Framework code and project-specific code are co-located, obscuring boundaries and increasing cognitive load during maintenance.
-- **Dog-fooding**: Publishing as a plugin marketplace validates the format we recommend to consumers.
-- **Future shareability**: Clean extraction enables sharing IF external demand materializes. No external demand exists today.
+- **Distribution**: Publishing as a plugin marketplace enables one-command installation (`claude plugin marketplace add`) for new team members, replacing manual setup.
 - **Python-first prerequisite**: ADR-042 migration must complete before extraction to avoid extracting PowerShell code that immediately needs rewriting.
 
 ## Stakeholders
@@ -20,11 +20,11 @@ Accepted
 | Role | Who | Responsibility |
 |------|-----|----------------|
 | Decision maker | Repository owner | Approve/reject |
-| Implementer | Repository owner | Execute extraction |
+| Implementer | Repository owner + AI agents | Execute extraction |
 | Consulted | 6-agent review panel | Architectural, security, feasibility review |
-| Informed | Future consumers (if any) | Adoption guidance |
+| Informed | ~400 target consumers (organizational rollout) | Adoption, feedback |
 
-Note: This is a single-maintainer project. All roles collapse to the repository owner, with AI agents providing review coverage.
+Note: Framework development is single-maintainer with AI agent augmentation. Distribution targets ~400 users via plugin marketplace within 30 days of extraction completion.
 
 ## Context
 
@@ -42,7 +42,7 @@ This co-location creates problems:
 2. **Coupling obscures boundaries**: Framework code references project-specific paths, making reusability unclear
 3. **Maintenance burden**: Changes to framework components must navigate project-specific files
 
-**What this is NOT**: There is no validated external demand for this framework. No other projects have requested it. Third-party alternatives exist (claude-flow, agents, multi-agent-shogun). This decision is motivated by separation of concerns and dog-fooding the plugin format, not by proven external adoption.
+**Distribution context**: This framework targets ~400 users in an organizational rollout within 30 days of extraction. The plugin marketplace is the distribution mechanism, providing one-command installation and team-wide configuration. Project velocity (453 commits in 2 months, 1181 sessions) demonstrates execution capacity.
 
 Claude Code provides a stable plugin marketplace system (researched in session 1180, documented in `.agents/analysis/claude-code-plugin-marketplaces.md`) that supports:
 
@@ -202,7 +202,7 @@ The expand-contract approach (add plugin, verify functionality, then remove orig
 | Plugin marketplace format instability | Medium | High | Pin to documented schema version. Monitor Claude Code changelogs. P1-2 from review identified issues #17089 and #17361 as evidence of undocumented breaking changes. |
 | Single maintainer capacity conflict | High | Medium | v0.4.0 does not begin execution until v0.3.1 completes. No concurrent milestone work. |
 | Path parameterization more complex than estimated | Medium | Medium | Formal inventory audit (see above) quantifies actual scope before committing to timeline. |
-| External demand never materializes | High | Low | Extraction still provides separation of concerns and maintainability benefits for the primary consumer. Framework is not wasted even without external adoption. |
+| Organizational rollout adoption lower than expected | Medium | Medium | Framework provides separation of concerns regardless of adoption rate. Phased rollout allows course correction. |
 
 ## Consequences
 
@@ -212,7 +212,7 @@ The expand-contract approach (add plugin, verify functionality, then remove orig
 - Clear separation of concerns between framework and domain code
 - 4-plugin granularity lets consumers install only what they need
 - Versioned releases enable stable consumption
-- Dog-foods the plugin marketplace format
+- Enables organizational distribution to ~400 users via one-command install
 
 ### Negative
 

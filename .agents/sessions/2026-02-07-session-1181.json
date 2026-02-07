@@ -93,6 +93,11 @@
       "phase": "review",
       "description": "Round 2 ADR-045 review: 6-agent debate after P0 revisions",
       "outcome": "Consensus reached: 3 ACCEPT (Architect, Critic, Security) + 3 D&C (Independent Thinker, Analyst, High-Level Advisor). Security risk 7.2->3.8/10. All 9 P0 resolved. D&C condition: added in-repo directory reorganization alternative. ADR-045 status changed to Accepted."
+    },
+    {
+      "phase": "revision",
+      "description": "Round 2.5: Corrected organizational context in ADR-045 and re-ran High-Level Advisor",
+      "outcome": "ADR incorrectly stated 'no external demand' and 'single-maintainer project'. Corrected to reflect ~400 target users, organizational distribution, and project velocity (453 commits/2 months). Advisor upgraded from D&C to ACCEPT. Final tally: 4 ACCEPT + 2 D&C."
     }
   ],
   "outcomes": {
@@ -123,7 +128,7 @@
     "Namespace: /awesome-ai:skill-name for plugin-distributed skills",
     "Path abstraction: ${CLAUDE_PLUGIN_ROOT} internal, env vars for consumer paths",
     "Versioning: awesome-ai starts at v0.4.0 aligned with ai-agents milestone",
-    "ADR status: Accepted after Round 2 review (3 Accept + 3 D&C, consensus reached)"
+    "ADR status: Accepted after Round 2 review (4 Accept + 2 D&C after Round 2.5 context correction)"
   ],
   "learnings": [
     {
