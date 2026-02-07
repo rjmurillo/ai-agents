@@ -1804,12 +1804,12 @@ if [ -n "$staged_memory_files" ]; then
     if [ "${SKIP_MEMORY_SYNC:-0}" = "1" ]; then
         echo_info "Memory sync: skipped (SKIP_MEMORY_SYNC=1)"
     elif command -v python3 &> /dev/null; then
-        memory_sync_args="hook"
-        if [ "${MEMORY_SYNC_IMMEDIATE:-0}" = "1" ]; then
-            memory_sync_args="hook --immediate"
-        fi
         # Non-blocking: capture output but never fail the commit
-        sync_output=$(python3 -m scripts.memory_sync.cli $memory_sync_args 2>&1) || true
+        if [ "${MEMORY_SYNC_IMMEDIATE:-0}" = "1" ]; then
+            sync_output=$(python3 -m scripts.memory_sync.cli hook --immediate 2>&1) || true
+        else
+            sync_output=$(python3 -m scripts.memory_sync.cli hook 2>&1) || true
+        fi
         if [ -n "$sync_output" ]; then
             echo_info "Memory sync: $sync_output"
         fi

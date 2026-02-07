@@ -74,7 +74,7 @@ def detect_changes(
             continue
         status, filepath = parts[0], parts[1]
         path = Path(filepath)
-        if not _is_memory_file(path):
+        if not is_memory_file(path):
             continue
         operation = _status_to_operation(status)
         if operation is not None:
@@ -262,7 +262,7 @@ def sync_batch(
     return results
 
 
-def _is_memory_file(path: Path) -> bool:
+def is_memory_file(path: Path) -> bool:
     """Check if a path is a Serena memory file."""
     parts = path.parts
     return (

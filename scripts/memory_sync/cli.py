@@ -26,7 +26,12 @@ from pathlib import Path
 from scripts.memory_sync.freshness import check_freshness
 from scripts.memory_sync.mcp_client import McpClient, McpError
 from scripts.memory_sync.models import FreshnessStatus, SyncOperation
-from scripts.memory_sync.sync_engine import detect_changes, sync_batch, sync_memory
+from scripts.memory_sync.sync_engine import (
+    detect_changes,
+    is_memory_file,
+    sync_batch,
+    sync_memory,
+)
 
 _logger = logging.getLogger(__name__)
 
@@ -330,6 +335,9 @@ def _read_queue(project_root: Path) -> list[tuple[Path, SyncOperation]]:
         changes: list[tuple[Path, SyncOperation]] = []
         for entry in data:
             path = Path(entry["path"])
+            if not is_memory_file(path):
+                _logger.warning("Skipping invalid queue path: %s", path)
+                continue
             operation = SyncOperation(entry["operation"])
             changes.append((path, operation))
         return changes
