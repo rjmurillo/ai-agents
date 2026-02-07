@@ -5,8 +5,8 @@ citations:
   - path: pyproject.toml
     line: 1
     snippet: "[project]"
-  - path: scripts/memory_enhancement/models.py
-    line: 15
+  - path: .claude/skills/memory-enhancement/src/memory_enhancement/models.py
+    line: 16
     snippet: "class LinkType"
 tags:
   - testing

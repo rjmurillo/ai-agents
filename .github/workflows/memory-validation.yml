@@ -36,7 +36,7 @@ jobs:
             memories:
               - '.serena/memories/**'
             code:
-              - 'scripts/memory_enhancement/**'
+              - '.claude/skills/memory-enhancement/src/memory_enhancement/**'
               - 'scripts/**/*.py'
               - 'pyproject.toml'
               - 'uv.lock'
@@ -69,12 +69,12 @@ jobs:
         id: verify
         continue-on-error: true
         run: |
-          python -m scripts.memory_enhancement verify-all --json > memory-validation-results.json
+          python -m memory_enhancement verify-all --json > memory-validation-results.json
           echo "exit_code=$?" >> $GITHUB_OUTPUT
 
       - name: Generate health report
         run: |
-          python -m scripts.memory_enhancement health --format markdown > memory-health-report.md
+          python -m memory_enhancement verify-all > memory-health-report.md
 
       - name: Upload validation results
         if: always()
