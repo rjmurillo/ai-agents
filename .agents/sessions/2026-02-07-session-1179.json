@@ -36,8 +36,8 @@
         "evidence": "Migration plan created with all phases documented"
       },
       "serenaMemoryUpdated": {
-        "completed": true,
-        "evidence": "Serena memories read for context retrieval"
+        "completed": false,
+        "evidence": "Serena memories read for context retrieval (no updates made)"
       },
       "scopedMarkdownlintRun": {
         "completed": true,
@@ -71,7 +71,7 @@
     },
     {
       "phase": "planning",
-      "description": "Created 5-phase prioritized migration plan",
+      "description": "Created 6-phase prioritized migration plan",
       "outcome": "Plan at .agents/projects/v0.3.1/PowerShell-migration.md with per-script checklists"
     },
     {
@@ -82,7 +82,7 @@
     {
       "phase": "implementation",
       "description": "Created GitHub milestone v0.3.1 and Epic issue structure",
-      "outcome": "Milestone v0.3.1 created, Epic #1049 with 15 sub-issues (#1050-#1058, #1060-#1066) mirroring plan phases"
+      "outcome": "Milestone v0.3.1 created, Epic #1049 with 16 sub-issues (#1050-#1058, #1060-#1066) mirroring plan phases"
     },
     {
       "phase": "implementation",

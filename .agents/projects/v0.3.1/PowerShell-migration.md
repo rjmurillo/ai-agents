@@ -411,8 +411,8 @@ No deprecation period. Delete PowerShell immediately after Python passes tests.
 
 ## References
 
-- [ADR-042: Python Migration Strategy](../../.agents/architecture/ADR-042-python-migration-strategy.md)
-- [ADR-005: PowerShell-Only Scripting](../../.agents/architecture/ADR-005-powershell-only-scripting.md) (Superseded)
-- [ADR-006: Thin Workflows, Testable Modules](../../.agents/architecture/ADR-006-thin-workflows-testable-modules.md) (still active)
+- [ADR-042: Python Migration Strategy](../../architecture/ADR-042-python-migration-strategy.md)
+- [ADR-005: PowerShell-Only Scripting](../../architecture/ADR-005-powershell-only-scripting.md) (Superseded)
+- [ADR-006: Thin Workflows, Testable Modules](../../architecture/ADR-006-thin-workflows-testable-modules.md) (still active)
 - [Epic #1049](https://github.com/rjmurillo/ai-agents/issues/1049)
 - [Milestone v0.3.1](https://github.com/rjmurillo/ai-agents/milestone/7)
