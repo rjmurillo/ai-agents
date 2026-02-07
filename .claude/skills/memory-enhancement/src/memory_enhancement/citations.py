@@ -4,8 +4,11 @@ Implements just-in-time verification: check citations against the
 current codebase at retrieval time, not continuous sync.
 """
 
+import sys
 from dataclasses import dataclass
 from pathlib import Path
+
+import yaml
 
 from .models import Citation, Memory
 
@@ -25,8 +28,12 @@ class VerificationResult:
 def verify_citation(citation: Citation, repo_root: Path) -> Citation:
     """Verify a single citation against the codebase.
 
-    Checks that the referenced file exists, the line number is valid,
-    and the snippet matches the actual content at that line.
+    Checks that the referenced file exists. If a line number is provided,
+    validates it is in range. If both line and snippet are provided, checks
+    the snippet appears on that line.
+
+    Mutates citation.valid and citation.mismatch_reason in place.
+    Returns the same citation object.
     """
     file_path = repo_root / citation.path
 
@@ -37,6 +44,7 @@ def verify_citation(citation: Citation, repo_root: Path) -> Citation:
 
     if citation.line is None:
         citation.valid = True
+        citation.mismatch_reason = None
         return citation
 
     try:
@@ -69,6 +77,7 @@ def verify_citation(citation: Citation, repo_root: Path) -> Citation:
         return citation
 
     citation.valid = True
+    citation.mismatch_reason = None
     return citation
 
 
@@ -110,7 +119,10 @@ def verify_all_memories(
             memory = Memory.from_file(path)
             if memory.citations:
                 results.append(verify_memory(memory, repo_root))
-        except Exception as e:
-            print(f"Warning: Failed to parse {path}: {e}")
+        except (yaml.YAMLError, UnicodeDecodeError, OSError, KeyError, ValueError) as e:
+            print(
+                f"Warning: Failed to parse {path}: {type(e).__name__}: {e}",
+                file=sys.stderr,
+            )
 
     return results

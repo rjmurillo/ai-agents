@@ -1,5 +1,6 @@
 """Tests for memory_enhancement.citations."""
 
+import os
 
 from memory_enhancement.citations import (
     verify_all_memories,
@@ -86,6 +87,48 @@ class TestVerifyCitation:
         result = verify_citation(citation, tmp_path)
 
         assert result.valid is True
+
+    def test_success_clears_mismatch_reason(self, tmp_path):
+        (tmp_path / "exists.py").write_text("content\n")
+        citation = Citation(path="exists.py")
+        result = verify_citation(citation, tmp_path)
+
+        assert result.valid is True
+        assert result.mismatch_reason is None
+
+    def test_reverification_clears_stale_mismatch_reason(self, tmp_path):
+        citation = Citation(path="target.py")
+        # First call: file missing
+        verify_citation(citation, tmp_path)
+        assert citation.valid is False
+        assert citation.mismatch_reason is not None
+
+        # Create the file, re-verify
+        (tmp_path / "target.py").write_text("content\n")
+        verify_citation(citation, tmp_path)
+        assert citation.valid is True
+        assert citation.mismatch_reason is None
+
+    def test_oserror_on_unreadable_file(self, tmp_path):
+        target = tmp_path / "locked.py"
+        target.write_text("content\n")
+        os.chmod(target, 0o000)
+        try:
+            citation = Citation(path="locked.py", line=1)
+            result = verify_citation(citation, tmp_path)
+
+            assert result.valid is False
+            assert "Cannot read file" in result.mismatch_reason
+        finally:
+            os.chmod(target, 0o644)
+
+    def test_success_path_with_line_has_none_mismatch_reason(self, tmp_path):
+        (tmp_path / "code.py").write_text("import os\ndef main():\n    pass\n")
+        citation = Citation(path="code.py", line=2, snippet="def main():")
+        result = verify_citation(citation, tmp_path)
+
+        assert result.valid is True
+        assert result.mismatch_reason is None
 
 
 class TestVerifyMemory:
@@ -203,7 +246,8 @@ class TestVerifyAllMemories:
         )
         results = verify_all_memories(tmp_path, tmp_path)
         captured = capsys.readouterr()
-        assert "Warning" in captured.out or len(results) == 0
+        assert len(results) == 0
+        assert "Warning" in captured.err
 
     def test_multiple_memories(self, tmp_path):
         (tmp_path / "code.py").write_text("hello\n")

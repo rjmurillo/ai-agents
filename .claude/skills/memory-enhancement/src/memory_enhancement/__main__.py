@@ -17,7 +17,13 @@ DEFAULT_MEMORIES_DIR = ".serena/memories"
 
 
 def _find_memory(memory_id: str, memories_dir: Path) -> Path:
-    """Resolve a memory ID or path to a file path."""
+    """Resolve a memory ID or path to a file path.
+
+    Tries: literal path, then {memory_id}.md in memories_dir,
+    then bare filename in memories_dir.
+
+    Raises FileNotFoundError if not found.
+    """
     candidate = Path(memory_id)
     if candidate.exists():
         return candidate
@@ -30,9 +36,11 @@ def _find_memory(memory_id: str, memories_dir: Path) -> Path:
     if candidate.exists():
         return candidate
 
-    print(f"Error: Memory not found: {memory_id}", file=sys.stderr)
-    print(f"Searched: {memory_id}, {memories_dir / f'{memory_id}.md'}", file=sys.stderr)
-    sys.exit(2)
+    msg = (
+        f"Memory not found: {memory_id}. "
+        f"Searched: {memory_id}, {memories_dir / f'{memory_id}.md'}"
+    )
+    raise FileNotFoundError(msg)
 
 
 def _result_to_dict(result: VerificationResult) -> dict:
@@ -65,7 +73,7 @@ def _print_result(result: VerificationResult) -> None:
 
     for citation in result.stale_citations:
         loc = citation.path
-        if citation.line:
+        if citation.line is not None:
             loc += f":{citation.line}"
         print(f"  [STALE] {loc}")
         print(f"    Reason: {citation.mismatch_reason}")
@@ -73,11 +81,22 @@ def _print_result(result: VerificationResult) -> None:
 
 def cmd_verify(args: argparse.Namespace) -> int:
     """Verify citations in a single memory."""
+    import yaml
+
     memories_dir = Path(args.dir)
     repo_root = Path(args.repo_root)
 
-    memory_path = _find_memory(args.memory_id, memories_dir)
-    memory = Memory.from_file(memory_path)
+    try:
+        memory_path = _find_memory(args.memory_id, memories_dir)
+    except FileNotFoundError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 2
+
+    try:
+        memory = Memory.from_file(memory_path)
+    except (yaml.YAMLError, UnicodeDecodeError, OSError) as e:
+        print(f"Error: Cannot parse {memory_path}: {e}", file=sys.stderr)
+        return 2
 
     if not memory.citations:
         if args.json:

@@ -4,8 +4,9 @@ Defines Citation, Link, and Memory dataclasses that map
 to the YAML frontmatter schema in Serena memory files.
 """
 
+import logging
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import date, datetime
 from enum import Enum
 from pathlib import Path
 
@@ -36,7 +37,7 @@ class Citation:
 
 @dataclass
 class Link:
-    """Typed edge in the memory graph."""
+    """Typed relationship between two memories."""
 
     link_type: LinkType
     target_id: str
@@ -81,7 +82,11 @@ class Memory:
                     link_type = LinkType(link_type_str)
                     links.append(Link(link_type=link_type, target_id=target_id))
                 except ValueError:
-                    pass
+                    _logger.warning(
+                        "Unknown link type '%s' in %s, skipping",
+                        link_type_str,
+                        path,
+                    )
 
         tags = post.metadata.get("tags", [])
         confidence = post.metadata.get("confidence", 0.5)
@@ -104,12 +109,25 @@ class Memory:
         return [link.target_id for link in self.links if link.link_type == link_type]
 
 
+_logger = logging.getLogger(__name__)
+
+
 def _parse_date(value: object) -> datetime | None:
-    """Parse date from string or datetime."""
+    """Parse a date value.
+
+    Accepts None, datetime, date, or ISO-format string.
+    Returns None for unsupported types or malformed strings.
+    """
     if value is None:
         return None
     if isinstance(value, datetime):
         return value
+    if isinstance(value, date):
+        return datetime(value.year, value.month, value.day)
     if isinstance(value, str):
-        return datetime.fromisoformat(value)
+        try:
+            return datetime.fromisoformat(value)
+        except ValueError:
+            _logger.warning("Cannot parse date string: '%s'", value)
+            return None
     return None

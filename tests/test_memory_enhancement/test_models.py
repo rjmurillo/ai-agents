@@ -1,6 +1,6 @@
 """Tests for memory_enhancement.models."""
 
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 
 import pytest
@@ -68,6 +68,19 @@ class TestParseDate:
         result = _parse_date("2026-01-15")
         assert result is not None
         assert result.year == 2026
+
+    def test_date_object_converted_to_datetime(self):
+        d = date(2026, 1, 15)
+        result = _parse_date(d)
+        assert isinstance(result, datetime)
+        assert result.year == 2026
+        assert result.month == 1
+        assert result.day == 15
+
+    def test_malformed_iso_string_returns_none(self):
+        assert _parse_date("not-a-date") is None
+        assert _parse_date("2026-13-45") is None
+        assert _parse_date("last week") is None
 
     def test_unsupported_type_returns_none(self):
         assert _parse_date(12345) is None

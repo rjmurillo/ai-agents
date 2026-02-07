@@ -113,6 +113,30 @@ class TestVerifyCommand:
         assert result.returncode == 0
         assert "No citations" in result.stdout
 
+    def test_verify_no_citations_json(self, tmp_path):
+        mem_dir = tmp_path / ".serena" / "memories"
+        mem_dir.mkdir(parents=True)
+        (mem_dir / "no-cite.md").write_text(
+            "---\n"
+            "id: no-cite\n"
+            "---\n"
+            "\n"
+            "No citations.\n"
+        )
+
+        result = run_cli(
+            "verify", "no-cite",
+            "--dir", str(mem_dir),
+            "--repo-root", str(tmp_path),
+            "--json",
+        )
+
+        assert result.returncode == 0
+        data = json.loads(result.stdout)
+        assert data["memory_id"] == "no-cite"
+        assert data["valid"] is True
+        assert data["total_citations"] == 0
+
     def test_verify_memory_not_found(self, tmp_path):
         mem_dir = tmp_path / ".serena" / "memories"
         mem_dir.mkdir(parents=True)
@@ -222,6 +246,50 @@ class TestVerifyAllCommand:
         assert isinstance(data, list)
         assert len(data) == 1
         assert data[0]["valid"] is True
+
+    def test_verify_all_json_mixed_results(self, tmp_path):
+        (tmp_path / "exists.py").write_text("code\n")
+        mem_dir = tmp_path / "memories"
+        mem_dir.mkdir()
+
+        (mem_dir / "good.md").write_text(
+            "---\n"
+            "id: good\n"
+            "citations:\n"
+            "  - path: exists.py\n"
+            "---\n"
+            "\n"
+            "Good.\n"
+        )
+        (mem_dir / "bad.md").write_text(
+            "---\n"
+            "id: bad\n"
+            "citations:\n"
+            "  - path: missing.py\n"
+            "---\n"
+            "\n"
+            "Bad.\n"
+        )
+
+        result = run_cli(
+            "verify-all",
+            "--dir", str(mem_dir),
+            "--repo-root", str(tmp_path),
+            "--json",
+        )
+
+        assert result.returncode == 1
+        data = json.loads(result.stdout)
+        assert isinstance(data, list)
+        assert len(data) == 2
+        valid_ids = [d["memory_id"] for d in data if d["valid"]]
+        stale_ids = [d["memory_id"] for d in data if not d["valid"]]
+        assert "good" in valid_ids
+        assert "bad" in stale_ids
+        # Verify confidence field is present and numeric
+        for entry in data:
+            assert "confidence" in entry
+            assert isinstance(entry["confidence"], (int, float))
 
     def test_verify_all_missing_dir(self, tmp_path):
         result = run_cli(

@@ -1,6 +1,6 @@
 """Memory Enhancement Layer for Serena + Forgetful.
 
-Citation schema, verification, and memory graph operations
+Citation schema, verification, and memory data models
 for the ai-agents memory system.
 """
 
