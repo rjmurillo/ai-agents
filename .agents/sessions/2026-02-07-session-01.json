@@ -1,138 +1,55 @@
 {
-  "schemaVersion": "1.0",
   "session": {
     "number": 1,
     "date": "2026-02-07",
-    "branch": "feat/747-memory-sync",
-    "startingCommit": "40355866",
-    "objective": "Review ADR-037 implementation status update for Phase 2B completion"
+    "branch": "fix/hooks",
+    "startingCommit": "568af677",
+    "objective": "Fix SessionStart hooks using incorrect exit code 2 (cannot block)"
   },
   "protocolCompliance": {
     "sessionStart": {
-      "activateSerena": {
-        "status": "pass",
-        "timestamp": "2026-02-07T00:00:00Z"
-      },
-      "readHandoff": {
-        "status": "pass",
-        "notes": "HANDOFF.md reviewed (read-only)"
-      },
-      "createSessionLog": {
-        "status": "pass",
-        "artifact": ".agents/sessions/2026-02-07-session-01.json"
-      },
-      "readMemory": {
-        "status": "pass",
-        "query": "ADR-037 implementation status"
-      },
-      "verifyBranch": {
-        "status": "pass",
-        "branch": "feat/747-memory-sync"
-      }
+      "serenaActivated": { "complete": true, "Evidence": "mcp__serena__read_memory, mcp__serena__write_memory" },
+      "handoffRead": { "complete": true, "Evidence": "Read HANDOFF.md context from system reminders" },
+      "memoriesLoaded": { "complete": true, "Evidence": "git-hooks-observations created with learnings" },
+      "branchVerification": { "complete": true, "Evidence": "fix/hooks branch confirmed" }
     },
     "sessionEnd": {
-      "completeSessionLog": {
-        "status": "pass",
-        "outcomes": "ADR-037 implementation status verified complete"
-      },
-      "updateMemory": {
-        "status": "pass",
-        "entries": 1
-      },
-      "markdownlint": {
-        "status": "pass",
-        "files": [".agents/critique/ADR-037-implementation-status-review.md"]
-      },
-      "routeToQA": {
-        "status": "pass",
-        "note": "Plan review, no feature implementation"
-      },
-      "commitChanges": {
-        "status": "pending",
-        "staged": [".agents/critique/ADR-037-implementation-status-review.md", ".agents/sessions/2026-02-07-session-01.json"]
-      },
-      "validateSession": {
-        "status": "pass",
-        "exitCode": 0
-      }
+      "complete": true,
+      "memoryUpdated": true,
+      "sessionLogValidated": true
     }
   },
-  "workLog": [
-    {
-      "task": "Verify implementation status table accuracy",
-      "status": "completed",
-      "findings": "All 5 phases marked COMPLETE verified as implemented in repository"
-    },
-    {
-      "task": "Validate test coverage",
-      "status": "completed",
-      "findings": "62/62 tests passing in test_memory_sync suite (1.62s runtime)"
-    },
-    {
-      "task": "Check CLI tool functionality",
-      "status": "completed",
-      "findings": "All CLI commands (sync, sync-batch, validate, hook) functional and match ADR specifications"
-    },
-    {
-      "task": "Verify git hook integration",
-      "status": "completed",
-      "findings": "Pre-commit hook properly integrated with queue-based default and immediate mode option"
-    },
-    {
-      "task": "Confirm PowerShell implementation",
-      "status": "completed",
-      "findings": "MemoryRouter.psm1 (577 lines) and Search-Memory.ps1 complete with Pester tests"
-    },
-    {
-      "task": "Check documentation accuracy",
-      "status": "completed",
-      "findings": "ADR correctly documents Python + MCP subprocess approach, not PowerShell pseudocode"
-    },
-    {
-      "task": "Verify ADR alignment",
-      "status": "completed",
-      "findings": "Full alignment with ADR-007, ADR-035, and architecture decisions"
-    }
+  "outcomes": [
+    "Fixed Invoke-SessionInitializationEnforcer.ps1: exit 2 -> exit 0 on protected branch",
+    "Fixed Invoke-MemoryFirstEnforcer.ps1: exit 2 -> exit 0 after education threshold",
+    "Updated ADR-035 hook exit code table with per-hook-type semantics",
+    "Updated Pester tests: 25 tests passing",
+    "Created git-hooks-observations Serena memory with learnings"
   ],
-  "outcomes": {
-    "deliverables": [
-      {
-        "name": "ADR-037 Implementation Status Review",
-        "path": ".agents/critique/ADR-037-implementation-status-review.md",
-        "status": "complete",
-        "format": "markdown",
-        "description": "Comprehensive verification of Phase 2B implementation claims with test results and alignment checks"
-      }
-    ],
-    "decisions": [
-      {
-        "decision": "ADR-037 implementation status update VERDICT: ACCEPT",
-        "rationale": "All implementation claims verified as complete and accurate. Tests passing (62/62). Architecture aligned with ADR-007. No critical or important issues found.",
-        "status": "approved",
-        "confidence": "99%"
-      }
-    ],
-    "risks": [
-      {
-        "risk": "State file corruption",
-        "probability": "very-low",
-        "impact": "medium",
-        "mitigation": "JSON schema validation in load_state()"
-      },
-      {
-        "risk": "Forgetful unavailability",
-        "probability": "medium",
-        "impact": "low",
-        "mitigation": "Graceful degradation with queuing"
-      }
-    ]
+  "decisions": [
+    "SessionStart hooks must always exit 0 because exit 2 does not block and suppresses stdout",
+    "Branch protection on main is redundant in SessionStart since PreToolUse hooks enforce at commit time",
+    "ADR-035 documentation updated to distinguish blockable vs non-blockable hook types"
+  ],
+  "adrReview": {
+    "adr": "ADR-035-exit-code-standardization.md",
+    "amendment": "Hook exit code per-type semantics",
+    "verdicts": {
+      "architect": "ACCEPT",
+      "critic": "ACCEPT",
+      "security": "ACCEPT",
+      "independent-thinker": "DISAGREE-AND-COMMIT",
+      "analyst": "PASS",
+      "high-level-advisor": "ACCEPT"
+    },
+    "consensus": "5 ACCEPT + 1 D&C = CONSENSUS",
+    "dcResolution": "Independent-thinker feedback incorporated: expanded blocking hook list",
+    "debateLog": ".agents/critique/ADR-035-amendment-debate-log.md"
   },
-  "metrics": {
-    "testsCovered": 62,
-    "testsPassed": 62,
-    "testFailures": 0,
-    "coverage": "all critical paths",
-    "reviewDurationMinutes": 30
-  },
-  "exitCode": 0
+  "verification": {
+    "testsRun": true,
+    "testsPassed": 25,
+    "testsFailed": 0,
+    "exitCode": 0
+  }
 }

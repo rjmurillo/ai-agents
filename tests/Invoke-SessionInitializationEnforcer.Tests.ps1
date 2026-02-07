@@ -5,7 +5,7 @@
     Pester tests for Invoke-SessionInitializationEnforcer.ps1
 
 .DESCRIPTION
-    Tests the SessionStart hook that blocks working on main/master branches
+    Tests the SessionStart hook that warns about main/master branches
     and injects git state into Claude's context.
 #>
 
@@ -107,15 +107,15 @@ Describe "Invoke-SessionInitializationEnforcer" {
             }
         }
 
-        It "Blocks when on main branch (exit 2)" {
+        It "Warns when on main branch (exit 0 - SessionStart cannot block)" {
             $result = Invoke-HookInContext -HookPath $Script:TempHookPathMain -ProjectDir $Script:TestRootMain -WorkingDir $Script:TestRootMain
-            $result.ExitCode | Should -Be 2
+            $result.ExitCode | Should -Be 0
         }
 
-        It "Outputs blocking message about protected branch" {
+        It "Outputs warning message about protected branch" {
             $result = Invoke-HookInContext -HookPath $Script:TempHookPathMain -ProjectDir $Script:TestRootMain -WorkingDir $Script:TestRootMain
             $output = $result.Output -join "`n"
-            $output | Should -Match "BLOCKED"
+            $output | Should -Match "WARNING"
             $output | Should -Match "main"
         }
 
@@ -153,9 +153,9 @@ Describe "Invoke-SessionInitializationEnforcer" {
             }
         }
 
-        It "Blocks when on master branch (exit 2)" {
+        It "Warns when on master branch (exit 0 - SessionStart cannot block)" {
             $result = Invoke-HookInContext -HookPath $Script:TempHookPathMaster -ProjectDir $Script:TestRootMaster -WorkingDir $Script:TestRootMaster
-            $result.ExitCode | Should -Be 2
+            $result.ExitCode | Should -Be 0
         }
     }
 

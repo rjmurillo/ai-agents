@@ -6,7 +6,7 @@
 
 .DESCRIPTION
     Tests the SessionStart hook that enforces ADR-007 memory-first protocol
-    with hybrid education/blocking strategy.
+    with hybrid education/escalation strategy.
 #>
 
 BeforeAll {
@@ -199,7 +199,7 @@ Describe "Invoke-MemoryFirstEnforcer" {
         }
     }
 
-    Context "Session log missing evidence - blocking phase" {
+    Context "Session log missing evidence - escalated warning phase" {
         BeforeAll {
             # Create test environment with incomplete session log
             $Script:TestRootBlocking = Join-Path ([System.IO.Path]::GetTempPath()) "hook-test-memory-blocking-$(Get-Random)"
@@ -232,15 +232,15 @@ Describe "Invoke-MemoryFirstEnforcer" {
             }
         }
 
-        It "Fourth invocation blocks (exit 2)" {
+        It "Fourth invocation escalates warning (exit 0 - SessionStart cannot block)" {
             $result = Invoke-HookInContext -HookPath $Script:TempHookPathBlocking -ProjectDir $Script:TestRootBlocking
-            $result.ExitCode | Should -Be 2
+            $result.ExitCode | Should -Be 0
         }
 
-        It "Blocking output mentions ADR-007" {
+        It "Escalated warning mentions ADR-007" {
             $result = Invoke-HookInContext -HookPath $Script:TempHookPathBlocking -ProjectDir $Script:TestRootBlocking
             $output = $result.Output -join "`n"
-            $output | Should -Match "BLOCKING"
+            $output | Should -Match "past threshold"
             $output | Should -Match "ADR-007"
         }
     }
