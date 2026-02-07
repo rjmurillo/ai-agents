@@ -15,7 +15,7 @@
 | autonomous execution guardrails circuit breaker patch signal trust metric | [skills-autonomous-execution-index](skills-autonomous-execution-index.md) |
 | planning task file path scope breakdown | [skills-planning-index](skills-planning-index.md) |
 | architecture ADR model composite tool allocation producer-consumer | [skills-architecture-index](skills-architecture-index.md) |
-| adr decision record active proposed superseded rationale artifact amendment retroactive verification count | [adr-reference-index](adr-reference-index.md), [adr-artifact-count-verification](adr-artifact-count-verification.md), [adr-retroactive-amendment-criteria](adr-retroactive-amendment-criteria.md) |
+| adr decision record active proposed superseded rationale artifact amendment retroactive verification count review debate | [adr-reference-index](adr-reference-index.md), [adr-artifact-count-verification](adr-artifact-count-verification.md), [adr-retroactive-amendment-criteria](adr-retroactive-amendment-criteria.md), [adr-review-observations](adr-review-observations.md) |
 | cache invalidation TTL session-local cloudmcp stale refresh | [adr-reference-index](adr-reference-index.md) |
 | design agent specialization entry-criteria limitation composability | [skills-design-index](skills-design-index.md) |
 | implementation code feature bug fix test TDD additive | [skills-implementation-index](skills-implementation-index.md) |
