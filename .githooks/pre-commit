@@ -1789,6 +1789,36 @@ if [ -n "$STAGED_MEMORY_FILES" ]; then
 fi
 
 #
+# Memory Sync to Forgetful (Non-blocking, queue-based)
+#
+# Detects staged .serena/memories/ changes and queues them for Forgetful sync.
+# Default: writes to queue file for deferred processing (fast, <10ms)
+# Set MEMORY_SYNC_IMMEDIATE=1 for synchronous MCP-based sync (slower, ~3-5s)
+# Set SKIP_MEMORY_SYNC=1 to skip entirely
+#
+# Related: ADR-037, Issue #747
+#
+staged_memory_files=$(echo "$STAGED_FILES" | grep -E '^\.serena/memories/.*\.md$' || true)
+
+if [ -n "$staged_memory_files" ]; then
+    if [ "${SKIP_MEMORY_SYNC:-0}" = "1" ]; then
+        echo_info "Memory sync: skipped (SKIP_MEMORY_SYNC=1)"
+    elif command -v python3 &> /dev/null; then
+        memory_sync_args="hook"
+        if [ "${MEMORY_SYNC_IMMEDIATE:-0}" = "1" ]; then
+            memory_sync_args="hook --immediate"
+        fi
+        # Non-blocking: capture output but never fail the commit
+        sync_output=$(python3 -m scripts.memory_sync.cli $memory_sync_args 2>&1) || true
+        if [ -n "$sync_output" ]; then
+            echo_info "Memory sync: $sync_output"
+        fi
+    else
+        echo_info "Memory sync: python3 not available, skipping"
+    fi
+fi
+
+#
 # ADR Change Detection (Non-blocking, AI prompt)
 #
 # Detects ADR file changes and prompts the AI to invoke adr-review skill.
