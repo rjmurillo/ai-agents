@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed (Round 2 review pending)
+Accepted
 
 ## Date
 
@@ -79,6 +79,7 @@ After extraction, `ai-agents` becomes a **reference implementation** that consum
 | Alternative | Pros | Cons | Why Not Chosen |
 |-------------|------|------|----------------|
 | **Keep monorepo** | No migration effort, no namespace changes | Cannot publish as plugin, coupling grows, no separation of concerns | Blocks the primary goal of clean framework boundaries |
+| **In-repo directory reorganization** | No second repo, no namespace changes, no plugin format dependency | Does not validate plugin format, cannot be installed by others, coupling remains implicit | Achieves separation of concerns within a single repo (e.g., `framework/` + `project/` directories with clear module boundaries) but does not dog-food the plugin marketplace format and cannot be distributed. Evaluated per Round 2 D&C condition. |
 | **Single plugin** | Simpler structure, one install | All-or-nothing adoption, large plugin size | Users should install only what they need |
 | **Monorepo with workspace** | Single repo, local references | Claude Code plugins require standalone repos for GitHub source | Plugin marketplace does not support monorepo workspaces |
 | **4 plugins in marketplace (chosen)** | Granular adoption, clear boundaries, aligns with plugin format | Namespace migration, 4 manifests to maintain | Best balance of granularity and maintenance |
@@ -263,3 +264,4 @@ See `.agents/projects/v0.4.0/PLAN.md` for the detailed phased implementation pla
 |------|--------|---------|
 | 2026-02-07 | Initial proposal | Session 1180 research |
 | 2026-02-07 | Revision addressing 9 P0 + 4 P1 issues from 6-agent review | Debate log Round 1 |
+| 2026-02-07 | Added "in-repo directory reorganization" alternative per D&C condition. Status changed to Accepted. | Debate log Round 2 (3 Accept + 3 D&C, consensus reached) |
