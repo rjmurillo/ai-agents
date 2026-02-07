@@ -299,14 +299,8 @@ Describe "Invoke-RoutingGates" {
 
                 # Create today's session log with QA section
                 $Today = Get-Date -Format "yyyy-MM-dd"
-                $SessionLog = Join-Path $TempDir ".agents" "sessions" "$Today-session-01.md"
-                @"
-# Session Log
-
-## QA
-
-QA agent was invoked and tests passed.
-"@ | Set-Content $SessionLog
+                $SessionLog = Join-Path $TempDir ".agents" "sessions" "$Today-session-01.json"
+                '{"notes": "## QA\nQA agent was invoked and tests passed."}' | Set-Content $SessionLog
 
                 $TestInput = '{"tool_input": {"command": "gh pr create --title test"}}'
                 $Output = $TestInput | & $ScriptPath
@@ -337,12 +331,8 @@ QA agent was invoked and tests passed.
                 "changed" | Set-Content "test.ps1"
 
                 $Today = Get-Date -Format "yyyy-MM-dd"
-                $SessionLog = Join-Path $TempDir ".agents" "sessions" "$Today-session-01.md"
-                @"
-# Session Log
-
-Invoked the qa agent to verify the implementation.
-"@ | Set-Content $SessionLog
+                $SessionLog = Join-Path $TempDir ".agents" "sessions" "$Today-session-01.json"
+                '{"notes": "Invoked the qa agent to verify the implementation."}' | Set-Content $SessionLog
 
                 $TestInput = '{"tool_input": {"command": "gh pr create --title test"}}'
                 $Output = $TestInput | & $ScriptPath
@@ -373,14 +363,8 @@ Invoked the qa agent to verify the implementation.
                 "changed" | Set-Content "test.ps1"
 
                 $Today = Get-Date -Format "yyyy-MM-dd"
-                $SessionLog = Join-Path $TempDir ".agents" "sessions" "$Today-session-01.md"
-                @"
-# Session Log
-
-## Test Results
-
-All tests passed successfully.
-"@ | Set-Content $SessionLog
+                $SessionLog = Join-Path $TempDir ".agents" "sessions" "$Today-session-01.json"
+                '{"notes": "## Test Results\nAll tests passed successfully."}' | Set-Content $SessionLog
 
                 $TestInput = '{"tool_input": {"command": "gh pr create --title test"}}'
                 $Output = $TestInput | & $ScriptPath
@@ -473,48 +457,15 @@ All tests passed successfully.
             New-Item -ItemType Directory -Path $TempDir -Force | Out-Null
 
             try {
-                # Create a bare repo to act as origin
-                $originDir = Join-Path $TempDir "origin.git"
-                New-Item -ItemType Directory -Path $originDir -Force | Out-Null
-                Push-Location $originDir
-                & git init --bare --quiet 2>$null
-                Pop-Location
+                $WorkDir = Initialize-TestGitRepoWithOrigin -TempDir $TempDir
+                Set-Location $WorkDir
 
-                # Create the working repo
-                $workDir = Join-Path $TempDir "work"
-                New-Item -ItemType Directory -Path $workDir -Force | Out-Null
-                New-Item -ItemType Directory -Path (Join-Path $workDir ".agents") -Force | Out-Null
-                New-Item -ItemType Directory -Path (Join-Path $workDir ".agents" "sessions") -Force | Out-Null
-                New-Item -ItemType Directory -Path (Join-Path $workDir ".claude") -Force | Out-Null
-                "# placeholder" | Set-Content (Join-Path $workDir ".claude/settings.json")
-
-                Push-Location $workDir
-                & git init --quiet 2>$null
-                & git config user.email "test@test.com" 2>$null
-                & git config user.name "Test" 2>$null
-                & git remote add origin $originDir 2>$null
-
-                # Initial commit with mixed-case markdown files
-                "initial" | Set-Content "initial.txt"
-                "# Initial" | Set-Content "README.md"
-                "# Initial" | Set-Content "CHANGELOG.MD"
-                "# Initial" | Set-Content "NOTES.Md"
-                & git add . 2>$null
-                & git commit -m "initial" --quiet 2>$null
-                & git push -u origin HEAD:main --quiet 2>$null
-
-                # Create feature branch
-                & git checkout -b feature-branch --quiet 2>$null
-
-                # Change only mixed-case markdown files
+                # Add mixed-case .md files (docs-only change)
                 "# Updated" | Set-Content "README.md"
                 "# Updated" | Set-Content "CHANGELOG.MD"
                 "# Updated" | Set-Content "NOTES.Md"
                 & git add . 2>$null
-                & git commit -m "update docs" --quiet 2>$null
-
-                Pop-Location
-                Set-Location $workDir
+                & git commit -m "docs only mixed case" --quiet 2>$null
 
                 $TestInput = '{"tool_input": {"command": "gh pr create --title \"Update docs\""}}'
                 $Output = $TestInput | & $ScriptPath

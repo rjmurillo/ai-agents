@@ -40,8 +40,13 @@ Import-Module "$PSScriptRoot/../Common/HookUtilities.psm1" -Force
 
 function Get-StagedADRChanges {
     try {
-        $stagedFiles = & git diff --cached --name-only 2>$null
-        if ($LASTEXITCODE -ne 0 -or -not $stagedFiles) {
+        $stagedFiles = & git diff --cached --name-only 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            # Fail-closed: git errors should block commits to prevent bypass
+            throw "git diff --cached failed with exit code $LASTEXITCODE : $stagedFiles"
+        }
+
+        if (-not $stagedFiles) {
             return @()
         }
 
@@ -50,7 +55,8 @@ function Get-StagedADRChanges {
         return $adrFiles
     }
     catch {
-        return @()
+        # Re-throw to fail-closed
+        throw "Failed to check staged ADR changes: $($_.Exception.Message)"
     }
 }
 
@@ -171,7 +177,28 @@ try {
     }
 
     # Check for ADR file changes
-    $adrChanges = @(Get-StagedADRChanges)
+    # Wrap in dedicated try/catch: Get-StagedADRChanges throws on git errors for fail-closed.
+    # The outer catch exits 0 (fail-open for infrastructure), so we must catch git errors here
+    # and exit 2 to preserve the fail-closed security posture.
+    try {
+        $adrChanges = @(Get-StagedADRChanges)
+    }
+    catch {
+        $errorMsg = "Staged ADR check failed (fail-closed): $($_.Exception.Message)"
+        Write-Warning $errorMsg
+        [Console]::Error.WriteLine($errorMsg)
+        try {
+            $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+            $hookDir = Split-Path -Parent $scriptDir
+            $auditLogPath = Join-Path $hookDir "audit.log"
+            $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+            Add-Content -Path $auditLogPath -Value "[$timestamp] [ADRReviewGuard] $errorMsg" -ErrorAction SilentlyContinue
+        }
+        catch {
+            [Console]::Error.WriteLine("[ADRReviewGuard] CRITICAL: Audit log write failed. Original error: $errorMsg")
+        }
+        exit 2
+    }
     if ($adrChanges.Count -eq 0) {
         # No ADR changes, allow commit
         exit 0
@@ -257,6 +284,22 @@ This ensures 6-agent debate (architect, critic, independent-thinker, security, a
 }
 catch {
     # Fail-open on errors (don't block on infrastructure issues)
-    Write-Warning "ADR review guard error: $($_.Exception.Message)"
+    $errorMsg = "ADR review guard error: $($_.Exception.GetType().Name) - $($_.Exception.Message)"
+    Write-Warning $errorMsg
+    [Console]::Error.WriteLine($errorMsg)
+
+    # Audit log entry for infrastructure errors
+    try {
+        $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+        $hookDir = Split-Path -Parent $scriptDir
+        $auditLogPath = Join-Path $hookDir "audit.log"
+        $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+        $logEntry = "[$timestamp] [ADRReviewGuard] $errorMsg"
+        Add-Content -Path $auditLogPath -Value $logEntry -ErrorAction SilentlyContinue
+    }
+    catch {
+        [Console]::Error.WriteLine("[ADRReviewGuard] CRITICAL: All audit log paths failed. Original error: $errorMsg")
+    }
+
     exit 0
 }

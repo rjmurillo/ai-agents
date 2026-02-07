@@ -32,14 +32,14 @@ Describe "HookUtilities.psm1" {
             }
         }
 
-        It "Returns null when no .git directory found" {
+        It "Returns current directory as fallback when no .git directory found" {
             # Create temp dir without .git
             $tempDir = Join-Path ([System.IO.Path]::GetTempPath()) "no-git-$(Get-Random)"
             New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
             try {
                 Push-Location $tempDir
                 $result = Get-ProjectDirectory
-                $result | Should -BeNullOrEmpty
+                $result | Should -Be $tempDir
                 Pop-Location
             }
             finally {

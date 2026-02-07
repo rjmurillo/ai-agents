@@ -90,9 +90,9 @@ end {
         Writes hook failure events to persistent audit log.
 
     .DESCRIPTION
-        Records hook failures (infrastructure errors, permission issues) to
+        Records hook events (failures, blocked actions, bypasses) to
         .claude/hooks/audit.log for investigation. Per Copilot #2679880646,
-        fail-open scenarios should be logged for visibility.
+        security-relevant scenarios should be logged for visibility.
 
     .PARAMETER Message
         The audit message to log.
@@ -122,10 +122,20 @@ end {
             $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
             $logEntry = "[$timestamp] [$HookName] $Message"
 
-            Add-Content -Path $auditLogPath -Value $logEntry -ErrorAction SilentlyContinue
+            Add-Content -Path $auditLogPath -Value $logEntry
         }
         catch {
-            # Silently fail - don't block hook operation if audit logging fails
+            # Fallback: Write to stderr and try temp directory
+            [Console]::Error.WriteLine("[$HookName] Audit log write failed: $($_.Exception.Message)")
+            try {
+                $tempAuditLog = Join-Path ([System.IO.Path]::GetTempPath()) "claude-hook-audit.log"
+                $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+                $logEntry = "[$timestamp] [$HookName] $Message"
+                Add-Content -Path $tempAuditLog -Value $logEntry -ErrorAction SilentlyContinue
+            }
+            catch {
+                [Console]::Error.WriteLine("[$HookName] CRITICAL: All audit log paths failed. Original message: $Message")
+            }
         }
     }
 
@@ -143,13 +153,22 @@ end {
         $SessionDir = ".agents/sessions"
         $Today = Get-Date -Format "yyyy-MM-dd"
 
-        if (Test-Path $SessionDir) {
-            $SessionLog = Get-ChildItem -Path $SessionDir -Filter "$Today*-session-*.md" |
+        if (-not (Test-Path $SessionDir)) {
+            Write-Warning "Invoke-RoutingGates: Session directory not found: $SessionDir"
+            return $null
+        }
+
+        try {
+            $SessionLog = Get-ChildItem -Path $SessionDir -Filter "$Today-session-*.json" -ErrorAction Stop |
                 Sort-Object Name -Descending |
                 Select-Object -First 1
             return $SessionLog
         }
-        return $null
+        catch {
+            Write-Warning "Invoke-RoutingGates: Failed to read session logs from ${SessionDir}: $($_.Exception.Message)"
+            Write-HookAuditLog -HookName "RoutingGates" -Message "Session log read error: $($_.Exception.Message)"
+            return $null
+        }
     }
 
     <#
@@ -179,7 +198,14 @@ end {
         # Option 2: QA section in session log
         $SessionLog = Get-TodaySessionLog
         if ($SessionLog) {
-            $Content = Get-Content $SessionLog.FullName -Raw -ErrorAction SilentlyContinue
+            try {
+                $Content = Get-Content $SessionLog.FullName -Raw -ErrorAction Stop
+            }
+            catch {
+                Write-Warning "Invoke-RoutingGates: Session log exists but cannot be read: $($_.Exception.Message)"
+                Write-HookAuditLog -HookName "RoutingGates" -Message "Session log read failed: $($_.Exception.Message)"
+                return $false
+            }
             if ($Content) {
                 # Check for QA-related sections in session log
                 if ($Content -match '(?i)## QA|qa agent|Test Results|QA Validation|Test Strategy') {
@@ -215,9 +241,11 @@ end {
                 # Fallback to simple comparison if three-dot syntax fails
                 $ChangedFiles = & git diff --name-only origin/main 2>&1
                 if ($LASTEXITCODE -ne 0) {
-                    # SECURITY: Fail-closed to prevent QA bypass via git errors
-                    # If we cannot determine changed files, assume code changes exist
-                    Write-Warning "Invoke-RoutingGates: git diff origin/main also failed (exit $LASTEXITCODE). Failing closed (QA required)."
+                    # Git command failed - fail-closed to prevent QA bypass
+                    # This prevents PRs from bypassing QA requirements when git ref resolution fails
+                    $errorMsg = "git diff failed (exit $LASTEXITCODE): $ChangedFiles"
+                    Write-Warning "Invoke-RoutingGates: $errorMsg. Failing closed (git errors block)."
+                    Write-HookAuditLog -HookName "RoutingGates" -Message $errorMsg
                     return $false
                 }
             }
@@ -231,7 +259,8 @@ end {
             # Force to array to handle single-item case
             # SECURITY: Patterns must be anchored to prevent substring matches
             # (e.g., src/license_validator.cs must not match LICENSE)
-            # Documentation-only: markdown, text files, standard repo metadata, git config
+            # Documentation-only: markdown, text files, standard repo metadata, git ignore
+            # Config files (.yml, .json, .toml, .ps1) are intentionally NOT excluded
             $CodeFiles = @(
                 $ChangedFiles | Where-Object {
                     $_ -notmatch '\.md$' -and
@@ -260,7 +289,7 @@ end {
             return $false
         }
         catch {
-            # SECURITY: Fail-closed to prevent QA bypass via unexpected errors
+            # Unexpected error during file filtering - fail-closed by default
             $errorMsg = "Unexpected error checking changed files: $($_.Exception.GetType().Name) - $($_.Exception.Message)"
             Write-Warning "Invoke-RoutingGates: $errorMsg. Failing closed (QA required)."
             Write-HookAuditLog -HookName "RoutingGates" -Message $errorMsg
@@ -275,7 +304,7 @@ end {
 
         # Bypass 1: Environment variable override
         if ($env:SKIP_QA_GATE -eq 'true') {
-            # Silently allow - bypass is intentional
+            Write-HookAuditLog -HookName "RoutingGates" -Message "QA gate bypassed via SKIP_QA_GATE environment variable"
             exit 0
         }
 
