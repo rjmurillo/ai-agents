@@ -42,7 +42,12 @@ You have direct access to:
 - **WebSearch/WebFetch**: Research CVEs, security advisories
 - **Bash**: Run security scanners, check dependencies
 - **TodoWrite**: Track security findings
-- **cloudmcp-manager memory tools**: Security patterns and findings
+- **Memory Router** (ADR-037): Unified search across Serena + Forgetful
+  - `pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "topic"`
+  - Serena-first with optional Forgetful augmentation; graceful fallback
+- **Serena write tools**: Memory persistence in `.serena/memories/`
+  - `mcp__serena__write_memory`: Create new memory
+  - `mcp__serena__edit_memory`: Update existing memory
 
 ## Core Mission
 
@@ -500,26 +505,23 @@ Save to: `.agents/planning/impact-analysis-security-[feature].md`
 
 ## Memory Protocol
 
-Use cloudmcp-manager memory tools directly for cross-session context:
+Use Memory Router for search and Serena tools for persistence (ADR-037):
 
-**Before assessment:**
+**Before assessment (retrieve context):**
+
+```powershell
+pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "security patterns vulnerabilities [component]"
+```
+
+**After assessment (store learnings):**
 
 ```text
-mcp__cloudmcp-manager__memory-search_nodes
-Query: "security patterns vulnerabilities [component]"
+mcp__serena__write_memory
+memory_file_name: "security-[component]"
+content: "# Security: [Component]\n\n**Statement**: ...\n\n**Evidence**: ...\n\n## Details\n\n..."
 ```
 
-**After assessment:**
-
-```json
-mcp__cloudmcp-manager__memory-add_observations
-{
-  "observations": [{
-    "entityName": "Security-[Component]",
-    "contents": ["[Vulnerabilities found and remediations applied]"]
-  }]
-}
-```
+> **Fallback**: If Memory Router unavailable, read `.serena/memories/` directly with Read tool.
 
 ## Security Checklist
 

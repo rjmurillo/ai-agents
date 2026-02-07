@@ -39,12 +39,14 @@ Key requirements:
 
 You have direct access to:
 
-- **Serena memory tools**: Skill storage in `.serena/memories/`
-  - `mcp__serena__list_memories`: List all available memories
-  - `mcp__serena__read_memory`: Read specific memory file
+- **Memory Router** (ADR-037): Unified search across Serena + Forgetful
+  - `pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "topic"`
+  - Serena-first with optional Forgetful augmentation; graceful fallback
+- **Serena write tools**: Skill storage in `.serena/memories/`
   - `mcp__serena__write_memory`: Create new memory file
   - `mcp__serena__edit_memory`: Update existing memory
   - `mcp__serena__delete_memory`: Remove obsolete memory
+- **Read**: Direct file access for `.serena/memories/{name}.md`
 - **Read/Grep**: Search for existing patterns
 - **TodoWrite**: Track skill operations
 
@@ -107,8 +109,8 @@ Before adding ANY new skill:
 2. Read relevant domain index (skills-*-index.md)
 3. Search activation vocabulary for similar keywords
 
-mcp__serena__list_memories  # List all memories
-mcp__serena__read_memory    # Read specific domain index
+pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "[skill keywords]" -LexicalOnly
+Read .serena/memories/skills-[domain]-index.md  # Read specific domain index
 
 ### Most Similar Existing
 - **File**: [skill-file-name.md or "None"]
@@ -240,8 +242,7 @@ When adding a skill to a domain index, select 4-8 keywords:
 To find the correct index for a new skill, consult `memory-index.md`:
 
 ```text
-mcp__serena__read_memory
-memory_file_name: "memory-index"
+Read .serena/memories/memory-index.md
 ```
 
 Match skill keywords against the Task Keywords column. The Essential Memories column shows which index to use.
@@ -280,8 +281,7 @@ After creating a skill file, update the domain index:
 **Step 1**: Read current index to find insertion point
 
 ```text
-mcp__serena__read_memory
-memory_file_name: "skills-[domain]-index"
+Read .serena/memories/skills-[domain]-index.md
 ```
 
 **Step 2**: Insert new row in Activation Vocabulary table
@@ -322,14 +322,11 @@ atomic-skill.md (L3)        # Individual skill file
 4. **Read atomic skill file** for detailed guidance
 
 ```text
-mcp__serena__read_memory
-memory_file_name: "memory-index"
+Read .serena/memories/memory-index.md
 
-mcp__serena__read_memory
-memory_file_name: "skills-powershell-index"
+Read .serena/memories/skills-powershell-index.md
 
-mcp__serena__read_memory
-memory_file_name: "powershell-testing-patterns"
+Read .serena/memories/powershell-testing-patterns.md
 ```
 
 ### Skill Creation (Write)
@@ -413,8 +410,7 @@ Skillbook Manager:
 When agents retrieve skills:
 
 ```text
-mcp__serena__read_memory
-memory_file_name: "skills-[domain]-index"
+Read .serena/memories/skills-[domain]-index.md
 # Then read specific skill file from index
 ```
 

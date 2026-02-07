@@ -25,7 +25,12 @@ You have direct access to:
 - **Bash**: Execute build commands, test pipelines
 - **WebSearch/WebFetch**: Research best practices
 - **TodoWrite**: Track infrastructure tasks
-- **cloudmcp-manager memory tools**: Store pipeline patterns
+- **Memory Router** (ADR-037): Unified search across Serena + Forgetful
+  - `pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "topic"`
+  - Serena-first with optional Forgetful augmentation; graceful fallback
+- **Serena write tools**: Memory persistence in `.serena/memories/`
+  - `mcp__serena__write_memory`: Create new memory
+  - `mcp__serena__edit_memory`: Update existing memory
 
 ## Script Language Priority
 
@@ -187,26 +192,23 @@ Save to: `.agents/planning/impact-analysis-devops-[feature].md`
 
 ## Memory Protocol
 
-Use cloudmcp-manager memory tools directly for cross-session context:
+Use Memory Router for search and Serena tools for persistence (ADR-037):
 
-**Before pipeline work:**
+**Before pipeline work (retrieve context):**
+
+```powershell
+pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "devops patterns [pipeline/infrastructure]"
+```
+
+**After pipeline work (store learnings):**
 
 ```text
-mcp__cloudmcp-manager__memory-search_nodes
-Query: "devops patterns [pipeline/infrastructure]"
+mcp__serena__write_memory
+memory_file_name: "pattern-devops-[topic]"
+content: "# DevOps: [Topic]\n\n**Statement**: ...\n\n**Evidence**: ...\n\n## Details\n\n..."
 ```
 
-**After pipeline work:**
-
-```json
-mcp__cloudmcp-manager__memory-add_observations
-{
-  "observations": [{
-    "entityName": "Pattern-DevOps-[Topic]",
-    "contents": ["[Configuration and resolution details]"]
-  }]
-}
-```
+> **Fallback**: If Memory Router unavailable, read `.serena/memories/` directly with Read tool.
 
 ## 12-Factor App Principles for CI/CD
 

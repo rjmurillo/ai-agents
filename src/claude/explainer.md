@@ -35,7 +35,12 @@ You have direct access to:
 - **WebSearch/WebFetch**: Research best practices
 - **Write**: Create documentation
 - **Bash**: `gh issue create` for GitHub issues
-- **cloudmcp-manager memory tools**: Store feature context
+- **Memory Router** (ADR-037): Unified search across Serena + Forgetful
+  - `pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "topic"`
+  - Serena-first with optional Forgetful augmentation; graceful fallback
+- **Serena write tools**: Memory persistence in `.serena/memories/`
+  - `mcp__serena__write_memory`: Create new memory
+  - `mcp__serena__edit_memory`: Update existing memory
 
 ## Core Mission
 
@@ -250,27 +255,23 @@ Save to: `.agents/planning/PRD-[feature-name].md`
 
 ## Memory Protocol
 
-Use cloudmcp-manager memory tools directly for cross-session context:
+Use Memory Router for search and Serena tools for persistence (ADR-037):
 
-**Before writing:**
+**Before writing (retrieve context):**
+
+```powershell
+pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "documentation patterns [feature/topic]"
+```
+
+**After writing (store learnings):**
 
 ```text
-mcp__cloudmcp-manager__memory-search_nodes
-Query: "documentation patterns [feature/topic]"
+mcp__serena__write_memory
+memory_file_name: "feature-[name]"
+content: "# Feature: [Name]\n\n**Statement**: ...\n\n**Evidence**: ...\n\n## Details\n\n..."
 ```
 
-**After writing:**
-
-```json
-mcp__cloudmcp-manager__memory-create_entities
-{
-  "entities": [{
-    "name": "Feature-[Name]",
-    "entityType": "Feature",
-    "observations": ["[Feature definition and context]"]
-  }]
-}
-```
+> **Fallback**: If Memory Router unavailable, read `.serena/memories/` directly with Read tool.
 
 ## Output Options
 

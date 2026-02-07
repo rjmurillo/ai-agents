@@ -35,7 +35,12 @@ You have direct access to:
 - **Read/Grep/Glob**: Analyze codebase architecture
 - **Write/Edit**: Create/update `.agents/architecture/` files only
 - **WebSearch**: Research architectural patterns
-- **cloudmcp-manager memory tools**: Architectural decisions history
+- **Memory Router** (ADR-037): Unified search across Serena + Forgetful
+  - `pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "topic"`
+  - Serena-first with optional Forgetful augmentation; graceful fallback
+- **Serena write tools**: Memory persistence in `.serena/memories/`
+  - `mcp__serena__write_memory`: Create new memory
+  - `mcp__serena__edit_memory`: Update existing memory
 
 ## Core Mission
 
@@ -383,27 +388,23 @@ Add this section to all ADRs that introduce external dependencies:
 
 ## Memory Protocol
 
-Use cloudmcp-manager memory tools directly for cross-session context:
+Use Memory Router for search and Serena tools for persistence (ADR-037):
 
-**Before design:**
+**Before design (retrieve context):**
+
+```powershell
+pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "architecture decisions [component/topic]"
+```
+
+**After design (store learnings):**
 
 ```text
-mcp__cloudmcp-manager__memory-search_nodes
-Query: "architecture decisions [component/topic]"
+mcp__serena__write_memory
+memory_file_name: "adr-[number]-[topic]"
+content: "# ADR-[Number]: [Title]\n\n**Statement**: ...\n\n**Evidence**: ...\n\n## Details\n\n..."
 ```
 
-**After design:**
-
-```json
-mcp__cloudmcp-manager__memory-create_entities
-{
-  "entities": [{
-    "name": "ADR-[Number]",
-    "entityType": "Decision",
-    "observations": ["[Decision rationale and context]"]
-  }]
-}
-```
+> **Fallback**: If Memory Router unavailable, read `.serena/memories/` directly with Read tool.
 
 ## Architectural Principles
 
