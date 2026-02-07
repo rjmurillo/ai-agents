@@ -143,14 +143,14 @@ This demonstrates the orchestrator's strengths in chaining operations together a
 
 > orchestrator: fix all items identified by the critic agent, then repeat the cycle recursively until no items are found.
 
-This can be really helpful to keep the AI agent "honest" with their work. Agents will try to be _helpful_ by declaring they're done sooner, skipping steps to speed up the process, or not reading all the documentation to be "efficient". Having another agent with the sole purpose of validating the work product of another makes the system stronger. A typical flow might be:
+This keeps agents honest. Agents will try to be _helpful_ by declaring they're done sooner, skipping steps, or not reading all documentation. Having another agent validate work product makes the system stronger. A typical flow:
 
 1. Do work
-2. Validate that work against a spec (issue or ticket, plan, design, test, documentation, etc.)
+2. Validate that work against a spec (issue, plan, design, test, documentation)
 3. Send to another agent (QA)
-4. repeat on down the line
+4. Repeat on down the line
 
-You can start to chain different workflows together as subagents to keep the orchestration context alive longer. If you develop software, you probably have some form of "write code -> make it work -> refactor" cycle. Orchestrator is great at that. Invoke it from a skill, slash command, or prompt to facilitate.
+Chain different workflows together as subagents to keep orchestration context alive longer. If you develop software, you probably have some form of "write code, make it work, refactor" cycle. Orchestrator is great at that.
 
 #### Implementation with Validation Gate
 
@@ -160,31 +160,104 @@ You can start to chain different workflows together as subagents to keep the orc
 
 > orchestrator: review the PR comments, address each reviewer's feedback, then run the code-reviewer agent to verify fixes before requesting re-review
 
+#### Direct Agent Invocation
+
+You do not need the orchestrator for focused tasks. Invoke any agent directly by name:
+
+```text
+analyst: assess the feasibility of the v0.4.0 extraction plan. Verify the
+inventory data, calibrate session estimates against historical velocity, and
+identify the top 3 dependency risks with quantitative evidence.
+```
+
+```text
+security: produce a threat matrix for the plugin security model in
+@.agents/projects/v0.4.0/PLAN.md. Include CWE identifiers, CVSS ratings,
+and specific mitigation recommendations for each threat.
+```
+
+```text
+critic: review the implementation plan at @.agents/planning/feature-plan.md.
+Stress-test for gaps, missing rollback strategy, and integration testing
+coverage. Deliver an APPROVE / APPROVE WITH CONDITIONS / REJECT verdict.
+```
+
+```text
+roadmap: evaluate whether feature X aligns with the product roadmap. Score
+it using RICE framework and compare opportunity cost against the current backlog.
+```
+
+```text
+high-level-advisor: we are stuck between approach A and approach B. Cut through
+the analysis and give a GO / NO-GO verdict with clear conditions.
+```
+
+```text
+independent-thinker: challenge the core assumptions of the framework extraction
+proposal. Present the strongest case against it with at least 3 concrete
+alternatives.
+```
+
+Direct invocation is best when you know which expertise you need. Use orchestrator when the task requires routing between multiple agents or when you are unsure which agent to start with.
+
+#### Multi-Agent Deep Dive
+
+Route a single artifact through every relevant agent to build a complete picture before committing to a direction:
+
+> orchestrator: conduct a full review of @.agents/projects/v0.4.0/PLAN.md. Route it through analyst to verify data accuracy and calibrate estimates, architect to evaluate structural decisions and coupling, security to produce a threat matrix with CWE/CVSS ratings, critic to stress-test for gaps and deliver a verdict, independent-thinker to challenge assumptions and propose alternatives, roadmap to score strategic alignment using RICE, devops to assess operational and CI/CD implications, and high-level-advisor to deliver a go/no-go recommendation. Synthesize all findings into a single summary with consensus areas and open disagreements.
+
+The orchestrator delegates to each agent in turn, collecting independent assessments of the same artifact. Each agent analyzes through its own lens: security looks for threats, critic looks for gaps, independent-thinker looks for blind spots. The orchestrator synthesizes findings into a unified view that highlights where agents agree and where they diverge. This pattern is especially useful for architectural decisions, milestone plans, and pre-implementation due diligence.
+
+#### Due Diligence Before a Major Decision
+
+Before adopting a new framework, migrating a system, or making an irreversible architectural change, run structured due diligence across multiple dimensions:
+
+> orchestrator: we are considering migrating from REST to gRPC for our internal service mesh. Route this through analyst to research performance benchmarks, ecosystem maturity, and team skill gaps. Then architect to evaluate the impact on our current @docs/architecture/service-contracts.md contracts and propose a migration boundary. Then security to threat-model the new transport layer. Then devops to estimate CI/CD pipeline changes and rollback complexity. Then independent-thinker to argue the strongest case for staying with REST. Then high-level-advisor to deliver a GO / CONDITIONAL GO / NO-GO verdict with specific conditions. Store the consolidated analysis in @.agents/analysis/grpc-migration-due-diligence.md.
+
+The orchestrator builds a decision package by routing through six agents. Analyst provides the quantitative foundation. Architect maps the blast radius. Security identifies new attack surface. DevOps estimates operational cost. Independent-thinker forces the team to confront the best argument against the change. High-level-advisor synthesizes everything into an actionable verdict. The stored artifact becomes a reference for the team and future agents.
+
+#### End-to-End Feature Pipeline
+
+Take a feature from zero to pull request with built-in quality gates at each stage:
+
+> orchestrator: build the webhook retry system described in @.agents/specs/requirements/webhook-retry.md. Start with analyst to verify the requirements are complete and flag ambiguities. Then planner to break it into milestones with acceptance criteria. Then critic to stress-test the plan for gaps and missing edge cases, correcting all issues before proceeding. Then implementer to write the code and tests. Then qa to verify test coverage meets the acceptance criteria. Then security to scan for injection, replay, and SSRF risks in the webhook handler. Fix all critical and major findings recursively until critic, qa, and security all pass. Open a PR with the full agent trail in the description.
+
+This is the orchestrator's most powerful pattern: a full development pipeline with quality gates. Each agent acts as a checkpoint. Critic validates the plan before any code is written. QA validates the implementation against the spec. Security validates against threat categories. The recursive fix loop ensures issues found late in the pipeline get resolved, not deferred.
+
+#### Strategic Prioritization and Roadmap Alignment
+
+When the backlog is overloaded and the team needs to decide what to build next, use the orchestrator to run a structured prioritization:
+
+> orchestrator: we have three candidate features for the next quarter: plugin marketplace, offline mode, and admin audit logging. For each candidate, route through analyst to estimate effort and risk, roadmap to score with RICE and classify with KANO, security to flag compliance or threat implications, and devops to estimate operational burden. Then independent-thinker to argue which one the team is most likely to regret skipping. Then high-level-advisor to rank all three with a clear recommendation. Store the output in @.agents/analysis/q3-prioritization.md.
+
+The orchestrator runs the same evaluation pipeline across all three candidates, producing comparable data. Roadmap scores each on Reach, Impact, Confidence, and Effort. Security flags compliance obligations. DevOps estimates maintenance tax. Independent-thinker surfaces opportunity cost the team might overlook. High-level-advisor delivers the final ranking with a defensible basis for the quarterly plan.
+
 ---
 
 ## System Architecture
 
 ### Agent Catalog
 
-| Agent | Purpose |
-|-------|---------|
-| **orchestrator** | Task coordination and routing |
-| **analyst** | Pre-implementation research |
-| **architect** | Design governance and ADRs |
-| **planner** | Milestones and work packages |
-| **implementer** | Production code and tests |
-| **critic** | Plan validation |
-| **qa** | Test strategy and verification |
-| **security** | Vulnerability assessment |
-| **devops** | CI/CD pipelines |
-| **retrospective** | Learning extraction |
-| **memory** | Cross-session context |
-| **skillbook** | Skill management |
-| **explainer** | PRDs and documentation |
-| **task-generator** | Atomic task breakdown |
-| **high-level-advisor** | Strategic decisions |
-| **independent-thinker** | Challenge assumptions |
-| **pr-comment-responder** | PR review handling |
+| Agent | Purpose | Output |
+|-------|---------|--------|
+| **orchestrator** | Task coordination and routing | Delegated results from specialists |
+| **analyst** | Research, feasibility analysis, trade-off evaluation | Quantitative findings with evidence |
+| **architect** | System design evaluation, ADRs, pattern enforcement | Rated assessments (Strong/Adequate/Needs-Work) |
+| **planner** | Milestones and work packages | Implementation plans with acceptance criteria |
+| **implementer** | Production code and tests | Code, tests, commits |
+| **critic** | Plan stress-testing, gap identification | Verdicts: APPROVE / APPROVE WITH CONDITIONS / REJECT |
+| **qa** | Test strategy and verification | Test reports, coverage analysis |
+| **security** | Threat modeling, vulnerability assessment | Threat matrices with CWE/CVSS ratings |
+| **devops** | CI/CD pipelines, operational planning | Infrastructure configs, maintenance estimates |
+| **roadmap** | Strategic prioritization, RICE/KANO analysis | Priority stacks, cost-benefit analysis |
+| **retrospective** | Learning extraction | Actionable insights, skill updates |
+| **memory** | Cross-session context | Retrieved knowledge, stored observations |
+| **skillbook** | Skill management | Atomic strategy updates |
+| **explainer** | PRDs and documentation | Specs, user guides |
+| **task-generator** | Atomic task breakdown | Estimable work items with done criteria |
+| **high-level-advisor** | Strategic decisions, unblocking | Verdicts: GO / CONDITIONAL GO / NO-GO |
+| **independent-thinker** | Challenge assumptions, devil's advocate | Counter-arguments with alternatives |
+| **pr-comment-responder** | PR review handling | Triaged responses, resolution tracking |
 
 See [AGENTS.md](AGENTS.md) for detailed agent documentation.
 
