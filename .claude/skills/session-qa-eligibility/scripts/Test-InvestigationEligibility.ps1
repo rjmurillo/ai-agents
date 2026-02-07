@@ -23,7 +23,7 @@
     0 - Success (always returns 0, eligibility is in output)
 
     ALLOWLIST:
-    Must match exactly with scripts/Validate-Session.ps1 $InvestigationAllowlist
+    Source of truth: scripts/modules/InvestigationAllowlist.psm1 (per Issue #840)
 
     See: ADR-034 Investigation Session QA Exemption
     See: ADR-035 Exit Code Standardization
@@ -40,25 +40,11 @@ param()
 
 $ErrorActionPreference = 'Stop'
 
-# Investigation-only allowlist patterns (must match Validate-Session.ps1)
-$investigationAllowlist = @(
-    '^\.agents/sessions/',        # Session logs
-    '^\.agents/analysis/',        # Investigation outputs
-    '^\.agents/retrospective/',   # Learnings
-    '^\.serena/memories($|/)',    # Cross-session context
-    '^\.agents/security/',        # Security assessments
-    '^\.agents/memory/'           # Memory infrastructure
-)
+# Import shared allowlist module (single source of truth per Issue #840)
+$modulePath = Join-Path $PSScriptRoot '..' '..' '..' '..' 'scripts' 'modules' 'InvestigationAllowlist.psm1'
+Import-Module (Resolve-Path $modulePath) -Force
 
-# Human-readable allowed paths (for display)
-$allowedPaths = @(
-    '.agents/sessions/',
-    '.agents/analysis/',
-    '.agents/retrospective/',
-    '.serena/memories/',
-    '.agents/security/',
-    '.agents/memory/'             # Memory infrastructure
-)
+$allowedPaths = Get-InvestigationAllowlistDisplay
 
 # Get staged files - split by newlines to get array of individual file paths
 $gitOutput = & git diff --cached --name-only 2>$null
@@ -80,18 +66,7 @@ if ($LASTEXITCODE -ne 0) {
 $violations = [System.Collections.Generic.List[string]]::new()
 
 foreach ($file in $stagedFiles) {
-    # Normalize path separators
-    $normalizedFile = $file -replace '\\', '/'
-
-    $isAllowed = $false
-    foreach ($pattern in $investigationAllowlist) {
-        if ($normalizedFile -match $pattern) {
-            $isAllowed = $true
-            break
-        }
-    }
-
-    if (-not $isAllowed) {
+    if (-not (Test-FileMatchesAllowlist -FilePath $file)) {
         $violations.Add($file)
     }
 }

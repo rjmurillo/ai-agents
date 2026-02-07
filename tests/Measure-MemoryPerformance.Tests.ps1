@@ -8,7 +8,7 @@
 #>
 
 BeforeAll {
-    $ScriptPath = Join-Path $PSScriptRoot ".." "scripts" "Measure-MemoryPerformance.ps1"
+    $ScriptPath = Join-Path $PSScriptRoot ".." ".claude" "skills" "memory" "scripts" "Measure-MemoryPerformance.ps1"
 
     # Create test memory directory structure
     $TestMemoryPath = Join-Path $TestDrive "memories"
