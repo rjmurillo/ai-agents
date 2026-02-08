@@ -1,6 +1,6 @@
 ---
 description: Use when running all 6 PR quality gate agents locally before pushing. Provides comprehensive pre-push validation across security, QA, analysis, architecture, DevOps, and roadmap.
-argument-hint: [--base BRANCH]
+argument-hint: [BASE_BRANCH]
 allowed-tools:
   - Bash(git:*)
   - Skill
@@ -13,9 +13,14 @@ Run all 6 quality gate agents (security, QA, analyst, architect, DevOps, and roa
 
 ## Pre-flight Checks
 
+<!-- NOTE: !` backtick commands run at PREPROCESSING time in an isolated shell.
+     $ARGUMENTS and positional params ($0, $1) are NOT available in this shell.
+     Only $ARGUMENTS substitution in prompt text (outside !` backticks) works.
+     This is why git diff uses hardcoded "main" below. See #1088. -->
+
 - Current branch: !`git branch --show-current`
-- Changed files: !`git diff "${1:-main}" --name-only | wc -l`
-- Base branch: ${1:-main}
+- Changed files: !`git diff main --name-only | wc -l`
+- Base branch: main
 
 If no changes detected, exit early with PASS.
 
@@ -23,14 +28,14 @@ If no changes detected, exit early with PASS.
 
 Invoke each agent command using Skill tool and capture results.
 
-**Note**: The base branch argument is forwarded automatically via `${1:-main}` in each sub-command.
+**Note**: All sub-skills compare against the `main` branch. To use a different base branch, run individual skills directly:
 
-1. Security Agent: `/pr-quality:security ${1:-main}`
-2. QA Agent: `/pr-quality:qa ${1:-main}`
-3. Analyst Agent: `/pr-quality:analyst ${1:-main}`
-4. Architect Agent: `/pr-quality:architect ${1:-main}`
-5. DevOps Agent: `/pr-quality:devops ${1:-main}`
-6. Roadmap Agent: `/pr-quality:roadmap ${1:-main}`
+1. Security Agent: `/pr-quality:security BRANCH_NAME`
+2. QA Agent: `/pr-quality:qa BRANCH_NAME`
+3. Analyst Agent: `/pr-quality:analyst BRANCH_NAME`
+4. Architect Agent: `/pr-quality:architect BRANCH_NAME`
+5. DevOps Agent: `/pr-quality:devops BRANCH_NAME`
+6. Roadmap Agent: `/pr-quality:roadmap BRANCH_NAME`
 
 ## Verdict Aggregation
 
