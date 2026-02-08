@@ -4,6 +4,11 @@
 
 **Context**: Setting test coverage targets for PowerShell scripts and modules
 
+**Philosophical Foundations**:
+- **Dan North**: "The purpose of testing is to increase confidence for stakeholders through evidence." Tests that do not increase confidence through evidence are test theater.
+- **Rico Mariani**: 100% unit test coverage is "ante" (the minimum), not the end goal. Attackers target untested paths. Security-critical code demands full coverage because rare paths are preferred attack vectors.
+- **Security context**: ai-agents operates in an adversarial environment (prompt injection, secret disclosure, ability abuse). Open source exposure makes the full attack surface visible to adversaries.
+
 **Evidence**: Session 68 (2025-12-22): Generate-Skills.Tests.ps1 (script deleted in commit d7f2e08, replaced by validate-skill.py)
 - Target: 100% code coverage
 - Achieved: 69.72% with 60 passing tests
@@ -21,7 +26,15 @@
 
 **Validated**: 1 (Session 68)
 
-**Coverage Tiers**:
+**Risk-Based Coverage Tiers** (revised for security):
+
+| Code Category | Target | Examples |
+|---------------|--------|----------|
+| Security-critical | 100% | Secret handling, input validation, command execution, path sanitization, auth checks |
+| Business logic | 80% | Text parsing, workflow orchestration, non-sensitive utilities |
+| Read-only/docs | 60-70% | Documentation generation, read-only analysis |
+
+**Coverage by Effort Tiers**:
 
 | Coverage % | Focus | Typical Uncovered Code |
 |------------|-------|------------------------|
@@ -110,6 +123,10 @@ test(module): add comprehensive tests with [X]% coverage
 - ADR-006: Thin Workflows, Testable Modules (move logic to modules for easier testing)
 
 **Anti-Pattern**: Pursuing 100% coverage by testing unreachable code or adding artificial test scenarios
+
+**Governance**: `.agents/governance/TESTING-ANTI-PATTERNS.md` documents five anti-patterns with detection and correction guidance.
+
+**Issue**: #749 (Apply Evidence-Based Testing Philosophy)
 
 ## Related
 

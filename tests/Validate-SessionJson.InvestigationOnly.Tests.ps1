@@ -82,35 +82,26 @@ Describe 'Validate-SessionJson - Investigation-Only Mode' {
     }
   }
 
-  Context 'Investigation Artifact Allowlist Definition' {
-    It 'Script defines investigation artifact allowlist constant' {
+  Context 'Investigation Artifact Allowlist via Shared Module' {
+    It 'Script imports shared InvestigationAllowlist module' {
       $scriptContent = Get-Content $scriptPath -Raw
-      $scriptContent | Should -Match '\$investigationAllowlist'
+      $scriptContent | Should -Match 'InvestigationAllowlist'
+      $scriptContent | Should -Match 'Import-Module'
     }
-    
-    It 'Allowlist includes .agents/sessions/ pattern' {
+
+    It 'Script uses Test-FileMatchesAllowlist function' {
       $scriptContent = Get-Content $scriptPath -Raw
-      $scriptContent | Should -Match "'\^\\\.agents/sessions/'"
+      $scriptContent | Should -Match 'Test-FileMatchesAllowlist'
     }
-    
-    It 'Allowlist includes .agents/analysis/ pattern' {
-      $scriptContent = Get-Content $scriptPath -Raw
-      $scriptContent | Should -Match "'\^\\\.agents/analysis/'"
-    }
-    
-    It 'Allowlist includes .agents/retrospective/ pattern' {
-      $scriptContent = Get-Content $scriptPath -Raw
-      $scriptContent | Should -Match "'\^\\\.agents/retrospective/'"
-    }
-    
-    It 'Allowlist includes .serena/memories pattern with optional trailing slash' {
-      $scriptContent = Get-Content $scriptPath -Raw
-      $scriptContent | Should -Match "'\^\\\.serena/memories\(\$\|/\)'"
-    }
-    
-    It 'Allowlist includes .agents/security/ pattern' {
-      $scriptContent = Get-Content $scriptPath -Raw
-      $scriptContent | Should -Match "'\^\\\.agents/security/'"
+
+    It 'Shared module contains all expected patterns' {
+      Import-Module (Join-Path $PSScriptRoot '../scripts/modules/InvestigationAllowlist.psm1') -Force
+      $patterns = Get-InvestigationAllowlist
+      $patterns | Should -Contain '^\.agents/sessions/'
+      $patterns | Should -Contain '^\.agents/analysis/'
+      $patterns | Should -Contain '^\.agents/retrospective/'
+      $patterns | Should -Contain '^\.serena/memories($|/)'
+      $patterns | Should -Contain '^\.agents/security/'
     }
   }
 
@@ -203,19 +194,23 @@ Describe 'Validate-SessionJson - Investigation-Only Mode' {
 
   Context 'Error Message Validation' {
     It 'Should have correct E_INVESTIGATION_HAS_IMPL error code prefix' {
-      # Verify the error message format is correct
-      $errorPrefix = 'E_INVESTIGATION_HAS_IMPL'
       $scriptContent = Get-Content $scriptPath -Raw
-      $scriptContent | Should -Match $errorPrefix
+      $scriptContent | Should -Match 'E_INVESTIGATION_HAS_IMPL'
     }
-    
-    It 'Should document allowed investigation artifact paths in error message' {
+
+    It 'Should use Get-InvestigationAllowlistDisplay for error messages' {
       $scriptContent = Get-Content $scriptPath -Raw
-      $scriptContent | Should -Match '\.agents/sessions/'
-      $scriptContent | Should -Match '\.agents/analysis/'
-      $scriptContent | Should -Match '\.agents/retrospective/'
-      $scriptContent | Should -Match '\.serena/memories/'
-      $scriptContent | Should -Match '\.agents/security/'
+      $scriptContent | Should -Match 'Get-InvestigationAllowlistDisplay'
+    }
+
+    It 'Shared module display paths include expected entries' {
+      Import-Module (Join-Path $PSScriptRoot '../scripts/modules/InvestigationAllowlist.psm1') -Force
+      $display = Get-InvestigationAllowlistDisplay
+      $display | Should -Contain '.agents/sessions/'
+      $display | Should -Contain '.agents/analysis/'
+      $display | Should -Contain '.agents/retrospective/'
+      $display | Should -Contain '.serena/memories/'
+      $display | Should -Contain '.agents/security/'
     }
   }
 }

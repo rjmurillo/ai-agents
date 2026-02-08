@@ -615,6 +615,93 @@ Describe 'Get-DescriptiveKeywords' {
     }
 }
 
+Describe 'Security - Get-DescriptiveKeywords' {
+
+    Context 'ReDoS Resistance' {
+        It 'Completes in <1 second with pathological repeated characters (10,000+)' {
+            $pathologicalInput = 'a' * 10000
+            $sw = [System.Diagnostics.Stopwatch]::StartNew()
+            $result = Get-DescriptiveKeywords -Objective $pathologicalInput
+            $sw.Stop()
+
+            $sw.ElapsedMilliseconds | Should -BeLessThan 1000
+            $result | Should -BeOfType [string]
+        }
+
+        It 'Completes in <1 second with alternating pattern (aaaa...bbbb...)' {
+            $pathologicalInput = ('a' * 5000) + ('b' * 5000)
+            $sw = [System.Diagnostics.Stopwatch]::StartNew()
+            $result = Get-DescriptiveKeywords -Objective $pathologicalInput
+            $sw.Stop()
+
+            $sw.ElapsedMilliseconds | Should -BeLessThan 1000
+            $result | Should -BeOfType [string]
+        }
+
+        It 'Completes in <1 second with regex-adversarial characters' {
+            $pathologicalInput = ('.*+?' * 2500)
+            $sw = [System.Diagnostics.Stopwatch]::StartNew()
+            $result = Get-DescriptiveKeywords -Objective $pathologicalInput
+            $sw.Stop()
+
+            $sw.ElapsedMilliseconds | Should -BeLessThan 1000
+        }
+    }
+
+    Context 'Embedded PowerShell Expression Safety' {
+        It 'Does not execute embedded $() expressions' {
+            $malicious = 'Fix $(Get-Process | Stop-Process) issue'
+            $result = Get-DescriptiveKeywords -Objective $malicious
+
+            # Function treats input as literal text (string ops, no Invoke-Expression)
+            # Keywords are extracted from the literal string content
+            $result | Should -Match 'fix'
+            $result | Should -BeOfType [string]
+            # Verify no process was actually stopped (function is string-only)
+            Get-Process -Id $PID | Should -Not -BeNullOrEmpty
+        }
+
+        It 'Does not execute embedded backtick expressions' {
+            $malicious = 'Fix `whoami` issue'
+            $result = Get-DescriptiveKeywords -Objective $malicious
+
+            $result | Should -Match 'fix'
+            $result | Should -Match 'issue'
+        }
+
+        It 'Handles string with environment variable syntax' {
+            $result = Get-DescriptiveKeywords -Objective 'Fix $env:PATH issue'
+
+            $result | Should -Match 'fix'
+            $result | Should -Match 'issue'
+        }
+    }
+
+    Context 'Boundary Testing' {
+        It 'Handles very long string (100,000 characters)' {
+            $longInput = 'word ' * 20000
+            $result = Get-DescriptiveKeywords -Objective $longInput
+
+            $result | Should -BeOfType [string]
+            $parts = $result -split '-'
+            $parts.Count | Should -BeLessOrEqual 5
+        }
+
+        It 'Handles single character objective' {
+            $result = Get-DescriptiveKeywords -Objective 'X'
+
+            # 'X' is only 1 char, below the 3-char minimum
+            $result | Should -Be ''
+        }
+
+        It 'Handles objective of exactly 3 characters' {
+            $result = Get-DescriptiveKeywords -Objective 'fix'
+
+            $result | Should -Be 'fix'
+        }
+    }
+}
+
 Describe 'Module Exports' {
     It 'New-PopulatedSessionLog is exported' {
         $command = Get-Command New-PopulatedSessionLog -ErrorAction SilentlyContinue

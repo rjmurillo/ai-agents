@@ -1,10 +1,10 @@
 ---
 name: slo-designer
+version: 1.0.0
+model: claude-sonnet-4-5
 description: Design Service Level Objectives (SLOs) with SLIs, targets, alerting thresholds, and error budget calculations following Google SRE best practices. Use when defining reliability targets, designing SLOs, calculating error budgets, or establishing service level indicators.
 license: MIT
 metadata:
-  version: 1.0.0
-  model: claude-sonnet-4-5
   source: Google SRE Book
 ---
 
@@ -16,13 +16,29 @@ When this skill activates, you guide users through designing production-ready Se
 
 Activate when the user:
 
-- "Design SLOs for my service"
-- "Define reliability targets"
-- "Calculate error budget"
-- "Set up service level objectives"
-- "Define SLIs for this system"
-- "SLO design for API"
-- "What should my availability target be?"
+- `Design SLOs for my service`
+- `Define reliability targets`
+- `Calculate error budget`
+- `Define SLIs for this system`
+- `What should my availability target be?`
+
+## When to Use
+
+Use this skill when:
+
+- Defining reliability targets for a new or existing service
+- Calculating error budgets for capacity planning
+- Establishing SLIs and alerting thresholds
+- Stakeholders ask "what should our availability target be?"
+
+Use [chaos-experiment](../chaos-experiment/SKILL.md) instead when:
+
+- Testing whether the system meets its SLOs through failure injection
+- Validating resilience mechanisms work as designed
+
+Use [threat-modeling](../threat-modeling/SKILL.md) instead when:
+
+- Analyzing security threats, not reliability targets
 
 ## Core Concepts
 
@@ -315,6 +331,27 @@ When error budget is healthy:
 1. Invest in new features
 2. Accept more risk
 3. Run experiments
+
+## Anti-Patterns
+
+| Avoid | Why | Instead |
+|-------|-----|---------|
+| Setting SLO equal to SLA | No buffer for error budget | SLO should be stricter than SLA |
+| Targeting 100% availability | Impossible and prevents feature velocity | Use 99.9% or lower based on service type |
+| Internal metrics as SLIs | Do not reflect user experience | Measure from user perspective (latency, errors) |
+| No error budget policy | SLOs become meaningless targets | Define actions when budget is exhausted |
+| Same SLO for all services | Different services have different needs | Match target to business criticality |
+
+## Verification
+
+After designing SLOs:
+
+- [ ] SLIs defined with specific measurement queries
+- [ ] SLO targets set with rationale documented
+- [ ] Error budgets calculated for each SLO
+- [ ] Alerting thresholds defined (burn rate based)
+- [ ] Error budget policy documented (what happens when exhausted)
+- [ ] SLO document generated and reviewed by stakeholders
 
 ## References
 

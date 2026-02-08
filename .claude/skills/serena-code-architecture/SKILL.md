@@ -11,13 +11,33 @@ model: claude-opus-4-5
 
 This skill guides systematic architectural analysis using Serena's symbol-level understanding, with optional persistence to Forgetful's knowledge graph.
 
+## Triggers
+
+| Trigger Phrase | Operation |
+|----------------|-----------|
+| `analyze the architecture of this project` | Full 6-phase analysis workflow |
+| `map out the codebase structure` | Phase 1-3 discovery and component mapping |
+| `trace dependencies for this component` | Phase 4 dependency tracing |
+| `create architecture memories` | Phase 5-6 memory and entity creation |
+| `what components does this project have` | Phase 3 core component mapping |
+
+---
+
 ## When to Use This Skill
+
+Use this skill when:
 
 - Analyzing a new codebase before implementing changes
 - Documenting existing architecture for a project
 - Creating component entities and relationships in Forgetful
 - Understanding dependencies and call hierarchies
 - Building a knowledge graph from code structure
+
+Use [using-serena-symbols](../using-serena-symbols/SKILL.md) instead when:
+
+- Quick symbol lookup without memory persistence
+- Finding a specific class or method definition
+- Tracing references for a single symbol
 
 ## Analysis Workflow
 
@@ -229,6 +249,31 @@ execute_forgetful_tool("create_memory", {
 - [ ] Memories created for insights
 - [ ] Entities created for components (if applicable)
 - [ ] Relationships mapped (if applicable)
+
+## Anti-Patterns
+
+| Avoid | Why | Instead |
+|-------|-----|---------|
+| Analyzing every class as a component | Creates noise in entity graph | Focus on major architectural components only |
+| Reading full source before overview | Wastes tokens on unneeded code | Start with get_symbols_overview, read selectively |
+| Creating entities without memories | Entities lack context without linked knowledge | Create memory first, then entity, then link them |
+| Skipping dependency tracing | Misses critical coupling relationships | Always run Phase 4 for components you create entities for |
+| Documenting WHAT without WHY | Memories become stale quickly | Focus memories on rationale and trade-offs |
+
+---
+
+## Verification
+
+After architectural analysis:
+
+- [ ] Directory structure mapped (Phase 1)
+- [ ] Entry points identified (Phase 2)
+- [ ] Major components catalogued (Phase 3)
+- [ ] Dependencies traced for key components (Phase 4)
+- [ ] Memories created with importance 7+ for insights
+- [ ] Entities linked to corresponding memories
+
+---
 
 ## Tips
 

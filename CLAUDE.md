@@ -34,7 +34,7 @@ For non-trivial tasks, delegate to specialized agents using the Task tool:
 | Constraint | Source |
 |------------|--------|
 | PowerShell only (.ps1/.psm1) | ADR-005 |
-| No raw gh when skill exists | usage-mandatory |
+| Skill-first: check skill catalog before any operation | usage-mandatory, session-1183 |
 | No logic in workflow YAML | ADR-006 |
 | Verify branch before git operations | SESSION-PROTOCOL |
 | HANDOFF.md is read-only | ADR-014 |

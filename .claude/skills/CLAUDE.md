@@ -29,6 +29,18 @@ description: What the skill does and when to use it  # max 1024 chars
 ---
 ```
 
+### Required (Full, for SkillForge validation)
+
+```yaml
+---
+name: skill-identifier
+version: 1.0.0
+model: claude-sonnet-4-5
+description: What the skill does and when to use it
+license: MIT
+---
+```
+
 ### Model Selection
 
 Use **aliases** for automatic improvements:
@@ -46,6 +58,14 @@ model: claude-opus-4-5     # Orchestration, reasoning (<30s, premium justified)
 - Name format: `^[a-z0-9-]{1,64}$`
 - Description: non-empty, max 1024 chars, include trigger keywords
 - SKILL.md under 500 lines (use progressive disclosure)
+
+## SkillForge Validator Gotchas
+
+- `version` and `model` MUST be top-level YAML keys, not nested under `metadata:`
+- Trigger phrases must be backtick-wrapped (`` `phrase` ``), not quote-wrapped
+- Validator requires 3-5 trigger phrases per skill
+- Process section: matches `## Process` (h2) or `### Phase N` (h3), not `## Phase N`
+- Parallel agents staging files can lock git index; use `git diff --staged` to check
 
 ## PowerShell Conventions
 

@@ -119,6 +119,23 @@ function Get-UserInput {
         }
     }
 
+    # CWE-400: Reject session number jumps larger than 10 above max existing
+    $sessionDir = Join-Path $RepoRoot ".agents/sessions"
+    if (Test-Path $sessionDir) {
+        $maxExisting = Get-ChildItem $sessionDir -Filter "*.json" |
+            Where-Object { $_.Name -match 'session-(\d+)' } |
+            ForEach-Object { [int]$Matches[1] } |
+            Sort-Object -Descending |
+            Select-Object -First 1
+        if ($maxExisting -and $SessionNumber -gt ($maxExisting + 10)) {
+            throw [System.ArgumentOutOfRangeException]::new(
+                "SessionNumber",
+                $SessionNumber,
+                "Session number $SessionNumber exceeds ceiling (max existing: $maxExisting, ceiling: $($maxExisting + 10)). This prevents DoS via large session numbers."
+            )
+        }
+    }
+
     # Autonomous objective derivation
     if (-not $Objective) {
         try {
@@ -303,8 +320,47 @@ function New-JsonSessionLog {
         # Convert to JSON with depth for nested structures
         $json = $sessionData | ConvertTo-Json -Depth 10
 
-        # Write JSON to file
-        $json | Out-File -FilePath $filePath -Encoding utf8 -NoNewline -ErrorAction Stop
+        # CWE-362: Atomic file creation with retry on collision
+        $maxRetries = 5
+        $created = $false
+        for ($retry = 0; $retry -lt $maxRetries; $retry++) {
+            try {
+                # CreateNew throws IOException if file already exists
+                $stream = [System.IO.File]::Open($filePath, [System.IO.FileMode]::CreateNew, [System.IO.FileAccess]::Write)
+                try {
+                    $writer = [System.IO.StreamWriter]::new($stream, [System.Text.UTF8Encoding]::new($false))
+                    $writer.Write($json)
+                    $writer.Flush()
+                } finally {
+                    if ($writer) { $writer.Dispose() }
+                    if ($stream) { $stream.Dispose() }
+                }
+                $created = $true
+                break
+            } catch [System.IO.IOException] {
+                # Only retry if the file actually exists (collision). Re-throw for disk-full, path errors, etc.
+                if (-not (Test-Path $filePath)) { throw }
+                if ($retry -lt ($maxRetries - 1)) {
+                    # File exists (race condition), increment session number and retry
+                    $UserInput.SessionNumber++
+                    $sessionData.session.number = $UserInput.SessionNumber
+                    $json = $sessionData | ConvertTo-Json -Depth 10
+                    $keywords = Get-DescriptiveKeywords -Objective $UserInput.Objective
+                    $keywordSuffix = if ($keywords) { "-$keywords" } else { "" }
+                    $fileName = "$currentDate-session-$($UserInput.SessionNumber)$keywordSuffix.json"
+                    $filePath = Join-Path $sessionDir $fileName
+                    Write-Warning "Session file collision, retrying with session-$($UserInput.SessionNumber)"
+                } else {
+                    throw
+                }
+            }
+        }
+
+        if (-not $created) {
+            throw [System.IO.IOException]::new(
+                "Failed to create session log after $maxRetries attempts due to file collisions."
+            )
+        }
 
         # Verify file was created and has content
         if (-not (Test-Path $filePath)) {

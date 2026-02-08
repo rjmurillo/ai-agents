@@ -100,6 +100,31 @@ if ($session.ContainsKey('session')) {
     if ($s.startingCommit -and $s.startingCommit -notmatch '^[a-f0-9]{7,40}$') {
         $errors += "Invalid commit SHA format: $($s.startingCommit)"
     }
+
+    # Session number must match filename (CWE-362: detect race condition artifacts)
+    $sessionFileName = [System.IO.Path]::GetFileNameWithoutExtension($SessionPath)
+    if ($sessionFileName -match 'session-(\d+)') {
+        $fileNumber = [int]$Matches[1]
+        $jsonNumber = $s.number
+        if ($jsonNumber -and $fileNumber -ne $jsonNumber) {
+            $errors += "Session number mismatch: filename has $fileNumber but JSON has $jsonNumber"
+        }
+    }
+
+    # Session number uniqueness check (defense-in-depth for CWE-362)
+    $sessionsDir = Split-Path $SessionPath
+    if (Test-Path $sessionsDir) {
+        $thisNumber = $s.number
+        if ($thisNumber) {
+            $resolvedSessionPath = [System.IO.Path]::GetFullPath($SessionPath)
+            $duplicates = @(Get-ChildItem $sessionsDir -Filter '*.json' |
+                Where-Object { $_.FullName -ne $resolvedSessionPath } |
+                Where-Object { $_.Name -match 'session-(\d+)' -and [int]$Matches[1] -eq $thisNumber })
+            if ($duplicates.Count -gt 0) {
+                $errors += "Duplicate session number $thisNumber found in: $($duplicates.Name -join ', ')"
+            }
+        }
+    }
 }
 
 if ($session.ContainsKey('protocolCompliance')) {
@@ -179,19 +204,8 @@ if ($session.ContainsKey('protocolCompliance')) {
 
 # If investigation-only mode is claimed, validate staged files against allowlist
 if ($investigationOnly) {
-    # Define investigation artifact allowlist per ADR-034
-    # Issue #732: Added adr-review skill outputs (REVIEW-*, debate logs, critique artifacts)
-    $investigationAllowlist = @(
-        '^\.agents/sessions/',
-        '^\.agents/analysis/',
-        '^\.agents/retrospective/',
-        '^\.serena/memories($|/)',
-        '^\.agents/security/',
-        # adr-review skill outputs (QA-equivalent critique artifacts)
-        '^\.agents/architecture/REVIEW-',        # ADR review artifacts
-        '^\.agents/critique/',                   # Debate logs
-        '^\.agents/memory/episodes/'             # Episode extractions
-    )
+    # Import shared allowlist module (single source of truth per Issue #840)
+    Import-Module (Join-Path $PSScriptRoot 'modules' 'InvestigationAllowlist.psm1') -Force
 
     # Get staged files with error handling
     $gitOutput = @(git diff --cached --name-only 2>&1)
@@ -208,30 +222,16 @@ E_GIT_COMMAND_FAILED: Failed to list staged files for investigation-only validat
     }
 
     # Filter for files not in allowlist
-    $implementationFiles = @($stagedFiles | Where-Object {
-            $file = $_
-            $isAllowed = $false
-            foreach ($pattern in $investigationAllowlist) {
-                if ($file -match $pattern) {
-                    $isAllowed = $true
-                    break
-                }
-            }
-            -not $isAllowed
-        })
+    $implementationFiles = @($stagedFiles | Where-Object { -not (Test-FileMatchesAllowlist -FilePath $_) })
 
     if ($implementationFiles.Count -gt 0) {
+        $allowedDisplay = Get-InvestigationAllowlistDisplay
         $errorMsg = @"
 E_INVESTIGATION_HAS_IMPL: Investigation skip claimed but staged files contain implementation artifacts:
   $($implementationFiles -join "`n  ")
 
 Investigation sessions may only stage:
-  - .agents/sessions/ (session logs)
-  - .agents/analysis/ (investigation outputs)
-  - .agents/retrospective/ (learnings)
-  - .serena/memories/ (memory updates)
-  - .agents/security/ (security assessments)
-
+  $($allowedDisplay | ForEach-Object { "- $_ " } | Out-String)
 Remove implementation artifacts or obtain QA validation.
 "@
         $errors += $errorMsg

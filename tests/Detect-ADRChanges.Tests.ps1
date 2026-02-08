@@ -31,6 +31,11 @@ Describe 'Detect-ADRChanges Tests' {
         git add -A 2>&1 | Out-Null
         git commit -m "Initial commit with directories" 2>&1 | Out-Null
 
+        # Add a second commit so HEAD~1 is valid (single-commit repos fail on HEAD~1)
+        Set-Content -Path (Join-Path $script:TestRoot "CHANGELOG.md") -Value "# Changelog"
+        git add -A 2>&1 | Out-Null
+        git commit -m "Add changelog" 2>&1 | Out-Null
+
         # Store base commit
         $script:BaseCommit = git rev-parse HEAD
         Pop-Location

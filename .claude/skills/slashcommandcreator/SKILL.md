@@ -194,6 +194,16 @@ Before marking complete:
 | Documentation | Description clearly explains when to use command |
 | Security | All bash/file refs have explicit allowed-tools entries |
 
+## Anti-Patterns
+
+| Avoid | Why | Instead |
+|-------|-----|---------|
+| Creating commands > 200 lines | Too complex for slash command format | Convert to a skill instead |
+| Overly permissive `allowed-tools` wildcards | Security risk | List specific tools needed |
+| Skipping multi-agent validation | Miss security, scope, or necessity issues | Run all 4 validation agents |
+| Duplicate commands for similar purposes | Confusing discoverability | Check existing commands first |
+| Generic description without trigger keywords | Model cannot find the command | Include specific "Use when" phrases |
+
 ## Quality Gates Checklist
 
 All checks from Verification section plus:
