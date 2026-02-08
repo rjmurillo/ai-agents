@@ -56,10 +56,22 @@ class Metrics:
             "total_skipped": self.total_skipped,
             "invocation_rate_percent": round(self.invocation_rate, 1),
             "targets": {
-                "auto_invocation_rate": {"target": ">=90%", "actual": f"{self.invocation_rate:.1f}%"},
-                "token_overhead": {"target": "<5000", "actual": "N/A (requires runtime measurement)"},
-                "context_reuse": {"target": ">60%", "actual": "N/A (requires downstream tracking)"},
-                "false_positive_rate": {"target": "<20%", "actual": "N/A (requires relevance scoring)"},
+                "auto_invocation_rate": {
+                    "target": ">=90%",
+                    "actual": f"{self.invocation_rate:.1f}%",
+                },
+                "token_overhead": {
+                    "target": "<5000",
+                    "actual": "N/A (requires runtime measurement)",
+                },
+                "context_reuse": {
+                    "target": ">60%",
+                    "actual": "N/A (requires downstream tracking)",
+                },
+                "false_positive_rate": {
+                    "target": "<20%",
+                    "actual": "N/A (requires relevance scoring)",
+                },
             },
             "invocations": [
                 {
@@ -209,7 +221,11 @@ def main() -> int:
             print("--- Recent Invocations ---")
             for record in metrics.invocations[:10]:
                 status = "INVOKED" if record.invoked else "SKIPPED"
-                print(f"  {record.session_id}: {status} (complexity={record.complexity}, reason={record.reason})")
+                print(
+                    f"  {record.session_id}: {status}"
+                    f" (complexity={record.complexity},"
+                    f" reason={record.reason})"
+                )
 
     return 0
 
