@@ -5,7 +5,11 @@
 # Build artifacts
 artifacts/
 coverage.xml
+.coverage
 testResults.xml
+
+# Runtime caches
+.cache/
 
 # Python (ADR-042)
 __pycache__/
