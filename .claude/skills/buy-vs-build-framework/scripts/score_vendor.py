@@ -237,8 +237,21 @@ Example vendor data file format (JSON):
 
     # Load vendor data
     try:
-        with open(args.vendor_data) as f:
+        # Validate input path to prevent path traversal (CWE-22)
+        import os
+        allowed_base = os.path.abspath(".")
+        vendor_data_path = os.path.abspath(args.vendor_data)
+        if not vendor_data_path.startswith(allowed_base):
+            raise ValueError(
+                f"Path traversal attempt detected in --vendor-data: "
+                f"{args.vendor_data}"
+            )
+
+        with open(vendor_data_path) as f:
             data = json.load(f)
+    except ValueError as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        sys.exit(1)
     except FileNotFoundError:
         print(f"ERROR: Vendor data file not found: {args.vendor_data}", file=sys.stderr)
         sys.exit(11)

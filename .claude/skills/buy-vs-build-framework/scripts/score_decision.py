@@ -132,8 +132,23 @@ Example criteria file format (JSON):
     args = parser.parse_args()
 
     # Load criteria
+    # Validate input path to prevent path traversal (CWE-22)
+    import os
     try:
-        with open(args.criteria_file) as f:
+        allowed_base = os.path.abspath(".")
+        criteria_file_path = os.path.abspath(args.criteria_file)
+        if not criteria_file_path.startswith(allowed_base):
+            raise ValueError(
+                f"Path traversal attempt detected in --criteria-file: "
+                f"{args.criteria_file}"
+            )
+    except ValueError as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    # Load criteria
+    try:
+        with open(criteria_file_path) as f:
             criteria = json.load(f)
     except FileNotFoundError:
         print(f"ERROR: Criteria file not found: {args.criteria_file}", file=sys.stderr)

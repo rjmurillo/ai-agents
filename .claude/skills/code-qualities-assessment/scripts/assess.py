@@ -102,7 +102,8 @@ def load_config(config_path: str) -> dict:
     """Load configuration or return defaults"""
     try:
         with open(config_path) as f:
-            return json.load(f)
+            config: dict = json.load(f)
+            return config
     except FileNotFoundError:
         # Default configuration
         return {
@@ -169,7 +170,9 @@ def assess_file(file_path: Path, context: str, use_serena: bool) -> FileAssessme
         with open(file_path, encoding='utf-8') as f:
             content = f.read()
             lines = content.split('\n')
-            loc = len([l for l in lines if l.strip() and not l.strip().startswith('#')])
+            loc = len(
+                [line for line in lines if line.strip() and not line.strip().startswith('#')]
+            )
     except Exception:
         loc = 0
 
@@ -180,24 +183,24 @@ def assess_file(file_path: Path, context: str, use_serena: bool) -> FileAssessme
     cohesion_score = max(1, min(10, 10 - (loc / 100)))
 
     # Coupling: heuristic based on imports (simplified)
-    import_count = len([l for l in lines if 'import ' in l])
+    import_count = len([line for line in lines if 'import ' in line])
     coupling_score = max(1, min(10, 10 - import_count))
 
     # Encapsulation: check for private vs public (simplified)
-    public_methods = len([l for l in lines if 'def ' in l and 'def _' not in l])
-    private_methods = len([l for l in lines if 'def _' in l])
+    public_methods = len([line for line in lines if 'def ' in line and 'def _' not in line])
+    private_methods = len([line for line in lines if 'def _' in line])
     if public_methods + private_methods > 0:
         encap_score = (private_methods / (public_methods + private_methods)) * 10
     else:
         encap_score = 10
 
     # Testability: check for global state, hard-coded values
-    global_vars = len([l for l in lines if l.strip().startswith('global ')])
+    global_vars = len([line for line in lines if line.strip().startswith('global ')])
     testability_score = max(1, 10 - global_vars * 2)
 
     # Non-redundancy: basic duplication check (simplified)
     # Real version would use token-based clone detection
-    unique_lines = len(set([l.strip() for l in lines if l.strip()]))
+    unique_lines = len(set([line.strip() for line in lines if line.strip()]))
     if len(lines) > 0:
         redundancy_score = (unique_lines / len(lines)) * 10
     else:
@@ -210,7 +213,10 @@ def assess_file(file_path: Path, context: str, use_serena: bool) -> FileAssessme
             confidence=0.7,
             reasons=[
                 f"File has {loc} LOC",
-                "Large files often indicate low cohesion" if loc > 200 else "File size is reasonable"
+                (
+                    "Large files often indicate low cohesion" if loc > 200
+                    else "File size is reasonable"
+                )
             ]
         ),
         coupling=QualityScore(
@@ -218,7 +224,10 @@ def assess_file(file_path: Path, context: str, use_serena: bool) -> FileAssessme
             confidence=0.6,
             reasons=[
                 f"File has {import_count} imports",
-                "High import count suggests high coupling" if import_count > 10 else "Import count is reasonable"
+                (
+                    "High import count suggests high coupling" if import_count > 10
+                    else "Import count is reasonable"
+                )
             ]
         ),
         encapsulation=QualityScore(
@@ -226,7 +235,10 @@ def assess_file(file_path: Path, context: str, use_serena: bool) -> FileAssessme
             confidence=0.8,
             reasons=[
                 f"{private_methods} private methods, {public_methods} public methods",
-                "Good balance of private vs public" if encap_score > 7 else "Too many public methods"
+                (
+                    "Good balance of private vs public" if encap_score > 7
+                    else "Too many public methods"
+                )
             ]
         ),
         testability=QualityScore(
@@ -234,7 +246,10 @@ def assess_file(file_path: Path, context: str, use_serena: bool) -> FileAssessme
             confidence=0.7,
             reasons=[
                 f"Found {global_vars} global variable references",
-                "Global state hinders testability" if global_vars > 0 else "No global state detected"
+                (
+                    "Global state hinders testability" if global_vars > 0
+                    else "No global state detected"
+                )
             ]
         ),
         non_redundancy=QualityScore(
@@ -299,16 +314,27 @@ def generate_markdown_report(assessments: list[FileAssessment], config: dict) ->
 
 def generate_json_report(assessments: list[FileAssessment]) -> str:
     """Generate JSON report"""
+    count = len(assessments) if assessments else 1
     return json.dumps({
         "files": [asdict(a) for a in assessments],
         "summary": {
             "file_count": len(assessments),
             "average_scores": {
-                "cohesion": sum(a.cohesion.value for a in assessments) / len(assessments) if assessments else 0,
-                "coupling": sum(a.coupling.value for a in assessments) / len(assessments) if assessments else 0,
-                "encapsulation": sum(a.encapsulation.value for a in assessments) / len(assessments) if assessments else 0,
-                "testability": sum(a.testability.value for a in assessments) / len(assessments) if assessments else 0,
-                "non_redundancy": sum(a.non_redundancy.value for a in assessments) / len(assessments) if assessments else 0,
+                "cohesion": (
+                    sum(a.cohesion.value for a in assessments) / count if assessments else 0
+                ),
+                "coupling": (
+                    sum(a.coupling.value for a in assessments) / count if assessments else 0
+                ),
+                "encapsulation": (
+                    sum(a.encapsulation.value for a in assessments) / count if assessments else 0
+                ),
+                "testability": (
+                    sum(a.testability.value for a in assessments) / count if assessments else 0
+                ),
+                "non_redundancy": (
+                    sum(a.non_redundancy.value for a in assessments) / count if assessments else 0
+                ),
             }
         }
     }, indent=2)
@@ -331,23 +357,43 @@ def check_thresholds(assessments: list[FileAssessment], config: dict, context: s
 
     for assessment in assessments:
         if assessment.cohesion.value < thresholds["cohesion"]["min"]:
-            print(f"❌ {assessment.file_path}: Cohesion {assessment.cohesion.value} < {thresholds['cohesion']['min']}", file=sys.stderr)
+            print(
+                f"❌ {assessment.file_path}: Cohesion {assessment.cohesion.value} "
+                f"< {thresholds['cohesion']['min']}",
+                file=sys.stderr
+            )
             return 11
 
         if assessment.coupling.value > thresholds["coupling"]["max"]:
-            print(f"❌ {assessment.file_path}: Coupling {assessment.coupling.value} > {thresholds['coupling']['max']}", file=sys.stderr)
+            print(
+                f"❌ {assessment.file_path}: Coupling {assessment.coupling.value} "
+                f"> {thresholds['coupling']['max']}",
+                file=sys.stderr
+            )
             return 11
 
         if assessment.encapsulation.value < thresholds["encapsulation"]["min"]:
-            print(f"❌ {assessment.file_path}: Encapsulation {assessment.encapsulation.value} < {thresholds['encapsulation']['min']}", file=sys.stderr)
+            print(
+                f"❌ {assessment.file_path}: Encapsulation {assessment.encapsulation.value} "
+                f"< {thresholds['encapsulation']['min']}",
+                file=sys.stderr
+            )
             return 11
 
         if assessment.testability.value < thresholds["testability"]["min"]:
-            print(f"❌ {assessment.file_path}: Testability {assessment.testability.value} < {thresholds['testability']['min']}", file=sys.stderr)
+            print(
+                f"❌ {assessment.file_path}: Testability {assessment.testability.value} "
+                f"< {thresholds['testability']['min']}",
+                file=sys.stderr
+            )
             return 11
 
         if assessment.non_redundancy.value < thresholds["nonRedundancy"]["min"]:
-            print(f"❌ {assessment.file_path}: Non-Redundancy {assessment.non_redundancy.value} < {thresholds['nonRedundancy']['min']}", file=sys.stderr)
+            print(
+                f"❌ {assessment.file_path}: Non-Redundancy {assessment.non_redundancy.value} "
+                f"< {thresholds['nonRedundancy']['min']}",
+                file=sys.stderr
+            )
             return 11
 
     return 0
@@ -360,9 +406,22 @@ def main() -> int:
     # Load configuration
     config = load_config(args.config)
 
+    # Validate target path to prevent path traversal (CWE-22)
+    import os
+    try:
+        allowed_base = os.path.abspath(".")
+        target_path = os.path.abspath(args.target)
+        if not target_path.startswith(allowed_base):
+            raise ValueError(
+                f"Path traversal attempt detected in --target: {args.target}"
+            )
+    except ValueError as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        return 1
+
     # Get files to assess
     try:
-        files = get_files_to_assess(args.target, args.changed_only)
+        files = get_files_to_assess(target_path, args.changed_only)
     except Exception as e:
         print(f"Error getting files: {e}", file=sys.stderr)
         return 1

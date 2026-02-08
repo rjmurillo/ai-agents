@@ -36,7 +36,11 @@ def parse_adr(adr_path: str) -> dict:
     assumptions = {}
 
     # Extract decision type (Build/Buy/Partner/Defer)
-    decision_match = re.search(r'##\s+Decision\s+We will (BUILD|BUY|PARTNER|DEFER)', content, re.IGNORECASE)
+    decision_match = re.search(
+        r'##\s+Decision\s+We will (BUILD|BUY|PARTNER|DEFER)',
+        content,
+        re.IGNORECASE
+    )
     if decision_match:
         assumptions['decision_type'] = decision_match.group(1).lower()
 
@@ -94,7 +98,10 @@ def check_triggers(drift: dict[str, float], current: dict) -> list[str]:
         triggered.append(f"Cost assumption changed {drift['cost']:.1f}% (trigger: >20%)")
 
     if 'time_horizon' in drift and drift['time_horizon'] > 20:
-        triggered.append(f"Time horizon shifted {drift['time_horizon']:.1f}% (trigger: material shift)")
+        triggered.append(
+            f"Time horizon shifted {drift['time_horizon']:.1f}% "
+            "(trigger: material shift)"
+        )
 
     if 'strategic_priority' in drift and drift['strategic_priority'] > 0:
         triggered.append("Strategic priority shifted (core <-> context)")
@@ -159,15 +166,39 @@ Example current state file format (JSON):
 
     args = parser.parse_args()
 
+    # Validate input paths to prevent path traversal (CWE-22)
+    import os
+    try:
+        allowed_base = os.path.abspath(".")
+
+        adr_file_path = os.path.abspath(args.adr_file)
+        if not adr_file_path.startswith(allowed_base):
+            raise ValueError(
+                f"Path traversal attempt detected in --adr-file: {args.adr_file}"
+            )
+
+        current_state_path = os.path.abspath(args.current_state)
+        if not current_state_path.startswith(allowed_base):
+            raise ValueError(
+                f"Path traversal attempt detected in --current-state: "
+                f"{args.current_state}"
+            )
+    except ValueError as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        sys.exit(1)
+
     # Parse ADR for original assumptions
-    original = parse_adr(args.adr_file)
+    original = parse_adr(adr_file_path)
 
     # Load current state
     try:
-        with open(args.current_state) as f:
+        with open(current_state_path) as f:
             current = json.load(f)
     except FileNotFoundError:
-        print(f"ERROR: Current state file not found: {args.current_state}", file=sys.stderr)
+        print(
+            f"ERROR: Current state file not found: {args.current_state}",
+            file=sys.stderr
+        )
         sys.exit(1)
     except json.JSONDecodeError as e:
         print(f"ERROR: Invalid JSON in current state file: {e}", file=sys.stderr)
