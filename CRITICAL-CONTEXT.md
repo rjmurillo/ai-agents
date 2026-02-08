@@ -72,6 +72,33 @@ Negative framing ("never use raw commands") fails. Positive checkpoint succeeds.
 
 **If capability missing**: Add to skill, then use it. Never write inline.
 
+## PR Review Comment Routing
+
+When responding to PR review comments, ALWAYS route through skills first:
+
+| Comment Pattern | Skill to Use | NOT manual fix |
+|-----------------|--------------|----------------|
+| CWE-* security issues | security-scan | Manual code review |
+| Style/linting feedback | style-enforcement | Manual ruff/mypy runs |
+| Documentation gaps | doc-coverage | Manual doc review |
+| Path traversal | security-scan --cwe 22 | Manual path validation |
+| Command injection | security-scan --cwe 78 | Manual input escaping |
+
+**Pattern Detection:**
+
+- CWE-XX in comment → security-scan skill
+- "missing documentation" → doc-coverage skill
+- "line too long", "naming convention" → style-enforcement skill
+
+**Workflow:**
+
+1. Detect comment type (CWE pattern, style, docs)
+2. Route to appropriate skill with scanner
+3. Let skill verify the issue exists
+4. Apply skill's recommended fixes
+5. Re-run skill to verify fix (exit code 0)
+6. Reply to bot comment with evidence from skill output
+
 ## Full Documentation
 
 - **Complete protocol**: `.agents/SESSION-PROTOCOL.md`

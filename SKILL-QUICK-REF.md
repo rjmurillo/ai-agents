@@ -30,6 +30,12 @@
 |QUICK-FIX: one-sentence-fix, single-file, obvious-change → implementer → qa
 |STANDARD: investigation-needed, 2-5-files, some-complexity → analyst → planner → implementer → qa
 |STRATEGIC: whether-not-how, scope-question, architecture-direction → independent-thinker → high-level-advisor → task-generator
+
+[Bot Comment Classification]
+|DETECT: regex for CWE-(\d+), E(\d+) error codes, "missing documentation" patterns
+|ROUTE: CWE-22|CWE-78 → security-scan, E501|E741 → style-enforcement, "XML doc"|"docstring" → doc-coverage
+|VERIFY: skill exit code 0 before replying to bot
+|PRINCIPLE: skills-encode-best-practices (don't rely on pre-training for security patterns)
 ```
 
 ---
