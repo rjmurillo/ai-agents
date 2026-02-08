@@ -18,10 +18,11 @@
 # Environment variables:
 #   SKIP_PREPUSH=1  - Bypass all checks (emergency use only)
 #   SKIP_TESTS=1    - Skip Pester and pytest phases (documentation-only pushes)
-#   PREPUSH_TIMEOUT=600 - Max seconds for entire hook (default: 10 min)
 #
-
-set -e
+# Intentionally NOT using set -e. This script uses an accumulator pattern:
+# individual check failures are tracked via EXIT_STATUS and reported in
+# the summary. set -e would cause premature termination on any non-zero
+# exit code, suppressing the summary and confusing users.
 
 # Colors for output (if terminal supports it)
 RED='\033[0;31m'
@@ -95,6 +96,15 @@ record_skip() {
     echo_info "SKIP: $1"
 }
 
+# Temp file cleanup on exit (handles Ctrl+C, early exit, normal exit)
+TEMP_FILES=()
+cleanup() {
+    for f in "${TEMP_FILES[@]}"; do
+        rm -f "$f"
+    done
+}
+trap cleanup EXIT
+
 # Get repository root (validate git output)
 REPO_ROOT=$(git rev-parse --show-toplevel) || {
     echo_error "Failed to determine repository root"
@@ -134,29 +144,46 @@ set_python_cmd() {
 ZERO="0000000000000000000000000000000000000000"
 CHANGED_FILES=""
 PUSH_RANGE=""
+REFS_PROCESSED=0
 
 while read -r local_ref local_sha remote_ref remote_sha; do
+    REFS_PROCESSED=$((REFS_PROCESSED + 1))
+
     # Deleting a remote ref, skip
     if [ "$local_sha" = "$ZERO" ]; then
         continue
     fi
 
+    ref_range=""
     if [ "$remote_sha" = "$ZERO" ]; then
         # New branch: compare against merge-base with main
         merge_base=$(git merge-base main "$local_sha" 2>/dev/null || echo "")
+        if [ -z "$merge_base" ]; then
+            # Try origin/main as fallback
+            merge_base=$(git merge-base origin/main "$local_sha" 2>/dev/null || echo "")
+        fi
         if [ -n "$merge_base" ]; then
-            PUSH_RANGE="$merge_base..$local_sha"
+            ref_range="$merge_base..$local_sha"
         else
-            # No common ancestor with main, compare against root
-            PUSH_RANGE="$local_sha"
+            echo_warning "Could not find merge-base with main for $local_ref"
+            echo_info "  Ensure 'main' or 'origin/main' exists: git fetch origin main"
+            # Fall back to listing all files in the commit
+            ref_range="$local_sha"
         fi
     else
         # Existing branch: compare against remote
-        PUSH_RANGE="$remote_sha..$local_sha"
+        ref_range="$remote_sha..$local_sha"
     fi
 
-    if [ -n "$PUSH_RANGE" ]; then
-        new_files=$(git diff --name-only "$PUSH_RANGE" 2>/dev/null || true)
+    # Keep last ref range for commit count and additions checks
+    PUSH_RANGE="$ref_range"
+
+    if [ -n "$ref_range" ]; then
+        if ! new_files=$(git diff --name-only "$ref_range" 2>&1); then
+            echo_error "Failed to determine changed files for range: $ref_range"
+            echo_info "  git diff output: $new_files"
+            exit 2
+        fi
         if [ -n "$new_files" ]; then
             if [ -n "$CHANGED_FILES" ]; then
                 CHANGED_FILES="$CHANGED_FILES"$'\n'"$new_files"
@@ -166,6 +193,10 @@ while read -r local_ref local_sha remote_ref remote_sha; do
         fi
     fi
 done
+
+if [ "$REFS_PROCESSED" -eq 0 ]; then
+    echo_warning "No push refs received on stdin. Hook may not be invoked correctly."
+fi
 
 # Deduplicate changed files
 if [ -n "$CHANGED_FILES" ]; then
@@ -187,7 +218,6 @@ CHANGED_PY=$(echo "$CHANGED_FILES" | grep -E '\.py$' || true)
 CHANGED_PS=$(echo "$CHANGED_FILES" | grep -E '\.(ps1|psm1)$' || true)
 CHANGED_WORKFLOWS=$(echo "$CHANGED_FILES" | grep -E '^\.github/(workflows|actions)/.*\.ya?ml$' || true)
 CHANGED_YAML=$(echo "$CHANGED_FILES" | grep -E '\.ya?ml$' || true)
-CHANGED_AGENTS=$(echo "$CHANGED_FILES" | grep -E '^\.agents/' || true)
 CHANGED_TEMPLATES=$(echo "$CHANGED_FILES" | grep -E '^templates/' || true)
 CHANGED_SESSIONS=$(echo "$CHANGED_FILES" | grep -E '^\.agents/sessions/' || true)
 CHANGED_PLANNING=$(echo "$CHANGED_FILES" | grep -E '^\.agents/planning/' || true)
@@ -211,11 +241,11 @@ fi
 
 record_pass "Branch guard ($current_branch)"
 
-# 2. Commit count - ADR-008 limit of 20
+# 2. Commit count - SESSION-PROTOCOL limit of 20
 if [ -n "$PUSH_RANGE" ]; then
     COMMIT_COUNT=$(git rev-list --count "$PUSH_RANGE" 2>/dev/null || echo "0")
     if [ "$COMMIT_COUNT" -gt 20 ]; then
-        record_fail "Commit count ($COMMIT_COUNT) exceeds ADR-008 limit of 20"
+        record_fail "Commit count ($COMMIT_COUNT) exceeds limit of 20"
         echo_info "  Consider squashing commits or splitting the PR."
         echo_info "  See: CONTRIBUTING.md#commit-count-thresholds"
     elif [ "$COMMIT_COUNT" -gt 15 ]; then
@@ -309,12 +339,17 @@ if [ -n "$CHANGED_PY" ]; then
         done <<< "$CHANGED_PY"
 
         if [ ${#PY_FILES[@]} -gt 0 ]; then
-            if ruff check -- "${PY_FILES[@]}" 2>/dev/null; then
+            RUFF_OUTPUT=$(mktemp)
+            TEMP_FILES+=("$RUFF_OUTPUT")
+            if ruff check -- "${PY_FILES[@]}" > "$RUFF_OUTPUT" 2>&1; then
                 record_pass "Python lint/ruff (${#PY_FILES[@]} files)"
             else
+                echo_info "  Ruff issues:"
+                head -20 "$RUFF_OUTPUT"
                 record_fail "Python lint/ruff"
                 echo_info "  Fix: ruff check --fix <files>"
             fi
+            rm -f "$RUFF_OUTPUT"
         else
             record_skip "Python lint (no accessible files)"
         fi
@@ -336,12 +371,17 @@ if [ -n "$CHANGED_PY" ]; then
         done <<< "$CHANGED_PY"
 
         if [ ${#PY_FILES[@]} -gt 0 ]; then
-            if mypy "${PY_FILES[@]}" 2>/dev/null; then
+            MYPY_OUTPUT=$(mktemp)
+            TEMP_FILES+=("$MYPY_OUTPUT")
+            if mypy "${PY_FILES[@]}" > "$MYPY_OUTPUT" 2>&1; then
                 record_pass "Python type check/mypy (${#PY_FILES[@]} files)"
             else
+                echo_info "  mypy issues:"
+                head -20 "$MYPY_OUTPUT"
                 record_fail "Python type check/mypy"
                 echo_info "  Fix type errors before pushing."
             fi
+            rm -f "$MYPY_OUTPUT"
         else
             record_skip "Python type check (no accessible files)"
         fi
@@ -422,13 +462,18 @@ if [ -n "$CHANGED_TEMPLATES" ] || [ -n "$(echo "$CHANGED_FILES" | grep -E '^src/
         record_warn "Agent generation script is a symlink (skipping)"
     elif [ -f "$GENERATE_AGENTS_SCRIPT" ]; then
         if command -v pwsh &> /dev/null; then
-            if pwsh -NoProfile -ExecutionPolicy Bypass -File "$GENERATE_AGENTS_SCRIPT" -Validate 2>/dev/null; then
+            GEN_OUTPUT=$(mktemp)
+            TEMP_FILES+=("$GEN_OUTPUT")
+            if pwsh -NoProfile -ExecutionPolicy Bypass -File "$GENERATE_AGENTS_SCRIPT" -Validate > "$GEN_OUTPUT" 2>&1; then
                 record_pass "Agent generation (templates match generated)"
             else
+                echo_info "  Agent generation output:"
+                head -20 "$GEN_OUTPUT"
                 record_fail "Agent generation drift detected"
                 echo_info "  Fix: pwsh build/Generate-Agents.ps1"
                 echo_info "  Then commit the regenerated files."
             fi
+            rm -f "$GEN_OUTPUT"
         else
             record_skip "Agent generation (pwsh not available)"
         fi
@@ -447,13 +492,18 @@ if [ -n "$(echo "$CHANGED_FILES" | grep -E '^(src/|templates/)' || true)" ]; the
         record_warn "Agent drift script is a symlink (skipping)"
     elif [ -f "$AGENT_DRIFT_SCRIPT" ]; then
         if command -v pwsh &> /dev/null; then
-            if pwsh -NoProfile -ExecutionPolicy Bypass -File "$AGENT_DRIFT_SCRIPT" 2>/dev/null; then
+            DRIFT_OUTPUT=$(mktemp)
+            TEMP_FILES+=("$DRIFT_OUTPUT")
+            if pwsh -NoProfile -ExecutionPolicy Bypass -File "$AGENT_DRIFT_SCRIPT" > "$DRIFT_OUTPUT" 2>&1; then
                 record_pass "Agent drift detection"
             else
+                echo_info "  Agent drift output:"
+                head -20 "$DRIFT_OUTPUT"
                 record_fail "Agent drift detected"
                 echo_info "  Fix: Sync agent content across platforms."
                 echo_info "  Run: pwsh build/scripts/Detect-AgentDrift.ps1 -Verbose"
             fi
+            rm -f "$DRIFT_OUTPUT"
         else
             record_skip "Agent drift detection (pwsh not available)"
         fi
@@ -471,12 +521,17 @@ if [ -L "$PATH_NORM_SCRIPT" ]; then
     record_warn "Path normalization script is a symlink (skipping)"
 elif [ -f "$PATH_NORM_SCRIPT" ]; then
     if command -v pwsh &> /dev/null; then
-        if pwsh -NoProfile -ExecutionPolicy Bypass -File "$PATH_NORM_SCRIPT" -FailOnViolation 2>/dev/null; then
+        NORM_OUTPUT=$(mktemp)
+        TEMP_FILES+=("$NORM_OUTPUT")
+        if pwsh -NoProfile -ExecutionPolicy Bypass -File "$PATH_NORM_SCRIPT" -FailOnViolation > "$NORM_OUTPUT" 2>&1; then
             record_pass "Path normalization"
         else
+            echo_info "  Path normalization output:"
+            head -20 "$NORM_OUTPUT"
             record_fail "Path normalization violations found"
             echo_info "  Fix: Replace absolute paths with relative paths."
         fi
+        rm -f "$NORM_OUTPUT"
     else
         record_skip "Path normalization (pwsh not available)"
     fi
@@ -497,7 +552,7 @@ else
     # 13. Pester tests (full suite)
     PESTER_RUNNER="$REPO_ROOT/build/scripts/Invoke-PesterTests.ps1"
 
-    if [ -n "$CHANGED_PS" ] || [ -n "$(echo "$CHANGED_FILES" | grep -E '\.(ps1|psm1|Tests\.ps1)$' || true)" ]; then
+    if [ -n "$CHANGED_PS" ]; then
         if [ -L "$PESTER_RUNNER" ]; then
             record_fail "Pester test runner is a symlink (security violation)"
         elif [ -f "$PESTER_RUNNER" ]; then
@@ -573,11 +628,15 @@ if [ -n "$CHANGED_PY" ] || [ -n "$CHANGED_PS" ]; then
         [ -L "$file" ] && continue
 
         # Check for security suppression comments
-        if grep -nE '#\s*(lgtm\[|nosec|noqa:\s*S|type:\s*ignore\[|cwe-suppress)' "$file" 2>/dev/null; then
+        GREP_MATCHES=$(grep -nE '#\s*(lgtm\[|nosec|noqa:\s*S|type:\s*ignore\[|cwe-suppress)' "$file" 2>/dev/null) || true
+        if [ -n "$GREP_MATCHES" ]; then
             if [ "$SUPPRESSION_FOUND" -eq 0 ]; then
                 echo_info "  Security suppression comments found:"
             fi
-            echo_info "    $file"
+            echo_info "    $file:"
+            echo "$GREP_MATCHES" | while IFS= read -r match_line; do
+                echo_info "      $match_line"
+            done
             SUPPRESSION_FOUND=1
         fi
     done <<< "$ALL_CODE_FILES"
@@ -606,9 +665,16 @@ if [ -n "$CHANGED_SESSIONS" ]; then
                 [ -z "$session_file" ] && continue
                 [ ! -f "$session_file" ] && continue
                 if echo "$session_file" | grep -qE '[0-9]{4}-[0-9]{2}-[0-9]{2}-session-[0-9]+.*\.json$'; then
-                    if ! pwsh -NoProfile -ExecutionPolicy Bypass -File "$SESSION_VALIDATE_SCRIPT" -SessionPath "$session_file" 2>&1; then
+                    VALIDATE_OUTPUT=$(mktemp)
+                    TEMP_FILES+=("$VALIDATE_OUTPUT")
+                    if ! pwsh -NoProfile -ExecutionPolicy Bypass -File "$SESSION_VALIDATE_SCRIPT" -SessionPath "$session_file" > "$VALIDATE_OUTPUT" 2>&1; then
+                        echo_info "  Validation failed for: $session_file"
+                        head -10 "$VALIDATE_OUTPUT"
                         SESSION_ERRORS=1
                     fi
+                    rm -f "$VALIDATE_OUTPUT"
+                else
+                    echo_warning "Session file skipped (unexpected name format): $session_file"
                 fi
             done <<< "$CHANGED_SESSIONS"
 
@@ -636,11 +702,16 @@ if [ -n "$CHANGED_PLANNING" ]; then
         record_warn "Planning validation script is a symlink (skipping)"
     elif [ -f "$PLANNING_VALIDATE_SCRIPT" ]; then
         if command -v pwsh &> /dev/null; then
-            if pwsh -NoProfile -ExecutionPolicy Bypass -File "$PLANNING_VALIDATE_SCRIPT" -Path "$REPO_ROOT" 2>/dev/null; then
+            PLAN_OUTPUT=$(mktemp)
+            TEMP_FILES+=("$PLAN_OUTPUT")
+            if pwsh -NoProfile -ExecutionPolicy Bypass -File "$PLANNING_VALIDATE_SCRIPT" -Path "$REPO_ROOT" > "$PLAN_OUTPUT" 2>&1; then
                 record_pass "Planning artifacts"
             else
+                echo_info "  Planning validation output:"
+                head -10 "$PLAN_OUTPUT"
                 record_warn "Planning artifact issues found (non-blocking)"
             fi
+            rm -f "$PLAN_OUTPUT"
         else
             record_skip "Planning artifacts (pwsh not available)"
         fi
