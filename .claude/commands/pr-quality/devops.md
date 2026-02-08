@@ -20,7 +20,7 @@ Run the DevOps quality gate locally on your current changes before pushing.
 ### Branch Information
 
 - Current branch: !`git branch --show-current`
-- Base branch: ${1:-main}
+- Base branch: $ARGUMENTS or main (if not specified)
 
 ### Review Criteria
 
@@ -28,11 +28,11 @@ Apply the criteria from: @.github/prompts/pr-quality-gate-devops.md
 
 ### Changed Files
 
-!`git diff "${1:-main}" --name-only`
+!`BASE_ARG="${ARGUMENTS:-main}"; [ -z "$BASE_ARG" ] && BASE_ARG="main"; git diff "$BASE_ARG" --name-only`
 
 ### Full Diff
 
-!`git diff "${1:-main}"`
+!`BASE_ARG="${ARGUMENTS:-main}"; [ -z "$BASE_ARG" ] && BASE_ARG="main"; git diff "$BASE_ARG"`
 
 ## Output Format
 
