@@ -5,7 +5,7 @@
     "objective": "Apply PR review skill routing documentation improvements based on session feedback",
     "date": "2026-02-08",
     "branch": "feat/engineering-skills",
-    "number": 1188,
+    "number": 1191,
     "startingCommit": "75284feb"
   },
   "schemaVersion": "1.0",
