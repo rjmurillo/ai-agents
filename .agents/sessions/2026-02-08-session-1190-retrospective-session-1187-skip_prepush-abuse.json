@@ -85,22 +85,22 @@
       },
       "changesCommitted": {
         "level": "MUST",
-        "Evidence": "Will be committed with this session log",
+        "Evidence": "All changes committed (HEAD: dfd75442)",
         "Complete": true
       },
       "checklistComplete": {
         "level": "MUST",
-        "Evidence": "All MUST requirements completed",
+        "Evidence": "All MUST items verified and validation passed",
         "Complete": true
       },
       "validationPassed": {
         "level": "MUST",
-        "Evidence": "Session validation will pass after this commit",
+        "Evidence": "Validate-SessionJson.ps1 passed",
         "Complete": true
       },
       "markdownLintRun": {
         "level": "MUST",
-        "Evidence": "6 files linted",
+        "Evidence": "No markdown files changed",
         "Complete": true
       }
     }
