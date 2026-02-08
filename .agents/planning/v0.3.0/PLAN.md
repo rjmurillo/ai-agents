@@ -1,10 +1,10 @@
 # v0.3.0 Milestone: Memory Enhancement and Quality
 
-**Status**: 🟢 ACTIVE (Revised 2026-01-23)
+**Status**: 🟢 ACTIVE (Revised 2026-02-07)
 **Created**: 2026-01-23
-**Last Updated**: 2026-01-23 (Cross-references reconciled)
+**Last Updated**: 2026-02-07 (Added 6 issues from triage analysis)
 **Milestone**: [0.3.0](https://github.com/rjmurillo/ai-agents/milestone/6)
-**Current Scope**: 23 issues (2 P0, 19 P1, 2 P2)
+**Current Scope**: 29 issues (6 P0, 21 P1, 2 P2)
 
 ---
 
@@ -113,12 +113,20 @@ pwsh .claude/skills/github/scripts/issue/Get-IssueContext.ps1 -Issue <ISSUE_NUMB
 
 ### P0 Blockers (Start Here)
 
+**Added 2026-02-07**: 4 new P0 issues from triage analysis
+
 | Issue | Title | Traycer Summary |
 |-------|-------|-----------------|
 | [#997](https://github.com/rjmurillo/ai-agents/issues/997) | Citation Schema & Verification | `models.py` + `citations.py`. YAML frontmatter citations. Verify file:line exists. Exit: `python -m memory_enhancement verify <memory>` works. |
+| [#992](https://github.com/rjmurillo/ai-agents/issues/992) | Phase 1 Citation Schema & Verification | Continuation of #990 epic. Python CLI for citation validation. |
 | [#751](https://github.com/rjmurillo/ai-agents/issues/751) | Memory System Fragmentation | 4 interfaces → 1 unified. Decision Matrix Option A. Blocks [#734](https://github.com/rjmurillo/ai-agents/issues/734), [#747](https://github.com/rjmurillo/ai-agents/issues/747), [#731](https://github.com/rjmurillo/ai-agents/issues/731). |
+| [#934](https://github.com/rjmurillo/ai-agents/issues/934) | Pre-PR Validation Script | Quality gate. Prevents PR #908 recurrence. PowerShell script. |
+| [#935](https://github.com/rjmurillo/ai-agents/issues/935) | SESSION-PROTOCOL Validation Gates | Quality gate. Documentation enforcement. Markdown updates. |
+| [#936](https://github.com/rjmurillo/ai-agents/issues/936) | Commit Counter in Orchestrator | Quality gate. Real-time visibility. Prevents scope creep. Prompt update. |
 
 ### Epic Chain ([#990](https://github.com/rjmurillo/ai-agents/issues/990))
+
+**Added 2026-02-07**: Memory Enhancement continuation (#992→#993→#994) and Quality Gates (#934→#935→#936)
 
 ```mermaid
 flowchart LR
@@ -128,18 +136,29 @@ flowchart LR
         C --> D[#1001<br/>Confidence<br/>P2]
     end
 
+    subgraph New: Memory Enhancement Continuation
+        E[#992<br/>Citation Schema v2<br/>P0 ⭐] --> F[#993<br/>Graph Traversal v2<br/>P1]
+        F --> G[#994<br/>CI Health v2<br/>P1]
+    end
+
+    subgraph New: Quality Gates
+        H[#934<br/>Pre-PR Validation<br/>P0 ⭐]
+        I[#935<br/>Protocol Gates<br/>P0 ⭐]
+        J[#936<br/>Commit Counter<br/>P0 ⭐]
+    end
+
     subgraph Unlocked by #751
-        E[#751<br/>Fragmentation<br/>P0 ⭐] --> F[#734<br/>Router Perf]
-        E --> G[#747<br/>Sync]
-        E --> H[#731<br/>Prompts]
+        K[#751<br/>Fragmentation<br/>P0 ⭐] --> L[#734<br/>Router Perf]
+        K --> M[#747<br/>Sync]
+        K --> N[#731<br/>Prompts]
     end
 
     classDef p0 fill:#ff6b6b,stroke:#c92a2a,color:#fff
     classDef p1 fill:#4dabf7,stroke:#1971c2,color:#fff
     classDef p2 fill:#51cf66,stroke:#2f9e44,color:#fff
 
-    class A,E p0
-    class B,C,F,G,H p1
+    class A,K,E,H,I,J p0
+    class B,C,L,M,N,F,G p1
     class D p2
 ```
 
