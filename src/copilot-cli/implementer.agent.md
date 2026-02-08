@@ -649,6 +649,11 @@ Ask: "Does this refactoring unblock my task or improve testability of code I'm c
 1. Before writing, identify what varies and apply Chesterton's Fence
 2. Ask "how would I test this?" If hard, redesign.
 3. Sergeant methods direct, private methods implement
+4. **Clarity over brevity**: Explicit code beats compact code. No nested ternaries. Use `switch`, `if/else`, or pattern matching instead.
+5. **Comment hygiene**: Remove comments that describe obvious code. Comments explain "why", not "what".
+6. **Self-documenting names**: If a name needs a comment, rename it.
+
+> **Post-hoc refinement**: After implementation, `code-simplifier` handles balance judgments and language-specific polish. Write simple code first.
 
 ### Reviewing Code
 
@@ -725,6 +730,10 @@ mcp__cloudmcp-manager__memory-add_observations
 - Cyclomatic complexity 10 or less
 - Methods under 60 lines
 - No nested code
+- No nested ternary operators. Use `switch`, `if/else`, or pattern matching.
+- Prefer `function` keyword over arrow functions (JS/TS top-level declarations)
+- Explicit return type annotations on exported functions (JS/TS)
+- React: Explicit `Props` type for every component
 
 ## Qwiq-Specific Patterns
 
