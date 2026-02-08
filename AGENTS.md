@@ -172,6 +172,59 @@ pwsh .claude/skills/memory/scripts/Extract-SessionEpisode.ps1 -SessionLogPath ".
 pwsh scripts/Validate-SessionJson.ps1 -SessionPath ".agents/sessions/[log].json"
 ```
 
+### PR Review Workflow with Skills
+
+When gemini-code-assist[bot], Copilot, or other bots leave security/style/documentation comments:
+
+**Workflow:**
+
+1. **Detect comment type** - Look for CWE patterns, linting error codes, or documentation keywords
+2. **Route to appropriate skill** - Use security-scan, style-enforcement, or doc-coverage
+3. **Let skill verify the issue** with its scanner
+4. **Apply skill's recommended fixes** (not pre-training patterns)
+5. **Re-run skill to verify** fix worked (exit code 0)
+6. **Reply to bot comment** with evidence from skill output
+
+#### Example: CWE-22 Path Traversal Comments
+
+```bash
+# Instead of manually adding path validation:
+
+# 1. Run security-scan to confirm the issue
+python3 .claude/skills/security-scan/scripts/scan_vulnerabilities.py file.py
+
+# 2. Read the output to understand the specific pattern detected
+# 3. Apply the recommended fix from the scanner
+# 4. Re-run to verify
+python3 .claude/skills/security-scan/scripts/scan_vulnerabilities.py file.py
+# Exit code 0 = fixed
+
+# 5. Reply to bot comment with evidence
+"Fixed CWE-22 via path validation. security-scan exit code 0 confirms."
+```
+
+#### Example: Style/Linting Feedback
+
+```bash
+# 1. Run style-enforcement on changed files
+python3 .claude/skills/style-enforcement/scripts/check_style.py --git-staged
+
+# 2. Apply fixes based on violations reported
+# 3. Re-run to verify
+python3 .claude/skills/style-enforcement/scripts/check_style.py --git-staged
+# Exit code 0 = compliant
+
+# 4. Reply with evidence
+"Style violations fixed. style-enforcement exit code 0."
+```
+
+**Why Skills Over Manual Fixes:**
+
+- Skills encode validated patterns (security-scan knows CWE-22 patterns better than pre-training)
+- Verification is built-in (exit codes confirm fixes worked)
+- Bot comments are machine-parseable (CWE-22, E501, etc.)
+- Prevents iterative fix cycles (one skill run catches all issues)
+
 ### Development Tools
 
 ```bash

@@ -88,6 +88,7 @@ The agent MUST read context documents before starting work. This is a **blocking
 3. The agent MUST read memories from `memory-index` that match the task keywords before modifying code or files
 4. The agent SHOULD read `.agents/planning/enhancement-PROJECT-PLAN.md` if working on enhancement project
 5. The agent MAY read additional context files based on task requirements
+6. **PR Review Comments**: If responding to PR comments, the agent MUST classify by type (CWE/style/docs) and route to appropriate skill BEFORE manual fixes
 
 **Memory Loading Protocol:**
 

@@ -8,6 +8,18 @@
 
 **NEVER use raw commands when a Claude skill exists for that functionality.**
 
+## PR Review Comment Routing (session 1187, 2026-02-08)
+
+**Specific failure mode**: PR review comments with CWE-* bypassed security-scan skill
+
+**User correction**: "just use the security-scan skill to fix these"
+- Context: 12 bot comments about CWE-22 path traversal
+- What happened: Manual path validation instead of running security-scan
+- Why it matters: Skills encode validated patterns; manual fixes led to linting iterations
+
+**Checkpoint addition**: Before responding to security bot comments, ask:
+"Is this a CWE-* pattern? → Route to security-scan skill"
+
 Specifically:
 
 ### GitHub Operations

@@ -4,6 +4,24 @@
 
 Memory for tracking reviewer signal quality statistics, triage heuristics, and learned patterns across PR comment response sessions.
 
+## PR Review Comment Routing Patterns (HIGH confidence, session 1187, 2026-02-08)
+
+**Trigger**: PR review comments with CWE-* identifiers from security bots
+
+**Pattern**:
+1. Bot comments (gemini-code-assist[bot], etc.) with CWE-* are machine-parseable
+2. Route to security-scan skill, NOT manual implementation
+3. Workflow: scan → fix → re-scan (exit 0) → reply with evidence
+
+**User correction**: "just use the security-scan skill to fix these"
+- Context: Bypassed security-scan for manual path validation in 8 Python scripts
+- Result: Multiple rounds of linting fixes (E501, E741, mypy)
+- Should have: Run security-scan on flagged files, apply fixes, verify
+
+**Pre-workflow checkpoint**:
+- Pull latest changes before responding to PR comments
+- User directive: "you'll want to pull for the latest changes before you get too far"
+
 ## Per-Reviewer Performance (Cumulative)
 
 Aggregated from 152 PRs over last 28 days (rolling window).
