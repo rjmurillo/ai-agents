@@ -169,8 +169,9 @@ def scan_csharp_file(file_path: Path, config: Config) -> tuple[int, int, list[Do
     lang_config = config.languages.get("csharp", {})
 
     # Pattern for public members
+    # Attributes are matched with atomic grouping to prevent backtracking
     public_pattern = re.compile(
-        r"^\s*(?:(?:\[.*?\]\s*)*)"  # Attributes
+        r"^\s*(?:\[[^\]]*\]\s*)*"  # Attributes (no nested quantifiers)
         r"public\s+"
         r"(?:(?:static|virtual|override|abstract|async|sealed|readonly)\s+)*"
         r"(?:class|struct|interface|enum|record|"
