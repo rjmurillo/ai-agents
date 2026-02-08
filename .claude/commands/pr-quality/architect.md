@@ -28,11 +28,13 @@ Apply the criteria from: @.github/prompts/pr-quality-gate-architect.md
 
 ### Changed Files
 
-!`_BASE="${ARGUMENTS:-main}"; git diff "$_BASE" --name-only`
+<!-- NOTE: !` backtick commands run at PREPROCESSING time in an isolated shell.
+     $ARGUMENTS is NOT available here (only in prompt text substitution). See #1088. -->
+!`git diff main --name-only`
 
 ### Full Diff
 
-!`_BASE="${ARGUMENTS:-main}"; git diff "$_BASE"`
+!`git diff main`
 
 ## Output Format
 
