@@ -30,6 +30,9 @@ class InvocationRecord:
     domains: list[str]
     invoked: bool
     reason: str
+    confidence: int = 100
+    domain_count: int = 1
+    user_requested: bool = False
 
 
 @dataclass
@@ -78,6 +81,9 @@ class Metrics:
                     "session": r.session_id,
                     "complexity": r.complexity,
                     "domains": r.domains,
+                    "domain_count": r.domain_count,
+                    "confidence": r.confidence,
+                    "user_requested": r.user_requested,
                     "invoked": r.invoked,
                     "reason": r.reason,
                 }
@@ -117,19 +123,32 @@ def extract_context_retrieval_data(session_path: Path) -> InvocationRecord | Non
     domains: list[str] = []
     invoked = False
     reason = "no classification data found"
+    confidence = 100
+    domain_count = 1
+    user_requested = False
 
     # Check if orchestrator classification is recorded
     classification = session.get("classification", {})
     if classification:
         complexity = classification.get("complexity", "unknown")
         domains = classification.get("secondary_domains", [])
+        domain_count = classification.get("domain_count", len(domains) or 1)
+        confidence = classification.get(
+            "classification_confidence", 100
+        )
+        user_requested = classification.get(
+            "user_requested_context", False
+        )
         cr_status = classification.get("context_retrieval", "")
         invoked = cr_status.upper() == "INVOKED"
         reason = classification.get("context_retrieval_reason", "")
 
     # Fallback: search text fields for context-retrieval mentions
     if complexity == "unknown" and "context-retrieval" in all_text.lower():
-        invoked = "invoked" in all_text.lower() and "context-retrieval" in all_text.lower()
+        invoked = (
+            "invoked" in all_text.lower()
+            and "context-retrieval" in all_text.lower()
+        )
         reason = "inferred from session text"
 
     # Only return if we found orchestration evidence
@@ -140,6 +159,9 @@ def extract_context_retrieval_data(session_path: Path) -> InvocationRecord | Non
             domains=domains,
             invoked=invoked,
             reason=reason,
+            confidence=confidence,
+            domain_count=domain_count,
+            user_requested=user_requested,
         )
 
     return None
@@ -221,10 +243,18 @@ def main() -> int:
             print("--- Recent Invocations ---")
             for record in metrics.invocations[:10]:
                 status = "INVOKED" if record.invoked else "SKIPPED"
+                flags = []
+                if record.user_requested:
+                    flags.append("user-request")
+                if record.confidence < 60:
+                    flags.append(f"conf={record.confidence}%")
+                if record.domain_count >= 3:
+                    flags.append(f"domains={record.domain_count}")
+                extra = f" [{', '.join(flags)}]" if flags else ""
                 print(
                     f"  {record.session_id}: {status}"
                     f" (complexity={record.complexity},"
-                    f" reason={record.reason})"
+                    f" reason={record.reason}){extra}"
                 )
 
     return 0

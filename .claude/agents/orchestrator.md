@@ -422,21 +422,43 @@ Multi-Domain: [Yes if N >= 3, No otherwise]
 
 After determining complexity, evaluate whether to invoke the `context-retrieval` agent before selecting the agent sequence. This enforces memory-first architecture by gathering cross-session context proactively.
 
-**Decision Logic (Phase 1)**:
+**Decision Logic** (evaluated top-to-bottom, first match wins):
 
 ```text
+# Gate: token budget check (all phases)
 IF token_budget_percent < 20%:
     SKIP (preserve tokens for implementation)
 
+# Phase 3: User-explicit requests
+IF user_explicitly_requests_context_retrieval:
+    INVOKE context-retrieval (user override, always honored)
+
+# Phase 1: Complex tasks and Security domain
 IF complexity = "Complex":
     INVOKE context-retrieval (cross-cutting tasks always benefit)
 
 IF "Security" in secondary_domains:
     INVOKE context-retrieval (past security decisions are critical)
 
+# Phase 2: Low confidence or multi-domain tasks
+IF classification_confidence < 60%:
+    INVOKE context-retrieval (low confidence benefits from prior context)
+
+IF domain_count >= 3:
+    INVOKE context-retrieval (multi-domain tasks need cross-cutting context)
+
+# Default
 ELSE:
-    SKIP (defer to Phase 2 expansion)
+    SKIP (Simple/Standard single-domain tasks with high confidence)
 ```
+
+**Phase summary**:
+
+| Phase | Trigger | Rationale |
+|-------|---------|-----------|
+| 1 | Complex OR Security domain | High-impact tasks always benefit |
+| 2 | confidence < 60% OR domains >= 3 | Uncertain or cross-cutting tasks need prior context |
+| 3 | User explicit request | User override, always honored |
 
 **When invoked**, prepend `context-retrieval` to the agent sequence:
 
@@ -457,7 +479,7 @@ Task(subagent_type="context-retrieval", prompt="Gather context for: [task summar
 
 ```text
 Context Retrieval: [INVOKED/SKIPPED]
-Reason: [complexity=Complex | Security domain | token budget <20% | Simple/Standard without Security]
+Reason: [user request | complexity=Complex | Security domain | confidence<60% | domains>=3 | token budget <20% | no trigger matched]
 ```
 
 #### Step 4: Select Agent Sequence
@@ -478,6 +500,7 @@ Use classification + domains to select the appropriate sequence from **Agent Seq
 - **Domain Count**: [N]
 - **Complexity**: [Simple/Standard/Complex]
 - **Risk Level**: [Low/Medium/High/Critical]
+- **Classification Confidence**: [0-100%]
 - **Context Retrieval**: [INVOKED/SKIPPED]
 - **Context Retrieval Reason**: [Why]
 
