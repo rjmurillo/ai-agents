@@ -24,12 +24,15 @@ Comprehensive index of engineering knowledge across 5 experience tiers.
 - [boy-scout-rule](boy-scout-rule.md): Leave code better than you found it
 
 **Principles**:
+- `code-qualities`: Cohesion, coupling, encapsulation, testability, non-redundancy
 - `solid-principles`: Single responsibility, open-closed, Liskov, interface segregation, dependency inversion
 - `dry-principle`: Don't repeat yourself
 - `kiss-principle`: Keep it simple
 - `separation-of-concerns`: Decompose into non-overlapping parts
 - `tell-dont-ask`: Bundle data with behavior
-- `programming-by-intention`: Express intent over implementation
+- `programming-by-intention`: Express intent over implementation (sergeant methods directing privates)
+- `owasp-top-10`: Web vulnerabilities
+- `principle-of-least-privilege`: Minimal permissions needed
 
 **Practices**:
 - `tdd-red-green-refactor`: Test-driven development cycle
@@ -48,33 +51,36 @@ Comprehensive index of engineering knowledge across 5 experience tiers.
 - [poka-yoke](poka-yoke.md): Design to prevent errors
 
 **Patterns**:
+- `common-design-patterns`: Strategy, Factory, Bridge, Facade, Adapter
 - `strategy-pattern`: Vary behavior at runtime
 - `decorator-pattern`: Add behavior dynamically
 - `null-object-pattern`: Avoid null checks
 - `specification-pattern`: Encapsulate business rules
+- `pattern-oriented-design`: Finding patterns in problems before coding
 
-**Security**:
-- `owasp-top-10`: Web vulnerabilities
-- `principle-of-least-privilege`: Minimal permissions needed
+**Mental Models**:
+- `welcome-to-the-room`: Understand why before sharing understanding
 
 ### Tier 3: Senior (10-15 Years)
 
 **Trade-Off Thinking**:
-- `coupling-vs-duplication`: When to copy vs share
+- `coupling-vs-duplication`: When to copy vs share (Rule of Three, wrong abstraction, independent evolution)
 - `speed-vs-safety`: Fast vs validated
 - `complexity-vs-flexibility`: General vs specific
 
 **Design Practices**:
+- `cva-commonality-variability-analysis`: Discover natural abstractions by finding commonalities first
 - `design-for-replaceability`: Favor replaceability over reuse
 - [design-by-contract](design-by-contract.md): Preconditions, postconditions, invariants
 - `policy-vs-mechanism`: Separate rules from execution
 - `fallacies-of-distributed-computing`: Network assumptions that fail
+- `wisdom-from-gof`: Design to interfaces, favor composition over inheritance, encapsulate what varies
 
 **Evolution Patterns**:
 - [feature-toggles](feature-toggles.md): Decouple deployment from release
 - `branch-by-abstraction`: Large refactorings safely
 - [strangler-fig-pattern](strangler-fig-pattern.md): Incremental legacy migration
-- `expand-contract-migration`: Schema changes without downtime
+- `expand-contract-migration`: Schema changes without downtime (expand functionality, run both, contract old)
 
 **Thinking Models**:
 - [wardley-mapping](wardley-mapping.md): Capability evolution and strategy
@@ -108,6 +114,8 @@ Comprehensive index of engineering knowledge across 5 experience tiers.
 - `sociotechnical-design`: Align org and architecture (Team Topologies)
 - `fitness-functions`: Automated architectural intent verification
 - [products-over-projects](products-over-projects.md): Durable teams over temporary funding
+- `design-principles-overview`: Philosophy of accommodating change
+- `services-capabilities`: Operational maturity model
 
 **Risk & Resilience**:
 - `slos-error-budgets`: Balance reliability and velocity
@@ -136,6 +144,7 @@ Comprehensive index of engineering knowledge across 5 experience tiers.
 - `systemic-risk-portfolios`: Classify dependencies and failure risk
 - `compliance-as-code`: Policy enforcement via automation
 - `data-lineage-sovereignty`: Track data across jurisdictions
+- `principle-based-governance`: Guide via values, not rules
 
 **Migration**:
 - [strangler-fig-pattern](strangler-fig-pattern.md): [Strategic application]
@@ -202,6 +211,50 @@ Comprehensive index of engineering knowledge across 5 experience tiers.
 - Tier 1: [conways-law](conways-law.md)
 - Tier 4: `sociotechnical-design`, [platform-engineering](platform-engineering.md)
 - Tier 5: `sociotechnical-coherence`, `run-vs-change-business`, `knowledge-continuity`
+
+### Design Principles & Patterns
+- Tier 1: `code-qualities`, `solid-principles`, `dry-principle`, `kiss-principle`, `programming-by-intention`, `tell-dont-ask`
+- Tier 2: `common-design-patterns`, `pattern-oriented-design`, `specification-pattern`
+- Tier 3: `cva-commonality-variability-analysis`, `wisdom-from-gof`, [design-by-contract](design-by-contract.md)
+- Tier 4: `design-principles-overview`, `services-capabilities`, `fitness-functions`
+
+### Modernization & .NET
+- Tier 2: `supported-tfms`, `sdk-style-projects`, `global-json`
+- Tier 3: `central-package-management`, `dotnet-container-publish`, `ev2-managed-sdp`
+- Tier 4: `modernization`, `silicon-agnosticism`, `arm-performance-tuning`, `cobalt-100`
+
+## .NET Modernization Pipeline
+
+For organizations modernizing .NET workloads, the following pipeline applies:
+
+```text
+Modernize → Silicon Agnostic → ARM Deploy → COGS Savings
+```
+
+**Phase 1: Modernization** (Tier 4)
+- Upgrade to modern .NET (8+)
+- Migrate to Kubernetes/container orchestration
+- Implement OpenTelemetry observability
+- Enable workload identity
+
+**Phase 2: Silicon Agnosticism** (Tier 4)
+- Multi-architecture container builds (AMD64, ARM64)
+- Platform-independent dependencies
+- Architecture-agnostic code patterns
+
+**Phase 3: ARM Performance Tuning** (Tier 4)
+- Thread pool optimization (`DOTNET_ThreadPool_UnfairSemaphoreSpinLimit=0`)
+- Garbage collection tuning (Server GC, region-based GC)
+- NUMA configuration testing
+- Load testing and profiling
+
+**Foundation Practices** (Tier 2-3)
+- `supported-tfms`: Target framework selection (.NET 8, .NET 9)
+- `sdk-style-projects`: Modern MSBuild project format
+- `global-json`: SDK version pinning for reproducible builds
+- `central-package-management`: Centralized NuGet version management
+- `dotnet-container-publish`: Native .NET containerization support
+- `ev2-managed-sdp`: Safe deployment practices
 
 ## Query Examples
 
