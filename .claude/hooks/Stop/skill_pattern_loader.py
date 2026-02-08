@@ -48,6 +48,16 @@ _TRIGGER_CELL_RE = re.compile(r"\|\s*`([^`]+)`\s*\|")
 _FRONTMATTER_NAME_RE = re.compile(r"^name:\s*(.+)$", re.MULTILINE)
 
 
+def _glob_contained_skills(root: Path, filename: str) -> list[Path]:
+    """Glob for skill files within root, rejecting symlinks that escape."""
+    resolved_root = str(root.resolve()) + os.sep
+    results = []
+    for skill_md in sorted(root.glob(f"*/{filename}")):
+        if str(skill_md.resolve()).startswith(resolved_root):
+            results.append(skill_md)
+    return results
+
+
 def scan_skill_directories(project_dir: Path) -> list[Path]:
     """Scan skill sources in priority order and return deduplicated SKILL.md paths.
 
@@ -73,20 +83,13 @@ def scan_skill_directories(project_dir: Path) -> list[Path]:
     for root in search_roots:
         if not root.is_dir():
             continue
-
         # Case-insensitive: try SKILL.md then skill.md
-        resolved_root = root.resolve()
         for filename in ("SKILL.md", "skill.md"):
-            for skill_md in sorted(root.glob(f"*/{filename}")):
-                # Resolve symlinks and verify path stays within root
-                resolved = skill_md.resolve()
-                if not str(resolved).startswith(str(resolved_root)):
-                    continue
+            for skill_md in _glob_contained_skills(root, filename):
                 skill_name = skill_md.parent.name.lower()
-                if skill_name in seen_names:
-                    continue
-                seen_names.add(skill_name)
-                result.append(skill_md)
+                if skill_name not in seen_names:
+                    seen_names.add(skill_name)
+                    result.append(skill_md)
 
     return result
 
@@ -173,6 +176,18 @@ def parse_skill_triggers(skill_md_path: Path) -> dict:
     return {"name": name, "triggers": triggers, "slash_commands": slash_commands}
 
 
+def _deduplicate_patterns(patterns: list[str]) -> list[str]:
+    """Remove duplicate patterns (case-insensitive) while preserving order."""
+    seen: set[str] = set()
+    unique: list[str] = []
+    for p in patterns:
+        lower = p.lower()
+        if lower not in seen:
+            seen.add(lower)
+            unique.append(p)
+    return unique
+
+
 def build_detection_maps(
     skills: list[dict],
 ) -> tuple[dict[str, list[str]], dict[str, str]]:
@@ -193,31 +208,17 @@ def build_detection_maps(
     for skill in skills:
         name = skill["name"]
         patterns = list(skill["triggers"])
-
-        # Add skill name and path as patterns
         patterns.append(name)
         patterns.append(f".claude/skills/{name}")
-
-        # Deduplicate while preserving order
-        seen: set[str] = set()
-        unique_patterns: list[str] = []
-        for p in patterns:
-            lower = p.lower()
-            if lower not in seen:
-                seen.add(lower)
-                unique_patterns.append(p)
-
-        skill_patterns[name] = unique_patterns
+        skill_patterns[name] = _deduplicate_patterns(patterns)
 
         # Map slash commands to skill names
         for cmd in skill["slash_commands"]:
-            # Strip leading / to get command name
             cmd_name = cmd.lstrip("/")
             if cmd_name:
                 command_to_skill[cmd_name] = name
 
-        # Auto-add identity mapping: skill name -> skill name
-        # This handles /reflect -> reflect, /analyze -> analyze, etc.
+        # Auto-add identity mapping (e.g., /reflect -> reflect)
         if name not in command_to_skill:
             command_to_skill[name] = name
 
@@ -278,6 +279,19 @@ def _check_cache_freshness(
     return True
 
 
+def _atomic_json_write(path: Path, data: dict) -> None:
+    """Write JSON data atomically via temp file + rename."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_path = tempfile.mkstemp(dir=str(path.parent), suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
+        os.replace(tmp_path, str(path))
+    except Exception:
+        with _suppress_os_error():
+            os.unlink(tmp_path)
+
+
 def _write_cache(
     cache_path: Path,
     skill_files: list[Path],
@@ -300,19 +314,7 @@ def _write_cache(
     }
 
     try:
-        cache_path.parent.mkdir(parents=True, exist_ok=True)
-        # Atomic write: temp file then rename to prevent partial reads
-        fd, tmp_path = tempfile.mkstemp(
-            dir=str(cache_path.parent), suffix=".tmp"
-        )
-        try:
-            with os.fdopen(fd, "w", encoding="utf-8") as f:
-                json.dump(cache_data, f, indent=2)
-            os.replace(tmp_path, str(cache_path))
-        except Exception:
-            # Clean up temp file on failure
-            with _suppress_os_error():
-                os.unlink(tmp_path)
+        _atomic_json_write(cache_path, cache_data)
     except OSError:
         pass
 

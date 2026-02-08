@@ -24,10 +24,13 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).parent.parent / ".claude" / "hooks" / "Stop"))
 
 from skill_pattern_loader import (
+    _atomic_json_write,
     _check_cache_freshness,
+    _deduplicate_patterns,
     _extract_frontmatter_name,
     _extract_trigger_phrases,
     _get_cache_path,
+    _glob_contained_skills,
     _read_cache,
     _update_section_state,
     _write_cache,
@@ -646,6 +649,54 @@ class TestAtomicCacheWrite(unittest.TestCase):
 
             tmp_files = list(Path(tmpdir).glob("*.tmp"))
             self.assertEqual(tmp_files, [])
+
+
+class TestGlobContainedSkills(unittest.TestCase):
+    """Test _glob_contained_skills helper."""
+
+    def test_finds_skill_files_in_root(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            _create_skill_md(root, "my-skill", GITHUB_SKILL_MD)
+            result = _glob_contained_skills(root, "SKILL.md")
+        self.assertEqual(len(result), 1)
+
+    def test_returns_empty_for_no_matches(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            result = _glob_contained_skills(Path(tmpdir), "SKILL.md")
+        self.assertEqual(result, [])
+
+
+class TestDeduplicatePatterns(unittest.TestCase):
+    """Test _deduplicate_patterns helper."""
+
+    def test_removes_case_insensitive_duplicates(self):
+        result = _deduplicate_patterns(["Create PR", "create pr", "close issue"])
+        self.assertEqual(result, ["Create PR", "close issue"])
+
+    def test_preserves_order(self):
+        result = _deduplicate_patterns(["b", "a", "c"])
+        self.assertEqual(result, ["b", "a", "c"])
+
+    def test_empty_list(self):
+        self.assertEqual(_deduplicate_patterns([]), [])
+
+
+class TestAtomicJsonWrite(unittest.TestCase):
+    """Test _atomic_json_write helper."""
+
+    def test_writes_valid_json(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "out.json"
+            _atomic_json_write(path, {"key": "value"})
+            data = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(data, {"key": "value"})
+
+    def test_creates_parent_dirs(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "sub" / "dir" / "out.json"
+            _atomic_json_write(path, {})
+            self.assertTrue(path.exists())
 
 
 if __name__ == "__main__":
