@@ -113,20 +113,20 @@ pwsh .claude/skills/github/scripts/issue/Get-IssueContext.ps1 -Issue <ISSUE_NUMB
 
 ### P0 Blockers (Start Here)
 
-**Added 2026-02-07**: 4 new P0 issues from triage analysis
+**Added 2026-02-07**: 4 new P0 issues from triage analysis (marked with NEW below)
 
-| Issue | Title | Traycer Summary |
-|-------|-------|-----------------|
-| [#997](https://github.com/rjmurillo/ai-agents/issues/997) | Citation Schema & Verification | `models.py` + `citations.py`. YAML frontmatter citations. Verify file:line exists. Exit: `python -m memory_enhancement verify <memory>` works. |
-| [#992](https://github.com/rjmurillo/ai-agents/issues/992) | Phase 1 Citation Schema & Verification | Continuation of #990 epic. Python CLI for citation validation. |
-| [#751](https://github.com/rjmurillo/ai-agents/issues/751) | Memory System Fragmentation | 4 interfaces → 1 unified. Decision Matrix Option A. Blocks [#734](https://github.com/rjmurillo/ai-agents/issues/734), [#747](https://github.com/rjmurillo/ai-agents/issues/747), [#731](https://github.com/rjmurillo/ai-agents/issues/731). |
-| [#934](https://github.com/rjmurillo/ai-agents/issues/934) | Pre-PR Validation Script | Quality gate. Prevents PR #908 recurrence. PowerShell script. |
-| [#935](https://github.com/rjmurillo/ai-agents/issues/935) | SESSION-PROTOCOL Validation Gates | Quality gate. Documentation enforcement. Markdown updates. |
-| [#936](https://github.com/rjmurillo/ai-agents/issues/936) | Commit Counter in Orchestrator | Quality gate. Real-time visibility. Prevents scope creep. Prompt update. |
+| Issue | Title | Traycer Summary | Status |
+|-------|-------|-----------------|--------|
+| [#997](https://github.com/rjmurillo/ai-agents/issues/997) | Citation Schema & Verification | `models.py` + `citations.py`. YAML frontmatter citations. Verify file:line exists. Exit: `python -m memory_enhancement verify <memory>` works. | Existing |
+| [#992](https://github.com/rjmurillo/ai-agents/issues/992) | Phase 1 Citation Schema & Verification | Continuation of #990 epic. Python CLI for citation validation. | **NEW** |
+| [#751](https://github.com/rjmurillo/ai-agents/issues/751) | Memory System Fragmentation | 4 interfaces → 1 unified. Decision Matrix Option A. Blocks [#734](https://github.com/rjmurillo/ai-agents/issues/734), [#747](https://github.com/rjmurillo/ai-agents/issues/747), [#731](https://github.com/rjmurillo/ai-agents/issues/731). | Existing |
+| [#934](https://github.com/rjmurillo/ai-agents/issues/934) | Pre-PR Validation Script | Quality gate. Prevents PR #908 recurrence. PowerShell script. | **NEW** |
+| [#935](https://github.com/rjmurillo/ai-agents/issues/935) | SESSION-PROTOCOL Validation Gates | Quality gate. Documentation enforcement. Markdown updates. | **NEW** |
+| [#936](https://github.com/rjmurillo/ai-agents/issues/936) | Commit Counter in Orchestrator | Quality gate. Real-time visibility. Prevents scope creep. Prompt update. | **NEW** |
 
 ### Epic Chain ([#990](https://github.com/rjmurillo/ai-agents/issues/990))
 
-**Added 2026-02-07**: Memory Enhancement continuation (#992→#993→#994) and Quality Gates (#934→#935→#936)
+**Added 2026-02-07**: Memory Enhancement continuation (#992->#993->#994, sequential dependency) and Quality Gates (#934, #935, #936, independent/parallel)
 
 ```mermaid
 flowchart LR

@@ -11,52 +11,60 @@
   "protocolCompliance": {
     "sessionStart": {
       "serenaInit": {
-        "completed": true,
+        "level": "MUST",
+        "complete": true,
         "evidence": "mcp__serena__initial_instructions called successfully"
       },
       "handoffRead": {
-        "completed": true,
+        "level": "MUST",
+        "complete": true,
         "evidence": "Read .agents/HANDOFF.md - read-only dashboard"
       },
       "sessionLogCreated": {
-        "completed": true,
+        "level": "MUST",
+        "complete": true,
         "evidence": "Created .agents/sessions/2026-02-07-session-1181.json"
       },
       "relevantMemoriesSearched": {
-        "completed": true,
-        "evidence": [
-          "usage-mandatory",
-          "roadmap-v0.3.0-top-10-items"
-        ]
+        "level": "MUST",
+        "complete": true,
+        "evidence": "usage-mandatory, roadmap-v0.3.0-top-10-items"
       },
       "gitStatusVerified": {
-        "completed": true,
+        "level": "MUST",
+        "complete": true,
         "evidence": "Branch: feat/v0.3.0-issue-triage verified"
       }
     },
     "sessionEnd": {
       "sessionLogCompleted": {
-        "completed": true,
+        "level": "MUST",
+        "complete": true,
         "evidence": "Updated with outcomes, decisions, artifacts, exitCode"
       },
       "memoriesUpdated": {
-        "completed": true,
+        "level": "MUST",
+        "complete": true,
         "evidence": "Created roadmap-v0.3.0-issue-triage-2026-02-07 memory"
       },
       "markdownLinted": {
-        "completed": true,
+        "level": "MUST",
+        "complete": true,
         "evidence": "Analysis document created compliant with linting rules"
       },
       "qaRouted": {
-        "completed": false,
+        "level": "SHOULD",
+        "complete": false,
         "evidence": "Not applicable - analysis artifact, no implementation"
       },
       "changesCommitted": {
-        "completed": true,
+        "level": "MUST",
+        "complete": true,
         "evidence": "Committed analysis and session log"
       },
       "sessionValidated": {
-        "completed": true,
+        "level": "MUST",
+        "complete": true,
         "evidence": "Schema validation passing"
       }
     }
@@ -133,5 +141,5 @@
     "Update roadmap memory with final scope",
     "Create implementation plan if additions approved"
   ],
-  "endingCommit": ""
+  "endingCommit": "74a3bd35"
 }

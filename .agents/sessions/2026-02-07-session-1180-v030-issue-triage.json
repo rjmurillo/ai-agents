@@ -42,7 +42,7 @@
       },
       "changesCommitted": {
         "level": "MUST",
-        "Evidence": "Will be completed after validation passes",
+        "Evidence": "Committed analysis, session log, and PLAN.md updates to feat/v0.3.0-issue-triage",
         "Complete": true
       },
       "retrospectiveInvoked": {
