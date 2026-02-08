@@ -75,8 +75,6 @@ function Get-EndingCommit {
 }
 
 function Test-HandoffModified {
-    $handoffPath = Join-Path $repoRoot '.agents' 'HANDOFF.md'
-
     # Check staged changes
     $staged = git diff --cached --name-only 2>&1
     if ($LASTEXITCODE -eq 0 -and $staged -match 'HANDOFF\.md') {
@@ -93,8 +91,6 @@ function Test-HandoffModified {
 }
 
 function Test-SerenaMemoryUpdated {
-    $memoryDir = Join-Path $repoRoot '.serena' 'memories'
-
     # Check for staged or unstaged changes in memory directory
     $staged = git diff --cached --name-only 2>&1
     $unstaged = git diff --name-only 2>&1
@@ -125,11 +121,11 @@ function Invoke-MarkdownLint {
 
     return @{
         Success = $success
-        Output  = if ($success) { "$($changedMd.Count) files linted" } else { ($lintResult | Out-String).Trim() }
+        Output = if ($success) { "$($changedMd.Count) files linted" } else { ($lintResult | Out-String).Trim() }
     }
 }
 
-function Test-UncommittedChanges {
+function Test-UncommittedChange {
     $status = git status --porcelain 2>&1
     if ($LASTEXITCODE -ne 0) {
         Write-Warning "Failed to check git status: $status"
@@ -230,7 +226,7 @@ if ($sessionEnd.ContainsKey('markdownLintRun')) {
 }
 
 # 5. changesCommitted
-$hasUncommitted = Test-UncommittedChanges
+$hasUncommitted = Test-UncommittedChange
 if ($sessionEnd.ContainsKey('changesCommitted')) {
     $check = $sessionEnd.changesCommitted
     if (-not $hasUncommitted) {
@@ -271,9 +267,9 @@ if ($sessionEnd.ContainsKey('checklistComplete')) {
 Write-Host ''
 Write-Host '--- Changes ---' -ForegroundColor Cyan
 foreach ($change in $changes) {
-    $color = if ($change -like '*TODO*') { 'Yellow' }
-             elseif ($change -like '*WARN*') { 'Red' }
-             else { 'Green' }
+    $color = if ($change -like '*TODO*') { 'Yellow' } `
+        elseif ($change -like '*WARN*') { 'Red' } `
+        else { 'Green' }
     Write-Host "  $change" -ForegroundColor $color
 }
 
