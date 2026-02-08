@@ -32,9 +32,9 @@ Claude Code CLI agent definitions (18 agents):
 
 - analyst.md, architect.md, critic.md, devops.md, explainer.md
 - high-level-advisor.md, implementer.md, independent-thinker.md
-- memory.md, orchestrator.md, planner.md, pr-comment-responder.md
+- memory.md, orchestrator.md, milestone-planner.md, pr-comment-responder.md
 - qa.md, retrospective.md, roadmap.md, security.md, skillbook.md
-- task-generator.md
+- task-decomposer.md
 
 ### src/copilot-cli/
 

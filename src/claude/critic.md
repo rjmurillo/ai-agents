@@ -248,7 +248,7 @@ After pre-PR readiness validation:
 Return verdict to orchestrator:
 
 - **APPROVED**: Orchestrator proceeds to implementation
-- **CONDITIONAL/REJECTED**: Orchestrator routes back to planner for validation task additions
+- **CONDITIONAL/REJECTED**: Orchestrator routes back to milestone-planner for validation task additions
 
 ## Disagreement Detection & Escalation
 
@@ -434,7 +434,7 @@ content: "# Critique: [Topic]\n\n**Statement**: ...\n\n**Evidence**: ...\n\n## D
 
 | Target | When | Purpose |
 |--------|------|---------|
-| **planner** | Plan needs revision | Revise plan |
+| **milestone-planner** | Plan needs revision | Revise plan |
 | **analyst** | Research required | Request analysis |
 | **implementer** | Plan approved | Ready for execution |
 | **architect** | Architecture concerns | Technical decision |
@@ -456,7 +456,7 @@ Before handing off, validate ALL items in the applicable checklist:
 - [ ] Implementation-ready context included in handoff message
 ```
 
-### Revision Handoff (to planner)
+### Revision Handoff (to milestone-planner)
 
 ```markdown
 - [ ] Critique document saved to `.agents/critique/`
@@ -494,7 +494,7 @@ When critique is complete:
 2. Store review summary in memory
 3. Return critique with clear verdict and recommended next agent:
     - **APPROVED**: "Plan approved. Recommend orchestrator routes to implementer for execution."
-    - **NEEDS REVISION**: "Plan needs revision. Recommend orchestrator routes to planner with these issues: [list]"
+    - **NEEDS REVISION**: "Plan needs revision. Recommend orchestrator routes to milestone-planner with these issues: [list]"
     - **REJECTED**: "Plan rejected. Recommend orchestrator routes to analyst for research on: [questions]"
 
 **Orchestrator will handle all delegation decisions based on your recommendations.**

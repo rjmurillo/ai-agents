@@ -234,7 +234,7 @@ Problems can move between domains:
 | Skill | Integration Point |
 |-------|-------------------|
 | decision-critic | After classifying as Complicated, use decision-critic to validate analysis |
-| planner | After classifying as Complex, use planner to design experiments |
+| milestone-planner | After classifying as Complex, use milestone-planner to design experiments |
 | architect | Complicated architectural decisions benefit from ADR process |
 | analyst | Confusion domain benefits from analyst investigation |
 

@@ -64,7 +64,7 @@ GitHub Issue #42: "Add caching" (no further details)
 │  Orchestrator routes sequentially:      │
 │    → roadmap → returns                  │
 │    → explainer → returns                │
-│    → task-generator → returns           │
+│    → task-decomposer → returns           │
 │  Output: Epic, PRD, Work Breakdown      │
 │  Location: .agents/roadmap/             │
 │            .agents/planning/            │
@@ -149,7 +149,7 @@ GitHub Issue #42: "Add caching" (no further details)
 |-------|--------|----------|
 | roadmap | Epic with vision and outcomes | `.agents/roadmap/epic-[topic].md` |
 | explainer | Full PRD with specifications | `.agents/planning/prd-[topic].md` |
-| task-generator | Work breakdown structure | `.agents/planning/tasks-[topic].md` |
+| task-decomposer | Work breakdown structure | `.agents/planning/tasks-[topic].md` |
 
 **Epic Contents**:
 
@@ -204,7 +204,7 @@ Full sequence for reference:
 
 ```text
 analyst -> high-level-advisor -> independent-thinker -> critic ->
-roadmap -> explainer -> task-generator -> architect -> devops -> security -> qa
+roadmap -> explainer -> task-decomposer -> architect -> devops -> security -> qa
 ```
 
 Note: In Phase 4, architect/devops/security/qa can run in parallel for efficiency.

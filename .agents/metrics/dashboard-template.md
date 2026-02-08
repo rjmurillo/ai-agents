@@ -33,7 +33,7 @@
 | qa | [N] | [X]% | [up/down/stable] |
 | devops | [N] | [X]% | [up/down/stable] |
 | critic | [N] | [X]% | [up/down/stable] |
-| planner | [N] | [X]% | [up/down/stable] |
+| milestone-planner | [N] | [X]% | [up/down/stable] |
 | Other | [N] | [X]% | [up/down/stable] |
 | **Total** | **[N]** | **100%** | - |
 

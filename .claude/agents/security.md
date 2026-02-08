@@ -182,7 +182,7 @@ Identify security vulnerabilities, recommend mitigations, and ensure secure deve
 
 ### Capability 6: Impact Analysis (Planning Phase)
 
-When planner requests security impact analysis (during planning phase):
+When milestone-planner requests security impact analysis (during planning phase):
 
 #### Analyze Security Impact
 

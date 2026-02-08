@@ -136,13 +136,29 @@ agent-implementer:
           - "src/vs-code-agents/implementer.agent.md"
           - "templates/agents/implementer.shared.md"
 
-agent-planner:
+agent-milestone-planner:
   - changed-files:
       - any-glob-to-any-file:
-          - "src/claude/planner.md"
-          - "src/copilot-cli/planner.agent.md"
-          - "src/vs-code-agents/planner.agent.md"
-          - "templates/agents/planner.shared.md"
+          - "src/claude/milestone-planner.md"
+          - "src/copilot-cli/milestone-planner.agent.md"
+          - "src/vs-code-agents/milestone-planner.agent.md"
+          - "templates/agents/milestone-planner.shared.md"
+
+agent-task-decomposer:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "src/claude/task-decomposer.md"
+          - "src/copilot-cli/task-decomposer.agent.md"
+          - "src/vs-code-agents/task-decomposer.agent.md"
+          - "templates/agents/task-decomposer.shared.md"
+
+agent-backlog-generator:
+  - changed-files:
+      - any-glob-to-any-file:
+          - ".claude/agents/backlog-generator.md"
+          - "src/copilot-cli/backlog-generator.agent.md"
+          - "src/vs-code-agents/backlog-generator.agent.md"
+          - "templates/agents/backlog-generator.shared.md"
 
 agent-critic:
   - changed-files:

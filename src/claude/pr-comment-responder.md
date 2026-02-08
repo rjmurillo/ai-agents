@@ -119,8 +119,8 @@ This agent delegates to orchestrator, which uses these canonical workflow paths:
 | Path | Agents | Triage Signal |
 |------|--------|---------------|
 | **Quick Fix** | `implementer → qa` | Can explain fix in one sentence |
-| **Standard** | `analyst → planner → implementer → qa` | Need to investigate first |
-| **Strategic** | `independent-thinker → high-level-advisor → task-generator` | Question is *whether*, not *how* |
+| **Standard** | `analyst → milestone-planner → implementer → qa` | Need to investigate first |
+| **Strategic** | `independent-thinker → high-level-advisor → task-decomposer` | Question is *whether*, not *how* |
 
 See `orchestrator.md` for full routing logic. This agent passes context to orchestrator; orchestrator determines the path.
 

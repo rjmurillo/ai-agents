@@ -307,7 +307,7 @@ After completing a pre-mortem:
 | Skill | Relationship |
 |-------|--------------|
 | decision-critic | Post-decision validation (pre-mortem is pre-decision) |
-| planner | Use pre-mortem output to inform planning |
+| milestone-planner | Use pre-mortem output to inform planning |
 | architect | Technical risks feed into ADR considerations |
 
 ## References

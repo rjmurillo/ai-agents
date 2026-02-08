@@ -530,7 +530,7 @@ copilot --no-auto-update --version
 copilot --no-auto-update --log-level all --agent analyst --prompt "Reply with only the word OK"
 
 # Test all shared agents
-for agent in analyst architect critic devops explainer high-level-advisor implementer independent-thinker memory orchestrator planner pr-comment-responder qa retrospective roadmap security skillbook task-generator; do
+for agent in analyst architect backlog-generator critic devops explainer high-level-advisor implementer independent-thinker memory milestone-planner orchestrator pr-comment-responder qa retrospective roadmap security skillbook task-decomposer; do
   copilot --no-auto-update --log-level all --agent "$agent" --prompt "Reply OK" 2>&1 | grep -i warning && echo "FAIL: $agent" || echo "PASS: $agent"
 done
 ```

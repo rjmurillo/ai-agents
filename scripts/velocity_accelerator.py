@@ -162,7 +162,7 @@ def extract_todos_from_diff(diff: str, pr_number: int) -> list[Opportunity]:
                     ),
                     source_event=EventType.PR_MERGED,
                     source_ref=f"PR #{pr_number}",
-                    suggested_agent="task-generator",
+                    suggested_agent="task-decomposer",
                     priority="medium",
                     metadata={"file": current_file, "tag": tag, "pr_number": str(pr_number)},
                 )

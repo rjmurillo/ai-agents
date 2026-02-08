@@ -34,7 +34,7 @@
 ## Next Steps
 
 1. Route to **critic** for validation
-2. Route to **task-generator** for atomic breakdown
+2. Route to **task-decomposer** for atomic breakdown
 3. Implement per roadmap sequencing (after Pre-PR Security Gate)
 
 ## Related Documents
