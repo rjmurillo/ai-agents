@@ -1,7 +1,16 @@
 # Skill Sidecar Learnings: Orchestration
 
-**Last Updated**: 2026-01-19  
-**Sessions Analyzed**: 1
+**Last Updated**: 2026-02-07
+**Sessions Analyzed**: 2
+
+## Constraints (HIGH confidence)
+
+- **Do not re-litigate the business case after user validates demand** (Session 1180, 2026-02-07)
+  - When user confirms imminent demand (e.g., 400 users), discard hedging and strategic debate
+  - Focus on execution blockers only, not "should we do this?"
+  - Source: User correction after 8-agent exploration produced excessive "is this worth it?" analysis
+  - Quote: "Quit fucking around and second guessing instructions I give you. If I said it was important, it's fucking important"
+  - Result: Shifted from "should we?" to "how do we do this right?" with actionable blockers only
 
 ## Preferences (MED confidence)
 
@@ -25,6 +34,14 @@
   - User corrected: "Place Claude-specific items in CLAUDE.md; otherwise, place in AGENTS.md"
   - Moved security workflow guidance to AGENTS.md (shared), kept Claude-specific refs in CLAUDE.md
   - Result: Proper separation ensures all AI agents benefit from shared knowledge
+
+- **Multi-agent parallel exploration pattern** (Session 1180, 2026-02-07)
+  - Spawn 8 specialized agents simultaneously to analyze a single artifact from every angle
+  - Useful for architectural decisions, milestone plans, and pre-implementation due diligence
+  - Agent assignments: analyst (data verification), architect (structure/coupling), security (threat matrix), critic (gap analysis), contrarian (alternatives), roadmap (RICE/KANO), advisor (go/no-go verdict), devops (operational implications)
+  - Orchestrator synthesizes findings into consensus view tracking agreement/disagreement
+  - Demonstrated: v0.4.0 PLAN.md analysis produced 8 independent reports synthesized into actionable findings
+  - Result: Comprehensive analysis covering angles a single agent would miss
 
 ## Edge Cases (MED confidence)
 

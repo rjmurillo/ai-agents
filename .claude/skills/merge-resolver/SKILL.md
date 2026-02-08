@@ -20,13 +20,12 @@ Resolve merge conflicts by analyzing git history and commit intent.
 
 ## Triggers
 
-Use this skill when you encounter:
-
-- `resolve merge conflicts for PR #123`
-- `PR has conflicts with main`
-- `can't merge - conflicts detected`
-- `fix the merge conflicts in this branch`
-- `help me resolve conflicts for this pull request`
+| Trigger Phrase | Operation |
+|----------------|-----------|
+| `resolve merge conflicts` | Auto-detect branch/PR and resolve |
+| `fix conflicts on this branch` | Context-aware conflict resolution |
+| `PR has conflicts with main` | Merge-based conflict resolution |
+| `can't merge due to conflicts` | Analyze and fix blocking conflicts |
 
 ## Process
 

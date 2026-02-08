@@ -1,5 +1,7 @@
 ---
 name: adr-review
+version: 1.0.0
+model: claude-opus-4-5
 description: Multi-agent debate orchestration for Architecture Decision Records. Automatically triggers on ADR create/edit/delete. Coordinates architect, critic, independent-thinker, security, analyst, and high-level-advisor agents in structured debate rounds until consensus.
 license: MIT
 metadata:
@@ -19,6 +21,18 @@ metadata:
 # ADR Review
 
 Multi-agent debate pattern for rigorous ADR validation. Orchestrates 6 specialized agents through structured review rounds until consensus or 10 rounds maximum.
+
+## Triggers
+
+| Trigger Phrase | Operation |
+|----------------|-----------|
+| `review this ADR` | Full 6-agent debate on specified ADR |
+| `validate ADR-005` | Targeted review of specific ADR by number |
+| `check architecture decision` | ADR review with debate protocol |
+| `ADR file created or modified` | Auto-triggered via Detect-ADRChanges.ps1 |
+| `delete ADR-NNN` | Deletion workflow (D1-D4) |
+
+---
 
 ## Quick Start
 
@@ -67,7 +81,7 @@ Multi-agent debate pattern for rigorous ADR validation. Orchestrates 6 specializ
 | **analyst** | Root cause, evidence, feasibility | None |
 | **high-level-advisor** | Priority, resolve conflicts, break ties | Decision paralysis |
 
-## Debate Protocol
+## Process
 
 | Phase | Purpose | Details |
 |-------|---------|---------|

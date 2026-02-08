@@ -41,17 +41,33 @@ Exit code 0 (PASS) required before claiming completion.
 
 ## Skill-First Pattern
 
-**NEVER use raw commands when a skill exists.**
+Before EVERY operation, ask: "Is there a skill for this?"
 
-Check `.claude/skills/` before writing inline code:
+This is a positive checkpoint, not a negative prohibition. The habit must be:
 
-```powershell
-# WRONG: Raw gh command
-gh pr comment 123 --body "Comment"
+1. Pause before executing any git, gh, or script command
+2. Check SKILL-QUICK-REF.md "User Phrasing → Skill" mapping
+3. If a skill exists, use it. If not, proceed with raw command.
 
-# CORRECT: Use skill
-& .claude/skills/github/scripts/pr/Post-PRCommentReply.ps1 -PullRequest 123 -Body "Comment"
+```text
+BEFORE: Think "I need to create a PR" → run `gh pr create`
+AFTER:  Think "I need to create a PR" → check skill map → use github skill
 ```
+
+**Why this matters**: Session analysis (1183) showed agents bypass skills even with
+full catalog awareness. The problem is decision-making habit, not trigger matching.
+Negative framing ("never use raw commands") fails. Positive checkpoint succeeds.
+
+**Common operations with skills**:
+
+| Operation | Skill | NOT raw command |
+|-----------|-------|-----------------|
+| Create/manage PRs | github | `gh pr create` |
+| Respond to reviews | pr-comment-responder | `gh pr comment` |
+| Resolve conflicts | merge-resolver | manual git merge |
+| Create session log | /session-init | manual JSON creation |
+| Fix CI failures | session-log-fixer | manual debugging |
+| Commit and push | /push-pr | `git commit && git push` |
 
 **If capability missing**: Add to skill, then use it. Never write inline.
 

@@ -9,6 +9,14 @@ model: claude-haiku-4-5
 
 # Steering File Matcher Skill
 
+## Triggers
+
+| Trigger Phrase | Operation |
+|----------------|-----------|
+| `match steering for these files` | Get-ApplicableSteering.ps1 |
+| `which steering applies to this task` | Pattern match against changed files |
+| `inject steering context` | Return applicable steering sorted by priority |
+
 ## Purpose
 
 This skill helps orchestrator determine which steering files to inject into agent context based on the files being modified.
@@ -19,12 +27,16 @@ This skill helps orchestrator determine which steering files to inject into agen
 
 ## When to Use
 
-Invoke this skill when you need to:
+Use this skill when:
 
-- Determine which steering guidance applies to a task
-- Inject context-aware guidance into agent prompts
-- Optimize token usage by scoping guidance to relevant files
-- Match files against `applyTo` patterns in steering files
+- Orchestrator needs to inject context-aware steering based on files being modified
+- You want to scope agent guidance to only relevant files (token optimization)
+- Matching file paths against `applyTo` glob patterns in steering front matter
+
+Use manual file reading instead when:
+
+- You already know which steering file applies
+- The task affects a single known steering domain
 
 ## Quick Usage
 
@@ -49,7 +61,7 @@ foreach ($s in $steering) {
 }
 ```
 
-## Workflow Integration
+## Process
 
 This skill integrates with the orchestrator workflow:
 
@@ -86,6 +98,22 @@ Run Pester tests to verify pattern matching:
 ```powershell
 Invoke-Pester .claude/skills/steering-matcher/tests/Get-ApplicableSteering.Tests.ps1
 ```
+
+## Anti-Patterns
+
+| Avoid | Why | Instead |
+|-------|-----|---------|
+| Hardcoding steering file paths | Bypasses pattern matching, breaks on restructuring | Use Get-ApplicableSteering.ps1 |
+| Injecting all steering files | Token bloat, irrelevant context | Match against changed files only |
+| Ignoring priority ordering | Lower-priority guidance may contradict higher | Process results in priority order |
+
+## Verification
+
+After execution:
+
+- [ ] Returned steering files match the `applyTo` patterns for the given files
+- [ ] Results are sorted by priority (highest first)
+- [ ] No duplicate steering entries in output
 
 ## Related
 

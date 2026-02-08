@@ -1,6 +1,8 @@
 ---
 name: metrics
-description: Collect and report metrics on agent usage from git history implementing the 8 key metrics defined in agent-metrics.md for measuring agent system health effectiveness and adoption.
+description: Collect agent usage metrics from git history and generate health reports.
+  Use when measuring agent adoption, reviewing system health, or producing periodic
+  dashboards. Implements 8 key metrics from agent-metrics.md.
 license: MIT
 metadata:
 version: 1.0.0
@@ -12,6 +14,66 @@ model: claude-haiku-4-5
 ## Purpose
 
 This utility collects and reports metrics on agent usage from git history. It implements the 8 key metrics defined in `docs/agent-metrics.md` for measuring agent system health, effectiveness, and adoption.
+
+## Triggers
+
+| Trigger Phrase | Operation |
+|----------------|-----------|
+| `collect agent metrics` | Run collect_metrics.py with default 30-day window |
+| `generate metrics dashboard` | Run with markdown output for reporting |
+| `check agent adoption rate` | Run and highlight Metric 2 (agent coverage) |
+| `weekly metrics report` | Run with 7-day window, markdown output |
+| `export metrics as JSON` | Run with JSON output for automation |
+
+---
+
+## When to Use
+
+Use this skill when:
+
+- Measuring agent system health or adoption trends
+- Producing periodic dashboards or reports
+- Evaluating whether agent usage is balanced across types
+- Checking infrastructure review coverage
+
+Use manual git log inspection instead when:
+
+- Investigating a single commit's agent attribution
+- Debugging a specific CI run's metrics workflow
+
+---
+
+## Process
+
+1. Run the metrics collection script for the desired time range
+2. Review generated reports for agent usage patterns
+3. Identify trends and anomalies in adoption metrics
+
+---
+
+## Anti-Patterns
+
+| Avoid | Why | Instead |
+|-------|-----|---------|
+| Running without specifying time window | Default 30 days may not match your intent | Use --since with explicit day count |
+| Comparing metrics across different time windows | Misleading trends | Normalize to same window size |
+| Ignoring zero agent coverage | Indicates broken detection patterns | Verify commit message conventions match patterns |
+| Manual commit counting | Error-prone, misses patterns | Use the script for consistent detection |
+| Storing JSON output without markdown | Loses human-readable context | Generate both formats for archival |
+
+---
+
+## Verification
+
+After execution:
+
+- [ ] Script exits with code 0
+- [ ] Output contains all 4 collected metrics (Invocation Rate, Coverage, Infrastructure Review, Distribution)
+- [ ] Agent coverage percentage is plausible (not 0% unless truly no agent commits)
+- [ ] Time window matches intended period
+- [ ] For markdown output: report file created at expected path
+
+---
 
 ## Available Scripts
 

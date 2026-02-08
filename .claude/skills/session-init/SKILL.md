@@ -60,6 +60,23 @@ Follow the manual workflow below if the automated script doesn't meet your needs
 
 ---
 
+## When to Use
+
+Use this skill when:
+
+- Starting any new work session
+- Need a protocol-compliant session log
+- Previous session log failed CI validation and need a fresh start
+
+Use [session-log-fixer](../session-log-fixer/SKILL.md) instead when:
+
+- An existing session log has validation errors that need repair
+- CI failed with "Session protocol validation failed"
+
+Use [session-migration](../session-migration/SKILL.md) instead when:
+
+- Converting old markdown session logs to JSON format
+
 ## Why This Skill Exists
 
 **Problem**: Every PR starts with malformed session logs that fail CI validation.

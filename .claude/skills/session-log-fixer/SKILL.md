@@ -48,17 +48,32 @@ The skill will read the Job Summary from the failed run, identify the non-compli
 
 ## Triggers
 
-- `session-log-fixer: {run-id}` - Fix specific workflow run
-- `fix session validation for {PR/run}` - Natural language activation
-- `session protocol failed` - When user reports a failure
-- `NON_COMPLIANT session` - Direct from CI output
-- `MUST requirement not met` - Direct from validation error
+| Trigger Phrase | Operation |
+|----------------|-----------|
+| `fix session validation failure` | Detect and fix session log issues |
+| `session protocol failed in CI` | Read Job Summary and apply fixes |
+| `fix the failing session check` | Context-aware CI failure resolution |
+| `NON_COMPLIANT session log` | Direct from CI validation output |
+| `my PR failed session validation` | Natural language activation |
 
 | Input | Output | Quality Gate |
 |-------|--------|--------------|
 | Run ID or PR number | Fixed session file with commit | CI re-run passes |
 
 ---
+
+## When to Use
+
+Use this skill when:
+
+- A PR fails the "Session Protocol Validation" GitHub Actions workflow
+- Job Summary shows NON_COMPLIANT verdict or MUST requirement failures
+- You need to fix session log structure to pass CI validation
+
+Use `session-init` instead when:
+
+- Starting a new session (prevents needing this skill at all)
+- Creating a session log from scratch rather than fixing an existing one
 
 ## Process Overview
 

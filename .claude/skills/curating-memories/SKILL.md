@@ -11,6 +11,18 @@ model: claude-sonnet-4-5
 
 Active curation keeps the knowledge base accurate and connected. Outdated memories pollute search results and reduce effectiveness.
 
+## Triggers
+
+| Trigger Phrase | Operation |
+|----------------|-----------|
+| `how do I update a memory` | update_memory with PATCH semantics |
+| `how do I mark a memory obsolete` | mark_memory_obsolete with reason |
+| `how do I link related memories` | link_memories bidirectional linking |
+| `how do I deduplicate memories` | Curation workflow: query, analyze, merge |
+| `how do I clean up stale memories` | Identify and mark obsolete outdated content |
+
+---
+
 ## When to Update a Memory
 
 Use `update_memory` when:
@@ -133,3 +145,58 @@ Forgetful auto-links semantically similar memories (similarity >= 0.7) during cr
 - Non-obvious conceptual links
 
 Check `similar_memories` in create response to see what was auto-linked.
+
+---
+
+## When to Use
+
+Use this skill when:
+
+- Existing memories need correction or updated content
+- New information supersedes an older memory
+- Building explicit links between related knowledge
+- Duplicate memories need consolidation
+- Referenced code or features no longer exist
+
+Use [using-forgetful-memory](../using-forgetful-memory/SKILL.md) instead when:
+
+- Creating new memories from scratch
+- Learning Forgetful tool parameters and constraints
+
+Use [exploring-knowledge-graph](../exploring-knowledge-graph/SKILL.md) instead when:
+
+- Traversing entity relationships for comprehensive context
+- Investigating cross-project connections
+
+---
+
+## Process
+
+1. Search for the target memory using `query_memory`
+2. Evaluate whether the memory needs updating, linking, or marking obsolete
+3. Apply the appropriate curation operation
+4. Verify the change took effect
+
+---
+
+## Anti-Patterns
+
+| Avoid | Why | Instead |
+|-------|-----|---------|
+| Deleting memories instead of marking obsolete | Loses audit trail | Use mark_memory_obsolete with reason |
+| Creating duplicates of existing memories | Pollutes search results | Query first, update existing if found |
+| Linking everything to everything | Dilutes relationship signal | Link only semantically meaningful connections |
+| Skipping user confirmation on curation plans | May obsolete valuable content | Present plan and wait for approval |
+| Ignoring low-importance memory accumulation | Degrades search quality over time | Periodically review and cull sub-6 importance |
+
+---
+
+## Verification
+
+After curation operations:
+
+- [ ] Updated memories reflect accurate current state
+- [ ] Obsolete memories have clear reason documented
+- [ ] New links are bidirectional and meaningful
+- [ ] No duplicate memories remain on the same topic
+- [ ] Curation changes were confirmed by user before execution
