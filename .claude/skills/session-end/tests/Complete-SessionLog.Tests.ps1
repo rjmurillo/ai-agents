@@ -271,33 +271,48 @@ Describe 'Complete-SessionLog.ps1' {
             $result.ExitCode | Should -Be 1
             $result.Output | Should -Match 'FAIL.*not found'
         }
+
+        It 'Should exit 1 when -SessionPath is outside .agents/sessions (CWE-22 path traversal)' {
+            $repo = New-TestRepo
+            try {
+                # Create a valid session file outside the sessions directory
+                $outsidePath = Join-Path $repo.Root 'outside-session.json'
+                $session = New-TestSessionLog
+                $session | ConvertTo-Json -Depth 10 | Set-Content $outsidePath -Encoding utf8
+
+                $result = Invoke-CompleteSessionLog -ScriptToRun $repo.ScriptPath `
+                    -SessionPath $outsidePath -WorkingDir $repo.Root
+
+                $result.ExitCode | Should -Be 1
+                $result.Output | Should -Match 'FAIL.*must be inside'
+            }
+            finally {
+                Remove-Item $repo.Root -Recurse -Force -ErrorAction SilentlyContinue
+            }
+        }
     }
 
     Context 'Invalid JSON handling' {
 
         It 'Should exit 1 when session file contains invalid JSON' {
-            $tempDir = Join-Path ([System.IO.Path]::GetTempPath()) "csl-badjson-$(Get-Random)"
-            New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
-
+            $repo = New-TestRepo
             try {
-                $badJsonPath = Join-Path $tempDir 'bad.json'
+                $badJsonPath = Join-Path $repo.SessionsDir 'bad.json'
                 '{invalid json content' | Set-Content $badJsonPath -Encoding utf8
 
-                $result = Invoke-CompleteSessionLog -ScriptToRun $Script:ScriptPath `
-                    -SessionPath $badJsonPath
+                $result = Invoke-CompleteSessionLog -ScriptToRun $repo.ScriptPath `
+                    -SessionPath $badJsonPath -WorkingDir $repo.Root
 
                 $result.ExitCode | Should -Be 1
                 $result.Output | Should -Match 'FAIL.*Invalid JSON'
             }
             finally {
-                Remove-Item $tempDir -Recurse -Force -ErrorAction SilentlyContinue
+                Remove-Item $repo.Root -Recurse -Force -ErrorAction SilentlyContinue
             }
         }
 
         It 'Should exit 1 when session file lacks protocolCompliance.sessionEnd' {
-            $tempDir = Join-Path ([System.IO.Path]::GetTempPath()) "csl-noend-$(Get-Random)"
-            New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
-
+            $repo = New-TestRepo
             try {
                 $incomplete = @{
                     session            = @{
@@ -311,17 +326,17 @@ Describe 'Complete-SessionLog.ps1' {
                         sessionStart = @{}
                     }
                 }
-                $sessionPath = Join-Path $tempDir 'no-session-end.json'
+                $sessionPath = Join-Path $repo.SessionsDir 'no-session-end.json'
                 $incomplete | ConvertTo-Json -Depth 10 | Set-Content $sessionPath -Encoding utf8
 
-                $result = Invoke-CompleteSessionLog -ScriptToRun $Script:ScriptPath `
-                    -SessionPath $sessionPath
+                $result = Invoke-CompleteSessionLog -ScriptToRun $repo.ScriptPath `
+                    -SessionPath $sessionPath -WorkingDir $repo.Root
 
                 $result.ExitCode | Should -Be 1
                 $result.Output | Should -Match 'FAIL.*missing.*sessionEnd'
             }
             finally {
-                Remove-Item $tempDir -Recurse -Force -ErrorAction SilentlyContinue
+                Remove-Item $repo.Root -Recurse -Force -ErrorAction SilentlyContinue
             }
         }
     }

@@ -115,13 +115,20 @@ function Invoke-MarkdownLint {
         return @{ Success = $true; Output = 'No markdown files changed' }
     }
 
-    # Run markdownlint on changed files only
-    $lintResult = npx markdownlint-cli2 --fix $changedMd 2>&1
-    $success = ($LASTEXITCODE -eq 0)
+    # Run markdownlint on changed files individually to prevent command injection (CWE-78)
+    $allOutput = @()
+    $allSuccess = $true
+    foreach ($file in $changedMd) {
+        $lintResult = npx markdownlint-cli2 --fix "$file" 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            $allSuccess = $false
+            $allOutput += ($lintResult | Out-String).Trim()
+        }
+    }
 
     return @{
-        Success = $success
-        Output = if ($success) { "$($changedMd.Count) files linted" } else { ($lintResult | Out-String).Trim() }
+        Success = $allSuccess
+        Output = if ($allSuccess) { "$($changedMd.Count) files linted" } else { ($allOutput -join "`n") }
     }
 }
 
@@ -147,9 +154,24 @@ if ([string]::IsNullOrWhiteSpace($SessionPath)) {
         exit 1
     }
     Write-Host "Auto-detected session log: $SessionPath" -ForegroundColor Cyan
-} elseif (-not (Test-Path $SessionPath)) {
-    Write-Host "[FAIL] Session file not found: $SessionPath" -ForegroundColor Red
-    exit 1
+} else {
+    # Validate path exists and is within the allowed sessions directory (CWE-22 prevention)
+    if (-not (Test-Path $SessionPath)) {
+        Write-Host "[FAIL] Session file not found: $SessionPath" -ForegroundColor Red
+        exit 1
+    }
+    try {
+        $resolvedPath = [IO.Path]::GetFullPath((Resolve-Path -LiteralPath $SessionPath -ErrorAction Stop))
+    } catch {
+        Write-Host "[FAIL] Session file not found or path is invalid: $SessionPath" -ForegroundColor Red
+        exit 1
+    }
+    $resolvedBase = [IO.Path]::GetFullPath($sessionsDir) + [IO.Path]::DirectorySeparatorChar
+    if (-not $resolvedPath.StartsWith($resolvedBase, [StringComparison]::OrdinalIgnoreCase)) {
+        Write-Host "[FAIL] Session path must be inside '$sessionsDir'." -ForegroundColor Red
+        exit 1
+    }
+    $SessionPath = $resolvedPath
 }
 
 # Read session log
