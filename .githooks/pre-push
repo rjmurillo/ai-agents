@@ -15,9 +15,6 @@
 #
 # To enable: git config core.hooksPath .githooks
 #
-# Environment variables:
-#   SKIP_PREPUSH=1  - Bypass all checks (emergency use only)
-#   SKIP_TESTS=1    - Skip Pester and pytest phases (documentation-only pushes)
 #
 # Intentionally NOT using set -e. This script uses an accumulator pattern:
 # individual check failures are tracked via EXIT_STATUS and reported in
@@ -60,13 +57,6 @@ echo_phase() {
     echo ""
     echo -e "${CYAN}=== $1 ===${NC}"
 }
-
-# Emergency bypass
-if [ "${SKIP_PREPUSH:-}" = "1" ]; then
-    echo_warning "Pre-push checks BYPASSED (SKIP_PREPUSH=1)"
-    echo_warning "This should only be used in emergencies."
-    exit 0
-fi
 
 # Track overall exit status and counters
 EXIT_STATUS=0
@@ -541,11 +531,6 @@ fi
 # ============================================================================
 # Phase 4: Tests
 # ============================================================================
-if [ "${SKIP_TESTS:-}" = "1" ]; then
-    echo_phase "Phase 4: Tests (SKIPPED - SKIP_TESTS=1)"
-    record_skip "Pester tests (SKIP_TESTS=1)"
-    record_skip "Python tests (SKIP_TESTS=1)"
-else
     echo_phase "Phase 4: Tests"
 
     # 13. Pester tests (full suite)
@@ -601,7 +586,6 @@ else
     else
         record_skip "Python tests (no .py files changed)"
     fi
-fi
 
 # ============================================================================
 # Phase 5: Security & Governance
@@ -754,8 +738,6 @@ echo ""
 if [ $EXIT_STATUS -ne 0 ]; then
     echo_error "Pre-push checks FAILED. Fix the issues above before pushing."
     echo_info ""
-    echo_info "  To bypass in emergencies: SKIP_PREPUSH=1 git push"
-    echo_info "  To skip tests only:       SKIP_TESTS=1 git push"
     exit 1
 fi
 
