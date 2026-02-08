@@ -76,7 +76,10 @@ CWE22_PATTERNS = {
             ),
             "description": "os.path.join with potentially unvalidated user input",
             "severity": "HIGH",
-            "recommendation": "Validate input does not contain '..' and use os.path.realpath() with containment check",
+            "recommendation": (
+                "Validate input does not contain '..' and use "
+                "os.path.realpath() with containment check"
+            ),
         },
         {
             "pattern": re.compile(
@@ -172,7 +175,10 @@ CWE22_PATTERNS = {
             ),
             "description": "Path.Combine with potentially unvalidated user input",
             "severity": "HIGH",
-            "recommendation": "Use Path.GetFullPath() and verify path starts with allowed base directory",
+            "recommendation": (
+                "Use Path.GetFullPath() and verify path starts with allowed "
+                "base directory"
+            ),
         },
         {
             "pattern": re.compile(
@@ -248,7 +254,10 @@ CWE78_PATTERNS = {
             ),
             "description": "Invoke-Expression with variable interpolation",
             "severity": "CRITICAL",
-            "recommendation": "Avoid Invoke-Expression; use direct cmdlet calls or & operator with validated arguments",
+            "recommendation": (
+                "Avoid Invoke-Expression; use direct cmdlet calls or & "
+                "operator with validated arguments"
+            ),
         },
         {
             "pattern": re.compile(
@@ -330,7 +339,10 @@ CWE78_PATTERNS = {
             ),
             "description": "ProcessStartInfo with interpolated arguments",
             "severity": "HIGH",
-            "recommendation": "Validate all arguments; avoid string interpolation in command arguments",
+            "recommendation": (
+                "Validate all arguments; avoid string interpolation in "
+                "command arguments"
+            ),
         },
         {
             "pattern": re.compile(
@@ -397,10 +409,12 @@ def is_line_suppressed(line: str, cwe: str) -> bool:
     return False
 
 
-def scan_file(file_path: str, cwe_filter: list[int] | None = None) -> tuple[list[Vulnerability], list[str]]:
+def scan_file(
+    file_path: str, cwe_filter: list[int] | None = None
+) -> tuple[list[Vulnerability], list[str]]:
     """Scan a single file for vulnerabilities."""
-    vulnerabilities = []
-    suppressed = []
+    vulnerabilities: list[Vulnerability] = []
+    suppressed: list[str] = []
 
     language = get_language(file_path)
     if not language:
@@ -420,7 +434,8 @@ def scan_file(file_path: str, cwe_filter: list[int] | None = None) -> tuple[list
         # Check CWE-22 patterns
         if cwe_filter is None or 22 in cwe_filter:
             for pattern_info in cwe22_patterns:
-                if pattern_info["pattern"].search(line):
+                # Mypy type narrowing: pattern_info["pattern"] is re.Pattern at runtime
+                if pattern_info["pattern"].search(line):  # type: ignore[attr-defined]
                     if is_line_suppressed(line, "CWE-22"):
                         suppressed.append(f"CWE-22 suppressed at {file_path}:{line_num}")
                     else:
@@ -431,9 +446,9 @@ def scan_file(file_path: str, cwe_filter: list[int] | None = None) -> tuple[list
                                 file=file_path,
                                 line=line_num,
                                 code=line.strip()[:200],
-                                pattern=pattern_info["description"],
-                                severity=pattern_info["severity"],
-                                recommendation=pattern_info["recommendation"],
+                                pattern=str(pattern_info["description"]),
+                                severity=str(pattern_info["severity"]),
+                                recommendation=str(pattern_info["recommendation"]),
                             )
                         )
                     break  # One match per pattern category per line
@@ -441,7 +456,8 @@ def scan_file(file_path: str, cwe_filter: list[int] | None = None) -> tuple[list
         # Check CWE-78 patterns
         if cwe_filter is None or 78 in cwe_filter:
             for pattern_info in cwe78_patterns:
-                if pattern_info["pattern"].search(line):
+                # Mypy type narrowing: pattern_info["pattern"] is re.Pattern at runtime
+                if pattern_info["pattern"].search(line):  # type: ignore[attr-defined]
                     if is_line_suppressed(line, "CWE-78"):
                         suppressed.append(f"CWE-78 suppressed at {file_path}:{line_num}")
                     else:
@@ -452,9 +468,9 @@ def scan_file(file_path: str, cwe_filter: list[int] | None = None) -> tuple[list
                                 file=file_path,
                                 line=line_num,
                                 code=line.strip()[:200],
-                                pattern=pattern_info["description"],
-                                severity=pattern_info["severity"],
-                                recommendation=pattern_info["recommendation"],
+                                pattern=str(pattern_info["description"]),
+                                severity=str(pattern_info["severity"]),
+                                recommendation=str(pattern_info["recommendation"]),
                             )
                         )
                     break
@@ -480,7 +496,9 @@ def format_console_output(result: ScanResult) -> str:
         return "\n".join(output)
 
     # Group by severity
-    by_severity = {"CRITICAL": [], "HIGH": [], "MEDIUM": [], "LOW": []}
+    by_severity: dict[str, list[Vulnerability]] = {
+        "CRITICAL": [], "HIGH": [], "MEDIUM": [], "LOW": []
+    }
     for vuln in result.vulnerabilities:
         by_severity.get(vuln.severity, by_severity["MEDIUM"]).append(vuln)
 
@@ -499,7 +517,7 @@ def format_console_output(result: ScanResult) -> str:
     output.append(f"Files scanned: {result.files_scanned}")
     output.append(f"Vulnerabilities found: {len(result.vulnerabilities)}")
 
-    cwe_counts = {}
+    cwe_counts: dict[str, int] = {}
     for vuln in result.vulnerabilities:
         cwe_counts[vuln.cwe] = cwe_counts.get(vuln.cwe, 0) + 1
     for cwe, count in sorted(cwe_counts.items()):
@@ -543,13 +561,13 @@ def format_json_output(result: ScanResult) -> str:
         "exit_code": EXIT_VULNERABILITIES if result.vulnerabilities else EXIT_SUCCESS,
     }
 
+    # Mypy type narrowing: output is dict[str, Any] at runtime
+    summary = output["summary"]  # type: ignore[index]
+    by_cwe = summary["by_cwe"]  # type: ignore[index]
+    by_severity = summary["by_severity"]  # type: ignore[index]
     for vuln in result.vulnerabilities:
-        output["summary"]["by_cwe"][vuln.cwe] = (
-            output["summary"]["by_cwe"].get(vuln.cwe, 0) + 1
-        )
-        output["summary"]["by_severity"][vuln.severity] = (
-            output["summary"]["by_severity"].get(vuln.severity, 0) + 1
-        )
+        by_cwe[vuln.cwe] = by_cwe.get(vuln.cwe, 0) + 1
+        by_severity[vuln.severity] = by_severity.get(vuln.severity, 0) + 1
 
     return json.dumps(output, indent=2)
 

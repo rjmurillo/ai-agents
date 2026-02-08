@@ -82,7 +82,7 @@ class ScanResult:
 
 def parse_editorconfig(file_path: Path) -> dict:
     """Parse .editorconfig file into section-based configuration."""
-    config = {}
+    config: dict[str, dict[str, str]] = {}
     current_section = None
 
     if not file_path.exists():
@@ -218,7 +218,7 @@ def check_line_endings(
     file_path: Path, content: bytes, config: StyleConfig
 ) -> list:
     """Check line endings against config."""
-    violations = []
+    violations: list[Violation] = []
 
     if config.end_of_line is None:
         return violations
@@ -245,7 +245,7 @@ def check_indentation(
     file_path: Path, lines: list, config: StyleConfig
 ) -> list:
     """Check indentation style and size."""
-    violations = []
+    violations: list[Violation] = []
 
     if config.indent_style is None:
         return violations
@@ -291,7 +291,7 @@ def check_indentation(
 
 def check_charset(file_path: Path, content: bytes, config: StyleConfig) -> list:
     """Check file charset/encoding."""
-    violations = []
+    violations: list[Violation] = []
 
     if config.charset is None:
         return violations
@@ -328,7 +328,7 @@ def check_trailing_whitespace(
     file_path: Path, lines: list, config: StyleConfig
 ) -> list:
     """Check for trailing whitespace."""
-    violations = []
+    violations: list[Violation] = []
 
     if not config.trim_trailing_whitespace:
         return violations
@@ -353,7 +353,7 @@ def check_final_newline(
     file_path: Path, content: str, config: StyleConfig
 ) -> list:
     """Check for final newline."""
-    violations = []
+    violations: list[Violation] = []
 
     if config.insert_final_newline is None:
         return violations
@@ -379,7 +379,7 @@ def check_csharp_async_naming(
     file_path: Path, content: str, config: StyleConfig
 ) -> list:
     """Check C# async method naming conventions."""
-    violations = []
+    violations: list[Violation] = []
 
     if not config.async_suffix_required:
         return violations
@@ -419,8 +419,8 @@ def check_csharp_async_naming(
 
 def check_file(file_path: Path, editorconfigs: list) -> tuple:
     """Check a single file for style violations."""
-    violations = []
-    suppressed = []
+    violations: list[Violation] = []
+    suppressed: list[Violation] = []
 
     config = get_config_for_file(file_path, editorconfigs)
 
@@ -536,7 +536,7 @@ def format_text_output(result: ScanResult) -> str:
 
     if result.violations:
         # Group by file
-        by_file = {}
+        by_file: dict[str, list[Violation]] = {}
         for v in result.violations:
             if v.file not in by_file:
                 by_file[v.file] = []
@@ -588,11 +588,12 @@ def format_json_output(result: ScanResult) -> str:
     }
 
     # Count by severity
+    # Mypy type narrowing: output is dict[str, Any] at runtime
+    summary = output["summary"]  # type: ignore[index]
+    by_severity = summary["by_severity"]  # type: ignore[index]
     for v in result.violations:
-        sev = v.severity
-        output["summary"]["by_severity"][sev] = (
-            output["summary"]["by_severity"].get(sev, 0) + 1
-        )
+        sev = str(v.severity)
+        by_severity[sev] = by_severity.get(sev, 0) + 1
 
     return json.dumps(output, indent=2)
 

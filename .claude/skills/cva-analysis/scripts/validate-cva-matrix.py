@@ -140,14 +140,23 @@ def validate_matrix(matrix: CVAMatrix) -> tuple[bool, list[str]]:
 
     # Check minimum dimensions (2x2 for pattern discovery)
     if matrix.row_count() < 2:
-        issues.append(f"Matrix has only {matrix.row_count()} row(s). Need ≥2 commonalities for pattern discovery.")
+        issues.append(
+            f"Matrix has only {matrix.row_count()} row(s). "
+            f"Need ≥2 commonalities for pattern discovery."
+        )
 
     if matrix.column_count() < 2:
-        issues.append(f"Matrix has only {matrix.column_count()} column(s). Need ≥2 variabilities for pattern discovery.")
+        issues.append(
+            f"Matrix has only {matrix.column_count()} column(s). "
+            f"Need ≥2 variabilities for pattern discovery."
+        )
 
     # Check for empty cells
     if matrix.has_empty_cells():
-        issues.append("Matrix has empty cells. All cells must be filled with concrete implementations.")
+        issues.append(
+            "Matrix has empty cells. "
+            "All cells must be filled with concrete implementations."
+        )
 
     # Check for dimension mismatch
     for idx, row in enumerate(matrix.cells):
@@ -183,9 +192,14 @@ def suggest_patterns(matrix: CVAMatrix) -> list[str]:
 
     if row_var >= HIGH_VAR and col_var < MEDIUM_VAR:
         suggestions.append("✓ PRIMARY PATTERN: Strategy Pattern")
-        suggestions.append("  Rationale: High row variability (operations vary across use cases)")
+        suggestions.append(
+            "  Rationale: High row variability (operations vary across use cases)"
+        )
         suggestions.append(f"  Row variability: {row_var:.2f} (high)")
-        suggestions.append("  Each row (commonality) can be a strategy with multiple implementations.")
+        suggestions.append(
+            "  Each row (commonality) can be a strategy with multiple "
+            "implementations."
+        )
 
     if col_var >= HIGH_VAR and row_var < MEDIUM_VAR:
         suggestions.append("✓ PRIMARY PATTERN: Abstract Factory Pattern")
@@ -195,9 +209,17 @@ def suggest_patterns(matrix: CVAMatrix) -> list[str]:
 
     if row_var >= HIGH_VAR and col_var >= HIGH_VAR:
         suggestions.append("✓ COMBINATION PATTERNS: Strategy + Abstract Factory")
-        suggestions.append("  Rationale: High variability in BOTH dimensions (multidimensional)")
-        suggestions.append(f"  Row variability: {row_var:.2f} (high), Column variability: {col_var:.2f} (high)")
-        suggestions.append("  Start with dominant axis, note multidimensional case in Extension Points.")
+        suggestions.append(
+            "  Rationale: High variability in BOTH dimensions (multidimensional)"
+        )
+        suggestions.append(
+            f"  Row variability: {row_var:.2f} (high), "
+            f"Column variability: {col_var:.2f} (high)"
+        )
+        suggestions.append(
+            "  Start with dominant axis, note multidimensional case in "
+            "Extension Points."
+        )
 
     if row_var >= MEDIUM_VAR and row_var < HIGH_VAR:
         suggestions.append("⚠️  MEDIUM ROW VARIABILITY: Consider Strategy pattern")
