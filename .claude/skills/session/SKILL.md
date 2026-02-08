@@ -24,11 +24,31 @@ Skills for session management and protocol compliance.
 
 | Phrase | Action |
 |--------|--------|
-| "Check if I can skip QA" | Run Test-InvestigationEligibility.ps1 |
-| "Am I eligible for investigation-only?" | Verify staged files against ADR-034 allowlist |
-| "Verify investigation session eligibility" | Check QA skip eligibility before commit |
-| "Can I use SKIPPED: investigation-only?" | Validate investigation-only exemption |
-| "Test eligibility for QA skip" | Execute eligibility check script |
+| `Check if I can skip QA` | Run Test-InvestigationEligibility.ps1 |
+| `Am I eligible for investigation-only?` | Verify staged files against ADR-034 allowlist |
+| `Verify investigation session eligibility` | Check QA skip eligibility before commit |
+| `Can I use SKIPPED: investigation-only?` | Validate investigation-only exemption |
+| `Test eligibility for QA skip` | Execute eligibility check script |
+
+## When to Use
+
+Use this skill when:
+
+- About to commit investigation-only work and need to verify QA skip eligibility
+- Session log uses "SKIPPED: investigation-only" verdict
+- Staged files should be checked against ADR-034 allowlist
+
+Use [session-init](../session-init/SKILL.md) instead when:
+
+- Starting a new session and creating the session log
+- Need protocol-compliant session initialization
+
+Use the qa agent instead when:
+
+- Feature implementation work was done (not investigation-only)
+- Eligibility check returns Eligible: false
+
+---
 
 ## Process
 

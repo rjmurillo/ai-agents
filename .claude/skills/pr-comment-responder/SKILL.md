@@ -110,6 +110,19 @@ foreach ($comment in $comments.General) {
 - Reduces noise from bot-generated summaries
 - Enables metrics tracking (security vs style comment distribution)
 
+## When to Use
+
+Use this skill when:
+
+- A PR has unaddressed review comments from humans or bots
+- You need to systematically triage and respond to all review feedback
+- CI review bots (CodeRabbit, Copilot, cursor) left comments requiring action
+
+Use direct `Post-PRCommentReply.ps1` instead when:
+
+- Replying to a single known comment (no triage needed)
+- You already know the exact response to post
+
 ## Process
 
 ### Phase 1: Context and Gather
@@ -161,10 +174,12 @@ See [references/bots.md](references/bots.md) for:
 
 ## Anti-Patterns
 
-- Replying to bot summaries as if they are actionable review comments
-- Processing style comments before security issues
-- Using raw `gh` commands instead of skill scripts
-- Skipping the context inference phase and prompting user for PR number already in the prompt
+| Avoid | Why | Instead |
+|-------|-----|---------|
+| Replying to bot summaries as actionable comments | Wastes time on informational noise | Skip Summary domain comments |
+| Processing style before security | Misses critical issues | Process domains in P0-P3 priority order |
+| Using raw `gh` commands | Bypasses tested skill scripts | Use `Post-PRCommentReply.ps1` and other skill scripts |
+| Prompting user for PR number already in prompt | Redundant and frustrating | Use `Extract-GitHubContext.ps1` to parse from input |
 
 ## Extension Points
 

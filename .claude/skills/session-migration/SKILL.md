@@ -53,6 +53,22 @@ Use this skill when:
 
 ---
 
+## When to Use
+
+Use this skill when:
+
+- PR contains markdown session logs that need conversion to JSON
+- Batch migrating historical sessions from markdown to JSON
+- Session validation failing due to regex issues with markdown format
+
+Use [session-init](../session-init/SKILL.md) instead when:
+
+- Creating a new session log (already creates in JSON format)
+
+Use [session-log-fixer](../session-log-fixer/SKILL.md) instead when:
+
+- Fixing validation errors in an existing JSON session log
+
 ## Context
 
 ### Why JSON?
@@ -260,6 +276,25 @@ The migration script maps markdown checklist patterns to JSON keys.
 | `retrospective` | `retrospectiveInvoked` | SHOULD |
 
 ---
+
+## Anti-Patterns
+
+| Avoid | Why | Instead |
+|-------|-----|---------|
+| Manually converting markdown to JSON | Error-prone, misses edge cases | Use Convert-SessionToJson.ps1 script |
+| Deleting markdown files after migration | May need originals for reference | Keep both during transition period |
+| Skipping validation after migration | Migrated JSON may still be incomplete | Always validate with Validate-SessionJson.ps1 |
+| Migrating without `-DryRun` first | Cannot preview changes | Use `-DryRun` to preview, then run for real |
+
+## Verification
+
+After migration:
+
+- [ ] JSON files created alongside markdown originals
+- [ ] All migrated JSON files pass `Validate-SessionJson.ps1`
+- [ ] Session numbers and dates match between markdown and JSON
+- [ ] No migration errors in script output
+- [ ] Both formats committed (for transition period)
 
 ## Troubleshooting
 

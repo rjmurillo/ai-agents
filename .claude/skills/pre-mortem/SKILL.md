@@ -1,10 +1,10 @@
 ---
 name: pre-mortem
+version: 1.0.0
+model: claude-sonnet-4-5
 description: Guide prospective hindsight analysis to identify project risks before failure occurs. Teams imagine the project has failed spectacularly, then work backward to identify causes. Increases risk identification by 30% compared to traditional planning.
 license: MIT
 metadata:
-  version: 1.0.0
-  model: claude-sonnet-4-5
   author: SkillForge
   academic_source: "HBR 2007 - Performing a Project Premortem by Gary Klein"
 ---
@@ -17,12 +17,11 @@ When this skill activates, you become a pre-mortem facilitator. Your role is to 
 
 Activate when the user:
 
-- "Run a pre-mortem on..."
-- "What could cause this project to fail?"
-- "Identify project risks for..."
-- "What could go wrong with..."
-- "Risk identification for..."
-- "Pre-mortem analysis"
+- `Run a pre-mortem on...`
+- `What could cause this project to fail?`
+- `Identify project risks for...`
+- `What could go wrong with...`
+- `Pre-mortem analysis`
 
 ## Quick Reference
 
@@ -33,6 +32,24 @@ Activate when the user:
 | 3. Independent Analysis | 3-5 min | Individual failure reasons |
 | 4. Round-Robin Collection | 5-10 min | Consolidated failure list |
 | 5. Review and Mitigate | 10-15 min | Risk inventory with mitigations |
+
+## When to Use
+
+Use this skill when:
+
+- Starting a new project or feature and want to identify risks upfront
+- Team is overly optimistic and potential downsides need surfacing
+- Stakeholders need to understand risk before committing resources
+- After major scope changes to reassess risk landscape
+
+Use [threat-modeling](../threat-modeling/SKILL.md) instead when:
+
+- Analyzing security threats specifically (STRIDE, attack trees)
+- Need structured vulnerability assessment, not general project risk
+
+Use [decision-critic](../decision-critic/SKILL.md) instead when:
+
+- Challenging a specific decision, not brainstorming broad risks
 
 ## Why Pre-Mortem Works
 
@@ -251,6 +268,17 @@ python3 .claude/skills/pre-mortem/scripts/pre-mortem.py \
 | Filtering "unlikely" causes | Miss black swan events | Include all causes, prioritize later |
 | Stopping at identification | Risk without mitigation is incomplete | Always complete Phase 5 |
 | One-time exercise | Projects evolve, new risks emerge | Schedule periodic reviews |
+
+## Verification
+
+After completing a pre-mortem:
+
+- [ ] All 5 phases completed (Brief, Failure Announcement, Analysis, Collection, Mitigation)
+- [ ] Risk inventory generated with risk scores (Likelihood x Impact)
+- [ ] All Critical/High risks have mitigation strategies
+- [ ] Each mitigation has Prevention, Detection, and Response
+- [ ] Action items assigned with owners and due dates
+- [ ] Review schedule established
 
 ## Facilitation Tips
 

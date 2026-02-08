@@ -1,6 +1,9 @@
 ---
 name: git-advanced-workflows
+version: 1.0.0
+model: claude-sonnet-4-5
 description: Master advanced Git workflows including rebasing, cherry-picking, bisect, worktrees, and reflog to maintain clean history and recover from any situation. Use when managing complex Git histories, collaborating on feature branches, or troubleshooting repository issues.
+license: MIT
 ---
 
 # Git Advanced Workflows
@@ -17,6 +20,16 @@ Master advanced Git techniques to maintain clean history, collaborate effectivel
 - Managing complex branch workflows
 - Preparing clean PRs for review
 - Synchronizing diverged branches
+
+## Triggers
+
+| Trigger Phrase | Operation |
+|----------------|-----------|
+| `rebase my branch` | Interactive or standard rebase guidance |
+| `cherry-pick a commit` | Cherry-pick with conflict resolution |
+| `find the breaking commit` | Git bisect workflow |
+| `recover lost commits` | Reflog exploration and recovery |
+| `use git worktrees` | Worktree setup and management |
 
 ## Core Concepts
 
@@ -140,7 +153,7 @@ git reflog
 git branch deleted-branch abc123
 ```
 
-## Practical Workflows
+## Process
 
 ### Workflow 1: Clean Up Feature Branch Before PR
 
@@ -363,6 +376,16 @@ git rebase -i main
 git reset --hard backup-branch
 ```
 
+## Anti-Patterns
+
+| Avoid | Why | Instead |
+|-------|-----|---------|
+| Rebasing public/shared branches | Rewrites history for all collaborators | Use merge for shared branches |
+| `--force` without `--force-with-lease` | Can overwrite teammates' work | Always use `--force-with-lease` |
+| Bisecting on dirty working directory | Checkout fails with uncommitted changes | Commit or stash before bisecting |
+| Forgetting worktree cleanup | Orphaned worktrees consume disk space | Remove worktrees after use |
+| No backup branch before complex rebase | No recovery if rebase goes wrong | Create safety branch first |
+
 ## Common Pitfalls
 
 - **Rebasing Public Branches**: Causes history conflicts for collaborators
@@ -394,6 +417,16 @@ git reset --hard HEAD^
 git reflog
 git branch recovered-branch abc123
 ```
+
+## Verification
+
+After completing a Git advanced workflow:
+
+- [ ] Working tree is clean (`git status` shows no uncommitted changes)
+- [ ] Branch history is correct (`git log --oneline` matches expectations)
+- [ ] Tests pass after history rewrite
+- [ ] Force push used `--force-with-lease` (not bare `--force`)
+- [ ] Worktrees cleaned up if created (`git worktree list`)
 
 ## Resources
 

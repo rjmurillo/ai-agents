@@ -1,10 +1,10 @@
 ---
 name: cynefin-classifier
+version: 1.0.0
+model: claude-sonnet-4-5
 description: Classify problems into Cynefin Framework domains (Clear, Complicated, Complex, Chaotic, Confusion) and recommend appropriate response strategies. Use when unsure how to approach a problem, facing analysis paralysis, or needing to choose between expert analysis and experimentation.
 license: MIT
 metadata:
-  version: 1.0.0
-  model: claude-sonnet-4-5
   framework: Cynefin (Dave Snowden)
 ---
 
@@ -16,14 +16,25 @@ Classify problems into the correct Cynefin domain and recommend the appropriate 
 
 Activate when the user:
 
-- "classify this problem"
-- "cynefin analysis"
-- "which domain is this"
-- "what approach should we take"
-- "how should we tackle this"
-- "problem classification"
-- "should we analyze or experiment"
-- "is this complex or complicated"
+- `classify this problem`
+- `cynefin analysis`
+- `what approach should we take`
+- `should we analyze or experiment`
+- `is this complex or complicated`
+
+## When to Use
+
+Use this skill when:
+
+- Unsure how to approach a new problem (analyze vs experiment vs act)
+- Facing analysis paralysis on a decision
+- Team disagrees on whether to research more or start building
+- Need to justify an experimental approach to stakeholders
+
+Use [decision-critic](../decision-critic/SKILL.md) instead when:
+
+- Problem is already classified as Complicated and you need to validate a specific decision
+- You have a concrete proposal to challenge, not a general problem to classify
 
 ## The Cynefin Framework
 
@@ -55,7 +66,7 @@ Activate when the user:
                               Domain unknown - gather information
 ```
 
-## Classification Process
+## Process
 
 ### Step 1: Identify Cause-Effect Relationship
 
@@ -355,6 +366,16 @@ Escalate to human or senior decision-maker when:
 - [Cynefin Framework](references/cynefin-deep-dive.md) - Dave Snowden's original framework
 - [Domain Transitions](references/domain-transitions.md) - How problems move between domains
 - [Software Engineering Applications](references/software-applications.md) - Domain patterns in software
+
+## Verification
+
+After classification:
+
+- [ ] Domain identified with confidence level (HIGH/MEDIUM/LOW)
+- [ ] Rationale explains cause-effect relationship
+- [ ] Response strategy matches the domain (not borrowed from another)
+- [ ] Recommended actions are specific, not generic
+- [ ] Compound problems decomposed into sub-problems with individual classifications
 
 ## Anti-Patterns
 

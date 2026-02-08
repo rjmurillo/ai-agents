@@ -37,13 +37,26 @@ Example topics:
 
 Use this skill when:
 
-- "Search my memories for patterns about..."
-- "What does my history say about..."
-- "Generate a documentary on my [topic]"
-- "Cross-reference all systems for..."
-- "Evidence-based analysis of my [topic]"
+- `Search my memories for patterns about...`
+- `What does my history say about...`
+- `Generate a documentary on my [topic]`
+- `Cross-reference all systems for...`
+- `Evidence-based analysis of my [topic]`
 
 ---
+
+## When to Use
+
+Use this skill when:
+
+- You need cross-system evidence for a pattern or recurring theme
+- Investigating historical decisions and their evolution over time
+- Building a cited, verifiable narrative from memory data
+
+Use `memory` skill instead when:
+
+- You need a simple search for a known fact or pattern
+- The query targets a single memory tier, not cross-system synthesis
 
 ## Quick Reference
 
@@ -57,7 +70,7 @@ Use this skill when:
 
 ---
 
-## How It Works
+## Process
 
 The skill searches ALL available data sources systematically:
 
@@ -164,6 +177,15 @@ Cross-system synthesis revealing:
 | Skipping systems | Incomplete picture | Check all 4 MCP servers |
 
 ---
+
+## Verification
+
+After execution:
+
+- [ ] Report saved to `.agents/analysis/[topic]-documentary-[date].md`
+- [ ] Every claim has a citation with source system, ID, and direct quote
+- [ ] All 4 MCP servers were queried (or documented as unavailable)
+- [ ] Meta-pattern stored in memory (Phase 5)
 
 ## Output Location
 

@@ -12,6 +12,28 @@ metadata:
 
 Transform an undocumented codebase into a rich, searchable knowledge repository using Serena's LSP-powered symbol analysis.
 
+## Triggers
+
+| Trigger Phrase | Operation |
+|----------------|-----------|
+| `encode this repository` | Full 12-phase encoding pipeline |
+| `populate forgetful with this codebase` | Full encoding pipeline |
+| `onboard to this repo` | Discovery + foundation phases |
+| `refresh project understanding` | Re-run encoding on updated codebase |
+
+## When to Use
+
+Use this skill when:
+
+- Onboarding to a new repository that lacks Forgetful knowledge
+- Repository structure has changed significantly since last encoding
+- Forgetful searches return sparse or outdated results for the project
+
+Use `research-and-incorporate` instead when:
+
+- Researching an external topic, not encoding a codebase
+- You need analysis of a single concept, not full repository encoding
+
 ## Quick Start
 
 ```text
@@ -31,7 +53,7 @@ Transform an undocumented codebase into a rich, searchable knowledge repository 
 2. **Forgetful MCP**: Test with `execute_forgetful_tool("list_projects", {})`
 3. If missing, run `/context-hub-setup` first
 
-## Phase Overview
+## Process
 
 | Phase | Focus | Output |
 |-------|-------|--------|
@@ -96,6 +118,25 @@ After completion:
 - [ ] Verify project.notes populated
 
 See [references/validation.md](references/validation.md) for test commands.
+
+## Anti-Patterns
+
+| Avoid | Why | Instead |
+|-------|-----|---------|
+| Skipping Phase 0 discovery | Wastes effort on wrong project scope | Always assess project size and complexity first |
+| Creating non-atomic memories | Pollutes search results, hard to maintain | One concept per memory, 200-400 words |
+| Duplicate entities | Bloats knowledge graph, inconsistent links | Deduplicate entities before creating |
+| Skipping validation | No confidence in encoding quality | Run validation checklist after completion |
+
+## Verification
+
+After encoding:
+
+- [ ] All target components have Forgetful entities created
+- [ ] Entity relationships reflect actual code dependencies
+- [ ] Memories linked to corresponding entities
+- [ ] No duplicate entities in knowledge graph
+- [ ] Validation checklist items pass
 
 ## References
 

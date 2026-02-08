@@ -59,6 +59,19 @@ gh api repos/{owner}/{repo}/pulls/comments/{id}
 
 ---
 
+## When to Use
+
+Use this skill when:
+
+- Any `github.com` URL appears in user input (automatic activation)
+- User pastes a PR, issue, commit, file, or actions URL
+- User asks to "analyze" or "review" a GitHub link
+
+Use [github](../github/SKILL.md) instead when:
+
+- Performing mutations (creating PRs, posting comments, adding labels)
+- Operating on the current repository without a URL
+
 ## URL Patterns (Detailed Reference)
 
 | Pattern | Example | Why Intercept |

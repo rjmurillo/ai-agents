@@ -60,6 +60,19 @@ The skill will read the Job Summary from the failed run, identify the non-compli
 
 ---
 
+## When to Use
+
+Use this skill when:
+
+- A PR fails the "Session Protocol Validation" GitHub Actions workflow
+- Job Summary shows NON_COMPLIANT verdict or MUST requirement failures
+- You need to fix session log structure to pass CI validation
+
+Use `session-init` instead when:
+
+- Starting a new session (prevents needing this skill at all)
+- Creating a session log from scratch rather than fixing an existing one
+
 ## Process Overview
 
 ```text
