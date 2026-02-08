@@ -64,26 +64,23 @@ Transform high-level requirements into discrete tasks that can be assigned, esti
 
 ## Memory Protocol
 
-Use cloudmcp-manager memory tools directly for cross-session context:
+Use Memory Router for search and Serena tools for persistence (ADR-037):
 
-**Before task breakdown:**
+**Before breakdown (retrieve context):**
+
+```powershell
+pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "task estimation patterns [feature type]"
+```
+
+**After breakdown (store learnings):**
 
 ```text
-mcp__cloudmcp-manager__memory-search_nodes
-Query: "task decomposition patterns [feature type]"
+mcp__serena__write_memory
+memory_file_name: "pattern-estimation-[feature]"
+content: "# Estimation: [Feature]\n\n**Statement**: ...\n\n**Evidence**: ...\n\n## Details\n\n..."
 ```
 
-**After completion:**
-
-```json
-mcp__cloudmcp-manager__memory-add_observations
-{
-  "observations": [{
-    "entityName": "Pattern-Tasks-[Feature]",
-    "contents": ["[Task patterns and estimation learnings]"]
-  }]
-}
-```
+> **Fallback**: If Memory Router unavailable, read `.serena/memories/` directly with Read tool.
 
 ## Decomposition Process
 
@@ -195,24 +192,6 @@ graph TD
 | M | Multiple files, some complexity |
 | L | Multiple components, significant logic |
 | XL | Cross-cutting, architectural impact |
-
-## Handoff Options
-
-| Target | When | Purpose |
-|--------|------|---------|
-| **critic** | Tasks ready | Validate breakdown |
-| **implementer** | Tasks approved | Begin coding |
-| **planner** | Scope concerns | Adjust plan |
-
-## Execution Mindset
-
-**Think:** "Can someone pick this up and know exactly what to do?"
-
-**Act:** Break into smallest useful units
-
-**Sequence:** Dependencies drive order
-
-**Estimate:** Complexity, not hours
 
 ## Estimate Reconciliation Protocol
 
@@ -335,3 +314,13 @@ When task breakdown is complete:
 | **critic** | Tasks ready | Validate breakdown |
 | **implementer** | Tasks approved | Begin coding |
 | **planner** | Scope concerns | Adjust plan |
+
+## Execution Mindset
+
+**Think:** "Can someone pick this up and know exactly what to do?"
+
+**Act:** Break into smallest useful units
+
+**Sequence:** Dependencies drive order
+
+**Estimate:** Complexity, not hours

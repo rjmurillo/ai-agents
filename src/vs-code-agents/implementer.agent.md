@@ -727,6 +727,28 @@ mcp__cloudmcp-manager__memory-add_observations
 - Methods under 60 lines
 - No nested code
 
+### Code Simplification
+
+Before writing each function or method, apply these checks. Three similar lines are better than
+a premature abstraction, but identical blocks are not.
+
+1. **No repeated blocks**: If 3+ lines appear twice, extract or loop. Check within the file and
+   across files touched in this PR.
+2. **No dead code**: Remove unused variables, unreachable branches, commented-out code, and
+   unused imports. Do not leave code "for later."
+3. **No redundant conditions**: Collapse `if x then true else false` to `x`. Remove conditions
+   the type system or caller already guarantees.
+4. **No stderr suppression**: Never use `2>/dev/null` or `-ErrorAction SilentlyContinue` without
+   capturing output first. Capture to a variable, check, then act.
+5. **Consistent naming**: Match the naming convention of the file you are editing. Do not
+   introduce a new convention in existing files.
+6. **Flat over nested**: Maximum 2 levels of nesting. Use early returns, guard clauses, or
+   extract a helper to flatten deeper nesting.
+7. **No magic values**: Literals that appear more than once or whose meaning is not obvious from
+   context become named constants.
+8. **Match existing patterns**: Before writing new code, read 2-3 similar functions in the same
+   file or module. Follow their error handling, logging, and naming patterns.
+
 ## Qwiq-Specific Patterns
 
 When working in this repository, follow these established patterns:
