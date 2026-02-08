@@ -551,7 +551,7 @@ def format_json_output(result: ScanResult) -> str:
             output["summary"]["by_severity"].get(vuln.severity, 0) + 1
         )
 
-    return json.dumps(output,
+    return json.dumps(output, indent=2)
 
 
 def main():
@@ -594,6 +594,40 @@ def main():
     )
 
     args = parser.parse_args()
+
+    # Validate input paths to prevent path traversal (CWE-22)
+    try:
+        allowed_base = os.path.abspath(".")
+
+        # Validate --directory if provided
+        if args.directory:
+            directory_path = os.path.abspath(args.directory)
+            if not directory_path.startswith(allowed_base):
+                raise ValueError(
+                    f"Path traversal attempt detected in --directory: "
+                    f"{args.directory}"
+                )
+
+        # Validate --output if provided
+        if args.output:
+            output_path = os.path.abspath(args.output)
+            if not output_path.startswith(allowed_base):
+                raise ValueError(
+                    f"Path traversal attempt detected in --output: "
+                    f"{args.output}"
+                )
+
+        # Validate positional files
+        if args.files:
+            for file in args.files:
+                file_path = os.path.abspath(file)
+                if not file_path.startswith(allowed_base):
+                    raise ValueError(
+                        f"Path traversal attempt detected in file: {file}"
+                    )
+    except ValueError as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        sys.exit(EXIT_ERROR)
 
     # Collect files to scan
     files_to_scan = []

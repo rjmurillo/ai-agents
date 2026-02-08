@@ -220,12 +220,26 @@ def main():
     parser.add_argument('--verbose', '-v', action='store_true', help='Verbose output')
     args = parser.parse_args()
 
+    # Validate input path to prevent path traversal (CWE-22)
+    import os
+    try:
+        allowed_base = os.path.abspath(".")
+        matrix_file_path = os.path.abspath(args.matrix_file)
+        if not matrix_file_path.startswith(allowed_base):
+            raise ValueError(
+                f"Path traversal attempt detected in matrix_file: "
+                f"{args.matrix_file}"
+            )
+    except ValueError as e:
+        print(f"❌ ERROR: {e}", file=sys.stderr)
+        return ValidationResult.ERROR.value
+
     # Read file
     try:
-        with open(args.matrix_file, encoding='utf-8') as f:
+        with open(matrix_file_path, encoding='utf-8') as f:
             content = f.read()
     except FileNotFoundError:
-        print(f"❌ ERROR: File not found: {args.matrix_file}", file=sys.stderr)
+        print(f"❌ ERROR: File not found: {matrix_file_path}", file=sys.stderr)
         return ValidationResult.ERROR.value
     except Exception as e:
         print(f"❌ ERROR: Failed to read file: {e}", file=sys.stderr)

@@ -637,6 +637,48 @@ def main():
 
     args = parser.parse_args()
 
+    # Validate input paths to prevent path traversal (CWE-22)
+    import os
+    try:
+        allowed_base = os.path.abspath(".")
+
+        # Validate --target
+        target_path = os.path.abspath(args.target)
+        if not target_path.startswith(allowed_base):
+            raise ValueError(
+                f"Path traversal attempt detected in --target: {args.target}"
+            )
+
+        # Validate --output if provided
+        if args.output:
+            output_path = os.path.abspath(args.output)
+            if not output_path.startswith(allowed_base):
+                raise ValueError(
+                    f"Path traversal attempt detected in --output: "
+                    f"{args.output}"
+                )
+
+        # Validate --config if provided
+        if args.config:
+            config_path = os.path.abspath(args.config)
+            if not config_path.startswith(allowed_base):
+                raise ValueError(
+                    f"Path traversal attempt detected in --config: "
+                    f"{args.config}"
+                )
+
+        # Validate positional files
+        if args.files:
+            for file in args.files:
+                file_path = os.path.abspath(file)
+                if not file_path.startswith(allowed_base):
+                    raise ValueError(
+                        f"Path traversal attempt detected in file: {file}"
+                    )
+    except ValueError as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        sys.exit(1)
+
     # Load config
     config = load_config(args.config)
     config.min_coverage_percent = args.min_coverage
@@ -668,7 +710,7 @@ def main():
 
     # Format output
     if args.format == "json":
-        output = json.dumps(report.to_dict(),
+        output = json.dumps(report.to_dict(), indent=2)
     elif args.format == "markdown":
         output = format_markdown_report(report)
     else:
