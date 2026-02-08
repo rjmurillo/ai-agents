@@ -5,7 +5,11 @@
 # Build artifacts
 artifacts/
 coverage.xml
+.coverage
 testResults.xml
+
+# Runtime caches
+.cache/
 
 # Python (ADR-042)
 __pycache__/
@@ -29,8 +33,9 @@ build/
 .agents/logs/
 .agents/.hook-state/
 
-# Hook runtime logs
+# Hook runtime logs and caches
 .claude/hooks/audit.log
+.claude/hooks/Stop/.skill_pattern_cache.json
 
 # IDE settings
 .idea/
