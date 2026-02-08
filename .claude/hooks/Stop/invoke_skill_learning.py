@@ -32,8 +32,8 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 # Base directory for all project operations to prevent path traversal / arbitrary writes
-# We treat the repository root (two levels up from this file) as the safe base.
-SAFE_BASE_DIR = Path(__file__).resolve().parents[2]
+# We treat the repository root (three levels up from this file) as the safe base.
+SAFE_BASE_DIR = Path(__file__).resolve().parents[3]
 OBSERVATIONS_SUFFIX = "-observations.md"
 PROJECT_DIR: Optional[Path] = None
 
