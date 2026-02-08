@@ -144,7 +144,7 @@ def extract_context_retrieval_data(session_path: Path) -> InvocationRecord | Non
         user_requested = classification.get(
             "user_requested_context", False
         )
-        cr_status = classification.get("context_retrieval", "")
+        cr_status = classification.get("context_retrieval") or ""
         invoked = cr_status.upper() == "INVOKED"
         reason = classification.get("context_retrieval_reason", "")
 
