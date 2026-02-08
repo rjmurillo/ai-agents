@@ -25,12 +25,12 @@ Invoke each agent command using Skill tool and capture results.
 
 **Note**: All sub-skills are invoked with the base branch ($ARGUMENTS or main if not specified):
 
-1. Security Agent: `/pr-quality:security $BASE_ARG`
-2. QA Agent: `/pr-quality:qa $BASE_ARG`
-3. Analyst Agent: `/pr-quality:analyst $BASE_ARG`
-4. Architect Agent: `/pr-quality:architect $BASE_ARG`
-5. DevOps Agent: `/pr-quality:devops $BASE_ARG`
-6. Roadmap Agent: `/pr-quality:roadmap $BASE_ARG`
+1. Security Agent: `/pr-quality:security $ARGUMENTS`
+2. QA Agent: `/pr-quality:qa $ARGUMENTS`
+3. Analyst Agent: `/pr-quality:analyst $ARGUMENTS`
+4. Architect Agent: `/pr-quality:architect $ARGUMENTS`
+5. DevOps Agent: `/pr-quality:devops $ARGUMENTS`
+6. Roadmap Agent: `/pr-quality:roadmap $ARGUMENTS`
 
 ## Verdict Aggregation
 

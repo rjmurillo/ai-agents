@@ -28,11 +28,11 @@ Apply the criteria from: @.github/prompts/pr-quality-gate-roadmap.md
 
 ### Changed Files
 
-!`git diff main --name-only`
+!`_BASE="${ARGUMENTS:-main}"; git diff "$_BASE" --name-only`
 
 ### Full Diff
 
-!`git diff main`
+!`_BASE="${ARGUMENTS:-main}"; git diff "$_BASE"`
 
 ## Output Format
 
