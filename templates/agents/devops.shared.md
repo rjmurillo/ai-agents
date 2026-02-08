@@ -167,7 +167,7 @@ Save to: `.agents/planning/impact-analysis-devops-[feature].md`
 
 ## Memory Protocol
 
-Use Memory Router for search and Serena tools for persistence (ADR-037):
+Use Memory Router for search and Serena tools for persistence:
 
 **Before pipeline work (retrieve context):**
 
