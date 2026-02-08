@@ -28,10 +28,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent / ".claude" / "hooks" / "Sto
 
 import invoke_skill_learning
 from invoke_skill_learning import (
-    SKILL_PATTERNS,
     COMMAND_TO_SKILL,
-    detect_skill_usage,
+    SKILL_PATTERNS,
     check_skill_context,
+    detect_skill_usage,
     extract_learnings,
     update_skill_memory,
 )
