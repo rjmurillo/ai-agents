@@ -163,6 +163,72 @@ Example: Architecture overview (document) → separate memories for each layer/d
 
 ---
 
+## Triggers
+
+| Trigger Phrase | Operation |
+|----------------|-----------|
+| `how do I create a memory` | Memory creation workflow |
+| `how do I search memories` | query_memory with semantic search |
+| `how do I update a memory` | update_memory with PATCH semantics |
+| `how do I link memories together` | link_memories bidirectional linking |
+| `what importance score should I use` | Importance scoring guide |
+
+---
+
+## When to Use
+
+Use this skill when:
+
+- Deciding whether to query or create a memory
+- Structuring memory content for atomicity
+- Choosing importance scores for new memories
+- Understanding Forgetful tool parameters
+
+Use [curating-memories](../curating-memories/SKILL.md) instead when:
+
+- Updating or marking existing memories obsolete
+- Building links between existing memories
+
+Use [exploring-knowledge-graph](../exploring-knowledge-graph/SKILL.md) instead when:
+
+- Traversing entity relationships across projects
+- Answering "what do you know about X" questions
+
+---
+
+## Process
+
+1. Query existing memories before creating new ones
+2. Follow atomic memory principles (one concept per memory)
+3. Set appropriate importance scores based on longevity and impact
+4. Link related memories for knowledge graph connectivity
+
+---
+
+## Anti-Patterns
+
+| Avoid | Why | Instead |
+|-------|-----|---------|
+| Creating without querying first | Produces duplicates | Always query_memory before create_memory |
+| Content over 2000 chars | Exceeds field limit, breaks atomicity | Use create_document for long content, extract atomic memories |
+| Importance below 6 | Pollutes search results with noise | Only store knowledge worth preserving |
+| Assuming project_id is 1 | Projects vary per repository | Always discover via list_projects first |
+| Storing transient context | Clutters knowledge base | Only store durable decisions and patterns |
+
+---
+
+## Verification
+
+After memory operations:
+
+- [ ] query_memory returns the new memory in results
+- [ ] Memory has title under 200 chars
+- [ ] Content is atomic (one concept per memory)
+- [ ] Importance score matches scoring guide
+- [ ] Project ID is correct for current repository
+
+---
+
 ## Tool Quick Reference
 
 Common tools you can call directly via `execute_forgetful_tool(tool_name, args)`:

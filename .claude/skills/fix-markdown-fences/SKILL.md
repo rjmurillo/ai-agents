@@ -9,6 +9,15 @@ model: claude-haiku-4-5
 
 # Fix Markdown Code Fence Closings
 
+## Triggers
+
+| Trigger Phrase | Operation |
+|----------------|-----------|
+| `fix markdown fences` | Scan and repair malformed fence closings |
+| `repair code block closings` | Fix closing fences with language identifiers |
+| `markdown rendering broken` | Diagnose and fix fence issues |
+| `code blocks bleeding into content` | Fix unclosed or malformed fences |
+
 ## Problem
 
 When generating markdown with code blocks, closing fences sometimes include language identifiers:
@@ -25,12 +34,18 @@ The closing fence should never have a language identifier. This breaks markdown 
 
 ## When to Use
 
-1. After generating markdown with multiple code blocks
-2. When fixing existing markdown files with rendering issues
-3. When code blocks appear to "bleed" into surrounding content
-4. As a validation step before committing markdown documentation
+Use this skill when:
 
-## Algorithm
+- Markdown code blocks render incorrectly or bleed into surrounding content
+- Closing fences have language identifiers (e.g., ` ```python ` instead of ` ``` `)
+- Validating markdown documentation before committing
+
+Use manual editing instead when:
+
+- The issue is indentation or content inside the code block (not the fences)
+- You need to change the language identifier on opening fences
+
+## Process
 
 Track fence state while scanning line by line:
 
@@ -189,16 +204,11 @@ print(fixed)
 
 ## Verification
 
-```bash
-# Check what changed
-git diff --stat
+After execution:
 
-# Review specific file
-git diff docs/example.md
-
-# Validate markdown renders correctly
-# (use your preferred markdown preview tool)
-```
+- [ ] No closing fences contain language identifiers
+- [ ] Markdown renders correctly in preview
+- [ ] `git diff` shows only fence-closing changes, no content modifications
 
 ## Edge Cases Handled
 
@@ -206,6 +216,14 @@ git diff docs/example.md
 2. **Multiple consecutive blocks**: Each block tracked independently
 3. **File ending inside block**: Automatically closes unclosed blocks
 4. **Mixed line endings**: Handles both `\n` and `\r\n`
+
+## Anti-Patterns
+
+| Avoid | Why | Instead |
+|-------|-----|---------|
+| Manually searching for bad fences | Error-prone in large files | Use the algorithm or grep pattern |
+| Copying opening fence line to close a block | Creates the exact bug this skill fixes | Always use plain ` ``` ` for closing |
+| Fixing fences without tracking block state | Misidentifies nested vs sequential blocks | Use the stateful line-by-line algorithm |
 
 ## Prevention
 

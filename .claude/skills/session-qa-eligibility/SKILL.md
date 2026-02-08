@@ -20,6 +20,19 @@ Check investigation session QA skip eligibility per ADR-034.
 
 ---
 
+## When to Use
+
+Use this skill when:
+
+- Completing an investigation-only session and considering QA skip
+- Need to verify staged files qualify for investigation-only exemption
+- Want to check eligibility before committing with "SKIPPED: investigation-only"
+
+Use the qa agent instead when:
+
+- Session includes any code changes or implementation work
+- This skill reports `Eligible: false`
+
 ## Process
 
 ```text

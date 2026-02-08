@@ -34,11 +34,11 @@ Use these scripts instead of raw `gh` commands for consistent error handling and
 
 | Phrase | Operation |
 |--------|-----------|
-| `get PR context for #123` | Get-PRContext.ps1 |
-| `respond to review comments` | Post-PRCommentReply.ps1 |
-| `check CI status` | Get-PRChecks.ps1 |
-| `add label to issue` | Set-IssueLabels.ps1 |
-| `assign milestone` | Set-ItemMilestone.ps1 |
+| `create a PR` | Create-PullRequest.ps1 or New-ValidatedPR.ps1 |
+| `respond to review comments on PR #123` | Post-PRCommentReply.ps1 |
+| `check CI status for PR #123` | Get-PRChecks.ps1 / Get-PRCheckLogs.ps1 |
+| `close issue #123` | Close-Issue operations |
+| `add label to issue #123` | Set-IssueLabels.ps1 |
 
 ---
 

@@ -9,13 +9,34 @@ model: claude-haiku-4-5
 
 # Security Detection Utility
 
-## Purpose
+## Triggers
 
-Detect infrastructure and security-critical file changes to trigger security agent review recommendations.
+| Trigger Phrase | Operation |
+|----------------|-----------|
+| `scan for security changes` | detect-infrastructure with staged files |
+| `check security-critical files` | detect-infrastructure with file list |
+| `run security scan on changes` | detect-infrastructure analysis |
+| `do I need a security review` | Risk-level assessment of changed files |
+| `check infrastructure changes` | Pattern matching against critical/high lists |
 
-## Location
+---
 
-`.claude/skills/security-detection/`
+## When to Use
+
+Use this skill when:
+
+- Committing changes that may touch infrastructure or security files
+- Pre-commit validation for security-sensitive paths
+- Determining if a security agent review is needed
+- CI pipeline security gate checks
+
+Use the security agent directly instead when:
+
+- You already know security review is needed
+- Performing threat modeling or vulnerability assessment
+- Reviewing authentication or authorization code in depth
+
+---
 
 ## Available Scripts
 
@@ -130,6 +151,37 @@ Edit the pattern lists in either script to add or modify detection patterns:
 
 - `CRITICAL_PATTERNS` / `$CriticalPatterns` - Review required
 - `HIGH_PATTERNS` / `$HighPatterns` - Review recommended
+
+## Process
+
+1. Gather the list of changed files (staged or explicit)
+2. Run pattern matching against critical and high-risk file patterns
+3. Report findings with risk level classification
+4. Route to security agent if CRITICAL matches found
+
+## Anti-Patterns
+
+| Avoid | Why | Instead |
+|-------|-----|---------|
+| Skipping detection before commits | Security files slip through unreviewed | Run detection on every commit with infrastructure changes |
+| Treating warnings as blocking | Scripts exit 0 intentionally | Use output to inform review decisions, not block commits |
+| Hardcoding custom patterns inline | Drifts from canonical pattern lists | Edit CRITICAL_PATTERNS/HIGH_PATTERNS in the scripts |
+| Ignoring HIGH-level matches | Potential security impact overlooked | Review HIGH matches, escalate to security agent when uncertain |
+| Running only one language script | May miss platform-specific detection | Use whichever script matches your environment |
+
+---
+
+## Verification
+
+After running security detection:
+
+- [ ] Script exited with code 0 (non-blocking)
+- [ ] All CRITICAL matches reviewed
+- [ ] Security agent routed for CRITICAL findings
+- [ ] HIGH matches evaluated for review need
+- [ ] Output captured in session log if security-relevant
+
+---
 
 ## Related Documents
 
