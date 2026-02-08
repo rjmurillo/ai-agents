@@ -247,6 +247,54 @@ See `references/strategies.md` for detailed patterns:
 - Template-generated files - resolve in template, regenerate outputs
 - Rebase add/add conflicts - per-commit resolution during rebase
 
+### Session Files (.agents/sessions/*.json)
+
+**CRITICAL RULE:** Session files from main are immutable audit records. NEVER alter them.
+
+**Conflict Scenario:**
+
+```bash
+# Both branches have .agents/sessions/2026-02-08-session-1188.json
+# Git shows: both modified
+UU .agents/sessions/2026-02-08-session-1188.json
+```
+
+**Resolution (CORRECT):**
+
+```bash
+# Step 1: Preserve main's session file (immutable audit record)
+git checkout --theirs .agents/sessions/2026-02-08-session-1188.json
+
+# Step 2: Rename our session file to next available number
+# Determine next number (e.g., if main has 1188, ours becomes 1189)
+mv .agents/sessions/2026-02-08-session-1188-our-branch.json \
+   .agents/sessions/2026-02-08-session-1189.json
+
+# Step 3: Stage both files
+git add .agents/sessions/2026-02-08-session-1188.json
+git add .agents/sessions/2026-02-08-session-1189.json
+```
+
+**WRONG Approaches:**
+
+```bash
+# ❌ NEVER do this - alters main's historical record
+git checkout --ours .agents/sessions/2026-02-08-session-1188.json
+
+# ❌ NEVER do this - loses one session's data
+git checkout --theirs .agents/sessions/2026-02-08-session-1188.json
+# (without renaming ours)
+```
+
+**Rationale:**
+
+- Session logs are audit records for CI/CD compliance
+- Altering historical session files breaks traceability
+- Each session must have unique, immutable record
+- Main branch is authoritative source of session history
+
+**Evidence:** Session 1187 incident - Used `--ours` and altered main's session 1188, required user intervention to correct.
+
 ## Auto-Resolution Script
 
 For automated conflict resolution in CI/CD, use `scripts/Resolve-PRConflicts.ps1`:
