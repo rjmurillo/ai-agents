@@ -313,32 +313,32 @@ class TestPatternSynchronization(unittest.TestCase):
                 self.assertTrue(result, f"Skill '{skill}' should match pattern '{patterns[0]}'")
 
 
-class TestDocumentationSkillPattern(unittest.TestCase):
-    """Bug 4 fix: Test that documentation skill detection is precise."""
+class TestDocSyncSkillPattern(unittest.TestCase):
+    """Test that doc-sync skill detection is precise (replaces phantom 'documentation' skill)."""
 
-    def test_documentation_matches_skill_path(self):
-        """Should match .claude/skills/documentation path."""
-        text = "Check .claude/skills/documentation for templates"
-        result = check_skill_context(text, "documentation")
+    def test_doc_sync_matches_skill_path(self):
+        """Should match .claude/skills/doc-sync path."""
+        text = "Check .claude/skills/doc-sync for templates"
+        result = check_skill_context(text, "doc-sync")
         self.assertTrue(result, "Should match skill path reference")
 
-    def test_documentation_matches_skill_keyword(self):
-        """Should match 'documentation skill' keyword."""
-        text = "Use the documentation skill to update"
-        result = check_skill_context(text, "documentation")
-        self.assertTrue(result, "Should match 'documentation skill'")
+    def test_doc_sync_matches_sync_docs_keyword(self):
+        """Should match 'sync docs' keyword."""
+        text = "Use sync docs to update documentation indexes"
+        result = check_skill_context(text, "doc-sync")
+        self.assertTrue(result, "Should match 'sync docs'")
 
-    def test_documentation_rejects_generic_mention(self):
+    def test_doc_sync_matches_skill_name(self):
+        """Should match 'doc-sync' skill name."""
+        text = "Run the doc-sync skill to synchronize"
+        result = check_skill_context(text, "doc-sync")
+        self.assertTrue(result, "Should match 'doc-sync'")
+
+    def test_doc_sync_rejects_generic_documentation(self):
         """Should NOT match generic 'documentation' mentions."""
         text = "Read the documentation for more info"
-        result = check_skill_context(text, "documentation")
+        result = check_skill_context(text, "doc-sync")
         self.assertFalse(result, "Should not match generic documentation mention")
-
-    def test_documentation_rejects_docs_folder_mention(self):
-        """Should NOT match generic 'docs/' folder mentions."""
-        text = "Check the docs/ folder for API reference"
-        result = check_skill_context(text, "documentation")
-        self.assertFalse(result, "Should not match generic docs/ mention")
 
 
 class TestSuccessPatternPrecision(unittest.TestCase):
@@ -801,6 +801,55 @@ class TestLowConfidenceDetection(unittest.TestCase):
             "acknowledgement"
         )
         self.assertEqual(len(learnings), 0, "Long message should not match acknowledgement")
+
+
+class TestSkillCatalogCoverage(unittest.TestCase):
+    """Verify SKILL_PATTERNS and COMMAND_TO_SKILL reference real skills."""
+
+    # Actual skill catalog from .claude/skills/ directories
+    SKILL_CATALOG = {
+        'SkillForge', 'adr-review', 'analyze', 'chaos-experiment',
+        'codeql-scan', 'curating-memories', 'cynefin-classifier',
+        'decision-critic', 'doc-sync', 'encode-repo-serena',
+        'exploring-knowledge-graph', 'fix-markdown-fences',
+        'git-advanced-workflows', 'github', 'github-url-intercept',
+        'incoherence', 'memory', 'memory-documentary', 'memory-enhancement',
+        'merge-resolver', 'metrics', 'planner', 'pr-comment-responder',
+        'pre-mortem', 'programming-advisor', 'prompt-engineer', 'reflect',
+        'research-and-incorporate', 'security-detection',
+        'serena-code-architecture', 'session', 'session-end', 'session-init',
+        'session-log-fixer', 'session-migration', 'session-qa-eligibility',
+        'slashcommandcreator', 'slo-designer', 'steering-matcher',
+        'threat-modeling', 'using-forgetful-memory', 'using-serena-symbols',
+    }
+
+    def test_skill_patterns_reference_real_skills(self):
+        """All skills in SKILL_PATTERNS should exist in the skill catalog."""
+        phantom_skills = set(SKILL_PATTERNS.keys()) - self.SKILL_CATALOG
+        self.assertEqual(
+            phantom_skills, set(),
+            f"SKILL_PATTERNS contains phantom skills not in catalog: {phantom_skills}"
+        )
+
+    def test_command_to_skill_values_are_real_skills(self):
+        """All COMMAND_TO_SKILL values should reference real skill names."""
+        invalid_targets = {
+            cmd: skill for cmd, skill in COMMAND_TO_SKILL.items()
+            if skill not in self.SKILL_CATALOG
+        }
+        self.assertEqual(
+            invalid_targets, {},
+            f"COMMAND_TO_SKILL maps to non-existent skills: {invalid_targets}"
+        )
+
+    def test_no_phantom_skills_remain(self):
+        """Phantom skills from the original audit should not be in SKILL_PATTERNS."""
+        known_phantoms = {'api-design', 'code-review', 'testing', 'documentation', 'retrospective'}
+        remaining = known_phantoms & set(SKILL_PATTERNS.keys())
+        self.assertEqual(
+            remaining, set(),
+            f"Phantom skills still present in SKILL_PATTERNS: {remaining}"
+        )
 
 
 if __name__ == "__main__":

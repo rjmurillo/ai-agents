@@ -133,40 +133,152 @@ def _get_safe_root_from_env(env_value: str) -> Path:
 SKILL_PATTERNS: dict[str, list[str]] = {
     # GitHub skill: PR/issue operations, skill path, explicit mentions
     'github': ['gh pr', 'gh issue', '.claude/skills/github', 'github skill', '/pr-review', 'pull request'],
+    # GitHub URL intercept
+    'github-url-intercept': ['github-url-intercept', 'github.com URL', 'intercept github'],
     # Memory skill: Forgetful, Serena, memory operations
-    'memory': ['search memory', 'forgetful', 'serena', 'memory-first', 'ADR-007', 'mcp__serena'],
+    'memory': ['search memory', 'forgetful', 'memory-first', 'ADR-007', 'memory skill'],
+    # Memory enhancement: citations, confidence scores
+    'memory-enhancement': ['memory-enhancement', 'memory citation', 'confidence score', 'verify code reference'],
+    # Memory documentary: evidence-based reports
+    'memory-documentary': ['memory-documentary', 'documentary report', 'evidence-based report'],
     # Session initialization
     'session-init': ['/session-init', 'session log', 'session protocol', 'session-init skill'],
+    # Session management
+    'session': ['session skill', 'investigation eligibility', 'Test-InvestigationEligibility'],
+    # Session end
+    'session-end': ['/session-end', 'session-end skill', 'complete session', 'finalize session'],
+    # Session log fixer
+    'session-log-fixer': ['session-log-fixer', 'fix session validation', 'Fix-SessionLog'],
+    # Session migration
+    'session-migration': ['session-migration', 'migrate session', 'markdown to JSON'],
+    # Session QA eligibility
+    'session-qa-eligibility': ['session-qa-eligibility', 'QA skip eligibility', 'investigation-only'],
     # SkillForge meta-skill
     'SkillForge': ['SkillForge', 'create skill', 'synthesis panel', 'skill creation'],
+    # SlashCommandCreator
+    'slashcommandcreator': ['slashcommandcreator', 'SlashCommandCreator', 'create slash command'],
     # ADR review skill
     'adr-review': ['adr-review', 'ADR files', 'architecture decision', 'decision record'],
     # Incoherence detection
     'incoherence': ['incoherence skill', 'detect incoherence', 'reconcile', 'incoherence detection'],
-    # Retrospective/reflection
-    'retrospective': ['retrospective', 'session end', 'retrospective skill'],
+    # Reflect: learning capture
     'reflect': ['reflect skill', 'learn from this', 'what did we learn', '/reflect'],
     # PR comment handling
     'pr-comment-responder': ['pr-comment-responder', 'review comments', 'feedback items', 'PR feedback'],
-    # Code review patterns
-    'code-review': ['code review skill', 'style guide', 'security patterns', 'review code'],
-    # API design patterns
-    'api-design': ['API design skill', 'REST API', 'API endpoint', 'API versioning'],
-    # Testing patterns - more specific to avoid false positives on generic "test"
-    'testing': ['test coverage', 'unit test', 'integration test', 'mocking', 'test assertion', 'testing skill'],
-    # Documentation - more specific patterns to avoid matching generic "documentation" text
-    'documentation': ['.claude/skills/documentation', 'documentation skill', 'write documentation', 'update docs', 'README update'],
+    # Doc sync
+    'doc-sync': ['doc-sync', '.claude/skills/doc-sync', 'sync docs', 'synchronize documentation'],
+    # Analyze: codebase analysis
+    'analyze': ['analyze skill', '/analyze', 'codebase analysis', 'security assessment'],
+    # CodeQL scan
+    'codeql-scan': ['codeql-scan', 'CodeQL', 'SARIF output', 'static security analysis'],
+    # Chaos experiment
+    'chaos-experiment': ['chaos-experiment', 'chaos engineering', 'failure injection', 'resilience test'],
+    # Curating memories
+    'curating-memories': ['curating-memories', 'curate memory', 'memory curation', 'obsolete memory'],
+    # Cynefin classifier
+    'cynefin-classifier': ['cynefin-classifier', 'Cynefin', 'domain classification', 'sense-making'],
+    # Decision critic
+    'decision-critic': ['decision-critic', 'stress-test reasoning', 'adversarial perspective'],
+    # Encode repo with Serena
+    'encode-repo-serena': ['encode-repo-serena', 'populate knowledge base', 'symbol analysis'],
+    # Exploring knowledge graph
+    'exploring-knowledge-graph': ['exploring-knowledge-graph', 'knowledge graph', 'graph traversal'],
+    # Fix markdown fences
+    'fix-markdown-fences': ['fix-markdown-fences', 'markdown fence', 'code fence closing'],
+    # Git advanced workflows
+    'git-advanced-workflows': ['git-advanced-workflows', 'rebase', 'cherry-pick', 'git bisect', 'worktree'],
+    # Merge resolver
+    'merge-resolver': ['merge-resolver', 'merge conflict', 'resolve conflict', 'fix conflicts'],
+    # Metrics
+    'metrics': ['metrics skill', '/metrics', 'agent usage metrics', 'health report'],
+    # Planner
+    'planner': ['planner skill', '/planner', 'implementation plan', 'pick up next item'],
+    # Pre-mortem
+    'pre-mortem': ['pre-mortem', 'prospective hindsight', 'risk identification'],
+    # Programming advisor
+    'programming-advisor': ['programming-advisor', 'build vs buy', 'existing solution'],
+    # Prompt engineer
+    'prompt-engineer': ['prompt-engineer', 'optimize prompt', 'prompt improvement'],
+    # Research and incorporate
+    'research-and-incorporate': ['research-and-incorporate', '/research', 'incorporate learnings'],
+    # Security detection
+    'security-detection': ['security-detection', 'security scan', 'infrastructure changes', 'security-critical'],
+    # Serena code architecture
+    'serena-code-architecture': ['serena-code-architecture', 'architectural analysis', 'component entities'],
+    # SLO designer
+    'slo-designer': ['slo-designer', 'service level objective', 'error budget', 'SLI target'],
+    # Steering matcher
+    'steering-matcher': ['steering-matcher', 'steering file', 'glob pattern match'],
+    # Threat modeling
+    'threat-modeling': ['threat-modeling', 'threat model', 'STRIDE', 'attack surface'],
+    # Using Forgetful memory
+    'using-forgetful-memory': ['using-forgetful-memory', 'Forgetful memory', 'Zettelkasten', 'atomic memory'],
+    # Using Serena symbols
+    'using-serena-symbols': ['using-serena-symbols', 'Serena symbol', 'LSP-powered', 'mcp__serena'],
 }
 
 # Slash command to skill mapping
 COMMAND_TO_SKILL: dict[str, str] = {
+    # GitHub operations
     'pr-review': 'github',
-    'session-init': 'session-init',
+    'push-pr': 'github',
+    # Memory operations
     'memory-search': 'memory',
     'memory-list': 'memory',
-    'research': 'research-and-incorporate',
-    'reflect': 'reflect',
     'forgetful': 'memory',
+    'memory': 'memory',
+    # Session operations
+    'session-init': 'session-init',
+    'session-end': 'session-end',
+    'session-log-fixer': 'session-log-fixer',
+    'session-migration': 'session-migration',
+    'session-qa-eligibility': 'session-qa-eligibility',
+    # Analysis and research
+    'analyze': 'analyze',
+    'research': 'research-and-incorporate',
+    'codeql-scan': 'codeql-scan',
+    # Planning and design
+    'planner': 'planner',
+    'pre-mortem': 'pre-mortem',
+    'cynefin-classifier': 'cynefin-classifier',
+    'decision-critic': 'decision-critic',
+    'slo-designer': 'slo-designer',
+    'threat-modeling': 'threat-modeling',
+    'chaos-experiment': 'chaos-experiment',
+    # Reflection and learning
+    'reflect': 'reflect',
+    # Documentation and code quality
+    'doc-sync': 'doc-sync',
+    'fix-markdown-fences': 'fix-markdown-fences',
+    'incoherence': 'incoherence',
+    # Security
+    'security-detection': 'security-detection',
+    # Skills and meta
+    'SkillForge': 'SkillForge',
+    'slashcommandcreator': 'slashcommandcreator',
+    'prompt-engineer': 'prompt-engineer',
+    # Git operations
+    'merge-resolver': 'merge-resolver',
+    'git-advanced-workflows': 'git-advanced-workflows',
+    # ADR and architecture
+    'adr-review': 'adr-review',
+    # Metrics
+    'metrics': 'metrics',
+    # Memory guidance skills
+    'curating-memories': 'curating-memories',
+    'exploring-knowledge-graph': 'exploring-knowledge-graph',
+    'using-forgetful-memory': 'using-forgetful-memory',
+    'using-serena-symbols': 'using-serena-symbols',
+    'memory-documentary': 'memory-documentary',
+    'memory-enhancement': 'memory-enhancement',
+    # PR comments
+    'pr-comment-responder': 'pr-comment-responder',
+    # Other skills
+    'programming-advisor': 'programming-advisor',
+    'encode-repo-serena': 'encode-repo-serena',
+    'serena-code-architecture': 'serena-code-architecture',
+    'steering-matcher': 'steering-matcher',
+    'github-url-intercept': 'github-url-intercept',
 }
 
 # LLM fallback configuration
