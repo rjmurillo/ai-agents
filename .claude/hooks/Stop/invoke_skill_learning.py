@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/home/richard/.pyenv/versions/3.12.8/bin/python
 """
 Automatically extracts skill learnings from session conversation with LLM fallback.
 
