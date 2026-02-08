@@ -120,166 +120,46 @@ def _get_safe_root_from_env(env_value: str) -> Path:
 
 
 # =============================================================================
-# SKILL PATTERN DEFINITIONS (Single Source of Truth)
+# SKILL PATTERN DEFINITIONS (Dynamically loaded from SKILL.md files)
 # =============================================================================
-# IMPORTANT: These patterns are used in 2 functions:
-#   1. detect_skill_usage() - Detects which skills were used in conversation
-#   2. check_skill_context() - Validates skill context for learning extraction
+# Patterns are loaded at runtime from SKILL.md trigger tables via
+# skill_pattern_loader.py. This eliminates manual maintenance when
+# skills are added, modified, or removed.
 #
-# If you add/modify patterns here, both functions automatically stay in sync.
-# The command_to_skill mapping below handles slash command -> skill resolution.
+# The loader scans:
+#   1. {project}/.claude/skills/*/SKILL.md  (Claude Code repo)
+#   2. {project}/.github/skills/*/SKILL.md  (Copilot/GitHub repo)
+#   3. ~/.claude/skills/*/SKILL.md          (Claude Code user)
+#   4. ~/.copilot/skills/*/SKILL.md         (Copilot CLI user)
+#
+# Graceful degradation: if loading fails, regex-based detection
+# (skill path patterns, slash commands) still works with empty dicts.
 # =============================================================================
 
-SKILL_PATTERNS: dict[str, list[str]] = {
-    # GitHub skill: PR/issue operations, skill path, explicit mentions
-    'github': ['gh pr', 'gh issue', '.claude/skills/github', 'github skill', '/pr-review', 'pull request'],
-    # GitHub URL intercept
-    'github-url-intercept': ['github-url-intercept', 'github.com URL', 'intercept github'],
-    # Memory skill: Forgetful, Serena, memory operations
-    'memory': ['search memory', 'forgetful', 'memory-first', 'ADR-007', 'memory skill'],
-    # Memory enhancement: citations, confidence scores
-    'memory-enhancement': ['memory-enhancement', 'memory citation', 'confidence score', 'verify code reference'],
-    # Memory documentary: evidence-based reports
-    'memory-documentary': ['memory-documentary', 'documentary report', 'evidence-based report'],
-    # Session initialization
-    'session-init': ['/session-init', 'session log', 'session protocol', 'session-init skill'],
-    # Session management
-    'session': ['session skill', 'investigation eligibility', 'Test-InvestigationEligibility'],
-    # Session end
-    'session-end': ['/session-end', 'session-end skill', 'complete session', 'finalize session'],
-    # Session log fixer
-    'session-log-fixer': ['session-log-fixer', 'fix session validation', 'Fix-SessionLog'],
-    # Session migration
-    'session-migration': ['session-migration', 'migrate session', 'markdown to JSON'],
-    # Session QA eligibility
-    'session-qa-eligibility': ['session-qa-eligibility', 'QA skip eligibility', 'investigation-only'],
-    # SkillForge meta-skill
-    'SkillForge': ['SkillForge', 'create skill', 'synthesis panel', 'skill creation'],
-    # SlashCommandCreator
-    'slashcommandcreator': ['slashcommandcreator', 'SlashCommandCreator', 'create slash command'],
-    # ADR review skill
-    'adr-review': ['adr-review', 'ADR files', 'architecture decision', 'decision record'],
-    # Incoherence detection
-    'incoherence': ['incoherence skill', 'detect incoherence', 'reconcile', 'incoherence detection'],
-    # Reflect: learning capture
-    'reflect': ['reflect skill', 'learn from this', 'what did we learn', '/reflect'],
-    # PR comment handling
-    'pr-comment-responder': ['pr-comment-responder', 'review comments', 'feedback items', 'PR feedback'],
-    # Doc sync
-    'doc-sync': ['doc-sync', '.claude/skills/doc-sync', 'sync docs', 'synchronize documentation'],
-    # Analyze: codebase analysis
-    'analyze': ['analyze skill', '/analyze', 'codebase analysis', 'security assessment'],
-    # CodeQL scan
-    'codeql-scan': ['codeql-scan', 'CodeQL', 'SARIF output', 'static security analysis'],
-    # Chaos experiment
-    'chaos-experiment': ['chaos-experiment', 'chaos engineering', 'failure injection', 'resilience test'],
-    # Curating memories
-    'curating-memories': ['curating-memories', 'curate memory', 'memory curation', 'obsolete memory'],
-    # Cynefin classifier
-    'cynefin-classifier': ['cynefin-classifier', 'Cynefin', 'domain classification', 'sense-making'],
-    # Decision critic
-    'decision-critic': ['decision-critic', 'stress-test reasoning', 'adversarial perspective'],
-    # Encode repo with Serena
-    'encode-repo-serena': ['encode-repo-serena', 'populate knowledge base', 'symbol analysis'],
-    # Exploring knowledge graph
-    'exploring-knowledge-graph': ['exploring-knowledge-graph', 'knowledge graph', 'graph traversal'],
-    # Fix markdown fences
-    'fix-markdown-fences': ['fix-markdown-fences', 'markdown fence', 'code fence closing'],
-    # Git advanced workflows
-    'git-advanced-workflows': ['git-advanced-workflows', 'rebase', 'cherry-pick', 'git bisect', 'worktree'],
-    # Merge resolver
-    'merge-resolver': ['merge-resolver', 'merge conflict', 'resolve conflict', 'fix conflicts'],
-    # Metrics
-    'metrics': ['metrics skill', '/metrics', 'agent usage metrics', 'health report'],
-    # Planner
-    'planner': ['planner skill', '/planner', 'implementation plan', 'pick up next item'],
-    # Pre-mortem
-    'pre-mortem': ['pre-mortem', 'prospective hindsight', 'risk identification'],
-    # Programming advisor
-    'programming-advisor': ['programming-advisor', 'build vs buy', 'existing solution'],
-    # Prompt engineer
-    'prompt-engineer': ['prompt-engineer', 'optimize prompt', 'prompt improvement'],
-    # Research and incorporate
-    'research-and-incorporate': ['research-and-incorporate', '/research', 'incorporate learnings'],
-    # Security detection
-    'security-detection': ['security-detection', 'security scan', 'infrastructure changes', 'security-critical'],
-    # Serena code architecture
-    'serena-code-architecture': ['serena-code-architecture', 'architectural analysis', 'component entities'],
-    # SLO designer
-    'slo-designer': ['slo-designer', 'service level objective', 'error budget', 'SLI target'],
-    # Steering matcher
-    'steering-matcher': ['steering-matcher', 'steering file', 'glob pattern match'],
-    # Threat modeling
-    'threat-modeling': ['threat-modeling', 'threat model', 'STRIDE', 'attack surface'],
-    # Using Forgetful memory
-    'using-forgetful-memory': ['using-forgetful-memory', 'Forgetful memory', 'Zettelkasten', 'atomic memory'],
-    # Using Serena symbols
-    'using-serena-symbols': ['using-serena-symbols', 'Serena symbol', 'LSP-powered', 'mcp__serena'],
-}
+SKILL_PATTERNS: dict[str, list[str]] = {}
+COMMAND_TO_SKILL: dict[str, str] = {}
+_patterns_loaded = False
 
-# Slash command to skill mapping
-COMMAND_TO_SKILL: dict[str, str] = {
-    # GitHub operations
-    'pr-review': 'github',
-    'push-pr': 'github',
-    # Memory operations
-    'memory-search': 'memory',
-    'memory-list': 'memory',
-    'forgetful': 'memory',
-    'memory': 'memory',
-    # Session operations
-    'session-init': 'session-init',
-    'session-end': 'session-end',
-    'session-log-fixer': 'session-log-fixer',
-    'session-migration': 'session-migration',
-    'session-qa-eligibility': 'session-qa-eligibility',
-    # Analysis and research
-    'analyze': 'analyze',
-    'research': 'research-and-incorporate',
-    'codeql-scan': 'codeql-scan',
-    # Planning and design
-    'planner': 'planner',
-    'pre-mortem': 'pre-mortem',
-    'cynefin-classifier': 'cynefin-classifier',
-    'decision-critic': 'decision-critic',
-    'slo-designer': 'slo-designer',
-    'threat-modeling': 'threat-modeling',
-    'chaos-experiment': 'chaos-experiment',
-    # Reflection and learning
-    'reflect': 'reflect',
-    # Documentation and code quality
-    'doc-sync': 'doc-sync',
-    'fix-markdown-fences': 'fix-markdown-fences',
-    'incoherence': 'incoherence',
-    # Security
-    'security-detection': 'security-detection',
-    # Skills and meta
-    'SkillForge': 'SkillForge',
-    'slashcommandcreator': 'slashcommandcreator',
-    'prompt-engineer': 'prompt-engineer',
-    # Git operations
-    'merge-resolver': 'merge-resolver',
-    'git-advanced-workflows': 'git-advanced-workflows',
-    # ADR and architecture
-    'adr-review': 'adr-review',
-    # Metrics
-    'metrics': 'metrics',
-    # Memory guidance skills
-    'curating-memories': 'curating-memories',
-    'exploring-knowledge-graph': 'exploring-knowledge-graph',
-    'using-forgetful-memory': 'using-forgetful-memory',
-    'using-serena-symbols': 'using-serena-symbols',
-    'memory-documentary': 'memory-documentary',
-    'memory-enhancement': 'memory-enhancement',
-    # PR comments
-    'pr-comment-responder': 'pr-comment-responder',
-    # Other skills
-    'programming-advisor': 'programming-advisor',
-    'encode-repo-serena': 'encode-repo-serena',
-    'serena-code-architecture': 'serena-code-architecture',
-    'steering-matcher': 'steering-matcher',
-    'github-url-intercept': 'github-url-intercept',
-}
+
+def _ensure_patterns_loaded(project_dir: Path) -> None:
+    """Lazy-load skill patterns from SKILL.md files on first use.
+
+    Uses stat-based caching for performance (~2ms warm, ~40ms cold).
+    Falls back silently to empty dicts if loading fails.
+    """
+    global SKILL_PATTERNS, COMMAND_TO_SKILL, _patterns_loaded
+    if _patterns_loaded:
+        return
+    try:
+        from skill_pattern_loader import load_skill_patterns
+        loaded_patterns, loaded_commands = load_skill_patterns(project_dir)
+        if loaded_patterns:
+            SKILL_PATTERNS = loaded_patterns
+        if loaded_commands:
+            COMMAND_TO_SKILL = loaded_commands
+    except Exception:
+        pass  # Graceful degradation: regex detection still works
+    _patterns_loaded = True
 
 # LLM fallback configuration
 CONFIDENCE_THRESHOLD = float(os.getenv("SKILL_LEARNING_CONFIDENCE_THRESHOLD", "0.7"))
@@ -1066,6 +946,9 @@ def main():
 
         global PROJECT_DIR
         PROJECT_DIR = safe_project_path
+
+        # Load skill patterns dynamically from SKILL.md files
+        _ensure_patterns_loaded(safe_project_path)
 
         messages = get_conversation_messages(hook_input)
 

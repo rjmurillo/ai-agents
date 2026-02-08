@@ -30,11 +30,21 @@ import invoke_skill_learning
 from invoke_skill_learning import (
     COMMAND_TO_SKILL,
     SKILL_PATTERNS,
+    _ensure_patterns_loaded,
     check_skill_context,
     detect_skill_usage,
     extract_learnings,
     update_skill_memory,
 )
+
+# Load patterns from real SKILL.md files so existing tests have data.
+# This mirrors what main() does at runtime.
+_PROJECT_ROOT = Path(__file__).parent.parent
+_ensure_patterns_loaded(_PROJECT_ROOT)
+
+# Disable LLM fallback for deterministic pattern-based testing.
+# LLM can reclassify learnings, changing confidence categories.
+invoke_skill_learning.USE_LLM_FALLBACK = False
 
 
 class TestDynamicSkillDetection(unittest.TestCase):
@@ -72,15 +82,14 @@ class TestDynamicSkillDetection(unittest.TestCase):
 
     def test_mapped_skill_still_uses_patterns(self):
         """Mapped skills should still use pattern-based checking."""
-        # 'github' is a mapped skill
-        text = "I ran gh pr list to see the pull requests"
+        # 'github' is a mapped skill with trigger "create a PR"
+        text = "I need to create a PR for this feature"
         result = check_skill_context(text, "github")
         self.assertTrue(result, "Mapped skill should match on patterns")
 
     def test_mapped_skill_fails_without_pattern_match(self):
         """Mapped skills should fail when patterns don't match."""
-        # 'github' patterns include 'gh pr', 'gh issue', '.claude/skills/github', etc.
-        # Use a text that does not match any of the defined GitHub patterns
+        # Use a text that does not match any of the github trigger patterns
         text = "Reading about version control systems"
         result = check_skill_context(text, "github")
         self.assertFalse(result, "Mapped skill should fail without pattern match")
@@ -152,8 +161,8 @@ class TestLearningExtraction(unittest.TestCase):
     def test_extract_learnings_for_mapped_skill(self):
         """Learnings should be extracted for mapped skills."""
         messages = [
-            {"role": "user", "content": "Run gh pr list"},
-            {"role": "assistant", "content": "Running gh pr list now"},
+            {"role": "user", "content": "Let's create a PR for this feature"},
+            {"role": "assistant", "content": "I'll create a PR using the github skill"},
             {"role": "user", "content": "Perfect! That's exactly what I needed"},
         ]
         learnings = extract_learnings(messages, "github")
@@ -172,6 +181,7 @@ class TestSkillDetection(unittest.TestCase):
         """Slash commands should map to their associated skills."""
         messages = [
             {"role": "user", "content": "Run /session-init to start"},
+            {"role": "assistant", "content": "Running /session-init now"},
         ]
         detected = detect_skill_usage(messages)
         self.assertIn("session-init", detected)
@@ -179,12 +189,12 @@ class TestSkillDetection(unittest.TestCase):
     def test_detect_pattern_based_skill(self):
         """Pattern-based detection should work for mapped skills."""
         messages = [
-            {"role": "user", "content": "Check the forgetful memory system"},
-            {"role": "assistant", "content": "Using Serena to search memory"},
-            {"role": "user", "content": "Good, now search memory for the pattern"},
+            {"role": "user", "content": "I need to create a PR for the fix"},
+            {"role": "assistant", "content": "I'll create a PR using the script"},
+            {"role": "user", "content": "Yes, create a PR with that title"},
         ]
         detected = detect_skill_usage(messages)
-        self.assertIn("memory", detected)
+        self.assertIn("github", detected)
 
     def test_detect_multiple_skills(self):
         """Multiple skills can be detected in same conversation."""
@@ -278,35 +288,78 @@ class TestPathTraversalPrevention(unittest.TestCase):
 
 
 class TestPatternSynchronization(unittest.TestCase):
-    """Bug 3 fix: Test that skill patterns are centralized and synchronized."""
+    """Test that skill patterns are loaded dynamically and used consistently."""
 
-    def test_skill_patterns_is_module_level_constant(self):
-        """SKILL_PATTERNS should be a module-level constant."""
+    def test_skill_patterns_is_module_level_dict(self):
+        """SKILL_PATTERNS should be a module-level dict."""
         self.assertIsInstance(SKILL_PATTERNS, dict)
-        self.assertGreater(len(SKILL_PATTERNS), 0, "SKILL_PATTERNS should not be empty")
 
-    def test_command_to_skill_is_module_level_constant(self):
-        """COMMAND_TO_SKILL should be a module-level constant."""
+    def test_command_to_skill_is_module_level_dict(self):
+        """COMMAND_TO_SKILL should be a module-level dict."""
         self.assertIsInstance(COMMAND_TO_SKILL, dict)
-        self.assertGreater(len(COMMAND_TO_SKILL), 0, "COMMAND_TO_SKILL should not be empty")
 
-    def test_detect_skill_usage_uses_centralized_patterns(self):
-        """detect_skill_usage should use SKILL_PATTERNS."""
-        # Verify by checking that a skill in SKILL_PATTERNS is detected
-        for skill in list(SKILL_PATTERNS.keys())[:3]:
-            patterns = SKILL_PATTERNS[skill]
+    def test_dynamic_loading_populates_patterns(self):
+        """_ensure_patterns_loaded should populate SKILL_PATTERNS from SKILL.md files."""
+        # Use the real project directory to load patterns
+        project_dir = Path(__file__).parent.parent
+        skills_dir = project_dir / ".claude" / "skills"
+
+        if not skills_dir.is_dir():
+            self.skipTest("No .claude/skills/ directory found")
+
+        # Reset loading state and reload
+        invoke_skill_learning._patterns_loaded = False
+        invoke_skill_learning.SKILL_PATTERNS = {}
+        invoke_skill_learning.COMMAND_TO_SKILL = {}
+
+        try:
+            _ensure_patterns_loaded(project_dir)
+        finally:
+            pass
+
+        self.assertGreater(
+            len(invoke_skill_learning.SKILL_PATTERNS), 0,
+            "SKILL_PATTERNS should be populated after loading"
+        )
+        self.assertGreater(
+            len(invoke_skill_learning.COMMAND_TO_SKILL), 0,
+            "COMMAND_TO_SKILL should be populated after loading"
+        )
+
+    def test_loaded_patterns_used_by_detect_skill_usage(self):
+        """detect_skill_usage should use dynamically loaded patterns."""
+        project_dir = Path(__file__).parent.parent
+        skills_dir = project_dir / ".claude" / "skills"
+
+        if not skills_dir.is_dir():
+            self.skipTest("No .claude/skills/ directory found")
+
+        # Ensure patterns are loaded
+        invoke_skill_learning._patterns_loaded = False
+        _ensure_patterns_loaded(project_dir)
+
+        # Verify at least some loaded patterns work with detection
+        for skill in list(invoke_skill_learning.SKILL_PATTERNS.keys())[:3]:
+            patterns = invoke_skill_learning.SKILL_PATTERNS[skill]
             if patterns:
                 messages = [
                     {"role": "user", "content": patterns[0]},
                     {"role": "assistant", "content": patterns[0]},
                 ]
-                # Detection tested - not asserting specific skill due to threshold requirements
                 detect_skill_usage(messages)
 
-    def test_check_skill_context_uses_centralized_patterns(self):
-        """check_skill_context should use SKILL_PATTERNS."""
-        # Verify mapped skills use SKILL_PATTERNS
-        for skill, patterns in list(SKILL_PATTERNS.items())[:3]:
+    def test_loaded_patterns_used_by_check_skill_context(self):
+        """check_skill_context should use dynamically loaded patterns."""
+        project_dir = Path(__file__).parent.parent
+        skills_dir = project_dir / ".claude" / "skills"
+
+        if not skills_dir.is_dir():
+            self.skipTest("No .claude/skills/ directory found")
+
+        invoke_skill_learning._patterns_loaded = False
+        _ensure_patterns_loaded(project_dir)
+
+        for skill, patterns in list(invoke_skill_learning.SKILL_PATTERNS.items())[:3]:
             if patterns:
                 text = patterns[0]
                 result = check_skill_context(text, skill)
@@ -347,8 +400,8 @@ class TestSuccessPatternPrecision(unittest.TestCase):
     def _extract_success_learning(self, user_response):
         """Helper to extract success learning from a test message."""
         messages = [
-            {"role": "user", "content": "Check gh pr list"},
-            {"role": "assistant", "content": "Running gh pr list now"},
+            {"role": "user", "content": "Let's create a PR for the feature"},
+            {"role": "assistant", "content": "I'll create a PR using the github skill"},
             {"role": "user", "content": user_response},
         ]
         learnings = extract_learnings(messages, "github")
@@ -379,8 +432,8 @@ class TestSuccessPatternPrecision(unittest.TestCase):
         """Should NOT match 'Great question' - not an approval."""
         # Great question is followed by more text, not a pure approval
         messages = [
-            {"role": "user", "content": "Check gh pr list"},
-            {"role": "assistant", "content": "Running gh pr list now"},
+            {"role": "user", "content": "Let's create a PR for the feature"},
+            {"role": "assistant", "content": "I'll create a PR using the github skill"},
             {"role": "user", "content": "Great question about the API"},
         ]
         learnings = extract_learnings(messages, "github")
@@ -409,8 +462,8 @@ class TestEdgeCasePatternPrecision(unittest.TestCase):
     def _extract_edge_case_learning(self, user_response):
         """Helper to extract edge_case learning from a test message."""
         messages = [
-            {"role": "user", "content": "Check gh pr list"},
-            {"role": "assistant", "content": "Running gh pr list now"},
+            {"role": "user", "content": "Let's create a PR for the feature"},
+            {"role": "assistant", "content": "I'll create a PR using the github skill"},
             {"role": "user", "content": user_response},
         ]
         learnings = extract_learnings(messages, "github")
@@ -461,8 +514,8 @@ class TestPreferencePatternPrecision(unittest.TestCase):
     def _extract_preference_learning(self, user_response):
         """Helper to extract preference learning from a test message."""
         messages = [
-            {"role": "user", "content": "Check gh pr list"},
-            {"role": "assistant", "content": "Running gh pr list now"},
+            {"role": "user", "content": "Let's create a PR for the feature"},
+            {"role": "assistant", "content": "I'll create a PR using the github skill"},
             {"role": "user", "content": user_response},
         ]
         learnings = extract_learnings(messages, "github")
@@ -506,8 +559,8 @@ class TestDocumentationLearningType(unittest.TestCase):
     def _extract_documentation_learning(self, user_response):
         """Helper to extract documentation learning from a test message."""
         messages = [
-            {"role": "user", "content": "Working with .claude/skills/github"},
-            {"role": "assistant", "content": "Using the github skill"},
+            {"role": "user", "content": "Let's create a PR for the feature"},
+            {"role": "assistant", "content": "I'll create a PR using the github skill"},
             {"role": "user", "content": user_response},
         ]
         learnings = extract_learnings(messages, "github")
@@ -754,8 +807,8 @@ class TestLowConfidenceDetection(unittest.TestCase):
     def _extract_low_learning(self, user_response, learning_type=None):
         """Helper to extract LOW confidence learning from a test message."""
         messages = [
-            {"role": "user", "content": "Check gh pr list"},
-            {"role": "assistant", "content": "Running gh pr list now"},
+            {"role": "user", "content": "Let's create a PR for the feature"},
+            {"role": "assistant", "content": "I'll create a PR using the github skill"},
             {"role": "user", "content": user_response},
         ]
         learnings = extract_learnings(messages, "github")
@@ -803,53 +856,85 @@ class TestLowConfidenceDetection(unittest.TestCase):
         self.assertEqual(len(learnings), 0, "Long message should not match acknowledgement")
 
 
-class TestSkillCatalogCoverage(unittest.TestCase):
-    """Verify SKILL_PATTERNS and COMMAND_TO_SKILL reference real skills."""
+class TestDynamicPatternLoading(unittest.TestCase):
+    """Test dynamic pattern loading from SKILL.md files."""
 
-    # Actual skill catalog from .claude/skills/ directories
-    SKILL_CATALOG = {
-        'SkillForge', 'adr-review', 'analyze', 'chaos-experiment',
-        'codeql-scan', 'curating-memories', 'cynefin-classifier',
-        'decision-critic', 'doc-sync', 'encode-repo-serena',
-        'exploring-knowledge-graph', 'fix-markdown-fences',
-        'git-advanced-workflows', 'github', 'github-url-intercept',
-        'incoherence', 'memory', 'memory-documentary', 'memory-enhancement',
-        'merge-resolver', 'metrics', 'planner', 'pr-comment-responder',
-        'pre-mortem', 'programming-advisor', 'prompt-engineer', 'reflect',
-        'research-and-incorporate', 'security-detection',
-        'serena-code-architecture', 'session', 'session-end', 'session-init',
-        'session-log-fixer', 'session-migration', 'session-qa-eligibility',
-        'slashcommandcreator', 'slo-designer', 'steering-matcher',
-        'threat-modeling', 'using-forgetful-memory', 'using-serena-symbols',
-    }
+    def test_graceful_degradation_on_missing_skills_dir(self):
+        """Loading patterns from a project with no skills dir returns empty dicts."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project = Path(tmpdir)
+            # No .claude/skills/ directory
 
-    def test_skill_patterns_reference_real_skills(self):
-        """All skills in SKILL_PATTERNS should exist in the skill catalog."""
-        phantom_skills = set(SKILL_PATTERNS.keys()) - self.SKILL_CATALOG
-        self.assertEqual(
-            phantom_skills, set(),
-            f"SKILL_PATTERNS contains phantom skills not in catalog: {phantom_skills}"
-        )
+            invoke_skill_learning._patterns_loaded = False
+            invoke_skill_learning.SKILL_PATTERNS = {}
+            invoke_skill_learning.COMMAND_TO_SKILL = {}
+            _ensure_patterns_loaded(project)
 
-    def test_command_to_skill_values_are_real_skills(self):
-        """All COMMAND_TO_SKILL values should reference real skill names."""
-        invalid_targets = {
-            cmd: skill for cmd, skill in COMMAND_TO_SKILL.items()
-            if skill not in self.SKILL_CATALOG
-        }
-        self.assertEqual(
-            invalid_targets, {},
-            f"COMMAND_TO_SKILL maps to non-existent skills: {invalid_targets}"
-        )
+            # Should not crash, patterns remain empty
+            self.assertIsInstance(invoke_skill_learning.SKILL_PATTERNS, dict)
+            self.assertIsInstance(invoke_skill_learning.COMMAND_TO_SKILL, dict)
 
-    def test_no_phantom_skills_remain(self):
-        """Phantom skills from the original audit should not be in SKILL_PATTERNS."""
-        known_phantoms = {'api-design', 'code-review', 'testing', 'documentation', 'retrospective'}
-        remaining = known_phantoms & set(SKILL_PATTERNS.keys())
-        self.assertEqual(
-            remaining, set(),
-            f"Phantom skills still present in SKILL_PATTERNS: {remaining}"
-        )
+    def test_patterns_loaded_from_skill_md(self):
+        """Patterns are populated from actual SKILL.md trigger tables."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project = Path(tmpdir)
+            skills_dir = project / ".claude" / "skills"
+            skill_dir = skills_dir / "test-skill"
+            skill_dir.mkdir(parents=True)
+            (skill_dir / "SKILL.md").write_text(
+                "---\nname: test-skill\n---\n# Test\n\n"
+                "## Triggers\n\n"
+                "| Phrase | Action |\n|--------|--------|\n"
+                "| `do the thing` | Run it |\n"
+                "| `/test-cmd` | Test command |\n",
+                encoding="utf-8",
+            )
+            (project / ".claude" / "hooks" / "Stop").mkdir(parents=True, exist_ok=True)
+
+            invoke_skill_learning._patterns_loaded = False
+            invoke_skill_learning.SKILL_PATTERNS = {}
+            invoke_skill_learning.COMMAND_TO_SKILL = {}
+            _ensure_patterns_loaded(project)
+
+            self.assertIn("test-skill", invoke_skill_learning.SKILL_PATTERNS)
+            self.assertIn("do the thing", invoke_skill_learning.SKILL_PATTERNS["test-skill"])
+
+    def test_slash_commands_extracted_from_triggers(self):
+        """Slash commands in trigger tables are mapped to command_to_skill."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project = Path(tmpdir)
+            skills_dir = project / ".claude" / "skills"
+            skill_dir = skills_dir / "my-tool"
+            skill_dir.mkdir(parents=True)
+            (skill_dir / "SKILL.md").write_text(
+                "---\nname: my-tool\n---\n# My Tool\n\n"
+                "## Triggers\n\n"
+                "| Phrase | Action |\n|--------|--------|\n"
+                "| `/my-tool` | Run tool |\n"
+                "| `use my tool` | Also run |\n",
+                encoding="utf-8",
+            )
+            (project / ".claude" / "hooks" / "Stop").mkdir(parents=True, exist_ok=True)
+
+            invoke_skill_learning._patterns_loaded = False
+            invoke_skill_learning.SKILL_PATTERNS = {}
+            invoke_skill_learning.COMMAND_TO_SKILL = {}
+            _ensure_patterns_loaded(project)
+
+            self.assertIn("my-tool", invoke_skill_learning.COMMAND_TO_SKILL)
+            self.assertEqual(invoke_skill_learning.COMMAND_TO_SKILL["my-tool"], "my-tool")
+
+    def test_loading_idempotent(self):
+        """Calling _ensure_patterns_loaded twice doesn't reload."""
+        project_dir = Path(__file__).parent.parent
+
+        invoke_skill_learning._patterns_loaded = False
+        _ensure_patterns_loaded(project_dir)
+        first_patterns = dict(invoke_skill_learning.SKILL_PATTERNS)
+
+        # Second call should be a no-op (already loaded)
+        _ensure_patterns_loaded(project_dir)
+        self.assertEqual(invoke_skill_learning.SKILL_PATTERNS, first_patterns)
 
 
 if __name__ == "__main__":

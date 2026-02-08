@@ -60,9 +60,15 @@ class Result:
 
 SKILL_SOURCES = [
     {
+        "name": "repo",
+        "path": Path.cwd() / ".claude" / "skills",
+        "pattern": "*/SKILL.md",
+        "priority": 0
+    },
+    {
         "name": "custom",
         "path": Path.home() / ".claude" / "skills",
-        "pattern": "*/skill.md",
+        "pattern": "*/SKILL.md",
         "priority": 1
     },
     {
@@ -276,12 +282,17 @@ def discover_skills(verbose: bool = False) -> Result:
         if verbose:
             print(f"Scanning {source['name']}: {source_path}", file=sys.stderr)
 
-        # Find skill files
+        # Find skill files (case-insensitive: try both SKILL.md and skill.md)
         pattern_parts = source["pattern"].split("/")
 
         if len(pattern_parts) == 2:
-            # Simple pattern like */skill.md
+            # Simple pattern like */SKILL.md - try both cases for Linux
             skill_files = list(source_path.glob(source["pattern"]))
+            alt_pattern = source["pattern"].replace("SKILL.md", "skill.md")
+            if alt_pattern != source["pattern"]:
+                skill_files.extend(source_path.glob(alt_pattern))
+            # Deduplicate (same file may match on case-insensitive FS)
+            skill_files = list({f.resolve(): f for f in skill_files}.values())
         else:
             # Complex pattern - use recursive glob
             skill_files = list(source_path.glob("**/*.md"))
