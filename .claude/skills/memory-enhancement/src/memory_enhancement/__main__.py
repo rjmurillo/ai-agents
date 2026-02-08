@@ -6,6 +6,8 @@ Usage:
     python -m memory_enhancement graph <memory_id> [--mode bfs|dfs] [--max-depth N] [--json]
     python -m memory_enhancement graph --cycles [--json] [--dir PATH]
     python -m memory_enhancement graph <memory_id> --score [--json] [--dir PATH]
+    python -m memory_enhancement health [--dir PATH] [--json] [--markdown] [--repo-root PATH]
+    python -m memory_enhancement health --summary [--dir PATH] [--repo-root PATH]
 """
 
 import argparse
@@ -15,6 +17,7 @@ from pathlib import Path
 
 from .citations import VerificationResult, verify_all_memories, verify_memory
 from .graph import MemoryGraph
+from .health import check_all_health
 from .models import Memory
 
 DEFAULT_MEMORIES_DIR = ".serena/memories"
@@ -288,6 +291,68 @@ def _graph_score(graph: MemoryGraph, args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_health(args: argparse.Namespace) -> int:
+    """Run health checks on all memories and generate a report."""
+    memories_dir = Path(args.dir)
+    repo_root = Path(args.repo_root)
+
+    if not memories_dir.exists():
+        print(f"Error: Memories directory not found: {memories_dir}", file=sys.stderr)
+        return 2
+
+    report = check_all_health(memories_dir, repo_root)
+
+    if args.json:
+        print(json.dumps(report.to_dict(), indent=2))
+    elif args.markdown:
+        print(report.to_markdown())
+    elif args.summary:
+        if report.total == 0:
+            print("No memories with citations found.")
+            return 0
+        status = "PASS" if not report.has_stale else "WARN"
+        print(f"[{status}] {report.healthy_count + report.exempt_count}/{report.total} healthy")
+        print(
+            f"  Healthy: {report.healthy_count}, "
+            f"Stale: {report.stale_count}, "
+            f"Exempt: {report.exempt_count}, "
+            f"Errors: {report.error_count}"
+        )
+    else:
+        for entry in report.entries:
+            icon_map = {
+                "healthy": "[HEALTHY]",
+                "stale": "[STALE]",
+                "exempt": "[EXEMPT]",
+                "error": "[ERROR]",
+            }
+            icon = icon_map.get(entry.status.value, "[?]")
+            print(f"{icon} {entry.memory_id}")
+            if entry.citation_count > 0:
+                print(f"  Citations: {entry.valid_count}/{entry.citation_count} valid")
+                print(f"  Confidence: {entry.confidence:.2f}")
+            if entry.error_message:
+                print(f"  Error: {entry.error_message}")
+            for sc in entry.stale_citations:
+                loc = sc.get("path", "unknown")
+                if sc.get("line"):
+                    loc += f":{sc['line']}"
+                print(f"  [STALE] {loc}")
+                print(f"    Reason: {sc.get('mismatch_reason', 'unknown')}")
+            print()
+
+        if report.total > 0:
+            print(
+                f"Summary: {report.healthy_count} healthy, "
+                f"{report.stale_count} stale, "
+                f"{report.exempt_count} exempt, "
+                f"{report.error_count} errors "
+                f"(total: {report.total})"
+            )
+
+    return 1 if report.has_stale else 0
+
+
 def main() -> int:
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
@@ -344,6 +409,18 @@ def main() -> int:
         help="Show relationship scores instead of traversal",
     )
 
+    health_parser = subparsers.add_parser(
+        "health", help="Run health checks on all memories", parents=[common]
+    )
+    health_parser.add_argument(
+        "--markdown", action="store_true",
+        help="Output as Markdown (for PR comments)",
+    )
+    health_parser.add_argument(
+        "--summary", action="store_true",
+        help="Show abbreviated summary only",
+    )
+
     args = parser.parse_args()
 
     if args.command == "verify":
@@ -352,6 +429,8 @@ def main() -> int:
         return cmd_verify_all(args)
     elif args.command == "graph":
         return cmd_graph(args)
+    elif args.command == "health":
+        return cmd_health(args)
 
     parser.print_help()
     return 2
