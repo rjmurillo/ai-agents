@@ -100,6 +100,30 @@ if ($session.ContainsKey('session')) {
     if ($s.startingCommit -and $s.startingCommit -notmatch '^[a-f0-9]{7,40}$') {
         $errors += "Invalid commit SHA format: $($s.startingCommit)"
     }
+
+    # Session number must match filename (CWE-362: detect race condition artifacts)
+    $sessionFileName = [System.IO.Path]::GetFileNameWithoutExtension($SessionPath)
+    if ($sessionFileName -match 'session-(\d+)') {
+        $fileNumber = [int]$Matches[1]
+        $jsonNumber = $s.number
+        if ($jsonNumber -and $fileNumber -ne $jsonNumber) {
+            $errors += "Session number mismatch: filename has $fileNumber but JSON has $jsonNumber"
+        }
+    }
+
+    # Session number uniqueness check (defense-in-depth for CWE-362)
+    $sessionsDir = Split-Path $SessionPath
+    if (Test-Path $sessionsDir) {
+        $thisNumber = $s.number
+        if ($thisNumber) {
+            $duplicates = @(Get-ChildItem $sessionsDir -Filter '*.json' |
+                Where-Object { $_.FullName -ne (Resolve-Path $SessionPath -ErrorAction SilentlyContinue) } |
+                Where-Object { $_.Name -match 'session-(\d+)' -and [int]$Matches[1] -eq $thisNumber })
+            if ($duplicates.Count -gt 0) {
+                $warnings += "Duplicate session number $thisNumber found in: $($duplicates.Name -join ', ')"
+            }
+        }
+    }
 }
 
 if ($session.ContainsKey('protocolCompliance')) {
