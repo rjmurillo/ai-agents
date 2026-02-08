@@ -221,15 +221,33 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    # Determine sessions directory
+    # Determine sessions directory with CWE-22 path containment
     project_root = Path(__file__).resolve().parent.parent
-    sessions_dir = args.sessions_dir or (project_root / ".agents" / "sessions")
+    sessions_dir = args.sessions_dir
+    if sessions_dir:
+        sessions_dir = sessions_dir.resolve()
+        if not str(sessions_dir).startswith(str(project_root)):
+            print(
+                "[ERROR] Sessions directory must be within project root"
+                f" ({project_root})",
+                file=sys.stderr,
+            )
+            return 1
+    else:
+        sessions_dir = project_root / ".agents" / "sessions"
 
     if not sessions_dir.is_dir():
-        print(f"[ERROR] Sessions directory not found: {sessions_dir}", file=sys.stderr)
+        print(
+            f"[ERROR] Sessions directory not found: {sessions_dir}",
+            file=sys.stderr,
+        )
         return 1
 
-    metrics = collect_metrics(sessions_dir, limit=args.limit)
+    try:
+        metrics = collect_metrics(sessions_dir, limit=args.limit)
+    except Exception as exc:
+        print(f"[ERROR] Unexpected error: {exc}", file=sys.stderr)
+        return 2
 
     if args.format == "json":
         print(json.dumps(metrics.to_dict(), indent=2))

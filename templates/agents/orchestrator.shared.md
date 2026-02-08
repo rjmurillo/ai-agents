@@ -511,7 +511,7 @@ Use classification + domains to select the appropriate sequence from **Agent Seq
 - **Domain Count**: [N]
 - **Complexity**: [Simple/Standard/Complex]
 - **Risk Level**: [Low/Medium/High/Critical]
-- **Classification Confidence**: [0-100%]
+- **Classification Confidence**: [0-100% numeric, e.g. 85%]
 - **Context Retrieval**: [INVOKED/SKIPPED]
 - **Context Retrieval Reason**: [Why]
 
