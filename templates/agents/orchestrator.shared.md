@@ -429,6 +429,48 @@ Multi-Domain: [Yes if N >= 3, No otherwise]
 | Strategic | Any | Complex | Always critic review |
 | Ideation | Any | Complex | Full ideation pipeline |
 
+#### Step 3.5: Context-Retrieval Auto-Invocation (ADR-007)
+
+After determining complexity, evaluate whether to invoke the `context-retrieval` agent before selecting the agent sequence. This enforces memory-first architecture by gathering cross-session context proactively.
+
+**Decision Logic (Phase 1)**:
+
+```text
+IF token_budget_percent < 20%:
+    SKIP (preserve tokens for implementation)
+
+IF complexity = "Complex":
+    INVOKE context-retrieval (cross-cutting tasks always benefit)
+
+IF "Security" in secondary_domains:
+    INVOKE context-retrieval (past security decisions are critical)
+
+ELSE:
+    SKIP (defer to Phase 2 expansion)
+```
+
+**When invoked**, prepend `context-retrieval` to the agent sequence:
+
+```text
+# Before: analyst → planner → implementer → qa
+# After:  context-retrieval → analyst → planner → implementer → qa
+```
+
+**Invocation**:
+
+```text
+Task(subagent_type="context-retrieval", prompt="Gather context for: [task summary]. Domains: [domains]. Focus on: [key topics]")
+```
+
+**Context pruning**: After context-retrieval returns, extract only the sections relevant to the selected agent sequence. Discard framework docs if no framework is involved. Discard cross-project patterns if the task is project-specific.
+
+**Tracking**: Record the invocation decision in the Classification Summary below:
+
+```text
+Context Retrieval: [INVOKED/SKIPPED]
+Reason: [complexity=Complex | Security domain | token budget <20% | Simple/Standard without Security]
+```
+
 #### Step 4: Select Agent Sequence
 
 Use classification + domains to select the appropriate sequence from **Agent Sequences by Task Type** below.
@@ -447,6 +489,8 @@ Use classification + domains to select the appropriate sequence from **Agent Seq
 - **Domain Count**: [N]
 - **Complexity**: [Simple/Standard/Complex]
 - **Risk Level**: [Low/Medium/High/Critical]
+- **Context Retrieval**: [INVOKED/SKIPPED]
+- **Context Retrieval Reason**: [Why]
 
 ### Agent Sequence Selected
 [Sequence from routing table]
