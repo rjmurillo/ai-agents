@@ -47,7 +47,7 @@ Load these memories based on what you are doing:
 |------|-----------|-----|
 | Adding new feature | `yagni-principle`, `galls-law` | Prevent over-engineering |
 | Modifying existing code | `chestertons-fence`, `hyrums-law` | Understand before changing |
-| Refactoring | `boy-scout-rule`, `technical-debt-quadrant` | Stay in scope, classify debt |
+| Refactoring | `boy-scout-rule`, `technical-debt-quadrant`, `code-smells-catalog` | Stay in scope, classify debt, smell-to-refactoring mappings |
 | Designing interfaces | `law-of-demeter`, `solid-principles` | Reduce coupling |
 | External service calls | `resilience-patterns` | Circuit breaker, retry, timeout |
 | Legacy system work | `distinguished-engineer-knowledge-index` | Lindy effect, second-system effect |
@@ -55,6 +55,7 @@ Load these memories based on what you are doing:
 | Test design | `tdd-approach`, `design-by-contract` | Red-green-refactor, invariants |
 | Agent/MCP code | `owasp-agentic-security-integration` | ASI01-10 threat patterns |
 | Prompt engineering | `owasp-agentic-security-integration` | Goal hijack, injection prevention |
+| Code review | `code-smells-catalog` | Smell taxonomy and severity classification |
 
 ### Memory Loading Protocol
 
@@ -123,6 +124,18 @@ These summaries help you identify WHEN to load the full memory. They are not sub
 | **Hyrum's Law** | Changing output format or behavior | `hyrums-law` |
 | **Technical Debt** | Taking a shortcut | `technical-debt-quadrant` |
 | **Resilience** | Calling external service | `resilience-patterns` |
+
+### Code Smell Quick Reference
+
+| Smell Category | Watch For | Prevention |
+|----------------|-----------|------------|
+| **Bloaters** | Methods >15 lines, classes >200 lines, >4 params | Extract Method, Extract Class, Parameter Object |
+| **Couplers** | Method uses external data more than internal | Move Method to data owner |
+| **Change Preventers** | One change requires many file edits | Consolidate related behavior |
+| **Dispensables** | Unused code, duplicate logic, speculative features | Delete, Extract Method, YAGNI |
+| **OO Abusers** | Switch on type codes, unused inheritance | Replace with Polymorphism |
+
+Full taxonomy: `code-smells-catalog` memory.
 
 ### Knowledge Index Reference
 
@@ -659,6 +672,29 @@ Ask: "Does this refactoring unblock my task or improve testability of code I'm c
 
 > **Post-hoc refinement**: After implementation, `code-simplifier` handles balance judgments and language-specific polish. Write simple code first.
 
+### Proactive Smell Prevention
+
+**While writing code, continuously check against these common smells:**
+
+| Smell | Prevention Trigger | Action |
+|-------|-------------------|--------|
+| **Long Method** | Method exceeds 15 lines | Extract Method immediately |
+| **Long Parameter List** | More than 4 parameters | Introduce Parameter Object |
+| **Feature Envy** | Method uses another class's data more than its own | Move Method to the data owner |
+| **Primitive Obsession** | Using string/int for domain concepts (email, phone, money) | Create Value Object |
+| **Data Clumps** | Same 3+ fields passed together | Extract to a class |
+| **Divergent Change** | Class modified for multiple unrelated reasons | Extract Class by change reason |
+
+**Before committing any method, ask:**
+
+1. Is this method >15 lines? (Bloater risk)
+2. Does it have >4 parameters? (Bloater risk)
+3. Does it use another class's data more than its own? (Coupler risk)
+4. Am I using primitives for domain concepts? (Bloater risk)
+5. Will a change here require changes elsewhere? (Change Preventer risk)
+
+**Memory reference**: `code-smells-catalog` for full taxonomy and refactoring mappings.
+
 ### Reviewing Code
 
 Evaluate in order:
@@ -668,6 +704,23 @@ Evaluate in order:
 3. Cohesion (single responsibility?)
 4. Redundancy (duplicated knowledge?)
 5. Encapsulation (state private?)
+
+**Smell-Aware Review Checklist:**
+
+| Quality | Common Smells | Detection Signal |
+|---------|---------------|------------------|
+| Testability | Feature Envy, Inappropriate Intimacy | Hard to mock, needs integration test |
+| Coupling | Message Chains, Middle Man | a.getB().getC().getD() patterns |
+| Cohesion | Large Class, Long Method | >200 lines class, >15 lines method |
+| Redundancy | Duplicate Code, Oddball Solution | Same logic in multiple places |
+| Encapsulation | Data Class, Indecent Exposure | Class with only getters/setters |
+
+**Severity classification for findings:**
+
+- **BLOCKER**: Prevents merge (>30 line methods, >500 line classes, security issues)
+- **CRITICAL**: Fix before release (>20 line methods, >300 line classes)
+- **MAJOR**: Fix in sprint (>15 line methods, primitive obsession)
+- **MINOR**: Fix opportunistically (naming issues, comment smells)
 
 ### Reviewing PRs
 

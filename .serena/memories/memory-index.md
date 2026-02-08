@@ -47,6 +47,7 @@
 | governance agent consolidation design principle overlap | [governance-001-8-question-agent-interview](governance-001-8-question-agent-interview.md), [governance-002-five-consolidation-triggers](governance-002-five-consolidation-triggers.md) |
 | dorny paths-filter checkout base ref PR changes | [ci-infrastructure-dorny-paths-filter-checkout](ci-infrastructure-dorny-paths-filter-checkout.md) |
 | edit file read search replace text operation | [edit-001-read-before-edit-pattern](edit-001-read-before-edit-pattern.md), [edit-002-unique-context-for-edit-matching](edit-002-unique-context-for-edit-matching.md) |
+| code smell refactoring bloaters couplers dispensables taxonomy Fowler | [code-smells-catalog](code-smells-catalog.md) |
 | pr validation gate status check blocker merge | [validation-pr-gates](validation-pr-gates.md) |
 | process workflow gap missing capability root cause | [orchestration-process-workflow-gaps](orchestration-process-workflow-gaps.md) |
 | cva refactoring variant consolidation template generate | [utilities-cva-refactoring](utilities-cva-refactoring.md) |

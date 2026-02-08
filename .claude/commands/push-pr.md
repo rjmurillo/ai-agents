@@ -31,7 +31,13 @@ Based on the above changes:
    1. Determine the type of change that maps to conventional commit type followed by a 3-5 word description (e.g., fix/parser-log-enrichment)
 2. Push the branch to origin
 3. Read @.github/PULL_REQUEST_TEMPLATE.md
-4. Write a new file to capturing the changes of this branch in the format and style of PULL_REQUEST_TEMPLATE.md (e.g. /tmp/PR-123-BODY.md)
+4. Write a new file adapting the template to describe THIS branch's changes (e.g. /tmp/PR-123-BODY.md):
+   - **Fill in** all sections with actual change information from git diff
+   - **Replace** placeholder comments with substantive content
+   - **Check** appropriate Type of Change boxes based on actual changes
+   - **List** specific files changed, test coverage added, security impacts
+   - **Do NOT** leave template comments like `<!-- Brief description -->` unfilled
+   - **Do NOT** copy the template verbatim - adapt every section to your changes
 5. Create a pull request using the New-PR skill script:
 
    ```bash

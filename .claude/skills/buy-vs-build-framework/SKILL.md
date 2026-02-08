@@ -62,7 +62,7 @@ Use [planner](../planner/SKILL.md) instead if:
 
 Select appropriate analysis depth to prevent over-engineering.
 
-#### Decision Matrix:
+#### Decision Matrix
 
 | Tier | Budget | Impact | Reversibility | Duration | Output |
 |------|--------|--------|---------------|----------|--------|
@@ -72,7 +72,7 @@ Select appropriate analysis depth to prevent over-engineering.
 
 **Why:** Time-box effort proportional to decision magnitude. Prevents analysis paralysis on small decisions while ensuring rigor for strategic decisions.
 
-#### Script:
+#### Script
 
 ```text
 python3 scripts/select_depth.py --budget 100000 --impact medium --reversibility moderate
