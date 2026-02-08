@@ -4,7 +4,11 @@
     "Implemented CWE-362/367 fixes: atomic FileMode.CreateNew in New-SessionLog.ps1 and New-SessionLogJson.ps1",
     "Implemented CWE-400 fix: session number ceiling check",
     "Added validator checks for filename/JSON consistency and duplicate detection",
-    "Updated issue #1083 with implementation details"
+    "Updated issue #1083 with implementation details",
+    "Applied 6-agent review findings: BOM-less UTF-8, duplicate detection as error, GetFullPath for path resolution",
+    "Narrowed IOException catch to only retry on file-exists collisions (re-throw disk-full, path errors)",
+    "Added 19 Pester tests for CWE mitigations: 7 validator tests + 12 session creator tests",
+    "All 47 tests pass with zero regressions"
   ],
   "session": {
     "number": 1183,

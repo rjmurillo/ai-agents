@@ -338,6 +338,8 @@ function New-JsonSessionLog {
                 $created = $true
                 break
             } catch [System.IO.IOException] {
+                # Only retry if the file actually exists (collision). Re-throw for disk-full, path errors, etc.
+                if (-not (Test-Path $filePath)) { throw }
                 if ($retry -lt ($maxRetries - 1)) {
                     # File exists (race condition), increment session number and retry
                     $UserInput.SessionNumber++

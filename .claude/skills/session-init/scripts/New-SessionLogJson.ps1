@@ -143,7 +143,8 @@ for ($retry = 0; $retry -lt $maxRetries; $retry++) {
     $created = $true
     break
   } catch [System.IO.IOException] {
-    # File already exists (race condition with another agent), increment and retry
+    # Only retry if the file actually exists (collision). Re-throw for disk-full, path errors, etc.
+    if (-not (Test-Path $filePath)) { throw }
     Write-Warning "Session $SessionNumber already exists, trying $($SessionNumber + 1)"
     $SessionNumber++
     # Update session number in the JSON
