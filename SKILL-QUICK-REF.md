@@ -34,6 +34,20 @@
 
 ---
 
+## Pre-Execution Checkpoint
+
+```text
+[Skill-First Checkpoint]
+|BEFORE any git/gh/script operation:
+|  1. PAUSE: "Is there a skill for this?"
+|  2. CHECK: Scan "User Phrasing → Skill" table below
+|  3. USE skill if match found, raw command only if no skill exists
+|WHY: Session 1183 proved agents bypass skills even with full awareness.
+|     The problem is habit, not knowledge. This checkpoint builds the habit.
+```
+
+---
+
 ## Skills Index
 
 ```text
