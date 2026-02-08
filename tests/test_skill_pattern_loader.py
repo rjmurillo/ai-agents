@@ -25,8 +25,11 @@ sys.path.insert(0, str(Path(__file__).parent.parent / ".claude" / "hooks" / "Sto
 
 from skill_pattern_loader import (
     _check_cache_freshness,
+    _extract_frontmatter_name,
+    _extract_trigger_phrases,
     _get_cache_path,
     _read_cache,
+    _update_section_state,
     _write_cache,
     build_detection_maps,
     load_skill_patterns,
@@ -507,6 +510,142 @@ class TestLoadSkillPatterns(unittest.TestCase):
             # Second call: cache should be invalidated
             patterns2, _ = load_skill_patterns(project)
             self.assertIn("reflect", patterns2)
+
+
+class TestExtractFrontmatterName(unittest.TestCase):
+    """Test the _extract_frontmatter_name helper."""
+
+    def test_extracts_name_from_frontmatter(self):
+        content = "---\nname: github\nversion: 1.0\n---\n# Skill"
+        self.assertEqual(_extract_frontmatter_name(content, "fallback"), "github")
+
+    def test_returns_default_without_frontmatter(self):
+        content = "# Just a heading\nNo frontmatter here."
+        self.assertEqual(_extract_frontmatter_name(content, "fallback"), "fallback")
+
+    def test_returns_default_for_incomplete_frontmatter(self):
+        content = "---\nname: broken"
+        self.assertEqual(_extract_frontmatter_name(content, "fallback"), "fallback")
+
+    def test_returns_default_when_no_name_field(self):
+        content = "---\nversion: 1.0\n---\n# Skill"
+        self.assertEqual(_extract_frontmatter_name(content, "fallback"), "fallback")
+
+
+class TestUpdateSectionState(unittest.TestCase):
+    """Test the _update_section_state helper."""
+
+    def test_trigger_heading_enters_section(self):
+        self.assertTrue(_update_section_state("## Triggers", False))
+
+    def test_non_trigger_heading_exits_section(self):
+        self.assertFalse(_update_section_state("## Usage", True))
+
+    def test_trigger_sub_heading_stays_in_section(self):
+        self.assertTrue(_update_section_state("### HIGH Priority Triggers", True))
+
+    def test_horizontal_rule_exits_section(self):
+        self.assertFalse(_update_section_state("---", True))
+
+    def test_regular_line_preserves_state(self):
+        self.assertTrue(_update_section_state("| `phrase` | desc |", True))
+        self.assertFalse(_update_section_state("| `phrase` | desc |", False))
+
+
+class TestExtractTriggerPhrases(unittest.TestCase):
+    """Test the _extract_trigger_phrases helper."""
+
+    def test_extracts_from_standard_table(self):
+        content = "## Triggers\n\n| Phrase | Op |\n|-----|-----|\n| `do thing` | op |\n"
+        triggers, slashes = _extract_trigger_phrases(content)
+        self.assertIn("do thing", triggers)
+        self.assertEqual(slashes, [])
+
+    def test_extracts_slash_commands(self):
+        content = "## Triggers\n\n| Phrase | Op |\n|-----|-----|\n| `/cmd` | op |\n"
+        triggers, slashes = _extract_trigger_phrases(content)
+        self.assertIn("/cmd", triggers)
+        self.assertIn("/cmd", slashes)
+
+    def test_empty_content_returns_empty(self):
+        triggers, slashes = _extract_trigger_phrases("")
+        self.assertEqual(triggers, [])
+        self.assertEqual(slashes, [])
+
+
+class TestSymlinkContainment(unittest.TestCase):
+    """Test that symlinks outside the search root are rejected (MED-001)."""
+
+    def test_symlink_outside_root_rejected(self):
+        """Symlinked skill directory pointing outside root is excluded."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project = Path(tmpdir) / "project"
+            skills_dir = project / ".claude" / "skills"
+            skills_dir.mkdir(parents=True)
+
+            # Create an outside directory with a SKILL.md
+            outside = Path(tmpdir) / "outside"
+            outside_skill = outside / "evil-skill"
+            outside_skill.mkdir(parents=True)
+            (outside_skill / "SKILL.md").write_text(
+                "## Triggers\n| Phrase |\n|---|\n| `evil` |\n", encoding="utf-8"
+            )
+
+            # Symlink from inside skills dir to outside
+            symlink_path = skills_dir / "evil-skill"
+            try:
+                symlink_path.symlink_to(outside_skill)
+            except OSError:
+                self.skipTest("Cannot create symlinks on this platform")
+
+            result = scan_skill_directories(project)
+            names = [p.parent.name for p in result]
+            self.assertNotIn("evil-skill", names)
+
+
+class TestFileSizeLimit(unittest.TestCase):
+    """Test that oversized SKILL.md files are rejected (MED-002)."""
+
+    def test_oversized_file_returns_empty_triggers(self):
+        """File exceeding _MAX_SKILL_FILE_BYTES returns empty triggers."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            skill_md = _create_skill_md(
+                Path(tmpdir), "huge",
+                "## Triggers\n| P |\n|---|\n" + "| `x` |\n" * 50000
+            )
+            result = parse_skill_triggers(skill_md)
+
+        self.assertEqual(result["triggers"], [])
+        self.assertEqual(result["name"], "huge")
+
+
+class TestAtomicCacheWrite(unittest.TestCase):
+    """Test that cache writes are atomic (LOW-001)."""
+
+    def test_cache_file_written_atomically(self):
+        """Cache file is present and valid after write (no partial writes)."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            cache_path = Path(tmpdir) / "cache.json"
+            skill_file = Path(tmpdir) / "test.md"
+            skill_file.write_text("content", encoding="utf-8")
+
+            _write_cache(cache_path, [skill_file], {"a": ["b"]}, {"c": "d"})
+
+            # File should be valid JSON
+            data = json.loads(cache_path.read_text(encoding="utf-8"))
+            self.assertEqual(data["skill_patterns"], {"a": ["b"]})
+
+    def test_no_temp_files_left_on_success(self):
+        """No .tmp files remain after successful cache write."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            cache_path = Path(tmpdir) / "cache.json"
+            skill_file = Path(tmpdir) / "test.md"
+            skill_file.write_text("content", encoding="utf-8")
+
+            _write_cache(cache_path, [skill_file], {}, {})
+
+            tmp_files = list(Path(tmpdir).glob("*.tmp"))
+            self.assertEqual(tmp_files, [])
 
 
 if __name__ == "__main__":

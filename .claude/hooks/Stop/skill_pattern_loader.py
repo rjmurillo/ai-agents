@@ -16,9 +16,25 @@ Performance budget:
 - Warm cache: ~2ms (one JSON read + stat checks)
 """
 
+import contextlib
 import json
+import os
 import re
+import sys
+import tempfile
 from pathlib import Path
+
+
+@contextlib.contextmanager
+def _suppress_os_error():
+    """Suppress OSError in cleanup paths."""
+    try:
+        yield
+    except OSError:
+        pass
+
+# Maximum SKILL.md file size to read (100 KB). Legitimate files are ~2 KB.
+_MAX_SKILL_FILE_BYTES = 100 * 1024
 
 CACHE_VERSION = 1
 CACHE_FILENAME = ".skill_pattern_cache.json"
@@ -59,8 +75,13 @@ def scan_skill_directories(project_dir: Path) -> list[Path]:
             continue
 
         # Case-insensitive: try SKILL.md then skill.md
+        resolved_root = root.resolve()
         for filename in ("SKILL.md", "skill.md"):
             for skill_md in sorted(root.glob(f"*/{filename}")):
+                # Resolve symlinks and verify path stays within root
+                resolved = skill_md.resolve()
+                if not str(resolved).startswith(str(resolved_root)):
+                    continue
                 skill_name = skill_md.parent.name.lower()
                 if skill_name in seen_names:
                     continue
@@ -68,6 +89,66 @@ def scan_skill_directories(project_dir: Path) -> list[Path]:
                 result.append(skill_md)
 
     return result
+
+
+def _extract_frontmatter_name(content: str, default: str) -> str:
+    """Extract skill name from YAML frontmatter, or return default."""
+    if not content.startswith("---"):
+        return default
+    parts = content.split("---", 2)
+    if len(parts) < 3:
+        return default
+    match = _FRONTMATTER_NAME_RE.search(parts[1])
+    return match.group(1).strip() if match else default
+
+
+def _extract_trigger_phrases(content: str) -> tuple[list[str], list[str]]:
+    """Scan markdown for trigger sections and extract backtick phrases.
+
+    Finds headings containing "trigger", then extracts backtick-wrapped
+    phrases from subsequent table rows until the next non-trigger heading
+    or horizontal rule.
+
+    Returns (triggers, slash_commands).
+    """
+    triggers: list[str] = []
+    slash_commands: list[str] = []
+    in_trigger_section = False
+
+    for line in content.split("\n"):
+        stripped = line.strip()
+        in_trigger_section = _update_section_state(
+            stripped, in_trigger_section
+        )
+        if not in_trigger_section or stripped.startswith("#"):
+            continue
+        _collect_phrases(line, triggers, slash_commands)
+
+    return triggers, slash_commands
+
+
+def _update_section_state(stripped: str, in_section: bool) -> bool:
+    """Determine whether we are inside a trigger section after this line."""
+    if stripped.startswith("#") and "trigger" in stripped.lower():
+        return True
+    if in_section and stripped.startswith("#"):
+        return "trigger" in stripped.lower()
+    if in_section and stripped == "---":
+        return False
+    return in_section
+
+
+def _collect_phrases(
+    line: str, triggers: list[str], slash_commands: list[str]
+) -> None:
+    """Append backtick-wrapped phrases from a table row."""
+    for match in _TRIGGER_CELL_RE.finditer(line):
+        phrase = match.group(1).strip()
+        if not phrase:
+            continue
+        triggers.append(phrase)
+        if phrase.startswith("/"):
+            slash_commands.append(phrase)
 
 
 def parse_skill_triggers(skill_md_path: Path) -> dict:
@@ -78,69 +159,18 @@ def parse_skill_triggers(skill_md_path: Path) -> dict:
     - triggers: list[str] (backtick-wrapped phrases from Triggers tables)
     - slash_commands: list[str] (trigger phrases starting with /)
     """
+    default_name = skill_md_path.parent.name
     try:
+        size = skill_md_path.stat().st_size
+        if size > _MAX_SKILL_FILE_BYTES:
+            return {"name": default_name, "triggers": [], "slash_commands": []}
         content = skill_md_path.read_text(encoding="utf-8")
     except OSError:
-        return {
-            "name": skill_md_path.parent.name,
-            "triggers": [],
-            "slash_commands": [],
-        }
+        return {"name": default_name, "triggers": [], "slash_commands": []}
 
-    # Extract name from frontmatter, fallback to directory name
-    name = skill_md_path.parent.name
-    if content.startswith("---"):
-        parts = content.split("---", 2)
-        if len(parts) >= 3:
-            match = _FRONTMATTER_NAME_RE.search(parts[1])
-            if match:
-                name = match.group(1).strip()
-
-    # Find trigger sections and extract backtick phrases from tables.
-    # Strategy: find lines containing "Trigger" as a heading, then scan
-    # subsequent table rows until the next heading or horizontal rule.
-    triggers: list[str] = []
-    slash_commands: list[str] = []
-
-    lines = content.split("\n")
-    in_trigger_section = False
-
-    for line in lines:
-        stripped = line.strip()
-
-        # Detect trigger section headings (## Triggers, ### HIGH Priority Triggers, etc.)
-        if stripped.startswith("#") and "trigger" in stripped.lower():
-            in_trigger_section = True
-            continue
-
-        # End trigger section on next heading or horizontal rule (but not table separator)
-        if in_trigger_section:
-            if stripped.startswith("#"):
-                # New heading that isn't a trigger heading ends the section
-                if "trigger" not in stripped.lower():
-                    in_trigger_section = False
-                continue
-            if stripped == "---":
-                in_trigger_section = False
-                continue
-
-        if not in_trigger_section:
-            continue
-
-        # Extract backtick-wrapped phrases from table rows
-        for match in _TRIGGER_CELL_RE.finditer(line):
-            phrase = match.group(1).strip()
-            if not phrase:
-                continue
-            triggers.append(phrase)
-            if phrase.startswith("/"):
-                slash_commands.append(phrase)
-
-    return {
-        "name": name,
-        "triggers": triggers,
-        "slash_commands": slash_commands,
-    }
+    name = _extract_frontmatter_name(content, default_name)
+    triggers, slash_commands = _extract_trigger_phrases(content)
+    return {"name": name, "triggers": triggers, "slash_commands": slash_commands}
 
 
 def build_detection_maps(
@@ -271,9 +301,18 @@ def _write_cache(
 
     try:
         cache_path.parent.mkdir(parents=True, exist_ok=True)
-        cache_path.write_text(
-            json.dumps(cache_data, indent=2), encoding="utf-8"
+        # Atomic write: temp file then rename to prevent partial reads
+        fd, tmp_path = tempfile.mkstemp(
+            dir=str(cache_path.parent), suffix=".tmp"
         )
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                json.dump(cache_data, f, indent=2)
+            os.replace(tmp_path, str(cache_path))
+        except Exception:
+            # Clean up temp file on failure
+            with _suppress_os_error():
+                os.unlink(tmp_path)
     except OSError:
         pass
 
@@ -313,5 +352,6 @@ def load_skill_patterns(
 
         return skill_patterns, command_to_skill
 
-    except Exception:
+    except Exception as exc:
+        print(f"Skill pattern loading error: {exc}", file=sys.stderr)
         return {}, {}
