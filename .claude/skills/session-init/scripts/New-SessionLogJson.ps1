@@ -36,12 +36,23 @@ if (-not (Test-Path $sessionsDir)) {
 
 # Auto-detect session number
 if ($SessionNumber -eq 0) {
-  $existing = Get-ChildItem $sessionsDir -Filter '*.json' | 
+  $existing = Get-ChildItem $sessionsDir -Filter '*.json' |
     Where-Object { $_.Name -match 'session-(\d+)' } |
     ForEach-Object { [int]$Matches[1] } |
     Sort-Object -Descending |
     Select-Object -First 1
   $SessionNumber = if ($existing) { $existing + 1 } else { 1 }
+}
+
+# CWE-400: Reject session number jumps larger than 10 above max existing
+$maxExisting = Get-ChildItem $sessionsDir -Filter '*.json' |
+    Where-Object { $_.Name -match 'session-(\d+)' } |
+    ForEach-Object { [int]$Matches[1] } |
+    Sort-Object -Descending |
+    Select-Object -First 1
+if ($maxExisting -and $SessionNumber -gt ($maxExisting + 10)) {
+  Write-Error "Session number $SessionNumber exceeds ceiling (max existing: $maxExisting, ceiling: $($maxExisting + 10)). This prevents DoS via large session numbers."
+  exit 1
 }
 
 # Get git info
@@ -109,11 +120,43 @@ $session = @{
   nextSteps = @()
 }
 
-# Write file
-$fileName = "$date-session-$SessionNumber.json"
-$filePath = Join-Path $sessionsDir $fileName
+# Write file with atomic creation (CWE-362: prevent race condition)
+$json = $session | ConvertTo-Json -Depth 10
+$maxRetries = 5
+$created = $false
 
-$session | ConvertTo-Json -Depth 10 | Set-Content $filePath -Encoding utf8
+for ($retry = 0; $retry -lt $maxRetries; $retry++) {
+  $fileName = "$date-session-$SessionNumber.json"
+  $filePath = Join-Path $sessionsDir $fileName
+
+  try {
+    # Atomic creation: throws IOException if file already exists
+    $stream = [System.IO.File]::Open($filePath, [System.IO.FileMode]::CreateNew, [System.IO.FileAccess]::Write)
+    try {
+      $writer = [System.IO.StreamWriter]::new($stream, [System.Text.UTF8Encoding]::new($false))
+      $writer.Write($json)
+      $writer.Flush()
+    } finally {
+      if ($writer) { $writer.Dispose() }
+      if ($stream) { $stream.Dispose() }
+    }
+    $created = $true
+    break
+  } catch [System.IO.IOException] {
+    # Only retry if the file actually exists (collision). Re-throw for disk-full, path errors, etc.
+    if (-not (Test-Path $filePath)) { throw }
+    Write-Warning "Session $SessionNumber already exists, trying $($SessionNumber + 1)"
+    $SessionNumber++
+    # Update session number in the JSON
+    $session.session.number = $SessionNumber
+    $json = $session | ConvertTo-Json -Depth 10
+  }
+}
+
+if (-not $created) {
+  Write-Error "Failed to create session log after $maxRetries attempts. Last tried: session-$SessionNumber"
+  exit 2
+}
 
 Write-Host "Created: $filePath" -ForegroundColor Green
 Write-Host "Session: $SessionNumber" -ForegroundColor Cyan
