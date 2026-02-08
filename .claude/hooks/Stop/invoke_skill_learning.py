@@ -1,6 +1,15 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 """
 Automatically extracts skill learnings from session conversation with LLM fallback.
+
+SETUP REQUIREMENTS:
+  - Python 3.12+ with anthropic package installed
+  - pyenv in PATH (recommended): Add to ~/.bashrc or ~/.zshrc:
+      export PATH="$HOME/.pyenv/bin:$PATH"
+      eval "$(pyenv init -)"
+  - OR: System Python 3.12+ with: pip install anthropic
+
+See .claude/hooks/Stop/README.md for detailed setup instructions.
 
 Claude Code Stop hook that analyzes conversations for skill-related learnings
 and updates skill observation memories automatically.
