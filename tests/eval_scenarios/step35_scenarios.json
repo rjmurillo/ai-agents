@@ -77,7 +77,7 @@
       "classification": {
         "complexity": "Standard",
         "primary_domain": "Code",
-        "secondary_domains": ["Architecture", "Security"],
+        "secondary_domains": ["Architecture", "DevOps"],
         "domain_count": 3,
         "classification_confidence": 80,
         "user_requested_context": false,
