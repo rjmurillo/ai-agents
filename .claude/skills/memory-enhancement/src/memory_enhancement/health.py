@@ -144,9 +144,10 @@ class HealthReport:
                     continue
                 lines.append(f"**{entry.memory_id}**:")
                 for sc in entry.stale_citations:
-                    loc = sc.get("path", "unknown")
-                    if sc.get("line"):
-                        loc += f":{sc['line']}"
+                    loc = str(sc.get("path", "unknown"))
+                    line_num = sc.get("line")
+                    if line_num:
+                        loc = f"{loc}:{line_num}"
                     reason = sc.get("mismatch_reason", "unknown")
                     lines.append(f"- `{loc}` - {reason}")
                 lines.append("")
@@ -191,7 +192,7 @@ def check_memory_health(memory: Memory, repo_root: Path) -> MemoryHealthEntry:
 
     result: VerificationResult = verify_memory(memory, repo_root)
 
-    stale_details = [
+    stale_details: list[dict[str, object]] = [
         {
             "path": c.path,
             "line": c.line,

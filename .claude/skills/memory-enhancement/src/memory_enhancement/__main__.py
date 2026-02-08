@@ -334,9 +334,10 @@ def cmd_health(args: argparse.Namespace) -> int:
             if entry.error_message:
                 print(f"  Error: {entry.error_message}")
             for sc in entry.stale_citations:
-                loc = sc.get("path", "unknown")
-                if sc.get("line"):
-                    loc += f":{sc['line']}"
+                loc = str(sc.get("path", "unknown"))
+                line_num = sc.get("line")
+                if line_num:
+                    loc = f"{loc}:{line_num}"
                 print(f"  [STALE] {loc}")
                 print(f"    Reason: {sc.get('mismatch_reason', 'unknown')}")
             print()
