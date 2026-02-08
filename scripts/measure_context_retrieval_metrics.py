@@ -111,6 +111,10 @@ def extract_context_retrieval_data(session_path: Path) -> InvocationRecord | Non
     except (json.JSONDecodeError, OSError):
         return None
 
+    # Ensure session is a dict (json.loads can return None, list, etc.)
+    if not isinstance(session, dict):
+        return None
+
     session_id = session_path.stem
 
     # Check for context-retrieval tracking in outcomes or decisions
@@ -132,7 +136,8 @@ def extract_context_retrieval_data(session_path: Path) -> InvocationRecord | Non
     if classification:
         complexity = classification.get("complexity", "unknown")
         domains = classification.get("secondary_domains", [])
-        domain_count = classification.get("domain_count", len(domains) or 1)
+        # Domain count includes primary + secondary domains; fallback adds 1 for primary
+        domain_count = classification.get("domain_count", len(domains) + 1)
         confidence = classification.get(
             "classification_confidence", 100
         )
