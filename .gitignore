@@ -29,8 +29,9 @@ build/
 .agents/logs/
 .agents/.hook-state/
 
-# Hook runtime logs
+# Hook runtime logs and caches
 .claude/hooks/audit.log
+.claude/hooks/Stop/.skill_pattern_cache.json
 
 # IDE settings
 .idea/

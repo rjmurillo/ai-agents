@@ -688,6 +688,40 @@ This phase prevents common issues from skipping pre-PR validation:
 - **Preventable bugs discovered in review** instead of pre-review
 - **Multiple review cycles** from incomplete validation
 
+## Commit Discipline
+
+Track commit count on the current branch to prevent oversized PRs.
+
+**After each commit, check count:**
+
+```bash
+git rev-list --count HEAD ^origin/main
+```
+
+**Display format and thresholds:**
+
+| Count | Status | Action |
+|-------|--------|--------|
+| 1-14 | [PASS] Commit X/20 | Continue |
+| 15-19 | [WARNING] Commit X/20 | Approaching limit. Wrap up current work or squash. |
+| 20+ | [BLOCKED] Commit X/20 | Stop committing. Squash commits or create interim PR. |
+
+**Rationale**: PR #908 retrospective showed 59 commits (3x over limit). Large PRs delay review, increase merge risk, and reduce reviewer effectiveness.
+
+**When delegating to implementer**, include commit budget:
+
+```text
+Current commit count: X/20
+Remaining budget: Y commits
+```
+
+**Remediation options when blocked:**
+
+1. Squash related commits: `git rebase -i origin/main`
+2. Create interim PR for completed work, then continue on a new branch
+
+**Source**: PROJECT-CONSTRAINTS.md, PR #908 retrospective, Issue #934
+
 ## Agent Capability Matrix
 
 | Agent | Primary Function | Best For | Limitations |

@@ -93,6 +93,18 @@ When creating a new AI-powered workflow with concurrency control:
 
 **Reference**: Use `mcp__serena__read_memory` with `memory_file_name="code-style-conventions"`
 
+### PR Scope Constraints
+
+| Constraint | Source | Verification |
+|------------|--------|--------------|
+| SHOULD limit PRs to <=20 commits | PR #908 retrospective, Issue #934 | `git rev-list --count HEAD ^origin/main` |
+| SHOULD limit PRs to <=10 changed files | PR #908 retrospective, Issue #934 | `git diff --stat origin/main` |
+| SHOULD limit PRs to <=500 added lines | PR #908 retrospective, Issue #934 | `git diff --stat origin/main` |
+
+**Rationale Summary**: PR #908 had 59 commits, making review slow and merge risky. Smaller PRs get faster reviews, fewer conflicts, and easier rollbacks.
+
+**Remediation**: If limits are exceeded, squash related commits (`git rebase -i origin/main`) or split into multiple PRs.
+
 **Format**:
 
 ```text

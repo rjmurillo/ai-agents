@@ -1,6 +1,15 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 """
 Automatically extracts skill learnings from session conversation with LLM fallback.
+
+SETUP REQUIREMENTS:
+  - Python 3.12+ with anthropic package installed
+  - pyenv in PATH (recommended): Add to ~/.bashrc or ~/.zshrc:
+      export PATH="$HOME/.pyenv/bin:$PATH"
+      eval "$(pyenv init -)"
+  - OR: System Python 3.12+ with: pip install anthropic
+
+See .claude/hooks/Stop/README.md for detailed setup instructions.
 
 Claude Code Stop hook that analyzes conversations for skill-related learnings
 and updates skill observation memories automatically.
@@ -120,54 +129,46 @@ def _get_safe_root_from_env(env_value: str) -> Path:
 
 
 # =============================================================================
-# SKILL PATTERN DEFINITIONS (Single Source of Truth)
+# SKILL PATTERN DEFINITIONS (Dynamically loaded from SKILL.md files)
 # =============================================================================
-# IMPORTANT: These patterns are used in 2 functions:
-#   1. detect_skill_usage() - Detects which skills were used in conversation
-#   2. check_skill_context() - Validates skill context for learning extraction
+# Patterns are loaded at runtime from SKILL.md trigger tables via
+# skill_pattern_loader.py. This eliminates manual maintenance when
+# skills are added, modified, or removed.
 #
-# If you add/modify patterns here, both functions automatically stay in sync.
-# The command_to_skill mapping below handles slash command -> skill resolution.
+# The loader scans:
+#   1. {project}/.claude/skills/*/SKILL.md  (Claude Code repo)
+#   2. {project}/.github/skills/*/SKILL.md  (Copilot/GitHub repo)
+#   3. ~/.claude/skills/*/SKILL.md          (Claude Code user)
+#   4. ~/.copilot/skills/*/SKILL.md         (Copilot CLI user)
+#
+# Graceful degradation: if loading fails, regex-based detection
+# (skill path patterns, slash commands) still works with empty dicts.
 # =============================================================================
 
-SKILL_PATTERNS: dict[str, list[str]] = {
-    # GitHub skill: PR/issue operations, skill path, explicit mentions
-    'github': ['gh pr', 'gh issue', '.claude/skills/github', 'github skill', '/pr-review', 'pull request'],
-    # Memory skill: Forgetful, Serena, memory operations
-    'memory': ['search memory', 'forgetful', 'serena', 'memory-first', 'ADR-007', 'mcp__serena'],
-    # Session initialization
-    'session-init': ['/session-init', 'session log', 'session protocol', 'session-init skill'],
-    # SkillForge meta-skill
-    'SkillForge': ['SkillForge', 'create skill', 'synthesis panel', 'skill creation'],
-    # ADR review skill
-    'adr-review': ['adr-review', 'ADR files', 'architecture decision', 'decision record'],
-    # Incoherence detection
-    'incoherence': ['incoherence skill', 'detect incoherence', 'reconcile', 'incoherence detection'],
-    # Retrospective/reflection
-    'retrospective': ['retrospective', 'session end', 'retrospective skill'],
-    'reflect': ['reflect skill', 'learn from this', 'what did we learn', '/reflect'],
-    # PR comment handling
-    'pr-comment-responder': ['pr-comment-responder', 'review comments', 'feedback items', 'PR feedback'],
-    # Code review patterns
-    'code-review': ['code review skill', 'style guide', 'security patterns', 'review code'],
-    # API design patterns
-    'api-design': ['API design skill', 'REST API', 'API endpoint', 'API versioning'],
-    # Testing patterns - more specific to avoid false positives on generic "test"
-    'testing': ['test coverage', 'unit test', 'integration test', 'mocking', 'test assertion', 'testing skill'],
-    # Documentation - more specific patterns to avoid matching generic "documentation" text
-    'documentation': ['.claude/skills/documentation', 'documentation skill', 'write documentation', 'update docs', 'README update'],
-}
+SKILL_PATTERNS: dict[str, list[str]] = {}
+COMMAND_TO_SKILL: dict[str, str] = {}
+_patterns_loaded = False
 
-# Slash command to skill mapping
-COMMAND_TO_SKILL: dict[str, str] = {
-    'pr-review': 'github',
-    'session-init': 'session-init',
-    'memory-search': 'memory',
-    'memory-list': 'memory',
-    'research': 'research-and-incorporate',
-    'reflect': 'reflect',
-    'forgetful': 'memory',
-}
+
+def _ensure_patterns_loaded(project_dir: Path) -> None:
+    """Lazy-load skill patterns from SKILL.md files on first use.
+
+    Uses stat-based caching for performance (~2ms warm, ~40ms cold).
+    Falls back silently to empty dicts if loading fails.
+    """
+    global SKILL_PATTERNS, COMMAND_TO_SKILL, _patterns_loaded
+    if _patterns_loaded:
+        return
+    try:
+        from skill_pattern_loader import load_skill_patterns
+        loaded_patterns, loaded_commands = load_skill_patterns(project_dir)
+        if loaded_patterns:
+            SKILL_PATTERNS = loaded_patterns
+        if loaded_commands:
+            COMMAND_TO_SKILL = loaded_commands
+    except Exception as exc:
+        print(f"Warning: Failed to load skill patterns: {exc}", file=sys.stderr)
+    _patterns_loaded = True
 
 # LLM fallback configuration
 CONFIDENCE_THRESHOLD = float(os.getenv("SKILL_LEARNING_CONFIDENCE_THRESHOLD", "0.7"))
@@ -954,6 +955,9 @@ def main():
 
         global PROJECT_DIR
         PROJECT_DIR = safe_project_path
+
+        # Load skill patterns dynamically from SKILL.md files
+        _ensure_patterns_loaded(safe_project_path)
 
         messages = get_conversation_messages(hook_input)
 

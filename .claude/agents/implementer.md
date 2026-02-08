@@ -853,6 +853,36 @@ public class Given_context : ContextSpecification
 - [ ] Documentation updated if needed
 ```
 
+## Commit Discipline
+
+Check commit count before each commit to prevent oversized PRs.
+
+**Before committing, run:**
+
+```bash
+git rev-list --count HEAD ^origin/main
+```
+
+**Thresholds:**
+
+| Count | Status | Action |
+|-------|--------|--------|
+| 1-14 | [PASS] Commit X/20 | Continue |
+| 15-19 | [WARNING] Commit X/20 | Approaching limit. Finish current task, then stop. |
+| 20+ | [BLOCKED] Commit X/20 | Do not commit. Squash first. |
+
+**When blocked, squash commits:**
+
+```bash
+git rebase -i origin/main
+```
+
+Combine related commits (e.g., "feat + fix for same feature" into one commit). Then verify the count drops below 20.
+
+**Rationale**: PR #908 retrospective showed 59 commits (3x over limit). Large PRs delay review and increase merge risk.
+
+**Source**: PROJECT-CONSTRAINTS.md, PR #908 retrospective, Issue #934
+
 ## Commit Message Format
 
 ```text
