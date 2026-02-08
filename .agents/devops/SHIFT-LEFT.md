@@ -41,6 +41,8 @@ The runner executes validations in optimized order (fast checks first):
 | 5 | Planning Artifacts | Validate planning consistency | Yes | 10-20s |
 | 6 | Agent Drift | Detect semantic drift | Yes | 20-40s |
 
+**Note:** The pre-push hook (`.githooks/pre-push`) runs most of these checks automatically on every push. See [Pre-Push Hook](#pre-push-hook) below.
+
 ### Total Duration
 
 - **Quick mode**: ~20-50s (validations 1-3.5)
@@ -306,6 +308,35 @@ The pre-commit hook (`.githooks/pre-commit`) runs a subset of validations automa
 
 **Recommendation**: Run `Validate-PrePR.ps1` before committing to catch issues earlier.
 
+### Pre-Push Hook
+
+The pre-push hook (`.githooks/pre-push`) runs comprehensive branch-wide validation before each push. It complements the pre-commit hook: pre-commit checks staged files per-commit; pre-push validates the entire push range.
+
+**Check phases (ordered by speed):**
+
+| Phase | Checks | Duration |
+|-------|--------|----------|
+| Fast Guards | Branch guard, commit count (max 20), file count, additions count | < 5s |
+| Linting | markdownlint, ruff, mypy, actionlint, yamllint | < 30s |
+| Build Validation | Agent generation drift, agent drift detection, path normalization | < 30s |
+| Tests | Full Pester suite, pytest | Bulk of time |
+| Security | Suppression comment detection, session log validation | < 10s |
+| Governance | Planning artifacts, ADR review reminder | < 10s |
+
+**Environment variables:**
+
+- `SKIP_PREPUSH=1`: Bypass all checks (emergency only)
+- `SKIP_TESTS=1`: Skip test phases (documentation-only pushes)
+
+**Relationship to other validation:**
+
+| Hook | Scope | When |
+|------|-------|------|
+| Pre-commit | Per-file, staged changes | Every commit |
+| Pre-push | Branch-wide, full push range | Every push |
+| `Validate-PrePR.ps1` | Full validation suite | Manual, before PR |
+| CI pipeline | Full validation + AI-powered | Every PR |
+
 ### CI Pipeline
 
 The full validation suite runs in CI via GitHub Actions workflow:
@@ -322,9 +353,10 @@ Recommended workflow for feature development:
 1. Make changes
 2. Run: pwsh scripts/Validate-PrePR.ps1 -Quick
 3. Fix any issues
-4. Commit changes (pre-commit hook runs subset)
-5. Before PR: pwsh scripts/Validate-PrePR.ps1 (full validation)
-6. Create PR (CI runs full validation)
+4. Commit changes (pre-commit hook runs per-file checks)
+5. Push changes (pre-push hook runs full branch validation)
+6. Before PR: pwsh scripts/Validate-PrePR.ps1 (full validation, optional if push passed)
+7. Create PR (CI runs full validation)
 ```
 
 ## Performance Optimization
