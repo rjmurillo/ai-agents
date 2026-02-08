@@ -366,7 +366,7 @@ Analyze the request and select ONE primary task type:
 
 ```text
 Task Type: [Selected Type]
-Confidence: [High/Medium/Low]
+Confidence: [0-100%]
 Reasoning: [Why this classification]
 ```
 

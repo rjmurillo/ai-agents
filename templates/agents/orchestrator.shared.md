@@ -377,7 +377,7 @@ Analyze the request and select ONE primary task type:
 
 ```text
 Task Type: [Selected Type]
-Confidence: [High/Medium/Low]
+Confidence: [0-100%]
 Reasoning: [Why this classification]
 ```
 
@@ -436,19 +436,19 @@ After determining complexity, evaluate whether to invoke the `context-retrieval`
 **Decision Logic** (evaluated top-to-bottom, first match wins):
 
 ```text
-# Gate: token budget check (all phases)
-IF token_budget_percent < 20%:
-    SKIP (preserve tokens for implementation)
-
-# Phase 3: User-explicit requests
+# User-explicit requests (always honored, unconditional)
 IF user_explicitly_requests_context_retrieval:
     INVOKE context-retrieval (user override, always honored)
+
+# Gate: token budget check (applies to automatic triggers only)
+IF token_budget_percent < 20%:
+    SKIP (preserve tokens for implementation)
 
 # Phase 1: Complex tasks and Security domain
 IF complexity = "Complex":
     INVOKE context-retrieval (cross-cutting tasks always benefit)
 
-IF "Security" in secondary_domains:
+IF primary_domain = "Security" OR "Security" in secondary_domains:
     INVOKE context-retrieval (past security decisions are critical)
 
 # Phase 2: Low confidence or multi-domain tasks

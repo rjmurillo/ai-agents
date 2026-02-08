@@ -116,7 +116,7 @@ def extract_context_retrieval_data(session_path: Path) -> InvocationRecord | Non
     # Check for context-retrieval tracking in outcomes or decisions
     outcomes = session.get("outcomes", [])
     decisions = session.get("decisions", [])
-    all_text = " ".join(str(o) for o in outcomes) + " ".join(str(d) for d in decisions)
+    all_text = " ".join(str(o) for o in outcomes) + " " + " ".join(str(d) for d in decisions)
 
     # Look for classification data in the session
     complexity = "unknown"
