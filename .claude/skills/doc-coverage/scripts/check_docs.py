@@ -587,7 +587,10 @@ def format_markdown_report(report: CoverageReport) -> str:
 
         for gap in report.gaps:
             missing_str = ", ".join(gap.missing)
-            lines.append(f"| {gap.file} | {gap.line} | {gap.symbol} | {gap.symbol_type} | {missing_str} |")
+            lines.append(
+                f"| {gap.file} | {gap.line} | {gap.symbol} "
+                f"| {gap.symbol_type} | {missing_str} |"
+            )
 
     return "\n".join(lines)
 
