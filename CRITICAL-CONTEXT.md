@@ -67,6 +67,7 @@ Negative framing ("never use raw commands") fails. Positive checkpoint succeeds.
 | Resolve conflicts | merge-resolver | manual git merge |
 | Create session log | /session-init | manual JSON creation |
 | Fix CI failures | session-log-fixer | manual debugging |
+| Complete session log | session-end | manual JSON editing |
 | Commit and push | /push-pr | `git commit && git push` |
 
 **If capability missing**: Add to skill, then use it. Never write inline.

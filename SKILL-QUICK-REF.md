@@ -64,6 +64,7 @@
 |  security-detection: "scan for security changes", "run security scan", "check infrastructure changes"
 |  analyze: "analyze this codebase", "review code quality", "run security assessment", "find code smells"
 |  session-log-fixer: "fix session validation", "session protocol failed", "fix failing session check"
+|  session-end: "/session-end", "complete session", "finalize session", "validate session end"
 |  reflect: "reflect on this session", "learn from this", "capture what we learned"
 |  pr-comment-responder: "respond to PR comments", "address review feedback", "fix PR review issues"
 
@@ -90,6 +91,9 @@
 |"analyze code quality" → analyze
 |"learn from this" → reflect
 |"fix session validation" → session-log-fixer
+|"complete session" → session-end
+|"finalize session" → session-end
+|"validate session end" → session-end
 |"sync docs" → doc-sync
 ```
 
