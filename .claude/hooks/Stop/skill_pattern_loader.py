@@ -315,8 +315,8 @@ def _write_cache(
 
     try:
         _atomic_json_write(cache_path, cache_data)
-    except OSError:
-        pass
+    except OSError as exc:
+        print(f"Warning: Failed to write skill cache: {exc}", file=sys.stderr)
 
 
 def load_skill_patterns(

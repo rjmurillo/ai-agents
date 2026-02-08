@@ -157,8 +157,8 @@ def _ensure_patterns_loaded(project_dir: Path) -> None:
             SKILL_PATTERNS = loaded_patterns
         if loaded_commands:
             COMMAND_TO_SKILL = loaded_commands
-    except Exception:
-        pass  # Graceful degradation: regex detection still works
+    except Exception as exc:
+        print(f"Warning: Failed to load skill patterns: {exc}", file=sys.stderr)
     _patterns_loaded = True
 
 # LLM fallback configuration
