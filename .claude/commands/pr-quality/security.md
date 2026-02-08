@@ -1,6 +1,6 @@
 ---
 description: Use when performing local security review before pushing PR changes. Scans for vulnerabilities, secrets exposure, and security anti-patterns per OWASP Top 10.
-argument-hint: [--base BRANCH]
+argument-hint: [BASE_BRANCH]
 allowed-tools:
   - Bash(git:*)
   - Read
@@ -20,7 +20,7 @@ Run the security quality gate locally on your current changes before pushing.
 ### Branch Information
 
 - Current branch: !`git branch --show-current`
-- Base branch: $ARGUMENTS or main (if not specified)
+- Base branch: $ARGUMENTS or main
 
 ### Review Criteria
 
@@ -28,11 +28,11 @@ Apply the criteria from: @.github/prompts/pr-quality-gate-security.md
 
 ### Changed Files
 
-!`BASE_ARG="${ARGUMENTS:-main}"; [ -z "$BASE_ARG" ] && BASE_ARG="main"; git diff "$BASE_ARG" --name-only`
+!`git diff main --name-only`
 
 ### Full Diff
 
-!`BASE_ARG="${ARGUMENTS:-main}"; [ -z "$BASE_ARG" ] && BASE_ARG="main"; git diff "$BASE_ARG"`
+!`git diff main`
 
 ## Output Format
 
