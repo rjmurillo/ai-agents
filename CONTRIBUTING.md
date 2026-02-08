@@ -11,6 +11,7 @@ Thank you for your interest in contributing to this project. This guide explains
 - [How to Add a New Agent](#how-to-add-a-new-agent)
 - [Platform Configuration](#platform-configuration)
 - [Pre-Commit Hooks](#pre-commit-hooks)
+- [Pre-Push Hooks](#pre-push-hooks)
 - [Session Protocol](#session-protocol)
 - [Running Tests](#running-tests)
 - [Copilot CLI Version Management](#copilot-cli-version-management)
@@ -73,11 +74,11 @@ python3 --version  # Should show Python 3.12.8
 3. **Install Python 3.12.x** (see Prerequisites above)
 4. **Set up Python environment**: `uv venv && uv pip install -e ".[dev]"`
 5. Configure Git for cross-platform development (see [Git Configuration](#git-configuration) below)
-6. Set up pre-commit hooks: `git config core.hooksPath .githooks`
+6. Set up git hooks (pre-commit + pre-push): `git config core.hooksPath .githooks`
 7. Make your changes following the guidelines below
 8. Submit a pull request
 
-**After setup, quality gates are automated.** Pre-commit hooks run ruff (Python) and markdownlint. CI runs full test suites. No manual test commands needed for routine development.
+**After setup, quality gates are automated.** Pre-commit hooks run ruff (Python) and markdownlint on staged files. Pre-push hooks run full test suites, drift detection, and security scans before each push. CI runs the complete validation suite. No manual test commands needed for routine development.
 
 ## Git Configuration
 
@@ -404,6 +405,30 @@ The pre-commit hook automatically runs checks including, depending on staged fil
 
 Refer to `.githooks/pre-commit` for the authoritative, up-to-date list of all checks.
 
+## Pre-Push Hooks
+
+The pre-push hook runs comprehensive branch-wide validation before each push. Unlike the pre-commit hook (which checks staged files), the pre-push hook validates all changes in the push range.
+
+**Checks run in order:**
+
+| Phase | Checks | Blocking |
+|-------|--------|----------|
+| **Fast Guards** | Branch guard, commit count (max 20), changed files count, total additions | Yes |
+| **Linting** | markdownlint, ruff, mypy, actionlint, yamllint | Yes (except yamllint) |
+| **Build Validation** | Agent generation drift, agent drift detection, path normalization | Yes |
+| **Tests** | Full Pester suite, pytest | Yes |
+| **Security** | Suppression comment detection, session log validation | Yes |
+| **Governance** | Planning artifacts, ADR review reminder | Warn only |
+
+**Environment variables:**
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `SKIP_PREPUSH` | 0 | Set to 1 to bypass all checks (emergency only) |
+| `SKIP_TESTS` | 0 | Skip Pester and pytest (for documentation-only pushes) |
+
+Refer to `.githooks/pre-push` for the authoritative, up-to-date list of all checks.
+
 ## Session Protocol
 
 This project uses a session-based workflow for tracking work. Session logs are required for all significant work.
@@ -440,6 +465,7 @@ The repository enforces quality automatically at multiple stages:
 | Stage | What Runs | Trigger |
 |-------|-----------|---------|
 | **Pre-commit hook** | Python linting (ruff), Markdown linting | Every commit |
+| **Pre-push hook** | Full Pester + pytest, drift detection, lint, security scans | Every push |
 | **CI pytest.yml** | pytest, pip-audit, bandit | Every PR/push |
 | **CI pester.yml** | Pester tests | Every PR/push |
 
