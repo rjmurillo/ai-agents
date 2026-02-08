@@ -12,6 +12,7 @@ from memory_enhancement.__main__ import (
     _find_memory,
     _print_result,
     _result_to_dict,
+    cmd_graph,
     cmd_verify,
     cmd_verify_all,
     main,
@@ -504,3 +505,323 @@ class TestMain:
         with pytest.raises(SystemExit) as exc_info:
             main()
         assert exc_info.value.code == 2
+
+    @pytest.mark.unit
+    def test_graph_subcommand(
+        self,
+        repo_root: Path,
+        graph_memories_dir: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(
+            "sys.argv",
+            [
+                "memory_enhancement",
+                "graph",
+                "memory-a",
+                "--dir",
+                str(graph_memories_dir),
+                "--repo-root",
+                str(repo_root),
+            ],
+        )
+        exit_code = main()
+        assert exit_code == 0
+
+
+def _make_graph_args(**kwargs: object) -> argparse.Namespace:
+    """Build argparse.Namespace for graph commands with sensible defaults."""
+    defaults: dict[str, object] = {
+        "dir": ".",
+        "repo_root": ".",
+        "json": False,
+        "memory_id": None,
+        "mode": "bfs",
+        "max_depth": None,
+        "cycles": False,
+        "score": False,
+    }
+    defaults.update(kwargs)
+    return argparse.Namespace(**defaults)
+
+
+class TestCmdGraphTraverse:
+    """Tests for cmd_graph traversal mode."""
+
+    @pytest.mark.unit
+    def test_bfs_traverse(
+        self,
+        repo_root: Path,
+        graph_memories_dir: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        args = _make_graph_args(
+            memory_id="memory-a",
+            dir=str(graph_memories_dir),
+            repo_root=str(repo_root),
+        )
+        exit_code = cmd_graph(args)
+        assert exit_code == 0
+        captured = capsys.readouterr()
+        assert "Graph traversal" in captured.out
+        assert "memory-a" in captured.out
+        assert "Nodes visited:" in captured.out
+
+    @pytest.mark.unit
+    def test_dfs_traverse(
+        self,
+        repo_root: Path,
+        graph_memories_dir: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        args = _make_graph_args(
+            memory_id="memory-a",
+            mode="dfs",
+            dir=str(graph_memories_dir),
+            repo_root=str(repo_root),
+        )
+        exit_code = cmd_graph(args)
+        assert exit_code == 0
+        captured = capsys.readouterr()
+        assert "DFS" in captured.out
+
+    @pytest.mark.unit
+    def test_traverse_json(
+        self,
+        repo_root: Path,
+        graph_memories_dir: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        args = _make_graph_args(
+            memory_id="memory-a",
+            dir=str(graph_memories_dir),
+            repo_root=str(repo_root),
+            json=True,
+        )
+        exit_code = cmd_graph(args)
+        assert exit_code == 0
+        captured = capsys.readouterr()
+        data = json.loads(captured.out)
+        assert data["start"] == "memory-a"
+        assert data["mode"] == "bfs"
+        assert isinstance(data["nodes"], list)
+
+    @pytest.mark.unit
+    def test_traverse_with_max_depth(
+        self,
+        repo_root: Path,
+        graph_memories_dir: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        args = _make_graph_args(
+            memory_id="memory-a",
+            max_depth=1,
+            dir=str(graph_memories_dir),
+            repo_root=str(repo_root),
+        )
+        exit_code = cmd_graph(args)
+        assert exit_code == 0
+        captured = capsys.readouterr()
+        assert "max_depth=1" in captured.out
+
+    @pytest.mark.unit
+    def test_traverse_missing_memory_id(
+        self,
+        repo_root: Path,
+        graph_memories_dir: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        args = _make_graph_args(
+            dir=str(graph_memories_dir),
+            repo_root=str(repo_root),
+        )
+        exit_code = cmd_graph(args)
+        assert exit_code == 2
+        captured = capsys.readouterr()
+        assert "memory_id is required" in captured.err
+
+    @pytest.mark.unit
+    def test_traverse_unknown_memory(
+        self,
+        repo_root: Path,
+        graph_memories_dir: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        args = _make_graph_args(
+            memory_id="nonexistent-memory",
+            dir=str(graph_memories_dir),
+            repo_root=str(repo_root),
+        )
+        exit_code = cmd_graph(args)
+        assert exit_code == 2
+        captured = capsys.readouterr()
+        assert "Error" in captured.err
+
+
+class TestCmdGraphCycles:
+    """Tests for cmd_graph --cycles mode."""
+
+    @pytest.mark.unit
+    def test_no_cycles(
+        self,
+        repo_root: Path,
+        graph_memories_dir: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        args = _make_graph_args(
+            cycles=True,
+            dir=str(graph_memories_dir),
+            repo_root=str(repo_root),
+        )
+        exit_code = cmd_graph(args)
+        assert exit_code == 0
+        captured = capsys.readouterr()
+        assert "No cycles found" in captured.out
+
+    @pytest.mark.unit
+    def test_cycles_found(
+        self,
+        repo_root: Path,
+        cyclic_memories_dir: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        args = _make_graph_args(
+            cycles=True,
+            dir=str(cyclic_memories_dir),
+            repo_root=str(repo_root),
+        )
+        exit_code = cmd_graph(args)
+        assert exit_code == 1
+        captured = capsys.readouterr()
+        assert "Cycle" in captured.out
+
+    @pytest.mark.unit
+    def test_cycles_json(
+        self,
+        repo_root: Path,
+        graph_memories_dir: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        args = _make_graph_args(
+            cycles=True,
+            dir=str(graph_memories_dir),
+            repo_root=str(repo_root),
+            json=True,
+        )
+        exit_code = cmd_graph(args)
+        assert exit_code == 0
+        captured = capsys.readouterr()
+        data = json.loads(captured.out)
+        assert "cycles" in data
+        assert "count" in data
+
+
+class TestCmdGraphScore:
+    """Tests for cmd_graph --score mode."""
+
+    @pytest.mark.unit
+    def test_score_relationships(
+        self,
+        repo_root: Path,
+        graph_memories_dir: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        args = _make_graph_args(
+            memory_id="memory-a",
+            score=True,
+            dir=str(graph_memories_dir),
+            repo_root=str(repo_root),
+        )
+        exit_code = cmd_graph(args)
+        assert exit_code == 0
+        captured = capsys.readouterr()
+        assert "Relationship scores" in captured.out
+        assert "Total relationships:" in captured.out
+
+    @pytest.mark.unit
+    def test_score_json(
+        self,
+        repo_root: Path,
+        graph_memories_dir: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        args = _make_graph_args(
+            memory_id="memory-a",
+            score=True,
+            dir=str(graph_memories_dir),
+            repo_root=str(repo_root),
+            json=True,
+        )
+        exit_code = cmd_graph(args)
+        assert exit_code == 0
+        captured = capsys.readouterr()
+        data = json.loads(captured.out)
+        assert data["memory_id"] == "memory-a"
+        assert "relationships" in data
+
+    @pytest.mark.unit
+    def test_score_missing_memory_id(
+        self,
+        repo_root: Path,
+        graph_memories_dir: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        args = _make_graph_args(
+            score=True,
+            dir=str(graph_memories_dir),
+            repo_root=str(repo_root),
+        )
+        exit_code = cmd_graph(args)
+        assert exit_code == 2
+        captured = capsys.readouterr()
+        assert "memory_id is required" in captured.err
+
+    @pytest.mark.unit
+    def test_score_unknown_memory(
+        self,
+        repo_root: Path,
+        graph_memories_dir: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        args = _make_graph_args(
+            memory_id="nonexistent-memory",
+            score=True,
+            dir=str(graph_memories_dir),
+            repo_root=str(repo_root),
+        )
+        exit_code = cmd_graph(args)
+        assert exit_code == 2
+
+
+class TestCmdGraphErrors:
+    """Tests for cmd_graph error handling."""
+
+    @pytest.mark.unit
+    def test_missing_directory(
+        self,
+        repo_root: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        args = _make_graph_args(
+            dir="nonexistent",
+            repo_root=str(repo_root),
+        )
+        exit_code = cmd_graph(args)
+        assert exit_code == 2
+        captured = capsys.readouterr()
+        assert "not found" in captured.err
+
+    @pytest.mark.security
+    def test_path_traversal_blocked(
+        self,
+        repo_root: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        args = _make_graph_args(
+            dir="../../../../etc",
+            repo_root=str(repo_root),
+        )
+        exit_code = cmd_graph(args)
+        assert exit_code == 2
+        captured = capsys.readouterr()
+        assert "outside the repository" in captured.err
