@@ -24,14 +24,14 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).parent.parent / ".claude" / "hooks" / "Stop"))
 
 from skill_pattern_loader import (
-    build_detection_maps,
-    load_skill_patterns,
-    parse_skill_triggers,
-    scan_skill_directories,
     _check_cache_freshness,
     _get_cache_path,
     _read_cache,
     _write_cache,
+    build_detection_maps,
+    load_skill_patterns,
+    parse_skill_triggers,
+    scan_skill_directories,
 )
 
 
