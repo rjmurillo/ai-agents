@@ -1,0 +1,506 @@
+"""Tests for memory_enhancement.__main__ (CLI)."""
+
+from __future__ import annotations
+
+import argparse
+import json
+from pathlib import Path
+
+import pytest
+
+from memory_enhancement.__main__ import (
+    _find_memory,
+    _print_result,
+    _result_to_dict,
+    cmd_verify,
+    cmd_verify_all,
+    main,
+)
+from memory_enhancement.citations import VerificationResult
+from memory_enhancement.models import Citation
+
+
+class TestFindMemory:
+    """Tests for _find_memory function."""
+
+    @pytest.mark.unit
+    def test_direct_path(
+        self, repo_root: Path, memories_dir: Path, sample_memory_file: Path
+    ) -> None:
+        result = _find_memory(str(sample_memory_file), memories_dir, repo_root)
+        assert result == sample_memory_file
+
+    @pytest.mark.unit
+    def test_memory_id_with_md_appended(
+        self, repo_root: Path, memories_dir: Path, sample_memory_file: Path
+    ) -> None:
+        result = _find_memory("test-memory", memories_dir, repo_root)
+        assert result == memories_dir / "test-memory.md"
+
+    @pytest.mark.unit
+    def test_bare_filename(
+        self, repo_root: Path, memories_dir: Path, sample_memory_file: Path
+    ) -> None:
+        result = _find_memory("test-memory.md", memories_dir, repo_root)
+        assert result == memories_dir / "test-memory.md"
+
+    @pytest.mark.unit
+    def test_nonexistent_memory(
+        self, repo_root: Path, memories_dir: Path
+    ) -> None:
+        with pytest.raises(FileNotFoundError, match="Memory not found"):
+            _find_memory("does-not-exist", memories_dir, repo_root)
+
+    @pytest.mark.unit
+    def test_nonexistent_absolute_path_raises(
+        self, repo_root: Path, memories_dir: Path
+    ) -> None:
+        with pytest.raises(FileNotFoundError, match="Memory not found"):
+            _find_memory("/nonexistent/path/to/memory.md", memories_dir, repo_root)
+
+
+class TestResultToDict:
+    """Tests for _result_to_dict function."""
+
+    @pytest.mark.unit
+    def test_valid_result(self) -> None:
+        r = VerificationResult(
+            memory_id="mem-1",
+            valid=True,
+            total_citations=2,
+            valid_count=2,
+            stale_citations=[],
+            confidence=1.0,
+        )
+        d = _result_to_dict(r)
+        assert d["memory_id"] == "mem-1"
+        assert d["valid"] is True
+        assert d["total_citations"] == 2
+        assert d["valid_count"] == 2
+        assert d["confidence"] == 1.0
+        assert d["stale_citations"] == []
+
+    @pytest.mark.unit
+    def test_stale_citations_serialized(self) -> None:
+        stale = Citation(
+            path="src/gone.py",
+            line=5,
+            snippet="old code",
+            mismatch_reason="File not found: src/gone.py",
+        )
+        r = VerificationResult(
+            memory_id="mem-2",
+            valid=False,
+            total_citations=1,
+            valid_count=0,
+            stale_citations=[stale],
+            confidence=0.0,
+        )
+        d = _result_to_dict(r)
+        assert len(d["stale_citations"]) == 1
+        sc = d["stale_citations"][0]
+        assert sc["path"] == "src/gone.py"
+        assert sc["line"] == 5
+        assert sc["snippet"] == "old code"
+        assert sc["mismatch_reason"] == "File not found: src/gone.py"
+
+    @pytest.mark.unit
+    def test_confidence_rounded(self) -> None:
+        r = VerificationResult(
+            memory_id="x",
+            valid=True,
+            total_citations=3,
+            valid_count=2,
+            stale_citations=[],
+            confidence=0.6666666,
+        )
+        d = _result_to_dict(r)
+        assert d["confidence"] == 0.67
+
+
+class TestPrintResult:
+    """Tests for _print_result function."""
+
+    @pytest.mark.unit
+    def test_valid_result_output(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        r = VerificationResult(
+            memory_id="good",
+            valid=True,
+            total_citations=2,
+            valid_count=2,
+            stale_citations=[],
+            confidence=1.0,
+        )
+        _print_result(r)
+        captured = capsys.readouterr()
+        assert "[PASS]" in captured.out
+        assert "VALID" in captured.out
+        assert "2/2 valid" in captured.out
+
+    @pytest.mark.unit
+    def test_stale_result_output(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        stale = Citation(
+            path="src/gone.py",
+            line=10,
+            mismatch_reason="File not found",
+        )
+        r = VerificationResult(
+            memory_id="bad",
+            valid=False,
+            total_citations=1,
+            valid_count=0,
+            stale_citations=[stale],
+            confidence=0.0,
+        )
+        _print_result(r)
+        captured = capsys.readouterr()
+        assert "[FAIL]" in captured.out
+        assert "STALE" in captured.out
+        assert "[STALE] src/gone.py:10" in captured.out
+        assert "File not found" in captured.out
+
+    @pytest.mark.unit
+    def test_stale_citation_no_line(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        stale = Citation(
+            path="src/gone.py",
+            mismatch_reason="File not found",
+        )
+        r = VerificationResult(
+            memory_id="bad",
+            valid=False,
+            total_citations=1,
+            valid_count=0,
+            stale_citations=[stale],
+            confidence=0.0,
+        )
+        _print_result(r)
+        captured = capsys.readouterr()
+        assert "[STALE] src/gone.py" in captured.out
+        assert ":None" not in captured.out
+
+
+def _make_args(**kwargs: object) -> argparse.Namespace:
+    """Build an argparse.Namespace with sensible defaults."""
+    defaults = {
+        "dir": ".",
+        "repo_root": ".",
+        "json": False,
+    }
+    defaults.update(kwargs)
+    return argparse.Namespace(**defaults)
+
+
+class TestCmdVerify:
+    """Tests for cmd_verify function."""
+
+    @pytest.mark.unit
+    def test_valid_memory(
+        self,
+        repo_root: Path,
+        memories_dir: Path,
+        sample_memory_file: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        args = _make_args(
+            memory_id=str(sample_memory_file),
+            dir=str(memories_dir),
+            repo_root=str(repo_root),
+        )
+        exit_code = cmd_verify(args)
+        assert exit_code == 0
+        captured = capsys.readouterr()
+        assert "[PASS]" in captured.out
+
+    @pytest.mark.unit
+    def test_no_citations(
+        self,
+        repo_root: Path,
+        memories_dir: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        bare = memories_dir / "bare.md"
+        bare.write_text(
+            "---\nid: bare\nsubject: Bare\n---\nBody.\n",
+            encoding="utf-8",
+        )
+        args = _make_args(
+            memory_id=str(bare),
+            dir=str(memories_dir),
+            repo_root=str(repo_root),
+        )
+        exit_code = cmd_verify(args)
+        assert exit_code == 0
+        captured = capsys.readouterr()
+        assert "No citations to verify" in captured.out
+
+    @pytest.mark.unit
+    def test_no_citations_json(
+        self,
+        repo_root: Path,
+        memories_dir: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        bare = memories_dir / "bare.md"
+        bare.write_text(
+            "---\nid: bare\nsubject: Bare\n---\nBody.\n",
+            encoding="utf-8",
+        )
+        args = _make_args(
+            memory_id=str(bare),
+            dir=str(memories_dir),
+            repo_root=str(repo_root),
+            json=True,
+        )
+        exit_code = cmd_verify(args)
+        assert exit_code == 0
+        captured = capsys.readouterr()
+        data = json.loads(captured.out)
+        assert data["valid"] is True
+        assert data["total_citations"] == 0
+
+    @pytest.mark.unit
+    def test_json_output(
+        self,
+        repo_root: Path,
+        memories_dir: Path,
+        sample_memory_file: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        args = _make_args(
+            memory_id=str(sample_memory_file),
+            dir=str(memories_dir),
+            repo_root=str(repo_root),
+            json=True,
+        )
+        exit_code = cmd_verify(args)
+        captured = capsys.readouterr()
+        data = json.loads(captured.out)
+        assert "memory_id" in data
+        assert "valid" in data
+        assert exit_code == 0
+
+    @pytest.mark.unit
+    def test_nonexistent_memory(
+        self,
+        repo_root: Path,
+        memories_dir: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        args = _make_args(
+            memory_id="does-not-exist",
+            dir=str(memories_dir),
+            repo_root=str(repo_root),
+        )
+        exit_code = cmd_verify(args)
+        assert exit_code == 2
+        captured = capsys.readouterr()
+        assert "Error" in captured.err
+
+    @pytest.mark.unit
+    def test_malformed_yaml_returns_2(
+        self,
+        repo_root: Path,
+        memories_dir: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        bad = memories_dir / "malformed.md"
+        bad.write_text(
+            "---\n: invalid: yaml: [[[\n---\nBody.\n",
+            encoding="utf-8",
+        )
+        args = _make_args(
+            memory_id=str(bad),
+            dir=str(memories_dir),
+            repo_root=str(repo_root),
+        )
+        exit_code = cmd_verify(args)
+        assert exit_code == 2
+        captured = capsys.readouterr()
+        assert "Error" in captured.err
+
+    @pytest.mark.unit
+    def test_stale_citation_returns_1(
+        self,
+        repo_root: Path,
+        memories_dir: Path,
+    ) -> None:
+        stale = memories_dir / "stale.md"
+        stale.write_text(
+            "---\n"
+            "id: stale\n"
+            "subject: Stale\n"
+            "citations:\n"
+            "  - path: src/nonexistent.py\n"
+            "---\n"
+            "Body.\n",
+            encoding="utf-8",
+        )
+        args = _make_args(
+            memory_id=str(stale),
+            dir=str(memories_dir),
+            repo_root=str(repo_root),
+        )
+        exit_code = cmd_verify(args)
+        assert exit_code == 1
+
+
+class TestCmdVerifyAll:
+    """Tests for cmd_verify_all function."""
+
+    @pytest.mark.unit
+    def test_with_results(
+        self,
+        repo_root: Path,
+        memories_dir: Path,
+        sample_memory_file: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        args = _make_args(
+            dir=str(memories_dir),
+            repo_root=str(repo_root),
+        )
+        exit_code = cmd_verify_all(args)
+        assert exit_code == 0
+        captured = capsys.readouterr()
+        assert "Summary" in captured.out
+
+    @pytest.mark.unit
+    def test_json_output(
+        self,
+        repo_root: Path,
+        memories_dir: Path,
+        sample_memory_file: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        args = _make_args(
+            dir=str(memories_dir),
+            repo_root=str(repo_root),
+            json=True,
+        )
+        cmd_verify_all(args)
+        captured = capsys.readouterr()
+        data = json.loads(captured.out)
+        assert isinstance(data, list)
+
+    @pytest.mark.unit
+    def test_missing_directory(
+        self,
+        repo_root: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        args = _make_args(
+            dir=str(repo_root / "nonexistent"),
+            repo_root=str(repo_root),
+        )
+        exit_code = cmd_verify_all(args)
+        assert exit_code == 2
+        captured = capsys.readouterr()
+        assert "not found" in captured.err
+
+    @pytest.mark.unit
+    def test_no_memories_with_citations(
+        self,
+        repo_root: Path,
+        memories_dir: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        (memories_dir / "bare.md").write_text(
+            "---\nid: bare\nsubject: Bare\n---\nBody.\n",
+            encoding="utf-8",
+        )
+        args = _make_args(
+            dir=str(memories_dir),
+            repo_root=str(repo_root),
+        )
+        exit_code = cmd_verify_all(args)
+        assert exit_code == 0
+        captured = capsys.readouterr()
+        assert "No memories with citations found" in captured.out
+
+    @pytest.mark.unit
+    def test_stale_returns_1(
+        self,
+        repo_root: Path,
+        memories_dir: Path,
+    ) -> None:
+        (memories_dir / "stale.md").write_text(
+            "---\n"
+            "id: stale\n"
+            "subject: Stale\n"
+            "citations:\n"
+            "  - path: src/nonexistent.py\n"
+            "---\n"
+            "Body.\n",
+            encoding="utf-8",
+        )
+        args = _make_args(
+            dir=str(memories_dir),
+            repo_root=str(repo_root),
+        )
+        exit_code = cmd_verify_all(args)
+        assert exit_code == 1
+
+
+class TestMain:
+    """Tests for main() CLI entry point."""
+
+    @pytest.mark.unit
+    def test_verify_subcommand(
+        self,
+        repo_root: Path,
+        memories_dir: Path,
+        sample_memory_file: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(
+            "sys.argv",
+            [
+                "memory_enhancement",
+                "verify",
+                str(sample_memory_file),
+                "--repo-root",
+                str(repo_root),
+                "--dir",
+                str(memories_dir),
+            ],
+        )
+        exit_code = main()
+        assert exit_code == 0
+
+    @pytest.mark.unit
+    def test_verify_all_subcommand(
+        self,
+        repo_root: Path,
+        memories_dir: Path,
+        sample_memory_file: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(
+            "sys.argv",
+            [
+                "memory_enhancement",
+                "verify-all",
+                "--repo-root",
+                str(repo_root),
+                "--dir",
+                str(memories_dir),
+            ],
+        )
+        exit_code = main()
+        assert exit_code == 0
+
+    @pytest.mark.unit
+    def test_missing_subcommand(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr("sys.argv", ["memory_enhancement"])
+        with pytest.raises(SystemExit) as exc_info:
+            main()
+        assert exc_info.value.code == 2
