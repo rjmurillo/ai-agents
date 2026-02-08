@@ -140,7 +140,7 @@ if ([string]::IsNullOrWhiteSpace($CritiquePath)) {
 }
 
 # Verify the base branch ref exists
-$null = git rev-parse --verify $BaseBranch 2>&1
+$null = git rev-parse --verify "$BaseBranch" 2>&1
 if ($LASTEXITCODE -ne 0) {
     Write-Status 'FAIL' "Base branch '$BaseBranch' not found. Run 'git fetch origin' first."
     exit 2
@@ -181,7 +181,7 @@ function Get-CommitCount {
 
 function Get-ChangedFileCount {
     param([string]$Base)
-    $files = git diff --name-only $Base 2>&1
+    $files = git diff --name-only "$Base" 2>&1
     if ($LASTEXITCODE -ne 0) {
         return -1
     }
@@ -194,7 +194,7 @@ function Get-ChangedFileCount {
 
 function Get-TotalAddition {
     param([string]$Base)
-    $statOutput = git diff --stat $Base 2>&1
+    $statOutput = git diff --stat "$Base" 2>&1
     if ($LASTEXITCODE -ne 0) {
         return -1
     }

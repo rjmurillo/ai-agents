@@ -33,7 +33,7 @@
     "sessionEnd": {
       "commitChanges": {
         "status": "pass",
-        "notes": "All changes committed"
+        "notes": "All changes committed including quoting fix from PR review"
       },
       "updateMemory": {
         "status": "pass",

@@ -94,8 +94,8 @@ Describe 'Validate-PRReadiness.ps1' {
             $ScriptContent | Should -Match 'git\s+rev-parse\s+--show-toplevel'
         }
 
-        It 'Should verify base branch exists' {
-            $ScriptContent | Should -Match 'git\s+rev-parse\s+--verify\s+\$BaseBranch'
+        It 'Should verify base branch exists with quoted parameter' {
+            $ScriptContent | Should -Match 'git\s+rev-parse\s+--verify\s+"\$BaseBranch"'
         }
 
         It 'Should exit 2 on environment errors' {
