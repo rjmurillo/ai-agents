@@ -1,0 +1,695 @@
+#!/usr/bin/env bash
+#
+# Pre-push hook for ai-agents repository
+# Runs comprehensive branch-wide validation before pushing.
+#
+# NOTE: This is a bash script, which is an exception to ADR-005 (PowerShell-only).
+# Rationale: Git hooks require shell scripts on non-Windows platforms. A PowerShell
+# implementation would require pwsh to be installed and in PATH, creating a barrier
+# to contribution. This is a grandfathered exception for cross-platform git integration.
+# The hook delegates to PowerShell scripts for all logic beyond basic file detection.
+#
+# Complements pre-commit: pre-commit does per-file staged checks; pre-push does
+# comprehensive branch-wide checks including full test suites, drift detection,
+# and security scans.
+#
+# To enable: git config core.hooksPath .githooks
+#
+# Environment variables:
+#   SKIP_PREPUSH=1  - Bypass all checks (emergency use only)
+#   SKIP_TESTS=1    - Skip Pester and pytest phases (documentation-only pushes)
+#   PREPUSH_TIMEOUT=600 - Max seconds for entire hook (default: 10 min)
+#
+
+set -e
+
+# Colors for output (if terminal supports it)
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+NC='\033[0m' # No Color
+
+# Check if we're in a terminal that supports colors
+if [ ! -t 1 ]; then
+    RED=''
+    GREEN=''
+    YELLOW=''
+    CYAN=''
+    NC=''
+fi
+
+echo_error() {
+    echo -e "${RED}ERROR:${NC} $1"
+}
+
+echo_warning() {
+    echo -e "${YELLOW}WARNING:${NC} $1"
+}
+
+echo_success() {
+    echo -e "${GREEN}PASS:${NC} $1"
+}
+
+echo_info() {
+    echo "$1"
+}
+
+echo_phase() {
+    echo ""
+    echo -e "${CYAN}=== $1 ===${NC}"
+}
+
+# Emergency bypass
+if [ "${SKIP_PREPUSH:-}" = "1" ]; then
+    echo_warning "Pre-push checks BYPASSED (SKIP_PREPUSH=1)"
+    echo_warning "This should only be used in emergencies."
+    exit 0
+fi
+
+# Track overall exit status and counters
+EXIT_STATUS=0
+PASS_COUNT=0
+FAIL_COUNT=0
+WARN_COUNT=0
+SKIP_COUNT=0
+
+record_pass() {
+    PASS_COUNT=$((PASS_COUNT + 1))
+    echo_success "$1"
+}
+
+record_fail() {
+    FAIL_COUNT=$((FAIL_COUNT + 1))
+    EXIT_STATUS=1
+    echo_error "$1"
+}
+
+record_warn() {
+    WARN_COUNT=$((WARN_COUNT + 1))
+    echo_warning "$1"
+}
+
+record_skip() {
+    SKIP_COUNT=$((SKIP_COUNT + 1))
+    echo_info "SKIP: $1"
+}
+
+# Get repository root (validate git output)
+REPO_ROOT=$(git rev-parse --show-toplevel) || {
+    echo_error "Failed to determine repository root"
+    exit 2
+}
+if [ ! -d "$REPO_ROOT" ]; then
+    echo_error "Invalid repository root: $REPO_ROOT"
+    exit 2
+fi
+cd "$REPO_ROOT"
+
+# Python detection (reused from pre-commit pattern)
+set_python_cmd() {
+    if command -v python3 &> /dev/null; then
+        if python3 -c 'import sys' &> /dev/null; then
+            PYTHON_CMD=(python3)
+            return 0
+        fi
+    fi
+    if command -v python &> /dev/null; then
+        if python -c 'import sys; exit(0 if sys.version_info >= (3,) else 1)' &> /dev/null; then
+            PYTHON_CMD=(python)
+            return 0
+        fi
+    fi
+    if command -v py &> /dev/null; then
+        if py -3 -c 'import sys' &> /dev/null; then
+            PYTHON_CMD=(py -3)
+            return 0
+        fi
+    fi
+    return 1
+}
+
+# Determine changed files from push refs
+# Pre-push hook receives: <local ref> <local sha> <remote ref> <remote sha>
+ZERO="0000000000000000000000000000000000000000"
+CHANGED_FILES=""
+PUSH_RANGE=""
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+    # Deleting a remote ref, skip
+    if [ "$local_sha" = "$ZERO" ]; then
+        continue
+    fi
+
+    if [ "$remote_sha" = "$ZERO" ]; then
+        # New branch: compare against merge-base with main
+        merge_base=$(git merge-base main "$local_sha" 2>/dev/null || echo "")
+        if [ -n "$merge_base" ]; then
+            PUSH_RANGE="$merge_base..$local_sha"
+        else
+            # No common ancestor with main, compare against root
+            PUSH_RANGE="$local_sha"
+        fi
+    else
+        # Existing branch: compare against remote
+        PUSH_RANGE="$remote_sha..$local_sha"
+    fi
+
+    if [ -n "$PUSH_RANGE" ]; then
+        new_files=$(git diff --name-only "$PUSH_RANGE" 2>/dev/null || true)
+        if [ -n "$new_files" ]; then
+            if [ -n "$CHANGED_FILES" ]; then
+                CHANGED_FILES="$CHANGED_FILES"$'\n'"$new_files"
+            else
+                CHANGED_FILES="$new_files"
+            fi
+        fi
+    fi
+done
+
+# Deduplicate changed files
+if [ -n "$CHANGED_FILES" ]; then
+    CHANGED_FILES=$(echo "$CHANGED_FILES" | sort -u)
+fi
+
+if [ -z "$CHANGED_FILES" ]; then
+    echo_info "No changed files detected in push range. Skipping checks."
+    exit 0
+fi
+
+# Count changed files
+FILE_COUNT=$(echo "$CHANGED_FILES" | wc -l | tr -d ' ')
+echo_info "Pre-push validation: $FILE_COUNT files in push range"
+
+# Filter changed files by type
+CHANGED_MD=$(echo "$CHANGED_FILES" | grep -E '\.md$' || true)
+CHANGED_PY=$(echo "$CHANGED_FILES" | grep -E '\.py$' || true)
+CHANGED_PS=$(echo "$CHANGED_FILES" | grep -E '\.(ps1|psm1)$' || true)
+CHANGED_WORKFLOWS=$(echo "$CHANGED_FILES" | grep -E '^\.github/(workflows|actions)/.*\.ya?ml$' || true)
+CHANGED_YAML=$(echo "$CHANGED_FILES" | grep -E '\.ya?ml$' || true)
+CHANGED_AGENTS=$(echo "$CHANGED_FILES" | grep -E '^\.agents/' || true)
+CHANGED_TEMPLATES=$(echo "$CHANGED_FILES" | grep -E '^templates/' || true)
+CHANGED_SESSIONS=$(echo "$CHANGED_FILES" | grep -E '^\.agents/sessions/' || true)
+CHANGED_PLANNING=$(echo "$CHANGED_FILES" | grep -E '^\.agents/planning/' || true)
+CHANGED_ADRS=$(echo "$CHANGED_FILES" | grep -E '^\.agents/architecture/ADR-.*\.md$' || true)
+
+# ============================================================================
+# Phase 1: Fast Guards (< 5s)
+# ============================================================================
+echo_phase "Phase 1: Fast Guards"
+
+# 1. Branch guard - block direct pushes to main/master
+current_branch=$(git branch --show-current 2>/dev/null || echo "")
+
+if [ "$current_branch" = "main" ] || [ "$current_branch" = "master" ]; then
+    record_fail "Cannot push directly to '$current_branch'"
+    echo_info "  Create a feature branch first:"
+    echo_info "    git checkout -b feat/your-description"
+    # Hard block - exit immediately
+    exit 1
+fi
+
+record_pass "Branch guard ($current_branch)"
+
+# 2. Commit count - ADR-008 limit of 20
+if [ -n "$PUSH_RANGE" ]; then
+    COMMIT_COUNT=$(git rev-list --count "$PUSH_RANGE" 2>/dev/null || echo "0")
+    if [ "$COMMIT_COUNT" -gt 20 ]; then
+        record_fail "Commit count ($COMMIT_COUNT) exceeds ADR-008 limit of 20"
+        echo_info "  Consider squashing commits or splitting the PR."
+        echo_info "  See: CONTRIBUTING.md#commit-count-thresholds"
+    elif [ "$COMMIT_COUNT" -gt 15 ]; then
+        record_warn "Commit count ($COMMIT_COUNT) approaching limit of 20"
+    else
+        record_pass "Commit count ($COMMIT_COUNT <= 20)"
+    fi
+else
+    record_skip "Commit count (no push range)"
+fi
+
+# 3. Changed files count
+if [ "$FILE_COUNT" -gt 50 ]; then
+    record_fail "Changed files ($FILE_COUNT) exceeds maximum of 50"
+    echo_info "  Consider splitting into smaller PRs."
+elif [ "$FILE_COUNT" -gt 20 ]; then
+    record_warn "Changed files ($FILE_COUNT) exceeds recommended limit of 20"
+else
+    record_pass "Changed files count ($FILE_COUNT)"
+fi
+
+# 4. Total additions check
+if [ -n "$PUSH_RANGE" ]; then
+    TOTAL_ADDITIONS=$(git diff --stat "$PUSH_RANGE" 2>/dev/null | tail -1 | grep -oE '[0-9]+ insertion' | grep -oE '[0-9]+' || echo "0")
+    if [ -z "$TOTAL_ADDITIONS" ]; then
+        TOTAL_ADDITIONS=0
+    fi
+    if [ "$TOTAL_ADDITIONS" -gt 500 ]; then
+        record_warn "Total additions ($TOTAL_ADDITIONS) exceeds recommended 500 lines"
+    else
+        record_pass "Total additions ($TOTAL_ADDITIONS lines)"
+    fi
+else
+    record_skip "Total additions (no push range)"
+fi
+
+# ============================================================================
+# Phase 2: Linting & Type Checks (< 30s)
+# ============================================================================
+echo_phase "Phase 2: Linting & Type Checks"
+
+# 5. Markdown lint
+if [ -n "$CHANGED_MD" ]; then
+    # Get markdownlint command
+    MARKDOWNLINT_CMD=""
+    if [ -x "./node_modules/.bin/markdownlint-cli2" ]; then
+        MARKDOWNLINT_CMD="./node_modules/.bin/markdownlint-cli2"
+    elif command -v npx &> /dev/null; then
+        MARKDOWNLINT_CMD="npx markdownlint-cli2"
+    fi
+
+    if [ -n "$MARKDOWNLINT_CMD" ]; then
+        MD_FILES=()
+        while IFS= read -r file; do
+            [ -z "$file" ] && continue
+            [ -L "$file" ] && continue
+            [ -f "$file" ] && MD_FILES+=("$file")
+        done <<< "$CHANGED_MD"
+
+        if [ ${#MD_FILES[@]} -gt 0 ]; then
+            LINT_OUTPUT=$(mktemp)
+            # shellcheck disable=SC2086
+            if $MARKDOWNLINT_CMD --no-globs -- "${MD_FILES[@]}" >"$LINT_OUTPUT" 2>&1; then
+                rm -f "$LINT_OUTPUT"
+                record_pass "Markdown lint (${#MD_FILES[@]} files)"
+            else
+                echo_info "  Markdown issues found:"
+                grep -E '^[^/].*:.*MD[0-9]+' "$LINT_OUTPUT" 2>/dev/null | head -10 || head -10 "$LINT_OUTPUT"
+                rm -f "$LINT_OUTPUT"
+                record_fail "Markdown lint"
+                echo_info "  Fix: npx markdownlint-cli2 --fix <files>"
+            fi
+        else
+            record_skip "Markdown lint (no accessible files)"
+        fi
+    else
+        record_skip "Markdown lint (markdownlint-cli2 not available)"
+    fi
+else
+    record_skip "Markdown lint (no .md files changed)"
+fi
+
+# 6. Python lint (ruff) - BLOCKING
+if [ -n "$CHANGED_PY" ]; then
+    if command -v ruff &> /dev/null; then
+        PY_FILES=()
+        while IFS= read -r file; do
+            [ -z "$file" ] && continue
+            [ -L "$file" ] && continue
+            [ -f "$file" ] && PY_FILES+=("$file")
+        done <<< "$CHANGED_PY"
+
+        if [ ${#PY_FILES[@]} -gt 0 ]; then
+            if ruff check -- "${PY_FILES[@]}" 2>/dev/null; then
+                record_pass "Python lint/ruff (${#PY_FILES[@]} files)"
+            else
+                record_fail "Python lint/ruff"
+                echo_info "  Fix: ruff check --fix <files>"
+            fi
+        else
+            record_skip "Python lint (no accessible files)"
+        fi
+    else
+        record_skip "Python lint (ruff not installed)"
+    fi
+else
+    record_skip "Python lint (no .py files changed)"
+fi
+
+# 7. Python type check (mypy) - BLOCKING
+if [ -n "$CHANGED_PY" ]; then
+    if command -v mypy &> /dev/null; then
+        PY_FILES=()
+        while IFS= read -r file; do
+            [ -z "$file" ] && continue
+            [ -L "$file" ] && continue
+            [ -f "$file" ] && PY_FILES+=("$file")
+        done <<< "$CHANGED_PY"
+
+        if [ ${#PY_FILES[@]} -gt 0 ]; then
+            if mypy "${PY_FILES[@]}" 2>/dev/null; then
+                record_pass "Python type check/mypy (${#PY_FILES[@]} files)"
+            else
+                record_fail "Python type check/mypy"
+                echo_info "  Fix type errors before pushing."
+            fi
+        else
+            record_skip "Python type check (no accessible files)"
+        fi
+    else
+        record_skip "Python type check (mypy not installed)"
+    fi
+else
+    record_skip "Python type check (no .py files changed)"
+fi
+
+# 8. Workflow YAML (actionlint) - BLOCKING
+if [ -n "$CHANGED_WORKFLOWS" ]; then
+    if command -v actionlint &> /dev/null; then
+        WF_FILES=()
+        while IFS= read -r file; do
+            [ -z "$file" ] && continue
+            [ -L "$file" ] && continue
+            [ -f "$file" ] && WF_FILES+=("$file")
+        done <<< "$CHANGED_WORKFLOWS"
+
+        if [ ${#WF_FILES[@]} -gt 0 ]; then
+            ACTIONLINT_OUTPUT=$(mktemp)
+            if actionlint "${WF_FILES[@]}" > "$ACTIONLINT_OUTPUT" 2>&1; then
+                rm -f "$ACTIONLINT_OUTPUT"
+                record_pass "Workflow YAML/actionlint (${#WF_FILES[@]} files)"
+            else
+                echo_info "  actionlint issues:"
+                head -10 "$ACTIONLINT_OUTPUT"
+                rm -f "$ACTIONLINT_OUTPUT"
+                record_fail "Workflow YAML/actionlint"
+            fi
+        else
+            record_skip "Workflow YAML (no accessible files)"
+        fi
+    else
+        record_skip "Workflow YAML (actionlint not installed)"
+    fi
+else
+    record_skip "Workflow YAML (no workflow files changed)"
+fi
+
+# 9. YAML style (yamllint) - Non-blocking warnings
+if [ -n "$CHANGED_YAML" ]; then
+    if command -v yamllint &> /dev/null; then
+        YAML_FILES=()
+        while IFS= read -r file; do
+            [ -z "$file" ] && continue
+            [ -L "$file" ] && continue
+            [ -f "$file" ] && YAML_FILES+=("$file")
+        done <<< "$CHANGED_YAML"
+
+        if [ ${#YAML_FILES[@]} -gt 0 ]; then
+            if yamllint -f parsable "${YAML_FILES[@]}" > /dev/null 2>&1; then
+                record_pass "YAML style/yamllint (${#YAML_FILES[@]} files)"
+            else
+                record_warn "YAML style issues found (non-blocking)"
+            fi
+        else
+            record_skip "YAML style (no accessible files)"
+        fi
+    else
+        record_skip "YAML style (yamllint not installed)"
+    fi
+else
+    record_skip "YAML style (no YAML files changed)"
+fi
+
+# ============================================================================
+# Phase 3: Build Validation (< 30s)
+# ============================================================================
+echo_phase "Phase 3: Build Validation"
+
+# 10. Agent generation drift
+GENERATE_AGENTS_SCRIPT="$REPO_ROOT/build/Generate-Agents.ps1"
+
+if [ -n "$CHANGED_TEMPLATES" ] || [ -n "$(echo "$CHANGED_FILES" | grep -E '^src/(copilot-cli|vs-code-agents)/' || true)" ]; then
+    if [ -L "$GENERATE_AGENTS_SCRIPT" ]; then
+        record_warn "Agent generation script is a symlink (skipping)"
+    elif [ -f "$GENERATE_AGENTS_SCRIPT" ]; then
+        if command -v pwsh &> /dev/null; then
+            if pwsh -NoProfile -ExecutionPolicy Bypass -File "$GENERATE_AGENTS_SCRIPT" -Validate 2>/dev/null; then
+                record_pass "Agent generation (templates match generated)"
+            else
+                record_fail "Agent generation drift detected"
+                echo_info "  Fix: pwsh build/Generate-Agents.ps1"
+                echo_info "  Then commit the regenerated files."
+            fi
+        else
+            record_skip "Agent generation (pwsh not available)"
+        fi
+    else
+        record_skip "Agent generation (script not found)"
+    fi
+else
+    record_skip "Agent generation (no template/agent files changed)"
+fi
+
+# 11. Agent drift detection
+AGENT_DRIFT_SCRIPT="$REPO_ROOT/build/scripts/Detect-AgentDrift.ps1"
+
+if [ -n "$(echo "$CHANGED_FILES" | grep -E '^(src/|templates/)' || true)" ]; then
+    if [ -L "$AGENT_DRIFT_SCRIPT" ]; then
+        record_warn "Agent drift script is a symlink (skipping)"
+    elif [ -f "$AGENT_DRIFT_SCRIPT" ]; then
+        if command -v pwsh &> /dev/null; then
+            if pwsh -NoProfile -ExecutionPolicy Bypass -File "$AGENT_DRIFT_SCRIPT" 2>/dev/null; then
+                record_pass "Agent drift detection"
+            else
+                record_fail "Agent drift detected"
+                echo_info "  Fix: Sync agent content across platforms."
+                echo_info "  Run: pwsh build/scripts/Detect-AgentDrift.ps1 -Verbose"
+            fi
+        else
+            record_skip "Agent drift detection (pwsh not available)"
+        fi
+    else
+        record_skip "Agent drift detection (script not found)"
+    fi
+else
+    record_skip "Agent drift detection (no src/template files changed)"
+fi
+
+# 12. Path normalization
+PATH_NORM_SCRIPT="$REPO_ROOT/build/scripts/Validate-PathNormalization.ps1"
+
+if [ -L "$PATH_NORM_SCRIPT" ]; then
+    record_warn "Path normalization script is a symlink (skipping)"
+elif [ -f "$PATH_NORM_SCRIPT" ]; then
+    if command -v pwsh &> /dev/null; then
+        if pwsh -NoProfile -ExecutionPolicy Bypass -File "$PATH_NORM_SCRIPT" -FailOnViolation 2>/dev/null; then
+            record_pass "Path normalization"
+        else
+            record_fail "Path normalization violations found"
+            echo_info "  Fix: Replace absolute paths with relative paths."
+        fi
+    else
+        record_skip "Path normalization (pwsh not available)"
+    fi
+else
+    record_skip "Path normalization (script not found)"
+fi
+
+# ============================================================================
+# Phase 4: Tests
+# ============================================================================
+if [ "${SKIP_TESTS:-}" = "1" ]; then
+    echo_phase "Phase 4: Tests (SKIPPED - SKIP_TESTS=1)"
+    record_skip "Pester tests (SKIP_TESTS=1)"
+    record_skip "Python tests (SKIP_TESTS=1)"
+else
+    echo_phase "Phase 4: Tests"
+
+    # 13. Pester tests (full suite)
+    PESTER_RUNNER="$REPO_ROOT/build/scripts/Invoke-PesterTests.ps1"
+
+    if [ -n "$CHANGED_PS" ] || [ -n "$(echo "$CHANGED_FILES" | grep -E '\.(ps1|psm1|Tests\.ps1)$' || true)" ]; then
+        if [ -L "$PESTER_RUNNER" ]; then
+            record_fail "Pester test runner is a symlink (security violation)"
+        elif [ -f "$PESTER_RUNNER" ]; then
+            if command -v pwsh &> /dev/null; then
+                TEST_OUTPUT=$(mktemp)
+                if pwsh -NoProfile -File "$PESTER_RUNNER" -CI > "$TEST_OUTPUT" 2>&1; then
+                    rm -f "$TEST_OUTPUT"
+                    record_pass "Pester tests (full suite)"
+                else
+                    echo_info "  Test output (last 30 lines):"
+                    tail -30 "$TEST_OUTPUT"
+                    rm -f "$TEST_OUTPUT"
+                    record_fail "Pester tests failed"
+                    echo_info "  Fix failing tests before pushing."
+                fi
+            else
+                record_skip "Pester tests (pwsh not available)"
+            fi
+        else
+            record_skip "Pester tests (runner not found)"
+        fi
+    else
+        record_skip "Pester tests (no PowerShell files changed)"
+    fi
+
+    # 14. Python tests (pytest)
+    if [ -n "$CHANGED_PY" ]; then
+        if set_python_cmd; then
+            if [ -d "$REPO_ROOT/tests" ]; then
+                TEST_OUTPUT=$(mktemp)
+                if "${PYTHON_CMD[@]}" -m pytest "$REPO_ROOT/tests/" -v > "$TEST_OUTPUT" 2>&1; then
+                    rm -f "$TEST_OUTPUT"
+                    record_pass "Python tests (pytest)"
+                else
+                    echo_info "  Test output (last 30 lines):"
+                    tail -30 "$TEST_OUTPUT"
+                    rm -f "$TEST_OUTPUT"
+                    record_fail "Python tests failed"
+                    echo_info "  Fix failing tests before pushing."
+                fi
+            else
+                record_skip "Python tests (tests/ directory not found)"
+            fi
+        else
+            record_skip "Python tests (Python 3 not available)"
+        fi
+    else
+        record_skip "Python tests (no .py files changed)"
+    fi
+fi
+
+# ============================================================================
+# Phase 5: Security & Governance
+# ============================================================================
+echo_phase "Phase 5: Security & Governance"
+
+# 15. Security suppression detection
+if [ -n "$CHANGED_PY" ] || [ -n "$CHANGED_PS" ]; then
+    ALL_CODE_FILES=""
+    [ -n "$CHANGED_PY" ] && ALL_CODE_FILES="$CHANGED_PY"
+    if [ -n "$CHANGED_PS" ]; then
+        if [ -n "$ALL_CODE_FILES" ]; then
+            ALL_CODE_FILES="$ALL_CODE_FILES"$'\n'"$CHANGED_PS"
+        else
+            ALL_CODE_FILES="$CHANGED_PS"
+        fi
+    fi
+
+    SUPPRESSION_FOUND=0
+    while IFS= read -r file; do
+        [ -z "$file" ] && continue
+        [ ! -f "$file" ] && continue
+        [ -L "$file" ] && continue
+
+        # Check for security suppression comments
+        if grep -nE '#\s*(lgtm\[|nosec|noqa:\s*S|type:\s*ignore\[|cwe-suppress)' "$file" 2>/dev/null; then
+            if [ "$SUPPRESSION_FOUND" -eq 0 ]; then
+                echo_info "  Security suppression comments found:"
+            fi
+            echo_info "    $file"
+            SUPPRESSION_FOUND=1
+        fi
+    done <<< "$ALL_CODE_FILES"
+
+    if [ "$SUPPRESSION_FOUND" -eq 1 ]; then
+        record_fail "Security suppression comments detected"
+        echo_info "  Remove suppression comments or document the security exception."
+        echo_info "  Patterns blocked: # lgtm[, # nosec, # noqa: S, # type: ignore[, # cwe-suppress"
+    else
+        record_pass "No security suppressions"
+    fi
+else
+    record_skip "Security suppression check (no code files changed)"
+fi
+
+# 16. Session log validation
+SESSION_VALIDATE_SCRIPT="$REPO_ROOT/scripts/Validate-SessionJson.ps1"
+
+if [ -n "$CHANGED_SESSIONS" ]; then
+    if [ -L "$SESSION_VALIDATE_SCRIPT" ]; then
+        record_warn "Session validation script is a symlink (skipping)"
+    elif [ -f "$SESSION_VALIDATE_SCRIPT" ]; then
+        if command -v pwsh &> /dev/null; then
+            SESSION_ERRORS=0
+            while IFS= read -r session_file; do
+                [ -z "$session_file" ] && continue
+                [ ! -f "$session_file" ] && continue
+                if echo "$session_file" | grep -qE '[0-9]{4}-[0-9]{2}-[0-9]{2}-session-[0-9]+.*\.json$'; then
+                    if ! pwsh -NoProfile -ExecutionPolicy Bypass -File "$SESSION_VALIDATE_SCRIPT" -SessionPath "$session_file" 2>&1; then
+                        SESSION_ERRORS=1
+                    fi
+                fi
+            done <<< "$CHANGED_SESSIONS"
+
+            if [ "$SESSION_ERRORS" -eq 1 ]; then
+                record_fail "Session log validation"
+                echo_info "  Fix: Use /session-log-fixer skill"
+            else
+                record_pass "Session log validation"
+            fi
+        else
+            record_skip "Session log validation (pwsh not available)"
+        fi
+    else
+        record_skip "Session log validation (script not found)"
+    fi
+else
+    record_skip "Session log validation (no session files changed)"
+fi
+
+# 17. Planning artifacts
+PLANNING_VALIDATE_SCRIPT="$REPO_ROOT/build/scripts/Validate-PlanningArtifacts.ps1"
+
+if [ -n "$CHANGED_PLANNING" ]; then
+    if [ -L "$PLANNING_VALIDATE_SCRIPT" ]; then
+        record_warn "Planning validation script is a symlink (skipping)"
+    elif [ -f "$PLANNING_VALIDATE_SCRIPT" ]; then
+        if command -v pwsh &> /dev/null; then
+            if pwsh -NoProfile -ExecutionPolicy Bypass -File "$PLANNING_VALIDATE_SCRIPT" -Path "$REPO_ROOT" 2>/dev/null; then
+                record_pass "Planning artifacts"
+            else
+                record_warn "Planning artifact issues found (non-blocking)"
+            fi
+        else
+            record_skip "Planning artifacts (pwsh not available)"
+        fi
+    else
+        record_skip "Planning artifacts (script not found)"
+    fi
+else
+    record_skip "Planning artifacts (no planning files changed)"
+fi
+
+# 18. ADR review reminder
+if [ -n "$CHANGED_ADRS" ]; then
+    record_warn "ADR files changed - ensure /adr-review skill was run"
+    echo_info "  Changed ADRs:"
+    while IFS= read -r adr; do
+        [ -z "$adr" ] && continue
+        echo_info "    - $adr"
+    done <<< "$CHANGED_ADRS"
+else
+    record_skip "ADR review (no ADR files changed)"
+fi
+
+# ============================================================================
+# Phase 6: Summary
+# ============================================================================
+echo_phase "Pre-Push Summary"
+
+TOTAL=$((PASS_COUNT + FAIL_COUNT + WARN_COUNT + SKIP_COUNT))
+
+echo_info "  Passed:  $PASS_COUNT"
+if [ "$FAIL_COUNT" -gt 0 ]; then
+    echo_error "  Failed:  $FAIL_COUNT"
+fi
+if [ "$WARN_COUNT" -gt 0 ]; then
+    echo_warning "  Warnings: $WARN_COUNT"
+fi
+echo_info "  Skipped: $SKIP_COUNT"
+echo_info "  Total:   $TOTAL checks"
+echo ""
+
+if [ $EXIT_STATUS -ne 0 ]; then
+    echo_error "Pre-push checks FAILED. Fix the issues above before pushing."
+    echo_info ""
+    echo_info "  To bypass in emergencies: SKIP_PREPUSH=1 git push"
+    echo_info "  To skip tests only:       SKIP_TESTS=1 git push"
+    exit 1
+fi
+
+echo_success "All pre-push checks passed."
+echo ""
+
+exit 0
