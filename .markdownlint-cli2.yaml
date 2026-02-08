@@ -124,3 +124,9 @@ ignores:
   # issues being fixed in a separate PR. This exclusion unblocks PR #847.
   # TODO: Remove this exclusion after the linting fix PR merges
   - ".github/agents/**/*.agent.md"
+
+  # SkillForge specification files - These are XML files with .md extension used by the
+  # SkillForge skill generation process. Markdown linting is not applicable to XML content.
+  - ".claude/skills/**/SKILL_SPEC.md"
+  - ".claude/skills/**/SKILL_SPEC.xml"
+  - ".claude/skills/**/PHASE1_ANALYSIS.md"
