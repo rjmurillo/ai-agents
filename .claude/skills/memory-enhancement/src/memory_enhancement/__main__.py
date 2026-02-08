@@ -161,7 +161,12 @@ def cmd_verify_all(args: argparse.Namespace) -> int:
 
 def cmd_graph(args: argparse.Namespace) -> int:
     """Handle graph traversal, cycle detection, and relationship scoring."""
-    memories_dir = Path(args.dir)
+    repo_root = Path(args.repo_root).resolve()
+    memories_dir = (repo_root / args.dir).resolve()
+
+    if not str(memories_dir).startswith(str(repo_root)):
+        print(f"Error: Memories directory is outside the repository: {args.dir}", file=sys.stderr)
+        return 2
 
     if not memories_dir.exists():
         print(f"Error: Memories directory not found: {memories_dir}", file=sys.stderr)

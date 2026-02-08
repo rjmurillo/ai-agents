@@ -509,6 +509,7 @@ class TestMain:
     @pytest.mark.unit
     def test_graph_subcommand(
         self,
+        repo_root: Path,
         graph_memories_dir: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -520,6 +521,8 @@ class TestMain:
                 "memory-a",
                 "--dir",
                 str(graph_memories_dir),
+                "--repo-root",
+                str(repo_root),
             ],
         )
         exit_code = main()
@@ -548,12 +551,14 @@ class TestCmdGraphTraverse:
     @pytest.mark.unit
     def test_bfs_traverse(
         self,
+        repo_root: Path,
         graph_memories_dir: Path,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
         args = _make_graph_args(
             memory_id="memory-a",
             dir=str(graph_memories_dir),
+            repo_root=str(repo_root),
         )
         exit_code = cmd_graph(args)
         assert exit_code == 0
@@ -565,6 +570,7 @@ class TestCmdGraphTraverse:
     @pytest.mark.unit
     def test_dfs_traverse(
         self,
+        repo_root: Path,
         graph_memories_dir: Path,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
@@ -572,6 +578,7 @@ class TestCmdGraphTraverse:
             memory_id="memory-a",
             mode="dfs",
             dir=str(graph_memories_dir),
+            repo_root=str(repo_root),
         )
         exit_code = cmd_graph(args)
         assert exit_code == 0
@@ -581,12 +588,14 @@ class TestCmdGraphTraverse:
     @pytest.mark.unit
     def test_traverse_json(
         self,
+        repo_root: Path,
         graph_memories_dir: Path,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
         args = _make_graph_args(
             memory_id="memory-a",
             dir=str(graph_memories_dir),
+            repo_root=str(repo_root),
             json=True,
         )
         exit_code = cmd_graph(args)
@@ -600,6 +609,7 @@ class TestCmdGraphTraverse:
     @pytest.mark.unit
     def test_traverse_with_max_depth(
         self,
+        repo_root: Path,
         graph_memories_dir: Path,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
@@ -607,6 +617,7 @@ class TestCmdGraphTraverse:
             memory_id="memory-a",
             max_depth=1,
             dir=str(graph_memories_dir),
+            repo_root=str(repo_root),
         )
         exit_code = cmd_graph(args)
         assert exit_code == 0
@@ -616,11 +627,13 @@ class TestCmdGraphTraverse:
     @pytest.mark.unit
     def test_traverse_missing_memory_id(
         self,
+        repo_root: Path,
         graph_memories_dir: Path,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
         args = _make_graph_args(
             dir=str(graph_memories_dir),
+            repo_root=str(repo_root),
         )
         exit_code = cmd_graph(args)
         assert exit_code == 2
@@ -630,12 +643,14 @@ class TestCmdGraphTraverse:
     @pytest.mark.unit
     def test_traverse_unknown_memory(
         self,
+        repo_root: Path,
         graph_memories_dir: Path,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
         args = _make_graph_args(
             memory_id="nonexistent-memory",
             dir=str(graph_memories_dir),
+            repo_root=str(repo_root),
         )
         exit_code = cmd_graph(args)
         assert exit_code == 2
@@ -649,12 +664,14 @@ class TestCmdGraphCycles:
     @pytest.mark.unit
     def test_no_cycles(
         self,
+        repo_root: Path,
         graph_memories_dir: Path,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
         args = _make_graph_args(
             cycles=True,
             dir=str(graph_memories_dir),
+            repo_root=str(repo_root),
         )
         exit_code = cmd_graph(args)
         assert exit_code == 0
@@ -664,12 +681,14 @@ class TestCmdGraphCycles:
     @pytest.mark.unit
     def test_cycles_found(
         self,
+        repo_root: Path,
         cyclic_memories_dir: Path,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
         args = _make_graph_args(
             cycles=True,
             dir=str(cyclic_memories_dir),
+            repo_root=str(repo_root),
         )
         exit_code = cmd_graph(args)
         assert exit_code == 1
@@ -679,12 +698,14 @@ class TestCmdGraphCycles:
     @pytest.mark.unit
     def test_cycles_json(
         self,
+        repo_root: Path,
         graph_memories_dir: Path,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
         args = _make_graph_args(
             cycles=True,
             dir=str(graph_memories_dir),
+            repo_root=str(repo_root),
             json=True,
         )
         exit_code = cmd_graph(args)
@@ -701,6 +722,7 @@ class TestCmdGraphScore:
     @pytest.mark.unit
     def test_score_relationships(
         self,
+        repo_root: Path,
         graph_memories_dir: Path,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
@@ -708,6 +730,7 @@ class TestCmdGraphScore:
             memory_id="memory-a",
             score=True,
             dir=str(graph_memories_dir),
+            repo_root=str(repo_root),
         )
         exit_code = cmd_graph(args)
         assert exit_code == 0
@@ -718,6 +741,7 @@ class TestCmdGraphScore:
     @pytest.mark.unit
     def test_score_json(
         self,
+        repo_root: Path,
         graph_memories_dir: Path,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
@@ -725,6 +749,7 @@ class TestCmdGraphScore:
             memory_id="memory-a",
             score=True,
             dir=str(graph_memories_dir),
+            repo_root=str(repo_root),
             json=True,
         )
         exit_code = cmd_graph(args)
@@ -737,12 +762,14 @@ class TestCmdGraphScore:
     @pytest.mark.unit
     def test_score_missing_memory_id(
         self,
+        repo_root: Path,
         graph_memories_dir: Path,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
         args = _make_graph_args(
             score=True,
             dir=str(graph_memories_dir),
+            repo_root=str(repo_root),
         )
         exit_code = cmd_graph(args)
         assert exit_code == 2
@@ -752,6 +779,7 @@ class TestCmdGraphScore:
     @pytest.mark.unit
     def test_score_unknown_memory(
         self,
+        repo_root: Path,
         graph_memories_dir: Path,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
@@ -759,6 +787,7 @@ class TestCmdGraphScore:
             memory_id="nonexistent-memory",
             score=True,
             dir=str(graph_memories_dir),
+            repo_root=str(repo_root),
         )
         exit_code = cmd_graph(args)
         assert exit_code == 2
@@ -774,9 +803,25 @@ class TestCmdGraphErrors:
         capsys: pytest.CaptureFixture[str],
     ) -> None:
         args = _make_graph_args(
-            dir=str(repo_root / "nonexistent"),
+            dir="nonexistent",
+            repo_root=str(repo_root),
         )
         exit_code = cmd_graph(args)
         assert exit_code == 2
         captured = capsys.readouterr()
         assert "not found" in captured.err
+
+    @pytest.mark.security
+    def test_path_traversal_blocked(
+        self,
+        repo_root: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        args = _make_graph_args(
+            dir="../../../../etc",
+            repo_root=str(repo_root),
+        )
+        exit_code = cmd_graph(args)
+        assert exit_code == 2
+        captured = capsys.readouterr()
+        assert "outside the repository" in captured.err
