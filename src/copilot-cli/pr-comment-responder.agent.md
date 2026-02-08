@@ -1347,26 +1347,23 @@ Use sparingly. Only resolve after actually addressing issues.
 
 ## Memory Protocol
 
-Use cloudmcp-manager memory tools directly for cross-session context. Memory is critical for PR comment handling - reviewers have predictable patterns.
+Use Memory Router for search and Serena tools for persistence (ADR-037). Memory is critical for PR comment handling, as reviewers have predictable patterns.
 
-**At start (MUST):**
+**At start (MANDATORY, retrieve context):**
+
+```powershell
+pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "PR review patterns bot behaviors reviewer preferences"
+```
+
+**After EVERY triage decision (store learnings):**
 
 ```text
-mcp__cloudmcp-manager__memory-search_nodes
-Query: "PR review patterns bot false positives reviewer preferences"
+mcp__serena__write_memory
+memory_file_name: "pr-pattern-[category]"
+content: "# PR Pattern: [Category]\n\n**Statement**: [Pattern details]\n\n**Evidence**: ...\n\n## Details\n\n..."
 ```
 
-**After EVERY triage decision:**
-
-```json
-mcp__cloudmcp-manager__memory-add_observations
-{
-  "observations": [{
-    "entityName": "Pattern-PRReview-[PR-Number]",
-    "contents": ["[Triage decision and outcome]"]
-  }]
-}
-```
+> **Fallback**: If Memory Router unavailable, read `.serena/memories/` directly with Read tool.
 
 | Category | What to Store | Why |
 |----------|---------------|-----|

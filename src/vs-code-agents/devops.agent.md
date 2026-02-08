@@ -176,26 +176,23 @@ Save to: `.agents/planning/impact-analysis-devops-[feature].md`
 
 ## Memory Protocol
 
-Use cloudmcp-manager memory tools directly for cross-session context:
+Use Memory Router for search and Serena tools for persistence (ADR-037):
 
-**Before pipeline work:**
+**Before pipeline work (retrieve context):**
+
+```powershell
+pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "devops patterns [pipeline/infrastructure]"
+```
+
+**After pipeline work (store learnings):**
 
 ```text
-mcp__cloudmcp-manager__memory-search_nodes
-Query: "devops patterns [pipeline/infrastructure]"
+mcp__serena__write_memory
+memory_file_name: "pattern-devops-[topic]"
+content: "# DevOps: [Topic]\n\n**Statement**: ...\n\n**Evidence**: ...\n\n## Details\n\n..."
 ```
 
-**After pipeline work:**
-
-```json
-mcp__cloudmcp-manager__memory-add_observations
-{
-  "observations": [{
-    "entityName": "Pattern-DevOps-[Topic]",
-    "contents": ["[Configuration and resolution details]"]
-  }]
-}
-```
+> **Fallback**: If Memory Router unavailable, read `.serena/memories/` directly with Read tool.
 
 ## Pipeline Standards
 
@@ -263,15 +260,6 @@ Save to: `.agents/devops/`
 | [Issue] | [Fix] |
 ```
 
-## Handoff Options
-
-| Target | When | Purpose |
-|--------|------|---------|
-| **implementer** | Pipeline ready for code | Ready to build |
-| **qa** | Test infrastructure needed | Test setup |
-| **architect** | Infrastructure decisions | Technical direction |
-| **security** | Security review needed | Compliance check |
-
 ## Handoff Protocol
 
 **As a subagent, you CANNOT delegate**. Return infrastructure plan to orchestrator.
@@ -281,6 +269,15 @@ When infrastructure work is complete:
 1. Save pipeline/configuration to appropriate location
 2. Store implementation notes in memory
 3. Return to orchestrator with completion status and recommendations
+
+## Handoff Options (Recommendations for Orchestrator)
+
+| Target | When | Purpose |
+|--------|------|---------|
+| **implementer** | Pipeline ready for code | Ready to build |
+| **qa** | Test infrastructure needed | Test setup |
+| **architect** | Infrastructure decisions | Technical direction |
+| **security** | Security review needed | Compliance check |
 
 ## Execution Mindset
 

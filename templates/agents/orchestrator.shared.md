@@ -223,43 +223,23 @@ These are normal occurrences. Continue orchestrating.
 
 ## Memory Protocol
 
-Use Serena memory tools for cross-session context:
+Use Memory Router for search and Serena tools for persistence (ADR-037):
 
-**Before multi-step reasoning:**
+**Before multi-step reasoning (retrieve context):**
 
-```python
-# Search for relevant memories
-mcp__serena__list_memories()
-
-# Read specific orchestration patterns
-mcp__serena__read_memory(memory_file_name="orchestration-[relevant-pattern]")
+```powershell
+pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "orchestration [relevant-pattern]"
 ```
 
-**At milestones (or every 5 turns):**
+**At milestones (or every 5 turns, store learnings):**
 
-```python
-# Store orchestration decisions
-mcp__serena__write_memory(
-    memory_file_name="orchestration-[topic]",
-    content="""
-## Orchestration Decision: [Topic]
-
-**Agent Performance:**
-- Success patterns: [what worked]
-- Failure modes: [what failed]
-
-**Routing Decisions:**
-- Effective: [what worked]
-- Ineffective: [what failed]
-
-**Solutions:**
-- Recurring problems resolved: [solutions]
-
-**Conventions:**
-- Project patterns discovered: [patterns]
-"""
-)
+```text
+mcp__serena__write_memory
+memory_file_name: "orchestration-[topic]"
+content: "# Orchestration Decision: [Topic]\n\n**Agent Performance**:\n- Success patterns: [what worked]\n- Failure modes: [what failed]\n\n**Routing Decisions**:\n- Effective: [what worked]\n- Ineffective: [what failed]\n\n**Solutions**:\n- Recurring problems resolved: [solutions]\n\n**Conventions**:\n- Project patterns discovered: [patterns]"
 ```
+
+> **Fallback**: If Memory Router unavailable, read `.serena/memories/` directly with Read tool.
 
 ## Execution Protocol
 
