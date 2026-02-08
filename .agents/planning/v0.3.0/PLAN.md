@@ -137,8 +137,8 @@ flowchart LR
     end
 
     subgraph New: Memory Enhancement Continuation
-        E[#992<br/>Citation Schema v2<br/>P0 ⭐] --> F[#993<br/>Graph Traversal v2<br/>P1]
-        F --> G[#994<br/>CI Health v2<br/>P1]
+        E[#992<br/>Citation Schema<br/>P0 ⭐] --> F[#993<br/>Graph Traversal<br/>P1]
+        F --> G[#994<br/>CI Health<br/>P1]
     end
 
     subgraph New: Quality Gates
