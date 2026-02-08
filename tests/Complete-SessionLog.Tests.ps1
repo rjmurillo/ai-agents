@@ -26,7 +26,7 @@
 #>
 
 BeforeAll {
-    $Script:ScriptPath = Resolve-Path (Join-Path $PSScriptRoot '..' 'scripts' 'Complete-SessionLog.ps1')
+    $Script:ScriptPath = Resolve-Path (Join-Path $PSScriptRoot '..' '.claude' 'skills' 'session-end' 'scripts' 'Complete-SessionLog.ps1')
 
     if (-not (Test-Path $Script:ScriptPath)) {
         throw "Script not found at: $Script:ScriptPath"
