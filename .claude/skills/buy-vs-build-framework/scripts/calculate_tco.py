@@ -5,8 +5,8 @@ Calculate Total Cost of Ownership (TCO) for Build/Buy/Partner decisions.
 Outputs NPV, IRR, break-even timeline, and sensitivity analysis.
 Exit codes:
   0: Success
-  10: Warning (negative NPV detected)
-  11: Error (missing required cost categories)
+  1: Error (missing required cost categories)
+  2: Warning (negative NPV detected)
 """
 
 import argparse
@@ -163,7 +163,7 @@ Examples:
         print("ERROR: Validation failed", file=sys.stderr)
         for error in errors:
             print(f"  - {error}", file=sys.stderr)
-        sys.exit(11)
+        sys.exit(1)
 
     # Calculate NPVs
     npv_build = calculate_npv(args.build_initial, args.build_ongoing, args.discount_rate, args.years)
@@ -213,7 +213,7 @@ Examples:
 
     if result.warning:
         print(f"\nWARNING: {result.warning}")
-        sys.exit(10)
+        sys.exit(2)
 
     sys.exit(0)
 

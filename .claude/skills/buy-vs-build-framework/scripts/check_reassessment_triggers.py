@@ -4,8 +4,9 @@ Detect assumption drift and recommend re-evaluation.
 
 Exit codes:
   0: Assumptions hold, stay course
-  10: Minor drift (<20%), monitor closely
-  11: Major drift (>20%), re-evaluation required
+  1: Error (file not found or invalid JSON)
+  2: Minor drift (<20%), monitor closely
+  3: Major drift (>20%), re-evaluation required
 """
 
 import argparse
@@ -30,7 +31,7 @@ def parse_adr(adr_path: str) -> dict:
             content = f.read()
     except FileNotFoundError:
         print(f"ERROR: ADR file not found: {adr_path}", file=sys.stderr)
-        sys.exit(11)
+        sys.exit(1)
 
     assumptions = {}
 
@@ -124,9 +125,9 @@ def determine_recommendation(drift: dict[str, float], triggered: list[str]) -> t
     max_drift = max(drift.values()) if drift else 0
 
     if len(triggered) >= 3 or max_drift > 20:
-        return ("Full re-evaluation required", 11)
+        return ("Full re-evaluation required", 3)
     elif len(triggered) >= 1 or max_drift > 10:
-        return ("Monitor closely, consider re-evaluation", 10)
+        return ("Monitor closely, consider re-evaluation", 2)
     else:
         return ("Assumptions hold, stay course", 0)
 
@@ -167,10 +168,10 @@ Example current state file format (JSON):
             current = json.load(f)
     except FileNotFoundError:
         print(f"ERROR: Current state file not found: {args.current_state}", file=sys.stderr)
-        sys.exit(11)
+        sys.exit(1)
     except json.JSONDecodeError as e:
         print(f"ERROR: Invalid JSON in current state file: {e}", file=sys.stderr)
-        sys.exit(11)
+        sys.exit(1)
 
     # Calculate drift
     drift = calculate_drift(original, current)
