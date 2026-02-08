@@ -226,7 +226,7 @@ def main() -> int:
     sessions_dir = args.sessions_dir
     if sessions_dir:
         sessions_dir = sessions_dir.resolve()
-        if not str(sessions_dir).startswith(str(project_root)):
+        if not sessions_dir.is_relative_to(project_root):
             print(
                 "[ERROR] Sessions directory must be within project root"
                 f" ({project_root})",
