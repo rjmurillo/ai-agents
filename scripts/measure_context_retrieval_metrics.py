@@ -150,9 +150,13 @@ def extract_context_retrieval_data(session_path: Path) -> InvocationRecord | Non
 
     # Fallback: search text fields for context-retrieval mentions
     if complexity == "unknown" and "context-retrieval" in all_text.lower():
+        # Check for patterns that specifically indicate context-retrieval was invoked
+        # Avoid false positives from other agents being "invoked" in the same session
+        lower_text = all_text.lower()
         invoked = (
-            "invoked" in all_text.lower()
-            and "context-retrieval" in all_text.lower()
+            "context-retrieval invoked" in lower_text
+            or "context-retrieval: invoked" in lower_text
+            or "invoked context-retrieval" in lower_text
         )
         reason = "inferred from session text"
 
