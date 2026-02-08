@@ -161,8 +161,24 @@ jobs:
           SESSION_FILE: ${{ matrix.session_file }}
         run: |
           $sessionFile = $env:SESSION_FILE
+
+          # Check if file exists (may have been deleted in a later commit)
+          if (-not (Test-Path $sessionFile)) {
+            Write-Host "File $sessionFile was deleted - skipping validation"
+            $mdResult = "# Session Validation: $sessionFile`n`nResult: SKIPPED (file deleted)`n"
+            $mdResult | Out-File -FilePath "validation-result.md" -Encoding UTF8
+
+            # Create verdict files for reporting
+            New-Item -Path "validation-results" -ItemType Directory -Force | Out-Null
+            $baseName = [System.IO.Path]::GetFileNameWithoutExtension($sessionFile)
+            "SKIPPED" | Out-File -FilePath "validation-results/$baseName-verdict.txt" -Encoding UTF8
+            "0" | Out-File -FilePath "validation-results/$baseName-must-failures.txt" -Encoding UTF8
+
+            exit 0
+          }
+
           $extension = [System.IO.Path]::GetExtension($sessionFile)
-          
+
           # Use appropriate validator based on file type
           if ($extension -eq '.json') {
             # JSON format - simple schema validation
