@@ -28,6 +28,48 @@ For memory fallbacks, read the backing file at `.serena/memories/<memory-name>.m
 
 ---
 
+## RETRIEVAL-LED REASONING: AGENTS ARE LIBRARIANS, NOT ORACLES
+
+**You are an agent WITH access to perfect information, NOT an oracle WITH perfect knowledge.**
+
+### The Problem
+
+Agents have two sources of information:
+
+1. **Pre-training**: Knowledge cutoff 2025-01. Framework versions, APIs, patterns may be outdated.
+2. **Retrieval**: Current project docs, memories, ADRs, framework documentation.
+
+**Default behavior**: Agents use pre-training because it's instant and confident.
+**Correct behavior**: Agents retrieve because it's accurate and current.
+
+### The Solution
+
+Before reasoning about:
+
+- Framework APIs (Next.js, React, FastAPI) → Retrieve from docs
+- Project constraints (languages, patterns) → Retrieve from PROJECT-CONSTRAINTS.md
+- Learned patterns (skills, conventions) → Retrieve from Serena memories
+- Architecture decisions → Retrieve from ADRs
+- Session protocol → Retrieve from SESSION-PROTOCOL.md
+
+**Memory Index**: The `memory-index` Serena memory maps task keywords to relevant memories.
+
+**Example workflow**:
+
+```text
+Task: "Create a PR for this fix"
+❌ Wrong: gh pr create --title "..." (pre-training)
+✓ Right: Read memory-index → skills-github-cli-index → use github skill
+```
+
+**Verify your retrieval**:
+
+- Framework docs: Use Context7, DeepWiki, or official docs
+- Project memory: Use Serena (mcp__serena__read_memory)
+- Architecture: Read ADRs in .agents/architecture/
+
+---
+
 ## BLOCKING GATE: Session Protocol
 
 > **Canonical Source**: [.agents/SESSION-PROTOCOL.md](.agents/SESSION-PROTOCOL.md)
@@ -171,6 +213,59 @@ fi
 pwsh .claude/skills/memory/scripts/Extract-SessionEpisode.ps1 -SessionLogPath ".agents/sessions/[log].json"
 pwsh scripts/Validate-SessionJson.ps1 -SessionPath ".agents/sessions/[log].json"
 ```
+
+### PR Review Workflow with Skills
+
+When gemini-code-assist[bot], Copilot, or other bots leave security/style/documentation comments:
+
+**Workflow:**
+
+1. **Detect comment type** - Look for CWE patterns, linting error codes, or documentation keywords
+2. **Route to appropriate skill** - Use security-scan, style-enforcement, or doc-coverage
+3. **Let skill verify the issue** with its scanner
+4. **Apply skill's recommended fixes** (not pre-training patterns)
+5. **Re-run skill to verify** fix worked (exit code 0)
+6. **Reply to bot comment** with evidence from skill output
+
+#### Example: CWE-22 Path Traversal Comments
+
+```bash
+# Instead of manually adding path validation:
+
+# 1. Run security-scan to confirm the issue
+python3 .claude/skills/security-scan/scripts/scan_vulnerabilities.py file.py
+
+# 2. Read the output to understand the specific pattern detected
+# 3. Apply the recommended fix from the scanner
+# 4. Re-run to verify
+python3 .claude/skills/security-scan/scripts/scan_vulnerabilities.py file.py
+# Exit code 0 = fixed
+
+# 5. Reply to bot comment with evidence
+"Fixed CWE-22 via path validation. security-scan exit code 0 confirms."
+```
+
+#### Example: Style/Linting Feedback
+
+```bash
+# 1. Run style-enforcement on changed files
+python3 .claude/skills/style-enforcement/scripts/check_style.py --git-staged
+
+# 2. Apply fixes based on violations reported
+# 3. Re-run to verify
+python3 .claude/skills/style-enforcement/scripts/check_style.py --git-staged
+# Exit code 0 = compliant
+
+# 4. Reply with evidence
+"Style violations fixed. style-enforcement exit code 0."
+```
+
+**Why Skills Over Manual Fixes:**
+
+- Skills encode validated patterns (security-scan knows CWE-22 patterns better than pre-training)
+- Verification is built-in (exit codes confirm fixes worked)
+- Bot comments are machine-parseable (CWE-22, E501, etc.)
+- Prevents iterative fix cycles (one skill run catches all issues)
 
 ### Development Tools
 

@@ -1,30 +1,76 @@
 # Code Smells Catalog
 
 **Category**: Code Quality
-**Source**: `.agents/analysis/advanced-engineering-knowledge.md`
+**Source**: Mäntylä Taxonomy, Martin Fowler, SonarSource, Marcel Jerzyk
 
 ## Core Concept
 
-Code smells are surface indicators of deeper design problems. Not bugs, but refactoring opportunities.
+Code smells are surface indicators of deeper design problems. They are not bugs, the code still works, but they signal refactoring opportunities. Kent Beck coined the term during work on Fowler's Refactoring book (1999).
 
-## Smell Reference
+## The Mäntylä Taxonomy (Five Categories)
+
+### 1. Bloaters (Code Grown Too Large)
 
 | Smell | Signal | Fix |
 |-------|--------|-----|
-| God Class | Class does too much | Break into SRP classes |
-| Feature Envy | Method uses another class's data excessively | Move behavior to data |
-| Primitive Obsession | Using strings/ints instead of domain types | Introduce Value Objects |
-| Shotgun Surgery | One change requires changes in many places | Centralize related behavior |
-| Lava Flow | Dead but scary-to-remove code | Understand intent, test, remove |
-| Magic Numbers/Strings | Literal values with unclear meaning | Use constants or enums |
-| Switch Statements | Used for behavior control | Replace with polymorphism |
+| Long Method | >15 lines | Extract Method |
+| Large Class | >200 lines, >5 fields | Extract Class |
+| Primitive Obsession | Strings/ints for domain concepts | Introduce Value Objects |
+| Long Parameter List | >4 parameters | Parameter Object |
+| Data Clumps | Same 3+ fields repeated | Extract Class |
+
+### 2. Object-Orientation Abusers
+
+| Smell | Signal | Fix |
+|-------|--------|-----|
+| Switch Statements | Type-checking for behavior | Replace with Polymorphism |
+| Temporary Field | Field only set sometimes | Extract Class, Null Object |
+| Refused Bequest | Unused inherited methods | Replace Inheritance with Delegation |
+| Alternative Classes Different Interfaces | Same job, different signatures | Extract Superclass |
+
+### 3. Change Preventers
+
+| Smell | Signal | Fix |
+|-------|--------|-----|
+| Divergent Change | One class, multiple change reasons | Extract Class |
+| Shotgun Surgery | One change touches many files | Move Method, Inline Class |
+| Parallel Inheritance | Subclass in A requires subclass in B | Collapse hierarchy |
+
+### 4. Dispensables
+
+| Smell | Signal | Fix |
+|-------|--------|-----|
+| Comments | "What" not "why" | Extract Method, Rename |
+| Duplicate Code | Same structure repeated | Extract Method, Pull Up |
+| Lazy Class | Doesn't justify existence | Inline Class |
+| Data Class | Only getters/setters | Move Method to data |
+| Dead Code | Never executed | Delete |
+| Speculative Generality | For future needs that didn't come | Inline, Collapse |
+
+### 5. Couplers
+
+| Smell | Signal | Fix |
+|-------|--------|-----|
+| Feature Envy | Uses other class's data more than own | Move Method |
+| Inappropriate Intimacy | Classes share too much | Move Method/Field |
+| Message Chains | a.getB().getC().getD() | Hide Delegate |
+| Middle Man | Delegates everything | Remove Middle Man |
+
+## Smell-to-Refactoring Quick Map
+
+| Refactoring | Addresses |
+|-------------|-----------|
+| Extract Method | Long Method, Duplicate Code, Feature Envy, Comments |
+| Move Method | Feature Envy, Shotgun Surgery, Message Chains |
+| Extract Class | Large Class, Data Clumps, Divergent Change |
+| Replace Conditional with Polymorphism | Switch Statements |
 
 ## Detection Questions
 
-1. **Review**: Does this code explain itself?
-2. **Change**: Is change isolated or scattered?
-3. **Test**: Is this easy to test?
-4. **Extend**: Can I add features without modification?
+1. **Readability**: Does this code explain itself?
+2. **Change Impact**: Is change isolated or scattered?
+3. **Testability**: Is this easy to test?
+4. **Extensibility**: Can I add features without modification?
 
 ## Implementation Smells
 
@@ -50,11 +96,18 @@ These patterns are caught by the code-simplifier agent. Avoid them during implem
 7. **Repeat**: Have I written this logic elsewhere in this PR?
 8. **Name**: Would a reader know what this variable means without context?
 
-## Application
+## Severity Levels
 
-Use as refactoring triggers during code review and maintenance.
+| Level | Action |
+|-------|--------|
+| BLOCKER | Fix immediately, blocks merge |
+| CRITICAL | Fix before release |
+| MAJOR | Fix in next sprint |
+| MINOR | Fix opportunistically |
 
 ## Related
 
-- [refactoring-001-delete-over-extract](refactoring-001-delete-over-extract.md) - Refactoring approach
-- [law-of-demeter](law-of-demeter.md) - Coupling concerns
+- [refactoring-001-delete-over-extract](refactoring-001-delete-over-extract.md)
+- [law-of-demeter](law-of-demeter.md)
+- [design-by-contract](design-by-contract.md)
+- Full analysis: `.agents/analysis/code-smells-comprehensive-catalog.md`

@@ -1,0 +1,119 @@
+{
+  "nextSteps": [],
+  "session": {
+    "branch": "feat/retrieval-led-reasoning-directives",
+    "number": 1192,
+    "startingCommit": "db9726b9",
+    "objective": "Implement retrieval-led reasoning directive injection strategy across all phases",
+    "date": "2026-02-08"
+  },
+  "schemaVersion": "1.0",
+  "workLog": [],
+  "protocolCompliance": {
+    "sessionEnd": {
+      "checklistComplete": {
+        "Complete": true,
+        "Evidence": "All MUST items completed: serenaMemoryUpdated, markdownLintRun, changesCommitted",
+        "level": "MUST"
+      },
+      "serenaMemoryUpdated": {
+        "Complete": true,
+        "Evidence": "Created retrieval-led-reasoning-2026-02-08 memory with implementation details",
+        "level": "MUST"
+      },
+      "handoffNotUpdated": {
+        "Complete": false,
+        "Evidence": "HANDOFF.md not modified (read-only respected)",
+        "level": "MUST NOT"
+      },
+      "markdownLintRun": {
+        "Complete": true,
+        "Evidence": "8 files linted",
+        "level": "MUST"
+      },
+      "retrospectiveInvoked": {
+        "Complete": false,
+        "Evidence": "",
+        "level": "SHOULD"
+      },
+      "tasksUpdated": {
+        "Complete": false,
+        "Evidence": "",
+        "level": "SHOULD"
+      },
+      "changesCommitted": {
+        "Complete": true,
+        "Evidence": "Commit 64b2d61b: 19 files changed, 1313 insertions",
+        "level": "MUST"
+      },
+      "validationPassed": {
+        "Complete": true,
+        "Evidence": "Exit code 0 from Validate-SessionJson.ps1",
+        "level": "MUST"
+      }
+    },
+    "sessionStart": {
+      "usageMandatoryRead": {
+        "Complete": true,
+        "Evidence": "Read usage-mandatory memory via mcp__serena__read_memory",
+        "level": "MUST"
+      },
+      "skillScriptsListed": {
+        "Complete": true,
+        "Evidence": "Read SKILL-QUICK-REF.md for skill catalog",
+        "level": "MUST"
+      },
+      "gitStatusVerified": {
+        "Complete": true,
+        "Evidence": "git status run multiple times - dirty state with 9 files modified",
+        "level": "SHOULD"
+      },
+      "notOnMain": {
+        "Complete": true,
+        "Evidence": "",
+        "level": "MUST"
+      },
+      "constraintsRead": {
+        "Complete": true,
+        "Evidence": "Read PROJECT-CONSTRAINTS.md during implementation",
+        "level": "MUST"
+      },
+      "serenaInstructions": {
+        "Complete": true,
+        "Evidence": "Tool output: mcp__serena__initial_instructions succeeded",
+        "level": "MUST"
+      },
+      "sessionLogCreated": {
+        "Complete": true,
+        "Evidence": "This file exists",
+        "level": "MUST"
+      },
+      "serenaActivated": {
+        "Complete": true,
+        "Evidence": "Tool output at session start: mcp__serena__activate_project succeeded",
+        "level": "MUST"
+      },
+      "branchVerified": {
+        "Complete": true,
+        "Evidence": "Branch: feat/retrieval-led-reasoning-directives",
+        "level": "MUST"
+      },
+      "memoriesLoaded": {
+        "Complete": true,
+        "Evidence": "Read memory-index, skills-agent-workflow-index, skills-implementation-index, usage-mandatory",
+        "level": "MUST"
+      },
+      "handoffRead": {
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md - Active projects dashboard retrieved",
+        "level": "MUST"
+      },
+      "startingCommitNoted": {
+        "Complete": true,
+        "Evidence": "SHA: db9726b9",
+        "level": "SHOULD"
+      }
+    }
+  },
+  "endingCommit": "64b2d61b"
+}

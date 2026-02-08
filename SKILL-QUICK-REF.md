@@ -2,9 +2,30 @@
 
 > **Purpose**: Skill awareness, memory hierarchy, and PR routing patterns.
 > Based on Vercel research: passive context (100% pass rate) outperforms skill invocation (53-79%).
->
-> **Principle**: Prefer retrieval-led reasoning over pre-training-led reasoning for session protocol,
-> memory operations, and repository conventions.
+
+---
+
+## RETRIEVAL-LED REASONING PRINCIPLE
+
+**CRITICAL**: Before making ANY decision based on framework knowledge, language syntax, or project patterns:
+
+1. **PAUSE**: "Do I need current/accurate information for this?"
+2. **CHECK**: Scan retrieval sources below
+3. **READ**: Load authoritative source
+4. **REASON**: Apply retrieved information, not pre-training
+
+**Common Failure Modes**:
+
+- ✗ "Next.js routing works like this..." (pre-training → outdated)
+- ✓ "Let me check the Next.js docs..." (retrieval → current)
+- ✗ "I'll create a PR with gh pr create" (pre-training → bypasses skill)
+- ✓ "Let me check skill-quick-ref for PR skill" (retrieval → uses tested skill)
+
+**Retrieval Priority Order**:
+
+1. **Project-specific**: Serena memories, ADRs, planning docs
+2. **Framework/Library**: Official docs (Context7, DeepWiki, WebSearch)
+3. **Never**: Pre-training for project-specific or version-specific information
 
 ---
 
@@ -30,6 +51,12 @@
 |QUICK-FIX: one-sentence-fix, single-file, obvious-change → implementer → qa
 |STANDARD: investigation-needed, 2-5-files, some-complexity → analyst → planner → implementer → qa
 |STRATEGIC: whether-not-how, scope-question, architecture-direction → independent-thinker → high-level-advisor → task-generator
+
+[Bot Comment Classification]
+|DETECT: regex for CWE-(\d+), E(\d+) error codes, "missing documentation" patterns
+|ROUTE: CWE-22|CWE-78 → security-scan, E501|E741 → style-enforcement, "XML doc"|"docstring" → doc-coverage
+|VERIFY: skill exit code 0 before replying to bot
+|PRINCIPLE: skills-encode-best-practices (don't rely on pre-training for security patterns)
 ```
 
 ---
