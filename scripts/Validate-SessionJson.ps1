@@ -116,11 +116,12 @@ if ($session.ContainsKey('session')) {
     if (Test-Path $sessionsDir) {
         $thisNumber = $s.number
         if ($thisNumber) {
+            $resolvedSessionPath = [System.IO.Path]::GetFullPath($SessionPath)
             $duplicates = @(Get-ChildItem $sessionsDir -Filter '*.json' |
-                Where-Object { $_.FullName -ne (Resolve-Path $SessionPath -ErrorAction SilentlyContinue) } |
+                Where-Object { $_.FullName -ne $resolvedSessionPath } |
                 Where-Object { $_.Name -match 'session-(\d+)' -and [int]$Matches[1] -eq $thisNumber })
             if ($duplicates.Count -gt 0) {
-                $warnings += "Duplicate session number $thisNumber found in: $($duplicates.Name -join ', ')"
+                $errors += "Duplicate session number $thisNumber found in: $($duplicates.Name -join ', ')"
             }
         }
     }

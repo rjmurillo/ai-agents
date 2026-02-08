@@ -133,7 +133,7 @@ for ($retry = 0; $retry -lt $maxRetries; $retry++) {
     # Atomic creation: throws IOException if file already exists
     $stream = [System.IO.File]::Open($filePath, [System.IO.FileMode]::CreateNew, [System.IO.FileAccess]::Write)
     try {
-      $writer = [System.IO.StreamWriter]::new($stream, [System.Text.Encoding]::UTF8)
+      $writer = [System.IO.StreamWriter]::new($stream, [System.Text.UTF8Encoding]::new($false))
       $writer.Write($json)
       $writer.Flush()
     } finally {
