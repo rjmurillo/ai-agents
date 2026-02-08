@@ -17,11 +17,11 @@ When this skill activates, IMMEDIATELY invoke the script. The script IS the work
 
 | Trigger Phrase | Operation |
 |----------------|-----------|
-| `analyze the auth system` | analyze.py with security + architecture focus |
-| `review code quality in src/` | analyze.py with quality focus |
-| `security assessment of API layer` | analyze.py with security focus |
-| `architecture review` | analyze.py with architecture focus |
-| `find code smells in parser` | analyze.py with quality focus |
+| `analyze this codebase` | analyze.py with architecture + quality focus |
+| `review code quality` | analyze.py with quality focus |
+| `run security assessment` | analyze.py with security focus |
+| `architecture review of this system` | analyze.py with architecture focus |
+| `find code smells` | analyze.py with quality focus |
 
 ---
 

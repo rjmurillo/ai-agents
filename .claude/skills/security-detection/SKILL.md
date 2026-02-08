@@ -15,9 +15,9 @@ model: claude-haiku-4-5
 |----------------|-----------|
 | `scan for security changes` | detect-infrastructure with staged files |
 | `check security-critical files` | detect-infrastructure with file list |
-| `are there infrastructure changes` | detect-infrastructure analysis |
+| `run security scan on changes` | detect-infrastructure analysis |
 | `do I need a security review` | Risk-level assessment of changed files |
-| `check if these files need security review` | Pattern matching against critical/high lists |
+| `check infrastructure changes` | Pattern matching against critical/high lists |
 
 ---
 

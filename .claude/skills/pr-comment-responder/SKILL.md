@@ -19,8 +19,10 @@ Coordinates PR review responses through context gathering, comment tracking, and
 | Phrase | Action |
 |--------|--------|
 | `respond to PR comments` | Full workflow |
-| `address review feedback` | Full workflow |
-| `handle PR #123 comments` | Target specific PR |
+| `address review feedback on PR #123` | Full workflow |
+| `handle PR review comments` | Full workflow |
+| `fix PR review issues` | Full workflow |
+| `reply to reviewer on PR #123` | Target specific PR |
 
 ## Quick Reference
 

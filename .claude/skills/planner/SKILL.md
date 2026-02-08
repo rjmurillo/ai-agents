@@ -63,8 +63,8 @@ Skip the planner skill when the task is:
 | Trigger Phrase | Operation |
 |----------------|-----------|
 | `plan this feature` | planner.py (planning phase) |
-| `break down this epic` | planner.py (planning phase) |
-| `review this plan` | planner.py (review phase) |
+| `create implementation plan` | planner.py (planning phase) |
+| `review the plan and pick up next item` | executor.py (execution phase) |
 | `execute the plan at plans/X.md` | executor.py (execution phase) |
 | `resume execution` | executor.py (continue from last step) |
 

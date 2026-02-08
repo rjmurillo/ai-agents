@@ -19,11 +19,15 @@ Analyze the current conversation and propose improvements to skill-based memorie
 
 ## Triggers
 
-- `reflect` – explicit request to capture learnings
-- `learn from this` – user wants corrections documented
-- `improve skill {name}` – target a specific skill memory
+| Trigger Phrase | Operation |
+|----------------|-----------|
+| `reflect on this session` | Extract learnings from conversation |
+| `learn from this mistake` | Capture correction patterns |
+| `capture what we learned` | Document session insights |
+| `improve skill {name}` | Target specific skill memory |
+| `what did we learn` | Review and store patterns |
 
-Also monitor user phrasing such as `what did we learn?`, "what if...", "ensure", or "don't forget"—these phrases should immediately route into the MEDIUM trigger tables below.
+Also monitor user phrasing such as "what if...", "ensure", or "don't forget". These phrases should immediately route into the MEDIUM trigger tables below.
 
 ### 🔴 HIGH Priority Triggers (Invoke Immediately)
 
