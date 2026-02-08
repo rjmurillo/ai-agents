@@ -1,7 +1,8 @@
 # Session Protocol
 
 > **Status**: Canonical Source of Truth
-> **Last Updated**: 2026-01-03
+> **Last Updated**: 2026-02-07
+> **Protocol Version**: 2.1
 > **RFC 2119**: This document uses RFC 2119 key words to indicate requirement levels.
 
 This document is the **single canonical source** for session protocol requirements. All other documents (CLAUDE.md, AGENTS.md, AGENT-INSTRUCTIONS.md) MUST reference this document rather than duplicate its content.
@@ -277,6 +278,45 @@ All MUST requirements above are marked complete.
 
 ---
 
+## Session Mid Protocol
+
+### Commit Count Monitoring (RECOMMENDED)
+
+The agent SHOULD monitor commit count during extended sessions to avoid oversized PRs.
+
+**Requirements:**
+
+1. The agent SHOULD run the following command periodically during the session:
+
+   ```bash
+   git rev-list --count HEAD ^origin/main
+   ```
+
+2. The agent SHOULD warn when commit count reaches 15 or more
+3. The agent MUST NOT exceed 20 commits without splitting into a new PR
+4. When the limit is reached, the agent MUST:
+   - Stop new work
+   - Complete the current unit of work
+   - Prepare for PR creation (proceed to Session End Protocol)
+   - Create a follow-up issue or session for remaining work
+
+**Thresholds:**
+
+| Commit Count | Action |
+|-------------|--------|
+| < 15 | Continue working |
+| 15-19 | WARNING: Plan to wrap up soon. Finish current task, avoid starting new tasks. |
+| >= 20 | BLOCKED: Stop work. Complete current unit and proceed to Session End Protocol. |
+
+**Verification:**
+
+- Session log notes commit count checks during session
+- No PR exceeds 20 commits without documented exception
+
+**Rationale:** PR #908 retrospective identified that large PRs (20+ commits) are harder to review, more likely to contain co-mingled changes, and have higher revert risk. See `.agents/governance/PROJECT-CONSTRAINTS.md` for the canonical commit limit policy.
+
+---
+
 ## Session End Protocol
 
 ### Phase 0.5: Export Session Memories (RECOMMENDED)
@@ -462,6 +502,42 @@ When an investigation session discovers code changes are needed:
 - Session 106: Investigation that discovered the issue
 ```
 
+### Phase 2.7: Pre-PR Validation (REQUIRED)
+
+The agent MUST run pre-PR validation before creating a pull request. This is a **blocking gate** for PR creation.
+
+**Requirements:**
+
+1. The agent MUST run the PR readiness validation script:
+
+   ```bash
+   pwsh .agents/scripts/Validate-PRReadiness.ps1
+   ```
+
+2. The script validates:
+   - Commit count is within limit (< 20)
+   - No BLOCKING synthesis issues detected
+   - Session log exists and is valid
+   - All required quality checks have passed
+3. The agent MUST NOT create a PR if the validation script exits with a non-zero code
+4. The agent MUST resolve all BLOCKING issues before proceeding
+5. The agent SHOULD document validation results in the session log
+
+**Verification Checklist:**
+
+- [ ] `Validate-PRReadiness.ps1` executed and passed (exit code 0)
+- [ ] No BLOCKING issues in validation output
+- [ ] Commit count within limits
+- [ ] Session log complete and valid
+
+**Verification:**
+
+- Validation script output appears in session transcript
+- Exit code 0 confirms readiness
+- Session log records validation pass
+
+**Rationale:** PR #908 post-mortem revealed that PRs created without pre-validation contained co-mingled changes, missing QA reports, and exceeded commit limits. Automated validation catches these issues before PR creation, reducing review burden and revert risk.
+
 ### Phase 3: Git Operations (REQUIRED)
 
 The agent MUST commit changes before ending.
@@ -532,6 +608,7 @@ Copy this checklist to each session log and verify completion:
 | MUST | Update Serena memory (cross-session context) | [ ] | Memory write confirmed |
 | MUST | Run markdown lint | [ ] | Lint output clean |
 | MUST | Route to qa agent (feature implementation) | [ ] | QA report: `.agents/qa/[report].md` OR `SKIPPED: investigation-only` |
+| MUST | Run pre-PR validation: `pwsh .agents/scripts/Validate-PRReadiness.ps1` | [ ] | Exit code 0 |
 | MUST | Commit all changes (including .serena/memories) | [ ] | Commit SHA: _______ |
 | MUST NOT | Update `.agents/HANDOFF.md` directly | [ ] | HANDOFF.md unchanged |
 | SHOULD | Update PROJECT-PLAN.md | [ ] | Tasks checked off |
