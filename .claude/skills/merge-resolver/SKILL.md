@@ -265,6 +265,7 @@ The following files are automatically resolved by accepting the target branch ve
 
 | Pattern | Rationale |
 |---------|-----------|
+| `.agents/sessions/*.json` | **CRITICAL**: Session files from main are NEVER altered. Always accept theirs, rename ours to next available number |
 | `.agents/*` | Session artifacts, constantly changing |
 | `.serena/*` | Serena memories, auto-generated |
 | `.claude/skills/*/*.md` | Skill definitions, main is authoritative |
@@ -332,6 +333,7 @@ ADR-015 compliance:
 
 | Anti-Pattern | Why It Fails | Instead |
 |--------------|--------------|---------|
+| **Alter session files from main** | **CRITICAL**: Session files are historical records; altering breaks audit trail | **Always accept --theirs, rename --ours to next number** |
 | Push without session validation | CI blocks with MUST violations | Run `Validate-SessionJson.ps1` first |
 | Manual edit of generated files | Changes lost on regeneration | Edit template, run generator |
 | Accept --ours for HANDOFF.md | Branch version often stale | Accept --theirs (main is canonical) |
