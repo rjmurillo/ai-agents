@@ -149,6 +149,59 @@ pwsh .claude/skills/github/scripts/pr/Get-PRCheckLogs.ps1 -PullRequest "<num>"
 
 ---
 
+## Skill vs Passive Context Decision Framework
+
+```text
+[Decision Framework]
+|QUESTION: "Does this require tool execution or just knowledge?"
+
+|USE PASSIVE CONTEXT (@import in CLAUDE.md) for:
+|  - Framework knowledge (APIs, patterns, conventions)
+|  - Always-needed information (constraints, protocols, gates)
+|  - Domain concepts (terminology, relationships)
+|  - Routing rules (comment classification, agent selection)
+|  - Reference data (memory indexes, skill catalogs)
+
+|USE SKILLS (.claude/skills/) for:
+|  - Tool-based actions (file modification, API calls, git operations)
+|  - User-triggered workflows (PR creation, issue management)
+|  - Multi-step procedures (conflict resolution, session completion)
+|  - Actions requiring validation (security scans, linting)
+|  - Versioned, team-reviewed instructions across projects
+
+|HYBRID PATTERN (both):
+|  - Knowledge in passive context (routing, classification)
+|  - Actions in skill (script execution, state changes)
+|  - Example: pr-comment-responder has routing in SKILL-QUICK-REF.md, scripts in skill
+
+|WHY THIS MATTERS:
+|  - Skills create decision points ("should I invoke this?")
+|  - Decision points introduce 4 failure modes (see below)
+|  - Passive context eliminates all 4 by being always-available
+```
+
+### Skill Failure Modes (Why Passive Context Wins)
+
+| Failure Mode | Description | Prevention |
+|-------------|-------------|------------|
+| Late retrieval | Agent makes decisions before consulting skill | Passive context |
+| Partial retrieval | Skill scope doesn't cover all needed info | Broader skill or passive |
+| Integration failure | Skill retrieved but not integrated with project context | Explore-first instructions |
+| Instruction fragility | Minor prompt changes break skill invocation | Passive context |
+
+### Examples
+
+| Content Type | Placement | Why |
+|-------------|-----------|-----|
+| Session protocol phases | Passive (CRITICAL-CONTEXT.md) | Always needed, no action |
+| PR comment routing rules | Passive (SKILL-QUICK-REF.md) | Classification knowledge |
+| GitHub issue creation | Skill (github) | Tool execution required |
+| Security scan patterns | Passive + Skill | Knowledge + action |
+| Memory hierarchy | Passive | Reference data |
+| Merge conflict resolution | Skill | Multi-step procedure |
+
+---
+
 ## Why Passive Context
 
 | Configuration | Pass Rate |
@@ -159,6 +212,8 @@ pwsh .claude/skills/github/scripts/pr/Get-PRCheckLogs.ps1 -PullRequest "<num>"
 | **AGENTS.md passive context** | **100%** |
 
 **Key insight**: No decision point required. Information is present every turn.
+
+**Source**: [Vercel Research (Jan 2026)](https://vercel.com/blog/agents-md-outperforms-skills-in-our-agent-evals)
 
 ---
 
