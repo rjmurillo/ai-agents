@@ -63,3 +63,141 @@ def sample_memory_file(memories_dir: Path, sample_memory_content: str) -> Path:
     path = memories_dir / "test-memory.md"
     path.write_text(sample_memory_content, encoding="utf-8")
     return path
+
+
+def _write_memory(
+    directory: Path,
+    memory_id: str,
+    subject: str,
+    links: list[tuple[str, str]] | None = None,
+    tags: list[str] | None = None,
+    confidence: float = 0.9,
+) -> Path:
+    """Write a memory markdown file with YAML frontmatter.
+
+    Args:
+        directory: Directory to write the file into.
+        memory_id: Unique memory identifier.
+        subject: Human-readable subject line.
+        links: List of (link_type, target_id) tuples.
+        tags: Optional tag list.
+        confidence: Confidence score.
+
+    Returns:
+        Path to the written file.
+    """
+    lines = [
+        "---",
+        f"id: {memory_id}",
+        f"subject: {subject}",
+    ]
+    if links:
+        lines.append("links:")
+        for link_type, target_id in links:
+            lines.append(f"  - {link_type}: {target_id}")
+    if tags:
+        lines.append("tags:")
+        for tag in tags:
+            lines.append(f"  - {tag}")
+    lines.append(f"confidence: {confidence}")
+    lines.append("---")
+    lines.append(f"Content for {memory_id}.")
+    lines.append("")
+
+    path = directory / f"{memory_id}.md"
+    path.write_text("\n".join(lines), encoding="utf-8")
+    return path
+
+
+@pytest.fixture()
+def graph_memories_dir(memories_dir: Path) -> Path:
+    """Create interconnected memory files for graph testing.
+
+    Graph structure:
+        A -> B -> C (chain)
+        A -> D (branch)
+        D -> E (extends chain)
+    """
+    _write_memory(
+        memories_dir, "memory-a", "Memory A",
+        links=[("related", "memory-b"), ("implements", "memory-d")],
+        tags=["test"],
+    )
+    _write_memory(
+        memories_dir, "memory-b", "Memory B",
+        links=[("extends", "memory-c")],
+        tags=["test"],
+    )
+    _write_memory(
+        memories_dir, "memory-c", "Memory C",
+        tags=["test"],
+    )
+    _write_memory(
+        memories_dir, "memory-d", "Memory D",
+        links=[("related", "memory-e")],
+        tags=["test"],
+    )
+    _write_memory(
+        memories_dir, "memory-e", "Memory E",
+        tags=["test"],
+    )
+    return memories_dir
+
+
+@pytest.fixture()
+def cyclic_memories_dir(memories_dir: Path) -> Path:
+    """Create memory files with cycles for cycle detection testing.
+
+    Graph structure:
+        A -> B -> C -> A (triangle cycle)
+    """
+    _write_memory(
+        memories_dir, "cycle-a", "Cycle A",
+        links=[("related", "cycle-b")],
+    )
+    _write_memory(
+        memories_dir, "cycle-b", "Cycle B",
+        links=[("extends", "cycle-c")],
+    )
+    _write_memory(
+        memories_dir, "cycle-c", "Cycle C",
+        links=[("blocks", "cycle-a")],
+    )
+    return memories_dir
+
+
+@pytest.fixture()
+def large_graph_dir(tmp_path: Path) -> Path:
+    """Generate 1000+ memory files for performance benchmarking."""
+    import random
+
+    mem_dir = tmp_path / ".serena" / "memories"
+    mem_dir.mkdir(parents=True)
+
+    rng = random.Random(42)  # noqa: S311
+    node_count = 1100
+
+    for i in range(node_count):
+        num_links = rng.randint(2, 5)
+        candidates = list(range(node_count))
+        candidates.remove(i)
+        targets = rng.sample(candidates, min(num_links, len(candidates)))
+        links = [(f"node-{t}", "related") for t in targets]
+
+        link_lines = []
+        for target_name, link_type in links:
+            link_lines.append(f"  - {link_type}: {target_name}")
+        links_yaml = "\n".join(link_lines)
+
+        content = (
+            f"---\n"
+            f"id: node-{i}\n"
+            f"subject: Node {i}\n"
+            f"links:\n"
+            f"{links_yaml}\n"
+            f"---\n"
+            f"Content for node {i}.\n"
+        )
+        (mem_dir / f"node-{i}.md").write_text(content, encoding="utf-8")
+
+    return mem_dir
