@@ -108,8 +108,7 @@ class MemoryGraph:
         """Raise KeyError if start_id is not in the graph."""
         if start_id not in self._adjacency:
             raise KeyError(
-                f"Memory '{start_id}' not found in graph. "
-                f"Available: {sorted(self._adjacency.keys())}"
+                f"Memory '{start_id}' not found in graph (node_count={self.node_count})."
             )
 
     def bfs(
@@ -243,14 +242,17 @@ class MemoryGraph:
         """Iterative DFS helper for cycle detection.
 
         Uses an explicit stack with edge indices to avoid recursion depth limits.
+        Maintains a path_indices dict for O(1) cycle extraction.
         """
         path: list[str] = []
         path_set: set[str] = set()
+        path_indices: dict[str, int] = {}  # node_id -> index in path (O(1) lookup)
         # Stack entries: (node_id, edge_index)
         stack: list[tuple[str, int]] = [(start, 0)]
         color[start] = gray
         path.append(start)
         path_set.add(start)
+        path_indices[start] = 0
 
         while stack:
             node_id, edge_idx = stack[-1]
@@ -260,6 +262,7 @@ class MemoryGraph:
                 stack.pop()
                 path.pop()
                 path_set.discard(node_id)
+                del path_indices[node_id]
                 color[node_id] = black
                 continue
 
@@ -269,12 +272,13 @@ class MemoryGraph:
             if target_id not in self._adjacency:
                 continue
             if color[target_id] == gray and target_id in path_set:
-                cycle_start = path.index(target_id)
-                cycles.append(path[cycle_start:] + [target_id])
+                cycle_start_idx = path_indices[target_id]
+                cycles.append(path[cycle_start_idx:] + [target_id])
             elif color[target_id] == white:
                 color[target_id] = gray
                 path.append(target_id)
                 path_set.add(target_id)
+                path_indices[target_id] = len(path) - 1
                 stack.append((target_id, 0))
 
     def score_relationships(

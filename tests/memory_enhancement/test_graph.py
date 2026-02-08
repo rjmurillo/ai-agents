@@ -570,6 +570,16 @@ class TestPerformance:
 
     @pytest.mark.integration
     def test_bfs_1000_nodes_under_500ms(self, large_graph_dir: Path) -> None:
+        """Test BFS performance on large graph.
+
+        Performance threshold adjusts via CI_PERFORMANCE_MULTIPLIER env var
+        (default 1.0) to account for slower CI runners.
+        """
+        import os
+
+        multiplier = float(os.getenv("CI_PERFORMANCE_MULTIPLIER", "1.0"))
+        threshold_ms = 500 * multiplier
+
         graph = MemoryGraph.from_directory(large_graph_dir)
         assert graph.node_count >= 1000
 
@@ -578,10 +588,23 @@ class TestPerformance:
         elapsed_ms = (time.perf_counter() - start) * 1000
 
         assert len(result) > 0
-        assert elapsed_ms < 500, f"BFS took {elapsed_ms:.1f}ms, expected <500ms"
+        assert elapsed_ms < threshold_ms, (
+            f"BFS took {elapsed_ms:.1f}ms, expected <{threshold_ms:.1f}ms "
+            f"(base 500ms × {multiplier} multiplier)"
+        )
 
     @pytest.mark.integration
     def test_dfs_1000_nodes_under_500ms(self, large_graph_dir: Path) -> None:
+        """Test DFS performance on large graph.
+
+        Performance threshold adjusts via CI_PERFORMANCE_MULTIPLIER env var
+        (default 1.0) to account for slower CI runners.
+        """
+        import os
+
+        multiplier = float(os.getenv("CI_PERFORMANCE_MULTIPLIER", "1.0"))
+        threshold_ms = 500 * multiplier
+
         graph = MemoryGraph.from_directory(large_graph_dir)
         assert graph.node_count >= 1000
 
@@ -590,7 +613,10 @@ class TestPerformance:
         elapsed_ms = (time.perf_counter() - start) * 1000
 
         assert len(result) > 0
-        assert elapsed_ms < 500, f"DFS took {elapsed_ms:.1f}ms, expected <500ms"
+        assert elapsed_ms < threshold_ms, (
+            f"DFS took {elapsed_ms:.1f}ms, expected <{threshold_ms:.1f}ms "
+            f"(base 500ms × {multiplier} multiplier)"
+        )
 
     @pytest.mark.integration
     def test_cycle_detection_1000_nodes(self, large_graph_dir: Path) -> None:

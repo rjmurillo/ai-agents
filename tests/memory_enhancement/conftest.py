@@ -116,7 +116,7 @@ def graph_memories_dir(memories_dir: Path) -> Path:
     Graph structure:
         A -> B -> C (chain)
         A -> D (branch)
-        D -> E (extends chain)
+        D -> E (related)
     """
     _write_memory(
         memories_dir, "memory-a", "Memory A",
@@ -166,9 +166,10 @@ def cyclic_memories_dir(memories_dir: Path) -> Path:
     return memories_dir
 
 
-@pytest.fixture()
-def large_graph_dir(tmp_path: Path) -> Path:
-    """Generate 1000+ memory files for performance benchmarking."""
+@pytest.fixture(scope="session")
+def large_graph_dir(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """Generate 1000+ memory files for performance benchmarking (session-scoped)."""
+    tmp_path = tmp_path_factory.mktemp("large_graph")
     mem_dir = tmp_path / ".serena" / "memories"
     mem_dir.mkdir(parents=True)
 
@@ -178,10 +179,10 @@ def large_graph_dir(tmp_path: Path) -> Path:
         # Deterministic link generation: each node links to next 3 nodes (wrapping)
         num_links = 3
         targets = [(i + offset) % node_count for offset in range(1, num_links + 1)]
-        links = [(f"node-{t}", "related") for t in targets]
+        links = [("related", f"node-{t}") for t in targets]
 
         link_lines = []
-        for target_name, link_type in links:
+        for link_type, target_name in links:
             link_lines.append(f"  - {link_type}: {target_name}")
         links_yaml = "\n".join(link_lines)
 

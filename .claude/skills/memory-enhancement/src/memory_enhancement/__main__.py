@@ -5,7 +5,7 @@ Usage:
     python -m memory_enhancement verify-all [--dir PATH] [--json] [--repo-root PATH]
     python -m memory_enhancement graph <memory_id> [--mode bfs|dfs] [--max-depth N] [--json]
     python -m memory_enhancement graph --cycles [--json] [--dir PATH]
-    python -m memory_enhancement graph --score <memory_id> [--json] [--dir PATH]
+    python -m memory_enhancement graph <memory_id> --score [--json] [--dir PATH]
 """
 
 import argparse
@@ -198,7 +198,8 @@ def _graph_traverse(graph: MemoryGraph, args: argparse.Namespace) -> int:
     try:
         nodes = traverse_fn(args.memory_id, max_depth=args.max_depth)
     except KeyError as e:
-        print(f"Error: {e}", file=sys.stderr)
+        message = e.args[0] if e.args else str(e)
+        print(f"Error: {message}", file=sys.stderr)
         return 2
 
     if args.json:
@@ -260,7 +261,8 @@ def _graph_score(graph: MemoryGraph, args: argparse.Namespace) -> int:
     try:
         scores = graph.score_relationships(args.memory_id)
     except KeyError as e:
-        print(f"Error: {e}", file=sys.stderr)
+        message = e.args[0] if e.args else str(e)
+        print(f"Error: {message}", file=sys.stderr)
         return 2
 
     if args.json:
@@ -330,11 +332,14 @@ def main() -> int:
         "--max-depth", type=int, default=None,
         help="Maximum traversal depth",
     )
-    graph_parser.add_argument(
+
+    # Mutually exclusive modes
+    graph_mode_group = graph_parser.add_mutually_exclusive_group()
+    graph_mode_group.add_argument(
         "--cycles", action="store_true",
         help="Detect cycles instead of traversal",
     )
-    graph_parser.add_argument(
+    graph_mode_group.add_argument(
         "--score", action="store_true",
         help="Show relationship scores instead of traversal",
     )
