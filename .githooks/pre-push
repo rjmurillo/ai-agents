@@ -412,6 +412,46 @@ else
     record_skip "Workflow YAML (no workflow files changed)"
 fi
 
+# 8a. Workflow validation (validate_workflows.py) - BLOCKING
+if [ -n "$CHANGED_WORKFLOWS" ]; then
+    VALIDATE_WORKFLOWS_SCRIPT="$REPO_ROOT/scripts/validate_workflows.py"
+
+    if [ -L "$VALIDATE_WORKFLOWS_SCRIPT" ]; then
+        record_warn "Workflow validation script is a symlink (skipping)"
+    elif [ -f "$VALIDATE_WORKFLOWS_SCRIPT" ]; then
+        if set_python_cmd; then
+            WF_FILES=()
+            while IFS= read -r file; do
+                [ -z "$file" ] && continue
+                [ -L "$file" ] && continue
+                [ -f "$file" ] && WF_FILES+=("$file")
+            done <<< "$CHANGED_WORKFLOWS"
+
+            if [ ${#WF_FILES[@]} -gt 0 ]; then
+                VALIDATE_OUTPUT=$(mktemp)
+                TEMP_FILES+=("$VALIDATE_OUTPUT")
+                if "${PYTHON_CMD[@]}" "$VALIDATE_WORKFLOWS_SCRIPT" "${WF_FILES[@]}" > "$VALIDATE_OUTPUT" 2>&1; then
+                    record_pass "Workflow validation (${#WF_FILES[@]} files)"
+                else
+                    echo_info "  Workflow validation issues:"
+                    head -30 "$VALIDATE_OUTPUT"
+                    record_fail "Workflow validation"
+                    echo_info "  Fix: Ensure SHA pinning and workflow structure compliance"
+                fi
+                rm -f "$VALIDATE_OUTPUT"
+            else
+                record_skip "Workflow validation (no accessible files)"
+            fi
+        else
+            record_skip "Workflow validation (Python 3 not available)"
+        fi
+    else
+        record_skip "Workflow validation (script not found)"
+    fi
+else
+    record_skip "Workflow validation (no workflow files changed)"
+fi
+
 # 9. YAML style (yamllint) - Non-blocking warnings
 if [ -n "$CHANGED_YAML" ]; then
     if command -v yamllint &> /dev/null; then
