@@ -379,7 +379,7 @@ Analyze the request and select ONE primary task type:
 
 ```text
 Task Type: [Selected Type]
-Confidence: [High/Medium/Low]
+Confidence: [0-100%]
 Reasoning: [Why this classification]
 ```
 
@@ -431,6 +431,70 @@ Multi-Domain: [Yes if N >= 3, No otherwise]
 | Strategic | Any | Complex | Always critic review |
 | Ideation | Any | Complex | Full ideation pipeline |
 
+#### Step 3.5: Context-Retrieval Auto-Invocation (ADR-007)
+
+After determining complexity, evaluate whether to invoke the `context-retrieval` agent before selecting the agent sequence. This enforces memory-first architecture by gathering cross-session context proactively.
+
+**Decision Logic** (evaluated top-to-bottom, first match wins):
+
+```text
+# User-explicit requests (always honored, unconditional)
+IF user_explicitly_requests_context_retrieval:
+    INVOKE context-retrieval (user override, always honored)
+
+# Gate: token budget check (applies to automatic triggers only)
+IF token_budget_percent < 20%:
+    SKIP (preserve tokens for implementation)
+
+# Phase 1: Complex tasks and Security domain
+IF complexity = "Complex":
+    INVOKE context-retrieval (cross-cutting tasks always benefit)
+
+IF primary_domain = "Security" OR "Security" in secondary_domains:
+    INVOKE context-retrieval (past security decisions are critical)
+
+# Phase 2: Low confidence or multi-domain tasks
+IF classification_confidence < 60%:
+    INVOKE context-retrieval (low confidence benefits from prior context)
+
+IF domain_count >= 3:
+    INVOKE context-retrieval (multi-domain tasks need cross-cutting context)
+
+# Default
+ELSE:
+    SKIP (Simple/Standard single-domain tasks with high confidence)
+```
+
+**Phase summary**:
+
+| Phase | Trigger | Rationale |
+|-------|---------|-----------|
+| 1 | Complex OR Security domain | High-impact tasks always benefit |
+| 2 | confidence < 60% OR domains >= 3 | Uncertain or cross-cutting tasks need prior context |
+| 3 | User explicit request | User override, always honored |
+
+**When invoked**, prepend `context-retrieval` to the agent sequence:
+
+```text
+# Before: analyst → planner → implementer → qa
+# After:  context-retrieval → analyst → planner → implementer → qa
+```
+
+**Invocation**:
+
+```text
+Task(subagent_type="context-retrieval", prompt="Gather context for: [task summary]. Domains: [domains]. Focus on: [key topics]")
+```
+
+**Context pruning**: After context-retrieval returns, extract only the sections relevant to the selected agent sequence. Discard framework docs if no framework is involved. Discard cross-project patterns if the task is project-specific.
+
+**Tracking**: Record the invocation decision in the Classification Summary below:
+
+```text
+Context Retrieval: [INVOKED/SKIPPED]
+Reason: [user request | complexity=Complex | Security domain | confidence<60% | domains>=3 | token budget <20% | no trigger matched]
+```
+
 #### Step 4: Select Agent Sequence
 
 Use classification + domains to select the appropriate sequence from **Agent Sequences by Task Type** below.
@@ -449,6 +513,9 @@ Use classification + domains to select the appropriate sequence from **Agent Seq
 - **Domain Count**: [N]
 - **Complexity**: [Simple/Standard/Complex]
 - **Risk Level**: [Low/Medium/High/Critical]
+- **Classification Confidence**: [0-100% numeric, e.g. 85%]
+- **Context Retrieval**: [INVOKED/SKIPPED]
+- **Context Retrieval Reason**: [Why]
 
 ### Agent Sequence Selected
 [Sequence from routing table]

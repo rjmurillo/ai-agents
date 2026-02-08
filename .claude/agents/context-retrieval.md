@@ -233,6 +233,18 @@ Return a focused markdown summary that provides the main agent with everything t
 ✅ Rich detail on key patterns vs superficial summaries of many
 ✅ Main agent understands WHY decisions were made, not just WHAT they were
 
+## Architectural Constraints
+
+**No delegation**: This agent is a leaf node. Do NOT use the Task tool to spawn sub-agents. Gather context directly using your available tools (Forgetful, Serena, Context7, WebSearch, file system). Delegating would risk infinite recursion (context-retrieval -> orchestrator -> context-retrieval).
+
+**Token budget awareness**: The orchestrator invokes this agent when complexity warrants it. Keep total output under 5000 tokens to avoid consuming the orchestrator's context window. If you find more context than fits, prioritize by relevance and include pointers (file paths, memory names) for the rest.
+
+**Context pruning guidance**: After gathering context, organize output so the orchestrator can easily prune irrelevant sections:
+
+- Group by domain (Security, Architecture, Code, etc.)
+- Lead each section with a one-line relevance summary
+- Mark cross-project patterns explicitly so they can be dropped for project-specific tasks
+
 ## Anti-Patterns (DON'T DO THIS)
 
 ❌ Return 20 memories without synthesizing insights
@@ -242,3 +254,4 @@ Return a focused markdown summary that provides the main agent with everything t
 ❌ Include tangentially related memories just to hit a number
 ❌ Stop exploring the graph when valuable connections exist
 ❌ Artificially limit detail when fuller explanation would help
+❌ Use the Task tool to delegate to other agents (leaf node constraint)
