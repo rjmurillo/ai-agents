@@ -14,8 +14,8 @@ Run all 6 quality gate agents (security, QA, analyst, architect, DevOps, and roa
 ## Pre-flight Checks
 
 - Current branch: !`git branch --show-current`
-- Changed files: !`git diff main --name-only | wc -l`
-- Base branch: main
+- Changed files: !`BASE_ARG="${ARGUMENTS:-main}"; [ -z "$BASE_ARG" ] && BASE_ARG="main"; git diff "$BASE_ARG" --name-only | wc -l`
+- Base branch: $ARGUMENTS or main (if not specified)
 
 If no changes detected, exit early with PASS.
 
@@ -23,14 +23,14 @@ If no changes detected, exit early with PASS.
 
 Invoke each agent command using Skill tool and capture results.
 
-**Note**: All sub-skills compare against the `main` branch. To use a different base branch, run individual skills directly:
+**Note**: All sub-skills are invoked with the base branch ($ARGUMENTS or main if not specified):
 
-1. Security Agent: `/pr-quality:security BRANCH_NAME`
-2. QA Agent: `/pr-quality:qa BRANCH_NAME`
-3. Analyst Agent: `/pr-quality:analyst BRANCH_NAME`
-4. Architect Agent: `/pr-quality:architect BRANCH_NAME`
-5. DevOps Agent: `/pr-quality:devops BRANCH_NAME`
-6. Roadmap Agent: `/pr-quality:roadmap BRANCH_NAME`
+1. Security Agent: `/pr-quality:security $BASE_ARG`
+2. QA Agent: `/pr-quality:qa $BASE_ARG`
+3. Analyst Agent: `/pr-quality:analyst $BASE_ARG`
+4. Architect Agent: `/pr-quality:architect $BASE_ARG`
+5. DevOps Agent: `/pr-quality:devops $BASE_ARG`
+6. Roadmap Agent: `/pr-quality:roadmap $BASE_ARG`
 
 ## Verdict Aggregation
 
