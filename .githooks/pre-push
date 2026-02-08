@@ -289,15 +289,15 @@ echo_phase "Phase 2: Linting & Type Checks"
 
 # 5. Markdown lint
 if [ -n "$CHANGED_MD" ]; then
-    # Get markdownlint command
-    MARKDOWNLINT_CMD=""
+    # Get markdownlint command (using arrays for security)
+    MARKDOWNLINT_CMD=()
     if [ -x "./node_modules/.bin/markdownlint-cli2" ]; then
-        MARKDOWNLINT_CMD="./node_modules/.bin/markdownlint-cli2"
+        MARKDOWNLINT_CMD=("./node_modules/.bin/markdownlint-cli2")
     elif command -v npx &> /dev/null; then
-        MARKDOWNLINT_CMD="npx markdownlint-cli2"
+        MARKDOWNLINT_CMD=("npx" "markdownlint-cli2")
     fi
 
-    if [ -n "$MARKDOWNLINT_CMD" ]; then
+    if [ ${#MARKDOWNLINT_CMD[@]} -gt 0 ]; then
         MD_FILES=()
         while IFS= read -r file; do
             [ -z "$file" ] && continue
@@ -307,8 +307,7 @@ if [ -n "$CHANGED_MD" ]; then
 
         if [ ${#MD_FILES[@]} -gt 0 ]; then
             LINT_OUTPUT=$(mktemp)
-            # shellcheck disable=SC2086
-            if $MARKDOWNLINT_CMD --no-globs -- "${MD_FILES[@]}" >"$LINT_OUTPUT" 2>&1; then
+            if "${MARKDOWNLINT_CMD[@]}" --no-globs -- "${MD_FILES[@]}" >"$LINT_OUTPUT" 2>&1; then
                 rm -f "$LINT_OUTPUT"
                 record_pass "Markdown lint (${#MD_FILES[@]} files)"
             else
