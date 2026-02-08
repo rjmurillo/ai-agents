@@ -222,61 +222,60 @@ class MemoryGraph:
         """
         white, gray, black = 0, 1, 2
         color: dict[str, int] = {mid: white for mid in self._adjacency}
-        path: list[str] = []
-        path_set: set[str] = set()
         cycles: list[list[str]] = []
 
-        for node_id in self._adjacency:
-            if color[node_id] == white:
-                self._cycle_dfs(
-                    node_id, color, path, path_set, cycles, white, gray, black
-                )
+        for start in self._adjacency:
+            if color[start] != white:
+                continue
+            self._iterative_cycle_dfs(start, color, cycles, white, gray, black)
 
         return cycles
 
-    def _cycle_dfs(
+    def _iterative_cycle_dfs(
         self,
-        node_id: str,
+        start: str,
         color: dict[str, int],
-        path: list[str],
-        path_set: set[str],
         cycles: list[list[str]],
         white: int,
         gray: int,
         black: int,
     ) -> None:
-        """Recursive DFS helper for cycle detection.
+        """Iterative DFS helper for cycle detection.
 
-        Args:
-            node_id: Current node being explored.
-            color: Node coloring state map.
-            path: Current DFS path stack.
-            path_set: Set view of path for O(1) lookup.
-            cycles: Accumulator for discovered cycles.
-            white: Unvisited color constant.
-            gray: In-path color constant.
-            black: Fully explored color constant.
+        Uses an explicit stack with edge indices to avoid recursion depth limits.
         """
-        color[node_id] = gray
-        path.append(node_id)
-        path_set.add(node_id)
+        path: list[str] = []
+        path_set: set[str] = set()
+        # Stack entries: (node_id, edge_index)
+        stack: list[tuple[str, int]] = [(start, 0)]
+        color[start] = gray
+        path.append(start)
+        path_set.add(start)
 
-        for target_id, _ in self._adjacency.get(node_id, []):
+        while stack:
+            node_id, edge_idx = stack[-1]
+            edges = self._adjacency.get(node_id, [])
+
+            if edge_idx >= len(edges):
+                stack.pop()
+                path.pop()
+                path_set.discard(node_id)
+                color[node_id] = black
+                continue
+
+            stack[-1] = (node_id, edge_idx + 1)
+            target_id, _ = edges[edge_idx]
+
             if target_id not in self._adjacency:
                 continue
             if color[target_id] == gray and target_id in path_set:
                 cycle_start = path.index(target_id)
-                cycle = path[cycle_start:] + [target_id]
-                cycles.append(cycle)
+                cycles.append(path[cycle_start:] + [target_id])
             elif color[target_id] == white:
-                self._cycle_dfs(
-                    target_id, color, path, path_set, cycles,
-                    white, gray, black,
-                )
-
-        path.pop()
-        path_set.discard(node_id)
-        color[node_id] = black
+                color[target_id] = gray
+                path.append(target_id)
+                path_set.add(target_id)
+                stack.append((target_id, 0))
 
     def score_relationships(
         self, memory_id: str
@@ -300,7 +299,7 @@ class MemoryGraph:
         scores: list[RelationshipScore] = []
 
         for node in nodes:
-            if node.memory_id == memory_id:
+            if node.memory_id == memory_id or node.link_type is None:
                 continue
             weight = LINK_WEIGHTS.get(node.link_type, _DEFAULT_WEIGHT)
             score = weight / (1 + node.depth)

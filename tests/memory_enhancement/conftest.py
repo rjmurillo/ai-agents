@@ -169,19 +169,15 @@ def cyclic_memories_dir(memories_dir: Path) -> Path:
 @pytest.fixture()
 def large_graph_dir(tmp_path: Path) -> Path:
     """Generate 1000+ memory files for performance benchmarking."""
-    import random
-
     mem_dir = tmp_path / ".serena" / "memories"
     mem_dir.mkdir(parents=True)
 
-    rng = random.Random(42)  # noqa: S311
     node_count = 1100
 
     for i in range(node_count):
-        num_links = rng.randint(2, 5)
-        candidates = list(range(node_count))
-        candidates.remove(i)
-        targets = rng.sample(candidates, min(num_links, len(candidates)))
+        # Deterministic link generation: each node links to next 3 nodes (wrapping)
+        num_links = 3
+        targets = [(i + offset) % node_count for offset in range(1, num_links + 1)]
         links = [(f"node-{t}", "related") for t in targets]
 
         link_lines = []
