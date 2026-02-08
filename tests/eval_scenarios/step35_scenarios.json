@@ -1,0 +1,184 @@
+{
+  "description": "Eval scenarios for orchestrator Step 3.5: Context-Retrieval Auto-Invocation decision gate",
+  "version": "1.0.0",
+  "reference": "src/copilot-cli/orchestrator.agent.md Step 3.5",
+  "unit_scenarios": [
+    {
+      "id": "S01",
+      "description": "Phase 1: Complex task triggers invocation",
+      "classification": {
+        "complexity": "Complex",
+        "primary_domain": "Code",
+        "secondary_domains": [],
+        "domain_count": 1,
+        "classification_confidence": 85,
+        "user_requested_context": false,
+        "context_retrieval": "INVOKED",
+        "context_retrieval_reason": "complexity=Complex"
+      },
+      "token_budget_percent": 50,
+      "expected_invoked": true,
+      "expected_reason": "complexity=Complex"
+    },
+    {
+      "id": "S02",
+      "description": "Phase 1: Security domain triggers invocation",
+      "classification": {
+        "complexity": "Standard",
+        "primary_domain": "Security",
+        "secondary_domains": ["Code"],
+        "domain_count": 2,
+        "classification_confidence": 80,
+        "user_requested_context": false,
+        "context_retrieval": "INVOKED",
+        "context_retrieval_reason": "Security domain"
+      },
+      "token_budget_percent": 50,
+      "expected_invoked": true,
+      "expected_reason": "Security domain"
+    },
+    {
+      "id": "S03",
+      "description": "Default: Simple single-domain high-confidence skips",
+      "classification": {
+        "complexity": "Simple",
+        "primary_domain": "Code",
+        "secondary_domains": [],
+        "domain_count": 1,
+        "classification_confidence": 90,
+        "user_requested_context": false,
+        "context_retrieval": "SKIPPED",
+        "context_retrieval_reason": "no trigger matched"
+      },
+      "token_budget_percent": 50,
+      "expected_invoked": false,
+      "expected_reason": "no trigger matched"
+    },
+    {
+      "id": "S04",
+      "description": "Phase 2: Low confidence triggers invocation",
+      "classification": {
+        "complexity": "Standard",
+        "primary_domain": "Code",
+        "secondary_domains": [],
+        "domain_count": 1,
+        "classification_confidence": 45,
+        "user_requested_context": false,
+        "context_retrieval": "INVOKED",
+        "context_retrieval_reason": "confidence<60%"
+      },
+      "token_budget_percent": 50,
+      "expected_invoked": true,
+      "expected_reason": "confidence<60%"
+    },
+    {
+      "id": "S05",
+      "description": "Phase 2: Multi-domain (3+) triggers invocation",
+      "classification": {
+        "complexity": "Standard",
+        "primary_domain": "Code",
+        "secondary_domains": ["Architecture", "Security"],
+        "domain_count": 3,
+        "classification_confidence": 80,
+        "user_requested_context": false,
+        "context_retrieval": "INVOKED",
+        "context_retrieval_reason": "domains>=3"
+      },
+      "token_budget_percent": 50,
+      "expected_invoked": true,
+      "expected_reason": "domains>=3"
+    },
+    {
+      "id": "S06",
+      "description": "Token budget gate: <20% overrides automatic triggers",
+      "classification": {
+        "complexity": "Complex",
+        "primary_domain": "Security",
+        "secondary_domains": ["Architecture", "Code", "DevOps"],
+        "domain_count": 4,
+        "classification_confidence": 30,
+        "user_requested_context": false,
+        "context_retrieval": "SKIPPED",
+        "context_retrieval_reason": "token budget <20%"
+      },
+      "token_budget_percent": 15,
+      "expected_invoked": false,
+      "expected_reason": "token budget <20%"
+    },
+    {
+      "id": "S07",
+      "description": "User override: honors explicit request even below budget",
+      "classification": {
+        "complexity": "Simple",
+        "primary_domain": "Code",
+        "secondary_domains": [],
+        "domain_count": 1,
+        "classification_confidence": 95,
+        "user_requested_context": true,
+        "context_retrieval": "INVOKED",
+        "context_retrieval_reason": "user request"
+      },
+      "token_budget_percent": 15,
+      "expected_invoked": true,
+      "expected_reason": "user request"
+    },
+    {
+      "id": "S08",
+      "description": "No classification data returns None",
+      "classification": null,
+      "token_budget_percent": 50,
+      "expected_invoked": null,
+      "expected_reason": null
+    }
+  ],
+  "llm_scenarios": [
+    {
+      "id": "E01",
+      "prompt": "Fix typo in README.md",
+      "expected_decision": "SKIPPED",
+      "rationale": "Simple, single domain, high confidence"
+    },
+    {
+      "id": "E02",
+      "prompt": "Implement RBAC with JWT auth for API endpoints",
+      "expected_decision": "INVOKED",
+      "rationale": "Complex, Security domain"
+    },
+    {
+      "id": "E03",
+      "prompt": "Investigate why CI pipeline fails intermittently",
+      "expected_decision": "INVOKED",
+      "rationale": "Complex (Research type), multi-domain"
+    },
+    {
+      "id": "E04",
+      "prompt": "Add a unit test for the login handler",
+      "expected_decision": "SKIPPED",
+      "rationale": "Simple, single domain (Quality)"
+    },
+    {
+      "id": "E05",
+      "prompt": "Refactor the agent routing to support plugin marketplace with API, security review, and CI integration",
+      "expected_decision": "INVOKED",
+      "rationale": "3+ domains, Complex"
+    },
+    {
+      "id": "E06",
+      "prompt": "Review ADR-045 for security implications",
+      "expected_decision": "INVOKED",
+      "rationale": "Security domain explicit"
+    },
+    {
+      "id": "E07",
+      "prompt": "Update package.json version to 2.0.0",
+      "expected_decision": "SKIPPED",
+      "rationale": "Simple, single domain"
+    },
+    {
+      "id": "E08",
+      "prompt": "Please gather context before planning the database migration",
+      "expected_decision": "INVOKED",
+      "rationale": "User explicit request for context"
+    }
+  ]
+}
