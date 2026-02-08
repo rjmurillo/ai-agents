@@ -627,6 +627,7 @@ Files distributed to end-users (`src/claude/`, `src/copilot-cli/`, `src/vs-code-
 | **retrospective** | Learning facilitator who extracts actionable insights from completed work using structured frameworks (Five Whys, timeline analysis) | Post-project learning, outcome analysis, skill extraction |
 | **explainer** | Technical writer who creates PRDs, specifications, and documentation that junior developers understand without questions | PRDs, feature docs, technical specifications, user guides |
 | **task-generator** | Task decomposition specialist who breaks PRDs into atomic, estimable work items with clear done criteria | Epic-to-task breakdown, backlog grooming, sprint planning |
+| **task-planner** | Autonomous planner who analyzes project state and creates 3-5 sized, actionable tasks when agent slots are idle | Proactive task discovery, backlog generation, gap identification |
 | **pr-comment-responder** | PR review coordinator who gathers comment context, acknowledges every piece of feedback, and ensures systematic resolution | PR review responses, comment triage, feedback tracking |
 
 ### Agent Output Formats

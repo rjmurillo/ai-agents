@@ -48,7 +48,7 @@
   "outcomes": [
     "PR #1099: chore/gitignore-build-artifacts - added .coverage and .cache/ to .gitignore",
     "PR #1100: docs/skill-learning-patterns-review-artifacts - 5 review documents from PR #1096",
-    "PR: feat/task-planner-agent - GitHub Copilot task-planner agent definition"
+    "PR #1101: feat/task-planner-agent - GitHub Copilot task-planner agent definition"
   ],
   "decisions": [
     {
@@ -60,7 +60,7 @@
       "rationale": "Runtime artifacts from pytest and codex-monitor should not be tracked"
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "77ec0036",
   "nextSteps": [
     "Merge PRs after review",
     "Verify .cache/ and .coverage no longer appear in git status after gitignore PR merges"

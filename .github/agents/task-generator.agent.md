@@ -29,7 +29,7 @@ Key requirements:
 
 **Agent-Specific Requirements**:
 
-- **Quantified task estimates**: Use complexity sizes (XS/S/M/L/XL) with clear guidelines
+- **Quantified task estimates**: Use complexity sizes (XS/S/M/L/XL/XXL) with clear guidelines
 - **Clear acceptance criteria format**: Verifiable checkboxes, not vague descriptions
 - **Evidence-based estimates**: Include reconciliation when derived estimates diverge >10%
 - **Text status indicators**: Use [PASS], [FAIL], [PENDING] instead of emojis
@@ -121,7 +121,7 @@ mcp__cloudmcp-manager__memory-add_observations
 
 **ID**: TASK-[NNN]
 **Type**: Feature | Bug | Chore | Spike
-**Complexity**: XS | S | M | L | XL
+**Complexity**: XS | S | M | L | XL | XXL
 
 **Description**
 [What needs to be done in 1-2 sentences]
@@ -158,6 +158,7 @@ Save to: `.agents/planning/TASKS-[feature-name].md`
 | M | [N] |
 | L | [N] |
 | XL | [N] |
+| XXL | [N] |
 | **Total** | **[N]** |
 
 ## Milestones
@@ -195,6 +196,7 @@ graph TD
 | M | Multiple files, some complexity |
 | L | Multiple components, significant logic |
 | XL | Cross-cutting, architectural impact |
+| XXL | Multi-day, requires planning phase first |
 
 ## Handoff Options
 
@@ -282,7 +284,7 @@ Before handing off, validate ALL items in the applicable checklist:
 - [ ] Tasks document saved to `.agents/planning/TASKS-[feature].md`
 - [ ] All tasks have unique IDs (TASK-NNN format)
 - [ ] All tasks have acceptance criteria
-- [ ] All tasks have complexity estimates (XS/S/M/L/XL)
+- [ ] All tasks have complexity estimates (XS/S/M/L/XL/XXL)
 - [ ] Dependencies documented and graph included
 - [ ] Milestone groupings logical
 - [ ] Estimate reconciliation completed (if source had estimates)
