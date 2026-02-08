@@ -1,7 +1,7 @@
 # Skill Observations: testing
 
-**Last Updated**: 2026-01-18
-**Sessions Analyzed**: 17
+**Last Updated**: 2026-02-07
+**Sessions Analyzed**: 18
 
 ## Purpose
 
@@ -36,6 +36,10 @@ These are corrections that MUST be followed:
   - Evidence: Updated mock CLI to work with Unix shell in Test-CodeQLRollout.Tests.ps1
 - Null comparison syntax in Pester assertions - use PowerShell operator placement `$null -eq $value` (not `$value -eq $null`) for consistent null checking (Session 2, 2026-01-15)
   - Evidence: Batch 37 - Updated null comparison syntax in multiple Pester test files for consistency
+- Tests using -SessionPath (or similar path parameters) must place files inside the script's expected directory structure, not /tmp/. Path containment validation (CWE-22) will reject paths outside the allowed directory. Use isolated repo helpers (e.g., New-TestRepo) for proper test isolation (Session 1183, 2026-02-07)
+  - Evidence: 2 tests failed after adding CWE-22 path traversal fix because they created temp files in /tmp/ outside .agents/sessions/. Fixed by using New-TestRepo helper.
+- Skill tests belong in top-level tests/, not inside .claude/skills/{name}/tests/. The skill tests/ dir is a CI concern, not a skill concern (Session 1183, 2026-02-07)
+  - Evidence: User correction - "is a CI concern, not a concern with the skill. Move to tests/"
 
 ## Preferences (MED confidence)
 
@@ -103,6 +107,8 @@ These are observations that may become patterns:
 | 2026-01-15 | Session 2 | HIGH | Interactive scripts require CI mode |
 | 2026-01-16 | Session 382 | HIGH | Mock CLI must support Unix shell syntax |
 | 2026-01-15 | Session 2 | HIGH | Null comparison syntax in Pester: $null -eq $value |
+| 2026-02-07 | Session 1183 | HIGH | Path containment tests must use proper directory structure |
+| 2026-02-07 | Session 1183 | HIGH | Skill tests belong in top-level tests/, not skill dir |
 | 2026-01-15 | Session 2 | MED | Integration tests should cover all tiers including graceful degradation |
 | 2026-01-16 | Session 03 | LOW | Test count increase observable metric for validation |
 | 2026-01-15 | Session 2 | LOW | Explicitly test graceful degradation paths |
