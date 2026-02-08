@@ -14,7 +14,7 @@ Run all 6 quality gate agents (security, QA, analyst, architect, DevOps, and roa
 ## Pre-flight Checks
 
 - Current branch: !`git branch --show-current`
-- Changed files: !`BASE_ARG="${ARGUMENTS:-main}"; [ -z "$BASE_ARG" ] && BASE_ARG="main"; git diff "$BASE_ARG" --name-only | wc -l`
+- Changed files: !`_BASE="${ARGUMENTS:-main}"; git diff "$_BASE" --name-only | wc -l`
 - Base branch: $ARGUMENTS or main (if not specified)
 
 If no changes detected, exit early with PASS.
