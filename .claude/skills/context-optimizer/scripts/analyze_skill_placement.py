@@ -82,9 +82,8 @@ def get_skill_content(path: Path) -> str:
         ValueError: If path is not directory or .md file
         PermissionError: If path contains traversal sequences
     """
-    # Prevent path traversal (CWE-22): check for ../ sequences
-    path_str = str(path)
-    if ".." in path_str:
+    # Prevent path traversal (CWE-22): detect malicious relative paths
+    if ".." in path.parts:
         raise PermissionError(f"Path traversal attempt detected: {path}")
 
     # Resolve to absolute path for safe access

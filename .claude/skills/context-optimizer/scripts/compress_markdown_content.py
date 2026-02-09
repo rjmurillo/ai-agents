@@ -477,10 +477,11 @@ def main():
 
     # Read input
     try:
-        # Prevent path traversal (CWE-22): check for ../ sequences
-        if ".." in str(args.input):
+        # Prevent path traversal (CWE-22): detect malicious relative paths
+        if ".." in args.input.parts:
             raise PermissionError(f"Path traversal attempt detected on input path: {args.input}")
-        content = args.input.read_text(encoding='utf-8')
+        resolved_input_path = args.input.resolve(strict=True)
+        content = resolved_input_path.read_text(encoding='utf-8')
     except Exception as e:
         print(f"Error reading input file: {e}", file=sys.stderr)
         sys.exit(1)
@@ -504,8 +505,8 @@ def main():
     # Output
     if args.output:
         try:
-            # Prevent path traversal (CWE-22): check for ../ sequences
-            if ".." in str(args.output):
+            # Prevent path traversal (CWE-22): detect malicious relative paths
+            if ".." in args.output.parts:
                 raise PermissionError(
                     f"Path traversal attempt detected on output: {args.output}"
                 )
