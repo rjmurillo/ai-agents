@@ -97,8 +97,31 @@ def cmd_verify(args: argparse.Namespace) -> int:
     """Verify citations in a single memory."""
     import yaml
 
-    memories_dir = Path(args.dir)
-    repo_root = Path(args.repo_root)
+    # Security: Prevent path traversal (CWE-22). Resolve paths to canonical form
+    # and validate memories_dir is within repo_root.
+    try:
+        repo_root = Path(args.repo_root).resolve(strict=True)
+    except (FileNotFoundError, OSError) as e:
+        print(f"Error: Repository root not found: {e}", file=sys.stderr)
+        return 2
+
+    # Resolve memories_dir relative to repo_root if it's a relative path
+    memories_dir_path = Path(args.dir)
+    if not memories_dir_path.is_absolute():
+        memories_dir = (repo_root / memories_dir_path).resolve()
+    else:
+        try:
+            memories_dir = memories_dir_path.resolve(strict=True)
+        except (FileNotFoundError, OSError) as e:
+            print(f"Error: Memories directory not found: {e}", file=sys.stderr)
+            return 2
+
+    # Ensure memories_dir is within repo_root to prevent traversal attacks
+    try:
+        memories_dir.relative_to(repo_root)
+    except ValueError:
+        print(f"Error: Memories directory is outside the repository: {args.dir}", file=sys.stderr)
+        return 2
 
     try:
         memory_path = _find_memory(args.memory_id, memories_dir, repo_root)
@@ -131,8 +154,31 @@ def cmd_verify(args: argparse.Namespace) -> int:
 
 def cmd_verify_all(args: argparse.Namespace) -> int:
     """Verify citations in all memories."""
-    memories_dir = Path(args.dir)
-    repo_root = Path(args.repo_root)
+    # Security: Prevent path traversal (CWE-22). Resolve paths to canonical form
+    # and validate memories_dir is within repo_root.
+    try:
+        repo_root = Path(args.repo_root).resolve(strict=True)
+    except (FileNotFoundError, OSError) as e:
+        print(f"Error: Repository root not found: {e}", file=sys.stderr)
+        return 2
+
+    # Resolve memories_dir relative to repo_root if it's a relative path
+    memories_dir_path = Path(args.dir)
+    if not memories_dir_path.is_absolute():
+        memories_dir = (repo_root / memories_dir_path).resolve()
+    else:
+        try:
+            memories_dir = memories_dir_path.resolve(strict=True)
+        except (FileNotFoundError, OSError) as e:
+            print(f"Error: Memories directory not found: {e}", file=sys.stderr)
+            return 2
+
+    # Ensure memories_dir is within repo_root to prevent traversal attacks
+    try:
+        memories_dir.relative_to(repo_root)
+    except ValueError:
+        print(f"Error: Memories directory is outside the repository: {args.dir}", file=sys.stderr)
+        return 2
 
     if not memories_dir.exists():
         print(f"Error: Memories directory not found: {memories_dir}", file=sys.stderr)
@@ -293,8 +339,31 @@ def _graph_score(graph: MemoryGraph, args: argparse.Namespace) -> int:
 
 def cmd_health(args: argparse.Namespace) -> int:
     """Run health checks on all memories and generate a report."""
-    memories_dir = Path(args.dir)
-    repo_root = Path(args.repo_root)
+    # Security: Prevent path traversal (CWE-22). Resolve paths to canonical form
+    # and validate memories_dir is within repo_root.
+    try:
+        repo_root = Path(args.repo_root).resolve(strict=True)
+    except (FileNotFoundError, OSError) as e:
+        print(f"Error: Repository root not found: {e}", file=sys.stderr)
+        return 2
+
+    # Resolve memories_dir relative to repo_root if it's a relative path
+    memories_dir_path = Path(args.dir)
+    if not memories_dir_path.is_absolute():
+        memories_dir = (repo_root / memories_dir_path).resolve()
+    else:
+        try:
+            memories_dir = memories_dir_path.resolve(strict=True)
+        except (FileNotFoundError, OSError) as e:
+            print(f"Error: Memories directory not found: {e}", file=sys.stderr)
+            return 2
+
+    # Ensure memories_dir is within repo_root to prevent traversal attacks
+    try:
+        memories_dir.relative_to(repo_root)
+    except ValueError:
+        print(f"Error: Memories directory is outside the repository: {args.dir}", file=sys.stderr)
+        return 2
 
     if not memories_dir.exists():
         print(f"Error: Memories directory not found: {memories_dir}", file=sys.stderr)

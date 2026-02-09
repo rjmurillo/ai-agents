@@ -350,6 +350,28 @@ class TestCmdVerify:
         exit_code = cmd_verify(args)
         assert exit_code == 1
 
+    @pytest.mark.unit
+    def test_path_traversal_protection(
+        self,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Test that cmd_verify rejects directories outside repo_root (CWE-22)."""
+        repo_root = tmp_path / "repo"
+        outside_dir = tmp_path / "outside"
+        repo_root.mkdir()
+        outside_dir.mkdir()
+
+        args = _make_args(
+            memory_id="test",
+            dir=str(outside_dir),
+            repo_root=str(repo_root),
+        )
+        exit_code = cmd_verify(args)
+        assert exit_code == 2
+        captured = capsys.readouterr()
+        assert "outside the repository" in captured.err
+
 
 class TestCmdVerifyAll:
     """Tests for cmd_verify_all function."""
@@ -446,6 +468,27 @@ class TestCmdVerifyAll:
         )
         exit_code = cmd_verify_all(args)
         assert exit_code == 1
+
+    @pytest.mark.unit
+    def test_path_traversal_protection(
+        self,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Test that cmd_verify_all rejects directories outside repo_root (CWE-22)."""
+        repo_root = tmp_path / "repo"
+        outside_dir = tmp_path / "outside"
+        repo_root.mkdir()
+        outside_dir.mkdir()
+
+        args = _make_args(
+            dir=str(outside_dir),
+            repo_root=str(repo_root),
+        )
+        exit_code = cmd_verify_all(args)
+        assert exit_code == 2
+        captured = capsys.readouterr()
+        assert "outside the repository" in captured.err
 
 
 class TestMain:

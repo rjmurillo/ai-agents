@@ -559,6 +559,32 @@ class TestHealthCLI:
         )
         assert result.returncode == 2
 
+    def test_health_path_traversal_protection(self, tmp_path: Path) -> None:
+        """Test that cmd_health rejects directories outside repo_root (CWE-22)."""
+        repo_root = tmp_path / "repo"
+        outside_dir = tmp_path / "outside"
+        repo_root.mkdir()
+        outside_dir.mkdir()
+
+        result = subprocess.run(
+            [
+                sys.executable, "-m", "memory_enhancement", "health",
+                "--dir", str(outside_dir),
+                "--repo-root", str(repo_root),
+            ],
+            capture_output=True,
+            text=True,
+            env={
+                "PYTHONPATH": str(
+                    Path(__file__).resolve().parents[2]
+                    / ".claude" / "skills" / "memory-enhancement" / "src"
+                ),
+                "PATH": "/usr/bin:/usr/local/bin",
+            },
+        )
+        assert result.returncode == 2
+        assert "outside the repository" in result.stderr
+
 
 # ---------------------------------------------------------------------------
 # Model exemption tests
