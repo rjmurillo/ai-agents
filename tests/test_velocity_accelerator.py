@@ -254,7 +254,7 @@ class TestSuggestAgents:
 
     def test_planner_keywords(self) -> None:
         agents = suggest_agents("Create milestone for Q3", "")
-        assert "agent-planner" in agents
+        assert "agent-milestone-planner" in agents
 
     def test_no_false_positive_ci_in_critical(self) -> None:
         """'ci' should not match inside 'critical'."""
@@ -321,7 +321,7 @@ class TestDetectArtifactChanges:
         files = [".agents/architecture/ADR-050-new-pattern.md"]
         result = detect_artifact_changes(files)
         assert len(result) == 1
-        assert result[0].suggested_agent == "planner"
+        assert result[0].suggested_agent == "milestone-planner"
         assert result[0].priority == "high"
         assert result[0].metadata["artifact_type"] == "adr"
 

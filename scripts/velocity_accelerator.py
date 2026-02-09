@@ -102,7 +102,7 @@ AGENT_KEYWORDS: dict[str, list[str]] = {
     "agent-implementer": ["implement", "code", "develop", "build", "create"],
     "agent-qa": ["test", "coverage", "quality", "verify", "validate"],
     "agent-analyst": ["investigate", "research", "analyze", "benchmark"],
-    "agent-planner": ["plan", "milestone", "epic", "roadmap", "schedule"],
+    "agent-milestone-planner": ["plan", "milestone", "epic", "roadmap", "schedule"],
     "agent-explainer": ["document", "explain", "prd", "guide", "readme"],
 }
 
@@ -297,7 +297,7 @@ def detect_artifact_changes(changed_files: Sequence[str]) -> list[Opportunity]:
                     description=f"ADR changed at `{filepath}`. Ensure implementation plan exists.",
                     source_event=EventType.ARTIFACT_PUSH,
                     source_ref=filepath,
-                    suggested_agent="planner",
+                    suggested_agent="milestone-planner",
                     priority="high",
                     metadata={"artifact_type": "adr", "file": filepath},
                 )
