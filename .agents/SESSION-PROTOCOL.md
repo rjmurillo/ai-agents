@@ -441,7 +441,17 @@ The agent MUST run quality checks before ending.
    - Creating a dedicated formatting cleanup PR
 
 2. The agent SHOULD run validation scripts if available (e.g., `Validate-Consistency.ps1`)
-3. The agent MUST NOT end session with known failing lints
+3. The agent SHOULD check memory sizes if `.serena/memories/` files were created or modified:
+
+   ```bash
+   python3 .claude/skills/memory/scripts/test_memory_size.py .serena/memories --pattern "*.md"
+   ```
+
+   - New memories over 10,000 chars need decomposition before commit
+   - Modified memories over 8,000 chars should be flagged for future decomposition
+   - See `.serena/memories/README.md` for decomposition guidelines
+
+4. The agent MUST NOT end session with known failing lints
 
 **Verification:**
 
@@ -633,6 +643,7 @@ Copy this checklist to each session log and verify completion:
 | MUST NOT | Update `.agents/HANDOFF.md` directly | [ ] | HANDOFF.md unchanged |
 | SHOULD | Update PROJECT-PLAN.md | [ ] | Tasks checked off |
 | SHOULD | Invoke retrospective (significant sessions) | [ ] | Doc: _______ |
+| SHOULD | Check memory sizes (if memories modified) | [ ] | `python3 .claude/skills/memory/scripts/test_memory_size.py` |
 | SHOULD | Verify clean git status | [ ] | `git status` output |
 
 <!-- Investigation sessions may skip QA with evidence "SKIPPED: investigation-only"
