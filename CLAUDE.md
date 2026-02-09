@@ -20,3 +20,14 @@ For non-trivial tasks, delegate to specialized agents using the Task tool:
 ### Default Behavior
 
 For any non-trivial task: `Task(subagent_type="orchestrator", prompt="...")`
+
+## Memory Interface Decision Matrix
+
+| Scenario | Use | Why |
+|----------|-----|-----|
+| Quick CLI search | `/memory-search` slash command | Instant, no agent overhead |
+| Deep exploration | `context-retrieval` agent | Graph traversal, artifact reading |
+| Script automation | `Search-Memory.ps1` | PowerShell, testable, structured output |
+| Direct MCP (last resort) | `mcp__serena__read_memory` | Full control when abstractions fail |
+
+Start with the cheapest option. Escalate only when the cheaper option lacks capability.
