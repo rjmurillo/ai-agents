@@ -84,7 +84,7 @@ This refactoring demonstrates:
 ## Related Memories
 
 - [pattern-thin-workflows](pattern-thin-workflows.md): Workflow design pattern applied here
-- [skill-implementation-006-graphql-first](skill-implementation-006-graphql-first.md): GraphQL usage validated
+- [skill-implementation-006-graphql-first](implementation-006-graphql-first.md): GraphQL usage validated
 - [architecture-producer-consumer](architecture-producer-consumer.md): Workflow coordination pattern
 - [security-infrastructure-review](security-infrastructure-review.md): ADR-015 compliance
 

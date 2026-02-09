@@ -124,7 +124,7 @@ fi
 # Session 92 - Feature Branch Handoff
 
 **Branch**: feature/issue-123
-**Session Log**: [2025-12-24-session-92.md](../../sessions/2025-12-24-session-92.md)
+**Session Log**: `2025-12-24-session-92.md`
 **Date**: 2025-12-24
 
 ## Key Decisions

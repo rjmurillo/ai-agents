@@ -112,11 +112,11 @@ Decisions should be re-evaluated when:
 
 ## Related Skills
 
-- [cynefin-classifier](../cynefin-classifier/SKILL.md): Problem domain classification
-- [pre-mortem](../pre-mortem/SKILL.md): Risk identification
-- [decision-critic](../decision-critic/SKILL.md): Decision validation
-- [adr-review](../adr-review/SKILL.md): Multi-agent consensus
-- [planner](../planner/SKILL.md): Post-decision execution planning
+- [cynefin-classifier](../../.claude/skills/cynefin-classifier/SKILL.md): Problem domain classification
+- [pre-mortem](../../.claude/skills/pre-mortem/SKILL.md): Risk identification
+- [decision-critic](../../.claude/skills/decision-critic/SKILL.md): Decision validation
+- [adr-review](../../.claude/skills/adr-review/SKILL.md): Multi-agent consensus
+- [planner](../../.claude/skills/planner/SKILL.md): Post-decision execution planning
 
 ## Anti-Patterns
 

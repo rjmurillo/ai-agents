@@ -57,5 +57,5 @@ No further implementation work needed on this branch unless new issues are added
 ## Related
 
 - [session-1128-chain1-complete](session-1128-chain1-complete.md)
-- [session-1005-issue-998-verification](session-1005-issue-998-verification.md)
-- [session-1124-issue-998-already-complete](session-1124-issue-998-already-complete.md)
+- `session-1005-issue-998-verification`
+- `session-1124-issue-998-already-complete`

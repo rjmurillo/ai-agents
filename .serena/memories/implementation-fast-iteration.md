@@ -90,7 +90,7 @@ Each discovered through Copilot review, fixed in <5 minutes, validated in next c
 
 - [agent-workflow-atomic-commits](agent-workflow-atomic-commits.md) - Atomic commit principles
 - [ci-quality-gates](ci-quality-gates.md) - Automated review workflows
-- [implementation-test-discovery](implementation-test-discovery.md) - Test-first patterns
+- [implementation-test-discovery](implementation-001-pre-implementation-test-discovery.md) - Test-first patterns
 
 ## Related
 

@@ -36,5 +36,5 @@ These are observations that may become patterns:
 
 ## Related
 
-- [powershell-error-handling](powershell-error-handling.md)
-- [debugging-strategies](debugging-strategies.md)
+- `powershell-error-handling`
+- `debugging-strategies`

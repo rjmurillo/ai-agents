@@ -58,8 +58,8 @@ All four phases of Memory Enhancement Layer (#990) now complete:
 
 ## Related
 
-- [session-1005-issue-998-verification](session-1005-issue-998-verification.md)
-- [session-1006-issue-998-verification](session-1006-issue-998-verification.md)
-- [session-1011-issue-998-verification](session-1011-issue-998-verification.md)
-- [session-1012-issue-998-verification](session-1012-issue-998-verification.md)
-- [session-1015-issue-998-verification](session-1015-issue-998-verification.md)
+- `session-1005-issue-998-verification`
+- `session-1006-issue-998-verification`
+- `session-1011-issue-998-verification`
+- `session-1012-issue-998-verification`
+- `session-1015-issue-998-verification`

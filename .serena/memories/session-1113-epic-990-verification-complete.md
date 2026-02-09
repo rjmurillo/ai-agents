@@ -84,4 +84,4 @@ Epic #990 is production-ready. No further implementation work needed. Future ses
 ## Related
 
 - [session-1112-issue-1001-complete](session-1112-issue-1001-complete.md)
-- [session-1113-issue-998-verification](session-1113-issue-998-verification.md)
+- [session-1113-issue-998-verification](session-1113-epic-990-verification-complete.md)

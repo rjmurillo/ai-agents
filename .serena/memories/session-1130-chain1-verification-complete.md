@@ -65,8 +65,8 @@ No further work needed on chain1/memory-enhancement branch. Issue #998 is closed
 
 ## Related
 
-- [session-1005-issue-998-verification](session-1005-issue-998-verification.md)
-- [session-1006-issue-998-verification](session-1006-issue-998-verification.md)
-- [session-1011-issue-998-verification](session-1011-issue-998-verification.md)
-- [session-1012-issue-998-verification](session-1012-issue-998-verification.md)
-- [session-1015-issue-998-verification](session-1015-issue-998-verification.md)
+- `session-1005-issue-998-verification`
+- `session-1006-issue-998-verification`
+- `session-1011-issue-998-verification`
+- `session-1012-issue-998-verification`
+- `session-1015-issue-998-verification`
