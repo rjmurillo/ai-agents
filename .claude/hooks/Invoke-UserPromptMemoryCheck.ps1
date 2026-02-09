@@ -91,13 +91,7 @@ end {
 
     if ($MatchFound) {
         @"
-
-**ADR-007 Memory Check**: Before proceeding with this task:
-
-- Query ``memory-index`` for task-relevant memories
-- Check Forgetful for cross-project patterns if applicable
-- Evidence memory retrieval in session log
-
+**ADR-007**: Query ``memory-index`` before proceeding. Evidence in session log.
 "@
     }
 
@@ -119,16 +113,7 @@ end {
 
     if ($PrMatchFound) {
         @"
-
-**Pre-PR Validation Gate**: Before creating a PR, complete these checks:
-
-1. **Run local tests**: ``Invoke-Pester -Path 'tests/*.Tests.ps1'``
-2. **Validate script syntax**: All .ps1 files must parse without errors
-3. **Check memory naming**: No ``skill-`` prefix in ``.serena/memories/`` (ADR-017)
-4. **Read validation memory**: ``mcp__serena__read_memory`` with ``memory_file_name="validation-pre-pr-checklist"``
-
-⚠️ **Do NOT run markdownlint on .ps1 files** - it corrupts PowerShell comment terminators
-
+**Pre-PR gate**: Run tests, validate syntax, check memory naming (no ``skill-`` prefix). Read ``validation-pre-pr-checklist`` memory.
 "@
     }
 
@@ -173,20 +158,7 @@ end {
 
     if ($GhCliMatchFound) {
         @"
-
-**Skill Usage Check**: Detected potential ``$MatchedCommand`` usage.
-
-Before using raw ``gh`` CLI, read the GitHub skills documentation:
-
-``Read .claude/skills/github/SKILL.md``
-
-**Available skill categories**:
-- PR operations: New-PR, Merge-PR, Get-PRChecks, Get-PRContext, etc.
-- Issue operations: New-Issue, Post-IssueComment, Set-IssueLabels, etc.
-- Reactions: Add-CommentReaction
-
-⚠️ Using skills ensures consistent error handling and audit logging.
-
+**Skill-first**: ``$MatchedCommand`` detected. Read ``.claude/skills/github/SKILL.md`` for skill alternative.
 "@
     }
 

@@ -240,7 +240,7 @@ Describe "Invoke-MemoryFirstEnforcer" {
         It "Escalated warning mentions ADR-007" {
             $result = Invoke-HookInContext -HookPath $Script:TempHookPathBlocking -ProjectDir $Script:TestRootBlocking
             $output = $result.Output -join "`n"
-            $output | Should -Match "past threshold"
+            $output | Should -Match "VIOLATION"
             $output | Should -Match "ADR-007"
         }
     }

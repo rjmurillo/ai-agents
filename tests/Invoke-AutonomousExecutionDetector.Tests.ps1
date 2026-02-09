@@ -59,7 +59,7 @@ Describe "Invoke-AutonomousExecutionDetector" {
         It "Regular prompt has no warning output" {
             $result = Invoke-HookWithPrompt -Prompt "Add a new feature to export data"
             $output = $result.Output -join "`n"
-            $output | Should -Not -Match "AUTONOMOUS"
+            $output | Should -Not -Match "Autonomous mode"
         }
 
         It "Empty prompt passes through (exit 0)" {
@@ -72,49 +72,49 @@ Describe "Invoke-AutonomousExecutionDetector" {
         It "Detects 'autonomous' keyword" {
             $result = Invoke-HookWithPrompt -Prompt "Run this in autonomous mode"
             $output = $result.Output -join "`n"
-            $output | Should -Match "AUTONOMOUS EXECUTION DETECTED"
+            $output | Should -Match "Autonomous mode"
         }
 
         It "Detects 'hands-off' keyword" {
             $result = Invoke-HookWithPrompt -Prompt "Do this hands-off without my input"
             $output = $result.Output -join "`n"
-            $output | Should -Match "AUTONOMOUS EXECUTION DETECTED"
+            $output | Should -Match "Autonomous mode"
         }
 
         It "Detects 'without asking' keyword" {
             $result = Invoke-HookWithPrompt -Prompt "Just do it without asking me"
             $output = $result.Output -join "`n"
-            $output | Should -Match "AUTONOMOUS EXECUTION DETECTED"
+            $output | Should -Match "Autonomous mode"
         }
 
         It "Detects 'without confirmation' keyword" {
             $result = Invoke-HookWithPrompt -Prompt "Proceed without confirmation"
             $output = $result.Output -join "`n"
-            $output | Should -Match "AUTONOMOUS EXECUTION DETECTED"
+            $output | Should -Match "Autonomous mode"
         }
 
         It "Detects 'auto-' prefix" {
             $result = Invoke-HookWithPrompt -Prompt "Use auto-approve for the PR"
             $output = $result.Output -join "`n"
-            $output | Should -Match "AUTONOMOUS EXECUTION DETECTED"
+            $output | Should -Match "Autonomous mode"
         }
 
         It "Detects 'unattended' keyword" {
             $result = Invoke-HookWithPrompt -Prompt "Run in unattended mode"
             $output = $result.Output -join "`n"
-            $output | Should -Match "AUTONOMOUS EXECUTION DETECTED"
+            $output | Should -Match "Autonomous mode"
         }
 
         It "Detects 'full autonomy' keyword" {
             $result = Invoke-HookWithPrompt -Prompt "Give you full autonomy"
             $output = $result.Output -join "`n"
-            $output | Should -Match "AUTONOMOUS EXECUTION DETECTED"
+            $output | Should -Match "Autonomous mode"
         }
 
         It "Detects 'blindly' keyword" {
             $result = Invoke-HookWithPrompt -Prompt "Just execute blindly"
             $output = $result.Output -join "`n"
-            $output | Should -Match "AUTONOMOUS EXECUTION DETECTED"
+            $output | Should -Match "Autonomous mode"
         }
     }
 
@@ -122,26 +122,26 @@ Describe "Invoke-AutonomousExecutionDetector" {
         It "Includes session log requirement" {
             $result = Invoke-HookWithPrompt -Prompt "Run autonomously"
             $output = $result.Output -join "`n"
-            $output | Should -Match "Session Log Requirement"
+            $output | Should -Match "Session log"
         }
 
         It "Includes multi-agent consensus gates info" {
             $result = Invoke-HookWithPrompt -Prompt "Run autonomously"
             $output = $result.Output -join "`n"
-            $output | Should -Match "Multi-Agent Consensus"
+            $output | Should -Match "consensus gates"
         }
 
         It "Includes blocked operations list" {
             $result = Invoke-HookWithPrompt -Prompt "Run autonomously"
             $output = $result.Output -join "`n"
-            $output | Should -Match "Blocked Operations"
-            $output | Should -Match "git push --force"
+            $output | Should -Match "Blocked on main"
+            $output | Should -Match "force-push"
         }
 
         It "Includes audit trail requirements" {
             $result = Invoke-HookWithPrompt -Prompt "Run autonomously"
             $output = $result.Output -join "`n"
-            $output | Should -Match "Audit Trail"
+            $output | Should -Match "SESSION-PROTOCOL"
         }
     }
 
@@ -209,13 +209,13 @@ Describe "Invoke-AutonomousExecutionDetector" {
         It "Matches keywords case-insensitively" {
             $result = Invoke-HookWithPrompt -Prompt "Run AUTONOMOUS mode"
             $output = $result.Output -join "`n"
-            $output | Should -Match "AUTONOMOUS EXECUTION DETECTED"
+            $output | Should -Match "Autonomous mode"
         }
 
         It "Matches mixed case keywords" {
             $result = Invoke-HookWithPrompt -Prompt "Run Hands-Off mode"
             $output = $result.Output -join "`n"
-            $output | Should -Match "AUTONOMOUS EXECUTION DETECTED"
+            $output | Should -Match "Autonomous mode"
         }
     }
 

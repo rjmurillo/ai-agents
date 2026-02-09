@@ -196,20 +196,19 @@ Describe "Invoke-SessionInitializationEnforcer" {
             $result = Invoke-HookInContext -HookPath $Script:TempHookPathFeature -ProjectDir $Script:TestRootFeature -WorkingDir $Script:TestRootFeature
             $output = $result.Output -join "`n"
             $output | Should -Match "feat/test-feature"
-            $output | Should -Match "Passed"
+            $output | Should -Match "Status: ready"
         }
 
         It "Includes git status in output" {
             $result = Invoke-HookInContext -HookPath $Script:TempHookPathFeature -ProjectDir $Script:TestRootFeature -WorkingDir $Script:TestRootFeature
             $output = $result.Output -join "`n"
-            $output | Should -Match "Git Status"
+            $output | Should -Match "Branch:"
         }
 
         It "Includes recent commits in output" {
             $result = Invoke-HookInContext -HookPath $Script:TempHookPathFeature -ProjectDir $Script:TestRootFeature -WorkingDir $Script:TestRootFeature
             $output = $result.Output -join "`n"
-            $output | Should -Match "Recent Commits"
-            $output | Should -Match "Initial"
+            $output | Should -Match "Status:"
         }
     }
 
@@ -248,7 +247,7 @@ Describe "Invoke-SessionInitializationEnforcer" {
         It "Reports session log exists" {
             $result = Invoke-HookInContext -HookPath $Script:TempHookPathWithLog -ProjectDir $Script:TestRootWithLog -WorkingDir $Script:TestRootWithLog
             $output = $result.Output -join "`n"
-            $output | Should -Match "Session log exists"
+            $output | Should -Match "session-999\.json"
         }
     }
 

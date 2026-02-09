@@ -96,81 +96,16 @@ try {
     # NOTE: SessionStart hooks cannot block (exit 2 only shows stderr, prevents
     # stdout injection). Commit-time protection is enforced by PreToolUse hooks.
     if (Test-IsMainOrMasterBranch -Branch $currentBranch) {
-        $output = @"
-
-## WARNING: On Protected Branch
-
-**Switch to a feature branch before making changes.**
-
-**Current Branch**: ``$currentBranch``
-
-Direct commits to main/master are blocked by pre-commit hooks.
-Create or switch to a feature branch:
-
-``````bash
-git checkout -b feat/your-feature-name
-``````
-
-### REMINDER: Skill-First Pattern + Retrieval-Led Reasoning
-
-**Before using raw git/gh commands, check if a skill exists:**
-- Git operations: Check ``.claude/skills/git-*/``
-- GitHub operations: Check ``.claude/skills/github/`` (mandatory per usage-mandatory memory)
-- Prefer retrieval-led reasoning: Read skill documentation, don't rely on pre-training
-
-**Process:**
-1. Identify operation type (PR creation, merge, etc.)
-2. Check SKILL-QUICK-REF.md for corresponding skill
-3. Read skill's SKILL.md for current, tested patterns
-4. Use skill instead of raw commands
-
-"@
-        Write-Output $output
+        Write-Output "`n## WARNING: On Protected Branch``n``n**Current Branch**: ``$currentBranch`` - Switch to feature branch. Commits blocked by pre-commit hooks.``n``git checkout -b feat/your-feature-name```n"
         exit 0
     }
 
-    # NON-BLOCKING: Inject git state into context
-    $gitStatus = Get-GitStatus
-    $recentCommits = Get-RecentCommits
-
-    # Check for session log
+    # NON-BLOCKING: Inject compact git state into context
     $sessionsDir = Join-Path $projectDir ".agents" "sessions"
     $sessionLog = Get-TodaySessionLog -SessionsDir $sessionsDir
+    $sessionStatus = if ($null -eq $sessionLog) { "none (run /session-init)" } else { $sessionLog.Name }
 
-    $sessionLogStatus = if ($null -eq $sessionLog) {
-        "❌ No session log found for today"
-    }
-    else {
-        "✅ Session log exists: $($sessionLog.Name)"
-    }
-
-    # Inject context (non-blocking)
-    $output = @"
-
-## Session Initialization Status
-
-**Current Branch**: ``$currentBranch`` ✅
-**Session Log**: $sessionLogStatus
-
-### Git Status
-``````
-$gitStatus
-``````
-
-### Recent Commits
-``````
-$recentCommits
-``````
-
----
-
-**Session Start Hook**: Completed successfully
-**Branch Protection**: Passed (not on main/master)
-**Next Step**: $(if ($null -eq $sessionLog) { "Create session log with /session-init or Initialize-SessionLog.ps1" } else { "Continue with work" })
-
-"@
-
-    Write-Output $output
+    Write-Output "Branch: ``$currentBranch`` | Session: $sessionStatus | Status: ready"
     exit 0
 }
 catch {
