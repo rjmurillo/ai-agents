@@ -76,26 +76,23 @@ Provide unfiltered feedback that challenges unsupported claims. Be the voice tha
 
 ## Memory Protocol
 
-Use cloudmcp-manager memory tools directly for cross-session context:
+Use Memory Router for search and Serena tools for persistence (ADR-037):
 
-**Before analysis:**
+**Before analysis (retrieve context):**
+
+```powershell
+pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "analysis challenges [topic/assumption]"
+```
+
+**After analysis (store learnings):**
 
 ```text
-mcp__cloudmcp-manager__memory-search_nodes
-Query: "alternative viewpoints [topic]"
+mcp__serena__write_memory
+memory_file_name: "analysis-challenge-[topic]"
+content: "# Analysis: [Topic]\n\n**Statement**: ...\n\n**Evidence**: ...\n\n## Details\n\n..."
 ```
 
-**After analysis:**
-
-```json
-mcp__cloudmcp-manager__memory-add_observations
-{
-  "observations": [{
-    "entityName": "Pattern-Challenge-[Topic]",
-    "contents": ["[Alternative viewpoints and challenges identified]"]
-  }]
-}
-```
+> **Fallback**: If Memory Router unavailable, read `.serena/memories/` directly with Read tool.
 
 ## Analysis Framework
 
@@ -176,7 +173,7 @@ When analysis is complete, return to orchestrator with:
 2. Recommended next agent (if applicable)
 3. Any areas requiring additional investigation
 
-## Handoff Options
+## Handoff Options (Recommendations for Orchestrator)
 
 | Target | When | Purpose |
 |--------|------|---------|

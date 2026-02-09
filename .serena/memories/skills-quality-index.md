@@ -8,3 +8,4 @@
 | shift-left agent consultation pre-push 6-agent quality gate | [quality-shift-left-gate](quality-shift-left-gate.md) |
 | remediation priority verdict P0 MUST SHOULD CRITICAL_FAIL evidence | [quality-agent-remediation](quality-agent-remediation.md) |
 | prompt engineering AI assessment template false positive elimination regression | [quality-prompt-engineering-gates](quality-prompt-engineering-gates.md) |
+| code smell refactoring bloaters couplers dispensables change preventers | [code-smells-catalog](code-smells-catalog.md) |

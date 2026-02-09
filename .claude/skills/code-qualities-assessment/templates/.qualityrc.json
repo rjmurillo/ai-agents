@@ -1,0 +1,45 @@
+{
+  "thresholds": {
+    "cohesion": {
+      "min": 7,
+      "warn": 5
+    },
+    "coupling": {
+      "max": 3,
+      "warn": 5
+    },
+    "encapsulation": {
+      "min": 7,
+      "warn": 5
+    },
+    "testability": {
+      "min": 6,
+      "warn": 4
+    },
+    "nonRedundancy": {
+      "min": 8,
+      "warn": 6
+    }
+  },
+  "context": {
+    "test": {
+      "testability": {
+        "min": 3,
+        "comment": "Test code doesn't need high testability"
+      }
+    },
+    "generated": {
+      "comment": "Generated code excluded from scoring"
+    }
+  },
+  "ignore": [
+    "**/generated/**",
+    "**/*.pb.py",
+    "**/*_pb2.py",
+    "**/migrations/**",
+    "**/__pycache__/**",
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/build/**"
+  ]
+}

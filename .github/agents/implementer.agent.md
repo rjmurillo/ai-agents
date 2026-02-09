@@ -649,6 +649,11 @@ Ask: "Does this refactoring unblock my task or improve testability of code I'm c
 1. Before writing, identify what varies and apply Chesterton's Fence
 2. Ask "how would I test this?" If hard, redesign.
 3. Sergeant methods direct, private methods implement
+4. **Clarity over brevity**: Explicit code beats compact code. No nested ternaries. Use `switch`, `if/else`, or pattern matching instead.
+5. **Comment hygiene**: Remove comments that describe obvious code. Comments explain "why", not "what".
+6. **Self-documenting names**: If a name needs a comment, rename it.
+
+> **Post-hoc refinement**: After implementation, `code-simplifier` handles balance judgments and language-specific polish. Write simple code first.
 
 ### Reviewing Code
 
@@ -725,6 +730,32 @@ mcp__cloudmcp-manager__memory-add_observations
 - Cyclomatic complexity 10 or less
 - Methods under 60 lines
 - No nested code
+- No nested ternary operators. Use `switch`, `if/else`, or pattern matching.
+- Prefer `function` keyword over arrow functions (JS/TS top-level declarations)
+- Explicit return type annotations on exported functions (JS/TS)
+- React: Explicit `Props` type for every component
+
+### Code Simplification
+
+Before writing each function or method, apply these checks. Three similar lines are better than
+a premature abstraction, but identical blocks are not.
+
+1. **No repeated blocks**: If 3+ lines appear twice, extract or loop. Check within the file and
+   across files touched in this PR.
+2. **No dead code**: Remove unused variables, unreachable branches, commented-out code, and
+   unused imports. Do not leave code "for later."
+3. **No redundant conditions**: Collapse `if x then true else false` to `x`. Remove conditions
+   the type system or caller already guarantees.
+4. **No stderr suppression**: Never use `2>/dev/null` or `-ErrorAction SilentlyContinue` without
+   capturing output first. Capture to a variable, check, then act.
+5. **Consistent naming**: Match the naming convention of the file you are editing. Do not
+   introduce a new convention in existing files.
+6. **Flat over nested**: Maximum 2 levels of nesting. Use early returns, guard clauses, or
+   extract a helper to flatten deeper nesting.
+7. **No magic values**: Literals that appear more than once or whose meaning is not obvious from
+   context become named constants.
+8. **Match existing patterns**: Before writing new code, read 2-3 similar functions in the same
+   file or module. Follow their error handling, logging, and naming patterns.
 
 ## Qwiq-Specific Patterns
 

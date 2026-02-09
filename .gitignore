@@ -8,7 +8,7 @@ coverage.xml
 .coverage
 testResults.xml
 
-# Tool caches
+# Runtime caches
 .cache/
 
 # Python (ADR-042)
