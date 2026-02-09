@@ -289,7 +289,7 @@ if (-not $SkipSessionLogGate) {
                 
                 if ($missingFields.Count -gt 0) {
                     Write-GateWarning "Session log missing required fields: $($missingFields -join ', ')"
-                    Write-GateInfo "Run: python3 scripts/validate_session_json.py $($latestSession.FullName)"
+                    Write-GateInfo "Run: python3 scripts/validate_session_json.py `"$($latestSession.FullName)`""
                 } else {
                     Write-GatePass "Session log structure valid"
                     Write-GateInfo "Objective: $($sessionContent.session.objective)"
@@ -297,7 +297,7 @@ if (-not $SkipSessionLogGate) {
                 
             } catch {
                 Write-GateWarning "Could not parse session log as JSON: $($_.Exception.Message)"
-                Write-GateInfo "Run: python3 scripts/validate_session_json.py $($latestSession.FullName)"
+                Write-GateInfo "Run: python3 scripts/validate_session_json.py `"$($latestSession.FullName)`""
             }
         }
     }

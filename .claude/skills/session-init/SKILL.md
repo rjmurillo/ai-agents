@@ -339,7 +339,7 @@ Session log created but validation FAILED
   Errors:
     - Missing Session End checklist header
 
-Run: pwsh scripts/validate_session_json.py -SessionPath ".agents/sessions/.agents/sessions/2026-01-05-session-375.json" 
+Run: python3 scripts/validate_session_json.py ".agents/sessions/.agents/sessions/2026-01-05-session-375.json" 
 
 Fix the issues and re-validate.
 ```

@@ -228,7 +228,7 @@ For PRs with in-flight markdown sessions:
 
    ```powershell
    Get-ChildItem .agents/sessions/*.json | ForEach-Object {
-     pwsh scripts/validate_session_json.py -SessionLogPath $_.FullName
+     python3 scripts/validate_session_json.py $_.FullName
    }
    ```
 

@@ -566,7 +566,7 @@ try {
             Write-Host "  File: $sessionLogPath" -ForegroundColor Gray
             Write-Host ""
             Write-Host "Fix the issues and re-validate with:" -ForegroundColor Yellow
-            Write-Host "  pwsh scripts/validate_session_json.py -SessionPath `"$sessionLogPath`"" -ForegroundColor Gray
+            Write-Host "  python3 scripts/validate_session_json.py `"$sessionLogPath`"" -ForegroundColor Gray
             exit 4
         }
     } else {
@@ -584,7 +584,7 @@ try {
         Write-Host "It may contain errors or missing required sections." -ForegroundColor Yellow
         Write-Host ""
         Write-Host "Validate manually with:" -ForegroundColor Yellow
-        Write-Host "  pwsh scripts/validate_session_json.py -SessionPath `"$sessionLogPath`"" -ForegroundColor Gray
+        Write-Host "  python3 scripts/validate_session_json.py `"$sessionLogPath`"" -ForegroundColor Gray
     } else {
         Write-Host "JSON session log created and validated" -ForegroundColor Green
     }

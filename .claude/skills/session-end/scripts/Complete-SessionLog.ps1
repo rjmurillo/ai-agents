@@ -311,7 +311,7 @@ Write-Host 'Running validation...' -ForegroundColor Cyan
 $validateScript = Join-Path $repoRoot 'scripts' 'validate_session_json.py'
 
 if (Test-Path $validateScript) {
-    & python3 $validateScript $SessionPath
+    & python3 "$validateScript" "$SessionPath"
     $validationExitCode = $LASTEXITCODE
 
     # Update validationPassed based on result

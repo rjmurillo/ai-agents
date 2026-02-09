@@ -192,7 +192,7 @@ if [ -z "$SESSION_LOG" ]; then
 fi
 
 # 2. Run session protocol validator
-pwsh scripts/validate_session_json.py -SessionLogPath "$SESSION_LOG"
+python3 scripts/validate_session_json.py "$SESSION_LOG"
 
 # 3. If validation fails, fix issues before proceeding
 if [ $? -ne 0 ]; then
