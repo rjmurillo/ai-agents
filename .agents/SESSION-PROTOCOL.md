@@ -90,6 +90,25 @@ The agent MUST read context documents before starting work. This is a **blocking
 5. The agent MAY read additional context files based on task requirements
 6. **PR Review Comments**: If responding to PR comments, the agent MUST classify by type (CWE/style/docs) and route to appropriate skill BEFORE manual fixes
 
+### Retrieval-Led Reasoning (CRITICAL)
+
+**Before proceeding with task, internalize this principle**:
+
+You have two information sources:
+1. **Pre-training**: Static, potentially outdated, no project context
+2. **Retrieval**: Current, accurate, project-specific
+
+**Always prefer retrieval.** Specifically:
+
+- Session protocol → THIS DOCUMENT (SESSION-PROTOCOL.md)
+- Project constraints → PROJECT-CONSTRAINTS.md
+- Learned patterns → Serena memories via memory-index
+- Architecture → ADRs in .agents/architecture/
+- Framework/library APIs → Context7, DeepWiki, official docs
+
+**Common failure**: Using outdated framework knowledge from pre-training when current docs are available.
+**Correct approach**: Read memory-index, identify relevant memories, load them BEFORE reasoning.
+
 **Memory Loading Protocol:**
 
 The `memory-index` maps task keywords to essential memories. Example workflow:

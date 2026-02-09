@@ -68,6 +68,31 @@ $output = @"
 
 **BLOCKING GATE**: Complete these steps BEFORE any reasoning or implementation:
 
+### Retrieval-Led Reasoning Principle
+
+**IMPORTANT**: Prefer retrieval-led reasoning over pre-training for ALL decisions.
+- Framework/library APIs → Retrieve from docs (Context7, DeepWiki)
+- Project patterns → Retrieve from Serena memories (see index below)
+- Constraints → Retrieve from PROJECT-CONSTRAINTS.md
+- Architecture → Retrieve from ADRs
+
+### Memory Index Quick Reference
+
+The ``memory-index`` Serena memory maps keywords to memories. Common lookups:
+
+| Task | Keywords | Memories |
+|------|----------|----------|
+| GitHub PR operations | github, pr, cli, gh | skills-github-cli-index, skills-pr-review-index |
+| Session protocol | session, init, protocol, validation | skills-session-init-index, session-protocol |
+| PowerShell scripts | powershell, ps1, pester, test | skills-powershell-index, skills-pester-testing-index |
+| Security patterns | security, vulnerability, CWE | skills-security-index, security-scan |
+| Architecture decisions | adr, architecture, decision | adr-reference-index |
+
+**Process**:
+1. Identify task keywords (e.g., "create PR")
+2. Check table above OR read full memory-index
+3. Load listed memories BEFORE reasoning
+
 ### MCP Server Status
 
 $ForgetfulMessage

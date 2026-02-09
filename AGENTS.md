@@ -28,6 +28,48 @@ For memory fallbacks, read the backing file at `.serena/memories/<memory-name>.m
 
 ---
 
+## RETRIEVAL-LED REASONING: AGENTS ARE LIBRARIANS, NOT ORACLES
+
+**You are an agent WITH access to perfect information, NOT an oracle WITH perfect knowledge.**
+
+### The Problem
+
+Agents have two sources of information:
+
+1. **Pre-training**: Knowledge cutoff 2025-01. Framework versions, APIs, patterns may be outdated.
+2. **Retrieval**: Current project docs, memories, ADRs, framework documentation.
+
+**Default behavior**: Agents use pre-training because it's instant and confident.
+**Correct behavior**: Agents retrieve because it's accurate and current.
+
+### The Solution
+
+Before reasoning about:
+
+- Framework APIs (Next.js, React, FastAPI) → Retrieve from docs
+- Project constraints (languages, patterns) → Retrieve from PROJECT-CONSTRAINTS.md
+- Learned patterns (skills, conventions) → Retrieve from Serena memories
+- Architecture decisions → Retrieve from ADRs
+- Session protocol → Retrieve from SESSION-PROTOCOL.md
+
+**Memory Index**: The `memory-index` Serena memory maps task keywords to relevant memories.
+
+**Example workflow**:
+
+```text
+Task: "Create a PR for this fix"
+❌ Wrong: gh pr create --title "..." (pre-training)
+✓ Right: Read memory-index → skills-github-cli-index → use github skill
+```
+
+**Verify your retrieval**:
+
+- Framework docs: Use Context7, DeepWiki, or official docs
+- Project memory: Use Serena (mcp__serena__read_memory)
+- Architecture: Read ADRs in .agents/architecture/
+
+---
+
 ## BLOCKING GATE: Session Protocol
 
 > **Canonical Source**: [.agents/SESSION-PROTOCOL.md](.agents/SESSION-PROTOCOL.md)
@@ -191,12 +233,12 @@ When gemini-code-assist[bot], Copilot, or other bots leave security/style/docume
 # Instead of manually adding path validation:
 
 # 1. Run security-scan to confirm the issue
-python3 .claude/skills/security-scan/scripts/scan_vulnerabilities.py file.py
+python3 .claude/skills/security-scan/scripts/scan_vulnerabilities.py "file.py"
 
 # 2. Read the output to understand the specific pattern detected
 # 3. Apply the recommended fix from the scanner
 # 4. Re-run to verify
-python3 .claude/skills/security-scan/scripts/scan_vulnerabilities.py file.py
+python3 .claude/skills/security-scan/scripts/scan_vulnerabilities.py "file.py"
 # Exit code 0 = fixed
 
 # 5. Reply to bot comment with evidence
