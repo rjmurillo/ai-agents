@@ -1,7 +1,7 @@
 | Keywords | File |
 |----------|------|
-| test discovery pre-existing coverage search first | [implementation-001-pre-implementation-test-discovery](implementation-001-pre-implementation-test-discovery.md) |
-| test-driven TDD run tests requirements specification | [implementation-002-test-driven-implementation](implementation-002-test-driven-implementation.md) |
+| test discovery pre-existing coverage search first | [implementation-001-preimplementation-test-discovery-95](implementation-001-preimplementation-test-discovery-95.md) |
+| test-driven TDD run tests requirements specification | [implementation-002-testdriven-implementation-92](implementation-002-testdriven-implementation-92.md) |
 | memory-first retrieval context session cloudmcp serena query prior | [implementation-001-memory-first-pattern](implementation-001-memory-first-pattern.md) |
 | lint proactive create file format markdown YAML early | [implementation-proactive-linting](implementation-proactive-linting.md) |
 | clarification timing scope authentication question upfront | [implementation-clarification](implementation-clarification.md) |
