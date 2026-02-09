@@ -49,17 +49,17 @@ Analyzes skill content and recommends whether it should be a Skill, Passive Cont
 **Usage**:
 
 ```bash
-# Analyze a skill directory
-python3 scripts/analyze_skill_placement.py -p ../github
+# Analyze a skill directory (assuming running from repo root)
+python3 .claude/skills/context-optimizer/scripts/analyze_skill_placement.py -p .claude/skills/github
 
 # Analyze a specific SKILL.md
-python3 scripts/analyze_skill_placement.py -p ../github/SKILL.md
+python3 .claude/skills/context-optimizer/scripts/analyze_skill_placement.py -p .claude/skills/github/SKILL.md
 
 # Get detailed metrics
-python3 scripts/analyze_skill_placement.py -p ../github -d
+python3 .claude/skills/context-optimizer/scripts/analyze_skill_placement.py -p .claude/skills/github -d
 
 # Analyze content directly
-python3 scripts/analyze_skill_placement.py -c "$(cat ../github/SKILL.md)"
+python3 .claude/skills/context-optimizer/scripts/analyze_skill_placement.py -c "Content of .claude/skills/github/SKILL.md"
 ```
 
 **Output**:
