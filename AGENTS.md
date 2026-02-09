@@ -233,12 +233,12 @@ When gemini-code-assist[bot], Copilot, or other bots leave security/style/docume
 # Instead of manually adding path validation:
 
 # 1. Run security-scan to confirm the issue
-python3 .claude/skills/security-scan/scripts/scan_vulnerabilities.py file.py
+python3 .claude/skills/security-scan/scripts/scan_vulnerabilities.py "file.py"
 
 # 2. Read the output to understand the specific pattern detected
 # 3. Apply the recommended fix from the scanner
 # 4. Re-run to verify
-python3 .claude/skills/security-scan/scripts/scan_vulnerabilities.py file.py
+python3 .claude/skills/security-scan/scripts/scan_vulnerabilities.py "file.py"
 # Exit code 0 = fixed
 
 # 5. Reply to bot comment with evidence
