@@ -187,25 +187,9 @@ try {
     # Get today's session logs
     $todayLogs = @(Get-TodaySessionLogs -SessionsDir $sessionsDir)
 
-    # If no session log exists, provide guidance (non-blocking)
+    # If no session log exists, provide compact guidance (non-blocking)
     if ($todayLogs.Count -eq 0) {
-        $output = @"
-
-## ADR-007 Memory-First Protocol
-
-**No session log found for today.** Create one early in session:
-- Use ``/session-init`` skill, OR
-- Create ``.agents/sessions/$today-session-NN.json``
-
-**Required evidence in session log**:
-- ``protocolCompliance.sessionStart.serenaActivated.Complete = true``
-- ``protocolCompliance.sessionStart.handoffRead.Complete = true``
-- ``protocolCompliance.sessionStart.memoriesLoaded.Evidence`` contains memory names
-
-See: ``.agents/SESSION-PROTOCOL.md`` Phase 1-2
-
-"@
-        Write-Output $output
+        Write-Output "`nADR-007: No session log for today. Run ``/session-init``. Protocol details in AGENTS.md.`n"
         exit 0
     }
 
@@ -222,72 +206,9 @@ See: ``.agents/SESSION-PROTOCOL.md`` Phase 1-2
     # Evidence missing - check invocation count for education vs blocking
     $count = Increment-InvocationCount -StateDir $stateDir -Today $today
 
-    if ($count -le $EDUCATION_THRESHOLD) {
-        # Education phase
-        $output = @"
-
-## ⚠️  ADR-007 Memory-First: Evidence Missing (Warning $count/$EDUCATION_THRESHOLD)
-
-**Reason**: $($evidence.Reason)
-
-Complete these steps NOW to build evidence:
-
-1. **Initialize Serena** (REQUIRED):
-   ``````
-   mcp__serena__activate_project
-   mcp__serena__initial_instructions
-   ``````
-
-2. **Load Project Context** (REQUIRED):
-   - Read ``.agents/HANDOFF.md``
-   - Read ``memory-index`` from Serena
-   - Read task-relevant memories listed in memory-index
-
-3. **Document Evidence** (REQUIRED):
-   - Session log MUST show tool outputs from steps 1-2
-   - ``protocolCompliance.sessionStart.memoriesLoaded`` MUST list specific memories
-
-**Why This Matters**: Without memory retrieval, you will repeat past mistakes, violate learned constraints, and ignore architectural decisions.
-
-**After $EDUCATION_THRESHOLD warnings, this becomes BLOCKING.**
-
-"@
-        Write-Output $output
-        exit 0
-    }
-    else {
-        # Escalated warning phase (SessionStart cannot block, only inject context)
-        $output = @"
-
-## ADR-007: Memory-First Protocol Violation (Warning $count, past threshold)
-
-**Reason**: $($evidence.Reason)
-
-Complete these steps NOW (in order):
-
-1. **Initialize Serena** (REQUIRED):
-   ``````
-   mcp__serena__activate_project
-   mcp__serena__initial_instructions
-   ``````
-
-2. **Load Project Context** (REQUIRED):
-   - Read ``.agents/HANDOFF.md``
-   - Read ``memory-index`` from Serena
-   - Read task-relevant memories listed in memory-index
-
-3. **Document Evidence** (REQUIRED):
-   - Session log MUST show tool outputs from steps 1-2
-   - ``protocolCompliance.sessionStart.memoriesLoaded`` MUST list specific memories
-
-**Why This Matters**: Without memory retrieval, you will repeat past mistakes, violate learned constraints, and ignore architectural decisions.
-
-See: ``.agents/SESSION-PROTOCOL.md`` Phase 1-2
-
-"@
-        Write-Output $output
-        exit 0
-    }
+    $severity = if ($count -le $EDUCATION_THRESHOLD) { "Warning $count/$EDUCATION_THRESHOLD" } else { "VIOLATION (warning $count)" }
+    Write-Output "`nADR-007 $severity : $($evidence.Reason). Complete: Serena init, HANDOFF.md read, memory retrieval. See AGENTS.md Session Protocol Gates.`n"
+    exit 0
 }
 catch {
     # Fail-open on errors (don't block session startup)

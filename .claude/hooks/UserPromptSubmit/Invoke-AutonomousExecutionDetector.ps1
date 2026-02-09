@@ -106,56 +106,8 @@ try {
         exit 0
     }
 
-    # Autonomy keywords detected - inject stricter protocol
-    $output = @"
-
-## ⚠️  AUTONOMOUS EXECUTION DETECTED
-
-You have signaled autonomous/unattended execution. This mode enforces STRICTER protocol:
-
-### Session Log Requirement (MANDATORY)
-- Must have session log for today (`.agents/sessions/$(Get-Date -Format 'yyyy-MM-dd')-session-NN.json`)
-- Session log must evidence memory retrieval (Serena activation, HANDOFF.md read)
-- Session log must evidence all major decisions
-
-### Multi-Agent Consensus Gates
-High-risk operations REQUIRE multi-agent review BEFORE execution:
-- PR merge, force push, branch delete
-- Database migrations
-- Infrastructure changes
-- Config changes affecting production
-
-Use `/orchestrator` to engage consensus gates.
-
-### Audit Trail Requirements
-Autonomous execution MUST log:
-- Reason for autonomy request
-- Decision rationale (from session log)
-- Review gates passed/bypassed
-- Exact commands executed
-- Outcomes and any failures
-
-### Blocked Operations in Autonomous Mode
-These operations are BLOCKED in autonomous execution:
-- \`\`\`git push --force\`\`\`
-- \`\`\`git branch -D <branch>\`\`\`
-- \`\`\`gh pr merge --delete-branch\`\`\`
-- Any operation on \`main\` branch
-- Any operation affecting CI/CD workflows
-
-### Proceed Only If:
-1. ✅ Session log exists with full evidence
-2. ✅ All decisions logged in session
-3. ✅ High-risk operations will use consensus gates
-4. ✅ You understand audit trail requirements
-
-**This is not a block - proceed at your own risk if requirements aren't met.**
-
-See: ``.agents/SESSION-PROTOCOL.md`` for full autonomous execution protocol.
-
-"@
-
-    Write-Output $output
+    # Autonomy keywords detected - inject compact stricter protocol
+    Write-Output "`nAutonomous mode: Stricter protocol active. Session log with evidence required. High-risk ops (merge, force-push, branch delete) need consensus gates via /orchestrator. Blocked on main. See SESSION-PROTOCOL.md.`n"
     exit 0
 }
 catch {

@@ -58,9 +58,9 @@ Describe "Invoke-SessionStartMemoryFirst" {
             $Output = & $TempHookPath
             $LASTEXITCODE | Should -Be 0
             $Output | Should -Not -BeNullOrEmpty
-            # Should use defaults and output connection check disabled message
+            # Should use defaults and output compact ADR-007 status line
             $OutputString = $Output -join "`n"
-            $OutputString | Should -Match "Connection check disabled"
+            $OutputString | Should -Match "ADR-007 active"
         }
     }
 
@@ -224,106 +224,106 @@ Describe "Invoke-SessionStartMemoryFirst" {
             }
         }
 
-        It "Parses URL successfully but doesn't use it (TCP check disabled)" {
+        It "Parses URL successfully and outputs compact status" {
             $TempHookPath = Join-Path $Script:TestRoot ".claude/hooks/Invoke-SessionStartMemoryFirst.ps1"
             { & $TempHookPath } | Should -Not -Throw
             $Output = & $TempHookPath
             $LASTEXITCODE | Should -Be 0
-            # TCP check is disabled, so URL is parsed but not used
+            # URL is parsed but TCP check is disabled; compact output still emitted
             $OutputString = $Output -join "`n"
-            $OutputString | Should -Match "Connection check disabled"
+            $OutputString | Should -Match "ADR-007 active"
         }
     }
 
-    Context "Output content validation" {
+    Context "Output content validation - compact format" {
         BeforeAll {
             $Output = & $Script:HookPath
             $Script:OutputString = $Output -join "`n"
         }
 
-        It "Outputs ADR-007 enforcement header" {
-            $Script:OutputString | Should -Match "ADR-007 Memory-First Enforcement"
+        It "Outputs ADR-007 active marker" {
+            $Script:OutputString | Should -Match "ADR-007 active"
         }
 
-        It "Includes BLOCKING GATE instruction" {
-            $Script:OutputString | Should -Match "BLOCKING GATE"
+        It "Outputs exactly one line" {
+            $Output = & $Script:HookPath
+            $Output | Should -HaveCount 1
         }
 
-        It "Includes MCP Server Status section" {
-            $Script:OutputString | Should -Match "MCP Server Status"
+        It "Includes Forgetful status" {
+            $Script:OutputString | Should -Match "Forgetful:"
         }
 
-        It "Includes connection check disabled message" {
-            $Script:OutputString | Should -Match "Connection check disabled"
+        It "Shows Forgetful unavailable when not configured (default)" {
+            $Script:OutputString | Should -Match "Forgetful: unavailable"
         }
 
-        It "Includes Fallback Mode message (ForgetfulAvailable = false)" {
-            $Script:OutputString | Should -Match "Fallback Mode"
-            $Script:OutputString | Should -Match "Forgetful is unavailable"
+        It "Includes Serena fallback hint when Forgetful unavailable" {
+            $Script:OutputString | Should -Match "use Serena"
         }
 
-        It "Includes Serena memory-index guidance" {
-            $Script:OutputString | Should -Match "Serena memory-index"
+        It "Includes Protocol reference" {
+            $Script:OutputString | Should -Match "Protocol:"
         }
 
-        It "Includes Forgetful installation instructions for Linux" {
-            $Script:OutputString | Should -Match "Install-ForgetfulLinux\.ps1"
+        It "References AGENTS.md as protocol source" {
+            $Script:OutputString | Should -Match "AGENTS\.md"
         }
 
-        It "Includes Forgetful installation instructions for Windows" {
-            $Script:OutputString | Should -Match "Install-ForgetfulWindows\.ps1"
+        It "References Session Protocol Gates section" {
+            $Script:OutputString | Should -Match "Session Protocol Gates"
         }
 
-        It "Includes Phase 1 Serena initialization header" {
-            $Script:OutputString | Should -Match "Phase 1: Serena Initialization"
+        It "Does NOT include verbose Phase 1 header" {
+            $Script:OutputString | Should -Not -Match "Phase 1: Serena Initialization"
         }
 
-        It "Includes mcp__serena__activate_project instruction" {
-            $Script:OutputString | Should -Match "mcp__serena__activate_project"
+        It "Does NOT include verbose Phase 2 header" {
+            $Script:OutputString | Should -Not -Match "Phase 2: Context Retrieval"
         }
 
-        It "Includes mcp__serena__initial_instructions instruction" {
-            $Script:OutputString | Should -Match "mcp__serena__initial_instructions"
+        It "Does NOT include BLOCKING GATE text" {
+            $Script:OutputString | Should -Not -Match "BLOCKING GATE"
         }
 
-        It "Includes Phase 2 context retrieval header" {
-            $Script:OutputString | Should -Match "Phase 2: Context Retrieval"
+        It "Does NOT include MCP Server Status section" {
+            $Script:OutputString | Should -Not -Match "MCP Server Status"
         }
 
-        It "Includes HANDOFF.md reference" {
-            $Script:OutputString | Should -Match "\.agents/HANDOFF\.md"
+        It "Does NOT include verbose Verification section" {
+            $Script:OutputString | Should -Not -Match "Session logs MUST evidence memory retrieval"
         }
 
-        It "Includes memory-index reference" {
-            $Script:OutputString | Should -Match "memory-index"
+        It "Does NOT include pre-commit validation warning" {
+            $Script:OutputString | Should -Not -Match "Pre-commit validation will fail"
         }
 
-        It "Includes task-relevant memories instruction" {
-            $Script:OutputString | Should -Match "Read task-relevant memories"
+        It "Does NOT include SESSION-PROTOCOL.md path" {
+            $Script:OutputString | Should -Not -Match "\.agents/SESSION-PROTOCOL\.md"
         }
 
-        It "Does NOT include optional Forgetful query (ForgetfulAvailable = false)" {
+        It "Does NOT include ADR-007 architecture document path" {
+            $Script:OutputString | Should -Not -Match "\.agents/architecture/ADR-007-memory-first-architecture\.md"
+        }
+
+        It "Does NOT include mcp__serena__activate_project instruction" {
+            $Script:OutputString | Should -Not -Match "mcp__serena__activate_project"
+        }
+
+        It "Does NOT include HANDOFF.md reference" {
+            $Script:OutputString | Should -Not -Match "\.agents/HANDOFF\.md"
+        }
+
+        It "Does NOT include memory-index reference" {
+            $Script:OutputString | Should -Not -Match "memory-index"
+        }
+
+        It "Does NOT include Forgetful query instruction" {
             $Script:OutputString | Should -Not -Match "Query Forgetful for semantic search"
         }
 
-        It "Includes verification section" {
-            $Script:OutputString | Should -Match "Verification"
-        }
-
-        It "Includes session log evidence requirement" {
-            $Script:OutputString | Should -Match "Session logs MUST evidence memory retrieval"
-        }
-
-        It "Includes pre-commit validation warning" {
-            $Script:OutputString | Should -Match "Pre-commit validation will fail"
-        }
-
-        It "References SESSION-PROTOCOL.md" {
-            $Script:OutputString | Should -Match "\.agents/SESSION-PROTOCOL\.md"
-        }
-
-        It "References ADR-007 architecture document" {
-            $Script:OutputString | Should -Match "\.agents/architecture/ADR-007-memory-first-architecture\.md"
+        It "Does NOT include install instructions" {
+            $Script:OutputString | Should -Not -Match "Install-Forgetful"
         }
     }
 
