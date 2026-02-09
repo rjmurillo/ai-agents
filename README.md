@@ -286,10 +286,36 @@ ai-agents/
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed contribution guidelines.
 
+### Developer Setup
+
+If you're contributing code or running tests locally:
+
 1. Fork and clone the repository
-2. Enable pre-commit hooks: `git config core.hooksPath .githooks`
-3. Make changes following the guidelines
-4. Submit a pull request
+2. Install Python dependencies:
+
+   ```bash
+   # Create virtual environment (optional but recommended)
+   uv venv
+   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+
+   # Install project with dev dependencies
+   uv pip install -e ".[dev]"
+   ```
+
+3. Set up environment variables (copy `.env.example` to `.env` and fill in your API keys)
+4. Enable pre-commit hooks: `git config core.hooksPath .githooks`
+5. Run tests to verify setup:
+
+   ```bash
+   # Python tests
+   python -m pytest tests/ -v
+
+   # PowerShell tests
+   pwsh -Command "Invoke-Pester tests/ -Output Detailed"
+   ```
+
+6. Make changes following the guidelines
+7. Submit a pull request
 
 ### Agent Development
 
