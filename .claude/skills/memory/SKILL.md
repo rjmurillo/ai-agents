@@ -128,6 +128,60 @@ See `.agents/analysis/chestertons-fence.md` for:
 
 ---
 
+## Context Engineering
+
+This skill implements [progressive disclosure principles](references/context-engineering.md) from Anthropic and claude-mem.ai research, achieving 10x token savings through three-layer architecture.
+
+### Architecture
+
+| Layer | Tool | Cost | When to Use |
+|-------|------|------|-------------|
+| **Index** | `Search-Memory.ps1` | ~100-500 tokens | Always start here |
+| **Details** | `mcp__serena__read_memory` | ~500-10K tokens | After index confirms relevance |
+| **Deep Dive** | Follow cross-references | Variable | For complete understanding |
+
+### Token Cost Visibility
+
+```bash
+# Count tokens before retrieval (informed ROI decision)
+python3 .claude/skills/memory/scripts/count_memory_tokens.py .serena/memories/memory-index.md
+
+# Output: memory-index.md: 2,450 tokens
+```
+
+**Caching**: SHA-256 hash-based cache in `.serena/.token-cache.json` provides 10-100x speedup on repeated queries.
+
+See: [scripts/README-count-tokens.md](scripts/README-count-tokens.md)
+
+### Size Validation
+
+```bash
+# Pre-commit hook: enforce atomicity thresholds
+python3 .claude/skills/memory/scripts/test_memory_size.py .serena/memories --pattern "*.md"
+
+# Exit 0 (pass) or 1 (fail) with decomposition recommendations
+```
+
+**Thresholds** (from `memory-size-001-decomposition-thresholds`):
+
+- Max 10,000 chars (~2,500 tokens, atomic memory)
+- Max 15 skills (independent concepts per file)
+- Max 5 categories (domain focus)
+
+See: [scripts/README-test-size.md](scripts/README-test-size.md)
+
+### Principles
+
+**Progressive Disclosure**: List names → Read details → Deep dive on cross-references. Prevents loading 9,500 tokens when only 1,200 are relevant (87% waste reduction).
+
+**Just-in-Time Retrieval**: Serena-first with Forgetful augmentation. High precision through lexical search before expensive semantic operations.
+
+**Size Enforcement**: Atomic memories prevent token waste. One retrievable concept per file.
+
+For full analysis, see: `.agents/analysis/context-engineering.md`
+
+---
+
 ## Triggers
 
 | Trigger Phrase | Maps To |
