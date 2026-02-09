@@ -27,8 +27,12 @@ from textwrap import dedent
 
 import pytest
 
-# Path to script
-SCRIPT_PATH = Path(__file__).parent.parent / "scripts" / "compress_markdown_content.py"
+# Path to script (tests moved to root tests/, scripts remain in skill)
+REPO_ROOT = Path(__file__).parent.parent.parent
+SCRIPT_PATH = (
+    REPO_ROOT / ".claude" / "skills" / "context-optimizer" / "scripts"
+    / "compress_markdown_content.py"
+)
 
 
 def run_compression(content: str, level: str = "medium") -> dict:

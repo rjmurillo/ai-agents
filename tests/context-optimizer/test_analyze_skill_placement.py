@@ -25,8 +25,9 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-# Add scripts directory to path
-scripts_dir = Path(__file__).parent.parent / "scripts"
+# Add scripts directory to path (tests moved to root tests/, scripts remain in skill)
+repo_root = Path(__file__).parent.parent.parent
+scripts_dir = repo_root / ".claude" / "skills" / "context-optimizer" / "scripts"
 sys.path.insert(0, str(scripts_dir))
 
 from analyze_skill_placement import (  # noqa: E402

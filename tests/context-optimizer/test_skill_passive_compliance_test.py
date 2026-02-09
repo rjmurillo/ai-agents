@@ -6,12 +6,12 @@ from pathlib import Path
 
 import pytest
 
-# Add scripts directory to path
-sys.path.insert(
-    0, str(Path(__file__).parent.parent / "scripts")
-)
+# Add scripts directory to path (tests moved to root tests/, scripts remain in skill)
+repo_root = Path(__file__).parent.parent.parent
+scripts_dir = repo_root / ".claude" / "skills" / "context-optimizer" / "scripts"
+sys.path.insert(0, str(scripts_dir))
 
-from test_skill_passive_compliance import (
+from test_skill_passive_compliance import (  # noqa: E402
     check_claude_md_line_count,
     check_imported_files_exist,
     check_no_duplicate_content,
