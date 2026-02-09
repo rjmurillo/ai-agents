@@ -61,6 +61,7 @@ def check_workflow_rate_limit(
         capture_output=True,
         text=True,
         check=True,
+        timeout=30,
     )
     rate_limit = json.loads(result.stdout)
 
@@ -267,10 +268,11 @@ def check_workflow_environment() -> EnvironmentResult:
             capture_output=True,
             text=True,
             check=True,
+            timeout=30,
         )
         first_line = result.stdout.strip().splitlines()[0]
         versions["gh"] = re.sub(r"gh version\s*", "", first_line)
-    except (subprocess.CalledProcessError, FileNotFoundError):
+    except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
         versions["gh"] = "NOT FOUND"
         valid = False
 
@@ -280,9 +282,10 @@ def check_workflow_environment() -> EnvironmentResult:
             capture_output=True,
             text=True,
             check=True,
+            timeout=30,
         )
         versions["git"] = re.sub(r"git version\s*", "", result.stdout.strip())
-    except (subprocess.CalledProcessError, FileNotFoundError):
+    except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
         versions["git"] = "NOT FOUND"
         valid = False
 

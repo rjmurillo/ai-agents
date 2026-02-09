@@ -128,6 +128,14 @@ class TestGetTodaySessionLog:
         result = get_today_session_log(str(tmp_path), date="2025-01-16")
         assert result is None
 
+    def test_rejects_traversal_in_date(self, tmp_path: Path) -> None:
+        with pytest.raises(ValueError, match="Invalid date format"):
+            get_today_session_log(str(tmp_path), date="../2025-01-15")
+
+    def test_rejects_non_date_string(self, tmp_path: Path) -> None:
+        with pytest.raises(ValueError, match="Invalid date format"):
+            get_today_session_log(str(tmp_path), date="not-a-date")
+
 
 class TestGetTodaySessionLogs:
     def test_returns_empty_for_nonexistent_dir(self, tmp_path: Path) -> None:

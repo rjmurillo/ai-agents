@@ -12,6 +12,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 _GIT_COMMIT_PATTERN = re.compile(r"(?:^|\s)git\s+(commit|ci)")
+_DATE_FORMAT = re.compile(r"\d{4}-\d{2}-\d{2}")
 
 
 def get_project_directory() -> str:
@@ -58,6 +59,9 @@ def get_today_session_log(sessions_dir: str, date: str | None = None) -> Path | 
     """
     if date is None:
         date = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+    elif not _DATE_FORMAT.fullmatch(date):
+        msg = f"Invalid date format: {date!r}. Expected YYYY-MM-DD."
+        raise ValueError(msg)
 
     sessions_path = Path(sessions_dir)
     if not sessions_path.is_dir():
