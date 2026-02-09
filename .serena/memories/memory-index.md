@@ -44,7 +44,7 @@
 | retrospective learning session failure skill persistence extract artifact efficiency concurrent | [skills-retrospective-index](skills-retrospective-index.md), [retrospective-artifact-efficiency-pattern](retrospective-artifact-efficiency-pattern.md) |
 | regex pattern match escape lookahead anchor quantifier | [utilities-regex](utilities-regex.md) |
 | roadmap epic priority strategic vision business value | [roadmap-priorities](roadmap-priorities.md) |
-| governance agent consolidation design principle overlap | [governance-001-8-question-agent-interview](governance-001-8-question-agent-interview.md), [governance-002-five-consolidation-triggers](governance-002-five-consolidation-triggers.md) |
+| governance agent consolidation design principle overlap | [governance-001-8question-agent-interview-94](governance-001-8question-agent-interview-94.md), [governance-002-five-consolidation-triggers-90](governance-002-five-consolidation-triggers-90.md) |
 | dorny paths-filter checkout base ref PR changes | [ci-infrastructure-dorny-paths-filter-checkout](ci-infrastructure-dorny-paths-filter-checkout.md) |
 | edit file read search replace text operation | [edit-001-read-before-edit-pattern](edit-001-read-before-edit-pattern.md), [edit-002-unique-context-for-edit-matching](edit-002-unique-context-for-edit-matching.md) |
 | code smell refactoring bloaters couplers dispensables taxonomy Fowler | [code-smells-catalog](code-smells-catalog.md) |
@@ -52,7 +52,7 @@
 | process workflow gap missing capability root cause | [orchestration-process-workflow-gaps](orchestration-process-workflow-gaps.md) |
 | cva refactoring variant consolidation template generate | [utilities-cva-refactoring](utilities-cva-refactoring.md) |
 | prompt engineering quality gate AI assessment template | [quality-prompt-engineering-gates](quality-prompt-engineering-gates.md) |
-| phase3 agent skill session handoff template verification | [agent-workflow-004-proactive-template-sync-verification](agent-workflow-004-proactive-template-sync-verification.md), [agent-workflow-005-structured-handoff-formats](agent-workflow-005-structured-handoff-formats.md) |
+| phase3 agent skill session handoff template verification | [agentworkflow-004-proactive-template-sync-verification-95](agentworkflow-004-proactive-template-sync-verification-95.md), [agentworkflow-005-structured-handoff-formats-88](agentworkflow-005-structured-handoff-formats-88.md) |
 | serena token efficiency symbolic tools cache memory read search | [skills-serena-index](skills-serena-index.md) |
 | passive context AGENTS.md skills decision-point retrieval-led compression vercel | [passive-context-vs-skills-vercel-research](passive-context-vs-skills-vercel-research.md), [claude-md-anthropic-best-practices](claude-md-anthropic-best-practices.md), [claude-code-skills-official-guidance](claude-code-skills-official-guidance.md) |
 

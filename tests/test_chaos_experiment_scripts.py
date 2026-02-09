@@ -27,6 +27,8 @@ from generate_experiment import (
     generate_experiment_id,
     load_template,
     save_document,
+)
+from generate_experiment import (
     validate_path_no_traversal as generate_validate_path,
 )
 from validate_experiment import (
@@ -42,6 +44,8 @@ from validate_experiment import (
     check_section_presence,
     load_document,
     validate_experiment,
+)
+from validate_experiment import (
     validate_path_no_traversal as validate_validate_path,
 )
 
@@ -226,6 +230,7 @@ class TestResult:
         )
 
         assert result.success is False
+        assert result.errors is not None
         assert len(result.errors) == 2
 
     def test_result_with_data(self) -> None:
@@ -236,6 +241,7 @@ class TestResult:
             data={"path": "/test/file.md", "name": "Test"},
         )
 
+        assert result.data is not None
         assert result.data["path"] == "/test/file.md"
 
 
