@@ -1,0 +1,130 @@
+{
+  "session": {
+    "branch": "feat/v0.3.1-powershell-migration-plan",
+    "date": "2026-02-08",
+    "objective": "Create v0.3.1 PowerShell migration plan from project details",
+    "startingCommit": "0f0a7a15",
+    "number": 1194
+  },
+  "endingCommit": "",
+  "workLog": [
+    {
+      "timestamp": "2026-02-08T21:45:00Z",
+      "action": "Created comprehensive v0.3.1 PowerShell migration plan at .agents/planning/v0.3.1/PLAN.md",
+      "details": "Structured plan following v0.3.0 format with 5 parallel tracks, 16 issues, 12-month timeline, and agent-ready implementation cards"
+    }
+  ],
+  "schemaVersion": "1.0",
+  "nextSteps": [
+    "Review and approve v0.3.1 plan structure",
+    "Create GitHub issues #1050-#1066 per plan specification",
+    "Set up worktrees for 5 parallel execution tracks",
+    "Begin Track A (cleanup) with #1050 (delete dead code)"
+  ],
+  "protocolCompliance": {
+    "sessionStart": {
+      "constraintsRead": {
+        "Complete": false,
+        "Evidence": "",
+        "level": "MUST"
+      },
+      "serenaActivated": {
+        "Complete": true,
+        "Evidence": "Serena project activated",
+        "level": "MUST"
+      },
+      "serenaInstructions": {
+        "Complete": true,
+        "Evidence": "Serena instructions loaded",
+        "level": "MUST"
+      },
+      "branchVerified": {
+        "Complete": true,
+        "Evidence": "Branch: feat/v0.3.1-powershell-migration-plan",
+        "level": "MUST"
+      },
+      "startingCommitNoted": {
+        "Complete": true,
+        "Evidence": "SHA: 0f0a7a15",
+        "level": "SHOULD"
+      },
+      "skillScriptsListed": {
+        "Complete": false,
+        "Evidence": "",
+        "level": "MUST"
+      },
+      "notOnMain": {
+        "Complete": true,
+        "Evidence": "Branch: feat/v0.3.1-powershell-migration-plan (not on main)",
+        "level": "MUST"
+      },
+      "sessionLogCreated": {
+        "Complete": true,
+        "Evidence": "This file exists",
+        "level": "MUST"
+      },
+      "gitStatusVerified": {
+        "Complete": false,
+        "Evidence": "",
+        "level": "SHOULD"
+      },
+      "handoffRead": {
+        "Complete": true,
+        "Evidence": "HANDOFF.md read - read-only reference",
+        "level": "MUST"
+      },
+      "memoriesLoaded": {
+        "Complete": true,
+        "Evidence": "Loaded usage-mandatory memory",
+        "level": "MUST"
+      },
+      "usageMandatoryRead": {
+        "Complete": true,
+        "Evidence": "usage-mandatory memory loaded with skill-first pattern",
+        "level": "MUST"
+      }
+    },
+    "sessionEnd": {
+      "tasksUpdated": {
+        "Complete": false,
+        "Evidence": "",
+        "level": "SHOULD"
+      },
+      "retrospectiveInvoked": {
+        "Complete": false,
+        "Evidence": "",
+        "level": "SHOULD"
+      },
+      "serenaMemoryUpdated": {
+        "Complete": true,
+        "Evidence": "Created planning-v031-structure memory",
+        "level": "MUST"
+      },
+      "checklistComplete": {
+        "Complete": true,
+        "Evidence": "Session log completed with work log and next steps",
+        "level": "MUST"
+      },
+      "markdownLintRun": {
+        "Complete": true,
+        "Evidence": "markdownlint-cli2 --fix on .agents/planning/v0.3.1/PLAN.md - 0 errors",
+        "level": "MUST"
+      },
+      "changesCommitted": {
+        "Complete": false,
+        "Evidence": "Pending commit after validation",
+        "level": "MUST"
+      },
+      "validationPassed": {
+        "Complete": false,
+        "Evidence": "Pending validation",
+        "level": "MUST"
+      },
+      "handoffNotUpdated": {
+        "Complete": false,
+        "Evidence": "HANDOFF.md is read-only, not modified",
+        "level": "MUST NOT"
+      }
+    }
+  }
+}
