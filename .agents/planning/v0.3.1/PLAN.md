@@ -298,6 +298,10 @@ gantt
 
 ### [#1050](https://github.com/rjmurillo/ai-agents/issues/1050) - Delete dead code
 
+**Goals**: Remove 3 PowerShell scripts with zero active references. Reduce migration scope.
+
+**Non-Goals**: Do not audit or delete scripts with any remaining callers. Do not migrate these to Python (they are dead code).
+
 Scripts with zero active references (verified with `rg` across entire repo):
 
 **Files to Delete**:
@@ -305,11 +309,27 @@ Scripts with zero active references (verified with `rg` across entire repo):
 - [ ] `.agents/benchmarks/test-parent-shell-impact.ps1`
 - [ ] `.agents/retrospective/analyze-compliance.ps1`
 
+**Pre-Deletion Verification**:
+```bash
+# Confirm zero references (must return empty)
+rg "Fix-PR964-Validation" --type-not md
+rg "test-parent-shell-impact" --type-not md
+rg "analyze-compliance" --type-not md
+```
+
 **Verification**: `git grep -l "Fix-PR964-Validation\|test-parent-shell-impact\|analyze-compliance"` returns 0 results
 
-**Exit Criteria**: 3 .ps1 files deleted, no references in codebase
+**Done Criteria**:
+- [ ] 3 .ps1 files deleted
+- [ ] `rg "Fix-PR964-Validation|test-parent-shell-impact|analyze-compliance" --type-not md` returns 0 results
+- [ ] CI passes (pester-tests.yml, powershell-lint.yml green)
+- [ ] No Pester test files reference deleted scripts
 
 ### [#1051](https://github.com/rjmurillo/ai-agents/issues/1051) - Remove already-migrated duplicates
+
+**Goals**: Delete PowerShell scripts that already have working Python equivalents. Eliminate dual maintenance.
+
+**Non-Goals**: Do not migrate new scripts. Do not modify the Python equivalents. Do not update callers (that is #1052 for SessionJson).
 
 **Files to Delete**:
 - [ ] `scripts/Detect-SkillViolation.ps1` + `tests/Detect-SkillViolation.Tests.ps1`
@@ -319,35 +339,69 @@ Scripts with zero active references (verified with `rg` across entire repo):
 - [ ] `.claude/skills/metrics/collect-metrics.ps1` + tests
 - [ ] `.claude/skills/fix-markdown-fences/fix_fences.ps1` + tests
 
-**Verification Steps**:
-1. Run pytest for each Python version: `pytest tests/test_<name>.py -v`
-2. Verify Python versions are active callers: `rg "<script_name>.py"`
-3. Check no PS1 references remain: `rg "<script_name>.ps1"`
+**Verification Steps** (per script):
+1. Run pytest for Python version: `pytest tests/test_<name>.py -v` (must pass)
+2. Verify Python version is the active caller: `rg "<script_name>.py"` (must show callers)
+3. Confirm PS1 has no unique callers: `rg "<script_name>.ps1"` (only self-references or docs)
 4. Delete PS1 + Tests.ps1 files
+5. Run CI: `pytest tests/ && ruff check scripts/` (must pass)
 
-**Exit Criteria**: 5 .ps1 files + 5 .Tests.ps1 files deleted, pytest coverage ≥ Pester
+**Done Criteria**:
+- [ ] 5 .ps1 files + 5 .Tests.ps1 files deleted (10 files total)
+- [ ] `pytest tests/test_detect_skill_violation.py tests/test_check_skill_exists.py tests/test_validate_session_json.py -v` all pass
+- [ ] `rg "Detect-SkillViolation.ps1|Check-SkillExists.ps1" --type-not md` returns 0 results
+- [ ] pytest coverage for each script >= Pester baseline
 
 ### [#1052](https://github.com/rjmurillo/ai-agents/issues/1052) - Validate-SessionJson switchover
 
+**Goals**: Switch all 148+ callers from `Validate-SessionJson.ps1` to `validate_session_json.py`. Achieve feature parity first, then update callers, then delete PS1.
+
+**Non-Goals**: Do not rewrite the Python validation logic. Do not change session log schema. Do not modify other validation scripts.
+
+**Known Gap (from Traycer analysis)**: The Python version is **missing investigation-only mode validation** (lines 161-244 in PowerShell version). This validates staged files against an allowlist when `SKIPPED: investigation-only` is claimed. This gap MUST be closed before switching callers.
+
+**Phase 1: Achieve Feature Parity**:
+- [ ] Port investigation-only detection: regex `(?i)SKIPPED:\s*investigation-only` in `protocolCompliance.sessionEnd` evidence
+- [ ] Port allowlist patterns: `^\.agents/sessions/`, `^\.agents/analysis/`, `^\.agents/retrospective/`, `^\.serena/memories($|/)`, `^\.agents/security/`, `^\.agents/architecture/REVIEW-`, `^\.agents/critique/`, `^\.agents/memory/episodes/`
+- [ ] Port staged files check: `git diff --cached --name-only` with error handling
+- [ ] Add pytest tests for investigation-only mode
+- [ ] Verify: `python -m scripts.validate_session_json <investigation-log>` matches PS1 output
+
+**Phase 2: Output Compatibility Verification**:
+- [ ] Run both versions on 5 passing session logs, diff output
+- [ ] Run both versions on 3 failing session logs, diff output
+- [ ] Run both versions on 1 investigation-only session log, diff output
+- [ ] Verify exit codes match: 0=pass, 1=protocol violation, 2=usage error
+
 **Affected Files** (~148+ references):
-- `.github/workflows/ai-session-protocol.yml`
+- `.github/workflows/ai-session-protocol.yml` (line ~169)
 - `.agents/SESSION-PROTOCOL.md`
 - `CLAUDE.md`
 - `CRITICAL-CONTEXT.md`
+- `SKILL-QUICK-REF.md`
 - `.claude/skills/session-init/SKILL.md`
 - `.claude/skills/session-log-fixer/SKILL.md`
-- Agent prompt files (orchestrator, implementer, etc.)
+- `.claude/skills/session-end/SKILL.md`
+- Agent prompt files (orchestrator, implementer, qa, etc.)
 
-**Migration Checklist**:
-- [ ] Compare output format: `pwsh scripts/Validate-SessionJson.ps1 -SessionPath <log>` vs `python -m scripts.validate_session_json <log>`
-- [ ] Verify exit codes match (0=pass, 1=fail)
-- [ ] Update workflow: Change `pwsh scripts/Validate-SessionJson.ps1` → `python -m scripts.validate_session_json`
-- [ ] Update all documentation references
-- [ ] Delete `scripts/Validate-SessionJson.ps1` + `tests/Validate-SessionJson.Tests.ps1`
+**Phase 3: Caller Migration**:
+- [ ] Update workflow: `pwsh scripts/Validate-SessionJson.ps1 -SessionPath` -> `python scripts/validate_session_json.py --session-path`
+- [ ] Update all documentation references (batch find/replace)
+- [ ] Update SKILL.md files for session skills
+- [ ] Update agent prompt files
+- [ ] Verify CI: `ai-session-protocol.yml` passes with Python version
 
-**Verification**: `rg "Validate-SessionJson.ps1"` returns 0 results (only .py version remains)
+**Phase 4: Cleanup**:
+- [ ] Delete `scripts/Validate-SessionJson.ps1` + `tests/Validate-SessionJson.Tests.ps1` (handled in #1051)
 
-**Exit Criteria**: 148+ references updated, CI workflow passes with Python version
+**Verification**: `rg "Validate-SessionJson.ps1" --type-not md` returns 0 results
+
+**Done Criteria**:
+- [ ] Investigation-only mode ported with tests
+- [ ] Output format identical for all test scenarios (pass, fail, investigation-only)
+- [ ] 148+ references updated to Python version
+- [ ] CI workflow `ai-session-protocol.yml` green with Python version
+- [ ] `rg "Validate-SessionJson.ps1" --type-not md` returns 0 results
 
 **Scope Reduction**: Phase 0 removes ~9 .ps1 files and ~6 .Tests.ps1 files from total scope.
 
@@ -357,12 +411,16 @@ Scripts with zero active references (verified with `rg` across entire repo):
 
 ### [#1053](https://github.com/rjmurillo/ai-agents/issues/1053) - Shared modules (CRITICAL PATH ⭐)
 
-**Migration Order** (by consumer count):
-1. `GitHubCore.psm1` (1394 lines, 23 consumers)
-2. `AIReviewCommon.psm1` (1312 lines, 3 workflows)
-3. `PRMaintenanceModule.psm1` (~200 lines, 1 workflow)
-4. `TestResultHelpers.psm1` (~150 lines, test workflows)
-5. `HookUtilities.psm1` (~100 lines, 12 hook scripts)
+**Goals**: Migrate 5 shared .psm1 modules to Python packages with matching API surfaces. Unblock all downstream issues.
+
+**Non-Goals**: Do not migrate consumer scripts (that is #1054, #1055, #1060, #1065). Do not change module behavior or add features. Do not optimize algorithms during migration.
+
+**Migration Order** (smallest first to establish patterns, then critical path):
+1. `HookUtilities.psm1` (~100 lines, 4 functions) -- pattern establishment
+2. `TestResultHelpers.psm1` (~150 lines, 1 function) -- simple, low risk
+3. `PRMaintenanceModule.psm1` (~200 lines, 6 functions) -- moderate
+4. `GitHubCore.psm1` (1394 lines, 21 functions) -- critical path, highest consumer count
+5. `AIReviewCommon.psm1` (1312 lines, 24 functions) -- critical path, workflow-coupled
 
 **Python Package Structure**:
 ```
@@ -376,62 +434,205 @@ scripts/
 │   ├── __init__.py
 │   ├── quality_gate.py
 │   └── issue_triage.py
-└── ...
+├── pr_maintenance/
+│   ├── __init__.py
+│   └── maintenance.py
+├── test_result_helpers/
+│   ├── __init__.py
+│   └── helpers.py
+└── hook_utilities/
+    ├── __init__.py
+    └── utilities.py
 ```
 
-**Per-Module Checklist**:
-- [ ] Create Python package with `__init__.py`
-- [ ] Migrate functions with type hints
-- [ ] Add pytest tests (coverage ≥ Pester)
-- [ ] Update 1 consumer as proof-of-concept
-- [ ] Verify integration tests pass
-- [ ] Update remaining consumers
-- [ ] Delete PowerShell module + tests
+**pyproject.toml Updates Required**:
+- Add to `tool.setuptools.packages.find.include`: `"scripts.github_core*"`, `"scripts.ai_review_common*"`, `"scripts.pr_maintenance*"`, `"scripts.test_result_helpers*"`, `"scripts.hook_utilities*"`
+- Add to `tool.coverage.run.source`: new package paths
+- Add dependency if needed: `tenacity>=8.0.0` (for `Invoke-WithRetry` replacement in AIReviewCommon)
 
-**Exit Criteria**: `python -c "import scripts.github_core; import scripts.ai_review_common"` succeeds, all consumers updated
+#### Module 1: HookUtilities.psm1 (4 functions)
+
+| PowerShell Function | Python Function | Module |
+|---------------------|-----------------|--------|
+| `Get-ProjectDirectory` | `get_project_directory()` | `hook_utilities/utilities.py` |
+| `Test-GitCommitCommand` | `is_git_commit_command()` | `hook_utilities/utilities.py` |
+| `Get-TodaySessionLog` | `get_today_session_log()` | `hook_utilities/utilities.py` |
+| `Get-TodaySessionLogs` | `get_today_session_logs()` | `hook_utilities/utilities.py` |
+
+**API Pattern**: Check `CLAUDE_PROJECT_DIR` env var, walk up for `.git`, regex match git commands, glob for session JSONs.
+
+#### Module 2: TestResultHelpers.psm1 (1 function)
+
+| PowerShell Function | Python Function | Module |
+|---------------------|-----------------|--------|
+| `New-SkippedTestResult` | `create_skipped_test_result()` | `test_result_helpers/helpers.py` |
+
+#### Module 3: PRMaintenanceModule.psm1 (6 functions)
+
+| PowerShell Function | Python Function | Module |
+|---------------------|-----------------|--------|
+| `Test-WorkflowRateLimit` | `check_workflow_rate_limit()` | `pr_maintenance/maintenance.py` |
+| `Get-MaintenanceResults` | `get_maintenance_results()` | `pr_maintenance/maintenance.py` |
+| `New-MaintenanceSummary` | `create_maintenance_summary()` | `pr_maintenance/maintenance.py` |
+| `New-BlockedPRsAlertBody` | `create_blocked_prs_alert()` | `pr_maintenance/maintenance.py` |
+| `New-WorkflowFailureAlertBody` | `create_workflow_failure_alert()` | `pr_maintenance/maintenance.py` |
+| `Test-WorkflowEnvironment` | `check_workflow_environment()` | `pr_maintenance/maintenance.py` |
+
+#### Module 4: GitHubCore.psm1 (21 functions)
+
+| PowerShell Function | Python Function | Submodule |
+|---------------------|-----------------|-----------|
+| `Test-GitHubNameValid` | `is_github_name_valid()` | `validation.py` |
+| `Test-SafeFilePath` | `is_safe_file_path()` | `validation.py` |
+| `Assert-ValidBodyFile` | `assert_valid_body_file()` | `validation.py` |
+| `Get-RepoInfo` | `get_repo_info()` | `api.py` |
+| `Resolve-RepoParams` | `resolve_repo_params()` | `api.py` |
+| `Test-GhAuthenticated` | `is_gh_authenticated()` | `api.py` |
+| `Assert-GhAuthenticated` | `assert_gh_authenticated()` | `api.py` |
+| `Write-ErrorAndExit` | `error_and_exit()` | `api.py` |
+| `Invoke-GhApiPaginated` | `gh_api_paginated()` | `api.py` |
+| `Invoke-GhGraphQL` | `gh_graphql()` | `api.py` |
+| `Get-AllPRsWithComments` | `get_all_prs_with_comments()` | `api.py` |
+| `Get-PriorityEmoji` | `get_priority_emoji()` | `formatting.py` |
+| `Get-ReactionEmoji` | `get_reaction_emoji()` | `formatting.py` |
+| `Get-IssueComments` | `get_issue_comments()` | `api.py` |
+| `Update-IssueComment` | `update_issue_comment()` | `api.py` |
+| `New-IssueComment` | `create_issue_comment()` | `api.py` |
+| `Get-TrustedSourceComments` | `get_trusted_source_comments()` | `api.py` |
+| `Get-BotAuthorsConfig` | `get_bot_authors_config()` | `api.py` |
+| `Get-BotAuthors` | `get_bot_authors()` | `api.py` |
+| `Get-UnresolvedReviewThreads` | `get_unresolved_review_threads()` | `api.py` |
+| `Test-WorkflowRateLimit` | `check_workflow_rate_limit()` | `api.py` |
+
+**Key Implementation Notes**:
+- All `gh` CLI calls use `subprocess.run` with `check=True`
+- Paginated API: use `--paginate` flag or implement cursor-based pagination
+- GraphQL: use `gh api graphql -f query=...` pattern
+- Bot authors config: parse `bot-authors.yml` with PyYAML (already a dependency)
+- Validation functions return `bool`, assertion functions raise `SystemExit`
+
+#### Module 5: AIReviewCommon.psm1 (24 functions)
+
+| PowerShell Function | Python Function | Submodule |
+|---------------------|-----------------|-----------|
+| `Initialize-AIReview` | `initialize_ai_review()` | `quality_gate.py` |
+| `Invoke-WithRetry` | `invoke_with_retry()` | `quality_gate.py` |
+| `Get-Verdict` | `get_verdict()` | `quality_gate.py` |
+| `Get-Labels` | `get_labels()` | `quality_gate.py` |
+| `Get-Milestone` | `get_milestone()` | `quality_gate.py` |
+| `Merge-Verdicts` | `merge_verdicts()` | `quality_gate.py` |
+| `Get-FailureCategory` | `get_failure_category()` | `quality_gate.py` |
+| `Format-CollapsibleSection` | `format_collapsible_section()` | `issue_triage.py` |
+| `Format-VerdictAlert` | `format_verdict_alert()` | `issue_triage.py` |
+| `Get-VerdictAlertType` | `get_verdict_alert_type()` | `issue_triage.py` |
+| `Get-VerdictExitCode` | `get_verdict_exit_code()` | `issue_triage.py` |
+| `Write-Log` | `write_log()` | `issue_triage.py` |
+| `Write-LogError` | `write_log_error()` | `issue_triage.py` |
+| `Assert-EnvironmentVariables` | `assert_environment_variables()` | `quality_gate.py` |
+| `Get-PRChangedFiles` | `get_pr_changed_files()` | `quality_gate.py` |
+| `ConvertTo-JsonEscaped` | `escape_json_string()` | `issue_triage.py` |
+| `Format-MarkdownTableRow` | `format_markdown_table_row()` | `issue_triage.py` |
+| `Get-VerdictEmoji` | `get_verdict_emoji()` | `issue_triage.py` |
+| `Test-SpecValidationFailed` | `is_spec_validation_failed()` | `quality_gate.py` |
+| `Get-LabelsFromAIOutput` | `get_labels_from_ai_output()` | `quality_gate.py` |
+| `Get-MilestoneFromAIOutput` | `get_milestone_from_ai_output()` | `quality_gate.py` |
+| `Get-WorkflowRunsByPR` | `get_workflow_runs_by_pr()` | `quality_gate.py` |
+| `Test-RunsOverlap` | `check_runs_overlap()` | `quality_gate.py` |
+| `Get-ConcurrencyGroupFromRun` | `get_concurrency_group_from_run()` | `quality_gate.py` |
+
+**Key Implementation Notes**:
+- `Invoke-WithRetry`: Replace with `tenacity.retry` decorator (exponential backoff)
+- AI output parsing: regex extraction from LLM responses (JSON blocks, verdict strings)
+- Environment variable assertions: raise `SystemExit` with descriptive messages
+- GitHub Actions output: write to `$GITHUB_OUTPUT` file handle, not stdout
+
+**Per-Module Checklist** (repeat for each of the 5 modules):
+- [ ] Create Python package with `__init__.py` exporting public API
+- [ ] Port all functions with type hints (see function tables above)
+- [ ] Add pytest tests (coverage >= Pester baseline)
+- [ ] Update 1 consumer as proof-of-concept
+- [ ] Run integration test: call Python version from a consumer script
+- [ ] Update remaining consumers
+- [ ] Delete PowerShell module + Pester tests
+
+**Done Criteria**:
+- [ ] `python -c "from scripts.github_core import api, validation, formatting"` succeeds
+- [ ] `python -c "from scripts.ai_review_common import quality_gate, issue_triage"` succeeds
+- [ ] `python -c "from scripts.hook_utilities import utilities"` succeeds
+- [ ] `python -c "from scripts.pr_maintenance import maintenance"` succeeds
+- [ ] `python -c "from scripts.test_result_helpers import helpers"` succeeds
+- [ ] All 56 functions ported (21 + 24 + 6 + 4 + 1)
+- [ ] pytest coverage >= Pester for each module
+- [ ] 1 consumer per module verified with Python import
+- [ ] pyproject.toml updated with new packages
 
 **Blocks**: #1054, #1055, #1060, #1065
 
 ### [#1054](https://github.com/rjmurillo/ai-agents/issues/1054) - High-churn scripts
 
-| Script | Modifications (since Dec 2025) | Lines | Workflow |
-|--------|-------------------------------|-------|----------|
-| `scripts/Invoke-PRMaintenance.ps1` | 12 | 849 | pr-maintenance |
-| `.claude/skills/github/scripts/pr/Detect-CopilotFollowUpPR.ps1` | 10 | ~300 | (hook) |
-| `build/Generate-Agents.Common.psm1` | 6 | 589 | validate-generated-agents |
+**Goals**: Migrate 3 high-modification-frequency scripts to Python. Reduce ongoing PS1 maintenance cost for the most-edited files.
+
+**Non-Goals**: Do not migrate low-churn scripts (handled in later phases). Do not refactor logic during migration.
+
+| Script | Modifications (since Dec 2025) | Lines | Workflow | Python Target |
+|--------|-------------------------------|-------|----------|---------------|
+| `scripts/Invoke-PRMaintenance.ps1` | 12 | 849 | pr-maintenance | `scripts/invoke_pr_maintenance.py` |
+| `.claude/skills/github/scripts/pr/Detect-CopilotFollowUpPR.ps1` | 10 | ~300 | (hook) | `.claude/skills/github/scripts/pr/detect_copilot_followup_pr.py` |
+| `build/Generate-Agents.Common.psm1` | 6 | 589 | validate-generated-agents | `build/generate_agents_common.py` |
 
 **Migration Priority**: By modification frequency (high churn = high maintenance cost)
 
 **Per-Script Checklist**:
-- [ ] Create `scripts/<script_name>.py` with argparse
+- [ ] Create Python equivalent with argparse CLI
+- [ ] Import from migrated modules (`scripts.github_core`, `scripts.pr_maintenance`, etc.)
 - [ ] Migrate Pester tests to pytest
 - [ ] Run side-by-side comparison (same inputs, same outputs)
 - [ ] Update workflow YAML to call Python version
+- [ ] Verify CI green for 3 consecutive runs
 - [ ] Delete PowerShell version + tests
 
-**Exit Criteria**: All 3 scripts migrated, workflows green with Python versions
+**Done Criteria**:
+- [ ] All 3 scripts have Python equivalents
+- [ ] `python scripts/invoke_pr_maintenance.py --help` exits 0
+- [ ] `pr-maintenance.yml` workflow passes with Python version
+- [ ] `validate-generated-agents.yml` passes with Python version
+- [ ] `rg "Invoke-PRMaintenance.ps1|Detect-CopilotFollowUpPR.ps1|Generate-Agents.Common.psm1" .github/workflows/` returns 0 results
 
 **Depends on**: #1053 (modules)
 
 ### [#1055](https://github.com/rjmurillo/ai-agents/issues/1055) - Workflow-coupled GitHub skills
 
-| Script | Lines | Workflows | Priority |
-|--------|-------|-----------|----------|
-| `Post-IssueComment.ps1` | ~200 | **7 workflows** | P1 (highest impact) |
-| `Invoke-CopilotAssignment.ps1` | 736 | 3 workflows | P1 |
-| `Set-ItemMilestone.ps1` | ~200 | 2 workflows | P1 |
-| `Invoke-PRCommentProcessing.ps1` | ~300 | 1 workflow | P2 |
-| `Get-PRReviewComments.ps1` | 835 | (skill) | P2 |
+**Goals**: Migrate 5 GitHub skill scripts that are called directly from workflow YAML files. These are the highest-impact skill scripts because workflow breakage blocks all PRs.
+
+**Non-Goals**: Do not migrate skills that are only called interactively by agents (that is #1060). Do not modify workflow logic beyond changing the script invocation.
+
+| Script | Lines | Workflows | Priority | Python Target |
+|--------|-------|-----------|----------|---------------|
+| `Post-IssueComment.ps1` | ~200 | **7 workflows** | P1 (highest impact) | `post_issue_comment.py` |
+| `Invoke-CopilotAssignment.ps1` | 736 | 3 workflows | P1 | `invoke_copilot_assignment.py` |
+| `Set-ItemMilestone.ps1` | ~200 | 2 workflows | P1 | `set_item_milestone.py` |
+| `Invoke-PRCommentProcessing.ps1` | ~300 | 1 workflow | P2 | `invoke_pr_comment_processing.py` |
+| `Get-PRReviewComments.ps1` | 835 | (skill) | P2 | `get_pr_review_comments.py` |
 
 **Migration Strategy** (per script):
-1. Create `.claude/skills/github/scripts/pr/<script_name>.py`
-2. Import from `scripts.github_core` package
+1. Create `.claude/skills/github/scripts/{category}/<script_name>.py`
+2. Import from `scripts.github_core` package (API, validation, formatting)
 3. Add pytest tests in skill directory
-4. Update workflow YAML to call `.py` version
+4. Update workflow YAML to call `.py` version (`pwsh ...ps1` -> `python ...py`)
 5. Verify CI green for 3 consecutive runs
 6. Delete `.ps1` + `.Tests.ps1`
 
-**Exit Criteria**: `find .claude/skills/github/scripts -name "*.ps1" | wc -l` returns 0 for migrated scripts
+**Key Technical Notes**:
+- `Post-IssueComment.ps1`: Port idempotency marker logic (HTML comment detection), upsert behavior, 403 permission handling
+- `Invoke-CopilotAssignment.ps1`: Large script (736 lines), consider splitting into assignment logic + workflow formatting
+- `Get-PRReviewComments.ps1`: Large script (835 lines), heavy GraphQL usage
+
+**Done Criteria**:
+- [ ] All 5 scripts have Python equivalents
+- [ ] All 7 workflows using `Post-IssueComment.ps1` updated and green
+- [ ] All 3 workflows using `Invoke-CopilotAssignment.ps1` updated and green
+- [ ] `rg "Post-IssueComment.ps1|Invoke-CopilotAssignment.ps1|Set-ItemMilestone.ps1" .github/workflows/` returns 0 results
+- [ ] pytest coverage >= Pester for each migrated script
 
 **Depends on**: #1053 (GitHubCore module)
 
@@ -440,6 +641,10 @@ scripts/
 ## Phase 2: CI Infrastructure (Months 4-6)
 
 ### [#1056](https://github.com/rjmurillo/ai-agents/issues/1056) - Build system
+
+**Goals**: Migrate 6 build system scripts to Python. Enable retirement of PowerShell from the build pipeline.
+
+**Non-Goals**: Do not retire `Invoke-PesterTests.ps1` yet (needed until Phase 5). Create Python wrapper that calls pytest instead.
 
 | Script | Lines | Workflow |
 |--------|-------|----------|
@@ -466,7 +671,10 @@ build/
 └── pytest_runner.py
 ```
 
-**Exit Criteria**: All 6 scripts migrated, CI workflows green
+**Done Criteria**:
+- [ ] All 6 scripts have Python equivalents in `build/` directory
+- [ ] `validate-generated-agents.yml`, `drift-detection.yml`, `validate-paths.yml` green
+- [ ] `python build/generator/agents.py --help` exits 0
 
 ### [#1057](https://github.com/rjmurillo/ai-agents/issues/1057) - Validation scripts
 
@@ -481,7 +689,11 @@ build/
 | `scripts/Validate-Traceability.ps1` | 599 | (manual) |
 | `scripts/Validate-MemoryIndex.ps1` | 922 | memory-validation |
 
-**Migration Priority**: Workflow scripts first (PR validation), manual scripts second
+**Goals**: Migrate 8 validation scripts. Consolidate into `scripts/validation/` Python package.
+
+**Non-Goals**: Do not add new validation rules during migration. Keep exit code contracts identical.
+
+**Migration Priority**: Workflow scripts first (PR validation, memory validation, slash-command-quality), manual scripts second
 
 **Python Package**:
 ```
@@ -497,17 +709,28 @@ scripts/validation/
 └── memory_index.py
 ```
 
-**Exit Criteria**: All 8 scripts migrated, pytest coverage ≥90%
+**Done Criteria**:
+- [ ] All 8 scripts migrated to `scripts/validation/` package
+- [ ] `pytest tests/test_validation_*.py -v` passes with >= 90% coverage
+- [ ] `pr-validation.yml`, `memory-validation.yml`, `slash-command-quality.yml` green
+- [ ] `rg "Validate-PRDescription.ps1|Validate-ActionSHAPinning.ps1" .github/workflows/` returns 0 results
 
 ### [#1058](https://github.com/rjmurillo/ai-agents/issues/1058) - GitHub Actions helpers
 
-| Script | Lines | Workflow |
-|--------|-------|----------|
-| `.github/scripts/Test-RateLimitForWorkflow.ps1` | ~100 | pr-maintenance |
-| `.github/scripts/Measure-WorkflowCoalescing.ps1` | 571 | workflow-coalescing-metrics |
-| `scripts/Update-ReviewerSignalStats.ps1` | 709 | update-reviewer-stats |
+**Goals**: Migrate 3 GitHub Actions helper scripts used for rate limiting, metrics, and reviewer stats.
 
-**Exit Criteria**: All 3 scripts migrated, workflow metrics green
+**Non-Goals**: Do not change metrics collection logic. Do not modify workflow scheduling.
+
+| Script | Lines | Workflow | Python Target |
+|--------|-------|----------|---------------|
+| `.github/scripts/Test-RateLimitForWorkflow.ps1` | ~100 | pr-maintenance | `test_rate_limit.py` |
+| `.github/scripts/Measure-WorkflowCoalescing.ps1` | 571 | workflow-coalescing-metrics | `measure_workflow_coalescing.py` |
+| `scripts/Update-ReviewerSignalStats.ps1` | 709 | update-reviewer-stats | `update_reviewer_signal_stats.py` |
+
+**Done Criteria**:
+- [ ] All 3 scripts migrated
+- [ ] `workflow-coalescing-metrics.yml` and `update-reviewer-stats.yml` green
+- [ ] `rg "Test-RateLimitForWorkflow.ps1|Measure-WorkflowCoalescing.ps1|Update-ReviewerSignalStats.ps1" .github/workflows/` returns 0 results
 
 **Depends on**: #1057 (validation scripts use rate limit checking)
 
@@ -537,6 +760,10 @@ scripts/validation/
 
 ### [#1060](https://github.com/rjmurillo/ai-agents/issues/1060) - Remaining GitHub skills
 
+**Goals**: Migrate all remaining GitHub skill scripts (agent-interactive, not workflow-coupled) to Python.
+
+**Non-Goals**: Workflow-coupled skills are already done in #1055. Do not restructure skill directory layout.
+
 | Directory | Remaining Scripts | Example |
 |-----------|-------------------|---------|
 | `.claude/skills/github/scripts/pr/` | ~9 scripts | Get-PRContext.ps1, Close-PR.ps1 |
@@ -546,11 +773,19 @@ scripts/validation/
 
 **Total**: ~16 scripts
 
-**Exit Criteria**: `find .claude/skills/github/scripts -name "*.ps1" | wc -l` returns 0
+**Done Criteria**:
+- [ ] `find .claude/skills/github/scripts -name "*.ps1" -type f | wc -l` returns 0
+- [ ] All Python equivalents import from `scripts.github_core`
+- [ ] SKILL.md files updated to reference Python scripts
+- [ ] pytest coverage >= Pester for each migrated script
 
 **Depends on**: #1053 (GitHubCore), #1055 (high-priority skills migrated first)
 
 ### [#1061](https://github.com/rjmurillo/ai-agents/issues/1061) - Memory skills
+
+**Goals**: Migrate 7 memory skill scripts/modules to Python. Maintain memory search performance (<20ms).
+
+**Non-Goals**: Do not change memory schema or storage format. Do not modify Serena/Forgetful integration points.
 
 | Script | Lines | Notes |
 |--------|-------|-------|
@@ -578,9 +813,17 @@ scripts/validation/
 └── tests/
 ```
 
-**Exit Criteria**: Memory CLI works: `python -m memory_router.search "test query"` returns results
+**Done Criteria**:
+- [ ] Memory CLI works: `python -m memory_router.search "test query"` returns results
+- [ ] Performance: search completes in < 20ms (measured by `measure_performance.py`)
+- [ ] Schema validation: `python -m memory_router.validate_schema` exit 0
+- [ ] `jsonschema` dependency added to pyproject.toml
 
 ### [#1062](https://github.com/rjmurillo/ai-agents/issues/1062) - Session, merge-resolver, and other skills
+
+**Goals**: Migrate remaining 11 skills (21 scripts total). Clear all non-GitHub, non-memory PS1 from skills directory.
+
+**Non-Goals**: Do not restructure skill architecture. Do not change skill SKILL.md prompt content beyond updating script references.
 
 **11 Skills with 1-4 scripts each**:
 - session-init (1 script)
@@ -595,7 +838,11 @@ scripts/validation/
 - metrics (2 scripts)
 - slashcommandcreator (3 scripts)
 
-**Exit Criteria**: All 21 scripts migrated, skill SKILL.md files updated
+**Done Criteria**:
+- [ ] All 21 scripts migrated to Python
+- [ ] All skill SKILL.md files updated to reference Python scripts
+- [ ] `find .claude/skills -name "*.ps1" -not -path "*/github/*" -not -path "*/memory/*" -type f | wc -l` returns 0
+- [ ] pytest coverage >= Pester for each migrated script
 
 **Depends on**: #1060, #1061 (GitHub + memory skills provide patterns)
 
@@ -605,22 +852,42 @@ scripts/validation/
 
 ### [#1063](https://github.com/rjmurillo/ai-agents/issues/1063) - CodeQL scripts
 
+**Goals**: Migrate 6 CodeQL analysis scripts to Python. Maintain SARIF output format compatibility.
+
+**Non-Goals**: Do not change CodeQL queries or analysis rules. Do not modify `.github/workflows/codeql-analysis.yml` beyond script references.
+
 **6 scripts totaling ~3,068 lines**:
 - `.codeql/scripts/Analyze-*.ps1` (6 files)
 
 **Migration**: Create `.codeql/scripts/analyze/` Python package
 
-**Exit Criteria**: CodeQL analysis runs with Python scripts
+**Done Criteria**:
+- [ ] All 6 scripts migrated
+- [ ] CodeQL analysis workflow green
+- [ ] SARIF output format validated against existing schema
 
 ### [#1064](https://github.com/rjmurillo/ai-agents/issues/1064) - Traceability and utilities
+
+**Goals**: Migrate 13 traceability and utility scripts to Python.
+
+**Non-Goals**: Do not change traceability cache format. Do not add new utility functions.
 
 **3 traceability scripts + 10 utility scripts**:
 - `scripts/traceability/` (3 scripts)
 - `scripts/utilities/` (10 scripts)
 
-**Exit Criteria**: All 13 scripts migrated
+**Done Criteria**:
+- [ ] All 13 scripts migrated
+- [ ] `find scripts/traceability scripts/utilities -name "*.ps1" -type f | wc -l` returns 0
+- [ ] Traceability graph generation works: `python scripts/traceability/show_graph.py --dry-run` exit 0
 
 ### [#1065](https://github.com/rjmurillo/ai-agents/issues/1065) - Hook scripts
+
+**Goals**: Migrate 12 git hook scripts to Python. Maintain hook contract (input format, exit codes, timing).
+
+**Non-Goals**: Do not change hook registration mechanism. Do not add new hooks. Do not modify `.claude/settings.json` hook configuration beyond script paths.
+
+**Risk**: Hooks run on every commit/push. A broken hook blocks all developer workflow. Migrate one hook at a time with immediate rollback capability.
 
 **12 hook scripts across 7 hook directories**:
 - `.githooks/pre-commit` (5 hooks)
@@ -628,15 +895,25 @@ scripts/validation/
 - `.githooks/post-commit` (2 hooks)
 - `.githooks/commit-msg` (2 hooks)
 
-**Exit Criteria**: Git hooks call Python scripts, HookUtilities.psm1 deleted
+**Done Criteria**:
+- [ ] All 12 hooks call Python scripts
+- [ ] `HookUtilities.psm1` deleted (migrated in #1053)
+- [ ] `find .claude/hooks .githooks -name "*.ps1" -type f | wc -l` returns 0
+- [ ] Manual verification: commit, push, and commit-msg hooks fire correctly
 
-**Depends on**: #1053 (HookUtilities.psm1 → hook_utilities.py)
+**Depends on**: #1053 (HookUtilities.psm1 -> hook_utilities.py)
 
 ---
 
 ## Phase 5: Retirement (Month 13)
 
 ### [#1066](https://github.com/rjmurillo/ai-agents/issues/1066) - Retire Pester and PSScriptAnalyzer CI
+
+**Goals**: Delete Pester and PSScriptAnalyzer CI workflows. Remove all remaining PowerShell infrastructure. Verify zero PS1/PSM1 files remain.
+
+**Non-Goals**: Do not remove PowerShell from GitHub Actions runner images (not our concern). Do not update external documentation or downstream consumers.
+
+**Prerequisites**: ALL previous phases (0-4) must be complete. Gate 4-5 must pass.
 
 **Workflows to Delete**:
 - [ ] `.github/workflows/pester-tests.yml`
@@ -853,6 +1130,104 @@ flowchart LR
 - [ ] Create PR per track when complete
 - [ ] Human operator reviews and merges in order
 - [ ] Run integration tests after each merge
+
+---
+
+## Phase Transition Gates
+
+Each phase transition requires explicit validation before starting the next phase. No phase begins until its predecessor passes all gates.
+
+| Gate | From | To | Validation Command | Required Result |
+|------|------|----|--------------------|-----------------|
+| **Gate 0-1** | P0 Cleanup | P1 Shared Modules | `rg "\.ps1" scripts/Detect-SkillViolation scripts/Check-SkillExists scripts/Fix-PR964 2>/dev/null; echo $?` | Exit 1 (files not found) |
+| **Gate 1-2** | P1 Modules | P2 CI Infrastructure | `python -c "from scripts.github_core import api; from scripts.ai_review_common import quality_gate"` | Exit 0 |
+| **Gate 2-3** | P2 CI | P3 Skills | All CI workflows green for 5 consecutive PRs after migration | No regressions |
+| **Gate 3-4** | P3 Skills | P4 Long Tail | `find .claude/skills -name "*.ps1" -type f \| wc -l` | Returns 0 |
+| **Gate 4-5** | P4 Long Tail | P5 Retirement | `find . -name "*.ps1" -not -path "./.git/*" -type f \| wc -l` | Returns 0 |
+
+**Gate Checklist** (apply at every transition):
+- [ ] All issues in departing phase are closed
+- [ ] pytest coverage >= Pester baseline for all migrated modules
+- [ ] No open regressions in CI
+- [ ] Track branch merged to main
+- [ ] Integration test suite passes: `pytest tests/ -v` exit 0
+
+---
+
+## Rollback Procedure
+
+If a migration fails mid-phase and cannot be fixed forward:
+
+### Per-Script Rollback
+
+1. Revert the commit that deleted the PS1 file: `git revert <sha>`
+2. Revert the commit that updated workflow callers: `git revert <sha>`
+3. Keep the Python version in place (do not delete, fix later)
+4. Re-enable PS1 as active caller in workflow YAML
+5. Open a bug issue tracking the Python version failure
+
+### Per-Module Rollback (#1053 only)
+
+Since modules have many consumers, a module rollback requires:
+
+1. Revert all consumer updates to re-import from PS1 module
+2. Revert the module deletion commit
+3. Keep Python package in place for incremental fixing
+4. Add both PS1 and Python to CI to prevent future regression
+
+### Decision Criteria
+
+| Severity | Action | Timeframe |
+|----------|--------|-----------|
+| Single script fails tests | Fix forward in same PR | Hours |
+| Module migration breaks 3+ consumers | Rollback module, fix, retry | 1-2 days |
+| CI pipeline broken for > 4 hours | Full phase rollback | Immediate |
+| Output format incompatibility discovered post-merge | Rollback callers, fix Python, retry | 1 day |
+
+---
+
+## Python Dependency Manifest
+
+New dependencies required per phase. All added to `pyproject.toml` `[project] dependencies` or `[project.optional-dependencies] dev`.
+
+| Phase | Dependency | Version | Purpose | Required By |
+|-------|-----------|---------|---------|-------------|
+| P1 | `tenacity` | >= 8.0.0 | Retry with exponential backoff | AIReviewCommon `Invoke-WithRetry` |
+| P1 | `PyYAML` | 6.0.3 | YAML parsing (already present) | GitHubCore `Get-BotAuthorsConfig` |
+| P2 | `pydantic` | >= 2.0.0 | Schema validation for planning artifacts | `Validate-PlanningArtifacts` |
+| P3 | `jsonschema` | >= 4.0.0 | Memory schema validation | `SchemaValidation.psm1` |
+
+**Already Available** (no new install needed):
+- `subprocess` (stdlib) -- `gh` CLI calls
+- `pathlib` (stdlib) -- cross-platform paths
+- `argparse` (stdlib) -- CLI interfaces
+- `re` (stdlib) -- regex for output parsing
+- `json` (stdlib) -- JSON handling
+- `os` (stdlib) -- environment variables, file operations
+- `pytest` (dev dependency) -- test framework
+- `ruff` (dev dependency) -- linting (replaces PSScriptAnalyzer)
+
+---
+
+## Pester Coverage Baseline
+
+Before deleting any PS1 file, capture Pester coverage as the minimum bar for pytest.
+
+**Baseline Capture Command** (run once before Phase 0):
+```bash
+pwsh -c "
+  \$result = Invoke-Pester -Path tests/ -CodeCoverage scripts/*.ps1 -PassThru
+  \$result.CodeCoverage | Select-Object `
+    @{N='TotalCommands';E={\$_.NumberOfCommandsAnalyzed}}, `
+    @{N='ExecutedCommands';E={\$_.NumberOfCommandsExecuted}}, `
+    @{N='MissedCommands';E={\$_.NumberOfCommandsMissed}}, `
+    @{N='Coverage';E={[math]::Round(\$_.NumberOfCommandsExecuted / \$_.NumberOfCommandsAnalyzed * 100, 2)}}
+"
+```
+
+**Store baseline**: Save output to `.agents/planning/v0.3.1/pester-coverage-baseline.json`
+
+**Per-migration coverage rule**: `pytest --cov=<module> --cov-fail-under=<pester_baseline_percent>`
 
 ---
 
