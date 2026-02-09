@@ -175,7 +175,7 @@ The repository includes `.config/wt.toml` with lifecycle hooks that:
 - Copy dependencies (node_modules, .cache) from main worktree
 - Run markdown linting before merge
 
-**See**: [AGENTS.md Worktrunk Setup](../AGENTS.md#worktrunk-setup) for complete workflow documentation.
+**See**: [Worktrunk Documentation](https://worktrunk.dev/) and `.config/wt.toml` for complete workflow configuration.
 
 ## Post-Installation
 
