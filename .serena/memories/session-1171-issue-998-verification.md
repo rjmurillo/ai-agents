@@ -17,7 +17,7 @@ Issue #998 is **CLOSED** and **FULLY COMPLETE**. This is the 21st verification o
 - Assignee: rjmurillo-bot
 
 ### Implementation Verification
-- `scripts/memory_enhancement/graph.py` exists (7907 bytes, 262 lines)
+- `.claude/skills/memory-enhancement/src/memory_enhancement/graph.py` exists (7907 bytes, 262 lines)
 - Full implementation includes:
   - BFS and DFS traversal strategies
   - Cycle detection

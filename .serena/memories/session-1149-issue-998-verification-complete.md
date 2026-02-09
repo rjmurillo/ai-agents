@@ -8,7 +8,7 @@
 
 Issue #998 was **already complete** before this session. Verification confirmed:
 
-1. ✅ **Implementation exists**: `memory_enhancement/graph.py` (7907 bytes)
+1. ✅ **Implementation exists**: `.claude/skills/memory-enhancement/src/memory_enhancement/graph.py` (7907 bytes)
 2. ✅ **CLI working**: `python -m memory_enhancement graph --help` shows usage
 3. ✅ **GitHub issue CLOSED**: 2026-01-25T01:04:18Z
 4. ✅ **All deliverables met**:
@@ -39,9 +39,9 @@ Per issue #998:
 
 ## Key Files
 
-- `memory_enhancement/graph.py`: Main implementation
-- `memory_enhancement/models.py`: Memory dataclass and Link types
-- `memory_enhancement/__main__.py`: CLI integration
+- `.claude/skills/memory-enhancement/src/memory_enhancement/graph.py`: Main implementation
+- `.claude/skills/memory-enhancement/src/memory_enhancement/models.py`: Memory dataclass and Link types
+- `.claude/skills/memory-enhancement/src/memory_enhancement/__main__.py`: CLI integration
 
 ## Lessons
 

@@ -39,7 +39,7 @@ Traversal order:
 
 ## Implementation Status
 
-The graph traversal functionality is fully implemented in `scripts/memory_enhancement/graph.py`:
+The graph traversal functionality is fully implemented in `.claude/skills/memory-enhancement/src/memory_enhancement/graph.py`:
 
 - Supports BFS and DFS traversal strategies
 - Configurable max depth

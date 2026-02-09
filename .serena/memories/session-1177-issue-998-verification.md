@@ -11,7 +11,7 @@ Verified that issue #998 is already complete. This is the 27th verification sess
 ## Findings
 
 - Issue #998 (Phase 2: Graph Traversal) is CLOSED
-- `scripts/memory_enhancement/graph.py` exists and works correctly
+- `.claude/skills/memory-enhancement/src/memory_enhancement/graph.py` exists and works correctly
 - Verification command passes: `python3 -m memory_enhancement graph memory-index --dir .serena/memories`
 - All deliverables from the issue are complete:
   - graph.py with BFS/DFS traversal ✓

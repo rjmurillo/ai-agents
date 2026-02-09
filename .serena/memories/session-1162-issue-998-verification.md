@@ -11,7 +11,7 @@ Issue #998 has been verified as ALREADY COMPLETE. This is the 12th consecutive v
 
 ## Exit Criteria Verified
 
-✅ **graph.py exists**: File `scripts/memory_enhancement/graph.py` contains full implementation
+✅ **graph.py exists**: File `.claude/skills/memory-enhancement/src/memory_enhancement/graph.py` contains full implementation
 ✅ **BFS/DFS traversal**: Both algorithms implemented via TraversalStrategy enum
 ✅ **Cycle detection**: Cycles tracked and returned in TraversalResult
 ✅ **Serena integration**: Uses Memory.from_serena_file() from models.py

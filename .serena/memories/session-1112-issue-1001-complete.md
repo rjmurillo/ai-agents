@@ -12,7 +12,7 @@ Session 1112 discovered issues #997, #998, and #999 were already complete. Proce
 
 ## Implementation
 
-Added three new CLI commands to `scripts/memory_enhancement/__main__.py`:
+Added three new CLI commands to `.claude/skills/memory-enhancement/src/memory_enhancement/__main__.py`:
 
 1. **add-citation** - Add verified citations to memories
    - Validates file exists before adding
@@ -54,7 +54,7 @@ All four phases of Memory Enhancement Layer (#990) now complete:
 
 - Commit: 5cad4454
 - Branch: chain1/memory-enhancement
-- Session log: `.agents/sessions/2026-01-25-session-1112-continue-implementation-issue-998-memory.json`
+- Session log: .agents/sessions/2026-01-25-session-1112-continue-implementation-issue-998-memory.json (removed)
 
 ## Related
 

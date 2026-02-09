@@ -14,7 +14,7 @@ The deprecated `Validate-Session.ps1` script (removed in this PR #810) could not
 
 ✅ **Fixed in PR #830** (Module refactoring)
 
-The issue was resolved by introducing the `Split-TableRow` function in `scripts/modules/SessionValidation.psm1` (lines 22-80), which properly handles pipe characters inside backticks and markdown code spans.
+The issue was resolved by introducing the `Split-TableRow` function in scripts/modules/SessionValidation.psm1 (removed) (lines 22-80), which properly handles pipe characters inside backticks and markdown code spans.
 
 The deprecated `Validate-Session.ps1` script that had this bug was removed in PR #810 as part of the consolidation effort. All session validation now uses `Validate-SessionJson.ps1` with the fixed `SessionValidation` module.
 
@@ -45,6 +45,6 @@ This no longer occurs with the current `Validate-SessionJson.ps1` implementation
 ## Related
 
 - **Resolution**: PR #830 - Session protocol validation improvements and module refactoring
-- **Fix Location**: `scripts/modules/SessionValidation.psm1` - `Split-TableRow` function (lines 22-80)
+- **Fix Location**: scripts/modules/SessionValidation.psm1 (removed) - `Split-TableRow` function (lines 22-80)
 - **Deprecation**: PR #810 - Removed deprecated `Validate-Session.ps1`
 - **Discovery**: PR #799, Session 318

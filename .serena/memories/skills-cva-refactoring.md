@@ -156,4 +156,4 @@ if ($ExistingContent -match [regex]::Escape($BeginMarker)) {
 
 - Plan: `.agents/planning/cva-install-scripts.md`
 - Retrospective: `.agents/retrospective/2025-12-15-cva-install-scripts.md`
-- Implementation: `scripts/lib/Install-Common.psm1`, `scripts/lib/Config.psd1`, `scripts/install.ps1`
+- Implementation: scripts/lib/Install-Common.psm1 (removed), `scripts/lib/Config.psd1`, scripts/install.ps1 (removed)

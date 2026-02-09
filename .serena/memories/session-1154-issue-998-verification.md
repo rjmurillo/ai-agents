@@ -18,7 +18,7 @@ Issue #998 was **already complete** and closed on 2026-01-25T01:04:18Z.
 
 All exit criteria from the issue were met:
 
-1. ✅ **graph.py exists** - Located at `scripts/memory_enhancement/graph.py`
+1. ✅ **graph.py exists** - Located at `.claude/skills/memory-enhancement/src/memory_enhancement/graph.py`
 2. ✅ **BFS/DFS traversal** - Implemented with TraversalStrategy enum
 3. ✅ **Integration with Serena** - Works with existing Serena memory format
 4. ✅ **Cycle detection** - Implemented and tested

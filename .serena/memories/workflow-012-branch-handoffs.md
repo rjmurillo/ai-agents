@@ -169,6 +169,6 @@ Modify validator to check:
 ## References
 
 - ADR-014: `.agents/architecture/ADR-014-distributed-handoff-architecture.md`
-- Validator: `scripts/Validate-SessionEnd.ps1` (lines 245-257)
+- Validator: scripts/Validate-SessionEnd.ps1 (removed) (lines 245-257)
 - Hook: `.githooks/pre-commit` (lines 516-534)
 - Protocol: `.agents/SESSION-PROTOCOL.md` v1.4

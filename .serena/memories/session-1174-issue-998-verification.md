@@ -38,7 +38,7 @@ This is the 24th consecutive verification session for issue #998. The implementa
 ## Cross-Session Context
 
 Previous sessions: 1145-1173 all confirmed issue #998 is complete.
-The graph traversal feature in `scripts/memory_enhancement/graph.py` is working correctly.
+The graph traversal feature in `.claude/skills/memory-enhancement/src/memory_enhancement/graph.py` is working correctly.
 
 ## Related
 

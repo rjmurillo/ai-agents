@@ -40,7 +40,7 @@ All 23 tests passing:
 - Adjacency list generation
 
 ### 4. Files Implemented
-- `scripts/memory_enhancement/graph.py` - Core graph traversal logic
+- `.claude/skills/memory-enhancement/src/memory_enhancement/graph.py` - Core graph traversal logic
 - `tests/memory_enhancement/test_graph.py` - Comprehensive test suite
 
 ### 5. Features Confirmed

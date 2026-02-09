@@ -20,7 +20,7 @@ Issue #998 verification-only session. Issue was already completed in sessions 11
 - **Milestone**: 0.3.0
 
 ### 2. Implementation Files Present
-- `scripts/memory_enhancement/graph.py` - Graph traversal module
+- `.claude/skills/memory-enhancement/src/memory_enhancement/graph.py` - Graph traversal module
 - `tests/memory_enhancement/test_graph.py` - 23 graph tests
 - All PRD deliverables implemented
 

@@ -15,7 +15,7 @@ All exit criteria from issue #998 met:
 - ✅ `python -m memory_enhancement graph <root>` works
 
 ### Implementation Details
-- **File**: `scripts/memory_enhancement/graph.py` (262 lines)
+- **File**: `.claude/skills/memory-enhancement/src/memory_enhancement/graph.py` (262 lines)
 - **Test Coverage**: 23 tests, all passing (0.18s)
 - **Features Implemented**:
   - BFS and DFS traversal strategies

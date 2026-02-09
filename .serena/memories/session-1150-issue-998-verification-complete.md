@@ -15,7 +15,7 @@ Issue #998 was already completed and closed prior to this session. This was a ve
 2. **Implementation Complete**: Sessions 1145-1146 implemented Phase 2
 3. **Prior Verification**: Session 1149 already verified completion
 4. **Files Present**:
-   - `scripts/memory_enhancement/graph.py` (7907 bytes)
+   - `.claude/skills/memory-enhancement/src/memory_enhancement/graph.py` (7907 bytes)
    - BFS/DFS traversal algorithms implemented
    - Cycle detection working
    - CLI integration complete

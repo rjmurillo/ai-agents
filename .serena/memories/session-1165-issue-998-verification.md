@@ -18,7 +18,7 @@ Verified that issue #998 is already complete with no additional work needed.
 - Milestone: 0.3.0
 
 ### Implementation Verification
-- **File**: `scripts/memory_enhancement/graph.py`
+- **File**: `.claude/skills/memory-enhancement/src/memory_enhancement/graph.py`
 - **Status**: EXISTS and COMPLETE
 - **Features**: 
   - BFS/DFS traversal strategies

@@ -20,12 +20,12 @@ This is the 11th verification session for issue #998 "Phase 2: Graph Traversal (
 ### Implementation Verification
 
 #### Files Present
-- `scripts/memory_enhancement/graph.py` (7907 bytes, created 2026-01-25 15:18)
+- `.claude/skills/memory-enhancement/src/memory_enhancement/graph.py` (7907 bytes, created 2026-01-25 15:18)
 - All supporting files exist: models.py, citations.py, __init__.py, __main__.py, health.py, serena.py
 
 #### Exit Criteria Met
 The Implementation Card specifies:
-- **File**: `scripts/memory_enhancement/graph.py`
+- **File**: `.claude/skills/memory-enhancement/src/memory_enhancement/graph.py`
 - **Exit Criteria**: `python -m memory_enhancement graph <root>` traverses links
 
 **Verification Result**: ✅ PASS

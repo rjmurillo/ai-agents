@@ -21,7 +21,7 @@ This is the **fifth verification session** (1148, 1151-1154, now 1155) confirmin
 
 All exit criteria from PLAN.md line 475 verified:
 
-1. ✅ **graph.py exists** - Located at `scripts/memory_enhancement/graph.py`
+1. ✅ **graph.py exists** - Located at `.claude/skills/memory-enhancement/src/memory_enhancement/graph.py`
 2. ✅ **BFS/DFS traversal** - Both strategies working correctly
 3. ✅ **Integration with Serena** - Works with existing Serena memory format
 4. ✅ **Cycle detection** - Implemented and tested  

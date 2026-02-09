@@ -16,7 +16,7 @@ Issue #998 was already completed in sessions 1145-1146. Session 1151 performed v
    - Assignee: rjmurillo-bot
 
 2. **Implementation Files**:
-   - `scripts/memory_enhancement/graph.py` (7907 bytes)
+   - `.claude/skills/memory-enhancement/src/memory_enhancement/graph.py` (7907 bytes)
    - `tests/memory_enhancement/test_graph.py` (16208 bytes)
 
 3. **CLI Functionality**:

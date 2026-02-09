@@ -280,7 +280,7 @@ Per `.agents/governance/PROJECT-CONSTRAINTS.md`:
 
 ### PowerShell Validation Script
 
-`scripts/Validate-SlashCommand.ps1`:
+`.claude/skills/slashcommandcreator/scripts/Validate-SlashCommand.ps1`:
 
 ```powershell
 # Check YAML frontmatter parses

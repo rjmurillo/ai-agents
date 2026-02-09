@@ -13,7 +13,7 @@ Investigation confirmed issue #998 was completed in previous sessions (1145-1146
 
 ### Deliverables Confirmed
 
-1. **graph.py module** (`scripts/memory_enhancement/graph.py`):
+1. **graph.py module** (`.claude/skills/memory-enhancement/src/memory_enhancement/graph.py`):
    - BFS and DFS traversal strategies implemented
    - Cycle detection working
    - Root finding functionality

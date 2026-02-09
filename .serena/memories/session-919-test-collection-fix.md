@@ -9,7 +9,7 @@
 Critic validation failed for issue #997 with the error:
 > Test suite imports non-existent CLI functions causing CI collection failure and blocking all Python tests from running.
 
-Root cause: `tests/memory_enhancement/test_cli_citations.py` was importing three CLI command functions that don't exist:
+Root cause: `tests/memory_enhancement/test_citations.py` was importing three CLI command functions that don't exist:
 - `cmd_add_citation`
 - `cmd_update_confidence`
 - `cmd_list_citations`
@@ -18,7 +18,7 @@ These functions are part of Phase 4 (#1001 - Confidence Scoring & Tooling), not 
 
 ## Solution
 
-Deleted `tests/memory_enhancement/test_cli_citations.py` since:
+Deleted `tests/memory_enhancement/test_citations.py` since:
 1. It tests functionality that doesn't exist in Phase 1
 2. Phase 1 only implements `verify` and `verify-all` commands
 3. The test file can be recreated in Phase 4 when the CLI commands are actually implemented

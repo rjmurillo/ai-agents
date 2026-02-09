@@ -35,6 +35,6 @@ When implementing new functionality:
 
 ## Historical Context
 
-- **2025-12-18**: Removed `.github/scripts/ai-review-common.sh` and `.github/scripts/ai-review-common.bats`
+- **2025-12-18**: Removed .github/scripts/ai-review-common.sh (removed) and `.github/scripts/ai-review-common.bats`
 - Converted all AI workflow steps to use PowerShell module `.github/scripts/AIReviewCommon.psm1`
 - Added `Send-PRComment`, `Send-IssueComment`, `Get-VerdictEmoji` functions to the module

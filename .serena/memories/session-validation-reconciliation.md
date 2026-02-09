@@ -10,7 +10,7 @@
 
 ## Solution
 
-Extended `scripts/Validate-SessionEnd.ps1` to validate:
+Extended scripts/Validate-SessionEnd.ps1 (removed) to validate:
 
 1. **Session Start** - Checks for canonical table format with MUST rows
 2. **Session End** - Existing validation preserved
@@ -31,7 +31,7 @@ Non-canonical formats (bullet lists like `- [x] item`) are NOT accepted.
 
 ## Files Updated
 
-- `scripts/Validate-SessionEnd.ps1` - Session Start validation added
+- scripts/Validate-SessionEnd.ps1 (removed) - Session Start validation added
 - `.githooks/pre-commit` - Comments and error messages updated
 - `.agents/AGENT-INSTRUCTIONS.md` - References SESSION-PROTOCOL.md (DRY)
 

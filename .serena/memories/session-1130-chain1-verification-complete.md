@@ -12,7 +12,7 @@ Verified that issue #998 (Graph Traversal for Memory Enhancement Layer) is alrea
 
 ### Issue Status
 - **Issue #998**: CLOSED on 2026-01-25T01:04:18Z
-- **Implementation**: Fully functional at `scripts/memory_enhancement/graph.py`
+- **Implementation**: Fully functional at `.claude/skills/memory-enhancement/src/memory_enhancement/graph.py`
 - **CLI Command**: `python3 -m scripts.memory_enhancement graph <root>` works correctly
 
 ### Exit Criteria Tests

@@ -87,7 +87,13 @@ def find_broken_code_refs(
     for match in CODE_REF.finditer(content):
         ref_path = match.group(1)
         # Skip common non-path patterns
-        if ref_path.startswith(("$", "{", "<")):
+        if ref_path.startswith(("$", "{", "<", "/")):
+            continue
+        # Skip template placeholders (YYYY, NN patterns)
+        if "YYYY" in ref_path or "-NN" in ref_path:
+            continue
+        # Skip bare file extensions used as type references
+        if ref_path.startswith(".") and "/" not in ref_path:
             continue
         # Only check paths that look like they reference repo files
         if "/" in ref_path or ref_path.startswith("."):

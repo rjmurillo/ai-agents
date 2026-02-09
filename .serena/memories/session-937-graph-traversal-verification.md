@@ -12,7 +12,7 @@ Verified that issue #998 (Graph Traversal) was already implemented in a previous
 ## Deliverables Verified
 
 ### 1. graph.py Implementation
-- **Location**: `scripts/memory_enhancement/graph.py`
+- **Location**: `.claude/skills/memory-enhancement/src/memory_enhancement/graph.py`
 - **Features Implemented**:
   - `MemoryGraph` class for loading and managing memory relationships
   - BFS and DFS traversal strategies

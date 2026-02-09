@@ -18,7 +18,7 @@ Session 110 demonstrated autonomous P0 issue resolution using git worktrees for 
 
 ## Technical Contributions
 
-1. **Investigation-only validation** (`scripts/Validate-Session.ps1`)
+1. **Investigation-only validation** (scripts/Validate-Session.ps1 (removed))
    - `Test-InvestigationOnlyEligibility` function
    - `E_INVESTIGATION_HAS_IMPL` error message
    - QA skip metrics counter

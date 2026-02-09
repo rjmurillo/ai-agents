@@ -18,7 +18,7 @@ Verified that issue #998 was already complete. This is the 17th verification att
 ## Verification Results
 
 1. ✅ Issue #998 is CLOSED
-2. ✅ `scripts/memory_enhancement/graph.py` exists
+2. ✅ `.claude/skills/memory-enhancement/src/memory_enhancement/graph.py` exists
 3. ✅ `python3 -m memory_enhancement graph --help` works correctly
 4. ✅ Graph traversal (BFS/DFS) works on memory files
 5. ✅ All deliverables present:
