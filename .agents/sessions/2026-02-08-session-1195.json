@@ -74,7 +74,7 @@
   },
   "work": {
     "tasks": [
-      "Push branch and create PR #1117",
+      "Push branch and create PR #1120",
       "Update PLAN.md summary table to reflect PARTIAL status with PR link"
     ],
     "filesChanged": [
@@ -82,10 +82,10 @@
     ]
   },
   "outcomes": [
-    "PR #1117 created for slim AGENTS.md consolidation",
-    "PLAN.md summary table updated from TBD/NEW to PR #1117/PARTIAL"
+    "PR #1120 created for slim AGENTS.md consolidation",
+    "PLAN.md summary table updated from TBD/NEW to PR #1120/PARTIAL"
   ],
   "decisions": [
-    "Summary table updated to show Item 1 implemented via PR #1117, Items 3-8 remain open"
+    "Summary table updated to show Item 1 implemented via PR #1120, Items 3-8 remain open"
   ]
 }

@@ -130,7 +130,7 @@ pwsh .claude/skills/github/scripts/issue/Get-IssueContext.ps1 -Issue <ISSUE_NUMB
 
 | Proposal | Title | Summary | Status |
 |----------|-------|---------|--------|
-| PR [#1117](https://github.com/rjmurillo/ai-agents/pull/1117) | Context Window Token Optimization | Item 1 (Slim AGENTS.md) implemented: -3,428 tokens. Items 3-8 remain open. | **PARTIAL** |
+| PR [#1120](https://github.com/rjmurillo/ai-agents/pull/1120) | Context Window Token Optimization | Item 1 (Slim AGENTS.md) implemented: -3,428 tokens. Items 3-8 remain open. | **PARTIAL** |
 
 ### Epic Chain ([#990](https://github.com/rjmurillo/ai-agents/issues/990))
 
