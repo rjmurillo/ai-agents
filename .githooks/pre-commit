@@ -1689,6 +1689,48 @@ else
 fi
 
 #
+# Memory Index Token Count Update (Auto-fix)
+#
+# Automatically updates inline token counts in memory-index.md
+# when memory files change. Uses tiktoken cache for performance.
+# Gracefully degrades if tiktoken is not installed (warning only).
+#
+# Related: Context Engineering, memory skill
+#
+MEMORY_TOKEN_UPDATER="$REPO_ROOT/scripts/update_memory_index_tokens.py"
+
+if [ -n "$STAGED_MEMORY_FILES" ]; then
+    if [ "$AUTOFIX" = "1" ]; then
+        # MEDIUM-002: Reject symlinks for security
+        if [ -L "$MEMORY_TOKEN_UPDATER" ]; then
+            echo_warning "Skipping token count update: script path is a symlink"
+        elif [ -f "$MEMORY_TOKEN_UPDATER" ]; then
+            if set_python_cmd; then
+                echo_info "Updating memory-index.md token counts..."
+                token_update_output=$("${PYTHON_CMD[@]}" "$MEMORY_TOKEN_UPDATER" 2>&1)
+                token_update_exit=$?
+
+                if [ $token_update_exit -eq 0 ]; then
+                    echo_info "  $token_update_output"
+                    # Re-stage memory-index.md if it changed
+                    MEMORY_INDEX_FILE="$REPO_ROOT/.serena/memories/memory-index.md"
+                    if [ -f "$MEMORY_INDEX_FILE" ] && [ ! -L "$MEMORY_INDEX_FILE" ] && ! git diff --quiet -- "$MEMORY_INDEX_FILE" 2>/dev/null; then
+                        git add -- "$MEMORY_INDEX_FILE"
+                        echo_success "Re-staged memory-index.md with updated token counts"
+                        FILES_FIXED=1
+                    fi
+                elif [ $token_update_exit -eq 2 ]; then
+                    # tiktoken not installed - non-blocking warning
+                    echo_warning "Token count update skipped (tiktoken not installed)"
+                else
+                    echo_warning "Token count update failed (non-blocking)"
+                fi
+            fi
+        fi
+    fi
+fi
+
+#
 # Memory Index Validation (BLOCKING)
 #
 # Validates tiered memory index consistency (ADR-017).
