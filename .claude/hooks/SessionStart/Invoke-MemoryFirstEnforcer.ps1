@@ -207,7 +207,7 @@ try {
     $count = Increment-InvocationCount -StateDir $stateDir -Today $today
 
     $severity = if ($count -le $EDUCATION_THRESHOLD) { "Warning $count/$EDUCATION_THRESHOLD" } else { "VIOLATION (warning $count)" }
-    Write-Output "`nADR-007 $severity : $($evidence.Reason). Complete: Serena init, HANDOFF.md read, memory retrieval. See AGENTS.md Session Protocol Gates.`n"
+    Write-Output "`nADR-007 $($severity) : $($evidence.Reason). Complete: Serena init, HANDOFF.md read, memory retrieval. See AGENTS.md Session Protocol Gates.`n"
     exit 0
 }
 catch {

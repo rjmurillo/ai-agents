@@ -62,6 +62,6 @@ $ForgetfulMessage = "Forgetful MCP: Connection check disabled (use Serena for me
 
 # Output compact confirmation. Full protocol is in AGENTS.md (auto-loaded).
 $forgetfulStatus = if ($ForgetfulAvailable) { "Forgetful: available" } else { "Forgetful: unavailable (use Serena)" }
-Write-Output "ADR-007 active. $forgetfulStatus. Protocol: AGENTS.md > Session Protocol Gates."
+Write-Output "ADR-007 active. $($forgetfulStatus). Protocol: AGENTS.md > Session Protocol Gates."
 
 exit 0
