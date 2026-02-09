@@ -2043,6 +2043,13 @@ graph TD
     - **Impact**: Core workflow functionality broken
     - **Fix**: BOT_PAT lacks GraphQL permissions for label mutations
 
+20. **[#1112](https://github.com/rjmurillo/ai-agents/issues/1112)** - CI: Add skill/passive context compliance workflow
+    - **Priority**: P2
+    - **Labels**: enhancement, area-workflows, area-skills
+    - **Dependencies**: PR #1111 (context-optimizer tooling suite)
+    - **Deliverables**: `.github/workflows/skill-passive-compliance.yml`, required status check
+    - **Reference**: Comment on PR #1111
+
 **Session Validation**:
 20. **[#836](https://github.com/rjmurillo/ai-agents/issues/836)** - Improve E_PATH_ESCAPE error diagnostics in session validation
     - **Priority**: P1
