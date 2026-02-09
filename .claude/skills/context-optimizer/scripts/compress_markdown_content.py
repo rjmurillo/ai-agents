@@ -32,7 +32,12 @@ from pathlib import Path
 try:
     import tiktoken
 except ImportError:
-    print("Error: tiktoken library not installed. Run: pip install tiktoken", file=sys.stderr)
+    print(
+        "Error: tiktoken library not installed.\n"
+        "Install with: uv pip install -e '.[dev]' (from repository root)\n"
+        "Or: pip install tiktoken",
+        file=sys.stderr
+    )
     sys.exit(4)
 
 

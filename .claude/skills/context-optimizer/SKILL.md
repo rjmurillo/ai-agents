@@ -14,6 +14,22 @@ license: MIT
 
 Tooling suite for optimizing Claude Code context placement based on Vercel research demonstrating that passive context (AGENTS.md, @imports) achieves 100% pass rates versus 53-79% for skills due to elimination of decision points.
 
+## Prerequisites
+
+The compression script requires Python 3.10+ with the `tiktoken` library for local token counting:
+
+```bash
+# Install project dependencies (includes tiktoken)
+uv pip install -e ".[dev]"
+
+# Or install tiktoken directly
+pip install tiktoken
+```
+
+**Note**: `tiktoken` is an offline tokenizer that uses OpenAI's cl100k_base encoding (GPT-4). It does **not** require an API key or network connection. While this repository uses Claude (not GPT-4), tiktoken provides consistent relative compression metrics (before vs after token counts) which is sufficient for the compression utility's purpose.
+
+For exact Claude token counts, the script can optionally use Anthropic's API (requires `ANTHROPIC_API_KEY` environment variable).
+
 ## Tools
 
 ### 1. Skill/Passive Content Analyzer
