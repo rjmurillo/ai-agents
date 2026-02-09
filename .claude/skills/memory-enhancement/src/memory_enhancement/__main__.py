@@ -3,6 +3,9 @@
 Usage:
     python -m memory_enhancement verify <memory-id-or-path> [--json] [--repo-root PATH]
     python -m memory_enhancement verify-all [--dir PATH] [--json] [--repo-root PATH]
+    python -m memory_enhancement graph <memory_id> [--mode bfs|dfs] [--max-depth N] [--json]
+    python -m memory_enhancement graph --cycles [--json] [--dir PATH]
+    python -m memory_enhancement graph <memory_id> --score [--json] [--dir PATH]
 """
 
 import argparse
@@ -11,6 +14,7 @@ import sys
 from pathlib import Path
 
 from .citations import VerificationResult, verify_all_memories, verify_memory
+from .graph import MemoryGraph
 from .models import Memory
 
 DEFAULT_MEMORIES_DIR = ".serena/memories"
@@ -155,6 +159,135 @@ def cmd_verify_all(args: argparse.Namespace) -> int:
     return 1 if has_stale else 0
 
 
+def cmd_graph(args: argparse.Namespace) -> int:
+    """Handle graph traversal, cycle detection, and relationship scoring."""
+    repo_root = Path(args.repo_root).resolve()
+    memories_dir = (repo_root / args.dir).resolve()
+
+    if not str(memories_dir).startswith(str(repo_root)):
+        print(f"Error: Memories directory is outside the repository: {args.dir}", file=sys.stderr)
+        return 2
+
+    if not memories_dir.exists():
+        print(f"Error: Memories directory not found: {memories_dir}", file=sys.stderr)
+        return 2
+
+    try:
+        graph = MemoryGraph.from_directory(memories_dir)
+    except OSError as e:
+        print(f"Error: Failed to load memories: {e}", file=sys.stderr)
+        return 2
+
+    if args.cycles:
+        return _graph_cycles(graph, args)
+
+    if args.score:
+        return _graph_score(graph, args)
+
+    return _graph_traverse(graph, args)
+
+
+def _graph_traverse(graph: MemoryGraph, args: argparse.Namespace) -> int:
+    """Run BFS or DFS traversal and print results."""
+    if not args.memory_id:
+        print("Error: memory_id is required for traversal", file=sys.stderr)
+        return 2
+
+    traverse_fn = graph.bfs if args.mode == "bfs" else graph.dfs
+
+    try:
+        nodes = traverse_fn(args.memory_id, max_depth=args.max_depth)
+    except KeyError as e:
+        message = e.args[0] if e.args else str(e)
+        print(f"Error: {message}", file=sys.stderr)
+        return 2
+
+    if args.json:
+        data = {
+            "start": args.memory_id,
+            "mode": args.mode,
+            "max_depth": args.max_depth,
+            "nodes": [
+                {
+                    "memory_id": n.memory_id,
+                    "depth": n.depth,
+                    "link_type": n.link_type,
+                    "parent_id": n.parent_id,
+                }
+                for n in nodes
+            ],
+        }
+        print(json.dumps(data, indent=2))
+    else:
+        depth_label = f", max_depth={args.max_depth}" if args.max_depth is not None else ""
+        mode_label = args.mode.upper()
+        print(f"Graph traversal from '{args.memory_id}' ({mode_label}{depth_label}):")
+        for node in nodes:
+            suffix = f" ({node.link_type})" if node.link_type else ""
+            print(f"  [{node.depth}] {node.memory_id}{suffix}")
+        print(f"\nNodes visited: {len(nodes)}")
+
+    return 0
+
+
+def _graph_cycles(graph: MemoryGraph, args: argparse.Namespace) -> int:
+    """Detect and report cycles in the memory graph."""
+    cycles = graph.find_cycles()
+
+    if args.json:
+        data = {
+            "cycles": cycles,
+            "count": len(cycles),
+        }
+        print(json.dumps(data, indent=2))
+    else:
+        print("Cycle detection results:")
+        if cycles:
+            for i, cycle in enumerate(cycles, 1):
+                print(f"  Cycle {i}: {' -> '.join(cycle)}")
+            print(f"\nFound {len(cycles)} cycle(s).")
+        else:
+            print("  No cycles found.")
+
+    return 1 if cycles else 0
+
+
+def _graph_score(graph: MemoryGraph, args: argparse.Namespace) -> int:
+    """Score and display relationships for a memory."""
+    if not args.memory_id:
+        print("Error: memory_id is required with --score", file=sys.stderr)
+        return 2
+
+    try:
+        scores = graph.score_relationships(args.memory_id)
+    except KeyError as e:
+        message = e.args[0] if e.args else str(e)
+        print(f"Error: {message}", file=sys.stderr)
+        return 2
+
+    if args.json:
+        data = {
+            "memory_id": args.memory_id,
+            "relationships": [
+                {
+                    "target_id": s.target_id,
+                    "score": round(s.score, 2),
+                    "link_type": s.link_type,
+                    "distance": s.distance,
+                }
+                for s in scores
+            ],
+        }
+        print(json.dumps(data, indent=2))
+    else:
+        print(f"Relationship scores for '{args.memory_id}':")
+        for s in scores:
+            print(f"  {s.target_id}: {s.score:.2f} ({s.link_type}, distance={s.distance})")
+        print(f"\nTotal relationships: {len(scores)}")
+
+    return 0
+
+
 def main() -> int:
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
@@ -184,12 +317,41 @@ def main() -> int:
         "verify-all", help="Verify all memories", parents=[common]
     )
 
+    graph_parser = subparsers.add_parser(
+        "graph", help="Graph traversal and analysis", parents=[common]
+    )
+    graph_parser.add_argument(
+        "memory_id", nargs="?", default=None,
+        help="Memory ID for traversal or scoring",
+    )
+    graph_parser.add_argument(
+        "--mode", choices=["bfs", "dfs"], default="bfs",
+        help="Traversal algorithm (default: bfs)",
+    )
+    graph_parser.add_argument(
+        "--max-depth", type=int, default=None,
+        help="Maximum traversal depth",
+    )
+
+    # Mutually exclusive modes
+    graph_mode_group = graph_parser.add_mutually_exclusive_group()
+    graph_mode_group.add_argument(
+        "--cycles", action="store_true",
+        help="Detect cycles instead of traversal",
+    )
+    graph_mode_group.add_argument(
+        "--score", action="store_true",
+        help="Show relationship scores instead of traversal",
+    )
+
     args = parser.parse_args()
 
     if args.command == "verify":
         return cmd_verify(args)
     elif args.command == "verify-all":
         return cmd_verify_all(args)
+    elif args.command == "graph":
+        return cmd_graph(args)
 
     parser.print_help()
     return 2
