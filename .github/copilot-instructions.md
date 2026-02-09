@@ -83,7 +83,7 @@ If Serena MCP tools are available, you MUST call FIRST:
 2. Update Serena memory (if available)
 3. Run scoped markdownlint on changed files (ADR-043, see SESSION-PROTOCOL.md Phase 2)
 4. Commit all changes
-5. Run `pwsh scripts/Validate-SessionJson.ps1 -SessionLogPath [log]`
+5. Run `python3 scripts/validate_session_json.py [log]`
 
 ## Key Documents
 

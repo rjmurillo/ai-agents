@@ -308,17 +308,17 @@ if (-not $DryRun) {
 # Run validation
 Write-Host ''
 Write-Host 'Running validation...' -ForegroundColor Cyan
-$validateScript = Join-Path $repoRoot 'scripts' 'Validate-SessionJson.ps1'
+$validateScript = Join-Path $repoRoot 'scripts' 'validate_session_json.py'
 
 if (Test-Path $validateScript) {
-    & pwsh $validateScript -SessionPath $SessionPath
+    & python3 $validateScript $SessionPath
     $validationExitCode = $LASTEXITCODE
 
     # Update validationPassed based on result
     if (-not $DryRun -and $sessionEnd.ContainsKey('validationPassed')) {
         $check = $sessionEnd.validationPassed
         $check.Complete = ($validationExitCode -eq 0)
-        $check.Evidence = if ($validationExitCode -eq 0) { 'Validate-SessionJson.ps1 passed' } else { 'Validate-SessionJson.ps1 failed' }
+        $check.Evidence = if ($validationExitCode -eq 0) { 'validate_session_json.py passed' } else { 'validate_session_json.py failed' }
 
         # Re-evaluate checklistComplete
         if ($validationExitCode -eq 0 -and $allMustComplete) {

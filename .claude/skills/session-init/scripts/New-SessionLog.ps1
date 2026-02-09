@@ -9,7 +9,7 @@
     2. Detecting date/branch/commit/git status
     3. Generating JSON structure with schemaVersion field
     4. Writing JSON file to .agents/sessions/
-    5. Validating with JSON schema + Validate-SessionJson.ps1
+    5. Validating with JSON schema + validate_session_json.py
     6. Exiting nonzero on validation failure
 
     Autonomous Operation:
@@ -402,7 +402,7 @@ function New-JsonSessionLog {
 function Invoke-ValidationScript {
     <#
     .SYNOPSIS
-        Validate session log using JSON schema + Validate-SessionJson.ps1
+        Validate session log using JSON schema + validate_session_json.py
     .DESCRIPTION
         Two-tier validation:
         1. JSON Schema validation (structural, deterministic)
@@ -453,7 +453,7 @@ function Invoke-ValidationScript {
     }
 
     # Phase 2: Script Validation (business rules)
-    $validationScript = Join-Path $RepoRoot "scripts/Validate-SessionJson.ps1"
+    $validationScript = Join-Path $RepoRoot "scripts/validate_session_json.py"
 
     # Missing validation script is a CRITICAL failure - no silent fallback
     if (-not (Test-Path $validationScript)) {
@@ -463,7 +463,7 @@ function Invoke-ValidationScript {
         Write-Error ""
         Write-Error "To fix:"
         Write-Error "  1. Ensure you are in the correct repository root"
-        Write-Error "  2. Verify scripts/Validate-SessionJson.ps1 exists"
+        Write-Error "  2. Verify scripts/validate_session_json.py exists"
         Write-Error "  3. Do not run this script from a subdirectory"
         Write-Error ""
         Write-Error "If you MUST skip validation (testing only), use -SkipValidation flag."
@@ -566,7 +566,7 @@ try {
             Write-Host "  File: $sessionLogPath" -ForegroundColor Gray
             Write-Host ""
             Write-Host "Fix the issues and re-validate with:" -ForegroundColor Yellow
-            Write-Host "  pwsh scripts/Validate-SessionJson.ps1 -SessionPath `"$sessionLogPath`"" -ForegroundColor Gray
+            Write-Host "  pwsh scripts/validate_session_json.py -SessionPath `"$sessionLogPath`"" -ForegroundColor Gray
             exit 4
         }
     } else {
@@ -584,7 +584,7 @@ try {
         Write-Host "It may contain errors or missing required sections." -ForegroundColor Yellow
         Write-Host ""
         Write-Host "Validate manually with:" -ForegroundColor Yellow
-        Write-Host "  pwsh scripts/Validate-SessionJson.ps1 -SessionPath `"$sessionLogPath`"" -ForegroundColor Gray
+        Write-Host "  pwsh scripts/validate_session_json.py -SessionPath `"$sessionLogPath`"" -ForegroundColor Gray
     } else {
         Write-Host "JSON session log created and validated" -ForegroundColor Green
     }

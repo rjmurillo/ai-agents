@@ -80,11 +80,8 @@ After execution:
 | Script | Platform | Usage |
 |--------|----------|-------|
 | `collect_metrics.py` | Python 3.8+ | Cross-platform |
-| `collect-metrics.ps1` | PowerShell 5.1+ | Windows/Linux/macOS |
 
 ## Quick Start
-
-### Python
 
 ```bash
 # Basic usage (30 days, summary output)
@@ -95,19 +92,6 @@ python .claude/skills/metrics/collect_metrics.py --since 90 --output markdown
 
 # JSON output for automation
 python .claude/skills/metrics/collect_metrics.py --output json
-```
-
-### PowerShell
-
-```powershell
-# Basic usage (30 days, summary output)
-.\.agents\utilities\metrics\collect-metrics.ps1
-
-# Last 90 days as markdown
-.\.agents\utilities\metrics\collect-metrics.ps1 -Since 90 -Output Markdown
-
-# JSON output for automation
-.\.agents\utilities\metrics\collect-metrics.ps1 -Output Json | ConvertFrom-Json
 ```
 
 ## Metrics Collected
