@@ -56,6 +56,36 @@ The pre-commit hook enforces these thresholds automatically:
 
 Token counts appear inline in `memory-index.md` as `(N)` after each link. These are auto-updated by the pre-commit hook when memory files change.
 
+## Quarterly Curation Process
+
+Run every quarter (Jan, Apr, Jul, Oct) to keep the memory system healthy.
+
+**Step 1: Generate health report**
+
+```bash
+python3 scripts/memory/memory_health.py
+```
+
+**Step 2: Run stale detector**
+
+```bash
+python3 scripts/memory/detect_stale.py .serena/memories
+```
+
+**Step 3: Review and act**
+
+| Finding | Action |
+|---------|--------|
+| Stale (>6 months) | Archive or update with current information |
+| Broken memory links | Fix references or remove dead links |
+| Broken code references | Update paths or remove stale references |
+| Oversized files | Decompose per "How to Decompose" above |
+| Near-duplicate content | Merge into single authoritative memory |
+
+**Step 4: Document results**
+
+Create a retrospective memory documenting changes made, files archived, and metrics delta.
+
 ## Related
 
 - `memory-size-001-decomposition-thresholds.md` - Threshold rationale and history
