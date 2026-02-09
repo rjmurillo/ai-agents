@@ -173,13 +173,13 @@ class TestExtractTodosFromDiff:
         result = extract_todos_from_diff(diff, 1)
         assert len(result) == 1
 
-    def test_suggested_agent_is_task_generator(self) -> None:
+    def test_suggested_agent_is_task_decomposer(self) -> None:
         diff = (
             "diff --git a/src/x.py b/src/x.py\n"
             "+# TODO: refactor this\n"
         )
         result = extract_todos_from_diff(diff, 1)
-        assert result[0].suggested_agent == "task-generator"
+        assert result[0].suggested_agent == "task-decomposer"
 
 
 class TestScoreIssueComplexity:
@@ -254,7 +254,7 @@ class TestSuggestAgents:
 
     def test_planner_keywords(self) -> None:
         agents = suggest_agents("Create milestone for Q3", "")
-        assert "agent-planner" in agents
+        assert "agent-milestone-planner" in agents
 
     def test_no_false_positive_ci_in_critical(self) -> None:
         """'ci' should not match inside 'critical'."""
@@ -321,7 +321,7 @@ class TestDetectArtifactChanges:
         files = [".agents/architecture/ADR-050-new-pattern.md"]
         result = detect_artifact_changes(files)
         assert len(result) == 1
-        assert result[0].suggested_agent == "planner"
+        assert result[0].suggested_agent == "milestone-planner"
         assert result[0].priority == "high"
         assert result[0].metadata["artifact_type"] == "adr"
 
@@ -444,13 +444,13 @@ class TestFormatSummary:
                 description="Found TODO",
                 source_event=EventType.PR_MERGED,
                 source_ref="PR #1",
-                suggested_agent="task-generator",
+                suggested_agent="task-decomposer",
             )
         ]
         result = format_summary(opps)
         assert "1 Opportunities Detected" in result
         assert "TODO in main.py" in result
-        assert "task-generator" in result
+        assert "task-decomposer" in result
 
 
 class TestMainCLI:

@@ -43,7 +43,7 @@ This concept aligns with [GitHub MCP Server toolsets](https://github.blog/change
 
 | Toolset | Tools | Used By |
 |---------|-------|---------|
-| `editor` | vscode, read, edit, search | architect, critic, planner, and 5 more |
+| `editor` | vscode, read, edit, search | architect, critic, milestone-planner, and 5 more |
 | `executor` | vscode, execute, read, edit, search | orchestrator, implementer, qa, devops |
 | `knowledge` | cloudmcp-manager/\*, serena/\*, memory | Most agents |
 | `github-research` | 7 GitHub search/read tools | analyst |

@@ -289,7 +289,7 @@ blocks:                  # Optional: tasks this blocks
 assignee: implementer    # Optional: assigned agent/person
 created: 2025-12-30
 updated: 2025-12-30
-author: task-generator
+author: task-decomposer
 tags:
   - mcp
   - typescript
@@ -364,7 +364,7 @@ blocks:
 assignee: implementer
 created: 2025-12-30
 updated: 2025-12-30
-author: task-generator
+author: task-decomposer
 tags:
   - mcp
   - typescript

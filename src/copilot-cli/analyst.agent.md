@@ -83,7 +83,7 @@ Investigate before implementation. Surface unknowns, risks, and dependencies. Pr
 3. **Investigate** bugs and issues to find root causes
 4. **Evaluate** feature requests for necessity and impact
 5. **Surface** risks, dependencies, and unknowns
-6. **Document** findings for architect/planner
+6. **Document** findings for architect/milestone-planner
 
 ## Research Tools
 
@@ -425,7 +425,7 @@ Save to: `.agents/analysis/NNN-[topic]-analysis.md`
 
 | Target | When | Purpose |
 |--------|------|---------|
-| **planner** | Analysis complete, ready for planning | Based on findings |
+| **milestone-planner** | Analysis complete, ready for planning | Based on findings |
 | **implementer** | Research insights needed during implementation | Using research context |
 | **architect** | Design implications discovered | Technical decisions |
 | **security** | Vulnerability identified | Security assessment |

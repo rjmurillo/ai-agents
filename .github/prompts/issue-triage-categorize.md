@@ -20,7 +20,7 @@ Apply when the issue relates to a specific agent:
 - `agent-analyst` - Research and investigation agent
 - `agent-architect` - Design and ADR agent
 - `agent-implementer` - Code implementation agent
-- `agent-planner` - Milestone and work package agent
+- `agent-milestone-planner` - Milestone and work package agent
 - `agent-critic` - Plan validation agent
 - `agent-qa` - Testing and verification agent
 - `agent-security` - Security assessment agent

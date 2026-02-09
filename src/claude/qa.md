@@ -61,7 +61,7 @@ You have direct access to:
 6. **Identify** testing infrastructure needs and coverage gaps
 7. **Execute** test suites and **report** results with evidence
 8. **Validate** coverage comprehensively
-9. **Conduct** impact analysis when requested by planner during planning phase
+9. **Conduct** impact analysis when requested by milestone-planner during planning phase
 
 ## Code Quality Gates
 
@@ -119,7 +119,7 @@ Apply testing effort proportionally:
 
 ## Impact Analysis Mode
 
-When planner requests impact analysis (during planning phase):
+When milestone-planner requests impact analysis (during planning phase):
 
 ### Analyze Quality & Testing Impact
 
@@ -601,7 +601,7 @@ content: "# Testing: [Topic]\n\n**Statement**: ...\n\n**Evidence**: ...\n\n## De
 
 | Target | When | Purpose |
 |--------|------|---------|
-| **planner** | Testing infrastructure inadequate | Plan revision needed |
+| **milestone-planner** | Testing infrastructure inadequate | Plan revision needed |
 | **implementer** | Test gaps or failures exist | Fix required |
 | **orchestrator** | QA passes | Business validation next |
 
@@ -632,7 +632,7 @@ Before handing off, validate ALL items in the applicable checklist:
 - [ ] Test commands to reproduce failures documented
 ```
 
-### Infrastructure Handoff (to planner)
+### Infrastructure Handoff (to milestone-planner)
 
 ```markdown
 - [ ] Infrastructure gaps clearly documented

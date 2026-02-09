@@ -20,7 +20,7 @@ Respond with ONLY valid JSON (no markdown, no explanation):
   "verdict": "ACTION|DEFER|SKIP",
   "priority": "high|medium|low",
   "action_type": "create_issue|add_label|add_comment|generate_prd|none",
-  "suggested_agent": "task-generator|planner|analyst|orchestrator",
+  "suggested_agent": "task-decomposer|milestone-planner|analyst|orchestrator",
   "reasoning": "Brief explanation of recommendation",
   "follow_up_title": "Title for follow-up issue if action_type is create_issue",
   "follow_up_body": "Body for follow-up issue if action_type is create_issue"

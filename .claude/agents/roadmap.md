@@ -326,7 +326,7 @@ P[0/1/2] - [Rationale based on frameworks above]
 | Target | When | Purpose |
 |--------|------|---------|
 | **architect** | Technical feasibility check | Validate approach |
-| **planner** | Epic ready for breakdown | Create work packages |
+| **milestone-planner** | Epic ready for breakdown | Create work packages |
 | **analyst** | Research needed | Investigate requirements |
 | **critic** | Roadmap review requested | Validate priorities |
 
@@ -339,7 +339,7 @@ When epic is defined:
 1. Update roadmap document in `.agents/roadmap/`
 2. Store epic summary in memory
 3. Return to orchestrator with recommendation:
-   - "Epic defined. Recommend orchestrator routes to architect for feasibility check, then to planner for work breakdown."
+   - "Epic defined. Recommend orchestrator routes to architect for feasibility check, then to milestone-planner for work breakdown."
 
 ## Roadmap Review Process
 

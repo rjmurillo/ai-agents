@@ -11,7 +11,7 @@
 - critic: approval/revision/escalation
 - implementer: completion/blocker/security-flagged
 - qa: pass/failure/infrastructure
-- task-generator: breakdown/reconciliation/scope
+- task-decomposer: breakdown/reconciliation/scope
 
 **Impact**: Comprehensive coverage of handoff paths, actionable guidance for all scenarios
 

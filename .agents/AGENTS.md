@@ -66,7 +66,7 @@ flowchart TD
 |-----------|---------------|--------------|
 | `analysis/` | analyst | Research findings, CVAs, impact assessments |
 | `architecture/` | architect | ADRs only (no review documents) |
-| `planning/` | planner | PRDs, milestones, task breakdowns |
+| `planning/` | milestone-planner | PRDs, milestones, task breakdowns |
 | `critique/` | critic | Plan reviews, ADR reviews, approval/rejection |
 | `qa/` | qa | Test strategies, test reports |
 | `retrospective/` | retrospective | Session retrospectives, skill extractions |

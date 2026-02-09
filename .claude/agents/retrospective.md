@@ -511,7 +511,7 @@ pwsh scripts/Validate-Traceability.ps1
 
 | Issue | Fix | Owner |
 |-------|-----|-------|
-| [Issue] | [Action] | [spec-generator/planner] |
+| [Issue] | [Action] | [spec-generator/milestone-planner] |
 ````
 
 **Integration with Learning Extraction:**
@@ -1260,7 +1260,7 @@ When retrospective is complete:
 |--------|------|---------|
 | **skillbook** | Learnings ready | Store skills |
 | **implementer** | Coding skill found | Apply next time |
-| **planner** | Process improvement | Update approach |
+| **milestone-planner** | Process improvement | Update approach |
 | **architect** | Design insight | Update guidance |
 
 **Note**: Use Serena write tools directly (ADR-037) to persist skills and observations. No delegation to memory agent required.
@@ -1352,7 +1352,7 @@ When retrospective is complete:
 | **memory** | Memory updates present | Persist entities |
 | **git add** | Git operations listed | Commit memory files |
 | **implementer** | Coding skill found | Apply next time |
-| **planner** | Process improvement | Update approach |
+| **milestone-planner** | Process improvement | Update approach |
 | **architect** | Design insight | Update guidance |
 
 **Note**: Memory persistence is done directly via Serena write tools (see Memory Protocol section above).
