@@ -96,7 +96,7 @@ try {
     # NOTE: SessionStart hooks cannot block (exit 2 only shows stderr, prevents
     # stdout injection). Commit-time protection is enforced by PreToolUse hooks.
     if (Test-IsMainOrMasterBranch -Branch $currentBranch) {
-        Write-Output "`n## WARNING: On Protected Branch``n``n**Current Branch**: ``$currentBranch`` - Switch to feature branch. Commits blocked by pre-commit hooks.``n``git checkout -b feat/your-feature-name```n"
+        Write-Output "`n## WARNING: On Protected Branch`n`n**Current Branch**: ``$currentBranch`` - Switch to feature branch. Commits blocked by pre-commit hooks.`n`n``````bash`ngit checkout -b feat/your-feature-name`n```````n"
         exit 0
     }
 
