@@ -20,7 +20,8 @@ from pathlib import Path
 
 # Graceful tiktoken import
 try:
-    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / ".claude/skills/memory/scripts"))
+    _scripts = Path(__file__).resolve().parent.parent / ".claude/skills/memory/scripts"
+    sys.path.insert(0, str(_scripts))
     from count_memory_tokens import get_memory_token_count
     HAS_TIKTOKEN = True
 except (ImportError, SystemExit):
