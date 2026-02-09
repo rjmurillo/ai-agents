@@ -230,6 +230,7 @@ class TestResult:
         )
 
         assert result.success is False
+        assert result.errors is not None
         assert len(result.errors) == 2
 
     def test_result_with_data(self) -> None:
@@ -240,6 +241,7 @@ class TestResult:
             data={"path": "/test/file.md", "name": "Test"},
         )
 
+        assert result.data is not None
         assert result.data["path"] == "/test/file.md"
 
 

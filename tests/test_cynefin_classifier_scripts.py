@@ -722,6 +722,7 @@ class TestTemporalNotes:
         result = classify_problem("Simple typo fix, obvious solution")
 
         if result.domain == Domain.CLEAR:
+            assert result.temporal_note is not None
             assert "Complex" in result.temporal_note or "Chaotic" in result.temporal_note
 
     def test_chaotic_domain_temporal_note(self) -> None:
@@ -729,6 +730,7 @@ class TestTemporalNotes:
         result = classify_problem("Urgent outage! System down! Emergency!")
 
         if result.domain == Domain.CHAOTIC:
+            assert result.temporal_note is not None
             assert "Complex" in result.temporal_note
 
     def test_confusion_domain_temporal_note(self) -> None:
@@ -736,6 +738,7 @@ class TestTemporalNotes:
         result = classify_problem("Something might be wrong")
 
         if result.domain == Domain.CONFUSION:
+            assert result.temporal_note is not None
             assert "Temporary" in result.temporal_note
 
 
