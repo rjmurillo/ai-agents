@@ -15,7 +15,6 @@ import sys
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
 
 try:
     import yaml
@@ -33,8 +32,8 @@ class SLI:
     description: str
     measurement: str
     data_source: str
-    good_events: Optional[str] = None
-    total_events: Optional[str] = None
+    good_events: str | None = None
+    total_events: str | None = None
 
 
 @dataclass

@@ -34,7 +34,7 @@ Use this skill when:
 - Decision has long-term strategic implications (2+ year horizon)
 - Team split on approach and need objective framework
 
-Use [cynefin-classifier](../cynefin-classifier/SKILL.md) first if:
+Use [cynefin-classifier](../.archived/cynefin-classifier/SKILL.md) first if:
 
 - Unsure whether problem is analyzable (Complicated) or requires experimentation (Complex)
 
@@ -102,7 +102,7 @@ Default: BUILD                          Default: BUY
 
 #### Integration Points:
 
-1. **Optional pre-step:** Run [cynefin-classifier](../cynefin-classifier/SKILL.md) if problem domain unclear
+1. **Optional pre-step:** Run [cynefin-classifier](../.archived/cynefin-classifier/SKILL.md) if problem domain unclear
    - Complex → favor Buy/Partner (reduce risk through experimentation)
    - Complicated → proceed with analysis
 
@@ -416,7 +416,7 @@ Deep-dive documentation in `references/` directory:
 
 | Skill | Relationship |
 |-------|--------------|
-| [cynefin-classifier](../cynefin-classifier/SKILL.md) | Pre-step to determine problem domain |
+| [cynefin-classifier](../.archived/cynefin-classifier/SKILL.md) | Pre-step to determine problem domain (archived) |
 | [pre-mortem](../pre-mortem/SKILL.md) | Phase 3 risk identification |
 | [decision-critic](../decision-critic/SKILL.md) | Phase 4 validation |
 | [adr-review](../adr-review/SKILL.md) | Phase 4 multi-agent consensus |
