@@ -110,14 +110,14 @@ You CANNOT claim session completion until validation PASSES. These requirements 
 | **MUST** | Update Serena memory (cross-session context) | Memory write confirmed |
 | **MUST** | Run scoped markdownlint on changed files (ADR-043) | Lint passes |
 | **MUST** | Commit all changes including `.agents/` | Commit SHA in Evidence column |
-| **MUST** | Run `Validate-SessionJson.ps1` | Exit code 0 (PASS) |
+| **MUST** | Run `validate_session_json.py` | Exit code 0 (PASS) |
 | **SHOULD** | Update PROJECT-PLAN.md task checkboxes | Tasks marked complete |
 | **SHOULD** | Invoke retrospective (significant sessions) | Doc created |
 
 **Validation Command**:
 
 ```bash
-pwsh scripts/Validate-SessionJson.ps1 -SessionPath ".agents/sessions/[session-log].json"
+python3 scripts/validate_session_json.py .agents/sessions/[session-log].json
 ```
 
 **If validation fails**: Fix violations and re-run. Do NOT claim completion until PASS.
@@ -184,7 +184,7 @@ pwsh .claude/skills/session-init/scripts/New-SessionLog.ps1 -SessionNumber 375 -
 
 - Reads canonical template from SESSION-PROTOCOL.md
 - Auto-detects git state (branch, commit, status)
-- Validates immediately with Validate-SessionJson.ps1
+- Validates immediately with validate_session_json.py
 - Prevents CI validation failures at source
 - Deterministic invocation via `/session-init` slash command
 
@@ -211,7 +211,7 @@ fi
 
 # Session artifacts
 pwsh .claude/skills/memory/scripts/Extract-SessionEpisode.ps1 -SessionLogPath ".agents/sessions/[log].json"
-pwsh scripts/Validate-SessionJson.ps1 -SessionPath ".agents/sessions/[log].json"
+python3 scripts/validate_session_json.py .agents/sessions/[log].json
 ```
 
 ### PR Review Workflow with Skills
@@ -444,7 +444,7 @@ wt merge
 - **Commit secrets or credentials** (use git-secret, environment variables, or secure vaults)
 - **Update HANDOFF.md** (read-only reference, write to session logs instead)
 - **Use bash for scripts** (Python or PowerShell only per ADR-042)
-- **Skip session protocol validation** (`Validate-SessionJson.ps1` must pass)
+- **Skip session protocol validation** (`validate_session_json.py` must pass)
 - **Put logic in workflow YAML** (ADR-006: logic goes in .psm1 modules)
 - **Use raw gh commands** when skills exist (check `.claude/skills/` first)
 - **Create PRs without template** (all sections required)
@@ -1967,7 +1967,7 @@ When generating or fixing markdown with code blocks, use the fix-markdown-fences
 **Usage**:
 
 ```bash
-pwsh .claude/skills/fix-markdown-fences/fix_fences.ps1
+python3 .claude/skills/fix-markdown-fences/fix_fences.py
 ```
 
 **Benefits**:
@@ -2161,7 +2161,7 @@ SESSION END (BLOCKING - MUST complete before closing):
 8. MUST: Update Serena memory (cross-session context)
 9. MUST: Run scoped markdownlint on changed files (ADR-043)
 10. MUST: Commit all changes (record SHA in Evidence column)
-11. MUST: Run Validate-SessionJson.ps1 - PASS required before claiming completion
+11. MUST: Run validate_session_json.py - PASS required before claiming completion
 12. SHOULD: Check off completed tasks in PROJECT-PLAN.md
 13. SHOULD: Invoke retrospective agent (for significant sessions)
 ```

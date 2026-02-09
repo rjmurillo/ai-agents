@@ -175,7 +175,6 @@ foreach ($dir in $directories) {
 ### Fix Files in Directory
 
 ```bash
-# Python
 python -c "
 from pathlib import Path
 exec(open('fix_fences.py').read())
@@ -183,9 +182,6 @@ fixed = fix_markdown_files(Path('docs'))
 for f in fixed:
     print(f'Fixed: {f}')
 "
-
-# PowerShell
-pwsh fix-fences.ps1
 ```
 
 ### Fix Single String (In-Memory)

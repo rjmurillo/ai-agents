@@ -33,7 +33,7 @@ The script will:
 1. Find the current session log automatically
 2. Auto-populate session end evidence from git state
 3. Run markdown lint on changed files
-4. Validate with Validate-SessionJson.ps1
+4. Validate with validate_session_json.py
 5. Report pass/fail with actionable next steps
 
 ### Preview Changes First
@@ -115,7 +115,7 @@ User Request: /session-end
     v
 +---------------------------------------------+
 | Phase 4: VALIDATE                            |
-| - Run Validate-SessionJson.ps1               |
+| - Run validate_session_json.py               |
 | - Update validationPassed field              |
 | - Report pass/fail with details              |
 +---------------------------------------------+
@@ -136,7 +136,7 @@ Completed Session Log (or actionable errors)
 | `markdownLintRun` | Run markdownlint on changed .md files | MUST |
 | `changesCommitted` | Check git status for uncommitted changes | MUST |
 | `checklistComplete` | Evaluate all MUST items | MUST |
-| `validationPassed` | Run Validate-SessionJson.ps1 | MUST |
+| `validationPassed` | Run validate_session_json.py | MUST |
 
 ### What You Must Provide Manually
 
@@ -293,7 +293,7 @@ File: .agents/sessions/2026-02-07-session-05.json
 ## References
 
 - [SESSION-PROTOCOL.md](../../../.agents/SESSION-PROTOCOL.md) - Session end requirements
-- [Validate-SessionJson.ps1](../../../scripts/Validate-SessionJson.ps1) - Validation script
+- [validate_session_json.py](../../../scripts/validate_session_json.py) - Validation script
 - [New-SessionLogJson.ps1](../session-init/scripts/New-SessionLogJson.ps1) - Session creation script
 
 ---

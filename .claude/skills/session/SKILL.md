@@ -286,5 +286,5 @@ After using this skill:
 | [ADR-034](../../../.agents/architecture/decisions/adr-034-investigation-session-qa-exemption.md) | Investigation Session QA Exemption architecture decision |
 | [SESSION-PROTOCOL.md](../../../.agents/SESSION-PROTOCOL.md) | Session start/end requirements (Phase 2.5) |
 | [Issue #662](https://github.com/rjmurillo/ai-agents/issues/662) | Create QA skip eligibility check skill |
-| [Validate-SessionJson.ps1](../../../scripts/Validate-SessionJson.ps1) | Validates session JSON format (separate from eligibility) |
+| [validate_session_json.py](../../../scripts/validate_session_json.py) | Validates session JSON format (separate from eligibility) |
 | [Test-InvestigationEligibility.Tests.ps1](../../../tests/Test-InvestigationEligibility.Tests.ps1) | Pester tests ensuring pattern consistency |

@@ -4,7 +4,7 @@
 
 .DESCRIPTION
     Single source of truth for investigation artifact path patterns.
-    Consumers: Validate-SessionJson.ps1, session skill, session-qa-eligibility skill.
+    Consumers: validate_session_json.py, session skill, session-qa-eligibility skill.
 
 .NOTES
     See: ADR-034 Investigation Session QA Exemption

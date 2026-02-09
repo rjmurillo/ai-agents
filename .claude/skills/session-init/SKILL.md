@@ -32,7 +32,7 @@ The script will:
 2. Auto-detect git state (branch, commit, date)
 3. Read canonical template from SESSION-PROTOCOL.md
 4. Write session log with EXACT template format
-5. Validate immediately with Validate-SessionJson.ps1
+5. Validate immediately with validate_session_json.py
 6. Exit nonzero on validation failure
 
 ### Manual (If Needed)
@@ -171,7 +171,7 @@ User Request: /session-init
     v
 +---------------------------------------------+
 | Phase 5: IMMEDIATE VALIDATION               |
-| - Run Validate-SessionJson.ps1         |
+| - Run validate_session_json.py         |
 | - Report validation result                 |
 | - If FAIL: show errors, allow retry       |
 | - If PASS: confirm success                 |
@@ -275,7 +275,7 @@ Write the populated template to this file.
 Run validation script:
 
 ```powershell
-pwsh scripts/Validate-SessionJson.ps1 -SessionPath ".agents/sessions/YYYY-MM-DD-session-NN.json" 
+pwsh scripts/validate_session_json.py -SessionPath ".agents/sessions/YYYY-MM-DD-session-NN.json" 
 ```
 
 Check exit code:
@@ -339,7 +339,7 @@ Session log created but validation FAILED
   Errors:
     - Missing Session End checklist header
 
-Run: pwsh scripts/Validate-SessionJson.ps1 -SessionPath ".agents/sessions/.agents/sessions/2026-01-05-session-375.json" 
+Run: python3 scripts/validate_session_json.py ".agents/sessions/.agents/sessions/2026-01-05-session-375.json" 
 
 Fix the issues and re-validate.
 ```
@@ -392,7 +392,7 @@ $sessionLog | Out-File -FilePath '.agents/sessions/.agents/sessions/2026-01-06-s
 ## References
 
 - [SESSION-PROTOCOL.md](.agents/SESSION-PROTOCOL.md) - Canonical template source
-- [Validate-SessionJson.ps1](scripts/Validate-SessionJson.ps1) - Validation script
+- [validate_session_json.py](scripts/validate_session_json.py) - Validation script
 - [Template Extraction](references/template-extraction.md) - How to extract template
 - [Validation Patterns](references/validation-patterns.md) - Common validation issues
 
