@@ -161,8 +161,14 @@ while read -r local_ref local_sha remote_ref remote_sha; do
             ref_range="$local_sha"
         fi
     else
-        # Existing branch: compare against remote
-        ref_range="$remote_sha..$local_sha"
+        # Existing branch: use merge-base with main to exclude upstream changes
+        # This prevents merge commits from counting files already on main
+        merge_base=$(git merge-base origin/main "$local_sha" 2>/dev/null || echo "")
+        if [ -n "$merge_base" ]; then
+            ref_range="$merge_base..$local_sha"
+        else
+            ref_range="$remote_sha..$local_sha"
+        fi
     fi
 
     # Keep last ref range for commit count and additions checks
@@ -248,11 +254,34 @@ else
 fi
 
 # 3. Changed files count
-if [ "$FILE_COUNT" -gt 50 ]; then
-    record_fail "Changed files ($FILE_COUNT) exceeds maximum of 50"
+# Detect merge commits from main in the push range. Merges from upstream
+# naturally inflate the file count with already-reviewed changes, so the
+# limit is relaxed to avoid blocking legitimate merge-and-push workflows.
+FILE_LIMIT=50
+FILE_WARN=20
+if [ -n "$PUSH_RANGE" ]; then
+    merge_from_main=$(git rev-list --merges "$PUSH_RANGE" 2>/dev/null \
+        | while read -r sha; do
+            git log -1 --format='%P' "$sha" 2>/dev/null | tr ' ' '\n' | tail -n +2 \
+                | while read -r parent; do
+                    if git merge-base --is-ancestor "$parent" origin/main 2>/dev/null; then
+                        echo "yes"
+                        break
+                    fi
+                done
+        done | head -1)
+    if [ "$merge_from_main" = "yes" ]; then
+        FILE_LIMIT=150
+        FILE_WARN=80
+        echo_info "Merge from main detected, file limit relaxed to $FILE_LIMIT"
+    fi
+fi
+
+if [ "$FILE_COUNT" -gt "$FILE_LIMIT" ]; then
+    record_fail "Changed files ($FILE_COUNT) exceeds maximum of $FILE_LIMIT"
     echo_info "  Consider splitting into smaller PRs."
-elif [ "$FILE_COUNT" -gt 20 ]; then
-    record_warn "Changed files ($FILE_COUNT) exceeds recommended limit of 20"
+elif [ "$FILE_COUNT" -gt "$FILE_WARN" ]; then
+    record_warn "Changed files ($FILE_COUNT) exceeds recommended limit of $FILE_WARN"
 else
     record_pass "Changed files count ($FILE_COUNT)"
 fi
