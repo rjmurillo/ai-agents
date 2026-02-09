@@ -207,18 +207,25 @@ def check_imported_files_exist(
 
     results = []
     for import_path in imports:
-        full_path = repository_root / import_path
-        exists = full_path.exists()
-        readable = False
+        try:
+            # Prevent path traversal (CWE-22): reject ../ sequences and absolute paths
+            if ".." in import_path or Path(import_path).is_absolute():
+                raise PermissionError("Path traversal attempt detected")
 
-        if exists:
-            try:
-                full_path.read_text()
-                readable = True
-            except Exception:
-                pass
+            full_path = repository_root / import_path
+            exists = full_path.exists()
+            readable = False
 
-        results.append({"path": import_path, "exists": exists, "readable": readable})
+            if exists:
+                try:
+                    full_path.read_text()
+                    readable = True
+                except Exception:
+                    pass
+
+            results.append({"path": import_path, "exists": exists, "readable": readable})
+        except (PermissionError, ValueError):
+            results.append({"path": import_path, "exists": False, "readable": False})
 
     missing = [r for r in results if not r["exists"]]
     unreadable = [r for r in results if r["exists"] and not r["readable"]]

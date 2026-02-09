@@ -472,6 +472,9 @@ def main():
 
     # Read input
     try:
+        # Prevent path traversal (CWE-22): check for ../ sequences
+        if ".." in str(args.input):
+            raise PermissionError(f"Path traversal attempt detected on input path: {args.input}")
         content = args.input.read_text(encoding='utf-8')
     except Exception as e:
         print(f"Error reading input file: {e}", file=sys.stderr)
@@ -496,6 +499,12 @@ def main():
     # Output
     if args.output:
         try:
+            # Prevent path traversal (CWE-22): check for ../ sequences
+            if ".." in str(args.output):
+                raise PermissionError(
+                    f"Path traversal attempt detected on output: {args.output}"
+                )
+
             args.output.write_text(compressed, encoding='utf-8')
             if args.verbose:
                 print(f"Compressed content written to: {args.output}", file=sys.stderr)

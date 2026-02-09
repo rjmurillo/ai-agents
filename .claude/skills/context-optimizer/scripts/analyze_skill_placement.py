@@ -80,17 +80,26 @@ def get_skill_content(path: Path) -> str:
     Raises:
         FileNotFoundError: If SKILL.md not found or path invalid
         ValueError: If path is not directory or .md file
+        PermissionError: If path contains traversal sequences
     """
-    if path.is_dir():
-        skill_md = path / "SKILL.md"
+    # Prevent path traversal (CWE-22): check for ../ sequences
+    path_str = str(path)
+    if ".." in path_str:
+        raise PermissionError(f"Path traversal attempt detected: {path}")
+
+    # Resolve to absolute path for safe access
+    resolved_path = path.resolve()
+
+    if resolved_path.is_dir():
+        skill_md = resolved_path / "SKILL.md"
         if not skill_md.exists():
-            raise FileNotFoundError(f"SKILL.md not found in directory: {path}")
+            raise FileNotFoundError(f"SKILL.md not found in directory: {resolved_path}")
         return skill_md.read_text(encoding="utf-8")
 
-    if not str(path).endswith(".md"):
+    if not str(resolved_path).endswith(".md"):
         raise ValueError("Path must be a directory or .md file")
 
-    return path.read_text(encoding="utf-8")
+    return resolved_path.read_text(encoding="utf-8")
 
 
 def measure_tool_calls(text: str) -> int:
