@@ -650,7 +650,7 @@ When a feature triggers **3+ domains** (code, architecture, security, operations
 
 ```text
 1. Orchestrator routes to milestone-planner with impact analysis flag
-2. Planner returns impact analysis plan
+2. milestone-planner returns impact analysis plan
 3. Orchestrator invokes specialist agents (one at a time or noting parallel potential):
    a. Orchestrator → implementer (code impact) → back to Orchestrator
    b. Orchestrator → architect (design impact) → back to Orchestrator

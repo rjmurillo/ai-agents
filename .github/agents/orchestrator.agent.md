@@ -1,24 +1,24 @@
 ---
-name: orchestrator
 description: Enterprise task orchestrator who autonomously coordinates specialized agents end-to-end—routing work, managing handoffs, and synthesizing results. Classifies complexity, triages delegation, and sequences workflows. Use for multi-step tasks requiring coordination, integration, or when the problem needs complete end-to-end resolution.
 argument-hint: Describe the task or problem to solve end-to-end
 tools:
-  - shell
+  - vscode
+  - execute
   - read
   - edit
   - search
   - agent
   - memory
   - todo
-  - cloudmcp-manager/*
   - github/list_issues
   - github/list_pull_requests
   - github/issue_read
   - github/pull_request_read
   - github/list_workflow_runs
   - github/get_workflow_run
+  - cloudmcp-manager/*
   - serena/*
-model: claude-opus-4.5
+model: Claude Opus 4.5 (copilot)
 ---
 # Orchestrator Agent
 
@@ -650,7 +650,7 @@ When a feature triggers **3+ domains** (code, architecture, security, operations
 
 ```text
 1. Orchestrator routes to milestone-planner with impact analysis flag
-2. Planner returns impact analysis plan
+2. milestone-planner returns impact analysis plan
 3. Orchestrator invokes specialist agents (one at a time or noting parallel potential):
    a. Orchestrator → implementer (code impact) → back to Orchestrator
    b. Orchestrator → architect (design impact) → back to Orchestrator
