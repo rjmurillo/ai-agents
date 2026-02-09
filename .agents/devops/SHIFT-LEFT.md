@@ -175,6 +175,83 @@ actionlint -format json
 | `runner label "foo" is unknown` | Invalid runs-on value | Use official runner labels |
 | `shellcheck reported issue` | Shell script error | Fix script syntax |
 
+### 3.6. Workflow Validation (Python)
+
+**Script**: `scripts/validate_workflows.py`
+
+**Purpose**: Validates GitHub Actions workflows for structure, security, and ADR-006 compliance. Complements actionlint with Python-based validation for SHA pinning, workflow size, and permissions.
+
+**Checks**:
+
+- YAML syntax correctness
+- Required workflow fields (`name`, `on`, `jobs`)
+- Action SHA pinning (security requirement)
+- Workflow size ≤100 lines (ADR-006: thin orchestration)
+- Explicit permissions (security best practice)
+- Concurrency configuration
+
+**Installation**:
+
+```bash
+# Requires Python 3 and PyYAML
+uv pip install PyYAML
+
+# Or with pip
+pip install PyYAML
+```
+
+**Local validation**:
+
+```bash
+# Validate all workflows
+python3 scripts/validate_workflows.py
+
+# Validate only changed files
+python3 scripts/validate_workflows.py --changed
+
+# Validate specific file
+python3 scripts/validate_workflows.py .github/workflows/pytest.yml
+
+# Run with act (if installed)
+python3 scripts/validate_workflows.py --act
+```
+
+**Integration points**:
+
+- Pre-push hook: `.githooks/pre-push` (Phase 2, Check 8a, blocking)
+- Runs automatically when pushing changes to `.github/workflows/` or `.github/actions/`
+
+**Common errors**:
+
+| Error | Cause | Fix |
+|-------|-------|-----|
+| `Action 'foo@v1' must use SHA pinning` | Using tag/branch instead of SHA | Replace with SHA: `foo@abc123... # v1.0.0` |
+| `Missing 'name' field` | Workflow missing name | Add `name:` at top level |
+| `Missing 'on' trigger` | Workflow missing trigger | Add `on:` section |
+| `Workflow has N lines (ADR-006 recommends ≤100)` | Workflow too large | Extract logic to PowerShell scripts |
+
+**Warnings vs Errors**:
+
+- **Errors** block pre-push: Invalid YAML, missing required fields, actions not SHA-pinned
+- **Warnings** are informational: Workflow size >100 lines, missing explicit permissions
+
+**Exit codes**:
+
+- `0`: All validations passed (warnings OK)
+- `1`: Validation errors found
+- `2`: Script error (missing dependencies, etc.)
+
+**Relationship to actionlint**:
+
+| Tool | Focus | When |
+|------|-------|------|
+| actionlint | GitHub Actions semantics, expression syntax | Always (blocking) |
+| validate_workflows.py | Structure, security, ADR-006 compliance | Automatically via pre-push hook |
+
+Both tools run sequentially in the pre-push hook (actionlint first, then validate_workflows.py).
+
+**See also**: [docs/WORKFLOW-VALIDATION.md](../../docs/WORKFLOW-VALIDATION.md)
+
 ### 3.9. YAML Style Validation
 
 **Tool**: `yamllint`
@@ -317,7 +394,7 @@ The pre-push hook (`.githooks/pre-push`) runs comprehensive branch-wide validati
 | Phase | Checks | Duration |
 |-------|--------|----------|
 | Fast Guards | Branch guard, commit count (max 20), file count, additions count | < 5s |
-| Linting | markdownlint, ruff, mypy, actionlint, yamllint | < 30s |
+| Linting | markdownlint, ruff, mypy, actionlint, validate_workflows.py, yamllint | < 30s |
 | Build Validation | Agent generation drift, agent drift detection, path normalization | < 30s |
 | Tests | Full Pester suite, pytest | Bulk of time |
 | Security | Suppression comment detection, session log validation | < 10s |

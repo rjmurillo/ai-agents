@@ -6,6 +6,8 @@ Usage:
     python -m memory_enhancement graph <memory_id> [--mode bfs|dfs] [--max-depth N] [--json]
     python -m memory_enhancement graph --cycles [--json] [--dir PATH]
     python -m memory_enhancement graph <memory_id> --score [--json] [--dir PATH]
+    python -m memory_enhancement health [--dir PATH] [--json] [--markdown] [--repo-root PATH]
+    python -m memory_enhancement health --summary [--dir PATH] [--repo-root PATH]
 """
 
 import argparse
@@ -15,6 +17,7 @@ from pathlib import Path
 
 from .citations import VerificationResult, verify_all_memories, verify_memory
 from .graph import MemoryGraph
+from .health import check_all_health
 from .models import Memory
 
 DEFAULT_MEMORIES_DIR = ".serena/memories"
@@ -94,8 +97,31 @@ def cmd_verify(args: argparse.Namespace) -> int:
     """Verify citations in a single memory."""
     import yaml
 
-    memories_dir = Path(args.dir)
-    repo_root = Path(args.repo_root)
+    # Security: Prevent path traversal (CWE-22). Resolve paths to canonical form
+    # and validate memories_dir is within repo_root.
+    try:
+        repo_root = Path(args.repo_root).resolve(strict=True)
+    except (FileNotFoundError, OSError) as e:
+        print(f"Error: Repository root not found: {e}", file=sys.stderr)
+        return 2
+
+    # Resolve memories_dir relative to repo_root if it's a relative path
+    memories_dir_path = Path(args.dir)
+    if not memories_dir_path.is_absolute():
+        memories_dir = (repo_root / memories_dir_path).resolve()
+    else:
+        try:
+            memories_dir = memories_dir_path.resolve(strict=True)
+        except (FileNotFoundError, OSError) as e:
+            print(f"Error: Memories directory not found: {e}", file=sys.stderr)
+            return 2
+
+    # Ensure memories_dir is within repo_root to prevent traversal attacks
+    try:
+        memories_dir.relative_to(repo_root)
+    except ValueError:
+        print(f"Error: Memories directory is outside the repository: {args.dir}", file=sys.stderr)
+        return 2
 
     try:
         memory_path = _find_memory(args.memory_id, memories_dir, repo_root)
@@ -128,8 +154,31 @@ def cmd_verify(args: argparse.Namespace) -> int:
 
 def cmd_verify_all(args: argparse.Namespace) -> int:
     """Verify citations in all memories."""
-    memories_dir = Path(args.dir)
-    repo_root = Path(args.repo_root)
+    # Security: Prevent path traversal (CWE-22). Resolve paths to canonical form
+    # and validate memories_dir is within repo_root.
+    try:
+        repo_root = Path(args.repo_root).resolve(strict=True)
+    except (FileNotFoundError, OSError) as e:
+        print(f"Error: Repository root not found: {e}", file=sys.stderr)
+        return 2
+
+    # Resolve memories_dir relative to repo_root if it's a relative path
+    memories_dir_path = Path(args.dir)
+    if not memories_dir_path.is_absolute():
+        memories_dir = (repo_root / memories_dir_path).resolve()
+    else:
+        try:
+            memories_dir = memories_dir_path.resolve(strict=True)
+        except (FileNotFoundError, OSError) as e:
+            print(f"Error: Memories directory not found: {e}", file=sys.stderr)
+            return 2
+
+    # Ensure memories_dir is within repo_root to prevent traversal attacks
+    try:
+        memories_dir.relative_to(repo_root)
+    except ValueError:
+        print(f"Error: Memories directory is outside the repository: {args.dir}", file=sys.stderr)
+        return 2
 
     if not memories_dir.exists():
         print(f"Error: Memories directory not found: {memories_dir}", file=sys.stderr)
@@ -288,6 +337,92 @@ def _graph_score(graph: MemoryGraph, args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_health(args: argparse.Namespace) -> int:
+    """Run health checks on all memories and generate a report."""
+    # Security: Prevent path traversal (CWE-22). Resolve paths to canonical form
+    # and validate memories_dir is within repo_root.
+    try:
+        repo_root = Path(args.repo_root).resolve(strict=True)
+    except (FileNotFoundError, OSError) as e:
+        print(f"Error: Repository root not found: {e}", file=sys.stderr)
+        return 2
+
+    # Resolve memories_dir relative to repo_root if it's a relative path
+    memories_dir_path = Path(args.dir)
+    if not memories_dir_path.is_absolute():
+        memories_dir = (repo_root / memories_dir_path).resolve()
+    else:
+        try:
+            memories_dir = memories_dir_path.resolve(strict=True)
+        except (FileNotFoundError, OSError) as e:
+            print(f"Error: Memories directory not found: {e}", file=sys.stderr)
+            return 2
+
+    # Ensure memories_dir is within repo_root to prevent traversal attacks
+    try:
+        memories_dir.relative_to(repo_root)
+    except ValueError:
+        print(f"Error: Memories directory is outside the repository: {args.dir}", file=sys.stderr)
+        return 2
+
+    if not memories_dir.exists():
+        print(f"Error: Memories directory not found: {memories_dir}", file=sys.stderr)
+        return 2
+
+    report = check_all_health(memories_dir, repo_root)
+
+    if args.json:
+        print(json.dumps(report.to_dict(), indent=2))
+    elif args.markdown:
+        print(report.to_markdown())
+    elif args.summary:
+        if report.total == 0:
+            print("No memories with citations found.")
+            return 0
+        status = "PASS" if not report.has_stale else "WARN"
+        print(f"[{status}] {report.healthy_count + report.exempt_count}/{report.total} healthy")
+        print(
+            f"  Healthy: {report.healthy_count}, "
+            f"Stale: {report.stale_count}, "
+            f"Exempt: {report.exempt_count}, "
+            f"Errors: {report.error_count}"
+        )
+    else:
+        for entry in report.entries:
+            icon_map = {
+                "healthy": "[HEALTHY]",
+                "stale": "[STALE]",
+                "exempt": "[EXEMPT]",
+                "error": "[ERROR]",
+            }
+            icon = icon_map.get(entry.status.value, "[?]")
+            print(f"{icon} {entry.memory_id}")
+            if entry.citation_count > 0:
+                print(f"  Citations: {entry.valid_count}/{entry.citation_count} valid")
+                print(f"  Confidence: {entry.confidence:.2f}")
+            if entry.error_message:
+                print(f"  Error: {entry.error_message}")
+            for sc in entry.stale_citations:
+                loc = str(sc.get("path", "unknown"))
+                line_num = sc.get("line")
+                if line_num:
+                    loc = f"{loc}:{line_num}"
+                print(f"  [STALE] {loc}")
+                print(f"    Reason: {sc.get('mismatch_reason', 'unknown')}")
+            print()
+
+        if report.total > 0:
+            print(
+                f"Summary: {report.healthy_count} healthy, "
+                f"{report.stale_count} stale, "
+                f"{report.exempt_count} exempt, "
+                f"{report.error_count} errors "
+                f"(total: {report.total})"
+            )
+
+    return 1 if report.has_stale else 0
+
+
 def main() -> int:
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
@@ -344,6 +479,18 @@ def main() -> int:
         help="Show relationship scores instead of traversal",
     )
 
+    health_parser = subparsers.add_parser(
+        "health", help="Run health checks on all memories", parents=[common]
+    )
+    health_parser.add_argument(
+        "--markdown", action="store_true",
+        help="Output as Markdown (for PR comments)",
+    )
+    health_parser.add_argument(
+        "--summary", action="store_true",
+        help="Show abbreviated summary only",
+    )
+
     args = parser.parse_args()
 
     if args.command == "verify":
@@ -352,6 +499,8 @@ def main() -> int:
         return cmd_verify_all(args)
     elif args.command == "graph":
         return cmd_graph(args)
+    elif args.command == "health":
+        return cmd_health(args)
 
     parser.print_help()
     return 2

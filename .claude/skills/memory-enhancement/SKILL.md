@@ -17,10 +17,10 @@ Manage citations, verify code references, and track confidence scores for Serena
 
 ## Triggers
 
-- "add citation to memory" - Link memory to specific code location
-- "verify memory citations" - Check if code references are still valid
-- "check memory health" - Generate staleness report across all memories
-- "update memory confidence" - Recalculate trust score based on verification
+- `add citation to memory` - Link memory to specific code location
+- `verify memory citations` - Check if code references are still valid
+- `check memory health` - Generate staleness report across all memories
+- `update memory confidence` - Recalculate trust score based on verification
 
 ## Quick Reference
 
@@ -188,7 +188,7 @@ Generates comprehensive report with:
 | Add citation | `python -m memory_enhancement add-citation` | `<memory-id>`, `--file`, `--line`, `--snippet` |
 | Verify memory | `python -m memory_enhancement verify` | `<memory-id>`, `--json` |
 | Verify all | `python -m memory_enhancement verify-all` | `--dir`, `--json` |
-| Health report | `python -m memory_enhancement health` | `--format` (markdown/json) |
+| Health report | `python -m memory_enhancement health` | `--json`, `--markdown`, `--summary` |
 | Update confidence | `python -m memory_enhancement update-confidence` | `<memory-id>` |
 | List citations | `python -m memory_enhancement list-citations` | `<memory-id>`, `--json` |
 | Graph traversal | `python -m memory_enhancement graph` | `<root-id>`, `--strategy`, `--max-depth` |
@@ -210,9 +210,69 @@ Generates comprehensive report with:
 - **curating-memories** - Update citations when memories change
 - **qa** - Run verification as part of test strategy
 
-## CI Integration (Optional)
+### Phase 5: Health Reporting
 
-Create `.github/workflows/memory-validation.yml`:
+Run batch health checks with exemption support:
+
+```bash
+# Full report (human-readable)
+python -m memory_enhancement health [--dir .serena/memories] [--repo-root .]
+
+# JSON output (for CI parsing)
+python -m memory_enhancement health --json
+
+# Markdown output (for PR comments)
+python -m memory_enhancement health --markdown
+
+# Summary only
+python -m memory_enhancement health --summary
+```
+
+**Status Indicators:**
+
+- [HEALTHY] - All citations valid or no citations
+- [STALE] - One or more citations are invalid
+- [EXEMPT] - Marked with `exempt: true` in frontmatter (skips verification)
+- [ERROR] - Failed to parse memory file
+
+**Exemption Mechanism:**
+
+Add `exempt: true` to a memory's YAML frontmatter to exclude it from staleness checks.
+Use this for memories that reference external resources or intentionally static content.
+
+```yaml
+---
+id: historical-context
+subject: Project History
+exempt: true
+---
+```
+
+**Exit Codes** (ADR-035):
+
+- 0: All memories healthy or exempt
+- 1: One or more memories are stale
+- 2: Error (directory not found, parse failure)
+
+## CI Integration
+
+### Memory Health Workflow
+
+The `.github/workflows/memory-health.yml` workflow runs health checks on all PRs:
+
+- Detects changes to `.serena/memories/**` and memory enhancement code
+- Generates JSON and Markdown health reports
+- Posts/updates a PR comment with results
+- Non-blocking (warning only, not a required check)
+- Uses `<!-- MEMORY-HEALTH -->` marker for idempotent comment updates
+
+### Citation Verification Workflow
+
+The `.github/workflows/citation-verify.yml` verifies individual citations:
+
+Replaces the example below with the actual deployed workflow.
+
+### Example workflow (for reference)
 
 ```yaml
 name: Memory Citation Validation

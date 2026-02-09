@@ -1,0 +1,219 @@
+# Memory Health Reporting
+#
+# Runs batch health checks on Serena memories for PRs.
+# Detects stale citations, generates a health report, and posts a PR comment.
+# Supports exemption mechanism (memories with exempt: true in frontmatter).
+#
+# Exit codes: 0 = all healthy/exempt, 1 = stale citations (warning), 2 = error
+#
+# IMPORTANT: This workflow runs on ALL PRs to satisfy required status checks,
+# but skips actual health checks when no relevant files are changed.
+#
+# Related: citation-verify.yml (per-citation verification), memory-validation.yml (legacy)
+
+name: Memory Health
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  check-paths:
+    name: Detect changes
+    # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 5
+    outputs:
+      should-run: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.memories || steps.filter.outputs.code }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Check path filters
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        id: filter
+        if: github.event_name != 'workflow_dispatch'
+        with:
+          filters: |
+            memories:
+              - '.serena/memories/**'
+            code:
+              - '.claude/skills/memory-enhancement/src/memory_enhancement/**'
+              - 'scripts/**/*.py'
+              - 'pyproject.toml'
+
+  health-check:
+    name: Memory health check
+    needs: check-paths
+    if: needs.check-paths.outputs.should-run == 'true'
+    # ADR-025: ARM runner for cost optimization
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Setup Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.12'
+
+      - name: Install UV package manager
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Install dependencies
+        run: |
+          uv pip install --system -e ".[dev]"
+
+      - name: Run health check (JSON)
+        id: health-json
+        continue-on-error: true
+        run: |
+          PYTHONPATH=.claude/skills/memory-enhancement/src python3 -m memory_enhancement health --json --repo-root . > health-report.json
+          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+
+      - name: Run health check (Markdown)
+        continue-on-error: true
+        run: |
+          PYTHONPATH=.claude/skills/memory-enhancement/src python3 -m memory_enhancement health --markdown --repo-root . > health-report.md
+
+      - name: Upload health reports
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.5.0
+        with:
+          name: memory-health-reports
+          path: |
+            health-report.json
+            health-report.md
+          retention-days: 7
+
+      - name: Parse health results
+        id: parse
+        run: |
+          if [ -f health-report.json ]; then
+            total=$(jq '.summary.total' health-report.json)
+            healthy=$(jq '.summary.healthy' health-report.json)
+            stale=$(jq '.summary.stale' health-report.json)
+            exempt=$(jq '.summary.exempt' health-report.json)
+            errors=$(jq '.summary.errors' health-report.json)
+
+            echo "total=$total" >> "$GITHUB_OUTPUT"
+            echo "healthy=$healthy" >> "$GITHUB_OUTPUT"
+            echo "stale=$stale" >> "$GITHUB_OUTPUT"
+            echo "exempt=$exempt" >> "$GITHUB_OUTPUT"
+            echo "errors=$errors" >> "$GITHUB_OUTPUT"
+
+            if [ "$stale" -gt 0 ]; then
+              echo "has_stale=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "has_stale=false" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            echo "has_stale=false" >> "$GITHUB_OUTPUT"
+            echo "total=0" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Post PR comment
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+        env:
+          HEALTH_STALE: ${{ steps.parse.outputs.has_stale }}
+          HEALTH_TOTAL: ${{ steps.parse.outputs.total }}
+          HEALTH_HEALTHY: ${{ steps.parse.outputs.healthy }}
+          HEALTH_STALE_COUNT: ${{ steps.parse.outputs.stale }}
+          HEALTH_EXEMPT: ${{ steps.parse.outputs.exempt }}
+          HEALTH_ERRORS: ${{ steps.parse.outputs.errors }}
+        with:
+          script: |
+            const fs = require('fs');
+            let report = 'Health check completed but no report generated.';
+            try {
+              report = fs.readFileSync('health-report.md', 'utf8');
+            } catch (e) {
+              console.log('No markdown report file found');
+            }
+
+            const hasStale = process.env.HEALTH_STALE === 'true';
+            const status = hasStale ? 'Warning' : 'Pass';
+
+            const message = [
+              '<!-- MEMORY-HEALTH -->',
+              `## ${status}: Memory Health`,
+              '',
+              report,
+              '',
+              '---',
+              '<details>',
+              '<summary>Health Check Details</summary>',
+              '',
+              `- **Total memories**: ${process.env.HEALTH_TOTAL}`,
+              `- **Healthy**: ${process.env.HEALTH_HEALTHY}`,
+              `- **Stale**: ${process.env.HEALTH_STALE_COUNT}`,
+              `- **Exempt**: ${process.env.HEALTH_EXEMPT}`,
+              `- **Errors**: ${process.env.HEALTH_ERRORS}`,
+              '',
+              '</details>',
+            ].join('\n');
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const botComment = comments.find(comment =>
+              comment.user.type === 'Bot' &&
+              comment.body.includes('<!-- MEMORY-HEALTH -->')
+            );
+
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: message
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: message
+              });
+            }
+
+      - name: Set job status
+        if: steps.parse.outputs.has_stale == 'true'
+        env:
+          STALE_COUNT: ${{ steps.parse.outputs.stale }}
+        run: |
+          echo "::warning::Found $STALE_COUNT memories with stale citations"
+
+  skip-health-check:
+    name: Skip health check (no changes)
+    needs: check-paths
+    if: needs.check-paths.outputs.should-run != 'true'
+    # ADR-025: ARM runner for cost optimization
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 1
+    steps:
+      - name: Checkout code
+        # Required for dorny/paths-filter pattern consistency
+        # See: .serena/memories/ci-infrastructure-dorny-paths-filter-checkout.md
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Skip message
+        run: |
+          echo "No memory or code changes detected - skipping health check"

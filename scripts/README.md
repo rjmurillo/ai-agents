@@ -124,6 +124,43 @@ Creates a PR with all guardrails enforced.
 .\scripts\New-ValidatedPR.ps1 -Web
 ```
 
+#### validate_workflows.py
+
+Validates GitHub Actions workflows locally before pushing (ADR-006 compliance).
+
+**Usage**:
+
+```bash
+# Validate all workflows
+python3 scripts/validate_workflows.py
+
+# Validate only changed files
+python3 scripts/validate_workflows.py --changed
+
+# Validate specific file
+python3 scripts/validate_workflows.py .github/workflows/pytest.yml
+
+# Run with act (if installed)
+python3 scripts/validate_workflows.py --act
+```
+
+**Validates**:
+
+- YAML syntax correctness
+- Workflow structure (name, on, jobs)
+- Action SHA pinning (security requirement)
+- Workflow size (ADR-006: warns if >100 lines)
+- Concurrency configuration
+- Explicit permissions (security best practice)
+
+**Exit Codes**:
+
+- `0`: All validations passed (warnings are OK)
+- `1`: Validation errors found (must fix)
+- `2`: Script error (missing dependencies)
+
+See [docs/WORKFLOW-VALIDATION.md](../docs/WORKFLOW-VALIDATION.md) for complete documentation.
+
 ### Other Validation Scripts
 
 - `Validate-Consistency.ps1` - Cross-document consistency
