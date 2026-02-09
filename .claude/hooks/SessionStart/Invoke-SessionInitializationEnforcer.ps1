@@ -111,6 +111,19 @@ Create or switch to a feature branch:
 git checkout -b feat/your-feature-name
 ``````
 
+### REMINDER: Skill-First Pattern + Retrieval-Led Reasoning
+
+**Before using raw git/gh commands, check if a skill exists:**
+- Git operations: Check ``.claude/skills/git-*/``
+- GitHub operations: Check ``.claude/skills/github/`` (mandatory per usage-mandatory memory)
+- Prefer retrieval-led reasoning: Read skill documentation, don't rely on pre-training
+
+**Process:**
+1. Identify operation type (PR creation, merge, etc.)
+2. Check SKILL-QUICK-REF.md for corresponding skill
+3. Read skill's SKILL.md for current, tested patterns
+4. Use skill instead of raw commands
+
 "@
         Write-Output $output
         exit 0

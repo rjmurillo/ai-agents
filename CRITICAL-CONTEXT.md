@@ -3,6 +3,29 @@
 > **Purpose**: Blocking gates and constraints that MUST be followed in every session.
 > **Auto-loaded**: Via @import in CLAUDE.md to eliminate redundant tool calls.
 
+## RETRIEVAL-LED REASONING (MANDATORY)
+
+**IMPORTANT**: Prefer retrieval-led reasoning over pre-training-led reasoning for ALL project-specific decisions.
+
+**What this means**:
+
+- Framework versions (Next.js, React) → Read project docs, NOT pre-training
+- Project constraints (languages, patterns) → Read PROJECT-CONSTRAINTS.md, NOT pre-training
+- Learned patterns (skills, conventions) → Read Serena memories, NOT pre-training
+- Architecture decisions → Read ADRs, NOT pre-training
+- Session protocol → Read SESSION-PROTOCOL.md, NOT pre-training
+
+**Retrieval Sources Index**:
+
+- Constraints: `.agents/governance/PROJECT-CONSTRAINTS.md`
+- Session protocol: `.agents/SESSION-PROTOCOL.md`
+- Memory index: Serena `memory-index` (read via `mcp__serena__read_memory`)
+- Architecture: `.agents/architecture/ADR-*.md`
+- Planning: `.agents/planning/*.md`
+- Skills: `.claude/skills/{skill-name}/SKILL.md`
+
+When in doubt: **Read first, reason second.**
+
 ## Blocking Constraints
 
 | Constraint | Rationale | Verification |
