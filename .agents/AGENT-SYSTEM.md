@@ -78,9 +78,9 @@ Include security review and test coverage.
 
 ---
 
-#### planner
+#### milestone-planner
 
-**File**: `src/claude/planner.md`
+**File**: `src/claude/milestone-planner.md`
 
 **Role**: Creates milestones and work packages from epics and PRDs
 
@@ -107,22 +107,22 @@ Include security review and test coverage.
 
 **Example Invocation**:
 ```text
-@planner Break down EPIC-001 (User Authentication) into milestones
+@milestone-planner Break down EPIC-001 (User Authentication) into milestones
 with clear acceptance criteria and dependencies.
 ```
 
 ---
 
-#### task-generator
+#### task-decomposer
 
-**File**: `src/claude/task-generator.md`
+**File**: `src/claude/task-decomposer.md`
 
 **Role**: Creates atomic tasks with acceptance criteria from milestones
 
 **Specialization**: Task atomization, complexity estimation, sequencing
 
 **Input**:
-- Milestone or work package from planner
+- Milestone or work package from milestone-planner
 - PRD requirements
 
 **Output**:
@@ -133,7 +133,7 @@ with clear acceptance criteria and dependencies.
 
 **Delegates To**: None (returns to orchestrator)
 
-**Called By**: orchestrator, planner
+**Called By**: orchestrator, milestone-planner
 
 **When to Use**:
 - After PRD or milestone is created
@@ -142,7 +142,7 @@ with clear acceptance criteria and dependencies.
 
 **Example Invocation**:
 ```text
-@task-generator Generate atomic tasks from the Authentication milestone.
+@task-decomposer Generate atomic tasks from the Authentication milestone.
 Include complexity estimates and file impact.
 ```
 
@@ -218,7 +218,7 @@ REQ-NNN (WHAT/WHY) → DESIGN-NNN (HOW) → TASK-NNN (IMPLEMENTATION)
 
 **Delegates To**: None (returns to orchestrator)
 
-**Called By**: orchestrator, planner
+**Called By**: orchestrator, milestone-planner
 
 **When to Use**:
 - Writing new code for defined tasks
@@ -253,7 +253,7 @@ Follow the design in ADR-015. Security-critical paths require 100% coverage.
 
 **Delegates To**: None (returns to orchestrator)
 
-**Called By**: orchestrator, planner
+**Called By**: orchestrator, milestone-planner
 
 **When to Use**:
 - Modifying `.github/workflows/`
@@ -326,7 +326,7 @@ Create a threat model and identify required controls.
 
 **Delegates To**: None (returns to orchestrator)
 
-**Called By**: orchestrator, planner
+**Called By**: orchestrator, milestone-planner
 
 **When to Use**:
 - After planning artifacts created
@@ -449,7 +449,7 @@ should we consider?
 
 **Delegates To**: None (returns to orchestrator)
 
-**Called By**: orchestrator, planner, roadmap
+**Called By**: orchestrator, milestone-planner, roadmap
 
 **When to Use**:
 - Introducing new dependencies
@@ -485,7 +485,7 @@ Document the decision in an ADR with tradeoff analysis.
 
 **Delegates To**: None (returns to orchestrator)
 
-**Called By**: orchestrator, planner
+**Called By**: orchestrator, milestone-planner
 
 **When to Use**:
 - Investigating bugs (unclear cause)
@@ -787,13 +787,13 @@ For typical features requiring investigation and planning.
 flowchart TD
     A[User Request] --> B[orchestrator]
     B --> C[analyst]
-    C -->|Investigate| D[planner]
+    C -->|Investigate| D[milestone-planner]
     D -->|Create Plan| E[implementer]
     E -->|Execute| F[qa]
     F -->|Validate| G([Complete])
 ```
 
-**Agents**: `orchestrator → analyst → planner → implementer → qa`
+**Agents**: `orchestrator → analyst → milestone-planner → implementer → qa`
 
 **Use When**:
 - Need to investigate first
@@ -806,12 +806,12 @@ flowchart TD
 
 **Variations**:
 
-- **Standard (lite)**: Skip planner for straightforward implementations after analysis
+- **Standard (lite)**: Skip milestone-planner for straightforward implementations after analysis
   - Bug fixes: `analyst → implementer → qa`
   - Documentation: `explainer → critic`
 
 - **Standard (extended)**: Add architecture/security review
-  - Multi-domain features: `analyst → architect → planner → critic → implementer → qa`
+  - Multi-domain features: `analyst → architect → milestone-planner → critic → implementer → qa`
   - Security changes: `analyst → security → architect → critic → implementer → qa`
   - Infrastructure: `analyst → devops → security → critic → qa`
 
@@ -826,11 +826,11 @@ flowchart TD
     A[Decision Request] --> B[orchestrator]
     B --> C[independent-thinker]
     C -->|Challenge| D[high-level-advisor]
-    D -->|Verdict| E[task-generator]
+    D -->|Verdict| E[task-decomposer]
     E -->|Actions| F([Complete])
 ```
 
-**Agents**: `orchestrator → independent-thinker → high-level-advisor → task-generator`
+**Agents**: `orchestrator → independent-thinker → high-level-advisor → task-decomposer`
 
 **Use When**:
 - "Should we do this?" questions
@@ -882,7 +882,7 @@ flowchart TD
 flowchart TD
     A[Proceed Decision] --> B[roadmap]
     B -->|Epic vision| C[explainer]
-    C -->|PRD with requirements| D[task-generator]
+    C -->|PRD with requirements| D[task-decomposer]
     D -->|Work breakdown| E([Ready for Phase 4: Plan Review])
 ```
 
@@ -899,7 +899,7 @@ flowchart TD
     F -->|No| H([Back to planning])
 ```
 
-**Full Sequence**: `analyst → high-level-advisor → independent-thinker → critic → roadmap → explainer → task-generator → architect → devops → security → qa`
+**Full Sequence**: `analyst → high-level-advisor → independent-thinker → critic → roadmap → explainer → task-decomposer → architect → devops → security → qa`
 
 **Defer Handling**: Create backlog entry at `.agents/roadmap/backlog.md` with resume conditions
 
@@ -921,7 +921,7 @@ For multi-domain changes (3+ domains: code, architecture, security, ops, quality
 ```mermaid
 flowchart TD
     A[Multi-Domain Change] --> B[orchestrator]
-    B --> C[planner]
+    B --> C[milestone-planner]
     C -->|Impact analysis plan| D{Orchestrator invokes specialists}
     D --> E[implementer: code impact]
     D --> F[architect: design impact]
@@ -975,14 +975,14 @@ flowchart TD
     A[Feature Request] --> B[orchestrator]
     B --> C[spec-generator]
     C -->|EARS Requirements: REQ-NNN| D[architect]
-    D -->|Design Documents: DESIGN-NNN| E[task-generator]
+    D -->|Design Documents: DESIGN-NNN| E[task-decomposer]
     E -->|Atomic Tasks: TASK-NNN| F[critic]
     F -->|Traceability Validation| G[implementer]
     G -->|Execute Tasks| H[qa]
     H -->|Validate| I([Complete])
 ```
 
-**Agents**: `orchestrator → spec-generator → architect → task-generator → critic → implementer → qa`
+**Agents**: `orchestrator → spec-generator → architect → task-decomposer → critic → implementer → qa`
 
 **Use When**: Formal requirements needed, regulatory compliance, complex features requiring traceability
 
@@ -1000,14 +1000,14 @@ flowchart TD
 |-----------------|---------------|----------|-------|
 | "implement", "code", "fix", "add" | implementer | architect | Direct coding tasks |
 | "test", "coverage", "qa", "verify" | qa | implementer | Quality verification |
-| "design", "architecture", "ADR" | architect | planner | Design decisions |
+| "design", "architecture", "ADR" | architect | milestone-planner | Design decisions |
 | "investigate", "research", "why" | analyst | explainer | Root cause analysis |
 | "review", "critique", "validate" | critic | independent-thinker | Plan validation |
 | "deploy", "ci", "pipeline", "build" | devops | implementer | Infrastructure |
 | "security", "vulnerability", "threat" | security | analyst | Security review |
 | "document", "explain", "PRD" | explainer | analyst | Documentation |
-| "plan", "break down", "milestone" | planner | task-generator | Work decomposition |
-| "task", "atomic", "estimate" | task-generator | planner | Task generation |
+| "plan", "break down", "milestone" | milestone-planner | task-decomposer | Work decomposition |
+| "task", "atomic", "estimate" | task-decomposer | milestone-planner | Task generation |
 | "spec", "requirements", "EARS", "specification" | spec-generator | explainer | Formal specifications |
 | "prioritize", "roadmap", "epic" | roadmap | high-level-advisor | Product strategy |
 | "decide", "verdict", "stuck" | high-level-advisor | independent-thinker | Strategic decisions |
@@ -1019,7 +1019,7 @@ flowchart TD
 | Task Type | Primary | Secondary | Validator |
 |-----------|---------|-----------|-----------|
 | Formal specification | spec-generator | architect | critic |
-| New feature | architect | planner | critic |
+| New feature | architect | milestone-planner | critic |
 | Bug fix | analyst | implementer | qa |
 | Refactor | architect | implementer | critic |
 | Documentation | explainer | analyst | - |
@@ -1112,7 +1112,7 @@ Skills extracted from retrospectives are stored with:
 |-----------|---------|-------|
 | `.agents/analysis/` | Research findings | analyst |
 | `.agents/architecture/` | ADRs only (no review documents) | architect |
-| `.agents/planning/` | PRDs, plans, tasks | planner, explainer |
+| `.agents/planning/` | PRDs, plans, tasks | milestone-planner, explainer |
 | `.agents/critique/` | Plan reviews, ADR reviews, design reviews | critic |
 | `.agents/qa/` | Test strategies, reports | qa |
 | `.agents/retrospective/` | Learning extractions | retrospective |
@@ -1123,7 +1123,7 @@ Skills extracted from retrospectives are stored with:
 | `.agents/skills/` | Skill files | skillbook |
 | `.agents/specs/requirements/` | EARS requirements (Phase 1+) | spec-generator |
 | `.agents/specs/design/` | Design documents (Phase 1+) | architect |
-| `.agents/specs/tasks/` | Atomic tasks (Phase 1+) | task-generator |
+| `.agents/specs/tasks/` | Atomic tasks (Phase 1+) | task-decomposer |
 | `.agents/steering/` | Context-aware guidance (Phase 4+) | orchestrator |
 | `.agents/governance/` | Naming, consistency protocols | all agents |
 
@@ -1555,7 +1555,7 @@ Orchestrator enforces boundaries:
 
 1. Compare current work against original scope
 2. Flag additions not in requirements
-3. Either: reject, or route to planner for scope update
+3. Either: reject, or route to milestone-planner for scope update
 4. Document decision
 
 ### 9.3 Blocked Tasks
@@ -1587,7 +1587,7 @@ When work cannot proceed:
 
 | Scenario | Workflow | Key Agents |
 |----------|----------|------------|
-| New feature from scratch | Ideation + Standard | architect, planner, implementer |
+| New feature from scratch | Ideation + Standard | architect, milestone-planner, implementer |
 | Implement defined task | Quick Fix | implementer, qa |
 | Investigate issue | Analysis | analyst, architect |
 | Quality improvement | Standard | critic, qa |
@@ -1604,11 +1604,11 @@ When work cannot proceed:
 | implementer | sonnet | Balanced code generation |
 | analyst | sonnet | Research efficiency |
 | architect | sonnet | Design analysis |
-| planner | sonnet | Planning speed |
+| milestone-planner | sonnet | Planning speed |
 | critic | sonnet | Review efficiency |
 | qa | sonnet | Test validation |
 | explainer | sonnet | Documentation |
-| task-generator | sonnet | Task decomposition |
+| task-decomposer | sonnet | Task decomposition |
 | high-level-advisor | opus | Strategic depth |
 | independent-thinker | opus | Deep analysis |
 | memory | sonnet | Simple operations |

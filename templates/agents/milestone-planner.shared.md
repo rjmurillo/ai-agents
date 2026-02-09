@@ -8,7 +8,7 @@ tools_copilot:
   - $toolset:editor
   - $toolset:knowledge
 ---
-# Planner Agent
+# Milestone Planner Agent
 
 ## Core Identity
 
@@ -364,7 +364,7 @@ Overall: High complexity - Proceed with caution, security-first approach
 
 ### Handling Specialist Disagreements
 
-During impact analysis, specialists may have **conflicting recommendations**. The planner should:
+During impact analysis, specialists may have **conflicting recommendations**. The milestone-planner should:
 
 1. **Document conflicts clearly** in the aggregated summary
 2. **Attempt resolution** by clarifying scope or constraints

@@ -33,7 +33,7 @@ Analyzed 127 agents from github/awesome-copilot against our 18-agent catalog. Id
 - Develop step-by-step implementation roadmap
 - Present options with trade-offs
 
-**Routing**: Orchestrator routes complex features to strategic-planner before task-generator
+**Routing**: Orchestrator routes complex features to strategic-planner before task-decomposer
 
 ### GAP-002: Debugger Agent
 **Problem**: No systematic debugging workflow
@@ -75,7 +75,7 @@ Analyzed 127 agents from github/awesome-copilot against our 18-agent catalog. Id
 
 ### GAP-006: Tech Debt Planner (6-8 hrs)
 - Dedicated tech debt remediation workflow
-- New agent: tech-debt-planner.md
+- New agent: tech-debt-milestone-planner.md
 
 ### GAP-007: Accessibility Agent (6-8 hrs)
 - WCAG 2.1 Level AA compliance

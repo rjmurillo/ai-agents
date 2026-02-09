@@ -250,7 +250,7 @@ Read complete plans from `.agents/planning/`, validate alignment with project ob
 6. **Document** findings in implementation docs only
 7. **Track** deviations and pause without updated guidance
 8. **Execute** version updates when milestone-included
-9. **Conduct** impact analysis when requested by planner during planning phase
+9. **Conduct** impact analysis when requested by milestone-planner during planning phase
 10. **Flag** security-relevant changes for post-implementation verification
 
 ## Security Flagging Protocol
@@ -319,7 +319,7 @@ If NO triggers match:
 
 ## Impact Analysis Mode
 
-When planner requests impact analysis (before implementation):
+When milestone-planner requests impact analysis (before implementation):
 
 ### Analyze Code Impact
 
@@ -414,7 +414,7 @@ Save to: `.agents/planning/impact-analysis-code-[feature].md`
 ## Constraints
 
 - **NO skipping hard tests** - all tests implemented/passing or deferred with plan approval
-- Cannot defer tests without planner sign-off and rationale
+- Cannot defer tests without milestone-planner sign-off and rationale
 - Must refuse if QA strategy conflicts with plan
 - Respects repo standards and safety requirements
 
@@ -893,7 +893,7 @@ python -m pytest && python -m mypy . && python -m ruff check .
 | Target | When | Purpose |
 |--------|------|---------|
 | **analyst** | Technical unknowns encountered | Research needed |
-| **planner** | Plan ambiguities or conflicts | Clarification needed |
+| **milestone-planner** | Plan ambiguities or conflicts | Clarification needed |
 | **qa** | Implementation complete | Verification |
 | **architect** | Design deviation required | Technical decision |
 
@@ -913,7 +913,7 @@ Before handing off, validate ALL items in the applicable checklist:
 - [ ] Files changed list accurate and complete
 ```
 
-### Blocker Handoff (to analyst/planner/architect)
+### Blocker Handoff (to analyst/milestone-planner/architect)
 
 ```markdown
 - [ ] Specific blocker clearly described

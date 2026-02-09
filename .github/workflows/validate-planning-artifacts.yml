@@ -65,5 +65,5 @@ jobs:
           Write-Host "  1. Review the violations reported above" -ForegroundColor White
           Write-Host "  2. For estimate divergence: Add '## Estimate Reconciliation' section" -ForegroundColor White
           Write-Host "  3. For orphan conditions: Add 'Conditions' column to Work Breakdown table" -ForegroundColor White
-          Write-Host "  4. See src/claude/planner.md and src/claude/task-generator.md for templates" -ForegroundColor White
+          Write-Host "  4. See src/claude/milestone-planner.md and src/claude/task-decomposer.md for templates" -ForegroundColor White
           Write-Host ""

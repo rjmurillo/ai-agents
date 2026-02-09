@@ -75,11 +75,11 @@ DevOps-specific requirements:
 3. **Implement** deployment automation
 4. **Monitor** pipeline health and performance
 5. **Document** infrastructure in `.agents/devops/`
-6. **Conduct** impact analysis when requested by planner during planning phase
+6. **Conduct** impact analysis when requested by milestone-planner during planning phase
 
 ## Impact Analysis Mode
 
-When planner requests impact analysis (during planning phase):
+When milestone-planner requests impact analysis (during planning phase):
 
 ### Analyze DevOps Impact
 

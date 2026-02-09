@@ -220,7 +220,7 @@ The orchestrator builds a decision package by routing through six agents. Analys
 
 Take a feature from zero to pull request with built-in quality gates at each stage:
 
-> orchestrator: build the webhook retry system described in @.agents/specs/requirements/webhook-retry.md. Start with analyst to verify the requirements are complete and flag ambiguities. Then planner to break it into milestones with acceptance criteria. Then critic to stress-test the plan for gaps and missing edge cases, correcting all issues before proceeding. Then implementer to write the code and tests. Then qa to verify test coverage meets the acceptance criteria. Then security to scan for injection, replay, and SSRF risks in the webhook handler. Fix all critical and major findings recursively until critic, qa, and security all pass. Open a PR with the full agent trail in the description.
+> orchestrator: build the webhook retry system described in @.agents/specs/requirements/webhook-retry.md. Start with analyst to verify the requirements are complete and flag ambiguities. Then milestone-planner to break it into milestones with acceptance criteria. Then critic to stress-test the plan for gaps and missing edge cases, correcting all issues before proceeding. Then implementer to write the code and tests. Then qa to verify test coverage meets the acceptance criteria. Then security to scan for injection, replay, and SSRF risks in the webhook handler. Fix all critical and major findings recursively until critic, qa, and security all pass. Open a PR with the full agent trail in the description.
 
 This is the orchestrator's most powerful pattern: a full development pipeline with quality gates. Each agent acts as a checkpoint. Critic validates the plan before any code is written. QA validates the implementation against the spec. Security validates against threat categories. The recursive fix loop ensures issues found late in the pipeline get resolved, not deferred.
 
@@ -243,7 +243,7 @@ The orchestrator runs the same evaluation pipeline across all three candidates, 
 | **orchestrator** | Task coordination and routing | Delegated results from specialists |
 | **analyst** | Research, feasibility analysis, trade-off evaluation | Quantitative findings with evidence |
 | **architect** | System design evaluation, ADRs, pattern enforcement | Rated assessments (Strong/Adequate/Needs-Work) |
-| **planner** | Milestones and work packages | Implementation plans with acceptance criteria |
+| **milestone-planner** | Milestones and work packages | Implementation plans with acceptance criteria |
 | **implementer** | Production code and tests | Code, tests, commits |
 | **critic** | Plan stress-testing, gap identification | Verdicts: APPROVE / APPROVE WITH CONDITIONS / REJECT |
 | **qa** | Test strategy and verification | Test reports, coverage analysis |
@@ -254,7 +254,8 @@ The orchestrator runs the same evaluation pipeline across all three candidates, 
 | **memory** | Cross-session context | Retrieved knowledge, stored observations |
 | **skillbook** | Skill management | Atomic strategy updates |
 | **explainer** | PRDs and documentation | Specs, user guides |
-| **task-generator** | Atomic task breakdown | Estimable work items with done criteria |
+| **task-decomposer** | Atomic task breakdown | Estimable work items with done criteria |
+| **backlog-generator** | Proactive task discovery | Sized tasks from project state analysis |
 | **high-level-advisor** | Strategic decisions, unblocking | Verdicts: GO / CONDITIONAL GO / NO-GO |
 | **independent-thinker** | Challenge assumptions, devil's advocate | Counter-arguments with alternatives |
 | **pr-comment-responder** | PR review handling | Triaged responses, resolution tracking |

@@ -28,7 +28,7 @@
 ### Orchestrator Updates
 
 - New task type: Specification
-- New workflow path: spec-generator -> critic -> architect -> task-generator
+- New workflow path: spec-generator -> critic -> architect -> task-decomposer
 - Specification Routing section with trigger detection
 
 ### Sample Specs (pr-comment-handling)

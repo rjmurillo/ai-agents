@@ -133,8 +133,8 @@ flowchart TD
 | Agent | File | Role |
 |-------|------|------|
 | orchestrator | `orchestrator.md` | Task routing and coordination |
-| planner | `planner.md` | Milestone and work package creation |
-| task-generator | `task-generator.md` | Atomic task generation |
+| milestone-planner | `milestone-planner.md` | Milestone and work package creation |
+| task-decomposer | `task-decomposer.md` | Atomic task generation |
 
 ### Analysis Agents
 
@@ -218,13 +218,13 @@ Task(subagent_type="orchestrator", prompt="Coordinate implementation of EPIC-001
 
 ```text
 Feature Development:
-  orchestrator → analyst → architect → planner → critic → implementer → qa → retrospective
+  orchestrator → analyst → architect → milestone-planner → critic → implementer → qa → retrospective
 
 Quick Fix:
   implementer → qa
 
 Strategic Decision:
-  independent-thinker → high-level-advisor → task-generator
+  independent-thinker → high-level-advisor → task-decomposer
 
 PR Review:
   pr-comment-responder → (implementer | architect | security)
