@@ -49,17 +49,19 @@
 
 AI Agents is a coordinated multi-agent system for software development. It provides specialized AI agents that handle different phases of the development lifecycle, from research and planning through implementation and quality assurance.
 
-The orchestrator is the hub of operations. Within it has logic from taking everything from a "vibe" or a "shower thought" and building out a fully functional spec with acceptance criteria and user stories, to taking a well defined idea as input and executing on it. There are 17 agents that cover the roles of software development, from vision and strategy, to architecture, implementation, and verification. Each role looks at something specific, like the critic that just looks to poke holes in other agents' (or your own) work, or DevOps that's concerned about how you deploy and operate the thing you just built.
+The orchestrator is the hub of operations. Within it has logic from taking everything from a "vibe" or a "shower thought" and building out a fully functional spec with acceptance criteria and user stories, to taking a well defined idea as input and executing on it. There are 21 agents that cover the roles of software development, from vision and strategy, to architecture, implementation, and verification. Each role looks at something specific, like the critic that just looks to poke holes in other agents' (or your own) work, or DevOps that's concerned about how you deploy and operate the thing you just built.
 
 The agents themselves use the platform specific handoffs to invoke subagents, keeping the orchestrator context clean. A great example of this is orchestrator facilitating creating and debating an [Architectural Decision Record](https://adr.github.io/) from research and drafting, to discussion, iterating on the issues, tie breaking when agents don't agree. And then  extracting persistent knowledge to steer future agents to adhere. Artifacts are stored in your memory system if you have one enabled, and Markdown files for easy reference to both agents and humans.
 
 ### Core Capabilities
 
-- **17 specialized agents** for different development phases (analysis, architecture, implementation, QA, etc.)
+- **21 specialized agents** for different development phases (analysis, architecture, implementation, QA, etc.)
 - **Explicit handoff protocols** between agents with clear accountability
 - **Multi-Agent Impact Analysis Framework** for comprehensive planning
-- **Cross-session memory** using cloudmcp-manager for persistent context
+- **Cross-session memory** with citation verification, graph traversal, and health reporting via Serena + Forgetful
 - **Self-improvement system** with skill tracking and retrospectives
+- **Quality gates** with pre-PR validation, session protocol enforcement, and automated CI checks
+- **50+ reusable skills** for common development workflows (git, PR management, testing, linting)
 - **TUI-based installation** via [skill-installer](https://github.com/rjmurillo/skill-installer)
 - **AI-powered CI/CD** with issue triage, PR quality gates, and spec validation
 
@@ -104,8 +106,8 @@ Without installing (one-liner)
 # Latest version
 uvx --from git+https://github.com/rjmurillo/skill-installer skill-installer interactive
 
-# Specific version (e.g., v0.2.0)
-uvx --from git+https://github.com/rjmurillo/skill-installer@v0.2.0 skill-installer interactive
+# Specific version (e.g., v0.3.0)
+uvx --from git+https://github.com/rjmurillo/skill-installer@v0.3.0 skill-installer interactive
 ```
 
 Or install globally for repeated use
@@ -114,7 +116,7 @@ Or install globally for repeated use
 # Latest version
 uv tool install git+https://github.com/rjmurillo/skill-installer
 
-# Specific version (e.g., v0.1.0 or v0.2.0)
+# Specific version (e.g., v0.1.0 or v0.2.0 or v0.3.0)
 uv tool install git+https://github.com/rjmurillo/skill-installer@v0.1.0
 
 # Run the interactive installer
@@ -259,6 +261,8 @@ The orchestrator runs the same evaluation pipeline across all three candidates, 
 | **high-level-advisor** | Strategic decisions, unblocking | Verdicts: GO / CONDITIONAL GO / NO-GO |
 | **independent-thinker** | Challenge assumptions, devil's advocate | Counter-arguments with alternatives |
 | **pr-comment-responder** | PR review handling | Triaged responses, resolution tracking |
+| **spec-generator** | Requirement specifications, EARS format | Structured specs with acceptance criteria |
+| **debug** | Debugging assistance, root cause analysis | Diagnostic findings with resolution steps |
 
 See [AGENTS.md](AGENTS.md) for detailed agent documentation.
 
