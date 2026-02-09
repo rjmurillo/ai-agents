@@ -128,9 +128,9 @@ function Invoke-Validation {
   # Validation 2: Skill violation detection (WARNING)
   Write-Host ""
   Write-Host "[2/3] Checking for skill violations..."
-  $skillScript = Join-Path $RepoRoot "scripts/Detect-SkillViolation.ps1"
+  $skillScript = Join-Path $RepoRoot "scripts/detect_skill_violation.py"
   if (Test-Path $skillScript) {
-    & pwsh -NoProfile -File $skillScript
+    & python3 "$skillScript"
   }
   
   # Validation 3: Test coverage detection (WARNING)

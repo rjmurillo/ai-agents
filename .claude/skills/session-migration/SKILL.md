@@ -99,7 +99,7 @@ JSON sessions follow the schema at:
 JSON sessions are validated by:
 
 ```text
-scripts/Validate-SessionJson.ps1
+scripts/validate_session_json.py
 ```
 
 ---
@@ -228,7 +228,7 @@ For PRs with in-flight markdown sessions:
 
    ```powershell
    Get-ChildItem .agents/sessions/*.json | ForEach-Object {
-     pwsh scripts/Validate-SessionJson.ps1 -SessionLogPath $_.FullName
+     python3 scripts/validate_session_json.py $_.FullName
    }
    ```
 
@@ -283,7 +283,7 @@ The migration script maps markdown checklist patterns to JSON keys.
 |-------|-----|---------|
 | Manually converting markdown to JSON | Error-prone, misses edge cases | Use Convert-SessionToJson.ps1 script |
 | Deleting markdown files after migration | May need originals for reference | Keep both during transition period |
-| Skipping validation after migration | Migrated JSON may still be incomplete | Always validate with Validate-SessionJson.ps1 |
+| Skipping validation after migration | Migrated JSON may still be incomplete | Always validate with validate_session_json.py |
 | Migrating without `-DryRun` first | Cannot preview changes | Use `-DryRun` to preview, then run for real |
 
 ## Verification
@@ -291,7 +291,7 @@ The migration script maps markdown checklist patterns to JSON keys.
 After migration:
 
 - [ ] JSON files created alongside markdown originals
-- [ ] All migrated JSON files pass `Validate-SessionJson.ps1`
+- [ ] All migrated JSON files pass `validate_session_json.py`
 - [ ] Session numbers and dates match between markdown and JSON
 - [ ] No migration errors in script output
 - [ ] Both formats committed (for transition period)
@@ -330,8 +330,8 @@ If a checklist item isn't detected, the markdown format may be non-standard. The
 | Resource | Location | Purpose |
 |----------|----------|---------|
 | JSON Schema | `.agents/schemas/session-log.schema.json` | Defines required structure |
-| JSON Validator | `scripts/Validate-SessionJson.ps1` | Validates migrated JSON files |
-| Legacy Validator | `scripts/Validate-SessionJson.ps1` | Validates markdown (deprecated) |
+| JSON Validator | `scripts/validate_session_json.py` | Validates migrated JSON files |
+| Legacy Validator | `scripts/validate_session_json.py` | Validates markdown (deprecated) |
 
 ### Architecture
 

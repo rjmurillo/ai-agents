@@ -1,6 +1,6 @@
 name: Session Protocol Validation
 
-# Deterministic session log validation using Validate-SessionJson.ps1
+# Deterministic session log validation using validate_session_json.py
 
 # Verifies session logs comply with RFC 2119 requirements in SESSION-PROTOCOL.md
 
@@ -182,19 +182,19 @@ jobs:
           # Use appropriate validator based on file type
           if ($extension -eq '.json') {
             # JSON format - simple schema validation
-            $result = & ./scripts/Validate-SessionJson.ps1 -SessionPath $sessionFile 2>&1
+            $result = & python3 ./scripts/validate_session_json.py $sessionFile 2>&1
             $exitCode = $LASTEXITCODE
             $format = 'JSON'
           } else {
             # Legacy markdown format - migrate to JSON first, then validate
             Write-Host "Legacy markdown detected - migrating to JSON for validation"
             $jsonPath = $sessionFile -replace '\.md$', '.json'
-            
+
             # Migrate
             & ./scripts/Convert-SessionToJson.ps1 -Path $sessionFile -Force 2>&1 | Out-Null
-            
+
             if (Test-Path $jsonPath) {
-              $result = & ./scripts/Validate-SessionJson.ps1 -SessionPath $jsonPath 2>&1
+              $result = & python3 ./scripts/validate_session_json.py $jsonPath 2>&1
               $exitCode = $LASTEXITCODE
             } else {
               $result = @("Migration failed - could not convert markdown to JSON")
@@ -421,7 +421,7 @@ jobs:
           - ✅ **No artifact downloads** needed to diagnose issues
           - ✅ **10x-100x faster** debugging
 
-          Powered by [`Validate-SessionJson.ps1`](../../scripts/Validate-SessionJson.ps1)
+          Powered by [`validate_session_json.py`](../../scripts/validate_session_json.py)
 
           </details>
 

@@ -54,6 +54,7 @@
 | prompt engineering quality gate AI assessment template | [quality-prompt-engineering-gates](quality-prompt-engineering-gates.md) |
 | phase3 agent skill session handoff template verification | [agent-workflow-004-proactive-template-sync-verification](agent-workflow-004-proactive-template-sync-verification.md), [agent-workflow-005-structured-handoff-formats](agent-workflow-005-structured-handoff-formats.md) |
 | serena token efficiency symbolic tools cache memory read search | [skills-serena-index](skills-serena-index.md) |
+| passive context AGENTS.md skills decision-point retrieval-led compression vercel | [passive-context-vs-skills-vercel-research](passive-context-vs-skills-vercel-research.md), [claude-md-anthropic-best-practices](claude-md-anthropic-best-practices.md), [claude-code-skills-official-guidance](claude-code-skills-official-guidance.md) |
 
 ## Engineering Knowledge Tiers
 
@@ -78,3 +79,4 @@
 - [memory-size-001-decomposition-thresholds](memory-size-001-decomposition-thresholds.md)
 - [memory-system-fragmentation-tech-debt](memory-system-fragmentation-tech-debt.md)
 - [memory-token-efficiency](memory-token-efficiency.md)
+- [passive-context-vs-skills-vercel-research](passive-context-vs-skills-vercel-research.md)

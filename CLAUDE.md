@@ -60,7 +60,7 @@ For non-trivial tasks, delegate to specialized agents using the Task tool:
 3. Run scoped markdownlint on changed files (ADR-043)
 4. Route to qa agent (features only)
 5. Commit all changes
-6. Run `pwsh scripts/Validate-SessionJson.ps1 -SessionPath [log]`
+6. Run `python3 scripts/validate_session_json.py [log]`
    - If validation fails, use `/session-log-fixer` skill to fix issues
 
 ## Default Behavior

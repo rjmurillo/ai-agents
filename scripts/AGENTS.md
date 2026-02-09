@@ -150,9 +150,9 @@ flowchart TD
 
     subgraph Scripts["Script Agents"]
         SYN[Sync-McpConfig.ps1]
-        CHK[Check-SkillExists.ps1]
+        CHK[check_skill_exists.py]
         VCS[Validate-Consistency.ps1]
-        VSP[Validate-SessionJson.ps1]
+        VSP[validate_session_json.py]
     end
 
     MCP --> SYN
@@ -251,7 +251,7 @@ flowchart TD
 
 ---
 
-### Validate-SessionJson.ps1
+### validate_session_json.py
 
 **Role**: Session protocol compliance checker
 
@@ -260,7 +260,7 @@ flowchart TD
 | **Input** | Session logs in `.agents/sessions/` |
 | **Output** | Protocol compliance report |
 | **Trigger** | CI on session log changes |
-| **Dependencies** | PowerShell 7.5.4+ |
+| **Dependencies** | Python 3.10+ |
 
 **Checks Performed**:
 
@@ -274,15 +274,12 @@ flowchart TD
 
 **Invocation**:
 
-```powershell
+```bash
 # Validate specific session
-.\Validate-SessionJson.ps1 -SessionDate "2025-12-18" -SessionNumber 24
+python3 scripts/validate_session_json.py .agents/sessions/2025-12-18-session-24.json
 
-# CI mode
-.\Validate-SessionJson.ps1 -CI
-
-# JSON output
-.\Validate-SessionJson.ps1 -OutputFormat JSON
+# Pre-commit mode
+python3 scripts/validate_session_json.py .agents/sessions/2025-12-18-session-24.json --pre-commit
 ```
 
 ---
@@ -292,7 +289,7 @@ flowchart TD
 | Agent | Error Scenario | Behavior |
 |-------|---------------|----------|
 | Sync-McpConfig.ps1 | Source missing | Exit with path error |
-| Validate-SessionJson.ps1 | Session not found | Warning, continue |
+| validate_session_json.py | Session not found | Warning, continue |
 | Validate-*.ps1 | Validation failure | Exit with error code |
 
 ## Security Considerations
@@ -330,7 +327,7 @@ Invoke-Pester -Path .\tests -Output Detailed
 | Agent | CI Workflow | Trigger |
 |-------|------------|---------|
 | Sync-McpConfig.ps1 | `pester-tests.yml` | PR to `scripts/**` |
-| Validate-SessionJson.ps1 | `ai-session-protocol.yml` | PR to `.agents/**` |
+| validate_session_json.py | `ai-session-protocol.yml` | PR to `.agents/**` |
 
 ## Related Documentation
 

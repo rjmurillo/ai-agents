@@ -55,7 +55,7 @@ When making decisions about:
 
 | Constraint | Source | Verification |
 |------------|--------|--------------|
-| MUST NOT use raw `gh` commands when skill exists | usage-mandatory | Check-SkillExists.ps1 |
+| MUST NOT use raw `gh` commands when skill exists | usage-mandatory | check_skill_exists.py |
 | MUST check `.claude/skills/` before GitHub operations | usage-mandatory | Phase 1.5 gate |
 | MUST extend skills if capability missing, not write inline | usage-mandatory | Code review |
 
