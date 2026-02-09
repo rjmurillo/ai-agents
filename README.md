@@ -115,7 +115,7 @@ Or install globally for repeated use
 uv tool install git+https://github.com/rjmurillo/skill-installer
 
 # Specific version (e.g., v0.1.0 or v0.2.0 or v0.3.0)
-uv tool install git+https://github.com/rjmurillo/skill-installer@v0.1.0
+uv tool install git+https://github.com/rjmurillo/skill-installer@v0.3.0
 
 # Run the interactive installer
 skill-installer interactive
