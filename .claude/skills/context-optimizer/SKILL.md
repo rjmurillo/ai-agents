@@ -18,7 +18,7 @@ Tooling suite for optimizing Claude Code context placement based on Vercel resea
 
 ### 1. Skill/Passive Content Analyzer
 
-**Script**: `scripts/Analyze-SkillPlacement.ps1`
+**Script**: `scripts/analyze_skill_placement.py`
 
 Analyzes skill content and recommends whether it should be a Skill, Passive Context, or Hybrid.
 
@@ -32,19 +32,18 @@ Analyzes skill content and recommends whether it should be a Skill, Passive Cont
 
 **Usage**:
 
-```powershell
+```bash
 # Analyze a skill directory
-pwsh scripts/Analyze-SkillPlacement.ps1 -Path ../github
+python3 scripts/analyze_skill_placement.py -p ../github
 
 # Analyze a specific SKILL.md
-pwsh scripts/Analyze-SkillPlacement.ps1 -Path ../github/SKILL.md
+python3 scripts/analyze_skill_placement.py -p ../github/SKILL.md
 
 # Get detailed metrics
-pwsh scripts/Analyze-SkillPlacement.ps1 -Path ../github -Detailed
+python3 scripts/analyze_skill_placement.py -p ../github -d
 
 # Analyze content directly
-$content = Get-Content ../github/SKILL.md -Raw
-pwsh scripts/Analyze-SkillPlacement.ps1 -Content $content
+python3 scripts/analyze_skill_placement.py -c "$(cat ../github/SKILL.md)"
 ```
 
 **Output**:
@@ -87,11 +86,11 @@ pwsh scripts/Analyze-SkillPlacement.ps1 -Content $content
 **Hybrid Recommendations**:
 
 - **Passive**: Headings matching routing, classification, framework, reference, index, hierarchy, decision
-- **Skill**: Headings matching process, workflow, steps, execution, script, procedure, plus *.ps1 references
+- **Skill**: Headings matching process, workflow, steps, execution, script, procedure, plus *.py references
 
 ### 2. Content Compression Utility
 
-**Script**: `scripts/Compress-MarkdownContent.ps1`
+**Script**: `scripts/compress_markdown_content.py`
 
 Compress markdown to pipe-delimited format (Vercel pattern) achieving 60-80% token reduction while maintaining 100% information density.
 
@@ -106,20 +105,23 @@ Compress markdown to pipe-delimited format (Vercel pattern) achieving 60-80% tok
 
 **Usage**:
 
-```powershell
-# Basic compression
-pwsh scripts/Compress-MarkdownContent.ps1 -InputPath README.md -CompressionLevel Medium
+```bash
+# Basic compression (JSON output to stdout)
+python3 scripts/compress_markdown_content.py -i README.md -l medium
 
 # Save to file
-pwsh scripts/Compress-MarkdownContent.ps1 `
-  -InputPath CRITICAL-CONTEXT.md `
-  -CompressionLevel Aggressive `
-  -OutputPath compressed.txt
+python3 scripts/compress_markdown_content.py \
+  -i CRITICAL-CONTEXT.md \
+  -l aggressive \
+  -o compressed.txt
 
-# Programmatic use
-$result = & scripts/Compress-MarkdownContent.ps1 `
-  -InputPath input.md -CompressionLevel Medium | ConvertFrom-Json
-Write-Host "Reduction: $($result.Metrics.ReductionPercent)%"
+# With verbose metrics
+python3 scripts/compress_markdown_content.py \
+  -i input.md -l medium -v
+
+# Programmatic use (parse JSON output)
+result=$(python3 scripts/compress_markdown_content.py -i input.md -l medium)
+echo "$result" | jq '.metrics.reduction_percent'
 ```
 
 **Compression Levels**:
@@ -379,7 +381,7 @@ python3 -m pytest tests/ --cov=scripts --cov-report=term-missing
 **Coverage - Analyzer**:
 
 - Parameter validation
-- Tool call detection (Bash, Read, Write, gh, git, pwsh)
+- Tool call detection (Bash, Read, Write, gh, git, python3)
 - Action verb counting
 - Reference vs procedural content ratio
 - User trigger pattern detection
