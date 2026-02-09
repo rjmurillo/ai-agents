@@ -234,6 +234,8 @@ The orchestrator runs the same evaluation pipeline across all candidates, produc
 | **pr-comment-responder** | PR review handling | Triaged responses, resolution tracking |
 | **spec-generator** | Requirement specifications, EARS format | Structured specs with acceptance criteria |
 | **debug** | Debugging assistance, root cause analysis | Diagnostic findings with resolution steps |
+| **backlog-generator** | Proactive task discovery when idle | Discovered tasks for backlog |
+| **janitor** | Code and documentation cleanup | Refactoring and cleanup suggestions |
 
 See [AGENTS.md](AGENTS.md) for detailed agent documentation.
 
