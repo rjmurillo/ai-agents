@@ -167,7 +167,7 @@
 
 ### First Unresolved Comment Details (Session 01)
 **Comment ID**: 2690818086 (cursor[bot]) - ✅ RESOLVED in Session 02
-**File**: `.claude/hooks/Stop/Invoke-SkillLearning.ps1`
+**File**: `.claude/hooks/Stop/invoke_skill_learning.py`
 **Lines**: 313-323, 387-390
 **Severity**: High
 **Issue**: `Update-SkillMemory` function incomplete learning handling
@@ -217,7 +217,7 @@
 - **Comments Replied**: 7
 - **Threads Resolved**: 5 (bringing total from 10 to 14)
 - **Progress**: 36% → 50% thread resolution
-- **Files Modified**: 1 (`.claude/hooks/Stop/Invoke-SkillLearning.ps1`)
+- **Files Modified**: 1 (`.claude/hooks/Stop/invoke_skill_learning.py`)
 - **Bugs Fixed**: 3 (pattern inconsistency, edge case regex, success pattern false positives)
 
 ### 🎯 Session 02 Learnings
@@ -229,8 +229,8 @@
 
 ## Session 03 Execution Summary (2026-01-15)
 
-- **Helper module + refactor**: Extracted the stop-hook logic into `.claude/hooks/Stop/SkillLearning.Helpers.psm1`, splitting `Extract-Learnings` into sub-helpers so no function exceeds 100 lines (QA blocking finding).
-- **Automated tests**: Added `tests/Invoke-SkillLearning.Tests.ps1` to cover `Detect-SkillUsage`, `Extract-Learnings`, and `Update-SkillMemory` (including path traversal prevention and Markdown section updates).
+- **Helper module + refactor**: Extracted the stop-hook logic into `.claude/hooks/Stop/skill_pattern_loader.py`, splitting `Extract-Learnings` into sub-helpers so no function exceeds 100 lines (QA blocking finding).
+- **Automated tests**: Added tests/Invoke-SkillLearning.Tests.ps1 (removed) to cover `Detect-SkillUsage`, `Extract-Learnings`, and `Update-SkillMemory` (including path traversal prevention and Markdown section updates).
 - **Local verification**: `pwsh ./build/scripts/Invoke-PesterTests.ps1 -TestPath tests/Invoke-SkillLearning.Tests.ps1` now passes, resolving the CRITICAL_FAIL root cause (lack of coverage) ahead of re-running QA in CI.
 
 ## Session 7 Execution Summary (2026-01-16 18:20-18:35 UTC)
@@ -434,12 +434,12 @@ mutation {
 ## Files Changed Across Sessions
 
 ### Session 01 Code Files
-- `.claude/hooks/Stop/Invoke-SkillLearning.ps1` (f666a01) - Fixed learning persistence
+- `.claude/hooks/Stop/invoke_skill_learning.py` (f666a01) - Fixed learning persistence
 - `.claude/settings.json` (0238c92) - Added stdin piping to Stop hooks
 - `.claude/skills/reflect/templates/skill-observations-template.md` (f580305) - Template format standardization
 
 ### Session 02 Code Files
-- `.claude/hooks/Stop/Invoke-SkillLearning.ps1` (9b31e7d) - Improved detection patterns and regex
+- `.claude/hooks/Stop/invoke_skill_learning.py` (9b31e7d) - Improved detection patterns and regex
 
 ### Session 01 Memory Files
 - `.serena/memories/pr-comment-responder-observations.md` (6aaaee6)

@@ -95,7 +95,7 @@ Agents MUST use `/session-init` skill. Manual session creation is prohibited due
 - `.claude/commands/session-init.md` - Slash command for deterministic invocation
 - `.serena/memories/session-init-pattern.md` - Verification-based enforcement pattern
 - `.agents/SESSION-PROTOCOL.md` - Canonical template source (lines 494-612)
-- `scripts/Validate-SessionProtocol.ps1` - Validation script used by CI and skill
+- scripts/Validate-SessionProtocol.ps1 (removed) - Validation script used by CI and skill
 
 ## Related
 

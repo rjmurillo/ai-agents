@@ -17,7 +17,7 @@ Implemented MemoryRouter.psm1 per ADR-037 Memory Router Architecture.
 
 ## Files Created
 
-- `scripts/MemoryRouter.psm1` - Main module (~410 LOC)
+- `.claude/skills/memory/scripts/MemoryRouter.psm1` - Main module (~410 LOC)
 - `tests/MemoryRouter.Tests.ps1` - Pester tests (38 passing)
 - `.agents/analysis/M-003-baseline.md` - Pre-implementation metrics
 - `.agents/analysis/M-003-performance-validation.md` - Post-implementation validation

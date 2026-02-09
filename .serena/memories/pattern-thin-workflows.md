@@ -62,10 +62,10 @@ Examples:
 Location: `.claude/skills/github/scripts/`
 
 Examples:
-- `pr/Post-PRCommentReply.ps1` - Post/reply to PR comments
-- `issue/Post-IssueComment.ps1` - Post idempotent issue comments
-- `issue/Set-IssueLabels.ps1` - Manage issue labels
-- `reactions/Add-CommentReaction.ps1` - Add reactions
+- `.claude/skills/github/scripts/pr/Post-PRCommentReply.ps1` - Post/reply to PR comments
+- `.claude/skills/github/scripts/issue/Post-IssueComment.ps1` - Post idempotent issue comments
+- `.claude/skills/github/scripts/issue/Set-IssueLabels.ps1` - Manage issue labels
+- `.claude/skills/github/scripts/reactions/Add-CommentReaction.ps1` - Add reactions
 
 ### Why Separate Locations?
 

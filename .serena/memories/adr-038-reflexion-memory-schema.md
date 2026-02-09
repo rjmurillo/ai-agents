@@ -20,8 +20,8 @@ Four-tier reflexion memory architecture for episodic replay and causal reasoning
 ## Key Files
 
 - `.agents/architecture/ADR-038-reflexion-memory-schema.md` - Full ADR
-- `.agents/schemas/episode.schema.json` - Episode JSON schema
-- `.agents/schemas/causal-graph.schema.json` - Causal graph schema
+- .agents/schemas/episode.schema.json (removed) - Episode JSON schema
+- .agents/schemas/causal-graph.schema.json (removed) - Causal graph schema
 - `.agents/memory/causality/causal-graph.json` - Initial empty graph
 
 ## Episode Structure
@@ -39,7 +39,7 @@ Four-tier reflexion memory architecture for episodic replay and causal reasoning
 
 ## Next Steps (M-005)
 
-1. Create `scripts/ReflexionMemory.psm1` module
+1. Create `.claude/skills/memory/scripts/ReflexionMemory.psm1` module
 2. Implement `Extract-SessionEpisode.ps1`
 3. Implement `Update-CausalGraph.ps1`
 

@@ -10,7 +10,7 @@
 Automated milestone assignment workflow that assigns the latest semantic version milestone to merged PRs and closed issues.
 
 **Workflow**: `.github/workflows/milestone-tracking.yml`
-**Scripts**: `scripts/Get-LatestSemanticMilestone.ps1`, `scripts/Set-ItemMilestone.ps1`
+**Scripts**: `.claude/skills/github/scripts/milestone/Get-LatestSemanticMilestone.ps1`, `.claude/skills/github/scripts/milestone/Set-ItemMilestone.ps1`
 
 ## Trigger Conditions
 
@@ -40,7 +40,7 @@ Workflow YAML just coordinates, all logic in PowerShell scripts:
 
 ### Semantic Version Detection
 
-Script: `scripts/Get-LatestSemanticMilestone.ps1`
+Script: `.claude/skills/github/scripts/milestone/Get-LatestSemanticMilestone.ps1`
 
 Logic:
 1. Query all open milestones: `gh api repos/$Owner/$Repo/milestones?state=open`
@@ -59,7 +59,7 @@ Logic:
 
 ### Assignment Orchestration
 
-Script: `scripts/Set-ItemMilestone.ps1`
+Script: `.claude/skills/github/scripts/milestone/Set-ItemMilestone.ps1`
 
 Logic:
 1. Check if item already has milestone: `gh api repos/$Owner/$Repo/issues/$Number`

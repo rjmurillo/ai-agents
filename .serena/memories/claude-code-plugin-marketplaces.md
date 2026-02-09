@@ -8,7 +8,7 @@
 
 **Marketplace**: JSON catalog (`.claude-plugin/marketplace.json`) listing plugins with sources for distribution.
 
-**Plugin**: Directory with `.claude-plugin/plugin.json` manifest containing skills, agents, hooks, MCP servers, or LSP servers.
+**Plugin**: Directory with .claude-plugin/plugin.json (removed) manifest containing skills, agents, hooks, MCP servers, or LSP servers.
 
 **Namespacing**: Plugin skills are invoked as `/plugin-name:skill` to prevent conflicts.
 
