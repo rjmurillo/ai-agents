@@ -34,7 +34,7 @@ Use this skill when:
 - Decision has long-term strategic implications (2+ year horizon)
 - Team split on approach and need objective framework
 
-Use [cynefin-classifier](../.archived/cynefin-classifier/SKILL.md) first if:
+Use [cynefin-classifier](../cynefin-classifier/SKILL.md) first if:
 
 - Unsure whether problem is analyzable (Complicated) or requires experimentation (Complex)
 
@@ -102,7 +102,7 @@ Default: BUILD                          Default: BUY
 
 #### Integration Points:
 
-1. **Optional pre-step:** Run [cynefin-classifier](../.archived/cynefin-classifier/SKILL.md) if problem domain unclear
+1. **Optional pre-step:** Run [cynefin-classifier](../cynefin-classifier/SKILL.md) if problem domain unclear
    - Complex → favor Buy/Partner (reduce risk through experimentation)
    - Complicated → proceed with analysis
 
@@ -412,11 +412,19 @@ Deep-dive documentation in `references/` directory:
 | Forgetting reassessment plan | Decision becomes stale | Set calendar reminders for reviews |
 | Optimizing for single dimension (only cost) | Ignores strategic value | Use full decision matrix |
 
+## Verification
+
+- [ ] All four phases completed with documented outputs
+- [ ] TCO analysis covers 3-year horizon minimum
+- [ ] Decision matrix scored by 2+ stakeholders
+- [ ] Risk assessment includes top 3 risks per option
+- [ ] Final recommendation includes reassessment triggers
+
 ## Related Skills
 
 | Skill | Relationship |
 |-------|--------------|
-| [cynefin-classifier](../.archived/cynefin-classifier/SKILL.md) | Pre-step to determine problem domain (archived) |
+| [cynefin-classifier](../cynefin-classifier/SKILL.md) | Pre-step to determine problem domain |
 | [pre-mortem](../pre-mortem/SKILL.md) | Phase 3 risk identification |
 | [decision-critic](../decision-critic/SKILL.md) | Phase 4 validation |
 | [adr-review](../adr-review/SKILL.md) | Phase 4 multi-agent consensus |
