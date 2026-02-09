@@ -60,7 +60,7 @@ If Serena MCP tools are available, you MUST call FIRST:
 
 | Constraint | Source |
 |------------|--------|
-| PowerShell only (.ps1/.psm1) | ADR-005 |
+| Python first (.py preferred, PowerShell grandfathered) | ADR-042 |
 | No raw gh when skill exists | usage-mandatory |
 | No logic in workflow YAML | ADR-006 |
 | Verify branch before git operations | SESSION-PROTOCOL |

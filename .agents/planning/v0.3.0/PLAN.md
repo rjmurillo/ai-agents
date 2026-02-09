@@ -2,9 +2,9 @@
 
 **Status**: 🟢 ACTIVE (Revised 2026-02-07)
 **Created**: 2026-01-23
-**Last Updated**: 2026-02-07 (Added 6 issues from triage analysis)
+**Last Updated**: 2026-02-08 (Added context window optimization work)
 **Milestone**: [0.3.0](https://github.com/rjmurillo/ai-agents/milestone/6)
-**Current Scope**: 29 issues (6 P0, 21 P1, 2 P2)
+**Current Scope**: 29 issues + 1 proposal (6 P0, 21 P1, 2 P2, 1 P1 proposal)
 
 ---
 
@@ -124,6 +124,14 @@ pwsh .claude/skills/github/scripts/issue/Get-IssueContext.ps1 -Issue <ISSUE_NUMB
 | [#935](https://github.com/rjmurillo/ai-agents/issues/935) | SESSION-PROTOCOL Validation Gates | Quality gate. Documentation enforcement. Markdown updates. | **NEW** |
 | [#936](https://github.com/rjmurillo/ai-agents/issues/936) | Commit Counter in Orchestrator | Quality gate. Real-time visibility. Prevents scope creep. Prompt update. | **NEW** |
 
+### P1 Proposals (Pending Issue Creation)
+
+**Added 2026-02-08**: Context window optimization from token audit
+
+| Proposal | Title | Summary | Status |
+|----------|-------|---------|--------|
+| PR [#1120](https://github.com/rjmurillo/ai-agents/pull/1120) | Context Window Token Optimization | Item 1 (Slim AGENTS.md) implemented: -3,428 tokens. Items 3-8 remain open. | **PARTIAL** |
+
 ### Epic Chain ([#990](https://github.com/rjmurillo/ai-agents/issues/990))
 
 **Added 2026-02-07**: Memory Enhancement continuation (#992->#993->#994, sequential dependency) and Quality Gates (#934, #935, #936, independent/parallel)
@@ -212,6 +220,7 @@ gantt
 | Memory search | 260ms | <20ms | [#734](https://github.com/rjmurillo/ai-agents/issues/734) |
 | Graph traversal | N/A | <500ms depth 3 | [#998](https://github.com/rjmurillo/ai-agents/issues/998) |
 | Skill v2.0 compliance | 11% | 100% | [#761](https://github.com/rjmurillo/ai-agents/issues/761) |
+| Session start tokens | 41k (21%) | <35k (<18%) | TBD (Token Optimization) |
 
 ### Parallel Tracks (Week 2+)
 
@@ -1249,6 +1258,70 @@ Add automatic context-retrieval invocation to orchestrator workflow with these t
 2. Get critic review (YAGNI, over-engineering check)
 3. Implement Option B (Conditional Hook)
 4. Verify with test workflows
+
+---
+
+#### 🟢 IMPLEMENTED: Slim AGENTS.md + Consolidate Auto-Loaded Context
+
+> **Status**: Implemented. AGENTS.md rewritten from 2,192 lines to ~211 lines. CRITICAL-CONTEXT.md and SKILL-QUICK-REF.md deleted. Content consolidated into lean AGENTS.md as single cross-platform reference.
+
+**Problem Statement**:
+
+Session start consumed 41k/200k tokens (21%) before the user typed anything. Auto-loaded memory files had heavy redundancy (6.3k tokens across 4 files), and AGENTS.md (2,192 lines, ~48k tokens) was referenced but never imported.
+
+**Architecture Decision**: AGENTS.md is the cross-platform reference for Claude, Copilot, Cortex, and Factory Droid.
+
+Cross-platform instruction hierarchy:
+
+| Concept | Claude Code | Copilot CLI | Gemini |
+|---------|------------|-------------|--------|
+| Global personal | `~/.claude/CLAUDE.md` | `~/.copilot/copilot-instructions.md` | N/A |
+| Repo-wide | `CLAUDE.md` (root) | `.github/copilot-instructions.md` | `.gemini/styleguide.md` |
+| Cross-platform | `AGENTS.md` (root) | `AGENTS.md` (root) | `AGENTS.md` (root) |
+| Path-scoped rules | `.claude/rules/*.md` | `.github/instructions/*.instructions.md` | N/A |
+
+**Implementation Summary**:
+
+| Step | Action | Result |
+|------|--------|--------|
+| 1 | Rewrite AGENTS.md (2,192 -> ~211 lines) | ~1,318 words, hard-capped for token budget |
+| 2 | Create `.agents/governance/IMPACT-ANALYSIS.md` | Relocated impact analysis framework |
+| 3 | Create `.agents/governance/CONSENSUS.md` | Relocated consensus mechanisms + disagree-and-commit |
+| 4 | Rewrite CLAUDE.md (81 -> ~23 lines) | Thin wrapper: @AGENTS.md + Claude-specific |
+| 5 | Delete CRITICAL-CONTEXT.md and SKILL-QUICK-REF.md | Content consolidated into lean AGENTS.md |
+| 6 | Edit `~/.claude/CLAUDE.md` (remove AI Agent System block) | -1,200 tokens |
+| 7 | Verify `.github/copilot-instructions.md` anchors | No broken references |
+
+**Token Impact**:
+
+| Component | Before | After | Change |
+|-----------|--------|-------|--------|
+| CLAUDE.md (auto-loaded) | 858 | ~250 | -608 |
+| @CRITICAL-CONTEXT.md (auto-loaded) | 1,500 | 0 (deleted) | -1,500 |
+| @SKILL-QUICK-REF.md (auto-loaded) | 1,900 | 0 (deleted) | -1,900 |
+| @AGENTS.md (newly auto-loaded) | 0 | ~1,780 | +1,780 |
+| ~/.claude/CLAUDE.md | 2,000 | ~800 | -1,200 |
+| **Net auto-loaded** | **~6,258** | **~2,830** | **-3,428** |
+
+**Remaining items** (from original proposal, not yet implemented):
+
+| # | Work Item | Status |
+|---|-----------|--------|
+| 3 | Compress SessionStart hook output to single-line confirmations | Open |
+| 4 | Remove duplicate skills (pr-comment-responder, github, session-init) | Open |
+| 5 | Remove unused agents (debug, prompt-builder, janitor, technical-writer) | Open |
+| 6 | Evaluate plugin agent overhead (python-development, claude-router) | Open |
+| 7 | Archive rarely-used skills (chaos-experiment, slo-designer, cynefin-classifier) | Open |
+| 8 | Disable/reconfigure claude-router plugin (~100 tokens/message) | Open |
+
+**Acceptance Criteria**:
+- [x] AGENTS.md rewritten as lean cross-platform reference (~211 lines)
+- [x] CRITICAL-CONTEXT.md and SKILL-QUICK-REF.md deleted
+- [x] CLAUDE.md is thin wrapper with @AGENTS.md import
+- [x] Orphaned content relocated to governance/ docs
+- [x] `~/.claude/CLAUDE.md` AI Agent System block removed
+- [x] Copilot instructions heading anchors verified
+- [x] Net token reduction achieved (~3,428 tokens)
 
 ---
 
