@@ -1166,7 +1166,7 @@ fi
 # Security: Fail-closed - if validation fails or cannot run, commit is blocked
 # Related: SESSION-PROTOCOL.md v1.4, Skill-Protocol-002, Skill-Validation-006
 #
-SESSION_VALIDATE_SCRIPT="$REPO_ROOT/scripts/Validate-SessionJson.ps1"
+SESSION_VALIDATE_SCRIPT="$REPO_ROOT/scripts/validate_session_json.py"
 
 # Check if any .agents/ files are staged (indicating an active session)
 STAGED_AGENTS_FILES=$(echo "$STAGED_FILES" | grep -E '^\.agents/' || true)
@@ -1194,10 +1194,10 @@ if [ -n "$STAGED_AGENTS_FILES" ]; then
 
         # Only run validation if session log is present
         if [ -n "$STAGED_SESSION_LOG" ]; then
-            if command -v pwsh &> /dev/null; then
+            if command -v python3 &> /dev/null; then
                 echo_info "Running Session Protocol validation..."
-                # SECURITY: Use -- separator and quote path to prevent injection
-                if ! pwsh -NoProfile -ExecutionPolicy Bypass -File "$SESSION_VALIDATE_SCRIPT" -SessionPath "$STAGED_SESSION_LOG" -PreCommit 2>&1; then
+                # SECURITY: Quote path to prevent injection
+                if ! python3 "$SESSION_VALIDATE_SCRIPT" "$STAGED_SESSION_LOG" --pre-commit 2>&1; then
                     echo_error "Session Protocol validation FAILED."
                     echo_info "  Review errors above and fix session log."
                     echo_info ""
@@ -1206,14 +1206,14 @@ if [ -n "$STAGED_AGENTS_FILES" ]; then
                     echo_info ""
                     echo_info "  Fix with: /session-log-fixer skill"
                     echo_info ""
-                    echo_info "  Run manually: pwsh scripts/Validate-SessionJson.ps1 -SessionPath \"$STAGED_SESSION_LOG\""
+                    echo_info "  Run manually: python3 scripts/validate_session_json.py \"$STAGED_SESSION_LOG\""
                     EXIT_STATUS=1
                 else
                     echo_success "Session Protocol validation: PASS"
                 fi
             else
-                echo_error "Session Protocol validation blocked: PowerShell not available."
-                echo_info "  Install: https://docs.microsoft.com/en-us/powershell/scripting/install/installing-powershell"
+                echo_error "Session Protocol validation blocked: Python 3 not available."
+                echo_info "  Install: https://www.python.org/downloads/"
                 EXIT_STATUS=1
             fi
         fi
@@ -1596,9 +1596,9 @@ fi
 #
 # Lightweight check for memory retrieval evidence in session logs.
 # Warns if the Evidence column for memory-index appears empty or placeholder.
-# Full validation (E2) is done by Validate-SessionJson.ps1.
+# Full validation (E2) is done by validate_session_json.py.
 #
-# Related: ADR-007, Issue #729, E2 in Validate-SessionJson.ps1
+# Related: ADR-007, Issue #729, E2 in validate_session_json.py
 #
 
 if [ -n "$STAGED_SESSION_LOG" ]; then

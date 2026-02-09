@@ -192,7 +192,7 @@ if [ -z "$SESSION_LOG" ]; then
 fi
 
 # 2. Run session protocol validator
-pwsh scripts/Validate-SessionJson.ps1 -SessionLogPath "$SESSION_LOG"
+python3 scripts/validate_session_json.py "$SESSION_LOG"
 
 # 3. If validation fails, fix issues before proceeding
 if [ $? -ne 0 ]; then
@@ -363,7 +363,7 @@ ADR-015 compliance:
 |-----------|----------|
 | All conflicts resolved | `git diff --check` returns empty |
 | No merge markers remain | `grep -r "<<<<<<" .` returns nothing |
-| Session protocol valid | `Validate-SessionJson.ps1` exits 0 |
+| Session protocol valid | `validate_session_json.py` exits 0 |
 | Markdown lint passes | `npx markdownlint-cli2` exits 0 |
 | Push successful | Remote ref updated |
 
@@ -382,7 +382,7 @@ ADR-015 compliance:
 | Anti-Pattern | Why It Fails | Instead |
 |--------------|--------------|---------|
 | **Alter session files from main** | **CRITICAL**: Session files are historical records; altering breaks audit trail | **Always accept --theirs, rename --ours to next number** |
-| Push without session validation | CI blocks with MUST violations | Run `Validate-SessionJson.ps1` first |
+| Push without session validation | CI blocks with MUST violations | Run `validate_session_json.py` first |
 | Manual edit of generated files | Changes lost on regeneration | Edit template, run generator |
 | Accept --ours for HANDOFF.md | Branch version often stale | Accept --theirs (main is canonical) |
 | Merge lock files manually | JSON corruption, broken deps | Accept base, regenerate with npm/yarn |

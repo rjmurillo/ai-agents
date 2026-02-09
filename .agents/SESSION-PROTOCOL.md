@@ -204,7 +204,7 @@ The script will:
 3. Load JSON schema from `.agents/schemas/session-log.schema.json`
 4. Replace placeholders with actual values
 5. Write session log with EXACT template format
-6. Validate immediately with Validate-SessionJson.ps1
+6. Validate immediately with validate_session_json.py
 7. Exit nonzero on validation failure
 
 See: `.claude/skills/session-init/SKILL.md`
@@ -670,7 +670,7 @@ pwsh .claude/skills/session-init/scripts/New-SessionLog.ps1
 pwsh -Command "Test-Json -Json (Get-Content [session].json -Raw) -Schema (Get-Content .agents/schemas/session-log.schema.json -Raw)"
 
 # Script validation (business rules)
-pwsh scripts/Validate-SessionJson.ps1 -SessionPath [session].json
+python3 scripts/validate_session_json.py [session].json
 ```
 
 For detailed schema structure, load `.agents/schemas/session-log.schema.json` when needed.
@@ -756,11 +756,11 @@ Example:
 
 ### Automated Protocol Validation
 
-The `Validate-SessionJson.ps1` script checks session protocol compliance:
+The `validate_session_json.py` script checks session protocol compliance:
 
-```powershell
+```bash
 # Validate current session
-pwsh scripts/Validate-SessionJson.ps1 -SessionPath ".agents/sessions/2025-12-17-session-01.json"
+python3 scripts/validate_session_json.py .agents/sessions/2025-12-17-session-01.json
 ```
 
 ### What Validation Checks
