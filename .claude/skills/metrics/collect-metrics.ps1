@@ -50,7 +50,7 @@ param(
 
 # Agent patterns to detect in commit messages
 $AgentPatterns = @(
-    '(?i)\b(orchestrator|analyst|architect|implementer|security|qa|devops|critic|planner|explainer|task-generator|high-level-advisor|independent-thinker|memory|skillbook|retrospective|roadmap|pr-comment-responder)\b\s*(agent)?'
+    '(?i)\b(orchestrator|analyst|architect|implementer|security|qa|devops|critic|milestone-planner|planner|explainer|task-decomposer|task-generator|backlog-generator|high-level-advisor|independent-thinker|memory|skillbook|retrospective|roadmap|pr-comment-responder)\b\s*(agent)?'
     '(?i)reviewed\s+by:?\s*(security|architect|analyst|qa|implementer)'
     '(?i)agent:\s*(\w+)'
     '(?i)\[(\w+)-agent\]'

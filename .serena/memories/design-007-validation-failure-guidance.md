@@ -6,7 +6,7 @@
 
 **Context**: When creating handoff validation checklists for agents
 
-**Evidence**: Issue #44 Phase 4 - All 4 agents (critic, implementer, qa, task-generator) include identical 'Validation Failure' subsection with guidance: 'Do not handoff if ANY checklist item cannot be completed'
+**Evidence**: Issue #44 Phase 4 - All 4 agents (critic, implementer, qa, task-decomposer) include identical 'Validation Failure' subsection with guidance: 'Do not handoff if ANY checklist item cannot be completed'
 
 **Impact**: Prevents incomplete handoffs, provides explicit guidance when validation fails
 

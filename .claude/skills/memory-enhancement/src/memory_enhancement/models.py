@@ -56,6 +56,7 @@ class Memory:
     tags: list[str] = field(default_factory=list)
     confidence: float = 0.5
     last_verified: datetime | None = None
+    exempt: bool = False
 
     @classmethod
     def from_file(cls, path: Path) -> "Memory":
@@ -91,6 +92,7 @@ class Memory:
         tags = post.metadata.get("tags", [])
         confidence = post.metadata.get("confidence", 0.5)
         last_verified = _parse_date(post.metadata.get("last_verified"))
+        exempt = bool(post.metadata.get("exempt", False))
 
         return cls(
             id=memory_id,
@@ -102,6 +104,7 @@ class Memory:
             tags=tags,
             confidence=confidence,
             last_verified=last_verified,
+            exempt=exempt,
         )
 
     def get_links_by_type(self, link_type: LinkType) -> list[str]:

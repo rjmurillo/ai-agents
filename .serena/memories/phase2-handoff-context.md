@@ -24,8 +24,8 @@ Additional work:
 | Task | File | Description | Effort |
 |------|------|-------------|--------|
 | P1-1 | `src/claude/critic.md` | Escalation template with Verified Facts | 1 hr |
-| P1-2 | `src/claude/task-generator.md` | Estimate reconciliation (10% threshold) | 1.5 hr |
-| P1-3 | `src/claude/planner.md` | Condition traceability template | 2 hr |
+| P1-2 | `src/claude/task-decomposer.md` | Estimate reconciliation (10% threshold) | 1.5 hr |
+| P1-3 | `src/claude/milestone-planner.md` | Condition traceability template | 2 hr |
 | P1-4 | `build/scripts/Validate-PlanningArtifacts.ps1` | Cross-doc validation CI | 2 hr |
 
 ## Quick Start

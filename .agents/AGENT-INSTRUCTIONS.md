@@ -22,7 +22,7 @@ This repository implements a coordinated multi-agent system for software develop
 | `implementer` | Writing agent prompts, modifying files |
 | `analyst` | Research and investigation |
 | `architect` | Design decisions, ADRs, system structure |
-| `planner` | Breaking down work into tasks |
+| `milestone-planner` | Breaking down work into tasks |
 | `critic` | Validating plans before implementation |
 | `qa` | Test strategy and verification |
 | `spec-generator` | Creating EARS requirements from vibe prompts |
@@ -251,7 +251,7 @@ Refs: T-007
 fix(orchestrator): correct routing for spec requests
 
 Routes "create spec" and "generate requirements" to spec-generator
-instead of planner.
+instead of milestone-planner.
 
 Refs: S-006
 ```
@@ -468,14 +468,14 @@ If you need context, read these files in order:
 Use this workflow for any non-trivial feature:
 
 ```text
-analyst → architect → planner → critic → implementer → qa → retrospective
+analyst → architect → milestone-planner → critic → implementer → qa → retrospective
 ```
 
 | Step | Agent | Purpose | Output |
 |------|-------|---------|--------|
 | 1 | `analyst` | Research existing code, gather context | `.agents/analysis/` |
 | 2 | `architect` | Design decision, create ADR if needed | `.agents/architecture/` |
-| 3 | `planner` | Break down into tasks with criteria | `.agents/planning/` |
+| 3 | `milestone-planner` | Break down into tasks with criteria | `.agents/planning/` |
 | 4 | `critic` | **Validate plan before implementation** | `.agents/critique/` |
 | 5 | `implementer` | Implement changes following the plan | Source files |
 | 6 | `qa` | Verify implementation, document tests | `.agents/qa/` |
@@ -486,15 +486,15 @@ analyst → architect → planner → critic → implementer → qa → retrospe
 For new features starting from vibe-level descriptions:
 
 ```text
-spec-generator → critic → planner → task-generator
+spec-generator → critic → milestone-planner → task-decomposer
 ```
 
 | Step | Agent | Purpose | Output |
 |------|-------|---------|--------|
 | 1 | `spec-generator` | Create EARS requirements, design, tasks | `.agents/specs/` |
 | 2 | `critic` | Validate spec completeness and clarity | `.agents/critique/` |
-| 3 | `planner` | Refine implementation approach | `.agents/planning/` |
-| 4 | `task-generator` | Create atomic task breakdown | Updated specs |
+| 3 | `milestone-planner` | Refine implementation approach | `.agents/planning/` |
+| 4 | `task-decomposer` | Create atomic task breakdown | Updated specs |
 
 ### Quality Evaluation Workflow (Anthropic Pattern)
 

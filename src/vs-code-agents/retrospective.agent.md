@@ -509,7 +509,7 @@ pwsh scripts/Validate-Traceability.ps1
 
 | Issue | Fix | Owner |
 |-------|-----|-------|
-| [Issue] | [Action] | [spec-generator/planner] |
+| [Issue] | [Action] | [spec-generator/milestone-planner] |
 ````
 
 **Integration with Learning Extraction:**
@@ -1308,7 +1308,7 @@ When retrospective is complete:
 |--------|------|---------|  
 | **skillbook** | Learnings ready | Store skills |
 | **implementer** | Coding skill found | Apply next time |
-| **planner** | Process improvement | Update approach |
+| **milestone-planner** | Process improvement | Update approach |
 | **architect** | Design insight | Update guidance |
 
 **Note**: Use cloudmcp-manager memory tools directly to persist skills, relations, and observations - no delegation to memory agent required.

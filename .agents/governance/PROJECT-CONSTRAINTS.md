@@ -12,6 +12,26 @@ Single source of truth for project constraints. Index-style document pointing to
 
 ---
 
+## RETRIEVAL-LED REASONING
+
+**IMPORTANT**: This document is the SINGLE SOURCE OF TRUTH for constraints.
+
+When making decisions about:
+- Language choice (Python vs PowerShell) → Read "Language Constraints" section, NOT pre-training
+- Skill usage → Read "Skill Usage Constraints" section, NOT pre-training
+- Workflow patterns → Read "Workflow Constraints" section, NOT pre-training
+- Commit structure → Read "Commit Constraints" section, NOT pre-training
+
+**Do NOT rely on pre-training for these constraints.** Pre-training may reflect outdated patterns.
+
+**Process**:
+1. Identify decision type (language, workflow, etc.)
+2. Read corresponding section in THIS document
+3. Follow "Source" link for full rationale if needed
+4. Apply constraint, not pre-training assumption
+
+---
+
 ## Language Constraints
 
 | Constraint | Source | Verification |

@@ -2,9 +2,30 @@
 
 > **Purpose**: Skill awareness, memory hierarchy, and PR routing patterns.
 > Based on Vercel research: passive context (100% pass rate) outperforms skill invocation (53-79%).
->
-> **Principle**: Prefer retrieval-led reasoning over pre-training-led reasoning for session protocol,
-> memory operations, and repository conventions.
+
+---
+
+## RETRIEVAL-LED REASONING PRINCIPLE
+
+**CRITICAL**: Before making ANY decision based on framework knowledge, language syntax, or project patterns:
+
+1. **PAUSE**: "Do I need current/accurate information for this?"
+2. **CHECK**: Scan retrieval sources below
+3. **READ**: Load authoritative source
+4. **REASON**: Apply retrieved information, not pre-training
+
+**Common Failure Modes**:
+
+- ✗ "Next.js routing works like this..." (pre-training → outdated)
+- ✓ "Let me check the Next.js docs..." (retrieval → current)
+- ✗ "I'll create a PR with gh pr create" (pre-training → bypasses skill)
+- ✓ "Let me check skill-quick-ref for PR skill" (retrieval → uses tested skill)
+
+**Retrieval Priority Order**:
+
+1. **Project-specific**: Serena memories, ADRs, planning docs
+2. **Framework/Library**: Official docs (Context7, DeepWiki, WebSearch)
+3. **Never**: Pre-training for project-specific or version-specific information
 
 ---
 
@@ -28,8 +49,8 @@
 [PR Comment Routing]
 |CLASSIFY: sentiment(positive|negative|neutral), type(question|suggestion|concern|approval)
 |QUICK-FIX: one-sentence-fix, single-file, obvious-change → implementer → qa
-|STANDARD: investigation-needed, 2-5-files, some-complexity → analyst → planner → implementer → qa
-|STRATEGIC: whether-not-how, scope-question, architecture-direction → independent-thinker → high-level-advisor → task-generator
+|STANDARD: investigation-needed, 2-5-files, some-complexity → analyst → milestone-planner → implementer → qa
+|STRATEGIC: whether-not-how, scope-question, architecture-direction → independent-thinker → high-level-advisor → task-decomposer
 
 [Bot Comment Classification]
 |DETECT: regex for CWE-(\d+), E(\d+) error codes, "missing documentation" patterns
@@ -65,7 +86,7 @@
 |  github: "create a PR", "commit and push", "close issue", "add label", "check CI"
 |  adr-review: "review this ADR", "validate ADR", "check architecture decision"
 |  merge-resolver: "resolve merge conflicts", "fix conflicts", "can't merge"
-|  planner: "plan this feature", "create implementation plan", "pick up next item", "execute plan"
+|  milestone-planner: "plan this feature", "create implementation plan", "pick up next item", "execute plan"
 |  decision-critic: "critique this decision", "devil's advocate on"
 |  security-detection: "scan for security changes", "run security scan", "check infrastructure changes"
 |  analyze: "analyze this codebase", "review code quality", "run security assessment", "find code smells"
@@ -91,8 +112,8 @@
 |"commit and push" → github
 |"resolve conflicts" → merge-resolver
 |"fix CI" → session-log-fixer (if session) or fix-ci agent
-|"review the plan" → planner (executor mode)
-|"pick up next item" → planner (executor mode)
+|"review the plan" → milestone-planner (executor mode)
+|"pick up next item" → milestone-planner (executor mode)
 |"run security scan" → security-detection
 |"analyze code quality" → analyze
 |"learn from this" → reflect

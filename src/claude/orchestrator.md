@@ -88,14 +88,14 @@ Before activating the full orchestration workflow, determine the minimum agent s
 **Invalid Pattern (Cannot Happen):**
 
 ```text
-❌ Orchestrator → planner → [planner calls implementer] ❌
-                            └─→ IMPOSSIBLE: planner has no Task tool
+❌ Orchestrator → milestone-planner → [milestone-planner calls implementer] ❌
+                            └─→ IMPOSSIBLE: milestone-planner has no Task tool
 ```
 
 **Correct Pattern:**
 
 ```text
-✅ Orchestrator → planner → back to Orchestrator → implementer ✅
+✅ Orchestrator → milestone-planner → back to Orchestrator → implementer ✅
 ```
 
 **Design Rationale**: This prevents infinite nesting while maintaining clear orchestrator-worker separation. You are responsible for all coordination, handoffs, and routing decisions.
@@ -162,7 +162,7 @@ The orchestrator exists to:
 | Test strategy | qa | "Create test plan" |
 | Plan validation | critic | "Review this plan" |
 | Documentation | explainer | "Write PRD" |
-| Task breakdown | task-generator | "Break into tasks" |
+| Task breakdown | task-decomposer | "Break into tasks" |
 | Formal specifications | spec-generator | "Create EARS requirements" |
 | Security review | security | "Assess vulnerabilities" |
 | CI/CD changes | devops | "Update pipeline" |
@@ -201,14 +201,14 @@ Task(
 |-------|---------------|---------------|
 | analyst | Need investigation/research | "Investigate why build fails on CI" |
 | architect | Design decisions needed | "Review API design for new endpoint" |
-| planner | Breaking down large scope | "Create milestone plan for feature X" |
+| milestone-planner | Breaking down large scope | "Create milestone plan for feature X" |
 | implementer | Code changes required | "Implement the approved changes" |
 | critic | Validating plans/designs | "Review this plan for gaps" |
 | qa | Test strategy/verification | "Verify test coverage for changes" |
 | security | Security-sensitive changes | "Assess auth changes for vulnerabilities" |
 | devops | CI/CD/infrastructure | "Update GitHub Actions workflow" |
 | explainer | Documentation needed | "Create PRD for this feature" |
-| task-generator | Atomic task breakdown | "Break this epic into implementable tasks" |
+| task-decomposer | Atomic task breakdown | "Break this epic into implementable tasks" |
 | spec-generator | Formal EARS specifications | "Create requirements with traceability" |
 | high-level-advisor | Strategic decisions | "Advise on competing priorities" |
 | independent-thinker | Challenge assumptions | "What are we missing?" |
@@ -278,7 +278,7 @@ When classifying tasks, identify the current OODA phase to guide agent selection
 |------------|-------------|----------------|
 | **Observe** | Gather information, investigate | analyst, memory |
 | **Orient** | Analyze context, evaluate options | architect, roadmap, independent-thinker |
-| **Decide** | Choose approach, validate plan | high-level-advisor, critic, planner |
+| **Decide** | Choose approach, validate plan | high-level-advisor, critic, milestone-planner |
 | **Act** | Execute implementation | implementer, devops, qa |
 
 Include phase in task classification output:
@@ -463,8 +463,8 @@ ELSE:
 **When invoked**, prepend `context-retrieval` to the agent sequence:
 
 ```text
-# Before: analyst → planner → implementer → qa
-# After:  context-retrieval → analyst → planner → implementer → qa
+# Before: analyst → milestone-planner → implementer → qa
+# After:  context-retrieval → analyst → milestone-planner → implementer → qa
 ```
 
 **Invocation**:
@@ -694,7 +694,7 @@ This phase prevents common issues from skipping pre-PR validation:
 |-------|------------------|----------|-------------|
 | **analyst** | Pre-implementation research | Root cause analysis, API investigation | Read-only |
 | **architect** | System design governance | Design reviews, ADRs | No code |
-| **planner** | Work package creation | Epic breakdown, milestones | No code |
+| **milestone-planner** | Work package creation | Epic breakdown, milestones | No code |
 | **implementer** | Code execution | Production code, tests | Plan-dependent |
 | **critic** | Plan validation | Scope, risk identification | No code |
 | **qa** | Test verification | Test strategy, coverage | QA docs only |
@@ -720,30 +720,30 @@ These three workflow paths are the canonical reference for all task routing. Oth
 | Path | Agents | Triage Signal |
 |------|--------|---------------|
 | **Quick Fix** | `implementer → qa` | Can explain fix in one sentence; single file; obvious change |
-| **Standard** | `analyst → planner → implementer → qa` | Need to investigate first; 2-5 files; some complexity |
-| **Strategic** | `independent-thinker → high-level-advisor → task-generator` | Question is *whether*, not *how*; scope/priority question |
-| **Specification** | `spec-generator → critic → architect → task-generator` | Formal EARS requirements needed; traceability required |
+| **Standard** | `analyst → milestone-planner → implementer → qa` | Need to investigate first; 2-5 files; some complexity |
+| **Strategic** | `independent-thinker → high-level-advisor → task-decomposer` | Question is *whether*, not *how*; scope/priority question |
+| **Specification** | `spec-generator → critic → architect → task-decomposer` | Formal EARS requirements needed; traceability required |
 
 ### Agent Sequences by Task Type
 
 | Task Type | Agent Sequence | Path |
 |-----------|----------------|------|
-| Feature (multi-domain) | analyst -> architect -> planner -> critic -> implementer -> qa | Standard (extended) |
-| Feature (multi-domain with impact analysis) | analyst -> architect -> planner -> [ORCHESTRATOR calls: implementer, architect, security, devops, qa for impact analyses] -> critic -> implementer -> qa | Standard (extended) |
-| Feature (multi-step) | analyst -> planner -> implementer -> qa | Standard |
+| Feature (multi-domain) | analyst -> architect -> milestone-planner -> critic -> implementer -> qa | Standard (extended) |
+| Feature (multi-domain with impact analysis) | analyst -> architect -> milestone-planner -> [ORCHESTRATOR calls: implementer, architect, security, devops, qa for impact analyses] -> critic -> implementer -> qa | Standard (extended) |
+| Feature (multi-step) | analyst -> milestone-planner -> implementer -> qa | Standard |
 | Bug Fix (multi-step) | analyst -> implementer -> qa | Standard (lite) |
 | Bug Fix (simple) | implementer -> qa | Quick Fix |
 | Security | analyst -> security -> architect -> critic -> implementer -> qa | Standard (extended) |
 | Infrastructure | analyst -> devops -> security -> critic -> qa | Standard (extended) |
 | Research | analyst (standalone) | N/A |
 | Documentation | explainer -> critic | Standard (lite) |
-| Strategic | roadmap -> architect -> planner -> critic | Strategic |
+| Strategic | roadmap -> architect -> milestone-planner -> critic | Strategic |
 | Refactoring | analyst -> architect -> implementer -> qa | Standard |
-| Ideation | analyst -> high-level-advisor -> independent-thinker -> critic -> roadmap -> explainer -> task-generator -> architect -> devops -> security -> qa | Strategic (extended) |
-| Specification | spec-generator -> critic -> architect -> task-generator -> implementer -> qa | Specification |
+| Ideation | analyst -> high-level-advisor -> independent-thinker -> critic -> roadmap -> explainer -> task-decomposer -> architect -> devops -> security -> qa | Strategic (extended) |
+| Specification | spec-generator -> critic -> architect -> task-decomposer -> implementer -> qa | Specification |
 | PR Comment (quick fix) | implementer -> qa | Quick Fix |
-| PR Comment (standard) | analyst -> planner -> implementer -> qa | Standard |
-| PR Comment (strategic) | independent-thinker -> high-level-advisor -> task-generator | Strategic |
+| PR Comment (standard) | analyst -> milestone-planner -> implementer -> qa | Standard |
+| PR Comment (strategic) | independent-thinker -> high-level-advisor -> task-decomposer | Strategic |
 | Post-Retrospective | retrospective -> [skillbook if skills] -> [memory if updates] -> git add | Automatic |
 
 **Note**: Multi-domain features triggering 3+ areas should use impact analysis consultations during planning phase.
@@ -756,7 +756,7 @@ When orchestrator receives a PR comment context, classify using this decision tr
 Is this about WHETHER to do something? (scope, priority, alternatives)
     │
     ├─ YES → STRATEGIC PATH
-    │         Route to: independent-thinker → high-level-advisor → task-generator
+    │         Route to: independent-thinker → high-level-advisor → task-decomposer
     │
     └─ NO → Can you explain the fix in one sentence?
                 │
@@ -764,7 +764,7 @@ Is this about WHETHER to do something? (scope, priority, alternatives)
                 │         Route to: implementer → qa
                 │
                 └─ NO → STANDARD PATH
-                          Route to: analyst → planner → implementer → qa
+                          Route to: analyst → milestone-planner → implementer → qa
 ```
 
 **Quick Fix indicators:**
@@ -814,10 +814,10 @@ When formal requirements are needed, route through the spec workflow.
    - TASK-NNN documents in .agents/specs/tasks/
 4. Orchestrator routes to critic for EARS compliance validation
 5. Orchestrator routes to architect for design review
-6. Spec-generator's TASK documents are implementation-ready (no task-generator needed)
+6. Spec-generator's TASK documents are implementation-ready (no task-decomposer needed)
 7. After approval, Orchestrator routes to implementer for TASK execution
 
-**Note**: task-generator is only needed if spec-generator's tasks are too coarse and require further breakdown into smaller work items.
+**Note**: task-decomposer is only needed if spec-generator's tasks are too coarse and require further breakdown into smaller work items.
 ```
 
 **Traceability Chain**:
@@ -854,7 +854,7 @@ REQ-NNN (WHAT/WHY) → DESIGN-NNN (HOW) → TASK-NNN (IMPLEMENTATION)
 
 When a feature triggers **3+ domains** (code, architecture, security, operations, quality), orchestrate the impact analysis framework:
 
-**Trigger Conditions** - Route to planner with impact analysis when:
+**Trigger Conditions** - Route to milestone-planner with impact analysis when:
 
 - Feature touches 3+ domains (code, architecture, CI/CD, security, quality)
 - Security-sensitive areas involved (auth, data handling, external APIs)
@@ -865,8 +865,8 @@ When a feature triggers **3+ domains** (code, architecture, security, operations
 **Orchestration Flow**:
 
 ```text
-1. Orchestrator routes to planner with impact analysis flag
-2. Planner returns impact analysis plan
+1. Orchestrator routes to milestone-planner with impact analysis flag
+2. Milestone-planner returns impact analysis plan
 3. Orchestrator invokes specialist agents (one at a time or noting parallel potential):
    a. Orchestrator → implementer (code impact) → back to Orchestrator
    b. Orchestrator → architect (design impact) → back to Orchestrator
@@ -879,7 +879,7 @@ When a feature triggers **3+ domains** (code, architecture, security, operations
 7. After resolution → Orchestrator routes to implementer
 ```
 
-**Note**: Since subagents cannot delegate, planner creates the analysis plan and YOU (orchestrator) execute each consultation step.
+**Note**: Since subagents cannot delegate, milestone-planner creates the analysis plan and YOU (orchestrator) execute each consultation step.
 
 **Handling Failed Consultations**:
 
@@ -962,7 +962,7 @@ Assess complexity BEFORE selecting agents:
 | New functionality | Feature | Assess first | See Complexity Assessment |
 | Something broken | Bug Fix | Simple/Standard | analyst (if unclear), implementer, qa |
 | "Why does X..." | Research | Trivial/Simple | analyst or direct answer |
-| Architecture decisions | Strategic | Complex | roadmap, architect, planner, critic |
+| Architecture decisions | Strategic | Complex | roadmap, architect, milestone-planner, critic |
 | Package/library URLs, vague scope, "we should add" | Ideation | Complex | Full ideation pipeline (see below) |
 | PR review comment | PR Comment | Assess first | See PR Comment Routing |
 
@@ -1010,7 +1010,7 @@ DO NOT route to next agent until adr-review completes.
 
 Before routing to critic, orchestrator MUST validate cross-document consistency.
 
-**Checkpoint Location**: After task-generator completes, before critic review.
+**Checkpoint Location**: After task-decomposer completes, before critic review.
 
 **Validation Checklist**:
 
@@ -1024,7 +1024,7 @@ Before routing to critic, orchestrator MUST validate cross-document consistency.
 - [ ] Memory entities updated with current state
 ```
 
-**Failure Action**: If validation fails, return to planner with specific inconsistencies:
+**Failure Action**: If validation fails, return to milestone-planner with specific inconsistencies:
 
 ```markdown
 ## Consistency Validation Failed
@@ -1039,7 +1039,7 @@ Before routing to critic, orchestrator MUST validate cross-document consistency.
 | [doc path] | [specific inconsistency] | [what to fix] |
 
 ### Routing Decision
-Return to: planner
+Return to: milestone-planner
 Reason: [explanation]
 ```
 
@@ -1070,8 +1070,8 @@ See also: `.agents/governance/consistency-protocol.md` for the complete validati
 |-----------|---------------|----------|
 | C# implementation | implementer | analyst |
 | Architecture review | architect | analyst |
-| Epic → Milestones | planner | roadmap |
-| Milestones → Atomic tasks | task-generator | planner |
+| Epic → Milestones | milestone-planner | roadmap |
+| Milestones → Atomic tasks | task-decomposer | milestone-planner |
 | Challenge assumptions | independent-thinker | critic |
 | Plan validation | critic | analyst |
 | Test strategy | qa | implementer |
@@ -1201,7 +1201,7 @@ See also: `.agents/governance/consistency-protocol.md` for the complete validati
 
 ### Phase 3: Epic & PRD Creation
 
-**Agents** (orchestrator routes sequentially): roadmap -> explainer -> task-generator
+**Agents** (orchestrator routes sequentially): roadmap -> explainer -> task-decomposer
 
 **Important**: YOU (orchestrator) call each agent in sequence. Each returns to you before you route to the next.
 
@@ -1209,7 +1209,7 @@ See also: `.agents/governance/consistency-protocol.md` for the complete validati
 |-------|--------|----------|
 | roadmap | Epic vision with outcomes | `.agents/roadmap/epic-[topic].md` |
 | explainer | Full PRD with specifications | `.agents/planning/prd-[topic].md` |
-| task-generator | Work breakdown structure | `.agents/planning/tasks-[topic].md` |
+| task-decomposer | Work breakdown structure | `.agents/planning/tasks-[topic].md` |
 
 **Epic Template** (roadmap produces):
 
@@ -1329,7 +1329,7 @@ Reference: `.agents/planning/tasks-[topic].md`
     Phase 3: ORCHESTRATOR routes sequentially:
              → roadmap              → Epic, PRD, WBS
              → explainer
-             → task-generator
+             → task-decomposer
               |
               v
     Phase 4: ORCHESTRATOR routes (can be parallel):
@@ -1515,23 +1515,23 @@ After processing retrospective handoff:
 Run: git commit -m "chore: persist retrospective learnings"
 ```
 
-### Planner vs Task-Generator
+### Milestone-Planner vs Task-Decomposer
 
 | Agent | Input | Output | When to Use |
 |-------|-------|--------|-------------|
-| **planner** | Epic/Feature | Milestones with deliverables | Breaking down large scope |
-| **task-generator** | PRD/Milestone | Atomic tasks with acceptance criteria | Before implementer/qa/devops work |
+| **milestone-planner** | Epic/Feature | Milestones with deliverables | Breaking down large scope |
+| **task-decomposer** | PRD/Milestone | Atomic tasks with acceptance criteria | Before implementer/qa/devops work |
 
 **Workflow** (all managed by orchestrator):
 
 ```text
 Orchestrator → roadmap → back to Orchestrator
-            → planner → back to Orchestrator
-            → task-generator → back to Orchestrator
+            → milestone-planner → back to Orchestrator
+            → task-decomposer → back to Orchestrator
             → implementer/qa/devops (work execution)
 ```
 
-The task-generator produces work items sized for individual agents (implementer, qa, devops, architect). YOU (orchestrator) route the work items to the appropriate execution agents.
+The task-decomposer produces work items sized for individual agents (implementer, qa, devops, architect). YOU (orchestrator) route the work items to the appropriate execution agents.
 
 ## Handoff Protocol
 

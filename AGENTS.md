@@ -28,6 +28,48 @@ For memory fallbacks, read the backing file at `.serena/memories/<memory-name>.m
 
 ---
 
+## RETRIEVAL-LED REASONING: AGENTS ARE LIBRARIANS, NOT ORACLES
+
+**You are an agent WITH access to perfect information, NOT an oracle WITH perfect knowledge.**
+
+### The Problem
+
+Agents have two sources of information:
+
+1. **Pre-training**: Knowledge cutoff 2025-01. Framework versions, APIs, patterns may be outdated.
+2. **Retrieval**: Current project docs, memories, ADRs, framework documentation.
+
+**Default behavior**: Agents use pre-training because it's instant and confident.
+**Correct behavior**: Agents retrieve because it's accurate and current.
+
+### The Solution
+
+Before reasoning about:
+
+- Framework APIs (Next.js, React, FastAPI) → Retrieve from docs
+- Project constraints (languages, patterns) → Retrieve from PROJECT-CONSTRAINTS.md
+- Learned patterns (skills, conventions) → Retrieve from Serena memories
+- Architecture decisions → Retrieve from ADRs
+- Session protocol → Retrieve from SESSION-PROTOCOL.md
+
+**Memory Index**: The `memory-index` Serena memory maps task keywords to relevant memories.
+
+**Example workflow**:
+
+```text
+Task: "Create a PR for this fix"
+❌ Wrong: gh pr create --title "..." (pre-training)
+✓ Right: Read memory-index → skills-github-cli-index → use github skill
+```
+
+**Verify your retrieval**:
+
+- Framework docs: Use Context7, DeepWiki, or official docs
+- Project memory: Use Serena (mcp__serena__read_memory)
+- Architecture: Read ADRs in .agents/architecture/
+
+---
+
 ## BLOCKING GATE: Session Protocol
 
 > **Canonical Source**: [.agents/SESSION-PROTOCOL.md](.agents/SESSION-PROTOCOL.md)
@@ -191,12 +233,12 @@ When gemini-code-assist[bot], Copilot, or other bots leave security/style/docume
 # Instead of manually adding path validation:
 
 # 1. Run security-scan to confirm the issue
-python3 .claude/skills/security-scan/scripts/scan_vulnerabilities.py file.py
+python3 .claude/skills/security-scan/scripts/scan_vulnerabilities.py "file.py"
 
 # 2. Read the output to understand the specific pattern detected
 # 3. Apply the recommended fix from the scanner
 # 4. Re-run to verify
-python3 .claude/skills/security-scan/scripts/scan_vulnerabilities.py file.py
+python3 .claude/skills/security-scan/scripts/scan_vulnerabilities.py "file.py"
 # Exit code 0 = fixed
 
 # 5. Reply to bot comment with evidence
@@ -557,7 +599,7 @@ Orchestrator (ROOT agent) coordinates all delegation:
 
 Orchestrator → Analyst → returns to Orchestrator
 Orchestrator → Architect → returns to Orchestrator
-Orchestrator → Planner → returns to Orchestrator
+Orchestrator → Milestone-Planner → returns to Orchestrator
 Orchestrator → Critic → returns to Orchestrator
 Orchestrator → Implementer → returns to Orchestrator
 Orchestrator → QA → returns to Orchestrator
@@ -661,7 +703,7 @@ Files distributed to end-users (`src/claude/`, `src/copilot-cli/`, `src/vs-code-
 | **orchestrator** | Workflow coordinator who routes tasks to specialized agents based on complexity and domain analysis | Complex multi-step tasks requiring multiple specialists |
 | **analyst** | Technical investigator who researches unknowns, benchmarks solutions, and evaluates trade-offs with evidence | Root cause analysis, API research, performance investigation |
 | **architect** | System designer who evaluates proposed architectures, maintains coherence, enforces patterns, and documents decisions via ADRs | Design evaluation, architecture review, ADRs, pattern enforcement |
-| **planner** | Implementation strategist who breaks epics into milestones with clear acceptance criteria and dependencies | Epic breakdown, work packages, impact analysis coordination |
+| **milestone-planner** | Implementation strategist who breaks epics into milestones with clear acceptance criteria and dependencies | Epic breakdown, work packages, impact analysis coordination |
 | **implementer** | Senior engineer who writes production-ready PowerShell following SOLID principles with Pester tests | Production code, tests, implementation per approved plans |
 | **critic** | Plan validator who stress-tests proposals, identifies gaps, and blocks approval when risks aren't mitigated | Pre-implementation review, impact analysis validation, quality gate |
 | **qa** | Test engineer who designs test strategies, ensures coverage, and validates implementations against acceptance criteria | Test strategy, verification, coverage analysis |
@@ -679,7 +721,8 @@ Files distributed to end-users (`src/claude/`, `src/copilot-cli/`, `src/vs-code-
 | **high-level-advisor** | Strategic advisor who cuts through complexity, prioritizes ruthlessly, and resolves decision paralysis with clear verdicts | Strategic decisions, prioritization, unblocking, P0 identification |
 | **retrospective** | Learning facilitator who extracts actionable insights from completed work using structured frameworks (Five Whys, timeline analysis) | Post-project learning, outcome analysis, skill extraction |
 | **explainer** | Technical writer who creates PRDs, specifications, and documentation that junior developers understand without questions | PRDs, feature docs, technical specifications, user guides |
-| **task-generator** | Task decomposition specialist who breaks PRDs into atomic, estimable work items with clear done criteria | Epic-to-task breakdown, backlog grooming, sprint planning |
+| **task-decomposer** | Task decomposition specialist who breaks PRDs into atomic, estimable work items with clear done criteria | Epic-to-task breakdown, backlog grooming, sprint planning |
+| **backlog-generator** | Autonomous backlog generator who analyzes project state and creates 3-5 sized, actionable tasks when agent slots are idle | Proactive task discovery, backlog generation, gap identification |
 | **pr-comment-responder** | PR review coordinator who gathers comment context, acknowledges every piece of feedback, and ensures systematic resolution | PR review responses, comment triage, feedback tracking |
 
 ### Agent Output Formats
@@ -911,7 +954,7 @@ Security, Strategic, and Ideation tasks are always treated as Complex.
 
 For complex, multi-domain changes, orchestrator manages impact analysis consultations with specialist agents.
 
-**Architecture Note**: Since subagents cannot delegate, planner creates the analysis plan and orchestrator executes each specialist consultation.
+**Architecture Note**: Since subagents cannot delegate, milestone-planner creates the analysis plan and orchestrator executes each specialist consultation.
 
 ### When to Use Impact Analysis
 
@@ -924,9 +967,9 @@ For complex, multi-domain changes, orchestrator manages impact analysis consulta
 ### Consultation Process
 
 ```text
-1. Orchestrator routes to planner with impact analysis flag
-2. Planner identifies change scope and affected domains, creates analysis plan
-3. Planner returns plan to orchestrator
+1. Orchestrator routes to milestone-planner with impact analysis flag
+2. Milestone-planner identifies change scope and affected domains, creates analysis plan
+3. Milestone-planner returns plan to orchestrator
 4. Orchestrator invokes specialist agents (sequentially or in parallel):
    - Orchestrator → implementer: Code impact → returns to Orchestrator
    - Orchestrator → architect: Design impact → returns to Orchestrator
@@ -1355,7 +1398,7 @@ Read `.serena/memories/usage-mandatory.md`
 | **orchestrator** | Search at start; store routing decisions and outcomes |
 | **analyst** | Search for prior research; store findings and recommendations |
 | **architect** | Search for ADRs; store new decisions with full rationale |
-| **planner** | Search for related plans; store milestones and dependencies |
+| **milestone-planner** | Search for related plans; store milestones and dependencies |
 | **implementer** | Search for patterns/skills; store implementation notes |
 | **qa** | Search for test strategies; store coverage gaps and findings |
 | **retrospective** | Search all related entities; create skill entities from learnings |
@@ -1429,16 +1472,16 @@ Learning: "Bug was in `src/api.py` line 42, forgot to handle None"
 ### Standard Feature Development
 
 ```text
-orchestrator → analyst → architect → planner → critic → implementer → qa → retrospective
+orchestrator → analyst → architect → milestone-planner → critic → implementer → qa → retrospective
 ```
 
 ### Feature Development with Impact Analysis
 
 ```text
-orchestrator → analyst → architect → planner → [impact analysis] → critic → implementer → qa
+orchestrator → analyst → architect → milestone-planner → [impact analysis] → critic → implementer → qa
 ```
 
-Where impact analysis involves planner coordinating: implementer, architect, security, devops, qa
+Where impact analysis involves milestone-planner coordinating: implementer, architect, security, devops, qa
 
 ### Quick Fix Path
 
@@ -1449,13 +1492,13 @@ implementer → qa
 ### Strategic Decision Path
 
 ```text
-independent-thinker → high-level-advisor → task-generator
+independent-thinker → high-level-advisor → task-decomposer
 ```
 
 ### Ideation Pipeline
 
 ```text
-analyst → high-level-advisor → independent-thinker → critic → roadmap → explainer → task-generator
+analyst → high-level-advisor → independent-thinker → critic → roadmap → explainer → task-decomposer
 ```
 
 ---
@@ -1479,7 +1522,7 @@ analyst → high-level-advisor → independent-thinker → critic → roadmap �
 - Agent sequence selection
 - Impact analysis orchestration
 
-**Handoffs to**: analyst, architect, planner, implementer (based on classification)
+**Handoffs to**: analyst, architect, milestone-planner, implementer (based on classification)
 
 ---
 
@@ -1497,7 +1540,7 @@ analyst → high-level-advisor → independent-thinker → critic → roadmap �
 - "Investigate why the cache is causing memory issues"
 - "Research options for implementing OAuth 2.0"
 
-**Handoffs to**: architect (design decisions), planner (scope changes)
+**Handoffs to**: architect (design decisions), milestone-planner (scope changes)
 
 ---
 
@@ -1512,7 +1555,7 @@ analyst → high-level-advisor → independent-thinker → critic → roadmap �
 
 **Outputs**: ADRs in `.agents/architecture/ADR-NNN-*.md`
 
-**Handoffs to**: planner (approved designs), analyst (more research needed)
+**Handoffs to**: milestone-planner (approved designs), analyst (more research needed)
 
 ---
 
@@ -1556,7 +1599,7 @@ Skill(skill="adr-review", args="[path to ADR file]")
 
 ---
 
-### Planner – Implementation Planning
+### Milestone-Planner – Implementation Planning
 
 **Role**: Turns epics into concrete, implementation-ready plans. Orchestrates impact analysis consultations for multi-domain changes.
 
@@ -1583,7 +1626,7 @@ Skill(skill="adr-review", args="[path to ADR file]")
 
 **Outputs**: Critiques in `.agents/critique/NNN-*-critique.md`
 
-**Handoffs to**: planner (revision needed), implementer (approved), high-level-advisor (disagreement escalation)
+**Handoffs to**: milestone-planner (revision needed), implementer (approved), high-level-advisor (disagreement escalation)
 
 ---
 
@@ -1631,7 +1674,7 @@ Skill(skill="adr-review", args="[path to ADR file]")
 
 **Outputs**: Retrospectives in `.agents/retrospective/YYYY-MM-DD-*.md`
 
-**Handoffs to**: skillbook (learnings to store), planner (process improvements)
+**Handoffs to**: skillbook (learnings to store), milestone-planner (process improvements)
 
 ---
 
@@ -1752,7 +1795,7 @@ These require explicit user triggers:
 | **github** | "create PR", "triage issue", "respond to review" |
 | **adr-review** | "review this ADR", "check architecture decision" |
 | **merge-resolver** | "resolve merge conflict", "fix conflicts in X" |
-| **planner** | "plan this feature", "create implementation plan" |
+| **milestone-planner** | "plan this feature", "create implementation plan" |
 | **decision-critic** | "critique this decision", "devil's advocate on" |
 | **security-detection** | "scan for security changes" |
 
@@ -2127,7 +2170,7 @@ SESSION END (BLOCKING - MUST complete before closing):
 
 1. Start with **Orchestrator** for task classification and routing
 2. Use **Analyst** for research and unknowns
-3. Use **Planner** for concrete plans (with impact analysis for complex changes)
+3. Use **Milestone-Planner** for concrete plans (with impact analysis for complex changes)
 4. **Critic** validates plans and handles disagreement escalation
 5. **Implementer** for code and tests
 6. **QA** for technical quality

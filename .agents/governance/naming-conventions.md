@@ -58,7 +58,7 @@ These artifacts use sequential numbering for uniqueness and ordering.
 
 ### Plan-NNN Pattern
 
-**Used by**: planner agent
+**Used by**: milestone-planner agent
 
 | Element | Format | Example |
 |---------|--------|---------|
@@ -119,7 +119,7 @@ These artifacts use sequential numbering for uniqueness and ordering.
 
 ### TASK-NNN Pattern
 
-**Used by**: task-generator agent (for spec layer)
+**Used by**: task-decomposer agent (for spec layer)
 
 | Element | Format | Example |
 |---------|--------|---------|
@@ -149,7 +149,7 @@ These artifacts use type prefixes for categorization without sequential numberin
 
 ### Tasks Pattern
 
-**Used by**: task-generator agent
+**Used by**: task-decomposer agent
 
 | Element | Format | Example |
 |---------|--------|---------|
@@ -158,7 +158,7 @@ These artifacts use type prefixes for categorization without sequential numberin
 
 ### Implementation Plan Pattern
 
-**Used by**: planner agent (during ideation workflow)
+**Used by**: milestone-planner agent (during ideation workflow)
 
 | Element | Format | Example |
 |---------|--------|---------|
