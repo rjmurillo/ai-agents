@@ -35,7 +35,8 @@ def get_git_age_days(file_path: Path) -> int | None:
             timeout=10,
         )
         if result.returncode != 0:
-            print(f"Warning: git log failed for {file_path.name}: {result.stderr.strip()}", file=sys.stderr)
+            msg = f"git log failed for {file_path.name}: {result.stderr.strip()}"
+            print(f"Warning: {msg}", file=sys.stderr)
             return None
         if result.stdout.strip():
             mod_date = datetime.fromisoformat(result.stdout.strip())
@@ -144,10 +145,12 @@ def main() -> int:
     print()
     print("| Category | Count | % |")
     print("|----------|-------|---|")
-    print(f"| Pass (<{WARN_CHARS:,} chars) | {pass_count} | {pass_count * 100 // counted if counted else 0}% |")
+    pass_pct = pass_count * 100 // counted if counted else 0
+    print(f"| Pass (<{WARN_CHARS:,} chars) | {pass_count} | {pass_pct}% |")
     warn_pct = warn_count * 100 // counted if counted else 0
     print(f"| Warn ({WARN_CHARS:,}-{MAX_CHARS:,}) | {warn_count} | {warn_pct}% |")
-    print(f"| Fail (>{MAX_CHARS:,} chars) | {fail_count} | {fail_count * 100 // counted if counted else 0}% |")
+    fail_pct = fail_count * 100 // counted if counted else 0
+    print(f"| Fail (>{MAX_CHARS:,} chars) | {fail_count} | {fail_pct}% |")
     print()
     print(f"**Size compliance**: {compliance_pct}%")
     print()

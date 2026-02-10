@@ -134,7 +134,10 @@ def count_directory(
                 results[str(file_path)] = get_memory_token_count(
                     file_path, cache_path, force
                 )
-            except (FileNotFoundError, PermissionError, UnicodeDecodeError, ImportError, OSError) as e:
+            except (
+                FileNotFoundError, PermissionError,
+                UnicodeDecodeError, ImportError, OSError,
+            ) as e:
                 print(f"Warning: Failed to count {file_path}: {e}", file=sys.stderr)
                 failed += 1
 

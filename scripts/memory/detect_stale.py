@@ -57,7 +57,8 @@ def get_git_last_modified(file_path: Path) -> datetime | None:
             timeout=10,
         )
         if result.returncode != 0:
-            print(f"Warning: git log failed for {file_path}: {result.stderr.strip()}", file=sys.stderr)
+            msg = f"git log failed for {file_path}: {result.stderr.strip()}"
+            print(f"Warning: {msg}", file=sys.stderr)
             return None
         if result.stdout.strip():
             return datetime.fromisoformat(result.stdout.strip())
@@ -264,7 +265,10 @@ def main() -> int:
         if md_file.name == "README.md":
             continue
         try:
-            report = analyze_file(md_file, memories_dir, repo_root, args.stale_days, args.stale_only)
+            report = analyze_file(
+                md_file, memories_dir, repo_root,
+                args.stale_days, args.stale_only,
+            )
             reports.append(report)
         except (OSError, UnicodeDecodeError) as e:
             print(f"Warning: Failed to analyze {md_file.name}: {e}", file=sys.stderr)
