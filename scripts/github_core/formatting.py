@@ -1,4 +1,4 @@
-"""Formatting utilities for GitHub output (emoji mappings)."""
+"""Formatting utilities: emoji mappings for priorities and reactions."""
 
 from __future__ import annotations
 
