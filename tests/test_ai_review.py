@@ -734,6 +734,14 @@ class TestGetWorkflowRunsByPR:
             with pytest.raises(RuntimeError, match="Failed to get workflow runs"):
                 get_workflow_runs_by_pr(1, repository="o/r")
 
+    def test_invalid_json_response_raises(self):
+        with patch(
+            "subprocess.run",
+            return_value=_completed(stdout="not json"),
+        ):
+            with pytest.raises(RuntimeError, match="Invalid JSON"):
+                get_workflow_runs_by_pr(1, repository="o/r")
+
 
 class TestRunsOverlap:
     def test_overlapping_runs(self):

@@ -230,6 +230,10 @@ class TestGetRepoInfo:
         assert info is not None
         assert info["Repo"] == "repo"
 
+    def test_returns_none_on_file_not_found(self):
+        with patch("subprocess.run", side_effect=FileNotFoundError):
+            assert get_repo_info() is None
+
 
 class TestResolveRepoParams:
     def test_uses_provided_params(self):
@@ -277,6 +281,10 @@ class TestIsGhAuthenticated:
 
     def test_false_when_gh_not_installed(self):
         with patch("subprocess.run", side_effect=FileNotFoundError):
+            assert is_gh_authenticated() is False
+
+    def test_false_when_timeout(self):
+        with patch("subprocess.run", side_effect=subprocess.TimeoutExpired(cmd="gh", timeout=10)):
             assert is_gh_authenticated() is False
 
     def test_returns_bool(self):
@@ -349,6 +357,29 @@ class TestGhApiPaginated:
 
         with patch("subprocess.run", side_effect=_side_effect):
             with pytest.warns(UserWarning, match="Returning partial results"):
+                result = gh_api_paginated("repos/o/r/issues")
+        assert len(result) == 100
+
+    def test_invalid_json_first_page_exits(self):
+        with patch("subprocess.run", return_value=_completed(stdout="not json")):
+            with pytest.raises(SystemExit) as exc:
+                gh_api_paginated("repos/o/r/issues")
+            assert exc.value.code == 3
+
+    def test_invalid_json_mid_pagination_returns_partial(self):
+        page1 = [{"id": i} for i in range(100)]
+
+        call_count = 0
+
+        def _side_effect(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return _completed(stdout=json.dumps(page1))
+            return _completed(stdout="not json")
+
+        with patch("subprocess.run", side_effect=_side_effect):
+            with pytest.warns(UserWarning, match="Invalid JSON"):
                 result = gh_api_paginated("repos/o/r/issues")
         assert len(result) == 100
 
@@ -482,6 +513,18 @@ class TestGetAllPRsWithComments:
             )
         assert len(result) == 1
 
+    def test_raises_when_repository_is_null(self):
+        graphql_response = {"data": {"repository": None}}
+        with patch("subprocess.run", return_value=_completed(stdout=json.dumps(graphql_response))):
+            with pytest.raises(RuntimeError, match="not found or not accessible"):
+                get_all_prs_with_comments("owner", "repo", datetime(2026, 1, 1, tzinfo=UTC))
+
+    def test_raises_when_pull_requests_is_null(self):
+        graphql_response = {"data": {"repository": {"pullRequests": None}}}
+        with patch("subprocess.run", return_value=_completed(stdout=json.dumps(graphql_response))):
+            with pytest.raises(RuntimeError, match="Could not retrieve pull requests"):
+                get_all_prs_with_comments("owner", "repo", datetime(2026, 1, 1, tzinfo=UTC))
+
     def test_stops_when_pr_older_than_since(self):
         old_pr = self._make_pr(1, "2025-01-01T00:00:00Z")
         graphql_response = {
@@ -546,6 +589,11 @@ class TestUpdateIssueComment:
             update_issue_comment("owner", "repo", 1, "test body")
         assert mock.call_args.kwargs.get("input") == json.dumps({"body": "test body"})
 
+    def test_invalid_json_response_raises(self):
+        with patch("subprocess.run", return_value=_completed(stdout="not json")):
+            with pytest.raises(RuntimeError, match="not valid JSON"):
+                update_issue_comment("owner", "repo", 123, "text")
+
 
 class TestCreateIssueComment:
     def test_success(self):
@@ -562,6 +610,11 @@ class TestCreateIssueComment:
             with pytest.raises(SystemExit) as exc:
                 create_issue_comment("owner", "repo", 42, "text")
             assert exc.value.code == 3
+
+    def test_invalid_json_response_raises(self):
+        with patch("subprocess.run", return_value=_completed(stdout="not json")):
+            with pytest.raises(RuntimeError, match="not valid JSON"):
+                create_issue_comment("owner", "repo", 42, "text")
 
 
 # ---------------------------------------------------------------------------
@@ -809,7 +862,7 @@ class TestGetUnresolvedReviewThreads:
 
     def test_returns_empty_on_api_failure(self):
         with patch("subprocess.run", return_value=_completed(rc=1, stderr="network error")):
-            with pytest.warns(UserWarning, match="Failed to query review threads"):
+            with pytest.warns(UserWarning, match="Failed to query review threads.*network error"):
                 result = get_unresolved_review_threads("owner", "repo", 42)
         assert result == []
 
@@ -891,6 +944,11 @@ class TestCheckWorkflowRateLimit:
     def test_raises_on_api_failure(self):
         with patch("subprocess.run", return_value=_completed(rc=1, stderr="API error")):
             with pytest.raises(RuntimeError, match="Failed to fetch rate limits"):
+                check_workflow_rate_limit()
+
+    def test_invalid_json_response_raises(self):
+        with patch("subprocess.run", return_value=_completed(stdout="not json")):
+            with pytest.raises(RuntimeError, match="not valid JSON"):
                 check_workflow_rate_limit()
 
     def test_returns_rate_limit_result_type(self):

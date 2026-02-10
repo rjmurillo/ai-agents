@@ -83,8 +83,10 @@ def get_repo_info() -> dict[str, str] | None:
                 "Owner": match.group(1),
                 "Repo": re.sub(r"\.git$", "", match.group(2)),
             }
-    except (subprocess.TimeoutExpired, FileNotFoundError):
-        pass
+    except subprocess.TimeoutExpired:
+        logger.debug("git remote get-url origin timed out")
+    except FileNotFoundError:
+        logger.debug("git executable not found on PATH")
     return None
 
 
@@ -130,7 +132,11 @@ def is_gh_authenticated() -> bool:
             timeout=10,
         )
         return result.returncode == 0
-    except (FileNotFoundError, subprocess.TimeoutExpired):
+    except FileNotFoundError:
+        logger.debug("GitHub CLI (gh) not found on PATH")
+        return False
+    except subprocess.TimeoutExpired:
+        logger.debug("gh auth status timed out")
         return False
 
 
@@ -186,7 +192,18 @@ def gh_api_paginated(endpoint: str, page_size: int = 100) -> list[dict]:
                 )
                 break
 
-        items = json.loads(result.stdout)
+        try:
+            items = json.loads(result.stdout)
+        except json.JSONDecodeError as exc:
+            msg = f"Invalid JSON from endpoint '{endpoint}' (page {page}): {exc}"
+            if page == 1:
+                error_and_exit(msg, 3)
+            else:
+                warnings.warn(
+                    f"{msg}. Returning {len(all_items)} partial results.",
+                    stacklevel=2,
+                )
+                break
         if not items:
             break
 
@@ -322,7 +339,17 @@ query($owner: String!, $repo: String!, $cursor: String) {
             variables["cursor"] = cursor
 
         data = gh_graphql(query, variables)
-        pr_data = data["repository"]["pullRequests"]
+
+        repo_data = data.get("repository")
+        if repo_data is None:
+            raise RuntimeError(
+                f"Repository {owner}/{repo} not found or not accessible"
+            )
+        pr_data = repo_data.get("pullRequests")
+        if pr_data is None:
+            raise RuntimeError(
+                f"Could not retrieve pull requests for {owner}/{repo}"
+            )
 
         for pr in pr_data["nodes"]:
             updated_at = datetime.fromisoformat(pr["updatedAt"].replace("Z", "+00:00"))
@@ -410,7 +437,13 @@ def update_issue_comment(owner: str, repo: str, comment_id: int, body: str) -> d
             error_and_exit(guidance, 4)
         error_and_exit(f"Failed to update comment: {error_str}", 3)
 
-    response: dict = json.loads(result.stdout)
+    try:
+        response: dict = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(
+            f"Comment {comment_id} may have been updated but response was not valid JSON: "
+            f"{result.stdout!r}"
+        ) from exc
     return response
 
 
@@ -438,7 +471,12 @@ def create_issue_comment(owner: str, repo: str, issue_number: int, body: str) ->
         error_str = result.stderr.strip() or result.stdout.strip()
         error_and_exit(f"Failed to post comment: {error_str}", 3)
 
-    response: dict = json.loads(result.stdout)
+    try:
+        response: dict = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(
+            f"Comment creation succeeded but response was not valid JSON: {result.stdout!r}"
+        ) from exc
     return response
 
 
@@ -648,9 +686,9 @@ query($owner: String!, $name: String!, $prNumber: Int!) {
             query,
             {"owner": owner, "name": repo, "prNumber": pull_request},
         )
-    except RuntimeError:
+    except RuntimeError as exc:
         warnings.warn(
-            f"Failed to query review threads for PR #{pull_request}",
+            f"Failed to query review threads for PR #{pull_request}: {exc}",
             stacklevel=2,
         )
         return []
@@ -703,7 +741,10 @@ def check_workflow_rate_limit(
     if result.returncode != 0:
         raise RuntimeError(f"Failed to fetch rate limits: {result.stderr}")
 
-    rate_limit = json.loads(result.stdout)
+    try:
+        rate_limit = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"Rate limit response was not valid JSON: {exc}") from exc
 
     resources: dict[str, dict] = {}
     all_passed = True

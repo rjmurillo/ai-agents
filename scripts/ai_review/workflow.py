@@ -217,7 +217,12 @@ def get_workflow_runs_by_pr(
             f"Failed to get workflow runs for PR #{pr_number}: {result.stderr.strip()}"
         )
 
-    all_runs: list[dict[str, Any]] = json.loads(result.stdout)
+    try:
+        all_runs: list[dict[str, Any]] = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(
+            f"Invalid JSON from workflow runs for PR #{pr_number}: {exc}"
+        ) from exc
     pr_runs = [
         run
         for run in all_runs
