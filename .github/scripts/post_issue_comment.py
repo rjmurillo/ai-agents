@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 """Post a comment to a GitHub issue with idempotency support.
 
-Replaces .claude/skills/github/scripts/issue/Post-IssueComment.ps1 (ADR-042).
-
 Exit codes follow ADR-035:
     0 - Success (includes idempotent skip)
     1 - Invalid parameters / logic error

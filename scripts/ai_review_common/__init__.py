@@ -12,8 +12,11 @@ from scripts.ai_review_common.issue_triage import (
     get_verdict_exit_code,
     write_log,
     write_log_error,
+    write_output,
 )
 from scripts.ai_review_common.quality_gate import (
+    FAIL_VERDICTS,
+    SAFE_NAME_PATTERN,
     assert_environment_variables,
     get_concurrency_group_from_run,
     get_failure_category,
@@ -32,6 +35,8 @@ from scripts.ai_review_common.quality_gate import (
 )
 
 __all__ = [
+    "FAIL_VERDICTS",
+    "SAFE_NAME_PATTERN",
     "assert_environment_variables",
     "convert_to_json_escaped",
     "format_collapsible_section",
@@ -56,4 +61,5 @@ __all__ = [
     "spec_validation_failed",
     "write_log",
     "write_log_error",
+    "write_output",
 ]

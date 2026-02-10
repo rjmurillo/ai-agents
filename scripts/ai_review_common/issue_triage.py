@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from datetime import UTC, datetime
 
 logger = logging.getLogger(__name__)
@@ -20,9 +21,10 @@ _ALERT_TYPE_MAP: dict[str, str] = {
     "CRITICAL_FAIL": "CAUTION",
     "REJECTED": "CAUTION",
     "FAIL": "CAUTION",
+    "NEEDS_REVIEW": "CAUTION",
 }
 
-_FAIL_EXIT_VERDICTS = frozenset({"CRITICAL_FAIL", "REJECTED", "FAIL"})
+_FAIL_EXIT_VERDICTS = frozenset({"CRITICAL_FAIL", "REJECTED", "FAIL", "NEEDS_REVIEW"})
 
 _EMOJI_MAP: dict[str, str] = {
     "PASS": "\u2705",
@@ -32,6 +34,7 @@ _EMOJI_MAP: dict[str, str] = {
     "CRITICAL_FAIL": "\u274c",
     "REJECTED": "\u274c",
     "FAIL": "\u274c",
+    "NEEDS_REVIEW": "\u274c",
 }
 
 
@@ -100,3 +103,20 @@ def write_log_error(message: str) -> None:
     """Log a timestamped error message."""
     timestamp = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S")
     logger.error("[%s] ERROR: %s", timestamp, message)
+
+
+# ---------------------------------------------------------------------------
+# GitHub Actions output
+# ---------------------------------------------------------------------------
+
+
+def write_output(key: str, value: str) -> None:
+    """Append a key=value line to the GitHub Actions output file.
+
+    Reads the output file path from the GITHUB_OUTPUT environment variable.
+    Does nothing when GITHUB_OUTPUT is unset or empty.
+    """
+    output_file = os.environ.get("GITHUB_OUTPUT", "")
+    if output_file:
+        with open(output_file, "a", encoding="utf-8") as f:
+            f.write(f"{key}={value}\n")

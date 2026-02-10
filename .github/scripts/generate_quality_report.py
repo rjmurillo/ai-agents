@@ -24,6 +24,7 @@ from scripts.ai_review_common import (  # noqa: E402
     get_verdict_alert_type,
     get_verdict_emoji,
     initialize_ai_review,
+    write_output,
 )
 
 _AGENTS = ("security", "qa", "analyst", "architect", "devops", "roadmap")
@@ -36,15 +37,6 @@ _AGENT_DISPLAY_NAMES = {
     "devops": "DevOps",
     "roadmap": "Roadmap",
 }
-
-
-
-def write_output(key: str, value: str) -> None:
-    """Append a key=value line to the GitHub Actions output file."""
-    output_file = os.environ.get("GITHUB_OUTPUT", "")
-    if output_file:
-        with open(output_file, "a", encoding="utf-8") as f:
-            f.write(f"{key}={value}\n")
 
 
 def _build_findings_sections() -> str:

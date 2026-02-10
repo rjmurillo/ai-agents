@@ -80,7 +80,6 @@ def add_comment_reaction(
     """
     base_url = f"repos/{owner}/{repo}"
 
-    # Try PR review comment endpoint first
     result = subprocess.run(
         [
             "gh",
@@ -100,7 +99,6 @@ def add_comment_reaction(
         print(f"Added {reaction} reaction to comment {comment_id}")
         return True
 
-    # Fall back to issue comment endpoint
     result = subprocess.run(
         [
             "gh",
@@ -201,13 +199,11 @@ def process_comments(
         classification = comment.get("classification", "unknown")
         print(f"Processing comment {comment_id} [{classification}]")
 
-        # Always acknowledge with eyes reaction
         if add_comment_reaction(owner, repo, comment_id):
             stats["acknowledged"] += 1
         else:
             stats["errors"] += 1
 
-        # Handle based on classification
         if classification == "stale":
             print("  Stale comment needs manual resolution (thread ID required)")
             stats["skipped"] += 1
@@ -324,12 +320,11 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 0
 
-    # Read findings JSON from stdin if requested
+    # "-" signals stdin per Unix convention
     findings_raw: str = args.findings_json
     if findings_raw == "-":
         findings_raw = sys.stdin.read()
 
-    # Parse findings
     findings = parse_findings(findings_raw)
 
     comments = findings.get("comments", [])
@@ -340,7 +335,6 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Found {len(comments)} comments to process")
     print()
 
-    # Resolve repository params
     try:
         resolved = resolve_repo_params(args.owner, args.repo)
     except SystemExit:
@@ -355,10 +349,8 @@ def main(argv: list[str] | None = None) -> int:
     owner = resolved["Owner"]
     repo = resolved["Repo"]
 
-    # Process comments
     stats = process_comments(owner, repo, pr_number, findings)
 
-    # Output summary
     print()
     print("=== Processing Summary ===")
     print(f"  Acknowledged: {stats['acknowledged']}")

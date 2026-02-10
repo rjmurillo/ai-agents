@@ -18,49 +18,37 @@ import sys
 workspace = os.environ.get("GITHUB_WORKSPACE", ".")
 sys.path.insert(0, workspace)
 
-from scripts.ai_review_common import get_labels_from_ai_output  # noqa: E402
-
-_SAFE_NAME = re.compile(
-    r"^(?=.{1,50}$)[A-Za-z0-9](?:[A-Za-z0-9 _.\-]*[A-Za-z0-9])?$"
+from scripts.ai_review_common import (  # noqa: E402
+    SAFE_NAME_PATTERN,
+    get_labels_from_ai_output,
+    write_output,
 )
 
 _CATEGORY_PATTERN = re.compile(r'"category"\s*:\s*"([a-zA-Z0-9_-]+)"')
-
-
-def write_output(key: str, value: str) -> None:
-    """Append a key=value line to the GitHub Actions output file."""
-    output_file = os.environ.get("GITHUB_OUTPUT", "")
-    if output_file:
-        with open(output_file, "a", encoding="utf-8") as f:
-            f.write(f"{key}={value}\n")
 
 
 def main() -> None:
     raw_output = os.environ.get("RAW_OUTPUT", "")
     fallback_labels = os.environ.get("FALLBACK_LABELS", "")
 
-    # Save output for debugging
     with open("/tmp/categorize-output.txt", "w", encoding="utf-8") as f:
         f.write(raw_output)
 
-    # Parse labels with hardened function (rejects shell metacharacters)
+    # Security: reject shell metacharacters
     labels = get_labels_from_ai_output(raw_output)
 
-    # Fallback to composite action output if needed
     if not labels and fallback_labels:
         labels = [
             item.strip()
             for item in fallback_labels.split(",")
-            if item.strip() and _SAFE_NAME.match(item.strip())
+            if item.strip() and SAFE_NAME_PATTERN.match(item.strip())
         ]
 
-    # Parse category with validation (alphanumeric, underscore, hyphen only)
     category = "unknown"
     match = _CATEGORY_PATTERN.search(raw_output)
     if match:
         category = match.group(1)
 
-    # Output as JSON array for safe consumption
     labels_json = json.dumps(labels)
 
     write_output("labels", labels_json)

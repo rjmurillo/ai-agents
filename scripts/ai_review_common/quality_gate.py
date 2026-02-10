@@ -128,7 +128,7 @@ def get_verdict(output: str) -> str:
 
     Tries explicit ``VERDICT:`` pattern first, then falls back to keyword detection.
 
-    Returns one of: PASS, WARN, REJECTED, CRITICAL_FAIL.
+    Common values: PASS, WARN, FAIL, REJECTED, CRITICAL_FAIL, NEEDS_REVIEW.
     """
     if not output or not output.strip():
         return "CRITICAL_FAIL"
@@ -171,16 +171,16 @@ def get_milestone(output: str) -> str:
 # Verdict aggregation
 # ---------------------------------------------------------------------------
 
-_FAIL_VERDICTS = frozenset({"CRITICAL_FAIL", "REJECTED", "FAIL", "NEEDS_REVIEW"})
+FAIL_VERDICTS = frozenset({"CRITICAL_FAIL", "REJECTED", "FAIL", "NEEDS_REVIEW"})
 
 
 def merge_verdicts(verdicts: list[str]) -> str:
-    """Aggregate multiple verdicts: CRITICAL_FAIL/REJECTED/FAIL > WARN > PASS."""
+    """Aggregate multiple verdicts: CRITICAL_FAIL/REJECTED/FAIL/NEEDS_REVIEW > WARN > PASS."""
     if not verdicts:
         return "PASS"
 
     for v in verdicts:
-        if v in _FAIL_VERDICTS:
+        if v in FAIL_VERDICTS:
             return "CRITICAL_FAIL"
 
     if "WARN" in verdicts:
@@ -267,7 +267,7 @@ _JSON_MILESTONE_PATTERN = re.compile(r'"milestone"\s*:\s*"([^"]*)"')
 
 # Strict validation: alphanumeric start, optional middle with safe chars,
 # alphanumeric end, max 50 chars total.
-_SAFE_NAME_PATTERN = re.compile(
+SAFE_NAME_PATTERN = re.compile(
     r"^(?=.{1,50}$)[A-Za-z0-9](?:[A-Za-z0-9 _.\-]*[A-Za-z0-9])?$"
 )
 
@@ -294,7 +294,7 @@ def get_labels_from_ai_output(output: str | None) -> list[str]:
         label = raw.strip().strip('"').strip("'")
         if not label or not label.strip():
             continue
-        if _SAFE_NAME_PATTERN.match(label):
+        if SAFE_NAME_PATTERN.match(label):
             labels.append(label)
     return labels
 
@@ -315,7 +315,7 @@ def get_milestone_from_ai_output(output: str | None) -> str | None:
     if not milestone or not milestone.strip():
         return None
 
-    if _SAFE_NAME_PATTERN.match(milestone):
+    if SAFE_NAME_PATTERN.match(milestone):
         return milestone
     return None
 

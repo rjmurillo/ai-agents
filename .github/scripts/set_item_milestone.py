@@ -1,11 +1,6 @@
 #!/usr/bin/env python3
 """Assign a milestone to a GitHub PR or issue.
 
-Combines the logic of three PowerShell scripts (ADR-042 migration):
-  - Set-ItemMilestone.ps1 (orchestrator)
-  - Get-LatestSemanticMilestone.ps1 (auto-detection)
-  - Set-IssueMilestone.ps1 (assignment)
-
 Exit codes follow ADR-035:
     0 - Success (assigned or skipped)
     2 - Config error (no milestone found, detection failed)

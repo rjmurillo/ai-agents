@@ -31,15 +31,8 @@ from scripts.ai_review_common import (  # noqa: E402
     get_verdict_emoji,
     initialize_ai_review,
     spec_validation_failed,
+    write_output,
 )
-
-
-def write_output(key: str, value: str) -> None:
-    """Append a key=value line to the GitHub Actions output file."""
-    output_file = os.environ.get("GITHUB_OUTPUT", "")
-    if output_file:
-        with open(output_file, "a", encoding="utf-8") as f:
-            f.write(f"{key}={value}\n")
 
 
 def _build_no_specs_report(repository: str) -> str:
@@ -177,7 +170,6 @@ def main() -> None:
         trace_verdict = os.environ.get("TRACE_VERDICT", "")
         completeness_verdict = os.environ.get("COMPLETENESS_VERDICT", "")
 
-        # Determine final verdict
         if spec_validation_failed(trace_verdict, completeness_verdict):
             final_verdict = "FAIL"
         elif trace_verdict == "WARN" or completeness_verdict == "WARN":

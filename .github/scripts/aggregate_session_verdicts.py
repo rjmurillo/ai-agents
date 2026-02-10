@@ -16,15 +16,7 @@ from glob import glob
 workspace = os.environ.get("GITHUB_WORKSPACE", ".")
 sys.path.insert(0, workspace)
 
-from scripts.ai_review_common import write_log  # noqa: E402
-
-
-def write_output(key: str, value: str) -> None:
-    """Append a key=value line to the GitHub Actions output file."""
-    output_file = os.environ.get("GITHUB_OUTPUT", "")
-    if output_file:
-        with open(output_file, "a", encoding="utf-8") as f:
-            f.write(f"{key}={value}\n")
+from scripts.ai_review_common import write_log, write_output  # noqa: E402
 
 
 def main() -> None:

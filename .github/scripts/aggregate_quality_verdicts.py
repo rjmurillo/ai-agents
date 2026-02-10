@@ -18,24 +18,19 @@ import sys
 workspace = os.environ.get("GITHUB_WORKSPACE", ".")
 sys.path.insert(0, workspace)
 
-from scripts.ai_review_common import merge_verdicts, write_log  # noqa: E402
-
-_FAILURE_VERDICTS = frozenset({"CRITICAL_FAIL", "REJECTED", "FAIL", "NEEDS_REVIEW"})
+from scripts.ai_review_common import (  # noqa: E402
+    FAIL_VERDICTS,
+    merge_verdicts,
+    write_log,
+    write_output,
+)
 
 _AGENTS = ("security", "qa", "analyst", "architect", "devops", "roadmap")
 
 
-def write_output(key: str, value: str) -> None:
-    """Append a key=value line to the GitHub Actions output file."""
-    output_file = os.environ.get("GITHUB_OUTPUT", "")
-    if output_file:
-        with open(output_file, "a", encoding="utf-8") as f:
-            f.write(f"{key}={value}\n")
-
-
 def get_category(verdict: str, infra_flag: bool) -> str:
     """Categorize a verdict as INFRASTRUCTURE, CODE_QUALITY, or N/A."""
-    if verdict in _FAILURE_VERDICTS:
+    if verdict in FAIL_VERDICTS:
         return "INFRASTRUCTURE" if infra_flag else "CODE_QUALITY"
     return "N/A"
 
@@ -70,7 +65,7 @@ def main() -> None:
     final = merge_verdicts([verdicts[agent] for agent in _AGENTS])
     write_log(f"Final verdict: {final}")
 
-    if final in _FAILURE_VERDICTS and not code_quality_failures:
+    if final in FAIL_VERDICTS and not code_quality_failures:
         write_log("All failures are INFRASTRUCTURE - downgrading to WARN")
         final = "WARN"
 

@@ -280,7 +280,6 @@ def discover_and_classify(owner: str, repo: str, max_prs: int) -> dict:
 
     logger.info("Found %d open PRs", total_prs)
 
-    # Detect derivative PRs
     derivatives = get_derivative_prs(prs)
     if derivatives:
         derivative_prs.extend(derivatives)
@@ -301,7 +300,6 @@ def discover_and_classify(owner: str, repo: str, max_prs: int) -> dict:
                 }
             )
 
-    # Classify each PR
     for pr in prs:
         try:
             author_login = (pr.get("author") or {}).get("login", "unknown")
@@ -526,7 +524,6 @@ def main(argv: list[str] | None = None) -> int:
         print("Cannot verify API rate limit. Aborting.", file=sys.stderr)
         return 0
 
-    # Resolve repository params
     try:
         repo_params = resolve_repo_params(args.owner, args.repo)
     except SystemExit:
@@ -538,7 +535,6 @@ def main(argv: list[str] | None = None) -> int:
     owner = repo_params["Owner"]
     repo = repo_params["Repo"]
 
-    # Run discovery
     results = discover_and_classify(owner, repo, args.max_prs)
 
     if args.output_json:
@@ -564,7 +560,6 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(output, separators=(",", ":")))
         return 0
 
-    # Normal mode
     _print_summary(results)
     _write_step_summary(results)
 
