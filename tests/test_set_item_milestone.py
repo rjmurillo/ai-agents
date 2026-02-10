@@ -19,6 +19,8 @@ _SCRIPTS_DIR = Path(__file__).resolve().parents[1] / ".github" / "scripts"
 
 def _import_script(name: str):
     spec = importlib.util.spec_from_file_location(name, _SCRIPTS_DIR / f"{name}.py")
+    assert spec is not None, f"Could not load spec for {name}"
+    assert spec.loader is not None, f"Spec for {name} has no loader"
     mod = importlib.util.module_from_spec(spec)
     sys.modules[name] = mod
     spec.loader.exec_module(mod)

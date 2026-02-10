@@ -27,25 +27,25 @@ class FakeGitHubClient:
 
     def __init__(self) -> None:
         self.calls: list[tuple[str, str, dict[str, Any] | None]] = []
-        self.responses: dict[str, Any] = {}
+        self.responses: dict[tuple[str, str], Any] = {}
 
     def rest_get(self, endpoint: str) -> dict[str, Any]:
         self.calls.append(("GET", endpoint, None))
-        return self.responses.get(("GET", endpoint), {})
+        return self.responses.get(("GET", endpoint), {})  # type: ignore[no-any-return]
 
     def rest_post(self, endpoint: str, payload: dict[str, Any]) -> dict[str, Any]:
         self.calls.append(("POST", endpoint, payload))
-        return self.responses.get(("POST", endpoint), {})
+        return self.responses.get(("POST", endpoint), {})  # type: ignore[no-any-return]
 
     def rest_patch(self, endpoint: str, payload: dict[str, Any]) -> dict[str, Any]:
         self.calls.append(("PATCH", endpoint, payload))
-        return self.responses.get(("PATCH", endpoint), {})
+        return self.responses.get(("PATCH", endpoint), {})  # type: ignore[no-any-return]
 
     def graphql(
         self, query: str, variables: dict[str, Any] | None = None
     ) -> dict[str, Any]:
         self.calls.append(("GRAPHQL", query, variables))
-        return self.responses.get(("GRAPHQL", query), {})
+        return self.responses.get(("GRAPHQL", query), {})  # type: ignore[no-any-return]
 
     def is_authenticated(self) -> bool:
         return True
