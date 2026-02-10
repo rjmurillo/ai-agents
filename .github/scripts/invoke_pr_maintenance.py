@@ -3,6 +3,9 @@
 
 from __future__ import annotations
 
+import argparse
+import json
+import logging
 import os
 import sys
 
@@ -11,10 +14,6 @@ workspace = os.environ.get(
     os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")),
 )
 sys.path.insert(0, workspace)
-
-import argparse  # noqa: E402
-import json  # noqa: E402
-import logging  # noqa: E402
 
 from scripts.github_core.api import (  # noqa: E402
     check_workflow_rate_limit,
@@ -48,7 +47,7 @@ BOT_CATEGORIES: dict[str, list[str]] = {
 }
 
 # ---------------------------------------------------------------------------
-# GraphQL query (mirrors PowerShell Get-OpenPRs)
+# GraphQL query: fetch open PRs with status checks and review info
 # ---------------------------------------------------------------------------
 
 _OPEN_PRS_QUERY = """\

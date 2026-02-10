@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
 """Parse AI categorization output into validated labels and category.
 
-Replaces the inline PowerShell block in the 'Parse Categorization Results'
-step (id: parse-categorize) of ai-issue-triage.yml.
-
 Input env vars:
     RAW_OUTPUT         - AI output containing labels and category JSON
     FALLBACK_LABELS    - Comma-separated fallback labels from composite action
@@ -18,7 +15,6 @@ import os
 import re
 import sys
 
-# Add workspace root to Python path for package imports
 workspace = os.environ.get("GITHUB_WORKSPACE", ".")
 sys.path.insert(0, workspace)
 

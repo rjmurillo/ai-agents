@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
 """Aggregate session protocol validation verdicts across all validated files.
 
-Replaces the inline PowerShell block in the 'Aggregate Verdicts'
-step (id: aggregate) of ai-session-protocol.yml.
-
 Input env vars:
     GITHUB_OUTPUT      - Path to GitHub Actions output file
     GITHUB_WORKSPACE   - Workspace root (for package imports)
@@ -16,7 +13,6 @@ import re
 import sys
 from glob import glob
 
-# Add workspace root to Python path for package imports
 workspace = os.environ.get("GITHUB_WORKSPACE", ".")
 sys.path.insert(0, workspace)
 
@@ -35,7 +31,6 @@ def main() -> None:
     overall_verdict = "PASS"
     total_must_failures = 0
 
-    # Process all verdict files
     verdict_files = sorted(glob("validation-results/*-verdict.txt"))
 
     if not verdict_files:
@@ -58,7 +53,6 @@ def main() -> None:
         elif verdict == "WARN" and overall_verdict == "PASS":
             overall_verdict = "WARN"
 
-    # Count MUST failures
     must_files = sorted(glob("validation-results/*-must-failures.txt"))
     for must_file in must_files:
         with open(must_file, encoding="utf-8") as f:

@@ -16,7 +16,7 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Configuration (mirrors PowerShell $script: variables)
+# Configuration
 # ---------------------------------------------------------------------------
 
 _DEFAULT_MAX_RETRIES = 3
@@ -171,7 +171,7 @@ def get_milestone(output: str) -> str:
 # Verdict aggregation
 # ---------------------------------------------------------------------------
 
-_FAIL_VERDICTS = frozenset({"CRITICAL_FAIL", "REJECTED", "FAIL"})
+_FAIL_VERDICTS = frozenset({"CRITICAL_FAIL", "REJECTED", "FAIL", "NEEDS_REVIEW"})
 
 
 def merge_verdicts(verdicts: list[str]) -> str:
@@ -251,8 +251,7 @@ def spec_validation_failed(
 ) -> bool:
     """Return True if spec validation should block merge.
 
-    PowerShell's ``-in`` is case-insensitive; Python is not.
-    We normalize to uppercase for comparison.
+    Normalizes verdicts to uppercase for case-insensitive comparison.
     """
     trace_upper = trace_verdict.upper() if trace_verdict else ""
     completeness_upper = completeness_verdict.upper() if completeness_verdict else ""

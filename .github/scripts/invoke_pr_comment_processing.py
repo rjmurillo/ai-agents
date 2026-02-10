@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 """Process PR comments based on AI triage output.
 
-Replaces .claude/skills/github/scripts/pr/Invoke-PRCommentProcessing.ps1 (ADR-042).
-
 Executes after ai-review action triage to:
 1. Acknowledge comments (add eyes reaction)
 2. Reply to comments that need responses (wontfix)
@@ -53,8 +51,8 @@ def parse_findings(json_str: str) -> dict:
         clean = match.group(1).strip()
 
     try:
-        result: dict = json.loads(clean)
-        return result
+        parsed: dict = json.loads(clean)
+        return parsed
     except json.JSONDecodeError as exc:
         preview = json_str[:500] if len(json_str) > 500 else json_str
         print(f"Failed to parse AI findings JSON: {exc}", file=sys.stderr)
@@ -196,6 +194,10 @@ def process_comments(
 
     for comment in comments:
         comment_id = comment.get("id")
+        if comment_id is None:
+            print("WARNING: Comment missing 'id' field, skipping", file=sys.stderr)
+            stats["errors"] += 1
+            continue
         classification = comment.get("classification", "unknown")
         print(f"Processing comment {comment_id} [{classification}]")
 

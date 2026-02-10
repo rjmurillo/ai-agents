@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
 """Parse AI roadmap alignment output into milestone, priority, and escalation fields.
 
-Replaces the inline PowerShell block in the 'Parse Roadmap Results'
-step (id: parse-align) of ai-issue-triage.yml.
-
 Input env vars:
     RAW_OUTPUT            - AI output with milestone, priority, escalation data
     MILESTONE_FROM_ACTION - Fallback milestone from composite action output
@@ -17,7 +14,6 @@ import os
 import re
 import sys
 
-# Add workspace root to Python path for package imports
 workspace = os.environ.get("GITHUB_WORKSPACE", ".")
 sys.path.insert(0, workspace)
 

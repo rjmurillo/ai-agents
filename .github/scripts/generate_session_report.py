@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
 """Generate a session protocol compliance report in markdown.
 
-Replaces the inline PowerShell block in the 'Generate Compliance Report'
-step (id: report) of ai-session-protocol.yml.
-
 Input env vars:
     OVERALL_VERDICT    - Aggregated verdict from the aggregate step
     MUST_FAILURES      - Total count of MUST requirement failures
@@ -20,7 +17,6 @@ import os
 import sys
 from glob import glob
 
-# Add workspace root to Python path for package imports
 workspace = os.environ.get("GITHUB_WORKSPACE", ".")
 sys.path.insert(0, workspace)
 
@@ -52,7 +48,6 @@ def main() -> None:
     alert_type = get_verdict_alert_type(overall_verdict)
     emoji = get_verdict_emoji(overall_verdict)
 
-    # Build verdict message
     must_count = int(must_failures) if must_failures.strip().isdigit() else 0
     if must_count > 0:
         verdict_msg = (
@@ -62,7 +57,6 @@ def main() -> None:
     else:
         verdict_msg = "All session protocol requirements satisfied."
 
-    # Count files checked
     verdict_files = sorted(glob("validation-results/*-verdict.txt"))
     files_checked = len(verdict_files)
 
