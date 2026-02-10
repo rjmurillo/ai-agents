@@ -27,7 +27,7 @@ def write_output(key: str, value: str) -> None:
     """Append a key=value line to the GitHub Actions output file."""
     output_file = os.environ.get("GITHUB_OUTPUT", "")
     if output_file:
-        with open(output_file, "a") as f:
+        with open(output_file, "a", encoding="utf-8") as f:
             f.write(f"{key}={value}\n")
 
 
@@ -37,9 +37,18 @@ def main() -> None:
 
     # Process all verdict files
     verdict_files = sorted(glob("validation-results/*-verdict.txt"))
+
+    if not verdict_files:
+        write_log("WARNING: No verdict files found in validation-results/")
+        print(
+            "::warning::No session verdict files found. Validation may not have run.",
+            file=sys.stderr,
+        )
+        overall_verdict = "WARN"
+
     for verdict_file in verdict_files:
         filename = os.path.basename(verdict_file)
-        with open(verdict_file) as f:
+        with open(verdict_file, encoding="utf-8") as f:
             verdict = f.read().strip()
 
         write_log(f"Found verdict: {verdict} from {filename}")
@@ -52,7 +61,7 @@ def main() -> None:
     # Count MUST failures
     must_files = sorted(glob("validation-results/*-must-failures.txt"))
     for must_file in must_files:
-        with open(must_file) as f:
+        with open(must_file, encoding="utf-8") as f:
             content = f.read().strip()
 
         match = re.match(r"^(\d+)", content)

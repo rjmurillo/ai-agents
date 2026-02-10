@@ -42,7 +42,7 @@ def write_output(key: str, value: str) -> None:
     """Append a key=value line to the GitHub Actions output file."""
     output_file = os.environ.get("GITHUB_OUTPUT", "")
     if output_file:
-        with open(output_file, "a") as f:
+        with open(output_file, "a", encoding="utf-8") as f:
             f.write(f"{key}={value}\n")
 
 

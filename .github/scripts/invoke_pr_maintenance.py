@@ -128,8 +128,7 @@ def get_open_prs(owner: str, repo: str, limit: int = 20) -> list[dict]:
     if pull_requests is None:
         return []
 
-    nodes: list[dict] = pull_requests.get("nodes", [])
-    return nodes
+    return pull_requests.get("nodes", [])
 
 
 # ---------------------------------------------------------------------------
@@ -352,9 +351,9 @@ def discover_and_classify(owner: str, repo: str, max_prs: int) -> dict:
                 pr_entry["category"] = "human-blocked"
                 blocked.append(pr_entry)
 
-        except Exception:
+        except Exception as exc:
             logger.exception("Error classifying PR #%s", pr.get("number"))
-            errors.append({"PR": pr.get("number"), "error": str(sys.exc_info()[1])})
+            errors.append({"PR": pr.get("number"), "error": str(exc)})
 
     return {
         "total_prs": total_prs,
@@ -502,10 +501,10 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main() -> None:
-    """CLI entry point."""
+def main(argv: list[str] | None = None) -> int:
+    """CLI entry point. Returns exit code."""
     parser = _build_parser()
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     if not args.output_json:
         logging.basicConfig(
@@ -520,12 +519,12 @@ def main() -> None:
         if not rate_result.success:
             if not args.output_json:
                 print("Exiting: API rate limit too low", file=sys.stderr)
-            sys.exit(0)
+            return 0
     except RuntimeError:
         if not args.output_json:
             logger.exception("Failed to check rate limit")
         print("Cannot verify API rate limit. Aborting.", file=sys.stderr)
-        sys.exit(0)
+        return 0
 
     # Resolve repository params
     try:
@@ -534,7 +533,7 @@ def main() -> None:
         raise
     except Exception:
         print("Failed to resolve repository parameters.", file=sys.stderr)
-        sys.exit(2)
+        return 2
 
     owner = repo_params["Owner"]
     repo = repo_params["Repo"]
@@ -563,7 +562,7 @@ def main() -> None:
             },
         }
         print(json.dumps(output, separators=(",", ":")))
-        sys.exit(0)
+        return 0
 
     # Normal mode
     _print_summary(results)
@@ -572,8 +571,8 @@ def main() -> None:
     if args.log_path:
         logger.info("Log path requested but logging is to stderr in Python mode")
 
-    sys.exit(0)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

@@ -35,7 +35,7 @@ def write_output(key: str, value: str) -> None:
     """Append a key=value line to the GitHub Actions output file."""
     output_file = os.environ.get("GITHUB_OUTPUT", "")
     if output_file:
-        with open(output_file, "a") as f:
+        with open(output_file, "a", encoding="utf-8") as f:
             f.write(f"{key}={value}\n")
 
 
@@ -53,7 +53,8 @@ def main() -> None:
     emoji = get_verdict_emoji(overall_verdict)
 
     # Build verdict message
-    if int(must_failures) > 0:
+    must_count = int(must_failures) if must_failures.strip().isdigit() else 0
+    if must_count > 0:
         verdict_msg = (
             f"{must_failures} MUST requirement(s) not met."
             " These must be addressed before merge."
@@ -100,12 +101,12 @@ See [`.agents/SESSION-PROTOCOL.md`](.agents/SESSION-PROTOCOL.md) for full specif
         basename = os.path.basename(verdict_file)
         name = basename.replace("-verdict.txt", "")
 
-        with open(verdict_file) as f:
+        with open(verdict_file, encoding="utf-8") as f:
             verdict = f.read().strip()
 
         must_file = f"validation-results/{name}-must-failures.txt"
         if os.path.exists(must_file):
-            with open(must_file) as f:
+            with open(must_file, encoding="utf-8") as f:
                 must_count = f.read().strip()
         else:
             must_count = "0"
@@ -125,7 +126,7 @@ See [`.agents/SESSION-PROTOCOL.md`](.agents/SESSION-PROTOCOL.md) for full specif
         basename = os.path.basename(findings_file)
         name = basename.replace("-findings.txt", "")
 
-        with open(findings_file) as f:
+        with open(findings_file, encoding="utf-8") as f:
             findings = f.read()
 
         report += f"\n<details>\n<summary>\U0001f4c4 {name}</summary>\n\n"
@@ -139,7 +140,7 @@ See [`.agents/SESSION-PROTOCOL.md`](.agents/SESSION-PROTOCOL.md) for full specif
 <details>
 <summary>\u2728 Zero-Token Validation</summary>
 
-This validation uses deterministic PowerShell script analysis instead of AI:
+This validation uses deterministic script analysis instead of AI:
 
 - \u2705 **Zero tokens consumed** (previously 300K-900K per debug cycle)
 - \u2705 **Instant feedback** - see exact failures in this summary

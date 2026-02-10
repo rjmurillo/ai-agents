@@ -19,7 +19,7 @@ import os
 import re
 import subprocess
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
@@ -89,9 +89,8 @@ def save_failed_comment_artifact(
 
     Returns the artifact path on success, None on failure.
     """
-    timestamp = datetime.now(tz=timezone.utc).strftime(  # noqa: UP017
-        "%Y-%m-%d-%H%M%S"
-    )
+    now = datetime.now(UTC)
+    timestamp = now.strftime("%Y-%m-%d-%H%M%S")
 
     # Determine repo root
     try:
@@ -110,7 +109,7 @@ def save_failed_comment_artifact(
 
     payload = json.dumps(
         {
-            "timestamp": datetime.now(tz=timezone.utc).isoformat(),  # noqa: UP017
+            "timestamp": now.isoformat(),
             "owner": owner,
             "repo": repo,
             "issue": issue,

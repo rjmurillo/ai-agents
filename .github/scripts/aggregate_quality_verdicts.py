@@ -33,7 +33,7 @@ def write_output(key: str, value: str) -> None:
     """Append a key=value line to the GitHub Actions output file."""
     output_file = os.environ.get("GITHUB_OUTPUT", "")
     if output_file:
-        with open(output_file, "a") as f:
+        with open(output_file, "a", encoding="utf-8") as f:
             f.write(f"{key}={value}\n")
 
 
@@ -51,6 +51,19 @@ def main() -> None:
     for agent in _AGENTS:
         verdicts[agent] = os.environ.get(f"{agent.upper()}_VERDICT", "")
         infra_flags[agent] = os.environ.get(f"{agent.upper()}_INFRA", "") == "true"
+
+    # Guard: at least one agent must have reported a verdict
+    if not any(verdicts.values()):
+        write_log("ERROR: No agent verdicts found. All verdict env vars are empty.")
+        print(
+            "::error::No agent verdicts found. Check workflow YAML passes verdict outputs.",
+            file=sys.stderr,
+        )
+        write_output("final_verdict", "CRITICAL_FAIL")
+        for agent in _AGENTS:
+            write_output(f"{agent}_verdict", "")
+            write_output(f"{agent}_category", "N/A")
+        sys.exit(1)
 
     # Log each agent verdict
     for agent in _AGENTS:
