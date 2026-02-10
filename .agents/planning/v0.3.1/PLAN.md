@@ -2,12 +2,13 @@
 
 **Status**: 🟢 IN PROGRESS
 **Created**: 2026-02-08
-**Last Updated**: 2026-02-09
+**Last Updated**: 2026-02-10T03:15:00-08:00
 **Milestone**: [v0.3.1](https://github.com/rjmurillo/ai-agents/milestone/7)
 **Epic**: [#1049](https://github.com/rjmurillo/ai-agents/issues/1049)
 **Authority**: ADR-042 (Accepted 2026-01-17)
 **Supersedes**: ADR-005 (PowerShell-Only Scripting, status: Superseded)
-**Current Scope**: 16 issues (3 P0, 3 P1, 3 P2, 3 P3, 3 P4, 1 P5)
+**Current Scope**: 21 issues (3 P0, 3 P1, 3 P2, 3 P3, 3 P4, 1 P5, 5 code quality)
+**Progress**: 9/21 issues closed (Phase 0 complete, Phase 1 complete, Phase 1b 3/5 complete)
 
 ---
 
@@ -26,7 +27,38 @@
 - Added agent requirement: read issue body + all comments before starting work.
 - Updated session validation command to use Python (`validate_session_json.py`).
 
-**GitHub state**: #1049 reopened. #1050-#1052 closed (correct). #1053-#1066 open (correct). #1118, #1119 also open in milestone.
+**GitHub state**: #1049 reopened. #1050-#1052 closed (correct). #1053-#1066 open (correct). #1118, #1119 also open in milestone. #1133-#1137 open (code quality, added 2026-02-10).
+
+### 2026-02-10: Hierarchy of Needs review of #1054/#1055 migration
+
+**Trigger**: PR #1132 (`feat/1054-high-churn-migration`) completed migration of `invoke_pr_maintenance.py`, `post_issue_comment.py`, `set_item_milestone.py`, `invoke_pr_comment_processing.py`, and 8 consumer scripts. A Software Hierarchy of Needs code review identified 18 findings across 5 quality levels.
+
+**Actions taken**:
+- Fixed 10 findings in commit `df7377c0` (DRY violations, dead parameters, data-driven lookups, sys.path standardization, error handling, cache helpers)
+- Deferred 8 findings as 5 new issues (#1133-#1137) assigned to v0.3.1 milestone with P2 priority
+- All 5 new issues are code quality improvements, not new migration work
+- These issues can be worked in parallel with ongoing migration tracks
+
+**New Issues**:
+- #1133: Split quality_gate.py into focused modules (retry, workflow, verdict)
+- #1134: Extract bot_config module from github_core/api.py
+- #1135: Add argparse CLI to env-var-only workflow scripts
+- #1136: Add unit tests for 12 consumer workflow scripts
+- #1137: Introduce GitHubClient protocol for testable API abstraction
+
+### 2026-02-10: Phase 1 and Phase 1b progress update
+
+**Completed since last audit**:
+- PR #1131: #1053 shared modules migrated (AIReviewCommon consumer switchover)
+- PR #1132: #1054, #1055 high-churn scripts and workflow-coupled skills ported
+- PR #1138: #1133, #1134, #1135 Phase 1b code quality (split quality_gate, extract bot_config, argparse CLIs)
+- Gate 1-2 PASSED: `python -c "from scripts.github_core import api; from scripts.ai_review_common import quality_gate"` exits 0
+
+**Current work** (branch `feat/1136-1137-consumer-tests-protocol`):
+- #1136: Consumer workflow script tests (in progress, consumer-tests agent)
+- #1137: GitHubClient protocol abstraction (in progress, protocol-impl agent)
+
+**GitHub state**: #1050-#1055 closed, #1133-#1135 closed. #1136, #1137 in progress. #1049 (epic), #1056-#1066, #1118, #1119 open.
 
 ---
 
@@ -102,10 +134,11 @@ pwsh .claude/skills/github/scripts/issue/Get-IssueContext.ps1 -Issue <ISSUE_NUMB
 | Track | Current Issue | Status | Last Updated | Blocking? |
 |-------|---------------|--------|--------------|-----------|
 | A | - | ✅ COMPLETE | 2026-02-09 | No (Gate 0-1 PASSED) |
-| B | #1053 | 🔴 Not Started | 2026-02-09 | Critical Path ⭐ |
-| C | - | 🟡 Month 4 | - | Waits for Track B |
-| D | - | 🟡 Month 7 | - | Waits for Track B |
-| E | - | 🟡 Month 10 | - | Waits for Track B |
+| B | - | ✅ COMPLETE | 2026-02-10 | No (Gate 1-2 PASSED) |
+| B-CQ | #1136, #1137 | 🟢 IN PROGRESS | 2026-02-10 | No (independent of Phase 2) |
+| C | - | 🟡 Ready | - | Gate 1-2 passed, can start |
+| D | - | 🟡 Ready | - | Gate 1-2 passed, can start |
+| E | - | 🟡 Month 10 | - | Waits for Track D |
 
 > **Update this table** only during integration to avoid merge conflicts. For live status, use branch handoffs in `.agents/handoffs/{branch}/{session}.md` or add an issue comment.
 
@@ -143,6 +176,16 @@ pwsh .claude/skills/github/scripts/issue/Get-IssueContext.ps1 -Issue <ISSUE_NUMB
 | [#1051](https://github.com/rjmurillo/ai-agents/issues/1051) | Remove duplicates | Delete 5 PS1 files that have .py equivalents | Track A |
 | [#1052](https://github.com/rjmurillo/ai-agents/issues/1052) | SessionJson switchover | Switch 148+ references from PS1 to Python | Track A |
 
+### Code Quality (Phase 1b, concurrent with Track B)
+
+| Issue | Title | Summary | Status |
+|-------|-------|---------|--------|
+| [#1133](https://github.com/rjmurillo/ai-agents/issues/1133) | Split quality_gate.py | Break into retry.py, workflow.py, verdict.py submodules | ✅ Closed (PR #1138) |
+| [#1134](https://github.com/rjmurillo/ai-agents/issues/1134) | Extract bot_config | Move bot authors logic from api.py to bot_config.py | ✅ Closed (PR #1138) |
+| [#1135](https://github.com/rjmurillo/ai-agents/issues/1135) | Argparse CLIs | Add --help to 12 env-var-only workflow scripts | ✅ Closed (PR #1138) |
+| [#1136](https://github.com/rjmurillo/ai-agents/issues/1136) | Consumer tests | Add pytest for 12 consumer scripts in .github/scripts/ | 🟢 In Progress |
+| [#1137](https://github.com/rjmurillo/ai-agents/issues/1137) | GitHubClient protocol | PEP 544 Protocol for testable API abstraction | 🟢 In Progress |
+
 ### Dependency Flowchart
 
 ```mermaid
@@ -156,6 +199,14 @@ flowchart LR
         D[#1053<br/>Shared Modules<br/>P1 ⭐]
         E[#1054<br/>High-Churn<br/>P1]
         F[#1055<br/>WF Skills<br/>P1]
+    end
+
+    subgraph CQ["Phase 1b: Code Quality"]
+        Q1[#1133<br/>Split quality_gate<br/>P2]
+        Q2[#1134<br/>Extract bot_config<br/>P2]
+        Q3[#1135<br/>Argparse CLIs<br/>P2]
+        Q4[#1136<br/>Consumer Tests<br/>P2]
+        Q5[#1137<br/>GitHubClient Proto<br/>P2]
     end
 
     subgraph P2["Phase 2: CI Infrastructure (Months 4-6)"]
@@ -186,7 +237,11 @@ flowchart LR
     D --> J
     D --> O
     F --> J
+    Q2 --> Q5
+    Q3 --> Q4
+
     P0 --> P1
+    P1 --> CQ
     P1 --> P2
     P2 --> P3
     P3 --> P4
@@ -198,6 +253,7 @@ flowchart LR
     classDef p3 fill:#51cf66,stroke:#2f9e44,color:#fff
     classDef p4 fill:#cc5de8,stroke:#9c36b5,color:#fff
     classDef p5 fill:#868e96,stroke:#495057,color:#fff
+    classDef cq fill:#ff922b,stroke:#e8590c,color:#fff
 
     class A,B,C p0
     class D,E,F p1
@@ -205,6 +261,7 @@ flowchart LR
     class J,K,L p3
     class M,N,O p4
     class P p5
+    class Q1,Q2,Q3,Q4,Q5 cq
 ```
 
 ### Gantt Timeline (12 months)
@@ -247,6 +304,7 @@ gantt
 
 - **Track A**: #1050 → #1051 → #1052 (P0 cleanup, sequential)
 - **Track B**: #1053 → #1054 + #1055 (Modules unblock scripts + skills, parallel after module)
+- **Track B-CQ**: #1133, #1134, #1135 → #1136, #1134 → #1137 (Code quality, concurrent with Track B)
 - **Track C**: #1056 + #1057 → #1058 (Build + validation, then GH Actions)
 - **Track D**: #1060 + #1061 → #1062 (GitHub + memory skills, then other skills)
 - **Track E**: #1063 + #1064 → #1065 → #1066 (Long tail, then retirement)
@@ -355,7 +413,7 @@ Verified: `rg "\.ps1" scripts/Detect-SkillViolation scripts/Check-SkillExists sc
 
 ## Phase 1: High-Traffic Scripts + Workflow-Coupled Skills (Months 2-4)
 
-### [#1053](https://github.com/rjmurillo/ai-agents/issues/1053) - Shared modules (CRITICAL PATH ⭐)
+### [#1053](https://github.com/rjmurillo/ai-agents/issues/1053) - Shared modules (CRITICAL PATH ⭐) ✅ Closed (PR #1131)
 
 **Goals**: Migrate 5 shared .psm1 modules to Python packages with matching API surfaces. Unblock all downstream issues.
 
@@ -514,7 +572,7 @@ scripts/
 
 **Blocks**: #1054, #1055, #1060, #1065
 
-### [#1054](https://github.com/rjmurillo/ai-agents/issues/1054) - High-churn scripts
+### [#1054](https://github.com/rjmurillo/ai-agents/issues/1054) - High-churn scripts ✅ Closed (PR #1132)
 
 **Goals**: Migrate 3 high-modification-frequency scripts to Python. Reduce ongoing PS1 maintenance cost for the most-edited files.
 
@@ -546,7 +604,7 @@ scripts/
 
 **Depends on**: #1053 (modules)
 
-### [#1055](https://github.com/rjmurillo/ai-agents/issues/1055) - Workflow-coupled GitHub skills
+### [#1055](https://github.com/rjmurillo/ai-agents/issues/1055) - Workflow-coupled GitHub skills ✅ Closed (PR #1132)
 
 **Goals**: Migrate 5 GitHub skill scripts that are called directly from workflow YAML files. These are the highest-impact skill scripts because workflow breakage blocks all PRs.
 
@@ -581,6 +639,224 @@ scripts/
 - [ ] pytest coverage >= Pester for each migrated script
 
 **Depends on**: #1053 (GitHubCore module)
+
+---
+
+## Phase 1b: Code Quality Improvements (Track B, concurrent)
+
+> **Origin**: Software Hierarchy of Needs review of PR #1132 (2026-02-10).
+> These issues improve the quality of already-migrated Python code. They are independent of each other and can be worked in any order, concurrent with ongoing Track B work.
+
+### [#1133](https://github.com/rjmurillo/ai-agents/issues/1133) - Split quality_gate.py into focused modules
+
+**Goals**: Break `scripts/ai_review_common/quality_gate.py` (~600 lines, 15+ functions) into 3 focused submodules. Each submodule handles one responsibility. Improves cohesion and reduces cognitive load.
+
+**Current state**: `quality_gate.py` mixes three distinct concerns:
+1. **Retry logic**: `invoke_with_retry()`, exponential backoff, timeout handling
+2. **Workflow orchestration**: `get_workflow_runs_by_pr()`, `check_runs_overlap()`, `get_concurrency_group_from_run()`
+3. **Verdict computation**: `get_verdict()`, `merge_verdicts()`, `get_failure_category()`, `is_spec_validation_failed()`
+
+**Target structure**:
+```
+scripts/ai_review_common/
+    quality_gate.py       (facade: re-exports from submodules for backward compatibility)
+    retry.py              (invoke_with_retry, retry decorators)
+    workflow.py           (workflow runs, concurrency groups, overlap detection)
+    verdict.py            (verdict computation, merging, failure categorization)
+```
+
+**Implementation steps**:
+1. Create `retry.py`, `workflow.py`, `verdict.py` with functions moved from `quality_gate.py`
+2. Update `quality_gate.py` to re-export all public symbols (backward-compatible facade)
+3. Update `__init__.py` if any new public exports are added
+4. Run `rg "from scripts.ai_review_common.quality_gate import" --type py` to verify no consumers break
+5. Run `pytest tests/ -k quality_gate` to verify test coverage preserved
+6. Run `mypy scripts/ai_review_common/` to verify type safety
+
+**Done criteria**:
+- [ ] 3 new submodules created (`retry.py`, `workflow.py`, `verdict.py`)
+- [ ] `quality_gate.py` is a facade (< 30 lines, only imports and re-exports)
+- [ ] No consumer script changes required (facade provides backward compatibility)
+- [ ] `pytest tests/ -v` passes, `mypy` clean
+- [ ] Each submodule < 200 lines
+
+**Priority**: P2 | **Labels**: enhancement, area-infrastructure | **Depends on**: None (already-migrated code)
+
+### [#1134](https://github.com/rjmurillo/ai-agents/issues/1134) - Extract bot_config module from api.py
+
+**Goals**: Extract bot authors configuration logic from `scripts/github_core/api.py` into a dedicated `bot_config.py` module. The bot config functions (cache management, YAML parsing, author list resolution) are self-contained and unrelated to the GitHub API wrapper functions.
+
+**Current state**: `api.py` contains 5 bot-config functions plus module-level cache variables:
+- `_bot_authors_cache`, `_bot_authors_cache_path` (module globals)
+- `_cache_bot_config()` (cache helper)
+- `get_bot_authors_config()` (~80 lines, YAML parsing, fallback logic)
+- `get_bot_authors()` (convenience wrapper)
+
+**Target structure**:
+```
+scripts/github_core/
+    api.py           (GitHub API functions only, no bot config)
+    bot_config.py    (bot authors YAML parsing, caching, resolution)
+    __init__.py      (re-exports bot_config public symbols for backward compatibility)
+```
+
+**Implementation steps**:
+1. Create `scripts/github_core/bot_config.py` with bot config functions and cache globals
+2. Remove bot config functions from `api.py`
+3. Update `__init__.py` to re-export `get_bot_authors_config` and `get_bot_authors` from `bot_config`
+4. Run `rg "get_bot_authors" --type py` to verify all consumers still resolve correctly
+5. Run full test suite and mypy
+
+**Done criteria**:
+- [ ] `bot_config.py` created with all bot config logic
+- [ ] `api.py` no longer contains bot config functions or cache globals
+- [ ] `__init__.py` re-exports maintain backward compatibility
+- [ ] `pytest tests/ -v` passes, `mypy` clean
+- [ ] `api.py` reduced by ~100 lines
+
+**Priority**: P2 | **Labels**: enhancement, area-infrastructure | **Depends on**: None
+
+### [#1135](https://github.com/rjmurillo/ai-agents/issues/1135) - Add argparse CLI to env-var-only workflow scripts
+
+**Goals**: Add `argparse` CLI interfaces to 12 consumer workflow scripts that currently rely exclusively on environment variables for configuration. This improves testability (can pass args directly instead of manipulating `os.environ`), debuggability (scripts show `--help`), and follows the pattern established by `post_issue_comment.py` and `set_item_milestone.py`.
+
+**Scripts to update** (all in `.github/scripts/`):
+1. `parse_triage_labels.py` (reads `AI_OUTPUT`, `PR_NUMBER`, `REPO`)
+2. `parse_triage_roadmap.py` (reads `AI_OUTPUT`, `PR_NUMBER`, `REPO`)
+3. `aggregate_quality_verdicts.py` (reads `OWNER`, `REPO`, `PR_NUMBER`, `GH_TOKEN`)
+4. `aggregate_session_verdicts.py` (reads `OWNER`, `REPO`, `PR_NUMBER`, `GH_TOKEN`)
+5. `generate_quality_report.py` (reads `QUALITY_RESULTS`)
+6. `generate_session_report.py` (reads `SESSION_RESULTS`)
+7. `generate_spec_report.py` (reads `SPEC_RESULTS`)
+8. `check_spec_failures.py` (reads `SPEC_RESULTS`)
+9. `invoke_pr_maintenance.py` (reads `GITHUB_TOKEN`, `OWNER`, `REPO`)
+10. `invoke_pr_comment_processing.py` (reads `OWNER`, `REPO`, `PR_NUMBER`, etc.)
+11. `parse_review_output.py` (reads env vars)
+12. `run_ai_review.py` (reads env vars)
+
+**Pattern to follow** (from `post_issue_comment.py`):
+```python
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="...")
+    parser.add_argument("--owner", default=os.environ.get("OWNER", ""), help="...")
+    parser.add_argument("--repo", default=os.environ.get("REPO", ""), help="...")
+    # ... env vars become defaults for CLI args
+    return parser
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    # Use args.owner, args.repo instead of os.environ.get(...)
+```
+
+**Implementation steps**:
+1. For each script: add `build_parser()` function, update `main()` signature to accept `argv`
+2. Environment variables become `default=` values for argparse arguments
+3. Update tests to call `main(["--owner", "test", ...])` instead of patching `os.environ`
+4. Verify workflow YAML still works (workflows pass no args, so env var defaults activate)
+5. Run full test suite
+
+**Done criteria**:
+- [ ] All 12 scripts accept `--help` and show usage
+- [ ] `python .github/scripts/<script>.py --help` exits 0 for all 12
+- [ ] Workflows pass with no changes (env var defaults used)
+- [ ] Tests call `main()` with explicit args (no `os.environ` patching)
+- [ ] `pytest tests/ -v` passes, `mypy` clean
+
+**Priority**: P2 | **Labels**: enhancement, area-workflows, area-infrastructure | **Depends on**: None
+
+### [#1136](https://github.com/rjmurillo/ai-agents/issues/1136) - Add unit tests for 12 consumer workflow scripts
+
+**Goals**: Add pytest unit tests for all 12 consumer workflow scripts in `.github/scripts/`. These scripts were migrated from PowerShell but currently lack dedicated test files. Without tests, regressions go undetected until CI failures.
+
+**Scripts needing tests** (all in `.github/scripts/`):
+1. `parse_triage_labels.py` -- label extraction from AI output
+2. `parse_triage_roadmap.py` -- roadmap alignment from AI output
+3. `aggregate_quality_verdicts.py` -- verdict aggregation across quality gates
+4. `aggregate_session_verdicts.py` -- verdict aggregation across session checks
+5. `generate_quality_report.py` -- markdown report generation
+6. `generate_session_report.py` -- markdown report generation
+7. `generate_spec_report.py` -- markdown report generation
+8. `check_spec_failures.py` -- spec validation failure detection
+9. `invoke_pr_maintenance.py` -- PR maintenance orchestration
+10. `invoke_pr_comment_processing.py` -- PR comment routing
+11. `parse_review_output.py` -- review output parsing
+12. `run_ai_review.py` -- AI review orchestration
+
+**Test file naming**: `tests/test_<script_name>.py` (e.g., `tests/test_parse_triage_labels.py`)
+
+**Test categories per script**:
+- **Happy path**: Valid inputs produce expected outputs
+- **Edge cases**: Empty input, malformed JSON, missing env vars
+- **Error handling**: Verify correct exit codes per ADR-035 (1=logic, 2=config, 3=external, 4=auth)
+- **Output format**: Verify GITHUB_OUTPUT and GITHUB_STEP_SUMMARY writes
+
+**Implementation steps**:
+1. Create test files for all 12 scripts
+2. Mock external dependencies (`subprocess.run` for `gh` CLI calls, file I/O for temp files)
+3. Test each script's `main()` function with explicit args (see #1135 for argparse pattern)
+4. Verify coverage: `pytest --cov=.github/scripts --cov-report=term-missing`
+5. Target: >= 80% line coverage per script
+
+**Done criteria**:
+- [ ] 12 test files created in `tests/`
+- [ ] Each test file covers happy path, edge cases, and error handling
+- [ ] `pytest tests/test_parse_triage_*.py tests/test_aggregate_*.py tests/test_generate_*.py tests/test_check_spec_*.py tests/test_invoke_*.py -v` passes
+- [ ] Coverage >= 80% per script
+- [ ] All tests mock external I/O (no real `gh` CLI calls in tests)
+
+**Priority**: P2 | **Labels**: enhancement, bug, area-workflows, area-infrastructure | **Depends on**: #1135 (argparse CLIs make testing easier)
+
+### [#1137](https://github.com/rjmurillo/ai-agents/issues/1137) - Introduce GitHubClient protocol for testable API abstraction
+
+**Goals**: Define a `GitHubClient` Protocol (PEP 544 structural subtyping) for the GitHub API functions in `scripts/github_core/api.py`. This enables consumer scripts to accept a typed client parameter instead of importing module-level functions directly, making them testable without monkeypatching.
+
+**Current state**: Consumer scripts import functions directly:
+```python
+from scripts.github_core.api import get_issue_comments, create_issue_comment
+```
+Testing requires `unittest.mock.patch("scripts.github_core.api.get_issue_comments", ...)`.
+
+**Target state**: Consumer scripts accept a client parameter:
+```python
+from scripts.github_core.protocol import GitHubClient
+
+def process_comments(client: GitHubClient, issue: int) -> None:
+    comments = client.get_issue_comments("owner", "repo", issue)
+    # ...
+```
+Testing uses a simple stub: `client = FakeGitHubClient(comments=[...])`.
+
+**Protocol definition** (in `scripts/github_core/protocol.py`):
+```python
+from typing import Protocol, Any
+
+class GitHubClient(Protocol):
+    def get_issue_comments(self, owner: str, repo: str, issue: int) -> list[dict[str, Any]]: ...
+    def create_issue_comment(self, owner: str, repo: str, issue: int, body: str) -> dict[str, Any]: ...
+    def update_issue_comment(self, owner: str, repo: str, comment_id: int, body: str) -> dict[str, Any]: ...
+    def gh_api_paginated(self, endpoint: str) -> list[dict[str, Any]]: ...
+    def gh_graphql(self, query: str, **variables: Any) -> dict[str, Any]: ...
+    def resolve_repo_params(self, owner: str, repo: str) -> dict[str, str]: ...
+    def assert_gh_authenticated(self) -> None: ...
+```
+
+**Implementation steps**:
+1. Create `scripts/github_core/protocol.py` with `GitHubClient` Protocol
+2. Create `scripts/github_core/client.py` with `LiveGitHubClient` (wraps existing functions)
+3. Update `__init__.py` to export both `GitHubClient` and `LiveGitHubClient`
+4. Create `tests/conftest.py` fixture: `FakeGitHubClient` for tests
+5. Update 1-2 consumer scripts as proof-of-concept (e.g., `post_issue_comment.py`)
+6. Do NOT update all consumers (incremental adoption, avoid big bang)
+
+**Done criteria**:
+- [ ] `GitHubClient` Protocol defined with type hints
+- [ ] `LiveGitHubClient` implements Protocol by delegating to existing functions
+- [ ] `FakeGitHubClient` test fixture created
+- [ ] 1-2 consumer scripts updated to accept `client` parameter
+- [ ] `mypy --strict scripts/github_core/protocol.py` passes
+- [ ] Existing tests continue to pass (no breaking changes)
+
+**Priority**: P2 | **Labels**: enhancement, area-infrastructure | **Depends on**: #1134 (bot_config extraction simplifies api.py first)
 
 ---
 
