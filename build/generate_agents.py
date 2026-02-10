@@ -78,8 +78,10 @@ def read_platform_config(config_path: Path) -> dict[str, object] | None:
         if nested_match:
             key = nested_match.group(1)
             value = _parse_yaml_value(nested_match.group(2).strip())
-            if current_section and isinstance(config.get(current_section), dict):
-                config[current_section][key] = value  # type: ignore[index]
+            if current_section:
+                section_value = config.get(current_section)
+                if isinstance(section_value, dict):
+                    section_value[key] = value
             continue
 
         # Top-level key-value

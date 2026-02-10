@@ -104,8 +104,10 @@ class TestReadPlatformConfig:
         )
         result = read_platform_config(config_file)
         assert result is not None
-        assert result["settings"]["enabled"] is True
-        assert result["settings"]["disabled"] is False
+        settings = result.get("settings")
+        assert isinstance(settings, dict)
+        assert settings["enabled"] is True
+        assert settings["disabled"] is False
 
     def test_parses_quoted_strings(self, tmp_path: Path) -> None:
         config_file = tmp_path / "test.yaml"
@@ -117,7 +119,9 @@ class TestReadPlatformConfig:
         )
         result = read_platform_config(config_file)
         assert result is not None
-        assert result["frontmatter"]["model"] == "Claude Opus 4.5 (copilot)"
+        frontmatter = result.get("frontmatter")
+        assert isinstance(frontmatter, dict)
+        assert frontmatter["model"] == "Claude Opus 4.5 (copilot)"
 
     def test_skips_comments(self, tmp_path: Path) -> None:
         config_file = tmp_path / "test.yaml"

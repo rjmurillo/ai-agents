@@ -6,6 +6,8 @@ for agent generation.
 This is a Python port of Generate-Agents.Common tests following ADR-042 migration.
 """
 
+# mypy: disable-error-code="arg-type"
+
 from __future__ import annotations
 
 import os
@@ -147,22 +149,26 @@ class TestParseSimpleFrontmatter:
     def test_block_array_with_quoted_items(self) -> None:
         raw = "tools:\n  - 'tool1'\n  - \"tool2\""
         result = parse_simple_frontmatter(raw)
-        assert "tool1" in result["tools"]
-        assert "tool2" in result["tools"]
+        tools = result.get("tools")
+        assert tools is not None
+        assert "tool1" in tools
+        assert "tool2" in tools
 
     def test_multiple_arrays(self) -> None:
         raw = "tools_vscode:\n  - vscode\n  - read\ntools_copilot:\n  - read\n  - edit"
         result = parse_simple_frontmatter(raw)
-        assert "vscode" in result["tools_vscode"]
-        assert "edit" in result["tools_copilot"]
+        tools_vscode = result.get("tools_vscode")
+        tools_copilot = result.get("tools_copilot")
+        assert tools_vscode is not None and "vscode" in tools_vscode
+        assert tools_copilot is not None and "edit" in tools_copilot
 
 
 class TestConvertFrontmatterForPlatform:
     """Tests for convert_frontmatter_for_platform."""
 
     def test_vscode_platform_removes_name(self) -> None:
-        fm = {"name": "test", "description": "A test"}
-        config = {
+        fm: dict[str, str | None] = {"name": "test", "description": "A test"}
+        config: dict[str, object] = {
             "platform": "vscode",
             "frontmatter": {"includeNameField": False, "model": "Claude Opus 4.5"},
         }
@@ -171,8 +177,8 @@ class TestConvertFrontmatterForPlatform:
         assert result["model"] == "Claude Opus 4.5"
 
     def test_copilot_platform_includes_name(self) -> None:
-        fm = {"description": "A test"}
-        config = {
+        fm: dict[str, str | None] = {"description": "A test"}
+        config: dict[str, object] = {
             "platform": "copilot-cli",
             "frontmatter": {"includeNameField": True, "model": "claude-opus-4.5"},
         }
@@ -181,8 +187,8 @@ class TestConvertFrontmatterForPlatform:
         assert result["model"] == "claude-opus-4.5"
 
     def test_skips_placeholder_values(self) -> None:
-        fm = {"name": "test", "model": "{{PLATFORM_MODEL}}"}
-        config = {
+        fm: dict[str, str | None] = {"name": "test", "model": "{{PLATFORM_MODEL}}"}
+        config: dict[str, object] = {
             "platform": "vscode",
             "frontmatter": {"includeNameField": False, "model": "Claude Opus 4.5"},
         }
@@ -190,12 +196,12 @@ class TestConvertFrontmatterForPlatform:
         assert result["model"] == "Claude Opus 4.5"
 
     def test_uses_platform_specific_tools(self) -> None:
-        fm = {
+        fm: dict[str, str | None] = {
             "description": "test",
             "tools_vscode": "['vscode', 'read']",
             "tools_copilot": "['read', 'edit']",
         }
-        config = {
+        config: dict[str, object] = {
             "platform": "vscode",
             "frontmatter": {"includeNameField": False},
         }
