@@ -32,7 +32,7 @@ Repository rulesets that require SHA pinning apply recursively to ALL action dep
 
 ### Current Repository Usage
 
-`.github/workflows/droid-review.yml` and `.github/workflows/droid.yml`:
+.github/workflows/droid-review.yml (removed) and .github/workflows/droid.yml (removed):
 ```yaml
 - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 - uses: Factory-AI/droid-action@e3f8be9f34bb41b11e852e836cb64e81f13fba59 # v1
@@ -87,8 +87,8 @@ From https://raw.githubusercontent.com/Factory-AI/droid-action/v1/action.yml:
 ## Impact
 
 **Workflows Affected**:
-- `.github/workflows/droid-review.yml` - Auto-review on PR open
-- `.github/workflows/droid.yml` - Manual @droid invocation
+- .github/workflows/droid-review.yml (removed) - Auto-review on PR open
+- .github/workflows/droid.yml (removed) - Manual @droid invocation
 
 **Severity**: BLOCKING - Workflows fail at setup phase before any steps execute
 

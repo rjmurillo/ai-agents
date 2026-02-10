@@ -85,7 +85,7 @@ Patterns identified from Phase 3 consistency validation implementation.
 
 1. Shared content: `templates/agents/*.shared.md`
 2. Variant-specific: `templates/agents/*.copilot.md`, `*.vs-code.md`
-3. Generation: `scripts/Generate-Agents.ps1`
+3. Generation: `build/Generate-Agents.ps1`
 4. Outputs: `src/claude/`, `src/copilot-cli/`, `src/vs-code-agents/`
 
 **Benefits**:

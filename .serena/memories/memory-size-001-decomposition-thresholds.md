@@ -2,11 +2,11 @@
 
 **Date**: 2025-12-22
 **Issue**: #239
-**Subject**: [skills-github-cli](skills-github-cli.md) memory file
+**Subject**: [skills-github-cli-index](skills-github-cli-index.md) memory file (decomposed)
 
 ## Problem Statement
 
-The [skills-github-cli](skills-github-cli.md) memory has grown beyond maintainable size:
+The skills-github-cli memory had grown beyond maintainable size (now decomposed into index + 13 sub-files):
 
 | Metric | Value | Threshold | Status |
 |--------|-------|-----------|--------|

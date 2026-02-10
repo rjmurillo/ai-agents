@@ -49,7 +49,7 @@
 
 **Recommended Memory Files**:
 - `.serena/memories/skills-governance.md` - Add Skill-Governance-010
-- `.serena/memories/skills-ci-infrastructure.md` - Add Skill-CI-Infrastructure-006
+- `.serena/memories/skills-ci-infrastructure-index.md` - Add Skill-CI-Infrastructure-006
 - `.serena/memories/skills-architecture.md` - Add Skill-Architecture-016
 
 ## Related

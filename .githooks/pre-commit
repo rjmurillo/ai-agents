@@ -1689,6 +1689,126 @@ else
 fi
 
 #
+# Memory Index Token Count Update (Auto-fix)
+#
+# Automatically updates inline token counts in memory-index.md
+# when memory files change. Uses tiktoken cache for performance.
+# Gracefully degrades if tiktoken is not installed (warning only).
+#
+# Related: Context Engineering, memory skill
+#
+# Compute staged memory files once for all memory-related checks below
+STAGED_MEMORY_FILES=$(echo "$STAGED_FILES" | grep -E '^\.serena/memories/' || true)
+
+MEMORY_TOKEN_UPDATER="$REPO_ROOT/scripts/update_memory_index_tokens.py"
+
+if [ -n "$STAGED_MEMORY_FILES" ]; then
+    if [ "$AUTOFIX" = "1" ]; then
+        # MEDIUM-002: Reject symlinks for security
+        if [ -L "$MEMORY_TOKEN_UPDATER" ]; then
+            echo_warning "Skipping token count update: script path is a symlink"
+        elif [ -f "$MEMORY_TOKEN_UPDATER" ]; then
+            if set_python_cmd; then
+                echo_info "Updating memory-index.md token counts..."
+                token_update_output=$("${PYTHON_CMD[@]}" "$MEMORY_TOKEN_UPDATER" 2>&1)
+                token_update_exit=$?
+
+                if [ $token_update_exit -eq 0 ]; then
+                    echo_info "  $token_update_output"
+                    # Re-stage memory-index.md if it changed
+                    MEMORY_INDEX_FILE="$REPO_ROOT/.serena/memories/memory-index.md"
+                    if [ -f "$MEMORY_INDEX_FILE" ] && [ ! -L "$MEMORY_INDEX_FILE" ] && ! git diff --quiet -- "$MEMORY_INDEX_FILE" 2>/dev/null; then
+                        git add -- "$MEMORY_INDEX_FILE"
+                        echo_success "Re-staged memory-index.md with updated token counts"
+                        FILES_FIXED=1
+                    fi
+                elif [ $token_update_exit -eq 2 ]; then
+                    # tiktoken not installed - non-blocking warning
+                    echo_warning "Token count update skipped (tiktoken not installed)"
+                else
+                    echo_warning "Token count update failed (non-blocking)"
+                fi
+            fi
+        fi
+    fi
+fi
+
+#
+# Memory Size Validation (BLOCKING for new files, WARNING for modified)
+#
+# Enforces atomicity thresholds from memory-size-001-decomposition-thresholds:
+# - Max 10,000 chars (~2,500 tokens)
+# - Max 15 skills per file
+# - Max 5 categories per file
+#
+# New files are blocked if oversized (hard gate).
+# Modified files warn only (allows gradual cleanup of existing oversized files).
+#
+# Related: Issue #239, Context Engineering, memory skill
+#
+MEMORY_SIZE_VALIDATOR="$REPO_ROOT/.claude/skills/memory/scripts/test_memory_size.py"
+
+if [ -n "$STAGED_MEMORY_FILES" ]; then
+    # MEDIUM-002: Reject symlinks for security
+    if [ -L "$MEMORY_SIZE_VALIDATOR" ]; then
+        echo_warning "Skipping memory size validation: script path is a symlink"
+    elif [ -f "$MEMORY_SIZE_VALIDATOR" ]; then
+        if set_python_cmd; then
+            # Get newly added memory files (hard gate)
+            NEW_MEMORY_FILES=$(git diff --cached --name-only --diff-filter=A -- '.serena/memories/*.md' 2>/dev/null || true)
+
+            if [ -n "$NEW_MEMORY_FILES" ]; then
+                size_fail=0
+                while IFS= read -r mem_file; do
+                    full_path="$REPO_ROOT/$mem_file"
+                    if [ -f "$full_path" ] && [ ! -L "$full_path" ]; then
+                        size_output=$("${PYTHON_CMD[@]}" "$MEMORY_SIZE_VALIDATOR" "$full_path" 2>&1)
+                        size_exit=$?
+                        if [ $size_exit -ne 0 ]; then
+                            echo_error "New memory file exceeds size thresholds: $mem_file"
+                            echo "$size_output" | while IFS= read -r line; do
+                                echo_info "  $line"
+                            done
+                            size_fail=1
+                        fi
+                    fi
+                done <<< "$NEW_MEMORY_FILES"
+
+                if [ $size_fail -eq 1 ]; then
+                    echo_error "Memory size validation FAILED for new file(s)."
+                    echo_info "  Decompose into smaller files. See: memory-size-001-decomposition-thresholds.md"
+                    EXIT_STATUS=1
+                else
+                    echo_success "Memory size validation (new files): PASS"
+                fi
+            fi
+
+            # Get modified memory files (warn only)
+            MOD_MEMORY_FILES=$(git diff --cached --name-only --diff-filter=M -- '.serena/memories/*.md' 2>/dev/null || true)
+
+            if [ -n "$MOD_MEMORY_FILES" ]; then
+                mod_warn=0
+                while IFS= read -r mem_file; do
+                    full_path="$REPO_ROOT/$mem_file"
+                    if [ -f "$full_path" ] && [ ! -L "$full_path" ]; then
+                        size_output=$("${PYTHON_CMD[@]}" "$MEMORY_SIZE_VALIDATOR" "$full_path" 2>&1)
+                        size_exit=$?
+                        if [ $size_exit -ne 0 ]; then
+                            echo_warning "Modified memory exceeds size thresholds: $mem_file"
+                            mod_warn=1
+                        fi
+                    fi
+                done <<< "$MOD_MEMORY_FILES"
+
+                if [ $mod_warn -eq 0 ]; then
+                    echo_success "Memory size validation (modified files): PASS"
+                fi
+            fi
+        fi
+    fi
+fi
+
+#
 # Memory Index Validation (BLOCKING)
 #
 # Validates tiered memory index consistency (ADR-017).
@@ -1699,9 +1819,6 @@ fi
 # Related: ADR-017, Issue #307
 #
 MEMORY_INDEX_SCRIPT="$REPO_ROOT/scripts/Validate-MemoryIndex.ps1"
-
-# Check if any memory files are staged
-STAGED_MEMORY_FILES=$(echo "$STAGED_FILES" | grep -E '^\.serena/memories/' || true)
 
 if [ -n "$STAGED_MEMORY_FILES" ]; then
     echo_info "Checking memory index consistency (ADR-017)..."

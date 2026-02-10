@@ -58,5 +58,5 @@ Historical changelog for the session-log-fixer skill. This memory preserves vers
 
 - Issue: perf(ci): Replace AI-based session validation with deterministic script
 - PR: Replaced AI-based validation in `.github/workflows/ai-session-protocol.yml`
-- Deleted: `.claude/skills/session-log-fixer/scripts/diagnose.ps1`
-- Deleted: `tests/Diagnose-SessionProtocol.Tests.ps1`
+- Deleted: .claude/skills/session-log-fixer/scripts/diagnose.ps1 (removed)
+- Deleted: tests/Diagnose-SessionProtocol.Tests.ps1 (removed)

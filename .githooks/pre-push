@@ -161,8 +161,14 @@ while read -r local_ref local_sha remote_ref remote_sha; do
             ref_range="$local_sha"
         fi
     else
-        # Existing branch: compare against remote
-        ref_range="$remote_sha..$local_sha"
+        # Existing branch: use merge-base with main to exclude upstream changes
+        # This prevents merge commits from counting files already on main
+        merge_base=$(git merge-base origin/main "$local_sha" 2>/dev/null || echo "")
+        if [ -n "$merge_base" ]; then
+            ref_range="$merge_base..$local_sha"
+        else
+            ref_range="$remote_sha..$local_sha"
+        fi
     fi
 
     # Keep last ref range for commit count and additions checks
@@ -231,28 +237,61 @@ fi
 
 record_pass "Branch guard ($current_branch)"
 
+# Detect merge commits from main in the push range. Merges from upstream
+# naturally inflate commit/file counts with already-reviewed changes, so
+# limits are relaxed to avoid blocking legitimate merge-and-push workflows.
+MERGE_FROM_MAIN=""
+if [ -n "$PUSH_RANGE" ]; then
+    MERGE_FROM_MAIN=$(git rev-list --merges "$PUSH_RANGE" 2>/dev/null \
+        | while read -r sha; do
+            git log -1 --format='%P' "$sha" 2>/dev/null | tr ' ' '\n' | tail -n +2 \
+                | while read -r parent; do
+                    if git merge-base --is-ancestor "$parent" origin/main 2>/dev/null; then
+                        echo "yes"
+                        break
+                    fi
+                done
+        done | head -1)
+    if [ "$MERGE_FROM_MAIN" = "yes" ]; then
+        echo_info "Merge from main detected, relaxing commit/file limits"
+    fi
+fi
+
 # 2. Commit count - SESSION-PROTOCOL limit of 20
+COMMIT_LIMIT=20
+COMMIT_WARN=15
+if [ "$MERGE_FROM_MAIN" = "yes" ]; then
+    COMMIT_LIMIT=40
+    COMMIT_WARN=30
+fi
 if [ -n "$PUSH_RANGE" ]; then
     COMMIT_COUNT=$(git rev-list --count "$PUSH_RANGE" 2>/dev/null || echo "0")
-    if [ "$COMMIT_COUNT" -gt 20 ]; then
-        record_fail "Commit count ($COMMIT_COUNT) exceeds limit of 20"
+    if [ "$COMMIT_COUNT" -gt "$COMMIT_LIMIT" ]; then
+        record_fail "Commit count ($COMMIT_COUNT) exceeds limit of $COMMIT_LIMIT"
         echo_info "  Consider squashing commits or splitting the PR."
         echo_info "  See: CONTRIBUTING.md#commit-count-thresholds"
-    elif [ "$COMMIT_COUNT" -gt 15 ]; then
-        record_warn "Commit count ($COMMIT_COUNT) approaching limit of 20"
+    elif [ "$COMMIT_COUNT" -gt "$COMMIT_WARN" ]; then
+        record_warn "Commit count ($COMMIT_COUNT) approaching limit of $COMMIT_LIMIT"
     else
-        record_pass "Commit count ($COMMIT_COUNT <= 20)"
+        record_pass "Commit count ($COMMIT_COUNT <= $COMMIT_LIMIT)"
     fi
 else
     record_skip "Commit count (no push range)"
 fi
 
 # 3. Changed files count
-if [ "$FILE_COUNT" -gt 50 ]; then
-    record_fail "Changed files ($FILE_COUNT) exceeds maximum of 50"
+FILE_LIMIT=50
+FILE_WARN=20
+if [ "$MERGE_FROM_MAIN" = "yes" ]; then
+    FILE_LIMIT=150
+    FILE_WARN=80
+fi
+
+if [ "$FILE_COUNT" -gt "$FILE_LIMIT" ]; then
+    record_fail "Changed files ($FILE_COUNT) exceeds maximum of $FILE_LIMIT"
     echo_info "  Consider splitting into smaller PRs."
-elif [ "$FILE_COUNT" -gt 20 ]; then
-    record_warn "Changed files ($FILE_COUNT) exceeds recommended limit of 20"
+elif [ "$FILE_COUNT" -gt "$FILE_WARN" ]; then
+    record_warn "Changed files ($FILE_COUNT) exceeds recommended limit of $FILE_WARN"
 else
     record_pass "Changed files count ($FILE_COUNT)"
 fi

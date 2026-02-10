@@ -6,6 +6,7 @@
     Agent-facing skill script that wraps MemoryRouter.psm1.
     Provides unified memory search with Serena-first routing
     and optional Forgetful augmentation per ADR-037.
+    Includes token budget warnings for large memories.
 
 .PARAMETER Query
     Search query (1-500 chars, alphanumeric + common punctuation).
@@ -63,6 +64,18 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+
+# Token budget thresholds for search result display
+$TOKEN_WARN_THRESHOLD = 5000
+$TOKEN_DECOMPOSE_THRESHOLD = 10000
+
+function Get-TokenEstimate {
+    param([string]$FilePath)
+    if ($FilePath -and (Test-Path $FilePath)) {
+        [math]::Round((Get-Content $FilePath -Raw).Length / 4)
+    }
+    else { 0 }
+}
 
 # Import the Memory Router module
 $ModulePath = Join-Path $PSScriptRoot "MemoryRouter.psm1"
@@ -127,18 +140,41 @@ try {
         }
     }
 
+    # Compute token estimates for results with file paths
+    $tokenBudget = @{
+        TotalEstimate = 0
+        Warnings      = @()
+    }
+    foreach ($result in $results) {
+        $estimate = Get-TokenEstimate -FilePath $result.Path
+        $result | Add-Member -NotePropertyName 'TokenEstimate' -NotePropertyValue $estimate -Force
+        $tokenBudget.TotalEstimate += $estimate
+        if ($estimate -ge $TOKEN_DECOMPOSE_THRESHOLD) {
+            $tokenBudget.Warnings += "DECOMPOSE: $($result.Name) ($estimate tokens) exceeds $TOKEN_DECOMPOSE_THRESHOLD"
+        }
+        elseif ($estimate -ge $TOKEN_WARN_THRESHOLD) {
+            $tokenBudget.Warnings += "LARGE: $($result.Name) ($estimate tokens) exceeds $TOKEN_WARN_THRESHOLD"
+        }
+    }
+
     if ($Format -eq 'Table') {
         if ($results.Count -eq 0) {
             Write-Host "No results found for: $Query"
         }
         else {
-            $results | Format-Table -Property Name, Source, Score, @{
+            $results | Format-Table -Property Name, Source, Score, TokenEstimate, @{
                 Name       = 'Preview'
                 Expression = {
                     $preview = $_.Content -replace '\s+', ' '
                     if ($preview.Length -gt 60) { $preview.Substring(0, 57) + '...' } else { $preview }
                 }
             } -AutoSize
+
+            # Token budget summary
+            Write-Host "Token budget: $($tokenBudget.TotalEstimate) tokens (cumulative for $($results.Count) results)"
+            foreach ($warning in $tokenBudget.Warnings) {
+                Write-Warning $warning
+            }
         }
     }
     else {
@@ -148,13 +184,15 @@ try {
             Count        = $results.Count
             Source       = if ($LexicalOnly) { 'Serena' } elseif ($SemanticOnly) { 'Forgetful' } else { 'Unified' }
             SearchStatus = $searchStatus
+            TokenBudget  = $tokenBudget
             Results      = @($results | ForEach-Object {
                     @{
-                        Name    = $_.Name
-                        Source  = $_.Source
-                        Score   = $_.Score
-                        Path    = $_.Path
-                        Content = $_.Content
+                        Name          = $_.Name
+                        Source        = $_.Source
+                        Score         = $_.Score
+                        Path          = $_.Path
+                        Content       = $_.Content
+                        TokenEstimate = $_.TokenEstimate
                     }
                 })
             Diagnostic   = Get-MemoryRouterStatus

@@ -34,5 +34,5 @@ These are observations that may become patterns:
 
 ## Related
 
-- [session-protocol](../SESSION-PROTOCOL.md)
-- [session-management-patterns](session-management-patterns.md)
+- [session-protocol](../../.agents/SESSION-PROTOCOL.md)
+- `session-management-patterns`

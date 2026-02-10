@@ -73,7 +73,7 @@ skill-installer install vscode-agents --platform vscode
 skill-installer install copilot-cli-agents --platform copilot
 ```
 
-See [docs/installation.md](../docs/installation.md) for complete installation documentation.
+See [docs/installation.md](../../docs/installation.md) for complete installation documentation.
 
 ## Utility Scripts
 

@@ -115,7 +115,7 @@
 - Pattern: correct → implement → violate → correct (loop)
 
 **Evidence**: 
-- Session 15: 5+ violations despite [skill-usage-mandatory](skill-usage-mandatory.md), [user-preference-no-bash-python](user-preference-no-bash-python.md), [pattern-thin-workflows](pattern-thin-workflows.md) memories
+- Session 15: 5+ violations despite [skill-usage-mandatory](usage-mandatory.md), [user-preference-no-bash-python](user-preference-no-bash-python.md), [pattern-thin-workflows](pattern-thin-workflows.md) memories
 - Retrospective 2025-12-17: Trust-based protocol compliance failures
 
 **Root Cause**: No BLOCKING gates requiring verification (tool output) instead of trust (agent promise)

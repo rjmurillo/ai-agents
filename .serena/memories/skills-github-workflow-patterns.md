@@ -149,5 +149,5 @@ jobs:
 ## Related Files
 
 - `.github/actions/ai-review/action.yml` - Core composite action
-- `.github/scripts/ai-review-common.sh` - Shared bash utilities
+- .github/scripts/ai-review-common.sh (removed) - Shared bash utilities
 - `.github/workflows/ai-pr-quality-gate.yml` - Reference implementation

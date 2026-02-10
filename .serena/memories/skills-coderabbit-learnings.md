@@ -35,7 +35,7 @@ Import Method: Bulk import from CSV with atomicity validation
 
 - **Statement**: Infrastructure files (.github/workflows, .githooks, scripts) follow naming conventions that avoid spaces. Prioritize readability over handling edge cases like filenames with spaces/newlines in workflows.
 - **Context**: Code review on workflow files handling file paths
-- **Evidence**: PR #57 (vs-code-agents), CodeRabbit review on `.github/workflows/routing-check.yml`
+- **Evidence**: PR #57 (vs-code-agents), CodeRabbit review on .github/workflows/routing-check.yml (removed)
 - **Impact**: Prevents over-engineering defensive code for edge cases that will not occur
 - **Application**: When reviewing infrastructure scripts, do not require space-handling code unless the project specifically supports filenames with spaces
 
@@ -140,7 +140,7 @@ These skills help reduce false positive dismissal time when CodeRabbit flags pat
 ## Related
 
 - [skills-agent-workflow-index](skills-agent-workflow-index.md)
-- [skills-agent-workflow-phase3](skills-agent-workflow-phase3.md)
+- [skills-agent-workflow-phase3](skills-agent-workflow-index.md)
 - [skills-agent-workflows](skills-agent-workflows.md)
 - [skills-analysis-index](skills-analysis-index.md)
-- [skills-analysis](skills-analysis.md)
+- [skills-analysis](skills-analysis-index.md)

@@ -362,7 +362,7 @@ query($endCursor: String) {
 
 ## Related Memories
 
-- `skills-github-cli.md` - GitHub CLI command patterns
+- `skills-github-cli-index.md` - GitHub CLI command patterns (index)
 - `skills-github-workflow-patterns.md` - GitHub Actions patterns
 
 ## References

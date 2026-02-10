@@ -209,9 +209,9 @@ Files modified:
 - `scripts/Review-MemoryExportSecurity.ps1` (new)
 
 Files removed:
-- `scripts/export-memories.ts` (TypeScript wrapper)
-- `scripts/import-memories.ts` (TypeScript wrapper)
-- `scripts/Import-ClaudeMemMemories.ps1` (moved to `.claude-mem/scripts/`)
+- scripts/export-memories.ts (removed) (TypeScript wrapper)
+- scripts/import-memories.ts (removed) (TypeScript wrapper)
+- `.claude-mem/scripts/Import-ClaudeMemMemories.ps1` (moved to `.claude-mem/scripts/`)
 
 ## Related
 

@@ -121,8 +121,8 @@ Reference document linking all cost avoidance skills with quick comparison.
 ## Related Documents
 
 - [COST-GOVERNANCE.md](../../.agents/governance/COST-GOVERNANCE.md)
-- [ADR-007: GitHub Actions Runner Selection](../../.agents/architecture/ADR-007-github-actions-runner-selection.md)
-- [ADR-008: Artifact Storage Minimization](../../.agents/architecture/ADR-008-artifact-storage-minimization.md)
+- [ADR-007: GitHub Actions Runner Selection](../../.agents/architecture/ADR-032-github-actions-runner-selection.md)
+- [ADR-008: Artifact Storage Minimization](../../.agents/architecture/ADR-015-artifact-storage-minimization.md)
 - [SESSION-PROTOCOL.md](../../.agents/SESSION-PROTOCOL.md) Phase 5
 
 ## Version

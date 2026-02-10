@@ -1,11 +1,13 @@
 ---
-description: Use when exploring stored knowledge or verifying memory creation. Lists recent memories from Forgetful with optional project filtering.
+description: "DEPRECATED: Use Serena list_memories instead. Lists recent memories from Forgetful with optional project filtering."
 argument-hint: [project-name]
 allowed-tools:
   - mcp__forgetful__*
 ---
 
 # List Recent Memories
+
+> **Deprecated**: Use `mcp__serena__list_memories` for memory listing. See [Memory Interface Decision Matrix](../../../CLAUDE.md#memory-interface-decision-matrix).
 
 Show the most recently created memories from Forgetful.
 

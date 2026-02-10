@@ -74,7 +74,7 @@ Validation and utility scripts (PowerShell):
 - Sync-McpConfig.ps1 - MCP configuration sync
 
 > **Note**: Agent installation is handled by [skill-installer](https://github.com/rjmurillo/skill-installer).
-> See [docs/installation.md](../docs/installation.md) for installation instructions.
+> See [docs/installation.md](../../docs/installation.md) for installation instructions.
 
 ## docs/ Directory
 

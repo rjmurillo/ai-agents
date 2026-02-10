@@ -36,7 +36,7 @@ These are preferences that SHOULD be followed:
   - Source: Gap identified comparing actual agent usage vs documented capabilities during 8-agent exploration
   - Result: Added Output column to README, added Agent Output Formats table to AGENTS.md
 
-- Use full paths (e.g., `scripts/Validate-SessionJson.ps1`) not relative paths in documentation for clarity and direct invocation (Session 2026-01-16-session-07, 2026-01-16)
+- Use full paths (e.g., `scripts/validate_session_json.py`) not relative paths in documentation for clarity and direct invocation (Session 2026-01-16-session-07, 2026-01-16)
 
 - Follow-up issue creation for deferred concerns - when ADR debate results in DISAGREE AND COMMIT with P0 concern, create explicit follow-up issue to track resolution (Session 826, 2026-01-13)
   - Evidence: Independent-thinker raised P0 concern about CRLF line endings during ADR-040 amendment debate, deferred to issue #896 for investigation

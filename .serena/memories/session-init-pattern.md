@@ -86,7 +86,7 @@ Agents MUST use the `/session-init` skill which:
 - `.claude/commands/session-init.md` - Slash command documentation
 - `.claude/skills/session-log-fixer/SKILL.md` - Reactive fix (use session-init instead)
 - `.agents/SESSION-PROTOCOL.md` - Canonical template source (lines 494-612)
-- `scripts/Validate-SessionJson.ps1` - Validation script
+- `scripts/validate_session_json.py` - Validation script
 - `.serena/memories/protocol-template-enforcement.md` - Template enforcement pattern
 
 ## Related

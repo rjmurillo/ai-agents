@@ -80,9 +80,9 @@ Write code → Execute in target env → Address PR comments → Resolve securit
 
 ## Memories Updated
 
-1. [skills-validation](skills-validation.md) - Added Skill-Validation-004, 005, Skill-Skepticism-001, Anti-patterns
-2. [skills-ci-infrastructure](skills-ci-infrastructure.md) - Added Skill-CI-Research-002
-3. [skills-planning](skills-planning.md) - Added caveats to Skill-Planning-003, 004
+1. [skills-validation](skills-validation-index.md) - Added Skill-Validation-004, 005, Skill-Skepticism-001, Anti-patterns
+2. [skills-ci-infrastructure-index](skills-ci-infrastructure-index.md) - Added Skill-CI-Research-002
+3. [skills-planning](skills-planning-index.md) - Added caveats to Skill-Planning-003, 004
 
 ## Key Lesson
 

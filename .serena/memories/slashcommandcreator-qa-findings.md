@@ -129,8 +129,8 @@ Error: Cannot find path '.claude/skills/slashcommandcreator/Validate-SlashComman
 ## Pattern Learnings
 
 **Why Test Path Failed**:
-- Test file location: `scripts/Validate-SlashCommand.Tests.ps1`
-- Script location: `scripts/Validate-SlashCommand.ps1` (same directory)
+- Test file location: `.claude/skills/slashcommandcreator/scripts/Validate-SlashCommand.Tests.ps1`
+- Script location: `.claude/skills/slashcommandcreator/scripts/Validate-SlashCommand.ps1` (same directory)
 - Incorrect assumption: Script would be in parent directory
 - Pattern: When test and script are co-located, use `Join-Path $PSScriptRoot 'ScriptName.ps1'`
 

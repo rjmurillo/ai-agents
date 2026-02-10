@@ -24,12 +24,12 @@ Flattened nested structure using `git mv` to preserve history:
 
 ### Path Reference Updates (13 files)
 1. **Test files**:
-   - `tests/Extract-SessionTemplate.Tests.ps1`: Updated `$scriptPath` to `session-init`
-   - `tests/Get-ValidationErrors.Tests.ps1`: Updated `$scriptPath` to `session-log-fixer`
+   - tests/Extract-SessionTemplate.Tests.ps1 (removed): Updated `$scriptPath` to `session-init`
+   - tests/Get-ValidationErrors.Tests.ps1 (removed): Updated `$scriptPath` to `session-log-fixer`
 
 2. **Script documentation**:
-   - `session-init/scripts/Extract-SessionTemplate.ps1`: Updated `.EXAMPLE` blocks
-   - `session-log-fixer/scripts/Get-ValidationErrors.ps1`: Updated `.EXAMPLE` blocks
+   - .claude/skills/session-init/scripts/Extract-SessionTemplate.ps1 (removed): Updated `.EXAMPLE` blocks
+   - `.claude/skills/session-log-fixer/scripts/Get-ValidationErrors.ps1`: Updated `.EXAMPLE` blocks
 
 3. **SKILL.md documentation**:
    - `session-init/SKILL.md`: Updated usage examples

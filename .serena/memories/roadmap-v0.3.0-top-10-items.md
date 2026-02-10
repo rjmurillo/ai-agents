@@ -4,7 +4,7 @@
 **Milestone**: v0.3.0 - Memory Enhancement and Quality
 **Total Issues**: 23 (revised from 29 after MCP deferral)
 **Master Plan**: `.agents/planning/v0.3.0/PLAN.md`
-**Analysis Session**: `.agents/sessions/2026-01-23-session-01-v0.3.0-milestone-review.json`
+**Analysis Session**: .agents/sessions/2026-01-23-session-01-v0.3.0-milestone-review.json (removed)
 
 > **⚠️ SCOPE REVISION (2026-01-23)**: 17 issues deferred to Future milestone:
 > - 11 MCP Infrastructure issues (#582-#592) - TypeScript MCPs
@@ -148,7 +148,7 @@ All 10 items have:
 - **PRDs**: 
   - Memory Enhancement: `.agents/specs/PRD-memory-enhancement-layer-for-serena-forgetful.md`
   - Workflow Orchestration: `.agents/planning/prd-workflow-orchestration-enhancement.md`
-- **Session Log**: `.agents/sessions/2026-01-23-session-01-v0.3.0-milestone-review.json`
+- **Session Log**: .agents/sessions/2026-01-23-session-01-v0.3.0-milestone-review.json (removed)
 
 ## Success Criteria for v0.3.0 (REVISED)
 
