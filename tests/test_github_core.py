@@ -34,7 +34,8 @@ from scripts.github_core import (
     resolve_repo_params,
     update_issue_comment,
 )
-from scripts.github_core.api import _403_PATTERN, _DEFAULT_BOTS
+from scripts.github_core.api import _403_PATTERN
+from scripts.github_core.bot_config import _DEFAULT_BOTS
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -688,7 +689,7 @@ class TestGetBotAuthorsConfig:
             "reviewer:\n  - bot1\nautomation:\n  - bot2\nrepository:\n  - bot3\n"
         )
         # Mock _find_repo_root to skip CWE-22 check (tmp_path is outside repo)
-        with patch("scripts.github_core.api._find_repo_root", return_value=None):
+        with patch("scripts.github_core.bot_config._find_repo_root", return_value=None):
             result = get_bot_authors_config(config_path=str(config), force=True)
         assert set(result.keys()) == {"reviewer", "automation", "repository"}
 
@@ -697,7 +698,7 @@ class TestGetBotAuthorsConfig:
         config.write_text(
             "reviewer:\n  - r1\n  - r2\nautomation:\n  - a1\nrepository:\n  - p1\n"
         )
-        with patch("scripts.github_core.api._find_repo_root", return_value=None):
+        with patch("scripts.github_core.bot_config._find_repo_root", return_value=None):
             result = get_bot_authors_config(config_path=str(config), force=True)
         assert len(result["reviewer"]) == 2
         assert len(result["automation"]) == 1
@@ -706,7 +707,7 @@ class TestGetBotAuthorsConfig:
     def test_caches_result(self, tmp_path: Path):
         config = tmp_path / "bot-authors.yml"
         config.write_text("reviewer:\n  - bot1\nautomation:\n  - bot2\nrepository:\n  - bot3\n")
-        with patch("scripts.github_core.api._find_repo_root", return_value=None):
+        with patch("scripts.github_core.bot_config._find_repo_root", return_value=None):
             r1 = get_bot_authors_config(config_path=str(config), force=True)
             r2 = get_bot_authors_config(config_path=str(config))
         assert r1 is r2
@@ -714,7 +715,7 @@ class TestGetBotAuthorsConfig:
     def test_force_reloads(self, tmp_path: Path):
         config = tmp_path / "bot-authors.yml"
         config.write_text("reviewer:\n  - old\nautomation:\n  - a\nrepository:\n  - r\n")
-        with patch("scripts.github_core.api._find_repo_root", return_value=None):
+        with patch("scripts.github_core.bot_config._find_repo_root", return_value=None):
             get_bot_authors_config(config_path=str(config), force=True)
             config.write_text("reviewer:\n  - new\nautomation:\n  - a\nrepository:\n  - r\n")
             result = get_bot_authors_config(config_path=str(config), force=True)
@@ -727,7 +728,7 @@ class TestGetBotAuthorsConfig:
     def test_falls_back_on_empty_config(self, tmp_path: Path):
         config = tmp_path / "bot-authors.yml"
         config.write_text("")
-        with patch("scripts.github_core.api._find_repo_root", return_value=None):
+        with patch("scripts.github_core.bot_config._find_repo_root", return_value=None):
             result = get_bot_authors_config(config_path=str(config), force=True)
         assert result == _DEFAULT_BOTS
 
@@ -739,7 +740,7 @@ class TestGetBotAuthorsConfig:
         repo_root = tmp_path / "repo"
         repo_root.mkdir()
         with patch(
-            "scripts.github_core.api._find_repo_root",
+            "scripts.github_core.bot_config._find_repo_root",
             return_value=str(repo_root),
         ):
             with pytest.warns(UserWarning, match="outside repository root"):
@@ -750,7 +751,7 @@ class TestGetBotAuthorsConfig:
 class TestGetBotAuthors:
     def test_all_returns_combined_sorted(self):
         with patch(
-            "scripts.github_core.api.get_bot_authors_config",
+            "scripts.github_core.bot_config.get_bot_authors_config",
             return_value=_DEFAULT_BOTS,
         ):
             result = get_bot_authors("all")
@@ -761,7 +762,7 @@ class TestGetBotAuthors:
 
     def test_reviewer_category(self):
         with patch(
-            "scripts.github_core.api.get_bot_authors_config",
+            "scripts.github_core.bot_config.get_bot_authors_config",
             return_value=_DEFAULT_BOTS,
         ):
             result = get_bot_authors("reviewer")
@@ -772,7 +773,7 @@ class TestGetBotAuthors:
 
     def test_automation_category(self):
         with patch(
-            "scripts.github_core.api.get_bot_authors_config",
+            "scripts.github_core.bot_config.get_bot_authors_config",
             return_value=_DEFAULT_BOTS,
         ):
             result = get_bot_authors("automation")
@@ -782,7 +783,7 @@ class TestGetBotAuthors:
 
     def test_repository_category(self):
         with patch(
-            "scripts.github_core.api.get_bot_authors_config",
+            "scripts.github_core.bot_config.get_bot_authors_config",
             return_value=_DEFAULT_BOTS,
         ):
             result = get_bot_authors("repository")
@@ -792,7 +793,7 @@ class TestGetBotAuthors:
 
     def test_default_is_all(self):
         with patch(
-            "scripts.github_core.api.get_bot_authors_config",
+            "scripts.github_core.bot_config.get_bot_authors_config",
             return_value=_DEFAULT_BOTS,
         ):
             result = get_bot_authors()

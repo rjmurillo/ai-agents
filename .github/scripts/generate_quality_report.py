@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Generate the PR quality gate markdown report from aggregated agent verdicts.
 
-Input env vars:
+Input env vars (used as defaults for CLI args):
     RUN_ID, SERVER_URL, REPOSITORY, EVENT_NAME, REF_NAME, SHA
     FINAL_VERDICT
     SECURITY_VERDICT, QA_VERDICT, ANALYST_VERDICT,
@@ -14,6 +14,7 @@ Input env vars:
 
 from __future__ import annotations
 
+import argparse
 import os
 import sys
 
@@ -40,6 +41,61 @@ _AGENT_DISPLAY_NAMES = {
     "devops": "DevOps",
     "roadmap": "Roadmap",
 }
+
+
+def build_parser() -> argparse.ArgumentParser:
+    """Build the argument parser."""
+    parser = argparse.ArgumentParser(
+        description="Generate the PR quality gate markdown report from aggregated agent verdicts.",
+    )
+    parser.add_argument(
+        "--run-id",
+        default=os.environ.get("RUN_ID", ""),
+        help="GitHub Actions run ID",
+    )
+    parser.add_argument(
+        "--server-url",
+        default=os.environ.get("SERVER_URL", ""),
+        help="GitHub server URL",
+    )
+    parser.add_argument(
+        "--repository",
+        default=os.environ.get("REPOSITORY", ""),
+        help="Repository in owner/repo format",
+    )
+    parser.add_argument(
+        "--event-name",
+        default=os.environ.get("EVENT_NAME", ""),
+        help="Triggering event name",
+    )
+    parser.add_argument(
+        "--ref-name",
+        default=os.environ.get("REF_NAME", ""),
+        help="Git ref name",
+    )
+    parser.add_argument(
+        "--sha",
+        default=os.environ.get("SHA", ""),
+        help="Git commit SHA",
+    )
+    parser.add_argument(
+        "--final-verdict",
+        default=os.environ.get("FINAL_VERDICT", ""),
+        help="Final aggregated verdict",
+    )
+    for agent in _AGENTS:
+        upper = agent.upper()
+        parser.add_argument(
+            f"--{agent}-verdict",
+            default=os.environ.get(f"{upper}_VERDICT", ""),
+            help=f"{agent.capitalize()} agent verdict",
+        )
+        parser.add_argument(
+            f"--{agent}-category",
+            default=os.environ.get(f"{upper}_CATEGORY", ""),
+            help=f"{agent.capitalize()} failure category",
+        )
+    return parser
 
 
 def _build_findings_sections() -> str:
@@ -79,28 +135,30 @@ def _build_findings_sections() -> str:
     return sections
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+
     report_dir = initialize_ai_review()
     if not os.path.isdir(report_dir):
         print(f"::error::Failed to initialize AI review directory: {report_dir}")
-        sys.exit(1)
+        return 1
 
     report_file = os.path.join(report_dir, "pr-quality-report.md")
 
-    run_id = os.environ.get("RUN_ID", "")
-    server_url = os.environ.get("SERVER_URL", "")
-    repository = os.environ.get("REPOSITORY", "")
-    event_name = os.environ.get("EVENT_NAME", "")
-    ref_name = os.environ.get("REF_NAME", "")
-    sha = os.environ.get("SHA", "")
-    final_verdict = os.environ.get("FINAL_VERDICT", "")
+    run_id: str = args.run_id
+    server_url: str = args.server_url
+    repository: str = args.repository
+    event_name: str = args.event_name
+    ref_name: str = args.ref_name
+    sha: str = args.sha
+    final_verdict: str = args.final_verdict
 
     verdicts: dict[str, str] = {}
     categories: dict[str, str] = {}
     emojis: dict[str, str] = {}
     for agent in _AGENTS:
-        verdicts[agent] = os.environ.get(f"{agent.upper()}_VERDICT", "")
-        categories[agent] = os.environ.get(f"{agent.upper()}_CATEGORY", "")
+        verdicts[agent] = getattr(args, f"{agent}_verdict")
+        categories[agent] = getattr(args, f"{agent}_category")
         emojis[agent] = get_verdict_emoji(verdicts[agent])
 
     alert_type = get_verdict_alert_type(final_verdict)
@@ -179,7 +237,8 @@ def main() -> None:
         f.write(report)
 
     write_output("report_file", report_file)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

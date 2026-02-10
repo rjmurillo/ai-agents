@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Parse AI roadmap alignment output into milestone, priority, and escalation fields.
 
-Input env vars:
+Input env vars (used as defaults for CLI args):
     RAW_OUTPUT            - AI output with milestone, priority, escalation data
     MILESTONE_FROM_ACTION - Fallback milestone from composite action output
     GITHUB_OUTPUT         - Path to GitHub Actions output file
@@ -10,6 +10,7 @@ Input env vars:
 
 from __future__ import annotations
 
+import argparse
 import os
 import re
 import sys
@@ -32,9 +33,31 @@ _COMPLEXITY_PATTERN = re.compile(r'"complexity_score"\s*:\s*(\d{1,2})')
 _CRITERIA_PATTERN = re.compile(r'"escalation_criteria"\s*:\s*\[([^\]]*)\]')
 
 
-def main() -> None:
-    raw_output = os.environ.get("RAW_OUTPUT", "")
-    milestone_from_action = os.environ.get("MILESTONE_FROM_ACTION", "")
+def build_parser() -> argparse.ArgumentParser:
+    """Build the argument parser."""
+    parser = argparse.ArgumentParser(
+        description=(
+            "Parse AI roadmap alignment output into milestone,"
+            " priority, and escalation fields."
+        ),
+    )
+    parser.add_argument(
+        "--raw-output",
+        default=os.environ.get("RAW_OUTPUT", ""),
+        help="AI output with milestone, priority, escalation data",
+    )
+    parser.add_argument(
+        "--milestone-from-action",
+        default=os.environ.get("MILESTONE_FROM_ACTION", ""),
+        help="Fallback milestone from composite action output",
+    )
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    raw_output: str = args.raw_output
+    milestone_from_action: str = args.milestone_from_action
 
     try:
         with open("/tmp/align-output.txt", "w", encoding="utf-8") as f:
@@ -79,7 +102,8 @@ def main() -> None:
     write_output("escalate_to_prd", escalate_to_prd)
     write_output("complexity_score", str(complexity_score))
     write_output("escalation_criteria", escalation_criteria)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

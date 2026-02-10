@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Generate a session protocol compliance report in markdown.
 
-Input env vars:
+Input env vars (used as defaults for CLI args):
     OVERALL_VERDICT    - Aggregated verdict from the aggregate step
     MUST_FAILURES      - Total count of MUST requirement failures
     GITHUB_REPOSITORY  - Repository in owner/repo format
@@ -13,6 +13,7 @@ Input env vars:
 
 from __future__ import annotations
 
+import argparse
 import os
 import sys
 from glob import glob
@@ -31,12 +32,46 @@ from scripts.ai_review_common import (  # noqa: E402
 )
 
 
-def main() -> None:
-    overall_verdict = os.environ.get("OVERALL_VERDICT", "PASS")
-    must_failures = os.environ.get("MUST_FAILURES", "0")
-    github_repository = os.environ.get("GITHUB_REPOSITORY", "")
-    server_url = os.environ.get("SERVER_URL", "")
-    run_id = os.environ.get("RUN_ID", "")
+def build_parser() -> argparse.ArgumentParser:
+    """Build the argument parser."""
+    parser = argparse.ArgumentParser(
+        description="Generate a session protocol compliance report in markdown.",
+    )
+    parser.add_argument(
+        "--overall-verdict",
+        default=os.environ.get("OVERALL_VERDICT", "PASS"),
+        help="Aggregated verdict from the aggregate step",
+    )
+    parser.add_argument(
+        "--must-failures",
+        default=os.environ.get("MUST_FAILURES", "0"),
+        help="Total count of MUST requirement failures",
+    )
+    parser.add_argument(
+        "--github-repository",
+        default=os.environ.get("GITHUB_REPOSITORY", ""),
+        help="Repository in owner/repo format",
+    )
+    parser.add_argument(
+        "--server-url",
+        default=os.environ.get("SERVER_URL", ""),
+        help="GitHub server URL",
+    )
+    parser.add_argument(
+        "--run-id",
+        default=os.environ.get("RUN_ID", ""),
+        help="GitHub Actions run ID",
+    )
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    overall_verdict: str = args.overall_verdict
+    must_failures: str = args.must_failures
+    github_repository: str = args.github_repository
+    server_url: str = args.server_url
+    run_id: str = args.run_id
 
     report_dir = initialize_ai_review()
     report_file = os.path.join(report_dir, "session-compliance-report.md")
@@ -159,7 +194,8 @@ Powered by [`validate_session_json.py`](../../scripts/validate_session_json.py)
         f.write(report)
 
     write_output("report_file", report_file)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
