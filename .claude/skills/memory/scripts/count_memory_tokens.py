@@ -12,6 +12,28 @@ import sys
 from pathlib import Path
 from typing import Any
 
+
+def validate_path_no_traversal(path: Path) -> Path:
+    """Validate path has no traversal patterns (CWE-22 protection).
+
+    Rejects '..' components and resolves to canonical form.
+    Relative paths must resolve within the current working directory.
+    Absolute paths are allowed (OS permissions provide access control).
+    """
+    if ".." in str(path):
+        raise PermissionError(
+            f"Path traversal detected: '{path}' contains '..'"
+        )
+    resolved = path.resolve()
+    if not path.is_absolute():
+        try:
+            resolved.relative_to(Path.cwd().resolve())
+        except ValueError as exc:
+            raise PermissionError(
+                f"Path '{path}' resolves outside working directory"
+            ) from exc
+    return resolved
+
 _HAS_TIKTOKEN = False
 try:
     import tiktoken
@@ -66,6 +88,7 @@ def get_memory_token_count(
     Returns:
         Token count for the file
     """
+    memory_path = validate_path_no_traversal(memory_path)
     if not memory_path.exists():
         raise FileNotFoundError(f"Memory file not found: {memory_path}")
 
@@ -191,6 +214,7 @@ def main() -> int:
     args = parser.parse_args()
 
     try:
+        args.path = validate_path_no_traversal(args.path)
         if args.path.is_file():
             # Single file mode
             count = get_memory_token_count(args.path, args.cache, args.force)

@@ -15,6 +15,28 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
+def validate_path_no_traversal(path: Path) -> Path:
+    """Validate path has no traversal patterns (CWE-22 protection).
+
+    Rejects '..' components and resolves to canonical form.
+    Relative paths must resolve within the current working directory.
+    Absolute paths are allowed (OS permissions provide access control).
+    """
+    if ".." in str(path):
+        raise PermissionError(
+            f"Path traversal detected: '{path}' contains '..'"
+        )
+    resolved = path.resolve()
+    if not path.is_absolute():
+        try:
+            resolved.relative_to(Path.cwd().resolve())
+        except ValueError as exc:
+            raise PermissionError(
+                f"Path '{path}' resolves outside working directory"
+            ) from exc
+    return resolved
+
+
 @dataclass
 class ValidationResult:
     """Memory file validation result."""
@@ -55,6 +77,7 @@ class MemorySizeValidator:
         Returns:
             ValidationResult with detailed findings
         """
+        file_path = validate_path_no_traversal(file_path)
         if not file_path.exists():
             raise FileNotFoundError(f"Memory file not found: {file_path}")
 
@@ -259,6 +282,12 @@ def main():
     )
 
     args = parser.parse_args()
+
+    try:
+        args.path = validate_path_no_traversal(args.path)
+    except PermissionError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
 
     validator = MemorySizeValidator(
         max_chars=args.max_chars,

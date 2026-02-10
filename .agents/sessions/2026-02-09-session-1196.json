@@ -83,9 +83,24 @@
       "task": "P3b: Health dashboard and quarterly curation process",
       "outcome": "Created scripts/memory/memory_health.py. Metrics: 983 memories, 97% size compliance, ~602K tokens. Documented quarterly process in README.",
       "commit": "ddecb152"
+    },
+    {
+      "task": "PR review: Fix 3 critical issues from verification review",
+      "outcome": "Fixed tiktoken detection (HAS_TIKTOKEN always True), per-file error handling, docstring accuracy. Fixed pre-push hook merge detection for commit count.",
+      "commit": "008f0b35"
+    },
+    {
+      "task": "PR review: Fix 10 important review findings",
+      "outcome": "Narrowed bare except clauses, added per-file error isolation, protected cache writes, wired --stale-only flag, fixed exit codes and threshold comment.",
+      "commit": "3bf64f27"
+    },
+    {
+      "task": "PR review: Address CWE-22 path traversal and reviewer feedback",
+      "outcome": "Added validate_path_no_traversal() to count_memory_tokens.py and test_memory_size.py. Clarified units in SESSION-PROTOCOL. Created repo-level wrapper for skill encapsulation.",
+      "commit": "pending"
     }
   ],
-  "endingCommit": "73c7078b",
+  "endingCommit": "pending",
   "nextSteps": [
     "P2a: Create session compaction tool (requires Claude API access, deferred)",
     "P2b: Integrate compaction into session protocol (blocked by P2a)",

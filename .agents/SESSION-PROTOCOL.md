@@ -444,11 +444,11 @@ The agent MUST run quality checks before ending.
 3. The agent SHOULD check memory sizes if `.serena/memories/` files were created or modified:
 
    ```bash
-   python3 .claude/skills/memory/scripts/test_memory_size.py .serena/memories --pattern "*.md"
+   python3 scripts/memory/validate_memory_sizes.py .serena/memories --pattern "*.md"
    ```
 
-   - New memories over 10,000 chars need decomposition before commit
-   - Modified memories over 8,000 chars should be flagged for future decomposition
+   - New memories over 10,000 characters (~2,500 tokens) need decomposition before commit
+   - Modified memories over 8,000 characters should be flagged for future decomposition
    - See `.serena/memories/README.md` for decomposition guidelines
 
 4. The agent MUST NOT end session with known failing lints
