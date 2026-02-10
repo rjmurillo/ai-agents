@@ -107,12 +107,12 @@ See [`.agents/SESSION-PROTOCOL.md`](.agents/SESSION-PROTOCOL.md) for full specif
         must_file = f"validation-results/{name}-must-failures.txt"
         if os.path.exists(must_file):
             with open(must_file, encoding="utf-8") as f:
-                must_count = f.read().strip()
+                row_must = f.read().strip()
         else:
-            must_count = "0"
+            row_must = "0"
 
         row_emoji = get_verdict_emoji(verdict)
-        report += f"| `{name}.md` | {row_emoji} {verdict} | {must_count} |\n"
+        report += f"| `{name}.md` | {row_emoji} {verdict} | {row_must} |\n"
 
     # Add detailed findings
     report += "\n### Detailed Validation Results\n"

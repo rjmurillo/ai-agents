@@ -128,7 +128,8 @@ def get_open_prs(owner: str, repo: str, limit: int = 20) -> list[dict]:
     if pull_requests is None:
         return []
 
-    return pull_requests.get("nodes", [])
+    nodes: list[dict] = pull_requests.get("nodes", [])
+    return nodes
 
 
 # ---------------------------------------------------------------------------
