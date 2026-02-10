@@ -38,7 +38,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    results_dir: str = args.results_dir
+    results_dir = os.path.abspath(args.results_dir)
     overall_verdict = "PASS"
     total_must_failures = 0
 
