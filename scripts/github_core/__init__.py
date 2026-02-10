@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from scripts.github_core.api import (
+from scripts.github_core.api import (  # noqa: F401
     DEFAULT_RATE_THRESHOLDS,
     RateLimitResult,
     assert_gh_authenticated,
@@ -22,11 +22,11 @@ from scripts.github_core.api import (
     resolve_repo_params,
     update_issue_comment,
 )
-from scripts.github_core.formatting import (
+from scripts.github_core.formatting import (  # noqa: F401
     get_priority_emoji,
     get_reaction_emoji,
 )
-from scripts.github_core.validation import (
+from scripts.github_core.validation import (  # noqa: F401
     assert_valid_body_file,
     is_github_name_valid,
     is_safe_file_path,

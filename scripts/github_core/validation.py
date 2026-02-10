@@ -1,4 +1,4 @@
-"""Input validation functions for GitHub operations (CWE-22/CWE-78 prevention)."""
+"""Input validation: GitHub name validation, path traversal prevention."""
 
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ def is_github_name_valid(name: str, name_type: str) -> bool:
 
     Args:
         name: The name to validate.
-        name_type: Either "Owner" or "Repo".
+        name_type: Either "owner" or "repo" (case-insensitive).
 
     Returns:
         True if the name conforms to GitHub's rules.
@@ -30,9 +30,10 @@ def is_github_name_valid(name: str, name_type: str) -> bool:
     if not name or not name.strip():
         return False
 
-    if name_type == "Owner":
+    normalized = name_type.lower()
+    if normalized == "owner":
         return bool(_OWNER_PATTERN.match(name))
-    if name_type == "Repo":
+    if normalized == "repo":
         return bool(_REPO_PATTERN.match(name))
 
     return False
@@ -79,5 +80,5 @@ def assert_valid_body_file(body_file: str, allowed_base: str | None = None) -> N
     if not Path(body_file).exists():
         error_and_exit(f"Body file not found: {body_file}", 2)
 
-    if allowed_base and not is_safe_file_path(body_file, allowed_base):
+    if not is_safe_file_path(body_file, allowed_base):
         error_and_exit(f"Body file path traversal not allowed: {body_file}", 1)

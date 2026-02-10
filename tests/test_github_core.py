@@ -164,7 +164,7 @@ class TestAssertValidBodyFile:
     def test_passes_when_file_exists(self, tmp_path: Path):
         f = tmp_path / "body.md"
         f.write_text("hello")
-        assert_valid_body_file(str(f))
+        assert_valid_body_file(str(f), str(tmp_path))
 
     def test_raises_on_traversal(self, tmp_path: Path):
         # Create file at parent so it exists, but path has traversal
