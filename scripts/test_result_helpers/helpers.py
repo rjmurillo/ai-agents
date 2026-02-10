@@ -43,6 +43,10 @@ def create_skipped_test_result(
     )
 
     path = Path(output_path)
+
+    if not path.is_absolute() and ".." in path.parts:
+        raise ValueError(f"Relative path traversal attempt detected: {output_path}")
+
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(xml_content, encoding="utf-8")
     return path

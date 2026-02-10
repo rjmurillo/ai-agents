@@ -247,6 +247,16 @@ class TestGetMaintenanceResults:
 
         assert isinstance(result, MaintenanceResults)
 
+    def test_rejects_relative_path_traversal(self):
+        with pytest.raises(ValueError, match="Relative path traversal"):
+            get_maintenance_results("../../etc/passwd")
+
+    def test_allows_absolute_path(self, tmp_path: Path):
+        log_file = tmp_path / "test.log"
+        log_file.write_text("PRs Processed: 1\n", encoding="utf-8")
+        result = get_maintenance_results(str(log_file.resolve()))
+        assert result.processed == 1
+
 
 # ---------------------------------------------------------------------------
 # create_maintenance_summary

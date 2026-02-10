@@ -163,6 +163,24 @@ class TestParameterValidation:
             create_skipped_test_result(output, skip_reason="")
 
 
+class TestPathSecurity:
+    """Security tests for CWE-22 path traversal prevention."""
+
+    def test_rejects_relative_path_traversal(self, tmp_path: Path) -> None:
+        with pytest.raises(ValueError, match="Relative path traversal"):
+            create_skipped_test_result("../../etc/evil.xml")
+
+    def test_allows_absolute_path(self, tmp_path: Path) -> None:
+        output = tmp_path / "results.xml"
+        result = create_skipped_test_result(str(output.resolve()))
+        assert result.exists()
+
+    def test_allows_relative_path_without_traversal(self, tmp_path: Path) -> None:
+        output = tmp_path / "subdir" / "results.xml"
+        result = create_skipped_test_result(output)
+        assert result.exists()
+
+
 class TestRealWorldPatterns:
     """Tests matching real CI workflow usage patterns."""
 

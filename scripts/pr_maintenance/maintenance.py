@@ -36,6 +36,9 @@ def get_maintenance_results(log_path: str | Path) -> MaintenanceResults:
     """Parse PR maintenance log file to extract metrics."""
     path = Path(log_path)
 
+    if not path.is_absolute() and ".." in path.parts:
+        raise ValueError(f"Relative path traversal attempt detected: {log_path}")
+
     if not path.exists():
         warnings.warn(f"Log file not found: {log_path}", stacklevel=2)
         return MaintenanceResults(
