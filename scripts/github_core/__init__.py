@@ -28,6 +28,8 @@ from scripts.github_core.formatting import (  # noqa: F401
     get_priority_emoji,
     get_reaction_emoji,
 )
+from scripts.github_core.gh_client import GhCliClient  # noqa: F401
+from scripts.github_core.protocol import GitHubClient  # noqa: F401
 from scripts.github_core.validation import (  # noqa: F401
     assert_valid_body_file,
     is_github_name_valid,
@@ -36,6 +38,8 @@ from scripts.github_core.validation import (  # noqa: F401
 
 __all__ = [
     "DEFAULT_RATE_THRESHOLDS",
+    "GhCliClient",
+    "GitHubClient",
     "RateLimitResult",
     "assert_gh_authenticated",
     "assert_valid_body_file",

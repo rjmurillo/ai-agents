@@ -10,7 +10,10 @@ import sys
 import warnings
 from dataclasses import dataclass
 from datetime import datetime
-from typing import NoReturn
+from typing import TYPE_CHECKING, NoReturn
+
+if TYPE_CHECKING:
+    from scripts.github_core.protocol import GitHubClient
 
 from scripts.github_core.validation import is_github_name_valid
 
@@ -396,8 +399,21 @@ LIKELY CAUSES:
 RAW ERROR: {error}"""
 
 
-def get_issue_comments(owner: str, repo: str, issue_number: int) -> list[dict]:
-    """Fetch all comments for a GitHub issue with pagination."""
+def get_issue_comments(
+    owner: str,
+    repo: str,
+    issue_number: int,
+    client: GitHubClient | None = None,
+) -> list[dict]:
+    """Fetch all comments for a GitHub issue.
+
+    When *client* is provided, delegates to ``client.rest_get``.
+    Otherwise falls back to the existing paginated ``gh api`` subprocess call.
+    """
+    if client is not None:
+        endpoint = f"repos/{owner}/{repo}/issues/{issue_number}/comments"
+        result = client.rest_get(endpoint)
+        return result if isinstance(result, list) else [result]
     return gh_api_paginated(f"repos/{owner}/{repo}/issues/{issue_number}/comments")
 
 
@@ -443,20 +459,29 @@ def update_issue_comment(owner: str, repo: str, comment_id: int, body: str) -> d
     return response
 
 
-def create_issue_comment(owner: str, repo: str, issue_number: int, body: str) -> dict:
+def create_issue_comment(
+    owner: str,
+    repo: str,
+    issue_number: int,
+    body: str,
+    client: GitHubClient | None = None,
+) -> dict:
     """Create a new GitHub issue comment.
 
-    Raises SystemExit with code 3 on API failure.
+    When *client* is provided, delegates to ``client.rest_post``.
+    Otherwise falls back to the existing ``gh api`` subprocess call.
+
+    Raises SystemExit with code 3 on API failure (subprocess path only).
     """
+    endpoint = f"repos/{owner}/{repo}/issues/{issue_number}/comments"
+
+    if client is not None:
+        return client.rest_post(endpoint, {"body": body})
+
     payload = json.dumps({"body": body})
 
     result = subprocess.run(
-        [
-            "gh", "api",
-            f"repos/{owner}/{repo}/issues/{issue_number}/comments",
-            "-X", "POST",
-            "--input", "-",
-        ],
+        ["gh", "api", endpoint, "-X", "POST", "--input", "-"],
         input=payload,
         capture_output=True,
         text=True,
