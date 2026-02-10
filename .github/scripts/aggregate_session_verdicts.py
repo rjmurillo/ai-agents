@@ -20,7 +20,7 @@ from glob import glob
 workspace = os.environ.get("GITHUB_WORKSPACE", ".")
 sys.path.insert(0, workspace)
 
-from scripts.ai_review_common import write_log
+from scripts.ai_review_common import write_log  # noqa: E402
 
 
 def write_output(key: str, value: str) -> None:

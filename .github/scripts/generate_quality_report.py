@@ -25,7 +25,7 @@ import traceback
 workspace = os.environ.get("GITHUB_WORKSPACE", ".")
 sys.path.insert(0, workspace)
 
-from scripts.ai_review_common import (
+from scripts.ai_review_common import (  # noqa: E402
     get_verdict_alert_type,
     get_verdict_emoji,
     initialize_ai_review,
@@ -138,12 +138,16 @@ def main() -> None:
             "<details>",
             "<summary>Walkthrough</summary>",
             "",
-            "This PR was reviewed by six AI agents **in parallel**, analyzing different aspects of the changes:",
+            "This PR was reviewed by six AI agents **in parallel**,"
+            " analyzing different aspects of the changes:",
             "",
-            "- **Security Agent**: Scans for vulnerabilities, secrets exposure, and security anti-patterns",
+            "- **Security Agent**: Scans for vulnerabilities, secrets exposure,"
+            " and security anti-patterns",
             "- **QA Agent**: Evaluates test coverage, error handling, and code quality",
-            "- **Analyst Agent**: Assesses code quality, impact analysis, and maintainability",
-            "- **Architect Agent**: Reviews design patterns, system boundaries, and architectural concerns",
+            "- **Analyst Agent**: Assesses code quality, impact analysis,"
+            " and maintainability",
+            "- **Architect Agent**: Reviews design patterns, system boundaries,"
+            " and architectural concerns",
             "- **DevOps Agent**: Evaluates CI/CD, build pipelines, and infrastructure changes",
             "- **Roadmap Agent**: Assesses strategic alignment, feature scope, and user value",
             "",

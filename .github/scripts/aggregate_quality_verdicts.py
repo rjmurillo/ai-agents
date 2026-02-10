@@ -22,7 +22,7 @@ import sys
 workspace = os.environ.get("GITHUB_WORKSPACE", ".")
 sys.path.insert(0, workspace)
 
-from scripts.ai_review_common import merge_verdicts, write_log
+from scripts.ai_review_common import merge_verdicts, write_log  # noqa: E402
 
 _FAILURE_VERDICTS = frozenset({"CRITICAL_FAIL", "REJECTED", "FAIL", "NEEDS_REVIEW"})
 

@@ -19,7 +19,7 @@ import sys
 workspace = os.environ.get("GITHUB_WORKSPACE", ".")
 sys.path.insert(0, workspace)
 
-from scripts.ai_review_common import spec_validation_failed
+from scripts.ai_review_common import spec_validation_failed  # noqa: E402
 
 
 def main() -> None:

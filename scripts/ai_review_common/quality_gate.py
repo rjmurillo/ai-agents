@@ -1,4 +1,4 @@
-"""Quality gate functions: verdict parsing, label/milestone extraction, retry logic, workflow analysis."""
+"""Quality gate: verdict parsing, label/milestone extraction, retry, workflows."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ import re
 import subprocess
 import time
 from collections.abc import Callable
-from datetime import UTC, datetime
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 

@@ -22,7 +22,7 @@ import sys
 workspace = os.environ.get("GITHUB_WORKSPACE", ".")
 sys.path.insert(0, workspace)
 
-from scripts.ai_review_common import get_labels_from_ai_output
+from scripts.ai_review_common import get_labels_from_ai_output  # noqa: E402
 
 _SAFE_NAME = re.compile(
     r"^(?=.{1,50}$)[A-Za-z0-9](?:[A-Za-z0-9 _.\-]*[A-Za-z0-9])?$"

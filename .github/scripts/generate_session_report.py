@@ -24,7 +24,7 @@ from glob import glob
 workspace = os.environ.get("GITHUB_WORKSPACE", ".")
 sys.path.insert(0, workspace)
 
-from scripts.ai_review_common import (
+from scripts.ai_review_common import (  # noqa: E402
     get_verdict_alert_type,
     get_verdict_emoji,
     initialize_ai_review,
