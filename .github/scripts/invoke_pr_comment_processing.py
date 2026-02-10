@@ -139,6 +139,7 @@ def reply_to_comment(
 
     Returns True on success, False on failure.
     """
+    payload = json.dumps({"body": body})
     result = subprocess.run(
         [
             "gh",
@@ -146,9 +147,10 @@ def reply_to_comment(
             f"repos/{owner}/{repo}/pulls/{pr_number}/comments/{comment_id}/replies",
             "-X",
             "POST",
-            "-f",
-            f"body={body}",
+            "--input",
+            "-",
         ],
+        input=payload,
         capture_output=True,
         text=True,
         timeout=30,

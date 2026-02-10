@@ -77,7 +77,7 @@ def get_repo_info() -> dict[str, str] | None:
         if result.returncode != 0:
             return None
 
-        match = _GITHUB_REMOTE_PATTERN.search(result.stdout)
+        match = _GITHUB_REMOTE_PATTERN.search(result.stdout.strip())
         if match:
             return {
                 "Owner": match.group(1),

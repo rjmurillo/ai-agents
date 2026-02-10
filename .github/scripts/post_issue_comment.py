@@ -37,6 +37,7 @@ from scripts.github_core.api import (  # noqa: E402
     resolve_repo_params,
     update_issue_comment,
 )
+from scripts.github_core.validation import assert_valid_body_file  # noqa: E402
 
 _403_GUIDANCE = """\
 PERMISSION DENIED (403): Cannot post comment to issue #{issue} in {owner}/{repo}.
@@ -179,10 +180,8 @@ def main(argv: list[str] | None = None) -> int:
     # --- Body resolution ---
     body: str = args.body
     if args.body_file:
-        body_path = Path(args.body_file)
-        if not body_path.exists():
-            error_and_exit(f"Body file not found: {args.body_file}", 2)
-        body = body_path.read_text(encoding="utf-8")
+        assert_valid_body_file(args.body_file, _workspace)
+        body = Path(args.body_file).read_text(encoding="utf-8")
 
     if not body or not body.strip():
         error_and_exit("Body cannot be empty.", 1)
