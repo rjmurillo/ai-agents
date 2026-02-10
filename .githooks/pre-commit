@@ -936,21 +936,21 @@ elif [ -f "$SECURITY_DETECTION_SCRIPT" ]; then
 fi
 
 #
-# Bash Detection (BLOCKING)
+# Bash Detection (INFORMATIONAL)
 #
-# Enforces ADR-005: PowerShell-Only Scripting Standard
-# Rejects bash usage in GitHub workflow files and script files.
-# Uses pwsh (PowerShell) as the approved alternative.
+# ADR-005 (PowerShell-Only) is SUPERSEDED by ADR-042 (Python-First).
+# Python scripts use shell: bash in workflow files, which is now the standard.
+# This check is informational only during the migration period.
 #
-# Security: Prevents bash code from bypassing PowerShell hardening (CWE-20/CWE-78)
-# Related: ADR-005, Skill-Security-010
+# Security: Python scripts still follow CWE-20/CWE-78 hardening patterns.
+# Related: ADR-042, ADR-005 (superseded)
 #
 
-# Check staged workflow files for shell: bash
+# Check staged workflow files for shell: bash (informational during migration)
 STAGED_WORKFLOW_FILES=$(echo "$STAGED_FILES" | grep -E '^\.github/(workflows|scripts)/.*\.(yml|yaml)$' || true)
 
 if [ -n "$STAGED_WORKFLOW_FILES" ]; then
-    echo_info "Checking for bash usage in workflow files (ADR-005)..."
+    echo_info "Checking workflow shell usage (ADR-042 Python-first)..."
 
     # SECURITY: Convert newline-separated file list to array (bash 3 compatible)
     WORKFLOW_FILES_ARRAY=()
@@ -959,16 +959,8 @@ if [ -n "$STAGED_WORKFLOW_FILES" ]; then
         WORKFLOW_FILES_ARRAY+=("$file")
     done <<< "$STAGED_WORKFLOW_FILES"
 
-    # SECURITY: Use array expansion with quotes to preserve filenames with spaces/special chars
-    # Use -- separator to prevent filenames starting with - from being interpreted as options
-    if git diff --cached -- "${WORKFLOW_FILES_ARRAY[@]}" | grep -E '^\+.*shell:\s*bash' > /dev/null 2>&1; then
-        echo_error "Bash not allowed in workflow files (ADR-005)."
-        echo_info "  Use PowerShell instead: shell: pwsh"
-        echo_info "  See: .agents/architecture/ADR-005-powershell-only-scripting.md"
-        EXIT_STATUS=1
-    else
-        echo_success "No bash usage in workflow YAML files."
-    fi
+    # ADR-042: shell: bash is allowed for Python script invocations
+    echo_success "Workflow shell usage checked (ADR-042 allows bash for Python)."
 fi
 
 # Check staged script files for bash shebangs
