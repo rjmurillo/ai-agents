@@ -11,7 +11,7 @@ Gracefully degrades if tiktoken is not installed (warning only).
 Exit codes per ADR-035:
   0 - Success (counts updated or already current)
   1 - Error (file not found, parse failure)
-  2 - Warning (tiktoken not installed, counts skipped)
+  2 - Configuration error (tiktoken not installed, counts skipped)
 """
 
 import re
@@ -122,12 +122,12 @@ def main() -> int:
     index_path = memories_dir / "memory-index.md"
 
     if not memories_dir.exists():
-        print(f"Warning: {memories_dir} not found", file=sys.stderr)
-        return 0
+        print(f"Error: {memories_dir} not found", file=sys.stderr)
+        return 1
 
     if not index_path.exists():
-        print(f"Warning: {index_path} not found", file=sys.stderr)
-        return 0
+        print(f"Error: {index_path} not found", file=sys.stderr)
+        return 1
 
     modified = update_memory_index(index_path, memories_dir)
 

@@ -171,13 +171,18 @@ class MemorySizeValidator:
         glob_pattern = f"**/{pattern}" if recursive else pattern
         results = []
 
+        failed = 0
         for file_path in sorted(directory.glob(glob_pattern)):
             if file_path.is_file():
                 try:
                     result = self.validate_file(file_path)
                     results.append(result)
-                except Exception as e:
+                except (FileNotFoundError, PermissionError, UnicodeDecodeError, OSError) as e:
                     print(f"Warning: Failed to validate {file_path}: {e}", file=sys.stderr)
+                    failed += 1
+
+        if failed:
+            print(f"Warning: {failed} file(s) skipped due to errors", file=sys.stderr)
 
         return results
 

@@ -65,7 +65,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-# Token budget thresholds (from memory-size-001-decomposition-thresholds)
+# Token budget thresholds for search result display
 $TOKEN_WARN_THRESHOLD = 5000
 $TOKEN_DECOMPOSE_THRESHOLD = 10000
 

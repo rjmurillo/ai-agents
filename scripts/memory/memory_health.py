@@ -34,9 +34,14 @@ def get_git_age_days(file_path: Path) -> int | None:
             text=True,
             timeout=10,
         )
-        if result.returncode == 0 and result.stdout.strip():
+        if result.returncode != 0:
+            print(f"Warning: git log failed for {file_path.name}: {result.stderr.strip()}", file=sys.stderr)
+            return None
+        if result.stdout.strip():
             mod_date = datetime.fromisoformat(result.stdout.strip())
             return (datetime.now(UTC) - mod_date).days
+    except ValueError as e:
+        print(f"Warning: invalid git date for {file_path.name}: {e}", file=sys.stderr)
     except (subprocess.TimeoutExpired, FileNotFoundError):
         pass
     return None
@@ -80,8 +85,14 @@ def main() -> int:
     index_count = 0
     total_chars = 0
 
+    skipped = 0
     for f in files:
-        char_count = len(f.read_text(encoding="utf-8"))
+        try:
+            char_count = len(f.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError) as e:
+            print(f"Warning: Failed to read {f.name}: {e}", file=sys.stderr)
+            skipped += 1
+            continue
         sizes.append(char_count)
         total_chars += char_count
 
@@ -99,16 +110,20 @@ def main() -> int:
         if age is not None:
             ages.append(age)
 
-    # Calculate statistics
-    avg_size = total_chars // total if total > 0 else 0
-    median_size = sorted(sizes)[total // 2] if total > 0 else 0
+    if skipped:
+        print(f"Warning: {skipped} file(s) skipped due to read errors", file=sys.stderr)
+
+    # Calculate statistics (adjust total for skipped files)
+    counted = total - skipped
+    avg_size = total_chars // counted if counted > 0 else 0
+    median_size = sorted(sizes)[counted // 2] if counted > 0 else 0
     max_size = max(sizes) if sizes else 0
     est_tokens = total_chars // 4  # rough estimate
 
     avg_age = sum(ages) // len(ages) if ages else 0
     stale_count = sum(1 for a in ages if a > STALE_DAYS)
 
-    compliance_pct = (pass_count * 100) // total if total > 0 else 0
+    compliance_pct = (pass_count * 100) // counted if counted > 0 else 0
 
     # Output report
     now = datetime.now(UTC)
@@ -129,10 +144,10 @@ def main() -> int:
     print()
     print("| Category | Count | % |")
     print("|----------|-------|---|")
-    print(f"| Pass (<{WARN_CHARS:,} chars) | {pass_count} | {pass_count * 100 // total}% |")
-    warn_pct = warn_count * 100 // total
+    print(f"| Pass (<{WARN_CHARS:,} chars) | {pass_count} | {pass_count * 100 // counted if counted else 0}% |")
+    warn_pct = warn_count * 100 // counted if counted else 0
     print(f"| Warn ({WARN_CHARS:,}-{MAX_CHARS:,}) | {warn_count} | {warn_pct}% |")
-    print(f"| Fail (>{MAX_CHARS:,} chars) | {fail_count} | {fail_count * 100 // total}% |")
+    print(f"| Fail (>{MAX_CHARS:,} chars) | {fail_count} | {fail_count * 100 // counted if counted else 0}% |")
     print()
     print(f"**Size compliance**: {compliance_pct}%")
     print()

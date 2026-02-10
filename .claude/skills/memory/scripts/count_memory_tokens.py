@@ -91,13 +91,16 @@ def get_memory_token_count(
     content = memory_path.read_text(encoding="utf-8")
     token_count = count_tokens(content)
 
-    # Update cache
+    # Update cache (write failure should not discard valid count)
     cache[file_key] = {
         "hash": file_hash,
         "token_count": token_count,
         "file_size": memory_path.stat().st_size
     }
-    save_cache(cache_path, cache)
+    try:
+        save_cache(cache_path, cache)
+    except OSError as e:
+        print(f"Warning: Could not save token cache: {e}", file=sys.stderr)
 
     return token_count
 
@@ -124,14 +127,19 @@ def count_directory(
         raise FileNotFoundError(f"Directory not found: {directory}")
 
     results = {}
+    failed = 0
     for file_path in sorted(directory.glob(pattern)):
         if file_path.is_file():
             try:
                 results[str(file_path)] = get_memory_token_count(
                     file_path, cache_path, force
                 )
-            except Exception as e:
+            except (FileNotFoundError, PermissionError, UnicodeDecodeError, ImportError, OSError) as e:
                 print(f"Warning: Failed to count {file_path}: {e}", file=sys.stderr)
+                failed += 1
+
+    if failed:
+        print(f"Warning: {failed} of {failed + len(results)} files failed", file=sys.stderr)
 
     return results
 

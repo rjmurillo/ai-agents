@@ -56,8 +56,13 @@ def get_git_last_modified(file_path: Path) -> datetime | None:
             text=True,
             timeout=10,
         )
-        if result.returncode == 0 and result.stdout.strip():
+        if result.returncode != 0:
+            print(f"Warning: git log failed for {file_path}: {result.stderr.strip()}", file=sys.stderr)
+            return None
+        if result.stdout.strip():
             return datetime.fromisoformat(result.stdout.strip())
+    except ValueError as e:
+        print(f"Warning: invalid git date for {file_path}: {e}", file=sys.stderr)
     except (subprocess.TimeoutExpired, FileNotFoundError):
         pass
     return None
@@ -108,6 +113,7 @@ def analyze_file(
     memories_dir: Path,
     repo_root: Path,
     stale_days: int = STALE_DAYS,
+    stale_only: bool = False,
 ) -> StaleReport:
     """Analyze a single memory file for staleness."""
     report = StaleReport(file_path=str(file_path.relative_to(repo_root)))
@@ -120,10 +126,11 @@ def analyze_file(
         report.days_since_modified = (now - last_mod).days
         report.is_stale = report.days_since_modified > stale_days
 
-    # Read content and check links
+    # Read content and check links (skip if stale_only)
     content = file_path.read_text(encoding="utf-8")
-    report.broken_links = find_broken_links(content, memories_dir)
-    report.broken_code_refs = find_broken_code_refs(content, repo_root)
+    if not stale_only:
+        report.broken_links = find_broken_links(content, memories_dir)
+        report.broken_code_refs = find_broken_code_refs(content, repo_root)
 
     # Generate recommendations
     if report.is_stale:
@@ -252,11 +259,19 @@ def main() -> int:
 
     # Analyze all memory files
     reports = []
+    skipped = 0
     for md_file in sorted(memories_dir.glob("*.md")):
         if md_file.name == "README.md":
             continue
-        report = analyze_file(md_file, memories_dir, repo_root, args.stale_days)
-        reports.append(report)
+        try:
+            report = analyze_file(md_file, memories_dir, repo_root, args.stale_days, args.stale_only)
+            reports.append(report)
+        except (OSError, UnicodeDecodeError) as e:
+            print(f"Warning: Failed to analyze {md_file.name}: {e}", file=sys.stderr)
+            skipped += 1
+
+    if skipped:
+        print(f"Warning: {skipped} file(s) skipped due to errors", file=sys.stderr)
 
     if not reports:
         print("No memory files found", file=sys.stderr)
