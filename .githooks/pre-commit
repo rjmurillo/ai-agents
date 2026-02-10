@@ -1697,6 +1697,9 @@ fi
 #
 # Related: Context Engineering, memory skill
 #
+# Compute staged memory files once for all memory-related checks below
+STAGED_MEMORY_FILES=$(echo "$STAGED_FILES" | grep -E '^\.serena/memories/' || true)
+
 MEMORY_TOKEN_UPDATER="$REPO_ROOT/scripts/update_memory_index_tokens.py"
 
 if [ -n "$STAGED_MEMORY_FILES" ]; then
@@ -1816,9 +1819,6 @@ fi
 # Related: ADR-017, Issue #307
 #
 MEMORY_INDEX_SCRIPT="$REPO_ROOT/scripts/Validate-MemoryIndex.ps1"
-
-# Check if any memory files are staged
-STAGED_MEMORY_FILES=$(echo "$STAGED_FILES" | grep -E '^\.serena/memories/' || true)
 
 if [ -n "$STAGED_MEMORY_FILES" ]; then
     echo_info "Checking memory index consistency (ADR-017)..."

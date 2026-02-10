@@ -24,7 +24,7 @@ try:
     sys.path.insert(0, str(_scripts))
     from count_memory_tokens import get_memory_token_count
     HAS_TIKTOKEN = True
-except (ImportError, SystemExit):
+except ImportError:
     HAS_TIKTOKEN = False
 
 

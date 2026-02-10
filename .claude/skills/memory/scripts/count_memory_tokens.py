@@ -14,9 +14,10 @@ from typing import Any
 
 try:
     import tiktoken
+    _HAS_TIKTOKEN = True
 except ImportError:
-    print("Error: tiktoken not installed. Run: pip install tiktoken", file=sys.stderr)
-    sys.exit(1)
+    tiktoken = None  # type: ignore[assignment]
+    _HAS_TIKTOKEN = False
 
 
 def get_file_hash(file_path: Path) -> str:
@@ -43,6 +44,8 @@ def save_cache(cache_path: Path, cache: dict[str, dict]) -> None:
 
 def count_tokens(text: str, encoding_name: str = "cl100k_base") -> int:
     """Count tokens using tiktoken encoding."""
+    if not _HAS_TIKTOKEN:
+        raise ImportError("tiktoken not installed. Run: uv pip install tiktoken")
     encoding = tiktoken.get_encoding(encoding_name)
     return len(encoding.encode(text))
 
@@ -133,7 +136,11 @@ def count_directory(
     return results
 
 
-def main():
+def main() -> int:
+    if not _HAS_TIKTOKEN:
+        print("Error: tiktoken not installed. Run: uv pip install tiktoken", file=sys.stderr)
+        return 1
+
     parser = argparse.ArgumentParser(
         description="Count tokens in Serena memory files using tiktoken"
     )
@@ -184,7 +191,7 @@ def main():
 
             if not results:
                 print(f"No files matching '{pattern}' in {args.path}", file=sys.stderr)
-                sys.exit(1)
+                return 1
 
             # Print results
             total = 0
@@ -196,12 +203,14 @@ def main():
                 print(f"\nTotal: {total:,} tokens across {len(results)} files")
         else:
             print(f"Error: Path not found: {args.path}", file=sys.stderr)
-            sys.exit(1)
+            return 1
 
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
-        sys.exit(1)
+        return 1
+
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
