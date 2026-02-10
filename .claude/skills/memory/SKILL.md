@@ -130,7 +130,7 @@ See `.agents/analysis/chestertons-fence.md` for:
 
 ## Context Engineering
 
-This skill implements [progressive disclosure principles](references/context-engineering.md) from Anthropic and claude-mem.ai research, achieving 10x token savings through three-layer architecture.
+This skill implements [progressive disclosure principles](../../../.agents/analysis/context-engineering.md) from Anthropic and claude-mem.ai research through three-layer architecture.
 
 ### Architecture
 
@@ -184,16 +184,13 @@ For full analysis, see: `.agents/analysis/context-engineering.md`
 
 ## Triggers
 
-| Trigger Phrase | Maps To |
-|----------------|---------|
-| "search memory for X" | Tier 1: Search-Memory.ps1 |
-| "what do we know about X" | Tier 1: Search-Memory.ps1 |
-| "extract episode from session" | Tier 2: Extract-SessionEpisode.ps1 |
-| "what happened in session X" | Tier 2: Get-Episode -SessionId "X" |
-| "find sessions with failures" | Tier 2: Get-Episodes -Outcome "failure" |
-| "update causal graph" | Tier 3: Update-CausalGraph.ps1 |
-| "what patterns led to success" | Tier 3: Get-Patterns |
-| "check memory health" | Test-MemoryHealth.ps1 |
+Use this skill when the user says:
+
+- `search memory` for semantic search across tiers
+- `check memory health` for system status
+- `extract episode from session` for session replay
+- `update causal graph` for pattern tracking
+- `count memory tokens` for budget analysis
 
 ---
 
@@ -292,6 +289,33 @@ What do you need?
 ```powershell
 pwsh .claude/skills/memory/scripts/Test-MemoryHealth.ps1 -Format Table
 ```
+
+---
+
+## Process
+
+### Phase 1: Query
+
+Determine the memory tier and run the appropriate script.
+
+### Phase 2: Validate
+
+Verify results are non-empty and relevant to the query context.
+
+### Phase 3: Report
+
+Return structured results to the caller with source attribution.
+
+---
+
+## Scripts
+
+| Script | Purpose | Exit Codes |
+|--------|---------|------------|
+| `Search-Memory.ps1` | Tier 1 semantic search across Serena and Forgetful | 0=success, 1=error |
+| `count_memory_tokens.py` | Token counting with tiktoken caching | 0=success, 1=error |
+| `test_memory_size.py` | Memory atomicity validation | 0=pass, 1=violations |
+| `Test-MemoryHealth.ps1` | System health dashboard | 0=healthy, 1=degraded |
 
 ---
 
