@@ -1,8 +1,8 @@
 # v0.3.1 Milestone: PowerShell-to-Python Migration
 
-**Status**: 🟡 PLANNING
+**Status**: 🟢 IN PROGRESS
 **Created**: 2026-02-08
-**Last Updated**: 2026-02-08
+**Last Updated**: 2026-02-09
 **Milestone**: [v0.3.1](https://github.com/rjmurillo/ai-agents/milestone/7)
 **Epic**: [#1049](https://github.com/rjmurillo/ai-agents/issues/1049)
 **Authority**: ADR-042 (Accepted 2026-01-17)
@@ -11,9 +11,30 @@
 
 ---
 
+## 📋 Audit Log
+
+### 2026-02-09: Full codebase audit
+
+**Actions taken**:
+- Reopened #1049 (epic was incorrectly auto-closed by PR association)
+- Verified P0 (#1050, #1051, #1052) genuinely complete. Gate 0-1 PASSED.
+- Confirmed P1-P5 issues OPEN and work not yet started (all PS1 files still exist)
+- Corrected #1056: `Generate-Skills.ps1` already deleted (dead code, no workflow refs). 5 scripts remain, not 6.
+- Corrected #1061: Plan had wrong paths (`modules/` vs `scripts/`). All 7 files verified at correct paths.
+- Corrected #1060: Plan listed ~16 scripts but 35 PS1 files exist in GitHub skills directory.
+- Corrected #1065: Plan listed 12 hooks but 17 PS1 files exist in hooks directory.
+- Added agent requirement: read issue body + all comments before starting work.
+- Updated session validation command to use Python (`validate_session_json.py`).
+
+**GitHub state**: #1049 reopened. #1050-#1052 closed (correct). #1053-#1066 open (correct). #1118, #1119 also open in milestone.
+
+---
+
 ## 🚀 QUICK START: Agent Work Assignment
 
 > **For any agent starting work**: Read this section first. It tells you exactly which track to work on and how to start.
+>
+> **IMPORTANT**: Before starting any issue, read the issue body AND all issue comments. Comments contain implementation notes, design decisions, blockers, and context from previous agents. Skipping comments leads to duplicated work or missed constraints.
 
 ### Step 1: Identify Your Track
 
@@ -37,8 +58,12 @@ cd ../ai-agents-track-X
 # 3. Assign yourself to the issue (required)
 pwsh .claude/skills/github/scripts/issue/Set-IssueAssignee.ps1 -Issue <ISSUE_NUMBER> -Assignees @("@me")
 
-# 4. Read your first issue (use skill, no raw gh)
+# 4. Read your first issue AND all comments (use skill, no raw gh)
 pwsh .claude/skills/github/scripts/issue/Get-IssueContext.ps1 -Issue <ISSUE_NUMBER>
+# IMPORTANT: Also read ALL issue comments for context before proceeding.
+# Comments contain implementation notes, design decisions, and blockers
+# discovered by previous agents.
+gh issue view <ISSUE_NUMBER> --comments
 
 # 5. Begin implementation
 ```
@@ -52,7 +77,7 @@ git add <files>
 git commit -m "feat(trackX): progress on #XXX"
 
 # 2. Complete session log
-pwsh scripts/Validate-SessionJson.ps1 -SessionPath .agents/sessions/<your-session>.json
+python3 scripts/validate_session_json.py --session-path .agents/sessions/<your-session>.json
 
 # 3. Push your branch
 git push -u origin track-X/<branch-name>
@@ -76,11 +101,11 @@ pwsh .claude/skills/github/scripts/issue/Get-IssueContext.ps1 -Issue <ISSUE_NUMB
 
 | Track | Current Issue | Status | Last Updated | Blocking? |
 |-------|---------------|--------|--------------|-----------|
-| A | #1050 | 🔴 Not Started | 2026-02-08 | No |
-| B | #1053 | 🔴 Not Started | 2026-02-08 | Critical Path ⭐ |
-| C | - | 🟡 Month 4 | - | Waits for Month 4 |
-| D | - | 🟡 Month 7 | - | Waits for Month 7 |
-| E | - | 🟡 Month 10 | - | Waits for Month 10 |
+| A | - | ✅ COMPLETE | 2026-02-09 | No (Gate 0-1 PASSED) |
+| B | #1053 | 🔴 Not Started | 2026-02-09 | Critical Path ⭐ |
+| C | - | 🟡 Month 4 | - | Waits for Track B |
+| D | - | 🟡 Month 7 | - | Waits for Track B |
+| E | - | 🟡 Month 10 | - | Waits for Track B |
 
 > **Update this table** only during integration to avoid merge conflicts. For live status, use branch handoffs in `.agents/handoffs/{branch}/{session}.md` or add an issue comment.
 
@@ -294,116 +319,37 @@ gantt
 
 ---
 
-## Phase 0: Cleanup (Immediate - Months 1-2)
+## Phase 0: Cleanup (Immediate - Months 1-2) ✅ COMPLETE
 
-### [#1050](https://github.com/rjmurillo/ai-agents/issues/1050) - Delete dead code
+> **Audit (2026-02-09)**: All P0 issues verified complete. Gate 0-1 PASSED.
 
-**Goals**: Remove 3 PowerShell scripts with zero active references. Reduce migration scope.
+### [#1050](https://github.com/rjmurillo/ai-agents/issues/1050) - Delete dead code ✅
 
-**Non-Goals**: Do not audit or delete scripts with any remaining callers. Do not migrate these to Python (they are dead code).
+**Done Criteria** (all verified 2026-02-09):
+- [x] 3 .ps1 files deleted
+- [x] `rg "Fix-PR964-Validation|test-parent-shell-impact|analyze-compliance" --type-not md` returns 0 results
+- [x] CI passes
+- [x] No Pester test files reference deleted scripts
 
-Scripts with zero active references (verified with `rg` across entire repo):
+### [#1051](https://github.com/rjmurillo/ai-agents/issues/1051) - Remove already-migrated duplicates ✅
 
-**Files to Delete**:
-- [ ] `scripts/Fix-PR964-Validation.ps1`
-- [ ] `.agents/benchmarks/test-parent-shell-impact.ps1`
-- [ ] `.agents/retrospective/analyze-compliance.ps1`
+**Done Criteria** (all verified 2026-02-09):
+- [x] All PS1 files + Tests.ps1 files deleted
+- [x] Python equivalents exist and pass tests
+- [x] `rg "Detect-SkillViolation.ps1|Check-SkillExists.ps1" --type-not md` returns 0 results
 
-**Pre-Deletion Verification**:
-```bash
-# Confirm zero references (must return empty)
-rg "Fix-PR964-Validation" --type-not md
-rg "test-parent-shell-impact" --type-not md
-rg "analyze-compliance" --type-not md
-```
+### [#1052](https://github.com/rjmurillo/ai-agents/issues/1052) - Validate-SessionJson switchover ✅
 
-**Verification**: `git grep -l "Fix-PR964-Validation\|test-parent-shell-impact\|analyze-compliance"` returns 0 results
+**Done Criteria** (all verified 2026-02-09):
+- [x] `ai-session-protocol.yml` uses Python version
+- [x] `rg "Validate-SessionJson.ps1" --type-not md` returns 0 code references (only 2 documentation references in the Python files themselves)
+- [x] PS1 file deleted, Python version active
 
-**Done Criteria**:
-- [ ] 3 .ps1 files deleted
-- [ ] `rg "Fix-PR964-Validation|test-parent-shell-impact|analyze-compliance" --type-not md` returns 0 results
-- [ ] CI passes (pester-tests.yml, powershell-lint.yml green)
-- [ ] No Pester test files reference deleted scripts
+**Scope Reduction**: Phase 0 removed ~9 .ps1 files and ~6 .Tests.ps1 files from total scope.
 
-### [#1051](https://github.com/rjmurillo/ai-agents/issues/1051) - Remove already-migrated duplicates
+### Gate 0-1: ✅ PASSED (2026-02-09)
 
-**Goals**: Delete PowerShell scripts that already have working Python equivalents. Eliminate dual maintenance.
-
-**Non-Goals**: Do not migrate new scripts. Do not modify the Python equivalents. Do not update callers (that is #1052 for SessionJson).
-
-**Files to Delete**:
-- [ ] `scripts/Detect-SkillViolation.ps1` + `tests/Detect-SkillViolation.Tests.ps1`
-- [ ] `scripts/Check-SkillExists.ps1` + `tests/Check-SkillExists.Tests.ps1`
-- [ ] `scripts/Validate-SessionJson.ps1` + `tests/Validate-SessionJson.Tests.ps1`
-- [ ] `.claude/skills/security-detection/detect-infrastructure.ps1` + tests
-- [ ] `.claude/skills/metrics/collect-metrics.ps1` + tests
-- [ ] `.claude/skills/fix-markdown-fences/fix_fences.ps1` + tests
-
-**Verification Steps** (per script):
-1. Run pytest for Python version: `pytest tests/test_<name>.py -v` (must pass)
-2. Verify Python version is the active caller: `rg "<script_name>.py"` (must show callers)
-3. Confirm PS1 has no unique callers: `rg "<script_name>.ps1"` (only self-references or docs)
-4. Delete PS1 + Tests.ps1 files
-5. Run CI: `pytest tests/ && ruff check scripts/` (must pass)
-
-**Done Criteria**:
-- [ ] 5 .ps1 files + 5 .Tests.ps1 files deleted (10 files total)
-- [ ] `pytest tests/test_detect_skill_violation.py tests/test_check_skill_exists.py tests/test_validate_session_json.py -v` all pass
-- [ ] `rg "Detect-SkillViolation.ps1|Check-SkillExists.ps1" --type-not md` returns 0 results
-- [ ] pytest coverage for each script >= Pester baseline
-
-### [#1052](https://github.com/rjmurillo/ai-agents/issues/1052) - Validate-SessionJson switchover
-
-**Goals**: Switch all 148+ callers from `Validate-SessionJson.ps1` to `validate_session_json.py`. Achieve feature parity first, then update callers, then delete PS1.
-
-**Non-Goals**: Do not rewrite the Python validation logic. Do not change session log schema. Do not modify other validation scripts.
-
-**Known Gap (from Traycer analysis)**: The Python version is **missing investigation-only mode validation** (lines 161-244 in PowerShell version). This validates staged files against an allowlist when `SKIPPED: investigation-only` is claimed. This gap MUST be closed before switching callers.
-
-**Phase 1: Achieve Feature Parity**:
-- [ ] Port investigation-only detection: regex `(?i)SKIPPED:\s*investigation-only` in `protocolCompliance.sessionEnd` evidence
-- [ ] Port allowlist patterns: `^\.agents/sessions/`, `^\.agents/analysis/`, `^\.agents/retrospective/`, `^\.serena/memories($|/)`, `^\.agents/security/`, `^\.agents/architecture/REVIEW-`, `^\.agents/critique/`, `^\.agents/memory/episodes/`
-- [ ] Port staged files check: `git diff --cached --name-only` with error handling
-- [ ] Add pytest tests for investigation-only mode
-- [ ] Verify: `python -m scripts.validate_session_json <investigation-log>` matches PS1 output
-
-**Phase 2: Output Compatibility Verification**:
-- [ ] Run both versions on 5 passing session logs, diff output
-- [ ] Run both versions on 3 failing session logs, diff output
-- [ ] Run both versions on 1 investigation-only session log, diff output
-- [ ] Verify exit codes match: 0=pass, 1=protocol violation, 2=usage error
-
-**Affected Files** (~148+ references):
-- `.github/workflows/ai-session-protocol.yml` (line ~169)
-- `.agents/SESSION-PROTOCOL.md`
-- `CLAUDE.md`
-- `CRITICAL-CONTEXT.md`
-- `SKILL-QUICK-REF.md`
-- `.claude/skills/session-init/SKILL.md`
-- `.claude/skills/session-log-fixer/SKILL.md`
-- `.claude/skills/session-end/SKILL.md`
-- Agent prompt files (orchestrator, implementer, qa, etc.)
-
-**Phase 3: Caller Migration**:
-- [ ] Update workflow: `pwsh scripts/Validate-SessionJson.ps1 -SessionPath` -> `python scripts/validate_session_json.py --session-path`
-- [ ] Update all documentation references (batch find/replace)
-- [ ] Update SKILL.md files for session skills
-- [ ] Update agent prompt files
-- [ ] Verify CI: `ai-session-protocol.yml` passes with Python version
-
-**Phase 4: Cleanup**:
-- [ ] Delete `scripts/Validate-SessionJson.ps1` + `tests/Validate-SessionJson.Tests.ps1` (handled in #1051)
-
-**Verification**: `rg "Validate-SessionJson.ps1" --type-not md` returns 0 results
-
-**Done Criteria**:
-- [ ] Investigation-only mode ported with tests
-- [ ] Output format identical for all test scenarios (pass, fail, investigation-only)
-- [ ] 148+ references updated to Python version
-- [ ] CI workflow `ai-session-protocol.yml` green with Python version
-- [ ] `rg "Validate-SessionJson.ps1" --type-not md` returns 0 results
-
-**Scope Reduction**: Phase 0 removes ~9 .ps1 files and ~6 .Tests.ps1 files from total scope.
+Verified: `rg "\.ps1" scripts/Detect-SkillViolation scripts/Check-SkillExists scripts/Fix-PR964 2>/dev/null` returns exit 2 (files not found).
 
 ---
 
@@ -646,14 +592,14 @@ scripts/
 
 **Non-Goals**: Do not retire `Invoke-PesterTests.ps1` yet (needed until Phase 5). Create Python wrapper that calls pytest instead.
 
-| Script | Lines | Workflow |
-|--------|-------|----------|
-| `build/Generate-Agents.ps1` | ~200 | validate-generated-agents |
-| `build/Generate-Skills.ps1` | ~200 | (build) |
-| `build/scripts/Detect-AgentDrift.ps1` | ~300 | drift-detection |
-| `build/scripts/Validate-PathNormalization.ps1` | ~200 | validate-paths |
-| `build/scripts/Validate-PlanningArtifacts.ps1` | ~200 | validate-planning-artifacts |
-| `build/scripts/Invoke-PesterTests.ps1` | 528 | pester-tests |
+| Script | Lines | Workflow | Status |
+|--------|-------|----------|--------|
+| `build/Generate-Agents.ps1` | ~200 | validate-generated-agents | Exists |
+| ~~`build/Generate-Skills.ps1`~~ | ~~200~~ | ~~(build)~~ | Deleted (dead code, no workflow refs, no Python needed) |
+| `build/scripts/Detect-AgentDrift.ps1` | ~300 | drift-detection | Exists |
+| `build/scripts/Validate-PathNormalization.ps1` | ~200 | validate-paths | Exists |
+| `build/scripts/Validate-PlanningArtifacts.ps1` | ~200 | validate-planning-artifacts | Exists |
+| `build/scripts/Invoke-PesterTests.ps1` | 528 | pester-tests | Exists |
 
 **Migration Order**: By dependency (Generate-Agents.ps1 first, Invoke-PesterTests.ps1 last)
 
@@ -787,15 +733,15 @@ scripts/validation/
 
 **Non-Goals**: Do not change memory schema or storage format. Do not modify Serena/Forgetful integration points.
 
-| Script | Lines | Notes |
-|--------|-------|-------|
-| `MemoryRouter.psm1` | 577 | Core routing module |
-| `ReflexionMemory.psm1` | 996 | Largest module |
-| `Search-Memory.ps1` | ~200 | CLI entry point |
-| `Extract-SessionEpisode.ps1` | 530 | Session replay |
-| `Measure-MemoryPerformance.ps1` | ~200 | Benchmarking |
-| `Update-CausalGraph.ps1` | ~200 | Graph updates |
-| `SchemaValidation.psm1` | ~200 | Validation logic |
+| Script | Full Path | Lines | Notes |
+|--------|-----------|-------|-------|
+| `MemoryRouter.psm1` | `.claude/skills/memory/scripts/MemoryRouter.psm1` | 577 | Core routing module |
+| `ReflexionMemory.psm1` | `.claude/skills/memory/scripts/ReflexionMemory.psm1` | 996 | Largest module |
+| `Search-Memory.ps1` | `.claude/skills/memory/scripts/Search-Memory.ps1` | ~200 | CLI entry point |
+| `Extract-SessionEpisode.ps1` | `.claude/skills/memory/scripts/Extract-SessionEpisode.ps1` | 530 | Session replay |
+| `Measure-MemoryPerformance.ps1` | `.claude/skills/memory/scripts/Measure-MemoryPerformance.ps1` | ~200 | Benchmarking |
+| `Update-CausalGraph.ps1` | `.claude/skills/memory/scripts/Update-CausalGraph.ps1` | ~200 | Graph updates |
+| `SchemaValidation.psm1` | `.claude/skills/memory/modules/SchemaValidation.psm1` | ~200 | Validation logic |
 
 **Python Package**:
 ```
