@@ -13,7 +13,7 @@
 
 ### Phase 2: Context Retrieval
 - [x] `.agents/HANDOFF.md` read (read-only reference, Phase 1 status)
-- [x] ADR-017 file read (D:\src\GitHub\rjmurillo-bot\ai-agents\.agents\architecture\ADR-017-model-routing-low-false-pass.md)
+- [x] ADR-017 file read (.agents/architecture\ADR-017-model-routing-low-false-pass.md)
 - [x] Relevant memories retrieved:
   - adr-014-review-findings (parallel dispatch pattern)
   - skills-security (10 security skills from prior work)

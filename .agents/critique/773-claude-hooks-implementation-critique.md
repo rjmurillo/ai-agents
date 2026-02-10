@@ -243,17 +243,17 @@ Checking session log and hook scripts against style guide:
 ## Files Verified
 
 **New Implementations**:
-1. `/home/richard/ai-agents.feat-claude-code-hooks/.claude/hooks/PostToolUse/Invoke-MarkdownAutoLint.ps1`
-2. `/home/richard/ai-agents.feat-claude-code-hooks/.claude/hooks/PreToolUse/Invoke-BranchProtectionGuard.ps1`
-3. `/home/richard/ai-agents.feat-claude-code-hooks/.claude/hooks/Stop/Invoke-SessionValidator.ps1`
-4. `/home/richard/ai-agents.feat-claude-code-hooks/.claude/hooks/SubagentStop/Invoke-QAAgentValidator.ps1`
-5. `/home/richard/ai-agents.feat-claude-code-hooks/.claude/hooks/PermissionRequest/Invoke-TestAutoApproval.ps1`
+1. `<project-root>.feat-claude-code-hooks/.claude/hooks/PostToolUse/Invoke-MarkdownAutoLint.ps1`
+2. `<project-root>.feat-claude-code-hooks/.claude/hooks/PreToolUse/Invoke-BranchProtectionGuard.ps1`
+3. `<project-root>.feat-claude-code-hooks/.claude/hooks/Stop/Invoke-SessionValidator.ps1`
+4. `<project-root>.feat-claude-code-hooks/.claude/hooks/SubagentStop/Invoke-QAAgentValidator.ps1`
+5. `<project-root>.feat-claude-code-hooks/.claude/hooks/PermissionRequest/Invoke-TestAutoApproval.ps1`
 
 **Configuration**:
-1. `/home/richard/ai-agents.feat-claude-code-hooks/.claude/settings.json` (lines 30-87)
+1. `<project-root>.feat-claude-code-hooks/.claude/settings.json` (lines 30-87)
 
 **Documentation**:
-1. `/home/richard/ai-agents.feat-claude-code-hooks/.agents/sessions/2026-01-05-session-316-implement-claude-hooks.md`
+1. `<project-root>.feat-claude-code-hooks/.agents/sessions/2026-01-05-session-316-implement-claude-hooks.md`
 
 ## Final Assessment
 

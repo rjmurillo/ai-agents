@@ -148,7 +148,7 @@ This applies only within the $isAgentControlledBot block to preserve human PR be
 **Prompt**:
 
 ```text
-FILE: /home/richard/ai-agents/scripts/Invoke-PRMaintenance.ps1
+FILE: scripts/Invoke-PRMaintenance.ps1
 LOCATION: Line 1291 (search pattern: "Get-UnacknowledgedComments -Owner")
 ACTION: REPLACE duplicate call with variable reuse
 
@@ -230,7 +230,7 @@ This detection is used by Task 2.2 to collect bot comments for synthesis.
 **Prompt**:
 
 ```text
-FILE: /home/richard/ai-agents/scripts/Invoke-PRMaintenance.ps1
+FILE: scripts/Invoke-PRMaintenance.ps1
 LOCATION: After Task 2.1's $isCopilotPR detection (~line 1268), BEFORE action determination (~line 1270)
 SEARCH PATTERN: "if ($isCopilotPR)" (added by Task 2.1)
 ACTION: INSERT inside the $isCopilotPR block
@@ -348,7 +348,7 @@ This function groups comments by bot author and generates a markdown prompt for 
 **Prompt**:
 
 ```text
-FILE: /home/richard/ai-agents/scripts/Invoke-PRMaintenance.ps1
+FILE: scripts/Invoke-PRMaintenance.ps1
 ACTION: Two modifications required
 
 ## STEP 1: Add SynthesisPosted counter to $results initialization
@@ -484,7 +484,7 @@ This ensures no PR appears in both ActionRequired and Blocked lists.
 **Prompt**:
 
 ```text
-FILE: /home/richard/ai-agents/tests/Invoke-PRMaintenance.Tests.ps1
+FILE: tests/Invoke-PRMaintenance.Tests.ps1
 STATUS: FILE DOES NOT EXIST - must be created
 
 CREATE the test file with this structure:
@@ -551,7 +551,7 @@ VERIFY: Run `Invoke-Pester tests/Invoke-PRMaintenance.Tests.ps1 -Output Detailed
 **Prompt**:
 
 ```text
-FILE: /home/richard/ai-agents/tests/Invoke-PRMaintenance.Tests.ps1
+FILE: tests/Invoke-PRMaintenance.Tests.ps1
 PREREQUISITE: File created by Task 5.1
 ACTION: ADD test to existing 'Invoke-PRMaintenance Bot Authority Tests' Describe block
 
@@ -611,7 +611,7 @@ VERIFY: Run `Invoke-Pester tests/Invoke-PRMaintenance.Tests.ps1 -Output Detailed
 **Prompt**:
 
 ```text
-FILE: /home/richard/ai-agents/tests/Invoke-PRMaintenance.Tests.ps1
+FILE: tests/Invoke-PRMaintenance.Tests.ps1
 PREREQUISITE: File created by Task 5.1
 ACTION: ADD test to existing 'Invoke-PRMaintenance Bot Authority Tests' Describe block
 
@@ -678,7 +678,7 @@ VERIFY: Run `Invoke-Pester tests/Invoke-PRMaintenance.Tests.ps1 -Output Detailed
 **Prompt**:
 
 ```text
-FILE: /home/richard/ai-agents/tests/Invoke-PRMaintenance.Tests.ps1
+FILE: tests/Invoke-PRMaintenance.Tests.ps1
 PREREQUISITE: File created by Task 5.1
 ACTION: ADD test to existing 'Invoke-PRMaintenance Bot Authority Tests' Describe block
 
@@ -737,7 +737,7 @@ VERIFY: Run `Invoke-Pester tests/Invoke-PRMaintenance.Tests.ps1 -Output Detailed
 **Prompt**:
 
 ```text
-FILE: /home/richard/ai-agents/tests/Invoke-PRMaintenance.Tests.ps1
+FILE: tests/Invoke-PRMaintenance.Tests.ps1
 PREREQUISITE: File created by Task 5.1
 ACTION: ADD test to existing 'Invoke-PRMaintenance Bot Authority Tests' Describe block
 
@@ -793,7 +793,7 @@ VERIFY: Run `Invoke-Pester tests/Invoke-PRMaintenance.Tests.ps1 -Output Detailed
 **Prompt**:
 
 ```text
-FILE: /home/richard/ai-agents/tests/Invoke-PRMaintenance.Tests.ps1
+FILE: tests/Invoke-PRMaintenance.Tests.ps1
 PREREQUISITE: File created by Task 5.1
 ACTION: ADD test to existing 'Invoke-PRMaintenance Bot Authority Tests' Describe block
 
@@ -856,7 +856,7 @@ VERIFY: Run `Invoke-Pester tests/Invoke-PRMaintenance.Tests.ps1 -Output Detailed
 **Prompt**:
 
 ```text
-FILE: /home/richard/ai-agents/tests/Integration-PRMaintenance.Tests.ps1
+FILE: tests/Integration-PRMaintenance.Tests.ps1
 STATUS: FILE DOES NOT EXIST - must be created
 ACTION: CREATE new integration test file
 
@@ -947,7 +947,7 @@ NOTE: Requires GitHub CLI authentication. Some tests may skip if PRs are closed.
 **Prompt**:
 
 ```text
-FILE: /home/richard/ai-agents/.agents/architecture/bot-author-feedback-protocol.md
+FILE: .agents/architecture/bot-author-feedback-protocol.md
 ACTION: Two modifications required
 
 ## STEP 1: Add row to Activation Triggers table
@@ -1011,7 +1011,7 @@ VERIFY: Run `grep -n "Copilot Synthesis" .agents/architecture/bot-author-feedbac
 **Prompt**:
 
 ```text
-FILE: /home/richard/ai-agents/.agents/memories/pr-changes-requested-semantics.md
+FILE: .agents/memories/pr-changes-requested-semantics.md
 STATUS: FILE DOES NOT EXIST - must be created
 ACTION: CREATE new Serena memory file
 

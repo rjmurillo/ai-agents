@@ -5,7 +5,7 @@
 **Type**: PR Comment Response (pr-comment-responder)
 **PR**: #206 - Protocol cleanup for Session 41
 **Branch**: fix/session-41-cleanup
-**Worktree**: D:\src\GitHub\rjmurillo-bot\worktree-pr-206
+**Worktree**: worktree-pr-206
 
 ## Protocol Compliance
 

@@ -15,7 +15,7 @@
 
 | Req | Step | Status | Evidence |
 |-----|------|--------|----------|
-| MUST | Initialize Serena: `mcp__serena__activate_project` | [x] | Tool output present (project path D:\src\GitHub\rjmurillo-bot\ai-agents recognized) |
+| MUST | Initialize Serena: `mcp__serena__activate_project` | [x] | Tool output present (project path <project-root> recognized) |
 | MUST | Initialize Serena: `mcp__serena__initial_instructions` | [x] | Tool output present (Serena instructions manual loaded, project memories available) |
 | MUST | Read `.agents/HANDOFF.md` | [x] | Content in context (PR #89 status, prior sessions, protocol enhancement history reviewed) |
 | MUST | Create this session log | [x] | This file exists at expected path |

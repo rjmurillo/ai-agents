@@ -4,7 +4,7 @@
 **PR**: #201 (chore/coderabbit-learnings-import)
 **Repository**: rjmurillo/ai-agents
 **Agent**: pr-comment-responder
-**Working Directory**: D:\src\GitHub\rjmurillo-bot\worktree-pr-201
+**Working Directory**: worktree-pr-201
 
 ## Protocol Compliance
 

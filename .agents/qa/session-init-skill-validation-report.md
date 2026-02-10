@@ -380,7 +380,7 @@ Starting discovery in 1 files.
 Discovery found 13 tests in 165ms.
 Running tests.
 
-Running tests from '/home/richard/ai-agents-pr-765/tests/Extract-SessionTemplate.Tests.ps1'
+Running tests from '<project-root>-pr-765/tests/Extract-SessionTemplate.Tests.ps1'
 Describing Extract-SessionTemplate
  Context When protocol file exists with valid template
    [+] Should extract template successfully 99ms (75ms|25ms)

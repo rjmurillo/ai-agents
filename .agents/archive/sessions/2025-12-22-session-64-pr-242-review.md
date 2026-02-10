@@ -16,7 +16,7 @@
 
 ## Session Context
 
-**Working Directory**: D:\src\GitHub\rjmurillo-bot\worktree-pr-242
+**Working Directory**: worktree-pr-242
 **Session Output**: .agents/pr-comments/PR-242/
 
 ## PR Context

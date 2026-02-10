@@ -19,14 +19,14 @@ on:
       - 'copilot/**'
     paths:
       - '.agents/planning/**'
-      - 'build/scripts/Validate-PlanningArtifacts.ps1'
+      - 'build/scripts/validate_planning_artifacts.py'
       - '.github/workflows/validate-planning-artifacts.yml'
   pull_request:
     branches:
       - main
     paths:
       - '.agents/planning/**'
-      - 'build/scripts/Validate-PlanningArtifacts.ps1'
+      - 'build/scripts/validate_planning_artifacts.py'
       - '.github/workflows/validate-planning-artifacts.yml'
   workflow_dispatch: # Allow manual triggering
 
@@ -43,27 +43,25 @@ jobs:
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
       - name: Validate planning artifact consistency
-        shell: pwsh -NoProfile -Command "& '{0}'"
         run: |
-          Write-Host "Validating planning artifact consistency..."
-          ./build/scripts/Validate-PlanningArtifacts.ps1 -FailOnError
+          echo "Validating planning artifact consistency..."
+          python3 build/scripts/validate_planning_artifacts.py --fail-on-error
 
       - name: Show violations on failure
         if: failure()
-        shell: pwsh -NoProfile -Command "& '{0}'"
         run: |
-          Write-Host ""
-          Write-Host "=== Planning Artifact Validation Failed ===" -ForegroundColor Red
-          Write-Host ""
-          Write-Host "Planning documents have consistency issues that must be resolved." -ForegroundColor Yellow
-          Write-Host ""
-          Write-Host "Common issues:" -ForegroundColor Cyan
-          Write-Host "  - Estimate divergence: Task estimates differ >20% from source epic/PRD" -ForegroundColor White
-          Write-Host "  - Orphan conditions: Specialist conditions not linked to tasks" -ForegroundColor White
-          Write-Host ""
-          Write-Host "To fix:" -ForegroundColor Cyan
-          Write-Host "  1. Review the violations reported above" -ForegroundColor White
-          Write-Host "  2. For estimate divergence: Add '## Estimate Reconciliation' section" -ForegroundColor White
-          Write-Host "  3. For orphan conditions: Add 'Conditions' column to Work Breakdown table" -ForegroundColor White
-          Write-Host "  4. See src/claude/milestone-planner.md and src/claude/task-decomposer.md for templates" -ForegroundColor White
-          Write-Host ""
+          echo ""
+          echo "=== Planning Artifact Validation Failed ==="
+          echo ""
+          echo "Planning documents have consistency issues that must be resolved."
+          echo ""
+          echo "Common issues:"
+          echo "  - Estimate divergence: Task estimates differ >20% from source epic/PRD"
+          echo "  - Orphan conditions: Specialist conditions not linked to tasks"
+          echo ""
+          echo "To fix:"
+          echo "  1. Review the violations reported above"
+          echo "  2. For estimate divergence: Add '## Estimate Reconciliation' section"
+          echo "  3. For orphan conditions: Add 'Conditions' column to Work Breakdown table"
+          echo "  4. See src/claude/milestone-planner.md and src/claude/task-decomposer.md for templates"
+          echo ""
