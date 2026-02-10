@@ -51,46 +51,12 @@ jobs:
           bot-pat: ${{ secrets.BOT_PAT }}
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
 
-      # SEC-FIX: Replaced bash parsing with PowerShell to prevent CWE-20/CWE-78 (Issue #211)
       - name: Parse Categorization Results
         id: parse-categorize
-        shell: pwsh -NoProfile -Command "& '{0}'"
         env:
           RAW_OUTPUT: ${{ steps.categorize.outputs.findings }}
           FALLBACK_LABELS: ${{ steps.categorize.outputs.labels }}
-        run: |
-          Import-Module "$env:GITHUB_WORKSPACE/.github/scripts/AIReviewCommon.psm1" -Force
-
-          # Save output for debugging
-          $env:RAW_OUTPUT | Set-Content /tmp/categorize-output.txt -Encoding UTF8
-
-          # Parse with hardened function (rejects shell metacharacters)
-          $labels = Get-LabelsFromAIOutput -Output $env:RAW_OUTPUT
-
-          # Fallback to composite action output if needed
-          if ($labels.Count -eq 0 -and $env:FALLBACK_LABELS) {
-              $fallbackLabels = $env:FALLBACK_LABELS -split ',' | ForEach-Object { $_.Trim() }
-              # Validate fallback labels with same regex
-              # Regex: length lookahead + alphanumeric start + optional (middle chars + alphanumeric end)
-              # Prevents trailing special chars like "bug-" by requiring alphanumeric end when middle chars present
-              $labels = $fallbackLabels | Where-Object {
-                  $_ -match '^(?=.{1,50}$)[A-Za-z0-9](?:[A-Za-z0-9 _\.-]*[A-Za-z0-9])?$'
-              }
-          }
-
-          # Parse category with validation (alphanumeric, underscore, hyphen only)
-          $category = 'unknown'
-          if ($env:RAW_OUTPUT -match '"category"\s*:\s*"([a-zA-Z0-9_-]+)"') {
-              $category = $Matches[1]
-          }
-
-          # Output as JSON array for safe consumption
-          $labelsJson = $labels | ConvertTo-Json -Compress
-          if ($labels.Count -eq 0) { $labelsJson = '[]' }
-          if ($labels.Count -eq 1) { $labelsJson = "[$labelsJson]" }
-
-          "labels=$labelsJson" >> $env:GITHUB_OUTPUT
-          "category=$category" >> $env:GITHUB_OUTPUT
+        run: python3 .github/scripts/parse_triage_labels.py
 
       - name: 🗺️ Align to Roadmap (Roadmap Agent)
         id: align
@@ -104,65 +70,12 @@ jobs:
           bot-pat: ${{ secrets.BOT_PAT }}
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
 
-      # SEC-FIX: Replaced bash parsing with PowerShell to prevent CWE-20/CWE-78 (Issue #211)
       - name: Parse Roadmap Results
         id: parse-align
-        shell: pwsh -NoProfile -Command "& '{0}'"
         env:
           RAW_OUTPUT: ${{ steps.align.outputs.findings }}
           MILESTONE_FROM_ACTION: ${{ steps.align.outputs.milestone }}
-        run: |
-          Import-Module "$env:GITHUB_WORKSPACE/.github/scripts/AIReviewCommon.psm1" -Force
-
-          # Save output for debugging
-          $env:RAW_OUTPUT | Set-Content /tmp/align-output.txt -Encoding UTF8
-
-          # Parse milestone with hardened function
-          $milestone = Get-MilestoneFromAIOutput -Output $env:RAW_OUTPUT
-          if (-not $milestone -and $env:MILESTONE_FROM_ACTION) {
-              # Validate fallback milestone with same regex
-              # Prevents trailing special chars like "v1.0-" by requiring alphanumeric end when middle chars present
-              if ($env:MILESTONE_FROM_ACTION -match '^(?=.{1,50}$)[A-Za-z0-9](?:[A-Za-z0-9 _\.-]*[A-Za-z0-9])?$') {
-                  $milestone = $env:MILESTONE_FROM_ACTION
-              }
-          }
-
-          # Parse priority with strict validation (P0-P4 only)
-          $priority = 'P2'
-          if ($env:RAW_OUTPUT -match '"priority"\s*:\s*"(P[0-4])"') {
-              $priority = $Matches[1]
-          }
-
-          # Parse escalation fields with validation
-          $escalateToPrd = 'false'
-          if ($env:RAW_OUTPUT -match '"escalate_to_prd"\s*:\s*(true|false)') {
-              $escalateToPrd = $Matches[1]
-          }
-
-          $complexityScore = 0
-          if ($env:RAW_OUTPUT -match '"complexity_score"\s*:\s*(\d{1,2})') {
-              $complexityScore = [int]$Matches[1]
-              if ($complexityScore -gt 12) { $complexityScore = 12 }
-          }
-
-          # Parse escalation criteria with hardened regex (reject shell metacharacters)
-          $escalationCriteria = ''
-          if ($env:RAW_OUTPUT -match '"escalation_criteria"\s*:\s*\[([^\]]*)\]') {
-              $criteria = $Matches[1] -split ',' | ForEach-Object {
-                  $_.Trim().Trim('"').Trim("'")
-              } | Where-Object {
-                  # Regex: length lookahead + alphanumeric start + optional (middle chars + alphanumeric end)
-                  # Prevents trailing special chars like "criteria-" by requiring alphanumeric end
-                  $_ -match '^(?=.{1,50}$)[A-Za-z0-9](?:[A-Za-z0-9 _\.-]*[A-Za-z0-9])?$'
-              }
-              $escalationCriteria = $criteria -join ','
-          }
-
-          "milestone=$milestone" >> $env:GITHUB_OUTPUT
-          "priority=$priority" >> $env:GITHUB_OUTPUT
-          "escalate_to_prd=$escalateToPrd" >> $env:GITHUB_OUTPUT
-          "complexity_score=$complexityScore" >> $env:GITHUB_OUTPUT
-          "escalation_criteria=$escalationCriteria" >> $env:GITHUB_OUTPUT
+        run: python3 .github/scripts/parse_triage_roadmap.py
 
       # SEC-FIX: Replaced bash iteration with PowerShell to prevent CWE-78 (Issue #211)
       - name: Apply Labels

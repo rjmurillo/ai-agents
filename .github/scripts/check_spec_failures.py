@@ -1,0 +1,40 @@
+#!/usr/bin/env python3
+"""Check spec validation verdicts and fail the workflow if needed.
+
+Replaces the inline PowerShell block in the 'Check for Failures'
+step of ai-spec-validation.yml.
+
+Input env vars:
+    TRACE_VERDICT          - Verdict from traceability check
+    COMPLETENESS_VERDICT   - Verdict from completeness check
+    GITHUB_WORKSPACE       - Workspace root (for package imports)
+"""
+
+from __future__ import annotations
+
+import os
+import sys
+
+# Add workspace root to Python path for package imports
+workspace = os.environ.get("GITHUB_WORKSPACE", ".")
+sys.path.insert(0, workspace)
+
+from scripts.ai_review_common import spec_validation_failed
+
+
+def main() -> None:
+    trace = os.environ.get("TRACE_VERDICT", "")
+    completeness = os.environ.get("COMPLETENESS_VERDICT", "")
+
+    if spec_validation_failed(trace, completeness):
+        print(
+            "::error::Spec validation failed"
+            " - implementation does not fully satisfy requirements"
+        )
+        sys.exit(1)
+
+    print("Spec validation passed")
+
+
+if __name__ == "__main__":
+    main()

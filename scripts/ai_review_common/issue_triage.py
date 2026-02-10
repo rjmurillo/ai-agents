@@ -1,8 +1,12 @@
-"""Markdown and display formatting for AI review outputs."""
+"""Markdown formatting, display helpers, and logging for AI review outputs."""
 
 from __future__ import annotations
 
 import json
+import logging
+from datetime import UTC, datetime
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Verdict alert types
@@ -79,3 +83,20 @@ def convert_to_json_escaped(input_string: str) -> str:
     if not input_string:
         return '""'
     return json.dumps(input_string)
+
+
+# ---------------------------------------------------------------------------
+# Logging
+# ---------------------------------------------------------------------------
+
+
+def write_log(message: str) -> None:
+    """Log a timestamped informational message."""
+    timestamp = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S")
+    logger.info("[%s] %s", timestamp, message)
+
+
+def write_log_error(message: str) -> None:
+    """Log a timestamped error message."""
+    timestamp = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S")
+    logger.error("[%s] ERROR: %s", timestamp, message)

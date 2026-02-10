@@ -10,7 +10,7 @@ from unittest.mock import patch
 
 import pytest
 
-from scripts.ai_review import (
+from scripts.ai_review_common import (
     assert_environment_variables,
     convert_to_json_escaped,
     format_collapsible_section,
