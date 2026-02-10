@@ -294,7 +294,7 @@ Verify test coverage comprehensiveness for PR #235, which adds:
 
 ```powershell
 # Command executed
-pwsh -Command "Invoke-Pester /home/claude/ai-agents/.claude/skills/github/tests/Get-PRReviewComments.Tests.ps1 -Output Detailed"
+pwsh -Command "Invoke-Pester .claude/skills/github/tests/Get-PRReviewComments.Tests.ps1 -Output Detailed"
 
 # Results
 Pester v5.7.1

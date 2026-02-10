@@ -129,8 +129,8 @@ Executed: `Test-MemoryHealth.ps1 -Format Json`
 
 | Module | Status | Path |
 |--------|--------|------|
-| MemoryRouter | Loadable | /home/richard/ai-agents/.claude/skills/memory/scripts/MemoryRouter.psm1 |
-| ReflexionMemory | Loadable | /home/richard/ai-agents/.claude/skills/memory/scripts/ReflexionMemory.psm1 |
+| MemoryRouter | Loadable | .claude/skills/memory/scripts/MemoryRouter.psm1 |
+| ReflexionMemory | Loadable | .claude/skills/memory/scripts/ReflexionMemory.psm1 |
 
 **Recommendations from Health Check**:
 1. Forgetful MCP unavailable - use -LexicalOnly flag for Search-Memory
@@ -234,26 +234,26 @@ None identified. All critical functionality validated.
 
 ```bash
 # 1. Verify script syntax
-pwsh -Command "Get-Command -Syntax /home/richard/ai-agents/.claude/skills/memory/scripts/Test-MemoryHealth.ps1"
+pwsh -Command "Get-Command -Syntax .claude/skills/memory/scripts/Test-MemoryHealth.ps1"
 Result: [PASS] Syntax valid
 
 # 2. Check module files exist
-pwsh -Command "Test-Path /home/richard/ai-agents/.claude/skills/memory/scripts/MemoryRouter.psm1 -PathType Leaf"
+pwsh -Command "Test-Path .claude/skills/memory/scripts/MemoryRouter.psm1 -PathType Leaf"
 Result: True
 
-pwsh -Command "Test-Path /home/richard/ai-agents/.claude/skills/memory/scripts/ReflexionMemory.psm1 -PathType Leaf"
+pwsh -Command "Test-Path .claude/skills/memory/scripts/ReflexionMemory.psm1 -PathType Leaf"
 Result: True
 
 # 3. Verify doc paths
-grep -r "\.claude/skills/memory/scripts/" /home/richard/ai-agents/docs/memory-system/
+grep -r "\.claude/skills/memory/scripts/" docs/memory-system/
 Result: [PASS] 18+ correct references found
 
 # 4. Check for old paths
-grep -r "scripts/memory/" /home/richard/ai-agents/docs/memory-system/ | grep -v ".claude/skills/memory/scripts/"
+grep -r "scripts/memory/" docs/memory-system/ | grep -v ".claude/skills/memory/scripts/"
 Result: [PASS] No stale references
 
 # 5. Run health check
-pwsh /home/richard/ai-agents/.claude/skills/memory/scripts/Test-MemoryHealth.ps1 -Format Json
+pwsh .claude/skills/memory/scripts/Test-MemoryHealth.ps1 -Format Json
 Result: [PASS] Overall status: "healthy"
 
 # 6. Import and verify modules
@@ -285,8 +285,8 @@ Result: [PASS] 11 functions exported
 
 ## Related Documentation
 
-- [Quick Start Guide](/home/richard/ai-agents/docs/memory-system/quick-start.md)
-- [API Reference](/home/richard/ai-agents/docs/memory-system/api-reference.md)
-- [Skill Reference](/home/richard/ai-agents/docs/memory-system/skill-reference.md)
-- [ADR-037: Memory Router](/home/richard/ai-agents/.agents/architecture/adr/ADR-037-memory-router-implementation.md)
-- [ADR-038: Reflexion Memory Schema](/home/richard/ai-agents/.agents/architecture/adr/ADR-038-reflexion-memory-schema.md)
+- [Quick Start Guide](docs/memory-system/quick-start.md)
+- [API Reference](docs/memory-system/api-reference.md)
+- [Skill Reference](docs/memory-system/skill-reference.md)
+- [ADR-037: Memory Router](.agents/architecture/adr/ADR-037-memory-router-implementation.md)
+- [ADR-038: Reflexion Memory Schema](.agents/architecture/adr/ADR-038-reflexion-memory-schema.md)

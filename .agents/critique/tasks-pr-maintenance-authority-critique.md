@@ -61,9 +61,9 @@ Task prompts contain critical self-containment issues. 11 of 17 tasks require re
 
 - [ ] **Task 5.7**: Creates new file without absolute path
   - **Location**: Lines 728-788
-  - **Issue**: Says "Create tests/Integration-PRMaintenance.Tests.ps1" without `/home/richard/ai-agents/` prefix
+  - **Issue**: Says "Create tests/Integration-PRMaintenance.Tests.ps1" without `` prefix
   - **Impact**: Minor - agent can infer, but violates self-containment principle
-  - **Recommendation**: Use absolute path `/home/richard/ai-agents/tests/Integration-PRMaintenance.Tests.ps1`
+  - **Recommendation**: Use absolute path `tests/Integration-PRMaintenance.Tests.ps1`
 
 - [ ] **Task 6.1**: Line number references without structural context
   - **Location**: Lines 798-845
@@ -101,7 +101,7 @@ Task prompts contain critical self-containment issues. 11 of 17 tasks require re
 
 1. **Test Structure**: Does "Process-SinglePR" function exist in current codebase? If not, what is the actual invocation pattern for tests?
 2. **Integration Test PRs**: Are PRs #365, #353, #301, #255, #247, #235 still open and in expected states? Should tests use dynamic PR discovery instead of hardcoded numbers?
-3. **File Paths**: Should all prompts include absolute file paths (/home/richard/ai-agents/...) to eliminate ambiguity?
+3. **File Paths**: Should all prompts include absolute file paths (...) to eliminate ambiguity?
 4. **Results Initialization**: What is the exact structure and location of the $results initialization block referenced in Task 3.2? (Provide line number or search pattern)
 5. **Test File Structure**: What are the existing Describe blocks and mocking patterns in tests/Invoke-PRMaintenance.Tests.ps1?
 
@@ -150,7 +150,7 @@ VERIFY: Search for "Get-UnacknowledgedComments" in the $isAgentControlledBot blo
 **Current Issue**: Assumes Process-SinglePR exists
 
 **Action Required**:
-1. Read `/home/richard/ai-agents/tests/Invoke-PRMaintenance.Tests.ps1`
+1. Read `tests/Invoke-PRMaintenance.Tests.ps1`
 2. Document actual test invocation pattern
 3. Update all test prompts to use verified pattern
 

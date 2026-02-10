@@ -370,8 +370,8 @@ if ($isAgentControlledBot -or $isBotReviewer) {
 
 ### Sources Consulted
 
-- `/home/richard/ai-agents/scripts/Invoke-PRMaintenance.ps1` (lines 1200-1400)
-- `/home/richard/ai-agents/.agents/architecture/bot-author-feedback-protocol.md`
+- `scripts/Invoke-PRMaintenance.ps1` (lines 1200-1400)
+- `.agents/architecture/bot-author-feedback-protocol.md`
 
 ### Data Transparency
 

@@ -74,11 +74,11 @@ grep -r "Validate-SessionEnd" \
   --include="*.md" \
   --exclude-dir=".agents/sessions" \
   --exclude-dir=".serena/memories" \
-  /home/richard/ai-agents/.agents/architecture/ \
-  /home/richard/ai-agents/.claude/skills/ \
-  /home/richard/ai-agents/AGENTS.md \
-  /home/richard/ai-agents/CLAUDE.md \
-  /home/richard/ai-agents/CRITICAL-CONTEXT.md
+  .agents/architecture/ \
+  .claude/skills/ \
+  AGENTS.md \
+  CLAUDE.md \
+  CRITICAL-CONTEXT.md
 # Expected: 0 results
 ```
 
@@ -171,9 +171,9 @@ grep -r "Validate-SessionEnd" \
      --exclude-dir=".agents/sessions" \
      --exclude-dir=".serena/memories" \
      --exclude-dir=".agents/planning" \
-     /home/richard/ai-agents/.agents/architecture/ \
-     /home/richard/ai-agents/.claude/skills/ \
-     /home/richard/ai-agents/AGENTS.md
+     .agents/architecture/ \
+     .claude/skills/ \
+     AGENTS.md
    # Expected: 0 results
    ```
 

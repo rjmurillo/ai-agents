@@ -440,10 +440,10 @@ Mark Phase 3 optimization as "deferred pending Phase 2 completion" - revisit aft
 
 ### Sources Consulted
 
-- `/home/claude/ai-agents/.agents/architecture/ADR-037-memory-router-architecture.md` (primary)
-- `/home/claude/ai-agents/.agents/analysis/123-phase2a-memory-architecture-review.md` (Phase 2A context)
-- `/home/claude/ai-agents/.agents/architecture/ADR-007-memory-first-architecture.md` (foundational)
-- `/home/claude/ai-agents/scripts/Measure-MemoryPerformance.ps1` (benchmark infrastructure)
+- `.agents/architecture/ADR-037-memory-router-architecture.md` (primary)
+- `.agents/analysis/123-phase2a-memory-architecture-review.md` (Phase 2A context)
+- `.agents/architecture/ADR-007-memory-first-architecture.md` (foundational)
+- `scripts/Measure-MemoryPerformance.ps1` (benchmark infrastructure)
 - Serena memories: phase2a-memory-router-design, memory-architecture-serena-primary
 - GitHub Issues: #167, #584, #180, #176
 

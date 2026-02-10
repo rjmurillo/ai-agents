@@ -991,4 +991,4 @@ Recommendation: Implement as fallback:
 ```text
 <function_calls>
 <invoke name="mcp__serena__activate_project">
-<parameter name="projectPath">D:\src\GitHub\rjmurillo-bot\ai-agents
+<parameter name="projectPath"><project-root>

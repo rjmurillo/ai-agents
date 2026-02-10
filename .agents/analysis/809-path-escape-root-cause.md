@@ -11,7 +11,7 @@
 When committing `.agents/sessions/2026-01-08-session-809.md`, the pre-commit hook failed with:
 
 ```
-E_PATH_ESCAPE: Session log must be under .agents/sessions/: /home/richard/ai-agents.feat-Worktrunk-support/.agents/sessions/2026-01-08-session-809.md
+E_PATH_ESCAPE: Session log must be under .agents/sessions/: <project-root>.feat-Worktrunk-support/.agents/sessions/2026-01-08-session-809.md
 ```
 
 The path shown IS under `.agents/sessions/`, yet validation claimed it was not. This indicates a bug in the validation logic itself, not a user error.
@@ -116,8 +116,8 @@ The fact that commit 693de3a3 successfully committed session-809.md indicates th
 ## 9. Appendices
 
 ### Sources Consulted
-- `/home/richard/ai-agents.feat-Worktrunk-support/.githooks/pre-commit` lines 112-122, 792, 806
-- `/home/richard/ai-agents.feat-Worktrunk-support/scripts/Validate-Session.ps1` lines 115-126
+- `<project-root>.feat-Worktrunk-support/.githooks/pre-commit` lines 112-122, 792, 806
+- `<project-root>.feat-Worktrunk-support/scripts/Validate-Session.ps1` lines 115-126
 - Git commit history (693de3a3)
 - PowerShell path resolution testing (simulated scenarios)
 

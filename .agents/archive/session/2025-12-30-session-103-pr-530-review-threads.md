@@ -3,7 +3,7 @@
 **Date**: 2025-12-30
 **PR**: #530 - feat/97-review-thread-management
 **Branch**: feat/97-review-thread-management
-**Worktree**: /home/claude/worktree-pr-530
+**Worktree**: worktree-pr-530
 **Agent**: pr-comment-responder
 
 ## Objective

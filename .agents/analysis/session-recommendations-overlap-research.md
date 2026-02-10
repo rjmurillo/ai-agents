@@ -307,8 +307,8 @@ Two recommendations are already complete:
 - "parity reconcile" (PR #43 - unrelated)
 
 **File System Checks**:
-- `/home/claude/ai-agents/.agents/architecture/ADR-035*.md` (NOT FOUND)
-- `/home/claude/ai-agents/.agents/architecture/ADR-034*.md` (FOUND - investigation-only exemption)
+- `.agents/architecture/ADR-035*.md` (NOT FOUND)
+- `.agents/architecture/ADR-034*.md` (FOUND - investigation-only exemption)
 
 **Related Issues Identified**:
 - #610 (PR MERGED): fix(ci): reconcile pre-commit session validation with CI requirements

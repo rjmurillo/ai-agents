@@ -340,7 +340,7 @@ test -f .serena/memories/000-memory-index.md || echo "FAIL: Index missing"
 
 ## Test Environment
 
-**Environment**: Local development (D:\src\GitHub\rjmurillo\ai-agents)
+**Environment**: Local development (<project-root>)
 
 **Tools Required**:
 

@@ -3,7 +3,7 @@
 **Date**: 2025-12-23
 **PR**: #235 (fix/fetch-issue-comments)
 **Branch**: fix/fetch-issue-comments
-**Worktree**: /home/richard/worktree-pr-235
+**Worktree**: worktree-pr-235
 **Agent**: pr-comment-responder (via main context)
 
 ## Objective
