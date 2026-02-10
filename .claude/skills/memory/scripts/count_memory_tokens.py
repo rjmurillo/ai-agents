@@ -12,12 +12,12 @@ import sys
 from pathlib import Path
 from typing import Any
 
+_HAS_TIKTOKEN = False
 try:
     import tiktoken
     _HAS_TIKTOKEN = True
 except ImportError:
-    tiktoken = None  # type: ignore[assignment]
-    _HAS_TIKTOKEN = False
+    pass
 
 
 def get_file_hash(file_path: Path) -> str:
