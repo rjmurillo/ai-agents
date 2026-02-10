@@ -283,11 +283,11 @@ jobs:
           # Write to temp file
           $prdTemplate | Set-Content /tmp/prd-comment.md -Encoding UTF8
 
-          # Use GitHub skill script for idempotent comment posting
-          & .claude/skills/github/scripts/issue/Post-IssueComment.ps1 `
-            -Issue $env:ISSUE_NUMBER `
-            -BodyFile "/tmp/prd-comment.md" `
-            -Marker "AI-PRD-GENERATION"
+          # Post comment via Python script (ADR-042 migration)
+          python3 .github/scripts/post_issue_comment.py `
+            --issue $env:ISSUE_NUMBER `
+            --body-file "/tmp/prd-comment.md" `
+            --marker "AI-PRD-GENERATION"
 
       - name: Post Triage Summary
         shell: pwsh -NoProfile -Command "& '{0}'"
@@ -387,8 +387,8 @@ jobs:
 
           $triageComment | Set-Content /tmp/triage-comment.md -Encoding UTF8
 
-          # Use GitHub skill script for idempotent comment posting
-          & .claude/skills/github/scripts/issue/Post-IssueComment.ps1 `
-            -Issue $env:ISSUE_NUMBER `
-            -BodyFile "/tmp/triage-comment.md" `
-            -Marker "AI-ISSUE-TRIAGE"
+          # Post comment via Python script (ADR-042 migration)
+          python3 .github/scripts/post_issue_comment.py `
+            --issue $env:ISSUE_NUMBER `
+            --body-file "/tmp/triage-comment.md" `
+            --marker "AI-ISSUE-TRIAGE"

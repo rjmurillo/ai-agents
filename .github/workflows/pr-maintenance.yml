@@ -54,26 +54,20 @@ jobs:
         id: discover
         env:
           GH_TOKEN: ${{ secrets.BOT_PAT }}
-        shell: pwsh -NoProfile -Command "& '{0}'"
         run: |
-          $result = ./scripts/Invoke-PRMaintenance.ps1 -MaxPRs ([int]'${{ env.PR_MAX_PRS }}') -OutputJson
-          $parsed = $result | ConvertFrom-Json
+          result=$(python3 .github/scripts/invoke_pr_maintenance.py --max-prs "${{ env.PR_MAX_PRS }}" --output-json)
+          matrix_json=$(echo "$result" | jq -c '{include: .prs}')
 
-          # Output for matrix - ALL PRs requiring action (for parallel processing)
-          $actionPRs = @($parsed.prs)
-          $matrixJson = @{ include = $actionPRs } | ConvertTo-Json -Compress -Depth 10
-          "matrix=$matrixJson" | Out-File $env:GITHUB_OUTPUT -Append
+          echo "matrix=$matrix_json" >> "$GITHUB_OUTPUT"
 
-          # Check if we have any PRs to process
-          $hasPRs = $actionPRs.Count -gt 0
-          "has-prs=$($hasPRs.ToString().ToLower())" | Out-File $env:GITHUB_OUTPUT -Append
+          has_prs=$(echo "$result" | jq -r '.prs | length > 0')
+          echo "has-prs=$has_prs" >> "$GITHUB_OUTPUT"
 
-          # Full summary for later steps
-          "summary=$result" | Out-File $env:GITHUB_OUTPUT -Append
+          echo "summary=$result" >> "$GITHUB_OUTPUT"
 
-          Write-Host "Found $($parsed.summary.total) open PRs"
-          Write-Host "Action Required: $($parsed.summary.actionRequired)"
-          Write-Host "With Conflicts: $(@($actionPRs | Where-Object { $_.hasConflicts }).Count)"
+          echo "Found $(echo "$result" | jq -r '.summary.total') open PRs"
+          echo "Action Required: $(echo "$result" | jq -r '.summary.actionRequired')"
+          echo "With Conflicts: $(echo "$result" | jq '[.prs[] | select(.hasConflicts == true)] | length')"
 
       - name: Write step summary
         env:

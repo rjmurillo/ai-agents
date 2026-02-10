@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
 """Check spec validation verdicts and fail the workflow if needed.
 
-Replaces the inline PowerShell block in the 'Check for Failures'
-step of ai-spec-validation.yml.
-
 Input env vars:
     TRACE_VERDICT          - Verdict from traceability check
     COMPLETENESS_VERDICT   - Verdict from completeness check
@@ -15,8 +12,10 @@ from __future__ import annotations
 import os
 import sys
 
-# Add workspace root to Python path for package imports
-workspace = os.environ.get("GITHUB_WORKSPACE", ".")
+workspace = os.environ.get(
+    "GITHUB_WORKSPACE",
+    os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")),
+)
 sys.path.insert(0, workspace)
 
 from scripts.ai_review_common import spec_validation_failed  # noqa: E402

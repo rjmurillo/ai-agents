@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
 """Parse AI roadmap alignment output into milestone, priority, and escalation fields.
 
-Replaces the inline PowerShell block in the 'Parse Roadmap Results'
-step (id: parse-align) of ai-issue-triage.yml.
-
 Input env vars:
     RAW_OUTPUT            - AI output with milestone, priority, escalation data
     MILESTONE_FROM_ACTION - Fallback milestone from composite action output
@@ -17,14 +14,16 @@ import os
 import re
 import sys
 
-# Add workspace root to Python path for package imports
-workspace = os.environ.get("GITHUB_WORKSPACE", ".")
+workspace = os.environ.get(
+    "GITHUB_WORKSPACE",
+    os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")),
+)
 sys.path.insert(0, workspace)
 
-from scripts.ai_review_common import get_milestone_from_ai_output  # noqa: E402
-
-_SAFE_NAME = re.compile(
-    r"^(?=.{1,50}$)[A-Za-z0-9](?:[A-Za-z0-9 _.\-]*[A-Za-z0-9])?$"
+from scripts.ai_review_common import (  # noqa: E402
+    SAFE_NAME_PATTERN,
+    get_milestone_from_ai_output,
+    write_output,
 )
 
 _PRIORITY_PATTERN = re.compile(r'"priority"\s*:\s*"(P[0-4])"')
@@ -33,37 +32,27 @@ _COMPLEXITY_PATTERN = re.compile(r'"complexity_score"\s*:\s*(\d{1,2})')
 _CRITERIA_PATTERN = re.compile(r'"escalation_criteria"\s*:\s*\[([^\]]*)\]')
 
 
-def write_output(key: str, value: str) -> None:
-    """Append a key=value line to the GitHub Actions output file."""
-    output_file = os.environ.get("GITHUB_OUTPUT", "")
-    if output_file:
-        with open(output_file, "a") as f:
-            f.write(f"{key}={value}\n")
-
-
 def main() -> None:
     raw_output = os.environ.get("RAW_OUTPUT", "")
     milestone_from_action = os.environ.get("MILESTONE_FROM_ACTION", "")
 
-    # Save output for debugging
-    with open("/tmp/align-output.txt", "w", encoding="utf-8") as f:
-        f.write(raw_output)
+    try:
+        with open("/tmp/align-output.txt", "w", encoding="utf-8") as f:
+            f.write(raw_output)
+    except OSError:
+        pass
 
-    # Parse milestone with hardened function
     milestone = get_milestone_from_ai_output(raw_output) or ""
 
-    # Fallback to action output if needed
     if not milestone and milestone_from_action:
-        if _SAFE_NAME.match(milestone_from_action):
+        if SAFE_NAME_PATTERN.match(milestone_from_action):
             milestone = milestone_from_action
 
-    # Parse priority with strict validation (P0-P4 only)
     priority = "P2"
     match = _PRIORITY_PATTERN.search(raw_output)
     if match:
         priority = match.group(1)
 
-    # Parse escalation fields with validation
     escalate_to_prd = "false"
     match = _ESCALATE_PATTERN.search(raw_output)
     if match:
@@ -74,7 +63,7 @@ def main() -> None:
     if match:
         complexity_score = min(int(match.group(1)), 12)
 
-    # Parse escalation criteria with hardened regex (reject shell metacharacters)
+    # Security: reject shell metacharacters
     escalation_criteria = ""
     match = _CRITERIA_PATTERN.search(raw_output)
     if match:
@@ -82,7 +71,7 @@ def main() -> None:
             item.strip().strip('"').strip("'")
             for item in match.group(1).split(",")
         ]
-        valid_criteria = [c for c in criteria if c and _SAFE_NAME.match(c)]
+        valid_criteria = [c for c in criteria if c and SAFE_NAME_PATTERN.match(c)]
         escalation_criteria = ",".join(valid_criteria)
 
     write_output("milestone", milestone)

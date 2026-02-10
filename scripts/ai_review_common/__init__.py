@@ -10,10 +10,15 @@ from scripts.ai_review_common.issue_triage import (
     get_verdict_alert_type,
     get_verdict_emoji,
     get_verdict_exit_code,
+    write_github_output,
     write_log,
     write_log_error,
+    write_output,
+    write_step_summary,
 )
 from scripts.ai_review_common.quality_gate import (
+    FAIL_VERDICTS,
+    SAFE_NAME_PATTERN,
     assert_environment_variables,
     get_concurrency_group_from_run,
     get_failure_category,
@@ -32,6 +37,8 @@ from scripts.ai_review_common.quality_gate import (
 )
 
 __all__ = [
+    "FAIL_VERDICTS",
+    "SAFE_NAME_PATTERN",
     "assert_environment_variables",
     "convert_to_json_escaped",
     "format_collapsible_section",
@@ -54,6 +61,9 @@ __all__ = [
     "merge_verdicts",
     "runs_overlap",
     "spec_validation_failed",
+    "write_github_output",
     "write_log",
     "write_log_error",
+    "write_output",
+    "write_step_summary",
 ]

@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
 """Generate the spec-to-implementation validation report.
 
-Replaces the inline PowerShell block in the 'Generate Validation Report'
-step (id: report) of ai-spec-validation.yml.
-
 Input env vars:
     HAS_SPECS              - Whether PR references specs ('true' or other)
     SPEC_REFS              - Space-separated spec reference IDs
@@ -26,8 +23,10 @@ from __future__ import annotations
 import os
 import sys
 
-# Add workspace root to Python path for package imports
-workspace = os.environ.get("GITHUB_WORKSPACE", ".")
+workspace = os.environ.get(
+    "GITHUB_WORKSPACE",
+    os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")),
+)
 sys.path.insert(0, workspace)
 
 from scripts.ai_review_common import (  # noqa: E402
@@ -35,15 +34,8 @@ from scripts.ai_review_common import (  # noqa: E402
     get_verdict_emoji,
     initialize_ai_review,
     spec_validation_failed,
+    write_output,
 )
-
-
-def write_output(key: str, value: str) -> None:
-    """Append a key=value line to the GitHub Actions output file."""
-    output_file = os.environ.get("GITHUB_OUTPUT", "")
-    if output_file:
-        with open(output_file, "a") as f:
-            f.write(f"{key}={value}\n")
 
 
 def _build_no_specs_report(repository: str) -> str:
@@ -90,12 +82,8 @@ See PR template for full guidance.
 
 def _build_full_report(
     final_verdict: str,
-    alert_type: str,
-    final_emoji: str,
     trace_verdict: str,
-    trace_emoji: str,
     completeness_verdict: str,
-    completeness_emoji: str,
     spec_refs: str,
     issue_refs: str,
     trace_findings: str,
@@ -107,6 +95,10 @@ def _build_full_report(
     ref_name: str,
 ) -> str:
     """Build the full validation report with all check results."""
+    alert_type = get_verdict_alert_type(final_verdict)
+    final_emoji = get_verdict_emoji(final_verdict)
+    trace_emoji = get_verdict_emoji(trace_verdict)
+    completeness_emoji = get_verdict_emoji(completeness_verdict)
     return f"""\
 <!-- AI-SPEC-VALIDATION -->
 
@@ -181,18 +173,12 @@ def main() -> None:
         trace_verdict = os.environ.get("TRACE_VERDICT", "")
         completeness_verdict = os.environ.get("COMPLETENESS_VERDICT", "")
 
-        # Determine final verdict
         if spec_validation_failed(trace_verdict, completeness_verdict):
             final_verdict = "FAIL"
         elif trace_verdict == "WARN" or completeness_verdict == "WARN":
             final_verdict = "WARN"
         else:
             final_verdict = "PASS"
-
-        alert_type = get_verdict_alert_type(final_verdict)
-        final_emoji = get_verdict_emoji(final_verdict)
-        trace_emoji = get_verdict_emoji(trace_verdict)
-        completeness_emoji = get_verdict_emoji(completeness_verdict)
 
         spec_refs = os.environ.get("SPEC_REFS", "") or "*None*"
         issue_refs = os.environ.get("ISSUE_REFS", "") or "*None*"
@@ -210,12 +196,8 @@ def main() -> None:
 
         report = _build_full_report(
             final_verdict=final_verdict,
-            alert_type=alert_type,
-            final_emoji=final_emoji,
             trace_verdict=trace_verdict,
-            trace_emoji=trace_emoji,
             completeness_verdict=completeness_verdict,
-            completeness_emoji=completeness_emoji,
             spec_refs=spec_refs,
             issue_refs=issue_refs,
             trace_findings=trace_findings,

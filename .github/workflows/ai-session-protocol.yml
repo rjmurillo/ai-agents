@@ -295,18 +295,15 @@ jobs:
         run: python3 .github/scripts/generate_session_report.py
 
       - name: Post PR Comment
-        shell: pwsh -NoProfile -Command "& '{0}'"
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REPORT_FILE: ${{ steps.report.outputs.report_file }}
         run: |
-          # Use GitHub skill script for idempotent comment posting
-          # PRs are issues in GitHub API, so we use Post-IssueComment with marker
-          & .claude/skills/github/scripts/issue/Post-IssueComment.ps1 `
-            -Issue $env:PR_NUMBER `
-            -BodyFile $env:REPORT_FILE `
-            -Marker "AI-SESSION-PROTOCOL"
+          python3 .github/scripts/post_issue_comment.py \
+            --issue "$PR_NUMBER" \
+            --body-file "$REPORT_FILE" \
+            --marker "AI-SESSION-PROTOCOL"
 
       - name: Set Job Summary
         shell: pwsh -NoProfile -Command "& '{0}'"

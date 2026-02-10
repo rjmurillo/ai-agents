@@ -16,7 +16,7 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Configuration (mirrors PowerShell $script: variables)
+# Configuration
 # ---------------------------------------------------------------------------
 
 _DEFAULT_MAX_RETRIES = 3
@@ -128,7 +128,7 @@ def get_verdict(output: str) -> str:
 
     Tries explicit ``VERDICT:`` pattern first, then falls back to keyword detection.
 
-    Returns one of: PASS, WARN, REJECTED, CRITICAL_FAIL.
+    Common values: PASS, WARN, FAIL, REJECTED, CRITICAL_FAIL, NEEDS_REVIEW.
     """
     if not output or not output.strip():
         return "CRITICAL_FAIL"
@@ -171,16 +171,16 @@ def get_milestone(output: str) -> str:
 # Verdict aggregation
 # ---------------------------------------------------------------------------
 
-_FAIL_VERDICTS = frozenset({"CRITICAL_FAIL", "REJECTED", "FAIL"})
+FAIL_VERDICTS = frozenset({"CRITICAL_FAIL", "REJECTED", "FAIL", "NEEDS_REVIEW"})
 
 
 def merge_verdicts(verdicts: list[str]) -> str:
-    """Aggregate multiple verdicts: CRITICAL_FAIL/REJECTED/FAIL > WARN > PASS."""
+    """Aggregate multiple verdicts: CRITICAL_FAIL/REJECTED/FAIL/NEEDS_REVIEW > WARN > PASS."""
     if not verdicts:
         return "PASS"
 
     for v in verdicts:
-        if v in _FAIL_VERDICTS:
+        if v in FAIL_VERDICTS:
             return "CRITICAL_FAIL"
 
     if "WARN" in verdicts:
@@ -215,7 +215,6 @@ def get_failure_category(
     message: str = "",
     stderr: str = "",
     exit_code: int = 0,
-    verdict: str = "",
 ) -> str:
     """Categorize failure as INFRASTRUCTURE or CODE_QUALITY.
 
@@ -251,8 +250,7 @@ def spec_validation_failed(
 ) -> bool:
     """Return True if spec validation should block merge.
 
-    PowerShell's ``-in`` is case-insensitive; Python is not.
-    We normalize to uppercase for comparison.
+    Normalizes verdicts to uppercase for case-insensitive comparison.
     """
     trace_upper = trace_verdict.upper() if trace_verdict else ""
     completeness_upper = completeness_verdict.upper() if completeness_verdict else ""
@@ -268,7 +266,7 @@ _JSON_MILESTONE_PATTERN = re.compile(r'"milestone"\s*:\s*"([^"]*)"')
 
 # Strict validation: alphanumeric start, optional middle with safe chars,
 # alphanumeric end, max 50 chars total.
-_SAFE_NAME_PATTERN = re.compile(
+SAFE_NAME_PATTERN = re.compile(
     r"^(?=.{1,50}$)[A-Za-z0-9](?:[A-Za-z0-9 _.\-]*[A-Za-z0-9])?$"
 )
 
@@ -295,7 +293,7 @@ def get_labels_from_ai_output(output: str | None) -> list[str]:
         label = raw.strip().strip('"').strip("'")
         if not label or not label.strip():
             continue
-        if _SAFE_NAME_PATTERN.match(label):
+        if SAFE_NAME_PATTERN.match(label):
             labels.append(label)
     return labels
 
@@ -316,7 +314,7 @@ def get_milestone_from_ai_output(output: str | None) -> str | None:
     if not milestone or not milestone.strip():
         return None
 
-    if _SAFE_NAME_PATTERN.match(milestone):
+    if SAFE_NAME_PATTERN.match(milestone):
         return milestone
     return None
 
@@ -439,6 +437,16 @@ def runs_overlap(run1: dict[str, Any], run2: dict[str, Any]) -> bool:
     return run1_start < run2_start < run1_end
 
 
+_CONCURRENCY_PREFIXES: list[tuple[str, str]] = [
+    ("quality", "ai-quality"),
+    ("spec", "spec-validation"),
+    ("session", "session-protocol"),
+    ("label", "label-pr"),
+    ("memory", "memory-validation"),
+    ("assign", "auto-assign"),
+]
+
+
 def get_concurrency_group_from_run(run: dict[str, Any]) -> str:
     """Extract concurrency group identifier from a workflow run."""
     pr_number = None
@@ -446,22 +454,12 @@ def get_concurrency_group_from_run(run: dict[str, Any]) -> str:
         pr_number = run["pull_requests"][0].get("number")
 
     if pr_number is not None:
-        name = run.get("name", "")
-        name_lower = name.lower()
-        if "quality" in name_lower:
-            prefix = "ai-quality"
-        elif "spec" in name_lower:
-            prefix = "spec-validation"
-        elif "session" in name_lower:
-            prefix = "session-protocol"
-        elif "label" in name_lower:
-            prefix = "label-pr"
-        elif "memory" in name_lower:
-            prefix = "memory-validation"
-        elif "assign" in name_lower:
-            prefix = "auto-assign"
-        else:
-            prefix = "pr-validation"
+        name_lower = run.get("name", "").lower()
+        prefix = "pr-validation"
+        for keyword, group_prefix in _CONCURRENCY_PREFIXES:
+            if keyword in name_lower:
+                prefix = group_prefix
+                break
         return f"{prefix}-{pr_number}"
 
     return f"{run.get('name', 'unknown')}-{run.get('head_branch', 'unknown')}"
