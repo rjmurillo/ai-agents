@@ -277,25 +277,15 @@ jobs:
 
       - name: Post PR Comment
         if: steps.should-run.outputs.skip != 'true'
-        shell: pwsh
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          $reportFile = "pr-validation-report.md"
-          
-          if (Test-Path $reportFile) {
-            # Use GitHub skill script for idempotent comment posting
-            if (Test-Path ".claude/skills/github/scripts/issue/Post-IssueComment.ps1") {
-              & .claude/skills/github/scripts/issue/Post-IssueComment.ps1 `
-                -Issue $env:PR_NUMBER `
-                -BodyFile $reportFile `
-                -Marker "PR-VALIDATION"
-            } else {
-              Write-Warning "Post-IssueComment skill not found, using gh directly"
-              $body = Get-Content $reportFile -Raw
-              gh pr comment $env:PR_NUMBER --repo $env:GITHUB_REPOSITORY --body $body
-            }
-          }
+          if [ -f "pr-validation-report.md" ]; then
+            python3 .github/scripts/post_issue_comment.py \
+              --issue "$PR_NUMBER" \
+              --body-file "pr-validation-report.md" \
+              --marker "PR-VALIDATION"
+          fi
 
       - name: Set Job Summary
         if: steps.should-run.outputs.skip != 'true'

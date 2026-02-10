@@ -413,18 +413,15 @@ jobs:
           "report_file=$reportFile" >> $env:GITHUB_OUTPUT
 
       - name: Post PR Comment
-        shell: pwsh -NoProfile -Command "& '{0}'"
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ env.PR_NUMBER }}
           REPORT_FILE: ${{ steps.report.outputs.report_file }}
         run: |
-          # Use GitHub skill script for idempotent comment posting
-          # PRs are issues in GitHub API, so we use Post-IssueComment with marker
-          & .claude/skills/github/scripts/issue/Post-IssueComment.ps1 `
-            -Issue $env:PR_NUMBER `
-            -BodyFile $env:REPORT_FILE `
-            -Marker "AI-SPEC-VALIDATION"
+          python3 .github/scripts/post_issue_comment.py \
+            --issue "$PR_NUMBER" \
+            --body-file "$REPORT_FILE" \
+            --marker "AI-SPEC-VALIDATION"
 
       - name: Set Job Summary
         shell: pwsh -NoProfile -Command "& '{0}'"

@@ -917,54 +917,28 @@ jobs:
           }
 
       - name: Post PR Comment
-        shell: pwsh -NoProfile -Command "& '{0}'"
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ env.PR_NUMBER }}
           REPORT_FILE: ${{ steps.report.outputs.report_file }}
         run: |
-          $ErrorActionPreference = 'Stop'
-
-          if ([string]::IsNullOrWhiteSpace($env:PR_NUMBER)) {
-            Write-Output "::error::PR_NUMBER environment variable is missing"
+          if [ -z "$PR_NUMBER" ]; then
+            echo "::error::PR_NUMBER environment variable is missing"
             exit 1
-          }
-
-          if ([string]::IsNullOrWhiteSpace($env:REPORT_FILE)) {
-            Write-Output "::error::REPORT_FILE environment variable is missing"
+          fi
+          if [ -z "$REPORT_FILE" ]; then
+            echo "::error::REPORT_FILE environment variable is missing"
             exit 1
-          }
-
-          if (-not (Test-Path $env:REPORT_FILE)) {
-            Write-Output "::error::Report file not found: $env:REPORT_FILE"
+          fi
+          if [ ! -f "$REPORT_FILE" ]; then
+            echo "::error::Report file not found: $REPORT_FILE"
             exit 1
-          }
-
-          $skillScript = ".claude/skills/github/scripts/issue/Post-IssueComment.ps1"
-          if (-not (Test-Path $skillScript)) {
-            Write-Output "::error::Skill script not found: $skillScript"
-            exit 1
-          }
-
-          try {
-            # Use GitHub skill script for idempotent comment posting
-            # PRs are issues in GitHub API (pull requests are a superset of issues), so we use Post-IssueComment with marker `AI-PR-QUALITY-GATE`
-            # UpdateIfExists updates the existing marked comment if present, ensuring the latest report is reflected
-            & $skillScript `
-              -Issue $env:PR_NUMBER `
-              -BodyFile $env:REPORT_FILE `
-              -Marker "AI-PR-QUALITY-GATE" `
-              -UpdateIfExists
-
-            if ($LASTEXITCODE -ne 0) {
-              Write-Output "::error::Post-IssueComment.ps1 failed with exit code $LASTEXITCODE"
-              exit $LASTEXITCODE
-            }
-          }
-          catch {
-            Write-Output "::error::Failed to post PR comment: $_"
-            exit 1
-          }
+          fi
+          python3 .github/scripts/post_issue_comment.py \
+            --issue "$PR_NUMBER" \
+            --body-file "$REPORT_FILE" \
+            --marker "AI-PR-QUALITY-GATE" \
+            --update-if-exists
 
       - name: Set Job Summary
         shell: pwsh -NoProfile -Command "& '{0}'"
