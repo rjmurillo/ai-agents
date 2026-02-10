@@ -328,7 +328,10 @@ class TestMain:
         code = main(["--path", str(tmp_path)])
         assert code == 0
 
-    def test_violations_without_ci_returns_zero(self, tmp_path: Path) -> None:
+    def test_violations_without_ci_returns_zero(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delenv("CI", raising=False)
         _create_workflow(tmp_path, _VERSION_TAG)
         code = main(["--path", str(tmp_path)])
         assert code == 0

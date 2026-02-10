@@ -435,8 +435,10 @@ class TestMain:
         assert exit_code == 1
 
     def test_invalid_file_local_mode_returns_0(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str],
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
+        monkeypatch.delenv("CI", raising=False)
         skill_dir = tmp_path / ".claude" / "skills" / "bad"
         skill_dir.mkdir(parents=True)
         (skill_dir / "SKILL.md").write_text(
@@ -504,7 +506,8 @@ class TestMain:
 class TestBuildParser:
     """Tests for argument parser construction."""
 
-    def test_defaults(self) -> None:
+    def test_defaults(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("CI", raising=False)
         parser = build_parser()
         args = parser.parse_args([])
         assert args.path == ".claude/skills"
