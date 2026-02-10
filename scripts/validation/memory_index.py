@@ -853,7 +853,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.output_format == "console":
             print(f"Memory path not found: {target}")
         if args.ci:
-            return 1
+            return 2  # ADR-035: config error (path not found)
         return 0
 
     report = run_validation(target, args.output_format)

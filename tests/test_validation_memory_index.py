@@ -768,7 +768,7 @@ class TestMain:
 
     def test_nonexistent_path_ci(self, tmp_path: Path) -> None:
         exit_code = main(["--path", str(tmp_path / "missing"), "--ci"])
-        assert exit_code == 1
+        assert exit_code == 2
 
     def test_empty_dir_passes(self, tmp_path: Path) -> None:
         exit_code = main(["--path", str(tmp_path)])

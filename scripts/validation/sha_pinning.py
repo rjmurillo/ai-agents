@@ -10,6 +10,7 @@ Implements security constraint from PROJECT-CONSTRAINTS.md.
 Exit codes follow ADR-035:
     0 - Success (all actions SHA-pinned, or no violations in non-CI mode)
     1 - Logic error (violations found, CI mode only)
+    2 - Config error (path not found)
 """
 
 from __future__ import annotations
@@ -289,7 +290,7 @@ def main(argv: list[str] | None = None) -> int:
     base_path = Path(args.path).resolve()
     if not base_path.is_dir():
         print(f"Error: Path not found: {args.path}", file=sys.stderr)
-        return 1
+        return 2  # ADR-035: config error (path not found)
 
     files, violations = scan_all(base_path)
 

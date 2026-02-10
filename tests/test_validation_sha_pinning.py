@@ -342,9 +342,9 @@ class TestMain:
         code = main(["--path", str(tmp_path)])
         assert code == 0
 
-    def test_invalid_path_returns_one(self, tmp_path: Path) -> None:
+    def test_invalid_path_returns_two(self, tmp_path: Path) -> None:
         code = main(["--path", str(tmp_path / "nonexistent")])
-        assert code == 1
+        assert code == 2
 
     def test_json_format(self, tmp_path: Path) -> None:
         _create_workflow(tmp_path, _SHA_PINNED)

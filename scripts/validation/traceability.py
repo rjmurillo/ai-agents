@@ -428,7 +428,7 @@ def validate_specs_path(specs_path_str: str) -> Path:
     resolved = Path(specs_path_str).resolve()
     if not resolved.is_dir():
         print(f"Specs path not found: {specs_path_str}", file=sys.stderr)
-        raise SystemExit(1)
+        raise SystemExit(2)  # ADR-035: config error
 
     is_absolute = Path(specs_path_str).is_absolute()
 
@@ -454,7 +454,7 @@ def validate_specs_path(specs_path_str: str) -> Path:
                     f"repository root '{allowed_base}'.",
                     file=sys.stderr,
                 )
-                raise SystemExit(1)
+                raise SystemExit(2)  # ADR-035: config error
         else:
             if ".." in specs_path_str:
                 current_dir = Path.cwd().resolve()
@@ -464,7 +464,7 @@ def validate_specs_path(specs_path_str: str) -> Path:
                         f"resolves outside the current directory.",
                         file=sys.stderr,
                     )
-                    raise SystemExit(1)
+                    raise SystemExit(2)  # ADR-035: config error
 
     return resolved
 

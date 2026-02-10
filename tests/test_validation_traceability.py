@@ -445,4 +445,4 @@ class TestMain:
     def test_nonexistent_path_exits(self) -> None:
         with pytest.raises(SystemExit) as exc_info:
             main(["--specs-path", "/nonexistent/path/xyz"])
-        assert exc_info.value.code == 1
+        assert exc_info.value.code == 2
