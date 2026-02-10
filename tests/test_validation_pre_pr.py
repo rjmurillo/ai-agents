@@ -7,6 +7,7 @@ result tracking, and CLI behavior. External tool calls are mocked.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 from scripts.validation.pre_pr import (
@@ -219,7 +220,7 @@ class TestMain:
     """
 
     @patch("scripts.validation.pre_pr._run_subprocess")
-    def test_quick_mode_skips_slow_checks(self, mock_subprocess: object) -> None:
+    def test_quick_mode_skips_slow_checks(self, mock_subprocess: Any) -> None:
         mock_subprocess.return_value = (0, "", "")
 
         # Quick mode should skip path normalization, planning, agent drift, yaml style
@@ -230,7 +231,7 @@ class TestMain:
     @patch("scripts.validation.pre_pr._run_subprocess")
     @patch("scripts.validation.pre_pr.shutil")
     def test_all_pass_returns_zero(
-        self, mock_shutil: object, mock_subprocess: object
+        self, mock_shutil: Any, mock_subprocess: Any
     ) -> None:
         mock_subprocess.return_value = (0, "", "")
         mock_shutil.which.return_value = "/usr/bin/npx"

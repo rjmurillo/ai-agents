@@ -29,6 +29,7 @@ import shutil
 import subprocess
 import sys
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -103,7 +104,7 @@ def _run_subprocess(
 def run_validation(
     name: str,
     state: ValidationState,
-    callback: callable,
+    callback: Callable[[], bool],
     skip: bool = False,
 ) -> bool:
     """Run a validation and track results. Returns True on pass/skip."""

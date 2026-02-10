@@ -20,6 +20,7 @@ import re
 import subprocess
 import sys
 from dataclasses import dataclass
+from typing import Any
 
 # File extensions considered significant for mention checking
 SIGNIFICANT_EXTENSIONS: frozenset[str] = frozenset(
@@ -84,7 +85,7 @@ def get_repo_info() -> dict[str, str]:
 
 def fetch_pr_data(
     pr_number: int, owner: str, repo: str
-) -> dict:
+) -> dict[str, Any]:
     """Fetch PR data (title, body, files) via gh CLI.
 
     Returns parsed JSON dict. Raises RuntimeError on failure.
@@ -110,7 +111,8 @@ def fetch_pr_data(
     if result.returncode != 0:
         raise RuntimeError(f"Failed to fetch PR #{pr_number}")
 
-    return json.loads(result.stdout)
+    data: dict[str, Any] = json.loads(result.stdout)
+    return data
 
 
 def normalize_path(path: str) -> str:
