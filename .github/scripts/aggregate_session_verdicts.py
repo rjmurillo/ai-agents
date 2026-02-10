@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """Aggregate session protocol validation verdicts across all validated files.
 
-Input env vars:
+Input env vars (used as defaults for CLI args):
     GITHUB_OUTPUT      - Path to GitHub Actions output file
     GITHUB_WORKSPACE   - Workspace root (for package imports)
 """
 
 from __future__ import annotations
 
+import argparse
 import os
 import re
 import sys
@@ -22,11 +23,26 @@ sys.path.insert(0, workspace)
 from scripts.ai_review_common import write_log, write_output  # noqa: E402
 
 
-def main() -> None:
+def build_parser() -> argparse.ArgumentParser:
+    """Build the argument parser."""
+    parser = argparse.ArgumentParser(
+        description="Aggregate session protocol validation verdicts across all validated files.",
+    )
+    parser.add_argument(
+        "--results-dir",
+        default="validation-results",
+        help="Directory containing verdict and must-failures files",
+    )
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    results_dir: str = args.results_dir
     overall_verdict = "PASS"
     total_must_failures = 0
 
-    verdict_files = sorted(glob("validation-results/*-verdict.txt"))
+    verdict_files = sorted(glob(f"{results_dir}/*-verdict.txt"))
 
     if not verdict_files:
         write_log("WARNING: No verdict files found in validation-results/")
@@ -48,7 +64,7 @@ def main() -> None:
         elif verdict == "WARN" and overall_verdict == "PASS":
             overall_verdict = "WARN"
 
-    must_files = sorted(glob("validation-results/*-must-failures.txt"))
+    must_files = sorted(glob(f"{results_dir}/*-must-failures.txt"))
     for must_file in must_files:
         with open(must_file, encoding="utf-8") as f:
             content = f.read().strip()
@@ -64,7 +80,8 @@ def main() -> None:
     write_output("must_failures", str(total_must_failures))
 
     write_log(f"Final verdict: {overall_verdict} (MUST failures: {total_must_failures})")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

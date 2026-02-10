@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Generate the spec-to-implementation validation report.
 
-Input env vars:
+Input env vars (used as defaults for CLI args):
     HAS_SPECS              - Whether PR references specs ('true' or other)
     SPEC_REFS              - Space-separated spec reference IDs
     ISSUE_REFS             - Space-separated issue references
@@ -20,6 +20,7 @@ Input env vars:
 
 from __future__ import annotations
 
+import argparse
 import os
 import sys
 
@@ -36,6 +37,74 @@ from scripts.ai_review_common import (  # noqa: E402
     spec_validation_failed,
     write_output,
 )
+
+
+def build_parser() -> argparse.ArgumentParser:
+    """Build the argument parser."""
+    parser = argparse.ArgumentParser(
+        description="Generate the spec-to-implementation validation report.",
+    )
+    parser.add_argument(
+        "--has-specs",
+        default=os.environ.get("HAS_SPECS", ""),
+        help="Whether PR references specs ('true' or other)",
+    )
+    parser.add_argument(
+        "--spec-refs",
+        default=os.environ.get("SPEC_REFS", ""),
+        help="Space-separated spec reference IDs",
+    )
+    parser.add_argument(
+        "--issue-refs",
+        default=os.environ.get("ISSUE_REFS", ""),
+        help="Space-separated issue references",
+    )
+    parser.add_argument(
+        "--trace-verdict",
+        default=os.environ.get("TRACE_VERDICT", ""),
+        help="Verdict from traceability check",
+    )
+    parser.add_argument(
+        "--trace-findings",
+        default=os.environ.get("TRACE_FINDINGS", ""),
+        help="Findings from traceability check",
+    )
+    parser.add_argument(
+        "--completeness-verdict",
+        default=os.environ.get("COMPLETENESS_VERDICT", ""),
+        help="Verdict from completeness check",
+    )
+    parser.add_argument(
+        "--completeness-findings",
+        default=os.environ.get("COMPLETENESS_FINDINGS", ""),
+        help="Findings from completeness check",
+    )
+    parser.add_argument(
+        "--github-repository",
+        default=os.environ.get("GITHUB_REPOSITORY", ""),
+        help="Owner/repo slug",
+    )
+    parser.add_argument(
+        "--server-url",
+        default=os.environ.get("SERVER_URL", ""),
+        help="GitHub server URL",
+    )
+    parser.add_argument(
+        "--run-id",
+        default=os.environ.get("RUN_ID", ""),
+        help="Current workflow run ID",
+    )
+    parser.add_argument(
+        "--event-name",
+        default=os.environ.get("EVENT_NAME", ""),
+        help="Triggering event name",
+    )
+    parser.add_argument(
+        "--ref-name",
+        default=os.environ.get("REF_NAME", ""),
+        help="Git ref name",
+    )
+    return parser
 
 
 def _build_no_specs_report(repository: str) -> str:
@@ -160,9 +229,10 @@ This validation ensures your implementation matches the specifications:
 <sub>Powered by [AI Spec Validator](https://github.com/{repository}) workflow</sub>"""
 
 
-def main() -> None:
-    has_specs = os.environ.get("HAS_SPECS", "")
-    repository = os.environ.get("GITHUB_REPOSITORY", "")
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    has_specs: str = args.has_specs
+    repository: str = args.github_repository
 
     report_dir = initialize_ai_review()
     report_file = os.path.join(report_dir, "spec-validation-report.md")
@@ -170,8 +240,8 @@ def main() -> None:
     if has_specs != "true":
         report = _build_no_specs_report(repository)
     else:
-        trace_verdict = os.environ.get("TRACE_VERDICT", "")
-        completeness_verdict = os.environ.get("COMPLETENESS_VERDICT", "")
+        trace_verdict: str = args.trace_verdict
+        completeness_verdict: str = args.completeness_verdict
 
         if spec_validation_failed(trace_verdict, completeness_verdict):
             final_verdict = "FAIL"
@@ -180,19 +250,17 @@ def main() -> None:
         else:
             final_verdict = "PASS"
 
-        spec_refs = os.environ.get("SPEC_REFS", "") or "*None*"
-        issue_refs = os.environ.get("ISSUE_REFS", "") or "*None*"
-        trace_findings = (
-            os.environ.get("TRACE_FINDINGS", "") or "No traceability output"
-        )
-        completeness_findings = (
-            os.environ.get("COMPLETENESS_FINDINGS", "") or "No completeness output"
+        spec_refs: str = args.spec_refs or "*None*"
+        issue_refs: str = args.issue_refs or "*None*"
+        trace_findings: str = args.trace_findings or "No traceability output"
+        completeness_findings: str = (
+            args.completeness_findings or "No completeness output"
         )
 
-        server_url = os.environ.get("SERVER_URL", "")
-        run_id = os.environ.get("RUN_ID", "")
-        event_name = os.environ.get("EVENT_NAME", "")
-        ref_name = os.environ.get("REF_NAME", "")
+        server_url: str = args.server_url
+        run_id: str = args.run_id
+        event_name: str = args.event_name
+        ref_name: str = args.ref_name
 
         report = _build_full_report(
             final_verdict=final_verdict,
@@ -213,7 +281,8 @@ def main() -> None:
         f.write(report)
 
     write_output("report_file", report_file)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
