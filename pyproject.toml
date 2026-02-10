@@ -29,7 +29,7 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = [".", ".claude/skills/memory-enhancement/src"]
-include = ["scripts*", "scripts.memory_sync*", "scripts.hook_utilities*", "scripts.test_result_helpers*", "scripts.pr_maintenance*", "scripts.github_core*", "memory_enhancement*"]
+include = ["scripts*", "scripts.memory_sync*", "scripts.hook_utilities*", "scripts.test_result_helpers*", "scripts.pr_maintenance*", "scripts.github_core*", "scripts.ai_review*", "memory_enhancement*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
