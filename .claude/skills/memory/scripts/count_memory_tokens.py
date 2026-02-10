@@ -2,7 +2,7 @@
 """
 Count tokens in Serena memory files using OpenAI's tiktoken.
 
-Uses cl100k_base encoding (GPT-4/Claude). Caches results for performance.
+Uses cl100k_base encoding (GPT-4). Approximate for Claude. Caches results for performance.
 """
 
 import argparse

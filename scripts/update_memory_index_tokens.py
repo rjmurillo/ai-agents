@@ -22,8 +22,8 @@ from pathlib import Path
 try:
     _scripts = Path(__file__).resolve().parent.parent / ".claude/skills/memory/scripts"
     sys.path.insert(0, str(_scripts))
-    from count_memory_tokens import get_memory_token_count
-    HAS_TIKTOKEN = True
+    from count_memory_tokens import _HAS_TIKTOKEN, get_memory_token_count
+    HAS_TIKTOKEN = _HAS_TIKTOKEN
 except ImportError:
     HAS_TIKTOKEN = False
 
@@ -50,7 +50,11 @@ def update_line(line: str, memories_dir: Path) -> str:
         if not file_path.exists():
             continue
 
-        new_count = get_memory_token_count(file_path)
+        try:
+            new_count = get_memory_token_count(file_path)
+        except (ImportError, OSError) as e:
+            print(f"Warning: Failed to count {file_path}: {e}", file=sys.stderr)
+            continue
         if new_count != old_count:
             old_str = f"[{link_text}]({link_target}) ({old_count})"
             new_str = f"[{link_text}]({link_target}) ({new_count})"
@@ -65,7 +69,11 @@ def update_line(line: str, memories_dir: Path) -> str:
         if not file_path.exists():
             continue
 
-        count = get_memory_token_count(file_path)
+        try:
+            count = get_memory_token_count(file_path)
+        except (ImportError, OSError) as e:
+            print(f"Warning: Failed to count {file_path}: {e}", file=sys.stderr)
+            continue
         old_str = f"[{link_text}]({link_target})"
         new_str = f"[{link_text}]({link_target}) ({count})"
         result = result.replace(old_str, new_str, 1)
@@ -105,7 +113,7 @@ def update_memory_index(index_path: Path, memories_dir: Path) -> bool:
 def main() -> int:
     if not HAS_TIKTOKEN:
         print("Warning: tiktoken not installed. Token counts not updated.", file=sys.stderr)
-        print("  Install: pip install tiktoken", file=sys.stderr)
+        print("  Install: uv pip install tiktoken", file=sys.stderr)
         return 2
 
     # Determine paths
