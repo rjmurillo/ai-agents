@@ -151,7 +151,7 @@ def get_item_milestone(
 
     milestone = data.get("milestone")
     if milestone and milestone.get("title"):
-        return milestone["title"]
+        return str(milestone["title"])
     return None
 
 
