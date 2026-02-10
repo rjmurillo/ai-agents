@@ -82,6 +82,7 @@ When making decisions about:
 | MUST put complex logic in .psm1 modules | ADR-006 | Code review |
 | MUST have Pester tests for modules (80%+ coverage) | ADR-006 | CI coverage check |
 | MUST add new AI-powered workflows to monitoring list | workflow-coalescing | Code review, manual validation |
+| MUST run `gh act` locally before pushing workflow changes | AGENTS.md | `gh act` output in transcript |
 **Reference**: [ADR-006-thin-workflows-testable-modules.md](../architecture/ADR-006-thin-workflows-testable-modules.md)
 
 **Rationale Summary**: GitHub Actions workflows cannot be tested locally. The feedback loop (edit -> push -> wait -> check) is slow. Extracting logic to modules enables fast local testing with Pester.
@@ -230,8 +231,9 @@ Use this checklist during session start:
 
 - [ ] Read this document (PROJECT-CONSTRAINTS.md)
 - [ ] For GitHub operations: Verify skill exists before writing code
-- [ ] For new scripts: Verify PowerShell-only (no .sh or .py files)
+- [ ] For new scripts: Verify Python or PowerShell (no .sh files per ADR-042)
 - [ ] For workflow changes: Verify logic in modules, not YAML; actions are SHA-pinned, not version tags
+- [ ] For workflow changes: Run `gh act` locally before pushing (MUST)
 - [ ] For agent/skill/prompt frontmatter: Verify block-style arrays (not inline `['tool1', 'tool2']`)
 - [ ] Before commit: Verify atomic commit rule (single logical change)
 

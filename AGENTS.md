@@ -70,7 +70,7 @@ Exit code 0 required before claiming completion. If validation fails, use `/sess
 - **Commit atomically** (max 5 files or single logical change)
 - **Run scoped linting** before commits (ADR-043)
 - **Pin GitHub Actions to SHA** with version comment
-- **Run `gh act` locally** before pushing workflow changes
+- **Run `gh act` locally** before pushing workflow changes (BLOCKING: `gh act` output must be in transcript)
 
 ### Ask First
 
