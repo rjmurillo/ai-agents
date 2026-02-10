@@ -6,6 +6,7 @@ Validates token estimation heuristics, budget checking, and CLI behavior.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 from scripts.validation.token_budget import (
     _count_punct_and_symbols,
@@ -50,7 +51,8 @@ class TestEstimateTokenCount:
         assert estimate_token_count("") == 0
 
     def test_none_returns_zero(self) -> None:
-        assert estimate_token_count(None) == 0  # type: ignore[arg-type]
+        none_value: Any = None
+        assert estimate_token_count(none_value) == 0
 
     def test_short_english_prose(self) -> None:
         text = "Hello world, this is a test."
