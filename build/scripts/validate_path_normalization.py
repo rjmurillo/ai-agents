@@ -63,7 +63,7 @@ class ScanResult:
 FORBIDDEN_PATTERNS: list[ForbiddenPattern] = [
     ForbiddenPattern(
         name="Windows Absolute Path",
-        pattern=re.compile(r"[A-Z]:\\"),
+        pattern=re.compile(r"[a-zA-Z]:\\"),
         description="Windows drive letter path (e.g., C:\\, D:\\)",
         example="C:\\Users\\username\\repo\\file.md",
     ),

@@ -48,7 +48,9 @@ def is_path_within_root(path: str | Path, root: str | Path) -> bool:
         return True
 
     resolved_root_with_sep = resolved_root + os.sep
-    return resolved_path.startswith(resolved_root_with_sep)
+    return os.path.normcase(resolved_path).startswith(
+        os.path.normcase(resolved_root_with_sep)
+    )
 
 
 def read_yaml_frontmatter(content: str) -> dict[str, str] | None:
