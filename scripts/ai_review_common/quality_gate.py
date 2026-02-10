@@ -215,7 +215,6 @@ def get_failure_category(
     message: str = "",
     stderr: str = "",
     exit_code: int = 0,
-    verdict: str = "",
 ) -> str:
     """Categorize failure as INFRASTRUCTURE or CODE_QUALITY.
 
@@ -438,6 +437,16 @@ def runs_overlap(run1: dict[str, Any], run2: dict[str, Any]) -> bool:
     return run1_start < run2_start < run1_end
 
 
+_CONCURRENCY_PREFIXES: list[tuple[str, str]] = [
+    ("quality", "ai-quality"),
+    ("spec", "spec-validation"),
+    ("session", "session-protocol"),
+    ("label", "label-pr"),
+    ("memory", "memory-validation"),
+    ("assign", "auto-assign"),
+]
+
+
 def get_concurrency_group_from_run(run: dict[str, Any]) -> str:
     """Extract concurrency group identifier from a workflow run."""
     pr_number = None
@@ -445,22 +454,12 @@ def get_concurrency_group_from_run(run: dict[str, Any]) -> str:
         pr_number = run["pull_requests"][0].get("number")
 
     if pr_number is not None:
-        name = run.get("name", "")
-        name_lower = name.lower()
-        if "quality" in name_lower:
-            prefix = "ai-quality"
-        elif "spec" in name_lower:
-            prefix = "spec-validation"
-        elif "session" in name_lower:
-            prefix = "session-protocol"
-        elif "label" in name_lower:
-            prefix = "label-pr"
-        elif "memory" in name_lower:
-            prefix = "memory-validation"
-        elif "assign" in name_lower:
-            prefix = "auto-assign"
-        else:
-            prefix = "pr-validation"
+        name_lower = run.get("name", "").lower()
+        prefix = "pr-validation"
+        for keyword, group_prefix in _CONCURRENCY_PREFIXES:
+            if keyword in name_lower:
+                prefix = group_prefix
+                break
         return f"{prefix}-{pr_number}"
 
     return f"{run.get('name', 'unknown')}-{run.get('head_branch', 'unknown')}"

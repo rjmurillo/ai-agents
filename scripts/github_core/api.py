@@ -538,6 +538,17 @@ def _find_repo_root(start: str | None = None) -> str | None:
     return None
 
 
+def _cache_bot_config(
+    config_path: str | None,
+    bots: dict[str, list[str]],
+) -> dict[str, list[str]]:
+    """Store *bots* in module-level cache keyed by *config_path*."""
+    global _bot_authors_cache, _bot_authors_cache_path  # noqa: PLW0603
+    _bot_authors_cache = bots
+    _bot_authors_cache_path = config_path
+    return bots
+
+
 def get_bot_authors_config(
     config_path: str | None = None,
     force: bool = False,
@@ -553,8 +564,6 @@ def get_bot_authors_config(
     Returns:
         Dict with 'reviewer', 'automation', 'repository' keys mapping to username lists.
     """
-    global _bot_authors_cache, _bot_authors_cache_path  # noqa: PLW0603
-
     if config_path is None:
         repo_root = _find_repo_root()
         if repo_root:
@@ -565,9 +574,7 @@ def get_bot_authors_config(
 
     if not config_path or not os.path.isfile(config_path):
         logger.debug("Bot authors config not found at %s, using defaults", config_path)
-        _bot_authors_cache = dict(_DEFAULT_BOTS)
-        _bot_authors_cache_path = config_path
-        return _bot_authors_cache
+        return _cache_bot_config(config_path, dict(_DEFAULT_BOTS))
 
     # CWE-22: validate config path stays within repo root
     repo_root = _find_repo_root()
@@ -579,9 +586,7 @@ def get_bot_authors_config(
                 f"Config path '{config_path}' is outside repository root, using defaults",
                 stacklevel=2,
             )
-            _bot_authors_cache = dict(_DEFAULT_BOTS)
-            _bot_authors_cache_path = config_path
-            return _bot_authors_cache
+            return _cache_bot_config(config_path, dict(_DEFAULT_BOTS))
 
     try:
         with open(config_path, encoding="utf-8") as f:
@@ -589,9 +594,7 @@ def get_bot_authors_config(
 
         if not isinstance(data, dict):
             logger.debug("Bot authors config was not a dict, using defaults")
-            _bot_authors_cache = dict(_DEFAULT_BOTS)
-            _bot_authors_cache_path = config_path
-            return _bot_authors_cache
+            return _cache_bot_config(config_path, dict(_DEFAULT_BOTS))
 
         bots: dict[str, list[str]] = {
             "reviewer": list(data.get("reviewer", [])),
@@ -599,25 +602,18 @@ def get_bot_authors_config(
             "repository": list(data.get("repository", [])),
         }
 
-        total = sum(len(v) for v in bots.values())
-        if total == 0:
+        if sum(len(v) for v in bots.values()) == 0:
             logger.debug("Bot authors config was empty, using defaults")
-            _bot_authors_cache = dict(_DEFAULT_BOTS)
-            _bot_authors_cache_path = config_path
-            return _bot_authors_cache
+            return _cache_bot_config(config_path, dict(_DEFAULT_BOTS))
 
-        _bot_authors_cache = bots
-        _bot_authors_cache_path = config_path
-        return bots
+        return _cache_bot_config(config_path, bots)
 
     except (OSError, yaml.YAMLError) as exc:
         warnings.warn(
             f"Failed to parse bot authors config: {exc}, using defaults",
             stacklevel=2,
         )
-        _bot_authors_cache = dict(_DEFAULT_BOTS)
-        _bot_authors_cache_path = config_path
-        return _bot_authors_cache
+        return _cache_bot_config(config_path, dict(_DEFAULT_BOTS))
 
 
 def get_bot_authors(category: str = "all") -> list[str]:

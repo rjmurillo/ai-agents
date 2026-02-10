@@ -10,9 +10,11 @@ from scripts.ai_review_common.issue_triage import (
     get_verdict_alert_type,
     get_verdict_emoji,
     get_verdict_exit_code,
+    write_github_output,
     write_log,
     write_log_error,
     write_output,
+    write_step_summary,
 )
 from scripts.ai_review_common.quality_gate import (
     FAIL_VERDICTS,
@@ -59,7 +61,9 @@ __all__ = [
     "merge_verdicts",
     "runs_overlap",
     "spec_validation_failed",
+    "write_github_output",
     "write_log",
     "write_log_error",
     "write_output",
+    "write_step_summary",
 ]

@@ -14,7 +14,10 @@ import os
 import re
 import sys
 
-workspace = os.environ.get("GITHUB_WORKSPACE", ".")
+workspace = os.environ.get(
+    "GITHUB_WORKSPACE",
+    os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")),
+)
 sys.path.insert(0, workspace)
 
 from scripts.ai_review_common import (  # noqa: E402
@@ -33,8 +36,11 @@ def main() -> None:
     raw_output = os.environ.get("RAW_OUTPUT", "")
     milestone_from_action = os.environ.get("MILESTONE_FROM_ACTION", "")
 
-    with open("/tmp/align-output.txt", "w", encoding="utf-8") as f:
-        f.write(raw_output)
+    try:
+        with open("/tmp/align-output.txt", "w", encoding="utf-8") as f:
+            f.write(raw_output)
+    except OSError:
+        pass
 
     milestone = get_milestone_from_ai_output(raw_output) or ""
 

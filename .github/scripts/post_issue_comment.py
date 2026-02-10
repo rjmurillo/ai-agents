@@ -14,7 +14,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import re
 import subprocess
 import sys
 from datetime import UTC, datetime
@@ -29,20 +28,14 @@ _workspace = os.environ.get(
 )
 sys.path.insert(0, _workspace)
 
+from scripts.ai_review_common import write_github_output  # noqa: E402
 from scripts.github_core.api import (  # noqa: E402
+    _403_PATTERN,
     assert_gh_authenticated,
     error_and_exit,
     get_issue_comments,
     resolve_repo_params,
     update_issue_comment,
-)
-
-# Regex for detecting 403 permission errors. Matches the pattern in
-# scripts/github_core/api.py (_403_PATTERN) with negative lookarounds
-# to prevent false positives on IDs like "Comment ID 4030".
-_403_PATTERN = re.compile(
-    r"((?<!\d)403(?!\d)|\bforbidden\b|Resource not accessible by integration)",
-    re.IGNORECASE,
 )
 
 _403_GUIDANCE = """\
@@ -61,19 +54,6 @@ RAW ERROR: {error}"""
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-
-def write_github_output(pairs: dict[str, str]) -> None:
-    """Append key=value pairs to $GITHUB_OUTPUT if the file exists."""
-    output_path = os.environ.get("GITHUB_OUTPUT")
-    if not output_path:
-        return
-    try:
-        with open(output_path, "a", encoding="utf-8") as fh:
-            for key, value in pairs.items():
-                fh.write(f"{key}={value}\n")
-    except OSError:
-        print("WARNING: Failed to write GitHub Actions outputs", file=sys.stderr)
 
 
 def save_failed_comment_artifact(

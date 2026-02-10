@@ -120,3 +120,34 @@ def write_output(key: str, value: str) -> None:
     if output_file:
         with open(output_file, "a", encoding="utf-8") as f:
             f.write(f"{key}={value}\n")
+
+
+def write_github_output(pairs: dict[str, str]) -> None:
+    """Append multiple key=value pairs to $GITHUB_OUTPUT if set.
+
+    Silently swallows OSError so callers never crash on output failures.
+    """
+    output_path = os.environ.get("GITHUB_OUTPUT")
+    if not output_path:
+        return
+    try:
+        with open(output_path, "a", encoding="utf-8") as fh:
+            for key, value in pairs.items():
+                fh.write(f"{key}={value}\n")
+    except OSError:
+        logger.warning("Failed to write GitHub Actions outputs")
+
+
+def write_step_summary(content: str) -> None:
+    """Append markdown content to $GITHUB_STEP_SUMMARY if set.
+
+    Silently swallows OSError so callers never crash on summary failures.
+    """
+    summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+    if not summary_path:
+        return
+    try:
+        with open(summary_path, "a", encoding="utf-8") as fh:
+            fh.write(content + "\n")
+    except OSError:
+        logger.warning("Failed to write step summary")

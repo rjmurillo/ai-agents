@@ -23,6 +23,7 @@ workspace = os.environ.get(
 )
 sys.path.insert(0, workspace)
 
+from scripts.ai_review_common import write_github_output, write_step_summary  # noqa: E402
 from scripts.github_core.api import (  # noqa: E402
     assert_gh_authenticated,
     error_and_exit,
@@ -32,42 +33,6 @@ from scripts.github_core.api import (  # noqa: E402
 
 # Matches semantic version strings like "0.2.0", "1.10.3"
 _SEMVER_PATTERN = re.compile(r"^\d+\.\d+\.\d+$")
-
-
-# -------------------------------------------------------------------
-# GitHub Actions output helpers
-# -------------------------------------------------------------------
-
-
-def write_github_output(pairs: dict[str, str]) -> None:
-    """Append key=value pairs to $GITHUB_OUTPUT if set."""
-    output_path = os.environ.get("GITHUB_OUTPUT")
-    if not output_path:
-        return
-    try:
-        with open(output_path, "a", encoding="utf-8") as fh:
-            for key, value in pairs.items():
-                fh.write(f"{key}={value}\n")
-    except OSError:
-        print(
-            "WARNING: Failed to write GitHub Actions outputs",
-            file=sys.stderr,
-        )
-
-
-def write_step_summary(content: str) -> None:
-    """Append markdown content to $GITHUB_STEP_SUMMARY if set."""
-    summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
-    if not summary_path:
-        return
-    try:
-        with open(summary_path, "a", encoding="utf-8") as fh:
-            fh.write(content + "\n")
-    except OSError:
-        print(
-            "WARNING: Failed to write step summary",
-            file=sys.stderr,
-        )
 
 
 # -------------------------------------------------------------------

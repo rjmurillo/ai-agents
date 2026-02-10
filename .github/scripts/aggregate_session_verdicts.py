@@ -13,7 +13,10 @@ import re
 import sys
 from glob import glob
 
-workspace = os.environ.get("GITHUB_WORKSPACE", ".")
+workspace = os.environ.get(
+    "GITHUB_WORKSPACE",
+    os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")),
+)
 sys.path.insert(0, workspace)
 
 from scripts.ai_review_common import write_log, write_output  # noqa: E402

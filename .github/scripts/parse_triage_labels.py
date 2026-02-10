@@ -15,7 +15,10 @@ import os
 import re
 import sys
 
-workspace = os.environ.get("GITHUB_WORKSPACE", ".")
+workspace = os.environ.get(
+    "GITHUB_WORKSPACE",
+    os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")),
+)
 sys.path.insert(0, workspace)
 
 from scripts.ai_review_common import (  # noqa: E402
@@ -31,8 +34,11 @@ def main() -> None:
     raw_output = os.environ.get("RAW_OUTPUT", "")
     fallback_labels = os.environ.get("FALLBACK_LABELS", "")
 
-    with open("/tmp/categorize-output.txt", "w", encoding="utf-8") as f:
-        f.write(raw_output)
+    try:
+        with open("/tmp/categorize-output.txt", "w", encoding="utf-8") as f:
+            f.write(raw_output)
+    except OSError:
+        pass
 
     # Security: reject shell metacharacters
     labels = get_labels_from_ai_output(raw_output)
