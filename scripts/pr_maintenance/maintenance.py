@@ -7,7 +7,6 @@ posting comments), use the dedicated skill scripts.
 
 from __future__ import annotations
 
-import json
 import re
 import subprocess
 import sys
@@ -15,14 +14,6 @@ import warnings
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-
-
-@dataclass
-class RateLimitResult:
-    success: bool
-    resources: dict[str, dict]
-    summary_markdown: str
-    core_remaining: int
 
 
 @dataclass
@@ -39,72 +30,6 @@ class EnvironmentResult:
     valid: bool
     versions: dict[str, str]
     summary_markdown: str
-
-
-DEFAULT_THRESHOLDS: dict[str, int] = {
-    "core": 100,
-    "search": 15,
-    "code_search": 5,
-    "graphql": 100,
-}
-
-
-def check_workflow_rate_limit(
-    resource_thresholds: dict[str, int] | None = None,
-) -> RateLimitResult:
-    """Check GitHub API rate limits before workflow execution."""
-    if resource_thresholds is None:
-        resource_thresholds = dict(DEFAULT_THRESHOLDS)
-
-    result = subprocess.run(
-        ["gh", "api", "rate_limit"],
-        capture_output=True,
-        text=True,
-        check=True,
-        timeout=30,
-    )
-    rate_limit = json.loads(result.stdout)
-
-    resources: dict[str, dict] = {}
-    all_passed = True
-    summary_lines = [
-        "### API Rate Limit Status",
-        "",
-        "| Resource | Remaining | Threshold | Status |",
-        "|----------|-----------|-----------|--------|",
-    ]
-
-    for resource, threshold in resource_thresholds.items():
-        resource_data = rate_limit["resources"][resource]
-        remaining = resource_data["remaining"]
-        limit = resource_data["limit"]
-        reset = resource_data["reset"]
-        passed = remaining >= threshold
-
-        if not passed:
-            all_passed = False
-
-        status = "OK" if passed else "TOO LOW"
-        status_icon = "\u2705" if passed else "\u274c"
-
-        resources[resource] = {
-            "Remaining": remaining,
-            "Limit": limit,
-            "Reset": reset,
-            "Threshold": threshold,
-            "Passed": passed,
-        }
-
-        summary_lines.append(
-            f"| {resource} | {remaining} | {threshold} | {status_icon} {status} |"
-        )
-
-    return RateLimitResult(
-        success=all_passed,
-        resources=resources,
-        summary_markdown="\n".join(summary_lines),
-        core_remaining=rate_limit["resources"]["core"]["remaining"],
-    )
 
 
 def get_maintenance_results(log_path: str | Path) -> MaintenanceResults:

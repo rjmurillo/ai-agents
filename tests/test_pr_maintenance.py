@@ -142,8 +142,13 @@ class TestCheckWorkflowRateLimit:
         assert "OK" in result.summary_markdown
 
     def test_raises_on_gh_failure(self):
-        with patch("subprocess.run", side_effect=_mock_subprocess_run_failure()):
-            with pytest.raises(subprocess.CalledProcessError):
+        def _fail(*args, **kwargs):
+            return subprocess.CompletedProcess(
+                args=args[0], returncode=1, stdout="", stderr="API error"
+            )
+
+        with patch("subprocess.run", side_effect=_fail):
+            with pytest.raises(RuntimeError, match="Failed to fetch rate limits"):
                 check_workflow_rate_limit()
 
     def test_returns_rate_limit_result_type(self):

@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
+from scripts.github_core.api import RateLimitResult, check_workflow_rate_limit
 from scripts.pr_maintenance.maintenance import (
     EnvironmentResult,
     MaintenanceResults,
-    RateLimitResult,
     check_workflow_environment,
-    check_workflow_rate_limit,
     create_blocked_prs_alert,
     create_maintenance_summary,
     create_workflow_failure_alert,

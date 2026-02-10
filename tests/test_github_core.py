@@ -135,6 +135,20 @@ class TestIsSafeFilePath:
     def test_rejects_backslash_traversal(self):
         assert is_safe_file_path("foo\\..\\bar") is False
 
+    def test_rejects_sibling_directory_prefix(self, tmp_path: Path):
+        base = tmp_path / "safe"
+        base.mkdir()
+        sibling = tmp_path / "safe_evil"
+        sibling.mkdir()
+        evil_file = sibling / "secret.txt"
+        evil_file.touch()
+        assert is_safe_file_path(str(evil_file), str(base)) is False
+
+    def test_allows_exact_base_path(self, tmp_path: Path):
+        target = tmp_path / "file.txt"
+        target.touch()
+        assert is_safe_file_path(str(target), str(target)) is True
+
 
 # ---------------------------------------------------------------------------
 # Validation: assert_valid_body_file
