@@ -21,6 +21,12 @@ BeforeAll {
     $Script:ScriptPath = Join-Path $PSScriptRoot "..\Invoke-PRMaintenance.ps1"
     $Script:TestDir = Join-Path $TestDrive "pr-maintenance-test"
 
+    # Stub for Test-WorkflowRateLimit (was in GitHubCore.psm1, now migrated to Python).
+    # Pester requires the command to exist before it can be mocked.
+    if (-not (Get-Command -Name Test-WorkflowRateLimit -ErrorAction SilentlyContinue)) {
+        function global:Test-WorkflowRateLimit { }
+    }
+
     # Load script functions for testing
     . $Script:ScriptPath
 }

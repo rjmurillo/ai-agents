@@ -286,6 +286,13 @@ if [ "$MERGE_FROM_MAIN" = "yes" ]; then
     FILE_LIMIT=150
     FILE_WARN=80
 fi
+# ALLOW_LARGE_PUSH=1 relaxes file limits for migrations and bulk refactors.
+# All quality checks (lint, mypy, tests) still run; only the file-count gate changes.
+if [ "${ALLOW_LARGE_PUSH:-0}" = "1" ]; then
+    FILE_LIMIT=200
+    FILE_WARN=100
+    echo_info "ALLOW_LARGE_PUSH=1: file limit relaxed to $FILE_LIMIT"
+fi
 
 if [ "$FILE_COUNT" -gt "$FILE_LIMIT" ]; then
     record_fail "Changed files ($FILE_COUNT) exceeds maximum of $FILE_LIMIT"
