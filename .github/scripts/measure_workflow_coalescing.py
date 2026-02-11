@@ -730,7 +730,7 @@ def main(argv: list[str] | None = None) -> int:
 
 def _write_output(path: str, content: str) -> None:
     """Write content to file, creating parent directories as needed."""
-    output_path = Path(path)
+    output_path = Path(path).resolve()
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(content, encoding="utf-8")
 
