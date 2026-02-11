@@ -33,6 +33,7 @@ _has_content = _mod._has_synthesizable_content
 _build_comment = _mod._build_synthesis_comment
 _get_guidance = _mod._get_maintainer_guidance
 _get_triage = _mod._get_ai_triage_info
+_extract_yaml_list = _mod._extract_yaml_list
 
 
 def _completed(stdout: str = "", stderr: str = "", rc: int = 0):
@@ -54,6 +55,28 @@ def _comments_json(marker: str | None = None, maintainer: str | None = None):
     if maintainer:
         comments.append({"id": 20, "body": maintainer, "user": {"login": "rjmurillo"}})
     return json.dumps(comments)
+
+
+class TestExtractYamlList:
+    def test_extracts_items(self):
+        content = "maintainers:\n  - alice\n  - bob\nnext_key: val"
+        assert _extract_yaml_list(content, "maintainers") == ["alice", "bob"]
+
+    def test_stops_at_next_key(self):
+        content = "ai_agents:\n  - bot1[bot]\n  - bot2[bot]\ncoderabbit:"
+        result = _extract_yaml_list(content, "ai_agents")
+        assert result == ["bot1[bot]", "bot2[bot]"]
+
+    def test_missing_key_returns_empty(self):
+        assert _extract_yaml_list("other: val", "maintainers") == []
+
+    def test_handles_inline_comments(self):
+        content = "agents:\n  - foo # comment\n  - bar"
+        assert _extract_yaml_list(content, "agents") == ["foo # comment", "bar"]
+
+    def test_stops_at_comment_line(self):
+        content = "maintainers:\n  - alice\n# end section\nnext: val"
+        assert _extract_yaml_list(content, "maintainers") == ["alice"]
 
 
 class TestHasSynthesizableContent:

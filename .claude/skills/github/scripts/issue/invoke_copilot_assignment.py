@@ -77,6 +77,29 @@ _DEFAULT_CONFIG: dict = {
 }
 
 
+def _extract_yaml_list(content: str, key: str) -> list[str]:
+    """Extract items from a simple YAML list block, avoiding ReDoS-prone patterns.
+
+    Parses line-by-line: finds the key, collects indented ``- value`` items,
+    stops at the next top-level key or end of content.
+    """
+    items: list[str] = []
+    in_block = False
+    key_pattern = re.compile(rf"^{re.escape(key)}:")
+    item_pattern = re.compile(r"^[ \t]+-[ \t]+(.*)")
+    for line in content.split("\n"):
+        if key_pattern.match(line):
+            in_block = True
+            continue
+        if in_block:
+            m = item_pattern.match(line)
+            if m:
+                items.append(m.group(1))
+            elif line.strip() and not line[0].isspace():
+                break
+    return items
+
+
 def _load_synthesis_config(config_path: str) -> dict:
     """Load copilot-synthesis.yml configuration or return defaults."""
     if not config_path:
@@ -100,26 +123,19 @@ def _load_synthesis_config(config_path: str) -> dict:
         content = Path(config_path).read_text(encoding="utf-8")
         config: dict = json.loads(json.dumps(_DEFAULT_CONFIG))
 
-        # Extract maintainers
-        m = re.search(r"maintainers:\s*((?:\s+-\s+\S+)+?)(?=\s*(?:\w+:|#|$))", content)
-        if m:
-            config["trusted_sources"]["maintainers"] = [
-                line_match.group(1)
-                for line in m.group(1).split("\n")
-                if (line_match := re.match(r"^\s+-\s+(\S+)", line))
-            ]
+        # Extract maintainers (line-by-line to avoid ReDoS)
+        config["trusted_sources"]["maintainers"] = [
+            v.split()[0]
+            for v in _extract_yaml_list(content, "maintainers")
+            if v.strip()
+        ]
 
-        # Extract ai_agents
-        m = re.search(
-            r"ai_agents:\s*((?:\s+-\s+.+)+?)(?=\s*(?:\w+:|(?:^|\n)#|$))",
-            content,
-        )
-        if m:
-            config["trusted_sources"]["ai_agents"] = [
-                line_match.group(1).strip()
-                for line in m.group(1).split("\n")
-                if (line_match := re.match(r"^\s+-\s+([^#]+)", line))
-            ]
+        # Extract ai_agents (line-by-line to avoid ReDoS, strip inline comments)
+        config["trusted_sources"]["ai_agents"] = [
+            cleaned
+            for v in _extract_yaml_list(content, "ai_agents")
+            if (cleaned := re.sub(r"\s*#.*$", "", v).strip())
+        ]
 
         # Extract coderabbit username
         m = re.search(r'coderabbit:[\s\S]*?username:\s*"([^"]+)"', content)
