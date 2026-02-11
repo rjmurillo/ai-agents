@@ -47,8 +47,7 @@ jobs:
         id: ratelimit
         env:
           GH_TOKEN: ${{ secrets.BOT_PAT }}
-        shell: pwsh
-        run: .github/scripts/Test-RateLimitForWorkflow.ps1
+        run: python3 .github/scripts/test_rate_limit.py
 
       - name: Discover PRs needing attention
         id: discover
