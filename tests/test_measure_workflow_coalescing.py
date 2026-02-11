@@ -6,6 +6,7 @@ import importlib.util
 import sys
 from datetime import UTC
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 # ---------------------------------------------------------------------------
@@ -50,7 +51,7 @@ def _make_run(
     event: str = "pull_request",
     head_branch: str = "feature-branch",
     pull_requests: list[dict] | None = None,
-) -> WorkflowRun:
+) -> Any:
     if pull_requests is None:
         pull_requests = [{"number": 123}]
     return WorkflowRun(
@@ -319,7 +320,7 @@ class TestReportGeneration:
             )
         ]
 
-        overlaps: list[RunOverlap] = []
+        overlaps: list[Any] = []
         workflows = ["ai-pr-quality-gate", "ai-spec-validation"]
         start_date = datetime(2026, 1, 1, tzinfo=UTC)
         end_date = datetime(2026, 1, 31, tzinfo=UTC)
