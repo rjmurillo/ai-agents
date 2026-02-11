@@ -236,6 +236,7 @@ This project uses a **template-based generation system**. To modify agents:
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Contribution guidelines and agent development |
 | [docs/installation.md](docs/installation.md) | Complete installation guide |
 | [AGENTS.md](AGENTS.md) | Comprehensive usage guide |
+| [docs/project-structure.md](docs/project-structure.md) | Annotated repo layout (what to edit vs generated) |
 | [copilot-instructions.md](.github/copilot-instructions.md) | GitHub Copilot integration |
 | [CLAUDE.md](CLAUDE.md) | Claude Code integration |
 | [docs/ideation-workflow.md](docs/ideation-workflow.md) | Ideation workflow documentation |
