@@ -205,6 +205,12 @@ class TestCheckFileReferences:
         assert "skill-ghost" in result.missing_files
         assert len(result.issues) == 2
 
+    def test_path_traversal_detected(self, tmp_path: Path) -> None:
+        entries = [IndexEntry(["a"], "../../../../etc/passwd", "a")]
+        result = check_file_references(entries, tmp_path)
+        assert result.passed is False
+        assert any("Path traversal" in i for i in result.issues)
+
 
 # ---------------------------------------------------------------------------
 # check_keyword_density
@@ -511,6 +517,18 @@ class TestCheckMemoryIndexReferences:
         result = check_memory_index_references(tmp_path, indices)
         assert result.passed is True
         assert not result.broken_references
+
+    def test_path_traversal_detected(self, tmp_path: Path) -> None:
+        create_memory_structure(tmp_path, {
+            "memory-index.md": (
+                "| Keywords | File |\n"
+                "|----------|------|\n"
+                "| evil | ../../../../etc/passwd |\n"
+            ),
+        })
+        result = check_memory_index_references(tmp_path, [])
+        assert result.passed is False
+        assert any("Path traversal" in i for i in result.issues)
 
 
 # ---------------------------------------------------------------------------

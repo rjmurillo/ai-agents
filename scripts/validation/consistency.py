@@ -242,7 +242,17 @@ def check_cross_references(file_path: Path | None, base_path: Path) -> CheckResu
             else:
                 full_path = file_dir / link_path
 
-            if not full_path.exists():
+            # Security: Prevent path traversal (CWE-22).
+            resolved = full_path.resolve()
+            allowed_base = base_path.resolve()
+            if not resolved.is_relative_to(allowed_base):
+                result.passed = False
+                result.issues.append(
+                    f"Path traversal detected: {link_path}"
+                )
+                continue
+
+            if not resolved.exists():
                 result.passed = False
                 result.issues.append(f"Broken reference: {link_path}")
 

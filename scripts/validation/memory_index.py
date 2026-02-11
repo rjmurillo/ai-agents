@@ -235,8 +235,19 @@ def check_file_references(
     """
     result = FileRefResult()
 
+    resolved_memory = memory_path.resolve()
+
     for entry in entries:
         file_path = memory_path / f"{entry.file_name}.md"
+
+        # Security: Prevent path traversal (CWE-22).
+        resolved = file_path.resolve()
+        if not resolved.is_relative_to(resolved_memory):
+            result.passed = False
+            result.issues.append(
+                f"Path traversal detected: {entry.file_name}.md"
+            )
+            continue
 
         # Check for deprecated skill- prefix
         if entry.file_name.startswith("skill-"):
@@ -247,7 +258,7 @@ def check_file_references(
                 f"{entry.file_name}.md (ADR-017 violation)"
             )
 
-        if file_path.exists():
+        if resolved.exists():
             result.valid_files.append(entry.file_name)
         else:
             result.passed = False
@@ -415,6 +426,7 @@ def check_memory_index_references(
         return result
 
     content = memory_index_path.read_text(encoding="utf-8")
+    resolved_memory = memory_path.resolve()
 
     # P1: Check completeness
     for index in domain_indices:
@@ -454,7 +466,19 @@ def check_memory_index_references(
                 file_name = re.sub(r"\.md$", "", link_target)
 
             ref_path = memory_path / f"{file_name}.md"
-            if not ref_path.exists():
+
+            # Security: Prevent path traversal (CWE-22).
+            resolved_ref = ref_path.resolve()
+            if not resolved_ref.is_relative_to(resolved_memory):
+                result.passed = False
+                result.broken_references.append(file_name)
+                result.issues.append(
+                    f"P1 VALIDITY: Path traversal detected "
+                    f"in memory-index: {file_name}.md"
+                )
+                continue
+
+            if not resolved_ref.exists():
                 result.passed = False
                 result.broken_references.append(file_name)
                 result.issues.append(

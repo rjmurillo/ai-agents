@@ -274,6 +274,16 @@ class TestCheckCrossReferences:
         result = check_cross_references(source, tmp_path)
         assert result.passed is True
 
+    def test_path_traversal_detected(self, tmp_path: Path) -> None:
+        source = tmp_path / "source.md"
+        source.write_text(
+            "[evil](../../../../etc/passwd)", encoding="utf-8"
+        )
+
+        result = check_cross_references(source, tmp_path)
+        assert result.passed is False
+        assert any("Path traversal" in i for i in result.issues)
+
 
 # ---------------------------------------------------------------------------
 # Task completion
