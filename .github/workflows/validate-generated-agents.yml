@@ -95,10 +95,10 @@ jobs:
           python3 build/generate_agents.py --validate
 
       - name: Validate GitHub Actions SHA Pinning
-        shell: pwsh -NoProfile -Command "& '{0}'"
+        shell: bash
         run: |
-          Write-Host "Validating GitHub Actions SHA pinning..."
-          ./scripts/Validate-ActionSHAPinning.ps1 -CI
+          echo "Validating GitHub Actions SHA pinning..."
+          python3 scripts/validation/sha_pinning.py --ci
 
       - name: Show diff on failure
         if: failure()
