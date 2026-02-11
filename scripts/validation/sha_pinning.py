@@ -39,12 +39,13 @@ VERSION_TAG_PATTERN: re.Pattern[str] = re.compile(
 # Pattern to skip local actions (uses: ./)
 LOCAL_ACTION_PATTERN: re.Pattern[str] = re.compile(r"^\s*uses:\s+\./")
 
-# ANSI color codes
-_COLOR_RESET = "\033[0m"
-_COLOR_RED = "\033[31m"
-_COLOR_YELLOW = "\033[33m"
-_COLOR_GREEN = "\033[32m"
-_COLOR_CYAN = "\033[36m"
+# ANSI color codes (disabled when NO_COLOR is set or in CI)
+_USE_COLOR = not (os.environ.get("NO_COLOR") or os.environ.get("CI"))
+_COLOR_RESET = "\033[0m" if _USE_COLOR else ""
+_COLOR_RED = "\033[31m" if _USE_COLOR else ""
+_COLOR_YELLOW = "\033[33m" if _USE_COLOR else ""
+_COLOR_GREEN = "\033[32m" if _USE_COLOR else ""
+_COLOR_CYAN = "\033[36m" if _USE_COLOR else ""
 
 
 @dataclass

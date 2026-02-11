@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from scripts.validation.consistency import (
     FeatureArtifacts,
     ValidationResult,
@@ -435,15 +437,24 @@ class TestBuildParser:
 class TestMain:
     """Integration tests for main entry point."""
 
-    def test_feature_with_no_artifacts(self, tmp_path: Path) -> None:
+    def test_feature_with_no_artifacts(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.delenv("CI", raising=False)
         result = main(["--feature", "nonexistent", "--path", str(tmp_path)])
-        assert result == 0  # Non-CI, no failures reported
+        assert result == 0
 
-    def test_all_with_no_features(self, tmp_path: Path) -> None:
+    def test_all_with_no_features(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.delenv("CI", raising=False)
         result = main(["--all", "--path", str(tmp_path)])
         assert result == 0
 
-    def test_json_format(self, tmp_path: Path) -> None:
+    def test_json_format(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.delenv("CI", raising=False)
         result = main([
             "--feature", "test",
             "--path", str(tmp_path),
@@ -451,10 +462,20 @@ class TestMain:
         ])
         assert result == 0
 
-    def test_markdown_format(self, tmp_path: Path) -> None:
+    def test_markdown_format(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.delenv("CI", raising=False)
         result = main([
             "--feature", "test",
             "--path", str(tmp_path),
             "--format", "markdown",
         ])
         assert result == 0
+
+    def test_invalid_path_returns_two(self, tmp_path: Path) -> None:
+        result = main([
+            "--feature", "test",
+            "--path", str(tmp_path / "nonexistent"),
+        ])
+        assert result == 2

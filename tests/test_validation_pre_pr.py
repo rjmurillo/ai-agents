@@ -14,33 +14,11 @@ from scripts.validation.pre_pr import (
     ValidationState,
     _find_latest_session_log,
     _run_subprocess,
-    _use_color,
     build_parser,
     main,
     run_validation,
     validate_session_end,
 )
-
-# ---------------------------------------------------------------------------
-# _use_color
-# ---------------------------------------------------------------------------
-
-
-class TestUseColor:
-    """Tests for ANSI color detection."""
-
-    def test_no_color_env(self) -> None:
-        with patch.dict("os.environ", {"NO_COLOR": "1"}, clear=False):
-            assert _use_color() is False
-
-    def test_dumb_terminal(self) -> None:
-        with patch.dict("os.environ", {"TERM": "dumb"}, clear=False):
-            assert _use_color() is False
-
-    def test_ci_env(self) -> None:
-        with patch.dict("os.environ", {"CI": "true"}, clear=False):
-            assert _use_color() is False
-
 
 # ---------------------------------------------------------------------------
 # _find_latest_session_log

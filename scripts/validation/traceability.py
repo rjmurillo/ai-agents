@@ -10,9 +10,9 @@ Checks:
     - Rule 5: Status Consistency (completed status propagates correctly)
 
 Exit codes follow ADR-035:
-    0 - Pass (no errors; warnings allowed unless --strict)
-    1 - Logic error (broken references, untraced tasks)
-    2 - Config error (warnings found with --strict flag, or path issues)
+    0 - Pass (no errors, or not in CI mode)
+    1 - Logic error (broken references, untraced tasks, or warnings with --strict)
+    2 - Config error (path not found, path traversal detected)
 """
 
 from __future__ import annotations
@@ -447,7 +447,7 @@ def validate_specs_path(specs_path_str: str) -> Path:
 
         if repo_root:
             allowed_base = Path(repo_root).resolve()
-            if not str(resolved).startswith(str(allowed_base)):
+            if not resolved.is_relative_to(allowed_base):
                 print(
                     f"Path traversal attempt detected: '{specs_path_str}' "
                     f"resolves to '{resolved}' which is outside the "
@@ -458,7 +458,7 @@ def validate_specs_path(specs_path_str: str) -> Path:
         else:
             if ".." in specs_path_str:
                 current_dir = Path.cwd().resolve()
-                if not str(resolved).startswith(str(current_dir)):
+                if not resolved.is_relative_to(current_dir):
                     print(
                         f"Path traversal attempt detected: '{specs_path_str}' "
                         f"resolves outside the current directory.",
@@ -497,6 +497,12 @@ def build_parser() -> argparse.ArgumentParser:
         dest="output_format",
         help="Output format (env: OUTPUT_FORMAT, default: console)",
     )
+    parser.add_argument(
+        "--ci",
+        action="store_true",
+        default=os.environ.get("CI", "").lower() in ("true", "1"),
+        help="CI mode: exit 1 on failures (env: CI)",
+    )
     return parser
 
 
@@ -517,10 +523,9 @@ def main(argv: list[str] | None = None) -> int:
     elif args.output_format == "json":
         print(format_json(results))
 
-    if results.errors:
+    has_failures = results.errors or (results.warnings and args.strict)
+    if args.ci and has_failures:
         return 1
-    if results.warnings and args.strict:
-        return 2
 
     return 0
 

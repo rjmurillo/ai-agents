@@ -8,11 +8,11 @@ Validation sequence:
     1. Session End (for latest session log)
     2. Pester Tests (all unit tests)
     3. Markdown Lint (auto-fix and validate)
-    3.5. Workflow YAML (validate GitHub Actions workflows)
-    3.9. YAML Style (check YAML style with yamllint) [skip if --quick]
-    4. Path Normalization (check for absolute paths) [skip if --quick]
-    5. Planning Artifacts (validate planning consistency) [skip if --quick]
-    6. Agent Drift (detect semantic drift) [skip if --quick]
+    4. Workflow YAML (validate GitHub Actions workflows)
+    5. YAML Style (check YAML style with yamllint) [skip if --quick]
+    6. Path Normalization (check for absolute paths) [skip if --quick, requires PS1]
+    7. Planning Artifacts (validate planning consistency) [skip if --quick, requires PS1]
+    8. Agent Drift (detect semantic drift) [skip if --quick, requires PS1]
 
 Exit codes follow ADR-035:
     0 - Success (all validations passed)
@@ -56,24 +56,13 @@ class ValidationState:
     skipped: int = 0
 
 
-def _use_color() -> bool:
-    """Determine if ANSI color output should be used."""
-    if os.environ.get("NO_COLOR"):
-        return False
-    if os.environ.get("TERM") == "dumb":
-        return False
-    if os.environ.get("CI"):
-        return False
-    return True
-
-
 def _find_latest_session_log(repo_root: Path) -> Path | None:
     """Find the most recent session log in .agents/sessions/."""
     sessions_path = repo_root / ".agents" / "sessions"
     if not sessions_path.is_dir():
         return None
 
-    pattern = re.compile(r"^\d{4}-\d{2}-\d{2}-session-\d+.*\.md$")
+    pattern = re.compile(r"^\d{4}-\d{2}-\d{2}-session-\d+.*\.(?:md|json)$")
     candidates = sorted(
         (f for f in sessions_path.iterdir() if f.is_file() and pattern.match(f.name)),
         key=lambda f: f.name,

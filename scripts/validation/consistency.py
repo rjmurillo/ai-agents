@@ -7,6 +7,7 @@ Checks scope alignment, coverage, naming conventions, cross-references, and task
 Exit codes follow ADR-035:
     0 - Success (validation passed, or not in CI mode)
     1 - Logic error (validation failures detected, CI mode only)
+    2 - Config error (path not found)
 """
 
 from __future__ import annotations
@@ -15,6 +16,7 @@ import argparse
 import json
 import os
 import re
+import sys
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -148,7 +150,7 @@ def check_scope_alignment(
 
     # Check if PRD references the epic
     epic_name = epic_path.name
-    if re.escape(epic_name) not in prd_content and not re.search(
+    if epic_name not in prd_content and not re.search(
         r"EPIC-\d{3}", prd_content
     ):
         result.issues.append("PRD does not reference parent Epic")
@@ -545,6 +547,10 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     base_path = Path(args.path).resolve()
+
+    if not base_path.is_dir():
+        print(f"Error: Path not found: {args.path}", file=sys.stderr)
+        return 2  # ADR-035: config error
 
     if args.output_format == "console":
         print("=== Consistency Validation ===")

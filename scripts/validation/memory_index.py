@@ -27,6 +27,7 @@ Exit codes follow ADR-035:
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import json
 import os
 import re
@@ -771,27 +772,10 @@ def format_markdown(report: ValidationReport) -> str:
     return "\n".join(lines)
 
 
-def _dataclass_to_dict(obj: object) -> object:
-    """Recursively convert dataclass instances to dicts for JSON serialization."""
-    if hasattr(obj, "__dataclass_fields__"):
-        result: dict[str, object] = {}
-        for fld in obj.__dataclass_fields__:
-            value = getattr(obj, fld)
-            result[fld] = _dataclass_to_dict(value)
-        return result
-    if isinstance(obj, dict):
-        return {k: _dataclass_to_dict(v) for k, v in obj.items()}
-    if isinstance(obj, list):
-        return [_dataclass_to_dict(item) for item in obj]
-    if isinstance(obj, Path):
-        return str(obj)
-    return obj
-
-
 def format_json(report: ValidationReport) -> str:
     """Format validation report as JSON."""
-    data = _dataclass_to_dict(report)
-    return json.dumps(data, indent=2)
+    data = dataclasses.asdict(report)
+    return json.dumps(data, indent=2, default=str)
 
 
 # ---------------------------------------------------------------------------

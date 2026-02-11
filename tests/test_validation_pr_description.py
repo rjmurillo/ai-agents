@@ -320,7 +320,9 @@ class TestMain:
         self,
         mock_repo: MagicMock,
         mock_fetch: MagicMock,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
+        monkeypatch.delenv("CI", raising=False)
         mock_repo.return_value = {"owner": "o", "repo": "r"}
         mock_fetch.return_value = {
             "title": "Test",
@@ -347,7 +349,10 @@ class TestMain:
         assert code == 1
 
     @patch("scripts.validation.pr_description.fetch_pr_data")
-    def test_owner_repo_from_args(self, mock_fetch: MagicMock) -> None:
+    def test_owner_repo_from_args(
+        self, mock_fetch: MagicMock, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.delenv("CI", raising=False)
         mock_fetch.return_value = {
             "title": "T",
             "body": "",
