@@ -22,8 +22,8 @@ Create protocol-compliant session logs with verification-based enforcement.
 
 ### Automated (Recommended)
 
-```powershell
-pwsh .claude/skills/session-init/scripts/New-SessionLog.ps1
+```bash
+python3 .claude/skills/session-init/scripts/new_session_log.py
 ```
 
 The script will:
@@ -213,10 +213,10 @@ git status --short
 
 ### Step 2: Read Canonical Template
 
-**CRITICAL**: Use the New-SessionLog.ps1 script to read the template from SESSION-PROTOCOL.md.
+**CRITICAL**: Use the new_session_log.py script to read the template from SESSION-PROTOCOL.md.
 
-```powershell
-$template = & .claude/skills/session-init/scripts/New-SessionLog.ps1
+```bash
+python3 .claude/skills/session-init/scripts/new_session_log.py
 ```
 
 **DO NOT** generate the template from memory or read specific line numbers. The script extracts the canonical template dynamically:
@@ -274,8 +274,8 @@ Write the populated template to this file.
 
 Run validation script:
 
-```powershell
-pwsh scripts/validate_session_json.py -SessionPath ".agents/sessions/YYYY-MM-DD-session-NN.json" 
+```bash
+python3 scripts/validate_session_json.py ".agents/sessions/YYYY-MM-DD-session-NN.json"
 ```
 
 Check exit code:
@@ -359,32 +359,22 @@ Fix the issues and re-validate.
 
 | Script | Purpose | Exit Codes |
 |--------|---------|------------|
-| [New-SessionLog.ps1](scripts/New-SessionLog.ps1) | Automated session log creation with validation | 0=success, 1=git error, 2=template failed, 3=write failed, 4=validation failed |
-| [New-SessionLog.ps1](scripts/New-SessionLog.ps1) | Extract canonical template from SESSION-PROTOCOL.md | 0=success, 1=file not found, 2=template not found |
+| [new_session_log.py](scripts/new_session_log.py) | Automated session log creation with validation | 0=success, 1=error |
+| [new_session_log_json.py](scripts/new_session_log_json.py) | Simplified JSON session log creation | 0=success, 1=error |
 
 ### Example Usage
 
 **Automated (Recommended)**:
 
-```powershell
-# Create session log with interactive prompts
-pwsh .claude/skills/session-init/scripts/New-SessionLog.ps1
-
+```bash
 # Create session log with parameters
-pwsh .claude/skills/session-init/scripts/New-SessionLog.ps1 -SessionNumber 375 -Objective "Implement feature X"
-```
+python3 .claude/skills/session-init/scripts/new_session_log.py --session-number 375 --objective "Implement feature X"
 
-**Manual Template Extraction** (for custom workflows):
+# Skip validation
+python3 .claude/skills/session-init/scripts/new_session_log.py --session-number 375 --objective "Implement feature X" --skip-validation
 
-```powershell
-# Extract template
-$template = & .claude/skills/session-init/scripts/New-SessionLog.ps1
-
-# Populate with session data
-$sessionLog = $template -replace 'NN', '375' -replace 'YYYY-MM-DD', '2026-01-06'
-
-# Write to file
-$sessionLog | Out-File -FilePath '.agents/sessions/.agents/sessions/2026-01-06-session-375.json'
+# Simplified JSON-only version
+python3 .claude/skills/session-init/scripts/new_session_log_json.py --session-number 375 --objective "Implement feature X"
 ```
 
 ---

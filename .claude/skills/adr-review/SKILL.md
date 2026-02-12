@@ -29,7 +29,7 @@ Multi-agent debate pattern for rigorous ADR validation. Orchestrates 6 specializ
 | `review this ADR` | Full 6-agent debate on specified ADR |
 | `validate ADR-005` | Targeted review of specific ADR by number |
 | `check architecture decision` | ADR review with debate protocol |
-| `ADR file created or modified` | Auto-triggered via Detect-ADRChanges.ps1 |
+| `ADR file created or modified` | Auto-triggered via detect_adr_changes.py |
 | `delete ADR-NNN` | Deletion workflow (D1-D4) |
 
 ---
@@ -43,7 +43,7 @@ Multi-agent debate pattern for rigorous ADR validation. Orchestrates 6 specializ
 "validate ADR-005"
 ```
 
-**Automatic Detection**: A Claude Code hook (`Invoke-ADRChangeDetection.ps1`) runs at session start and detects ADR changes, prompting you to invoke this skill. The pre-commit hook also detects staged ADR files and displays a reminder.
+**Automatic Detection**: A Claude Code hook runs at session start and detects ADR changes, prompting you to invoke this skill. The pre-commit hook also detects staged ADR files and displays a reminder.
 
 | Input | Output | Consensus Required |
 |-------|--------|-------------------|
@@ -56,7 +56,7 @@ Multi-agent debate pattern for rigorous ADR validation. Orchestrates 6 specializ
 | `ADR-*.md` | `.agents/architecture/` | create, update, delete |
 | `ADR-*.md` | `docs/architecture/` | create, update, delete |
 
-**Detection**: `.claude/skills/adr-review/scripts/Detect-ADRChanges.ps1`
+**Detection**: `.claude/skills/adr-review/scripts/detect_adr_changes.py`
 
 ## When to Use
 
@@ -169,14 +169,17 @@ After structural and technical review, apply strategic lenses:
 
 | Script | Purpose |
 |--------|---------|
-| `Detect-ADRChanges.ps1` | Detect ADR file changes for auto-trigger |
+| `detect_adr_changes.py` | Detect ADR file changes for auto-trigger |
 
-```powershell
+```bash
 # Basic detection
-& .claude/skills/adr-review/scripts/Detect-ADRChanges.ps1
+python3 .claude/skills/adr-review/scripts/detect_adr_changes.py
 
 # Compare to specific commit
-& .claude/skills/adr-review/scripts/Detect-ADRChanges.ps1 -SinceCommit "abc123"
+python3 .claude/skills/adr-review/scripts/detect_adr_changes.py --since-commit abc123
+
+# Include untracked ADR files
+python3 .claude/skills/adr-review/scripts/detect_adr_changes.py --include-untracked
 ```
 
 ## Verification Checklist
@@ -196,7 +199,7 @@ After skill invocation:
 | Single-agent ADR review | Misses domain expertise | Use full 6-agent debate |
 | Skipping Phase 0 | Duplicates existing work | Always research first |
 | Ignoring D&C dissent | Loses important context | Document all reservations |
-| Manual ADR monitoring | Error-prone | Use Detect-ADRChanges.ps1 |
+| Manual ADR monitoring | Error-prone | Use detect_adr_changes.py |
 | Deleting accepted ADRs without archive | Loses knowledge | Always archive accepted ADRs |
 
 ## References
