@@ -82,8 +82,8 @@ Check if staged files qualify for investigation-only QA skip per ADR-034.
 
 ### Usage
 
-```powershell
-pwsh .claude/skills/session-qa-eligibility/scripts/Test-InvestigationEligibility.ps1
+```bash
+python3 .claude/skills/session-qa-eligibility/scripts/test_investigation_eligibility.py
 ```
 
 ### Output
@@ -187,7 +187,7 @@ SESSION-PROTOCOL.md (Phase 2.5: QA Validation)
                 │
                 └── Investigation session → MAY skip QA
                         │
-                        └── Test-InvestigationEligibility.ps1
+                        └── test_investigation_eligibility.py
                                 │
                                 ├── Eligible: true → Use "SKIPPED: investigation-only"
                                 │
@@ -203,7 +203,7 @@ SESSION-PROTOCOL.md (Phase 2.5: QA Validation)
 
 2. Run eligibility check
    │
-   └── pwsh .claude/skills/session-qa-eligibility/scripts/Test-InvestigationEligibility.ps1
+   └── python3 .claude/skills/session-qa-eligibility/scripts/test_investigation_eligibility.py
 
 3. Check output
    │
@@ -228,7 +228,7 @@ Use this skill to validate the QA skip condition:
 
 | Req | Step | Status | Evidence |
 |-----|------|--------|----------|
-| MUST | Route to qa agent (feature implementation) | [x] | `SKIPPED: investigation-only` - Verified via Test-InvestigationEligibility.ps1 |
+| MUST | Route to qa agent (feature implementation) | [x] | `SKIPPED: investigation-only` - Verified via test_investigation_eligibility.py |
 ```
 
 ---
@@ -271,6 +271,18 @@ After using this skill:
 
 ---
 
+## Scripts
+
+### check_qa_eligibility.py
+
+Checks if staged files qualify for investigation-only QA skip per ADR-034.
+
+```bash
+python3 .claude/skills/session-qa-eligibility/scripts/check_qa_eligibility.py
+```
+
+---
+
 ## Related
 
 | Reference | Description |
@@ -279,4 +291,4 @@ After using this skill:
 | [SESSION-PROTOCOL.md](../../../../.agents/SESSION-PROTOCOL.md) | Session start/end requirements (Phase 2.5) |
 | [Issue #662](https://github.com/rjmurillo/ai-agents/issues/662) | Create QA skip eligibility check skill |
 | [validate_session_json.py](../../../../scripts/validate_session_json.py) | Uses same allowlist for CI validation |
-| [Test-InvestigationEligibility.Tests.ps1](../../../../tests/Test-InvestigationEligibility.Tests.ps1) | Pester tests ensuring pattern consistency |
+| [test_qa_eligibility.py](tests/test_qa_eligibility.py) | Pytest tests ensuring pattern consistency |

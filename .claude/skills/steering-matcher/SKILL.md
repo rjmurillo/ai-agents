@@ -13,7 +13,7 @@ model: claude-haiku-4-5
 
 | Trigger Phrase | Operation |
 |----------------|-----------|
-| `match steering for these files` | Get-ApplicableSteering.ps1 |
+| `match steering for these files` | get_applicable_steering.py |
 | `which steering applies to this task` | Pattern match against changed files |
 | `inject steering context` | Return applicable steering sorted by priority |
 
@@ -40,25 +40,17 @@ Use manual file reading instead when:
 
 ## Quick Usage
 
-### Using Get-ApplicableSteering.ps1 Script
+### Using get_applicable_steering.py Script
 
-The script in `.claude/skills/steering-matcher/Get-ApplicableSteering.ps1` handles pattern matching.
+The script in `.claude/skills/steering-matcher/scripts/get_applicable_steering.py` handles pattern matching.
 
-```powershell
+```bash
 # Match files against steering patterns
-$files = @(
-    "src/claude/analyst.md",
-    ".agents/security/TM-001-auth-flow.md"
-)
+python3 .claude/skills/steering-matcher/scripts/get_applicable_steering.py \
+    --files "src/claude/analyst.md" ".agents/security/TM-001-auth-flow.md" \
+    --steering-path ".agents/steering"
 
-$steering = pwsh .claude/skills/steering-matcher/Get-ApplicableSteering.ps1 `
-    -Files $files `
-    -SteeringPath ".agents/steering"
-
-# Output: Array of hashtables with Name, Path, ApplyTo, Priority
-foreach ($s in $steering) {
-    Write-Host "Matched: $($s.Name) (Priority: $($s.Priority))"
-}
+# Output: JSON array of objects with name, path, apply_to, priority
 ```
 
 ## Process
@@ -72,38 +64,33 @@ This skill integrates with the orchestrator workflow:
 
 ### Standard Orchestrator Workflow
 
-```powershell
+```bash
 # 1. Identify files from task
-$filesAffected = @(
-    "src/claude/security.md",
-    ".agents/security/SR-001-oauth-review.md"
-)
-
 # 2. Get applicable steering
-$applicableSteering = pwsh .claude/skills/steering-matcher/Get-ApplicableSteering.ps1 `
-    -Files $filesAffected
+python3 .claude/skills/steering-matcher/scripts/get_applicable_steering.py \
+    --files "src/claude/security.md" ".agents/security/SR-001-oauth-review.md"
 
 # 3. Inject into agent context
-# "Relevant steering: agent-prompts.md (Priority 9), security-practices.md (Priority 10)"
+# Output: JSON with name, path, apply_to, priority sorted by priority descending
 ```
 
 ## Implementation
 
-See `Get-ApplicableSteering.ps1` for the PowerShell implementation.
+See `scripts/get_applicable_steering.py` for the Python implementation.
 
 ## Testing
 
-Run Pester tests to verify pattern matching:
+Run pytest to verify pattern matching:
 
-```powershell
-Invoke-Pester .claude/skills/steering-matcher/tests/Get-ApplicableSteering.Tests.ps1
+```bash
+pytest .claude/skills/steering-matcher/tests/
 ```
 
 ## Anti-Patterns
 
 | Avoid | Why | Instead |
 |-------|-----|---------|
-| Hardcoding steering file paths | Bypasses pattern matching, breaks on restructuring | Use Get-ApplicableSteering.ps1 |
+| Hardcoding steering file paths | Bypasses pattern matching, breaks on restructuring | Use get_applicable_steering.py |
 | Injecting all steering files | Token bloat, irrelevant context | Match against changed files only |
 | Ignoring priority ordering | Lower-priority guidance may contradict higher | Process results in priority order |
 
@@ -114,6 +101,16 @@ After execution:
 - [ ] Returned steering files match the `applyTo` patterns for the given files
 - [ ] Results are sorted by priority (highest first)
 - [ ] No duplicate steering entries in output
+
+## Scripts
+
+### get_applicable_steering.py
+
+Matches file paths against steering glob patterns and returns applicable guidance.
+
+```bash
+python3 .claude/skills/steering-matcher/scripts/get_applicable_steering.py --files <file1> [<file2> ...]
+```
 
 ## Related
 

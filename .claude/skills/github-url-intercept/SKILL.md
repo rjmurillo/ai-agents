@@ -29,12 +29,12 @@ metadata:
 
 **When you see a GitHub URL, use these commands immediately:**
 
-```powershell
+```bash
 # PR URL → Use this
-pwsh .claude/skills/github/scripts/pr/Get-PRContext.ps1 -PullRequest {n} -Owner {owner} -Repo {repo}
+python3 .claude/skills/github/scripts/pr/get_pr_context.py --pull-request {n} --owner {owner} --repo {repo}
 
 # Issue URL → Use this
-pwsh .claude/skills/github/scripts/issue/Get-IssueContext.ps1 -Issue {n} -Owner {owner} -Repo {repo}
+python3 .claude/skills/github/scripts/issue/get_issue_context.py --issue {n} --owner {owner} --repo {repo}
 
 # File/blob URL → Use this
 gh api repos/{owner}/{repo}/contents/{path}?ref={ref}
@@ -102,11 +102,11 @@ GitHub URL detected in user input
 │     Yes → Extract ID, use gh api for specific comment/review
 │
 ├─ Is /pull/{n}?
-│     Yes → Get-PRContext.ps1 -PullRequest {n} -Owner {o} -Repo {r}
-│           (or Get-PRReviewComments.ps1 / Get-PRReviewThreads.ps1 for comments)
+│     Yes → get_pr_context.py --pull-request {n} --owner {o} --repo {r}
+│           (or get_pr_review_comments.py / get_pr_review_threads.py for comments)
 │
 ├─ Is /issues/{n}?
-│     Yes → Get-IssueContext.ps1 -Issue {n} -Owner {o} -Repo {r}
+│     Yes → get_issue_context.py --issue {n} --owner {o} --repo {r}
 │
 ├─ Is /blob/{ref}/{path} or /tree/{ref}/{path}?
 │     Yes → gh api repos/{o}/{r}/contents/{path}?ref={ref}
@@ -156,12 +156,12 @@ GitHub URL detected in user input
 
 | URL Pattern | Script | Parameters |
 |-------------|--------|------------|
-| `/pull/{n}` | `Get-PRContext.ps1` | `-PullRequest {n} -Owner {o} -Repo {r}` |
-| `/pull/{n}` (with diff) | `Get-PRContext.ps1` | `-PullRequest {n} -IncludeDiff` |
-| `/pull/{n}` (review comments) | `Get-PRReviewComments.ps1` | `-PullRequest {n}` |
-| `/pull/{n}` (review threads) | `Get-PRReviewThreads.ps1` | `-PullRequest {n}` |
-| `/pull/{n}` (CI status) | `Get-PRChecks.ps1` | `-PullRequest {n}` |
-| `/issues/{n}` | `Get-IssueContext.ps1` | `-Issue {n} -Owner {o} -Repo {r}` |
+| `/pull/{n}` | `get_pr_context.py` | `--pull-request {n} --owner {o} --repo {r}` |
+| `/pull/{n}` (with diff) | `get_pr_context.py` | `--pull-request {n} --include-diff` |
+| `/pull/{n}` (review comments) | `get_pr_review_comments.py` | `--pull-request {n}` |
+| `/pull/{n}` (review threads) | `get_pr_review_threads.py` | `--pull-request {n}` |
+| `/pull/{n}` (CI status) | `get_pr_checks.py` | `--pull-request {n}` |
+| `/issues/{n}` | `get_issue_context.py` | `--issue {n} --owner {o} --repo {r}` |
 
 **Script location**: `.claude/skills/github/scripts/`
 
@@ -175,7 +175,7 @@ Use only when no script exists for the operation:
 | `/pull/{n}#discussion_r{id}` | `gh api repos/{o}/{r}/pulls/comments/{id}` |
 | `/pull/{n}/files#r{id}` or `/changes#r{id}` | `gh api repos/{o}/{r}/pulls/comments/{id}` |
 | `/pull/{n}#issuecomment-{id}` | `gh api repos/{o}/{r}/issues/comments/{id}` |
-| `/pull/{n}/checks` | `gh api repos/{o}/{r}/check-runs?head_sha=...` or use `Get-PRChecks.ps1` |
+| `/pull/{n}/checks` | `gh api repos/{o}/{r}/check-runs?head_sha=...` or use `get_pr_checks.py` |
 | `/issues/{n}#issuecomment-{id}` | `gh api repos/{o}/{r}/issues/comments/{id}` |
 | `/actions/runs/{run_id}` | `gh api repos/{o}/{r}/actions/runs/{run_id}` |
 | `/actions/runs/{run_id}/job/{job_id}` | `gh api repos/{o}/{r}/actions/jobs/{job_id}` |
@@ -239,7 +239,7 @@ Input: "https://github.com/rjmurillo/ai-agents/pull/735/checks?check_run_id=5935
 
 Action:
   1. Parse: owner=rjmurillo, repo=ai-agents, pr=735, type=checks
-  2. Route: pwsh .claude/skills/github/scripts/pr/Get-PRChecks.ps1 -PullRequest 735 -Owner rjmurillo -Repo ai-agents
+  2. Route: python3 .claude/skills/github/scripts/pr/get_pr_checks.py --pull-request 735 --owner rjmurillo --repo ai-agents
 ```
 
 ### URL with Question After It
@@ -290,7 +290,7 @@ Action:
 Input: "Review this: https://github.com/owner/repo/pull/123"
 
 Action:
-  pwsh ".claude/skills/github/scripts/pr/Get-PRContext.ps1" -PullRequest "123" -Owner "owner" -Repo "repo"
+  python3 .claude/skills/github/scripts/pr/get_pr_context.py --pull-request 123 --owner owner --repo repo
 ```
 
 ### File URL → API
@@ -311,7 +311,7 @@ Action:
 | `web_fetch("https://github.com/...")` | 5-10 MB HTML, 1-2.5M tokens WASTED | Parse URL, use script or `gh api` |
 | `curl https://github.com/...` | Same catastrophic result | Use `gh` CLI for authentication + JSON |
 | `fetch` / `requests.get` on GitHub URLs | Same catastrophic result | Route through this skill |
-| `gh pr view` without `--json` | Unstructured text output | Use `Get-PRContext.ps1` for structured JSON |
+| `gh pr view` without `--json` | Unstructured text output | Use `get_pr_context.py` for structured JSON |
 | Fetching full page to find one comment | Fetches 5MB to read 500 bytes | Extract fragment ID (`#discussion_r...`), call specific endpoint |
 | Ignoring GitHub URLs in user input | User expects you to understand the link | ALWAYS parse and route |
 | Hardcoding owner/repo in commands | Breaks when user shares fork/different repo | Extract from URL path |
@@ -323,6 +323,18 @@ Action:
 - "Accessing the GitHub page..."
 
 **These indicate you're about to waste millions of tokens. Use this skill instead.**
+
+---
+
+## Scripts
+
+### test_url_routing.py
+
+Routes GitHub URLs to appropriate API access methods with CWE-78 command injection protection.
+
+```bash
+python3 .claude/skills/github-url-intercept/scripts/test_url_routing.py <github-url>
+```
 
 ---
 

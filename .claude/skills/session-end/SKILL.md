@@ -24,8 +24,8 @@ Validate and complete session logs before commit. Complements `session-init` (wh
 
 ### Automated (Recommended)
 
-```powershell
-pwsh .claude/skills/session-end/scripts/Complete-SessionLog.ps1
+```bash
+python3 .claude/skills/session-end/scripts/complete_session_log.py
 ```
 
 The script will:
@@ -38,8 +38,8 @@ The script will:
 
 ### Preview Changes First
 
-```powershell
-pwsh .claude/skills/session-end/scripts/Complete-SessionLog.ps1 -DryRun
+```bash
+python3 .claude/skills/session-end/scripts/complete_session_log.py --dry-run
 ```
 
 ---
@@ -158,15 +158,15 @@ Before running this skill, ensure you have:
 
 ### Step 2: Run Session End
 
-```powershell
+```bash
 # Auto-detect and complete
-pwsh .claude/skills/session-end/scripts/Complete-SessionLog.ps1
+python3 .claude/skills/session-end/scripts/complete_session_log.py
 
 # Or specify session explicitly
-pwsh .claude/skills/session-end/scripts/Complete-SessionLog.ps1 -SessionPath ".agents/sessions/2026-02-07-session-05.json"
+python3 .claude/skills/session-end/scripts/complete_session_log.py --session-path ".agents/sessions/2026-02-07-session-05.json"
 
 # Preview only
-pwsh .claude/skills/session-end/scripts/Complete-SessionLog.ps1 -DryRun
+python3 .claude/skills/session-end/scripts/complete_session_log.py --dry-run
 ```
 
 ### Step 3: Address Any Failures
@@ -269,14 +269,14 @@ File: .agents/sessions/2026-02-07-session-05.json
 
 | Script | Purpose | Exit Codes |
 |--------|---------|------------|
-| [Complete-SessionLog.ps1](scripts/Complete-SessionLog.ps1) | Auto-populate and validate session end | 0=success, 1=validation failed |
+| [complete_session_log.py](scripts/complete_session_log.py) | Auto-populate and validate session end | 0=success, 1=validation failed |
 
 ### Parameters
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `-SessionPath` | string | No | Path to session log. Auto-detects if omitted. |
-| `-DryRun` | switch | No | Preview changes without writing to file. |
+| `--session-path` | string | No | Path to session log. Auto-detects if omitted. |
+| `--dry-run` | flag | No | Preview changes without writing to file. |
 
 ---
 
@@ -294,7 +294,7 @@ File: .agents/sessions/2026-02-07-session-05.json
 
 - [SESSION-PROTOCOL.md](../../../.agents/SESSION-PROTOCOL.md) - Session end requirements
 - [validate_session_json.py](../../../scripts/validate_session_json.py) - Validation script
-- [New-SessionLogJson.ps1](../session-init/scripts/New-SessionLogJson.ps1) - Session creation script
+- [new_session_log_json.py](../session-init/scripts/new_session_log_json.py) - Session creation script
 
 ---
 

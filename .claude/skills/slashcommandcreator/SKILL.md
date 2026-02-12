@@ -123,7 +123,7 @@ Task(subagent_type="critic", prompt="Validate frontmatter completeness: [spec]")
 
 **Tasks**:
 
-1. Run `pwsh .claude/skills/slashcommandcreator/scripts/New-SlashCommand.ps1`
+1. Run `python3 .claude/skills/slashcommandcreator/scripts/new_slash_command.py`
 2. Create `.claude/commands/[namespace]/[command].md`
 3. Write frontmatter + prompt body
 4. Test invocation with sample arguments
@@ -137,7 +137,7 @@ Task(subagent_type="critic", prompt="Validate frontmatter completeness: [spec]")
 
 **Tasks**:
 
-1. Run `pwsh .claude/skills/slashcommandcreator/scripts/Validate-SlashCommand.ps1 -Path [file]`
+1. Run `python3 .claude/skills/slashcommandcreator/scripts/validate_slash_command.py --path [file]`
 2. Fix violations if any
 3. Re-run validation until exit code 0
 4. Commit with conventional commit message
@@ -167,8 +167,8 @@ create slash command that summarizes recent PR comments
 
 - Prompt is >200 lines
 - Multi-agent coordination required
-- Complex PowerShell logic
-- Requires Pester tests
+- Complex scripting logic
+- Requires dedicated tests
 
 ## Verification/Success Criteria
 
@@ -181,7 +181,7 @@ Before marking complete:
 - [ ] Description follows trigger-based pattern (creator-001)
 - [ ] File is <200 lines (or converted to skill)
 - [ ] Passes `markdownlint-cli2` validation
-- [ ] Passes `Validate-SlashCommand.ps1` validation
+- [ ] Passes `validate_slash_command.py` validation
 - [ ] Tested with sample arguments
 - [ ] Committed with conventional commit message
 
@@ -189,7 +189,7 @@ Before marking complete:
 
 | Metric | Target |
 |--------|--------|
-| Validation | Exit code 0 from Validate-SlashCommand.ps1 |
+| Validation | Exit code 0 from validate_slash_command.py |
 | Testing | Command runs without errors with sample arguments |
 | Documentation | Description clearly explains when to use command |
 | Security | All bash/file refs have explicit allowed-tools entries |
@@ -212,6 +212,24 @@ All checks from Verification section plus:
 - [ ] No duplication with existing commands
 - [ ] Appropriate scope (not too broad/narrow)
 - [ ] Frontmatter completeness validated
+
+## Scripts
+
+### new_slash_command.py
+
+Creates a new slash command from a template.
+
+```bash
+python3 .claude/skills/slashcommandcreator/scripts/new_slash_command.py --name <name> --description <desc>
+```
+
+### validate_slash_command.py
+
+Validates slash command structure and frontmatter.
+
+```bash
+python3 .claude/skills/slashcommandcreator/scripts/validate_slash_command.py <skill-dir>
+```
 
 ## References
 

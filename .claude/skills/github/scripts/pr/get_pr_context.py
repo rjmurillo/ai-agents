@@ -104,7 +104,7 @@ def main(argv: list[str] | None = None) -> int:
         "head_branch": pr_data.get("headRefName"),
         "base_branch": pr_data.get("baseRefName"),
         "labels": labels,
-        "commits": pr_data.get("commits", {}).get("totalCount", 0),
+        "commits": len(pr_data.get("commits", [])),
         "additions": pr_data.get("additions"),
         "deletions": pr_data.get("deletions"),
         "changed_files": pr_data.get("changedFiles"),
