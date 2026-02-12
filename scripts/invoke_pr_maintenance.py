@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -354,9 +355,7 @@ def print_summary(results: MaintenanceResults) -> None:
 
 
 def write_step_summary(results: MaintenanceResults) -> None:
-    summary_path = sys.modules.get("os", __import__("os")).environ.get(
-        "GITHUB_STEP_SUMMARY"
-    )
+    summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
     if not summary_path:
         return
 
@@ -372,7 +371,8 @@ def write_step_summary(results: MaintenanceResults) -> None:
         "",
     ]
 
-    Path(summary_path).open("a", encoding="utf-8").write("\n".join(lines))
+    with Path(summary_path).open("a", encoding="utf-8") as f:
+        f.write("\n".join(lines))
 
 
 def main(argv: list[str] | None = None) -> int:
