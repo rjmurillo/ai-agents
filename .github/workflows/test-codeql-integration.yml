@@ -94,10 +94,21 @@ jobs:
         run: python3 .codeql/scripts/install_codeql.py --ci --force
 
       # Usage: Scan specific language with console output
+      # Exit 0=no findings, 1=findings detected (both mean scan worked), 2+=error
       - name: Run CodeQL scan for ${{ matrix.language }}
         env:
           SCAN_LANGUAGE: ${{ matrix.language }}
-        run: python3 .codeql/scripts/invoke_codeql_scan.py --languages "$SCAN_LANGUAGE" --ci --format console
+        run: |
+          set +e
+          python3 .codeql/scripts/invoke_codeql_scan.py --languages "$SCAN_LANGUAGE" --ci --format console
+          rc=$?
+          set -e
+          if [ $rc -le 1 ]; then
+            echo "Scan completed successfully (exit code $rc)"
+          else
+            echo "Scan failed with error (exit code $rc)"
+            exit $rc
+          fi
 
       - name: Verify scan artifacts
         env:
@@ -140,8 +151,19 @@ jobs:
         run: python3 .codeql/scripts/install_codeql.py --ci --force
 
       # Usage: Run full scan with JSON output (for CI integration)
+      # Exit 0=no findings, 1=findings detected (both mean scan worked), 2+=error
       - name: Run CodeQL scan with JSON output
-        run: python3 .codeql/scripts/invoke_codeql_scan.py --ci --format json
+        run: |
+          set +e
+          python3 .codeql/scripts/invoke_codeql_scan.py --ci --format json
+          rc=$?
+          set -e
+          if [ $rc -le 1 ]; then
+            echo "Scan completed successfully (exit code $rc)"
+          else
+            echo "Scan failed with error (exit code $rc)"
+            exit $rc
+          fi
 
       - name: Verify SARIF structure
         run: |
