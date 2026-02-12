@@ -18,18 +18,18 @@ Unified memory operations across four tiers for AI agents.
 
 ## Quick Start
 
-```powershell
+```bash
 # Check system health
-pwsh .claude/skills/memory/scripts/Test-MemoryHealth.ps1
+python3 .claude/skills/memory/scripts/test_memory_health.py
 
 # Search memory (Tier 1)
-pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "git hooks"
+python3 .claude/skills/memory/scripts/search_memory.py "git hooks"
 
 # Extract episode from session (Tier 2)
-pwsh .claude/skills/memory/scripts/Extract-SessionEpisode.ps1 -SessionLogPath ".agents/sessions/2026-01-01-session-126.md"
+python3 .claude/skills/memory/scripts/extract_session_episode.py ".agents/sessions/2026-01-01-session-126.json"
 
 # Update causal graph (Tier 3)
-pwsh .claude/skills/memory/scripts/Update-CausalGraph.ps1
+python3 .claude/skills/memory/scripts/update_causal_graph.py
 ```
 
 ---
@@ -38,10 +38,10 @@ pwsh .claude/skills/memory/scripts/Update-CausalGraph.ps1
 
 | Scenario | Use Memory Router? | Alternative |
 |----------|-------------------|-------------|
-| PowerShell script needs memory | ✅ Yes | - |
-| Agent needs deep context | ❌ No | `context-retrieval` agent |
-| Human at CLI | ❌ No | `/memory-search` command |
-| Cross-project semantic search | ❌ No | Forgetful MCP directly |
+| Script needs memory | Yes | - |
+| Agent needs deep context | No | `context-retrieval` agent |
+| Human at CLI | No | `/memory-search` command |
+| Cross-project semantic search | No | Forgetful MCP directly |
 
 See [context-retrieval agent](../../../.claude/agents/context-retrieval.md#memory-interface-decision-matrix) for complete decision tree.
 
@@ -67,7 +67,7 @@ See [context-retrieval agent](../../../.claude/agents/context-retrieval.md#memor
 **With memory search** (Chesterton's Fence investigation):
 
 - Agent encounters complex code
-- Searches memory: `Search-Memory.ps1 -Query "validation logic edge case"`
+- Searches memory: `search_memory.py "validation logic edge case"`
 - Finds past incident explaining why code exists
 - Makes informed decision: preserve, modify, or replace with equivalent safety
 
@@ -77,11 +77,11 @@ When you encounter something you want to change:
 
 | Change Type | Memory Search Required |
 |-------------|------------------------|
-| Remove ADR constraint | `Search-Memory.ps1 -Query "[constraint name]"` |
-| Bypass protocol | `Search-Memory.ps1 -Query "[protocol name] why"` |
-| Delete >100 lines | `Search-Memory.ps1 -Query "[component] purpose"` |
-| Refactor complex code | `Search-Memory.ps1 -Query "[component] edge case"` |
-| Change workflow | `Search-Memory.ps1 -Query "[workflow] rationale"` |
+| Remove ADR constraint | `search_memory.py "[constraint name]"` |
+| Bypass protocol | `search_memory.py "[protocol name] why"` |
+| Delete >100 lines | `search_memory.py "[component] purpose"` |
+| Refactor complex code | `search_memory.py "[component] edge case"` |
+| Change workflow | `search_memory.py "[workflow] rationale"` |
 
 ### What Memory Contains (Git Archaeology)
 
@@ -105,7 +105,7 @@ When you encounter something you want to change:
 
 **Before changing existing systems, you MUST**:
 
-1. `pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "[topic]"`
+1. `python3 .claude/skills/memory/scripts/search_memory.py "[topic]"`
 2. Review results for historical context
 3. If insufficient, escalate to Tier 2/3
 4. Document findings in decision rationale
@@ -136,7 +136,7 @@ This skill implements [progressive disclosure principles](../../../.agents/analy
 
 | Layer | Tool | Cost | When to Use |
 |-------|------|------|-------------|
-| **Index** | `Search-Memory.ps1` | ~100-500 tokens | Always start here |
+| **Index** | `search_memory.py` | ~100-500 tokens | Always start here |
 | **Details** | `mcp__serena__read_memory` | ~500-10K tokens | After index confirms relevance |
 | **Deep Dive** | Follow cross-references | Variable | For complete understanding |
 
@@ -196,16 +196,16 @@ Use this skill when the user says:
 
 ## Quick Reference
 
-| Operation | Name | Key Parameters |
-|-----------|------|----------------|
-| Search facts/patterns | `Search-Memory.ps1` | `-Query`, `-LexicalOnly`, `-MaxResults` |
-| Get single session | `Get-Episode` | `-SessionId` |
-| Find multiple sessions | `Get-Episodes` | `-Outcome`, `-Task`, `-Since` |
-| Trace causation | `Get-CausalPath` | `-FromLabel`, `-ToLabel` |
-| Find success patterns | `Get-Patterns` | `-MinSuccessRate` |
-| Extract episode | `Extract-SessionEpisode.ps1` | `-SessionLogPath` |
-| Update patterns | `Update-CausalGraph.ps1` | `-EpisodePath`, `-DryRun` |
-| Health check | `Test-MemoryHealth.ps1` | `-Format` (Json/Table) |
+| Operation | Script | Key Parameters |
+|-----------|--------|----------------|
+| Search facts/patterns | `search_memory.py` | `query`, `--lexical-only`, `--max-results` |
+| Extract episode | `extract_session_episode.py` | `session_log_path`, `--output-path` |
+| Update patterns | `update_causal_graph.py` | `--episode-path`, `--dry-run` |
+| Health check | `test_memory_health.py` | `--format` (json/table) |
+| Benchmark performance | `measure_memory_performance.py` | `--serena-only`, `--format` |
+| Convert index links | `convert_index_table_links.py` | `--memory-path`, `--dry-run` |
+| Cross-reference | `invoke_memory_cross_reference.py` | `--memory-path`, `--threshold` |
+| Improve graph density | `improve_memory_graph_density.py` | `--memory-path`, `--dry-run` |
 
 ---
 
@@ -215,26 +215,20 @@ Use this skill when the user says:
 What do you need?
 │
 ├─► Current facts, patterns, or rules?
-│   └─► TIER 1: Search-Memory.ps1
+│   └─► TIER 1: search_memory.py
 │
 ├─► What happened in a specific session?
-│   └─► TIER 2: Get-Episode -SessionId "..."
-│
-├─► Recent sessions with specific outcome?
-│   └─► TIER 2: Get-Episodes -Outcome "failure" -Since 7days
-│
-├─► Why did decision X lead to outcome Y?
-│   └─► TIER 3: Get-CausalPath -FromLabel "..." -ToLabel "..."
-│
-├─► What patterns have high success rate?
-│   └─► TIER 3: Get-Patterns -MinSuccessRate 0.7
+│   └─► TIER 2: Episode JSON in .agents/memory/episodes/
 │
 ├─► Need to store new knowledge?
-│   ├─ From completed session? → Extract-SessionEpisode.ps1
+│   ├─ From completed session? → extract_session_episode.py
 │   └─ Factual knowledge? → using-forgetful-memory skill
 │
+├─► Update decision patterns?
+│   └─► TIER 3: update_causal_graph.py
+│
 └─► Not sure which tier?
-    └─► Start with TIER 1 (Search-Memory), escalate if insufficient
+    └─► Start with TIER 1 (search_memory.py), escalate if insufficient
 ```
 
 ---
@@ -245,8 +239,8 @@ What do you need?
 |--------------|-----------------|
 | Skipping memory search | Always search before multi-step reasoning |
 | Tier confusion | Follow decision tree explicitly |
-| Forgetful dependency | Use `-LexicalOnly` fallback |
-| Stale causal graph | Run `Update-CausalGraph.ps1` after extractions |
+| Forgetful dependency | Use `--lexical-only` fallback |
+| Stale causal graph | Run `update_causal_graph.py` after extractions |
 | Incomplete extraction | Only extract from COMPLETED sessions |
 
 ---
@@ -286,8 +280,8 @@ What do you need?
 | Graph updated | Stats show nodes/edges added |
 | Health check | All tiers show "available: true" |
 
-```powershell
-pwsh .claude/skills/memory/scripts/Test-MemoryHealth.ps1 -Format Table
+```bash
+python3 .claude/skills/memory/scripts/test_memory_health.py --format table
 ```
 
 ---
@@ -312,10 +306,13 @@ Return structured results to the caller with source attribution.
 
 | Script | Purpose | Exit Codes |
 |--------|---------|------------|
-| `Search-Memory.ps1` | Tier 1 semantic search across Serena and Forgetful | 0=success, 1=error |
+| `search_memory.py` | Tier 1 semantic search across Serena and Forgetful | 0=success, 1=error |
 | `count_memory_tokens.py` | Token counting with tiktoken caching | 0=success, 1=error |
 | `test_memory_size.py` | Memory atomicity validation | 0=pass, 1=violations |
-| `Test-MemoryHealth.ps1` | System health dashboard | 0=healthy, 1=degraded |
+| `test_memory_health.py` | System health dashboard | 0=success |
+| `extract_session_episode.py` | Episode extraction from session logs | 0=success, 1=error |
+| `update_causal_graph.py` | Causal graph pattern tracking | 0=success, 1=error |
+| `measure_memory_performance.py` | Serena/Forgetful benchmark | 0=success, 1=error |
 
 ---
 
