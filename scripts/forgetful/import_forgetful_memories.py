@@ -239,7 +239,8 @@ def main(argv: list[str] | None = None) -> int:
         else:
             print(f"Import complete: {total_inserted} inserted, {total_skipped} skipped")
     else:
-        print(f"Import completed with failures: {total_inserted} succeeded, {len(failed_files)} failed")
+        failed = len(failed_files)
+        print(f"Import completed with failures: {total_inserted} succeeded, {failed} failed")
         for name, reason in failed_files:
             print(f"  FAIL {name}: {reason}")
         return 1

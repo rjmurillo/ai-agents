@@ -13,7 +13,9 @@ _base = os.path.join(os.path.dirname(__file__), "..", ".claude-mem", "scripts")
 
 def _load(name: str, filename: str):
     spec = importlib.util.spec_from_file_location(name, os.path.join(_base, filename))
+    assert spec is not None, f"Failed to find {filename}"
     mod = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None, f"Module spec for {filename} has no loader"
     spec.loader.exec_module(mod)
     return mod
 

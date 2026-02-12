@@ -100,7 +100,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     print("  [2/2] Verifying normalization...")
-    after_stats = get_line_ending_stats("AFTER")
+    get_line_ending_stats("AFTER")
 
     after_audit = Path(".agents/analysis/line-endings-after.txt")
     save_line_ending_audit(after_audit)

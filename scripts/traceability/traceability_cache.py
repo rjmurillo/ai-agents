@@ -60,7 +60,8 @@ def get_cached_spec(
     if cache_key in _memory_cache:
         cached = _memory_cache[cache_key]
         if cached["hash"] == current_hash:
-            return cached["spec"]
+            spec: dict[str, Any] = cached["spec"]
+            return spec
 
     cache_file = _CACHE_DIR / f"{cache_key}.json"
     if cache_file.exists():

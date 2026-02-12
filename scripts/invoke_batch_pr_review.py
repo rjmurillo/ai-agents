@@ -44,7 +44,8 @@ def get_pr_branch(pr_number: int) -> str | None:
         return None
     try:
         data = json.loads(result.stdout)
-        return data.get("headRefName")
+        branch: str | None = data.get("headRefName")
+        return branch
     except (json.JSONDecodeError, KeyError):
         print(f"WARNING: PR #{pr_number}: Unable to parse branch information.")
         return None
@@ -161,7 +162,8 @@ def push_worktree_changes(pr_number: int, worktree_root: Path) -> bool:
         if result.returncode != 0:
             print(f"WARNING: PR #{pr_number}: 'git add .' failed")
             return False
-        result = run_git("commit", "-m", f"chore(pr-{pr_number}): finalize review response session", cwd=cwd)
+        msg = f"chore(pr-{pr_number}): finalize review response session"
+        result = run_git("commit", "-m", msg, cwd=cwd)
         if result.returncode != 0:
             print(f"WARNING: PR #{pr_number}: 'git commit' failed")
             return False
@@ -189,7 +191,9 @@ def print_status_table(statuses: list[WorktreeStatus]) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Manage git worktrees for batch PR review")
-    parser.add_argument("--pr-numbers", type=int, nargs="+", required=True, help="PR numbers to process")
+    parser.add_argument(
+        "--pr-numbers", type=int, nargs="+", required=True, help="PR numbers to process",
+    )
     parser.add_argument(
         "--operation",
         choices=["setup", "status", "cleanup", "all"],
@@ -210,7 +214,8 @@ def main(argv: list[str] | None = None) -> int:
     op = args.operation
 
     if op in ("setup", "all"):
-        print(f"\n=== Setting up worktrees for PRs: {', '.join(str(p) for p in args.pr_numbers)} ===")
+        pr_list = ", ".join(str(p) for p in args.pr_numbers)
+        print(f"\n=== Setting up worktrees for PRs: {pr_list} ===")
         for pr in args.pr_numbers:
             create_worktree(pr, args.worktree_root)
 

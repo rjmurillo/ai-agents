@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 from scripts.sync_mcp_config import (
     main,
@@ -11,7 +12,7 @@ from scripts.sync_mcp_config import (
     transform_for_vscode,
 )
 
-SAMPLE_SOURCE = {
+SAMPLE_SOURCE: dict[str, Any] = {
     "mcpServers": {
         "serena": {
             "command": "serena",

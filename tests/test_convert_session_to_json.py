@@ -32,9 +32,12 @@ class TestMain:
 
     @patch("scripts.convert_session_to_json.subprocess.run")
     @patch("scripts.convert_session_to_json.get_repo_root")
-    def test_delegates_to_skill(self, mock_root: MagicMock, mock_run: MagicMock, tmp_path: Path) -> None:
+    def test_delegates_to_skill(
+        self, mock_root: MagicMock, mock_run: MagicMock, tmp_path: Path,
+    ) -> None:
         mock_root.return_value = tmp_path
-        skill = tmp_path / ".claude" / "skills" / "session-migration" / "scripts" / "Convert-SessionToJson.ps1"
+        skills_base = tmp_path / ".claude" / "skills" / "session-migration"
+        skill = skills_base / "scripts" / "Convert-SessionToJson.ps1"
         skill.parent.mkdir(parents=True)
         skill.write_text("# skill", encoding="utf-8")
         mock_run.return_value = MagicMock(returncode=0)

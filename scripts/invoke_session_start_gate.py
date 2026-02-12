@@ -53,7 +53,8 @@ def check_memory_gate(repo_root: Path) -> bool:
     print(f"  Memory index contains {memory_count} memory references")
 
     tier1_memories = ["project-overview", "codebase-structure", "usage-mandatory"]
-    missing = [m for m in tier1_memories if not (repo_root / ".serena" / "memories" / f"{m}.md").exists()]
+    mem_dir = repo_root / ".serena" / "memories"
+    missing = [m for m in tier1_memories if not (mem_dir / f"{m}.md").exists()]
 
     if missing:
         print(f"[WARN] Missing Tier 1 memories: {', '.join(missing)}")

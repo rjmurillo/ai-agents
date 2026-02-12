@@ -24,9 +24,10 @@ import subprocess
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 
-def build_parser():
+def build_parser() -> Any:
     import argparse
     parser = argparse.ArgumentParser(
         description="Run CodeQL diagnostics and health checks.",
@@ -60,8 +61,8 @@ def build_parser():
     return parser
 
 
-def check_cli() -> dict:
-    result = {
+def check_cli() -> dict[str, Any]:
+    result: dict[str, Any] = {
         "installed": False,
         "path": None,
         "version": None,
@@ -102,8 +103,8 @@ def check_cli() -> dict:
     return result
 
 
-def check_config(config_path: str, codeql_path: str | None) -> dict:
-    result = {
+def check_config(config_path: str, codeql_path: str | None) -> dict[str, Any]:
+    result: dict[str, Any] = {
         "exists": False,
         "valid_yaml": False,
         "query_packs": [],
@@ -215,8 +216,8 @@ def check_database_cache(
 
 def check_database(
     database_path: str, config_path: str, repo_path: str,
-) -> dict:
-    result = {
+) -> dict[str, Any]:
+    result: dict[str, Any] = {
         "exists": False,
         "languages": [],
         "cache_valid": False,
@@ -271,8 +272,8 @@ def check_database(
     return result
 
 
-def check_results(results_path: str) -> dict:
-    result = {
+def check_results(results_path: str) -> dict[str, Any]:
+    result: dict[str, Any] = {
         "exists": False,
         "sarif_files": [],
         "total_findings": 0,
@@ -318,7 +319,7 @@ def check_results(results_path: str) -> dict:
     return result
 
 
-def format_console(diagnostics: dict) -> None:
+def format_console(diagnostics: dict[str, Any]) -> None:
     print("\n========================================")
     print("CodeQL Diagnostics Report")
     print("========================================")
@@ -383,11 +384,11 @@ def format_console(diagnostics: dict) -> None:
     print("========================================\n")
 
 
-def format_json(diagnostics: dict) -> None:
+def format_json(diagnostics: dict[str, Any]) -> None:
     print(json.dumps(diagnostics, indent=2, default=str))
 
 
-def format_markdown(diagnostics: dict) -> None:
+def format_markdown(diagnostics: dict[str, Any]) -> None:
     timestamp = datetime.now(tz=UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
     cli = diagnostics["cli"]
     cfg = diagnostics["config"]

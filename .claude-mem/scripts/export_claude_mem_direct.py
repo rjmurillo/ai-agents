@@ -140,7 +140,10 @@ def main(argv: list[str] | None = None) -> int:
         f"{obs_filter} ORDER BY o.created_at_epoch DESC"
     )
     obs_result = run_sqlite3(db_path, obs_query, json_mode=True)
-    observations = json.loads(obs_result.stdout) if obs_result.returncode == 0 and obs_result.stdout.strip() else []
+    has_obs = (
+        obs_result.returncode == 0 and obs_result.stdout.strip()
+    )
+    observations = json.loads(obs_result.stdout) if has_obs else []
 
     # Fix NULL titles
     null_count = 0
@@ -159,7 +162,10 @@ def main(argv: list[str] | None = None) -> int:
         f"{summary_filter} ORDER BY ss.created_at_epoch DESC"
     )
     summ_result = run_sqlite3(db_path, summ_query, json_mode=True)
-    summaries = json.loads(summ_result.stdout) if summ_result.returncode == 0 and summ_result.stdout.strip() else []
+    has_summ = (
+        summ_result.returncode == 0 and summ_result.stdout.strip()
+    )
+    summaries = json.loads(summ_result.stdout) if has_summ else []
 
     # Export user prompts
     prompt_result = run_sqlite3(
@@ -167,7 +173,11 @@ def main(argv: list[str] | None = None) -> int:
         f"SELECT * FROM user_prompts {prompt_filter} ORDER BY prompt_number DESC;",
         json_mode=True,
     )
-    prompts = json.loads(prompt_result.stdout) if prompt_result.returncode == 0 and prompt_result.stdout.strip() else []
+    has_prompts = (
+        prompt_result.returncode == 0
+        and prompt_result.stdout.strip()
+    )
+    prompts = json.loads(prompt_result.stdout) if has_prompts else []
 
     # Export SDK sessions
     sess_result = run_sqlite3(
@@ -175,11 +185,15 @@ def main(argv: list[str] | None = None) -> int:
         f"SELECT * FROM sdk_sessions {session_filter} ORDER BY started_at_epoch DESC;",
         json_mode=True,
     )
-    sessions = json.loads(sess_result.stdout) if sess_result.returncode == 0 and sess_result.stdout.strip() else []
-
-    query_desc = (
-        f"direct-sqlite (project: {args.project})" if args.project else "direct-sqlite (all projects)"
+    has_sess = (
+        sess_result.returncode == 0 and sess_result.stdout.strip()
     )
+    sessions = json.loads(sess_result.stdout) if has_sess else []
+
+    if args.project:
+        query_desc = f"direct-sqlite (project: {args.project})"
+    else:
+        query_desc = "direct-sqlite (all projects)"
     export_data = {
         "exportedAt": datetime.now().isoformat(),
         "exportedAtEpoch": int(datetime.now().timestamp()),

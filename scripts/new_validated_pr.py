@@ -41,7 +41,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--base", default="main", help="Target branch (default: main)")
     parser.add_argument("--head", default="", help="Source branch (default: current)")
     parser.add_argument("--draft", action="store_true", help="Create as draft PR")
-    parser.add_argument("--web", action="store_true", help="Open browser to create PR interactively")
+    parser.add_argument(
+        "--web", action="store_true", help="Open browser to create PR interactively",
+    )
     parser.add_argument("--skip-validation", action="store_true", help="Skip validation checks")
     parser.add_argument("--audit-reason", default="", help="Reason for skipping validation")
     args = parser.parse_args(argv)
@@ -56,7 +58,8 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     if args.web:
-        if os.environ.get("CI") or os.environ.get("GITHUB_ACTIONS") or not os.environ.get("DISPLAY"):
+        is_ci = os.environ.get("CI") or os.environ.get("GITHUB_ACTIONS")
+        if is_ci or not os.environ.get("DISPLAY"):
             print("ERROR: Web mode not available in CI or headless environments", file=sys.stderr)
             return 2
         gh_args = ["gh", "pr", "create", "--web"]
@@ -74,7 +77,10 @@ def main(argv: list[str] | None = None) -> int:
         print(f"ERROR: PR creation skill not found: {skill_script}", file=sys.stderr)
         return 2
 
-    skill_args = ["pwsh", "-NoProfile", "-File", str(skill_script), "-Title", args.title, "-Base", args.base]
+    skill_args = [
+        "pwsh", "-NoProfile", "-File", str(skill_script),
+        "-Title", args.title, "-Base", args.base,
+    ]
 
     if args.head:
         skill_args.extend(["-Head", args.head])

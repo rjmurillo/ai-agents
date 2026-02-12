@@ -20,7 +20,9 @@ _spec = importlib.util.spec_from_file_location(
         "get_codeql_diagnostics.py",
     ),
 )
+assert _spec is not None, "Failed to find get_codeql_diagnostics.py"
 _mod = importlib.util.module_from_spec(_spec)
+assert _spec.loader is not None, "Module spec has no loader"
 _spec.loader.exec_module(_mod)
 
 build_parser = _mod.build_parser

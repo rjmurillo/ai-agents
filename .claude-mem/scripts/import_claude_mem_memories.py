@@ -69,7 +69,8 @@ def main(argv: list[str] | None = None) -> int:
                 text=True,
             )
             if result.returncode != 0:
-                failed_files.append((file_path.name, f"Plugin exited with code {result.returncode}"))
+                msg = f"Plugin exited with code {result.returncode}"
+                failed_files.append((file_path.name, msg))
                 print(f"    WARNING: Import failed: exit code {result.returncode}")
             else:
                 import_count += 1

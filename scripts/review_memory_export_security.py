@@ -113,7 +113,11 @@ def scan_file(export_file: Path, quiet: bool = False) -> int:
         print(f"{'Category':<30} {'Pattern':<40} {'Matches':<10} {'Sample Lines'}")
         print("-" * 100)
         for issue in found_issues:
-            print(f"{issue['category']:<30} {issue['pattern']:<40} {issue['count']:<10} {issue['lines']}")
+            cat = issue['category']
+            pat = issue['pattern']
+            cnt = issue['count']
+            sample = issue['lines']
+            print(f"{cat:<30} {pat:<40} {cnt:<10} {sample}")
         print()
         print("ACTION REQUIRED:")
         print(f"1. Review the export file manually at: {export_file}")

@@ -95,7 +95,11 @@ def main(argv: list[str] | None = None) -> int:
             capture_output=False,
         )
         if result.returncode != 0:
-            print(f"ERROR: Export plugin failed with exit code: {result.returncode}", file=sys.stderr)
+            print(
+                f"ERROR: Export plugin failed with exit code: "
+                f"{result.returncode}",
+                file=sys.stderr,
+            )
             return result.returncode
 
         if not output_path.exists():

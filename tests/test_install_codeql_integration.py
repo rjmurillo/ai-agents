@@ -17,7 +17,9 @@ _spec = importlib.util.spec_from_file_location(
         "install_codeql_integration.py",
     ),
 )
+assert _spec is not None, "Failed to find install_codeql_integration.py"
 _mod = importlib.util.module_from_spec(_spec)
+assert _spec.loader is not None, "Module spec has no loader"
 _spec.loader.exec_module(_mod)
 
 build_parser = _mod.build_parser

@@ -24,6 +24,7 @@ import subprocess
 import sys
 from datetime import date
 from pathlib import Path
+from typing import Any
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
 _EXPORTS_DIR = _SCRIPT_DIR.parent.parent / ".forgetful" / "exports"
@@ -93,7 +94,7 @@ def get_table_columns(db_path: str, table: str) -> list[str]:
     return [line.split("|")[1] for line in output.splitlines() if "|" in line]
 
 
-def export_table(db_path: str, table: str) -> list[dict]:
+def export_table(db_path: str, table: str) -> list[dict[str, Any]]:
     columns = get_table_columns(db_path, table)
     if not columns:
         return []
@@ -106,7 +107,8 @@ def export_table(db_path: str, table: str) -> list[dict]:
         return []
 
     try:
-        return json.loads(output)
+        rows: list[dict[str, Any]] = json.loads(output)
+        return rows
     except json.JSONDecodeError:
         return []
 
@@ -170,7 +172,7 @@ def main(argv: list[str] | None = None) -> int:
         "SELECT version_num FROM alembic_version LIMIT 1;",
     ) or "unknown"
 
-    export_data: dict = {
+    export_data: dict[str, Any] = {
         "export_metadata": {
             "export_timestamp": __import__("datetime").datetime.now().isoformat(),
             "database_path": args.database_path,

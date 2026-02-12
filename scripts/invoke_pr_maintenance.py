@@ -26,6 +26,7 @@ import subprocess
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 PROTECTED_BRANCHES = ("main", "master", "develop")
 
@@ -72,8 +73,8 @@ def check_rate_limit() -> bool:
         return False
     try:
         data = json.loads(result.stdout)
-        core = data["resources"]["core"]["remaining"]
-        graphql = data["resources"]["graphql"]["remaining"]
+        core: int = data["resources"]["core"]["remaining"]
+        graphql: int = data["resources"]["graphql"]["remaining"]
         return core >= 100 and graphql >= 50
     except (json.JSONDecodeError, KeyError):
         return False
@@ -96,7 +97,7 @@ def get_bot_author_info(author_login: str) -> BotInfo:
     return BotInfo(is_bot=False, category="human", name=author_login)
 
 
-def is_bot_reviewer(review_requests: dict | None) -> bool:
+def is_bot_reviewer(review_requests: dict[str, Any] | None) -> bool:
     if not review_requests or "nodes" not in review_requests:
         return False
     for request in review_requests["nodes"]:
@@ -112,7 +113,7 @@ def is_bot_reviewer(review_requests: dict | None) -> bool:
     return False
 
 
-def has_failing_checks(pr: dict) -> bool:
+def has_failing_checks(pr: dict[str, Any]) -> bool:
     commits = pr.get("commits", {})
     nodes = commits.get("nodes", [])
     if not nodes:
@@ -187,7 +188,7 @@ query($owner: String!, $name: String!, $limit: Int!) {
 """
 
 
-def get_open_prs(owner: str, repo: str, limit: int) -> list[dict]:
+def get_open_prs(owner: str, repo: str, limit: int) -> list[dict[str, Any]]:
     result = run_gh(
         "api",
         "graphql",
@@ -205,7 +206,8 @@ def get_open_prs(owner: str, repo: str, limit: int) -> list[dict]:
         return []
     try:
         data = json.loads(result.stdout)
-        return data["data"]["repository"]["pullRequests"]["nodes"]
+        nodes: list[dict[str, Any]] = data["data"]["repository"]["pullRequests"]["nodes"]
+        return nodes
     except (json.JSONDecodeError, KeyError):
         return []
 
@@ -213,14 +215,14 @@ def get_open_prs(owner: str, repo: str, limit: int) -> list[dict]:
 @dataclass
 class MaintenanceResults:
     total_prs: int = 0
-    action_required: list[dict] = field(default_factory=list)
-    blocked: list[dict] = field(default_factory=list)
-    derivative_prs: list[dict] = field(default_factory=list)
-    errors: list[dict] = field(default_factory=list)
+    action_required: list[dict[str, Any]] = field(default_factory=list)
+    blocked: list[dict[str, Any]] = field(default_factory=list)
+    derivative_prs: list[dict[str, Any]] = field(default_factory=list)
+    errors: list[dict[str, Any]] = field(default_factory=list)
 
 
 def classify_prs(
-    owner: str, repo: str, prs: list[dict]
+    owner: str, repo: str, prs: list[dict[str, Any]],
 ) -> MaintenanceResults:
     results = MaintenanceResults(total_prs=len(prs))
 

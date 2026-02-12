@@ -22,42 +22,146 @@ import sys
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
-DOMAIN_MAP: dict[str, dict[str, object]] = {
-    "testing": {"project_name": "testing", "keywords": ["testing", "pester", "validation"]},
-    "architecture": {"project_name": "architecture", "keywords": ["architecture", "adr", "design"]},
-    "pr-review": {"project_name": "pr-review", "keywords": ["pr-review", "github", "code-review"]},
-    "github": {"project_name": "github", "keywords": ["github", "gh-cli", "api"]},
-    "powershell": {"project_name": "powershell", "keywords": ["powershell", "scripting", "automation"]},
-    "ci-infrastructure": {"project_name": "ci-infrastructure", "keywords": ["ci-cd", "github-actions", "pipelines"]},
-    "session": {"project_name": "session-protocol", "keywords": ["session", "protocol", "logging"]},
-    "session-protocol": {"project_name": "session-protocol", "keywords": ["session", "protocol", "compliance"]},
-    "git": {"project_name": "git", "keywords": ["git", "version-control", "branching"]},
-    "security": {"project_name": "security", "keywords": ["security", "vulnerability", "secrets"]},
-    "memory": {"project_name": "memory-system", "keywords": ["memory", "serena", "forgetful"]},
-    "validation": {"project_name": "validation", "keywords": ["validation", "schema", "constraints"]},
-    "documentation": {"project_name": "documentation", "keywords": ["documentation", "markdown", "readme"]},
-    "environment": {"project_name": "environment", "keywords": ["environment", "configuration", "setup"]},
-    "agent-workflow": {"project_name": "agent-workflow", "keywords": ["agent", "workflow", "orchestration"]},
-    "bash-integration": {"project_name": "bash-integration", "keywords": ["bash", "shell", "integration"]},
-    "error-handling": {"project_name": "error-handling", "keywords": ["errors", "exceptions", "debugging"]},
-    "qa": {"project_name": "qa", "keywords": ["qa", "quality", "testing"]},
-    "retrospective": {"project_name": "retrospective", "keywords": ["retrospective", "learnings", "reflection"]},
-    "prompting": {"project_name": "prompting", "keywords": ["prompting", "llm", "instructions"]},
-    "cost-optimization": {"project_name": "cost-optimization", "keywords": ["cost", "optimization", "tokens"]},
-    "performance": {"project_name": "performance", "keywords": ["performance", "speed", "optimization"]},
-    "tool-usage": {"project_name": "tool-usage", "keywords": ["tools", "mcp", "integration"]},
-    "quality-gates": {"project_name": "quality-gates", "keywords": ["quality", "gates", "ci-cd"]},
-    "enforcement-patterns": {"project_name": "enforcement-patterns", "keywords": ["enforcement", "patterns", "rules"]},
-    "skills": {"project_name": "skills", "keywords": ["skills", "commands", "automation"]},
-    "SkillForge": {"project_name": "skillforge", "keywords": ["skillforge", "meta-skill", "creation"]},
-    "reflect": {"project_name": "reflect", "keywords": ["reflect", "learning", "capture"]},
+DomainInfo = dict[str, str | list[str]]
+
+DOMAIN_MAP: dict[str, DomainInfo] = {
+    "testing": {
+        "project_name": "testing",
+        "keywords": ["testing", "pester", "validation"],
+    },
+    "architecture": {
+        "project_name": "architecture",
+        "keywords": ["architecture", "adr", "design"],
+    },
+    "pr-review": {
+        "project_name": "pr-review",
+        "keywords": ["pr-review", "github", "code-review"],
+    },
+    "github": {
+        "project_name": "github",
+        "keywords": ["github", "gh-cli", "api"],
+    },
+    "powershell": {
+        "project_name": "powershell",
+        "keywords": ["powershell", "scripting", "automation"],
+    },
+    "ci-infrastructure": {
+        "project_name": "ci-infrastructure",
+        "keywords": ["ci-cd", "github-actions", "pipelines"],
+    },
+    "session": {
+        "project_name": "session-protocol",
+        "keywords": ["session", "protocol", "logging"],
+    },
+    "session-protocol": {
+        "project_name": "session-protocol",
+        "keywords": ["session", "protocol", "compliance"],
+    },
+    "git": {
+        "project_name": "git",
+        "keywords": ["git", "version-control", "branching"],
+    },
+    "security": {
+        "project_name": "security",
+        "keywords": ["security", "vulnerability", "secrets"],
+    },
+    "memory": {
+        "project_name": "memory-system",
+        "keywords": ["memory", "serena", "forgetful"],
+    },
+    "validation": {
+        "project_name": "validation",
+        "keywords": ["validation", "schema", "constraints"],
+    },
+    "documentation": {
+        "project_name": "documentation",
+        "keywords": ["documentation", "markdown", "readme"],
+    },
+    "environment": {
+        "project_name": "environment",
+        "keywords": ["environment", "configuration", "setup"],
+    },
+    "agent-workflow": {
+        "project_name": "agent-workflow",
+        "keywords": ["agent", "workflow", "orchestration"],
+    },
+    "bash-integration": {
+        "project_name": "bash-integration",
+        "keywords": ["bash", "shell", "integration"],
+    },
+    "error-handling": {
+        "project_name": "error-handling",
+        "keywords": ["errors", "exceptions", "debugging"],
+    },
+    "qa": {
+        "project_name": "qa",
+        "keywords": ["qa", "quality", "testing"],
+    },
+    "retrospective": {
+        "project_name": "retrospective",
+        "keywords": ["retrospective", "learnings", "reflection"],
+    },
+    "prompting": {
+        "project_name": "prompting",
+        "keywords": ["prompting", "llm", "instructions"],
+    },
+    "cost-optimization": {
+        "project_name": "cost-optimization",
+        "keywords": ["cost", "optimization", "tokens"],
+    },
+    "performance": {
+        "project_name": "performance",
+        "keywords": ["performance", "speed", "optimization"],
+    },
+    "tool-usage": {
+        "project_name": "tool-usage",
+        "keywords": ["tools", "mcp", "integration"],
+    },
+    "quality-gates": {
+        "project_name": "quality-gates",
+        "keywords": ["quality", "gates", "ci-cd"],
+    },
+    "enforcement-patterns": {
+        "project_name": "enforcement-patterns",
+        "keywords": ["enforcement", "patterns", "rules"],
+    },
+    "skills": {
+        "project_name": "skills",
+        "keywords": ["skills", "commands", "automation"],
+    },
+    "SkillForge": {
+        "project_name": "skillforge",
+        "keywords": ["skillforge", "meta-skill", "creation"],
+    },
+    "reflect": {
+        "project_name": "reflect",
+        "keywords": ["reflect", "learning", "capture"],
+    },
 }
 
-CONFIDENCE_MAPPING = {
-    "HIGH": {"importance_min": 9, "importance_max": 10, "confidence": 1.0, "tag": "high-confidence"},
-    "MED": {"importance_min": 7, "importance_max": 8, "confidence": 0.85, "tag": "medium-confidence"},
-    "LOW": {"importance_min": 5, "importance_max": 6, "confidence": 0.7, "tag": "low-confidence"},
+ConfidenceInfo = dict[str, int | float | str]
+
+CONFIDENCE_MAPPING: dict[str, ConfidenceInfo] = {
+    "HIGH": {
+        "importance_min": 9,
+        "importance_max": 10,
+        "confidence": 1.0,
+        "tag": "high-confidence",
+    },
+    "MED": {
+        "importance_min": 7,
+        "importance_max": 8,
+        "confidence": 0.85,
+        "tag": "medium-confidence",
+    },
+    "LOW": {
+        "importance_min": 5,
+        "importance_max": 6,
+        "confidence": 0.7,
+        "tag": "low-confidence",
+    },
 }
 
 SECTION_TYPE_MAP = {
@@ -93,10 +197,13 @@ def get_domain_from_filename(filename: str) -> str:
     return base
 
 
-def get_project_info(domain: str) -> dict[str, object]:
+def get_project_info(domain: str) -> DomainInfo:
     if domain in DOMAIN_MAP:
         return DOMAIN_MAP[domain]
-    return {"project_name": domain, "keywords": [domain, "learnings", "observations"]}
+    return {
+        "project_name": domain,
+        "keywords": [domain, "learnings", "observations"],
+    }
 
 
 def safe_title(text: str) -> str:
@@ -176,7 +283,13 @@ def parse_observation_file(
             current_learning = Learning(
                 domain=domain,
                 project_name=str(project_info["project_name"]),
-                base_keywords=list(project_info["keywords"]),  # type: ignore[arg-type]
+                base_keywords=[
+                    str(k) for k in (
+                        project_info["keywords"]
+                        if isinstance(project_info["keywords"], list)
+                        else [project_info["keywords"]]
+                    )
+                ],
                 confidence_level=current_section["confidence_level"],
                 learning_type=current_section["type"],
                 text=captured,
@@ -197,7 +310,9 @@ def parse_observation_file(
     return learnings
 
 
-def build_memory_payload(learning: Learning, project_id: int) -> dict:
+def build_memory_payload(
+    learning: Learning, project_id: int,
+) -> dict[str, object]:
     conf = CONFIDENCE_MAPPING[learning.confidence_level]
     title = safe_title(learning.text)
     content = learning.text
@@ -222,7 +337,10 @@ def build_memory_payload(learning: Learning, project_id: int) -> dict:
             keywords.append(kw)
     keywords = list(dict.fromkeys(keywords))
 
-    importance = random.randint(conf["importance_min"], conf["importance_max"])  # type: ignore[arg-type]
+    importance = random.randint(
+        int(conf["importance_min"]),
+        int(conf["importance_max"]),
+    )
 
     return {
         "title": title,
@@ -282,7 +400,7 @@ def main(argv: list[str] | None = None) -> int:
 
     print(f"Files to process: {len(files)}")
 
-    results: dict = {
+    results: dict[str, Any] = {
         "start_time": datetime.now().isoformat(),
         "parameters": {
             "confidence_levels": args.confidence_levels,

@@ -20,7 +20,9 @@ class TestInvokeSlashCommandValidation:
             # Either returns 0 (no dir) or runs validation
             assert result in (0, 1)
 
-    def test_returns_0_when_only_catalog_files(self, tmp_path: Path, monkeypatch: MagicMock) -> None:
+    def test_returns_0_when_only_catalog_files(
+        self, tmp_path: Path, monkeypatch: MagicMock,
+    ) -> None:
         commands_dir = tmp_path / ".claude" / "commands"
         commands_dir.mkdir(parents=True)
         (commands_dir / "README.md").write_text("# Catalog", encoding="utf-8")

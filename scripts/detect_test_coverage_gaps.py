@@ -100,7 +100,10 @@ def find_test_file(file_path: str, repo_root: Path) -> bool:
         return True
 
     # Check tests/ subdirectory
-    tests_dir = repo_root / file_dir / "tests" / test_name if file_dir != "." else repo_root / "tests" / test_name
+    if file_dir != ".":
+        tests_dir = repo_root / file_dir / "tests" / test_name
+    else:
+        tests_dir = repo_root / "tests" / test_name
     if tests_dir.exists():
         return True
 
@@ -108,8 +111,12 @@ def find_test_file(file_path: str, repo_root: Path) -> bool:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Detect PowerShell files without test coverage")
-    parser.add_argument("--path", default=".", help="Root path to scan (default: current directory)")
+    parser = argparse.ArgumentParser(
+        description="Detect PowerShell files without test coverage",
+    )
+    parser.add_argument(
+        "--path", default=".", help="Root path to scan (default: current directory)",
+    )
     parser.add_argument("--staged-only", action="store_true", help="Only check git-staged files")
     parser.add_argument("--ignore-file", default="", help="Path to file with ignore patterns")
     args = parser.parse_args(argv)

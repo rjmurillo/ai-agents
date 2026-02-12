@@ -20,7 +20,9 @@ _spec = importlib.util.spec_from_file_location(
         "test_codeql_rollout.py",
     ),
 )
+assert _spec is not None, "Failed to find test_codeql_rollout.py"
 _mod = importlib.util.module_from_spec(_spec)
+assert _spec.loader is not None, "Module spec has no loader"
 _spec.loader.exec_module(_mod)
 
 build_parser = _mod.build_parser
@@ -154,7 +156,7 @@ class TestMain:
             assert result == 0
 
     def test_ci_returns_one_on_fail(self) -> None:
-        def fail_check(tracker: ValidationTracker) -> None:
+        def fail_check(tracker):  # noqa: ANN001
             tracker.add("CLI", "fails", False, "forced failure")
 
         with (

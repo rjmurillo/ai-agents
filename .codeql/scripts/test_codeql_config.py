@@ -24,6 +24,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -49,7 +50,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def validate_yaml_syntax(config_path: str) -> dict:
+def validate_yaml_syntax(config_path: str) -> dict[str, Any]:
     try:
         content = Path(config_path).read_text(encoding="utf-8")
     except OSError as exc:
@@ -83,7 +84,7 @@ def validate_yaml_syntax(config_path: str) -> dict:
     return {"valid": True, "content": content}
 
 
-def validate_config_schema(content: str) -> dict:
+def validate_config_schema(content: str) -> dict[str, Any]:
     errors: list[str] = []
 
     if not re.search(r"name\s*:\s*['\"]?[\w\s]+['\"]?", content):
@@ -209,7 +210,7 @@ def main(argv: list[str] | None = None) -> int:
         print("Validating CodeQL configuration...", file=sys.stderr)
         print(f"Config: {config_path}", file=sys.stderr)
 
-    validation = {"valid": True, "errors": [], "warnings": []}
+    validation: dict[str, Any] = {"valid": True, "errors": [], "warnings": []}
 
     yaml_result = validate_yaml_syntax(config_path)
     if not yaml_result["valid"]:

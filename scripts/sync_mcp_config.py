@@ -24,6 +24,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 
 def get_repo_root(override: str | None = None) -> Path:
@@ -39,7 +40,7 @@ def get_repo_root(override: str | None = None) -> Path:
     return Path.cwd()
 
 
-def transform_for_vscode(source: dict) -> dict:
+def transform_for_vscode(source: dict[str, Any]) -> dict[str, Any]:
     servers = copy.deepcopy(source.get("mcpServers", {}))
 
     if "serena" in servers and "args" in servers["serena"]:
@@ -56,7 +57,7 @@ def transform_for_vscode(source: dict) -> dict:
     return result
 
 
-def transform_for_factory(source: dict) -> dict:
+def transform_for_factory(source: dict[str, Any]) -> dict[str, Any]:
     result = {"mcpServers": copy.deepcopy(source.get("mcpServers", {}))}
     for key, value in source.items():
         if key != "mcpServers" and key not in result:
@@ -122,7 +123,10 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Sync MCP config to VS Code/Factory formats")
     parser.add_argument("--source", type=Path, help="Path to .mcp.json source file")
     parser.add_argument("--destination", type=Path, help="Path to destination mcp.json file")
-    parser.add_argument("--target", choices=["factory", "vscode"], default="vscode", help="Target platform")
+    parser.add_argument(
+        "--target", choices=["factory", "vscode"], default="vscode",
+        help="Target platform",
+    )
     parser.add_argument("--sync-all", action="store_true", help="Sync to both Factory and VS Code")
     parser.add_argument("--force", action="store_true", help="Overwrite even if identical")
     parser.add_argument("--dry-run", action="store_true", help="Show what would change")
@@ -140,13 +144,10 @@ def main(argv: list[str] | None = None) -> int:
     source_path = args.source or (repo_root / ".mcp.json")
 
     if args.sync_all:
-        any_synced = False
         factory_dest = repo_root / ".factory" / "mcp.json"
-        if sync_config(source_path, factory_dest, "factory", args.force, args.dry_run):
-            any_synced = True
+        sync_config(source_path, factory_dest, "factory", args.force, args.dry_run)
         vscode_dest = repo_root / ".vscode" / "mcp.json"
-        if sync_config(source_path, vscode_dest, "vscode", args.force, args.dry_run):
-            any_synced = True
+        sync_config(source_path, vscode_dest, "vscode", args.force, args.dry_run)
         return 0
 
     if not args.destination:

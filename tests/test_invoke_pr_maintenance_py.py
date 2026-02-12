@@ -61,20 +61,22 @@ class TestIsBotReviewer:
 
 class TestHasFailingChecks:
     def test_returns_true_for_failure_state(self) -> None:
+        rollup = {"state": "FAILURE", "contexts": {"nodes": []}}
         pr = {
             "commits": {
                 "nodes": [
-                    {"commit": {"statusCheckRollup": {"state": "FAILURE", "contexts": {"nodes": []}}}}
+                    {"commit": {"statusCheckRollup": rollup}}
                 ]
             }
         }
         assert has_failing_checks(pr) is True
 
     def test_returns_false_for_success_state(self) -> None:
+        rollup = {"state": "SUCCESS", "contexts": {"nodes": []}}
         pr = {
             "commits": {
                 "nodes": [
-                    {"commit": {"statusCheckRollup": {"state": "SUCCESS", "contexts": {"nodes": []}}}}
+                    {"commit": {"statusCheckRollup": rollup}}
                 ]
             }
         }

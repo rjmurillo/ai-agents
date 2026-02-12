@@ -18,8 +18,10 @@ _spec = importlib.util.spec_from_file_location(
         "import_observations_to_forgetful.py",
     ),
 )
+assert _spec is not None, "Failed to find import_observations_to_forgetful.py"
 _mod = importlib.util.module_from_spec(_spec)
 sys.modules[_mod_name] = _mod
+assert _spec.loader is not None, "Module spec has no loader"
 _spec.loader.exec_module(_mod)
 
 get_domain_from_filename = _mod.get_domain_from_filename
