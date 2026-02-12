@@ -192,3 +192,12 @@ class TestMain:
                 "--thread-id", "PRRT_abc", "--body-file", "/nonexistent/file.md",
             ])
         assert exc.value.code == 2
+
+    def test_body_file_path_traversal_exits_1(self):
+        """CWE-22: Path traversal in body-file is rejected."""
+        with pytest.raises(SystemExit) as exc:
+            main([
+                "--thread-id", "PRRT_abc",
+                "--body-file", "../../etc/passwd",
+            ])
+        assert exc.value.code == 1

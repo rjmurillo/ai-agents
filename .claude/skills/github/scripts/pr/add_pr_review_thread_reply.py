@@ -21,6 +21,7 @@ import json
 import os
 import sys
 import warnings
+from pathlib import Path
 
 _WORKSPACE = os.environ.get(
     "GITHUB_WORKSPACE",
@@ -81,10 +82,12 @@ def build_parser() -> argparse.ArgumentParser:
 
 def _resolve_body(args: argparse.Namespace) -> str:
     if args.body_file:
-        if not os.path.isfile(args.body_file):
+        resolved = Path(args.body_file).resolve()
+        if ".." in Path(args.body_file).parts:
+            error_and_exit(f"Path traversal detected: {args.body_file}", 1)
+        if not resolved.is_file():
             error_and_exit(f"Body file not found: {args.body_file}", 2)
-        with open(args.body_file, encoding="utf-8") as fh:
-            return fh.read()
+        return resolved.read_text(encoding="utf-8")
     return str(args.body)
 
 

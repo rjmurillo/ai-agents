@@ -20,7 +20,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import subprocess
 import sys
 
 _WORKSPACE = os.environ.get(
@@ -32,8 +31,40 @@ sys.path.insert(0, _WORKSPACE)
 from scripts.github_core.api import (  # noqa: E402
     assert_gh_authenticated,
     error_and_exit,
+    gh_graphql,
     resolve_repo_params,
 )
+
+_THREADS_QUERY = """\
+query($owner: String!, $repo: String!, $prNumber: Int!, $commentsLimit: Int!) {
+    repository(owner: $owner, name: $repo) {
+        pullRequest(number: $prNumber) {
+            reviewThreads(first: 100) {
+                totalCount
+                nodes {
+                    id
+                    isResolved
+                    isOutdated
+                    path
+                    line
+                    startLine
+                    diffSide
+                    comments(first: $commentsLimit) {
+                        totalCount
+                        nodes {
+                            id
+                            databaseId
+                            body
+                            author { login }
+                            createdAt
+                            updatedAt
+                        }
+                    }
+                }
+            }
+        }
+    }
+}"""
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -56,42 +87,17 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _build_query(owner: str, repo: str, pr: int, comments_limit: int) -> str:
-    """Build the GraphQL query with inline values.
-
-    The original PS1 script inlined owner/repo/pr into the query string.
-    We replicate that here for fidelity.
-    """
-    return f"""\
-query {{
-    repository(owner: "{owner}", name: "{repo}") {{
-        pullRequest(number: {pr}) {{
-            reviewThreads(first: 100) {{
-                totalCount
-                nodes {{
-                    id
-                    isResolved
-                    isOutdated
-                    path
-                    line
-                    startLine
-                    diffSide
-                    comments(first: {comments_limit}) {{
-                        totalCount
-                        nodes {{
-                            id
-                            databaseId
-                            body
-                            author {{ login }}
-                            createdAt
-                            updatedAt
-                        }}
-                    }}
-                }}
-            }}
-        }}
-    }}
-}}"""
+def _run_threads_query(
+    owner: str, repo: str, pr: int, comments_limit: int,
+) -> dict:
+    """Execute the parameterized GraphQL query for review threads."""
+    variables = {
+        "owner": owner,
+        "repo": repo,
+        "prNumber": pr,
+        "commentsLimit": comments_limit,
+    }
+    return gh_graphql(_THREADS_QUERY, variables)
 
 
 def _transform_thread(thread: dict, include_comments: bool) -> dict:
@@ -140,30 +146,17 @@ def main(argv: list[str] | None = None) -> int:
     pr = args.pull_request
 
     comments_limit = 50 if args.include_comments else 1
-    query = _build_query(owner, repo, pr, comments_limit)
-
-    result = subprocess.run(
-        ["gh", "api", "graphql", "-f", f"query={query}"],
-        capture_output=True,
-        text=True,
-        timeout=30,
-        check=False,
-    )
-
-    if result.returncode != 0:
-        err_msg = result.stderr or result.stdout
-        if "Could not resolve" in err_msg:
-            error_and_exit(f"PR #{pr} not found in {owner}/{repo}", 2)
-        error_and_exit(f"Failed to query review threads: {err_msg}", 3)
 
     try:
-        parsed = json.loads(result.stdout)
-    except json.JSONDecodeError:
-        error_and_exit(f"Failed to parse GraphQL response: {result.stdout}", 3)
+        data = _run_threads_query(owner, repo, pr, comments_limit)
+    except RuntimeError as exc:
+        msg = str(exc)
+        if "Could not resolve" in msg:
+            error_and_exit(f"PR #{pr} not found in {owner}/{repo}", 2)
+        error_and_exit(f"Failed to query review threads: {msg}", 3)
 
     threads = (
-        parsed.get("data", {})
-        .get("repository", {})
+        data.get("repository", {})
         .get("pullRequest", {})
         .get("reviewThreads", {})
         .get("nodes")
