@@ -183,7 +183,10 @@ def check_scripts(tracker: ValidationTracker) -> None:
     all_tests = tests_found == tests_total
 
     tracker.print_check(all_tests, f"Pytest tests exist ({tests_found}/{tests_total})")
-    tracker.add("Scripts", "Pytest tests", all_tests, f"{tests_found} of {tests_total} test files found")
+    tracker.add(
+        "Scripts", "Pytest tests", all_tests,
+        f"{tests_found} of {tests_total} test files found",
+    )
 
 
 def check_cicd(tracker: ValidationTracker) -> None:
@@ -347,7 +350,7 @@ def main(argv: list[str] | None = None) -> int:
         status = "PASS" if tracker.passed_checks == tracker.total_checks else "FAIL"
 
         banner_dest = sys.stderr if args.output_format == "json" else sys.stdout
-        print(f"\n========================================", file=banner_dest)
+        print("\n========================================", file=banner_dest)
         print(
             f"Overall Status: {status} "
             f"({tracker.passed_checks}/{tracker.total_checks} checks)",

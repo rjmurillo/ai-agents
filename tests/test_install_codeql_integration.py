@@ -2,13 +2,10 @@
 
 from __future__ import annotations
 
+import importlib.util
 import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch
-
-import pytest
-
-import importlib.util
 
 _spec = importlib.util.spec_from_file_location(
     "install_codeql_integration",
@@ -101,7 +98,10 @@ class TestStepVerifyPreCommit:
 class TestMain:
     def test_not_in_repo_returns_error(self) -> None:
         with patch.object(_mod, "get_repo_root", return_value=None):
-            result = main(["--skip-cli", "--skip-vscode", "--skip-claude-skill", "--skip-pre-commit"])
+            result = main([
+                "--skip-cli", "--skip-vscode",
+                "--skip-claude-skill", "--skip-pre-commit",
+            ])
             assert result == 1
 
     def test_skip_all_succeeds(self, tmp_path: Path) -> None:

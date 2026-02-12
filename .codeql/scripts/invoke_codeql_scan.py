@@ -97,7 +97,7 @@ def find_codeql_executable() -> str:
 def detect_languages(repo_path: str) -> list[str]:
     detected: list[str] = []
 
-    for root, _dirs, files in os.walk(repo_path):
+    for _root, _dirs, files in os.walk(repo_path):
         if any(f.endswith(".py") for f in files):
             detected.append("python")
             break
@@ -408,9 +408,16 @@ def main(argv: list[str] | None = None) -> int:
         if not args.ci:
             print("Quick scan mode enabled (targeted queries)", file=sys.stderr)
 
-    config_path = os.path.join(repo_path, config_path) if not os.path.isabs(config_path) else config_path
-    database_path = os.path.join(repo_path, args.database_path) if not os.path.isabs(args.database_path) else args.database_path
-    results_path = os.path.join(repo_path, args.results_path) if not os.path.isabs(args.results_path) else args.results_path
+    if not os.path.isabs(config_path):
+        config_path = os.path.join(repo_path, config_path)
+    if not os.path.isabs(args.database_path):
+        database_path = os.path.join(repo_path, args.database_path)
+    else:
+        database_path = args.database_path
+    if not os.path.isabs(args.results_path):
+        results_path = os.path.join(repo_path, args.results_path)
+    else:
+        results_path = args.results_path
 
     if not os.path.isdir(repo_path):
         print(f"Repository path not found: {repo_path}", file=sys.stderr)

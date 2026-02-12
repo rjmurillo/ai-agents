@@ -326,7 +326,7 @@ def format_console(diagnostics: dict) -> None:
     cli = diagnostics["cli"]
     print("\n[CodeQL CLI]")
     if cli["installed"]:
-        print(f"  [PASS] Status: INSTALLED")
+        print("  [PASS] Status: INSTALLED")
         print(f"  Path: {cli['path']}")
         print(f"  Version: {cli['version']}")
     else:
@@ -354,7 +354,11 @@ def format_console(diagnostics: dict) -> None:
         print(f"  Languages: {', '.join(db['languages'])}")
         print(f"  Size: {db['size_mb']} MB")
         print(f"  Created: {db['created_timestamp']}")
-        cache_status = "[PASS] VALID" if db["cache_valid"] else "[WARNING] INVALID (will rebuild on next scan)"
+        cache_status = (
+            "[PASS] VALID"
+            if db["cache_valid"]
+            else "[WARNING] INVALID (will rebuild on next scan)"
+        )
         print(f"  Cache: {cache_status}")
     else:
         print("  [FAIL] Status: NOT FOUND")
