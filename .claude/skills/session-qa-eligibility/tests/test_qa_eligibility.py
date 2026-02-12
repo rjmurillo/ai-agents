@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Tests for session-qa-eligibility test_investigation_eligibility.py script."""
+"""Tests for session-qa-eligibility check_qa_eligibility.py script."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ import subprocess
 from unittest import mock
 
 _SCRIPT = os.path.join(
-    os.path.dirname(__file__), "..", "scripts", "test_investigation_eligibility.py",
+    os.path.dirname(__file__), "..", "scripts", "check_qa_eligibility.py",
 )
 
 

@@ -273,12 +273,12 @@ After using this skill:
 
 ## Scripts
 
-### test_investigation_eligibility.py
+### check_qa_eligibility.py
 
 Checks if staged files qualify for investigation-only QA skip per ADR-034.
 
 ```bash
-python3 .claude/skills/session-qa-eligibility/scripts/test_investigation_eligibility.py
+python3 .claude/skills/session-qa-eligibility/scripts/check_qa_eligibility.py
 ```
 
 ---
