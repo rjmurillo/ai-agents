@@ -1,12 +1,12 @@
 {
   "name": "ai-agents",
   "owner": {
-    "name": "rjmurillo",
-    "email": ""
+    "name": "Richard Murillo",
+    "email": "rjmurillo@gmail.com"
   },
   "metadata": {
     "description": "AI coding agents for Claude Code, VS Code, and Copilot CLI",
-    "version": "0.1.0"
+    "version": "0.3.0"
   },
   "plugins": [
     {
