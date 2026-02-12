@@ -49,8 +49,7 @@ def _validate_path_within_project(
     """Validate that a path is within the project root (CWE-22 mitigation)."""
     resolved = Path(memories_path).resolve()
     root_resolved = project_root.resolve()
-    root_prefix = str(root_resolved) + "/"
-    if not (str(resolved).startswith(root_prefix) or resolved == root_resolved):
+    if not resolved.is_relative_to(root_resolved):
         raise SystemExit(
             f"Security: MemoriesPath must be within project directory. "
             f"Provided: {resolved}, Project root: {root_resolved}"

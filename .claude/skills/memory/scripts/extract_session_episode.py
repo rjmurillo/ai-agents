@@ -354,7 +354,11 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    session_log_path = args.session_log_path
+    if ".." in args.session_log_path.parts:
+        msg = "Security: path must not contain traversal sequences."
+        print(json.dumps({"Error": msg}), file=sys.stderr)
+        return 2
+    session_log_path = args.session_log_path.resolve()
 
     if not session_log_path.is_file():
         print(

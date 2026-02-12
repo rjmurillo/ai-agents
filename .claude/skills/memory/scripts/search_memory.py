@@ -159,7 +159,11 @@ def main(argv: list[str] | None = None) -> int:
 
     # Determine Serena path
     if args.serena_path:
-        serena_path = args.serena_path
+        if ".." in args.serena_path.parts:
+            msg = "Security: path must not contain traversal sequences."
+            print(json.dumps({"Error": msg}, indent=2))
+            return 2
+        serena_path = args.serena_path.resolve()
     else:
         script_dir = Path(__file__).resolve().parent
         serena_path = script_dir.parent.parent.parent.parent / ".serena" / "memories"

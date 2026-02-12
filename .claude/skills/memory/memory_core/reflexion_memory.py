@@ -253,7 +253,9 @@ def get_episode(session_id: str) -> dict[str, Any] | None:
     Raises:
         ValueError: If episode file is corrupted.
     """
-    episode_file = EPISODES_PATH / f"episode-{session_id}.json"
+    episode_file = (EPISODES_PATH / f"episode-{session_id}.json").resolve()
+    if not episode_file.is_relative_to(EPISODES_PATH.resolve()):
+        raise ValueError("Path traversal attempt detected in session_id")
 
     if not episode_file.is_file():
         return None
@@ -409,7 +411,9 @@ def new_episode(
 
     EPISODES_PATH.mkdir(parents=True, exist_ok=True)
 
-    episode_file = EPISODES_PATH / f"episode-{session_id}.json"
+    episode_file = (EPISODES_PATH / f"episode-{session_id}.json").resolve()
+    if not episode_file.is_relative_to(EPISODES_PATH.resolve()):
+        raise ValueError("Path traversal attempt detected in session_id")
     try:
         json_str = json.dumps(episode, indent=2, default=str)
         episode_file.write_text(json_str, encoding="utf-8")

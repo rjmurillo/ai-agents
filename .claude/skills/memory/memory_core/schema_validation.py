@@ -92,7 +92,10 @@ def get_schema_path(
         )
 
     schema_directory = Path(schema_directory)
-    schema_file = schema_directory / f"{schema_name}.schema.json"
+    schema_file = (schema_directory / f"{schema_name}.schema.json").resolve()
+    if not schema_file.is_relative_to(Path(schema_directory).resolve()):
+        msg = f"Path traversal attempt detected for schema: {schema_name}"
+        raise FileNotFoundError(msg)
 
     if not schema_file.is_file():
         msg = f"Schema file not found: {schema_file}"

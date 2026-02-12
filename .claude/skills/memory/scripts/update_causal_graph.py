@@ -297,12 +297,20 @@ def main(argv: list[str] | None = None) -> int:
     base_path = script_dir.parent.parent.parent.parent
 
     if args.episode_path:
-        episode_path = args.episode_path
+        if ".." in args.episode_path.parts:
+            msg = "Security: path must not contain traversal sequences."
+            print(msg, file=sys.stderr)
+            return 2
+        episode_path = args.episode_path.resolve()
     else:
         episode_path = base_path / ".agents" / "memory" / "episodes"
 
     if args.graph_path:
-        graph_path = args.graph_path
+        if ".." in args.graph_path.parts:
+            msg = "Security: path must not contain traversal sequences."
+            print(msg, file=sys.stderr)
+            return 2
+        graph_path = args.graph_path.resolve()
     else:
         graph_path = base_path / ".agents" / "memory" / "causality" / "causal-graph.json"
 
