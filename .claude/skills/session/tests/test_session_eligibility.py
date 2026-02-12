@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Tests for session skill test_investigation_eligibility.py."""
+"""Tests for session skill test_investigation_eligibility.py script."""
 
 from __future__ import annotations
 
