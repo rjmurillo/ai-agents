@@ -24,6 +24,7 @@ import re
 import subprocess
 from fnmatch import fnmatch
 from pathlib import Path
+from typing import Any
 
 # Files that can be auto-resolved by accepting target branch (main) version.
 # These are typically auto-generated or frequently-updated files where
@@ -151,9 +152,9 @@ def resolve_conflicts_runner(
     branch_name: str,
     target_branch: str,
     dry_run: bool = False,
-) -> dict:
+) -> dict[str, Any]:
     """Resolve conflicts in GitHub Actions runner mode (no worktree)."""
-    result = {
+    result: dict[str, Any] = {
         "success": False,
         "message": "",
         "files_resolved": [],
@@ -244,9 +245,9 @@ def resolve_conflicts_worktree(
     pr_number: int,
     worktree_base_path: str,
     dry_run: bool = False,
-) -> dict:
+) -> dict[str, Any]:
     """Resolve conflicts using a local worktree for isolation."""
-    result = {
+    result: dict[str, Any] = {
         "success": False,
         "message": "",
         "files_resolved": [],
@@ -360,7 +361,7 @@ def resolve_pr_conflicts(
     owner: str = "",
     repo: str = "",
     dry_run: bool = False,
-) -> dict:
+) -> dict[str, Any]:
     """Main entry point for conflict resolution."""
     # Validate branch names (ADR-015)
     if not is_safe_branch_name(branch_name):

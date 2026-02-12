@@ -19,6 +19,7 @@ import re
 import subprocess
 import sys
 from datetime import UTC, datetime
+from typing import Any
 
 _WORKSPACE = os.environ.get(
     "GITHUB_WORKSPACE",
@@ -111,7 +112,7 @@ def main(argv: list[str] | None = None) -> int:
     objective = args.objective
     not_on_main = branch not in ("main", "master")
 
-    session = {
+    session: dict[str, Any] = {
         "session": {
             "number": session_number,
             "date": current_date,

@@ -23,6 +23,7 @@ import argparse
 import json
 import re
 from enum import StrEnum
+from typing import Any
 
 # ---------------------------------------------------------------------------
 # Enums
@@ -294,7 +295,7 @@ def main(argv: list[str] | None = None) -> int:
     parsed = parse_github_url(args.url)
 
     if parsed is None:
-        output = {
+        output: dict[str, Any] = {
             "success": False,
             "parsed_url": None,
             "recommended_route": None,
