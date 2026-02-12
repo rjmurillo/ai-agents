@@ -53,7 +53,10 @@ class TestBuildParser:
 
 class TestCheckCli:
     def test_cli_not_found(self) -> None:
-        with patch("shutil.which", return_value=None):
+        with (
+            patch("shutil.which", return_value=None),
+            patch.object(Path, "exists", return_value=False),
+        ):
             result = check_cli()
             assert result["installed"] is False
             assert len(result["recommendations"]) > 0
