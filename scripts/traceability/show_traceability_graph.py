@@ -278,7 +278,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.root_id and not is_valid_spec_id(args.root_id):
-        print(f"Invalid RootId format: {args.root_id}. Expected: TYPE-ID (e.g., REQ-001)", file=sys.stderr)
+        msg = f"Invalid RootId format: {args.root_id}. Expected: TYPE-ID (e.g., REQ-001)"
+        print(msg, file=sys.stderr)
         return 1
 
     try:

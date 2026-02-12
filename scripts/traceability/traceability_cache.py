@@ -19,11 +19,9 @@ Performance Targets:
 from __future__ import annotations
 
 import json
-import os
 import re
 from pathlib import Path
 from typing import Any
-
 
 _memory_cache: dict[str, dict[str, Any]] = {}
 

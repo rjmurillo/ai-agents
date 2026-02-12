@@ -8,17 +8,24 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+
 import pytest
 
-from scripts.traceability.traceability_cache import (
-    _memory_cache,
-    clear_cache,
-    get_cache_key,
-    get_cache_stats,
-    get_cached_spec,
-    get_file_hash,
-    initialize_cache,
-    set_cached_spec,
+from scripts.traceability.rename_spec_id import main as rename_main
+from scripts.traceability.resolve_orphaned_specs import (
+    find_orphaned_specs,
+)
+from scripts.traceability.resolve_orphaned_specs import (
+    main as orphans_main,
+)
+from scripts.traceability.show_traceability_graph import (
+    build_graph,
+    format_json_graph,
+    format_mermaid_graph,
+    format_text_graph,
+)
+from scripts.traceability.show_traceability_graph import (
+    main as graph_main,
 )
 from scripts.traceability.spec_utils import (
     find_spec_file,
@@ -29,18 +36,15 @@ from scripts.traceability.spec_utils import (
     parse_frontmatter_with_content,
     parse_yaml_frontmatter,
 )
-from scripts.traceability.show_traceability_graph import (
-    build_graph,
-    format_json_graph,
-    format_mermaid_graph,
-    format_text_graph,
-    main as graph_main,
+from scripts.traceability.traceability_cache import (
+    clear_cache,
+    get_cache_key,
+    get_cache_stats,
+    get_cached_spec,
+    get_file_hash,
+    initialize_cache,
+    set_cached_spec,
 )
-from scripts.traceability.resolve_orphaned_specs import (
-    find_orphaned_specs,
-    main as orphans_main,
-)
-from scripts.traceability.rename_spec_id import main as rename_main
 from scripts.traceability.update_spec_references import main as update_main
 
 
@@ -133,14 +137,19 @@ class TestTraceabilityCache:
         import scripts.traceability.traceability_cache as cache_mod
         monkeypatch.setattr(cache_mod, "_CACHE_DIR", tmp_path / "cache")
 
-        spec = {"type": "requirement", "id": "REQ-001", "status": "draft", "related": ["DESIGN-001"]}
+        spec = {
+            "type": "requirement", "id": "REQ-001",
+            "status": "draft", "related": ["DESIGN-001"],
+        }
         set_cached_spec("/test/file.md", "hash123", spec)
         result = get_cached_spec("/test/file.md", "hash123")
         assert result is not None
         assert result["id"] == "REQ-001"
         assert "DESIGN-001" in result["related"]
 
-    def test_cache_miss_on_different_hash(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_cache_miss_on_different_hash(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         import scripts.traceability.traceability_cache as cache_mod
         monkeypatch.setattr(cache_mod, "_CACHE_DIR", tmp_path / "cache")
 

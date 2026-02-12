@@ -84,10 +84,12 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if not is_valid_spec_id(args.old_id):
-        print(f"Invalid old ID format: {args.old_id}. Expected: TYPE-ID (e.g., REQ-001)", file=sys.stderr)
+        msg = f"Invalid old ID format: {args.old_id}. Expected: TYPE-ID (e.g., REQ-001)"
+        print(msg, file=sys.stderr)
         return 1
     if not is_valid_spec_id(args.new_id):
-        print(f"Invalid new ID format: {args.new_id}. Expected: TYPE-ID (e.g., REQ-001)", file=sys.stderr)
+        msg = f"Invalid new ID format: {args.new_id}. Expected: TYPE-ID (e.g., REQ-001)"
+        print(msg, file=sys.stderr)
         return 1
 
     old_type = get_spec_type(args.old_id)

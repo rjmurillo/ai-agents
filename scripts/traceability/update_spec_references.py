@@ -78,7 +78,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--source-id", required=True, help="Spec ID to update (e.g., DESIGN-001)")
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--add", nargs="+", metavar="ID", help="Spec IDs to add to related list")
-    group.add_argument("--remove", nargs="+", metavar="ID", help="Spec IDs to remove from related list")
+    group.add_argument(
+        "--remove", nargs="+", metavar="ID", help="Spec IDs to remove from related list"
+    )
     group.add_argument(
         "--replace",
         nargs=2,
