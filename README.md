@@ -72,8 +72,30 @@ The agents themselves use the platform specific handoffs to invoke subagents, ke
 | Platform | Agent Location | Notes |
 |----------|---------------|-------|
 | **VS Code / GitHub Copilot** | `src/vs-code-agents/` | Use `@agent` syntax in Copilot Chat |
-| **GitHub Copilot CLI** | `src/copilot-cli/` | Use `--agent` flag |
+| **GitHub Copilot CLI** | `src/copilot-cli/` | Use `--agent` flag, `/agent` to select, or call out agent by name |
 | **Claude Code CLI** | `src/claude/` | Use `Task(subagent_type="...")` |
+
+### Install via CLI marketplace
+
+```text
+/plugin marketplace add rjmurillo/ai-agents
+```
+
+If you only want the agents, you can install those for Claude Code or Copilot CLI
+
+```text
+/plugin install claude-agents@ai-agents
+```
+
+```text
+/plugin install copilot-cli-agents@ai-agents
+```
+
+If you want everything I use to build the agents and other software (agents, skills, hooks, commands)
+
+```text
+/plugin install project-toolkit@ai-agents
+```
 
 ### Install via skill-installer
 
