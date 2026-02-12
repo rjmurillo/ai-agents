@@ -2,7 +2,7 @@
 allowed-tools:
   - Bash(git:*)
   - Bash(gh:*)
-  - Bash(pwsh:*)
+  - Bash(python3:*)
   - Task
   - Skill
   - Read
@@ -46,8 +46,8 @@ For `all-open`, query: `gh pr list --state open --json number,reviewDecision`
 
 For each PR number, validate using:
 
-```powershell
-pwsh -NoProfile .claude/skills/github/scripts/pr/Get-PRContext.ps1 -PullRequest {number}
+```bash
+python3 .claude/skills/github/scripts/pr/get_pr_context.py --pull-request {number}
 ```
 
 Verify: PR exists, is open (state != MERGED, CLOSED), targets current repo.
@@ -56,15 +56,15 @@ Verify: PR exists, is open (state != MERGED, CLOSED), targets current repo.
 
 Before proceeding with review work, verify PR has not been merged via GraphQL (source of truth):
 
-```powershell
-# Check merge state via Test-PRMerged.ps1
-pwsh -NoProfile .claude/skills/github/scripts/pr/Test-PRMerged.ps1 -PullRequest {number}
-$merged = $LASTEXITCODE -eq 1
+```bash
+# Check merge state via test_pr_merged.py
+python3 .claude/skills/github/scripts/pr/test_pr_merged.py --pull-request {number}
+# Exit code 0 = not merged (safe to proceed), 1 = merged (skip)
 
-if ($merged) {
-    Write-Host "PR #{number} is already merged. Skipping review work." -ForegroundColor Yellow
-    return  # Exit current script/function; caller handles iteration to next PR
-}
+if [ $? -eq 1 ]; then
+    echo "PR #{number} is already merged. Skipping review work."
+    continue
+fi
 ```
 
 **Why this matters**: `gh pr view --json state` may return stale "OPEN" for recently merged PRs, leading to wasted effort (see Issue #321, Session 85).
@@ -75,51 +75,44 @@ Before addressing comments, gather full PR context:
 
 **1. Review ALL Comments** (review comments + PR comments):
 
-```powershell
+```bash
 # Get review threads with resolution status
-pwsh -NoProfile .claude/skills/github/scripts/pr/Get-PRReviewThreads.ps1 -PullRequest {number}
+python3 .claude/skills/github/scripts/pr/get_pr_review_threads.py --pull-request {number}
 
 # Get unresolved review threads
-pwsh -NoProfile .claude/skills/github/scripts/pr/Get-UnresolvedReviewThreads.ps1 -PullRequest {number}
+python3 .claude/skills/github/scripts/pr/get_unresolved_review_threads.py --pull-request {number}
 
 # Get unaddressed comments (comments without replies)
-pwsh -NoProfile .claude/skills/github/scripts/pr/Get-UnaddressedComments.ps1 -PullRequest {number}
+python3 .claude/skills/github/scripts/pr/get_unaddressed_comments.py --pull-request {number}
 
 # Get full PR context including comments
-pwsh -NoProfile .claude/skills/github/scripts/pr/Get-PRContext.ps1 -PullRequest {number}
+python3 .claude/skills/github/scripts/pr/get_pr_context.py --pull-request {number}
 ```
 
 **2. Check Merge Eligibility with Base Branch**:
 
-```powershell
+```bash
 # Get PR context including merge state
-$context = pwsh -NoProfile .claude/skills/github/scripts/pr/Get-PRContext.ps1 -PullRequest {number}
-
-# Check: $context.Mergeable should be "MERGEABLE"
-# Check: $context.MergeStateStatus for conflicts
+python3 .claude/skills/github/scripts/pr/get_pr_context.py --pull-request {number}
+# Check: "mergeable" should be "MERGEABLE"
+# Check: "merge_state_status" for conflicts
 
 # Verify PR is not already merged
-pwsh -NoProfile .claude/skills/github/scripts/pr/Test-PRMerged.ps1 -PullRequest {number}
+python3 .claude/skills/github/scripts/pr/test_pr_merged.py --pull-request {number}
 # Exit code 0 = not merged (safe to proceed), 1 = merged (skip)
 ```
 
 **3. Review ALL Failing Checks**:
 
-```powershell
-# Get all checks with conclusions using Get-PRChecks.ps1
-$checks = pwsh -NoProfile .claude/skills/github/scripts/pr/Get-PRChecks.ps1 -PullRequest {number} | ConvertFrom-Json
-
-if ($checks.FailedCount -gt 0) {
-    Write-Host "Failed checks:"
-    $checks.Checks | Where-Object { $_.Conclusion -notin @('SUCCESS', 'NEUTRAL', 'SKIPPED', $null) } | ForEach-Object {
-        Write-Host "  - $($_.Name): $($_.DetailsUrl)"
-    }
-}
+```bash
+# Get all checks with conclusions using get_pr_checks.py
+python3 .claude/skills/github/scripts/pr/get_pr_checks.py --pull-request {number}
+# Output is JSON with FailedCount, AllPassing, and Checks array
 
 # For each failing check, investigate:
 # - If session validation: Use session-log-fixer skill
 # - If AI reviewer: Check for infrastructure vs code quality issues
-# - If Pester tests: Run tests locally to verify
+# - If Pester/pytest tests: Run tests locally to verify
 # - If linting: Run npx markdownlint-cli2 --fix
 ```
 
@@ -130,7 +123,7 @@ if ($checks.FailedCount -gt 0) {
 | Session validation | Invoke `session-log-fixer` skill |
 | AI reviewer (infra) | May be transient; note and continue |
 | AI reviewer (code quality) | Address findings or acknowledge |
-| Pester tests | Run locally, fix failures |
+| Tests (Pester/pytest) | Run locally, fix failures |
 | Markdown lint | Run `npx markdownlint-cli2 --fix` |
 | PR title validation | Update title to conventional commit format |
 
@@ -264,10 +257,10 @@ When using `--parallel` with worktrees:
 | All review comments addressed | Each review thread has reply + resolution | Yes |
 | All PR comments acknowledged | Each PR comment has acknowledgment (reply or reaction) | Yes |
 | No new comments | Re-check after 45s wait returned 0 new | Yes |
-| CI checks pass | `Get-PRChecks.ps1` AllPassing = true (or failures acknowledged) | Yes |
+| CI checks pass | `get_pr_checks.py` AllPassing = true (or failures acknowledged) | Yes |
 | No unresolved threads | GraphQL query for unresolved reviewThreads = 0 | Yes |
 | Merge eligible | `mergeable=MERGEABLE`, no conflicts with base | Yes |
-| PR not merged | Test-PRMerged.ps1 exit code 0 | Yes |
+| PR not merged | `test_pr_merged.py` exit code 0 | Yes |
 | Commits pushed | `git status` shows "up to date with origin" | Yes |
 
 **If ANY criterion fails**: Do NOT claim completion. The agent must loop back to address the issue.
@@ -284,22 +277,21 @@ When using `--parallel` with worktrees:
 
 ### Verification Command
 
-```powershell
+```bash
 # Run after each PR to verify completion
-foreach ($pr in $pr_numbers) {
-    Write-Host "=== PR #$pr Completion Check ==="
+for pr in "${pr_numbers[@]}"; do
+    echo "=== PR #$pr Completion Check ==="
 
-    # Get CI check status using skill
-    $checks = pwsh -NoProfile .claude/skills/github/scripts/pr/Get-PRChecks.ps1 -PullRequest $pr | ConvertFrom-Json
-    if (-not $checks.AllPassing) {
-        $checks.Checks | Where-Object { $_.Conclusion -notin @('SUCCESS', 'NEUTRAL', 'SKIPPED') } | ForEach-Object {
-            Write-Host "  FAIL: $($_.Name) - $($_.Conclusion)"
-        }
-    }
+    # Get CI check status
+    checks=$(python3 .claude/skills/github/scripts/pr/get_pr_checks.py --pull-request "$pr")
+    all_passing=$(echo "$checks" | jq -r '.AllPassing')
+    if [ "$all_passing" != "true" ]; then
+        echo "$checks" | jq -r '.Checks[] | select(.Conclusion != "SUCCESS" and .Conclusion != "NEUTRAL" and .Conclusion != "SKIPPED" and .Conclusion != null) | "  FAIL: \(.Name) - \(.Conclusion)"'
+    fi
 
-    # Note: reviewThreads requires GraphQL
-    gh api graphql -f query="query { repository(owner: `"OWNER`", name: `"REPO`") { pullRequest(number: $pr) { reviewThreads(first: 50) { nodes { isResolved } } } } }" | ConvertFrom-Json | ForEach-Object { $_.data.repository.pullRequest.reviewThreads.nodes | Where-Object { -not $_.isResolved } }
-}
+    # Check for unresolved threads
+    python3 .claude/skills/github/scripts/pr/get_pr_review_threads.py --pull-request "$pr" --unresolved-only | jq '.unresolved_count'
+done
 ```
 
 ## Thread Resolution Protocol
@@ -312,26 +304,32 @@ foreach ($pr in $pr_numbers) {
 
 After replying to a review comment, resolve the thread:
 
-```powershell
+```bash
+# Step 1: Reply to thread and resolve in one call
+python3 .claude/skills/github/scripts/pr/add_pr_review_thread_reply.py \
+  --thread-id "PRRT_xxx" --body "Response text" --resolve
+
+# Or as two separate steps:
 # Step 1: Reply to comment
-pwsh -NoProfile .claude/skills/github/scripts/pr/Post-PRCommentReply.ps1 -PullRequest {number} -ThreadId "PRRT_xxx" -Body "Response text"
+python3 .claude/skills/github/scripts/pr/add_pr_review_thread_reply.py \
+  --thread-id "PRRT_xxx" --body "Response text"
 
 # Step 2: Resolve thread (REQUIRED separate step)
-pwsh -NoProfile .claude/skills/github/scripts/pr/Resolve-PRReviewThread.ps1 -ThreadId "PRRT_xxx"
+python3 .claude/skills/github/scripts/pr/resolve_pr_review_thread.py --thread-id "PRRT_xxx"
 ```
 
 **Why this matters**: Replying to a comment does NOT automatically resolve the thread. Thread resolution requires a separate GraphQL mutation. Unresolved threads block PR merge per branch protection rules.
 
 ### Batch Thread Resolution (pr-review-005-thread-resolution-batch)
 
-For 2+ threads, use the skill with multiple thread IDs:
+For 2+ threads, use the script with multiple thread IDs:
 
-```powershell
-# Resolve multiple threads efficiently
-$threadIds = @("PRRT_xxx", "PRRT_yyy", "PRRT_zzz")
-foreach ($threadId in $threadIds) {
-    pwsh -NoProfile .claude/skills/github/scripts/pr/Resolve-PRReviewThread.ps1 -ThreadId $threadId
-}
+```bash
+# Resolve multiple threads efficiently with reply + resolve
+for thread_id in "PRRT_xxx" "PRRT_yyy" "PRRT_zzz"; do
+    python3 .claude/skills/github/scripts/pr/add_pr_review_thread_reply.py \
+      --thread-id "$thread_id" --body "Addressed." --resolve
+done
 
 # Or use GraphQL batch mutation for maximum efficiency (1 API call)
 gh api graphql -f query='

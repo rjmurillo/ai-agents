@@ -905,8 +905,8 @@ if [ -n "$STAGED_SKILL_FILES" ]; then
             EXIT_STATUS=1
         fi
     else
-        echo_error "Frontmatter validator not found: $FRONTMATTER_VALIDATOR"
-        EXIT_STATUS=1
+        echo_warning "Frontmatter validator not found: $FRONTMATTER_VALIDATOR"
+        echo_info "  SkillForge validator already covers frontmatter checks."
     fi
 else
     echo_info "No SKILL.md files staged. Skipping frontmatter validation."
