@@ -1,11 +1,11 @@
 {
-  "task": "Task 2",
-  "decisions": [],
-  "session": "2026-01-01-filter-002",
+  "metrics": {},
   "outcome": "failure",
-  "lessons": [],
   "events": [],
+  "lessons": [],
+  "task": "Task 2",
+  "timestamp": "2026-02-10T17:55:44.2407200-08:00",
+  "session": "2026-01-01-filter-002",
   "id": "episode-2026-01-01-filter-002",
-  "timestamp": "2026-02-07T14:43:48.9423057-08:00",
-  "metrics": {}
+  "decisions": []
 }
