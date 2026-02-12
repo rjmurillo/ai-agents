@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import shutil
 import subprocess
 import sys
@@ -63,10 +62,9 @@ TABLE_MAPPING: dict[str, list[str]] = {
 
 def validate_output_path(output_path: Path, exports_dir: Path) -> bool:
     """Prevent path traversal (CWE-22)."""
-    normalized_output = output_path.resolve()
-    normalized_dir = exports_dir.resolve()
-    normalized_dir_str = str(normalized_dir) + os.sep
-    if not str(normalized_output).startswith(normalized_dir_str):
+    resolved_output = output_path.resolve()
+    resolved_dir = exports_dir.resolve()
+    if not resolved_output.is_relative_to(resolved_dir):
         print(
             f"ERROR: Path traversal attempt detected. "
             f"Output file must be inside '{exports_dir}' directory.",
