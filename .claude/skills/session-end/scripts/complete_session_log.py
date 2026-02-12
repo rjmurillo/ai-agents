@@ -135,7 +135,7 @@ def _run_markdown_lint() -> tuple[bool, str]:
     errors = []
     for f in md_files:
         result = subprocess.run(
-            ["npx", "markdownlint-cli2", "--fix", f],
+            ["npx", "markdownlint-cli2", "--fix", "--", f],
             capture_output=True, text=True, timeout=30, check=False,
         )
         if result.returncode != 0:

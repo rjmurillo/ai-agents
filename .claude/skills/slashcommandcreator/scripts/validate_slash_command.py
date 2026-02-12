@@ -132,7 +132,7 @@ def _validate_lint(path: str, violations: list[str]) -> None:
     """Run markdownlint-cli2 on the file."""
     print("Running markdownlint-cli2...")
     result = subprocess.run(
-        ["npx", "markdownlint-cli2", path],
+        ["npx", "markdownlint-cli2", "--", path],
         capture_output=True,
         text=True,
     )
