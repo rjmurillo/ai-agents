@@ -9,10 +9,10 @@
 #   3. Run scan with JSON/SARIF output
 #
 # Local developers and AI agents use the same commands:
-#   pwsh .codeql/scripts/Install-CodeQL.ps1  # One-time CLI setup
-#   pwsh .codeql/scripts/Test-CodeQLConfig.ps1
-#   pwsh .codeql/scripts/Invoke-CodeQLScan.ps1 -Languages python
-#   pwsh .codeql/scripts/Invoke-CodeQLScan.ps1 -Format json
+#   python3 .codeql/scripts/install_codeql.py  # One-time CLI setup
+#   python3 .codeql/scripts/test_codeql_config.py
+#   python3 .codeql/scripts/invoke_codeql_scan.py --languages python
+#   python3 .codeql/scripts/invoke_codeql_scan.py --format json
 
 name: Test CodeQL Integration
 
@@ -53,27 +53,20 @@ jobs:
 
       # Usage: Install CodeQL CLI (one-time setup)
       - name: Install CodeQL CLI
-        shell: pwsh
-        run: |
-          ./.codeql/scripts/Install-CodeQL.ps1 -CI -Force
+        run: python3 .codeql/scripts/install_codeql.py --ci --force
 
       - name: Verify CodeQL CLI version
-        shell: pwsh
         run: |
-          $codeql = ".codeql/cli/codeql"
-          if (-not (Test-Path $codeql)) {
-            Write-Error "CodeQL CLI not found at: $codeql"
+          codeql=".codeql/cli/codeql"
+          if [ ! -f "$codeql" ]; then
+            echo "ERROR: CodeQL CLI not found at: $codeql"
             exit 1
-          }
-
-          $version = & $codeql version
-          Write-Host "CodeQL CLI installed: $version"
+          fi
+          "$codeql" version
 
       # Usage: Validate configuration before running scans
       - name: Validate CodeQL configuration
-        shell: pwsh
-        run: |
-          ./.codeql/scripts/Test-CodeQLConfig.ps1 -CI
+        run: python3 .codeql/scripts/test_codeql_config.py --ci
 
   # Pattern 2: Run scan for a specific language
   test-scan-language:
@@ -98,37 +91,35 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y zstd
 
       - name: Install CodeQL CLI
-        shell: pwsh
-        run: ./.codeql/scripts/Install-CodeQL.ps1 -CI -Force
+        run: python3 .codeql/scripts/install_codeql.py --ci --force
 
       # Usage: Scan specific language with console output
       - name: Run CodeQL scan for ${{ matrix.language }}
-        shell: pwsh
-        run: |
-          ./.codeql/scripts/Invoke-CodeQLScan.ps1 -Languages "${{ matrix.language }}" -CI -Format console
+        env:
+          SCAN_LANGUAGE: ${{ matrix.language }}
+        run: python3 .codeql/scripts/invoke_codeql_scan.py --languages "$SCAN_LANGUAGE" --ci --format console
 
       - name: Verify scan artifacts
-        shell: pwsh
         env:
           LANGUAGE: ${{ matrix.language }}
         run: |
           # Verify database was created
-          $dbPath = ".codeql/db/$env:LANGUAGE"
-          if (-not (Test-Path $dbPath)) {
-            Write-Error "Database not created: $dbPath"
+          db_path=".codeql/db/$LANGUAGE"
+          if [ ! -d "$db_path" ]; then
+            echo "ERROR: Database not created: $db_path"
             exit 1
-          }
-          Write-Host "Database created: $dbPath"
+          fi
+          echo "Database created: $db_path"
 
           # Verify SARIF output
-          $sarifPath = ".codeql/results/$env:LANGUAGE.sarif"
-          if (-not (Test-Path $sarifPath)) {
-            Write-Error "SARIF not created: $sarifPath"
+          sarif_path=".codeql/results/$LANGUAGE.sarif"
+          if [ ! -f "$sarif_path" ]; then
+            echo "ERROR: SARIF not created: $sarif_path"
             exit 1
-          }
+          fi
 
-          $sarif = Get-Content $sarifPath -Raw | ConvertFrom-Json
-          Write-Host "SARIF created: $($sarif.runs[0].results.Count) findings"
+          findings=$(python3 -c "import json; d=json.load(open('$sarif_path')); print(len(d['runs'][0]['results']))")
+          echo "SARIF created: $findings findings"
 
   # Pattern 3: Run scan with JSON output format
   test-scan-json-output:
@@ -146,39 +137,35 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y zstd
 
       - name: Install CodeQL CLI
-        shell: pwsh
-        run: ./.codeql/scripts/Install-CodeQL.ps1 -CI -Force
+        run: python3 .codeql/scripts/install_codeql.py --ci --force
 
       # Usage: Run full scan with JSON output (for CI integration)
       - name: Run CodeQL scan with JSON output
-        shell: pwsh
-        run: |
-          ./.codeql/scripts/Invoke-CodeQLScan.ps1 -CI -Format json
+        run: python3 .codeql/scripts/invoke_codeql_scan.py --ci --format json
 
       - name: Verify SARIF structure
-        shell: pwsh
         run: |
-          $sarifFiles = Get-ChildItem -Path ".codeql/results" -Filter "*.sarif"
+          sarif_count=$(find .codeql/results -name "*.sarif" 2>/dev/null | wc -l)
 
-          if (-not $sarifFiles) {
-            Write-Error "No SARIF files created"
+          if [ "$sarif_count" -eq 0 ]; then
+            echo "ERROR: No SARIF files created"
             exit 1
-          }
+          fi
 
-          foreach ($file in $sarifFiles) {
-            Write-Host "Validating: $($file.Name)"
-            $sarif = Get-Content $file.FullName -Raw | ConvertFrom-Json
-
-            # Validate required SARIF fields
-            if (-not $sarif.version -or -not $sarif.runs) {
-              Write-Error "Invalid SARIF structure in $($file.Name)"
-              exit 1
-            }
-
-            Write-Host "  Version: $($sarif.version)"
-            Write-Host "  Runs: $($sarif.runs.Count)"
-            Write-Host "  Results: $($sarif.runs[0].results.Count)"
-          }
+          for sarif_file in .codeql/results/*.sarif; do
+            echo "Validating: $(basename "$sarif_file")"
+            python3 -c "
+          import json, sys
+          with open('$sarif_file') as f:
+              sarif = json.load(f)
+          if not sarif.get('version') or not sarif.get('runs'):
+              print(f'Invalid SARIF structure in $sarif_file', file=sys.stderr)
+              sys.exit(1)
+          print(f'  Version: {sarif[\"version\"]}')
+          print(f'  Runs: {len(sarif[\"runs\"])}')
+          print(f'  Results: {len(sarif[\"runs\"][0][\"results\"])}')
+          "
+          done
 
   aggregate-results:
     name: Aggregate Results
@@ -191,56 +178,59 @@ jobs:
 
     steps:
       - name: Check job results
-        shell: pwsh
         env:
           INSTALL_RESULT: ${{ needs.test-install-and-config.result }}
           LANGUAGE_RESULT: ${{ needs.test-scan-language.result }}
           JSON_RESULT: ${{ needs.test-scan-json-output.result }}
         run: |
-          $results = @{
-            'Install & Config' = $env:INSTALL_RESULT
-            'Language Scans' = $env:LANGUAGE_RESULT
-            'JSON Output' = $env:JSON_RESULT
-          }
+          all_passed=true
 
-          $allPassed = $true
-          $summary = @"
+          cat >> "$GITHUB_STEP_SUMMARY" << 'HEADER'
           ## CodeQL Integration Test Results
 
           These tests document how to use the CodeQL scripts locally:
 
           | Test | Status | Usage Pattern |
           |------|--------|---------------|
-          "@
+          HEADER
 
-          $patterns = @{
-            'Install & Config' = '``Install-CodeQL.ps1`` + ``Test-CodeQLConfig.ps1``'
-            'Language Scans' = '``Invoke-CodeQLScan.ps1 -Languages <lang>``'
-            'JSON Output' = '``Invoke-CodeQLScan.ps1 -Format json``'
-          }
+          declare -A results=(
+            ["Install & Config"]="$INSTALL_RESULT"
+            ["Language Scans"]="$LANGUAGE_RESULT"
+            ["JSON Output"]="$JSON_RESULT"
+          )
 
-          foreach ($test in $results.Keys) {
-            $status = $results[$test]
-            $emoji = if ($status -eq 'success') { '✓' } elseif ($status -eq 'skipped') { '⏭' } else { '✗' }
-            $pattern = $patterns[$test]
-            $summary += "`n| $test | $emoji $status | $pattern |"
+          declare -A patterns=(
+            ["Install & Config"]="\`install_codeql.py\` + \`test_codeql_config.py\`"
+            ["Language Scans"]="\`invoke_codeql_scan.py --languages <lang>\`"
+            ["JSON Output"]="\`invoke_codeql_scan.py --format json\`"
+          )
 
-            if ($status -notin @('success', 'skipped')) {
-              $allPassed = $false
-            }
-          }
+          for test in "Install & Config" "Language Scans" "JSON Output"; do
+            status="${results[$test]}"
+            pattern="${patterns[$test]}"
 
-          if ($allPassed) {
-            $summary += "`n`n> [!TIP]`n> All integration tests passed! See CONTRIBUTING.md for usage details."
-          } else {
-            $summary += "`n`n> [!CAUTION]`n> Some tests failed. Review logs above."
-          }
+            if [ "$status" = "success" ]; then
+              emoji="✓"
+            elif [ "$status" = "skipped" ]; then
+              emoji="⏭"
+            else
+              emoji="✗"
+              all_passed=false
+            fi
 
-          $summary | Add-Content $env:GITHUB_STEP_SUMMARY
+            echo "| $test | $emoji $status | $pattern |" >> "$GITHUB_STEP_SUMMARY"
+          done
 
-          if (-not $allPassed) {
-            Write-Error "One or more integration tests failed"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+
+          if $all_passed; then
+            echo "> [!TIP]" >> "$GITHUB_STEP_SUMMARY"
+            echo "> All integration tests passed! See CONTRIBUTING.md for usage details." >> "$GITHUB_STEP_SUMMARY"
+            echo "All integration tests passed!"
+          else
+            echo "> [!CAUTION]" >> "$GITHUB_STEP_SUMMARY"
+            echo "> Some tests failed. Review logs above." >> "$GITHUB_STEP_SUMMARY"
+            echo "ERROR: One or more integration tests failed"
             exit 1
-          }
-
-          Write-Host "All integration tests passed!"
+          fi
