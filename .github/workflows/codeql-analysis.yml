@@ -11,8 +11,8 @@
 # See the 'scannable' filter for the authoritative list.
 #
 # Local developers and AI agents can run equivalent scans using:
-#   pwsh .codeql/scripts/Invoke-CodeQLScan.ps1
-#   pwsh .codeql/scripts/Test-CodeQLConfig.ps1
+#   python3 .codeql/scripts/invoke_codeql_scan.py
+#   python3 .codeql/scripts/test_codeql_config.py
 #
 # Configuration: Uses shared config at .github/codeql/codeql-config.yml
 # Query packs: security-extended for PowerShell, Actions, and Python
