@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import os
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
-
-import importlib.util
 
 _spec = importlib.util.spec_from_file_location(
     "test_codeql_rollout",

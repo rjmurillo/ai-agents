@@ -197,12 +197,12 @@ def main(argv: list[str] | None = None) -> int:
             data = json.loads(Path(file_path).read_text(encoding="utf-8"))
 
             if "export_metadata" not in data:
-                print(f"    WARNING: Invalid format: missing export_metadata (skipping)")
+                print("    WARNING: Invalid format: missing export_metadata (skipping)")
                 failed_files.append((file_name, "Invalid export format"))
                 continue
 
             if "data" not in data:
-                print(f"    WARNING: Invalid format: missing data section (skipping)")
+                print("    WARNING: Invalid format: missing data section (skipping)")
                 failed_files.append((file_name, "Invalid export format"))
                 continue
 

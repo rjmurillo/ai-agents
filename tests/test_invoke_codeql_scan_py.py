@@ -3,14 +3,13 @@
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-
-import importlib.util
 
 _spec = importlib.util.spec_from_file_location(
     "invoke_codeql_scan",

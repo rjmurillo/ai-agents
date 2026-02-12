@@ -5,6 +5,8 @@ from __future__ import annotations
 from scripts.modules.investigation_allowlist import (
     get_investigation_allowlist,
     get_investigation_allowlist_display,
+)
+from scripts.modules.investigation_allowlist import (
     test_file_matches_allowlist as file_matches_allowlist,
 )
 

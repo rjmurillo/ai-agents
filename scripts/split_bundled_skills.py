@@ -129,7 +129,7 @@ def main(argv: list[str] | None = None) -> int:
         total_skills += count
         files_to_delete.append(file_path)
 
-    print(f"\nSummary:")
+    print("\nSummary:")
     print(f"  Total bundled files processed: {len(BUNDLED_FILES)}")
     print(f"  Total skills extracted: {total_skills}")
 

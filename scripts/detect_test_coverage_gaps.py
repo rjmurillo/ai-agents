@@ -19,7 +19,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-
 DEFAULT_IGNORE_PATTERNS = [
     r"\.Tests\.ps1$",
     r"tests?[/\\]",

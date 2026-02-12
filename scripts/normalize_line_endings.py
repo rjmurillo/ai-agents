@@ -14,7 +14,6 @@ See: ADR-035 Exit Code Standardization
 from __future__ import annotations
 
 import argparse
-import re
 import subprocess
 import sys
 from pathlib import Path
@@ -106,7 +105,7 @@ def main(argv: list[str] | None = None) -> int:
     after_audit = Path(".agents/analysis/line-endings-after.txt")
     save_line_ending_audit(after_audit)
 
-    print(f"\nNormalization complete!")
+    print("\nNormalization complete!")
     print(f"  Normalized {before_stats['index_crlf']} files from CRLF to LF")
 
     print("\nNext Steps:")

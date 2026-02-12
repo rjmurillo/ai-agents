@@ -2,15 +2,12 @@
 
 from __future__ import annotations
 
+# Import the module under test by path since it lives in .codeql/scripts/
+import importlib.util
 import os
 import platform
 from pathlib import Path
 from unittest.mock import MagicMock, patch
-
-import pytest
-
-# Import the module under test by path since it lives in .codeql/scripts/
-import importlib.util
 
 _spec = importlib.util.spec_from_file_location(
     "install_codeql",

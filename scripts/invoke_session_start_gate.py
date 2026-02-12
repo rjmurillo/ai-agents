@@ -71,7 +71,7 @@ def check_skill_gate(repo_root: Path) -> bool:
         print(f"[FAIL] GitHub skills directory not found: {skill_base}")
         return False
 
-    print(f"[PASS] GitHub skills directory exists")
+    print("[PASS] GitHub skills directory exists")
     skill_count = 0
     for op in ["pr", "issue", "reactions", "label", "milestone"]:
         op_path = skill_base / op
@@ -88,7 +88,7 @@ def check_skill_gate(repo_root: Path) -> bool:
 
     usage_mandatory = repo_root / ".serena" / "memories" / "usage-mandatory.md"
     if not usage_mandatory.exists():
-        print(f"[WARN] usage-mandatory memory not found")
+        print("[WARN] usage-mandatory memory not found")
     else:
         print("[PASS] usage-mandatory memory available")
 
@@ -222,7 +222,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"\nTotal: {passed_count} passed, {failed_count} failed, {skipped} skipped")
 
     if failed_gates:
-        print(f"\nSESSION START BLOCKED")
+        print("\nSESSION START BLOCKED")
         print(f"Failed gates: {', '.join(failed_gates)}")
         if not args.check_only:
             return exit_code if exit_code else 2

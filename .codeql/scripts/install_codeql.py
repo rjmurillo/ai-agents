@@ -227,7 +227,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     if not args.ci:
-        print(f"\nCodeQL CLI installation complete!", file=sys.stderr)
+        print("\nCodeQL CLI installation complete!", file=sys.stderr)
         print(f"Location: {install_path}", file=sys.stderr)
 
     return 0

@@ -2,14 +2,9 @@
 
 from __future__ import annotations
 
-import json
 from unittest.mock import MagicMock, patch
 
 from scripts.invoke_pr_maintenance import (
-    BOT_CATEGORIES,
-    PROTECTED_BRANCHES,
-    BotInfo,
-    MaintenanceResults,
     classify_prs,
     get_bot_author_info,
     has_failing_checks,

@@ -104,7 +104,7 @@ def main(argv: list[str] | None = None) -> int:
 
     print(f"\nFull backup created: {output_path}")
     print(f"   File size: {file_size / 1024:.2f} KB")
-    print(f"\nExported:")
+    print("\nExported:")
     print(f"   Observations: {data.get('totalObservations', 0)}")
     print(f"   Sessions: {data.get('totalSessions', 0)}")
     print(f"   Summaries: {data.get('totalSummaries', 0)}")

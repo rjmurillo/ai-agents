@@ -22,7 +22,6 @@ import platform
 import shutil
 import subprocess
 import sys
-from pathlib import Path
 
 
 def build_parser() -> argparse.ArgumentParser:

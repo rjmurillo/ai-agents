@@ -126,7 +126,7 @@ def main(argv: list[str] | None = None) -> int:
     prompt_count = get_count(db_path, f"SELECT COUNT(*) FROM user_prompts {prompt_filter};")
     session_count = get_count(db_path, f"SELECT COUNT(*) FROM sdk_sessions {session_filter};")
 
-    print(f"\nDatabase contains:")
+    print("\nDatabase contains:")
     print(f"   Observations: {obs_count}")
     print(f"   Session summaries: {summary_count}")
     print(f"   User prompts: {prompt_count}")

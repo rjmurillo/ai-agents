@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import json
-
 from scripts.forgetful.import_forgetful_memories import (
     IMPORT_ORDER,
     PRIMARY_KEYS,

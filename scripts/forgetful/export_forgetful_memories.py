@@ -160,7 +160,7 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"WARNING: Unknown table: {req} (skipping)")
         tables = list(dict.fromkeys(expanded))
 
-    print(f"Exporting Forgetful database...")
+    print("Exporting Forgetful database...")
     print(f"   Database: {args.database_path}")
     print(f"   Output: {output_path}")
     print(f"   Tables: {args.include_tables}")
