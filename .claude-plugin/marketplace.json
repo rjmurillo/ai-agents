@@ -1,18 +1,25 @@
 {
   "name": "ai-agents",
+  "description": "AI coding agents for Claude Code and Copilot CLI",
   "owner": {
-    "name": "Richard Murillo",
+    "name": "rjmurillo",
     "email": "rjmurillo@gmail.com"
-  },
-  "metadata": {
-    "description": "AI coding agents for Claude Code, VS Code, and Copilot CLI",
-    "version": "0.3.0"
   },
   "plugins": [
     {
       "name": "claude-agents",
-      "description": "Agents for Claude Code",
+      "description": "26 specialized agent definitions with templates and governance for Claude Code",
       "source": "./src/claude"
+    },
+    {
+      "name": "copilot-cli-agents",
+      "description": "Agent definitions for GitHub Copilot CLI",
+      "source": "./src/copilot-cli"
+    },
+    {
+      "name": "project-toolkit",
+      "description": "Complete project development toolkit: agents, slash commands, lifecycle hooks, and 28 reusable skills for Claude Code workflows",
+      "source": "./.claude"
     }
   ]
 }
