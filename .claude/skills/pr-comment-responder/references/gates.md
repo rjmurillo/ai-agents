@@ -99,15 +99,19 @@ fi
 
 ### Phase 8.2: Conversation Resolution
 
-```powershell
-pwsh .claude/skills/github/scripts/pr/Resolve-PRReviewThread.ps1 -PullRequest [number] -All
+```bash
+# Resolve all threads for a PR
+python3 .claude/skills/github/scripts/pr/get_pr_review_threads.py --pull-request [number] --unresolved-only | \
+  jq -r '.threads[].thread_id' | while read tid; do
+    python3 .claude/skills/github/scripts/pr/resolve_pr_review_thread.py --thread-id "$tid"
+  done
 ```
 
 ### Phase 8.3: Re-check for New Comments
 
 ```bash
 sleep 45
-NEW_COMMENTS=$(pwsh .claude/skills/github/scripts/pr/Get-PRReviewComments.ps1 -PullRequest [number] -IncludeIssueComments | jq '.TotalComments')
+NEW_COMMENTS=$(python3 .claude/skills/github/scripts/pr/get_pr_review_comments.py --pull-request [number] --include-issue-comments | jq '.TotalComments')
 
 if [ "$NEW_COMMENTS" -gt "$TOTAL_COMMENTS" ]; then
   echo "[NEW COMMENTS] $((NEW_COMMENTS - TOTAL_COMMENTS)) new comments detected"
@@ -116,13 +120,14 @@ fi
 
 ### Phase 8.4: CI Check Verification
 
-```powershell
-$checks = pwsh -NoProfile .claude/skills/github/scripts/pr/Get-PRChecks.ps1 -PullRequest [number] -Wait -TimeoutSeconds 300 | ConvertFrom-Json
+```bash
+checks=$(python3 .claude/skills/github/scripts/pr/get_pr_checks.py --pull-request [number])
+failed_count=$(echo "$checks" | jq '.FailedCount')
 
-if ($checks.FailedCount -gt 0) {
-    Write-Host "[BLOCKED] $($checks.FailedCount) CI check(s) not passing"
+if [ "$failed_count" -gt 0 ]; then
+    echo "[BLOCKED] $failed_count CI check(s) not passing"
     exit 1
-}
+fi
 ```
 
 Exit codes:

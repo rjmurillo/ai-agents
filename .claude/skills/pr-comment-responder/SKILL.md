@@ -30,9 +30,9 @@ Coordinates PR review responses through context gathering, comment tracking, and
 
 **ALWAYS extract PR context from prompt first. Never prompt for information already provided.**
 
-```powershell
+```bash
 # Extract PR number and owner/repo from user prompt
-$context = pwsh .claude/skills/github/scripts/utils/Extract-GitHubContext.ps1 -Text "[prompt]" -RequirePR
+python3 .claude/skills/github/scripts/utils/extract_github_context.py --text "[prompt]" --require-pr
 ```
 
 Supported patterns:
@@ -46,14 +46,14 @@ See [references/workflow.md](references/workflow.md) Phase -1 for full details.
 
 | Operation | Script |
 |-----------|--------|
-| **Context extraction** | `Extract-GitHubContext.ps1` |
-| PR metadata | `Get-PRContext.ps1` |
-| Comments | `Get-PRReviewComments.ps1 -IncludeIssueComments` |
-| Domain classification | `Get-PRReviewComments.ps1 -GroupByDomain` |
-| Reviewers | `Get-PRReviewers.ps1` |
-| Reply | `Post-PRCommentReply.ps1` |
-| Reaction | `Add-CommentReaction.ps1` |
-| Resolve thread | `Resolve-PRReviewThread.ps1` |
+| **Context extraction** | `extract_github_context.py` |
+| PR metadata | `get_pr_context.py` |
+| Comments | `get_pr_review_comments.py --include-issue-comments` |
+| Domain classification | `get_pr_review_comments.py --group-by-domain` |
+| Reviewers | `get_pr_reviewers.py` |
+| Reply | `post_pr_comment_reply.py` |
+| Reaction | `add_comment_reaction.py` |
+| Resolve thread | `resolve_pr_review_thread.py` |
 
 ### Reviewer Priority
 
@@ -77,33 +77,37 @@ Comments are classified into domains for priority-based triage:
 
 **Domain-First Processing Workflow:**
 
-```powershell
+```bash
 # Get comments grouped by domain
-$comments = Get-PRReviewComments.ps1 -PullRequest 908 -GroupByDomain -IncludeIssueComments
+comments=$(python3 .claude/skills/github/scripts/pr/get_pr_review_comments.py --pull-request 908 --group-by-domain --include-issue-comments)
 
 # Process security FIRST (CWE, vulnerabilities, injection)
-foreach ($comment in $comments.Security) {
+echo "$comments" | jq -r '.Security[]' | while read -r comment; do
     # Handle security-critical issues immediately
     # Route to security agent if needed
-}
+    echo "Processing security comment"
+done
 
 # Then bugs (errors, crashes, null references)
-foreach ($comment in $comments.Bug) {
+echo "$comments" | jq -r '.Bug[]' | while read -r comment; do
     # Address functional issues
-}
+    echo "Processing bug comment"
+done
 
 # Then style (formatting, naming, conventions)
-foreach ($comment in $comments.Style) {
+echo "$comments" | jq -r '.Style[]' | while read -r comment; do
     # Apply style improvements
-}
+    echo "Processing style comment"
+done
 
 # Finally general comments (everything else)
-foreach ($comment in $comments.General) {
+echo "$comments" | jq -r '.General[]' | while read -r comment; do
     # Process general feedback
-}
+    echo "Processing general comment"
+done
 
 # Skip summary comments (bot-generated noise)
-# $comments.Summary contains informational summaries only
+# .Summary contains informational summaries only
 ```
 
 **Benefits:**
@@ -120,7 +124,7 @@ Use this skill when:
 - You need to systematically triage and respond to all review feedback
 - CI review bots (CodeRabbit, Copilot, cursor) left comments requiring action
 
-Use direct `Post-PRCommentReply.ps1` instead when:
+Use direct `post_pr_comment_reply.py` instead when:
 
 - Replying to a single known comment (no triage needed)
 - You already know the exact response to post
@@ -129,9 +133,9 @@ Use direct `Post-PRCommentReply.ps1` instead when:
 
 ### Phase 1: Context and Gather
 
-1. Extract PR number from prompt (BLOCKING) using `Extract-GitHubContext.ps1`
+1. Extract PR number from prompt (BLOCKING) using `extract_github_context.py`
 2. Load `pr-comment-responder-skills` memory
-3. Gather PR metadata, reviewers, all comments (use `-GroupByDomain` for priority triage)
+3. Gather PR metadata, reviewers, all comments (use `--group-by-domain` for priority triage)
 4. Batch eyes reactions on all comments
 
 ### Phase 2: Triage and Delegate
@@ -180,11 +184,11 @@ See [references/bots.md](references/bots.md) for:
 |-------|-----|---------|
 | Replying to bot summaries as actionable comments | Wastes time on informational noise | Skip Summary domain comments |
 | Processing style before security | Misses critical issues | Process domains in P0-P3 priority order |
-| Using raw `gh` commands | Bypasses tested skill scripts | Use `Post-PRCommentReply.ps1` and other skill scripts |
-| Prompting user for PR number already in prompt | Redundant and frustrating | Use `Extract-GitHubContext.ps1` to parse from input |
+| Using raw `gh` commands | Bypasses tested skill scripts | Use `post_pr_comment_reply.py` and other skill scripts |
+| Prompting user for PR number already in prompt | Redundant and frustrating | Use `extract_github_context.py` to parse from input |
 
 ## Extension Points
 
-- Add new domain classifiers in `Get-PRReviewComments.ps1 -GroupByDomain`
+- Add new domain classifiers in `get_pr_review_comments.py --group-by-domain`
 - Add reviewer priority entries for new bot integrations
 - Add response templates in `references/templates.md`

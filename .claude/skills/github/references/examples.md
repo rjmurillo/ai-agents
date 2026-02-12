@@ -6,23 +6,24 @@ Complete examples for common GitHub operations.
 
 ## Comment Triage (Most Common)
 
-```powershell
+```bash
 # Which comments need replies? (MOST COMMON USE CASE)
-$result = pwsh -NoProfile scripts/pr/Get-PRReviewComments.ps1 -PullRequest 50 -OnlyUnaddressed
-if ($result.TotalComments -gt 0) {
-    Write-Host "$($result.TotalComments) comments need attention"
-    $result.Comments | ForEach-Object { Write-Host "[$($_.LifecycleState)] $($_.Author): $($_.Body.Substring(0, 50))..." }
-}
+result=$(python3 scripts/pr/get_pr_review_comments.py --pull-request 50 --only-unaddressed)
+total=$(echo "$result" | jq '.TotalComments')
+if [ "$total" -gt 0 ]; then
+    echo "$total comments need attention"
+    echo "$result" | jq -r '.Comments[] | "[\(.LifecycleState)] \(.Author): \(.Body[:50])..."'
+fi
 
 # Get unaddressed bot comments only (for AI agent workflows)
-pwsh -NoProfile scripts/pr/Get-PRReviewComments.ps1 -PullRequest 50 -OnlyUnaddressed -BotOnly
+python3 scripts/pr/get_pr_review_comments.py --pull-request 50 --only-unaddressed --bot-only
 
 # Get comments with full lifecycle state analysis
-$result = pwsh -NoProfile scripts/pr/Get-UnaddressedComments.ps1 -PullRequest 50
-$result.LifecycleStateCounts      # @{NEW=2; ACKNOWLEDGED=1; IN_DISCUSSION=3; RESOLVED=5}
-$result.DiscussionSubStateCounts  # @{WONT_FIX=1; FIX_DESCRIBED=1; FIX_COMMITTED=0; NEEDS_CLARIFICATION=1}
-$result.DomainCounts              # @{security=1; bug=2; style=5; general=3}
-$result.AuthorSummary             # @{Author="cursor[bot]"; Count=3}, @{Author="coderabbitai[bot]"; Count=2}
+result=$(python3 scripts/pr/get_unaddressed_comments.py --pull-request 50)
+echo "$result" | jq '.LifecycleStateCounts'   # {"NEW":2,"ACKNOWLEDGED":1,"IN_DISCUSSION":3,"RESOLVED":5}
+echo "$result" | jq '.DiscussionSubStateCounts'  # {"WONT_FIX":1,"FIX_DESCRIBED":1,"FIX_COMMITTED":0,"NEEDS_CLARIFICATION":1}
+echo "$result" | jq '.DomainCounts'              # {"security":1,"bug":2,"style":5,"general":3}
+echo "$result" | jq '.AuthorSummary'             # [{"Author":"cursor[bot]","Count":3},{"Author":"coderabbitai[bot]","Count":2}]
 
 # Lifecycle states explained:
 #   NEW: 0 eyes, 0 replies, unresolved -> needs acknowledgment + reply
@@ -37,121 +38,121 @@ $result.AuthorSummary             # @{Author="cursor[bot]"; Count=3}, @{Author="
 #   NEEDS_CLARIFICATION: Reply asks questions -> wait for response
 
 # Get all comments including resolved (for audit/reporting)
-pwsh -NoProfile scripts/pr/Get-UnaddressedComments.ps1 -PullRequest 50 -OnlyUnaddressed:$false
+python3 scripts/pr/get_unaddressed_comments.py --pull-request 50 --all
 
 # Get comment counts by author
-$result = pwsh -NoProfile scripts/pr/Get-PRReviewComments.ps1 -PullRequest 50
-$result.AuthorSummary
+result=$(python3 scripts/pr/get_pr_review_comments.py --pull-request 50)
+echo "$result" | jq '.AuthorSummary'
 
 # Get comment counts by domain (security, bug, style)
-$result.DomainCounts
+echo "$result" | jq '.DomainCounts'
 
 # Group by domain for security-first processing
-pwsh -NoProfile scripts/pr/Get-PRReviewComments.ps1 -PullRequest 50 -GroupByDomain
+python3 scripts/pr/get_pr_review_comments.py --pull-request 50 --group-by-domain
 ```
 
 ---
 
 ## PR Operations
 
-```powershell
+```bash
 # List open PRs (default)
-pwsh -NoProfile scripts/pr/Get-PullRequests.ps1
+python3 scripts/pr/get_pull_requests.py
 
 # List all PRs with custom limit
-pwsh -NoProfile scripts/pr/Get-PullRequests.ps1 -State all -Limit 100
+python3 scripts/pr/get_pull_requests.py --state all --limit 100
 
 # Filter PRs by label and state
-pwsh -NoProfile scripts/pr/Get-PullRequests.ps1 -Label "bug,priority:P1" -State open
+python3 scripts/pr/get_pull_requests.py --label "bug,priority:P1" --state open
 
 # Filter PRs by author and base branch
-pwsh -NoProfile scripts/pr/Get-PullRequests.ps1 -Author rjmurillo -Base main
+python3 scripts/pr/get_pull_requests.py --author rjmurillo --base main
 
 # Get PR with changed files
-pwsh -NoProfile scripts/pr/Get-PRContext.ps1 -PullRequest 50 -IncludeChangedFiles
+python3 scripts/pr/get_pr_context.py --pull-request 50 --include-changed-files
 
 # Check if PR is merged before starting work
-pwsh -NoProfile scripts/pr/Test-PRMerged.ps1 -PullRequest 50
+python3 scripts/pr/test_pr_merged.py --pull-request 50
 
 # Get CI check status
-pwsh -NoProfile scripts/pr/Get-PRChecks.ps1 -PullRequest 50
+python3 scripts/pr/get_pr_checks.py --pull-request 50
 
 # Wait for CI checks to complete (timeout 10 minutes)
-pwsh -NoProfile scripts/pr/Get-PRChecks.ps1 -PullRequest 50 -Wait -TimeoutSeconds 600
+python3 scripts/pr/get_pr_checks.py --pull-request 50 --wait --timeout-seconds 600
 
 # Get only required checks
-pwsh -NoProfile scripts/pr/Get-PRChecks.ps1 -PullRequest 50 -RequiredOnly
+python3 scripts/pr/get_pr_checks.py --pull-request 50 --required-only
 
 # Detect Copilot follow-up PRs
-pwsh -NoProfile scripts/pr/Detect-CopilotFollowUpPR.ps1 -PRNumber 50
+python3 scripts/pr/detect_copilot_follow_up_pr.py --pr-number 50
 ```
 
 ---
 
 ## Thread Operations
 
-```powershell
+```bash
 # Reply to review comment (thread-preserving)
-pwsh -NoProfile scripts/pr/Post-PRCommentReply.ps1 -PullRequest 50 -CommentId 123456 -Body "Fixed."
+python3 scripts/pr/post_pr_comment_reply.py --pull-request 50 --comment-id 123456 --body "Fixed."
 
 # Resolve all unresolved review threads
-pwsh -NoProfile scripts/pr/Resolve-PRReviewThread.ps1 -PullRequest 50 -All
+python3 scripts/pr/resolve_pr_review_thread.py --pull-request 50 --all
 
 # Reply to review thread by thread ID (GraphQL)
-pwsh -NoProfile scripts/pr/Add-PRReviewThreadReply.ps1 -ThreadId "PRRT_kwDOQoWRls5m3L76" -Body "Fixed."
+python3 scripts/pr/add_pr_review_thread_reply.py --thread-id "PRRT_kwDOQoWRls5m3L76" --body "Fixed."
 
 # Reply to thread and resolve in one operation
-pwsh -NoProfile scripts/pr/Add-PRReviewThreadReply.ps1 -ThreadId "PRRT_kwDOQoWRls5m3L76" -Body "Fixed." -Resolve
+python3 scripts/pr/add_pr_review_thread_reply.py --thread-id "PRRT_kwDOQoWRls5m3L76" --body "Fixed." --resolve
 
 # Check if PR is ready to merge (threads resolved, CI passing)
-pwsh -NoProfile scripts/pr/Test-PRMergeReady.ps1 -PullRequest 50
+python3 scripts/pr/test_pr_merge_ready.py --pull-request 50
 ```
 
 ---
 
 ## Auto-Merge Operations
 
-```powershell
+```bash
 # Enable auto-merge with squash
-pwsh -NoProfile scripts/pr/Set-PRAutoMerge.ps1 -PullRequest 50 -Enable -MergeMethod SQUASH
+python3 scripts/pr/set_pr_auto_merge.py --pull-request 50 --enable --merge-method SQUASH
 
 # Disable auto-merge
-pwsh -NoProfile scripts/pr/Set-PRAutoMerge.ps1 -PullRequest 50 -Disable
+python3 scripts/pr/set_pr_auto_merge.py --pull-request 50 --disable
 ```
 
 ---
 
 ## Issue Operations
 
-```powershell
+```bash
 # Create new issue
-pwsh -NoProfile scripts/issue/New-Issue.ps1 -Title "Bug: Login fails" -Body "Steps..." -Labels "bug,P1"
+python3 scripts/issue/new_issue.py --title "Bug: Login fails" --body "Steps..." --labels "bug,P1"
 
 # Create PR with validation
-pwsh -NoProfile scripts/pr/New-PR.ps1 -Title "feat: Add feature" -Body "Description"
+python3 scripts/pr/new_pr.py --title "feat: Add feature" --body "Description"
 
 # Close PR with comment
-pwsh -NoProfile scripts/pr/Close-PR.ps1 -PullRequest 50 -Comment "Superseded by #51"
+python3 scripts/pr/close_pr.py --pull-request 50 --comment "Superseded by #51"
 
 # Merge PR with squash
-pwsh -NoProfile scripts/pr/Merge-PR.ps1 -PullRequest 50 -Strategy squash -DeleteBranch
+python3 scripts/pr/merge_pr.py --pull-request 50 --strategy squash --delete-branch
 
 # Post idempotent comment (prevents duplicates)
-pwsh -NoProfile scripts/issue/Post-IssueComment.ps1 -Issue 123 -Body "Analysis..." -Marker "AI-TRIAGE"
+python3 scripts/issue/post_issue_comment.py --issue 123 --body "Analysis..." --marker "AI-TRIAGE"
 ```
 
 ---
 
 ## Reaction Operations
 
-```powershell
+```bash
 # Add reaction to single comment
-pwsh -NoProfile scripts/reactions/Add-CommentReaction.ps1 -CommentId 12345678 -Reaction "eyes"
+python3 scripts/reactions/add_comment_reaction.py --comment-id 12345678 --reaction "eyes"
 
 # Add reactions to multiple comments (batch - 88% faster)
-pwsh -NoProfile scripts/reactions/Add-CommentReaction.ps1 -CommentId @(123, 456, 789) -Reaction "eyes"
+python3 scripts/reactions/add_comment_reaction.py --comment-id 123 456 789 --reaction "eyes"
 
 # Acknowledge all comments on a PR (batch)
-$ids = pwsh -NoProfile scripts/pr/Get-PRReviewComments.ps1 -PullRequest 42 | ConvertFrom-Json | ForEach-Object { $_.id }
-pwsh -NoProfile scripts/reactions/Add-CommentReaction.ps1 -CommentId $ids -Reaction "eyes"
+ids=$(python3 scripts/pr/get_pr_review_comments.py --pull-request 42 | jq -r '.Comments[].id')
+python3 scripts/reactions/add_comment_reaction.py --comment-id $ids --reaction "eyes"
 ```
