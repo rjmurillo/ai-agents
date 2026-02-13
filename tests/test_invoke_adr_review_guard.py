@@ -78,7 +78,7 @@ class TestTestADRReviewEvidence:
 
         result = check_adr_review_evidence(log_file, str(tmp_path))
         assert result["complete"] is False
-        assert "No adr-review evidence" in result["reason"]
+        assert "No adr-review evidence" in str(result["reason"])
 
     def test_incomplete_when_no_analysis_dir(self, tmp_path: Path) -> None:
         log_file = tmp_path / "session.json"
@@ -86,7 +86,7 @@ class TestTestADRReviewEvidence:
 
         result = check_adr_review_evidence(log_file, str(tmp_path))
         assert result["complete"] is False
-        assert "directory does not exist" in result["reason"]
+        assert "directory does not exist" in str(result["reason"])
 
     def test_incomplete_when_no_debate_logs(self, tmp_path: Path) -> None:
         log_file = tmp_path / "session.json"
@@ -98,13 +98,13 @@ class TestTestADRReviewEvidence:
 
         result = check_adr_review_evidence(log_file, str(tmp_path))
         assert result["complete"] is False
-        assert "no debate log artifact" in result["reason"]
+        assert "no debate log artifact" in str(result["reason"])
 
     def test_handles_file_not_found(self, tmp_path: Path) -> None:
         missing_file = tmp_path / "nonexistent.json"
         result = check_adr_review_evidence(missing_file, str(tmp_path))
         assert result["complete"] is False
-        assert "deleted" in result["reason"].lower()
+        assert "deleted" in str(result["reason"]).lower()
 
     def test_matches_consensus_pattern(self, tmp_path: Path) -> None:
         log_file = tmp_path / "session.json"
