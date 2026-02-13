@@ -72,7 +72,11 @@ class TestExtractPrompt:
         assert extract_prompt({"message": "hello"}) == "hello"
 
     def test_prefers_prompt_over_others(self) -> None:
-        data: dict[str, object] = {"prompt": "first", "user_message_text": "second", "message": "third"}
+        data: dict[str, object] = {
+            "prompt": "first",
+            "user_message_text": "second",
+            "message": "third",
+        }
         assert extract_prompt(data) == "first"
 
     def test_returns_none_for_empty(self) -> None:
