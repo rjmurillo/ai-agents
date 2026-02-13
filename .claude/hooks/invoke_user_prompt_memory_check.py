@@ -121,7 +121,7 @@ def main() -> int:
     cwd = os.getcwd()
     if not is_valid_project_root(cwd):
         print(
-            f"WARNING: Invoke-UserPromptMemoryCheck: CWD '{cwd}' does not appear "
+            f"WARNING: user_prompt_memory_check: CWD '{cwd}' does not appear "
             "to be a project root (missing .claude/settings.json or .git). "
             "Failing open.",
             file=sys.stderr,
@@ -142,31 +142,27 @@ def main() -> int:
         )
         return 0
 
-    # Extract prompt text from JSON
     prompt_text = ""
     try:
         input_data = json.loads(input_json)
         prompt_value = input_data.get("prompt")
         if isinstance(prompt_value, str):
             prompt_text = prompt_value
-    except (json.JSONDecodeError, ValueError):
-        # If JSON parsing fails, use raw input as fallback
-        prompt_text = input_json
+    except (json.JSONDecodeError, ValueError) as exc:
+        print(f"user_prompt_memory_check: JSON parse failed: {exc}", file=sys.stderr)
+        return 0
 
     if not prompt_text.strip():
         return 0
 
-    # Check for planning keywords
     planning_msg = check_planning_keywords(prompt_text)
     if planning_msg:
         print(planning_msg)
 
-    # Check for PR creation keywords
     pr_msg = check_pr_keywords(prompt_text)
     if pr_msg:
         print(pr_msg)
 
-    # Check for GitHub CLI commands
     gh_msg = check_gh_cli_patterns(prompt_text)
     if gh_msg:
         print(gh_msg)

@@ -4,7 +4,7 @@
 Git pre-commit hook helper (called from .githooks/pre-commit), NOT a Claude Code hook.
 Validates slash command frontmatter on staged .md files under .claude/commands/.
 
-Exit Codes:
+Uses standard POSIX exit codes (not Claude Hook Semantics):
     0 = All validations passed (or no files to validate)
     1 = One or more files failed validation
 """
@@ -34,6 +34,7 @@ def get_staged_slash_commands() -> list[str]:
         ["git", "diff", "--cached", "--name-only", "--diff-filter=ACM"],
         capture_output=True,
         text=True,
+        timeout=10,
     )
     if result.returncode != 0:
         return []
@@ -51,6 +52,7 @@ def validate_file(file_path: str) -> bool:
         [sys.executable, str(VALIDATION_SCRIPT), "--path", file_path],
         capture_output=True,
         text=True,
+        timeout=30,
     )
     return result.returncode == 0
 

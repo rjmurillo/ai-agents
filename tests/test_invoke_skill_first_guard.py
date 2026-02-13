@@ -55,11 +55,11 @@ class TestFindSkillScript:
     def test_exact_match_found(self, tmp_path: Path) -> None:
         script_dir = tmp_path / ".claude" / "skills" / "github" / "scripts" / "pr"
         script_dir.mkdir(parents=True)
-        (script_dir / "Get-PRContext.ps1").write_text("# skill", encoding="utf-8")
+        (script_dir / "get_pr_context.py").write_text("# skill", encoding="utf-8")
 
         result = find_skill_script("pr", "view", str(tmp_path))
         assert result is not None
-        assert "Get-PRContext.ps1" in result["path"]
+        assert "get_pr_context.py" in result["path"]
 
     def test_exact_match_not_on_disk(self, tmp_path: Path) -> None:
         # Mapping exists but file does not
@@ -69,10 +69,10 @@ class TestFindSkillScript:
     def test_fuzzy_match_found(self, tmp_path: Path) -> None:
         script_dir = tmp_path / ".claude" / "skills" / "github" / "scripts" / "pr"
         script_dir.mkdir(parents=True)
-        (script_dir / "CustomView.ps1").write_text("# skill", encoding="utf-8")
+        (script_dir / "custom_review.py").write_text("# skill", encoding="utf-8")
 
-        # "review" action doesn't have exact mapping but file contains "view"
-        result = find_skill_script("pr", "View", str(tmp_path))
+        # "review" action doesn't have exact mapping, fuzzy finds file containing "review"
+        result = find_skill_script("pr", "review", str(tmp_path))
         assert result is not None
 
     def test_no_match_when_dir_missing(self, tmp_path: Path) -> None:
@@ -136,8 +136,11 @@ class TestMainBlockPath:
         capsys: pytest.CaptureFixture[str],
     ) -> None:
         mock_skill.return_value = {
-            "path": "/tmp/.claude/skills/github/scripts/pr/Get-PRContext.ps1",
-            "example": "pwsh .claude/skills/github/scripts/pr/Get-PRContext.ps1 -PullRequest 123",
+            "path": "/tmp/.claude/skills/github/scripts/pr/get_pr_context.py",
+            "example": (
+                "python3 .claude/skills/github/scripts/pr/"
+                "get_pr_context.py --pull-request 123"
+            ),
         }
         data = json.dumps({"tool_input": {"command": "gh pr view 123"}})
         mock_stdin.write(data)

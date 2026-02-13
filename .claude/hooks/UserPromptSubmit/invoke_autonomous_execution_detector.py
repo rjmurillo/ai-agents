@@ -70,7 +70,8 @@ def main() -> int:
             return 0
 
         hook_input = json.loads(input_json)
-    except (json.JSONDecodeError, ValueError):
+    except (json.JSONDecodeError, ValueError) as exc:
+        print(f"autonomous_execution_detector: Failed to parse input JSON: {exc}", file=sys.stderr)
         return 0
 
     user_prompt = extract_prompt(hook_input)

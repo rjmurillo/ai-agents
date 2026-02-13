@@ -16,19 +16,16 @@ from __future__ import annotations
 
 import json
 import os
-import re
+import re  # Used by PLACEHOLDER_PATTERNS
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
-REQUIRED_SECTIONS = (
-    "## Session Context",
-    "## Implementation Plan",
-    "## Work Log",
-    "## Decisions",
-    "## Outcomes",
-    "## Files Changed",
-    "## Follow-up Actions",
+REQUIRED_JSON_KEYS = (
+    "session",
+    "protocolCompliance",
+    "work",
+    "outcomes",
 )
 
 PLACEHOLDER_PATTERNS = (
@@ -72,7 +69,7 @@ def get_today_session_logs(sessions_dir: str) -> dict[str, object] | Path:
     today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
     try:
         logs = sorted(
-            sessions_path.glob(f"{today}-session-*.md"),
+            sessions_path.glob(f"{today}-session-*.json"),
             key=lambda p: p.stat().st_mtime,
             reverse=True,
         )
@@ -85,24 +82,35 @@ def get_today_session_logs(sessions_dir: str) -> dict[str, object] | Path:
     return logs[0]
 
 
-def get_missing_sections(log_content: str) -> list[str]:
-    """Check for missing or incomplete required sections."""
+def get_missing_keys(log_content: str) -> list[str]:
+    """Check for missing or incomplete required JSON keys.
+
+    Parses the session log as JSON and verifies required top-level keys exist
+    and contain non-empty values.
+    """
+    try:
+        data = json.loads(log_content)
+    except (json.JSONDecodeError, ValueError):
+        return ["Valid JSON structure (file is not valid JSON)"]
+
+    if not isinstance(data, dict):
+        return ["Valid JSON object (file is not a JSON object)"]
+
     missing: list[str] = []
+    for key in REQUIRED_JSON_KEYS:
+        if key not in data:
+            missing.append(key)
+        elif isinstance(data[key], dict) and not data[key]:
+            missing.append(f"{key} (empty)")
 
-    for section in REQUIRED_SECTIONS:
-        if section not in log_content:
-            missing.append(section)
-
-    # Check if Outcomes section is incomplete
-    outcomes_match = re.search(r"## Outcomes(.*?)(?=\n##|\Z)", log_content, re.DOTALL)
-    if outcomes_match:
-        outcomes_text = outcomes_match.group(1)
-
-        has_placeholder = any(p.search(outcomes_text) for p in PLACEHOLDER_PATTERNS)
-        is_too_short = len(outcomes_text.strip()) < 50
-
-        if has_placeholder or is_too_short:
-            missing.append("## Outcomes (section incomplete or contains placeholder text)")
+    # Check if outcomes section has actual content
+    outcomes = data.get("outcomes")
+    if isinstance(outcomes, dict):
+        has_placeholder = any(
+            p.search(str(v)) for v in outcomes.values() for p in PLACEHOLDER_PATTERNS
+        )
+        if has_placeholder:
+            missing.append("outcomes (contains placeholder text)")
 
     return missing
 
@@ -130,22 +138,21 @@ def main() -> int:
                 today = result.get("today", "unknown")
                 write_continue_response(
                     f"Session log missing. MUST create session log at "
-                    f".agents/sessions/{today}-session-NN.md per SESSION-PROTOCOL.md"
+                    f".agents/sessions/{today}-session-NN.json per SESSION-PROTOCOL.md"
                 )
                 return 0
 
-        # result is a Path at this point (isinstance(dict) branch returned above)
         if not isinstance(result, Path):
             return 0
         log_path = result
         log_content = log_path.read_text(encoding="utf-8")
-        missing_sections = get_missing_sections(log_content)
+        missing_keys = get_missing_keys(log_content)
 
-        if missing_sections:
-            missing_list = ", ".join(missing_sections)
+        if missing_keys:
+            missing_list = ", ".join(missing_keys)
             write_continue_response(
                 f"Session log incomplete in {log_path.name}. "
-                f"Missing or incomplete sections: {missing_list}. "
+                f"Missing or incomplete keys: {missing_list}. "
                 f"MUST complete per SESSION-PROTOCOL.md"
             )
 

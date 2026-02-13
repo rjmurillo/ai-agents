@@ -3,7 +3,7 @@
 
 Claude Code hook that injects memory-first requirements into the session context.
 Outputs blocking gate requirements that Claude receives before processing any user prompts.
-Also verifies MCP server availability and provides fallback guidance.
+Reads MCP configuration but does not verify server connectivity.
 Part of the ADR-007 enforcement mechanism (Issue #729).
 
 Hook Type: SessionStart

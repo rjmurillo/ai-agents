@@ -42,7 +42,7 @@ def get_project_root() -> str | None:
             return None
         return env_dir
 
-    # Derive from script location: hooks dir is 2 levels up from project root
+    # parents[2] walks up: hooks -> .claude -> project root
     return str(Path(__file__).resolve().parents[2])
 
 
@@ -78,6 +78,7 @@ def main() -> int:
             capture_output=True,
             text=True,
             check=False,
+            timeout=10,
         )
         if result.returncode != 0:
             print(f"ADR detection script exited with code {result.returncode}", file=sys.stderr)

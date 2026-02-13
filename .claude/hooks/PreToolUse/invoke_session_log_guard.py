@@ -7,7 +7,7 @@ Prevents untracked work by requiring a session log for the current date.
 Checks:
 1. Command is git commit
 2. Session log exists for today in .agents/sessions/
-3. Session log contains work evidence (non-empty, valid structure)
+3. Session log has >= 100 characters and, if JSON, has >= 2 properties
 
 Hook Type: PreToolUse
 Exit Codes (Claude Hook Semantics, exempt from ADR-035):
@@ -23,7 +23,6 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
-# Add project root to path for imports
 _project_root = Path(__file__).resolve().parents[3]
 if str(_project_root) not in sys.path:
     sys.path.insert(0, str(_project_root))

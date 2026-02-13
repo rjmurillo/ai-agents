@@ -8,9 +8,9 @@ allowing work to proceed. Uses hybrid enforcement:
 - After threshold: Strong warning with escalated urgency (inject context)
 
 Evidence verification checks session log protocolCompliance.sessionStart for:
-1. serenaActivated.complete = true
-2. handoffRead.complete = true
-3. memoriesLoaded.evidence contains memory names
+1. serenaActivated.Complete = true
+2. handoffRead.Complete = true
+3. memoriesLoaded.Evidence (or .evidence) is non-empty
 
 Part of Tier 2 enforcement hooks (Issue #773, Protocol enforcement).
 
@@ -30,7 +30,6 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
-# Add project root to path for hook_utilities import
 _project_root = Path(__file__).resolve().parents[3]
 if str(_project_root) not in sys.path:
     sys.path.insert(0, str(_project_root))
@@ -57,15 +56,15 @@ def test_memory_evidence(session_log_path: str) -> dict[str, object]:
             return {"complete": False, "reason": "Missing protocolCompliance.sessionStart section"}
 
         serena = session_start.get("serenaActivated", {})
-        if not serena or not serena.get("complete"):
+        if not serena or not serena.get("Complete", serena.get("complete")):
             return {"complete": False, "reason": "Serena not initialized"}
 
         handoff = session_start.get("handoffRead", {})
-        if not handoff or not handoff.get("complete"):
+        if not handoff or not handoff.get("Complete", handoff.get("complete")):
             return {"complete": False, "reason": "HANDOFF.md not read"}
 
         memories = session_start.get("memoriesLoaded", {})
-        if not memories or not memories.get("complete"):
+        if not memories or not memories.get("Complete", memories.get("complete")):
             return {"complete": False, "reason": "Memories not loaded"}
 
         evidence = memories.get("Evidence", memories.get("evidence", ""))

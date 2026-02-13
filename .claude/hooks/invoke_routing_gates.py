@@ -14,9 +14,7 @@ Bypass conditions:
 
 Hook Type: PreToolUse
 Exit Codes (Claude Hook Semantics, exempt from ADR-035):
-    0 = Allow action OR JSON decision (deny/allow)
-    1 = Hook error (fail-open)
-    2 = Block action immediately
+    0 = Always (uses JSON decision payload for deny/allow semantics)
 """
 
 from __future__ import annotations
@@ -72,14 +70,14 @@ def write_audit_log(hook_name: str, message: str) -> None:
 def get_today_session_log_local() -> Path | None:
     """Find today's most recent session log.
 
-    Uses local logic (not the shared utility) to match the PS1 behavior where
-    RoutingGates defines its own Get-TodaySessionLog function.
+    Uses local logic instead of the shared utility because this hook
+    operates from CWD rather than the project root discovered by the utility.
     """
     session_dir = Path(".agents/sessions")
     today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
 
     if not session_dir.is_dir():
-        print(f"Invoke-RoutingGates: Session directory not found: {session_dir}", file=sys.stderr)
+        print(f"routing_gates: Session directory not found: {session_dir}", file=sys.stderr)
         return None
 
     try:
@@ -91,7 +89,7 @@ def get_today_session_log_local() -> Path | None:
         return logs[0] if logs else None
     except OSError as exc:
         msg = f"Failed to read session logs from {session_dir}: {exc}"
-        print(f"Invoke-RoutingGates: {msg}", file=sys.stderr)
+        print(f"routing_gates: {msg}", file=sys.stderr)
         write_audit_log("RoutingGates", f"Session log read error: {exc}")
         return None
 
@@ -113,7 +111,7 @@ def check_qa_evidence() -> bool:
             content = session_log.read_text(encoding="utf-8")
         except OSError as exc:
             msg = f"Session log exists but cannot be read: {exc}"
-            print(f"Invoke-RoutingGates: {msg}", file=sys.stderr)
+            print(f"routing_gates: {msg}", file=sys.stderr)
             write_audit_log("RoutingGates", f"Session log read failed: {exc}")
             return False
 
@@ -134,18 +132,19 @@ def check_documentation_only() -> bool:
             ["git", "diff", "--name-only", "origin/main...HEAD"],
             capture_output=True,
             text=True,
+            timeout=10,
         )
         if result.returncode != 0:
-            # Fallback to two-dot diff
             result = subprocess.run(
                 ["git", "diff", "--name-only", "origin/main"],
                 capture_output=True,
                 text=True,
+                timeout=10,
             )
             if result.returncode != 0:
                 error_msg = f"git diff failed (exit {result.returncode}): {result.stderr.strip()}"
                 print(
-                    f"Invoke-RoutingGates: {error_msg}. Failing closed (git errors block).",
+                    f"routing_gates: {error_msg}. Failing closed (git errors block).",
                     file=sys.stderr,
                 )
                 write_audit_log("RoutingGates", error_msg)
@@ -164,17 +163,17 @@ def check_documentation_only() -> bool:
 
     except PermissionError as exc:
         error_msg = f"Permission denied checking git diff: {exc}"
-        print(f"Invoke-RoutingGates: {error_msg}. Failing closed (QA required).", file=sys.stderr)
+        print(f"routing_gates: {error_msg}. Failing closed (QA required).", file=sys.stderr)
         write_audit_log("RoutingGates", error_msg)
         return False
     except OSError as exc:
         error_msg = f"I/O error checking git diff: {exc}"
-        print(f"Invoke-RoutingGates: {error_msg}. Failing closed (QA required).", file=sys.stderr)
+        print(f"routing_gates: {error_msg}. Failing closed (QA required).", file=sys.stderr)
         write_audit_log("RoutingGates", error_msg)
         return False
     except Exception as exc:
         error_msg = f"Unexpected error checking changed files: {type(exc).__name__} - {exc}"
-        print(f"Invoke-RoutingGates: {error_msg}. Failing closed (QA required).", file=sys.stderr)
+        print(f"routing_gates: {error_msg}. Failing closed (QA required).", file=sys.stderr)
         write_audit_log("RoutingGates", error_msg)
         return False
 
@@ -191,13 +190,12 @@ def main() -> int:
     if not is_valid_project_root():
         cwd = Path.cwd()
         print(
-            f"Invoke-RoutingGates: CWD '{cwd}' does not appear to be a project root "
+            f"routing_gates: CWD '{cwd}' does not appear to be a project root "
             "(missing .claude/settings.json or .git). Failing open.",
             file=sys.stderr,
         )
         return 0
 
-    # Read JSON input from stdin
     command = ""
     try:
         if sys.stdin.isatty():
@@ -215,7 +213,7 @@ def main() -> int:
                 command = cmd
     except (json.JSONDecodeError, ValueError) as exc:
         print(
-            f"Invoke-RoutingGates: Failed to parse input JSON. Error: {exc}. "
+            f"routing_gates: Failed to parse input JSON. Error: {exc}. "
             "Assuming empty command and allowing action.",
             file=sys.stderr,
         )
@@ -252,7 +250,6 @@ def main() -> int:
             print(json.dumps(output, separators=(",", ":")))
             return 0  # JSON output with deny decision
 
-    # All gates passed
     return 0
 
 

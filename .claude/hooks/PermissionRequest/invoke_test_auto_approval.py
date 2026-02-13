@@ -6,6 +6,8 @@ execution commands (Invoke-Pester, npm test, pytest, etc.) without user
 intervention.
 
 Hook Type: PermissionRequest
+When a safe test command is detected, outputs a JSON approval decision on stdout.
+
 Exit Codes (Claude Hook Semantics, exempt from ADR-035):
     0 = Always (non-blocking hook, all errors are warnings)
 """
@@ -89,7 +91,8 @@ def main() -> int:
             return 0
 
         hook_input = json.loads(input_json)
-    except (json.JSONDecodeError, ValueError):
+    except (json.JSONDecodeError, ValueError) as exc:
+        print(f"test_auto_approval: Failed to parse input JSON: {exc}", file=sys.stderr)
         return 0
 
     command = get_command_from_input(hook_input)

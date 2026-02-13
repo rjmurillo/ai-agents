@@ -22,7 +22,6 @@ import re
 import sys
 from pathlib import Path
 
-# Add project root to path for imports
 _project_root = Path(__file__).resolve().parents[3]
 if str(_project_root) not in sys.path:
     sys.path.insert(0, str(_project_root))
@@ -35,58 +34,71 @@ _GH_COMMAND_PATTERN = re.compile(r"\bgh\s+(\w+)\s+(\w+)")
 SKILL_MAPPINGS: dict[str, dict[str, dict[str, str]]] = {
     "pr": {
         "view": {
-            "script": "Get-PRContext.ps1",
-            "example": "pwsh .claude/skills/github/scripts/pr/Get-PRContext.ps1 -PullRequest 123",
+            "script": "get_pr_context.py",
+            "example": (
+                "python3 .claude/skills/github/scripts/pr/"
+                "get_pr_context.py --pull-request 123"
+            ),
         },
         "list": {
-            "script": "Get-PullRequests.ps1",
-            "example": "pwsh .claude/skills/github/scripts/pr/Get-PullRequests.ps1",
+            "script": "get_pull_requests.py",
+            "example": "python3 .claude/skills/github/scripts/pr/get_pull_requests.py",
         },
         "create": {
-            "script": "New-PR.ps1",
-            "example": 'pwsh .claude/skills/github/scripts/pr/New-PR.ps1 -Title "..." -Body "..."',
+            "script": "new_pr.py",
+            "example": (
+                "python3 .claude/skills/github/scripts/pr/"
+                'new_pr.py --title "..." --body "..."'
+            ),
         },
         "comment": {
-            "script": "Post-PRCommentReply.ps1",
+            "script": "post_pr_comment_reply.py",
             "example": (
-                "pwsh .claude/skills/github/scripts/pr/"
-                'Post-PRCommentReply.ps1 -PullRequest 123 -Body "..."'
+                "python3 .claude/skills/github/scripts/pr/"
+                'post_pr_comment_reply.py --pull-request 123 --body "..."'
             ),
         },
         "merge": {
-            "script": "Merge-PR.ps1",
-            "example": "pwsh .claude/skills/github/scripts/pr/Merge-PR.ps1 -PullRequest 123",
+            "script": "merge_pr.py",
+            "example": "python3 .claude/skills/github/scripts/pr/merge_pr.py --pull-request 123",
         },
         "close": {
-            "script": "Close-PR.ps1",
-            "example": "pwsh .claude/skills/github/scripts/pr/Close-PR.ps1 -PullRequest 123",
+            "script": "close_pr.py",
+            "example": "python3 .claude/skills/github/scripts/pr/close_pr.py --pull-request 123",
         },
         "checks": {
-            "script": "Get-PRChecks.ps1",
-            "example": "pwsh .claude/skills/github/scripts/pr/Get-PRChecks.ps1 -PullRequest 123",
+            "script": "get_pr_checks.py",
+            "example": (
+                "python3 .claude/skills/github/scripts/pr/"
+                "get_pr_checks.py --pull-request 123"
+            ),
         },
     },
     "issue": {
         "view": {
-            "script": "Get-IssueContext.ps1",
-            "example": "pwsh .claude/skills/github/scripts/issue/Get-IssueContext.ps1 -Issue 456",
+            "script": "get_issue_context.py",
+            "example": (
+                "python3 .claude/skills/github/scripts/issue/"
+                "get_issue_context.py --issue 456"
+            ),
         },
         "create": {
-            "script": "New-Issue.ps1",
+            "script": "new_issue.py",
             "example": (
-                'pwsh .claude/skills/github/scripts/issue/New-Issue.ps1 -Title "..." -Body "..."'
+                "python3 .claude/skills/github/scripts/issue/"
+                'new_issue.py --title "..." --body "..."'
             ),
         },
         "comment": {
-            "script": "Post-IssueComment.ps1",
+            "script": "post_issue_comment.py",
             "example": (
-                "pwsh .claude/skills/github/scripts/issue/"
-                'Post-IssueComment.ps1 -Issue 456 -Body "..."'
+                "python3 .claude/skills/github/scripts/issue/"
+                'post_issue_comment.py --issue 456 --body "..."'
             ),
         },
         "list": {
-            "script": "Get-Issues.ps1",
-            "example": "pwsh .claude/skills/github/scripts/issue/Get-Issues.ps1",
+            "script": "get_issue_context.py",
+            "example": "python3 .claude/skills/github/scripts/issue/get_issue_context.py",
         },
     },
 }
@@ -146,15 +158,15 @@ def find_skill_script(
     if not search_path.is_dir():
         return None
 
-    matching_scripts = sorted(search_path.glob(f"*{action}*.ps1"))
+    matching_scripts = sorted(search_path.glob(f"*{action}*.py"))
     if not matching_scripts:
-        # Also check for Python skill scripts
-        matching_scripts = sorted(search_path.glob(f"*{action}*.py"))
+        matching_scripts = sorted(search_path.glob(f"*{action}*.ps1"))
 
     if matching_scripts:
         script = matching_scripts[0]
         relative_path = f".claude/skills/github/scripts/{operation}/{script.name}"
-        return {"path": str(script), "example": f"pwsh {relative_path} [parameters]"}
+        runner = "python3" if script.suffix == ".py" else "pwsh"
+        return {"path": str(script), "example": f"{runner} {relative_path} [parameters]"}
 
     return None
 
@@ -172,15 +184,15 @@ def write_block_response(
         "### Blocked Command\n```\n"
         f"{blocked_command}\n```\n\n"
         "### Required Alternative (Copy-Paste Ready)\n"
-        f"```powershell\n{example_usage}\n```\n\n"
+        f"```bash\n{example_usage}\n```\n\n"
         "**Why Skills Are Mandatory**:\n"
-        "- Tested with Pester (100% coverage)\n"
+        "- Tested with pytest (100% coverage)\n"
         "- Structured error handling\n"
         "- Consistent output format\n"
         "- Centrally maintained\n"
         "- Raw `gh` commands: None of the above\n\n"
         "**This is not optional.** "
-        "See: `.serena/memories/usage-mandatory.md`\n"
+        "See: `AGENTS.md > Skill-First Checkpoint`\n"
     )
     print(output)
     print(f"Blocked: Raw gh command detected. Use skill at {skill_path}", file=sys.stderr)

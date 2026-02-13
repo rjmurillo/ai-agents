@@ -19,55 +19,52 @@ sys.path.insert(
 import invoke_session_validator as hook
 
 
-class TestGetMissingSections:
-    """Tests for get_missing_sections()."""
+class TestGetMissingKeys:
+    """Tests for get_missing_keys()."""
 
-    def test_all_sections_present(self) -> None:
-        content = (
-            "## Session Context\nSome context\n"
-            "## Implementation Plan\nThe plan\n"
-            "## Work Log\nWork done\n"
-            "## Decisions\nDecisions made\n"
-            "## Outcomes\nThis is a detailed outcome section with enough content "
-            "to exceed the 50 character threshold.\n"
-            "## Files Changed\nfiles\n"
-            "## Follow-up Actions\nactions\n"
-        )
-        assert hook.get_missing_sections(content) == []
+    def test_all_keys_present(self) -> None:
+        content = json.dumps({
+            "session": {"number": 1, "date": "2026-01-01"},
+            "protocolCompliance": {"sessionStart": {}},
+            "work": {"tasksCompleted": []},
+            "outcomes": {"testsRun": "66 passed", "lintClean": True},
+        })
+        assert hook.get_missing_keys(content) == []
 
-    def test_detects_missing_section(self) -> None:
-        content = "## Session Context\nSome context\n## Work Log\nWork done\n"
-        missing = hook.get_missing_sections(content)
-        assert "## Implementation Plan" in missing
-        assert "## Decisions" in missing
+    def test_detects_missing_key(self) -> None:
+        content = json.dumps({"session": {"number": 1}})
+        missing = hook.get_missing_keys(content)
+        assert "protocolCompliance" in missing
+        assert "work" in missing
+        assert "outcomes" in missing
+
+    def test_detects_empty_key(self) -> None:
+        content = json.dumps({
+            "session": {},
+            "protocolCompliance": {},
+            "work": {},
+            "outcomes": {},
+        })
+        missing = hook.get_missing_keys(content)
+        assert any("empty" in s for s in missing)
 
     def test_detects_placeholder_in_outcomes(self) -> None:
-        content = (
-            "## Session Context\nSome context\n"
-            "## Implementation Plan\nplan\n"
-            "## Work Log\nWork done\n"
-            "## Decisions\ndecisions\n"
-            "## Outcomes\nTBD\n"
-            "## Files Changed\nfiles\n"
-            "## Follow-up Actions\nactions\n"
-        )
-        missing = hook.get_missing_sections(content)
-        assert any("Outcomes" in s and "incomplete" in s for s in missing)
+        content = json.dumps({
+            "session": {"number": 1},
+            "protocolCompliance": {"sessionStart": {}},
+            "work": {"tasksCompleted": []},
+            "outcomes": {"testsRun": "TBD", "lintClean": "pending"},
+        })
+        missing = hook.get_missing_keys(content)
+        assert any("outcomes" in s and "placeholder" in s for s in missing)
 
-    def test_detects_todo_placeholder(self) -> None:
-        content = "## Outcomes\nTODO: fill this in later\n"
-        missing = hook.get_missing_sections(content)
-        assert any("Outcomes" in s and "incomplete" in s for s in missing)
+    def test_returns_error_for_invalid_json(self) -> None:
+        missing = hook.get_missing_keys("not valid json")
+        assert any("not valid JSON" in s for s in missing)
 
-    def test_detects_short_outcomes(self) -> None:
-        content = "## Outcomes\nDone.\n"
-        missing = hook.get_missing_sections(content)
-        assert any("Outcomes" in s and "incomplete" in s for s in missing)
-
-    def test_detects_pending_placeholder(self) -> None:
-        content = "## Outcomes\n(pending)\n"
-        missing = hook.get_missing_sections(content)
-        assert any("Outcomes" in s and "incomplete" in s for s in missing)
+    def test_returns_error_for_non_object(self) -> None:
+        missing = hook.get_missing_keys(json.dumps([1, 2, 3]))
+        assert any("not a JSON object" in s for s in missing)
 
 
 class TestGetTodaySessionLogs:
@@ -87,10 +84,10 @@ class TestGetTodaySessionLogs:
         from datetime import UTC, datetime
 
         today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
-        log1 = tmp_path / f"{today}-session-01.md"
-        log2 = tmp_path / f"{today}-session-02.md"
-        log1.write_text("first", encoding="utf-8")
-        log2.write_text("second", encoding="utf-8")
+        log1 = tmp_path / f"{today}-session-01.json"
+        log2 = tmp_path / f"{today}-session-02.json"
+        log1.write_text('{"session":{}}', encoding="utf-8")
+        log2.write_text('{"session":{}}', encoding="utf-8")
 
         result = hook.get_today_session_logs(str(tmp_path))
         assert isinstance(result, Path)
@@ -164,8 +161,8 @@ class TestMain:
         today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
         sessions_dir = tmp_path / ".agents" / "sessions"
         sessions_dir.mkdir(parents=True)
-        log = sessions_dir / f"{today}-session-01.md"
-        log.write_text("## Session Context\nSome context\n", encoding="utf-8")
+        log = sessions_dir / f"{today}-session-01.json"
+        log.write_text(json.dumps({"session": {"number": 1}}), encoding="utf-8")
 
         input_data = json.dumps({"cwd": str(tmp_path)})
         mock_stdin = MagicMock()
@@ -185,7 +182,7 @@ class TestMain:
         captured = capsys.readouterr()
         output = json.loads(captured.out)
         assert output["continue"] is True
-        assert "incomplete" in output["reason"]
+        assert "Missing or incomplete keys" in output["reason"]
 
     def test_silent_exit_when_no_sessions_dir(
         self, capsys: pytest.CaptureFixture[str], tmp_path: Path

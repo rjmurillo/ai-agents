@@ -51,7 +51,8 @@ def main() -> int:
             return 0
 
         hook_input = json.loads(input_json)
-    except (json.JSONDecodeError, ValueError):
+    except (json.JSONDecodeError, ValueError) as exc:
+        print(f"branch_protection_guard: Failed to parse input JSON: {exc}", file=sys.stderr)
         return 0
 
     cwd = get_working_directory(hook_input)
@@ -62,6 +63,7 @@ def main() -> int:
             capture_output=True,
             text=True,
             cwd=cwd,
+            timeout=10,
         )
 
         if result.returncode == 128:

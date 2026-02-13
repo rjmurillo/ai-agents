@@ -111,7 +111,6 @@ def main() -> int:
         else:
             print("\n**QA Validation PASSED**: All required sections present in QA report.\n")
 
-        # JSON output for machine-readable validation results
         validation_result = {
             "validation_passed": len(missing_sections) == 0,
             "missing_sections": missing_sections,

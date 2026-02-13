@@ -160,16 +160,18 @@ class TestMain:
             assert result == 0
             assert "Skill-first" in mock_stdout.getvalue()
 
-    def test_falls_back_to_raw_input_on_json_error(self, tmp_path: Path) -> None:
+    def test_returns_zero_on_json_parse_error(self, tmp_path: Path) -> None:
         (tmp_path / ".git").mkdir()
         with (
             patch("invoke_user_prompt_memory_check.os.getcwd", return_value=str(tmp_path)),
             patch("sys.stdin", StringIO("implement the fix")),
             patch("sys.stdout", new_callable=StringIO) as mock_stdout,
+            patch("sys.stderr", new_callable=StringIO) as mock_stderr,
         ):
             result = main()
             assert result == 0
-            assert "ADR-007" in mock_stdout.getvalue()
+            assert mock_stdout.getvalue() == ""
+            assert "JSON parse failed" in mock_stderr.getvalue()
 
     def test_no_output_for_unrelated_prompt(self, tmp_path: Path) -> None:
         (tmp_path / ".git").mkdir()
