@@ -24,7 +24,7 @@ from invoke_test_auto_approval import (
 
 class TestGetCommandFromInput:
     def test_extracts_command(self) -> None:
-        hook_input = {"tool_input": {"command": "pytest tests/"}}
+        hook_input: dict[str, object] = {"tool_input": {"command": "pytest tests/"}}
         assert get_command_from_input(hook_input) == "pytest tests/"
 
     def test_returns_none_for_missing_tool_input(self) -> None:
@@ -37,7 +37,7 @@ class TestGetCommandFromInput:
         assert get_command_from_input({"tool_input": {"command": "  "}}) is None
 
     def test_strips_whitespace(self) -> None:
-        hook_input = {"tool_input": {"command": "  pytest  "}}
+        hook_input: dict[str, object] = {"tool_input": {"command": "  pytest  "}}
         assert get_command_from_input(hook_input) == "pytest"
 
     def test_returns_none_for_non_dict_tool_input(self) -> None:

@@ -20,7 +20,7 @@ from invoke_markdown_auto_lint import (
 
 class TestGetFilePathFromInput:
     def test_extracts_file_path(self) -> None:
-        hook_input = {"tool_input": {"file_path": "/tmp/test.md"}}
+        hook_input: dict[str, object] = {"tool_input": {"file_path": "/tmp/test.md"}}
         assert get_file_path_from_input(hook_input) == "/tmp/test.md"
 
     def test_returns_none_for_missing_tool_input(self) -> None:
@@ -33,7 +33,7 @@ class TestGetFilePathFromInput:
         assert get_file_path_from_input({"tool_input": {"file_path": "  "}}) is None
 
     def test_strips_whitespace(self) -> None:
-        hook_input = {"tool_input": {"file_path": "  /tmp/test.md  "}}
+        hook_input: dict[str, object] = {"tool_input": {"file_path": "  /tmp/test.md  "}}
         assert get_file_path_from_input(hook_input) == "/tmp/test.md"
 
     def test_returns_none_for_non_dict_tool_input(self) -> None:

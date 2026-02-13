@@ -136,8 +136,9 @@ def main() -> int:
                 )
                 return 0
 
-        # result is a Path at this point
-        log_path: Path = result  # type: ignore[assignment]
+        # result is a Path at this point (isinstance(dict) branch returned above)
+        assert isinstance(result, Path)
+        log_path = result
         log_content = log_path.read_text(encoding="utf-8")
         missing_sections = get_missing_sections(log_content)
 

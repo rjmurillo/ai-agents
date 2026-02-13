@@ -35,7 +35,7 @@ class TestTestSessionLogEvidence:
         log_file.write_text("{}", encoding="utf-8")
         result = check_session_log_evidence(log_file)
         assert result["valid"] is False
-        assert "empty" in result["reason"].lower()
+        assert "empty" in str(result["reason"]).lower()
 
     def test_invalid_when_json_has_too_few_properties(self, tmp_path: Path) -> None:
         log_file = tmp_path / "session.json"
@@ -44,7 +44,7 @@ class TestTestSessionLogEvidence:
         log_file.write_text(content, encoding="utf-8")
         result = check_session_log_evidence(log_file)
         assert result["valid"] is False
-        assert "required sections" in result["reason"].lower()
+        assert "required sections" in str(result["reason"]).lower()
 
     def test_valid_for_non_json_content(self, tmp_path: Path) -> None:
         log_file = tmp_path / "session.md"
@@ -57,7 +57,7 @@ class TestTestSessionLogEvidence:
         missing_file = tmp_path / "nonexistent.json"
         result = check_session_log_evidence(missing_file)
         assert result["valid"] is False
-        assert "deleted" in result["reason"].lower()
+        assert "deleted" in str(result["reason"]).lower()
 
     def test_preview_capped_at_200(self, tmp_path: Path) -> None:
         log_file = tmp_path / "session.json"
@@ -65,7 +65,7 @@ class TestTestSessionLogEvidence:
         log_file.write_text(json.dumps(data), encoding="utf-8")
         result = check_session_log_evidence(log_file)
         assert result["valid"] is True
-        assert len(result["content"]) <= 200
+        assert len(str(result["content"])) <= 200
 
 
 class TestMainAllowPath:

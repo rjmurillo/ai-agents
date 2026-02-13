@@ -3,11 +3,10 @@
 
 from __future__ import annotations
 
-import io
 import json
 import sys
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -119,16 +118,16 @@ class TestMain:
     """Tests for main() entry point."""
 
     def test_exits_zero_on_tty(self) -> None:
-        with patch("sys.stdin", new_callable=lambda: io.StringIO):
-            # StringIO has no isatty, mock it
-            mock_stdin = io.StringIO("")
-            mock_stdin.isatty = lambda: True  # type: ignore[attr-defined,method-assign]
-            with patch("sys.stdin", mock_stdin):
-                assert hook.main() == 0
+        mock_stdin = MagicMock()
+        mock_stdin.read.return_value = ""
+        mock_stdin.isatty.return_value = True
+        with patch("sys.stdin", mock_stdin):
+            assert hook.main() == 0
 
     def test_exits_zero_on_empty_input(self) -> None:
-        mock_stdin = io.StringIO("")
-        mock_stdin.isatty = lambda: False  # type: ignore[attr-defined,method-assign]
+        mock_stdin = MagicMock()
+        mock_stdin.read.return_value = ""
+        mock_stdin.isatty.return_value = False
         with patch("sys.stdin", mock_stdin):
             assert hook.main() == 0
 
@@ -138,8 +137,9 @@ class TestMain:
         sessions_dir = tmp_path / ".agents" / "sessions"
         sessions_dir.mkdir(parents=True)
         input_data = json.dumps({"cwd": str(tmp_path)})
-        mock_stdin = io.StringIO(input_data)
-        mock_stdin.isatty = lambda: False  # type: ignore[attr-defined,method-assign]
+        mock_stdin = MagicMock()
+        mock_stdin.read.return_value = input_data
+        mock_stdin.isatty.return_value = False
 
         with (
             patch("sys.stdin", mock_stdin),
@@ -168,8 +168,9 @@ class TestMain:
         log.write_text("## Session Context\nSome context\n", encoding="utf-8")
 
         input_data = json.dumps({"cwd": str(tmp_path)})
-        mock_stdin = io.StringIO(input_data)
-        mock_stdin.isatty = lambda: False  # type: ignore[attr-defined,method-assign]
+        mock_stdin = MagicMock()
+        mock_stdin.read.return_value = input_data
+        mock_stdin.isatty.return_value = False
 
         with (
             patch("sys.stdin", mock_stdin),
@@ -190,8 +191,9 @@ class TestMain:
         self, capsys: pytest.CaptureFixture[str], tmp_path: Path
     ) -> None:
         input_data = json.dumps({"cwd": str(tmp_path)})
-        mock_stdin = io.StringIO(input_data)
-        mock_stdin.isatty = lambda: False  # type: ignore[attr-defined,method-assign]
+        mock_stdin = MagicMock()
+        mock_stdin.read.return_value = input_data
+        mock_stdin.isatty.return_value = False
 
         with (
             patch("sys.stdin", mock_stdin),

@@ -44,14 +44,14 @@ class TestTestMemoryEvidence:
         )
         result = hook.test_memory_evidence(str(log))
         assert result["complete"] is True
-        assert "memory-index" in result["evidence"]
+        assert "memory-index" in str(result["evidence"])
 
     def test_missing_protocol_compliance(self, tmp_path: Path) -> None:
         log = tmp_path / "session.json"
         log.write_text(json.dumps({}), encoding="utf-8")
         result = hook.test_memory_evidence(str(log))
         assert result["complete"] is False
-        assert "Missing" in result["reason"]
+        assert "Missing" in str(result["reason"])
 
     def test_serena_not_activated(self, tmp_path: Path) -> None:
         log = tmp_path / "session.json"
@@ -71,7 +71,7 @@ class TestTestMemoryEvidence:
         )
         result = hook.test_memory_evidence(str(log))
         assert result["complete"] is False
-        assert "Serena" in result["reason"]
+        assert "Serena" in str(result["reason"])
 
     def test_handoff_not_read(self, tmp_path: Path) -> None:
         log = tmp_path / "session.json"
@@ -91,7 +91,7 @@ class TestTestMemoryEvidence:
         )
         result = hook.test_memory_evidence(str(log))
         assert result["complete"] is False
-        assert "HANDOFF" in result["reason"]
+        assert "HANDOFF" in str(result["reason"])
 
     def test_empty_evidence(self, tmp_path: Path) -> None:
         log = tmp_path / "session.json"
@@ -111,19 +111,19 @@ class TestTestMemoryEvidence:
         )
         result = hook.test_memory_evidence(str(log))
         assert result["complete"] is False
-        assert "empty" in result["reason"]
+        assert "empty" in str(result["reason"])
 
     def test_invalid_json(self, tmp_path: Path) -> None:
         log = tmp_path / "session.json"
         log.write_text("not valid json", encoding="utf-8")
         result = hook.test_memory_evidence(str(log))
         assert result["complete"] is False
-        assert "invalid JSON" in result["reason"]
+        assert "invalid JSON" in str(result["reason"])
 
     def test_missing_file(self) -> None:
         result = hook.test_memory_evidence("/nonexistent/path/session.json")
         assert result["complete"] is False
-        assert "deleted" in result["reason"]
+        assert "deleted" in str(result["reason"])
 
     def test_lowercase_evidence_key(self, tmp_path: Path) -> None:
         """Evidence key can be lowercase 'evidence' per Copilot fix."""

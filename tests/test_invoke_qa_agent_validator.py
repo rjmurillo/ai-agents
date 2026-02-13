@@ -3,11 +3,10 @@
 
 from __future__ import annotations
 
-import io
 import json
 import sys
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -105,28 +104,32 @@ class TestMain:
     """Tests for main() entry point."""
 
     def test_exits_zero_on_tty(self) -> None:
-        mock_stdin = io.StringIO("")
-        mock_stdin.isatty = lambda: True  # type: ignore[attr-defined,method-assign]
+        mock_stdin = MagicMock()
+        mock_stdin.read.return_value = ""
+        mock_stdin.isatty.return_value = True
         with patch("sys.stdin", mock_stdin):
             assert hook.main() == 0
 
     def test_exits_zero_on_empty_input(self) -> None:
-        mock_stdin = io.StringIO("")
-        mock_stdin.isatty = lambda: False  # type: ignore[attr-defined,method-assign]
+        mock_stdin = MagicMock()
+        mock_stdin.read.return_value = ""
+        mock_stdin.isatty.return_value = False
         with patch("sys.stdin", mock_stdin):
             assert hook.main() == 0
 
     def test_exits_zero_for_non_qa_agent(self) -> None:
         input_data = json.dumps({"subagent_type": "implementer"})
-        mock_stdin = io.StringIO(input_data)
-        mock_stdin.isatty = lambda: False  # type: ignore[attr-defined,method-assign]
+        mock_stdin = MagicMock()
+        mock_stdin.read.return_value = input_data
+        mock_stdin.isatty.return_value = False
         with patch("sys.stdin", mock_stdin):
             assert hook.main() == 0
 
     def test_exits_zero_with_no_transcript(self, capsys: pytest.CaptureFixture[str]) -> None:
         input_data = json.dumps({"subagent_type": "qa"})
-        mock_stdin = io.StringIO(input_data)
-        mock_stdin.isatty = lambda: False  # type: ignore[attr-defined,method-assign]
+        mock_stdin = MagicMock()
+        mock_stdin.read.return_value = input_data
+        mock_stdin.isatty.return_value = False
         with patch("sys.stdin", mock_stdin):
             result = hook.main()
 
@@ -146,8 +149,9 @@ class TestMain:
                 "transcript_path": str(transcript),
             }
         )
-        mock_stdin = io.StringIO(input_data)
-        mock_stdin.isatty = lambda: False  # type: ignore[attr-defined,method-assign]
+        mock_stdin = MagicMock()
+        mock_stdin.read.return_value = input_data
+        mock_stdin.isatty.return_value = False
         with patch("sys.stdin", mock_stdin):
             result = hook.main()
 
@@ -178,8 +182,9 @@ class TestMain:
                 "transcript_path": str(transcript),
             }
         )
-        mock_stdin = io.StringIO(input_data)
-        mock_stdin.isatty = lambda: False  # type: ignore[attr-defined,method-assign]
+        mock_stdin = MagicMock()
+        mock_stdin.read.return_value = input_data
+        mock_stdin.isatty.return_value = False
         with patch("sys.stdin", mock_stdin):
             result = hook.main()
 
@@ -205,8 +210,9 @@ class TestMain:
                 "transcript_path": str(transcript),
             }
         )
-        mock_stdin = io.StringIO(input_data)
-        mock_stdin.isatty = lambda: False  # type: ignore[attr-defined,method-assign]
+        mock_stdin = MagicMock()
+        mock_stdin.read.return_value = input_data
+        mock_stdin.isatty.return_value = False
 
         with (
             patch("sys.stdin", mock_stdin),
