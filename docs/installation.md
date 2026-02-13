@@ -101,7 +101,7 @@ skill-installer install vscode-agents --platform vscode
 |----------|--------|--------|
 | Claude Code | `~/.claude/agents/` | `~/.claude/skills/` |
 | Copilot CLI | `~/.copilot/agents/` | N/A |
-| VS Code | `~/.vscode/prompts/` | N/A |
+| VS Code | `~/.copilot/agents/` | N/A |
 
 ### Repository Installation Paths
 
