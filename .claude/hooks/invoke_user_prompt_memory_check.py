@@ -135,7 +135,11 @@ def main() -> int:
         input_json = sys.stdin.read()
         if not input_json.strip():
             return 0
-    except Exception:
+    except (OSError, ValueError) as exc:
+        print(
+            f"WARNING: User prompt memory check: stdin read error: {exc}",
+            file=sys.stderr,
+        )
         return 0
 
     # Extract prompt text from JSON

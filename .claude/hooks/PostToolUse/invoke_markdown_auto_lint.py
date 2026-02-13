@@ -42,13 +42,21 @@ def get_project_directory(hook_input: dict[str, object]) -> str:
     return os.getcwd()
 
 
-def should_lint_file(file_path: str | None) -> bool:
-    """Check if the file is a markdown file that exists on disk."""
+def should_lint_file(file_path: str | None, project_dir: str) -> bool:
+    """Check if the file is a markdown file within the project that exists on disk."""
     if not file_path:
         return False
     if not file_path.lower().endswith(".md"):
         return False
-    if not Path(file_path).exists():
+    resolved = Path(file_path).resolve()
+    project_resolved = Path(project_dir).resolve()
+    if not str(resolved).startswith(str(project_resolved) + os.sep):
+        print(
+            f"WARNING: Path outside project directory: {file_path}",
+            file=sys.stderr,
+        )
+        return False
+    if not resolved.exists():
         print(
             f"WARNING: Markdown file does not exist: {file_path}",
             file=sys.stderr,
@@ -76,10 +84,9 @@ def main() -> int:
         return 0
 
     file_path = get_file_path_from_input(hook_input)
-    if not should_lint_file(file_path) or file_path is None:
-        return 0
-
     project_dir = get_project_directory(hook_input)
+    if not should_lint_file(file_path, project_dir) or file_path is None:
+        return 0
 
     try:
         result = subprocess.run(

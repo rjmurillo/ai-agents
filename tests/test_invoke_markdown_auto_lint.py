@@ -58,27 +58,34 @@ class TestGetProjectDirectory:
 
 
 class TestShouldLintFile:
-    def test_returns_false_for_none(self) -> None:
-        assert should_lint_file(None) is False
+    def test_returns_false_for_none(self, tmp_path: Path) -> None:
+        assert should_lint_file(None, str(tmp_path)) is False
 
-    def test_returns_false_for_empty(self) -> None:
-        assert should_lint_file("") is False
+    def test_returns_false_for_empty(self, tmp_path: Path) -> None:
+        assert should_lint_file("", str(tmp_path)) is False
 
-    def test_returns_false_for_non_md_file(self) -> None:
-        assert should_lint_file("/tmp/test.py") is False
+    def test_returns_false_for_non_md_file(self, tmp_path: Path) -> None:
+        assert should_lint_file(str(tmp_path / "test.py"), str(tmp_path)) is False
 
     def test_returns_false_for_missing_file(self, tmp_path: Path) -> None:
-        assert should_lint_file(str(tmp_path / "nonexistent.md")) is False
+        assert should_lint_file(str(tmp_path / "nonexistent.md"), str(tmp_path)) is False
 
     def test_returns_true_for_existing_md_file(self, tmp_path: Path) -> None:
         md_file = tmp_path / "test.md"
         md_file.write_text("# Hello", encoding="utf-8")
-        assert should_lint_file(str(md_file)) is True
+        assert should_lint_file(str(md_file), str(tmp_path)) is True
 
     def test_case_insensitive_extension(self, tmp_path: Path) -> None:
         md_file = tmp_path / "test.MD"
         md_file.write_text("# Hello", encoding="utf-8")
-        assert should_lint_file(str(md_file)) is True
+        assert should_lint_file(str(md_file), str(tmp_path)) is True
+
+    def test_returns_false_for_path_outside_project(self, tmp_path: Path) -> None:
+        project_dir = tmp_path / "project"
+        project_dir.mkdir()
+        outside_file = tmp_path / "outside.md"
+        outside_file.write_text("# Outside", encoding="utf-8")
+        assert should_lint_file(str(outside_file), str(project_dir)) is False
 
 
 class TestMain:

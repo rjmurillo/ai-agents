@@ -31,9 +31,14 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 # Add project root to path for hook_utilities import
-sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
+_project_root = Path(__file__).resolve().parents[3]
+if str(_project_root) not in sys.path:
+    sys.path.insert(0, str(_project_root))
 
-from scripts.hook_utilities.utilities import get_project_directory, get_today_session_logs
+from scripts.hook_utilities.utilities import (  # noqa: E402
+    get_project_directory,
+    get_today_session_logs,
+)
 
 EDUCATION_THRESHOLD = 3
 

@@ -90,10 +90,8 @@ def get_missing_sections(log_content: str) -> list[str]:
     missing: list[str] = []
 
     for section in REQUIRED_SECTIONS:
-        if re.escape(section).replace(r"\ ", " ") not in log_content:
-            # Direct string check
-            if section not in log_content:
-                missing.append(section)
+        if section not in log_content:
+            missing.append(section)
 
     # Check if Outcomes section is incomplete
     outcomes_match = re.search(r"## Outcomes(.*?)(?=\n##|\Z)", log_content, re.DOTALL)
@@ -137,7 +135,8 @@ def main() -> int:
                 return 0
 
         # result is a Path at this point (isinstance(dict) branch returned above)
-        assert isinstance(result, Path)
+        if not isinstance(result, Path):
+            return 0
         log_path = result
         log_content = log_path.read_text(encoding="utf-8")
         missing_sections = get_missing_sections(log_content)
