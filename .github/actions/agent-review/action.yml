@@ -124,10 +124,10 @@ runs:
         import os
         import sys
 
-        # Add scripts directory to path
-        sys.path.insert(0, os.path.join(os.environ['GITHUB_WORKSPACE'], 'scripts'))
+        # Add workspace root to path so 'scripts' package resolves
+        sys.path.insert(0, os.environ['GITHUB_WORKSPACE'])
 
-        from ai_review_common.issue_triage import get_verdict_alert_type, get_verdict_emoji
+        from scripts.ai_review_common.issue_triage import get_verdict_alert_type, get_verdict_emoji
 
         try:
             verdict = os.environ.get('VERDICT', '').strip()

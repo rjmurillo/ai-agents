@@ -176,8 +176,8 @@ jobs:
         run: |
           import sys
           import os
-          sys.path.insert(0, os.path.join(os.getcwd(), 'scripts'))
-          from test_result_helpers.helpers import create_skipped_test_result
+          sys.path.insert(0, os.getcwd())
+          from scripts.test_result_helpers.helpers import create_skipped_test_result
 
           create_skipped_test_result(
               output_path="./artifacts/codeql-results.xml",
