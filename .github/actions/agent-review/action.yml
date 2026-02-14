@@ -110,7 +110,7 @@ runs:
 
     - name: Generate step summary
       if: always() && inputs.should-run == 'true'
-      shell: pwsh -NoProfile -Command "& '{0}'"
+      shell: python3 {0}
       env:
         AGENT: ${{ inputs.agent }}
         EMOJI: ${{ inputs.emoji }}
@@ -121,52 +121,61 @@ runs:
         REPOSITORY: ${{ github.repository }}
         PR_NUMBER: ${{ inputs.pr-number }}
       run: |
-        $ErrorActionPreference = 'Stop'
+        import os
+        import sys
 
-        try {
-          Import-Module "$env:GITHUB_WORKSPACE/.github/scripts/AIReviewCommon.psm1" -Force -ErrorAction Stop
+        # Add scripts directory to path
+        sys.path.insert(0, os.path.join(os.environ['GITHUB_WORKSPACE'], 'scripts'))
 
-          if ([string]::IsNullOrWhiteSpace($env:VERDICT)) {
-            Write-Output "::error::VERDICT environment variable is missing or empty"
-            exit 1
-          }
+        from ai_review_common.issue_triage import get_verdict_alert_type, get_verdict_emoji
 
-          $verdict = $env:VERDICT
-          $agent = $env:AGENT
-          $emoji = $env:EMOJI
-          $findings = $env:FINDINGS
-          $prNumber = $env:PR_NUMBER
+        try:
+            verdict = os.environ.get('VERDICT', '').strip()
+            if not verdict:
+                print("::error::VERDICT environment variable is missing or empty")
+                sys.exit(1)
 
-          $alertType = Get-VerdictAlertType -Verdict $verdict
-          $verdictEmoji = Get-VerdictEmoji -Verdict $verdict
-          $agentDisplay = if ($agent) { (Get-Culture).TextInfo.ToTitleCase($agent.ToLower()) } else { "Unknown" }
+            agent = os.environ.get('AGENT', '')
+            emoji = os.environ.get('EMOJI', '')
+            findings = os.environ.get('FINDINGS', '')
+            run_id = os.environ.get('RUN_ID', '')
+            server_url = os.environ.get('SERVER_URL', '')
+            repository = os.environ.get('REPOSITORY', '')
+            pr_number = os.environ.get('PR_NUMBER', '')
 
-          $summary = @"
-          ## $emoji $agentDisplay Review
+            alert_type = get_verdict_alert_type(verdict)
+            verdict_emoji = get_verdict_emoji(verdict)
+            agent_display = agent.title() if agent else "Unknown"
 
-          > [!$alertType]
-          > $verdictEmoji **Verdict: $verdict**
+            lines = [
+                f"## {emoji} {agent_display} Review",
+                "",
+                f"> [!{alert_type}]",
+                f"> {verdict_emoji} **Verdict: {verdict}**",
+                "",
+                "<details>",
+                "<summary>Review Findings</summary>",
+                "",
+                findings,
+                "",
+                "</details>",
+                "",
+                "---",
+                "",
+                f"<sub>💡 See the [workflow run]({server_url}/{repository}/actions/runs/{run_id})"
+                " for full context across all agents, or check the PR for the"
+                " consolidated quality gate comment.</sub>",
+            ]
+            summary = "\n".join(lines) + "\n"
 
-          <details>
-          <summary>Review Findings</summary>
+            with open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as f:
+                f.write(summary)
 
-          $findings
-
-          </details>
-
-          ---
-
-          <sub>💡 See the [workflow run]($env:SERVER_URL/$env:REPOSITORY/actions/runs/$env:RUN_ID) for full context across all agents, or check the PR for the consolidated quality gate comment.</sub>
-        "@
-
-          $summary | Add-Content $env:GITHUB_STEP_SUMMARY -Encoding UTF8
-        }
-        catch {
-          Write-Output "::error::Failed to generate step summary: $_"
-          Write-Output "::error::Verdict: $env:VERDICT"
-          Write-Output "::error::Agent: $env:AGENT"
-          exit 1
-        }
+        except Exception as e:
+            print(f"::error::Failed to generate step summary: {e}")
+            print(f"::error::Verdict: {os.environ.get('VERDICT', 'N/A')}")
+            print(f"::error::Agent: {os.environ.get('AGENT', 'N/A')}")
+            sys.exit(1)
 
     - name: Check verdict and fail if needed
       if: always() && inputs.should-run == 'true'

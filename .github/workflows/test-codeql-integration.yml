@@ -80,7 +80,6 @@ jobs:
       fail-fast: false
       matrix:
         # Note: PowerShell is not a supported CodeQL language
-        # PowerShell scripts are analyzed via PSScriptAnalyzer instead
         language: [actions, python]
 
     steps:

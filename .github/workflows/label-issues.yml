@@ -90,7 +90,7 @@ jobs:
             if (/\bdoc(s|umentation)?\b|\breadme\b/.test(content)) {
               labelsToAdd.push('documentation');
             }
-            if (/\btest(s|ing)?\b|\bcoverage\b|\bpester\b/.test(content)) {
+            if (/\btest(s|ing)?\b|\bcoverage\b/.test(content)) {
               labelsToAdd.push('agent-qa');
             }
 

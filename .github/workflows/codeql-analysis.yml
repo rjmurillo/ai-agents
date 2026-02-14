@@ -110,7 +110,6 @@ jobs:
       matrix:
         include:
           # Note: PowerShell is not a supported CodeQL language
-          # PowerShell scripts are analyzed via PSScriptAnalyzer instead
           - language: actions
             build-mode: none
           - language: python
@@ -173,13 +172,18 @@ jobs:
           echo "Reference: .github/workflows/codeql-analysis.yml"
 
       - name: Create empty analysis result for required check
-        shell: pwsh
+        shell: python3 {0}
         run: |
-          Import-Module ./.github/scripts/TestResultHelpers.psm1
-          New-SkippedTestResult `
-            -OutputPath "./artifacts/codeql-results.xml" `
-            -TestSuiteName "CodeQL Analysis (Skipped)" `
-            -SkipReason "No scannable files changed - analysis skipped"
+          import sys
+          import os
+          sys.path.insert(0, os.path.join(os.getcwd(), 'scripts'))
+          from test_result_helpers.helpers import create_skipped_test_result
+
+          create_skipped_test_result(
+              output_path="./artifacts/codeql-results.xml",
+              test_suite_name="CodeQL Analysis (Skipped)",
+              skip_reason="No scannable files changed - analysis skipped"
+          )
 
       - name: Publish Analysis Report (skipped)
         uses: dorny/test-reporter@31a54ee7ebcacc03a09ea97a7e5465a47b84aea5 # v1
