@@ -20,13 +20,13 @@ Index of atomic skill-creator patterns derived from PR #255 (2025-12-22). Use wh
 
 Read individual skills:
 
-- [creator-001-frontmatter-trigger-specification](creator-001-frontmatter-trigger-specification.md)
-- [creator-002-token-efficiency-comment-stripping](creator-002-token-efficiency-comment-stripping.md)
-- [creator-003-test-separation-skill-directory](creator-003-test-separation-skill-directory.md)
-- [creator-004-reference-material-extraction](creator-004-reference-material-extraction.md)
-- [creator-005-schema-redundancy-elimination](creator-005-schema-redundancy-elimination.md)
-- [creator-006-toc-requirement-long-files](creator-006-toc-requirement-long-files.md)
-- [validation-007-frontmatter-validation-compliance](validation-007-frontmatter-validation-compliance.md)
+- [creator/creator-001-frontmatter-trigger-specification](creator/creator-001-frontmatter-trigger-specification.md)
+- [creator/creator-002-token-efficiency-comment-stripping](creator/creator-002-token-efficiency-comment-stripping.md)
+- [creator/creator-003-test-separation-skill-directory](creator/creator-003-test-separation-skill-directory.md)
+- [creator/creator-004-reference-material-extraction](creator/creator-004-reference-material-extraction.md)
+- [creator/creator-005-schema-redundancy-elimination](creator/creator-005-schema-redundancy-elimination.md)
+- [creator/creator-006-toc-requirement-long-files](creator/creator-006-toc-requirement-long-files.md)
+- [validation/validation-007-frontmatter-validation-compliance](validation/validation-007-frontmatter-validation-compliance.md)
 
 ## When to Use This Index
 
@@ -61,8 +61,8 @@ skill-creator, index
 
 ## Related
 
-- [creator-001-frontmatter-trigger-specification](creator-001-frontmatter-trigger-specification.md)
-- [creator-002-token-efficiency-comment-stripping](creator-002-token-efficiency-comment-stripping.md)
-- [creator-003-test-separation-skill-directory](creator-003-test-separation-skill-directory.md)
-- [creator-004-reference-material-extraction](creator-004-reference-material-extraction.md)
-- [creator-005-schema-redundancy-elimination](creator-005-schema-redundancy-elimination.md)
+- [creator/creator-001-frontmatter-trigger-specification](creator/creator-001-frontmatter-trigger-specification.md)
+- [creator/creator-002-token-efficiency-comment-stripping](creator/creator-002-token-efficiency-comment-stripping.md)
+- [creator/creator-003-test-separation-skill-directory](creator/creator-003-test-separation-skill-directory.md)
+- [creator/creator-004-reference-material-extraction](creator/creator-004-reference-material-extraction.md)
+- [creator/creator-005-schema-redundancy-elimination](creator/creator-005-schema-redundancy-elimination.md)

@@ -1,5 +1,51 @@
 # Memory System Guidelines
 
+## Directory Structure
+
+Memories are organized into topic subdirectories to reduce `list_memories` token overhead.
+
+**Top-level** (visible in `list_memories`): Index files and special files only.
+
+**Subdirectories** (hidden from `list_memories`, readable via path): All atomic memories.
+
+### Reading Memories
+
+```python
+# Step 1: list_memories shows only indexes
+# Step 2: read_memory("skills-pr-review-index") to find the right memory
+# Step 3: read_memory("pr-review/pr-review-001-reviewer-enumeration") to read it
+```
+
+### Writing New Memories
+
+1. Determine the topic subdirectory (use existing ones when possible)
+2. Write to `{subdirectory}/{memory-name}.md`
+3. Update the relevant `*-index.md` with the path-prefixed reference
+
+| Subdirectory | Domain |
+|--------------|--------|
+| `pr-review/` | PR review patterns, anti-patterns, workflows |
+| `ci/` | CI/CD, infrastructure, DevOps |
+| `git/` | Git operations, hooks, merge |
+| `security/` | Security patterns, OWASP, CWE |
+| `skills/` | Skill observations, patterns |
+| `knowledge/` | Engineering concepts, laws, frameworks |
+| `architecture/` | Architecture decisions, patterns |
+| `workflow/` | GitHub Actions, workflow patterns |
+| `session/` | Session protocol, init, logging |
+| `quality/` | Code quality, testing, DoD |
+| See subdirectories for full list | `ls .serena/memories/` |
+
+### Index File Format
+
+Index files at top level use path-prefixed references:
+
+```markdown
+| Keywords | File |
+|----------|------|
+| keyword1 keyword2 | [subdir/memory-name](subdir/memory-name.md) |
+```
+
 ## Size Constraints
 
 Memory files must stay within atomicity thresholds to support progressive disclosure and minimize token waste.
@@ -88,6 +134,6 @@ Create a retrospective memory documenting changes made, files archived, and metr
 
 ## Related
 
-- `memory-size-001-decomposition-thresholds.md` - Threshold rationale and history
-- `memory-token-efficiency.md` - Token cost analysis patterns
-- `context-engineering-principles.md` - Progressive disclosure architecture
+- `memory/memory-size-001-decomposition-thresholds.md` - Threshold rationale and history
+- `memory/memory-token-efficiency.md` - Token cost analysis patterns
+- `memory/context-engineering-principles.md` - Progressive disclosure architecture

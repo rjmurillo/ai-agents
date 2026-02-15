@@ -1454,10 +1454,11 @@ if [ -n "$STAGED_MEMORY_FILES" ]; then
             if [ -n "$NEW_MEMORY_FILES" ]; then
                 size_fail=0
                 while IFS= read -r mem_file; do
+                    [ -z "$mem_file" ] && continue
                     full_path="$REPO_ROOT/$mem_file"
                     if [ -f "$full_path" ] && [ ! -L "$full_path" ]; then
-                        size_output=$("${PYTHON_CMD[@]}" "$MEMORY_SIZE_VALIDATOR" "$full_path" 2>&1)
-                        size_exit=$?
+                        size_exit=0
+                        size_output=$("${PYTHON_CMD[@]}" "$MEMORY_SIZE_VALIDATOR" "$full_path" 2>&1) || size_exit=$?
                         if [ $size_exit -ne 0 ]; then
                             echo_error "New memory file exceeds size thresholds: $mem_file"
                             echo "$size_output" | while IFS= read -r line; do
@@ -1483,10 +1484,11 @@ if [ -n "$STAGED_MEMORY_FILES" ]; then
             if [ -n "$MOD_MEMORY_FILES" ]; then
                 mod_warn=0
                 while IFS= read -r mem_file; do
+                    [ -z "$mem_file" ] && continue
                     full_path="$REPO_ROOT/$mem_file"
                     if [ -f "$full_path" ] && [ ! -L "$full_path" ]; then
-                        size_output=$("${PYTHON_CMD[@]}" "$MEMORY_SIZE_VALIDATOR" "$full_path" 2>&1)
-                        size_exit=$?
+                        size_exit=0
+                        size_output=$("${PYTHON_CMD[@]}" "$MEMORY_SIZE_VALIDATOR" "$full_path" 2>&1) || size_exit=$?
                         if [ $size_exit -ne 0 ]; then
                             echo_warning "Modified memory exceeds size thresholds: $mem_file"
                             mod_warn=1

@@ -13,15 +13,15 @@ Comprehensive index of engineering knowledge across 5 experience tiers.
 ### Tier 1: Foundational (<5 Years)
 
 **Mental Models**:
-- [chestertons-fence](chestertons-fence.md): Understand before removing
-- [conways-law](conways-law.md): Org structure mirrors architecture
-- [hyrums-law](hyrums-law.md): Observable behaviors become dependencies
-- [second-order-thinking](second-order-thinking.md): Ask "And then what?"
-- [law-of-demeter](law-of-demeter.md): Only talk to immediate friends
-- [galls-law](galls-law.md): Complex systems evolve from simple ones
+- [knowledge/chestertons-fence](knowledge/chestertons-fence.md): Understand before removing
+- [knowledge/conways-law](knowledge/conways-law.md): Org structure mirrors architecture
+- [knowledge/hyrums-law](knowledge/hyrums-law.md): Observable behaviors become dependencies
+- [knowledge/second-order-thinking](knowledge/second-order-thinking.md): Ask "And then what?"
+- [knowledge/law-of-demeter](knowledge/law-of-demeter.md): Only talk to immediate friends
+- [knowledge/galls-law](knowledge/galls-law.md): Complex systems evolve from simple ones
 - `yagni`: You aren't gonna need it
-- [technical-debt-quadrant](technical-debt-quadrant.md): Deliberate vs inadvertent, prudent vs reckless
-- [boy-scout-rule](boy-scout-rule.md): Leave code better than you found it
+- [knowledge/technical-debt-quadrant](knowledge/technical-debt-quadrant.md): Deliberate vs inadvertent, prudent vs reckless
+- [knowledge/boy-scout-rule](knowledge/boy-scout-rule.md): Leave code better than you found it
 
 **Principles**:
 - `code-qualities`: Cohesion, coupling, encapsulation, testability, non-redundancy
@@ -44,11 +44,11 @@ Comprehensive index of engineering knowledge across 5 experience tiers.
 ### Tier 2: Advanced (5-10 Years)
 
 **Architectural Models**:
-- [c4-model](c4-model.md): Context, container, component, code
-- [cap-theorem](cap-theorem.md): Consistency, availability, partition tolerance
-- [resilience-patterns](resilience-patterns.md): Circuit breaker, bulkheads, retries, timeouts
+- [architecture/c4-model](architecture/c4-model.md): Context, container, component, code
+- [knowledge/cap-theorem](knowledge/cap-theorem.md): Consistency, availability, partition tolerance
+- [knowledge/resilience-patterns](knowledge/resilience-patterns.md): Circuit breaker, bulkheads, retries, timeouts
 - `idempotency`: Operations safe to retry
-- [poka-yoke](poka-yoke.md): Design to prevent errors
+- [knowledge/poka-yoke](knowledge/poka-yoke.md): Design to prevent errors
 
 **Patterns**:
 - `common-design-patterns`: Strategy, Factory, Bridge, Facade, Adapter
@@ -71,25 +71,25 @@ Comprehensive index of engineering knowledge across 5 experience tiers.
 **Design Practices**:
 - `cva-commonality-variability-analysis`: Discover natural abstractions by finding commonalities first
 - `design-for-replaceability`: Favor replaceability over reuse
-- [design-by-contract](design-by-contract.md): Preconditions, postconditions, invariants
+- [design/design-by-contract](design/design-by-contract.md): Preconditions, postconditions, invariants
 - `policy-vs-mechanism`: Separate rules from execution
 - `fallacies-of-distributed-computing`: Network assumptions that fail
 - `wisdom-from-gof`: Design to interfaces, favor composition over inheritance, encapsulate what varies
 
 **Evolution Patterns**:
-- [feature-toggles](feature-toggles.md): Decouple deployment from release
+- [knowledge/feature-toggles](knowledge/feature-toggles.md): Decouple deployment from release
 - `branch-by-abstraction`: Large refactorings safely
-- [strangler-fig-pattern](strangler-fig-pattern.md): Incremental legacy migration
+- [knowledge/strangler-fig-pattern](knowledge/strangler-fig-pattern.md): Incremental legacy migration
 - `expand-contract-migration`: Schema changes without downtime (expand functionality, run both, contract old)
 
 **Thinking Models**:
-- [wardley-mapping](wardley-mapping.md): Capability evolution and strategy
-- [cynefin-framework](cynefin-framework.md): Problem classification (clear, complicated, complex, chaotic)
-- [antifragility](antifragility.md): Systems that improve from stress
-- [rumsfeld-matrix](rumsfeld-matrix.md): Known/unknown knowns/unknowns
+- [knowledge/wardley-mapping](knowledge/wardley-mapping.md): Capability evolution and strategy
+- [knowledge/cynefin-framework](knowledge/cynefin-framework.md): Problem classification (clear, complicated, complex, chaotic)
+- [knowledge/antifragility](knowledge/antifragility.md): Systems that improve from stress
+- [knowledge/rumsfeld-matrix](knowledge/rumsfeld-matrix.md): Known/unknown knowns/unknowns
 
 **Operability**:
-- [slo-sli-sla](slo-sli-sla.md): Service level objectives, indicators, agreements
+- [knowledge/slo-sli-sla](knowledge/slo-sli-sla.md): Service level objectives, indicators, agreements
 - `error-budgets`: Acceptable unreliability enabling innovation
 - `mttr-optimization`: Mean time to recovery
 - `blameless-postmortems`: Learning from failures
@@ -97,43 +97,43 @@ Comprehensive index of engineering knowledge across 5 experience tiers.
 ### Tier 4: Principal (15-25 Years)
 
 **Wisdom**:
-- [chestertons-fence](chestertons-fence.md): [Advanced application]
-- [conways-law](conways-law.md): [Strategic application with inverse Conway maneuver]
+- [knowledge/chestertons-fence](knowledge/chestertons-fence.md): [Advanced application]
+- [knowledge/conways-law](knowledge/conways-law.md): [Strategic application with inverse Conway maneuver]
 - `paved-roads-guardrails`: Defaults without constraints
 
 **Strategic Models**:
-- [wardley-mapping](wardley-mapping.md): [Strategic positioning]
-- [cynefin-framework](cynefin-framework.md): [Response strategy selection]
-- [ooda-loop](ooda-loop.md): Observe, orient, decide, act
-- [inversion-thinking](inversion-thinking.md): How would this fail?
-- [critical-path-method](critical-path-method.md): Focus on longest dependency chain
-- [systems-archetypes](systems-archetypes.md): Fixes that fail, shifting burden, limits to growth
+- [knowledge/wardley-mapping](knowledge/wardley-mapping.md): [Strategic positioning]
+- [knowledge/cynefin-framework](knowledge/cynefin-framework.md): [Response strategy selection]
+- [knowledge/ooda-loop](knowledge/ooda-loop.md): Observe, orient, decide, act
+- [knowledge/inversion-thinking](knowledge/inversion-thinking.md): How would this fail?
+- [knowledge/critical-path-method](knowledge/critical-path-method.md): Focus on longest dependency chain
+- [knowledge/systems-archetypes](knowledge/systems-archetypes.md): Fixes that fail, shifting burden, limits to growth
 
 **Architecture**:
-- [adrs-architecture-decision-records](adrs-architecture-decision-records.md): Capture decisions with context
+- [adr/adrs-architecture-decision-records](adr/adrs-architecture-decision-records.md): Capture decisions with context
 - `sociotechnical-design`: Align org and architecture (Team Topologies)
 - `fitness-functions`: Automated architectural intent verification
-- [products-over-projects](products-over-projects.md): Durable teams over temporary funding
+- [knowledge/products-over-projects](knowledge/products-over-projects.md): Durable teams over temporary funding
 - `design-principles-overview`: Philosophy of accommodating change
 - `services-capabilities`: Operational maturity model
 
 **Risk & Resilience**:
 - `slos-error-budgets`: Balance reliability and velocity
-- [chaos-engineering](chaos-engineering.md): Confidence through controlled failure
-- [threat-modeling](threat-modeling.md): Structured security risk identification
-- [pre-mortems](pre-mortems.md): Identify failure modes before starting
+- [knowledge/chaos-engineering](knowledge/chaos-engineering.md): Confidence through controlled failure
+- [security/threat-modeling](security/threat-modeling.md): Structured security risk identification
+- [knowledge/pre-mortems](knowledge/pre-mortems.md): Identify failure modes before starting
 
 **Organizational Leadership**:
-- [engineering-strategy](engineering-strategy.md): Vision, strategy, specifications
-- [platform-engineering](platform-engineering.md): Self-service developer capabilities
-- `buy-vs-build-framework`: Core vs context evaluation
-- [migrations-at-scale](migrations-at-scale.md): Incremental transformation
+- [engineering/engineering-strategy](engineering/engineering-strategy.md): Vision, strategy, specifications
+- [knowledge/platform-engineering](knowledge/platform-engineering.md): Self-service developer capabilities
+- `knowledge/buy-vs-build-framework`: Core vs context evaluation
+- [knowledge/migrations-at-scale](knowledge/migrations-at-scale.md): Incremental transformation
 
 ### Tier 5: Distinguished (25+ Years)
 
 **Legacy Thinking**:
-- [lindy-effect](lindy-effect.md): Older technology has longer expected life
-- [second-system-effect](second-system-effect.md): Resist over-engineering replacements
+- [knowledge/lindy-effect](knowledge/lindy-effect.md): Older technology has longer expected life
+- [knowledge/second-system-effect](knowledge/second-system-effect.md): Resist over-engineering replacements
 - `path-dependence`: Historical constraints on current choices
 - `architectural-paleontology`: Understanding design layers
 - `golden-path-vs-golden-cage`: Enable without constraining
@@ -147,14 +147,14 @@ Comprehensive index of engineering knowledge across 5 experience tiers.
 - `principle-based-governance`: Guide via values, not rules
 
 **Migration**:
-- [strangler-fig-pattern](strangler-fig-pattern.md): [Strategic application]
+- [knowledge/strangler-fig-pattern](knowledge/strangler-fig-pattern.md): [Strategic application]
 - `expand-contract`: [Schema evolution]
 - `capability-based-migration`: User-facing capabilities over technical components
 - `sacrificial-architecture`: Plan for replacement
 - `core-context-mapping`: Invest in differentiation, buy commodities
 
 **Time Horizons**:
-- [three-horizons-framework](three-horizons-framework.md): Balance current (H1), emerging (H2), future (H3)
+- [knowledge/three-horizons-framework](knowledge/three-horizons-framework.md): Balance current (H1), emerging (H2), future (H3)
 - `long-term-constraint-thinking`: What will successors wish we documented?
 
 **Leadership**:
@@ -169,53 +169,53 @@ Comprehensive index of engineering knowledge across 5 experience tiers.
 - `thinking-in-systems`: Stocks, flows, feedback loops, leverage points
 - `fifth-discipline`: Learning organization disciplines
 - `how-buildings-learn`: Pace layers, shearing layers
-- [wardley-mapping](wardley-mapping.md): [Strategic application]
+- [knowledge/wardley-mapping](knowledge/wardley-mapping.md): [Strategic application]
 
 ## Knowledge by Problem Domain
 
 ### Decision-Making
-- Tier 1: [second-order-thinking](second-order-thinking.md), [technical-debt-quadrant](technical-debt-quadrant.md)
-- Tier 3: [cynefin-framework](cynefin-framework.md), [rumsfeld-matrix](rumsfeld-matrix.md)
-- Tier 4: [ooda-loop](ooda-loop.md), [inversion-thinking](inversion-thinking.md), [pre-mortems](pre-mortems.md)
+- Tier 1: [knowledge/second-order-thinking](knowledge/second-order-thinking.md), [knowledge/technical-debt-quadrant](knowledge/technical-debt-quadrant.md)
+- Tier 3: [knowledge/cynefin-framework](knowledge/cynefin-framework.md), [knowledge/rumsfeld-matrix](knowledge/rumsfeld-matrix.md)
+- Tier 4: [knowledge/ooda-loop](knowledge/ooda-loop.md), [knowledge/inversion-thinking](knowledge/inversion-thinking.md), [knowledge/pre-mortems](knowledge/pre-mortems.md)
 
 ### Architecture
 - Tier 1: `clean-architecture`, `separation-of-concerns`
-- Tier 2: [c4-model](c4-model.md), [cap-theorem](cap-theorem.md), [poka-yoke](poka-yoke.md)
-- Tier 3: [wardley-mapping](wardley-mapping.md), [strangler-fig-pattern](strangler-fig-pattern.md)
-- Tier 4: [adrs-architecture-decision-records](adrs-architecture-decision-records.md), `sociotechnical-design`, `fitness-functions`
-- Tier 5: [second-system-effect](second-system-effect.md), `architectural-paleontology`, `sacrificial-architecture`
+- Tier 2: [architecture/c4-model](architecture/c4-model.md), [knowledge/cap-theorem](knowledge/cap-theorem.md), [knowledge/poka-yoke](knowledge/poka-yoke.md)
+- Tier 3: [knowledge/wardley-mapping](knowledge/wardley-mapping.md), [knowledge/strangler-fig-pattern](knowledge/strangler-fig-pattern.md)
+- Tier 4: [adr/adrs-architecture-decision-records](adr/adrs-architecture-decision-records.md), `sociotechnical-design`, `fitness-functions`
+- Tier 5: [knowledge/second-system-effect](knowledge/second-system-effect.md), `architectural-paleontology`, `sacrificial-architecture`
 
 ### Change Management
-- Tier 1: [chestertons-fence](chestertons-fence.md), [boy-scout-rule](boy-scout-rule.md)
-- Tier 3: [feature-toggles](feature-toggles.md), `branch-by-abstraction`, `expand-contract-migration`
-- Tier 4: [migrations-at-scale](migrations-at-scale.md)
-- Tier 5: [strangler-fig-pattern](strangler-fig-pattern.md), `capability-based-migration`
+- Tier 1: [knowledge/chestertons-fence](knowledge/chestertons-fence.md), [knowledge/boy-scout-rule](knowledge/boy-scout-rule.md)
+- Tier 3: [knowledge/feature-toggles](knowledge/feature-toggles.md), `branch-by-abstraction`, `expand-contract-migration`
+- Tier 4: [knowledge/migrations-at-scale](knowledge/migrations-at-scale.md)
+- Tier 5: [knowledge/strangler-fig-pattern](knowledge/strangler-fig-pattern.md), `capability-based-migration`
 
 ### Legacy Systems
-- Tier 1: [chestertons-fence](chestertons-fence.md), [galls-law](galls-law.md)
-- Tier 3: [strangler-fig-pattern](strangler-fig-pattern.md), `expand-contract-migration`
-- Tier 5: [lindy-effect](lindy-effect.md), [second-system-effect](second-system-effect.md), `path-dependence`, `architectural-paleontology`
+- Tier 1: [knowledge/chestertons-fence](knowledge/chestertons-fence.md), [knowledge/galls-law](knowledge/galls-law.md)
+- Tier 3: [knowledge/strangler-fig-pattern](knowledge/strangler-fig-pattern.md), `expand-contract-migration`
+- Tier 5: [knowledge/lindy-effect](knowledge/lindy-effect.md), [knowledge/second-system-effect](knowledge/second-system-effect.md), `path-dependence`, `architectural-paleontology`
 
 ### Strategic Planning
-- Tier 3: [wardley-mapping](wardley-mapping.md), [cynefin-framework](cynefin-framework.md), [antifragility](antifragility.md)
-- Tier 4: [ooda-loop](ooda-loop.md), [critical-path-method](critical-path-method.md), [products-over-projects](products-over-projects.md)
-- Tier 5: [three-horizons-framework](three-horizons-framework.md), `core-context-mapping`
+- Tier 3: [knowledge/wardley-mapping](knowledge/wardley-mapping.md), [knowledge/cynefin-framework](knowledge/cynefin-framework.md), [knowledge/antifragility](knowledge/antifragility.md)
+- Tier 4: [knowledge/ooda-loop](knowledge/ooda-loop.md), [knowledge/critical-path-method](knowledge/critical-path-method.md), [knowledge/products-over-projects](knowledge/products-over-projects.md)
+- Tier 5: [knowledge/three-horizons-framework](knowledge/three-horizons-framework.md), `core-context-mapping`
 
 ### Operability & Reliability
 - Tier 1: `observability-three-pillars`
-- Tier 2: [resilience-patterns](resilience-patterns.md), `idempotency`
-- Tier 3: [slo-sli-sla](slo-sli-sla.md), `error-budgets`, `mttr-optimization`, `blameless-postmortems`
-- Tier 4: [chaos-engineering](chaos-engineering.md), [threat-modeling](threat-modeling.md)
+- Tier 2: [knowledge/resilience-patterns](knowledge/resilience-patterns.md), `idempotency`
+- Tier 3: [knowledge/slo-sli-sla](knowledge/slo-sli-sla.md), `error-budgets`, `mttr-optimization`, `blameless-postmortems`
+- Tier 4: [knowledge/chaos-engineering](knowledge/chaos-engineering.md), [security/threat-modeling](security/threat-modeling.md)
 
 ### Organization Design
-- Tier 1: [conways-law](conways-law.md)
-- Tier 4: `sociotechnical-design`, [platform-engineering](platform-engineering.md)
+- Tier 1: [knowledge/conways-law](knowledge/conways-law.md)
+- Tier 4: `sociotechnical-design`, [knowledge/platform-engineering](knowledge/platform-engineering.md)
 - Tier 5: `sociotechnical-coherence`, `run-vs-change-business`, `knowledge-continuity`
 
 ### Design Principles & Patterns
 - Tier 1: `code-qualities`, `solid-principles`, `dry-principle`, `kiss-principle`, `programming-by-intention`, `tell-dont-ask`
 - Tier 2: `common-design-patterns`, `pattern-oriented-design`, `specification-pattern`
-- Tier 3: `cva-commonality-variability-analysis`, `wisdom-from-gof`, [design-by-contract](design-by-contract.md)
+- Tier 3: `cva-commonality-variability-analysis`, `wisdom-from-gof`, [design/design-by-contract](design/design-by-contract.md)
 - Tier 4: `design-principles-overview`, `services-capabilities`, `fitness-functions`
 
 ### Modernization & .NET
@@ -260,7 +260,7 @@ Modernize → Silicon Agnostic → ARM Deploy → COGS Savings
 
 **By Memory Name**:
 ```python
-mcp__serena__read_memory(memory_file_name="cynefin-framework")
+mcp__serena__read_memory(memory_file_name="knowledge/cynefin-framework")
 ```
 
 **By Experience Tier**:
@@ -273,8 +273,8 @@ mcp__serena__list_memories()
 **By Problem Domain**:
 ```python
 # Search for decision-making frameworks
-mcp__serena__read_memory(memory_file_name="ooda-loop")
-mcp__serena__read_memory(memory_file_name="inversion-thinking")
+mcp__serena__read_memory(memory_file_name="knowledge/ooda-loop")
+mcp__serena__read_memory(memory_file_name="knowledge/inversion-thinking")
 ```
 
 ## Integration with Agents
