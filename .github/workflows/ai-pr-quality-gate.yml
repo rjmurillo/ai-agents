@@ -154,53 +154,8 @@ jobs:
         uses: ./.github/actions/setup-code-env
         with:
           gh-token: ${{ github.token }}
-          enable-pester: 'true'
           enable-python: 'true'
           enable-git-hooks: 'false'
-
-      - name: Run Pester tests
-        id: pester
-        shell: pwsh -NoProfile -Command "& '{0}'"
-        continue-on-error: true
-        run: |
-          $ErrorActionPreference = 'Continue'
-
-          try {
-            # Pester is installed by setup-code-env action
-            $config = [PesterConfiguration]::Default
-            $config.Run.Path = './tests'
-            $config.Run.Exit = $false
-            $config.Output.Verbosity = 'Normal'
-            $config.Run.PassThru = $true
-
-            $result = Invoke-Pester -Configuration $config
-
-            "pester_total=$($result.TotalCount)" >> $env:GITHUB_OUTPUT
-            "pester_passed=$($result.PassedCount)" >> $env:GITHUB_OUTPUT
-            "pester_failed=$($result.FailedCount)" >> $env:GITHUB_OUTPUT
-            "pester_skipped=$($result.SkippedCount)" >> $env:GITHUB_OUTPUT
-            "pester_duration=$([math]::Round($result.Duration.TotalSeconds, 1))" >> $env:GITHUB_OUTPUT
-
-            if ($result.FailedCount -gt 0) {
-              "pester_status=FAIL" >> $env:GITHUB_OUTPUT
-              $failedNames = ($result.Failed | ForEach-Object { "  - $($_.ExpandedName)" }) -join "`n"
-              # Limit output size to stay within GitHub Actions output constraints
-              $maxFailureLength = 2000
-              if ($failedNames.Length -gt $maxFailureLength) {
-                $failedNames = $failedNames.Substring(0, $maxFailureLength) + "`n  ... (truncated)"
-              }
-              $delimiter = "EOF_PESTER_$(Get-Random)"
-              "pester_failures<<$delimiter" >> $env:GITHUB_OUTPUT
-              $failedNames >> $env:GITHUB_OUTPUT
-              "$delimiter" >> $env:GITHUB_OUTPUT
-            } else {
-              "pester_status=PASS" >> $env:GITHUB_OUTPUT
-            }
-          }
-          catch {
-            "pester_status=ERROR" >> $env:GITHUB_OUTPUT
-            "pester_error=$($_.Exception.Message -replace "`n",' ')" >> $env:GITHUB_OUTPUT
-          }
 
       - name: Run pytest
         id: pytest
@@ -249,46 +204,31 @@ jobs:
 
       - name: Generate test summary
         id: summary
-        shell: pwsh -NoProfile -Command "& '{0}'"
+        shell: python3 {0}
         env:
-          PESTER_STATUS: ${{ steps.pester.outputs.pester_status || 'SKIPPED' }}
-          PESTER_TOTAL: ${{ steps.pester.outputs.pester_total || '0' }}
-          PESTER_PASSED: ${{ steps.pester.outputs.pester_passed || '0' }}
-          PESTER_FAILED: ${{ steps.pester.outputs.pester_failed || '0' }}
-          PESTER_SKIPPED: ${{ steps.pester.outputs.pester_skipped || '0' }}
-          PESTER_DURATION: ${{ steps.pester.outputs.pester_duration || '0' }}
-          PESTER_FAILURES: ${{ steps.pester.outputs.pester_failures || '' }}
-          PESTER_ERROR: ${{ steps.pester.outputs.pester_error || '' }}
           PYTEST_STATUS: ${{ steps.pytest.outputs.pytest_status || 'SKIPPED' }}
           PYTEST_SUMMARY: ${{ steps.pytest.outputs.pytest_summary || 'Not executed' }}
         run: |
-          $summary = "## Pre-executed Test Results`n`n"
-          $summary += "### Pester Tests (PowerShell)`n"
-          $summary += "- **Status**: $env:PESTER_STATUS`n"
+          import os
+          import random
 
-          if ($env:PESTER_STATUS -notin @('SKIPPED', 'ERROR')) {
-            $summary += "- **Total**: $env:PESTER_TOTAL | **Passed**: $env:PESTER_PASSED | **Failed**: $env:PESTER_FAILED | **Skipped**: $env:PESTER_SKIPPED`n"
-            $summary += "- **Duration**: $($env:PESTER_DURATION)s`n"
-          }
+          pytest_status = os.environ.get('PYTEST_STATUS', 'SKIPPED')
+          pytest_summary = os.environ.get('PYTEST_SUMMARY', 'Not executed')
 
-          if ($env:PESTER_STATUS -eq 'FAIL' -and $env:PESTER_FAILURES) {
-            $summary += "`n**Failed Tests**:`n$env:PESTER_FAILURES`n"
-          }
-          elseif ($env:PESTER_STATUS -eq 'ERROR' -and $env:PESTER_ERROR) {
-            $summary += "- **Error**: $env:PESTER_ERROR`n"
-          }
+          summary = "## Pre-executed Test Results\n\n"
+          summary += "### pytest (Python)\n"
+          summary += f"- **Status**: {pytest_status}\n"
+          summary += f"- **Summary**: {pytest_summary}\n"
 
-          $summary += "`n### pytest (Python)`n"
-          $summary += "- **Status**: $env:PYTEST_STATUS`n"
-          $summary += "- **Summary**: $env:PYTEST_SUMMARY`n"
+          # Write to GITHUB_OUTPUT using heredoc delimiter
+          delimiter = f"EOF_SUMMARY_{random.randint(1000, 9999)}"
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+              f.write(f"test_summary<<{delimiter}\n")
+              f.write(summary)
+              f.write(f"{delimiter}\n")
 
-          $delimiter = "EOF_SUMMARY_$(Get-Random)"
-          "test_summary<<$delimiter" >> $env:GITHUB_OUTPUT
-          $summary >> $env:GITHUB_OUTPUT
-          "$delimiter" >> $env:GITHUB_OUTPUT
-
-          Write-Output "Generated test summary:"
-          Write-Output $summary
+          print("Generated test summary:")
+          print(summary)
 
 # ==============================================================================
 # Agent Review Jobs (6 Static Jobs)

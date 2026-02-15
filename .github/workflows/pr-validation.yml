@@ -6,7 +6,6 @@ name: PR Validation
 # Related Required Checks (configured in branch protection):
 #   - PR Validation (this workflow)
 #   - Session Protocol Validation (ai-session-protocol.yml)
-#   - Pester Tests (pester-tests.yml)
 #   - AI Quality Gate (ai-pr-quality-gate.yml)
 #   - CodeQL Analysis (codeql-analysis.yml) - Security scanning
 

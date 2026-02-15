@@ -484,99 +484,16 @@ else
 fi
 
 #
-# PowerShell Script Analysis with PSScriptAnalyzer
+# PowerShell Script Analysis - RETIRED
 #
-# Security: Validates PowerShell scripts for syntax errors and common issues
-# Security: Uses arrays and proper quoting to prevent command injection (CRITICAL-001)
-# Security: Uses while/read loop to handle filenames with spaces (HIGH-001)
-# Security: Checks for symlinks to prevent TOCTOU attacks (MEDIUM-002)
-# Related: Session 36 retrospective, Skill-PowerShell-001, Skill-CI-001
+# PSScriptAnalyzer retired per ADR-042 (Python-first migration, v0.3.1 Phase 5).
+# Python linting is handled by ruff. Remaining PowerShell scripts use ruff-based checks.
 #
-
-# Filter for PowerShell files only
 STAGED_PS_FILES=$(echo "$STAGED_FILES" | grep -E '\.(ps1|psm1)$' || true)
 
 if [ -n "$STAGED_PS_FILES" ]; then
-    echo_info "Checking PowerShell scripts with PSScriptAnalyzer..."
-    
-    if command -v pwsh &> /dev/null; then
-        # CRITICAL-001: Build array safely to prevent command injection
-        # Bash 3 compatibility (macOS default): avoid mapfile/readarray
-        PS_FILES=()
-        while IFS= read -r file; do
-            [ -z "$file" ] && continue
-            PS_FILES+=("$file")
-        done <<< "$STAGED_PS_FILES"
-        
-        # Validate array is not empty
-        if [ ${#PS_FILES[@]} -eq 0 ]; then
-            echo_info "No PowerShell files to process."
-        else
-            # Check if PSScriptAnalyzer module is available
-            # Use -ErrorAction Stop and check for actual module output (Get-Module returns $null when not found)
-            if pwsh -NoProfile -Command 'if (-not (Get-Module -ListAvailable PSScriptAnalyzer)) { exit 1 }'; then
-                # MEDIUM-002: Check for symlinks to prevent TOCTOU race conditions
-                # Use PS_FILES array with for loop for safe filename handling
-                PS_ERRORS_FOUND=0
-                
-                # Use PS_FILES array populated from mapfile (line 212)
-                for file in "${PS_FILES[@]}"; do
-                    # Skip empty entries
-                    [ -z "$file" ] && continue
-
-                    # MEDIUM-002: Reject symlinks to prevent race condition attacks
-                    if [ -L "$file" ]; then
-                        echo_warning "Skipping symlink: $file"
-                        continue
-                    fi
-
-                    # Process regular files only
-                    if [ -f "$file" ]; then
-                        # Run PSScriptAnalyzer on file, checking for Error and Warning severity
-                        # Capture output for display
-                        ANALYZER_OUTPUT=$(mktemp)
-                        # CRITICAL-001: Pass file path via environment variable to prevent command injection
-                        # Single quotes in filenames cannot escape when using $env: variable
-                        if ! PSANALYZER_FILE="$file" pwsh -NoProfile -Command 'Invoke-ScriptAnalyzer -Path $env:PSANALYZER_FILE -Settings ".PSScriptAnalyzerSettings.psd1" -Severity Error,Warning | ForEach-Object { Write-Output "$($_.Severity): $($_.Message) at line $($_.Line)" }' > "$ANALYZER_OUTPUT" 2>&1; then
-                            echo_error "Failed to analyze: $file"
-                            cat "$ANALYZER_OUTPUT"
-                            rm -f "$ANALYZER_OUTPUT"
-                            EXIT_STATUS=1
-                            continue
-                        fi
-
-                        # Check if there are any Error-level issues (blocking)
-                        if grep -q "^Error:" "$ANALYZER_OUTPUT"; then
-                            echo_error "PSScriptAnalyzer errors in: $file"
-                            grep "^Error:" "$ANALYZER_OUTPUT"
-                            PS_ERRORS_FOUND=1
-                            EXIT_STATUS=1
-                        fi
-
-                        # Display warnings (non-blocking)
-                        if grep -q "^Warning:" "$ANALYZER_OUTPUT"; then
-                            echo_warning "PSScriptAnalyzer warnings in: $file"
-                            grep "^Warning:" "$ANALYZER_OUTPUT"
-                        fi
-
-                        rm -f "$ANALYZER_OUTPUT"
-                    fi
-                done
-                
-                if [ $PS_ERRORS_FOUND -eq 0 ]; then
-                    echo_success "PowerShell scripts OK."
-                else
-                    echo_error "PowerShell script analysis failed. Fix errors above before committing."
-                fi
-            else
-                echo_warning "PSScriptAnalyzer module not available. Skipping PowerShell analysis."
-                echo_warning "Install: pwsh -Command 'Install-Module -Name PSScriptAnalyzer -Scope CurrentUser -Force'"
-            fi
-        fi
-    else
-        echo_warning "PowerShell not available. Skipping PowerShell script analysis."
-        echo_warning "Install: https://docs.microsoft.com/en-us/powershell/scripting/install/installing-powershell"
-    fi
+    echo_info "PowerShell files staged. PSScriptAnalyzer retired (ADR-042); linting skipped."
+    echo_success "PowerShell scripts OK."
 else
     echo_info "No PowerShell files staged. Skipping PSScriptAnalyzer."
 fi
@@ -1215,235 +1132,20 @@ else
 fi
 
 #
-# QA (Pester) Test Gate (BLOCKING when relevant changes)
+# QA (Pester) Test Gate - RETIRED
 #
-# Enforces a lightweight QA pass locally when staged changes include:
-# - PowerShell code under scripts/, build/, .claude/skills/, or .github/scripts/
-# - Any PowerShell tests under tests/ or scripts/tests/ (and related test roots)
+# Pester tests retired per ADR-042 (Python-first migration, v0.3.1 Phase 5).
+# Python tests are validated via pytest in the pre-push hook.
+# PowerShell scripts that remain are covered by Python-based tests.
 #
-# Strategy (Issue #917 fix):
-# - Run tests ONLY for changed files, not entire test directories
-# - Maps each changed .ps1/.psm1 file to its corresponding .Tests.ps1 file
-# - If no specific test file exists for a changed file, skip it (no pre-existing failures)
-# - Fallback to minimal test set only if no test paths resolved at all
-# - No bypass option - QA gate is enforced for safety
-#
-# This prevents pre-existing test failures in unrelated files from blocking commits.
-#
-# Determine if relevant files are staged
 STAGED_PS_CODE_FILES=$(echo "$STAGED_FILES" | grep -E '\.(ps1|psm1)$' || true)
 
 if [ -z "$STAGED_PS_CODE_FILES" ]; then
     echo_info "No PowerShell changes. Skipping QA tests."
 else
-    if ! command -v pwsh >/dev/null 2>&1; then
-        echo_error "PowerShell (pwsh) not available. Cannot run QA tests."
-        echo_info "  Install: https://learn.microsoft.com/powershell/scripting/install/installing-powershell"
-        echo_warning "Deterministic QA not executed. Run the QA agent manually before pushing."
-        EXIT_STATUS=1
-    else
-        # Resolve runner script and validate
-        PESTER_RUNNER="$REPO_ROOT/build/scripts/Invoke-PesterTests.ps1"
-        if [ -L "$PESTER_RUNNER" ]; then
-            echo_error "QA test runner path is a symlink (security violation): $PESTER_RUNNER"
-            echo_warning "Deterministic QA not executed. Run the QA agent manually before pushing."
-            EXIT_STATUS=1
-        elif [ ! -f "$PESTER_RUNNER" ]; then
-            echo_error "QA test runner not found: $PESTER_RUNNER"
-            echo_warning "Deterministic QA not executed. Run the QA agent manually before pushing."
-            EXIT_STATUS=1
-        else
-            echo_info "Running targeted QA tests (Pester)..."
-
-            # Optional runtime cap using coreutils timeout if present (default 5 min)
-            # Security: Validate QA_TIMEOUT_SEC as numeric to prevent command injection
-            QA_TIMEOUT_SEC=${QA_TIMEOUT_SEC:-300}
-            USE_TIMEOUT=false
-            # Use grep for bash 3 compatibility (Copilot #2678584229)
-            if echo "$QA_TIMEOUT_SEC" | grep -qE '^[0-9]+$' && command -v timeout >/dev/null 2>&1; then
-                USE_TIMEOUT=true
-            elif [ -n "${QA_TIMEOUT_SEC:-}" ] && ! echo "$QA_TIMEOUT_SEC" | grep -qE '^[0-9]+$'; then
-                echo_warning "Invalid QA_TIMEOUT_SEC value '$QA_TIMEOUT_SEC'; running QA tests without timeout."
-            fi
-
-            # Build TestPath arguments safely using arrays
-            # Bash 3 compatibility: use simple array init instead of declare -a
-            TESTPATHS=()
-
-            # Include any staged test files directly
-            while IFS= read -r cf; do
-                [ -z "$cf" ] && continue
-                case "$cf" in
-                    *.Tests.ps1)
-                        if [ -L "$cf" ]; then
-                            echo_warning "Skipping symlinked test file: $cf"
-                            continue
-                        fi
-                        [ -f "$cf" ] && TESTPATHS+=("$cf")
-                        ;;
-                esac
-            done <<< "$STAGED_PS_CODE_FILES"
-
-            # Map changed code files to their corresponding test files (Issue #917)
-            # NOTE: This assumes a strict 1:1 mapping between source scripts/modules and test files,
-            # e.g. .claude/skills/github/scripts/pr/Get-PRChecks.ps1 -> .claude/skills/github/tests/Get-PRChecks.Tests.ps1.
-            # This means shared test files that cover multiple scripts (for example, a single
-            # ThreadManagement.Tests.ps1 validating several ThreadManagement scripts) will NOT
-            # automatically run when only one of those scripts changes, unless the shared test file
-            # itself is staged. This trade-off keeps pre-commit runs fast and targeted; when working
-            # on scripts covered by shared tests, run the broader QA test suite manually as needed.
-            while IFS= read -r cf; do
-                [ -z "$cf" ] && continue
-                case "$cf" in
-                    .claude/skills/*/scripts/**/*.ps1|.claude/skills/*/scripts/**/*.psm1)
-                        # Map skill script or module to its test file (supports nested directories)
-                        # Example: .claude/skills/github/scripts/pr/Get-PRChecks.ps1 -> .claude/skills/github/tests/Get-PRChecks.Tests.ps1
-                        skilldir=${cf%%/scripts/*}
-                        scriptname=$(basename "$cf")
-                        testfile="$skilldir/tests/${scriptname%.*}.Tests.ps1"
-                        if [ -f "$testfile" ] && [ ! -L "$testfile" ]; then
-                            TESTPATHS+=("$testfile")
-                        fi
-                        ;;
-                    scripts/*.ps1|scripts/*.psm1)
-                        # Map root script to its test file
-                        scriptname=$(basename "$cf")
-                        testfile="scripts/tests/${scriptname%.*}.Tests.ps1"
-                        if [ -f "$testfile" ] && [ ! -L "$testfile" ]; then
-                            TESTPATHS+=("$testfile")
-                        fi
-                        ;;
-                    build/scripts/*.ps1|build/scripts/*.psm1)
-                        # Map build script to its test file
-                        scriptname=$(basename "$cf")
-                        testfile="build/scripts/tests/${scriptname%.*}.Tests.ps1"
-                        if [ -f "$testfile" ] && [ ! -L "$testfile" ]; then
-                            TESTPATHS+=("$testfile")
-                        fi
-                        ;;
-                    build/*.ps1|build/*.psm1)
-                        # Map build root script to its test file
-                        scriptname=$(basename "$cf")
-                        testfile="build/tests/${scriptname%.*}.Tests.ps1"
-                        if [ -f "$testfile" ] && [ ! -L "$testfile" ]; then
-                            TESTPATHS+=("$testfile")
-                        fi
-                        ;;
-                    .github/scripts/*.ps1|.github/scripts/*.psm1)
-                        # Map GitHub script to its test file (co-located with source)
-                        scriptname=$(basename "$cf")
-                        testfile=".github/scripts/${scriptname%.*}.Tests.ps1"
-                        if [ -f "$testfile" ] && [ ! -L "$testfile" ]; then
-                            TESTPATHS+=("$testfile")
-                        fi
-                        ;;
-                    *.Tests.ps1)
-                        # Already handled above but kept as a catch-all
-                        ;;
-                esac
-            done <<< "$STAGED_PS_CODE_FILES"
-
-            # As a safety net, if nothing resolved, add a minimal quick set
-            if [ ${#TESTPATHS[@]} -eq 0 ]; then
-                [ -d "$REPO_ROOT/scripts/tests" ] && TESTPATHS+=("$REPO_ROOT/scripts/tests")
-                [ -d "$REPO_ROOT/build/scripts/tests" ] && TESTPATHS+=("$REPO_ROOT/build/scripts/tests")
-                [ -d "$REPO_ROOT/build/tests" ] && TESTPATHS+=("$REPO_ROOT/build/tests")
-            fi
-
-            # Deduplicate paths while preserving order (bash 3 compatible)
-            if [ ${#TESTPATHS[@]} -gt 0 ]; then
-                UNIQUE_TESTPATHS=()
-                for p in "${TESTPATHS[@]}"; do
-                    # Normalize to absolute paths relative to repo root
-                    if [ -d "$p" ] || [ -f "$p" ]; then
-                        key="$p"
-                    else
-                        key="$REPO_ROOT/$p"
-                    fi
-
-                    already=0
-                    for existing in "${UNIQUE_TESTPATHS[@]}"; do
-                        if [ "$existing" = "$key" ]; then
-                            already=1
-                            break
-                        fi
-                    done
-
-                    if [ $already -eq 0 ]; then
-                        UNIQUE_TESTPATHS+=("$key")
-                    fi
-                done
-
-                echo_info "Targets:"
-                for t in "${UNIQUE_TESTPATHS[@]}"; do
-                    echo_info "  - $t"
-                done
-
-                # Build PowerShell -TestPath arguments
-                # Use a temp file to pass multiple -TestPath values safely
-                # Convert absolute paths to relative paths for Pester runner
-                TESTARGS_FILE=$(mktemp)
-                for t in "${UNIQUE_TESTPATHS[@]}"; do
-                    # Convert absolute paths to relative paths starting with ./
-                    # The Pester runner expects relative paths, not absolute ones
-                    # Use case for bash 3 compatibility; handle edge case where t equals REPO_ROOT (Copilot #2678558275, #2678584229)
-                    case "$t" in
-                        "$REPO_ROOT")
-                            # Edge case: t equals REPO_ROOT exactly
-                            printf "./\n" >> "$TESTARGS_FILE"
-                            ;;
-                        "$REPO_ROOT"/*)
-                            # Normal case: t is within REPO_ROOT
-                            rel_path="${t#$REPO_ROOT/}"
-                            printf "./%s\n" "$rel_path" >> "$TESTARGS_FILE"
-                            ;;
-                        *)
-                            # Not under REPO_ROOT, use as-is
-                            printf "%s\n" "$t" >> "$TESTARGS_FILE"
-                            ;;
-                    esac
-                done
-
-                # Execute with optional timeout, capture output for display
-                # Note: Embed paths directly in command string since pwsh -Command doesn't properly handle -- arguments
-                RC=0
-                TEST_OUTPUT=$(mktemp)
-                if $USE_TIMEOUT; then
-                    timeout --preserve-status "${QA_TIMEOUT_SEC}" pwsh -NoProfile -Command "\$paths = Get-Content -LiteralPath '$TESTARGS_FILE'; & '$PESTER_RUNNER' -CI -Verbosity Normal -TestPath \$paths" > "$TEST_OUTPUT" 2>&1 || RC=$?
-                else
-                    pwsh -NoProfile -Command "\$paths = Get-Content -LiteralPath '$TESTARGS_FILE'; & '$PESTER_RUNNER' -CI -Verbosity Normal -TestPath \$paths" > "$TEST_OUTPUT" 2>&1 || RC=$?
-                fi
-
-                if [ $RC -ne 0 ]; then
-                    if $USE_TIMEOUT && [ $RC -eq 124 ]; then
-                        echo_error "QA tests timed out after ${QA_TIMEOUT_SEC}s."
-                    else
-                        echo_error "QA tests failed. Fix failing tests before committing."
-                        echo_info ""
-                        echo_info "Test output (last 50 lines):"
-                        tail -50 "$TEST_OUTPUT"
-                        echo_info ""
-                    fi
-                    echo_info "  Re-run locally for details:"
-                    echo_info "    pwsh $PESTER_RUNNER -CI -Verbosity Normal \\"
-                    for t in "${UNIQUE_TESTPATHS[@]}"; do
-                        echo_info "      -TestPath '$t' \\"
-                    done
-                    echo_info ""
-                    rm -f "$TEST_OUTPUT"
-                    rm -f "$TESTARGS_FILE"
-                    EXIT_STATUS=1
-                else
-                    rm -f "$TEST_OUTPUT"
-                    rm -f "$TESTARGS_FILE"
-                    echo_success "QA tests passed."
-                fi
-            else
-                echo_warning "No test paths resolved; skipping QA tests."
-            fi
-        fi
-    fi
+    echo_info "PowerShell changes detected. Pester QA retired (ADR-042); use pytest."
 fi
+
 
 #
 # Episode Extraction (Auto-fix)

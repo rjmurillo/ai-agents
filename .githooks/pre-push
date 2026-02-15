@@ -619,34 +619,8 @@ fi
 # ============================================================================
     echo_phase "Phase 4: Tests"
 
-    # 13. Pester tests (full suite)
-    PESTER_RUNNER="$REPO_ROOT/build/scripts/Invoke-PesterTests.ps1"
-
-    if [ -n "$CHANGED_PS" ]; then
-        if [ -L "$PESTER_RUNNER" ]; then
-            record_fail "Pester test runner is a symlink (security violation)"
-        elif [ -f "$PESTER_RUNNER" ]; then
-            if command -v pwsh &> /dev/null; then
-                TEST_OUTPUT=$(mktemp)
-                if pwsh -NoProfile -File "$PESTER_RUNNER" -CI > "$TEST_OUTPUT" 2>&1; then
-                    rm -f "$TEST_OUTPUT"
-                    record_pass "Pester tests (full suite)"
-                else
-                    echo_info "  Test output (last 30 lines):"
-                    tail -30 "$TEST_OUTPUT"
-                    rm -f "$TEST_OUTPUT"
-                    record_fail "Pester tests failed"
-                    echo_info "  Fix failing tests before pushing."
-                fi
-            else
-                record_skip "Pester tests (pwsh not available)"
-            fi
-        else
-            record_skip "Pester tests (runner not found)"
-        fi
-    else
-        record_skip "Pester tests (no PowerShell files changed)"
-    fi
+    # 13. Pester tests - RETIRED per ADR-042 (v0.3.1 Phase 5)
+    record_skip "Pester tests (retired, use pytest)"
 
     # 14. Python tests (pytest)
     if [ -n "$CHANGED_PY" ]; then
