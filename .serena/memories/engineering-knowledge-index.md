@@ -126,7 +126,7 @@ Comprehensive index of engineering knowledge across 5 experience tiers.
 **Organizational Leadership**:
 - [engineering/engineering-strategy](engineering/engineering-strategy.md): Vision, strategy, specifications
 - [knowledge/platform-engineering](knowledge/platform-engineering.md): Self-service developer capabilities
-- `knowledge/buy-vs-build-framework`: Core vs context evaluation
+- [knowledge/buy-vs-build-framework](knowledge/buy-vs-build-framework.md): Core vs context evaluation
 - [knowledge/migrations-at-scale](knowledge/migrations-at-scale.md): Incremental transformation
 
 ### Tier 5: Distinguished (25+ Years)

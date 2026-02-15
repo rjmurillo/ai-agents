@@ -1454,6 +1454,7 @@ if [ -n "$STAGED_MEMORY_FILES" ]; then
             if [ -n "$NEW_MEMORY_FILES" ]; then
                 size_fail=0
                 while IFS= read -r mem_file; do
+                    # Skip empty lines from git diff output
                     [ -z "$mem_file" ] && continue
                     full_path="$REPO_ROOT/$mem_file"
                     if [ -f "$full_path" ] && [ ! -L "$full_path" ]; then
@@ -1484,6 +1485,7 @@ if [ -n "$STAGED_MEMORY_FILES" ]; then
             if [ -n "$MOD_MEMORY_FILES" ]; then
                 mod_warn=0
                 while IFS= read -r mem_file; do
+                    # Skip empty lines from git diff output
                     [ -z "$mem_file" ] && continue
                     full_path="$REPO_ROOT/$mem_file"
                     if [ -f "$full_path" ] && [ ! -L "$full_path" ]; then
