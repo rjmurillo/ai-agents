@@ -222,7 +222,7 @@ class TestCheckAuthorization:
 
     def test_workflow_dispatch_member_authorized(self) -> None:
         authorized, reason = check_authorization(
-            "workflow_dispatch", "octocat", "MEMBER", "", False,
+            "workflow_dispatch", "octocat", "MEMBER", False,
         )
         assert authorized is True
         assert "workflow_dispatch" in reason
@@ -230,26 +230,26 @@ class TestCheckAuthorization:
 
     def test_workflow_dispatch_owner_authorized(self) -> None:
         authorized, _ = check_authorization(
-            "workflow_dispatch", "octocat", "OWNER", "", False,
+            "workflow_dispatch", "octocat", "OWNER", False,
         )
         assert authorized is True
 
     def test_workflow_dispatch_collaborator_authorized(self) -> None:
         authorized, _ = check_authorization(
-            "workflow_dispatch", "octocat", "COLLABORATOR", "", False,
+            "workflow_dispatch", "octocat", "COLLABORATOR", False,
         )
         assert authorized is True
 
     def test_workflow_dispatch_contributor_denied(self) -> None:
         authorized, reason = check_authorization(
-            "workflow_dispatch", "external", "CONTRIBUTOR", "", False,
+            "workflow_dispatch", "external", "CONTRIBUTOR", False,
         )
         assert authorized is False
         assert "Access denied" in reason
 
     def test_workflow_dispatch_none_association_denied(self) -> None:
         authorized, reason = check_authorization(
-            "workflow_dispatch", "stranger", "NONE", "", False,
+            "workflow_dispatch", "stranger", "NONE", False,
         )
         assert authorized is False
         assert "Access denied" in reason
@@ -257,7 +257,7 @@ class TestCheckAuthorization:
     def test_workflow_dispatch_no_mention_needed(self) -> None:
         """workflow_dispatch authorizes by association alone, no mention needed."""
         authorized, _ = check_authorization(
-            "workflow_dispatch", "octocat", "MEMBER", "", False,
+            "workflow_dispatch", "octocat", "MEMBER", False,
         )
         assert authorized is True
 
@@ -266,28 +266,28 @@ class TestCheckAuthorization:
     def test_pr_bot_authorized_without_mention(self) -> None:
         for bot in ALLOWED_BOTS:
             authorized, reason = check_authorization(
-                "pull_request", bot, "", "", False,
+                "pull_request", bot, "", False,
             )
             assert authorized is True, f"Bot {bot} should be authorized"
             assert "bot allowlist" in reason
 
     def test_pr_human_with_mention_and_association_authorized(self) -> None:
         authorized, reason = check_authorization(
-            "pull_request", "octocat", "MEMBER", "@claude help", True,
+            "pull_request", "octocat", "MEMBER", True,
         )
         assert authorized is True
         assert "@claude mention" in reason
 
     def test_pr_human_without_mention_denied(self) -> None:
         authorized, reason = check_authorization(
-            "pull_request", "octocat", "MEMBER", "no mention", False,
+            "pull_request", "octocat", "MEMBER", False,
         )
         assert authorized is False
         assert "Access denied" in reason
 
     def test_pr_human_with_mention_but_wrong_association_denied(self) -> None:
         authorized, reason = check_authorization(
-            "pull_request", "external", "CONTRIBUTOR", "@claude help", True,
+            "pull_request", "external", "CONTRIBUTOR", True,
         )
         assert authorized is False
         assert "Access denied" in reason
@@ -296,35 +296,35 @@ class TestCheckAuthorization:
 
     def test_issue_comment_member_with_mention_authorized(self) -> None:
         authorized, reason = check_authorization(
-            "issue_comment", "octocat", "MEMBER", "@claude help", True,
+            "issue_comment", "octocat", "MEMBER", True,
         )
         assert authorized is True
         assert "author association" in reason
 
     def test_issue_comment_no_mention_denied(self) -> None:
         authorized, reason = check_authorization(
-            "issue_comment", "octocat", "MEMBER", "no mention", False,
+            "issue_comment", "octocat", "MEMBER", False,
         )
         assert authorized is False
         assert "No @claude mention" in reason
 
     def test_issue_comment_bot_with_mention_authorized(self) -> None:
         authorized, reason = check_authorization(
-            "issue_comment", "dependabot[bot]", "", "@claude help", True,
+            "issue_comment", "dependabot[bot]", "", True,
         )
         assert authorized is True
         assert "bot allowlist" in reason
 
     def test_issue_comment_wrong_association_denied(self) -> None:
         authorized, reason = check_authorization(
-            "issue_comment", "external", "CONTRIBUTOR", "@claude help", True,
+            "issue_comment", "external", "CONTRIBUTOR", True,
         )
         assert authorized is False
         assert "not in bot allowlist" in reason
 
     def test_issue_comment_none_association_denied(self) -> None:
         authorized, reason = check_authorization(
-            "issue_comment", "stranger", "NONE", "@claude help", True,
+            "issue_comment", "stranger", "NONE", True,
         )
         assert authorized is False
         assert "not in allowed list" in reason
@@ -333,14 +333,13 @@ class TestCheckAuthorization:
 
     def test_pr_review_member_with_mention_authorized(self) -> None:
         authorized, _ = check_authorization(
-            "pull_request_review", "octocat", "OWNER", "@claude review", True,
+            "pull_request_review", "octocat", "OWNER", True,
         )
         assert authorized is True
 
     def test_pr_review_comment_member_with_mention_authorized(self) -> None:
         authorized, _ = check_authorization(
-            "pull_request_review_comment", "octocat", "COLLABORATOR",
-            "@claude review", True,
+            "pull_request_review_comment", "octocat", "COLLABORATOR", True,
         )
         assert authorized is True
 
@@ -348,7 +347,7 @@ class TestCheckAuthorization:
 
     def test_issues_member_with_mention_authorized(self) -> None:
         authorized, _ = check_authorization(
-            "issues", "octocat", "MEMBER", "@claude help", True,
+            "issues", "octocat", "MEMBER", True,
         )
         assert authorized is True
 

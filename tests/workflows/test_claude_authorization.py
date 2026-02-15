@@ -112,7 +112,6 @@ def check_authorization(
     event_name: str,
     actor: str,
     author_association: str,
-    body: str,
     mention: bool,
 ) -> tuple[bool, str]:
     """Determine authorization based on event type, actor, and association.
@@ -376,7 +375,7 @@ def main(argv: list[str] | None = None) -> int:
         logger.info("  Has @claude Mention: %s", mention)
 
         is_authorized, reason = check_authorization(
-            event_name, actor, author_association, body, mention,
+            event_name, actor, author_association, mention,
         )
 
         logger.info(
