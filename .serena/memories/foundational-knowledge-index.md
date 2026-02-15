@@ -65,7 +65,7 @@
 |------------------|--------------|
 | Foundational (< 5 yrs) | [foundational-knowledge-index](foundational-knowledge-index.md) (this file) |
 | All Tiers (Comprehensive) | [engineering-knowledge-index](engineering-knowledge-index.md) |
-| Principal (15+ yrs) | [knowledge/principal-engineering-knowledge](knowledge/principal-engineering-knowledge.md) |
+| Principal (15+ yrs) | [principal-engineering-knowledge](knowledge/principal-engineering-knowledge.md) |
 | Distinguished (25+ yrs) | [distinguished-engineer-knowledge-index](distinguished-engineer-knowledge-index.md) |
 
 ## Cross-References

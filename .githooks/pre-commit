@@ -1579,7 +1579,7 @@ if [ -n "$STAGED_MEMORY_FILES" ]; then
                 if [ "$files_modified" -gt 0 ]; then
                     echo_action "Cross-referenced $files_modified memory files"
                     # Auto-stage modified files
-                    git add '.serena/memories/**/*.md' 2>/dev/null || true
+                    git add -- '.serena/memories/' 2>/dev/null || true
                     FILES_FIXED=1
                 else
                     echo_info "Memory cross-reference: no changes needed"

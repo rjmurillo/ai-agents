@@ -6,7 +6,7 @@ Memories are organized into topic subdirectories to reduce `list_memories` token
 
 **Top-level** (visible in `list_memories`): Index files and special files only.
 
-**Subdirectories** (hidden from `list_memories`, readable via path): All atomic memories.
+**Subdirectories** (hidden from `list_memories`): All atomic memories. Access via `read_memory("topic/memory-name.md")`.
 
 ### Reading Memories
 
