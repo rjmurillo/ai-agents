@@ -137,6 +137,9 @@ runs:
 
             agent = os.environ.get('AGENT', '')
             emoji = os.environ.get('EMOJI', '')
+            # Findings contain markdown from AI agents; not HTML-escaped because:
+            # 1. GitHub Step Summary renderer sanitizes HTML (XSS protection)
+            # 2. Escaping would break intentional markdown/HTML formatting
             findings = os.environ.get('FINDINGS', '')
             run_id = os.environ.get('RUN_ID', '')
             server_url = os.environ.get('SERVER_URL', '')
