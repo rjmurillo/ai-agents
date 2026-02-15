@@ -24,9 +24,9 @@
     - [What is AI Agents?](#what-is-ai-agents)
     - [Core Capabilities](#core-capabilities)
   - [Installation](#installation)
-    - [Supported Platforms](#supported-platforms)
-    - [Install via skill-installer](#install-via-skill-installer)
-      - [Prerequisites](#prerequisites)
+    - [Quick Install (Recommended)](#quick-install-recommended)
+    - [Verify Installation](#verify-installation)
+    - [Alternative: Install via skill-installer](#alternative-install-via-skill-installer)
   - [Quick Start](#quick-start)
     - [Examples](#examples)
       - [Simple Scenarios](#simple-scenarios)
@@ -35,6 +35,7 @@
     - [Agent Catalog](#agent-catalog)
     - [Directory Structure](#directory-structure)
   - [Contributing](#contributing)
+    - [Developer Setup](#developer-setup)
     - [Agent Development](#agent-development)
   - [Documentation](#documentation)
   - [License](#license)
@@ -67,85 +68,78 @@ The agents themselves use the platform specific handoffs to invoke subagents, ke
 
 ## Installation
 
+### Quick Install (Recommended)
+
+The fastest way to get started is the CLI marketplace. Run the install command from within your AI coding tool.
+
+**Claude Code** (in Claude Code CLI):
+
+```text
+/install-plugin rjmurillo/ai-agents
+```
+
+**GitHub Copilot CLI** (in Copilot CLI):
+
+```text
+/install-plugin rjmurillo/ai-agents
+```
+
+This installs the full agent set for your platform. You can also install individual components:
+
+| Component | Install Command | What You Get |
+|-----------|----------------|--------------|
+| Claude agents only | `/plugin install claude-agents@ai-agents` | 26 specialized agents for Claude Code |
+| Copilot CLI agents only | `/plugin install copilot-cli-agents@ai-agents` | Agent definitions for Copilot CLI |
+| Full project toolkit | `/plugin install project-toolkit@ai-agents` | Agents, skills, hooks, and commands |
+
+### Verify Installation
+
+After installing, confirm the agents are loaded.
+
+**Claude Code:**
+
+```text
+Task(subagent_type="analyst", prompt="Hello, are you available?")
+```
+
+**GitHub Copilot CLI:**
+
+```bash
+copilot --list-agents
+```
+
+**VS Code (Copilot Chat):**
+
+```text
+@orchestrator Hello, are you available?
+```
+
 ### Supported Platforms
 
-| Platform | Agent Location | Notes |
+| Platform | Agent Location | Usage |
 |----------|---------------|-------|
-| **VS Code / GitHub Copilot** | `src/vs-code-agents/` | Use `@agent` syntax in Copilot Chat |
-| **GitHub Copilot CLI** | `src/copilot-cli/` | Use `--agent` flag, `/agent` to select, or call out agent by name |
 | **Claude Code CLI** | `src/claude/` | Use `Task(subagent_type="...")` |
+| **GitHub Copilot CLI** | `src/copilot-cli/` | Use `--agent` flag, `/agent` to select, or call out agent by name |
+| **VS Code / GitHub Copilot** | `src/vs-code-agents/` | Use `@agent` syntax in Copilot Chat |
 
-### Install via CLI marketplace
+### Alternative: Install via skill-installer
 
-```text
-/plugin marketplace add rjmurillo/ai-agents
-```
+For a TUI-based interactive installation experience, use [skill-installer](https://github.com/rjmurillo/skill-installer).
 
-If you only want the agents, you can install those for Claude Code or Copilot CLI
-
-```text
-/plugin install claude-agents@ai-agents
-```
-
-```text
-/plugin install copilot-cli-agents@ai-agents
-```
-
-If you want everything I use to build the agents and other software (agents, skills, hooks, commands)
-
-```text
-/plugin install project-toolkit@ai-agents
-```
-
-### Install via skill-installer
-
-#### Prerequisites
-
-- Python 3.10+
-- [UV](https://docs.astral.sh/uv/) package manager
-
-Install UV:
-
-macOS/Linux
+**Prerequisites:** Python 3.10+ and [UV](https://docs.astral.sh/uv/) package manager.
 
 ```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
-```
-
-Windows (PowerShell)
-
-```powershell
-pwsh -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
-```
-
-Use [skill-installer](https://github.com/rjmurillo/skill-installer) to install agents:
-
-Without installing (one-liner)
-
-```bash
-# Latest version
+# Run without installing (one-liner)
 uvx --from git+https://github.com/rjmurillo/skill-installer skill-installer interactive
 
-# Specific version (e.g., v0.3.0)
-uvx --from git+https://github.com/rjmurillo/skill-installer@v0.3.0 skill-installer interactive
-```
-
-Or install globally for repeated use
-
-```bash
-# Latest version
+# Or install globally for repeated use
 uv tool install git+https://github.com/rjmurillo/skill-installer
-
-# Specific version (e.g., v0.1.0 or v0.2.0 or v0.3.0)
-uv tool install git+https://github.com/rjmurillo/skill-installer@v0.3.0
-
-# Run the interactive installer
 skill-installer interactive
 ```
 
-Navigate the TUI to select and install agents for your platform.
+Navigate the TUI to browse and install agents for your platform.
 
-See [docs/installation.md](docs/installation.md) for complete installation documentation.
+See [docs/installation.md](docs/installation.md) for complete installation documentation, including UV setup, platform-specific paths, troubleshooting, and post-installation steps.
 
 ---
 
@@ -306,11 +300,7 @@ If you're contributing code or running tests locally:
 5. Run tests to verify setup:
 
    ```bash
-   # Python tests
    python -m pytest tests/ -v
-
-   # PowerShell tests
-   pwsh -Command "Invoke-Pester tests/ -Output Detailed"
    ```
 
 6. Make changes following the guidelines
@@ -321,7 +311,7 @@ If you're contributing code or running tests locally:
 This project uses a **template-based generation system**. To modify agents:
 
 1. Edit templates in `templates/agents/*.shared.md`
-2. Run `pwsh build/Generate-Agents.ps1` to regenerate
+2. Run `python build/generate_agents.py` to regenerate
 3. Commit both template and generated files
 
 **Do not edit files in `src/vs-code-agents/` or `src/copilot-cli/` directly.** See [CONTRIBUTING.md](CONTRIBUTING.md) for details.

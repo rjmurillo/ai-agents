@@ -14,6 +14,38 @@ license: MIT
 
 Tooling suite for optimizing Claude Code context placement based on Vercel research demonstrating that passive context (AGENTS.md, @imports) achieves 100% pass rates versus 53-79% for skills due to elimination of decision points.
 
+## Triggers
+
+Use this skill when you need to:
+
+- `analyze skill placement` or classify content as Skill vs Passive Context
+- `compress markdown` or reduce token count for context files
+- `validate compliance` of skill/passive context placement decisions
+- `optimize context` for lower API costs and better agent performance
+
+## Process
+
+1. **Analyze**: Run `analyze_skill_placement.py` to classify content
+2. **Compress**: Run `compress_markdown_content.py` to reduce token counts
+3. **Validate**: Run `test_skill_passive_compliance.py` to check compliance
+4. **Verify**: Confirm output JSON contains expected classification and metrics
+
+## Verification
+
+- [ ] Classification matches expected type (Skill/PassiveContext/Hybrid)
+- [ ] Compression achieves target reduction (40-80% depending on level)
+- [ ] Compliance validator returns exit code 0
+- [ ] Output JSON is valid and contains all required fields
+
+## Scripts
+
+| Script | Purpose | Exit Codes |
+|--------|---------|------------|
+| `analyze_skill_placement.py` | Classify content as Skill/PassiveContext/Hybrid | 0=success, 1=error |
+| `compress_markdown_content.py` | Compress markdown with token reduction metrics | 0=success, 1=error, 2=config, 3=external |
+| `test_skill_passive_compliance.py` | Validate compliance with decision framework | 0=pass, 1=violations |
+| `path_validation.py` | Shared CWE-22 repo-root-anchored path validation | N/A (library module) |
+
 ## Prerequisites
 
 The compression script requires Python 3.10+ with the `tiktoken` library for local token counting:
@@ -152,15 +184,15 @@ echo "$result" | jq '.metrics.reduction_percent'
 
 ```json
 {
-  "Success": true,
-  "CompressedContent": "...",
-  "Metrics": {
-    "OriginalTokens": 1000,
-    "CompressedTokens": 250,
-    "ReductionPercent": 75.0,
-    "OriginalSize": 4000,
-    "CompressedSize": 1000,
-    "CompressionLevel": "Aggressive"
+  "success": true,
+  "compressed_content": "...",
+  "metrics": {
+    "original_tokens": 1000,
+    "compressed_tokens": 250,
+    "reduction_percent": 75.0,
+    "original_size": 4000,
+    "compressed_size": 1000,
+    "compression_level": "aggressive"
   }
 }
 ```

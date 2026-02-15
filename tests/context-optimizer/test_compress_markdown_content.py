@@ -39,6 +39,9 @@ def run_compression(content: str, level: str = "medium") -> dict:
     """
     Run compression on content and return parsed result.
 
+    Temp files are created inside the repo root so that the path validation
+    (CWE-22) in the script accepts them.
+
     Args:
         content: Markdown content to compress
         level: Compression level (light/medium/aggressive)
@@ -48,7 +51,12 @@ def run_compression(content: str, level: str = "medium") -> dict:
     """
     import tempfile
 
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.md', delete=False, encoding='utf-8') as f:
+    tmp_dir = REPO_ROOT / ".pytest_tmp"
+    tmp_dir.mkdir(exist_ok=True)
+
+    with tempfile.NamedTemporaryFile(
+        mode='w', suffix='.md', delete=False, encoding='utf-8', dir=str(tmp_dir)
+    ) as f:
         f.write(content)
         input_path = f.name
 
@@ -493,24 +501,32 @@ class TestOutputFormat:
         assert "compressed_content" in result
         assert "metrics" in result
 
-    def test_write_to_file(self, tmp_path):
+    def test_write_to_file(self):
         """Should write compressed content to file when specified."""
+
+        tmp_dir = REPO_ROOT / ".pytest_tmp"
+        tmp_dir.mkdir(exist_ok=True)
+
         input_md = "Sample content for file output"
-        input_file = tmp_path / "input.md"
-        output_file = tmp_path / "output.txt"
+        input_file = tmp_dir / "input_write_test.md"
+        output_file = tmp_dir / "output_write_test.txt"
 
         input_file.write_text(input_md, encoding='utf-8')
 
-        subprocess.run(
-            [
-                sys.executable, str(SCRIPT_PATH),
-                "-i", str(input_file), "-o", str(output_file), "-l", "medium"
-            ],
-            check=True
-        )
+        try:
+            subprocess.run(
+                [
+                    sys.executable, str(SCRIPT_PATH),
+                    "-i", str(input_file), "-o", str(output_file), "-l", "medium"
+                ],
+                check=True
+            )
 
-        assert output_file.exists()
-        assert len(output_file.read_text(encoding='utf-8')) <= len(input_md)
+            assert output_file.exists()
+            assert len(output_file.read_text(encoding='utf-8')) <= len(input_md)
+        finally:
+            input_file.unlink(missing_ok=True)
+            output_file.unlink(missing_ok=True)
 
 
 class TestEdgeCases:
@@ -606,3 +622,69 @@ class TestRealWorldExamples:
 
         # Should achieve some reduction even on pre-compressed content
         assert result["metrics"]["reduction_percent"] >= 0
+
+
+class TestContentProtection:
+    """Test that word removal does not corrupt inline code, URLs, or frontmatter."""
+
+    def test_preserve_inline_code(self):
+        """Should not remove words inside inline code backticks."""
+        input_md = "Run the command `the cat is a fine animal` to proceed."
+
+        result = run_compression(input_md, "aggressive")
+
+        # The inline code must remain untouched
+        assert "`the cat is a fine animal`" in result["compressed_content"]
+
+    def test_preserve_urls(self):
+        """Should not corrupt URLs by removing words like 'a' or 'the'."""
+        input_md = "See the docs at https://example.com/the/a/an/is/path for details."
+
+        result = run_compression(input_md, "aggressive")
+
+        assert "https://example.com/the/a/an/is/path" in result["compressed_content"]
+
+    def test_preserve_yaml_frontmatter(self):
+        """Should not remove words inside YAML frontmatter."""
+        input_md = dedent("""
+            ---
+            title: The Configuration Is A Test
+            description: An important specification
+            ---
+
+            The content below the frontmatter should be compressed.
+        """).strip()
+
+        result = run_compression(input_md, "medium")
+
+        # Frontmatter values must remain intact
+        assert "The Configuration Is A Test" in result["compressed_content"]
+        assert "An important specification" in result["compressed_content"]
+
+    def test_preserve_mixed_inline_code_and_text(self):
+        """Should skip entire line containing backtick-wrapped code."""
+        input_md = "The `is_valid` function is a critical check."
+
+        result = run_compression(input_md, "medium")
+
+        # Line has backticks, so entire line should be preserved
+        assert "`is_valid`" in result["compressed_content"]
+
+    def test_compress_normal_lines_alongside_protected(self):
+        """Should still compress lines that are not protected."""
+        input_md = dedent("""
+            The configuration is a critical setting.
+            See the docs at https://example.com/api for reference.
+            The repository was created recently.
+        """).strip()
+
+        result = run_compression(input_md, "medium")
+
+        # URL line preserved
+        assert "https://example.com/api" in result["compressed_content"]
+        # Normal lines should have words removed (fewer "the" occurrences)
+        lines = result["compressed_content"].split('\n')
+        normal_lines = [line for line in lines if 'http' not in line]
+        for line in normal_lines:
+            # "The" should be removed from non-protected lines
+            assert not line.startswith("The ")

@@ -31,6 +31,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TypedDict
 
+from path_validation import validate_path_within_repo
+
 
 class Metrics(TypedDict):
     """Metrics for skill analysis."""
@@ -82,12 +84,8 @@ def get_skill_content(path: Path) -> str:
         ValueError: If path is not directory or .md file
         PermissionError: If path contains traversal sequences
     """
-    # Prevent path traversal (CWE-22): detect malicious relative paths
-    if ".." in path.parts:
-        raise PermissionError(f"Path traversal attempt detected: {path}")
-
-    # Resolve to absolute path for safe access
-    resolved_path = path.resolve()
+    # CWE-22: Validate resolved path stays within repository root
+    resolved_path = validate_path_within_repo(path)
 
     if resolved_path.is_dir():
         skill_md = resolved_path / "SKILL.md"

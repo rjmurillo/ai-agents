@@ -19,6 +19,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from path_validation import validate_path_within_repo
+
 
 @dataclass
 class CheckResult:
@@ -208,11 +210,10 @@ def check_imported_files_exist(
     results = []
     for import_path in imports:
         try:
-            # Prevent path traversal (CWE-22): reject ../ sequences and absolute paths
-            if ".." in import_path or Path(import_path).is_absolute():
-                raise PermissionError("Path traversal attempt detected")
-
-            full_path = repository_root / import_path
+            # CWE-22: Validate resolved path stays within repository root
+            full_path = validate_path_within_repo(
+                Path(import_path), repo_root=repository_root
+            )
             exists = full_path.exists()
             readable = False
 
