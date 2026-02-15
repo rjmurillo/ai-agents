@@ -21,6 +21,8 @@ References:
     - Issue: #1108
 """
 
+from __future__ import annotations
+
 import argparse
 import json
 import re
@@ -28,6 +30,8 @@ import sys
 from dataclasses import asdict, dataclass
 from enum import Enum
 from pathlib import Path
+
+from path_validation import validate_path_within_repo
 
 try:
     import tiktoken
@@ -249,23 +253,43 @@ def compress_lists(content: str, level: CompressionLevel) -> str:
     return result
 
 
-def remove_redundant_words(content: str, level: CompressionLevel) -> str:
+def _line_is_protected(line: str, in_yaml_frontmatter: bool) -> bool:
     """
-    Remove redundant words while preserving meaning.
+    Check if a line should be skipped during word removal.
+
+    Protected lines contain inline code, URLs, or are inside YAML frontmatter.
+    Code blocks (triple backticks) are already extracted before this runs.
 
     Args:
-        content: Markdown content
+        line: The line to check
+        in_yaml_frontmatter: Whether we are currently inside YAML frontmatter
+
+    Returns:
+        True if the line should not have words removed
+    """
+    if in_yaml_frontmatter:
+        return True
+    if '`' in line:
+        return True
+    if 'http://' in line or 'https://' in line:
+        return True
+    return False
+
+
+def _apply_word_removals(line: str, level: CompressionLevel) -> str:
+    """
+    Apply word removal patterns to a single unprotected line.
+
+    Args:
+        line: Line to process
         level: Compression level
 
     Returns:
-        Content with redundant words removed
+        Line with redundant words removed
     """
-    if level == CompressionLevel.LIGHT:
-        return content
+    result = line
 
-    result = content
-
-    # Common phrase compressions (apply first)
+    # Common phrase compressions
     phrase_replacements = [
         (r'\bin order to\b', 'to'),
         (r'\bdue to the fact that\b', 'because'),
@@ -283,22 +307,16 @@ def remove_redundant_words(content: str, level: CompressionLevel) -> str:
     for pattern, replacement in phrase_replacements:
         result = re.sub(pattern, replacement, result, flags=re.IGNORECASE)
 
-    # Aggressive word removal
-    # Remove articles and common verbs more aggressively
     if level == CompressionLevel.MEDIUM or level == CompressionLevel.AGGRESSIVE:
-        # Remove articles (the, a, an) - more aggressive
         result = re.sub(r'\bthe\s+', '', result, flags=re.IGNORECASE)
         result = re.sub(r'\ba\s+', '', result, flags=re.IGNORECASE)
         result = re.sub(r'\ban\s+', '', result, flags=re.IGNORECASE)
-
-        # Remove "to be" forms
         result = re.sub(r'\bis\s+', '', result, flags=re.IGNORECASE)
         result = re.sub(r'\bare\s+', '', result, flags=re.IGNORECASE)
         result = re.sub(r'\bwas\s+', '', result, flags=re.IGNORECASE)
         result = re.sub(r'\bwere\s+', '', result, flags=re.IGNORECASE)
 
     if level == CompressionLevel.AGGRESSIVE:
-        # Additional aggressive removals
         result = re.sub(r'\bthis\s+', '', result, flags=re.IGNORECASE)
         result = re.sub(r'\bthat\s+', '', result, flags=re.IGNORECASE)
         result = re.sub(r'\bthese\s+', '', result, flags=re.IGNORECASE)
@@ -310,6 +328,49 @@ def remove_redundant_words(content: str, level: CompressionLevel) -> str:
         result = re.sub(r'\bcan\s+', '', result, flags=re.IGNORECASE)
 
     return result
+
+
+def remove_redundant_words(content: str, level: CompressionLevel) -> str:
+    """
+    Remove redundant words while preserving meaning.
+
+    Skips lines containing inline code (backticks), URLs, or YAML frontmatter
+    to avoid corrupting structured content.
+
+    Args:
+        content: Markdown content
+        level: Compression level
+
+    Returns:
+        Content with redundant words removed
+    """
+    if level == CompressionLevel.LIGHT:
+        return content
+
+    lines = content.split('\n')
+    result_lines = []
+    in_yaml_frontmatter = False
+    frontmatter_seen = False
+
+    for line in lines:
+        stripped = line.strip()
+
+        # Track YAML frontmatter boundaries (--- at start/end)
+        if stripped == '---':
+            if not frontmatter_seen:
+                in_yaml_frontmatter = True
+                frontmatter_seen = True
+            elif in_yaml_frontmatter:
+                in_yaml_frontmatter = False
+            result_lines.append(line)
+            continue
+
+        if _line_is_protected(line, in_yaml_frontmatter):
+            result_lines.append(line)
+        else:
+            result_lines.append(_apply_word_removals(line, level))
+
+    return '\n'.join(result_lines)
 
 
 def apply_abbreviations(content: str) -> str:
@@ -430,7 +491,7 @@ def build_metrics(original: str, compressed: str, level: CompressionLevel) -> Co
     )
 
 
-def main():
+def main() -> None:
     """Main entry point."""
     parser = argparse.ArgumentParser(
         description='Compress markdown documentation to minimal tokens using pipe-delimited format',
@@ -477,10 +538,8 @@ def main():
 
     # Read input
     try:
-        # Prevent path traversal (CWE-22): detect malicious relative paths
-        if ".." in args.input.parts:
-            raise PermissionError(f"Path traversal attempt detected on input path: {args.input}")
-        resolved_input_path = args.input.resolve(strict=True)
+        # CWE-22: Validate resolved path stays within repository root
+        resolved_input_path = validate_path_within_repo(args.input)
         content = resolved_input_path.read_text(encoding='utf-8')
     except Exception as e:
         print(f"Error reading input file: {e}", file=sys.stderr)
@@ -505,13 +564,9 @@ def main():
     # Output
     if args.output:
         try:
-            # Prevent path traversal (CWE-22): detect malicious relative paths
-            if ".." in args.output.parts:
-                raise PermissionError(
-                    f"Path traversal attempt detected on output: {args.output}"
-                )
-
-            args.output.write_text(compressed, encoding='utf-8')
+            # CWE-22: Validate resolved path stays within repository root
+            resolved_output_path = validate_path_within_repo(args.output)
+            resolved_output_path.write_text(compressed, encoding='utf-8')
             if args.verbose:
                 print(f"Compressed content written to: {args.output}", file=sys.stderr)
                 print(f"Metrics: {metrics.original_tokens} → {metrics.compressed_tokens} tokens "

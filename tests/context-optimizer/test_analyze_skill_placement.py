@@ -101,8 +101,22 @@ Classify comments by sentiment and type:
 class TestGetSkillContent:
     """Tests for get_skill_content function."""
 
-    def test_reads_skill_md_from_directory(self, tmp_path: Path) -> None:
+    def _patch_repo_root(self, monkeypatch: pytest.MonkeyPatch, root: Path) -> None:
+        """Patch validate_path_within_repo to use tmp_path as repo root."""
+        from path_validation import validate_path_within_repo as _orig
+
+        def _validate_in_tmp(path: Path, repo_root: Path | None = None) -> Path:
+            return _orig(path, repo_root=root)
+
+        monkeypatch.setattr(
+            "analyze_skill_placement.validate_path_within_repo", _validate_in_tmp
+        )
+
+    def test_reads_skill_md_from_directory(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Reads SKILL.md from directory path."""
+        self._patch_repo_root(monkeypatch, tmp_path)
         skill_dir = tmp_path / "test-skill"
         skill_dir.mkdir()
         skill_md = skill_dir / "SKILL.md"
@@ -112,8 +126,11 @@ class TestGetSkillContent:
 
         assert result == "# Test Skill"
 
-    def test_reads_skill_md_file_directly(self, tmp_path: Path) -> None:
+    def test_reads_skill_md_file_directly(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Reads SKILL.md file directly."""
+        self._patch_repo_root(monkeypatch, tmp_path)
         skill_md = tmp_path / "SKILL.md"
         skill_md.write_text("# Direct Read")
 
@@ -122,17 +139,21 @@ class TestGetSkillContent:
         assert result == "# Direct Read"
 
     def test_raises_file_not_found_for_missing_skill_md(
-        self, tmp_path: Path
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Raises FileNotFoundError if SKILL.md missing in directory."""
+        self._patch_repo_root(monkeypatch, tmp_path)
         skill_dir = tmp_path / "empty-skill"
         skill_dir.mkdir()
 
         with pytest.raises(FileNotFoundError, match="SKILL.md not found"):
             get_skill_content(skill_dir)
 
-    def test_raises_value_error_for_non_md_file(self, tmp_path: Path) -> None:
+    def test_raises_value_error_for_non_md_file(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Raises ValueError if path is not .md file."""
+        self._patch_repo_root(monkeypatch, tmp_path)
         txt_file = tmp_path / "test.txt"
         txt_file.write_text("test")
 
