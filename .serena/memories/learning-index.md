@@ -35,7 +35,7 @@
 
 ### Architecture & Design
 - [architecture/architecture-observations.md](#architecture) - Architecture decisions
-- [skills-architecture/architecture-observations.md](#skills-architecture) - Skill-level architecture
+- [skills/skills-architecture-observations.md](#skills-architecture) - Skill-level architecture
 - [memory/memory-observations.md](#memory) - Memory system patterns
 
 ### GitHub & PR Workflow
@@ -53,10 +53,10 @@
 ### Skills & Meta-Learning
 - [skills/skills-critique-observations.md](#skills/skills-critique) - Skill critique patterns
 - [skills/skills-mcp-observations.md](#skills-mcp) - MCP integration patterns
-- [skills-powershell/powershell-observations.md](#skills-powershell) - PowerShell skill patterns
+- [skills/skills-powershell-observations.md](#skills-powershell) - PowerShell skill patterns
 - [skills/skills-quantitative-observations.md](#skills-quantitative) - Quantitative analysis
-- [skills-retrospective/retrospective-observations.md](#skills-retrospective) - Retrospective patterns
-- [skills/skills-validation/validation-observations.md](#skills-validation) - Skill validation patterns
+- [skills/skills-retrospective-observations.md](#skills-retrospective) - Retrospective patterns
+- [skills/skills-validation-observations.md](#skills-validation) - Skill validation patterns
 - [retrospective/reflect-observations.md](#reflect) - Reflection skill patterns
 - [retrospective/retrospective-observations.md](#retrospective) - Retrospective learnings
 - [skills/SkillForge-observations.md](#skillforge) - SkillForge patterns
@@ -382,7 +382,7 @@
 ---
 
 ### Skills - Architecture
-**File**: `skills-architecture/architecture-observations.md`
+**File**: `skills/skills-architecture-observations.md`
 **Last Updated**: 2026-01-18
 **Sessions**: Unknown
 **Focus**: Skill-level architecture patterns
@@ -418,7 +418,7 @@
 ---
 
 ### Skills - PowerShell
-**File**: `skills-powershell/powershell-observations.md`
+**File**: `skills/skills-powershell-observations.md`
 **Last Updated**: 2026-01-18
 **Sessions**: Unknown
 **Focus**: PowerShell skill patterns
@@ -443,7 +443,7 @@
 ---
 
 ### Skills - Retrospective
-**File**: `skills-retrospective/retrospective-observations.md`
+**File**: `skills/skills-retrospective-observations.md`
 **Last Updated**: 2026-01-18
 **Sessions**: Unknown
 **Focus**: Retrospective skill patterns
@@ -455,7 +455,7 @@
 ---
 
 ### Skills - Validation
-**File**: `skills/skills-validation/validation-observations.md`
+**File**: `skills/skills-validation-observations.md`
 **Last Updated**: 2026-01-18
 **Sessions**: Unknown
 **Focus**: Validation skill patterns
@@ -551,7 +551,7 @@
 - **Security concerns**: Check security/security-observations.md
 
 ### By Technology
-- **PowerShell**: powershell/powershell-observations.md, skills-powershell/powershell-observations.md
+- **PowerShell**: powershell/powershell-observations.md, skills/skills-powershell-observations.md
 - **GitHub API**: github/github-observations.md, pr-review/pr-review-observations.md
 - **CI/CD**: ci/ci-infrastructure-observations.md
 - **MCP**: skills/skills-mcp-observations.md, memory/memory-observations.md
