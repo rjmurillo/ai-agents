@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import subprocess
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -12,7 +12,29 @@ from scripts.forgetful.import_forgetful_memories import (
     PRIMARY_KEYS,
     escape_sql_value,
     import_table,
+    run_sqlite3,
 )
+
+
+class TestRunSqlite3Timeout:
+    @patch("scripts.forgetful.import_forgetful_memories.subprocess.run")
+    def test_passes_timeout_30(self, mock_run: MagicMock) -> None:
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=[], returncode=0, stdout="", stderr=""
+        )
+        run_sqlite3("/fake/db", "SELECT 1;")
+        mock_run.assert_called_once_with(
+            ["sqlite3", "/fake/db", "SELECT 1;"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+
+    @patch("scripts.forgetful.import_forgetful_memories.subprocess.run")
+    def test_timeout_raises_timeout_expired(self, mock_run: MagicMock) -> None:
+        mock_run.side_effect = subprocess.TimeoutExpired(cmd=["sqlite3"], timeout=30)
+        with pytest.raises(subprocess.TimeoutExpired):
+            run_sqlite3("/fake/db", "SELECT 1;")
 
 
 class TestEscapeSqlValue:
