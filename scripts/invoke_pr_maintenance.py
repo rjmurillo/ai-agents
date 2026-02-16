@@ -393,7 +393,8 @@ def main(argv: list[str] | None = None) -> int:
     try:
         repo_params = resolve_repo_params(args.owner, args.repo)
     except SystemExit:
-        raise
+        # Convert to script's documented exit code (error_and_exit already printed message)
+        return 2
     except (RuntimeError, OSError, subprocess.SubprocessError) as exc:
         print(f"Failed to resolve repository parameters: {exc}", file=sys.stderr)
         return 2
