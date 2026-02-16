@@ -54,7 +54,9 @@ class TestParseJsonOutput:
         result = _parse_json_output(raw, "observations")
         assert result == []
 
-    def test_corrupted_json_logs_warning_to_stderr(self, capsys: pytest.CaptureFixture[str]) -> None:
+    def test_corrupted_json_logs_warning_to_stderr(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         """Corrupted JSON logs a warning with the label and raw preview."""
         raw = "SQLITE_ERROR: database is corrupted"
         _parse_json_output(raw, "observations")
