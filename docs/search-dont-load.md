@@ -1,8 +1,7 @@
 # Search, Don't Load: Memory-First Evidence Protocol
 
 > **Status**: Active
-> **Related**: [ADR-007: Memory-First Architecture](../.agents/architecture/ADR-007-memory-first-architecture.md) |
-> [SESSION-PROTOCOL.md](../.agents/SESSION-PROTOCOL.md) Phase 2
+> **Related**: [ADR-007: Memory-First Architecture](/.agents/architecture/ADR-007-memory-first-architecture.md) | [SESSION-PROTOCOL.md](/.agents/SESSION-PROTOCOL.md) Phase 2
 
 ## What This Pattern Means
 
@@ -83,7 +82,7 @@ before modifying any code or files.
 
 ## References
 
-- [ADR-007: Memory-First Architecture](../.agents/architecture/ADR-007-memory-first-architecture.md)
-- [SESSION-PROTOCOL.md, Phase 2: Context Retrieval](../.agents/SESSION-PROTOCOL.md)
-- [Memory Loading Protocol](../.agents/SESSION-PROTOCOL.md) (lines 112-123)
+- [ADR-007: Memory-First Architecture](/.agents/architecture/ADR-007-memory-first-architecture.md)
+- [SESSION-PROTOCOL.md, Phase 2: Context Retrieval](/.agents/SESSION-PROTOCOL.md)
+- [Memory Loading Protocol](/.agents/SESSION-PROTOCOL.md) (lines 112-123)
 - Serena memory: `init-003-memory-first-monitoring-gate` (30% efficiency data)

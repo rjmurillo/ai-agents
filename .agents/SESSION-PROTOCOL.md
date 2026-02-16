@@ -120,7 +120,7 @@ The `memory-index` maps task keywords to essential memories. Example workflow:
 4. Apply learned patterns from memories before proceeding
 ```
 
-**Evidence**: 30% session efficiency loss observed when memories not loaded first (skill-init-003-memory-first-monitoring-gate).
+**Evidence**: 30% session efficiency loss observed when memories not loaded first (init-003-memory-first-monitoring-gate).
 
 **Verification:**
 
