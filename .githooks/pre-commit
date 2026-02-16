@@ -1449,15 +1449,17 @@ if [ -n "$STAGED_MEMORY_FILES" ]; then
     elif [ -f "$MEMORY_SIZE_VALIDATOR" ]; then
         if set_python_cmd; then
             # Get newly added memory files (hard gate)
-            NEW_MEMORY_FILES=$(git diff --cached --name-only --diff-filter=A -- '.serena/memories/*.md' 2>/dev/null || true)
+            NEW_MEMORY_FILES=$(git diff --cached --name-only --diff-filter=A -- '.serena/memories/**/*.md' 2>/dev/null || true)
 
             if [ -n "$NEW_MEMORY_FILES" ]; then
                 size_fail=0
                 while IFS= read -r mem_file; do
+                    # Skip empty lines from git diff output
+                    [ -z "$mem_file" ] && continue
                     full_path="$REPO_ROOT/$mem_file"
                     if [ -f "$full_path" ] && [ ! -L "$full_path" ]; then
-                        size_output=$("${PYTHON_CMD[@]}" "$MEMORY_SIZE_VALIDATOR" "$full_path" 2>&1)
-                        size_exit=$?
+                        size_exit=0
+                        size_output=$("${PYTHON_CMD[@]}" "$MEMORY_SIZE_VALIDATOR" "$full_path" 2>&1) || size_exit=$?
                         if [ $size_exit -ne 0 ]; then
                             echo_error "New memory file exceeds size thresholds: $mem_file"
                             echo "$size_output" | while IFS= read -r line; do
@@ -1478,15 +1480,17 @@ if [ -n "$STAGED_MEMORY_FILES" ]; then
             fi
 
             # Get modified memory files (warn only)
-            MOD_MEMORY_FILES=$(git diff --cached --name-only --diff-filter=M -- '.serena/memories/*.md' 2>/dev/null || true)
+            MOD_MEMORY_FILES=$(git diff --cached --name-only --diff-filter=M -- '.serena/memories/**/*.md' 2>/dev/null || true)
 
             if [ -n "$MOD_MEMORY_FILES" ]; then
                 mod_warn=0
                 while IFS= read -r mem_file; do
+                    # Skip empty lines from git diff output
+                    [ -z "$mem_file" ] && continue
                     full_path="$REPO_ROOT/$mem_file"
                     if [ -f "$full_path" ] && [ ! -L "$full_path" ]; then
-                        size_output=$("${PYTHON_CMD[@]}" "$MEMORY_SIZE_VALIDATOR" "$full_path" 2>&1)
-                        size_exit=$?
+                        size_exit=0
+                        size_output=$("${PYTHON_CMD[@]}" "$MEMORY_SIZE_VALIDATOR" "$full_path" 2>&1) || size_exit=$?
                         if [ $size_exit -ne 0 ]; then
                             echo_warning "Modified memory exceeds size thresholds: $mem_file"
                             mod_warn=1
@@ -1577,7 +1581,7 @@ if [ -n "$STAGED_MEMORY_FILES" ]; then
                 if [ "$files_modified" -gt 0 ]; then
                     echo_action "Cross-referenced $files_modified memory files"
                     # Auto-stage modified files
-                    git add .serena/memories/*.md 2>/dev/null || true
+                    git add -- '.serena/memories/' 2>/dev/null || true
                     FILES_FIXED=1
                 else
                     echo_info "Memory cross-reference: no changes needed"
