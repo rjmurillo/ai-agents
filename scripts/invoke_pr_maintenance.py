@@ -233,7 +233,7 @@ def classify_prs(
         if pr.get("baseRefName") not in PROTECTED_BRANCHES:
             results.derivative_prs.append(
                 {
-                    "number": pr["number"],
+                    "number": pr.get("number"),
                     "title": pr.get("title", ""),
                     "author": pr.get("author", {}).get("login", ""),
                     "targetBranch": pr.get("baseRefName", ""),
@@ -250,7 +250,7 @@ def classify_prs(
         if parent:
             results.action_required.append(
                 {
-                    "number": parent["number"],
+                    "number": parent.get("number"),
                     "category": "has-derivatives",
                     "hasConflicts": False,
                     "reason": "PENDING_DERIVATIVES",
