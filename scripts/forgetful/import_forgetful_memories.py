@@ -237,6 +237,9 @@ def main(argv: list[str] | None = None) -> int:
         except RuntimeError as e:
             failed_files.append((file_name, str(e)))
             print(f"    WARNING: Import failed for {file_name}: {e}")
+        except subprocess.TimeoutExpired as e:
+            failed_files.append((file_name, f"Timeout: {e.timeout}s"))
+            print(f"    WARNING: Timeout importing {file_name}: {e.timeout}s")
 
     print()
     if not failed_files:
