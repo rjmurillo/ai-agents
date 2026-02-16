@@ -261,7 +261,7 @@ class TestClassifyPrsErrors:
 
 
 class TestMain:
-    def _rate_limit_ok(self) -> MagicMock:
+    def _rate_limit_ok(self) -> object:
         from scripts.github_core import RateLimitResult
 
         return RateLimitResult(
@@ -271,7 +271,7 @@ class TestMain:
             summary_markdown="",
         )
 
-    def _rate_limit_low(self) -> MagicMock:
+    def _rate_limit_low(self) -> object:
         from scripts.github_core import RateLimitResult
 
         return RateLimitResult(

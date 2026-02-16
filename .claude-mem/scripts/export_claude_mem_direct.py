@@ -66,7 +66,8 @@ def _parse_json_output(raw: str, label: str) -> list[dict[str, object]]:
     Logs the first 200 characters of raw output for debugging when parsing fails.
     """
     try:
-        return json.loads(raw)
+        result: list[dict[str, object]] = json.loads(raw)
+        return result
     except (json.JSONDecodeError, ValueError) as exc:
         preview = raw[:200] if raw else "(empty)"
         print(

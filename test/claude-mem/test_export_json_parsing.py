@@ -25,7 +25,7 @@ SCRIPTS_DIR = str(
 )
 sys.path.insert(0, SCRIPTS_DIR)
 
-from export_claude_mem_direct import _parse_json_output
+from export_claude_mem_direct import _parse_json_output  # noqa: E402
 
 
 class TestParseJsonOutput:
