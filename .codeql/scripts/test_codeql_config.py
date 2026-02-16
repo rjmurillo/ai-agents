@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import os
 import re
 import shutil
@@ -25,6 +26,8 @@ import subprocess
 import sys
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -64,8 +67,8 @@ def validate_yaml_syntax(config_path: str) -> dict[str, Any]:
         yaml.safe_load(content)
         return {"valid": True, "content": content}
     except ImportError:
-        pass
-    except Exception as exc:
+        logger.warning("PyYAML not installed; falling back to regex YAML validation")
+    except yaml.YAMLError as exc:
         return {"valid": False, "error": f"YAML parse error: {exc}", "content": None}
 
     for line_num, line in enumerate(content.split("\n"), 1):

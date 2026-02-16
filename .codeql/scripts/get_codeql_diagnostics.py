@@ -17,14 +17,16 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 import re
 import shutil
 import subprocess
-import sys
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 def build_parser() -> Any:
@@ -210,7 +212,11 @@ def check_database_cache(
                 return False
 
         return True
-    except (json.JSONDecodeError, OSError):
+    except json.JSONDecodeError as exc:
+        logger.warning("Cache metadata has invalid JSON: %s", exc)
+        return False
+    except OSError as exc:
+        logger.warning("Cache metadata unreadable: %s", exc)
         return False
 
 
@@ -448,53 +454,48 @@ def format_markdown(diagnostics: dict[str, Any]) -> None:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
 
-    try:
-        repo_path = os.path.realpath(args.repo_path)
-        config_path = args.config_path
-        if not os.path.isabs(config_path):
-            config_path = os.path.join(repo_path, config_path)
-        database_path = args.database_path
-        if not os.path.isabs(database_path):
-            database_path = os.path.join(repo_path, database_path)
-        results_path = args.results_path
-        if not os.path.isabs(results_path):
-            results_path = os.path.join(repo_path, results_path)
+    repo_path = os.path.realpath(args.repo_path)
+    config_path = args.config_path
+    if not os.path.isabs(config_path):
+        config_path = os.path.join(repo_path, config_path)
+    database_path = args.database_path
+    if not os.path.isabs(database_path):
+        database_path = os.path.join(repo_path, database_path)
+    results_path = args.results_path
+    if not os.path.isabs(results_path):
+        results_path = os.path.join(repo_path, results_path)
 
-        cli_check = check_cli()
-        config_check = check_config(config_path, cli_check["path"])
-        db_check = check_database(database_path, config_path, repo_path)
-        results_check = check_results(results_path)
+    cli_check = check_cli()
+    config_check = check_config(config_path, cli_check["path"])
+    db_check = check_database(database_path, config_path, repo_path)
+    results_check = check_results(results_path)
 
-        all_recommendations = (
-            cli_check["recommendations"]
-            + config_check["recommendations"]
-            + db_check["recommendations"]
-            + results_check["recommendations"]
-        )
+    all_recommendations = (
+        cli_check["recommendations"]
+        + config_check["recommendations"]
+        + db_check["recommendations"]
+        + results_check["recommendations"]
+    )
 
-        overall_status = "PASS" if not all_recommendations else "WARNINGS"
+    overall_status = "PASS" if not all_recommendations else "WARNINGS"
 
-        diagnostics = {
-            "cli": cli_check,
-            "config": config_check,
-            "database": db_check,
-            "results": results_check,
-            "overall_status": overall_status,
-            "timestamp": datetime.now(tz=UTC).isoformat(),
-        }
+    diagnostics = {
+        "cli": cli_check,
+        "config": config_check,
+        "database": db_check,
+        "results": results_check,
+        "overall_status": overall_status,
+        "timestamp": datetime.now(tz=UTC).isoformat(),
+    }
 
-        if args.output_format == "console":
-            format_console(diagnostics)
-        elif args.output_format == "json":
-            format_json(diagnostics)
-        elif args.output_format == "markdown":
-            format_markdown(diagnostics)
+    if args.output_format == "console":
+        format_console(diagnostics)
+    elif args.output_format == "json":
+        format_json(diagnostics)
+    elif args.output_format == "markdown":
+        format_markdown(diagnostics)
 
-        return 0 if overall_status == "PASS" else 1
-
-    except Exception as exc:
-        print(f"Diagnostics failed: {exc}", file=sys.stderr)
-        return 3
+    return 0 if overall_status == "PASS" else 1
 
 
 if __name__ == "__main__":
