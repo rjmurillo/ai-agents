@@ -3,11 +3,11 @@
 # Pre-commit hook for vs-code-agents repository
 # AUTOMATICALLY FIXES markdown linting issues and re-stages corrected files.
 #
-# NOTE: This is a bash script, which is an exception to ADR-005 (PowerShell-only).
-# Rationale: Git hooks require shell scripts on non-Windows platforms. A PowerShell
-# implementation would require pwsh to be installed and in PATH, creating a barrier
+# NOTE: This is a bash script, which is an exception to ADR-042 (Python-first).
+# Rationale: Git hooks require shell scripts on non-Windows platforms. A Python
+# implementation would require python3 to be installed and in PATH, creating a barrier
 # to contribution. This is a grandfathered exception for cross-platform git integration.
-# The hook delegates to PowerShell scripts for all logic beyond basic file detection.
+# The hook delegates to Python scripts for all logic beyond basic file detection.
 #
 # Linter:
 #   - markdownlint-cli2 for markdown files (auto-fix enabled)
@@ -508,31 +508,29 @@ fi
 #
 # Related: Issue rjmurillo/ai-agents#I2, #I4 (Cross-Document Consistency)
 #
-PLANNING_VALIDATE_SCRIPT="$REPO_ROOT/build/scripts/Validate-PlanningArtifacts.ps1"
+PLANNING_VALIDATE_SCRIPT="$REPO_ROOT/build/scripts/validate_planning_artifacts.py"
 
 # Check if any planning files are staged
 STAGED_PLANNING_FILES=$(echo "$STAGED_FILES" | grep -E '^\.agents/planning/.*\.md$' || true)
 
 if [ -n "$STAGED_PLANNING_FILES" ]; then
     echo_info "Checking planning artifact consistency..."
-    
+
     # MEDIUM-002: Reject symlinks for security
     if [ -L "$PLANNING_VALIDATE_SCRIPT" ]; then
         echo_warning "Skipping planning validation: script path is a symlink"
     elif [ -f "$PLANNING_VALIDATE_SCRIPT" ]; then
-        if command -v pwsh &> /dev/null; then
+        if set_python_cmd; then
             # Run validation in warning mode (don't block commits, but show issues)
-            # -ExecutionPolicy Bypass: Ensure consistent execution across all platforms (see #213)
-            if ! pwsh -NoProfile -ExecutionPolicy Bypass -File "$PLANNING_VALIDATE_SCRIPT" -Path "$REPO_ROOT" 2>&1; then
+            if ! "${PYTHON_CMD[@]}" "$PLANNING_VALIDATE_SCRIPT" --path "$REPO_ROOT" 2>&1; then
                 echo_warning "Planning artifact validation found issues (see above)."
-                echo_info "  Consider running: pwsh build/scripts/Validate-PlanningArtifacts.ps1"
+                echo_info "  Consider running: python3 build/scripts/validate_planning_artifacts.py"
                 # Non-blocking: just warn, don't fail the commit
             else
                 echo_success "Planning artifacts OK."
             fi
         else
-            echo_warning "PowerShell not available. Skipping planning artifact validation."
-            echo_warning "Install: https://docs.microsoft.com/en-us/powershell/scripting/install/installing-powershell"
+            echo_warning "Python 3 not available. Skipping planning artifact validation."
         fi
     else
         echo_info "Planning validation script not found. Skipping."
@@ -553,32 +551,10 @@ fi
 #
 # Related: Issue rjmurillo/ai-agents#44 (Phase 3 consistency)
 #
-CONSISTENCY_VALIDATE_SCRIPT="$REPO_ROOT/scripts/Validate-Consistency.ps1"
-
+# Consistency validation script retired (migrated to Python, script pending)
 # Check if any planning files are staged that might need consistency validation
 if [ -n "$STAGED_PLANNING_FILES" ]; then
-    echo_info "Checking cross-document consistency..."
-
-    # MEDIUM-002: Reject symlinks for security
-    if [ -L "$CONSISTENCY_VALIDATE_SCRIPT" ]; then
-        echo_warning "Skipping consistency validation: script path is a symlink"
-    elif [ -f "$CONSISTENCY_VALIDATE_SCRIPT" ]; then
-        if command -v pwsh &> /dev/null; then
-            # Run validation - failures will be reported but won't block commits
-            # Note: -CI flag ensures script returns non-zero exit code on failures
-            if ! pwsh -NoProfile -ExecutionPolicy Bypass -File "$CONSISTENCY_VALIDATE_SCRIPT" -All -CI -Path "$REPO_ROOT" 2>&1; then
-                echo_warning "Consistency validation found issues (see above)."
-                echo_info "  Consider running: pwsh scripts/Validate-Consistency.ps1 -All"
-                # Non-blocking: just warn, don't fail the commit
-            else
-                echo_success "Consistency validation OK."
-            fi
-        else
-            echo_warning "PowerShell not available. Skipping consistency validation."
-        fi
-    else
-        echo_info "Consistency validation script not found. Skipping."
-    fi
+    echo_info "Consistency validation script not available. Skipping."
 fi
 
 #
@@ -590,7 +566,7 @@ fi
 #
 # Security: Checks for symlinks to prevent TOCTOU attacks (MEDIUM-002)
 #
-MCP_SYNC_SCRIPT="$REPO_ROOT/scripts/Sync-McpConfig.ps1"
+MCP_SYNC_SCRIPT="$REPO_ROOT/scripts/sync_mcp_config.py"
 
 # Check if .mcp.json is staged
 STAGED_MCP_FILE=$(echo "$STAGED_FILES" | grep -E '^\.mcp\.json$' || true)
@@ -604,40 +580,39 @@ if [ -n "$STAGED_MCP_FILE" ]; then
         if [ -L "$MCP_SYNC_SCRIPT" ]; then
             echo_warning "Skipping MCP sync: script path is a symlink"
         elif [ -f "$MCP_SYNC_SCRIPT" ]; then
-            if command -v pwsh &> /dev/null; then
-            # Run sync script with PassThru to get sync status (returns True/False string)
-            SYNC_OUTPUT=$(pwsh -NoProfile -ExecutionPolicy Bypass -File "$MCP_SYNC_SCRIPT" -PassThru 2>&1)
-            SYNC_EXIT=$?
+            if set_python_cmd; then
+                # Run sync script to sync all targets
+                SYNC_OUTPUT=$("${PYTHON_CMD[@]}" "$MCP_SYNC_SCRIPT" --sync-all --repo-root-override "$REPO_ROOT" 2>&1)
+                SYNC_EXIT=$?
 
-            if [ $SYNC_EXIT -eq 0 ]; then
-                # Script succeeded - check if files were actually synced
-                if echo "$SYNC_OUTPUT" | grep -q '^True$'; then
-                    # MEDIUM-002: Defense-in-depth symlink check before staging
-                    # (Mitigates TOCTOU race between PowerShell check and git add)
-                    if [ -L "$REPO_ROOT/mcp.json" ]; then
-                        echo_warning "Skipping MCP sync staging: mcp.json is a symlink"
-                    else
-                        # Files were synced - stage the generated file
-                        git add -- "$REPO_ROOT/mcp.json"
-                        echo_success "Synced: mcp.json"
-                        FILES_FIXED=1
+                if [ $SYNC_EXIT -eq 0 ]; then
+                    # Stage generated files if they changed
+                    # Use local variable to track MCP sync status independently of global FILES_FIXED
+                    MCP_SYNCED=0
+                    for mcp_target in "$REPO_ROOT/.vscode/mcp.json" "$REPO_ROOT/.factory/mcp.json"; do
+                        if [ -f "$mcp_target" ] && [ ! -L "$mcp_target" ]; then
+                            if ! git diff --quiet -- "$mcp_target" 2>/dev/null; then
+                                git add -- "$mcp_target"
+                                echo_success "Synced: $(basename "$(dirname "$mcp_target")")/$(basename "$mcp_target")"
+                                FILES_FIXED=1
+                                MCP_SYNCED=1
+                            fi
+                        fi
+                    done
+                    if [ "$MCP_SYNCED" = "0" ]; then
+                        echo_success "MCP config already in sync."
                     fi
                 else
-                    # Files already in sync (PassThru returned False)
-                    echo_success "MCP config already in sync."
+                    # Script failed
+                    echo_warning "MCP sync script failed (see above)."
+                    # Non-blocking: just warn, don't fail the commit
                 fi
             else
-                # Script failed
-                echo_warning "MCP sync script failed (see above)."
-                # Non-blocking: just warn, don't fail the commit
+                echo_warning "Python 3 not available. Skipping MCP config sync."
             fi
         else
-            echo_warning "PowerShell not available. Skipping MCP config sync."
-            echo_warning "Install: https://docs.microsoft.com/en-us/powershell/scripting/install/installing-powershell"
+            echo_info "MCP sync script not found. Skipping."
         fi
-    else
-        echo_info "MCP sync script not found. Skipping."
-    fi
     else
         echo_info "MCP config sync skipped (auto-fix disabled)."
     fi
@@ -652,7 +627,7 @@ fi
 #
 # Security: Checks for symlinks to prevent TOCTOU attacks (MEDIUM-002)
 #
-GENERATE_AGENTS_SCRIPT="$REPO_ROOT/build/Generate-Agents.ps1"
+GENERATE_AGENTS_SCRIPT="$REPO_ROOT/build/generate_agents.py"
 
 # Check if any shared agent template or platform config is staged
 STAGED_AGENT_TEMPLATES=$(echo "$STAGED_FILES" | grep -E '^templates/(agents/.*\.shared\.md|platforms/.*)$' || true)
@@ -666,9 +641,9 @@ if [ -n "$STAGED_AGENT_TEMPLATES" ]; then
         if [ -L "$GENERATE_AGENTS_SCRIPT" ]; then
             echo_warning "Skipping agent generation: script path is a symlink"
         elif [ -f "$GENERATE_AGENTS_SCRIPT" ]; then
-            if command -v pwsh &> /dev/null; then
+            if set_python_cmd; then
                 # Run generator script
-                GENERATE_OUTPUT=$(pwsh -NoProfile -ExecutionPolicy Bypass -File "$GENERATE_AGENTS_SCRIPT" 2>&1)
+                GENERATE_OUTPUT=$("${PYTHON_CMD[@]}" "$GENERATE_AGENTS_SCRIPT" 2>&1)
                 GENERATE_EXIT=$?
 
                 if [ $GENERATE_EXIT -eq 0 ]; then
@@ -702,8 +677,7 @@ if [ -n "$STAGED_AGENT_TEMPLATES" ]; then
                     # Non-blocking: just warn, don't fail the commit
                 fi
             else
-                echo_warning "PowerShell not available. Skipping agent generation."
-                echo_warning "Install: https://docs.microsoft.com/en-us/powershell/scripting/install/installing-powershell"
+                echo_warning "Python 3 not available. Skipping agent generation."
             fi
         else
             echo_info "Agent generation script not found. Skipping."
@@ -801,30 +775,10 @@ fi
 # Related: Issue #4, ADR-040 (Skill Frontmatter Standardization)
 # Reference: .agents/analysis/claude-code-skill-frontmatter-2026.md
 #
-FRONTMATTER_VALIDATOR="$REPO_ROOT/scripts/Validate-SkillFrontmatter.ps1"
-
-# Check if any SKILL.md files are staged
+# Skill Frontmatter Validation - script retired (pending Python migration)
+# SkillForge validator (validate-skill.py above) already covers frontmatter checks.
 if [ -n "$STAGED_SKILL_FILES" ]; then
-    echo_info "Validating skill frontmatter..."
-
-    # MEDIUM-002: Reject symlinks for security
-    if [ -L "$FRONTMATTER_VALIDATOR" ]; then
-        echo_error "Frontmatter validator path is a symlink (security violation)"
-        EXIT_STATUS=1
-    elif [ -f "$FRONTMATTER_VALIDATOR" ]; then
-        # Run frontmatter validation in CI mode (blocking)
-        if pwsh -NoProfile -ExecutionPolicy Bypass -File "$FRONTMATTER_VALIDATOR" -StagedOnly -CI; then
-            echo_success "All skill frontmatter validated successfully."
-        else
-            echo_error "Skill frontmatter validation failed."
-            echo_info "  Fix SKILL.md frontmatter and retry commit."
-            echo_info "  See: .agents/analysis/claude-code-skill-frontmatter-2026.md"
-            EXIT_STATUS=1
-        fi
-    else
-        echo_warning "Frontmatter validator not found: $FRONTMATTER_VALIDATOR"
-        echo_info "  SkillForge validator already covers frontmatter checks."
-    fi
+    echo_info "Skill frontmatter validation: covered by SkillForge validator above."
 else
     echo_info "No SKILL.md files staged. Skipping frontmatter validation."
 fi
@@ -884,9 +838,9 @@ fi
 STAGED_SCRIPT_FILES=$(echo "$STAGED_FILES" | grep -E '^\.github/scripts/.*\.(sh|bash)$' || true)
 
 if [ -n "$STAGED_SCRIPT_FILES" ]; then
-    echo_error "Bash scripts (.sh, .bash) not allowed in .github/scripts/ (ADR-005)."
-    echo_info "  Use PowerShell (.ps1, .psm1) instead."
-    echo_info "  See: .agents/architecture/ADR-005-powershell-only-scripting.md"
+    echo_error "Bash scripts (.sh, .bash) not allowed in .github/scripts/ (ADR-042)."
+    echo_info "  Use Python (.py) instead."
+    echo_info "  See: .agents/architecture/ADR-042-python-migration-strategy.md"
     EXIT_STATUS=1
 fi
 
@@ -904,9 +858,9 @@ if [ -n "$STAGED_GITHUB_SCRIPT_FILES" ]; then
     # SECURITY: Use array expansion with quotes to preserve filenames with spaces/special chars
     # Use -- separator to prevent filenames starting with - from being interpreted as options
     if git diff --cached -- "${GITHUB_SCRIPT_FILES_ARRAY[@]}" | grep -E '^\+#!.*(bin/bash|env bash)' > /dev/null 2>&1; then
-        echo_error "Bash shebang not allowed in .github/scripts/ files (ADR-005)."
-        echo_info "  Use PowerShell instead. Scripts should be .ps1 files."
-        echo_info "  See: .agents/architecture/ADR-005-powershell-only-scripting.md"
+        echo_error "Bash shebang not allowed in .github/scripts/ files (ADR-042)."
+        echo_info "  Use Python instead. Scripts should be .py files."
+        echo_info "  See: .agents/architecture/ADR-042-python-migration-strategy.md"
         EXIT_STATUS=1
     fi
 fi
@@ -1033,30 +987,9 @@ fi
 #
 # Related: Issue #190 (HANDOFF.md merge conflicts), ADR-014
 #
-TOKEN_BUDGET_SCRIPT="$REPO_ROOT/scripts/Validate-TokenBudget.ps1"
-
+# Token budget validation script retired (pending Python migration)
 if [ -n "$STAGED_HANDOFF" ]; then
-    echo_info "Checking HANDOFF.md token budget..."
-    
-    # MEDIUM-002: Reject symlinks for security
-    if [ -L "$TOKEN_BUDGET_SCRIPT" ]; then
-        echo_warning "Skipping token budget validation: script path is a symlink"
-    elif [ -f "$TOKEN_BUDGET_SCRIPT" ]; then
-        if command -v pwsh &> /dev/null; then
-            # Run token budget validation in CI mode
-            if ! pwsh -NoProfile -ExecutionPolicy Bypass -File "$TOKEN_BUDGET_SCRIPT" -Path "$REPO_ROOT" -CI 2>&1; then
-                echo_error "Token budget validation FAILED."
-                echo_info "  HANDOFF.md exceeds 5K token limit."
-                EXIT_STATUS=1
-            else
-                echo_success "Token budget validation: PASS"
-            fi
-        else
-            echo_warning "PowerShell not available. Skipping token budget validation."
-        fi
-    else
-        echo_info "Token budget script not found. Skipping."
-    fi
+    echo_info "Token budget validation script not available. Skipping."
 fi
 
 #
@@ -1157,7 +1090,7 @@ fi
 # Security: Checks for symlinks to prevent TOCTOU attacks (MEDIUM-002)
 # Related: ADR-038 Reflexion Memory Schema, memory skill
 #
-EPISODE_EXTRACT_SCRIPT="$REPO_ROOT/.claude/skills/memory/scripts/Extract-SessionEpisode.ps1"
+EPISODE_EXTRACT_SCRIPT="$REPO_ROOT/.claude/skills/memory/scripts/extract_session_episode.py"
 
 if [ -n "$STAGED_SESSION_LOG" ]; then
     # Check if auto-fix is enabled (respects SKIP_AUTOFIX environment variable)
@@ -1168,10 +1101,10 @@ if [ -n "$STAGED_SESSION_LOG" ]; then
         if [ -L "$EPISODE_EXTRACT_SCRIPT" ]; then
             echo_warning "Skipping episode extraction: script path is a symlink"
         elif [ -f "$EPISODE_EXTRACT_SCRIPT" ]; then
-            if command -v pwsh &> /dev/null; then
+            if set_python_cmd; then
                 # Run episode extraction
                 # Guard against set -e aborting the hook on non-blocking extraction failures
-                EXTRACT_OUTPUT=$(pwsh -NoProfile -ExecutionPolicy Bypass -File "$EPISODE_EXTRACT_SCRIPT" -SessionLogPath "$STAGED_SESSION_LOG" -Force 2>&1 || true)
+                EXTRACT_OUTPUT=$("${PYTHON_CMD[@]}" "$EPISODE_EXTRACT_SCRIPT" "$STAGED_SESSION_LOG" --force 2>&1 || true)
                 EXTRACT_EXIT=$?
 
                 if [ $EXTRACT_EXIT -eq 0 ]; then
@@ -1196,10 +1129,10 @@ if [ -n "$STAGED_SESSION_LOG" ]; then
                     echo_warning "Episode extraction failed (non-blocking):"
                     echo "$EXTRACT_OUTPUT" | head -5
                     echo_info "  Session log will still be committed."
-                    echo_info "  Extract manually: pwsh .claude/skills/memory/scripts/Extract-SessionEpisode.ps1 -SessionLogPath \"$STAGED_SESSION_LOG\""
+                    echo_info "  Extract manually: python3 .claude/skills/memory/scripts/extract_session_episode.py \"$STAGED_SESSION_LOG\" --force"
                 fi
             else
-                echo_warning "PowerShell not available. Skipping episode extraction."
+                echo_warning "Python 3 not available. Skipping episode extraction."
             fi
         else
             echo_info "Episode extraction script not found. Skipping."
@@ -1219,7 +1152,7 @@ fi
 # Security: Checks for symlinks to prevent TOCTOU attacks (MEDIUM-002)
 # Related: ADR-038 Reflexion Memory Schema, memory skill
 #
-UPDATE_CAUSAL_SCRIPT="$REPO_ROOT/.claude/skills/memory/scripts/Update-CausalGraph.ps1"
+UPDATE_CAUSAL_SCRIPT="$REPO_ROOT/.claude/skills/memory/scripts/update_causal_graph.py"
 CAUSAL_GRAPH_FILE="$REPO_ROOT/.agents/memory/causality/causal-graph.json"
 
 # Check if any episode files are staged
@@ -1234,11 +1167,11 @@ if [ -n "$STAGED_EPISODE_FILES" ]; then
         if [ -L "$UPDATE_CAUSAL_SCRIPT" ]; then
             echo_warning "Skipping causal graph update: script path is a symlink"
         elif [ -f "$UPDATE_CAUSAL_SCRIPT" ]; then
-            if command -v pwsh &> /dev/null; then
+            if set_python_cmd; then
                 # Run causal graph update on the entire episodes directory
                 # This ensures all relationships are captured, not just the new episode
                 # Guard against set -e aborting the hook on non-blocking update failures
-                UPDATE_OUTPUT=$(pwsh -NoProfile -ExecutionPolicy Bypass -File "$UPDATE_CAUSAL_SCRIPT" -EpisodePath "$REPO_ROOT/.agents/memory/episodes" 2>&1 || true)
+                UPDATE_OUTPUT=$("${PYTHON_CMD[@]}" "$UPDATE_CAUSAL_SCRIPT" --episode-path "$REPO_ROOT/.agents/memory/episodes" 2>&1 || true)
                 UPDATE_EXIT=$?
 
                 if [ $UPDATE_EXIT -eq 0 ]; then
@@ -1272,10 +1205,10 @@ if [ -n "$STAGED_EPISODE_FILES" ]; then
                     echo_warning "Causal graph update failed (non-blocking):"
                     echo "$UPDATE_OUTPUT" | head -5
                     echo_info "  Episodes will still be committed."
-                    echo_info "  Update manually: pwsh .claude/skills/memory/scripts/Update-CausalGraph.ps1"
+                    echo_info "  Update manually: python3 .claude/skills/memory/scripts/update_causal_graph.py"
                 fi
             else
-                echo_warning "PowerShell not available. Skipping causal graph update."
+                echo_warning "Python 3 not available. Skipping causal graph update."
             fi
         else
             echo_info "Causal graph update script not found. Skipping."
@@ -1348,36 +1281,12 @@ fi
 #
 # Related: Phase 2 Traceability, traceability-schema.md
 #
-TRACEABILITY_VALIDATE_SCRIPT="$REPO_ROOT/scripts/Validate-Traceability.ps1"
-
+# Traceability validation script retired (pending Python migration)
 # Check if any spec files are staged
 STAGED_SPEC_FILES=$(echo "$STAGED_FILES" | grep -E '^\.agents/specs/(requirements|design|tasks)/.*\.md$' || true)
 
 if [ -n "$STAGED_SPEC_FILES" ]; then
-    echo_info "Checking specification traceability..."
-
-    # MEDIUM-002: Reject symlinks for security
-    if [ -L "$TRACEABILITY_VALIDATE_SCRIPT" ]; then
-        echo_warning "Skipping traceability validation: script path is a symlink"
-    elif [ -f "$TRACEABILITY_VALIDATE_SCRIPT" ]; then
-        if command -v pwsh &> /dev/null; then
-            # Run traceability validation
-            # Note: Errors (broken refs, untraced tasks) are blocking
-            # Warnings (orphaned specs) are non-blocking unless -Strict
-            if ! pwsh -NoProfile -ExecutionPolicy Bypass -File "$TRACEABILITY_VALIDATE_SCRIPT" -SpecsPath "$REPO_ROOT/.agents/specs" 2>&1; then
-                echo_error "Traceability validation FAILED."
-                echo_info "  Fix broken references or untraced tasks."
-                echo_info "  See: .agents/governance/traceability-schema.md"
-                EXIT_STATUS=1
-            else
-                echo_success "Traceability validation: PASS"
-            fi
-        else
-            echo_warning "PowerShell not available. Skipping traceability validation."
-        fi
-    else
-        echo_info "Traceability validation script not found. Skipping."
-    fi
+    echo_info "Traceability validation script not available. Skipping."
 else
     echo_info "No spec files staged. Skipping traceability validation."
 fi
@@ -1516,7 +1425,7 @@ fi
 #
 # Related: ADR-017, Issue #307
 #
-MEMORY_INDEX_SCRIPT="$REPO_ROOT/scripts/Validate-MemoryIndex.ps1"
+MEMORY_INDEX_SCRIPT="$REPO_ROOT/scripts/validation/memory_index.py"
 
 if [ -n "$STAGED_MEMORY_FILES" ]; then
     echo_info "Checking memory index consistency (ADR-017)..."
@@ -1525,17 +1434,17 @@ if [ -n "$STAGED_MEMORY_FILES" ]; then
     if [ -L "$MEMORY_INDEX_SCRIPT" ]; then
         echo_warning "Skipping memory index validation: script path is a symlink"
     elif [ -f "$MEMORY_INDEX_SCRIPT" ]; then
-        if command -v pwsh &> /dev/null; then
+        if set_python_cmd; then
             # Run memory index validation in CI mode
-            if ! pwsh -NoProfile -ExecutionPolicy Bypass -File "$MEMORY_INDEX_SCRIPT" -Path "$REPO_ROOT/.serena/memories" -CI 2>&1; then
+            if ! "${PYTHON_CMD[@]}" "$MEMORY_INDEX_SCRIPT" --path "$REPO_ROOT/.serena/memories" --ci 2>&1; then
                 echo_error "Memory index validation FAILED."
-                echo_info "  Run manually: pwsh scripts/Validate-MemoryIndex.ps1"
+                echo_info "  Run manually: python3 scripts/validation/memory_index.py"
                 EXIT_STATUS=1
             else
                 echo_success "Memory index validation: PASS"
             fi
         else
-            echo_warning "PowerShell not available. Skipping memory index validation."
+            echo_warning "Python 3 not available. Skipping memory index validation."
         fi
     else
         echo_info "Memory index validation script not found. Skipping."
@@ -1560,7 +1469,7 @@ fi
 #
 # Related: Issue #899, Issue #910, memory skill
 #
-MEMORY_CROSSREF_SCRIPT="$REPO_ROOT/.claude/skills/memory/scripts/Invoke-MemoryCrossReference.ps1"
+MEMORY_CROSSREF_SCRIPT="$REPO_ROOT/.claude/skills/memory/scripts/invoke_memory_cross_reference.py"
 
 if [ -n "$STAGED_MEMORY_FILES" ]; then
     echo_info "Adding memory cross-references..."
@@ -1569,11 +1478,11 @@ if [ -n "$STAGED_MEMORY_FILES" ]; then
     if [ -L "$MEMORY_CROSSREF_SCRIPT" ]; then
         echo_warning "Skipping memory cross-reference: script path is a symlink"
     elif [ -f "$MEMORY_CROSSREF_SCRIPT" ]; then
-        if command -v pwsh &> /dev/null; then
+        if set_python_cmd; then
             # Run cross-reference (non-blocking)
-            crossref_result=$(pwsh -NoProfile -ExecutionPolicy Bypass -File "$MEMORY_CROSSREF_SCRIPT" \
-                -MemoriesPath "$REPO_ROOT/.serena/memories" \
-                -OutputJson 2>&1) || true
+            crossref_result=$("${PYTHON_CMD[@]}" "$MEMORY_CROSSREF_SCRIPT" \
+                --memories-path "$REPO_ROOT/.serena/memories" \
+                --output-json 2>&1) || true
 
             # Parse result and report
             if echo "$crossref_result" | grep -q '"Success":true'; then
@@ -1597,7 +1506,7 @@ if [ -n "$STAGED_MEMORY_FILES" ]; then
                 fi
             fi
         else
-            echo_warning "PowerShell not available. Skipping memory cross-reference."
+            echo_warning "Python 3 not available. Skipping memory cross-reference."
         fi
     else
         echo_info "Memory cross-reference script not found. Skipping."
@@ -1643,7 +1552,7 @@ fi
 #
 # Related: adr-review skill, ADR governance
 #
-adr_detect_script="$REPO_ROOT/.claude/skills/adr-review/scripts/Detect-ADRChanges.ps1"
+adr_detect_script="$REPO_ROOT/.claude/skills/adr-review/scripts/detect_adr_changes.py"
 
 # Check if any ADR files are staged
 staged_adr_files=$(echo "$STAGED_FILES" | grep -E '^(\.agents/architecture|docs/architecture)/ADR-.*\.md$' || true)
@@ -1655,9 +1564,9 @@ if [ -n "$staged_adr_files" ]; then
     if [ -L "$adr_detect_script" ]; then
         echo_warning "Skipping ADR detection: script path is a symlink"
     elif [ -f "$adr_detect_script" ]; then
-        if command -v pwsh &> /dev/null; then
+        if set_python_cmd; then
             # Run detection and capture output
-            adr_result=$(pwsh -NoProfile -ExecutionPolicy Bypass -File "$adr_detect_script" -BasePath "$REPO_ROOT" 2>&1)
+            adr_result=$("${PYTHON_CMD[@]}" "$adr_detect_script" --base-path "$REPO_ROOT" 2>&1)
             adr_exit=$?
 
             if [ $adr_exit -eq 0 ]; then
@@ -1679,7 +1588,7 @@ if [ -n "$staged_adr_files" ]; then
                 fi
             fi
         else
-            echo_warning "PowerShell not available. Skipping ADR detection."
+            echo_warning "Python 3 not available. Skipping ADR detection."
         fi
     else
         echo_info "ADR detection script not found. Skipping."
@@ -1697,7 +1606,7 @@ fi
 #
 # Related: ADR-017, Issue #307
 #
-SKILL_FORMAT_SCRIPT="$REPO_ROOT/scripts/Validate-SkillFormat.ps1"
+SKILL_FORMAT_SCRIPT="$REPO_ROOT/scripts/validate_skill_format.py"
 
 if [ -n "$STAGED_MEMORY_FILES" ]; then
     echo_info "Checking skill format (ADR-017: one skill per file)..."
@@ -1706,10 +1615,10 @@ if [ -n "$STAGED_MEMORY_FILES" ]; then
     if [ -L "$SKILL_FORMAT_SCRIPT" ]; then
         echo_warning "Skipping skill format validation: script path is a symlink"
     elif [ -f "$SKILL_FORMAT_SCRIPT" ]; then
-        if command -v pwsh &> /dev/null; then
+        if set_python_cmd; then
             # Run skill format validation on staged files only
-            # -StagedOnly checks only new/modified files (not legacy bundled files)
-            if ! pwsh -NoProfile -ExecutionPolicy Bypass -File "$SKILL_FORMAT_SCRIPT" -StagedOnly -CI 2>&1; then
+            # --staged-only checks only new/modified files (not legacy bundled files)
+            if ! "${PYTHON_CMD[@]}" "$SKILL_FORMAT_SCRIPT" --staged-only --ci 2>&1; then
                 echo_error "Skill format validation FAILED."
                 echo_info "  ADR-017 requires ONE skill per file. Split bundled skills."
                 EXIT_STATUS=1
@@ -1717,7 +1626,7 @@ if [ -n "$STAGED_MEMORY_FILES" ]; then
                 echo_success "Skill format validation: PASS"
             fi
         else
-            echo_warning "PowerShell not available. Skipping skill format validation."
+            echo_warning "Python 3 not available. Skipping skill format validation."
         fi
     else
         echo_info "Skill format validation script not found. Skipping."
@@ -1744,11 +1653,8 @@ fi
 
 # Suggestion: Run full validation before creating PR
 echo ""
-echo_info "Before creating a PR, run the full validation suite:"
-echo_info "  pwsh scripts/Validate-PrePR.ps1"
-echo_info ""
-echo_info "For quick validation during development:"
-echo_info "  pwsh scripts/Validate-PrePR.ps1 -Quick"
+echo_info "Before creating a PR, run the pre-push hook or full test suite:"
+echo_info "  python3 -m pytest"
 echo_info ""
 echo_info "See: .agents/devops/SHIFT-LEFT.md for details"
 
