@@ -384,7 +384,7 @@ def main(argv: list[str] | None = None) -> int:
             if not args.output_json:
                 print("Exiting: API rate limit too low", file=sys.stderr)
             return 0
-    except (RuntimeError, subprocess.SubprocessError, OSError):
+    except (RuntimeError, subprocess.SubprocessError, OSError, KeyError):
         if not args.output_json:
             logger.exception("Failed to check rate limit")
         print("Cannot verify API rate limit. Aborting.", file=sys.stderr)
