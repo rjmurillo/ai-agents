@@ -7,6 +7,8 @@ import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 _spec = importlib.util.spec_from_file_location(
     "install_codeql_integration",
     os.path.join(
@@ -25,6 +27,7 @@ _spec.loader.exec_module(_mod)
 build_parser = _mod.build_parser
 get_repo_root = _mod.get_repo_root
 step_verify_vscode = _mod.step_verify_vscode
+step_verify_claude_skill = _mod.step_verify_claude_skill
 step_verify_pre_commit = _mod.step_verify_pre_commit
 main = _mod.main
 
@@ -94,6 +97,40 @@ class TestStepVerifyPreCommit:
 
     def test_hook_not_found(self, tmp_path: Path) -> None:
         result = step_verify_pre_commit(str(tmp_path))
+        assert "[WARNING]" in result
+
+
+class TestStepVerifyClaudeSkill:
+    def test_chmod_failure_logs_warning(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        skill_dir = tmp_path / ".claude" / "skills" / "codeql-scan"
+        scripts_dir = skill_dir / "scripts"
+        scripts_dir.mkdir(parents=True)
+        (skill_dir / "SKILL.md").write_text("# Skill")
+        (scripts_dir / "Invoke-CodeQLScanSkill.ps1").write_text("Write-Host test")
+
+        with patch("platform.system", return_value="Linux"):
+            with patch("os.chmod", side_effect=OSError("Operation not permitted")):
+                result = step_verify_claude_skill(str(tmp_path))
+
+        assert "[PASS]" in result
+        captured = capsys.readouterr()
+        assert "Could not set execute permission" in captured.err
+        assert "Operation not permitted" in captured.err
+
+    def test_skill_files_present_returns_pass(self, tmp_path: Path) -> None:
+        skill_dir = tmp_path / ".claude" / "skills" / "codeql-scan"
+        scripts_dir = skill_dir / "scripts"
+        scripts_dir.mkdir(parents=True)
+        (skill_dir / "SKILL.md").write_text("# Skill")
+        (scripts_dir / "Invoke-CodeQLScanSkill.ps1").write_text("Write-Host test")
+
+        result = step_verify_claude_skill(str(tmp_path))
+        assert "[PASS]" in result
+
+    def test_skill_files_missing_returns_warning(self, tmp_path: Path) -> None:
+        result = step_verify_claude_skill(str(tmp_path))
         assert "[WARNING]" in result
 
 
