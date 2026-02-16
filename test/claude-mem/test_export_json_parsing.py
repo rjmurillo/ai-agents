@@ -95,15 +95,24 @@ class TestParseJsonOutput:
         result = _parse_json_output(raw, "observations")
         assert result == []
 
-    def test_valid_json_object_not_array(self) -> None:
-        """A valid JSON object (not array) is returned as-is.
+    def test_valid_json_object_wrapped_in_list(self) -> None:
+        """A valid JSON object (not array) is wrapped in a list.
 
-        sqlite3 -json always returns arrays, but the parser should not crash
-        on unexpected shapes.
+        sqlite3 -json always returns arrays, but the parser wraps dicts
+        for type safety.
         """
         raw = '{"key": "value"}'
         result = _parse_json_output(raw, "observations")
-        assert result == {"key": "value"}
+        assert result == [{"key": "value"}]
+
+    def test_unexpected_json_type_returns_empty_list(
+        self, capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Non-dict, non-list JSON (e.g. string, int) returns empty list."""
+        result = _parse_json_output('"just a string"', "observations")
+        assert result == []
+        captured = capsys.readouterr()
+        assert "Unexpected JSON type" in captured.err
 
 
 class TestMainWithCorruptedOutput:

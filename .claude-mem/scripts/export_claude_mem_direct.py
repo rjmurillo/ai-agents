@@ -64,10 +64,12 @@ def _parse_json_output(raw: str, label: str) -> list[dict[str, object]]:
     """Parse JSON output from sqlite3, returning empty list on failure.
 
     Logs the first 200 characters of raw output for debugging when parsing fails.
+    Returns empty list (not raises) by design: partial export with warnings is
+    preferable to a crash that produces no backup at all. The caller prints
+    record counts so any discrepancy is visible.
     """
     try:
-        result: list[dict[str, object]] = json.loads(raw)
-        return result
+        parsed = json.loads(raw)
     except json.JSONDecodeError as exc:
         preview = raw[:200] if raw else "(empty)"
         print(
@@ -76,6 +78,15 @@ def _parse_json_output(raw: str, label: str) -> list[dict[str, object]]:
             file=sys.stderr,
         )
         return []
+    if isinstance(parsed, dict):
+        return [parsed]
+    if isinstance(parsed, list):
+        return parsed
+    print(
+        f"WARNING: Unexpected JSON type for {label}: {type(parsed).__name__}",
+        file=sys.stderr,
+    )
+    return []
 
 
 def main(argv: list[str] | None = None) -> int:
