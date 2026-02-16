@@ -828,3 +828,4 @@ These documents reference this protocol but MUST NOT duplicate it:
 - [AGENT-INSTRUCTIONS.md](./AGENT-INSTRUCTIONS.md) - Task execution protocol
 - [HANDOFF.md](./HANDOFF.md) - Session context
 - [PROTOCOL-ANTIPATTERNS.md](./governance/PROTOCOL-ANTIPATTERNS.md) - Protocol design antipatterns and replacement patterns
+- [Search, Don't Load](../docs/search-dont-load.md) - Memory-first evidence protocol (Phase 2 reference)
