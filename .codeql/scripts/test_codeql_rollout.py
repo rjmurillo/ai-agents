@@ -15,7 +15,6 @@ Comprehensive validation of CodeQL integration including:
 Exit codes follow ADR-035:
     0 - All checks passed
     1 - One or more checks failed
-    3 - Unable to perform validation
 """
 
 from __future__ import annotations

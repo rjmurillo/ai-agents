@@ -394,8 +394,8 @@ def main(argv: list[str] | None = None) -> int:
         repo_params = resolve_repo_params(args.owner, args.repo)
     except SystemExit:
         raise
-    except Exception:
-        print("Failed to resolve repository parameters.", file=sys.stderr)
+    except (RuntimeError, OSError, subprocess.SubprocessError) as exc:
+        print(f"Failed to resolve repository parameters: {exc}", file=sys.stderr)
         return 2
 
     owner = repo_params["Owner"]

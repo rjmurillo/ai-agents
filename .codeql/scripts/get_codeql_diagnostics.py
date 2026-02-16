@@ -10,7 +10,6 @@ Performs a complete health check of the CodeQL infrastructure including:
 Exit codes follow ADR-035:
     0 - All checks passed
     1 - Some checks failed
-    3 - Unable to run diagnostics (missing dependencies)
 """
 
 from __future__ import annotations

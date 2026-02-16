@@ -68,7 +68,7 @@ def _parse_json_output(raw: str, label: str) -> list[dict[str, object]]:
     try:
         result: list[dict[str, object]] = json.loads(raw)
         return result
-    except (json.JSONDecodeError, ValueError) as exc:
+    except json.JSONDecodeError as exc:
         preview = raw[:200] if raw else "(empty)"
         print(
             f"WARNING: Failed to parse {label} JSON: {exc}\n"

@@ -91,12 +91,12 @@ class TestValidateYamlSyntax:
 
     def test_corrupt_yaml_returns_parse_error(self, tmp_path: Path) -> None:
         config = tmp_path / "config.yml"
-        config.write_text("name: test\n  bad:\n indent: broken\n")
+        config.write_text("key: [unterminated\n")
         import yaml as _yaml
         with patch.dict("sys.modules", {"yaml": _yaml}):
             result = validate_yaml_syntax(str(config))
-        if not result["valid"]:
-            assert "YAML parse error" in result["error"]
+        assert result["valid"] is False
+        assert "YAML parse error" in result["error"]
 
 
 class TestValidateConfigSchema:

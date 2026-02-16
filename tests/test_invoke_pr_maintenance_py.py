@@ -326,7 +326,7 @@ class TestMain:
 
     @patch(
         "scripts.invoke_pr_maintenance.resolve_repo_params",
-        side_effect=Exception("cannot resolve"),
+        side_effect=RuntimeError("cannot resolve"),
     )
     @patch("scripts.invoke_pr_maintenance.check_workflow_rate_limit")
     def test_exits_2_on_repo_resolution_failure(
