@@ -136,8 +136,11 @@ def step_verify_claude_skill(repo_root: str) -> str:
         if platform.system().lower() != "windows":
             try:
                 os.chmod(skill_script, 0o755)
-            except OSError:
-                pass
+            except OSError as exc:
+                write_status(
+                    f"Could not set execute permission on {skill_script}: {exc}",
+                    "warning",
+                )
         return "[PASS] Claude Code skill installed"
 
     write_status(

@@ -191,3 +191,13 @@ class TestMain:
         assert "TotalChecks" in data
         assert "PassedChecks" in data
         assert "Status" in data
+
+    def test_type_error_propagates(self) -> None:
+        with patch.object(_mod, "check_cli", side_effect=TypeError("bad type")):
+            with pytest.raises(TypeError, match="bad type"):
+                main([])
+
+    def test_attribute_error_propagates(self) -> None:
+        with patch.object(_mod, "check_cli", side_effect=AttributeError("no attr")):
+            with pytest.raises(AttributeError, match="no attr"):
+                main([])

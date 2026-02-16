@@ -21,13 +21,17 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import os
-import re
 import subprocess
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+
+from scripts.github_core import check_workflow_rate_limit, resolve_repo_params
+
+logger = logging.getLogger(__name__)
 
 PROTECTED_BRANCHES = ("main", "master", "develop")
 
@@ -50,35 +54,7 @@ BOT_CATEGORIES: dict[str, list[str]] = {
 
 
 def run_gh(*args: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(["gh", *args], capture_output=True, text=True)
-
-
-def get_repo_info() -> tuple[str, str]:
-    result = subprocess.run(
-        ["git", "remote", "get-url", "origin"], capture_output=True, text=True
-    )
-    if result.returncode != 0:
-        raise RuntimeError("Not in a git repository or no origin remote")
-
-    match = re.search(r"github\.com[:/]([^/]+)/([^/.]+)", result.stdout)
-    if not match:
-        raise RuntimeError(
-            f"Could not parse GitHub repository from remote: {result.stdout.strip()}"
-        )
-    return match.group(1), match.group(2).removesuffix(".git")
-
-
-def check_rate_limit() -> bool:
-    result = run_gh("api", "rate_limit")
-    if result.returncode != 0:
-        return False
-    try:
-        data = json.loads(result.stdout)
-        core: int = data["resources"]["core"]["remaining"]
-        graphql: int = data["resources"]["graphql"]["remaining"]
-        return core >= 100 and graphql >= 50
-    except (json.JSONDecodeError, KeyError):
-        return False
+    return subprocess.run(["gh", *args], capture_output=True, text=True, timeout=60)
 
 
 @dataclass
@@ -399,17 +375,34 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
+    # Rate limit check (fail-safe: exit 0 if too low or check fails)
     try:
-        if not check_rate_limit():
+        rate_result = check_workflow_rate_limit(
+            resource_thresholds={"core": 100, "graphql": 50},
+        )
+        if not rate_result.success:
             if not args.output_json:
-                print("Exiting: API rate limit too low")
+                print("Exiting: API rate limit too low", file=sys.stderr)
             return 0
+    except (RuntimeError, subprocess.SubprocessError, OSError):
+        if not args.output_json:
+            logger.exception("Failed to check rate limit")
+        print("Cannot verify API rate limit. Aborting.", file=sys.stderr)
+        return 0
 
-        owner = args.owner
-        repo = args.repo
-        if not owner or not repo:
-            owner, repo = get_repo_info()
+    try:
+        repo_params = resolve_repo_params(args.owner, args.repo)
+    except SystemExit:
+        # Convert to script's documented exit code (error_and_exit already printed message)
+        return 2
+    except (RuntimeError, OSError, subprocess.SubprocessError) as exc:
+        print(f"Failed to resolve repository parameters: {exc}", file=sys.stderr)
+        return 2
 
+    owner = repo_params["Owner"]
+    repo = repo_params["Repo"]
+
+    try:
         prs = get_open_prs(owner, repo, args.max_prs)
         results = classify_prs(owner, repo, prs)
 

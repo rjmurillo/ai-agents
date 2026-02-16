@@ -53,6 +53,7 @@ def run_sqlite3(db_path: str, query: str) -> subprocess.CompletedProcess[str]:
         ["sqlite3", db_path, query],
         capture_output=True,
         text=True,
+        timeout=30,
     )
 
 
@@ -227,9 +228,15 @@ def main(argv: list[str] | None = None) -> int:
                 total_skipped += skp
                 print(f"       Inserted: {ins}, Updated: {upd}, Skipped: {skp}")
 
-        except Exception as e:
+        except json.JSONDecodeError as e:
+            failed_files.append((file_name, f"Invalid JSON: {e}"))
+            print(f"    WARNING: Failed to parse {file_name}: {e}")
+        except KeyError as e:
+            failed_files.append((file_name, f"Missing key: {e}"))
+            print(f"    WARNING: Missing expected key {e} in {file_name}")
+        except RuntimeError as e:
             failed_files.append((file_name, str(e)))
-            print(f"    WARNING: Failed to import {file_name}: {e}")
+            print(f"    WARNING: Import failed for {file_name}: {e}")
 
     print()
     if not failed_files:

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import logging
 import os
 from pathlib import Path
 from unittest.mock import patch
@@ -76,6 +77,26 @@ class TestValidateYamlSyntax:
     def test_nonexistent_file(self) -> None:
         result = validate_yaml_syntax("/nonexistent/config.yml")
         assert result["valid"] is False
+
+    def test_missing_pyyaml_logs_warning_and_falls_back(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        config = tmp_path / "config.yml"
+        config.write_text("name: test\npacks:\n  - codeql/python-queries\n")
+        with patch.dict("sys.modules", {"yaml": None}):
+            with caplog.at_level(logging.WARNING, logger=_mod.__name__):
+                result = validate_yaml_syntax(str(config))
+        assert result["valid"] is True
+        assert any("falling back to regex" in r.message.lower() for r in caplog.records)
+
+    def test_corrupt_yaml_returns_parse_error(self, tmp_path: Path) -> None:
+        config = tmp_path / "config.yml"
+        config.write_text("key: [unterminated\n")
+        import yaml as _yaml
+        with patch.dict("sys.modules", {"yaml": _yaml}):
+            result = validate_yaml_syntax(str(config))
+        assert result["valid"] is False
+        assert "YAML parse error" in result["error"]
 
 
 class TestValidateConfigSchema:

@@ -15,7 +15,6 @@ Comprehensive validation of CodeQL integration including:
 Exit codes follow ADR-035:
     0 - All checks passed
     1 - One or more checks failed
-    3 - Unable to perform validation
 """
 
 from __future__ import annotations
@@ -336,45 +335,40 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     tracker = ValidationTracker()
 
-    try:
-        check_cli(tracker)
-        check_configuration(tracker)
-        check_scripts(tracker)
-        check_cicd(tracker)
-        check_local_dev(tracker)
-        check_automatic(tracker)
-        check_documentation(tracker)
-        check_tests(tracker)
-        check_gitignore(tracker)
+    check_cli(tracker)
+    check_configuration(tracker)
+    check_scripts(tracker)
+    check_cicd(tracker)
+    check_local_dev(tracker)
+    check_automatic(tracker)
+    check_documentation(tracker)
+    check_tests(tracker)
+    check_gitignore(tracker)
 
-        status = "PASS" if tracker.passed_checks == tracker.total_checks else "FAIL"
+    status = "PASS" if tracker.passed_checks == tracker.total_checks else "FAIL"
 
-        banner_dest = sys.stderr if args.output_format == "json" else sys.stdout
-        print("\n========================================", file=banner_dest)
-        print(
-            f"Overall Status: {status} "
-            f"({tracker.passed_checks}/{tracker.total_checks} checks)",
-            file=banner_dest,
-        )
-        print("========================================\n", file=banner_dest)
+    banner_dest = sys.stderr if args.output_format == "json" else sys.stdout
+    print("\n========================================", file=banner_dest)
+    print(
+        f"Overall Status: {status} "
+        f"({tracker.passed_checks}/{tracker.total_checks} checks)",
+        file=banner_dest,
+    )
+    print("========================================\n", file=banner_dest)
 
-        if args.output_format == "json":
-            json_output = {
-                "TotalChecks": tracker.total_checks,
-                "PassedChecks": tracker.passed_checks,
-                "Status": status,
-                "Categories": tracker.results,
-            }
-            print(json.dumps(json_output, indent=2))
+    if args.output_format == "json":
+        json_output = {
+            "TotalChecks": tracker.total_checks,
+            "PassedChecks": tracker.passed_checks,
+            "Status": status,
+            "Categories": tracker.results,
+        }
+        print(json.dumps(json_output, indent=2))
 
-        if args.ci and status != "PASS":
-            return 1
+    if args.ci and status != "PASS":
+        return 1
 
-        return 0
-
-    except Exception as exc:
-        print(f"Validation error: {exc}", file=sys.stderr)
-        return 3
+    return 0
 
 
 if __name__ == "__main__":

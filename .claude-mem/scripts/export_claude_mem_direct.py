@@ -60,6 +60,35 @@ def get_count(db_path: str, query: str) -> int:
         return -1
 
 
+def _parse_json_output(raw: str, label: str) -> list[dict[str, object]]:
+    """Parse JSON output from sqlite3, returning empty list on failure.
+
+    Logs the first 200 characters of raw output for debugging when parsing fails.
+    Returns empty list (not raises) by design: partial export with warnings is
+    preferable to a crash that produces no backup at all. The caller prints
+    record counts so any discrepancy is visible.
+    """
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        preview = raw[:200] if raw else "(empty)"
+        print(
+            f"WARNING: Failed to parse {label} JSON: {exc}\n"
+            f"   Raw output preview: {preview}",
+            file=sys.stderr,
+        )
+        return []
+    if isinstance(parsed, dict):
+        return [parsed]
+    if isinstance(parsed, list):
+        return parsed
+    print(
+        f"WARNING: Unexpected JSON type for {label}: {type(parsed).__name__}",
+        file=sys.stderr,
+    )
+    return []
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Export claude-mem data directly from SQLite"
@@ -141,7 +170,7 @@ def main(argv: list[str] | None = None) -> int:
     has_obs = (
         obs_result.returncode == 0 and obs_result.stdout.strip()
     )
-    observations = json.loads(obs_result.stdout) if has_obs else []
+    observations = _parse_json_output(obs_result.stdout, "observations") if has_obs else []
 
     # Fix NULL titles
     null_count = 0
@@ -163,7 +192,7 @@ def main(argv: list[str] | None = None) -> int:
     has_summ = (
         summ_result.returncode == 0 and summ_result.stdout.strip()
     )
-    summaries = json.loads(summ_result.stdout) if has_summ else []
+    summaries = _parse_json_output(summ_result.stdout, "session summaries") if has_summ else []
 
     # Export user prompts
     prompt_result = run_sqlite3(
@@ -175,7 +204,7 @@ def main(argv: list[str] | None = None) -> int:
         prompt_result.returncode == 0
         and prompt_result.stdout.strip()
     )
-    prompts = json.loads(prompt_result.stdout) if has_prompts else []
+    prompts = _parse_json_output(prompt_result.stdout, "user prompts") if has_prompts else []
 
     # Export SDK sessions
     sess_result = run_sqlite3(
@@ -186,7 +215,7 @@ def main(argv: list[str] | None = None) -> int:
     has_sess = (
         sess_result.returncode == 0 and sess_result.stdout.strip()
     )
-    sessions = json.loads(sess_result.stdout) if has_sess else []
+    sessions = _parse_json_output(sess_result.stdout, "SDK sessions") if has_sess else []
 
     if args.project:
         query_desc = f"direct-sqlite (project: {args.project})"

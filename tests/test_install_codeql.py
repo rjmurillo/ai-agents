@@ -6,8 +6,12 @@ from __future__ import annotations
 import importlib.util
 import os
 import platform
+import subprocess
+import urllib.error
 from pathlib import Path
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 _spec = importlib.util.spec_from_file_location(
     "install_codeql",
@@ -23,6 +27,7 @@ _spec.loader.exec_module(_mod)
 build_parser = _mod.build_parser
 get_download_url = _mod.get_download_url
 check_codeql_installed = _mod.check_codeql_installed
+install_codeql_cli = _mod.install_codeql_cli
 main = _mod.main
 
 
@@ -84,6 +89,79 @@ class TestCheckCodeQLInstalled:
             mock_run.return_value = MagicMock(returncode=0)
             result = check_codeql_installed(str(tmp_path))
             assert result is True
+
+
+class TestCheckCodeQLInstalledErrorHandling:
+    """Tests for specific error logging in check_codeql_installed."""
+
+    def test_corrupted_binary_logs_os_error(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        exe_name = "codeql.exe" if platform.system().lower() == "windows" else "codeql"
+        exe_path = tmp_path / exe_name
+        exe_path.write_text("corrupted")
+
+        with patch("subprocess.run", side_effect=OSError("Exec format error")):
+            result = check_codeql_installed(str(tmp_path))
+
+        assert result is False
+        captured = capsys.readouterr()
+        assert "not executable" in captured.err
+        assert "Exec format error" in captured.err
+
+    def test_timeout_logs_timeout_message(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        exe_name = "codeql.exe" if platform.system().lower() == "windows" else "codeql"
+        exe_path = tmp_path / exe_name
+        exe_path.write_text("slow binary")
+
+        with patch(
+            "subprocess.run",
+            side_effect=subprocess.TimeoutExpired(cmd="codeql version", timeout=30),
+        ):
+            result = check_codeql_installed(str(tmp_path))
+
+        assert result is False
+        captured = capsys.readouterr()
+        assert "timed out" in captured.err
+        assert "30s" in captured.err
+
+    def test_nonzero_exit_code_logs_stderr(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        exe_name = "codeql.exe" if platform.system().lower() == "windows" else "codeql"
+        exe_path = tmp_path / exe_name
+        exe_path.write_text("bad binary")
+
+        mock_result = MagicMock(returncode=1, stderr="segmentation fault")
+        with patch("subprocess.run", return_value=mock_result):
+            result = check_codeql_installed(str(tmp_path))
+
+        assert result is False
+        captured = capsys.readouterr()
+        assert "verification failed" in captured.err
+        assert "segmentation fault" in captured.err
+
+
+class TestInstallCodeqlCliErrorHandling:
+    """Tests for specific exception handling in install_codeql_cli."""
+
+    def test_network_failure_raises_runtime_error(self) -> None:
+        with patch(
+            "urllib.request.urlretrieve",
+            side_effect=urllib.error.URLError("Connection refused"),
+        ):
+            with pytest.raises(RuntimeError, match="network error"):
+                install_codeql_cli("http://example.com/codeql.tar.gz", "/tmp/codeql", ci=True)
+
+    def test_filesystem_error_raises_runtime_error(self) -> None:
+        with patch(
+            "urllib.request.urlretrieve",
+            side_effect=OSError("No space left on device"),
+        ):
+            with pytest.raises(RuntimeError, match="filesystem error"):
+                install_codeql_cli("http://example.com/codeql.tar.gz", "/tmp/codeql", ci=True)
 
 
 class TestMain:

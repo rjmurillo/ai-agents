@@ -21,6 +21,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -78,8 +79,24 @@ def check_codeql_installed(install_path: str) -> bool:
             [str(codeql_path), "version"],
             capture_output=True, text=True, timeout=30, check=False,
         )
+        if result.returncode != 0:
+            print(
+                f"CodeQL verification failed (exit code {result.returncode}): "
+                f"{result.stderr.strip()}",
+                file=sys.stderr,
+            )
         return result.returncode == 0
-    except (OSError, subprocess.TimeoutExpired):
+    except OSError as exc:
+        print(
+            f"CodeQL binary at {codeql_path} is not executable: {exc}",
+            file=sys.stderr,
+        )
+        return False
+    except subprocess.TimeoutExpired:
+        print(
+            f"CodeQL version check timed out after 30s for {codeql_path}",
+            file=sys.stderr,
+        )
         return False
 
 
@@ -93,8 +110,14 @@ def install_codeql_cli(url: str, destination: str, ci: bool) -> None:
 
         try:
             urllib.request.urlretrieve(url, archive_path)
-        except Exception as exc:
-            raise RuntimeError(f"Failed to download CodeQL CLI: {exc}") from exc
+        except urllib.error.URLError as exc:
+            raise RuntimeError(
+                f"Failed to download CodeQL CLI (network error): {exc.reason}"
+            ) from exc
+        except OSError as exc:
+            raise RuntimeError(
+                f"Failed to download CodeQL CLI (filesystem error): {exc}"
+            ) from exc
 
         if not ci:
             print("Download complete. Extracting...", file=sys.stderr)

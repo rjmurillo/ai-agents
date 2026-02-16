@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import logging
 import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -29,6 +30,7 @@ build_parser = _mod.build_parser
 check_cli = _mod.check_cli
 check_config = _mod.check_config
 check_database = _mod.check_database
+check_database_cache = _mod.check_database_cache
 check_results = _mod.check_results
 main = _mod.main
 
@@ -183,3 +185,42 @@ class TestMain:
             main(["--repo-path", str(tmp_path), "--output-format", "markdown"])
         captured = capsys.readouterr()
         assert "# CodeQL Diagnostics Report" in captured.out
+
+    def test_type_error_propagates(self, tmp_path: Path) -> None:
+        with patch.object(_mod, "check_cli", side_effect=TypeError("bad type")):
+            with pytest.raises(TypeError, match="bad type"):
+                main(["--repo-path", str(tmp_path)])
+
+    def test_attribute_error_propagates(self, tmp_path: Path) -> None:
+        with patch.object(_mod, "check_cli", side_effect=AttributeError("no attr")):
+            with pytest.raises(AttributeError, match="no attr"):
+                main(["--repo-path", str(tmp_path)])
+
+
+class TestCheckDatabaseCache:
+    def test_corrupt_json_logs_warning(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        db = tmp_path / "db"
+        db.mkdir()
+        (db / ".cache-metadata.json").write_text("{corrupt json!!!")
+        with caplog.at_level(logging.WARNING, logger=_mod.__name__):
+            result = check_database_cache(str(db), "config.yml", str(tmp_path))
+        assert result is False
+        assert any("invalid json" in r.message.lower() for r in caplog.records)
+
+    def test_unreadable_metadata_logs_warning(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        db = tmp_path / "db"
+        db.mkdir()
+        meta = db / ".cache-metadata.json"
+        meta.write_text("{}")
+        meta.chmod(0o000)
+        try:
+            with caplog.at_level(logging.WARNING, logger=_mod.__name__):
+                result = check_database_cache(str(db), "config.yml", str(tmp_path))
+            assert result is False
+            assert any("unreadable" in r.message.lower() for r in caplog.records)
+        finally:
+            meta.chmod(0o644)
