@@ -213,7 +213,7 @@ class TestClassifyPrsErrors:
                 "commits": {"nodes": []},
             },
         ]
-        with pytest.raises(RuntimeError, match="Classification failed"):
+        with pytest.raises(RuntimeError, match=r"Classification failed.*missing"):
             classify_prs("owner", "repo", prs)
 
     def test_non_key_error_propagates_directly(self) -> None:

@@ -81,22 +81,19 @@ class TestImportTableWarnings:
             args=["sqlite3"], returncode=returncode, stdout=stdout, stderr=stderr,
         )
 
-    def test_logs_non_unique_insert_failure(
-        self, capsys: pytest.CaptureFixture[str],
-    ) -> None:
-        """Non-UNIQUE insert failures log stderr warning."""
+    def test_raises_on_non_unique_insert_failure(self) -> None:
+        """Non-UNIQUE insert failures raise RuntimeError."""
         schema_check = self._make_result(stdout="0")
         insert_fail = self._make_result(returncode=1, stderr="CHECK constraint failed")
         with patch(
             "scripts.forgetful.import_forgetful_memories.run_sqlite3",
             side_effect=[schema_check, insert_fail],
         ):
-            inserted, updated, skipped = import_table(
-                "/fake/db", "memories", [{"id": 1, "content": "test"}],
-                ["id", "content"], "skip",
-            )
-        assert skipped == 1
-        assert "CHECK constraint failed" in capsys.readouterr().err
+            with pytest.raises(RuntimeError, match="CHECK constraint failed"):
+                import_table(
+                    "/fake/db", "memories", [{"id": 1, "content": "test"}],
+                    ["id", "content"], "skip",
+                )
 
     def test_unique_constraint_skip_is_silent(
         self, capsys: pytest.CaptureFixture[str],

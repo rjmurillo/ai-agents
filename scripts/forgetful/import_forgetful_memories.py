@@ -121,12 +121,9 @@ def import_table(
             raise RuntimeError(f"Duplicate record in {table} (fail mode)")
 
         if result.returncode != 0 and "UNIQUE constraint" not in result.stderr:
-            stderr_msg = result.stderr.strip()
-            print(
-                f"    WARNING: Insert failed for {table} row: {stderr_msg}",
-                file=sys.stderr,
+            raise RuntimeError(
+                f"Insert failed for {table} row: {(result.stderr or '').strip()}"
             )
-            skipped += 1
         elif merge_mode == "replace":
             if existed:
                 updated += 1

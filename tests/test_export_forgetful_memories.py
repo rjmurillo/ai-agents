@@ -56,18 +56,16 @@ class TestRunSqlite3:
             "R", (), {"returncode": returncode, "stderr": stderr, "stdout": stdout},
         )()
 
-    def test_logs_stderr_on_failure(self, capsys: pytest.CaptureFixture[str]) -> None:
+    def test_raises_on_failure_with_stderr(self) -> None:
         mock = self._make_result(1, stderr="database is locked\n")
         with patch("subprocess.run", return_value=mock):
-            result = run_sqlite3("/fake/db", "SELECT 1")
-        assert result is None
-        assert "database is locked" in capsys.readouterr().err
+            with pytest.raises(RuntimeError, match="database is locked"):
+                run_sqlite3("/fake/db", "SELECT 1")
 
-    def test_no_warning_on_empty_stderr(self, capsys: pytest.CaptureFixture[str]) -> None:
+    def test_raises_on_failure_with_empty_stderr(self) -> None:
         with patch("subprocess.run", return_value=self._make_result(1)):
-            result = run_sqlite3("/fake/db", "SELECT 1")
-        assert result is None
-        assert capsys.readouterr().err == ""
+            with pytest.raises(RuntimeError, match="sqlite3 failed"):
+                run_sqlite3("/fake/db", "SELECT 1")
 
     def test_returns_stdout_on_success(self) -> None:
         with patch("subprocess.run", return_value=self._make_result(0, stdout="hello")):
@@ -76,9 +74,8 @@ class TestRunSqlite3:
 
 
 class TestExportTable:
-    def test_logs_json_parse_error(self, capsys: pytest.CaptureFixture[str]) -> None:
-        """export_table logs JSONDecodeError details to stderr."""
-        # Mock get_table_columns to return columns, run_sqlite3 to return bad JSON
+    def test_raises_on_json_parse_error(self) -> None:
+        """export_table raises RuntimeError on JSONDecodeError."""
         with (
             patch(
                 "scripts.forgetful.export_forgetful_memories.get_table_columns",
@@ -89,7 +86,5 @@ class TestExportTable:
                 return_value="not valid json{{{",
             ),
         ):
-            result = export_table("/fake/db", "memories")
-        assert result == []
-        err = capsys.readouterr().err
-        assert "Failed to parse JSON for table 'memories'" in err
+            with pytest.raises(RuntimeError, match="Failed to parse JSON"):
+                export_table("/fake/db", "memories")

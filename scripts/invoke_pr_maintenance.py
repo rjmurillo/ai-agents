@@ -233,7 +233,7 @@ def classify_prs(
         if pr.get("baseRefName") not in PROTECTED_BRANCHES:
             results.derivative_prs.append(
                 {
-                    "number": pr.get("number"),
+                    "number": pr["number"],
                     "title": pr.get("title", ""),
                     "author": pr.get("author", {}).get("login", ""),
                     "targetBranch": pr.get("baseRefName", ""),
@@ -250,7 +250,7 @@ def classify_prs(
         if parent:
             results.action_required.append(
                 {
-                    "number": parent.get("number"),
+                    "number": parent["number"],
                     "category": "has-derivatives",
                     "hasConflicts": False,
                     "reason": "PENDING_DERIVATIVES",
@@ -324,10 +324,14 @@ def classify_prs(
                 )
 
         except KeyError as e:
-            results.errors.append({"PR": pr.get("number"), "Error": str(e)})
+            results.errors.append(
+                {"PR": pr.get("number") or "Unknown", "Error": str(e)}
+            )
 
     if results.errors:
-        failed = ", ".join(f"#{e['PR']}" for e in results.errors)
+        failed = ", ".join(
+            f"#{e['PR']} (missing {e['Error']})" for e in results.errors
+        )
         raise RuntimeError(
             f"Classification failed for PRs: {failed}"
         )
