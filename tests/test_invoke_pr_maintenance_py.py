@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import subprocess
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 from scripts.invoke_pr_maintenance import (
     classify_prs,
     get_bot_author_info,
+    get_open_prs,
     has_failing_checks,
     is_bot_reviewer,
     main,
@@ -159,6 +163,81 @@ class TestClassifyPrs:
         assert results.action_required[0]["category"] == "agent-controlled"
 
 
+class TestGetOpenPrs:
+    def test_raises_on_api_failure(self) -> None:
+        failed = subprocess.CompletedProcess(
+            args=[], returncode=1, stdout="", stderr="API error"
+        )
+        with patch("scripts.invoke_pr_maintenance.run_gh", return_value=failed):
+            with pytest.raises(RuntimeError, match="Failed to query PRs"):
+                get_open_prs("owner", "repo", 20)
+
+    def test_raises_on_invalid_json(self) -> None:
+        bad_json = subprocess.CompletedProcess(
+            args=[], returncode=0, stdout="not json", stderr=""
+        )
+        with patch("scripts.invoke_pr_maintenance.run_gh", return_value=bad_json):
+            with pytest.raises(RuntimeError, match="Failed to parse PR response"):
+                get_open_prs("owner", "repo", 20)
+
+    def test_raises_on_missing_keys(self) -> None:
+        incomplete = subprocess.CompletedProcess(
+            args=[], returncode=0, stdout='{"data": {}}', stderr=""
+        )
+        with patch("scripts.invoke_pr_maintenance.run_gh", return_value=incomplete):
+            with pytest.raises(RuntimeError, match="Failed to parse PR response"):
+                get_open_prs("owner", "repo", 20)
+
+    def test_returns_prs_on_success(self) -> None:
+        valid = subprocess.CompletedProcess(
+            args=[],
+            returncode=0,
+            stdout='{"data":{"repository":{"pullRequests":{"nodes":[{"number":1}]}}}}',
+            stderr="",
+        )
+        with patch("scripts.invoke_pr_maintenance.run_gh", return_value=valid):
+            result = get_open_prs("owner", "repo", 20)
+        assert result == [{"number": 1}]
+
+
+class TestClassifyPrsErrors:
+    def test_raises_on_key_error_in_pr(self) -> None:
+        prs = [
+            {
+                "baseRefName": "main",
+                "headRefName": "feat/test",
+                "author": {"login": "rjmurillo-bot"},
+                "mergeable": "MERGEABLE",
+                "reviewDecision": "CHANGES_REQUESTED",
+                "reviewRequests": {"nodes": []},
+                "commits": {"nodes": []},
+            },
+        ]
+        with pytest.raises(RuntimeError, match="Classification failed"):
+            classify_prs("owner", "repo", prs)
+
+    def test_non_key_error_propagates_directly(self) -> None:
+        prs = [
+            {
+                "number": 1,
+                "title": "Test",
+                "baseRefName": "main",
+                "headRefName": "feat/test",
+                "author": {"login": "rjmurillo-bot"},
+                "mergeable": "MERGEABLE",
+                "reviewDecision": "CHANGES_REQUESTED",
+                "reviewRequests": {"nodes": []},
+                "commits": {"nodes": []},
+            },
+        ]
+        with patch(
+            "scripts.invoke_pr_maintenance.get_bot_author_info",
+            side_effect=TypeError("unexpected type"),
+        ):
+            with pytest.raises(TypeError, match="unexpected type"):
+                classify_prs("owner", "repo", prs)
+
+
 class TestMain:
     @patch("scripts.invoke_pr_maintenance.check_rate_limit", return_value=False)
     def test_exits_0_on_low_rate_limit(self, _mock: MagicMock) -> None:
@@ -170,3 +249,15 @@ class TestMain:
     def test_output_json_mode(self, _rate: MagicMock, _repo: MagicMock, _prs: MagicMock) -> None:
         result = main(["--output-json"])
         assert result == 0
+
+    @patch(
+        "scripts.invoke_pr_maintenance.get_open_prs",
+        side_effect=RuntimeError("API error"),
+    )
+    @patch("scripts.invoke_pr_maintenance.get_repo_info", return_value=("owner", "repo"))
+    @patch("scripts.invoke_pr_maintenance.check_rate_limit", return_value=True)
+    def test_exits_2_on_api_failure(
+        self, _rate: MagicMock, _repo: MagicMock, _prs: MagicMock
+    ) -> None:
+        result = main(["--output-json"])
+        assert result == 2

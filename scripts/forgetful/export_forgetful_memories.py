@@ -81,6 +81,9 @@ def run_sqlite3(db_path: str, query: str) -> str | None:
         text=True,
     )
     if result.returncode != 0:
+        stderr_msg = result.stderr.strip()
+        if stderr_msg:
+            print(f"WARNING: sqlite3 failed: {stderr_msg}", file=sys.stderr)
         return None
     return result.stdout.strip()
 
@@ -107,7 +110,11 @@ def export_table(db_path: str, table: str) -> list[dict[str, Any]]:
     try:
         rows: list[dict[str, Any]] = json.loads(output)
         return rows
-    except json.JSONDecodeError:
+    except json.JSONDecodeError as exc:
+        print(
+            f"WARNING: Failed to parse JSON for table '{table}': {exc}",
+            file=sys.stderr,
+        )
         return []
 
 

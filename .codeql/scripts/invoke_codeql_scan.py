@@ -306,15 +306,14 @@ def analyze_database(
             if runs and "results" in runs[0]:
                 findings = runs[0]["results"]
         else:
-            print(
-                f"WARNING: SARIF output not found at {sarif_output}",
-                file=sys.stderr,
+            raise RuntimeError(
+                f"SARIF output not found at {sarif_output} after "
+                f"successful {language} analysis"
             )
     except (json.JSONDecodeError, OSError, KeyError) as exc:
-        print(
-            f"Failed to parse SARIF output for {language}: {exc}",
-            file=sys.stderr,
-        )
+        raise RuntimeError(
+            f"Failed to parse SARIF output for {language}: {exc}"
+        ) from exc
 
     if not ci:
         print(
