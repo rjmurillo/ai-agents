@@ -203,14 +203,15 @@ def get_open_prs(owner: str, repo: str, limit: int) -> list[dict[str, Any]]:
         f"limit={limit}",
     )
     if result.returncode != 0:
-        print(f"Failed to query PRs: {result.stderr}", file=sys.stderr)
-        return []
+        raise RuntimeError(f"Failed to query PRs: {result.stderr}")
     try:
         data = json.loads(result.stdout)
         nodes: list[dict[str, Any]] = data["data"]["repository"]["pullRequests"]["nodes"]
         return nodes
-    except (json.JSONDecodeError, KeyError):
-        return []
+    except (json.JSONDecodeError, KeyError) as exc:
+        raise RuntimeError(
+            f"Failed to parse PR response: {exc}"
+        ) from exc
 
 
 @dataclass
@@ -322,8 +323,18 @@ def classify_prs(
                     }
                 )
 
-        except Exception as e:
-            results.errors.append({"PR": pr.get("number"), "Error": str(e)})
+        except KeyError as e:
+            results.errors.append(
+                {"PR": pr.get("number") or "Unknown", "Error": str(e)}
+            )
+
+    if results.errors:
+        failed = ", ".join(
+            f"#{e['PR']} (missing {e['Error']})" for e in results.errors
+        )
+        raise RuntimeError(
+            f"Classification failed for PRs: {failed}"
+        )
 
     return results
 

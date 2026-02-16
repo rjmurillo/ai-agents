@@ -7,6 +7,7 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -31,6 +32,7 @@ detect_languages = _mod.detect_languages
 compute_file_hash = _mod.compute_file_hash
 compute_directory_hash = _mod.compute_directory_hash
 check_database_cache = _mod.check_database_cache
+analyze_database = _mod.analyze_database
 format_results = _mod.format_results
 
 
@@ -221,3 +223,62 @@ class TestFormatResults:
         captured = capsys.readouterr()
         data = json.loads(captured.out)
         assert data["TotalFindings"] == 0
+
+
+class TestAnalyzeDatabaseSarifParsing:
+    """Tests for SARIF parse failure behavior in analyze_database (Issue #1160)."""
+
+    def _run_analyze(
+        self, tmp_path: Path, sarif_content: str | None, *, ci: bool = False,
+    ) -> Any:
+        """Run analyze_database with mocked subprocess and optional SARIF file."""
+        results_path = str(tmp_path / "results")
+        os.makedirs(results_path, exist_ok=True)
+
+        sarif_path = os.path.join(results_path, "python.sarif")
+        if sarif_content is not None:
+            with open(sarif_path, "w", encoding="utf-8") as f:
+                f.write(sarif_content)
+
+        mock_result = MagicMock(returncode=0, stdout="", stderr="")
+        with patch("subprocess.run", return_value=mock_result):
+            return analyze_database(
+                codeql_path="/usr/bin/codeql",
+                language="python",
+                database_path=str(tmp_path / "db"),
+                results_path=results_path,
+                config_path=str(tmp_path / "config.yml"),
+                ci=ci,
+            )
+
+    def test_valid_sarif_returns_findings(self, tmp_path: Path) -> None:
+        sarif = json.dumps({
+            "runs": [{"results": [{"ruleId": "py/sql-injection"}]}],
+        })
+        result = self._run_analyze(tmp_path, sarif)
+        assert result["findings_count"] == 1
+        assert result["findings"][0]["ruleId"] == "py/sql-injection"
+
+    def test_valid_sarif_zero_findings(self, tmp_path: Path) -> None:
+        sarif = json.dumps({"runs": [{"results": []}]})
+        result = self._run_analyze(tmp_path, sarif)
+        assert result["findings_count"] == 0
+
+    def test_corrupted_sarif_raises_runtime_error(self, tmp_path: Path) -> None:
+        with pytest.raises(RuntimeError, match="Failed to parse SARIF output"):
+            self._run_analyze(tmp_path, "NOT VALID JSON {{{")
+
+    def test_missing_sarif_file_raises_runtime_error(self, tmp_path: Path) -> None:
+        """SARIF file missing after successful analysis is an error."""
+        with pytest.raises(RuntimeError, match="SARIF output not found"):
+            self._run_analyze(tmp_path, None)
+
+    def test_sarif_missing_runs_key_returns_zero(self, tmp_path: Path) -> None:
+        sarif = json.dumps({"version": "2.1.0"})
+        result = self._run_analyze(tmp_path, sarif)
+        assert result["findings_count"] == 0
+
+    def test_sarif_empty_runs_returns_zero(self, tmp_path: Path) -> None:
+        sarif = json.dumps({"runs": []})
+        result = self._run_analyze(tmp_path, sarif)
+        assert result["findings_count"] == 0

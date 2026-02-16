@@ -74,14 +74,14 @@ def validate_output_path(output_path: Path, exports_dir: Path) -> bool:
     return True
 
 
-def run_sqlite3(db_path: str, query: str) -> str | None:
+def run_sqlite3(db_path: str, query: str) -> str:
     result = subprocess.run(
         ["sqlite3", db_path, query],
         capture_output=True,
         text=True,
     )
     if result.returncode != 0:
-        return None
+        raise RuntimeError(f"sqlite3 failed: {result.stderr.strip()}")
     return result.stdout.strip()
 
 
@@ -107,8 +107,10 @@ def export_table(db_path: str, table: str) -> list[dict[str, Any]]:
     try:
         rows: list[dict[str, Any]] = json.loads(output)
         return rows
-    except json.JSONDecodeError:
-        return []
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(
+            f"Failed to parse JSON for table '{table}': {exc}"
+        ) from exc
 
 
 def main(argv: list[str] | None = None) -> int:

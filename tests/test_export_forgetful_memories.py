@@ -3,9 +3,14 @@
 from __future__ import annotations
 
 from pathlib import Path
+from unittest.mock import patch
+
+import pytest
 
 from scripts.forgetful.export_forgetful_memories import (
     TABLE_MAPPING,
+    export_table,
+    run_sqlite3,
     validate_output_path,
 )
 
@@ -41,3 +46,45 @@ class TestTableMapping:
     def test_associations_group(self) -> None:
         assoc = TABLE_MAPPING["associations"]
         assert all("association" in t for t in assoc)
+
+
+class TestRunSqlite3:
+    def _make_result(
+        self, returncode: int = 0, stdout: str = "", stderr: str = "",
+    ) -> object:
+        return type(
+            "R", (), {"returncode": returncode, "stderr": stderr, "stdout": stdout},
+        )()
+
+    def test_raises_on_failure_with_stderr(self) -> None:
+        mock = self._make_result(1, stderr="database is locked\n")
+        with patch("subprocess.run", return_value=mock):
+            with pytest.raises(RuntimeError, match="database is locked"):
+                run_sqlite3("/fake/db", "SELECT 1")
+
+    def test_raises_on_failure_with_empty_stderr(self) -> None:
+        with patch("subprocess.run", return_value=self._make_result(1)):
+            with pytest.raises(RuntimeError, match="sqlite3 failed"):
+                run_sqlite3("/fake/db", "SELECT 1")
+
+    def test_returns_stdout_on_success(self) -> None:
+        with patch("subprocess.run", return_value=self._make_result(0, stdout="hello")):
+            result = run_sqlite3("/fake/db", "SELECT 1")
+        assert result == "hello"
+
+
+class TestExportTable:
+    def test_raises_on_json_parse_error(self) -> None:
+        """export_table raises RuntimeError on JSONDecodeError."""
+        with (
+            patch(
+                "scripts.forgetful.export_forgetful_memories.get_table_columns",
+                return_value=["id", "name"],
+            ),
+            patch(
+                "scripts.forgetful.export_forgetful_memories.run_sqlite3",
+                return_value="not valid json{{{",
+            ),
+        ):
+            with pytest.raises(RuntimeError, match="Failed to parse JSON"):
+                export_table("/fake/db", "memories")

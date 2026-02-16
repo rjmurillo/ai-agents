@@ -2,10 +2,16 @@
 
 from __future__ import annotations
 
+import subprocess
+from unittest.mock import patch
+
+import pytest
+
 from scripts.forgetful.import_forgetful_memories import (
     IMPORT_ORDER,
     PRIMARY_KEYS,
     escape_sql_value,
+    import_table,
 )
 
 
@@ -65,3 +71,45 @@ class TestPrimaryKeys:
         for table, keys in PRIMARY_KEYS.items():
             assert "association" in table or "entity_project" in table
             assert len(keys) == 2, f"{table} should have composite key"
+
+
+class TestImportTableWarnings:
+    def _make_result(
+        self, returncode: int = 0, stdout: str = "", stderr: str = "",
+    ) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(
+            args=["sqlite3"], returncode=returncode, stdout=stdout, stderr=stderr,
+        )
+
+    def test_raises_on_non_unique_insert_failure(self) -> None:
+        """Non-UNIQUE insert failures raise RuntimeError."""
+        schema_check = self._make_result(stdout="0")
+        insert_fail = self._make_result(returncode=1, stderr="CHECK constraint failed")
+        with patch(
+            "scripts.forgetful.import_forgetful_memories.run_sqlite3",
+            side_effect=[schema_check, insert_fail],
+        ):
+            with pytest.raises(RuntimeError, match="CHECK constraint failed"):
+                import_table(
+                    "/fake/db", "memories", [{"id": 1, "content": "test"}],
+                    ["id", "content"], "skip",
+                )
+
+    def test_unique_constraint_skip_is_silent(
+        self, capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """UNIQUE constraint violations remain silent (intentional skips)."""
+        schema_check = self._make_result(stdout="1")
+        unique_fail = self._make_result(
+            returncode=1, stderr="UNIQUE constraint failed: memories.id",
+        )
+        with patch(
+            "scripts.forgetful.import_forgetful_memories.run_sqlite3",
+            side_effect=[schema_check, unique_fail],
+        ):
+            inserted, updated, skipped = import_table(
+                "/fake/db", "memories", [{"id": 1, "content": "test"}],
+                ["id", "content"], "skip",
+            )
+        assert skipped == 1
+        assert capsys.readouterr().err == ""
