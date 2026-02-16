@@ -587,16 +587,19 @@ if [ -n "$STAGED_MCP_FILE" ]; then
 
                 if [ $SYNC_EXIT -eq 0 ]; then
                     # Stage generated files if they changed
+                    # Use local variable to track MCP sync status independently of global FILES_FIXED
+                    MCP_SYNCED=0
                     for mcp_target in "$REPO_ROOT/.vscode/mcp.json" "$REPO_ROOT/.factory/mcp.json"; do
                         if [ -f "$mcp_target" ] && [ ! -L "$mcp_target" ]; then
                             if ! git diff --quiet -- "$mcp_target" 2>/dev/null; then
                                 git add -- "$mcp_target"
                                 echo_success "Synced: $(basename "$(dirname "$mcp_target")")/$(basename "$mcp_target")"
                                 FILES_FIXED=1
+                                MCP_SYNCED=1
                             fi
                         fi
                     done
-                    if [ "$FILES_FIXED" = "0" ]; then
+                    if [ "$MCP_SYNCED" = "0" ]; then
                         echo_success "MCP config already in sync."
                     fi
                 else
