@@ -14,7 +14,29 @@ from scripts.invoke_pr_maintenance import (
     has_failing_checks,
     is_bot_reviewer,
     main,
+    run_gh,
 )
+
+
+class TestRunGhTimeout:
+    @patch("scripts.invoke_pr_maintenance.subprocess.run")
+    def test_passes_timeout_60(self, mock_run: MagicMock) -> None:
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=[], returncode=0, stdout="", stderr=""
+        )
+        run_gh("api", "rate_limit")
+        mock_run.assert_called_once_with(
+            ["gh", "api", "rate_limit"],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+
+    @patch("scripts.invoke_pr_maintenance.subprocess.run")
+    def test_timeout_raises_timeout_expired(self, mock_run: MagicMock) -> None:
+        mock_run.side_effect = subprocess.TimeoutExpired(cmd=["gh"], timeout=60)
+        with pytest.raises(subprocess.TimeoutExpired):
+            run_gh("api", "rate_limit")
 
 
 class TestGetBotAuthorInfo:
@@ -239,14 +261,50 @@ class TestClassifyPrsErrors:
 
 
 class TestMain:
-    @patch("scripts.invoke_pr_maintenance.check_rate_limit", return_value=False)
-    def test_exits_0_on_low_rate_limit(self, _mock: MagicMock) -> None:
+    def _rate_limit_ok(self) -> MagicMock:
+        from scripts.github_core import RateLimitResult
+
+        return RateLimitResult(
+            success=True,
+            core_remaining=5000,
+            resources={},
+            summary_markdown="",
+        )
+
+    def _rate_limit_low(self) -> MagicMock:
+        from scripts.github_core import RateLimitResult
+
+        return RateLimitResult(
+            success=False,
+            core_remaining=10,
+            resources={},
+            summary_markdown="",
+        )
+
+    @patch(
+        "scripts.invoke_pr_maintenance.check_workflow_rate_limit",
+    )
+    def test_exits_0_on_low_rate_limit(self, mock_rate: MagicMock) -> None:
+        mock_rate.return_value = self._rate_limit_low()
+        assert main([]) == 0
+
+    @patch(
+        "scripts.invoke_pr_maintenance.check_workflow_rate_limit",
+        side_effect=RuntimeError("gh: command not found"),
+    )
+    def test_exits_0_on_rate_limit_check_failure(self, _mock: MagicMock) -> None:
         assert main([]) == 0
 
     @patch("scripts.invoke_pr_maintenance.get_open_prs", return_value=[])
-    @patch("scripts.invoke_pr_maintenance.get_repo_info", return_value=("owner", "repo"))
-    @patch("scripts.invoke_pr_maintenance.check_rate_limit", return_value=True)
-    def test_output_json_mode(self, _rate: MagicMock, _repo: MagicMock, _prs: MagicMock) -> None:
+    @patch(
+        "scripts.invoke_pr_maintenance.resolve_repo_params",
+        return_value={"Owner": "owner", "Repo": "repo"},
+    )
+    @patch("scripts.invoke_pr_maintenance.check_workflow_rate_limit")
+    def test_output_json_mode(
+        self, mock_rate: MagicMock, _repo: MagicMock, _prs: MagicMock
+    ) -> None:
+        mock_rate.return_value = self._rate_limit_ok()
         result = main(["--output-json"])
         assert result == 0
 
@@ -254,10 +312,26 @@ class TestMain:
         "scripts.invoke_pr_maintenance.get_open_prs",
         side_effect=RuntimeError("API error"),
     )
-    @patch("scripts.invoke_pr_maintenance.get_repo_info", return_value=("owner", "repo"))
-    @patch("scripts.invoke_pr_maintenance.check_rate_limit", return_value=True)
+    @patch(
+        "scripts.invoke_pr_maintenance.resolve_repo_params",
+        return_value={"Owner": "owner", "Repo": "repo"},
+    )
+    @patch("scripts.invoke_pr_maintenance.check_workflow_rate_limit")
     def test_exits_2_on_api_failure(
-        self, _rate: MagicMock, _repo: MagicMock, _prs: MagicMock
+        self, mock_rate: MagicMock, _repo: MagicMock, _prs: MagicMock
     ) -> None:
+        mock_rate.return_value = self._rate_limit_ok()
         result = main(["--output-json"])
+        assert result == 2
+
+    @patch(
+        "scripts.invoke_pr_maintenance.resolve_repo_params",
+        side_effect=Exception("cannot resolve"),
+    )
+    @patch("scripts.invoke_pr_maintenance.check_workflow_rate_limit")
+    def test_exits_2_on_repo_resolution_failure(
+        self, mock_rate: MagicMock, _repo: MagicMock
+    ) -> None:
+        mock_rate.return_value = self._rate_limit_ok()
+        result = main(["--owner", "", "--repo", ""])
         assert result == 2
