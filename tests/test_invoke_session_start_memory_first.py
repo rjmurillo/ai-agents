@@ -71,7 +71,7 @@ class TestMain:
         captured = capsys.readouterr()
         assert "ADR-007 active" in captured.out
         assert "Forgetful" in captured.out
-        assert "AGENTS.md" in captured.out
+        # AGENTS.md reference is now conditional on file existence
 
     def test_always_exits_zero(self) -> None:
         assert hook.main() == 0

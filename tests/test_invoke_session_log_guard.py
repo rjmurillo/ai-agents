@@ -105,6 +105,7 @@ class TestMainAllowPath:
 
 
 class TestMainBlockPath:
+    @patch("invoke_session_log_guard.os.path.isdir", return_value=True)
     @patch("invoke_session_log_guard.get_today_session_log", return_value=None)
     @patch("invoke_session_log_guard.get_project_directory", return_value="/tmp/test")
     @patch("invoke_session_log_guard.sys.stdin", new_callable=StringIO)
@@ -113,6 +114,7 @@ class TestMainBlockPath:
         mock_stdin: StringIO,
         _mock_project_dir: MagicMock,
         _mock_session_log: MagicMock,
+        _mock_isdir: MagicMock,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
         data = json.dumps({"tool_input": {"command": "git commit -m test"}})
@@ -123,6 +125,7 @@ class TestMainBlockPath:
             captured = capsys.readouterr()
             assert "BLOCKED" in captured.out
 
+    @patch("invoke_session_log_guard.os.path.isdir", return_value=True)
     @patch("invoke_session_log_guard.check_session_log_evidence")
     @patch("invoke_session_log_guard.get_today_session_log")
     @patch("invoke_session_log_guard.get_project_directory", return_value="/tmp/test")
@@ -133,6 +136,7 @@ class TestMainBlockPath:
         _mock_project_dir: MagicMock,
         mock_session_log: MagicMock,
         mock_evidence: MagicMock,
+        _mock_isdir: MagicMock,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
         mock_log = MagicMock()
