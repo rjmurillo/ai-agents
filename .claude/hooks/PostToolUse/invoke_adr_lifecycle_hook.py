@@ -86,6 +86,7 @@ def _detect_write_or_edit(tool_name: str, tool_input: dict[str, object]) -> str 
 
 def main() -> int:
     """Main hook entry point."""
+    raw = ""
     try:
         if sys.stdin.isatty():
             return 0
