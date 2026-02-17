@@ -109,6 +109,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Error: Not a git repository: {base_path}", file=sys.stderr)
         return 1
 
+    (base_path / ".agents").mkdir(exist_ok=True)
+
     original_dir = os.getcwd()
     try:
         os.chdir(base_path)

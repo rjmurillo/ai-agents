@@ -76,6 +76,7 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
 
     repo_root = _get_repo_root()
+
     sessions_dir = os.path.join(repo_root, ".agents", "sessions")
     os.makedirs(sessions_dir, exist_ok=True)
 

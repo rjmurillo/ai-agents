@@ -19,7 +19,7 @@ def get_project_directory() -> str:
     """Resolve the project root directory. Never returns None."""
     env_dir = os.environ.get("CLAUDE_PROJECT_DIR", "").strip()
     if env_dir:
-        return env_dir
+        return str(Path(env_dir).resolve())
 
     # Walk up from cwd looking for .git
     try:

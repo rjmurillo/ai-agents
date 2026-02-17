@@ -28,7 +28,7 @@ jobs:
             commands:
               - '.claude/commands/**/*.md'
             validator:
-              - '.claude/skills/slashcommandcreator/scripts/Validate-SlashCommand.ps1'
+              - '.claude/skills/slashcommandcreator/scripts/validate_slash_command.py'
               - 'scripts/modules/slash_command_validator.py'
 
   validate-slash-commands:

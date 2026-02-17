@@ -232,7 +232,9 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     repo_root = git_info["repo_root"]
+
     sessions_dir = os.path.join(repo_root, ".agents", "sessions")
+    os.makedirs(sessions_dir, exist_ok=True)
     current_date = datetime.now(tz=UTC).strftime("%Y-%m-%d")
 
     # Resolve session number

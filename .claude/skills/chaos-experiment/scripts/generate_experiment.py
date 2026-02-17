@@ -9,6 +9,7 @@ Usage:
 """
 
 import argparse
+import os
 import re
 import sys
 from dataclasses import dataclass
@@ -127,6 +128,9 @@ def save_document(content: str, output_dir: Path, name: str) -> Path:
 
 def main() -> Result:
     """Main entry point."""
+    _proj = os.environ.get("CLAUDE_PROJECT_DIR", os.getcwd())
+    os.makedirs(os.path.join(_proj, ".agents"), exist_ok=True)
+
     parser = argparse.ArgumentParser(
         description="Generate a chaos experiment document",
         formatter_class=argparse.RawDescriptionHelpFormatter,

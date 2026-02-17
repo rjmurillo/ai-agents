@@ -92,7 +92,12 @@ def get_safe_worktree_path(base_path: str, pr_number: int) -> str:
     if not base.exists():
         raise FileNotFoundError(f"Base path does not exist: {base_path}")
 
-    worktree_name = f"ai-agents-pr-{pr_number}"
+    try:
+        repo_info = get_repo_info()
+        repo_name = repo_info["repo"]
+    except (RuntimeError, KeyError):
+        repo_name = "plugin"
+    worktree_name = f"{repo_name}-pr-{pr_number}"
     worktree_path = (base / worktree_name).resolve()
 
     # Verify path stays within base directory
@@ -427,7 +432,7 @@ def main(argv: list[str] | None = None) -> int:
             info = get_repo_info()
             owner = owner or info["owner"]
             repo = repo or info["repo"]
-        except RuntimeError as exc:
+        except (RuntimeError, KeyError) as exc:
             print(json.dumps({"success": False, "message": str(exc)}))
             return 1
 

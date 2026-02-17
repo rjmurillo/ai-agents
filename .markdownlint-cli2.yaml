@@ -130,3 +130,7 @@ ignores:
   - ".claude/skills/**/SKILL_SPEC.md"
   - ".claude/skills/**/SKILL_SPEC.xml"
   - ".claude/skills/**/PHASE1_ANALYSIS.md"
+
+  # CLAUDE.md files are managed by the claude-mem plugin which prepends <claude-mem-context>
+  # HTML tags, violating MD033 and MD041. These are tool-managed metadata, not authored markdown.
+  - "**/CLAUDE.md"

@@ -1,4 +1,7 @@
-"""Hook utilities package for Claude Code hook scripts."""
+"""Hook utilities package for Claude Code hook scripts.
+
+NOTE: Plugin-distributed copy at .claude/lib/hook_utilities/; keep in sync.
+"""
 
 from __future__ import annotations
 

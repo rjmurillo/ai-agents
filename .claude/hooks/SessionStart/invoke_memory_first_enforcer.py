@@ -26,15 +26,23 @@ Exit Codes:
 from __future__ import annotations
 
 import json
+import os
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
-_project_root = Path(__file__).resolve().parents[3]
-if str(_project_root) not in sys.path:
-    sys.path.insert(0, str(_project_root))
+_plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+if _plugin_root:
+    _lib_dir = os.path.join(_plugin_root, "lib")
+else:
+    _lib_dir = str(Path(__file__).resolve().parents[2] / "lib")
+if not os.path.isdir(_lib_dir):
+    print(f"Plugin lib directory not found: {_lib_dir}", file=sys.stderr)
+    sys.exit(2)  # Config error per ADR-035
+if _lib_dir not in sys.path:
+    sys.path.insert(0, _lib_dir)
 
-from scripts.hook_utilities.utilities import (  # noqa: E402
+from hook_utilities import (  # noqa: E402
     get_project_directory,
     get_today_session_logs,
 )
@@ -169,7 +177,7 @@ def main() -> int:
 
     except Exception as exc:
         # Fail-open on errors (don't block session startup)
-        print(f"Memory-first enforcer error: {exc}", file=sys.stderr)
+        print(f"Memory-first enforcer error: {type(exc).__name__} - {exc}", file=sys.stderr)
         return 0
 
 

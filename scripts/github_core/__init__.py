@@ -1,4 +1,7 @@
-"""GitHub Core module: shared helpers for GitHub CLI operations."""
+"""GitHub Core module: shared helpers for GitHub CLI operations.
+
+NOTE: Plugin-distributed copy at .claude/lib/github_core/; keep in sync.
+"""
 
 from __future__ import annotations
 

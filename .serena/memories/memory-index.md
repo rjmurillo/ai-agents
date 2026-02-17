@@ -61,8 +61,8 @@
 
 | Experience Level | Memory Index |
 |------------------|-------------|
-| <5 years | [foundational-knowledge-index](foundational-knowledge-index.md) (867) |
-| All Tiers | [engineering-knowledge-index](engineering-knowledge-index.md) (3751) |
+| <5 years | [foundational-knowledge-index](foundational-knowledge-index.md) (865) |
+| All Tiers | [engineering-knowledge-index](engineering-knowledge-index.md) (3759) |
 | 15+ years | [knowledge/principal-engineering-knowledge](knowledge/principal-engineering-knowledge.md) (854) |
 | 25+ years | [distinguished-engineer-knowledge-index](distinguished-engineer-knowledge-index.md) (728) |
 
