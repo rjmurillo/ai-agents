@@ -24,7 +24,6 @@ from __future__ import annotations
 import json
 import re
 import sys
-from pathlib import Path
 
 _ADR_PATH_PATTERN = re.compile(r"ADR-\d+.*\.md$", re.IGNORECASE)
 
