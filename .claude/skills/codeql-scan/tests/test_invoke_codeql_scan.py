@@ -62,9 +62,19 @@ class TestMain:
         assert "Not in a git repository" in capsys.readouterr().err
 
     @patch("subprocess.run")
+    def test_codeql_dir_missing(
+        self, mock_run: MagicMock, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        mock_run.return_value = MagicMock(returncode=0, stdout=str(tmp_path))
+        exit_code = main(["--operation", "full"])
+        assert exit_code == 0
+        assert ".codeql/ not found" in capsys.readouterr().err
+
+    @patch("subprocess.run")
     def test_validate_config_not_found(
         self, mock_run: MagicMock, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
+        (tmp_path / ".codeql").mkdir()
         mock_run.return_value = MagicMock(returncode=0, stdout=str(tmp_path))
         exit_code = main(["--operation", "validate"])
         assert exit_code == 3
@@ -95,7 +105,8 @@ class TestMain:
     def test_codeql_cli_not_found(
         self, mock_run: MagicMock, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        # Git returns repo root, but no codeql CLI exists
+        # Git returns repo root, .codeql/ exists but no CLI binary
+        (tmp_path / ".codeql").mkdir()
         mock_run.return_value = MagicMock(returncode=0, stdout=str(tmp_path))
         exit_code = main(["--operation", "full"])
         assert exit_code == 3

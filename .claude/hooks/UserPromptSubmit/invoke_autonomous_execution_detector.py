@@ -14,8 +14,10 @@ Exit Codes (Claude Hook Semantics, exempt from ADR-035):
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
+from pathlib import Path
 
 # Keywords signaling autonomous/unattended execution
 AUTONOMY_PATTERNS: list[re.Pattern[str]] = [
@@ -32,12 +34,18 @@ AUTONOMY_PATTERNS: list[re.Pattern[str]] = [
     re.compile(r"\bblindly\b", re.IGNORECASE),
 ]
 
-STRICTER_PROTOCOL_MESSAGE = (
-    "\nAutonomous mode: Stricter protocol active. "
-    "Session log with evidence required. "
-    "High-risk ops (merge, force-push, branch delete) need consensus gates "
-    "via /orchestrator. Blocked on main. See SESSION-PROTOCOL.md.\n"
-)
+def _build_stricter_protocol_message(project_dir: str) -> str:
+    """Build the stricter protocol message with conditional doc reference."""
+    protocol_ref = ""
+    protocol_path = Path(project_dir) / ".agents" / "SESSION-PROTOCOL.md"
+    if protocol_path.is_file():
+        protocol_ref = " See SESSION-PROTOCOL.md."
+    return (
+        "\nAutonomous mode: Stricter protocol active. "
+        "Session log with evidence required. "
+        "High-risk ops (merge, force-push, branch delete) need consensus gates "
+        f"via /orchestrator. Blocked on main.{protocol_ref}\n"
+    )
 
 
 def has_autonomy_keywords(prompt: str) -> bool:
@@ -79,7 +87,10 @@ def main() -> int:
         return 0
 
     if has_autonomy_keywords(user_prompt):
-        print(STRICTER_PROTOCOL_MESSAGE)
+        project_dir = os.environ.get("CLAUDE_PROJECT_DIR", "").strip()
+        if not project_dir:
+            project_dir = hook_input.get("cwd", os.getcwd())
+        print(_build_stricter_protocol_message(project_dir))
 
     return 0
 

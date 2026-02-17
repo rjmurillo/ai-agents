@@ -136,9 +136,13 @@ def main() -> int:
                 return 0
             if result.get("log_missing"):
                 today = result.get("today", "unknown")
+                protocol_ref = ""
+                protocol_path = Path(project_dir) / ".agents" / "SESSION-PROTOCOL.md"
+                if protocol_path.is_file():
+                    protocol_ref = " per SESSION-PROTOCOL.md"
                 write_continue_response(
                     f"Session log missing. MUST create session log at "
-                    f".agents/sessions/{today}-session-NN.json per SESSION-PROTOCOL.md"
+                    f".agents/sessions/{today}-session-NN.json{protocol_ref}"
                 )
                 return 0
 
@@ -150,10 +154,14 @@ def main() -> int:
 
         if missing_keys:
             missing_list = ", ".join(missing_keys)
+            protocol_ref = ""
+            protocol_path = Path(project_dir) / ".agents" / "SESSION-PROTOCOL.md"
+            if protocol_path.is_file():
+                protocol_ref = " per SESSION-PROTOCOL.md"
             write_continue_response(
                 f"Session log incomplete in {log_path.name}. "
                 f"Missing or incomplete keys: {missing_list}. "
-                f"MUST complete per SESSION-PROTOCOL.md"
+                f"MUST complete{protocol_ref}"
             )
 
         return 0

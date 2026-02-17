@@ -56,14 +56,8 @@ from github_core.api import (  # noqa: E402
 
 _DEFAULT_CONFIG: dict = {
     "trusted_sources": {
-        "maintainers": ["rjmurillo"],  # Fallback when copilot-synthesis.yml not found
-        "ai_agents": [
-            "rjmurillo-bot",
-            "Copilot",
-            "coderabbitai[bot]",
-            "cursor[bot]",
-            "github-actions[bot]",
-        ],
+        "maintainers": [],
+        "ai_agents": [],
     },
     "extraction_patterns": {
         "coderabbit": {
@@ -106,7 +100,11 @@ def _extract_yaml_list(content: str, key: str) -> list[str]:
 
 
 def _load_synthesis_config(config_path: str) -> dict:
-    """Load copilot-synthesis.yml configuration or return defaults."""
+    """Load copilot-synthesis.yml configuration or return empty defaults.
+
+    When the config file is missing, returns empty trusted_sources lists.
+    Callers must validate that required lists are populated before use.
+    """
     if not config_path:
         try:
             result = subprocess.run(
@@ -491,6 +489,15 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901 - faithful port of
     print(f"Processing issue #{issue_number} in {owner}/{repo}")
 
     config = _load_synthesis_config(args.config_path)
+
+    trusted = config["trusted_sources"]
+    if not trusted["maintainers"] and not trusted["ai_agents"]:
+        error_and_exit(
+            "No trusted sources configured. "
+            "Create a copilot-synthesis.yml with maintainers and ai_agents lists. "
+            "See .claude/skills/github/copilot-synthesis.yml for the expected format.",
+            1,
+        )
 
     # Fetch issue details
     issue_result = subprocess.run(

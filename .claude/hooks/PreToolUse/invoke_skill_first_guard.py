@@ -183,8 +183,14 @@ def write_block_response(
     blocked_command: str,
     skill_path: str,
     example_usage: str,
+    project_dir: str = "",
 ) -> None:
     """Write an educational block response to stdout."""
+    agents_ref = ""
+    if project_dir:
+        agents_path = Path(project_dir) / "AGENTS.md"
+        if agents_path.is_file():
+            agents_ref = " See: `AGENTS.md > Skill-First Checkpoint`"
     output = (
         "\n## BLOCKED: Raw GitHub Command Detected\n\n"
         "**YOU MUST use the validated skill script "
@@ -199,8 +205,7 @@ def write_block_response(
         "- Consistent output format\n"
         "- Centrally maintained\n"
         "- Raw `gh` commands: None of the above\n\n"
-        "**This is not optional.** "
-        "See: `AGENTS.md > Skill-First Checkpoint`\n"
+        f"**This is not optional.**{agents_ref}\n"
     )
     print(output)
     print(f"Blocked: Raw gh command detected. Use skill at {skill_path}", file=sys.stderr)
@@ -237,7 +242,9 @@ def main() -> int:
             return 0
 
         # Skill exists, BLOCK with educational message
-        write_block_response(gh_command["full_command"], skill["path"], skill["example"])
+        write_block_response(
+            gh_command["full_command"], skill["path"], skill["example"], project_dir
+        )
         return 2
 
     except Exception as exc:

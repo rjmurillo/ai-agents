@@ -100,12 +100,16 @@ def main() -> int:
 
         if missing_sections:
             missing_list = ", ".join(missing_sections)
+            protocol_ref = ""
+            protocol_path = Path(hook_input.get("cwd", ".")) / ".agents" / "SESSION-PROTOCOL.md"
+            if protocol_path.is_file():
+                protocol_ref = " per .agents/SESSION-PROTOCOL.md"
             print(
                 f"\n**QA VALIDATION FAILURE**: QA agent report is incomplete "
                 f"and does NOT meet SESSION-PROTOCOL requirements.\n\n"
                 f"Missing required sections: {missing_list}\n\n"
                 f"ACTION REQUIRED: Re-run QA agent with complete report "
-                f"including all required sections per .agents/SESSION-PROTOCOL.md\n"
+                f"including all required sections{protocol_ref}\n"
             )
             print(f"QA validation failed: Missing sections - {missing_list}", file=sys.stderr)
         else:

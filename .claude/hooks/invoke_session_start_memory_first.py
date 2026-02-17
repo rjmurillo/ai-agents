@@ -67,7 +67,11 @@ def main() -> int:
     # This is informational only, so disabling doesn't affect functionality.
     forgetful_status = "Forgetful: unavailable (use Serena)"
 
-    print(f"ADR-007 active. {forgetful_status}. Protocol: AGENTS.md > Session Protocol Gates.")
+    agents_ref = ""
+    project_root = script_dir.parent
+    if (project_root / "AGENTS.md").is_file():
+        agents_ref = " Protocol: AGENTS.md > Session Protocol Gates."
+    print(f"ADR-007 active. {forgetful_status}.{agents_ref}")
     return 0
 
 

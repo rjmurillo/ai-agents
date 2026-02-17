@@ -108,9 +108,23 @@ def main() -> int:
 
         project_dir = get_project_directory()
         sessions_dir = os.path.join(project_dir, ".agents", "sessions")
+
+        if not os.path.isdir(sessions_dir):
+            print(
+                "[SKIP] .agents/sessions/ not found (consumer repo). "
+                "Session enforcement skipped.",
+                file=sys.stderr,
+            )
+            return 0
+
         session_log = get_today_session_log(sessions_dir, date=today)
 
         if session_log is None:
+            protocol_ref = ""
+            protocol_path = Path(project_dir) / ".agents" / "SESSION-PROTOCOL.md"
+            if protocol_path.is_file():
+                protocol_ref = "\nSee: `.agents/SESSION-PROTOCOL.md` for full details.\n"
+
             output = f"""
 ## BLOCKED: No Session Log Found
 
@@ -138,9 +152,7 @@ Session logs go in: `.agents/sessions/{today}-session-NN.json`
 
 **Current Date**: {today}
 **Sessions Directory**: {sessions_dir}
-
-See: `.agents/SESSION-PROTOCOL.md` for full details.
-"""
+{protocol_ref}"""
             print(output)
             print("Session blocked: No session log found for today", file=sys.stderr)
             return 2

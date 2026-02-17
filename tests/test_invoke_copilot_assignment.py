@@ -53,8 +53,32 @@ def _comments_json(marker: str | None = None, maintainer: str | None = None):
     if marker:
         comments.append({"id": 10, "body": f"{marker}\n\nSynthesis", "user": {"login": "bot"}})
     if maintainer:
-        comments.append({"id": 20, "body": maintainer, "user": {"login": "rjmurillo"}})
+        comments.append({"id": 20, "body": maintainer, "user": {"login": "testuser"}})
     return json.dumps(comments)
+
+
+def _test_config():
+    """Return a populated config for tests that need to bypass empty-config validation."""
+    return {
+        "trusted_sources": {
+            "maintainers": ["testuser"],
+            "ai_agents": ["bot"],
+        },
+        "extraction_patterns": {
+            "coderabbit": {
+                "username": "coderabbitai[bot]",
+                "implementation_plan": "## Implementation",
+                "related_issues": "Similar Issues",
+                "related_prs": "Related PRs",
+            },
+            "ai_triage": {
+                "marker": "<!-- AI-ISSUE-TRIAGE -->",
+            },
+        },
+        "synthesis": {
+            "marker": "<!-- COPILOT-CONTEXT-SYNTHESIS -->",
+        },
+    }
 
 
 class TestExtractYamlList:
@@ -117,24 +141,24 @@ class TestBuildSynthesisComment:
 class TestGetMaintainerGuidance:
     def test_extract_bullets(self):
         comments = [
-            {"body": "- Fix the login flow\n- Update the tests", "user": {"login": "rjmurillo"}}
+            {"body": "- Fix the login flow\n- Update the tests", "user": {"login": "testuser"}}
         ]
-        result = _get_guidance(comments, ["rjmurillo"])
+        result = _get_guidance(comments, ["testuser"])
         assert len(result) == 2
         assert "Fix the login flow" in result[0]
 
     def test_extract_rfc_keywords(self):
         comments = [
-            {"body": "This MUST be done before release.", "user": {"login": "rjmurillo"}}
+            {"body": "This MUST be done before release.", "user": {"login": "testuser"}}
         ]
-        result = _get_guidance(comments, ["rjmurillo"])
+        result = _get_guidance(comments, ["testuser"])
         assert len(result) == 1
 
     def test_no_maintainer_comments(self):
         comments = [
             {"body": "Some text", "user": {"login": "random"}}
         ]
-        result = _get_guidance(comments, ["rjmurillo"])
+        result = _get_guidance(comments, ["testuser"])
         assert result == []
 
 
@@ -160,16 +184,30 @@ class TestGetAITriageInfo:
 
 
 @patch("subprocess.run")
-def test_issue_not_found(mock_run):
+def test_empty_config_fails_fast(mock_run):
+    """When no copilot-synthesis.yml exists, main exits with code 1."""
     mock_run.side_effect = [
         _completed(rc=0),  # auth
         _completed(stdout="https://github.com/o/r\n"),  # remote
         _completed(stdout="/tmp\n"),  # git rev-parse (config loader)
-        _completed(rc=1, stderr="Not Found"),  # issue fetch
     ]
 
     with pytest.raises(SystemExit) as exc_info:
-        main(["--issue-number", "999"])
+        main(["--issue-number", "1"])
+    assert exc_info.value.code == 1
+
+
+@patch("subprocess.run")
+def test_issue_not_found(mock_run):
+    mock_run.side_effect = [
+        _completed(rc=0),  # auth
+        _completed(stdout="https://github.com/o/r\n"),  # remote
+        _completed(rc=1, stderr="Not Found"),  # issue fetch
+    ]
+
+    with patch.object(_mod, "_load_synthesis_config", return_value=_test_config()):
+        with pytest.raises(SystemExit) as exc_info:
+            main(["--issue-number", "999"])
     assert exc_info.value.code == 2
 
 
@@ -178,13 +216,13 @@ def test_dry_run_no_content(mock_run, capsys):
     mock_run.side_effect = [
         _completed(rc=0),  # auth
         _completed(stdout="https://github.com/o/r\n"),  # remote
-        _completed(stdout="/tmp\n"),  # git rev-parse (config loader)
         _completed(stdout=_issue_json()),  # issue fetch
     ]
 
-    with patch.object(_mod, "get_issue_comments", return_value=[]):
-        with patch.object(_mod, "get_trusted_source_comments", return_value=[]):
-            rc = main(["--issue-number", "1", "--dry-run"])
+    with patch.object(_mod, "_load_synthesis_config", return_value=_test_config()):
+        with patch.object(_mod, "get_issue_comments", return_value=[]):
+            with patch.object(_mod, "get_trusted_source_comments", return_value=[]):
+                rc = main(["--issue-number", "1", "--dry-run"])
 
     assert rc == 0
     out = capsys.readouterr().out
@@ -206,13 +244,13 @@ def test_prepare_context_only(mock_run, capsys):
     mock_run.side_effect = [
         _completed(rc=0),  # auth
         _completed(stdout="https://github.com/o/r\n"),  # remote
-        _completed(stdout="/tmp\n"),  # git rev-parse (config loader)
         _completed(stdout=_issue_json()),  # issue fetch
     ]
 
-    with patch.object(_mod, "get_issue_comments", return_value=[]):
-        with patch.object(_mod, "get_trusted_source_comments", return_value=[]):
-            rc = main(["--issue-number", "1", "--prepare-context-only"])
+    with patch.object(_mod, "_load_synthesis_config", return_value=_test_config()):
+        with patch.object(_mod, "get_issue_comments", return_value=[]):
+            with patch.object(_mod, "get_trusted_source_comments", return_value=[]):
+                rc = main(["--issue-number", "1", "--prepare-context-only"])
 
     assert rc == 0
     output = _extract_json(capsys.readouterr().out)
