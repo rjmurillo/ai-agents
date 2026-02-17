@@ -11,13 +11,13 @@ Validates that:
 from __future__ import annotations
 
 import subprocess
+
+# Add the scripts directory to the path so we can import path_validation
+import sys
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-
-# Add the scripts directory to the path so we can import path_validation
-import sys
 
 SCRIPTS_DIR = str(
     Path(__file__).resolve().parent.parent.parent.parent.parent
@@ -28,7 +28,7 @@ SCRIPTS_DIR = str(
 )
 sys.path.insert(0, SCRIPTS_DIR)
 
-from path_validation import get_repo_root, validate_path_within_repo
+from path_validation import get_repo_root, validate_path_within_repo  # noqa: E402
 
 
 @pytest.fixture
