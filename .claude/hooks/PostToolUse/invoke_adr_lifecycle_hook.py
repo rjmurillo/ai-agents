@@ -118,7 +118,8 @@ def main() -> int:
 
     except Exception as exc:
         # Fail-open: never block on infrastructure errors
-        print(f"ADR lifecycle hook error: {exc}", file=sys.stderr)
+        input_size = len(raw) if raw else 0
+        print(f"ADR lifecycle hook error (input_size={input_size}): {exc}", file=sys.stderr)
 
     return 0
 

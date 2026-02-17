@@ -1,0 +1,227 @@
+{
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/project/project-overview.md": {
+    "hash": "a0443c18e5c427c0fd42b4c1b7b557b22a2507f8ceb6fbb0ac4a5e78ac14c843",
+    "token_count": 347,
+    "file_size": 1589
+  },
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/project/codebase-structure.md": {
+    "hash": "a82cbba43d27d643784942432f039d5d4db1694f16a23f9d8fce272b79f2e4ac",
+    "token_count": 783,
+    "file_size": 3480
+  },
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/session/changelog-session-log-fixer.md": {
+    "hash": "e0b30695023a1dbc203580669e3d2fab625e8b86ef771e26a2dc25d1be5bc36c",
+    "token_count": 480,
+    "file_size": 2165
+  },
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/pr-review/pr-review-batch-response-pattern.md": {
+    "hash": "a221ce1187720fa6249f6e91c68d015c18fcba51bef5a36df9959bdb474d7e78",
+    "token_count": 699,
+    "file_size": 2812
+  },
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/project/project-labels-milestones.md": {
+    "hash": "f57102bf9185016774981c53a2abb9195293a4b01d4c337e0371201ffa3a210f",
+    "token_count": 325,
+    "file_size": 1366
+  },
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/powershell/pester-variable-scoping.md": {
+    "hash": "b99d829bdb8b63df0d3bbe5c6876e93a4bf3d92204055a92544d0b194eb77b3d",
+    "token_count": 497,
+    "file_size": 1853
+  },
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/powershell/powershell-variable-shadowing-detection.md": {
+    "hash": "5cc80facb6ca3e39b67450c8091302e031d4cc104a92e5081a383ac2d4ad6d1f",
+    "token_count": 665,
+    "file_size": 2767
+  },
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/patterns/pattern-thin-workflows.md": {
+    "hash": "de8ff3cb5f99e54f498585d8587f3f5b8980b4dbfc2f40e0fa3ca4d9e1e2a1b4",
+    "token_count": 1373,
+    "file_size": 5224
+  },
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/adr/adr-artifact-count-verification.md": {
+    "hash": "b02dcb9a1c244d38bd2daed3da6b55c2a80e7e7a4f5dc3f757e53b427ed6e470",
+    "token_count": 401,
+    "file_size": 1656
+  },
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/adr/adr-retroactive-amendment-criteria.md": {
+    "hash": "4ce6a16ba3fc13eb091f28dc8c3aa0a9c5daeb7dbd978a87e3c5c19f7d6eaf62",
+    "token_count": 824,
+    "file_size": 3416
+  },
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/adr/adr-review-observations.md": {
+    "hash": "1097d71e68b222ac2ac161efbd4889f6837d25659b019fa5d9c1c358f42e07aa",
+    "token_count": 749,
+    "file_size": 3106
+  },
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/governance/consensus-disagree-and-commit-pattern.md": {
+    "hash": "7d44c5ac0510401d80b5dca0bc7a535536e6917cfcd1a3cd9a68867232b530ff",
+    "token_count": 813,
+    "file_size": 3549
+  },
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/testing/testing-exit-code-interpretation.md": {
+    "hash": "d861cce2318993719188edb7b93828fb0db9d184c0429997a7a2b99efcee46f8",
+    "token_count": 628,
+    "file_size": 2563
+  },
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/copilot/copilot-cli-frontmatter-regression-runbook.md": {
+    "hash": "500b3b65f5fc4fe5ddcac9180fae4d415c9d5e27123230067113f401db0a9efa",
+    "token_count": 1875,
+    "file_size": 7272
+  },
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/git/git-004-branch-switch-file-verification.md": {
+    "hash": "c041346438ce9bcdf295bcba802174eb51fd4eafc3bf15170712d0dd076ea833",
+    "token_count": 851,
+    "file_size": 3459
+  },
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/pr-review/triage-001-verify-before-stale-closure.md": {
+    "hash": "fd7e546195267b0c0461bdbf5561ac7c8601cf33628422fb5b456320f6700d50",
+    "token_count": 435,
+    "file_size": 1660
+  },
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/pr-review/triage-002-bot-closure-verification.md": {
+    "hash": "20492040e162deaf21ca457f8ff936a5612e97bf97f1519f815ede4548016d6c",
+    "token_count": 452,
+    "file_size": 1758
+  },
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/session/recovery-001-lost-code-investigation.md": {
+    "hash": "d7dfc1481575bff0b1e33c16063725b658a79e755217c32add84d9a878b87132",
+    "token_count": 552,
+    "file_size": 2117
+  },
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/retrospective/retrospective-artifact-efficiency-pattern.md": {
+    "hash": "d6f7f4ccd384b6b0016d6a1e8dda6ac5f2ceeb22351f1ddfab44006606efa934",
+    "token_count": 986,
+    "file_size": 3925
+  },
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/utilities/utilities-regex.md": {
+    "hash": "65852b4753144261acc2821e676f5838973dfa9b49f6a5a0e40b4034c1155a2c",
+    "token_count": 548,
+    "file_size": 2041
+  },
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/planning/roadmap-priorities.md": {
+    "hash": "84aa5002926e818f853f93e841e2526f07429b1af96e63d5adf2becfca7b455e",
+    "token_count": 265,
+    "file_size": 1070
+  },
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/governance/governance-001-8question-agent-interview-94.md": {
+    "hash": "f4e1c39c9a84103718598ddae20ea6a922615db83991d0351180f681298b9f8c",
+    "token_count": 172,
+    "file_size": 698
+  },
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/governance/governance-002-five-consolidation-triggers-90.md": {
+    "hash": "f3b5260dae8ce562c4756b1dd825c3ca07f8bcb3101913de56bccc4a21866b81",
+    "token_count": 156,
+    "file_size": 648
+  },
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/ci/ci-infrastructure-dorny-paths-filter-checkout.md": {
+    "hash": "e70146d903f4727e3f35575cb6a4421dfb4c87110102b76449cdb393f4f92988",
+    "token_count": 930,
+    "file_size": 3965
+  },
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/patterns/edit-001-read-before-edit-pattern.md": {
+    "hash": "c5d23bf8c85f5df2e02b7145d09eae1cf5033710fd34eecf4e8f31f7f9e623cb",
+    "token_count": 464,
+    "file_size": 2003
+  },
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/patterns/edit-002-unique-context-for-edit-matching.md": {
+    "hash": "8cd4157fa6dc04a9898f564341a3a89764a69757d5ae56ac4650c516808c2cbb",
+    "token_count": 368,
+    "file_size": 1630
+  },
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/quality/code-smells-catalog.md": {
+    "hash": "59caa68dfb652ce39d17878a38c7d03b20d87b84b2c846f22395aec59cf8fa45",
+    "token_count": 1118,
+    "file_size": 4712
+  },
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/validation/validation-pr-gates.md": {
+    "hash": "3e1dc61cdd66e8558ef1686752c503bcf8ac32b26d4011e4e867a3209e416dca",
+    "token_count": 1245,
+    "file_size": 5099
+  },
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/orchestration/orchestration-process-workflow-gaps.md": {
+    "hash": "16949634790dee5146f60159317fdf6d2321fc50317ec43d3466eb9e2313f78c",
+    "token_count": 1570,
+    "file_size": 6605
+  },
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/utilities/utilities-cva-refactoring.md": {
+    "hash": "6e623036639db4f861cb571c2bad4d8b3efcea2f820a76293f0fe4419d67d2e9",
+    "token_count": 1250,
+    "file_size": 5028
+  },
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/quality/quality-prompt-engineering-gates.md": {
+    "hash": "5db0c886bbfb405844e08c6e5e0d2ec9b0100ce9debd774082802c60caf90395",
+    "token_count": 1419,
+    "file_size": 6225
+  },
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/agent-workflow/agentworkflow-004-proactive-template-sync-verification-95.md": {
+    "hash": "c6e5a70ec1aa1879b1bc02f3a872a16430d84ff27be6db321dbd2769e0999fd9",
+    "token_count": 485,
+    "file_size": 2123
+  },
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/agent-workflow/agentworkflow-005-structured-handoff-formats-88.md": {
+    "hash": "fb9c004d57b0a49603e7f8581a6dc5eb40f3cfc0b36a643d327f417d2492cf19",
+    "token_count": 474,
+    "file_size": 1991
+  },
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/memory/context-engineering-principles.md": {
+    "hash": "08714d1ebfe7f2adb527f22be74ef0a83c848757a98e80b3ad8647e11b7d7bb4",
+    "token_count": 594,
+    "file_size": 2534
+  },
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/memory/memory-token-efficiency.md": {
+    "hash": "69933ecda42c891e416a4bac46ec045652afa38f4520175b05298369ab7c3f76",
+    "token_count": 861,
+    "file_size": 3875
+  },
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/memory/passive-context-vs-skills-vercel-research.md": {
+    "hash": "a9753360bc8dba4ab92fa02a50e1ad95d5eda03b25cde29cdb8124f9441f7ce1",
+    "token_count": 447,
+    "file_size": 1801
+  },
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/claude/claude-md-anthropic-best-practices.md": {
+    "hash": "a1f62412fec8d7e0489911cbc2bc408bfb956bef7e6d1eb871ec103c90cd61a3",
+    "token_count": 683,
+    "file_size": 2587
+  },
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/claude/claude-code-skills-official-guidance.md": {
+    "hash": "c5fc7c1c42a003d5510d046d119c70df967437d62b50e18c48940b8c43d11de6",
+    "token_count": 623,
+    "file_size": 2566
+  },
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/knowledge/principal-engineering-knowledge.md": {
+    "hash": "b88a32edd1c851e7a926b91115b8a6b100fe05b275a177ac6e13762ea419e3e4",
+    "token_count": 854,
+    "file_size": 3922
+  },
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/user-preferences/user-preference-no-bash-python.md": {
+    "hash": "67662288532bd32aaa00f889355f172fa9d5c974e38acfaebf01ffab77c488f9",
+    "token_count": 268,
+    "file_size": 1164
+  },
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/user-preferences/user-preference-no-auto-headers.md": {
+    "hash": "7549e91577cc0e1cea72a120f6e7c75c46089706b2a4173abd3c3fd524d00802",
+    "token_count": 375,
+    "file_size": 1536
+  },
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/memory/memory-001-feedback-retrieval.md": {
+    "hash": "8c48e8b7ae785f7b3c979a707aee319722d5dc62f30b256933928fa616ff45ba",
+    "token_count": 577,
+    "file_size": 2624
+  },
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/memory/memory-architecture-serena-primary.md": {
+    "hash": "1898465fadbaef8f7a046fe26d21fe45c73572551bf78a4388516bb464647897",
+    "token_count": 484,
+    "file_size": 2090
+  },
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/memory/memory-size-001-decomposition-thresholds.md": {
+    "hash": "39d2a769421a6beaec5c26988c39e44d2b39a1192133abdc27381671fececf5b",
+    "token_count": 959,
+    "file_size": 3665
+  },
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/memory/memory-system-fragmentation-tech-debt.md": {
+    "hash": "9101bc2405a937fdcba14a15453896012e003b1ae94e7e3f2a305a8fe413e336",
+    "token_count": 939,
+    "file_size": 4073
+  }
+}

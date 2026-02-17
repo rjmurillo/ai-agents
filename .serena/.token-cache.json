@@ -1,0 +1,157 @@
+{
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/skills-session-init-index.md": {
+    "hash": "e4431b679a2928aa6b8a56ac53cc72989cbcc88831173b9dc28e2915786673c2",
+    "token_count": 219,
+    "file_size": 1120
+  },
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/skills-github-cli-index.md": {
+    "hash": "b0f8a16d6261f8fdf3257d6ecf1676ce1cf317dce2548686e7686025776ba270",
+    "token_count": 507,
+    "file_size": 2475
+  },
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/skills-jq-index.md": {
+    "hash": "7a6b785880f1b1e4986b4b6a5945f12cc8f44685e68b80c9b461b5d71a83ece1",
+    "token_count": 356,
+    "file_size": 1351
+  },
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/skills-gh-extensions-index.md": {
+    "hash": "5de28b7879dbee6a44228a02d7dfa038cb18490fab475b32e269242875b2aa1e",
+    "token_count": 321,
+    "file_size": 1377
+  },
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/skills-powershell-index.md": {
+    "hash": "8f6f6a90d1a960cd4316ec2b596b2875ab580bbe016ae4526aad9aaa2d84c9d5",
+    "token_count": 443,
+    "file_size": 2179
+  },
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/skills-security-index.md": {
+    "hash": "8af4a91a1cdeb44de436efb7e3da60660359e134ffcc8e4cb76f2d7049acc693",
+    "token_count": 477,
+    "file_size": 2309
+  },
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/skills-autonomous-execution-index.md": {
+    "hash": "f7217d2c03a209449746d2621e64bb1ebb374d7d5729bf0c2e1b8b370b095e46",
+    "token_count": 150,
+    "file_size": 664
+  },
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/skills-planning-index.md": {
+    "hash": "d9dcef6744dc1655bdd0cb24d05b976d7ecd3ab3d773f18777a52d1240a692b2",
+    "token_count": 246,
+    "file_size": 1064
+  },
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/skills-architecture-index.md": {
+    "hash": "69030d2b3ca02471c68e8459905018746fd8308c87ebf97cd5550a0dd00d5890",
+    "token_count": 363,
+    "file_size": 1840
+  },
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/adr-reference-index.md": {
+    "hash": "3b5a0c18de84cacd578328c035092310e10b868cfa666868c4476bbc4cc97c4c",
+    "token_count": 674,
+    "file_size": 2787
+  },
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/skills-design-index.md": {
+    "hash": "e7bc2d133444175058e8250fd49fc112a5fbcda611782d81fe73dcf7275cf0ba",
+    "token_count": 206,
+    "file_size": 1085
+  },
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/skills-implementation-index.md": {
+    "hash": "f47311494f05e9f35f4185ab61d9daad53d4600d60870d8ab46895e20fb5c25d",
+    "token_count": 304,
+    "file_size": 1634
+  },
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/skills-orchestration-index.md": {
+    "hash": "0e040cda5bd14034708a2994464db76064ccb607d5da0dbefe8078c6bbdf05d7",
+    "token_count": 449,
+    "file_size": 2016
+  },
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/skills-agent-workflow-index.md": {
+    "hash": "ccec41491a58098f55a8fde7194f474e6c5b76169e346a67c8c5843e56a61b47",
+    "token_count": 378,
+    "file_size": 1664
+  },
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/skills-quality-index.md": {
+    "hash": "5a63fcce352e3621d9e55138f61773f2516476a213a38c707ed8366bafb1f068",
+    "token_count": 290,
+    "file_size": 1347
+  },
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/skills-utilities-index.md": {
+    "hash": "b62be528f69a5a633f2c7b22c711a62e24fd2624e6f5e940a0f845997284e37f",
+    "token_count": 183,
+    "file_size": 910
+  },
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/skills-validation-index.md": {
+    "hash": "9fe7524e29281519f73e68bf188157ec4c2dbb9d6d26970283f227f794fd08bb",
+    "token_count": 422,
+    "file_size": 2262
+  },
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/skills-ci-infrastructure-index.md": {
+    "hash": "fae7d7834c4d6254968eb9077bd1282ebb93cc8323ad2ed4544a3015778e33cd",
+    "token_count": 773,
+    "file_size": 3556
+  },
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/skills-copilot-index.md": {
+    "hash": "c732ff553f58f531b3d2a54ac1040e47577bb7d3033be179c13aaa92e0cca4fe",
+    "token_count": 316,
+    "file_size": 1418
+  },
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/skills-gemini-index.md": {
+    "hash": "2777cc208ab6fcdb02d5a4d10aef289dcda141a8fd0e5344cb3a5fb01bcd061a",
+    "token_count": 200,
+    "file_size": 804
+  },
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/skills-coderabbit-index.md": {
+    "hash": "137b69b4d62bdeace1340e4e4bf025c74547d93819b8b744304b7e928ac8f564",
+    "token_count": 229,
+    "file_size": 1009
+  },
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/skills-labeler-index.md": {
+    "hash": "7aa4188ac0159e3930fa8e8fa2ddd7abb34e233e997897041180a15438f24890",
+    "token_count": 263,
+    "file_size": 1030
+  },
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/skills-analysis-index.md": {
+    "hash": "0d0f075a809565fedf3e612d5bbbfbc2b70d7379731aafb0376ac03bc0b3e67a",
+    "token_count": 223,
+    "file_size": 1062
+  },
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/skills-git-hooks-index.md": {
+    "hash": "12b0a48de49aba4036e84279eb8720d13fb40d2b1ff4b03e6c1ae30cf7eb186c",
+    "token_count": 325,
+    "file_size": 1429
+  },
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/skills-git-index.md": {
+    "hash": "e1fc4004f849ddf2adbf58f5cc2716a416924a4884277e6cd457e6fcef395e83",
+    "token_count": 287,
+    "file_size": 1268
+  },
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/skills-protocol-index.md": {
+    "hash": "61d7835a0c729e9d03c9e5ffa5697a3f1e326d6db8cbe4e7010eab0ac4f62a65",
+    "token_count": 245,
+    "file_size": 1125
+  },
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/skills-retrospective-index.md": {
+    "hash": "5440df5206550d9383faa6080181a6ea8de25a6656a7701ae3c97e1b232f1221",
+    "token_count": 612,
+    "file_size": 2528
+  },
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/skills-serena-index.md": {
+    "hash": "30709bc17e9204ca9f7eecd855572074d1486eadb71ce8c97a0a9e131811ca4d",
+    "token_count": 284,
+    "file_size": 1245
+  },
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/foundational-knowledge-index.md": {
+    "hash": "62b5fd9ca13a3f6f7a3da7d16d68d539a6126e7e21311bc5bef8d5776b4911f5",
+    "token_count": 867,
+    "file_size": 3740
+  },
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/engineering-knowledge-index.md": {
+    "hash": "ca0f9b781b7f3a282cee9d5352716ef32d475679e219b6dd25a652c192481e7f",
+    "token_count": 3751,
+    "file_size": 15553
+  },
+  "/home/richard/src/GitHub/rjmurillo/ai-agents6/.serena/memories/distinguished-engineer-knowledge-index.md": {
+    "hash": "0d3804e0c631abd4adfb7a30cefd76f5e6e06279e547cd12d7e41986f7f1acf0",
+    "token_count": 728,
+    "file_size": 3511
+  }
+}

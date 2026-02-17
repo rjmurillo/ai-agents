@@ -24,6 +24,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import warnings
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -84,8 +85,8 @@ def _get_repo_maintainers() -> list[str]:
         )
         if user_result.returncode == 0 and user_result.stdout.strip() == "User":
             return [owner]
-    except (subprocess.TimeoutExpired, FileNotFoundError):
-        pass
+    except (subprocess.TimeoutExpired, FileNotFoundError) as exc:
+        warnings.warn(f"Could not detect repo maintainers: {exc}", stacklevel=2)
     return []
 
 

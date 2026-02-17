@@ -62,7 +62,10 @@ def validate_conventional_commit(title: str) -> bool:
 
 def run_validations(repo_root: str, base: str, head: str) -> None:
     """Run pre-creation validations. Raises SystemExit(1) on failure."""
-    os.makedirs(os.path.join(repo_root, ".agents"), exist_ok=True)
+    try:
+        os.makedirs(os.path.join(repo_root, ".agents"), exist_ok=True)
+    except PermissionError as exc:
+        print(f"Warning: Could not create .agents directory: {exc}", file=sys.stderr)
 
     print("Running validations...")
     print()

@@ -96,7 +96,8 @@ def main() -> int:
 
     except Exception as exc:
         # Fail-open on errors (don't block session startup)
-        print(f"Session initialization enforcer error: {exc}", file=sys.stderr)
+        exc_type = type(exc).__name__
+        print(f"Session initialization enforcer error: {exc_type} - {exc}", file=sys.stderr)
         return 0
 
 

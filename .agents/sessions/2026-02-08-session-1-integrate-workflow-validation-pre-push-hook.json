@@ -1,0 +1,119 @@
+{
+  "endingCommit": "",
+  "workLog": [],
+  "schemaVersion": "1.0",
+  "protocolCompliance": {
+    "sessionStart": {
+      "constraintsRead": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": false
+      },
+      "serenaActivated": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": false
+      },
+      "memoriesLoaded": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": false
+      },
+      "skillScriptsListed": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": false
+      },
+      "startingCommitNoted": {
+        "Evidence": "SHA: acf89526",
+        "level": "SHOULD",
+        "Complete": true
+      },
+      "handoffRead": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": false
+      },
+      "sessionLogCreated": {
+        "Evidence": "This file exists",
+        "level": "MUST",
+        "Complete": true
+      },
+      "gitStatusVerified": {
+        "Evidence": "",
+        "level": "SHOULD",
+        "Complete": false
+      },
+      "usageMandatoryRead": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": false
+      },
+      "branchVerified": {
+        "Evidence": "Branch: feat/994-ci-health-reporting",
+        "level": "MUST",
+        "Complete": true
+      },
+      "serenaInstructions": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": false
+      },
+      "notOnMain": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": true
+      }
+    },
+    "sessionEnd": {
+      "handoffNotUpdated": {
+        "Evidence": "",
+        "level": "MUST NOT",
+        "Complete": false
+      },
+      "retrospectiveInvoked": {
+        "Evidence": "",
+        "level": "SHOULD",
+        "Complete": false
+      },
+      "serenaMemoryUpdated": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": false
+      },
+      "tasksUpdated": {
+        "Evidence": "",
+        "level": "SHOULD",
+        "Complete": false
+      },
+      "changesCommitted": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": false
+      },
+      "validationPassed": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": false
+      },
+      "markdownLintRun": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": false
+      },
+      "checklistComplete": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": false
+      }
+    }
+  },
+  "session": {
+    "branch": "feat/994-ci-health-reporting",
+    "objective": "Integrate workflow validation with pre-push hook and preserve PR 1014 context artifacts",
+    "date": "2026-02-08",
+    "number": 1,
+    "startingCommit": "acf89526"
+  },
+  "nextSteps": []
+}
