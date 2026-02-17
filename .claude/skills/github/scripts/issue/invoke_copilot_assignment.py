@@ -91,7 +91,7 @@ def _get_repo_maintainers() -> list[str]:
 
 _DEFAULT_CONFIG: dict = {
     "trusted_sources": {
-        "maintainers": _get_repo_maintainers(),
+        "maintainers": ["rjmurillo"],  # Hardcoded fallback; dynamic detection in _load_synthesis_config
         "ai_agents": [
             "rjmurillo-bot",
             "Copilot",
