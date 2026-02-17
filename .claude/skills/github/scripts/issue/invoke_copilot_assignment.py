@@ -56,16 +56,34 @@ from github_core.api import (  # noqa: E402
 
 
 def _get_repo_maintainers() -> list[str]:
-    """Detect repo maintainers from git remote owner. Falls back to empty list."""
+    """Detect repo maintainers from git remote owner. Falls back to empty list.
+
+    Only returns the owner if it's a GitHub user account. Organization names
+    are not returned since they don't correspond to actual user logins that
+    can be matched against comment authors.
+    """
     try:
         result = subprocess.run(
             ["git", "remote", "get-url", "origin"],
             capture_output=True, text=True, timeout=10,
         )
-        if result.returncode == 0:
-            match = re.search(r"github\.com[:/]([^/]+)/", result.stdout.strip())
-            if match:
-                return [match.group(1)]
+        if result.returncode != 0:
+            return []
+
+        match = re.search(r"github\.com[:/]([^/]+)/", result.stdout.strip())
+        if not match:
+            return []
+
+        owner = match.group(1)
+
+        # Check if owner is a user (not an organization) via GitHub API.
+        # Falls back to empty list if gh is not authenticated or API fails.
+        user_result = subprocess.run(
+            ["gh", "api", f"users/{owner}", "--jq", ".type"],
+            capture_output=True, text=True, timeout=10,
+        )
+        if user_result.returncode == 0 and user_result.stdout.strip() == "User":
+            return [owner]
     except (subprocess.TimeoutExpired, FileNotFoundError):
         pass
     return []
