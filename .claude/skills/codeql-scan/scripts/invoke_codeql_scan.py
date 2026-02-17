@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import platform
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -83,6 +84,10 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+
+    if not shutil.which("pwsh"):
+        print("[SKIP] pwsh not found. Install PowerShell 7+ for CodeQL scanning.")
+        return 0
 
     repo_root = _get_repo_root()
     if repo_root is None:

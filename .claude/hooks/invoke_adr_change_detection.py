@@ -12,11 +12,16 @@ Exit Codes:
 
 from __future__ import annotations
 
-import json
 import os
-import subprocess
 import sys
-from pathlib import Path
+
+# Plugin mode: skip project-specific enforcement in consumer repos
+if os.environ.get("CLAUDE_PLUGIN_ROOT"):
+    sys.exit(0)
+
+import json  # noqa: E402
+import subprocess  # noqa: E402
+from pathlib import Path  # noqa: E402
 
 
 def get_project_root() -> str | None:

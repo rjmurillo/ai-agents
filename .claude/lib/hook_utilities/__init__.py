@@ -1,11 +1,8 @@
-"""Hook utilities package for Claude Code hook scripts.
-
-NOTE: Plugin-distributed copy at .claude/lib/hook_utilities/; keep in sync.
-"""
+"""Hook utilities package for Claude Code hook scripts."""
 
 from __future__ import annotations
 
-from scripts.hook_utilities.utilities import (
+from .utilities import (
     get_project_directory,
     get_today_session_log,
     get_today_session_logs,

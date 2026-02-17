@@ -14,12 +14,17 @@ Exit Codes:
 
 from __future__ import annotations
 
-import json
 import os
-import re  # Used by PLACEHOLDER_PATTERNS
 import sys
-from datetime import UTC, datetime
-from pathlib import Path
+
+# Plugin mode: skip project-specific enforcement in consumer repos
+if os.environ.get("CLAUDE_PLUGIN_ROOT"):
+    sys.exit(0)
+
+import json  # noqa: E402
+import re  # noqa: E402  # Used by PLACEHOLDER_PATTERNS
+from datetime import UTC, datetime  # noqa: E402
+from pathlib import Path  # noqa: E402
 
 REQUIRED_JSON_KEYS = (
     "session",

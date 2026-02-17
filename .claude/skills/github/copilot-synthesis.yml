@@ -2,6 +2,8 @@
 # See references/copilot-synthesis-guide.md for documentation
 
 trusted_sources:
+  # Default maintainer for this repository. Consumers should replace with
+  # their own GitHub username(s) when using this plugin in other repos.
   maintainers:
     - rjmurillo
 

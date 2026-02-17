@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -67,6 +68,10 @@ def should_lint_file(file_path: str | None, project_dir: str) -> bool:
 
 def main() -> int:
     """Main hook entry point. Returns exit code."""
+    if not shutil.which("npx"):
+        print("[SKIP] npx not found. Install Node.js for markdown auto-linting.", file=sys.stderr)
+        return 0
+
     try:
         if sys.stdin.isatty():
             return 0

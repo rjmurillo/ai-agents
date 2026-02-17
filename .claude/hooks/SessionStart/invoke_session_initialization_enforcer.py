@@ -22,15 +22,21 @@ Exit Codes:
 
 from __future__ import annotations
 
-import subprocess
+import os
 import sys
-from pathlib import Path
 
-_project_root = Path(__file__).resolve().parents[3]
-if str(_project_root) not in sys.path:
-    sys.path.insert(0, str(_project_root))
+# Plugin mode: skip project-specific enforcement in consumer repos
+if os.environ.get("CLAUDE_PLUGIN_ROOT"):
+    sys.exit(0)
 
-from scripts.hook_utilities.utilities import (  # noqa: E402
+import subprocess  # noqa: E402
+from pathlib import Path  # noqa: E402
+
+_lib_dir = str(Path(__file__).resolve().parents[2] / "lib")
+if _lib_dir not in sys.path:
+    sys.path.insert(0, _lib_dir)
+
+from hook_utilities import (  # noqa: E402
     get_project_directory,
     get_today_session_log,
 )

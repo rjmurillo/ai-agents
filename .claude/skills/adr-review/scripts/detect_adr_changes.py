@@ -105,6 +105,10 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     base_path = Path(args.base_path).resolve()
 
+    if not (base_path / ".agents").is_dir():
+        print("[SKIP] .agents/ not found. Requires project scaffolding.")
+        return 0
+
     if not (base_path / ".git").exists():
         print(f"Error: Not a git repository: {base_path}", file=sys.stderr)
         return 1

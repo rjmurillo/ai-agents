@@ -172,6 +172,11 @@ def _validate_path_containment(session_path: str, sessions_dir: str) -> str | No
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     repo_root = _get_repo_root()
+
+    if not os.path.isdir(os.path.join(repo_root, ".agents")):
+        print("[SKIP] .agents/ not found. Requires project scaffolding.")
+        return 0
+
     sessions_dir = os.path.join(repo_root, ".agents", "sessions")
 
     # Find session log

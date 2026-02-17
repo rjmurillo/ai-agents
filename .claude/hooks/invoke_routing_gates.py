@@ -19,14 +19,19 @@ Exit Codes (Claude Hook Semantics, exempt from ADR-035):
 
 from __future__ import annotations
 
-import json
 import os
-import re
-import subprocess
 import sys
-import time
-from datetime import UTC, datetime
-from pathlib import Path
+
+# Plugin mode: skip project-specific enforcement in consumer repos
+if os.environ.get("CLAUDE_PLUGIN_ROOT"):
+    sys.exit(0)
+
+import json  # noqa: E402
+import re  # noqa: E402
+import subprocess  # noqa: E402
+import time  # noqa: E402
+from datetime import UTC, datetime  # noqa: E402
+from pathlib import Path  # noqa: E402
 
 _QA_EVIDENCE_PATTERN = re.compile(r"(?i)## QA|qa agent|Test Results|QA Validation|Test Strategy")
 

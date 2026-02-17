@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Pre-commit hook for vs-code-agents repository
+# Pre-commit hook for ai-agents repository
 # AUTOMATICALLY FIXES markdown linting issues and re-stages corrected files.
 #
 # NOTE: This is a bash script, which is an exception to ADR-042 (Python-first).
@@ -487,7 +487,7 @@ fi
 # PowerShell Script Analysis - RETIRED
 #
 # PSScriptAnalyzer retired per ADR-042 (Python-first migration, v0.3.1 Phase 5).
-# Python linting is handled by ruff. Remaining PowerShell scripts use ruff-based checks.
+# Python linting is handled by ruff. Remaining PowerShell scripts are grandfathered.
 #
 STAGED_PS_FILES=$(echo "$STAGED_FILES" | grep -E '\.(ps1|psm1)$' || true)
 
@@ -551,7 +551,7 @@ fi
 #
 # Related: Issue rjmurillo/ai-agents#44 (Phase 3 consistency)
 #
-# Consistency validation script retired (migrated to Python, script pending)
+# Consistency validation now at scripts/validation/consistency.py (not yet wired into hook)
 # Check if any planning files are staged that might need consistency validation
 if [ -n "$STAGED_PLANNING_FILES" ]; then
     echo_info "Consistency validation script not available. Skipping."
@@ -775,7 +775,7 @@ fi
 # Related: Issue #4, ADR-040 (Skill Frontmatter Standardization)
 # Reference: .agents/analysis/claude-code-skill-frontmatter-2026.md
 #
-# Skill Frontmatter Validation - script retired (pending Python migration)
+# Skill Frontmatter Validation now at scripts/validation/skill_frontmatter.py (not yet wired into hook)
 # SkillForge validator (validate-skill.py above) already covers frontmatter checks.
 if [ -n "$STAGED_SKILL_FILES" ]; then
     echo_info "Skill frontmatter validation: covered by SkillForge validator above."
@@ -987,7 +987,7 @@ fi
 #
 # Related: Issue #190 (HANDOFF.md merge conflicts), ADR-014
 #
-# Token budget validation script retired (pending Python migration)
+# Token budget validation now at scripts/validation/token_budget.py (not yet wired into hook)
 if [ -n "$STAGED_HANDOFF" ]; then
     echo_info "Token budget validation script not available. Skipping."
 fi
@@ -1281,7 +1281,7 @@ fi
 #
 # Related: Phase 2 Traceability, traceability-schema.md
 #
-# Traceability validation script retired (pending Python migration)
+# Traceability validation now at scripts/validation/traceability.py (not yet wired into hook)
 # Check if any spec files are staged
 STAGED_SPEC_FILES=$(echo "$STAGED_FILES" | grep -E '^\.agents/specs/(requirements|design|tasks)/.*\.md$' || true)
 

@@ -21,13 +21,16 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
-_WORKSPACE = os.environ.get(
-    "GITHUB_WORKSPACE",
-    os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "..")
-    ),
-)
-sys.path.insert(0, _WORKSPACE)
+_plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+_workspace = os.environ.get("GITHUB_WORKSPACE")
+if _plugin_root:
+    _lib_dir = os.path.join(_plugin_root, "lib")
+elif _workspace:
+    _lib_dir = os.path.join(_workspace, ".claude", "lib")
+else:
+    _lib_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "lib"))
+if _lib_dir not in sys.path:
+    sys.path.insert(0, _lib_dir)
 
 
 # ---------------------------------------------------------------------------
@@ -71,6 +74,10 @@ def validate_conventional_commit(title: str) -> bool:
 
 def run_validations(repo_root: str, base: str, head: str) -> None:
     """Run pre-creation validations. Raises SystemExit(1) on failure."""
+    if not os.path.isdir(os.path.join(repo_root, ".agents")):
+        print("[SKIP] .agents/ not found. Skipping protocol validations.")
+        return
+
     print("Running validations...")
     print()
 

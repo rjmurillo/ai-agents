@@ -1,11 +1,11 @@
 """GitHub Core module: shared helpers for GitHub CLI operations.
 
-NOTE: Plugin-distributed copy at .claude/lib/github_core/; keep in sync.
+Canonical copy lives at scripts/github_core/; keep in sync.
 """
 
 from __future__ import annotations
 
-from scripts.github_core.api import (  # noqa: F401
+from .api import (  # noqa: F401
     DEFAULT_RATE_THRESHOLDS,
     RateLimitResult,
     assert_gh_authenticated,
@@ -23,17 +23,17 @@ from scripts.github_core.api import (  # noqa: F401
     resolve_repo_params,
     update_issue_comment,
 )
-from scripts.github_core.bot_config import (  # noqa: F401
+from .bot_config import (  # noqa: F401
     get_bot_authors,
     get_bot_authors_config,
 )
-from scripts.github_core.formatting import (  # noqa: F401
+from .formatting import (  # noqa: F401
     get_priority_emoji,
     get_reaction_emoji,
 )
-from scripts.github_core.gh_client import GhCliClient  # noqa: F401
-from scripts.github_core.protocol import GitHubClient  # noqa: F401
-from scripts.github_core.validation import (  # noqa: F401
+from .gh_client import GhCliClient  # noqa: F401
+from .protocol import GitHubClient  # noqa: F401
+from .validation import (  # noqa: F401
     assert_valid_body_file,
     is_github_name_valid,
     is_safe_file_path,
