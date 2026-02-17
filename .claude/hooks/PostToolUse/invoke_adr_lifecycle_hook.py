@@ -75,9 +75,9 @@ def _detect_adr_in_bash(command: str) -> bool:
     return bool(_DESTRUCTIVE_CMD_PATTERN.search(command))
 
 
-def _detect_write_or_edit(tool_name: str, tool_input: dict) -> str | None:
+def _detect_write_or_edit(tool_name: str, tool_input: dict[str, object]) -> str | None:
     """Detect Write or Edit targeting an ADR file. Returns the file path or None."""
-    file_path = tool_input.get("file_path", "")
+    file_path = str(tool_input.get("file_path", ""))
     if not file_path:
         return None
     if _is_adr_path(file_path):
@@ -113,7 +113,7 @@ def main() -> int:
                     print(_GUIDANCE_EDIT.format(file_path=adr_path))
 
         elif tool_name == "Bash":
-            command = tool_input.get("command", "")
+            command = str(tool_input.get("command", ""))
             if command and _detect_adr_in_bash(command):
                 print(_GUIDANCE_DELETE.format(command=command))
 
