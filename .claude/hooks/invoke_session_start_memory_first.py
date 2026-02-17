@@ -68,7 +68,7 @@ def main() -> int:
     forgetful_status = "Forgetful: unavailable (use Serena)"
 
     agents_ref = ""
-    project_root = script_dir.parent
+    project_root = script_dir.parent.parent
     if (project_root / "AGENTS.md").is_file():
         agents_ref = " Protocol: AGENTS.md > Session Protocol Gates."
     print(f"ADR-007 active. {forgetful_status}.{agents_ref}")
