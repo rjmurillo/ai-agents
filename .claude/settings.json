@@ -98,6 +98,21 @@
             "type": "command",
             "command": "python3 -u .claude/hooks/PostToolUse/invoke_markdown_auto_lint.py",
             "statusMessage": "Auto-linting markdown files"
+          },
+          {
+            "type": "command",
+            "command": "python3 -u .claude/hooks/PostToolUse/invoke_adr_lifecycle_hook.py",
+            "statusMessage": "Checking for ADR changes"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -u .claude/hooks/PostToolUse/invoke_adr_lifecycle_hook.py",
+            "statusMessage": "Checking for ADR changes"
           }
         ]
       }
