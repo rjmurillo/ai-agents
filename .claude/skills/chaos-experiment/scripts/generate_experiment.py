@@ -129,9 +129,7 @@ def save_document(content: str, output_dir: Path, name: str) -> Path:
 def main() -> Result:
     """Main entry point."""
     _proj = os.environ.get("CLAUDE_PROJECT_DIR", os.getcwd())
-    if not os.path.isdir(os.path.join(_proj, ".agents")):
-        print("[SKIP] .agents/ not found. Requires project scaffolding.")
-        return Result(success=True, message="Skipped: .agents/ not found")
+    os.makedirs(os.path.join(_proj, ".agents"), exist_ok=True)
 
     parser = argparse.ArgumentParser(
         description="Generate a chaos experiment document",

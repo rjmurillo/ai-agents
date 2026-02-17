@@ -17,18 +17,17 @@ Exit Codes (Claude Hook Semantics, exempt from ADR-035):
 
 from __future__ import annotations
 
+import json
 import os
 import sys
+from datetime import UTC, datetime
+from pathlib import Path
 
-# Plugin mode: skip project-specific enforcement in consumer repos
-if os.environ.get("CLAUDE_PLUGIN_ROOT"):
-    sys.exit(0)
-
-import json  # noqa: E402
-from datetime import UTC, datetime  # noqa: E402
-from pathlib import Path  # noqa: E402
-
-_lib_dir = str(Path(__file__).resolve().parents[2] / "lib")
+_plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+if _plugin_root:
+    _lib_dir = os.path.join(_plugin_root, "lib")
+else:
+    _lib_dir = str(Path(__file__).resolve().parents[2] / "lib")
 if _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
 

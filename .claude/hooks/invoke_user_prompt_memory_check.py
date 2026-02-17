@@ -14,16 +14,11 @@ Exit Codes (Claude Hook Semantics, exempt from ADR-035):
 
 from __future__ import annotations
 
+import json
 import os
+import re
 import sys
-
-# Plugin mode: skip project-specific enforcement in consumer repos
-if os.environ.get("CLAUDE_PLUGIN_ROOT"):
-    sys.exit(0)
-
-import json  # noqa: E402
-import re  # noqa: E402
-from pathlib import Path  # noqa: E402
+from pathlib import Path
 
 # Keywords that suggest planning or implementation work
 PLANNING_KEYWORDS: list[str] = [

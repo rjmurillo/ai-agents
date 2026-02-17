@@ -76,9 +76,7 @@ def validate_conventional_commit(title: str) -> bool:
 
 def run_validations(repo_root: str, base: str, head: str) -> None:
     """Run pre-creation validations. Raises SystemExit(1) on failure."""
-    if not os.path.isdir(os.path.join(repo_root, ".agents")):
-        print("[SKIP] .agents/ not found. Skipping protocol validations.")
-        return
+    os.makedirs(os.path.join(repo_root, ".agents"), exist_ok=True)
 
     print("Running validations...")
     print()

@@ -77,10 +77,6 @@ def main(argv: list[str] | None = None) -> int:
 
     repo_root = _get_repo_root()
 
-    if not os.path.isdir(os.path.join(repo_root, ".agents")):
-        print("[SKIP] .agents/ not found. Requires project scaffolding.")
-        return 0
-
     sessions_dir = os.path.join(repo_root, ".agents", "sessions")
     os.makedirs(sessions_dir, exist_ok=True)
 

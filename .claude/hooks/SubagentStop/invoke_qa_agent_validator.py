@@ -14,16 +14,10 @@ Exit Codes:
 
 from __future__ import annotations
 
-import os
+import json
+import re
 import sys
-
-# Plugin mode: skip project-specific enforcement in consumer repos
-if os.environ.get("CLAUDE_PLUGIN_ROOT"):
-    sys.exit(0)
-
-import json  # noqa: E402
-import re  # noqa: E402
-from pathlib import Path  # noqa: E402
+from pathlib import Path
 
 # Section header patterns for QA reports (markdown h1-h3)
 TEST_STRATEGY_PATTERN = re.compile(r"(?m)^#{1,3}\s*(Test Strategy|Testing Approach|Test Plan)\s*$")
