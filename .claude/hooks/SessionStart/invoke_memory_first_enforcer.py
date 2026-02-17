@@ -145,9 +145,12 @@ def main() -> int:
         today_logs = get_today_session_logs(sessions_dir)
 
         if not today_logs:
+            agents_ref = ""
+            agents_path = Path(project_dir) / "AGENTS.md"
+            if agents_path.is_file():
+                agents_ref = " Protocol details in AGENTS.md."
             print(
-                "\nADR-007: No session log for today. Run `/session-init`. "
-                "Protocol details in AGENTS.md.\n"
+                f"\nADR-007: No session log for today. Run `/session-init`.{agents_ref}\n"
             )
             return 0
 
@@ -168,10 +171,13 @@ def main() -> int:
             severity = f"VIOLATION (warning {count})"
 
         reason = evidence.get("reason", "Unknown")
+        agents_ref = ""
+        agents_path = Path(project_dir) / "AGENTS.md"
+        if agents_path.is_file():
+            agents_ref = " See AGENTS.md Session Protocol Gates."
         print(
             f"\nADR-007 {severity}: {reason}. "
-            f"Complete: Serena init, HANDOFF.md read, memory retrieval. "
-            f"See AGENTS.md Session Protocol Gates.\n"
+            f"Complete: Serena init, HANDOFF.md read, memory retrieval.{agents_ref}\n"
         )
         return 0
 

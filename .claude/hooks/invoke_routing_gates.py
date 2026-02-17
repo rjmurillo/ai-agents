@@ -219,6 +219,16 @@ def main() -> int:
         )
         command = ""
 
+    # Pre-check: graceful degradation when .agents/ infrastructure is absent
+    sessions_dir = Path(".agents/sessions")
+    if not sessions_dir.is_dir():
+        print(
+            "[SKIP] .agents/sessions/ not found (consumer repo). "
+            "QA enforcement skipped.",
+            file=sys.stderr,
+        )
+        return 0
+
     # Gate 2: QA Validation (for PR creation)
     if "gh pr create" in command:
         # Bypass 1: Environment variable override

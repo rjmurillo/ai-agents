@@ -94,6 +94,11 @@ def main(argv: list[str] | None = None) -> int:
         _color_print("Not in a git repository", "error")
         return 3
 
+    codeql_dir = repo_root / ".codeql"
+    if not codeql_dir.exists():
+        print("[SKIP] .codeql/ not found. CodeQL scanning requires project setup.", file=sys.stderr)
+        return 0
+
     codeql_cli_path = repo_root / ".codeql" / "cli" / "codeql"
     if platform.system() == "Windows":
         codeql_cli_path = codeql_cli_path.with_suffix(".exe")
