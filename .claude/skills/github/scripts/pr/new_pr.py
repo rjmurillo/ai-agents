@@ -21,19 +21,6 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
-_plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
-_workspace = os.environ.get("GITHUB_WORKSPACE")
-if _plugin_root:
-    _lib_dir = os.path.join(_plugin_root, "lib")
-elif _workspace:
-    _lib_dir = os.path.join(_workspace, ".claude", "lib")
-else:
-    _lib_dir = os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "lib")
-    )
-if _lib_dir not in sys.path:
-    sys.path.insert(0, _lib_dir)
-
 
 # ---------------------------------------------------------------------------
 # Helpers

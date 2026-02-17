@@ -105,8 +105,8 @@ def main() -> int:
         if tool_name in ("Write", "Edit"):
             adr_path = _detect_write_or_edit(tool_name, tool_input)
             if adr_path:
-                # Determine if this is a new file (Write) or modification (Edit)
-                is_new = tool_name == "Write" and not Path(adr_path).exists()
+                # Write = new file or full replacement, Edit = modification
+                is_new = tool_name == "Write"
                 if is_new:
                     print(_GUIDANCE_CREATE.format(file_path=adr_path))
                 else:
