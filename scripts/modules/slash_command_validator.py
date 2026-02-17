@@ -2,15 +2,25 @@
 
 from __future__ import annotations
 
-import subprocess
+import sys
 from pathlib import Path
+
+# Add the validation script's directory to the import path
+_VALIDATOR_DIR = str(
+    Path(__file__).resolve().parent.parent.parent
+    / ".claude"
+    / "skills"
+    / "slashcommandcreator"
+    / "scripts"
+)
 
 
 def invoke_slash_command_validation() -> int:
     """Validate all slash command files in .claude/commands/.
 
     Runs validation on each .md file in .claude/commands/.
-    Skips catalog files (README.md, index files) that do not require frontmatter.
+    Skips catalog files (README.md, index files, CLAUDE.md) that do not require
+    frontmatter.
 
     Returns:
         0 if all pass, 1 if any fail.
@@ -20,7 +30,7 @@ def invoke_slash_command_validation() -> int:
         print("No slash command files found, skipping validation")
         return 0
 
-    catalog_files = {"README.md", "INDEX.md", "CATALOG.md"}
+    catalog_files = {"README.md", "INDEX.md", "CATALOG.md", "CLAUDE.md"}
 
     command_files = [
         f
@@ -39,16 +49,26 @@ def invoke_slash_command_validation() -> int:
         f"(excluding catalog files)"
     )
 
-    validation_script = ".claude/skills/slashcommandcreator/scripts/Validate-SlashCommand.ps1"
+    # Import the Python validator (migrated from Validate-SlashCommand.ps1)
+    if _VALIDATOR_DIR not in sys.path:
+        sys.path.insert(0, _VALIDATOR_DIR)
+
+    from validate_slash_command import validate_slash_command
+
     failed_files: list[str] = []
 
     for file_path in command_files:
         print(f"\nValidating: {file_path}")
-        result = subprocess.run(
-            ["pwsh", "-NoProfile", "-File", validation_script, "-Path", str(file_path)],
-            capture_output=False,
+        # Skip lint here; markdownlint runs separately in CI with proper config.
+        # The per-file lint in validate_slash_command picks up the global
+        # .markdownlint-cli2.jsonc globs and lints all 233 files, not just
+        # the target file.
+        violations, blocking_count, _warning_count = validate_slash_command(
+            str(file_path), skip_lint=True,
         )
-        if result.returncode != 0:
+        if blocking_count > 0:
+            for v in violations:
+                print(f"  {v}")
             failed_files.append(file_path.name)
 
     if failed_files:
