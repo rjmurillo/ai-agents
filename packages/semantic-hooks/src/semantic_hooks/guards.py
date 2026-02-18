@@ -9,7 +9,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, NamedTuple
 
-from semantic_hooks.core import HookContext, HookEvent, HookResult, SemanticZone
+from semantic_hooks.core import (
+    HookContext,
+    HookEvent,
+    HookResult,
+    SemanticZone,
+    ZoneThresholds,
+    classify_zone,
+)
 
 # Delay heavy imports for SemanticGuard to avoid pulling numpy for stuck detection
 if TYPE_CHECKING:
@@ -385,14 +392,13 @@ class SemanticGuard:
         return " | ".join(parts)
 
     def _classify_zone(self, delta_s: float) -> SemanticZone:
-        """Classify semantic zone from ΔS value."""
-        if delta_s < self.config.safe_threshold:
-            return SemanticZone.SAFE
-        elif delta_s < self.config.transitional_threshold:
-            return SemanticZone.TRANSITIONAL
-        elif delta_s < self.config.risk_threshold:
-            return SemanticZone.RISK
-        return SemanticZone.DANGER
+        """Classify semantic zone from ΔS value using configured thresholds."""
+        thresholds = ZoneThresholds(
+            safe=self.config.safe_threshold,
+            transitional=self.config.transitional_threshold,
+            risk=self.config.risk_threshold,
+        )
+        return classify_zone(delta_s, thresholds)
 
     def _handle_zone(
         self,

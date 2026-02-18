@@ -14,6 +14,7 @@ class HookEvent(Enum):
     SESSION_END = "SessionEnd"
     PRE_TOOL_USE = "PreToolUse"
     POST_TOOL_USE = "PostToolUse"
+    POST_RESPONSE = "PostResponse"
     USER_PROMPT = "UserPromptSubmit"
     PRE_COMPACT = "PreCompact"
     NOTIFICATION = "Notification"
@@ -40,6 +41,44 @@ class SemanticZone(Enum):
 
 
 @dataclass
+class ZoneThresholds:
+    """Thresholds for semantic zone classification.
+
+    Single source of truth for zone boundaries used across the codebase.
+    """
+
+    safe: float = 0.4  # ΔS < safe → SAFE zone
+    transitional: float = 0.6  # safe <= ΔS < transitional → TRANSITIONAL
+    risk: float = 0.85  # transitional <= ΔS < risk → RISK; ΔS >= risk → DANGER
+
+
+# Default thresholds used when no config is provided
+DEFAULT_ZONE_THRESHOLDS = ZoneThresholds()
+
+
+def classify_zone(delta_s: float, thresholds: ZoneThresholds | None = None) -> SemanticZone:
+    """Classify semantic zone from ΔS value.
+
+    Args:
+        delta_s: Semantic tension value
+        thresholds: Optional custom thresholds (uses defaults if None)
+
+    Returns:
+        SemanticZone classification
+    """
+    if thresholds is None:
+        thresholds = DEFAULT_ZONE_THRESHOLDS
+
+    if delta_s < thresholds.safe:
+        return SemanticZone.SAFE
+    elif delta_s < thresholds.transitional:
+        return SemanticZone.TRANSITIONAL
+    elif delta_s < thresholds.risk:
+        return SemanticZone.RISK
+    return SemanticZone.DANGER
+
+
+@dataclass
 class SemanticNode:
     """A node in the semantic reasoning tree.
 
@@ -61,14 +100,19 @@ class SemanticNode:
 
     @property
     def zone(self) -> SemanticZone:
-        """Classify the semantic zone based on ΔS."""
-        if self.delta_s < 0.4:
-            return SemanticZone.SAFE
-        elif self.delta_s < 0.6:
-            return SemanticZone.TRANSITIONAL
-        elif self.delta_s < 0.85:
-            return SemanticZone.RISK
-        return SemanticZone.DANGER
+        """Classify the semantic zone based on ΔS using default thresholds."""
+        return classify_zone(self.delta_s)
+
+    def zone_with_thresholds(self, thresholds: ZoneThresholds) -> SemanticZone:
+        """Classify the semantic zone based on ΔS with custom thresholds.
+
+        Args:
+            thresholds: Custom zone thresholds
+
+        Returns:
+            SemanticZone classification
+        """
+        return classify_zone(self.delta_s, thresholds)
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to dictionary."""

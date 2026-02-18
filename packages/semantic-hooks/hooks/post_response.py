@@ -40,7 +40,7 @@ def main() -> int:
         from semantic_hooks.core import HookContext, HookEvent
 
         context = HookContext(
-            event=HookEvent.POST_TOOL_USE,
+            event=HookEvent.POST_RESPONSE,
             tool_result=response_text,
             session_id=data.get("session_id", ""),
         )

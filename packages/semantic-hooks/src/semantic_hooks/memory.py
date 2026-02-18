@@ -6,7 +6,13 @@ import json
 import sqlite3
 from typing import Any
 
-from semantic_hooks.core import ReasoningDirection, SemanticNode, SemanticZone
+from semantic_hooks.core import (
+    DEFAULT_ZONE_THRESHOLDS,
+    ReasoningDirection,
+    SemanticNode,
+    SemanticZone,
+    ZoneThresholds,
+)
 from semantic_hooks.embedder import Embedder, cosine_similarity
 
 
@@ -147,21 +153,26 @@ class SemanticMemory:
         self,
         zone: SemanticZone,
         limit: int = 50,
+        thresholds: ZoneThresholds | None = None,
     ) -> list[SemanticNode]:
         """Get nodes by semantic zone.
 
         Args:
             zone: Target zone
             limit: Maximum nodes to return
+            thresholds: Optional custom thresholds (uses defaults if None)
 
         Returns:
             Nodes within the specified zone
         """
+        if thresholds is None:
+            thresholds = DEFAULT_ZONE_THRESHOLDS
+
         zone_ranges = {
-            SemanticZone.SAFE: (0.0, 0.4),
-            SemanticZone.TRANSITIONAL: (0.4, 0.6),
-            SemanticZone.RISK: (0.6, 0.85),
-            SemanticZone.DANGER: (0.85, 2.0),
+            SemanticZone.SAFE: (0.0, thresholds.safe),
+            SemanticZone.TRANSITIONAL: (thresholds.safe, thresholds.transitional),
+            SemanticZone.RISK: (thresholds.transitional, thresholds.risk),
+            SemanticZone.DANGER: (thresholds.risk, 2.0),
         }
         min_ds, max_ds = zone_ranges[zone]
 

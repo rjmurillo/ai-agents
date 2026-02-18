@@ -217,7 +217,7 @@ def cmd_status(args: argparse.Namespace) -> int:
 
     # Check hooks
     print(f"\nClaude Hooks: {CLAUDE_HOOKS_DIR}")
-    hooks = ["pre_tool_use.py", "post_tool_use.py", "session_start.py", "session_end.py", "pre_compact.py"]
+    hooks = ["pre_tool_use.py", "post_tool_use.py", "post_response.py", "session_start.py", "session_end.py", "pre_compact.py"]
     for hook in hooks:
         hook_path = CLAUDE_HOOKS_DIR / hook
         status = "✓" if hook_path.exists() else "✗"
