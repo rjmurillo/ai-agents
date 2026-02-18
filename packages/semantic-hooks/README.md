@@ -1,6 +1,6 @@
 # semantic-hooks
 
-Semantic tension tracking hooks for Claude Code CLI. Implements ΔS (semantic tension) measurement, knowledge boundary detection, and reasoning trace logging.
+Semantic tension tracking hooks for Claude Code CLI. Implements ΔS (semantic tension) measurement, knowledge boundary detection, stuck loop detection, and reasoning trace logging.
 
 ## Installation
 
@@ -24,11 +24,82 @@ semantic-hooks install --claude
    - Tracks reasoning direction (convergent/divergent/recursive)
    - Builds searchable semantic tree
 
-3. **SessionStart** - Loads previous context from memory
+3. **PostResponse** - Detects stuck loops
+   - Uses Jaccard similarity on topic signatures
+   - Injects self-reflection nudges when stuck
+   - Breaks repetitive topic patterns
 
-4. **PreCompact** - Checkpoints semantic tree before context compaction
+4. **SessionStart** - Loads previous context from memory
 
-5. **SessionEnd** - Persists session summary
+5. **PreCompact** - Checkpoints semantic tree before context compaction
+
+6. **SessionEnd** - Persists session summary
+
+## Stuck Detection
+
+The stuck detection guard identifies when the agent is repeating similar topics and injects a nudge to break the loop.
+
+### How It Works
+
+1. **Topic Signature Extraction**: Extracts the top 5 significant words from each response, filtering out stop words
+2. **Jaccard Similarity**: Compares signatures between consecutive turns
+3. **Loop Detection**: Triggers when 3+ consecutive turns have >60% similarity
+4. **Nudge Injection**: Injects a self-reflection prompt to break the pattern
+
+### Configuration
+
+```yaml
+# ~/.semantic-hooks/config.yaml
+
+stuck_detection:
+  history_path: ~/.semantic-hooks/stuck-history.json
+  max_history: 10
+  stuck_threshold: 3          # Consecutive similar turns to trigger
+  similarity_threshold: 0.6   # Jaccard similarity threshold
+  min_significant_words: 2
+  user_name: Richard          # Name used in nudge prompts
+```
+
+### Programmatic Usage
+
+```python
+from semantic_hooks.guards import (
+    StuckDetectionGuard,
+    StuckConfig,
+    check_stuck,
+    extract_topic_signature,
+    jaccard_similarity,
+    reset_stuck_history,
+)
+from pathlib import Path
+
+# Quick check
+result = check_stuck(
+    "Your response text here...",
+    Path("~/.semantic-hooks/stuck-history.json").expanduser()
+)
+if result.stuck:
+    print(result.nudge)
+
+# Full guard usage
+config = StuckConfig(
+    stuck_threshold=3,
+    similarity_threshold=0.6,
+    user_name="Richard"
+)
+guard = StuckDetectionGuard(config=config)
+
+# Check a response
+from semantic_hooks.core import HookContext, HookEvent
+context = HookContext(
+    event=HookEvent.POST_TOOL_USE,
+    tool_result="Your response text..."
+)
+result = guard.check(context)
+
+# Reset history after successful topic change
+guard.reset()
+```
 
 ## Configuration
 
@@ -48,6 +119,11 @@ guard:
   block_in_danger: false  # Set true to block high-risk operations
   inject_bridge_context: true
   trajectory_window: 5
+
+stuck_detection:
+  stuck_threshold: 3
+  similarity_threshold: 0.6
+  user_name: User
 ```
 
 ## CLI Commands
