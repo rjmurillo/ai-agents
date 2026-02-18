@@ -48,6 +48,17 @@ Repository = "https://github.com/rjmurillo/ai-agents"
 [tool.hatch.build.targets.wheel]
 packages = ["src/semantic_hooks"]
 
+[tool.hatch.build.targets.wheel.shared-data]
+"hooks" = "share/semantic-hooks/hooks"
+"templates" = "share/semantic-hooks/templates"
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "src/",
+    "hooks/",
+    "templates/",
+]
+
 [tool.ruff]
 target-version = "py311"
 line-length = 100

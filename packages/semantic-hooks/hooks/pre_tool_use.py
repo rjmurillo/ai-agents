@@ -3,13 +3,10 @@
 
 import json
 import sys
-from pathlib import Path
-
-# Add parent to path for imports when running as script
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from semantic_hooks.core import HookContext, HookEvent
 from semantic_hooks.guards import create_guard_from_config
+from semantic_hooks.logging import log
 
 
 def main() -> int:
@@ -31,26 +28,14 @@ def main() -> int:
             print(json.dumps(output))
 
         # Log if configured
-        _log(f"PreToolUse: tool={context.tool_name} ΔS check -> exit={result.exit_code}")
+        log(f"PreToolUse: tool={context.tool_name} ΔS check -> exit={result.exit_code}")
 
         return result.exit_code
 
     except Exception as e:
-        _log(f"PreToolUse ERROR: {e}")
+        log(f"PreToolUse ERROR: {e}")
         # Don't block on errors - fail open
         return 0
-
-
-def _log(message: str) -> None:
-    """Log to hooks log file."""
-    log_file = Path.home() / ".semantic-hooks" / "hooks.log"
-    try:
-        log_file.parent.mkdir(parents=True, exist_ok=True)
-        with open(log_file, "a") as f:
-            from datetime import datetime
-            f.write(f"{datetime.now().isoformat()} {message}\n")
-    except Exception:
-        pass
 
 
 if __name__ == "__main__":

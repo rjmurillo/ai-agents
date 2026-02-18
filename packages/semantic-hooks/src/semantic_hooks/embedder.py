@@ -1,7 +1,7 @@
 """Embedding abstraction for semantic similarity calculations."""
 
 from abc import ABC, abstractmethod
-from functools import lru_cache
+from collections import OrderedDict
 import numpy as np
 from numpy.typing import NDArray
 
@@ -50,8 +50,8 @@ class OpenAIEmbedder(Embedder):
         self.client = OpenAI(api_key=api_key)
         self.model = model
         self._cache_size = cache_size
-        # Create cached version of _embed
-        self._cached_embed = lru_cache(maxsize=cache_size)(self._embed_impl)
+        # Manual cache dict to allow checking membership without API calls
+        self._cache: OrderedDict[str, tuple[float, ...]] = OrderedDict()
 
     def _embed_impl(self, text: str) -> tuple[float, ...]:
         """Internal embedding implementation (returns tuple for caching)."""
@@ -61,38 +61,50 @@ class OpenAIEmbedder(Embedder):
         )
         return tuple(response.data[0].embedding)
 
+    def _add_to_cache(self, key: str, value: tuple[float, ...]) -> None:
+        """Add entry to cache, evicting oldest if at capacity."""
+        if key in self._cache:
+            # Move to end (most recently used)
+            self._cache.move_to_end(key)
+            return
+        if len(self._cache) >= self._cache_size:
+            # Remove oldest entry
+            self._cache.popitem(last=False)
+        self._cache[key] = value
+
     def embed(self, text: str) -> list[float]:
         """Generate embedding vector for text."""
-        return list(self._cached_embed(text))
+        if text in self._cache:
+            return list(self._cache[text])
+        result = self._embed_impl(text)
+        self._add_to_cache(text, result)
+        return list(result)
 
     def embed_batch(self, texts: list[str]) -> list[list[float]]:
         """Generate embeddings for multiple texts."""
-        # Check cache first
-        results: list[list[float]] = []
+        results: list[list[float]] = [[] for _ in texts]
         uncached_indices: list[int] = []
         uncached_texts: list[str] = []
 
         for i, text in enumerate(texts):
-            try:
-                # Try to get from cache without calling API
-                cached = self._cached_embed.__wrapped__(text)
-                results.append(list(cached))
-            except KeyError:
+            if text in self._cache:
+                # Cache hit - use cached result
+                results[i] = list(self._cache[text])
+            else:
                 uncached_indices.append(i)
                 uncached_texts.append(text)
-                results.append([])  # Placeholder
 
-        # Batch fetch uncached
+        # Batch fetch uncached texts with single API call
         if uncached_texts:
             response = self.client.embeddings.create(
                 model=self.model,
                 input=uncached_texts,
             )
             for idx, embedding_data in zip(uncached_indices, response.data):
-                embedding = list(embedding_data.embedding)
-                results[idx] = embedding
-                # Manually cache
-                self._cached_embed(texts[idx])
+                embedding = tuple(embedding_data.embedding)
+                results[idx] = list(embedding)
+                # Add to cache
+                self._add_to_cache(texts[idx], embedding)
 
         return results
 

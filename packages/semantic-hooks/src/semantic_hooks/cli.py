@@ -7,11 +7,64 @@ import sys
 from pathlib import Path
 
 
-HOOKS_DIR = Path(__file__).parent.parent.parent / "hooks"
-TEMPLATES_DIR = Path(__file__).parent.parent.parent / "templates"
 CONFIG_DIR = Path.home() / ".semantic-hooks"
 CLAUDE_HOOKS_DIR = Path.home() / ".claude" / "hooks"
 CLAUDE_SETTINGS = Path.home() / ".claude" / "settings.json"
+
+# Semantic-hooks hook filenames (used for filtering)
+SEMANTIC_HOOKS_FILENAMES = frozenset({
+    "pre_tool_use.py",
+    "post_tool_use.py",
+    "session_start.py",
+    "session_end.py",
+    "pre_compact.py",
+})
+
+
+def _find_hooks_dir() -> Path | None:
+    """Find the hooks directory using multiple strategies.
+
+    Tries:
+    1. Development layout (source tree)
+    2. Installed shared data location
+    3. Package data via importlib.resources
+
+    Returns:
+        Path to hooks directory or None if not found.
+    """
+    # Strategy 1: Development layout (editable install or source tree)
+    dev_hooks = Path(__file__).parent.parent.parent / "hooks"
+    if dev_hooks.is_dir() and (dev_hooks / "pre_tool_use.py").exists():
+        return dev_hooks
+
+    # Strategy 2: Installed shared data location (varies by platform)
+    # Common locations: /usr/share, /usr/local/share, ~/.local/share
+    import site
+    for base in [sys.prefix, site.USER_BASE] if hasattr(site, 'USER_BASE') else [sys.prefix]:
+        if base:
+            shared_hooks = Path(base) / "share" / "semantic-hooks" / "hooks"
+            if shared_hooks.is_dir() and (shared_hooks / "pre_tool_use.py").exists():
+                return shared_hooks
+
+    return None
+
+
+def _find_templates_dir() -> Path | None:
+    """Find the templates directory using multiple strategies."""
+    # Strategy 1: Development layout
+    dev_templates = Path(__file__).parent.parent.parent / "templates"
+    if dev_templates.is_dir():
+        return dev_templates
+
+    # Strategy 2: Installed shared data location
+    import site
+    for base in [sys.prefix, site.USER_BASE] if hasattr(site, 'USER_BASE') else [sys.prefix]:
+        if base:
+            shared_templates = Path(base) / "share" / "semantic-hooks" / "templates"
+            if shared_templates.is_dir():
+                return shared_templates
+
+    return None
 
 
 def cmd_install(args: argparse.Namespace) -> int:
@@ -55,17 +108,18 @@ logging:
     # Create Claude hooks directory
     CLAUDE_HOOKS_DIR.mkdir(parents=True, exist_ok=True)
 
+    # Find hooks directory
+    hooks_dir = _find_hooks_dir()
+    if hooks_dir is None:
+        print("  ✗ Could not find hooks directory.")
+        print("    Ensure semantic-hooks is properly installed.")
+        return 1
+
     # Copy hook scripts
-    hooks_to_install = [
-        "pre_tool_use.py",
-        "post_tool_use.py",
-        "session_start.py",
-        "session_end.py",
-        "pre_compact.py",
-    ]
+    hooks_to_install = list(SEMANTIC_HOOKS_FILENAMES)
 
     for hook_name in hooks_to_install:
-        src = HOOKS_DIR / hook_name
+        src = hooks_dir / hook_name
         dst = CLAUDE_HOOKS_DIR / hook_name
         if src.exists():
             shutil.copy2(src, dst)
@@ -110,20 +164,19 @@ def cmd_uninstall(args: argparse.Namespace) -> int:
         try:
             settings = json.loads(CLAUDE_SETTINGS.read_text())
             if "hooks" in settings:
-                # Remove our hooks but preserve others
+                # Remove only our hooks, preserve others
                 for event in ["SessionStart", "SessionEnd", "PreToolUse", "PostToolUse", "PreCompact"]:
                     if event in settings["hooks"]:
                         settings["hooks"][event] = [
                             h for h in settings["hooks"][event]
-                            if "semantic-hooks" not in str(h.get("hooks", [{}])[0].get("command", ""))
-                            and ".claude/hooks/" not in str(h.get("hooks", [{}])[0].get("command", ""))
+                            if not _is_semantic_hooks_entry(h)
                         ]
                         if not settings["hooks"][event]:
                             del settings["hooks"][event]
                 if not settings["hooks"]:
                     del settings["hooks"]
                 CLAUDE_SETTINGS.write_text(json.dumps(settings, indent=2))
-                print(f"  ✓ Updated Claude settings")
+                print("  ✓ Updated Claude settings")
         except Exception as e:
             print(f"  ⚠ Could not update settings: {e}")
 
@@ -267,6 +320,20 @@ def cmd_config(args: argparse.Namespace) -> int:
     return 0
 
 
+def _is_semantic_hooks_entry(hook_entry: dict) -> bool:
+    """Check if a hook entry belongs to semantic-hooks.
+
+    Args:
+        hook_entry: Hook configuration dict from Claude settings.
+
+    Returns:
+        True if this is a semantic-hooks entry, False otherwise.
+    """
+    command = str(hook_entry.get("hooks", [{}])[0].get("command", ""))
+    # Check if the command references any of our specific hook filenames
+    return any(filename in command for filename in SEMANTIC_HOOKS_FILENAMES)
+
+
 def _update_claude_settings(force: bool = False) -> bool:
     """Update Claude settings.json with hook configuration."""
     CLAUDE_SETTINGS.parent.mkdir(parents=True, exist_ok=True)
@@ -328,10 +395,10 @@ def _update_claude_settings(force: bool = False) -> bool:
         if event not in hooks_config:
             hooks_config[event] = []
 
-        # Remove any existing semantic-hooks entries
+        # Remove only existing semantic-hooks entries (not other hooks in .claude/hooks/)
         hooks_config[event] = [
             h for h in hooks_config[event]
-            if ".claude/hooks/" not in str(h.get("hooks", [{}])[0].get("command", ""))
+            if not _is_semantic_hooks_entry(h)
         ]
 
         # Add our hook

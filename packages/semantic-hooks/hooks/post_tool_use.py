@@ -3,13 +3,10 @@
 
 import json
 import sys
-from pathlib import Path
-
-# Add parent to path for imports when running as script
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from semantic_hooks.core import HookContext, HookEvent
 from semantic_hooks.recorder import create_recorder_from_config
+from semantic_hooks.logging import log
 
 
 def main() -> int:
@@ -32,27 +29,15 @@ def main() -> int:
 
         # Log
         if result.node:
-            _log(f"PostToolUse: recorded node topic={result.node.topic}")
+            log(f"PostToolUse: recorded node topic={result.node.topic}")
         else:
-            _log(f"PostToolUse: tool={context.tool_name} (not recorded)")
+            log(f"PostToolUse: tool={context.tool_name} (not recorded)")
 
         return result.exit_code
 
     except Exception as e:
-        _log(f"PostToolUse ERROR: {e}")
+        log(f"PostToolUse ERROR: {e}")
         return 0
-
-
-def _log(message: str) -> None:
-    """Log to hooks log file."""
-    log_file = Path.home() / ".semantic-hooks" / "hooks.log"
-    try:
-        log_file.parent.mkdir(parents=True, exist_ok=True)
-        with open(log_file, "a") as f:
-            from datetime import datetime
-            f.write(f"{datetime.now().isoformat()} {message}\n")
-    except Exception:
-        pass
 
 
 if __name__ == "__main__":
