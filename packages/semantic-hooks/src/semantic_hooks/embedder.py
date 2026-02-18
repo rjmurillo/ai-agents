@@ -75,6 +75,8 @@ class OpenAIEmbedder(Embedder):
     def embed(self, text: str) -> list[float]:
         """Generate embedding vector for text."""
         if text in self._cache:
+            # Update LRU position on cache hit
+            self._cache.move_to_end(text)
             return list(self._cache[text])
         result = self._embed_impl(text)
         self._add_to_cache(text, result)
@@ -88,7 +90,8 @@ class OpenAIEmbedder(Embedder):
 
         for i, text in enumerate(texts):
             if text in self._cache:
-                # Cache hit - use cached result
+                # Cache hit - update LRU position and use cached result
+                self._cache.move_to_end(text)
                 results[i] = list(self._cache[text])
             else:
                 uncached_indices.append(i)

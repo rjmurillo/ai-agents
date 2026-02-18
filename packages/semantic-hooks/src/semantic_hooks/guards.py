@@ -352,6 +352,9 @@ class SemanticGuard:
         if not recent_embeddings:
             return HookResult(allow=True)
 
+        # Reverse to oldest-first order for trajectory computation
+        # (get_recent returns newest-first, but trajectory expects oldest-first)
+        recent_embeddings = list(reversed(recent_embeddings))
         expected_embedding = compute_trajectory_embedding(recent_embeddings)
 
         # Calculate ΔS

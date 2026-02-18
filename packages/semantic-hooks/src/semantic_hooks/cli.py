@@ -15,6 +15,7 @@ CLAUDE_SETTINGS = Path.home() / ".claude" / "settings.json"
 SEMANTIC_HOOKS_FILENAMES = frozenset({
     "pre_tool_use.py",
     "post_tool_use.py",
+    "post_response.py",
     "session_start.py",
     "session_end.py",
     "pre_compact.py",
@@ -148,6 +149,7 @@ def cmd_uninstall(args: argparse.Namespace) -> int:
     hooks_to_remove = [
         "pre_tool_use.py",
         "post_tool_use.py",
+        "post_response.py",
         "session_start.py",
         "session_end.py",
         "pre_compact.py",
@@ -165,7 +167,7 @@ def cmd_uninstall(args: argparse.Namespace) -> int:
             settings = json.loads(CLAUDE_SETTINGS.read_text())
             if "hooks" in settings:
                 # Remove only our hooks, preserve others
-                for event in ["SessionStart", "SessionEnd", "PreToolUse", "PostToolUse", "PreCompact"]:
+                for event in ["SessionStart", "SessionEnd", "PreToolUse", "PostToolUse", "PostResponse", "PreCompact"]:
                     if event in settings["hooks"]:
                         settings["hooks"][event] = [
                             h for h in settings["hooks"][event]
@@ -371,6 +373,14 @@ def _update_claude_settings(force: bool = False) -> bool:
             "hooks": [{
                 "type": "command",
                 "command": f"python3 {CLAUDE_HOOKS_DIR}/post_tool_use.py",
+                "timeout": 3000,
+            }],
+        },
+        "PostResponse": {
+            "matcher": "*",
+            "hooks": [{
+                "type": "command",
+                "command": f"python3 {CLAUDE_HOOKS_DIR}/post_response.py",
                 "timeout": 3000,
             }],
         },
