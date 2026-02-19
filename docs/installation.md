@@ -144,6 +144,28 @@ python --version
 
 If downloads fail, check internet connectivity and try again. The tool downloads from GitHub.
 
+### Security Scanning (Recommended)
+
+For local security scanning before push, install semgrep:
+
+```bash
+python3 scripts/install_semgrep.py
+```
+
+Or install manually:
+
+```bash
+pip install semgrep
+```
+
+Semgrep runs automatically in the pre-push hook and scans Python, PowerShell, JavaScript, and YAML files for security issues. Blocks push on HIGH/CRITICAL findings.
+
+**Benefits:**
+
+- Fast feedback (<1 minute vs 10-30 minutes for CI)
+- Catches OWASP Top 10 vulnerabilities locally
+- Reduces PR review cycles
+
 ### Worktrunk Setup (Optional)
 
 For parallel agent workflows using git worktrees, install Worktrunk:
