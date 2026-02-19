@@ -24,6 +24,7 @@ from __future__ import annotations
 import json
 import re
 import sys
+from pathlib import Path
 
 _ADR_PATH_PATTERN = re.compile(r"ADR-\d+.*\.md$", re.IGNORECASE)
 
@@ -86,6 +87,10 @@ def _detect_write_or_edit(tool_input: dict[str, object]) -> str | None:
 
 def main() -> int:
     """Main hook entry point."""
+    if not Path(".agents").is_dir():
+        print("[SKIP] adr-lifecycle-hook: .agents/ not found (consumer repo)", file=sys.stderr)
+        return 0
+
     raw = ""
     try:
         if sys.stdin.isatty():

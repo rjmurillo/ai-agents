@@ -58,6 +58,10 @@ def get_missing_qa_sections(transcript: str) -> list[str]:
 
 def main() -> int:
     """Main hook entry point. Returns exit code."""
+    if not Path(".agents").is_dir():
+        print("[SKIP] qa-agent-validator: .agents/ not found (consumer repo)", file=sys.stderr)
+        return 0
+
     try:
         if sys.stdin.isatty():
             return 0

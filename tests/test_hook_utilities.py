@@ -171,11 +171,15 @@ class TestModuleExports:
             get_today_session_log,
             get_today_session_logs,
             is_git_commit_command,
+            is_project_repo,
+            skip_if_consumer_repo,
         )
         assert callable(get_project_directory)
         assert callable(is_git_commit_command)
         assert callable(get_today_session_log)
         assert callable(get_today_session_logs)
+        assert callable(is_project_repo)
+        assert callable(skip_if_consumer_repo)
 
     def test_all_exports_listed(self) -> None:
         import scripts.hook_utilities as mod
@@ -184,5 +188,7 @@ class TestModuleExports:
             "get_today_session_log",
             "get_today_session_logs",
             "is_git_commit_command",
+            "is_project_repo",
+            "skip_if_consumer_repo",
         }
         assert set(mod.__all__) == expected

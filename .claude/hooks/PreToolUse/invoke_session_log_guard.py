@@ -39,6 +39,7 @@ from hook_utilities import (  # noqa: E402
     get_today_session_log,
     is_git_commit_command,
 )
+from hook_utilities.guards import skip_if_consumer_repo  # noqa: E402
 
 MIN_SESSION_LOG_LENGTH = 100
 MIN_JSON_PROPERTIES = 2
@@ -84,6 +85,8 @@ def check_session_log_evidence(session_log_path: Path) -> dict[str, object]:
 
 def main() -> int:
     """Main hook entry point. Returns exit code."""
+    if skip_if_consumer_repo("session-log-guard"):
+        return 0
     try:
         today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
 
@@ -111,8 +114,8 @@ def main() -> int:
 
         if not os.path.isdir(sessions_dir):
             print(
-                "[SKIP] .agents/sessions/ not found (consumer repo). "
-                "Session enforcement skipped.",
+                "[SKIP] session-log-guard: .agents/sessions/ not found "
+                "(sessions directory missing)",
                 file=sys.stderr,
             )
             return 0

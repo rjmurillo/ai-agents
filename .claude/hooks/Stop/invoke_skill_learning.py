@@ -937,6 +937,10 @@ def update_skill_memory(
 
 def main():
     """Main hook execution."""
+    if not Path(".agents").is_dir():
+        print("[SKIP] skill-learning: .agents/ not found (consumer repo)", file=sys.stderr)
+        return 0
+
     try:
         # Check for piped input
         if sys.stdin.isatty():

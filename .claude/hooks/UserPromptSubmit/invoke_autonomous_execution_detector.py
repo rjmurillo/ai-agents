@@ -69,6 +69,10 @@ def extract_prompt(hook_input: dict[str, object]) -> str | None:
 
 def main() -> int:
     """Main hook entry point. Returns exit code."""
+    if not Path(".agents").is_dir():
+        print("[SKIP] autonomous-execution-detector: .agents/ not found (consumer repo)", file=sys.stderr)
+        return 0
+
     try:
         if sys.stdin.isatty():
             return 0

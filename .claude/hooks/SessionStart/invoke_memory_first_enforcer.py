@@ -46,6 +46,7 @@ from hook_utilities import (  # noqa: E402
     get_project_directory,
     get_today_session_logs,
 )
+from hook_utilities.guards import skip_if_consumer_repo  # noqa: E402
 
 EDUCATION_THRESHOLD = 3
 
@@ -136,6 +137,8 @@ def increment_invocation_count(state_dir: str, today: str) -> int:
 
 def main() -> int:
     """Main hook entry point. Returns exit code."""
+    if skip_if_consumer_repo("memory-first-enforcer"):
+        return 0
     try:
         today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
         project_dir = get_project_directory()

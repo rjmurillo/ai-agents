@@ -118,6 +118,10 @@ def check_gh_cli_patterns(prompt: str) -> str | None:
 
 def main() -> int:
     """Main hook entry point. Returns exit code."""
+    if not Path(".agents").is_dir():
+        print("[SKIP] user-prompt-memory-check: .agents/ not found (consumer repo)", file=sys.stderr)
+        return 0
+
     cwd = os.getcwd()
     if not is_valid_project_root(cwd):
         print(

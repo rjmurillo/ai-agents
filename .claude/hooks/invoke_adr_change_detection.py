@@ -48,6 +48,10 @@ def get_project_root() -> str | None:
 
 def main() -> int:
     """Main hook entry point. Returns exit code."""
+    if not Path(".agents").is_dir():
+        print("[SKIP] adr-change-detection: .agents/ not found (consumer repo)", file=sys.stderr)
+        return 0
+
     project_root = get_project_root()
     if project_root is None:
         return 0  # Fail-open

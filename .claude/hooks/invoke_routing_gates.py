@@ -187,6 +187,10 @@ def is_valid_project_root() -> bool:
 
 def main() -> int:
     """Main hook entry point. Returns exit code."""
+    if not Path(".agents").is_dir():
+        print("[SKIP] routing-gates: .agents/ not found (consumer repo)", file=sys.stderr)
+        return 0
+
     if not is_valid_project_root():
         cwd = Path.cwd()
         print(
@@ -219,12 +223,12 @@ def main() -> int:
         )
         command = ""
 
-    # Pre-check: graceful degradation when .agents/ infrastructure is absent
+    # Pre-check: graceful degradation when sessions directory is absent
     sessions_dir = Path(".agents/sessions")
     if not sessions_dir.is_dir():
         print(
-            "[SKIP] .agents/sessions/ not found (consumer repo). "
-            "QA enforcement skipped.",
+            "[SKIP] routing-gates: .agents/sessions/ not found "
+            "(sessions directory missing)",
             file=sys.stderr,
         )
         return 0

@@ -42,6 +42,7 @@ from hook_utilities import (  # noqa: E402
     get_project_directory,
     get_today_session_log,
 )
+from hook_utilities.guards import skip_if_consumer_repo  # noqa: E402
 
 PROTECTED_BRANCHES = ("main", "master")
 
@@ -80,6 +81,8 @@ def get_session_status(project_dir: str) -> str:
 
 def main() -> int:
     """Main hook entry point. Returns exit code."""
+    if skip_if_consumer_repo("session-init-enforcer"):
+        return 0
     try:
         project_dir = get_project_directory()
         current_branch = get_current_branch()

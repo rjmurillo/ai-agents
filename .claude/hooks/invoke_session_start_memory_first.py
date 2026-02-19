@@ -57,6 +57,10 @@ def read_forgetful_config(mcp_config_path: str) -> tuple[str, int]:
 
 def main() -> int:
     """Main hook entry point. Returns exit code."""
+    if not Path(".agents").is_dir():
+        print("[SKIP] session-start-memory-first: .agents/ not found (consumer repo)", file=sys.stderr)
+        return 0
+
     # Determine .mcp.json path relative to this script
     script_dir = Path(__file__).resolve().parent
     mcp_config_path = str(script_dir / ".." / ".mcp.json")
