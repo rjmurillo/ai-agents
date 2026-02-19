@@ -204,18 +204,24 @@ class TestFetchHelpers:
 
     @patch("scripts.analyze_pr_failure._run_gh")
     def test_comments_failure(self, mock_gh):
-        mock_gh.return_value = _completed(rc=1)
-        assert mod.fetch_pr_comments("owner", "repo", 1) == []
+        mock_gh.return_value = _completed(stderr="API error", rc=1)
+        with pytest.raises(SystemExit) as exc_info:
+            mod.fetch_pr_comments("owner", "repo", 1)
+        assert exc_info.value.code == 3
 
     @patch("scripts.analyze_pr_failure._run_gh")
     def test_reviews_failure(self, mock_gh):
-        mock_gh.return_value = _completed(rc=1)
-        assert mod.fetch_pr_reviews("owner", "repo", 1) == []
+        mock_gh.return_value = _completed(stderr="API error", rc=1)
+        with pytest.raises(SystemExit) as exc_info:
+            mod.fetch_pr_reviews("owner", "repo", 1)
+        assert exc_info.value.code == 3
 
     @patch("scripts.analyze_pr_failure._run_gh")
     def test_files_failure(self, mock_gh):
-        mock_gh.return_value = _completed(rc=1)
-        assert mod.fetch_pr_files("owner", "repo", 1) == []
+        mock_gh.return_value = _completed(stderr="API error", rc=1)
+        with pytest.raises(SystemExit) as exc_info:
+            mod.fetch_pr_files("owner", "repo", 1)
+        assert exc_info.value.code == 3
 
 
 # ---------------------------------------------------------------------------

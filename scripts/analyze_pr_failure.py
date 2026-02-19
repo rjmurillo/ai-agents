@@ -98,7 +98,9 @@ def fetch_pr_comments(owner: str, repo: str, pr_number: int) -> list[dict]:
     ], timeout=60)
 
     if result.returncode != 0:
-        return []
+        err = result.stderr or result.stdout
+        print(f"ERROR: Failed to fetch PR comments: {err}", file=sys.stderr)
+        sys.exit(3)
 
     return json.loads(result.stdout)
 
@@ -111,7 +113,9 @@ def fetch_pr_reviews(owner: str, repo: str, pr_number: int) -> list[dict]:
     ], timeout=60)
 
     if result.returncode != 0:
-        return []
+        err = result.stderr or result.stdout
+        print(f"ERROR: Failed to fetch PR reviews: {err}", file=sys.stderr)
+        sys.exit(3)
 
     return json.loads(result.stdout)
 
@@ -124,7 +128,9 @@ def fetch_pr_files(owner: str, repo: str, pr_number: int) -> list[dict]:
     ], timeout=60)
 
     if result.returncode != 0:
-        return []
+        err = result.stderr or result.stdout
+        print(f"ERROR: Failed to fetch PR files: {err}", file=sys.stderr)
+        sys.exit(3)
 
     return json.loads(result.stdout)
 
