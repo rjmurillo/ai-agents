@@ -1,7 +1,4 @@
-"""GitHub API helpers: auth, pagination, GraphQL, issue comments, rate limits.
-
-Canonical copy lives at scripts/github_core/api.py; keep in sync.
-"""
+"""Canonical copy lives at scripts/github_core/api.py; keep in sync via scripts/sync_plugin_lib.py."""
 
 from __future__ import annotations
 

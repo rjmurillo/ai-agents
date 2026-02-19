@@ -1,6 +1,6 @@
-"""Shared utilities for Claude Code hook scripts.
+"""Canonical copy lives at scripts/hook_utilities/utilities.py; keep in sync via scripts/sync_plugin_lib.py.
 
-Canonical copy lives at scripts/hook_utilities/utilities.py; keep in sync.
+Migrated from .claude/hooks/Common/HookUtilities.psm1 per issue #1053.
 """
 
 from __future__ import annotations

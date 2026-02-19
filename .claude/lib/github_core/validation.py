@@ -1,7 +1,4 @@
-"""Input validation: GitHub name validation, path traversal prevention.
-
-Canonical copy lives at scripts/github_core/validation.py; keep in sync.
-"""
+"""Canonical copy lives at scripts/github_core/validation.py; keep in sync via scripts/sync_plugin_lib.py."""
 
 from __future__ import annotations
 

@@ -1,7 +1,4 @@
-"""GitHubClient protocol: transport-layer abstraction for testable API access.
-
-Canonical copy lives at scripts/github_core/protocol.py; keep in sync.
-"""
+"""Canonical copy lives at scripts/github_core/protocol.py; keep in sync via scripts/sync_plugin_lib.py."""
 
 from __future__ import annotations
 

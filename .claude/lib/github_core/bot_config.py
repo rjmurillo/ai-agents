@@ -1,7 +1,4 @@
-"""Bot authors configuration: loading, caching, and lookup.
-
-Canonical copy lives at scripts/github_core/bot_config.py; keep in sync.
-"""
+"""Canonical copy lives at scripts/github_core/bot_config.py; keep in sync via scripts/sync_plugin_lib.py."""
 
 from __future__ import annotations
 
