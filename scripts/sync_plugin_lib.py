@@ -103,51 +103,44 @@ def _transform_file(src_path: Path, src_dir_rel: str) -> str:
     return content
 
 
-def sync_pair(
+def _validate_sync_dirs(
     src_rel: str,
     dst_rel: str,
-    *,
-    check_only: bool,
-) -> tuple[list[str], bool]:
-    """Sync one source directory to its lib counterpart.
+) -> tuple[Path, Path, list[str]]:
+    """Validate and resolve source/destination directories.
 
-    Returns a tuple of (change descriptions, had_errors).
+    Returns (src_dir, dst_dir, errors). Non-empty errors means abort.
     """
     src_dir = (REPO_ROOT / src_rel).resolve()
     dst_dir = (REPO_ROOT / dst_rel).resolve()
     repo_root_resolved = REPO_ROOT.resolve()
-    changes: list[str] = []
-    had_errors = False
+    errors: list[str] = []
 
     try:
         src_dir.relative_to(repo_root_resolved)
     except ValueError:
-        changes.append(f"[ERROR] Source path escapes repo root: {src_rel}")
-        return changes, True
+        errors.append(f"[ERROR] Source path escapes repo root: {src_rel}")
     try:
         dst_dir.relative_to(repo_root_resolved)
     except ValueError:
-        changes.append(f"[ERROR] Destination path escapes repo root: {dst_rel}")
-        return changes, True
+        errors.append(f"[ERROR] Destination path escapes repo root: {dst_rel}")
 
-    if not src_dir.is_dir():
-        changes.append(f"[WARNING] Source directory missing: {src_rel}")
-        return changes, False
+    return src_dir, dst_dir, errors
 
-    try:
-        dst_dir.mkdir(parents=True, exist_ok=True)
-    except OSError as exc:
-        changes.append(f"[ERROR] Cannot create destination directory {dst_rel}: {exc}")
-        return changes, True
 
-    # Collect source .py files
-    try:
-        src_files = {f.name for f in src_dir.iterdir() if f.suffix == ".py"}
-    except OSError as exc:
-        changes.append(f"[ERROR] Cannot list source directory {src_rel}: {exc}")
-        return changes, True
+def _sync_files(
+    src_dir: Path,
+    dst_dir: Path,
+    src_rel: str,
+    dst_rel: str,
+    src_files: set[str],
+    *,
+    check_only: bool,
+) -> tuple[list[str], bool]:
+    """Sync source .py files to destination. Returns (changes, had_errors)."""
+    changes: list[str] = []
+    had_errors = False
 
-    # Sync each source file to destination
     for name in sorted(src_files):
         src_path = src_dir / name
         dst_path = dst_dir / name
@@ -179,8 +172,20 @@ def sync_pair(
                 changes.append(f"  [ERROR] Cannot write {dst_rel}/{name}: {exc}")
                 had_errors = True
 
-    # Remove stale .py files in destination that no longer exist in source,
-    # but preserve lib-only files.
+    return changes, had_errors
+
+
+def _remove_stale_files(
+    dst_dir: Path,
+    dst_rel: str,
+    src_files: set[str],
+    *,
+    check_only: bool,
+) -> tuple[list[str], bool]:
+    """Remove destination .py files not in source. Returns (changes, had_errors)."""
+    changes: list[str] = []
+    had_errors = False
+
     try:
         dst_entries = sorted(dst_dir.iterdir())
     except OSError as exc:
@@ -195,7 +200,60 @@ def sync_pair(
         if dst_file.name not in src_files:
             changes.append(f"  removed: {dst_rel}/{dst_file.name}")
             if not check_only:
-                dst_file.unlink()
+                try:
+                    dst_file.unlink()
+                except OSError as exc:
+                    changes.append(
+                        f"  [ERROR] Cannot remove {dst_rel}/{dst_file.name}: {exc}"
+                    )
+                    had_errors = True
+
+    return changes, had_errors
+
+
+def sync_pair(
+    src_rel: str,
+    dst_rel: str,
+    *,
+    check_only: bool,
+) -> tuple[list[str], bool]:
+    """Sync one source directory to its lib counterpart.
+
+    Returns a tuple of (change descriptions, had_errors).
+    """
+    src_dir, dst_dir, errors = _validate_sync_dirs(src_rel, dst_rel)
+    if errors:
+        return errors, True
+
+    if not src_dir.is_dir():
+        return [f"[WARNING] Source directory missing: {src_rel}"], False
+
+    try:
+        dst_dir.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        msg = f"[ERROR] Cannot create destination directory {dst_rel}: {exc}"
+        return [msg], True
+
+    try:
+        src_files = {f.name for f in src_dir.iterdir() if f.suffix == ".py"}
+    except OSError as exc:
+        msg = f"[ERROR] Cannot list source directory {src_rel}: {exc}"
+        return [msg], True
+
+    changes: list[str] = []
+    had_errors = False
+
+    sync_changes, sync_errors = _sync_files(
+        src_dir, dst_dir, src_rel, dst_rel, src_files, check_only=check_only,
+    )
+    changes.extend(sync_changes)
+    had_errors = had_errors or sync_errors
+
+    stale_changes, stale_errors = _remove_stale_files(
+        dst_dir, dst_rel, src_files, check_only=check_only,
+    )
+    changes.extend(stale_changes)
+    had_errors = had_errors or stale_errors
 
     return changes, had_errors
 
