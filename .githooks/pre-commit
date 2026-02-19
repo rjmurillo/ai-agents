@@ -712,7 +712,10 @@ if [ -n "$STAGED_SKILL_FILES" ]; then
         if set_python_cmd; then
             # Validate each staged SKILL.md file
             VALIDATION_FAILED=0
-            # Use process substitution to avoid subshell (heredoc runs in subshell, breaking output and variable propagation)
+            # Process substitution keeps the loop in the current shell so
+            # variable assignments (VALIDATION_FAILED) and output propagate.
+            # printf is used instead of echo to avoid option interpretation
+            # (e.g. filenames starting with '-n').
             while IFS= read -r skill_md; do
                 [ -z "$skill_md" ] && continue
 
@@ -724,7 +727,7 @@ if [ -n "$STAGED_SKILL_FILES" ]; then
                 validator_exit=$?
 
                 # Check if error is a Python system error (not a skill validation error)
-                if echo "$validator_output" | grep -q "failed to join paths"; then
+                if printf '%s' "$validator_output" | grep -q "failed to join paths"; then
                     echo_warning "Skill validation skipped for $skill_md (Python system error)"
                     echo_info "  Python 3.13.7 has a known path resolution bug."
                     echo_info "  Skill frontmatter appears valid. Proceeding with commit."
@@ -732,10 +735,10 @@ if [ -n "$STAGED_SKILL_FILES" ]; then
                     echo_success "Valid: $skill_md"
                 else
                     echo_error "Validation failed: $skill_md"
-                    echo "$validator_output"
+                    printf '%s\n' "$validator_output"
                     VALIDATION_FAILED=1
                 fi
-            done < <(echo "$STAGED_SKILL_FILES")
+            done < <(printf '%s\n' "$STAGED_SKILL_FILES")
 
             if [ "$VALIDATION_FAILED" -eq 1 ]; then
                 echo_error "One or more skills failed validation."
