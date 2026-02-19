@@ -54,6 +54,7 @@ config:
       - sub
       - details
       - summary
+      - code
       - strong
       - example
 
