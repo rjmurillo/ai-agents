@@ -38,9 +38,6 @@ IMPORT_CONVERSIONS: list[tuple[re.Pattern[str], str]] = [
 # Files that exist only in the lib copy and must not be deleted during sync.
 LIB_ONLY_FILES: set[str] = set()
 
-# Non-Python files in the lib directory that should be left untouched.
-SKIP_EXTENSIONS: set[str] = {".md", ".pyc"}
-
 CANONICAL_NOTE = "Canonical: {src_rel}. Sync via scripts/sync_plugin_lib.py."
 
 
@@ -111,35 +108,44 @@ def sync_pair(
     dst_rel: str,
     *,
     check_only: bool,
-) -> list[str]:
+) -> tuple[list[str], bool]:
     """Sync one source directory to its lib counterpart.
 
-    Returns a list of human-readable change descriptions.
+    Returns a tuple of (change descriptions, had_errors).
     """
     src_dir = (REPO_ROOT / src_rel).resolve()
     dst_dir = (REPO_ROOT / dst_rel).resolve()
     repo_root_resolved = REPO_ROOT.resolve()
     changes: list[str] = []
+    had_errors = False
 
-    if not str(src_dir).startswith(str(repo_root_resolved)):
+    try:
+        src_dir.relative_to(repo_root_resolved)
+    except ValueError:
         changes.append(f"[ERROR] Source path escapes repo root: {src_rel}")
-        return changes
-    if not str(dst_dir).startswith(str(repo_root_resolved)):
+        return changes, True
+    try:
+        dst_dir.relative_to(repo_root_resolved)
+    except ValueError:
         changes.append(f"[ERROR] Destination path escapes repo root: {dst_rel}")
-        return changes
+        return changes, True
 
     if not src_dir.is_dir():
         changes.append(f"[WARNING] Source directory missing: {src_rel}")
-        return changes
+        return changes, False
 
     try:
         dst_dir.mkdir(parents=True, exist_ok=True)
     except OSError as exc:
         changes.append(f"[ERROR] Cannot create destination directory {dst_rel}: {exc}")
-        return changes
+        return changes, True
 
     # Collect source .py files
-    src_files = {f.name for f in src_dir.iterdir() if f.suffix == ".py"}
+    try:
+        src_files = {f.name for f in src_dir.iterdir() if f.suffix == ".py"}
+    except OSError as exc:
+        changes.append(f"[ERROR] Cannot list source directory {src_rel}: {exc}")
+        return changes, True
 
     # Sync each source file to destination
     for name in sorted(src_files):
@@ -149,6 +155,7 @@ def sync_pair(
             expected = _transform_file(src_path, src_rel)
         except (OSError, UnicodeDecodeError) as exc:
             changes.append(f"  [ERROR] Cannot read {src_rel}/{name}: {exc}")
+            had_errors = True
             continue
 
         if dst_path.exists():
@@ -156,6 +163,7 @@ def sync_pair(
                 current = dst_path.read_text(encoding="utf-8")
             except (OSError, UnicodeDecodeError) as exc:
                 changes.append(f"  [ERROR] Cannot read {dst_rel}/{name}: {exc}")
+                had_errors = True
                 continue
             if current == expected:
                 continue
@@ -169,10 +177,17 @@ def sync_pair(
                 dst_path.write_text(expected, encoding="utf-8")
             except OSError as exc:
                 changes.append(f"  [ERROR] Cannot write {dst_rel}/{name}: {exc}")
+                had_errors = True
 
     # Remove stale .py files in destination that no longer exist in source,
     # but preserve lib-only files.
-    for dst_file in sorted(dst_dir.iterdir()):
+    try:
+        dst_entries = sorted(dst_dir.iterdir())
+    except OSError as exc:
+        changes.append(f"[ERROR] Cannot list destination directory {dst_rel}: {exc}")
+        return changes, True
+
+    for dst_file in dst_entries:
         if dst_file.suffix != ".py":
             continue
         if dst_file.name in LIB_ONLY_FILES:
@@ -182,7 +197,7 @@ def sync_pair(
             if not check_only:
                 dst_file.unlink()
 
-    return changes
+    return changes, had_errors
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -198,15 +213,18 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     all_changes: list[str] = []
+    any_errors = False
     for src_rel, dst_rel in SYNC_PAIRS:
-        pair_changes = sync_pair(src_rel, dst_rel, check_only=args.check)
+        pair_changes, had_errors = sync_pair(src_rel, dst_rel, check_only=args.check)
+        if had_errors:
+            any_errors = True
         if pair_changes:
             all_changes.append(f"{src_rel} -> {dst_rel}:")
             all_changes.extend(pair_changes)
 
     if not all_changes:
         print("All plugin lib copies are in sync.")
-        return 0
+        return 1 if any_errors else 0
 
     if args.check:
         print("Plugin lib copies are out of sync:")
@@ -218,7 +236,7 @@ def main(argv: list[str] | None = None) -> int:
     print("Synced plugin lib copies:")
     for line in all_changes:
         print(line)
-    return 0
+    return 1 if any_errors else 0
 
 
 if __name__ == "__main__":

@@ -131,15 +131,24 @@ class TestSyncPluginLib:
             f"Sync check failed (files out of sync):\n{result.stdout}\n{result.stderr}"
         )
 
-    def test_check_detects_drift(self, tmp_path: Path) -> None:
-        """Simulate drift by copying repo and modifying a source file."""
-        # Just test the script's --check mode returns 0 on current repo
-        # (testing drift detection would require modifying source files)
-        result = subprocess.run(
-            [sys.executable, str(REPO_ROOT / "scripts" / "sync_plugin_lib.py"), "--check"],
-            capture_output=True,
-            text=True,
-            cwd=str(REPO_ROOT),
-            timeout=10,
-        )
-        assert result.returncode == 0
+    def test_check_detects_drift(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Create mismatched src/dst files and verify --check returns 1."""
+        import scripts.sync_plugin_lib as sync_mod
+
+        # Build a minimal src package with one Python file
+        src_dir = tmp_path / "src_pkg"
+        src_dir.mkdir()
+        (src_dir / "__init__.py").write_text('"""Original source."""\n', encoding="utf-8")
+
+        # Build a dst directory with stale content (drift)
+        dst_dir = tmp_path / "dst_pkg"
+        dst_dir.mkdir()
+        (dst_dir / "__init__.py").write_text('"""Stale copy."""\n', encoding="utf-8")
+
+        # Patch module-level config to use our temp directories
+        monkeypatch.setattr(sync_mod, "REPO_ROOT", tmp_path)
+        monkeypatch.setattr(sync_mod, "SYNC_PAIRS", [("src_pkg", "dst_pkg")])
+        monkeypatch.setattr(sync_mod, "IMPORT_CONVERSIONS", [])
+
+        result = sync_mod.main(["--check"])
+        assert result == 1
