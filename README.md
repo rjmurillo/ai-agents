@@ -20,7 +20,7 @@
 
 1. **Install:** `/install-plugin rjmurillo/ai-agents` (Claude Code or GitHub Copilot CLI)
 2. **Use:** Ask the orchestrator to coordinate tasks, or call agents directly by name
-3. **Result:** 21 specialized agents handle research → planning → implementation → QA → deployment
+3. **Result:** Specialized agents handle research, planning, implementation, QA, and deployment
 
 ```text
 # Example: End-to-end feature development
@@ -97,13 +97,13 @@
 
 AI Agents is a coordinated multi-agent system for software development. It provides specialized AI agents that handle different phases of the development lifecycle, from research and planning through implementation and quality assurance.
 
-The orchestrator is the hub of operations. Within it has logic from taking everything from a "vibe" or a "shower thought" and building out a fully functional spec with acceptance criteria and user stories, to taking a well defined idea as input and executing on it. There are 21 agents that cover the roles of software development, from vision and strategy, to architecture, implementation, and verification. Each role looks at something specific, like the critic that just looks to poke holes in other agents' (or your own) work, or DevOps that's concerned about how you deploy and operate the thing you just built.
+The orchestrator is the hub of operations. Within it has logic from taking everything from a "vibe" or a "shower thought" and building out a fully functional spec with acceptance criteria and user stories, to taking a well defined idea as input and executing on it. There are agents that cover the roles of software development, from vision and strategy, to architecture, implementation, and verification. Each role looks at something specific, like the critic that just looks to poke holes in other agents' (or your own) work, or DevOps that's concerned about how you deploy and operate the thing you just built.
 
 The agents themselves use the platform specific handoffs to invoke subagents, keeping the orchestrator context clean. A great example of this is orchestrator facilitating creating and debating an [Architectural Decision Record](https://adr.github.io/) from research and drafting, to discussion, iterating on the issues, tie breaking when agents don't agree. And then  extracting persistent knowledge to steer future agents to adhere. Artifacts are stored in your memory system if you have one enabled, and Markdown files for easy reference to both agents and humans.
 
 ### Core Capabilities
 
-- **21 specialized agents** for different development phases (analysis, architecture, implementation, QA, etc.)
+- **19 specialized agents** for different development phases (analysis, architecture, implementation, QA, etc.)
 - **Explicit handoff protocols** between agents with clear accountability
 - **Multi-Agent Impact Analysis Framework** for comprehensive planning
 - **Cross-session memory** with citation verification, graph traversal, and health reporting via Serena + Forgetful
@@ -181,8 +181,8 @@ copilot --list-agents
 
 ### Supported Platforms
 
-| Platform | Agent Location | Usage |
-|----------|---------------|-------|
+| Platform | Source (this repo) | Usage |
+|----------|-------------------|-------|
 | **Claude Code CLI** | `src/claude/` | Use `Task(subagent_type="...")` |
 | **GitHub Copilot CLI** | `src/copilot-cli/` | Use `--agent` flag, `/agent` to select, or call out agent by name |
 | **VS Code / GitHub Copilot** | `src/vs-code-agents/` | Use `@agent` syntax in Copilot Chat |
@@ -355,9 +355,6 @@ flowchart LR
 | **independent-thinker** | Challenge assumptions, devil's advocate | Counter-arguments with alternatives |
 | **pr-comment-responder** | PR review handling | Triaged responses, resolution tracking |
 | **spec-generator** | Requirement specifications, EARS format | Structured specs with acceptance criteria |
-| **debug** | Debugging assistance, root cause analysis | Diagnostic findings with resolution steps |
-| **backlog-generator** | Proactive task discovery when idle | Discovered tasks for backlog |
-| **janitor** | Code and documentation cleanup | Refactoring and cleanup suggestions |
 
 See [AGENTS.md](AGENTS.md) for detailed agent documentation.
 
