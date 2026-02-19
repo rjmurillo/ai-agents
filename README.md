@@ -43,14 +43,14 @@
 
 ## Is This For You?
 
-✅ **Good fit if:**
+**Good fit if:**
 
 - You use Claude Code, GitHub Copilot CLI, or VS Code with Copilot
 - You want structured, multi-step AI workflows with clear accountability
 - You need audit trails and consistent output formats
 - You prefer specialized agents over generic prompting
 
-❌ **Not ideal if:**
+**Not ideal if:**
 
 - You prefer single-prompt interactions without agent orchestration
 - You're not using one of the supported platforms (Claude Code, Copilot CLI, VS Code)
@@ -129,9 +129,9 @@ The agents themselves use the platform specific handoffs to invoke subagents, ke
 
 ## Installation
 
-> **Requirements:** Python 3.10+ and [UV](https://docs.astral.sh/uv/) package manager (for skill-installer method only). The `/install-plugin` method has no prerequisites.
+> **Requirements:** Python 3.10+ to use, 3.12.x to develop. [UV](https://docs.astral.sh/uv/) package manager required for the skill-installer method only. The `/install-plugin` method has no prerequisites.
 >
-> See [CONTRIBUTING.md](CONTRIBUTING.md#prerequisites) for full development setup including Python 3.12.x, pre-commit hooks, and test dependencies.
+> See [CONTRIBUTING.md](CONTRIBUTING.md#prerequisites) for full development setup including pre-commit hooks and test dependencies.
 
 ### Quick Install (Recommended)
 
@@ -427,6 +427,8 @@ ai-agents/
 - Review [Quick Start examples](#examples) for correct syntax
 
 </details>
+
+Still stuck? [Open an issue](https://github.com/rjmurillo/ai-agents/issues) on GitHub.
 
 ---
 
