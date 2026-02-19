@@ -16,24 +16,73 @@
 
 ---
 
+## TL;DR
+
+1. **Install:** `/install-plugin rjmurillo/ai-agents` (Claude Code or GitHub Copilot CLI)
+2. **Use:** Ask the orchestrator to coordinate tasks, or call agents directly by name
+3. **Result:** 21 specialized agents handle research → planning → implementation → QA → deployment
+
+```text
+# Example: End-to-end feature development
+> orchestrator: implement user authentication with OAuth2, including tests and security review
+```
+
+---
+
+## Where to Start
+
+| I want to... | Go to |
+|--------------|-------|
+| **Use the agents right now** | [Quick Install](#quick-install-recommended) → [Quick Start](#quick-start) |
+| **Understand how it works** | [Key Concepts](#key-concepts) → [How Agents Work Together](#how-agents-work-together) |
+| **Contribute or modify agents** | [Developer Setup](#developer-setup) → [CONTRIBUTING.md](CONTRIBUTING.md) |
+| **See all available agents** | [Agent Catalog](#agent-catalog) |
+| **Troubleshoot issues** | [Troubleshooting](#troubleshooting) |
+
+---
+
+## Is This For You?
+
+✅ **Good fit if:**
+
+- You use Claude Code, GitHub Copilot CLI, or VS Code with Copilot
+- You want structured, multi-step AI workflows with clear accountability
+- You need audit trails and consistent output formats
+- You prefer specialized agents over generic prompting
+
+❌ **Not ideal if:**
+
+- You prefer single-prompt interactions without agent orchestration
+- You're not using one of the supported platforms (Claude Code, Copilot CLI, VS Code)
+- You need real-time streaming responses for all interactions
+
+---
+
 ## Table of Contents
 
 - [AI Agent System](#ai-agent-system)
+  - [TL;DR](#tldr)
+  - [Where to Start](#where-to-start)
+  - [Is This For You?](#is-this-for-you)
   - [Table of Contents](#table-of-contents)
   - [Purpose and Scope](#purpose-and-scope)
     - [What is AI Agents?](#what-is-ai-agents)
     - [Core Capabilities](#core-capabilities)
+    - [Key Concepts](#key-concepts)
   - [Installation](#installation)
     - [Quick Install (Recommended)](#quick-install-recommended)
     - [Verify Installation](#verify-installation)
+    - [Supported Platforms](#supported-platforms)
     - [Alternative: Install via skill-installer](#alternative-install-via-skill-installer)
   - [Quick Start](#quick-start)
     - [Examples](#examples)
       - [Simple Scenarios](#simple-scenarios)
       - [Advanced Scenarios](#advanced-scenarios)
   - [System Architecture](#system-architecture)
+    - [How Agents Work Together](#how-agents-work-together)
     - [Agent Catalog](#agent-catalog)
     - [Directory Structure](#directory-structure)
+  - [Troubleshooting](#troubleshooting)
   - [Contributing](#contributing)
     - [Developer Setup](#developer-setup)
     - [Agent Development](#agent-development)
@@ -64,9 +113,25 @@ The agents themselves use the platform specific handoffs to invoke subagents, ke
 - **TUI-based installation** via [skill-installer](https://github.com/rjmurillo/skill-installer)
 - **AI-powered CI/CD** with issue triage, PR quality gates, and spec validation
 
+### Key Concepts
+
+| Term | Definition |
+|------|------------|
+| **Agent** | A specialized AI persona with a defined role (analyst, implementer, security, etc.) |
+| **Orchestrator** | The coordinating agent that routes tasks to specialists and synthesizes results |
+| **Handoff** | Explicit transfer of context and control between agents with clear accountability |
+| **Skill** | A reusable workflow component for common tasks (50+ included: git, PR, testing, linting) |
+| **Memory** | Cross-session context persistence via Serena + Forgetful for knowledge retention |
+| **ADR** | Architectural Decision Record—structured documents capturing design decisions |
+| **Quality Gate** | Validation checkpoint (critic review, QA pass, security scan) before proceeding |
+
 ---
 
 ## Installation
+
+> **Requirements:** Python 3.10+ and [UV](https://docs.astral.sh/uv/) package manager (for skill-installer method only). The `/install-plugin` method has no prerequisites.
+>
+> See [CONTRIBUTING.md](CONTRIBUTING.md#prerequisites) for full development setup including Python 3.12.x, pre-commit hooks, and test dependencies.
 
 ### Quick Install (Recommended)
 
@@ -225,6 +290,47 @@ The orchestrator runs the same evaluation pipeline across all candidates, produc
 
 ## System Architecture
 
+### How Agents Work Together
+
+The orchestrator coordinates specialized agents through explicit handoffs. Each agent focuses on its domain, and the orchestrator synthesizes results.
+
+```mermaid
+flowchart LR
+    User([User]) --> Orchestrator
+    
+    subgraph Planning
+        Orchestrator --> Analyst
+        Orchestrator --> Architect
+        Orchestrator --> Planner[Milestone Planner]
+    end
+    
+    subgraph Implementation
+        Orchestrator --> Implementer
+        Implementer --> Code[Code + Tests]
+    end
+    
+    subgraph Quality
+        Orchestrator --> QA
+        Orchestrator --> Security
+        Orchestrator --> Critic
+    end
+    
+    Code --> QA
+    QA --> |pass| Done([Done])
+    QA --> |fail| Implementer
+    Critic --> |approve| Done
+    Critic --> |reject| Implementer
+```
+
+**Typical flow:**
+
+1. **User** describes a task to the **Orchestrator**
+2. **Orchestrator** routes to **Analyst** for research and feasibility
+3. **Architect** designs the solution; **Milestone Planner** breaks it into work packages
+4. **Implementer** writes code and tests
+5. **QA** and **Security** validate; **Critic** stress-tests the approach
+6. On approval, work is complete; on failure, it loops back for fixes
+
 ### Agent Catalog
 
 | Agent | Purpose | Output |
@@ -272,6 +378,55 @@ ai-agents/
 ├── CLAUDE.md                        # Claude Code instructions
 └── AGENTS.md                        # Detailed usage guide
 ```
+
+---
+
+## Troubleshooting
+
+<details>
+<summary><strong>Agent not responding or not found</strong></summary>
+
+- **Restart your editor** after installation to reload agent definitions
+- Verify installation with the [Verify Installation](#verify-installation) commands
+- Check that you're using the correct syntax for your platform (`Task()` for Claude, `@agent` for VS Code)
+
+</details>
+
+<details>
+<summary><strong><code>/install-plugin</code> command not recognized</strong></summary>
+
+- Ensure you're running inside **Claude Code CLI** or **GitHub Copilot CLI**, not a regular terminal
+- The command is built into the AI tool, not your shell
+- Alternative: Use the [skill-installer method](#alternative-install-via-skill-installer)
+
+</details>
+
+<details>
+<summary><strong>Python version errors when running tests</strong></summary>
+
+- This project requires **Python 3.12.x** for development (not 3.13+)
+- Use `pyenv` to manage Python versions: `pyenv install 3.12.8 && pyenv local 3.12.8`
+- See [CONTRIBUTING.md](CONTRIBUTING.md#prerequisites) for detailed setup
+
+</details>
+
+<details>
+<summary><strong>skill-installer TUI not launching</strong></summary>
+
+- Ensure [UV](https://docs.astral.sh/uv/) is installed: `curl -LsSf https://astral.sh/uv/install.sh | sh`
+- Try the direct uvx command: `uvx --from git+https://github.com/rjmurillo/skill-installer skill-installer interactive`
+- Check Python version: requires 3.10+
+
+</details>
+
+<details>
+<summary><strong>Orchestrator not routing to agents correctly</strong></summary>
+
+- Be explicit: prefix prompts with the agent name (e.g., `analyst: ...`)
+- Check that agents were installed for your specific platform
+- Review [Quick Start examples](#examples) for correct syntax
+
+</details>
 
 ---
 
