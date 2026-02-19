@@ -9,12 +9,12 @@ Usage:
 """
 
 import argparse
+import os
 import re
 import sys
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 
 @dataclass
@@ -23,8 +23,8 @@ class Result:
 
     success: bool
     message: str
-    data: Optional[dict] = None
-    errors: Optional[list] = None
+    data: dict | None = None
+    errors: list | None = None
 
 
 def generate_experiment_id(name: str) -> str:
@@ -50,7 +50,7 @@ def generate_document(
     system: str = "TBD",
     owner: str = "TBD",
     region: str = "TBD",
-    target_date: Optional[str] = None,
+    target_date: str | None = None,
 ) -> str:
     """Generate experiment document from template."""
     template = load_template()
@@ -128,6 +128,9 @@ def save_document(content: str, output_dir: Path, name: str) -> Path:
 
 def main() -> Result:
     """Main entry point."""
+    _proj = os.environ.get("CLAUDE_PROJECT_DIR", os.getcwd())
+    os.makedirs(os.path.join(_proj, ".agents"), exist_ok=True)
+
     parser = argparse.ArgumentParser(
         description="Generate a chaos experiment document",
         formatter_class=argparse.RawDescriptionHelpFormatter,

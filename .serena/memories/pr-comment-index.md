@@ -2,11 +2,11 @@
 
 | Keywords | File |
 |----------|------|
-| reviewer signal quality actionable rate priority triage bot cursor gemini copilot coderabbit | [pr-comment-001-reviewer-signal-quality](pr-comment-001-reviewer-signal-quality.md) |
-| security CWE vulnerability injection bypass hardening domain priority boost | [pr-comment-002-security-domain-priority](pr-comment-002-security-domain-priority.md) |
-| path containment traversal CWE-22 normalization separator case-insensitive validation | [pr-comment-003-path-containment-layers](pr-comment-003-path-containment-layers.md) |
-| response template reply commit fix won't-fix rationale bot comment | [pr-comment-004-bot-response-templates](pr-comment-004-bot-response-templates.md) |
-| branch checkout verification state git current uncommitted silent fail | [pr-comment-005-branch-state-verification](pr-comment-005-branch-state-verification.md) |
+| reviewer signal quality actionable rate priority triage bot cursor gemini copilot coderabbit | [pr-review/pr-comment-001-reviewer-signal-quality](pr-review/pr-comment-001-reviewer-signal-quality.md) |
+| security CWE vulnerability injection bypass hardening domain priority boost | [pr-review/pr-comment-002-security-domain-priority](pr-review/pr-comment-002-security-domain-priority.md) |
+| path containment traversal CWE-22 normalization separator case-insensitive validation | [pr-review/pr-comment-003-path-containment-layers](pr-review/pr-comment-003-path-containment-layers.md) |
+| response template reply commit fix won't-fix rationale bot comment | [pr-review/pr-comment-004-bot-response-templates](pr-review/pr-comment-004-bot-response-templates.md) |
+| branch checkout verification state git current uncommitted silent fail | [pr-review/pr-comment-005-branch-state-verification](pr-review/pr-comment-005-branch-state-verification.md) |
 
 ## Skill Summary
 
@@ -20,8 +20,8 @@
 
 ## Related
 
-- [pr-comment-001-reviewer-signal-quality](pr-comment-001-reviewer-signal-quality.md)
-- [pr-comment-002-security-domain-priority](pr-comment-002-security-domain-priority.md)
-- [pr-comment-003-path-containment-layers](pr-comment-003-path-containment-layers.md)
-- [pr-comment-004-bot-response-templates](pr-comment-004-bot-response-templates.md)
-- [pr-comment-005-branch-state-verification](pr-comment-005-branch-state-verification.md)
+- [pr-review/pr-comment-001-reviewer-signal-quality](pr-review/pr-comment-001-reviewer-signal-quality.md)
+- [pr-review/pr-comment-002-security-domain-priority](pr-review/pr-comment-002-security-domain-priority.md)
+- [pr-review/pr-comment-003-path-containment-layers](pr-review/pr-comment-003-path-containment-layers.md)
+- [pr-review/pr-comment-004-bot-response-templates](pr-review/pr-comment-004-bot-response-templates.md)
+- [pr-review/pr-comment-005-branch-state-verification](pr-review/pr-comment-005-branch-state-verification.md)

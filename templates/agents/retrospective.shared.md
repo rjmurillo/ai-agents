@@ -2,18 +2,11 @@
 description: Reflective analyst who extracts learnings through structured retrospective frameworks—diagnosing agent performance, identifying error patterns, and documenting success strategies. Uses Five Whys, timeline analysis, and learning matrices. Use when you need root-cause analysis, atomicity scoring, or to transform experience into institutional knowledge.
 argument-hint: Describe the task or session to analyze for learnings
 tools_vscode:
-  - vscode
-  - read
-  - edit
-  - search
+  - $toolset:editor
   - agent
-  - cloudmcp-manager/*
-  - serena/*
-  - memory
+  - $toolset:knowledge
 tools_copilot:
-  - read
-  - edit
-  - search
+  - $toolset:editor
   - agent
   - cloudmcp-manager/*
   - serena/*
@@ -515,7 +508,7 @@ pwsh scripts/Validate-Traceability.ps1
 
 | Issue | Fix | Owner |
 |-------|-----|-------|
-| [Issue] | [Action] | [spec-generator/planner] |
+| [Issue] | [Action] | [spec-generator/milestone-planner] |
 ````
 
 **Integration with Learning Extraction:**
@@ -1314,7 +1307,7 @@ When retrospective is complete:
 |--------|------|---------|  
 | **skillbook** | Learnings ready | Store skills |
 | **implementer** | Coding skill found | Apply next time |
-| **planner** | Process improvement | Update approach |
+| **milestone-planner** | Process improvement | Update approach |
 | **architect** | Design insight | Update guidance |
 
 **Note**: Use cloudmcp-manager memory tools directly to persist skills, relations, and observations - no delegation to memory agent required.

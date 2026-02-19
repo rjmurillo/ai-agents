@@ -58,9 +58,11 @@ Load these memories based on what you are doing:
 
 ### Memory Loading Protocol
 
-```python
+```powershell
 # REQUIRED: Load before implementation starts
-mcp__serena__read_memory(memory_file_name="[memory-from-table-above]")
+pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "[memory-from-table-above]" -LexicalOnly
+# Or read directly:
+Read .serena/memories/[memory-name].md
 ```
 
 ### Agent Delegation (Handoff Triggers)
@@ -227,7 +229,12 @@ You have direct access to:
 - **Bash**: `dotnet build`, `dotnet test`, `dotnet format`, git commands
 - **WebSearch/WebFetch**: Research APIs, best practices
 - **TodoWrite**: Track implementation progress
-- **cloudmcp-manager memory tools**: Implementation patterns
+- **Memory Router** (ADR-037): Unified search across Serena + Forgetful
+  - `pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "topic"`
+  - Serena-first with optional Forgetful augmentation; graceful fallback
+- **Serena write tools**: Memory persistence in `.serena/memories/`
+  - `mcp__serena__write_memory`: Create new memory
+  - `mcp__serena__edit_memory`: Update existing memory
 
 ## Core Mission
 
@@ -243,7 +250,7 @@ Read complete plans from `.agents/planning/`, validate alignment with project ob
 6. **Document** findings in implementation docs only
 7. **Track** deviations and pause without updated guidance
 8. **Execute** version updates when milestone-included
-9. **Conduct** impact analysis when requested by planner during planning phase
+9. **Conduct** impact analysis when requested by milestone-planner during planning phase
 10. **Flag** security-relevant changes for post-implementation verification
 
 ## Security Flagging Protocol
@@ -312,7 +319,7 @@ If NO triggers match:
 
 ## Impact Analysis Mode
 
-When planner requests impact analysis (before implementation):
+When milestone-planner requests impact analysis (before implementation):
 
 ### Analyze Code Impact
 
@@ -407,7 +414,7 @@ Save to: `.agents/planning/impact-analysis-code-[feature].md`
 ## Constraints
 
 - **NO skipping hard tests** - all tests implemented/passing or deferred with plan approval
-- Cannot defer tests without planner sign-off and rationale
+- Cannot defer tests without milestone-planner sign-off and rationale
 - Must refuse if QA strategy conflicts with plan
 - Respects repo standards and safety requirements
 
@@ -646,6 +653,11 @@ Ask: "Does this refactoring unblock my task or improve testability of code I'm c
 1. Before writing, identify what varies and apply Chesterton's Fence
 2. Ask "how would I test this?" If hard, redesign.
 3. Sergeant methods direct, private methods implement
+4. **Clarity over brevity**: Explicit code beats compact code. No nested ternaries. Use `switch`, `if/else`, or pattern matching instead.
+5. **Comment hygiene**: Remove comments that describe obvious code. Comments explain "why", not "what".
+6. **Self-documenting names**: If a name needs a comment, rename it.
+
+> **Post-hoc refinement**: After implementation, `code-simplifier` handles balance judgments and language-specific polish. Write simple code first.
 
 ### Reviewing Code
 
@@ -678,26 +690,23 @@ Feedback categories:
 
 ## Memory Protocol
 
-Use cloudmcp-manager memory tools directly for cross-session context:
+Use Memory Router for search and Serena tools for persistence (ADR-037):
 
-**Before implementation:**
+**Before implementation (retrieve context):**
+
+```powershell
+pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "implementation patterns [component/feature]"
+```
+
+**After implementation (store learnings):**
 
 ```text
-mcp__cloudmcp-manager__memory-search_nodes
-Query: "implementation patterns [component/feature]"
+mcp__serena__write_memory
+memory_file_name: "pattern-implementation-[topic]"
+content: "# Implementation: [Topic]\n\n**Statement**: ...\n\n**Evidence**: ...\n\n## Details\n\n..."
 ```
 
-**After implementation:**
-
-```json
-mcp__cloudmcp-manager__memory-add_observations
-{
-  "observations": [{
-    "entityName": "Pattern-Implementation-[Topic]",
-    "contents": ["[Implementation notes and patterns discovered]"]
-  }]
-}
-```
+> **Fallback**: If Memory Router unavailable, read `.serena/memories/` directly with Read tool.
 
 ## Code Requirements
 
@@ -722,6 +731,32 @@ mcp__cloudmcp-manager__memory-add_observations
 - Cyclomatic complexity 10 or less
 - Methods under 60 lines
 - No nested code
+- No nested ternary operators. Use `switch`, `if/else`, or pattern matching.
+- Prefer `function` keyword over arrow functions (JS/TS top-level declarations)
+- Explicit return type annotations on exported functions (JS/TS)
+- React: Explicit `Props` type for every component
+
+### Code Simplification
+
+Before writing each function or method, apply these checks. Three similar lines are better than
+a premature abstraction, but identical blocks are not.
+
+1. **No repeated blocks**: If 3+ lines appear twice, extract or loop. Check within the file and
+   across files touched in this PR.
+2. **No dead code**: Remove unused variables, unreachable branches, commented-out code, and
+   unused imports. Do not leave code "for later."
+3. **No redundant conditions**: Collapse `if x then true else false` to `x`. Remove conditions
+   the type system or caller already guarantees.
+4. **No stderr suppression**: Never use `2>/dev/null` or `-ErrorAction SilentlyContinue` without
+   capturing output first. Capture to a variable, check, then act.
+5. **Consistent naming**: Match the naming convention of the file you are editing. Do not
+   introduce a new convention in existing files.
+6. **Flat over nested**: Maximum 2 levels of nesting. Use early returns, guard clauses, or
+   extract a helper to flatten deeper nesting.
+7. **No magic values**: Literals that appear more than once or whose meaning is not obvious from
+   context become named constants.
+8. **Match existing patterns**: Before writing new code, read 2-3 similar functions in the same
+   file or module. Follow their error handling, logging, and naming patterns.
 
 ## Qwiq-Specific Patterns
 
@@ -858,7 +893,7 @@ python -m pytest && python -m mypy . && python -m ruff check .
 | Target | When | Purpose |
 |--------|------|---------|
 | **analyst** | Technical unknowns encountered | Research needed |
-| **planner** | Plan ambiguities or conflicts | Clarification needed |
+| **milestone-planner** | Plan ambiguities or conflicts | Clarification needed |
 | **qa** | Implementation complete | Verification |
 | **architect** | Design deviation required | Technical decision |
 
@@ -878,7 +913,7 @@ Before handing off, validate ALL items in the applicable checklist:
 - [ ] Files changed list accurate and complete
 ```
 
-### Blocker Handoff (to analyst/planner/architect)
+### Blocker Handoff (to analyst/milestone-planner/architect)
 
 ```markdown
 - [ ] Specific blocker clearly described

@@ -34,8 +34,8 @@ permissions:
   statuses: write       # Update commit statuses for build/test results
 
 jobs:
-  # ADR-006 Compliance: Authorization logic moved to PowerShell script for testability
-  # See: tests/workflows/Test-ClaudeAuthorization.ps1
+  # ADR-006 Compliance: Authorization logic in dedicated script for testability
+  # See: tests/workflows/test_claude_authorization.py
   check-authorization:
     runs-on: ubuntu-latest
     outputs:
@@ -48,7 +48,7 @@ jobs:
 
       - name: Check Claude authorization
         id: auth-check
-        shell: pwsh
+        shell: bash
         env:
           # Safe: Using environment variables to prevent command injection
           # See: https://github.blog/security/vulnerability-research/how-to-catch-github-actions-workflow-injections-before-attackers-do/
@@ -65,36 +65,37 @@ jobs:
           PR_BODY: ${{ github.event.pull_request.body }}
           PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
-          $authorized = & ./tests/workflows/Test-ClaudeAuthorization.ps1 `
-            -EventName $env:EVENT_NAME `
-            -Actor $env:ACTOR `
-            -AuthorAssociation $env:AUTHOR_ASSOCIATION `
-            -CommentBody $env:COMMENT_BODY `
-            -ReviewBody $env:REVIEW_BODY `
-            -IssueBody $env:ISSUE_BODY `
-            -IssueTitle $env:ISSUE_TITLE `
-            -PRBody $env:PR_BODY `
-            -PRTitle $env:PR_TITLE
+          set +e
+          authorized=$(python3 ./tests/workflows/test_claude_authorization.py \
+            --event-name "$EVENT_NAME" \
+            --actor "$ACTOR" \
+            --author-association "$AUTHOR_ASSOCIATION" \
+            --comment-body "$COMMENT_BODY" \
+            --review-body "$REVIEW_BODY" \
+            --issue-body "$ISSUE_BODY" \
+            --issue-title "$ISSUE_TITLE" \
+            --pr-body "$PR_BODY" \
+            --pr-title "$PR_TITLE")
+          exit_code=$?
+          set -e
 
-          if ($LASTEXITCODE -ne 0) {
-            Write-Error "Authorization check script failed with exit code $LASTEXITCODE."
-            Write-Error "This indicates a script error, not an authorization denial."
-            Write-Error "Review the step output above for specific error messages (e.g., EventBodyTooLarge, AuditLogFailed, RegexMatchFailed)."
-            Write-Error "Check the Actions summary 'Claude Authorization Check' section if available."
-            Write-Error "If the error mentions audit log failure, verify GITHUB_STEP_SUMMARY permissions."
+          if [ "$exit_code" -ne 0 ]; then
+            echo "::error::Authorization check script failed with exit code $exit_code."
+            echo "::error::This indicates a script error, not an authorization denial."
+            echo "::error::Review the step output above for specific error messages."
+            echo "::error::Check the Actions summary 'Claude Authorization Check' section if available."
             exit 1
-          }
+          fi
 
           # Validate output format to prevent silent failures from unexpected values
-          # Normalize to lowercase for case-sensitive comparison (script returns lowercase)
-          $authorized = $authorized.Trim().ToLower()
-          if ($authorized -cnotin @('true', 'false')) {
-            Write-Error "Authorization check returned unexpected value: '$authorized'. Expected 'true' or 'false'."
-            Write-Error "This may indicate the script exited without producing valid output."
+          authorized=$(echo "$authorized" | tr -d '[:space:]')
+          if [ "$authorized" != "true" ] && [ "$authorized" != "false" ]; then
+            echo "::error::Authorization check returned unexpected value: '$authorized'. Expected 'true' or 'false'."
+            echo "::error::This may indicate the script exited without producing valid output."
             exit 1
-          }
+          fi
 
-          "authorized=$authorized" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          echo "authorized=$authorized" >> "$GITHUB_OUTPUT"
 
   claude-response:
     needs: check-authorization
@@ -110,13 +111,12 @@ jobs:
         uses: ./.github/actions/setup-code-env
         with:
           gh-token: ${{ github.token }}
-          enable-pester: true
           enable-git-hooks: true
           skip-autofix: 0
 
       # Pin to v1.0.28 - https://github.com/anthropics/claude-code-action/releases/tag/v1.0.28
       # Fixes orphaned installer processes causing race conditions (Issue #804)
-      - uses: anthropics/claude-code-action@a017b830c03e23789b11fb69ed571ea61c12e45c
+      - uses: anthropics/claude-code-action@70e16deb18402428bd09e08d1ec3662a872e3c72
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
 
@@ -136,7 +136,9 @@ jobs:
           branch_prefix: "claude/"
 
           # Enable progress tracking for visibility
-          track_progress: true
+          # Note: track_progress is only supported for specific pull_request actions
+          # (opened, synchronize, ready_for_review, reopened) - not for 'labeled'
+          track_progress: ${{ github.event.action != 'labeled' }}
 
           # Enable commit signing for security
           use_commit_signing: true

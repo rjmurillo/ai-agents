@@ -1,10 +1,10 @@
 ---
 name: reflect
+version: 1.0.0
+model: claude-sonnet-4-5
 description: CRITICAL learning capture. Extracts HIGH/MED/LOW confidence patterns from conversations to prevent repeating mistakes and preserve what works. Use PROACTIVELY after user corrections ("no", "wrong"), after praise ("perfect", "exactly"), when discovering edge cases, or when skills are heavily used. Without reflection, valuable learnings are LOST forever. Acts as continuous improvement engine for all skills. Invoke EARLY and OFTEN - every correction is a learning opportunity.
 license: MIT
-model: claude-sonnet-4-5
 metadata:
-  version: 1.0.0
   timelessness: 8/10
   adr: ADR-007, ADR-017
 ---
@@ -19,11 +19,15 @@ Analyze the current conversation and propose improvements to skill-based memorie
 
 ## Triggers
 
-- `reflect` – explicit request to capture learnings
-- `learn from this` – user wants corrections documented
-- `improve skill {name}` – target a specific skill memory
+| Trigger Phrase | Operation |
+|----------------|-----------|
+| `reflect on this session` | Extract learnings from conversation |
+| `learn from this mistake` | Capture correction patterns |
+| `capture what we learned` | Document session insights |
+| `improve skill {name}` | Target specific skill memory |
+| `what did we learn` | Review and store patterns |
 
-Also monitor user phrasing such as `what did we learn?`, "what if...", "ensure", or "don't forget"—these phrases should immediately route into the MEDIUM trigger tables below.
+Also monitor user phrasing such as "what if...", "ensure", or "don't forget". These phrases should immediately route into the MEDIUM trigger tables below.
 
 ### 🔴 HIGH Priority Triggers (Invoke Immediately)
 
@@ -62,7 +66,22 @@ Also monitor user phrasing such as `what did we learn?`, "what if...", "ensure",
 
 ---
 
-## 🚨 Proactive Invocation Reminder
+## When to Use
+
+Use this skill when:
+
+- User corrects your output ("no", "wrong", "not like that")
+- User praises specific output ("perfect", "exactly")
+- Edge cases are discovered during work
+- Session end after skill-heavy work
+- Want to capture learnings before they are lost
+
+Use [retrospective](../retrospective/SKILL.md) instead when:
+
+- Conducting a full session retrospective (broader scope)
+- Analyzing multi-session patterns across the project
+
+## Proactive Invocation Reminder
 
 **Don't wait for users to ask!** Invoke reflect immediately when you detect:
 

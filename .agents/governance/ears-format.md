@@ -1,9 +1,14 @@
-# EARS Requirements Format
+---
+type: governance
+id: ears-format
+status: active
+version: 1.0.0
+created: 2025-12-30
+related:
+  - enhancement-PROJECT-PLAN.md
+---
 
-> **Version**: 1.0.0
-> **Created**: 2025-12-30
-> **Status**: Active
-> **References**: [enhancement-PROJECT-PLAN.md](../planning/enhancement-PROJECT-PLAN.md)
+# EARS Requirements Format
 
 ## Overview
 

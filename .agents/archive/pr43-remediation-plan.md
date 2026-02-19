@@ -93,11 +93,11 @@ Add path normalization requirements to `src/claude/explainer.md`:
 
 **What to Do**:
 1. When referencing files, convert absolute paths to relative:
-   - Wrong: `D:\src\GitHub\user\repo\.agents\analysis\file.md`
+   - Wrong: `D:\src\GitHub\user\repo\.agents/analysis\file.md`
    - Right: `.agents/analysis/file.md`
 
 2. Use forward slashes for cross-platform compatibility:
-   - Wrong: `.agents\analysis\file.md`
+   - Wrong: `.agents/analysis\file.md`
    - Right: `.agents/analysis/file.md`
 
 3. Before finalizing any document with file references, verify no absolute paths remain.

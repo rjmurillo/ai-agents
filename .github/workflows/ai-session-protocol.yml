@@ -1,6 +1,6 @@
 name: Session Protocol Validation
 
-# Deterministic session log validation using Validate-SessionJson.ps1
+# Deterministic session log validation using validate_session_json.py
 
 # Verifies session logs comply with RFC 2119 requirements in SESSION-PROTOCOL.md
 
@@ -161,24 +161,40 @@ jobs:
           SESSION_FILE: ${{ matrix.session_file }}
         run: |
           $sessionFile = $env:SESSION_FILE
+
+          # Check if file exists (may have been deleted in a later commit)
+          if (-not (Test-Path $sessionFile)) {
+            Write-Host "File $sessionFile was deleted - skipping validation"
+            $mdResult = "# Session Validation: $sessionFile`n`nResult: SKIPPED (file deleted)`n"
+            $mdResult | Out-File -FilePath "validation-result.md" -Encoding UTF8
+
+            # Create verdict files for reporting
+            New-Item -Path "validation-results" -ItemType Directory -Force | Out-Null
+            $baseName = [System.IO.Path]::GetFileNameWithoutExtension($sessionFile)
+            "SKIPPED" | Out-File -FilePath "validation-results/$baseName-verdict.txt" -Encoding UTF8
+            "0" | Out-File -FilePath "validation-results/$baseName-must-failures.txt" -Encoding UTF8
+
+            exit 0
+          }
+
           $extension = [System.IO.Path]::GetExtension($sessionFile)
-          
+
           # Use appropriate validator based on file type
           if ($extension -eq '.json') {
             # JSON format - simple schema validation
-            $result = & ./scripts/Validate-SessionJson.ps1 -SessionPath $sessionFile 2>&1
+            $result = & python3 ./scripts/validate_session_json.py $sessionFile 2>&1
             $exitCode = $LASTEXITCODE
             $format = 'JSON'
           } else {
             # Legacy markdown format - migrate to JSON first, then validate
             Write-Host "Legacy markdown detected - migrating to JSON for validation"
             $jsonPath = $sessionFile -replace '\.md$', '.json'
-            
+
             # Migrate
             & ./scripts/Convert-SessionToJson.ps1 -Path $sessionFile -Force 2>&1 | Out-Null
-            
+
             if (Test-Path $jsonPath) {
-              $result = & ./scripts/Validate-SessionJson.ps1 -SessionPath $jsonPath 2>&1
+              $result = & python3 ./scripts/validate_session_json.py $jsonPath 2>&1
               $exitCode = $LASTEXITCODE
             } else {
               $result = @("Migration failed - could not convert markdown to JSON")
@@ -266,179 +282,28 @@ jobs:
 
       - name: Aggregate Verdicts
         id: aggregate
-        shell: pwsh -NoProfile -Command "& '{0}'"
-        run: |
-          Import-Module "$env:GITHUB_WORKSPACE/.github/scripts/AIReviewCommon.psm1" -Force
-
-          $overallVerdict = "PASS"
-          $totalMustFailures = 0
-
-          # Process all verdict files
-          $verdictFiles = Get-ChildItem -Path "validation-results/*-verdict.txt" -ErrorAction SilentlyContinue
-          foreach ($verdictFile in $verdictFiles) {
-            $verdict = Get-Content $verdictFile.FullName -Raw
-            $verdict = $verdict.Trim()
-            Write-Log "Found verdict: $verdict from $($verdictFile.Name)"
-
-            if ($verdict -in 'CRITICAL_FAIL', 'REJECTED', 'NON_COMPLIANT') {
-              $overallVerdict = "CRITICAL_FAIL"
-            } elseif ($verdict -eq 'WARN' -and $overallVerdict -eq 'PASS') {
-              $overallVerdict = "WARN"
-            }
-          }
-
-          # Count MUST failures
-          $mustFiles = Get-ChildItem -Path "validation-results/*-must-failures.txt" -ErrorAction SilentlyContinue
-          foreach ($mustFile in $mustFiles) {
-            $content = (Get-Content $mustFile.FullName -Raw -ErrorAction SilentlyContinue).Trim()
-            # Handle potential multi-value strings from race conditions
-            if ($content -match '^(\d+)') {
-              $count = [int]$Matches[1]
-              $totalMustFailures += $count
-            }
-          }
-
-          if ($totalMustFailures -gt 0) {
-            $overallVerdict = "CRITICAL_FAIL"
-          }
-
-          "final_verdict=$overallVerdict" >> $env:GITHUB_OUTPUT
-          "must_failures=$totalMustFailures" >> $env:GITHUB_OUTPUT
-
-          Write-Log "Final verdict: $overallVerdict (MUST failures: $totalMustFailures)"
+        run: python3 .github/scripts/aggregate_session_verdicts.py
 
       - name: Generate Compliance Report
         id: report
-        shell: pwsh -NoProfile -Command "& '{0}'"
         env:
           OVERALL_VERDICT: ${{ steps.aggregate.outputs.final_verdict }}
           MUST_FAILURES: ${{ steps.aggregate.outputs.must_failures }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           SERVER_URL: ${{ github.server_url }}
           RUN_ID: ${{ github.run_id }}
-        run: |
-          Import-Module "$env:GITHUB_WORKSPACE/.github/scripts/AIReviewCommon.psm1" -Force
-
-          $reportDir = Initialize-AIReview
-          $reportFile = Join-Path $reportDir "session-compliance-report.md"
-          $alertType = Get-VerdictAlertType -Verdict $env:OVERALL_VERDICT
-          $finalEmoji = Get-VerdictEmoji -Verdict $env:OVERALL_VERDICT
-
-          # Build verdict message
-          $verdictMsg = if ([int]$env:MUST_FAILURES -gt 0) {
-            "$($env:MUST_FAILURES) MUST requirement(s) not met. These must be addressed before merge."
-          } else {
-            "All session protocol requirements satisfied."
-          }
-
-          # Count files checked
-          $filesChecked = (Get-ChildItem -Path "validation-results/*-verdict.txt" -ErrorAction SilentlyContinue).Count
-
-          $report = @"
-          <!-- AI-SESSION-PROTOCOL -->
-
-          ## Session Protocol Compliance Report
-
-          > [!$alertType]
-          > $finalEmoji **Overall Verdict: $($env:OVERALL_VERDICT)**
-          >
-          > $verdictMsg
-
-          <details>
-          <summary>What is Session Protocol?</summary>
-
-          Session logs document agent work sessions and must comply with RFC 2119 requirements:
-
-          - **MUST**: Required for compliance (blocking failures)
-          - **SHOULD**: Recommended practices (warnings)
-          - **MAY**: Optional enhancements
-
-          See [`.agents/SESSION-PROTOCOL.md`](.agents/SESSION-PROTOCOL.md) for full specification.
-
-          </details>
-
-          ### Compliance Summary
-
-          | Session File | Verdict | MUST Failures |
-          |:-------------|:--------|:-------------:|
-          "@
-
-          # Add summary row for each session file
-          $verdictFiles = Get-ChildItem -Path "validation-results/*-verdict.txt" -ErrorAction SilentlyContinue
-          foreach ($verdictFile in $verdictFiles) {
-            $fileName = $verdictFile.BaseName -replace '-verdict$', ''
-            $verdict = (Get-Content $verdictFile.FullName -Raw).Trim()
-            $mustFile = "validation-results/$fileName-must-failures.txt"
-            $mustCount = if (Test-Path $mustFile) { (Get-Content $mustFile -Raw).Trim() } else { "0" }
-            $emoji = Get-VerdictEmoji -Verdict $verdict
-
-            $report += "`n| ``$fileName.md`` | $emoji $verdict | $mustCount |"
-          }
-
-          # Add detailed findings with expanded information
-          $report += "`n`n### Detailed Validation Results`n"
-          $report += "`nClick each session to see the complete validation report with specific requirement failures.`n"
-
-          $findingsFiles = Get-ChildItem -Path "validation-results/*-findings.txt" -ErrorAction SilentlyContinue
-          foreach ($findingsFile in $findingsFiles) {
-            $fileName = $findingsFile.BaseName -replace '-findings$', ''
-            $findings = Get-Content $findingsFile.FullName -Raw
-            
-            # Add direct link to the session file
-            $report += "`n<details>`n<summary>📄 $fileName</summary>`n`n"
-            $report += $findings
-            $report += "`n</details>`n"
-          }
-
-          # Add footer with improved messaging
-          $report += @"
-
-          ---
-
-          <details>
-          <summary>✨ Zero-Token Validation</summary>
-
-          This validation uses deterministic PowerShell script analysis instead of AI:
-
-          - ✅ **Zero tokens consumed** (previously 300K-900K per debug cycle)
-          - ✅ **Instant feedback** - see exact failures in this summary
-          - ✅ **No artifact downloads** needed to diagnose issues
-          - ✅ **10x-100x faster** debugging
-
-          Powered by [`Validate-SessionJson.ps1`](../../scripts/Validate-SessionJson.ps1)
-
-          </details>
-
-          <details>
-          <summary>📊 Run Details</summary>
-
-          | Property | Value |
-          |:---------|:------|
-          | **Run ID** | [$($env:RUN_ID)]($($env:SERVER_URL)/$($env:GITHUB_REPOSITORY)/actions/runs/$($env:RUN_ID)) |
-          | **Files Checked** | $filesChecked |
-          | **Validation Method** | Deterministic script analysis |
-
-          </details>
-
-          <sub>Powered by [Session Protocol Validator](https://github.com/$($env:GITHUB_REPOSITORY)) workflow</sub>
-          "@
-
-          $report | Set-Content $reportFile -Encoding UTF8
-          "report_file=$reportFile" >> $env:GITHUB_OUTPUT
+        run: python3 .github/scripts/generate_session_report.py
 
       - name: Post PR Comment
-        shell: pwsh -NoProfile -Command "& '{0}'"
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REPORT_FILE: ${{ steps.report.outputs.report_file }}
         run: |
-          # Use GitHub skill script for idempotent comment posting
-          # PRs are issues in GitHub API, so we use Post-IssueComment with marker
-          & .claude/skills/github/scripts/issue/Post-IssueComment.ps1 `
-            -Issue $env:PR_NUMBER `
-            -BodyFile $env:REPORT_FILE `
-            -Marker "AI-SESSION-PROTOCOL"
+          python3 .github/scripts/post_issue_comment.py \
+            --issue "$PR_NUMBER" \
+            --body-file "$REPORT_FILE" \
+            --marker "AI-SESSION-PROTOCOL"
 
       - name: Set Job Summary
         shell: pwsh -NoProfile -Command "& '{0}'"

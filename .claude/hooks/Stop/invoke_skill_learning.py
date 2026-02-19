@@ -1,6 +1,15 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 """
 Automatically extracts skill learnings from session conversation with LLM fallback.
+
+SETUP REQUIREMENTS:
+  - Python 3.12+ with anthropic package installed
+  - pyenv in PATH (recommended): Add to ~/.bashrc or ~/.zshrc:
+      export PATH="$HOME/.pyenv/bin:$PATH"
+      eval "$(pyenv init -)"
+  - OR: System Python 3.12+ with: pip install anthropic
+
+See .claude/hooks/Stop/README.md for detailed setup instructions.
 
 Claude Code Stop hook that analyzes conversations for skill-related learnings
 and updates skill observation memories automatically.
@@ -29,13 +38,12 @@ import re
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional
 
 # Base directory for all project operations to prevent path traversal / arbitrary writes
-# We treat the repository root (two levels up from this file) as the safe base.
-SAFE_BASE_DIR = Path(__file__).resolve().parents[2]
+# We treat the repository root (three levels up from this file) as the safe base.
+SAFE_BASE_DIR = Path(__file__).resolve().parents[3]
 OBSERVATIONS_SUFFIX = "-observations.md"
-PROJECT_DIR: Optional[Path] = None
+PROJECT_DIR: Path | None = None
 
 
 def _is_relative_to(path: Path, base: Path) -> bool:
@@ -55,7 +63,7 @@ def _is_relative_to(path: Path, base: Path) -> bool:
         return False
 
 
-def _validate_path_string(path_str: str) -> Optional[str]:
+def _validate_path_string(path_str: str) -> str | None:
     """
     Validate and sanitize path string BEFORE Path() construction.
 
@@ -121,54 +129,46 @@ def _get_safe_root_from_env(env_value: str) -> Path:
 
 
 # =============================================================================
-# SKILL PATTERN DEFINITIONS (Single Source of Truth)
+# SKILL PATTERN DEFINITIONS (Dynamically loaded from SKILL.md files)
 # =============================================================================
-# IMPORTANT: These patterns are used in 2 functions:
-#   1. detect_skill_usage() - Detects which skills were used in conversation
-#   2. check_skill_context() - Validates skill context for learning extraction
+# Patterns are loaded at runtime from SKILL.md trigger tables via
+# skill_pattern_loader.py. This eliminates manual maintenance when
+# skills are added, modified, or removed.
 #
-# If you add/modify patterns here, both functions automatically stay in sync.
-# The command_to_skill mapping below handles slash command -> skill resolution.
+# The loader scans:
+#   1. {project}/.claude/skills/*/SKILL.md  (Claude Code repo)
+#   2. {project}/.github/skills/*/SKILL.md  (Copilot/GitHub repo)
+#   3. ~/.claude/skills/*/SKILL.md          (Claude Code user)
+#   4. ~/.copilot/skills/*/SKILL.md         (Copilot CLI user)
+#
+# Graceful degradation: if loading fails, regex-based detection
+# (skill path patterns, slash commands) still works with empty dicts.
 # =============================================================================
 
-SKILL_PATTERNS: Dict[str, List[str]] = {
-    # GitHub skill: PR/issue operations, skill path, explicit mentions
-    'github': ['gh pr', 'gh issue', '.claude/skills/github', 'github skill', '/pr-review', 'pull request'],
-    # Memory skill: Forgetful, Serena, memory operations
-    'memory': ['search memory', 'forgetful', 'serena', 'memory-first', 'ADR-007', 'mcp__serena'],
-    # Session initialization
-    'session-init': ['/session-init', 'session log', 'session protocol', 'session-init skill'],
-    # SkillForge meta-skill
-    'SkillForge': ['SkillForge', 'create skill', 'synthesis panel', 'skill creation'],
-    # ADR review skill
-    'adr-review': ['adr-review', 'ADR files', 'architecture decision', 'decision record'],
-    # Incoherence detection
-    'incoherence': ['incoherence skill', 'detect incoherence', 'reconcile', 'incoherence detection'],
-    # Retrospective/reflection
-    'retrospective': ['retrospective', 'session end', 'retrospective skill'],
-    'reflect': ['reflect skill', 'learn from this', 'what did we learn', '/reflect'],
-    # PR comment handling
-    'pr-comment-responder': ['pr-comment-responder', 'review comments', 'feedback items', 'PR feedback'],
-    # Code review patterns
-    'code-review': ['code review skill', 'style guide', 'security patterns', 'review code'],
-    # API design patterns
-    'api-design': ['API design skill', 'REST API', 'API endpoint', 'API versioning'],
-    # Testing patterns - more specific to avoid false positives on generic "test"
-    'testing': ['test coverage', 'unit test', 'integration test', 'mocking', 'test assertion', 'testing skill'],
-    # Documentation - more specific patterns to avoid matching generic "documentation" text
-    'documentation': ['.claude/skills/documentation', 'documentation skill', 'write documentation', 'update docs', 'README update'],
-}
+SKILL_PATTERNS: dict[str, list[str]] = {}
+COMMAND_TO_SKILL: dict[str, str] = {}
+_patterns_loaded = False
 
-# Slash command to skill mapping
-COMMAND_TO_SKILL: Dict[str, str] = {
-    'pr-review': 'github',
-    'session-init': 'session-init',
-    'memory-search': 'memory',
-    'memory-list': 'memory',
-    'research': 'research-and-incorporate',
-    'reflect': 'reflect',
-    'forgetful': 'memory',
-}
+
+def _ensure_patterns_loaded(project_dir: Path) -> None:
+    """Lazy-load skill patterns from SKILL.md files on first use.
+
+    Uses stat-based caching for performance (~2ms warm, ~40ms cold).
+    Falls back silently to empty dicts if loading fails.
+    """
+    global SKILL_PATTERNS, COMMAND_TO_SKILL, _patterns_loaded
+    if _patterns_loaded:
+        return
+    try:
+        from skill_pattern_loader import load_skill_patterns
+        loaded_patterns, loaded_commands = load_skill_patterns(project_dir)
+        if loaded_patterns:
+            SKILL_PATTERNS = loaded_patterns
+        if loaded_commands:
+            COMMAND_TO_SKILL = loaded_commands
+    except Exception as exc:
+        print(f"Warning: Failed to load skill patterns: {exc}", file=sys.stderr)
+    _patterns_loaded = True
 
 # LLM fallback configuration
 CONFIDENCE_THRESHOLD = float(os.getenv("SKILL_LEARNING_CONFIDENCE_THRESHOLD", "0.7"))
@@ -252,7 +252,7 @@ def get_project_directory(hook_input: dict) -> str:
     return str(candidate)
 
 
-def get_safe_project_path(project_dir: str) -> Optional[Path]:
+def get_safe_project_path(project_dir: str) -> Path | None:
     """
     Resolve and validate the project directory against a safe root.
 
@@ -285,12 +285,12 @@ def get_safe_project_path(project_dir: str) -> Optional[Path]:
     return resolved_project
 
 
-def get_conversation_messages(hook_input: dict) -> List[dict]:
+def get_conversation_messages(hook_input: dict) -> list[dict]:
     """Extract messages from hook input conversation history."""
     return hook_input.get("messages", [])
 
 
-def detect_skill_usage(messages: List[dict]) -> Dict[str, int]:
+def detect_skill_usage(messages: list[dict]) -> dict[str, int]:
     """
     Detect skills mentioned or used in conversation.
 
@@ -361,7 +361,7 @@ def check_skill_context(text: str, skill: str) -> bool:
     return False
 
 
-def get_api_key() -> Optional[str]:
+def get_api_key() -> str | None:
     """Get Anthropic API key from environment or config files."""
     # Try environment variable first
     api_key = os.getenv("ANTHROPIC_API_KEY")
@@ -372,7 +372,7 @@ def get_api_key() -> Optional[str]:
     env_root = PROJECT_DIR
     if env_root is None:
         env_value = os.getenv("CLAUDE_PROJECT_DIR")
-        candidate_root: Optional[Path] = None
+        candidate_root: Path | None = None
         if env_value:
             try:
                 candidate_root = Path(env_value).resolve(strict=False)
@@ -399,7 +399,7 @@ def classify_learning_by_llm(
     assistant_msg: str,
     user_response: str,
     skill_name: str
-) -> Optional[Dict]:
+) -> dict | None:
     """
     Use Claude Haiku to classify uncertain learnings.
 
@@ -492,7 +492,7 @@ Respond in JSON format:
         return None
 
 
-def extract_learnings(messages: List[dict], skill_name: str) -> Dict[str, List[dict]]:
+def extract_learnings(messages: list[dict], skill_name: str) -> dict[str, list[dict]]:
     """
     Extract learnings from conversation with confidence scoring and LLM fallback.
 
@@ -751,7 +751,7 @@ def escape_replacement_string(text: str) -> str:
 def update_skill_memory(
     project_dir: Path,
     skill_name: str,
-    learnings: Dict[str, List[dict]],
+    learnings: dict[str, list[dict]],
     session_id: str
 ) -> bool:
     """
@@ -840,7 +840,7 @@ def update_skill_memory(
         constraint_items = ""
         for learning in learnings["High"]:
             source = escape_replacement_string(learning["source"])
-            method_tag = f" [LLM]" if learning.get("method") == "haiku-llm" else ""
+            method_tag = " [LLM]" if learning.get("method") == "haiku-llm" else ""
             constraint_items += f"- {source}{method_tag} (Session {session_id}, {today})\n"
 
         pattern = r'(## Constraints \(HIGH confidence\)\r?\n)'
@@ -854,7 +854,7 @@ def update_skill_memory(
         for learning in learnings["Med"]:
             if learning["type"] in ["success", "preference"]:
                 source = escape_replacement_string(learning["source"])
-                method_tag = f" [LLM]" if learning.get("method") == "haiku-llm" else ""
+                method_tag = " [LLM]" if learning.get("method") == "haiku-llm" else ""
                 preference_items += f"- {source}{method_tag} (Session {session_id}, {today})\n"
 
         if preference_items:
@@ -866,7 +866,7 @@ def update_skill_memory(
         for learning in learnings["Med"]:
             if learning["type"] in ["edge_case", "question"]:
                 source = escape_replacement_string(learning["source"])
-                method_tag = f" [LLM]" if learning.get("method") == "haiku-llm" else ""
+                method_tag = " [LLM]" if learning.get("method") == "haiku-llm" else ""
                 edge_case_items += f"- {source}{method_tag} (Session {session_id}, {today})\n"
 
         if edge_case_items:
@@ -878,7 +878,7 @@ def update_skill_memory(
         for learning in learnings["Med"]:
             if learning["type"] == "documentation":
                 source = escape_replacement_string(learning["source"])
-                method_tag = f" [LLM]" if learning.get("method") == "haiku-llm" else ""
+                method_tag = " [LLM]" if learning.get("method") == "haiku-llm" else ""
                 documentation_items += f"- {source}{method_tag} (Session {session_id}, {today})\n"
 
         if documentation_items:
@@ -901,7 +901,7 @@ def update_skill_memory(
             if learning["type"] not in handled_med_types:
                 source = escape_replacement_string(learning["source"])
                 learning_type = learning["type"]
-                method_tag = f" [LLM]" if learning.get("method") == "haiku-llm" else ""
+                method_tag = " [LLM]" if learning.get("method") == "haiku-llm" else ""
                 other_med_items += f"- [{learning_type}] {source}{method_tag} (Session {session_id}, {today})\n"
 
         if other_med_items:
@@ -955,6 +955,9 @@ def main():
 
         global PROJECT_DIR
         PROJECT_DIR = safe_project_path
+
+        # Load skill patterns dynamically from SKILL.md files
+        _ensure_patterns_loaded(safe_project_path)
 
         messages = get_conversation_messages(hook_input)
 

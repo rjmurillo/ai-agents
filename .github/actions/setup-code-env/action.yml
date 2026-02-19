@@ -6,9 +6,9 @@ inputs:
     description: 'GitHub token for GitHub CLI operations'
     required: true
   enable-pester:
-    description: 'Install Pester testing framework (default: true)'
+    description: 'Install Pester testing framework (default: false)'
     required: false
-    default: 'true'
+    default: 'false'
   enable-git-hooks:
     description: 'Enable git hooks configuration (default: true)'
     required: false

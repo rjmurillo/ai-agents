@@ -5,7 +5,7 @@
 **Agent**: pr-comment-responder
 **PR**: #556 - refactor(memory): decompose pr-comment-responder-skills into atomic skill files
 **Branch**: refactor/196-decompose-skills-memories
-**Worktree**: /home/claude/worktree-pr-556
+**Worktree**: worktree-pr-556
 **Status**: COMPLETE
 
 ## Protocol Compliance
@@ -35,7 +35,7 @@
 
 ## Context
 
-Working in dedicated worktree at `/home/claude/worktree-pr-556` on branch `refactor/196-decompose-skills-memories`.
+Working in dedicated worktree at `worktree-pr-556` on branch `refactor/196-decompose-skills-memories`.
 
 ### Unresolved Threads
 

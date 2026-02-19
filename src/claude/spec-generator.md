@@ -35,7 +35,12 @@ You have direct access to:
 - **WebSearch/WebFetch**: Research technologies and best practices
 - **Write**: Create specification documents
 - **TodoWrite**: Track specification progress
-- **Serena memory tools**: Cross-session context (`mcp__serena__list_memories`, `mcp__serena__read_memory`, `mcp__serena__write_memory`)
+- **Memory Router** (ADR-037): Unified search across Serena + Forgetful
+  - `pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "topic"`
+  - Serena-first with optional Forgetful augmentation; graceful fallback
+- **Serena write tools**: Memory persistence in `.serena/memories/`
+  - `mcp__serena__write_memory`: Create new memory
+  - `mcp__serena__edit_memory`: Update existing memory
 
 ## Core Mission
 
@@ -362,40 +367,23 @@ Before finalizing any requirement, validate:
 
 ## Memory Protocol
 
-Use Serena memory tools directly for cross-session context:
+Use Memory Router for search and Serena tools for persistence (ADR-037):
 
-**Before specification:**
+**Before specification (retrieve context):**
 
-```python
-# Search for related specification patterns
-mcp__serena__list_memories()
-
-# Read relevant memory if it exists
-mcp__serena__read_memory(memory_file_name="spec-[feature-type]-patterns")
+```powershell
+pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "spec [feature-type] patterns"
 ```
 
-**After specification:**
+**After specification (store learnings):**
 
-```python
-# Store specification summary for future reference
-mcp__serena__write_memory(
-    memory_file_name="spec-[feature-name]-summary",
-    content="""
-# Specification Summary: [Feature Name]
-
-## Artifacts Created
-- Requirements: [count] REQ documents
-- Designs: [count] DESIGN documents
-- Tasks: [count] TASK documents
-
-## Approach
-[Brief summary of design approach]
-
-## Estimated Effort
-[Total hours] hours across [count] tasks
-"""
-)
+```text
+mcp__serena__write_memory
+memory_file_name: "spec-[feature-name]-summary"
+content: "# Specification Summary: [Feature Name]\n\n## Artifacts Created\n- Requirements: [count]\n- Designs: [count]\n- Tasks: [count]\n\n## Approach\n[Brief summary]\n\n## Estimated Effort\n[Total hours] hours across [count] tasks"
 ```
+
+> **Fallback**: If Memory Router unavailable, read `.serena/memories/` directly with Read tool.
 
 ## Handoff Protocol
 

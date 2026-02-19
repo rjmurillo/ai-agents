@@ -245,7 +245,7 @@ Addresses PR review comments:
 1. **Batch operations are efficient**: Single reaction call for 3 comments vs 3 separate calls
 2. **ADR review can be streamlined**: For well-structured ADRs, single-round review with combined perspective is sufficient vs full 6-agent multi-round debate
 3. **Outdated comments need verification**: GitHub API `IsOutdated` field prevents wasted effort on obsolete threads
-4. **Session logs go in main repo**: Session logs must be in `/home/claude/ai-agents/.agents/sessions/`, not worktree path
+4. **Session logs go in main repo**: Session logs must be in `.agents/sessions/`, not worktree path
 
 ## Next Steps
 

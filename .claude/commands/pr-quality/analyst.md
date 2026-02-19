@@ -1,6 +1,6 @@
 ---
 description: Use when performing local analyst review before pushing PR changes. Assesses code quality, impact analysis, and maintainability.
-argument-hint: [--base BRANCH]
+argument-hint: [BASE_BRANCH]
 allowed-tools:
   - Bash(git:*)
   - Read
@@ -20,7 +20,7 @@ Run the analyst quality gate locally on your current changes before pushing.
 ### Branch Information
 
 - Current branch: !`git branch --show-current`
-- Base branch: ${1:-main}
+- Base branch: $ARGUMENTS or main
 
 ### Review Criteria
 
@@ -28,11 +28,13 @@ Apply the criteria from: @.github/prompts/pr-quality-gate-analyst.md
 
 ### Changed Files
 
-!`git diff "${1:-main}" --name-only`
+<!-- NOTE: !` backtick commands run at PREPROCESSING time in an isolated shell.
+     $ARGUMENTS is NOT available here (only in prompt text substitution). See #1088. -->
+!`git diff main --name-only`
 
 ### Full Diff
 
-!`git diff "${1:-main}"`
+!`git diff main`
 
 ## Output Format
 

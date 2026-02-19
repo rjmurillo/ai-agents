@@ -11,8 +11,10 @@ Thank you for your interest in contributing to this project. This guide explains
 - [How to Add a New Agent](#how-to-add-a-new-agent)
 - [Platform Configuration](#platform-configuration)
 - [Pre-Commit Hooks](#pre-commit-hooks)
+- [Pre-Push Hooks](#pre-push-hooks)
 - [Session Protocol](#session-protocol)
 - [Running Tests](#running-tests)
+- [Copilot CLI Version Management](#copilot-cli-version-management)
 - [Pull Request Guidelines](#pull-request-guidelines)
   - [Commit Count Thresholds](#commit-count-thresholds)
 
@@ -72,11 +74,11 @@ python3 --version  # Should show Python 3.12.8
 3. **Install Python 3.12.x** (see Prerequisites above)
 4. **Set up Python environment**: `uv venv && uv pip install -e ".[dev]"`
 5. Configure Git for cross-platform development (see [Git Configuration](#git-configuration) below)
-6. Set up pre-commit hooks: `git config core.hooksPath .githooks`
+6. Set up git hooks (pre-commit + pre-push): `git config core.hooksPath .githooks`
 7. Make your changes following the guidelines below
 8. Submit a pull request
 
-**After setup, quality gates are automated.** Pre-commit hooks run ruff (Python) and markdownlint. CI runs full test suites. No manual test commands needed for routine development.
+**After setup, quality gates are automated.** Pre-commit hooks run ruff (Python) and markdownlint on staged files. Pre-push hooks run full test suites, drift detection, and security scans before each push. CI runs the complete validation suite. No manual test commands needed for routine development.
 
 ## Git Configuration
 
@@ -227,6 +229,7 @@ Use this template structure (see existing agents in `templates/agents/` for exam
 ```yaml
 ---
 description: Brief description of the agent's purpose
+argument-hint: Describe the input expected from the user
 tools_vscode:
   - vscode
   - read
@@ -316,7 +319,7 @@ outputDir: src/vs-code-agents
 fileExtension: .agent.md
 
 frontmatter:
-  model: "Claude Opus 4.5 (anthropic)"
+  model: "Claude Opus 4.5 (copilot)"
   includeNameField: false
 
 handoffSyntax: "#runSubagent"
@@ -330,7 +333,8 @@ outputDir: src/copilot-cli
 fileExtension: .agent.md
 
 frontmatter:
-  model: null
+  # Copilot CLI model: use CLI model identifiers (not VS Code display names)
+  model: "claude-opus-4.5"
   includeNameField: true
 
 handoffSyntax: "/agent"
@@ -340,10 +344,13 @@ handoffSyntax: "/agent"
 
 | Feature | VS Code | Copilot CLI |
 |---------|---------|-------------|
-| Model field | Required | Not used |
-| Name field | Not used | Required |
+| Model field | `Claude Opus 4.5 (copilot)` | `claude-opus-4.5` |
+| Name field | Not included | Required |
 | Handoff syntax | `#runSubagent` | `/agent` |
 | Tools prefix | `tools_vscode` | `tools_copilot` |
+| `argument-hint` | Included | Included |
+
+> **Note:** The Copilot CLI `model` frontmatter field is accepted but does not control runtime model selection on version 0.0.397. The `--model` CLI flag is required. See ADR-044 for details.
 
 ## Important: Do Not Edit Generated Files
 
@@ -381,13 +388,46 @@ pwsh build/Generate-Agents.ps1 -Verbose
 
 ## Pre-Commit Hooks
 
-Enable markdown linting auto-fix on commits:
+Enable automated validation on commits:
 
 ```bash
 git config core.hooksPath .githooks
 ```
 
-This automatically fixes markdown violations before each commit. See [docs/markdown-linting.md](docs/markdown-linting.md) for details.
+The pre-commit hook automatically runs checks including, depending on staged files:
+
+- **markdownlint**: Fixes markdown violations before each commit. See [docs/markdown-linting.md](docs/markdown-linting.md) for details.
+- **PSScriptAnalyzer**: Validates PowerShell (`.ps1`/`.psm1`) scripts for syntax errors and coding standard violations. Error-level issues block commits; warnings are displayed but non-blocking. Skips gracefully if PowerShell is not installed.
+  - **Install**: `pwsh -Command 'Install-Module -Name PSScriptAnalyzer -Scope CurrentUser -Force'`
+- **ruff**: Lints Python files for style and common issues when Python files are staged.
+- **actionlint**: Validates GitHub Actions workflow files (`.github/workflows/*.yml`) when they are staged.
+- **yamllint**: Validates general YAML files when they are staged.
+
+Refer to `.githooks/pre-commit` for the authoritative, up-to-date list of all checks.
+
+## Pre-Push Hooks
+
+The pre-push hook runs comprehensive branch-wide validation before each push. Unlike the pre-commit hook (which checks staged files), the pre-push hook validates all changes in the push range.
+
+**Checks run in order:**
+
+| Phase | Checks | Blocking |
+|-------|--------|----------|
+| **Fast Guards** | Branch guard, commit count (max 20), changed files count, total additions | Yes |
+| **Linting** | markdownlint, ruff, mypy, actionlint, yamllint | Yes (except yamllint) |
+| **Build Validation** | Agent generation drift, agent drift detection, path normalization | Yes |
+| **Tests** | Full Pester suite, pytest | Yes |
+| **Security** | Suppression comment detection, session log validation | Yes |
+| **Governance** | Planning artifacts, ADR review reminder | Warn only |
+
+**Environment variables:**
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `SKIP_PREPUSH` | 0 | Set to 1 to bypass all checks (emergency only) |
+| `SKIP_TESTS` | 0 | Skip Pester and pytest (for documentation-only pushes) |
+
+Refer to `.githooks/pre-push` for the authoritative, up-to-date list of all checks.
 
 ## Session Protocol
 
@@ -425,6 +465,7 @@ The repository enforces quality automatically at multiple stages:
 | Stage | What Runs | Trigger |
 |-------|-----------|---------|
 | **Pre-commit hook** | Python linting (ruff), Markdown linting | Every commit |
+| **Pre-push hook** | Full Pester + pytest, drift detection, lint, security scans | Every push |
 | **CI pytest.yml** | pytest, pip-audit, bandit | Every PR/push |
 | **CI pester.yml** | Pester tests | Every PR/push |
 
@@ -464,6 +505,73 @@ pwsh build/scripts/Invoke-PesterTests.ps1 -TestPath "./tests/Validate-SessionJso
 # Run generation tests
 pwsh build/scripts/Invoke-PesterTests.ps1 -TestPath "./build/tests/Generate-Agents.Tests.ps1"
 ```
+
+## Copilot CLI Version Management
+
+The CI pipeline uses GitHub Copilot CLI to run agent reviews. The CLI version is pinned to prevent regressions from auto-updates.
+
+### Current Pin
+
+The CI action (`.github/actions/ai-review/action.yml`) pins `@github/copilot@0.0.397` with `--no-auto-update` on all invocations. This is documented in [ADR-044](.agents/architecture/ADR-044-copilot-cli-frontmatter-compatibility.md).
+
+### Why Version Pinning
+
+Copilot CLI's npm package contains a loader that delegates to a platform-specific binary. This binary auto-updates independently of the npm package version. npm version pinning alone is insufficient; the `--no-auto-update` flag prevents the binary from self-updating during CI runs.
+
+### Validating Agent Frontmatter
+
+After modifying agent templates or platform configs, validate agents load correctly:
+
+```bash
+# Check installed version
+copilot --no-auto-update --version
+
+# Test a single agent with debug logging (check for warnings)
+copilot --no-auto-update --log-level all --agent analyst --prompt "Reply with only the word OK"
+
+# Test all shared agents
+for agent in analyst architect backlog-generator critic devops explainer high-level-advisor implementer independent-thinker memory milestone-planner orchestrator pr-comment-responder qa retrospective roadmap security skillbook task-decomposer; do
+  copilot --no-auto-update --log-level all --agent "$agent" --prompt "Reply OK" 2>&1 | grep -i warning && echo "FAIL: $agent" || echo "PASS: $agent"
+done
+```
+
+### Local Workflow Testing with gh act
+
+Use `gh act` (nektos/gh-act) to simulate CI workflows locally:
+
+```bash
+# Install gh act extension (one time)
+gh extension install nektos/gh-act
+
+# Pull Docker image (one time, ~600MB)
+docker pull catthehacker/ubuntu:act-latest
+
+# Dry run (validate workflow structure)
+gh act pull_request -n -W .github/workflows/ai-pr-quality-gate.yml
+
+# Full run (single job)
+TOKEN=$(gh auth token)
+gh act pull_request \
+  -j "analyst-review" \
+  -W .github/workflows/ai-pr-quality-gate.yml \
+  -s "GITHUB_TOKEN=$TOKEN" \
+  -s "BOT_PAT=$TOKEN" \
+  -P ubuntu-latest=catthehacker/ubuntu:act-latest
+```
+
+**Known limitation:** PowerShell composite action steps fail with "Exec format error" in `act`. This is a known `act` limitation, not a workflow bug. The Copilot CLI install and agent invocation steps run correctly.
+
+### Upgrading the Copilot CLI Pin
+
+When the upstream regression ([github/copilot-cli#1195](https://github.com/github/copilot-cli/issues/1195)) is fixed:
+
+1. Install the new version locally: `npm install -g @github/copilot@X.Y.Z`
+2. Run the agent validation loop above
+3. Update the version in `.github/actions/ai-review/action.yml`
+4. Run `gh act` dry-run to validate workflow structure
+5. Update ADR-044 with the new version and test results
+
+See `.serena/memories/copilot-cli-frontmatter-regression-runbook.md` for the full diagnostic runbook.
 
 ## Pull Request Guidelines
 

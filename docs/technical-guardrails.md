@@ -28,7 +28,7 @@ Pre-commit hooks run automatically before every commit to enforce protocol compl
 
 - HANDOFF.md must be staged
 - Session log must be staged
-- Session log must pass `Validate-SessionJson.ps1`
+- Session log must pass `validate_session_json.py`
 
 **Bypass**: `git commit --no-verify` (use sparingly, logged)
 
@@ -36,7 +36,7 @@ Pre-commit hooks run automatically before every commit to enforce protocol compl
 
 **Location**: `.githooks/pre-commit` (lines 493-511)
 
-**Script**: `scripts/Detect-SkillViolation.ps1`
+**Script**: `scripts/detect_skill_violation.py`
 
 **When**: Any files are staged
 
@@ -312,13 +312,9 @@ winget install Microsoft.PowerShell
 
 **Debug**:
 
-```powershell
-# Run script directly with verbose output
-pwsh -NoProfile -File scripts/Detect-SkillViolation.ps1 -Verbose
-
-# Check script syntax
-Get-Content scripts/Detect-SkillViolation.ps1 -Raw | 
-  Invoke-Expression -ErrorAction Continue
+```bash
+# Run script directly
+python3 scripts/detect_skill_violation.py
 ```
 
 ## Related Documents

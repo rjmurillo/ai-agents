@@ -146,14 +146,14 @@ All agents now have 1:1 parity across all three platforms:
 | `independent-thinker.agent.md` | `independent-thinker.agent.md` | `independent-thinker.md` |
 | `memory.agent.md` | `memory.agent.md` | `memory.md` |
 | `orchestrator.agent.md` | `orchestrator.agent.md` | `orchestrator.md` |
-| `planner.agent.md` | `planner.agent.md` | `planner.md` |
+| `milestone-planner.agent.md` | `milestone-planner.agent.md` | `milestone-planner.md` |
 | `pr-comment-responder.agent.md` | `pr-comment-responder.agent.md` | `pr-comment-responder.md` |
 | `qa.agent.md` | `qa.agent.md` | `qa.md` |
 | `retrospective.agent.md` | `retrospective.agent.md` | `retrospective.md` |
 | `roadmap.agent.md` | `roadmap.agent.md` | `roadmap.md` |
 | `security.agent.md` | `security.agent.md` | `security.md` |
 | `skillbook.agent.md` | `skillbook.agent.md` | `skillbook.md` |
-| `task-generator.agent.md` | `task-generator.agent.md` | `task-generator.md` |
+| `task-decomposer.agent.md` | `task-decomposer.agent.md` | `task-decomposer.md` |
 
 ## Flagging Drift
 

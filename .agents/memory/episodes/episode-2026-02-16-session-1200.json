@@ -1,0 +1,27 @@
+{
+  "id": "episode-2026-02-16-session-1200",
+  "session": "2026-02-16-session-1200",
+  "timestamp": "2026-02-16T21:33:45.548206+00:00",
+  "outcome": "failure",
+  "task": "",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-02-16T21:33:45.542128+00:00",
+      "type": "error",
+      "content": "\"markdownLint\": \"0 errors on changed files\",",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 1,
+    "recoveries": 0,
+    "commits": 2,
+    "files_changed": 0
+  },
+  "lessons": []
+}

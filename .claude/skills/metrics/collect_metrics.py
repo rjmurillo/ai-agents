@@ -22,7 +22,7 @@ import sys
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 
 def validate_and_resolve_path(path_str: str, allowed_base: Path) -> Path | None:
@@ -57,7 +57,8 @@ def validate_and_resolve_path(path_str: str, allowed_base: Path) -> Path | None:
 # Agent patterns to detect in commit messages and PR descriptions
 AGENT_PATTERNS = [
     r"(?i)\b(orchestrator|analyst|architect|implementer|security|qa|devops|"
-    r"critic|planner|explainer|task-generator|high-level-advisor|"
+    r"critic|milestone-planner|planner|explainer|task-decomposer|task-generator|"
+    r"backlog-generator|high-level-advisor|"
     r"independent-thinker|memory|skillbook|retrospective|roadmap|"
     r"pr-comment-responder)\b\s*(agent)?",
     r"(?i)reviewed\s+by:?\s*(security|architect|analyst|qa|implementer)",
@@ -236,7 +237,11 @@ def collect_metrics(repo_path: str = ".", days: int = 30) -> dict[str, Any]:
             "agents": {
                 agent: {
                     "count": count,
-                    "rate": round(count / total_invocations * 100, 1) if total_invocations > 0 else 0,
+                    "rate": (
+                        round(count / total_invocations * 100, 1)
+                        if total_invocations > 0
+                        else 0
+                    ),
                 }
                 for agent, count in agent_invocations.most_common()
             },
@@ -247,15 +252,26 @@ def collect_metrics(repo_path: str = ".", days: int = 30) -> dict[str, Any]:
         "metric_2_coverage": {
             "total_commits": total_commits,
             "commits_with_agent": commits_with_agents,
-            "coverage_rate": round(commits_with_agents / total_commits * 100, 1) if total_commits > 0 else 0,
+            "coverage_rate": (
+                round(commits_with_agents / total_commits * 100, 1)
+                if total_commits > 0
+                else 0
+            ),
             "target": 50,
             "by_type": {
                 commit_type: {
                     "total": commits_by_type[commit_type],
                     "with_agent": commits_with_agent_by_type[commit_type],
-                    "rate": round(
-                        commits_with_agent_by_type[commit_type] / commits_by_type[commit_type] * 100, 1
-                    ) if commits_by_type[commit_type] > 0 else 0,
+                    "rate": (
+                        round(
+                            commits_with_agent_by_type[commit_type]
+                            / commits_by_type[commit_type]
+                            * 100,
+                            1,
+                        )
+                        if commits_by_type[commit_type] > 0
+                        else 0
+                    ),
                 }
                 for commit_type in commits_by_type
             },
@@ -279,11 +295,13 @@ def collect_metrics(repo_path: str = ".", days: int = 30) -> dict[str, Any]:
     }
 
     # Add status indicators
-    coverage_rate = metrics["metric_2_coverage"]["coverage_rate"]
-    metrics["metric_2_coverage"]["status"] = "on_track" if coverage_rate >= 50 else "behind"
+    coverage_metrics = cast(dict[str, Any], metrics["metric_2_coverage"])
+    coverage_rate = cast(float, coverage_metrics["coverage_rate"])
+    coverage_metrics["status"] = "on_track" if coverage_rate >= 50 else "behind"
 
-    infra_rate = metrics["metric_4_infrastructure_review"]["review_rate"]
-    metrics["metric_4_infrastructure_review"]["status"] = "on_track" if infra_rate >= 100 else "behind"
+    infra_metrics = cast(dict[str, Any], metrics["metric_4_infrastructure_review"])
+    infra_rate = cast(float, infra_metrics["review_rate"])
+    infra_metrics["status"] = "on_track" if infra_rate >= 100 else "behind"
 
     return metrics
 
@@ -453,7 +471,11 @@ def main():
     # SECURITY: Validate path safety and resolve to trusted path (prevents CWE-22)
     repo_path = validate_and_resolve_path(args.repo, allowed_base=Path.cwd())
     if repo_path is None:
-        print(f"Error: {args.repo} contains unsafe characters or is outside allowed directory", file=sys.stderr)
+        print(
+            f"Error: {args.repo} contains unsafe characters "
+            "or is outside allowed directory",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     if not (repo_path / ".git").exists():

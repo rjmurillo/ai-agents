@@ -1,11 +1,13 @@
 ---
-description: Save current context as atomic memory in Forgetful with structured fields. Use when capturing learnings, decisions, or patterns for cross-session retrieval.
+description: "DEPRECATED: Use Serena write_memory instead. Save current context as atomic memory in Forgetful."
 argument-hint: [optional guidance for what to save]
 allowed-tools:
   - mcp__forgetful__*
 ---
 
 # Save Memory
+
+> **Deprecated**: Use `mcp__serena__write_memory` for memory creation. See [Memory Interface Decision Matrix](../../../CLAUDE.md#memory-interface-decision-matrix).
 
 Create an atomic memory from the current conversation context.
 

@@ -1,8 +1,14 @@
-# Orphan Detection Report Format
+---
+type: governance
+id: orphan-report-format
+status: active
+version: 1.0.0
+created: 2025-12-31
+related:
+  - traceability-schema.md
+---
 
-> **Version**: 1.0.0
-> **Created**: 2025-12-31
-> **Related**: [traceability-schema.md](traceability-schema.md)
+# Orphan Detection Report Format
 
 ## Overview
 

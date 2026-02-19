@@ -99,14 +99,16 @@ Each validation in the hook follows these principles:
 
 ```text
 .githooks/pre-commit
-├── Markdown Linting        # BLOCKING: Critical syntax errors
-├── PowerShell Analysis     # BLOCKING: Error-level issues, WARNING: Best practices
-├── Planning Validation     # WARNING: Consistency issues
-├── Consistency Validation  # WARNING: Cross-document issues
-├── MCP Config Sync         # AUTO-FIX: Transform and stage
-├── Security Detection      # WARNING: Infrastructure changes
-├── Bash Detection          # BLOCKING: ADR-005 enforcement
-└── Session End Validation  # BLOCKING: Protocol compliance
+├── Markdown Linting            # BLOCKING: Critical syntax errors
+├── PowerShell Analysis         # BLOCKING: Error-level issues, WARNING: Best practices
+├── Planning Validation         # WARNING: Consistency issues
+├── Consistency Validation      # WARNING: Cross-document issues
+├── MCP Config Sync             # AUTO-FIX: Transform and stage
+├── Skill Validation            # BLOCKING: SkillForge 4.0 standards
+├── Skill Frontmatter Validation # BLOCKING: YAML syntax, field constraints
+├── Security Detection          # WARNING: Infrastructure changes
+├── Bash Detection              # BLOCKING: ADR-005 enforcement
+└── Session End Validation      # BLOCKING: Protocol compliance
 ```
 
 ### Guidelines for New Validations

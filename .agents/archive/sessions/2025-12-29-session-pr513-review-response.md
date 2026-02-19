@@ -4,7 +4,7 @@
 **Agent**: pr-comment-responder
 **PR**: #513 - refactor: consolidate rate limit code into reusable function (DRY)
 **Branch**: refactor/273-dry-rate-limit-code
-**Worktree**: /home/richard/worktree-pr-513
+**Worktree**: worktree-pr-513
 
 ## Protocol Compliance
 

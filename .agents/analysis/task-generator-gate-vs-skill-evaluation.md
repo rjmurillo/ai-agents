@@ -142,7 +142,7 @@ The task-generator agent consistently produces TASK-NNN format and is being invo
 **Anti-Pattern**: Relative location references like "after Task X" (line 83)
 
 **Correct Pattern**: Absolute references
-- File path: `/home/richard/ai-agents/path/to/file.ps1`
+- File path: `path/to/file.ps1`
 - Line number: "Line 1268"
 - Search pattern: "Search for `$isCopilotPR =`"
 

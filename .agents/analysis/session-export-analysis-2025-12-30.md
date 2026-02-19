@@ -273,9 +273,9 @@ This reduces ambiguity and maintenance burden.
 - session-checkpoint-manager: Resume interrupted workflows
 
 **Evidence**:
-> "Base directory for this skill: /home/claude/ai-agents/.claude/skills/session-log-fixer" (Session 6313bfde)
+> "Base directory for this skill: .claude/skills/session-log-fixer" (Session 6313bfde)
 
-> "Base directory for this skill: /home/claude/ai-agents/.claude/skills/adr-review" (Session 0bdde4a5)
+> "Base directory for this skill: .claude/skills/adr-review" (Session 0bdde4a5)
 
 #### Prompts
 

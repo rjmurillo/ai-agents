@@ -60,8 +60,8 @@ Return to orchestrator with structured recommendations:
 [If ADR accepted and implementation planning needed]
 
 **Recommend orchestrator routes to**:
-- planner: Create implementation work packages
-- task-generator: Break into atomic tasks
+- milestone-planner: Create implementation work packages
+- task-decomposer: Break into atomic tasks
 - None: ADR is informational only
 ```
 

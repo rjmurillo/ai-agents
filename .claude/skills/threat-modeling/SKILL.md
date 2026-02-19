@@ -1,10 +1,9 @@
 ---
 name: threat-modeling
+version: 1.0.0
+model: claude-sonnet-4-5
 description: Structured security analysis using OWASP Four-Question Framework and STRIDE methodology. Generates threat matrices with risk ratings, mitigations, and prioritization. Use for attack surface analysis, security architecture review, or when asking what can go wrong.
 license: MIT
-metadata:
-  version: 1.0.0
-  model: claude-sonnet-4-5
 ---
 
 # Threat Modeling
@@ -53,6 +52,25 @@ Systematic identification, documentation, and mitigation of security threats.
         Data Flows             Kill Chains           Mitigations         Document
         Assets                 Attack Trees          Risk Ratings
 ```
+
+---
+
+## When to Use
+
+Use this skill when:
+
+- Designing new features that handle sensitive data or authentication
+- Reviewing architecture for security vulnerabilities
+- After a security incident to identify additional attack vectors
+- Before a security audit to prepare documentation
+
+Use [security-detection](../security-detection/SKILL.md) instead when:
+
+- Detecting security-critical file changes in a PR (automated scanning)
+
+Use [pre-mortem](../pre-mortem/SKILL.md) instead when:
+
+- Identifying general project risks, not specifically security threats
 
 ---
 

@@ -5,6 +5,11 @@
 # Build artifacts
 artifacts/
 coverage.xml
+.coverage
+testResults.xml
+
+# Runtime caches
+.cache/
 
 # Python (ADR-042)
 __pycache__/
@@ -17,6 +22,7 @@ venv/
 ENV/
 .mypy_cache/
 .pytest_cache/
+.pytest_tmp/
 .ruff_cache/
 dist/
 build/
@@ -28,8 +34,9 @@ build/
 .agents/logs/
 .agents/.hook-state/
 
-# Hook runtime logs
+# Hook runtime logs and caches
 .claude/hooks/audit.log
+.claude/hooks/Stop/.skill_pattern_cache.json
 
 # IDE settings
 .idea/
@@ -65,3 +72,11 @@ worktree--/
 .codeql/db/
 .codeql/results/
 .codeql/logs/
+
+# Traceability cache
+.agents/.cache/
+
+# Memory sync runtime state (Issue #747)
+.memory_sync_queue.json
+.memory_sync_state.json
+

@@ -75,7 +75,7 @@ Phase gates are explicit checkpoints within skills that **force structured re-ev
 **Pass criteria**: Review verdict documented in output
 ```
 
-**Example skills**: planner (review phase), prompt-engineer
+**Example skills**: milestone-planner (review phase), prompt-engineer
 
 ---
 
@@ -98,7 +98,7 @@ Phase gates are explicit checkpoints within skills that **force structured re-ev
 **Pass criteria**: File path in output
 ```
 
-**Example skills**: planner (plan file), analyze (findings file)
+**Example skills**: milestone-planner (plan file), analyze (findings file)
 
 ---
 
@@ -189,7 +189,7 @@ This format is validated by downstream consumers.
 
 ## Reference Implementation: Planner Skill
 
-The planner skill demonstrates all gate types:
+The milestone-planner skill demonstrates all gate types:
 
 | Phase | Gate | Type | Enforcement |
 |-------|------|------|-------------|
@@ -198,7 +198,7 @@ The planner skill demonstrates all gate types:
 | Review Step 2 | Review | QR review required | Script emits verdict |
 | Review → Execution | Verification | PASS verdict required | Script checks status |
 
-See: `.claude/skills/planner/SKILL.md`
+See: `.claude/skills/milestone-planner/SKILL.md`
 
 ---
 
@@ -220,7 +220,7 @@ When adding phase gates to a skill:
 
 | Skill | Evidence | Verification | Review | Documentation | Status |
 |-------|----------|--------------|--------|---------------|--------|
-| planner | - | - | Yes | Yes | Compliant |
+| milestone-planner | - | - | Yes | Yes | Compliant |
 | merge-resolver | Required | Required | - | - | Pending |
 | analyze | Required | - | - | Required | Pending |
 | session-log-fixer | - | Required | - | - | Pending |

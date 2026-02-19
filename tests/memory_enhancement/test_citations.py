@@ -1,277 +1,256 @@
-"""Unit tests for citation verification logic."""
+"""Tests for memory_enhancement.citations."""
+
+from __future__ import annotations
+
+from pathlib import Path
+from unittest.mock import patch
 
 import pytest
-from pathlib import Path
 
-from scripts.memory_enhancement.citations import (
+from memory_enhancement.citations import (
+    VerificationResult,
+    verify_all_memories,
     verify_citation,
     verify_memory,
-    verify_all_memories,
 )
-from scripts.memory_enhancement.models import Citation, Memory
-
-
-@pytest.mark.unit
-def test_verify_citation_file_exists(tmp_repo):
-    """Test file-only citation passes when file exists."""
-    citation = Citation(path="README.md")
-    result = verify_citation(citation, tmp_repo)
-
-    assert result.valid is True
-    assert result.mismatch_reason is None
-
-
-@pytest.mark.unit
-def test_verify_citation_file_not_found(tmp_repo):
-    """Test missing file fails with reason."""
-    citation = Citation(path="nonexistent.py", line=1)
-    result = verify_citation(citation, tmp_repo)
-
-    assert result.valid is False
-    assert "File not found" in result.mismatch_reason
-
-
-@pytest.mark.unit
-def test_verify_citation_line_valid(tmp_repo):
-    """Test line number within bounds passes."""
-    citation = Citation(path="scripts/sample.py", line=1)
-    result = verify_citation(citation, tmp_repo)
-
-    assert result.valid is True
-    assert result.mismatch_reason is None
-
-
-@pytest.mark.unit
-def test_verify_citation_line_out_of_bounds(tmp_repo):
-    """Test line exceeding file length fails."""
-    citation = Citation(path="scripts/sample.py", line=999)
-    result = verify_citation(citation, tmp_repo)
-
-    assert result.valid is False
-    assert "exceeds file length" in result.mismatch_reason
-
-
-@pytest.mark.unit
-def test_verify_citation_snippet_match(tmp_repo):
-    """Test snippet contained in line passes."""
-    citation = Citation(path="scripts/sample.py", line=1, snippet="def hello()")
-    result = verify_citation(citation, tmp_repo)
-
-    assert result.valid is True
-    assert result.mismatch_reason is None
-
-
-@pytest.mark.unit
-def test_verify_citation_snippet_mismatch(tmp_repo):
-    """Test snippet not in line fails."""
-    citation = Citation(path="scripts/sample.py", line=1, snippet="def goodbye()")
-    result = verify_citation(citation, tmp_repo)
-
-    assert result.valid is False
-    assert "Snippet not found" in result.mismatch_reason
-
-
-@pytest.mark.unit
-def test_verify_citation_invalid_line_number(tmp_repo):
-    """Test line < 1 fails."""
-    citation = Citation(path="scripts/sample.py", line=0)
-    result = verify_citation(citation, tmp_repo)
-
-    assert result.valid is False
-    assert "Invalid line number" in result.mismatch_reason
-
-
-@pytest.mark.unit
-def test_verify_memory_all_valid(sample_memory_file):
-    """Test memory with all valid citations."""
-    memory = Memory.from_serena_file(sample_memory_file)
-
-    # Use parent directory as repo root (where sample files exist)
-    repo_root = sample_memory_file.parent
-    result = verify_memory(memory, repo_root)
-
-    assert result.valid is True
-    assert result.total_citations == 2
-    assert result.valid_count == 2
-    assert len(result.stale_citations) == 0
-    assert result.confidence == 1.0
-
-
-@pytest.mark.unit
-def test_verify_memory_some_stale(sample_memory_stale):
-    """Test memory with mixed validity."""
-    memory = Memory.from_serena_file(sample_memory_stale)
-
-    repo_root = sample_memory_stale.parent
-    result = verify_memory(memory, repo_root)
-
-    assert result.valid is False
-    assert result.total_citations == 2
-    assert result.valid_count == 0  # Both citations are invalid
-    assert len(result.stale_citations) == 2
-    assert result.confidence == 0.0  # 0/2 valid
-
-
-@pytest.mark.unit
-def test_verify_memory_no_citations(sample_memory_no_citations):
-    """Test memory without citations uses existing confidence."""
-    memory = Memory.from_serena_file(sample_memory_no_citations)
-
-    repo_root = sample_memory_no_citations.parent
-    result = verify_memory(memory, repo_root)
-
-    assert result.valid is True
-    assert result.total_citations == 0
-    assert result.valid_count == 0
-    assert len(result.stale_citations) == 0
-    assert result.confidence == 1.0  # Uses memory's confidence
-
-
-@pytest.mark.unit
-def test_verify_memory_confidence_calculation(tmp_path):
-    """Test confidence calculation based on validity ratio."""
-    memory_content = """---
-id: test-partial
-subject: Partial Validity
-citations:
-  - path: exists.py
-  - path: missing1.py
-  - path: missing2.py
-  - path: missing3.py
-confidence: 0.5
----
-
-# Partial
-"""
-    memory_file = tmp_path / "test-partial.md"
-    memory_file.write_text(memory_content)
-
-    # Create only one file
-    (tmp_path / "exists.py").write_text("# exists")
-
-    memory = Memory.from_serena_file(memory_file)
-    result = verify_memory(memory, tmp_path)
-
-    # 1 valid out of 4 = 0.25
-    assert result.total_citations == 4
-    assert result.valid_count == 1
-    assert result.confidence == 0.25
-
-
-@pytest.mark.unit
-def test_verify_all_memories(tmp_path):
-    """Test batch verification of directory."""
-    # Create memories directory
-    memories_dir = tmp_path / "memories"
-    memories_dir.mkdir()
-
-    # Create valid memory
-    valid_content = """---
-id: valid-mem
-subject: Valid Memory
-citations:
-  - path: valid.py
----
-
-# Valid
-"""
-    (memories_dir / "valid-mem.md").write_text(valid_content)
-
-    # Create stale memory
-    stale_content = """---
-id: stale-mem
-subject: Stale Memory
-citations:
-  - path: nonexistent.py
-    line: 1
----
-
-# Stale
-"""
-    (memories_dir / "stale-mem.md").write_text(stale_content)
-
-    # Create the valid file
-    (tmp_path / "valid.py").write_text("# valid")
-
-    verify_result = verify_all_memories(memories_dir, tmp_path)
-    results = verify_result.results
-
-    assert len(results) == 2
-    assert sum(1 for r in results if r.valid) == 1
-    assert sum(1 for r in results if not r.valid) == 1
-    assert verify_result.parse_failures == 0
-
-
-@pytest.mark.unit
-def test_verify_all_memories_skip_no_citations(tmp_path):
-    """Test that memories without citations are skipped."""
-    memories_dir = tmp_path / "memories"
-    memories_dir.mkdir()
-
-    # Memory with citations
-    with_cit = """---
-id: with-cit
-citations:
-  - path: test.py
----
-
-# With
-"""
-    (memories_dir / "with-cit.md").write_text(with_cit)
-    (tmp_path / "test.py").write_text("# test")
-
-    # Memory without citations
-    no_cit = """---
-id: no-cit
----
-
-# No citations
-"""
-    (memories_dir / "no-cit.md").write_text(no_cit)
-
-    verify_result = verify_all_memories(memories_dir, tmp_path)
-    results = verify_result.results
-
-    # Only the memory with citations should be included
-    assert len(results) == 1
-    assert results[0].memory_id == "with-cit"
-    assert verify_result.parse_failures == 0
-
-
-@pytest.mark.unit
-def test_verify_all_memories_parse_error(tmp_path):
-    """Test that malformed files are handled gracefully."""
-    memories_dir = tmp_path / "memories"
-    memories_dir.mkdir()
-
-    # Create a valid memory
-    valid = """---
-id: valid
-citations:
-  - path: test.py
----
-
-# Valid
-"""
-    (memories_dir / "valid.md").write_text(valid)
-    (tmp_path / "test.py").write_text("# test")
-
-    # Create a malformed memory (invalid YAML)
-    malformed = """---
-id: bad
-citations: [[[invalid yaml
----
-
-# Bad
-"""
-    (memories_dir / "malformed.md").write_text(malformed)
-
-    # Should not raise, just skip malformed and continue
-    verify_result = verify_all_memories(memories_dir, tmp_path)
-    results = verify_result.results
-
-    # Should only get the valid memory
-    assert len(results) == 1
-    assert results[0].memory_id == "valid"
-    # Malformed file should be counted as a parse failure
-    assert verify_result.parse_failures == 1
+from memory_enhancement.models import Citation, Memory
+
+
+class TestVerificationResult:
+    """Tests for VerificationResult dataclass."""
+
+    @pytest.mark.unit
+    def test_creation(self) -> None:
+        r = VerificationResult(
+            memory_id="test",
+            valid=True,
+            total_citations=3,
+            valid_count=3,
+            stale_citations=[],
+            confidence=1.0,
+        )
+        assert r.memory_id == "test"
+        assert r.valid is True
+        assert r.total_citations == 3
+        assert r.valid_count == 3
+        assert r.stale_citations == []
+        assert r.confidence == 1.0
+
+
+class TestVerifyCitation:
+    """Tests for verify_citation function."""
+
+    @pytest.mark.unit
+    def test_existing_file_no_line(self, repo_root: Path) -> None:
+        c = Citation(path="src/example.py")
+        result = verify_citation(c, repo_root)
+        assert result.valid is True
+        assert result.mismatch_reason is None
+        assert result is c
+
+    @pytest.mark.unit
+    def test_missing_file(self, repo_root: Path) -> None:
+        c = Citation(path="src/nonexistent.py")
+        verify_citation(c, repo_root)
+        assert c.valid is False
+        assert "File not found" in c.mismatch_reason
+
+    @pytest.mark.unit
+    def test_valid_line_number(self, repo_root: Path) -> None:
+        c = Citation(path="src/example.py", line=2)
+        verify_citation(c, repo_root)
+        assert c.valid is True
+
+    @pytest.mark.unit
+    def test_line_out_of_range(self, repo_root: Path) -> None:
+        c = Citation(path="src/example.py", line=999)
+        verify_citation(c, repo_root)
+        assert c.valid is False
+        assert "exceeds file length" in c.mismatch_reason
+
+    @pytest.mark.unit
+    def test_invalid_line_number_zero(self, repo_root: Path) -> None:
+        c = Citation(path="src/example.py", line=0)
+        verify_citation(c, repo_root)
+        assert c.valid is False
+        assert "must be >= 1" in c.mismatch_reason
+
+    @pytest.mark.unit
+    def test_invalid_line_number_negative(self, repo_root: Path) -> None:
+        c = Citation(path="src/example.py", line=-1)
+        verify_citation(c, repo_root)
+        assert c.valid is False
+        assert "must be >= 1" in c.mismatch_reason
+
+    @pytest.mark.unit
+    def test_matching_snippet(self, repo_root: Path) -> None:
+        c = Citation(path="src/example.py", line=2, snippet="def hello")
+        verify_citation(c, repo_root)
+        assert c.valid is True
+
+    @pytest.mark.unit
+    def test_mismatched_snippet(self, repo_root: Path) -> None:
+        c = Citation(path="src/example.py", line=2, snippet="def wrong_name")
+        verify_citation(c, repo_root)
+        assert c.valid is False
+        assert "Snippet mismatch" in c.mismatch_reason
+
+    @pytest.mark.unit
+    def test_path_traversal_blocked(self, repo_root: Path) -> None:
+        c = Citation(path="../../../etc/passwd")
+        verify_citation(c, repo_root)
+        assert c.valid is False
+        assert "Path traversal blocked" in c.mismatch_reason
+
+    @pytest.mark.unit
+    def test_unreadable_file(self, repo_root: Path) -> None:
+        target = repo_root / "src" / "unreadable.py"
+        target.write_text("line1\nline2\n", encoding="utf-8")
+
+        c = Citation(path="src/unreadable.py", line=1)
+        with patch.object(Path, "read_text", side_effect=OSError("Permission denied")):
+            verify_citation(c, repo_root)
+        assert c.valid is False
+        assert "Cannot read file" in c.mismatch_reason
+
+    @pytest.mark.unit
+    def test_snippet_none_with_valid_line(self, repo_root: Path) -> None:
+        c = Citation(path="src/example.py", line=1, snippet=None)
+        verify_citation(c, repo_root)
+        assert c.valid is True
+
+
+class TestVerifyMemory:
+    """Tests for verify_memory function."""
+
+    @pytest.mark.unit
+    def test_all_valid_citations(self, repo_root: Path) -> None:
+        m = Memory(
+            id="good",
+            subject="Good",
+            path=Path("x.md"),
+            content="",
+            citations=[
+                Citation(path="src/example.py", line=2, snippet="def hello"),
+                Citation(path="src/example.py", line=5, snippet="def goodbye"),
+            ],
+        )
+        result = verify_memory(m, repo_root)
+        assert result.valid is True
+        assert result.total_citations == 2
+        assert result.valid_count == 2
+        assert result.stale_citations == []
+        assert result.confidence == 1.0
+
+    @pytest.mark.unit
+    def test_some_stale_citations(self, repo_root: Path) -> None:
+        m = Memory(
+            id="mixed",
+            subject="Mixed",
+            path=Path("x.md"),
+            content="",
+            citations=[
+                Citation(path="src/example.py", line=2, snippet="def hello"),
+                Citation(path="src/nonexistent.py"),
+            ],
+        )
+        result = verify_memory(m, repo_root)
+        assert result.valid is False
+        assert result.total_citations == 2
+        assert result.valid_count == 1
+        assert len(result.stale_citations) == 1
+        assert result.confidence == 0.5
+
+    @pytest.mark.unit
+    def test_no_citations_uses_memory_confidence(self, repo_root: Path) -> None:
+        m = Memory(
+            id="no-cite",
+            subject="No Cite",
+            path=Path("x.md"),
+            content="",
+            confidence=0.75,
+        )
+        result = verify_memory(m, repo_root)
+        assert result.valid is True
+        assert result.total_citations == 0
+        assert result.confidence == 0.75
+
+    @pytest.mark.unit
+    def test_memory_id_propagated(self, repo_root: Path) -> None:
+        m = Memory(
+            id="specific-id",
+            subject="S",
+            path=Path("x.md"),
+            content="",
+        )
+        result = verify_memory(m, repo_root)
+        assert result.memory_id == "specific-id"
+
+
+class TestVerifyAllMemories:
+    """Tests for verify_all_memories function."""
+
+    @pytest.mark.unit
+    def test_mixed_valid_and_stale(
+        self, repo_root: Path, memories_dir: Path
+    ) -> None:
+        (memories_dir / "good.md").write_text(
+            "---\n"
+            "id: good\n"
+            "subject: Good\n"
+            "citations:\n"
+            "  - path: src/example.py\n"
+            "    line: 2\n"
+            '    snippet: "def hello"\n'
+            "---\n"
+            "Good memory.\n",
+            encoding="utf-8",
+        )
+        (memories_dir / "stale.md").write_text(
+            "---\n"
+            "id: stale\n"
+            "subject: Stale\n"
+            "citations:\n"
+            "  - path: src/gone.py\n"
+            "---\n"
+            "Stale memory.\n",
+            encoding="utf-8",
+        )
+        results = verify_all_memories(memories_dir, repo_root)
+        assert len(results) == 2
+        ids = {r.memory_id for r in results}
+        assert "good" in ids
+        assert "stale" in ids
+        good_result = next(r for r in results if r.memory_id == "good")
+        stale_result = next(r for r in results if r.memory_id == "stale")
+        assert good_result.valid is True
+        assert stale_result.valid is False
+
+    @pytest.mark.unit
+    def test_skips_memories_without_citations(
+        self, repo_root: Path, memories_dir: Path
+    ) -> None:
+        (memories_dir / "no-cite.md").write_text(
+            "---\nid: no-cite\nsubject: No Cite\n---\nBody.\n",
+            encoding="utf-8",
+        )
+        results = verify_all_memories(memories_dir, repo_root)
+        assert len(results) == 0
+
+    @pytest.mark.unit
+    def test_malformed_yaml_skipped(
+        self, repo_root: Path, memories_dir: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        (memories_dir / "bad.md").write_text(
+            "---\n: invalid: yaml: [[[\n---\nBody.\n",
+            encoding="utf-8",
+        )
+        results = verify_all_memories(memories_dir, repo_root)
+        assert len(results) == 0
+        captured = capsys.readouterr()
+        assert "Warning" in captured.err or "Failed to parse" in captured.err
+
+    @pytest.mark.unit
+    def test_empty_directory(self, repo_root: Path, memories_dir: Path) -> None:
+        results = verify_all_memories(memories_dir, repo_root)
+        assert results == []

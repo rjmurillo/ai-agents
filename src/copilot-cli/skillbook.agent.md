@@ -8,6 +8,7 @@ tools:
   - search
   - cloudmcp-manager/*
   - serena/*
+model: claude-opus-4.5
 ---
 # Skillbook Agent (Skill Manager)
 

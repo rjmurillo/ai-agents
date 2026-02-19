@@ -5,7 +5,7 @@
 # Creates a GitHub issue when drift is detected.
 #
 # Local developers and AI agents can run the same detection using:
-#   pwsh -NoProfile ./build/scripts/Detect-AgentDrift.ps1
+#   python3 build/scripts/detect_agent_drift.py
 
 name: Agent Drift Detection
 
@@ -30,66 +30,75 @@ jobs:
 
       - name: Run drift detection
         id: drift
-        shell: pwsh -NoProfile -Command "& '{0}'"
         run: |
-          Write-Host "Running agent drift detection..."
+          echo "Running agent drift detection..."
 
           # Run detection script and capture exit code
-          $output = & ./build/scripts/Detect-AgentDrift.ps1 -OutputFormat Text 2>&1
-          $exitCode = $LASTEXITCODE
-
-          # Output results
-          $output | ForEach-Object { Write-Host $_ }
+          python3 build/scripts/detect_agent_drift.py --output-format text || EXIT_CODE=$?
 
           # Set outputs based on exit code
-          if ($exitCode -eq 1) {
-            echo "drift_detected=true" >> $env:GITHUB_OUTPUT
-          } else {
-            echo "drift_detected=false" >> $env:GITHUB_OUTPUT
-          }
+          if [ "${EXIT_CODE:-0}" = "1" ]; then
+            echo "drift_detected=true" >> $GITHUB_OUTPUT
+          else
+            echo "drift_detected=false" >> $GITHUB_OUTPUT
+          fi
 
           # Exit with original code for workflow status
-          exit $exitCode
+          exit ${EXIT_CODE:-0}
         continue-on-error: true
 
       - name: Collect drift details
         id: details
         if: steps.drift.outputs.drift_detected == 'true'
-        shell: pwsh -NoProfile -Command "& '{0}'"
         run: |
           # Re-run to get JSON output for issue body
-          $results = ./build/scripts/Detect-AgentDrift.ps1 -OutputFormat JSON 2>$null | ConvertFrom-Json
+          python3 build/scripts/detect_agent_drift.py --output-format json > drift-results.json 2>/dev/null || true
 
-          # Build markdown details
-          $details = @()
-          foreach ($agent in $results.Results) {
-            if ($agent.Status -eq 'DRIFT DETECTED') {
-              $entry = "### $($agent.AgentName)`n"
-              $entry += "- **Overall similarity**: $($agent.OverallSimilarity)%`n"
+          # Parse JSON and build markdown details
+          python3 << 'PYTHON_EOF'
+          import json
+          import sys
 
-              if ($agent.DriftingSections -and $agent.DriftingSections.Count -gt 0) {
-                $entry += "- **Drifting sections**: $($agent.DriftingSections -join ', ')`n"
-              }
+          try:
+              with open('drift-results.json', 'r') as f:
+                  results = json.load(f)
 
-              # Add section details
-              $driftSections = $agent.Sections | Where-Object { $_.Status -eq 'DRIFT' }
-              if ($driftSections) {
-                $entry += "`n**Section Details:**`n"
-                foreach ($section in $driftSections) {
-                  $entry += "- $($section.Section): $($section.Similarity)% similar`n"
-                }
-              }
+              details = []
+              for agent in results.get('results', []):
+                  if agent.get('status') == 'DRIFT DETECTED':
+                      entry = f"### {agent['agent_name']}\n"
+                      entry += f"- **Overall similarity**: {agent['overall_similarity']}%\n"
 
-              $details += $entry
-            }
-          }
+                      if agent.get('drifting_sections'):
+                          entry += f"- **Drifting sections**: {', '.join(agent['drifting_sections'])}\n"
 
-          $driftBody = $details -join "`n"
+                      # Add section details
+                      drift_sections = [s for s in agent.get('sections', []) if s.get('status') == 'DRIFT']
+                      if drift_sections:
+                          entry += "\n**Section Details:**\n"
+                          for section in drift_sections:
+                              entry += f"- {section['section']}: {section['similarity']}% similar\n"
 
-          # Write to file for issue creation (handles multiline)
-          $driftBody | Out-File -FilePath drift-details.md -Encoding utf8
+                      details.append(entry)
 
-          echo "agents_count=$($results.Summary.DriftDetected)" >> $env:GITHUB_OUTPUT
+              drift_body = '\n'.join(details)
+
+              # Write to file for issue creation
+              with open('drift-details.md', 'w') as f:
+                  f.write(drift_body)
+
+              # Output agent count for workflow
+              with open('drift-count.txt', 'w') as f:
+                  f.write(str(results.get('summary', {}).get('drift_detected', 0)))
+
+          except Exception as e:
+              print(f"Error processing drift results: {e}", file=sys.stderr)
+              sys.exit(1)
+          PYTHON_EOF
+
+          # Set output for agents_count
+          AGENTS_COUNT=$(cat drift-count.txt)
+          echo "agents_count=$AGENTS_COUNT" >> $GITHUB_OUTPUT
         continue-on-error: true
 
       - name: Check for existing drift issue
@@ -144,10 +153,10 @@ jobs:
 
           ```bash
           # Run drift detection locally
-          pwsh -NoProfile build/scripts/Detect-AgentDrift.ps1
+          python3 build/scripts/detect_agent_drift.py
 
           # See detailed JSON output
-          pwsh -NoProfile build/scripts/Detect-AgentDrift.ps1 -OutputFormat json
+          python3 build/scripts/detect_agent_drift.py --output-format json
           ```
           EOF
 

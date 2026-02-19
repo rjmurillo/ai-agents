@@ -17,7 +17,6 @@ import json
 import sys
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional
 
 
 class Domain(Enum):
@@ -60,9 +59,9 @@ class ClassificationResult:
     strategy: str
     actions: list[str]
     pitfall: str
-    temporal_note: Optional[str] = None
-    boundary_note: Optional[str] = None
-    compound_note: Optional[str] = None
+    temporal_note: str | None = None
+    boundary_note: str | None = None
+    compound_note: str | None = None
 
     def to_dict(self) -> dict:
         """Convert to dictionary for JSON serialization."""
@@ -240,7 +239,7 @@ def count_keyword_matches(text: str, domain: Domain) -> int:
 
 
 def classify_problem(
-    problem: str, context: Optional[str] = None
+    problem: str, context: str | None = None
 ) -> ClassificationResult:
     """Classify a problem into a Cynefin domain.
 
@@ -401,7 +400,7 @@ def _generate_temporal_note(domain: Domain) -> str:
     return notes[domain]
 
 
-def _generate_boundary_note(domain: Domain, scores: dict[Domain, int]) -> Optional[str]:
+def _generate_boundary_note(domain: Domain, scores: dict[Domain, int]) -> str | None:
     """Generate note if problem is near domain boundary."""
     max_score = max(scores.values())
     if max_score == 0:

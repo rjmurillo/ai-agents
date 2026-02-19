@@ -51,11 +51,59 @@ Skip the planner skill when the task is:
 
 ---
 
-# PLANNING WORKFLOW (planner.py)
+## Scripts
 
-## Workflow Overview
+| Script | Purpose |
+|--------|---------|
+| `scripts/planner.py` | Planning and review workflow with step-based state management |
+| `scripts/executor.py` | Execution workflow for approved plans with milestone delegation |
 
-```
+## Triggers
+
+| Trigger Phrase | Operation |
+|----------------|-----------|
+| `plan this feature` | planner.py (planning phase) |
+| `create implementation plan` | planner.py (planning phase) |
+| `review the plan and pick up next item` | executor.py (execution phase) |
+| `execute the plan at plans/X.md` | executor.py (execution phase) |
+| `resume execution` | executor.py (continue from last step) |
+
+---
+
+## Anti-Patterns
+
+| Avoid | Why | Instead |
+|-------|-----|---------|
+| Skipping review phase after planning | Misses quality/temporal issues | Always run review steps 1-2 before execution |
+| Starting execution without /clear | Context pollution from planning | User should /clear before execution workflow |
+| Manually following workflow steps | Script manages state and transitions | Run the script and follow its output |
+| Planning single-step tasks | Overhead exceeds benefit | Implement directly without planner |
+| Editing plan during execution | Creates drift between plan and actions | Return to planning phase for changes |
+
+---
+
+## Verification
+
+After planning:
+
+- [ ] Plan file written to specified path
+- [ ] Review phase completed (both TW and QR steps)
+- [ ] Review verdict is PASS or PASS_WITH_CONCERNS
+
+After execution:
+
+- [ ] All milestones marked complete
+- [ ] Post-implementation QR passed
+- [ ] Documentation step completed
+- [ ] Retrospective generated
+
+---
+
+## Process
+
+### Planning Overview
+
+```text
 PLANNING PHASE (steps 1-N)
     |
     v
@@ -69,14 +117,14 @@ REVIEW PHASE (steps 1-2)
 APPROVED --> Execution workflow
 ```
 
-## Preconditions
+### Planning Preconditions
 
 Before invoking step 1, you MUST have:
 
 1. **Plan file path** - If user did not specify, ASK before proceeding
 2. **Clear problem statement** - What needs to be accomplished
 
-## Invocation
+### Planning Invocation
 
 ```bash
 python3 scripts/planner.py \
@@ -85,7 +133,7 @@ python3 scripts/planner.py \
   --thoughts "<your thinking about the problem>"
 ```
 
-### Arguments
+### Planning Arguments
 
 | Argument        | Description                                      |
 | --------------- | ------------------------------------------------ |
@@ -94,7 +142,7 @@ python3 scripts/planner.py \
 | `--total-steps` | Estimated total steps for this phase             |
 | `--thoughts`    | Your thinking, findings, and progress            |
 
-## Planning Workflow
+### Planning Steps
 
 1. Confirm preconditions (plan file path, problem statement)
 2. Invoke step 1 immediately
@@ -108,7 +156,7 @@ python3 scripts/planner.py \
 When planning phase completes, the script outputs an explicit `ACTION REQUIRED`
 marker:
 
-```
+```text
 ============================================
 >>> ACTION REQUIRED: INVOKE REVIEW PHASE <<<
 ============================================
@@ -150,11 +198,11 @@ Delegate to @agent-quality-reviewer with mode: `plan-review`
 
 ---
 
-# EXECUTION WORKFLOW (executor.py)
+## Execution Workflow (executor.py)
 
-## Workflow Overview
+### Execution Overview
 
-```
+```text
 Step 1: Execution Planning
     |
     v
@@ -177,14 +225,14 @@ Step 6: Documentation
 Step 7: Retrospective
 ```
 
-## Preconditions
+### Execution Preconditions
 
 Before invoking step 1, you MUST have:
 
 1. **Approved plan file** - Plan that passed review phase
 2. **Clear context window** - User should /clear before execution
 
-## Invocation
+### Execution Invocation
 
 ```bash
 python3 scripts/executor.py \
@@ -194,7 +242,7 @@ python3 scripts/executor.py \
   --thoughts "<user's request and context>"
 ```
 
-### Arguments
+### Execution Arguments
 
 | Argument        | Description                      |
 | --------------- | -------------------------------- |

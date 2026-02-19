@@ -51,11 +51,11 @@ QA-specific requirements:
 3. **Create** QA documentation in `.agents/qa/`
 4. **Identify** testing infrastructure needs
 5. **Validate** coverage comprehensively
-6. **Conduct** impact analysis when requested by planner during planning phase
+6. **Conduct** impact analysis when requested by milestone-planner during planning phase
 
 ## Impact Analysis Mode
 
-When planner requests impact analysis (during planning phase):
+When milestone-planner requests impact analysis (during planning phase):
 
 ### Analyze Quality & Testing Impact
 
@@ -526,7 +526,7 @@ Save to: `.agents/qa/NNN-[feature]-test-report.md`
 
 | Target | When | Purpose |
 |--------|------|---------|
-| **planner** | Testing infrastructure inadequate | Plan revision needed |
+| **milestone-planner** | Testing infrastructure inadequate | Plan revision needed |
 | **implementer** | Test gaps or failures exist | Fix required |
 | **orchestrator** | QA passes | Business validation next |
 
@@ -557,7 +557,7 @@ Before handing off, validate ALL items in the applicable checklist:
 - [ ] Test commands to reproduce failures documented
 ```
 
-### Infrastructure Handoff (to planner)
+### Infrastructure Handoff (to milestone-planner)
 
 ```markdown
 - [ ] Infrastructure gaps clearly documented

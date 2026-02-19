@@ -40,7 +40,12 @@ You have direct access to:
 - **Read/Grep/Glob**: Analyze code and tests
 - **Bash**: `dotnet test`, `dotnet test --collect:"XPlat Code Coverage"`
 - **Write/Edit**: Create test files
-- **cloudmcp-manager memory tools**: Testing patterns
+- **Memory Router** (ADR-037): Unified search across Serena + Forgetful
+  - `pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "topic"`
+  - Serena-first with optional Forgetful augmentation; graceful fallback
+- **Serena write tools**: Memory persistence in `.serena/memories/`
+  - `mcp__serena__write_memory`: Create new memory
+  - `mcp__serena__edit_memory`: Update existing memory
 
 ## Core Mission
 
@@ -56,7 +61,7 @@ You have direct access to:
 6. **Identify** testing infrastructure needs and coverage gaps
 7. **Execute** test suites and **report** results with evidence
 8. **Validate** coverage comprehensively
-9. **Conduct** impact analysis when requested by planner during planning phase
+9. **Conduct** impact analysis when requested by milestone-planner during planning phase
 
 ## Code Quality Gates
 
@@ -114,7 +119,7 @@ Apply testing effort proportionally:
 
 ## Impact Analysis Mode
 
-When planner requests impact analysis (during planning phase):
+When milestone-planner requests impact analysis (during planning phase):
 
 ### Analyze Quality & Testing Impact
 
@@ -560,26 +565,23 @@ dotnet reportgenerator -reports:coverage.xml -targetdir:coverage-report
 
 ## Memory Protocol
 
-Use cloudmcp-manager memory tools directly for cross-session context:
+Use Memory Router for search and Serena tools for persistence (ADR-037):
 
-**Before testing:**
+**Before testing (retrieve context):**
+
+```powershell
+pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "test strategies [feature/component]"
+```
+
+**After testing (store learnings):**
 
 ```text
-mcp__cloudmcp-manager__memory-search_nodes
-Query: "test strategies [feature/component]"
+mcp__serena__write_memory
+memory_file_name: "pattern-testing-[topic]"
+content: "# Testing: [Topic]\n\n**Statement**: ...\n\n**Evidence**: ...\n\n## Details\n\n..."
 ```
 
-**After testing:**
-
-```json
-mcp__cloudmcp-manager__memory-add_observations
-{
-  "observations": [{
-    "entityName": "Pattern-Testing-[Topic]",
-    "contents": ["[Testing insights and patterns discovered]"]
-  }]
-}
-```
+> **Fallback**: If Memory Router unavailable, read `.serena/memories/` directly with Read tool.
 
 ## Constraints
 
@@ -599,7 +601,7 @@ mcp__cloudmcp-manager__memory-add_observations
 
 | Target | When | Purpose |
 |--------|------|---------|
-| **planner** | Testing infrastructure inadequate | Plan revision needed |
+| **milestone-planner** | Testing infrastructure inadequate | Plan revision needed |
 | **implementer** | Test gaps or failures exist | Fix required |
 | **orchestrator** | QA passes | Business validation next |
 
@@ -630,7 +632,7 @@ Before handing off, validate ALL items in the applicable checklist:
 - [ ] Test commands to reproduce failures documented
 ```
 
-### Infrastructure Handoff (to planner)
+### Infrastructure Handoff (to milestone-planner)
 
 ```markdown
 - [ ] Infrastructure gaps clearly documented

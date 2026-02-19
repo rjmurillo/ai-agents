@@ -65,11 +65,11 @@
 |------------------|--------------|
 | Foundational (< 5 yrs) | [foundational-knowledge-index](foundational-knowledge-index.md) (this file) |
 | All Tiers (Comprehensive) | [engineering-knowledge-index](engineering-knowledge-index.md) |
-| Principal (15+ yrs) | [principal-engineering-knowledge](principal-engineering-knowledge.md) |
+| Principal (15+ yrs) | [principal-engineering-knowledge](knowledge/principal-engineering-knowledge.md) |
 | Distinguished (25+ yrs) | [distinguished-engineer-knowledge-index](distinguished-engineer-knowledge-index.md) |
 
 ## Cross-References
-- Security: [security-principles-owasp](security-principles-owasp.md)
-- Architecture: [c4-model](c4-model.md), [strangler-fig-pattern](strangler-fig-pattern.md)
-- Thinking: [cynefin-framework](cynefin-framework.md), [antifragility](antifragility.md), [wardley-mapping](wardley-mapping.md)
-- Principles: [yagni-principle](yagni-principle.md), [boy-scout-rule](boy-scout-rule.md), [law-of-demeter](law-of-demeter.md)
+- Security: [security/security-principles-owasp](security/security-principles-owasp.md)
+- Architecture: [architecture/c4-model](architecture/c4-model.md), [knowledge/strangler-fig-pattern](knowledge/strangler-fig-pattern.md)
+- Thinking: [knowledge/cynefin-framework](knowledge/cynefin-framework.md), [knowledge/antifragility](knowledge/antifragility.md), [knowledge/wardley-mapping](knowledge/wardley-mapping.md)
+- Principles: [knowledge/yagni-principle](knowledge/yagni-principle.md), [knowledge/boy-scout-rule](knowledge/boy-scout-rule.md), [knowledge/law-of-demeter](knowledge/law-of-demeter.md)

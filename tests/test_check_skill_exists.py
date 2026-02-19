@@ -49,54 +49,50 @@ class TestCheckSkillExists:
         """Create a mock skill directory structure."""
         skill_base = tmp_path / ".claude" / "skills" / "github" / "scripts"
 
-        # Create pr directory with scripts
         pr_dir = skill_base / "pr"
         pr_dir.mkdir(parents=True)
-        (pr_dir / "Get-PRContext.ps1").touch()
-        (pr_dir / "Post-PRCommentReply.ps1").touch()
-        (pr_dir / "Get-PRReviewers.ps1").touch()
+        (pr_dir / "get_pr_context.py").touch()
+        (pr_dir / "post_pr_comment_reply.py").touch()
+        (pr_dir / "get_pr_reviewers.py").touch()
 
-        # Create issue directory with scripts
         issue_dir = skill_base / "issue"
         issue_dir.mkdir()
-        (issue_dir / "Get-IssueContext.ps1").touch()
-        (issue_dir / "Post-IssueComment.ps1").touch()
+        (issue_dir / "get_issue_context.py").touch()
+        (issue_dir / "post_issue_comment.py").touch()
 
-        # Create empty reactions directory
         reactions_dir = skill_base / "reactions"
         reactions_dir.mkdir()
-        (reactions_dir / "Add-CommentReaction.ps1").touch()
+        (reactions_dir / "add_comment_reaction.py").touch()
 
         return skill_base
 
     def test_finds_existing_skill_exact_match(self, skill_dir: Path) -> None:
         """Returns True when skill with exact name exists."""
-        result = check_skill_exists(skill_dir, "pr", "PRContext")
-
+        result = check_skill_exists(skill_dir, "pr", "pr_context")
         assert result is True
 
-    def test_finds_existing_skill_substring_match(self, skill_dir: Path) -> None:
+    def test_finds_existing_skill_substring_match(
+        self, skill_dir: Path
+    ) -> None:
         """Returns True when skill with substring match exists."""
-        result = check_skill_exists(skill_dir, "pr", "Comment")
-
+        result = check_skill_exists(skill_dir, "pr", "comment")
         assert result is True
 
     def test_finds_skill_case_sensitive(self, skill_dir: Path) -> None:
         """Substring matching is case-sensitive."""
-        result = check_skill_exists(skill_dir, "pr", "prcontext")
-
+        result = check_skill_exists(skill_dir, "pr", "PR_CONTEXT")
         assert result is False
 
     def test_returns_false_for_missing_skill(self, skill_dir: Path) -> None:
         """Returns False when no matching skill exists."""
         result = check_skill_exists(skill_dir, "pr", "NonExistent")
-
         assert result is False
 
-    def test_returns_false_for_missing_operation_dir(self, skill_dir: Path) -> None:
+    def test_returns_false_for_missing_operation_dir(
+        self, skill_dir: Path
+    ) -> None:
         """Returns False when operation directory does not exist."""
         result = check_skill_exists(skill_dir, "milestone", "Create")
-
         assert result is False
 
     def test_returns_false_for_invalid_operation(
@@ -106,7 +102,6 @@ class TestCheckSkillExists:
     ) -> None:
         """Returns False and prints error for invalid operation."""
         result = check_skill_exists(skill_dir, "invalid", "Action")
-
         assert result is False
         captured = capsys.readouterr()
         assert "Invalid operation" in captured.err
@@ -114,19 +109,18 @@ class TestCheckSkillExists:
     def test_valid_operations_constant(self) -> None:
         """VALID_OPERATIONS contains expected values."""
         expected = {"pr", "issue", "reactions", "label", "milestone"}
-
         assert VALID_OPERATIONS == expected
 
     def test_finds_skill_in_issue_directory(self, skill_dir: Path) -> None:
         """Can find skills in issue directory."""
-        result = check_skill_exists(skill_dir, "issue", "IssueContext")
-
+        result = check_skill_exists(skill_dir, "issue", "issue_context")
         assert result is True
 
-    def test_finds_skill_in_reactions_directory(self, skill_dir: Path) -> None:
+    def test_finds_skill_in_reactions_directory(
+        self, skill_dir: Path
+    ) -> None:
         """Can find skills in reactions directory."""
-        result = check_skill_exists(skill_dir, "reactions", "Reaction")
-
+        result = check_skill_exists(skill_dir, "reactions", "reaction")
         assert result is True
 
 
@@ -138,16 +132,14 @@ class TestListAvailableSkills:
         """Create a mock skill directory structure."""
         skill_base = tmp_path / ".claude" / "skills" / "github" / "scripts"
 
-        # Create pr directory with scripts
         pr_dir = skill_base / "pr"
         pr_dir.mkdir(parents=True)
-        (pr_dir / "Get-PRContext.ps1").touch()
-        (pr_dir / "Post-PRCommentReply.ps1").touch()
+        (pr_dir / "get_pr_context.py").touch()
+        (pr_dir / "post_pr_comment_reply.py").touch()
 
-        # Create issue directory with scripts
         issue_dir = skill_base / "issue"
         issue_dir.mkdir()
-        (issue_dir / "Get-IssueContext.ps1").touch()
+        (issue_dir / "get_issue_context.py").touch()
 
         return skill_base
 
@@ -158,12 +150,11 @@ class TestListAvailableSkills:
     ) -> None:
         """Lists skills from all operation directories."""
         list_available_skills(skill_dir)
-
         captured = capsys.readouterr()
         assert "=== pr ===" in captured.out
         assert "=== issue ===" in captured.out
-        assert "Get-PRContext" in captured.out
-        assert "Get-IssueContext" in captured.out
+        assert "get_pr_context" in captured.out
+        assert "get_issue_context" in captured.out
 
     def test_skips_nonexistent_directories(
         self,
@@ -172,17 +163,13 @@ class TestListAvailableSkills:
     ) -> None:
         """Skips operation directories that do not exist."""
         list_available_skills(skill_dir)
-
         captured = capsys.readouterr()
-        # milestone directory was not created
         assert "=== milestone ===" not in captured.out
 
     def test_handles_empty_directory(self, tmp_path: Path) -> None:
         """Handles empty skill base directory without error."""
         empty_base = tmp_path / "empty"
         empty_base.mkdir()
-
-        # Should not raise
         list_available_skills(empty_base)
 
 
@@ -202,26 +189,30 @@ class TestScriptIntegration:
             text=True,
             timeout=30,
         )
-
-        # Should succeed (exit 0)
         assert result.returncode == 0
-        # Should have some output (at least the operation headers)
         assert "===" in result.stdout or result.stdout == ""
 
-    def test_check_existing_skill(self, script_path: Path, project_root: Path) -> None:
+    def test_check_existing_skill(
+        self, script_path: Path, project_root: Path
+    ) -> None:
         """Checking for existing skill returns true."""
-        # This assumes the real skill directory exists
-        skill_path = project_root / ".claude" / "skills" / "github" / "scripts" / "pr"
+        skill_path = (
+            project_root
+            / ".claude" / "skills" / "github" / "scripts" / "pr"
+        )
         if not skill_path.exists():
-            pytest.skip("Skill directory does not exist in test environment")
+            pytest.skip("Skill directory does not exist")
 
         result = subprocess.run(
-            [sys.executable, str(script_path), "--operation", "pr", "--action", "PRContext"],
+            [
+                sys.executable, str(script_path),
+                "--operation", "pr",
+                "--action", "pr_context",
+            ],
             capture_output=True,
             text=True,
             timeout=30,
         )
-
         assert result.returncode == 0
         assert "true" in result.stdout
 
@@ -229,18 +220,14 @@ class TestScriptIntegration:
         """Checking for missing skill returns false with exit code 1."""
         result = subprocess.run(
             [
-                sys.executable,
-                str(script_path),
-                "--operation",
-                "pr",
-                "--action",
-                "NonExistentSkillXYZ123",
+                sys.executable, str(script_path),
+                "--operation", "pr",
+                "--action", "NonExistentSkillXYZ123",
             ],
             capture_output=True,
             text=True,
             timeout=30,
         )
-
         assert result.returncode == 1
         assert "false" in result.stdout
 
@@ -252,7 +239,6 @@ class TestScriptIntegration:
             text=True,
             timeout=30,
         )
-
         assert result.returncode == 1
         assert "ERROR" in result.stderr or "action" in result.stderr.lower()
 
@@ -260,18 +246,14 @@ class TestScriptIntegration:
         """--list-available and --operation are mutually exclusive."""
         result = subprocess.run(
             [
-                sys.executable,
-                str(script_path),
+                sys.executable, str(script_path),
                 "--list-available",
-                "--operation",
-                "pr",
+                "--operation", "pr",
             ],
             capture_output=True,
             text=True,
             timeout=30,
         )
-
-        # argparse should reject this
         assert result.returncode != 0
 
     def test_help_flag(self, script_path: Path) -> None:
@@ -282,7 +264,6 @@ class TestScriptIntegration:
             text=True,
             timeout=30,
         )
-
         assert result.returncode == 0
         assert "usage" in result.stdout.lower()
         assert "--operation" in result.stdout
@@ -297,11 +278,9 @@ class TestMainFunction:
     def skill_dir(self, tmp_path: Path) -> Path:
         """Create a mock skill directory structure."""
         skill_base = tmp_path / ".claude" / "skills" / "github" / "scripts"
-
         pr_dir = skill_base / "pr"
         pr_dir.mkdir(parents=True)
-        (pr_dir / "Get-PRContext.ps1").touch()
-
+        (pr_dir / "get_pr_context.py").touch()
         return tmp_path
 
     def test_main_list_available(
@@ -315,12 +294,9 @@ class TestMainFunction:
 
         monkeypatch.setattr(check_skill_exists, "_PROJECT_ROOT", skill_dir)
         monkeypatch.setattr(
-            "sys.argv",
-            ["check_skill_exists.py", "--list-available"],
+            "sys.argv", ["check_skill_exists.py", "--list-available"],
         )
-
         result = check_skill_exists.main()
-
         assert result == 0
         captured = capsys.readouterr()
         assert "=== pr ===" in captured.out
@@ -337,11 +313,13 @@ class TestMainFunction:
         monkeypatch.setattr(check_skill_exists, "_PROJECT_ROOT", skill_dir)
         monkeypatch.setattr(
             "sys.argv",
-            ["check_skill_exists.py", "--operation", "pr", "--action", "PRContext"],
+            [
+                "check_skill_exists.py",
+                "--operation", "pr",
+                "--action", "pr_context",
+            ],
         )
-
         result = check_skill_exists.main()
-
         assert result == 0
         captured = capsys.readouterr()
         assert "true" in captured.out
@@ -358,11 +336,13 @@ class TestMainFunction:
         monkeypatch.setattr(check_skill_exists, "_PROJECT_ROOT", skill_dir)
         monkeypatch.setattr(
             "sys.argv",
-            ["check_skill_exists.py", "--operation", "pr", "--action", "NonExistent"],
+            [
+                "check_skill_exists.py",
+                "--operation", "pr",
+                "--action", "NonExistent",
+            ],
         )
-
         result = check_skill_exists.main()
-
         assert result == 1
         captured = capsys.readouterr()
         assert "false" in captured.out
@@ -378,12 +358,9 @@ class TestMainFunction:
 
         monkeypatch.setattr(check_skill_exists, "_PROJECT_ROOT", skill_dir)
         monkeypatch.setattr(
-            "sys.argv",
-            ["check_skill_exists.py", "--operation", "pr"],
+            "sys.argv", ["check_skill_exists.py", "--operation", "pr"],
         )
-
         result = check_skill_exists.main()
-
         assert result == 1
         captured = capsys.readouterr()
         assert "ERROR" in captured.err
@@ -400,12 +377,9 @@ class TestMainFunction:
         fake_root = tmp_path / "nonexistent"
         monkeypatch.setattr(check_skill_exists, "_PROJECT_ROOT", fake_root)
         monkeypatch.setattr(
-            "sys.argv",
-            ["check_skill_exists.py", "--list-available"],
+            "sys.argv", ["check_skill_exists.py", "--list-available"],
         )
-
         result = check_skill_exists.main()
-
         assert result == 1
         captured = capsys.readouterr()
         assert "does not exist" in captured.err
@@ -419,15 +393,11 @@ class TestMainFunction:
         """main() with existing project but no skill path returns 1."""
         from scripts import check_skill_exists
 
-        # tmp_path exists but has no .claude directory
         monkeypatch.setattr(check_skill_exists, "_PROJECT_ROOT", tmp_path)
         monkeypatch.setattr(
-            "sys.argv",
-            ["check_skill_exists.py", "--list-available"],
+            "sys.argv", ["check_skill_exists.py", "--list-available"],
         )
-
         result = check_skill_exists.main()
-
         assert result == 1
         captured = capsys.readouterr()
         assert "Skill path does not exist" in captured.err
@@ -445,17 +415,12 @@ class TestMainFunction:
             "sys.argv",
             [
                 "check_skill_exists.py",
-                "--operation",
-                "pr",
-                "--action",
-                "PRContext",
-                "--project-root",
-                str(skill_dir),
+                "--operation", "pr",
+                "--action", "pr_context",
+                "--project-root", str(skill_dir),
             ],
         )
-
         result = check_skill_exists.main()
-
         assert result == 0
 
 
@@ -467,9 +432,8 @@ class TestEdgeCases:
         skill_base = tmp_path / ".claude" / "skills" / "github" / "scripts"
         pr_dir = skill_base / "pr"
         pr_dir.mkdir(parents=True)
-        (pr_dir / "Script.ps1").touch()
+        (pr_dir / "script.py").touch()
 
-        # Empty action is explicitly rejected
         with pytest.raises(ValueError, match="Action cannot be empty"):
             check_skill_exists(skill_base, "pr", "")
 
@@ -478,11 +442,9 @@ class TestEdgeCases:
         skill_base = tmp_path / ".claude" / "skills" / "github" / "scripts"
         pr_dir = skill_base / "pr"
         pr_dir.mkdir(parents=True)
-        (pr_dir / "Get-PRContext.ps1").touch()
+        (pr_dir / "get_pr_context.py").touch()
 
-        # Special chars should not cause issues (they just will not match)
         result = check_skill_exists(skill_base, "pr", "[*?]")
-
         assert result is False
 
     def test_deeply_nested_skill_not_found(self, tmp_path: Path) -> None:
@@ -490,21 +452,19 @@ class TestEdgeCases:
         skill_base = tmp_path / ".claude" / "skills" / "github" / "scripts"
         pr_dir = skill_base / "pr" / "nested"
         pr_dir.mkdir(parents=True)
-        (pr_dir / "Hidden-Script.ps1").touch()
+        (pr_dir / "hidden_script.py").touch()
 
-        result = check_skill_exists(skill_base, "pr", "Hidden")
-
+        result = check_skill_exists(skill_base, "pr", "hidden")
         assert result is False
 
-    def test_non_ps1_files_ignored(self, tmp_path: Path) -> None:
-        """Only .ps1 files are considered as skills."""
+    def test_non_py_files_ignored(self, tmp_path: Path) -> None:
+        """Only .py files are considered as skills."""
         skill_base = tmp_path / ".claude" / "skills" / "github" / "scripts"
         pr_dir = skill_base / "pr"
         pr_dir.mkdir(parents=True)
-        (pr_dir / "Script.py").touch()
+        (pr_dir / "Script.ps1").touch()
         (pr_dir / "Script.txt").touch()
         (pr_dir / "Script.md").touch()
 
         result = check_skill_exists(skill_base, "pr", "Script")
-
         assert result is False

@@ -39,6 +39,23 @@ These patterns are normal and should not trigger warnings:
 
 **Principle**: Infrastructure and generated artifacts follow different quality rules than authored application code.
 
+## Pre-executed Test Results
+
+Test execution results (Pester and pytest) are provided as additional context when available. These results were produced by running the test suites in the workflow before your review. Use them as empirical evidence in your verdict.
+
+**When test results are provided:**
+
+- Reference specific pass/fail counts in your evidence
+- If tests FAIL, evaluate whether failures relate to the PR changes
+- If tests PASS, confirm test coverage aligns with changed code
+- Include test result status in your verdict evidence
+
+**When test results are NOT provided (skipped or unavailable):**
+
+- Perform static analysis of test files only
+- Note in your verdict that empirical test results were not available
+- Do NOT claim you cannot run tests; focus on what evidence you have
+
 ## Analysis Focus Areas
 
 ### 1. Test Coverage (For CODE and WORKFLOW PRs)
@@ -209,6 +226,7 @@ PR TYPE: [CODE|WORKFLOW|CONFIG|DOCS|MIXED]
 
 EVIDENCE:
 - Tests found: [count] for [count] new functions (or "N/A - DOCS only")
+- Test execution: [PASS/FAIL/SKIPPED with counts from pre-executed results] (or "N/A")
 - Edge cases: [list categories covered/missing] (or "N/A")
 - Error handling: [tested/untested] for [list operations] (or "N/A")
 - Blocking issues: [count] (list if any)

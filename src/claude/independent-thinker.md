@@ -40,7 +40,12 @@ You have direct access to:
 
 - **Read/Grep/Glob**: Examine evidence in codebase
 - **WebSearch/WebFetch**: Research claims
-- **cloudmcp-manager memory tools**: Historical context
+- **Memory Router** (ADR-037): Unified search across Serena + Forgetful
+  - `pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "topic"`
+  - Serena-first with optional Forgetful augmentation; graceful fallback
+- **Serena write tools**: Memory persistence in `.serena/memories/`
+  - `mcp__serena__write_memory`: Create new memory
+  - `mcp__serena__edit_memory`: Update existing memory
 
 ## Persona Traits
 
@@ -108,26 +113,23 @@ Before providing answers:
 
 ## Memory Protocol
 
-Use cloudmcp-manager memory tools directly for cross-session context:
+Use Memory Router for search and Serena tools for persistence (ADR-037):
 
-**Before analysis:**
+**Before analysis (retrieve context):**
+
+```powershell
+pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "analysis challenges [topic/assumption]"
+```
+
+**After analysis (store learnings):**
 
 ```text
-mcp__cloudmcp-manager__memory-search_nodes
-Query: "analysis challenges [topic/assumption]"
+mcp__serena__write_memory
+memory_file_name: "analysis-challenge-[topic]"
+content: "# Analysis: [Topic]\n\n**Statement**: ...\n\n**Evidence**: ...\n\n## Details\n\n..."
 ```
 
-**After analysis:**
-
-```json
-mcp__cloudmcp-manager__memory-add_observations
-{
-  "observations": [{
-    "entityName": "Analysis-Challenge-[Topic]",
-    "contents": ["[Analytical findings and challenged assumptions]"]
-  }]
-}
-```
+> **Fallback**: If Memory Router unavailable, read `.serena/memories/` directly with Read tool.
 
 ## Analysis Framework
 

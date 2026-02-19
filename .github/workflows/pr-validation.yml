@@ -6,7 +6,6 @@ name: PR Validation
 # Related Required Checks (configured in branch protection):
 #   - PR Validation (this workflow)
 #   - Session Protocol Validation (ai-session-protocol.yml)
-#   - Pester Tests (pester-tests.yml)
 #   - AI Quality Gate (ai-pr-quality-gate.yml)
 #   - CodeQL Analysis (codeql-analysis.yml) - Security scanning
 
@@ -80,36 +79,16 @@ jobs:
       - name: Validate PR Description vs Diff
         if: steps.should-run.outputs.skip != 'true'
         id: validate-description
-        shell: pwsh
+        shell: bash
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          $scriptPath = "scripts/Validate-PRDescription.ps1"
-          
-          if (-not (Test-Path $scriptPath)) {
-            Write-Warning "Validate-PRDescription.ps1 not found, skipping validation"
-            "validation_result=SKIP" >> $env:GITHUB_OUTPUT
-            exit 0
-          }
-          
-          Write-Host "Validating PR description..."
-          
-          try {
-            & pwsh -NoProfile -File $scriptPath -PRNumber $env:PR_NUMBER
-            $exitCode = $LASTEXITCODE
-            
-            if ($exitCode -eq 0) {
-              "validation_result=PASS" >> $env:GITHUB_OUTPUT
-              Write-Host "✓ PR description validation passed"
-            } else {
-              "validation_result=FAIL" >> $env:GITHUB_OUTPUT
-              Write-Warning "PR description validation failed (exit code: $exitCode)"
-            }
-          } catch {
-            Write-Error "Validation script error: $_"
-            "validation_result=ERROR" >> $env:GITHUB_OUTPUT
-            exit 1
-          }
+          echo "Validating PR description..."
+          if python3 scripts/validation/pr_description.py --pr-number "$PR_NUMBER" --ci; then
+            echo "validation_result=PASS" >> "$GITHUB_OUTPUT"
+          else
+            echo "validation_result=FAIL" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Check Review Comment Status
         if: steps.should-run.outputs.skip != 'true'
@@ -277,25 +256,15 @@ jobs:
 
       - name: Post PR Comment
         if: steps.should-run.outputs.skip != 'true'
-        shell: pwsh
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          $reportFile = "pr-validation-report.md"
-          
-          if (Test-Path $reportFile) {
-            # Use GitHub skill script for idempotent comment posting
-            if (Test-Path ".claude/skills/github/scripts/issue/Post-IssueComment.ps1") {
-              & .claude/skills/github/scripts/issue/Post-IssueComment.ps1 `
-                -Issue $env:PR_NUMBER `
-                -BodyFile $reportFile `
-                -Marker "PR-VALIDATION"
-            } else {
-              Write-Warning "Post-IssueComment skill not found, using gh directly"
-              $body = Get-Content $reportFile -Raw
-              gh pr comment $env:PR_NUMBER --repo $env:GITHUB_REPOSITORY --body $body
-            }
-          }
+          if [ -f "pr-validation-report.md" ]; then
+            python3 .github/scripts/post_issue_comment.py \
+              --issue "$PR_NUMBER" \
+              --body-file "pr-validation-report.md" \
+              --marker "PR-VALIDATION"
+          fi
 
       - name: Set Job Summary
         if: steps.should-run.outputs.skip != 'true'

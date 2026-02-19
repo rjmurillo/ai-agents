@@ -74,11 +74,11 @@ Maintain system architecture as single source of truth. Conduct reviews across t
 3. **Review Plan/Analysis**: Challenge technical choices, block violations of design principles
 4. **Review Post-Implementation**: Audit code health, measure technical debt accumulation
 5. **Document** decisions with ADRs (Architecture Decision Records)
-6. **Conduct** impact analysis when requested by planner during planning phase
+6. **Conduct** impact analysis when requested by milestone-planner during planning phase
 
 ## Impact Analysis Mode
 
-When planner requests impact analysis (during planning phase):
+When milestone-planner requests impact analysis (during planning phase):
 
 ### Analyze Architecture Impact
 
@@ -563,7 +563,7 @@ Accept that systems have lifespans and plan for replacement rather than indefini
 
 | Target | When | Purpose |
 |--------|------|---------|
-| **planner** | Architecture approved | Proceed with planning |
+| **milestone-planner** | Architecture approved | Proceed with planning |
 | **analyst** | More research needed | Investigate options |
 | **high-level-advisor** | Major decision conflict | Strategic guidance |
 | **implementer** | Design finalized | Begin implementation |
@@ -594,7 +594,7 @@ Command:
 Rationale: All ADRs require multi-agent validation per adr-review protocol.
 ```
 
-**BLOCKING REQUIREMENT**: You MUST NOT recommend routing to any other agent (planner, implementer, etc.) until adr-review completes. Orchestrator is responsible for enforcing this gate.
+**BLOCKING REQUIREMENT**: You MUST NOT recommend routing to any other agent (milestone-planner, implementer, etc.) until adr-review completes. Orchestrator is responsible for enforcing this gate.
 
 ### Non-ADR Review Handoff
 

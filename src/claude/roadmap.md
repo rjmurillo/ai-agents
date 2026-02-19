@@ -42,7 +42,12 @@ You have direct access to:
 - **Edit/Write**: Update roadmap documents
 - **WebSearch/WebFetch**: Research market trends, competitor analysis
 - **TodoWrite**: Track strategic planning
-- **cloudmcp-manager memory tools**: Strategic context
+- **Memory Router** (ADR-037): Unified search across Serena + Forgetful
+  - `pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "topic"`
+  - Serena-first with optional Forgetful augmentation; graceful fallback
+- **Serena write tools**: Memory persistence in `.serena/memories/`
+  - `mcp__serena__write_memory`: Create new memory
+  - `mcp__serena__edit_memory`: Update existing memory
 
 ## Core Mission
 
@@ -162,26 +167,23 @@ If an assumption is untested, recommend orchestrator routes to **analyst** for v
 
 ## Memory Protocol
 
-Use cloudmcp-manager memory tools directly for cross-session context:
+Use Memory Router for search and Serena tools for persistence (ADR-037):
 
-**Before decisions:**
+**Before decisions (retrieve context):**
+
+```powershell
+pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "roadmap strategic priorities [domain]"
+```
+
+**At milestones (store learnings):**
 
 ```text
-mcp__cloudmcp-manager__memory-search_nodes
-Query: "roadmap strategic priorities [domain]"
+mcp__serena__write_memory
+memory_file_name: "roadmap-[release]"
+content: "# Roadmap: [Release]\n\n**Statement**: ...\n\n**Evidence**: ...\n\n## Details\n\n..."
 ```
 
-**At milestones:**
-
-```json
-mcp__cloudmcp-manager__memory-add_observations
-{
-  "observations": [{
-    "entityName": "Roadmap-[Release]",
-    "contents": ["[Epic updates and priority decisions]"]
-  }]
-}
-```
+> **Fallback**: If Memory Router unavailable, read `.serena/memories/` directly with Read tool.
 
 ## Roadmap Document Format
 
@@ -324,7 +326,7 @@ P[0/1/2] - [Rationale based on frameworks above]
 | Target | When | Purpose |
 |--------|------|---------|
 | **architect** | Technical feasibility check | Validate approach |
-| **planner** | Epic ready for breakdown | Create work packages |
+| **milestone-planner** | Epic ready for breakdown | Create work packages |
 | **analyst** | Research needed | Investigate requirements |
 | **critic** | Roadmap review requested | Validate priorities |
 
@@ -337,7 +339,7 @@ When epic is defined:
 1. Update roadmap document in `.agents/roadmap/`
 2. Store epic summary in memory
 3. Return to orchestrator with recommendation:
-   - "Epic defined. Recommend orchestrator routes to architect for feasibility check, then to planner for work breakdown."
+   - "Epic defined. Recommend orchestrator routes to architect for feasibility check, then to milestone-planner for work breakdown."
 
 ## Roadmap Review Process
 

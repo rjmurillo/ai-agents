@@ -27,14 +27,17 @@ from typing import TYPE_CHECKING
 import pytest
 
 if TYPE_CHECKING:
-    from _pytest.capture import CaptureFixture
+    pass
 
 
 # Add script directory to path for imports
-SCRIPTS_DIR = Path(__file__).resolve().parents[1] / ".claude" / "skills" / "slo-designer" / "scripts"
+SCRIPTS_DIR = (
+    Path(__file__).resolve().parents[1]
+    / ".claude" / "skills" / "slo-designer" / "scripts"
+)
 sys.path.insert(0, str(SCRIPTS_DIR))
 
-from calculate_error_budget import (
+from calculate_error_budget import (  # noqa: E402
     PERIOD_MINUTES,
     ErrorBudget,
     calculate_burn_rates,
@@ -43,7 +46,7 @@ from calculate_error_budget import (
     format_markdown_output,
     format_text_output,
 )
-from generate_slo_document import (
+from generate_slo_document import (  # noqa: E402
     validate_path_no_traversal,
 )
 
@@ -397,7 +400,10 @@ class TestCalculateErrorBudgetCLI:
     @pytest.fixture
     def script_path(self, project_root: Path) -> Path:
         """Return path to the script."""
-        return project_root / ".claude" / "skills" / "slo-designer" / "scripts" / "calculate_error_budget.py"
+        return (
+            project_root / ".claude" / "skills"
+            / "slo-designer" / "scripts" / "calculate_error_budget.py"
+        )
 
     def test_help_flag(self, script_path: Path) -> None:
         """--help flag shows usage information.
@@ -506,8 +512,8 @@ try:
     from generate_slo_document import (
         SLI,
         SLO,
-        SLOConfig,
         AlertConfig,
+        SLOConfig,
         calculate_error_budget_minutes,
         create_sample_config,
         format_downtime,
@@ -943,7 +949,10 @@ class TestGenerateSLODocumentCLI:
     @pytest.fixture
     def script_path(self, project_root: Path) -> Path:
         """Return path to the script."""
-        return project_root / ".claude" / "skills" / "slo-designer" / "scripts" / "generate_slo_document.py"
+        return (
+            project_root / ".claude" / "skills"
+            / "slo-designer" / "scripts" / "generate_slo_document.py"
+        )
 
     @pytest.fixture
     def valid_config_file(self, tmp_path: Path) -> Path:
@@ -1163,7 +1172,9 @@ user_journeys:
 slis:
   - name: Availability
     description: Service availability
-    measurement: sum(rate(http_requests_total{status!~"5.."}[5m])) / sum(rate(http_requests_total[5m]))
+    measurement: >-
+      sum(rate(http_requests_total{status!~"5.."}[5m]))
+      / sum(rate(http_requests_total[5m]))
     data_source: Prometheus
 
 slos:

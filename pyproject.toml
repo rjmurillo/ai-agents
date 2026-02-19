@@ -7,9 +7,10 @@ requires-python = ">=3.10"
 license = {text = "MIT"}
 
 dependencies = [
-    "anthropic==0.39.0",
+    "anthropic==0.79.0",
     "python-frontmatter==1.1.0",
-    "PyYAML==6.0.2",
+    "PyYAML==6.0.3",
+    "tiktoken>=0.5.0",
 ]
 
 [project.optional-dependencies]
@@ -27,10 +28,11 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-include = ["scripts*"]
+where = [".", ".claude/skills/memory-enhancement/src"]
+include = ["scripts*", "scripts.memory_sync*", "scripts.hook_utilities*", "scripts.test_result_helpers*", "scripts.pr_maintenance*", "scripts.github_core*", "scripts.ai_review_common*", "scripts.validation*", "memory_enhancement*"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests", "test"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
@@ -42,7 +44,7 @@ markers = [
 ]
 
 [tool.coverage.run]
-source = [".claude", "scripts", "scripts/memory_enhancement"]
+source = [".claude", "scripts", "scripts/memory_sync", ".claude/skills/memory-enhancement/src/memory_enhancement"]
 omit = ["**/tests/*", "**/__pycache__/*"]
 
 [tool.coverage.report]

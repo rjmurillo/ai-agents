@@ -6,7 +6,6 @@ tools:
   - read
   - edit
   - search
-  - web
   - github/search_code
   - github/search_issues
   - github/search_pull_requests
@@ -14,10 +13,11 @@ tools:
   - github/pull_request_read
   - github/get_file_contents
   - github/list_commits
-  - cloudmcp-manager/*
+  - web
   - cognitionai/deepwiki/*
   - context7/*
   - perplexity/*
+  - cloudmcp-manager/*
   - serena/*
   - memory
 model: Claude Opus 4.5 (copilot)
@@ -84,7 +84,7 @@ Investigate before implementation. Surface unknowns, risks, and dependencies. Pr
 3. **Investigate** bugs and issues to find root causes
 4. **Evaluate** feature requests for necessity and impact
 5. **Surface** risks, dependencies, and unknowns
-6. **Document** findings for architect/planner
+6. **Document** findings for architect/milestone-planner
 
 ## Research Tools
 
@@ -426,7 +426,7 @@ Save to: `.agents/analysis/NNN-[topic]-analysis.md`
 
 | Target | When | Purpose |
 |--------|------|---------|
-| **planner** | Analysis complete, ready for planning | Based on findings |
+| **milestone-planner** | Analysis complete, ready for planning | Based on findings |
 | **implementer** | Research insights needed during implementation | Using research context |
 | **architect** | Design implications discovered | Technical decisions |
 | **security** | Vulnerability identified | Security assessment |

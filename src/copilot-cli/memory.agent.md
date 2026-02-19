@@ -8,6 +8,7 @@ tools:
   - memory
   - cloudmcp-manager/*
   - serena/*
+model: claude-opus-4.5
 ---
 # Memory Agent
 
@@ -415,7 +416,7 @@ Every observation MUST include its source for traceability:
 
 | Source Type | Format | Example |
 |-------------|--------|---------|
-| Agent session | `[agent-name]` | `[planner]` |
+| Agent session | `[agent-name]` | `[milestone-planner]` |
 | Document | `[doc:path]` | `[doc:planning/prd-auth.md]` |
 | Decision | `[decision:ADR-NNN]` | `[decision:ADR-005]` |
 | User | `[user]` | `[user]` |
@@ -435,7 +436,7 @@ Every observation MUST include its source for traceability:
 ## Timeline
 
 - [2025-01-15] [roadmap]: Epic EPIC-001 created for OAuth2 integration
-- [2025-01-16] [planner]: Decomposed into 3 milestones, 15 tasks
+- [2025-01-16] [milestone-planner]: Decomposed into 3 milestones, 15 tasks
 - [2025-01-17] [doc:planning/prd-auth.md]: PRD completed, scope locked
 - [2025-01-20] [implementer]: Sprint 1 started, 5/15 tasks in progress
 - [2025-01-25] [decision:ADR-005]: Switched from PKCE to client credentials

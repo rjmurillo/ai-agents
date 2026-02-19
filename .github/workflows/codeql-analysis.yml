@@ -11,8 +11,8 @@
 # See the 'scannable' filter for the authoritative list.
 #
 # Local developers and AI agents can run equivalent scans using:
-#   pwsh .codeql/scripts/Invoke-CodeQLScan.ps1
-#   pwsh .codeql/scripts/Test-CodeQLConfig.ps1
+#   python3 .codeql/scripts/invoke_codeql_scan.py
+#   python3 .codeql/scripts/test_codeql_config.py
 #
 # Configuration: Uses shared config at .github/codeql/codeql-config.yml
 # Query packs: security-extended for PowerShell, Actions, and Python
@@ -110,7 +110,6 @@ jobs:
       matrix:
         include:
           # Note: PowerShell is not a supported CodeQL language
-          # PowerShell scripts are analyzed via PSScriptAnalyzer instead
           - language: actions
             build-mode: none
           - language: python
@@ -129,7 +128,7 @@ jobs:
 
       - name: Initialize CodeQL
         if: needs.check-paths.outputs.should-run-analysis == 'true'
-        uses: github/codeql-action/init@4bdb89f48054571735e3792627da6195c57459e2 # v3
+        uses: github/codeql-action/init@2588666de8825e1e9dc4e2329a4c985457d55b32 # v3
         with:
           languages: ${{ matrix.language }}
           config-file: .github/codeql/codeql-config.yml
@@ -137,7 +136,7 @@ jobs:
 
       - name: Perform CodeQL Analysis
         if: needs.check-paths.outputs.should-run-analysis == 'true'
-        uses: github/codeql-action/analyze@4bdb89f48054571735e3792627da6195c57459e2 # v3
+        uses: github/codeql-action/analyze@2588666de8825e1e9dc4e2329a4c985457d55b32 # v3
         with:
           category: '/language:${{ matrix.language }}'
           upload: true
@@ -173,13 +172,18 @@ jobs:
           echo "Reference: .github/workflows/codeql-analysis.yml"
 
       - name: Create empty analysis result for required check
-        shell: pwsh
+        shell: python3 {0}
         run: |
-          Import-Module ./.github/scripts/TestResultHelpers.psm1
-          New-SkippedTestResult `
-            -OutputPath "./artifacts/codeql-results.xml" `
-            -TestSuiteName "CodeQL Analysis (Skipped)" `
-            -SkipReason "No scannable files changed - analysis skipped"
+          import sys
+          import os
+          sys.path.insert(0, os.getcwd())
+          from scripts.test_result_helpers.helpers import create_skipped_test_result
+
+          create_skipped_test_result(
+              output_path="./artifacts/codeql-results.xml",
+              test_suite_name="CodeQL Analysis (Skipped)",
+              skip_reason="No scannable files changed - analysis skipped"
+          )
 
       - name: Publish Analysis Report (skipped)
         uses: dorny/test-reporter@31a54ee7ebcacc03a09ea97a7e5465a47b84aea5 # v1

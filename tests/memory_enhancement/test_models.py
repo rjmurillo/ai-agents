@@ -1,181 +1,236 @@
-"""Unit tests for memory enhancement data models."""
+"""Tests for memory_enhancement.models."""
 
-import pytest
-from datetime import datetime
+from __future__ import annotations
+
+import logging
+from datetime import date, datetime
 from pathlib import Path
 
-from scripts.memory_enhancement.models import Citation, Link, LinkType, Memory
+import pytest
+
+from memory_enhancement.models import Citation, Link, LinkType, Memory, _parse_date
 
 
-@pytest.mark.unit
-def test_citation_dataclass_creation():
-    """Test Citation dataclass instantiation."""
-    citation = Citation(
-        path="scripts/test.py", line=10, snippet="def test():", valid=True, mismatch_reason=None
-    )
+class TestCitation:
+    """Tests for Citation dataclass."""
 
-    assert citation.path == "scripts/test.py"
-    assert citation.line == 10
-    assert citation.snippet == "def test():"
-    assert citation.valid is True
-    assert citation.mismatch_reason is None
+    @pytest.mark.unit
+    def test_creation_with_defaults(self) -> None:
+        c = Citation(path="src/foo.py")
+        assert c.path == "src/foo.py"
+        assert c.line is None
+        assert c.snippet is None
+        assert c.verified is None
+        assert c.valid is None
+        assert c.mismatch_reason is None
 
-
-@pytest.mark.unit
-def test_link_type_enum_values():
-    """Test LinkType enum has expected values."""
-    assert LinkType.RELATED.value == "RELATED"
-    assert LinkType.SUPERSEDES.value == "SUPERSEDES"
-    assert LinkType.BLOCKS.value == "BLOCKS"
-    assert LinkType.IMPLEMENTS.value == "IMPLEMENTS"
-    assert LinkType.EXTENDS.value == "EXTENDS"
-
-
-@pytest.mark.unit
-def test_memory_from_serena_file_valid(sample_memory_file):
-    """Test parsing a valid memory file."""
-    memory = Memory.from_serena_file(sample_memory_file)
-
-    assert memory.id == "test-memory-001"
-    assert memory.subject == "Test Memory with Valid Citations"
-    assert len(memory.citations) == 2
-    assert memory.citations[0].path == "scripts/sample.py"
-    assert memory.citations[0].line == 1
-    assert memory.citations[0].snippet == "def hello():"
-    assert memory.citations[1].path == "README.md"
-    assert memory.citations[1].line is None
-    assert len(memory.tags) == 2
-    assert "test" in memory.tags
-    assert memory.confidence == 1.0
+    @pytest.mark.unit
+    def test_creation_with_all_fields(self) -> None:
+        now = datetime(2026, 1, 15, 12, 0, 0)
+        c = Citation(
+            path="src/bar.py",
+            line=42,
+            snippet="def bar",
+            verified=now,
+            valid=True,
+            mismatch_reason=None,
+        )
+        assert c.path == "src/bar.py"
+        assert c.line == 42
+        assert c.snippet == "def bar"
+        assert c.verified == now
+        assert c.valid is True
 
 
-@pytest.mark.unit
-def test_memory_from_serena_file_no_frontmatter(tmp_path):
-    """Test handling memory file without frontmatter."""
-    memory_file = tmp_path / "no-frontmatter.md"
-    memory_file.write_text("# Plain Markdown\n\nNo frontmatter here.")
+class TestLink:
+    """Tests for Link dataclass."""
 
-    memory = Memory.from_serena_file(memory_file)
-
-    # Should use filename as ID
-    assert memory.id == "no-frontmatter"
-    assert memory.subject == ""
-    assert len(memory.citations) == 0
-    assert memory.confidence == 1.0
+    @pytest.mark.unit
+    def test_creation(self) -> None:
+        link = Link(link_type=LinkType.RELATED, target_id="other-memory")
+        assert link.link_type == LinkType.RELATED
+        assert link.target_id == "other-memory"
 
 
-@pytest.mark.unit
-def test_memory_from_serena_file_minimal(tmp_path):
-    """Test parsing memory with minimal metadata."""
-    memory_content = """---
-subject: Minimal Memory
----
+class TestLinkType:
+    """Tests for LinkType enum."""
 
-# Minimal
+    @pytest.mark.unit
+    def test_all_values(self) -> None:
+        expected = {"related", "supersedes", "blocks", "implements", "extends"}
+        actual = {lt.value for lt in LinkType}
+        assert actual == expected
 
-Just a subject.
-"""
-    memory_file = tmp_path / "minimal.md"
-    memory_file.write_text(memory_content)
+    @pytest.mark.unit
+    def test_value_lookup(self) -> None:
+        assert LinkType("related") == LinkType.RELATED
+        assert LinkType("supersedes") == LinkType.SUPERSEDES
+        assert LinkType("blocks") == LinkType.BLOCKS
+        assert LinkType("implements") == LinkType.IMPLEMENTS
+        assert LinkType("extends") == LinkType.EXTENDS
 
-    memory = Memory.from_serena_file(memory_file)
-
-    assert memory.id == "minimal"
-    assert memory.subject == "Minimal Memory"
-    assert len(memory.citations) == 0
-    assert len(memory.links) == 0
-    assert len(memory.tags) == 0
-    assert memory.confidence == 1.0
-
-
-@pytest.mark.unit
-def test_memory_get_links_by_type(tmp_path):
-    """Test filtering links by type."""
-    memory_content = """---
-id: test-links
-subject: Test Links
-links:
-  - link_type: RELATED
-    target_id: memory-001
-  - link_type: SUPERSEDES
-    target_id: memory-002
-  - link_type: RELATED
-    target_id: memory-003
----
-
-# Test Links
-"""
-    memory_file = tmp_path / "test-links.md"
-    memory_file.write_text(memory_content)
-
-    memory = Memory.from_serena_file(memory_file)
-
-    related = memory.get_links_by_type(LinkType.RELATED)
-    assert len(related) == 2
-    assert "memory-001" in related
-    assert "memory-003" in related
-
-    supersedes = memory.get_links_by_type(LinkType.SUPERSEDES)
-    assert len(supersedes) == 1
-    assert "memory-002" in supersedes
+    @pytest.mark.unit
+    def test_invalid_value_raises(self) -> None:
+        with pytest.raises(ValueError):
+            LinkType("nonexistent")
 
 
-@pytest.mark.unit
-def test_memory_parse_date_formats():
-    """Test date parsing from various formats."""
-    # None
-    assert Memory._parse_date(None) is None
+class TestMemory:
+    """Tests for Memory dataclass."""
 
-    # datetime instance
-    now = datetime.now()
-    assert Memory._parse_date(now) == now
+    @pytest.mark.unit
+    def test_creation_with_defaults(self) -> None:
+        m = Memory(id="test", subject="Test", path=Path("x.md"), content="body")
+        assert m.id == "test"
+        assert m.subject == "Test"
+        assert m.citations == []
+        assert m.links == []
+        assert m.tags == []
+        assert m.confidence == 0.5
+        assert m.last_verified is None
 
-    # ISO string
-    iso_str = "2026-01-24T12:00:00"
-    parsed = Memory._parse_date(iso_str)
-    assert isinstance(parsed, datetime)
-    assert parsed.year == 2026
-    assert parsed.month == 1
-    assert parsed.day == 24
+    @pytest.mark.unit
+    def test_from_file_basic(self, sample_memory_file: Path) -> None:
+        m = Memory.from_file(sample_memory_file)
+        assert m.id == "test-memory"
+        assert m.subject == "Test Subject"
+        assert m.content.strip() == "Memory content here."
+        assert m.confidence == 0.8
+        assert m.tags == ["test", "example"]
+
+    @pytest.mark.unit
+    def test_from_file_citations(self, sample_memory_file: Path) -> None:
+        m = Memory.from_file(sample_memory_file)
+        assert len(m.citations) == 1
+        c = m.citations[0]
+        assert c.path == "src/example.py"
+        assert c.line == 2
+        assert c.snippet == "def hello"
+
+    @pytest.mark.unit
+    def test_from_file_links(self, sample_memory_file: Path) -> None:
+        m = Memory.from_file(sample_memory_file)
+        assert len(m.links) == 1
+        link = m.links[0]
+        assert link.link_type == LinkType.RELATED
+        assert link.target_id == "other-memory"
+
+    @pytest.mark.unit
+    def test_from_file_id_defaults_to_stem(self, memories_dir: Path) -> None:
+        path = memories_dir / "no-id-field.md"
+        path.write_text(
+            "---\nsubject: No ID\n---\nContent.\n",
+            encoding="utf-8",
+        )
+        m = Memory.from_file(path)
+        assert m.id == "no-id-field"
+
+    @pytest.mark.unit
+    def test_from_file_unknown_link_type_warns(
+        self, memories_dir: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        path = memories_dir / "unknown-link.md"
+        path.write_text(
+            "---\n"
+            "id: unknown-link\n"
+            "subject: Unknown Link\n"
+            "links:\n"
+            "  - alien_type: some-target\n"
+            "---\n"
+            "Content.\n",
+            encoding="utf-8",
+        )
+        with caplog.at_level(logging.WARNING, logger="memory_enhancement.models"):
+            m = Memory.from_file(path)
+        assert len(m.links) == 0
+        assert "Unknown link type" in caplog.text
+
+    @pytest.mark.unit
+    def test_from_file_no_citations_or_links(self, memories_dir: Path) -> None:
+        path = memories_dir / "bare.md"
+        path.write_text(
+            "---\nid: bare\nsubject: Bare\n---\nBody.\n",
+            encoding="utf-8",
+        )
+        m = Memory.from_file(path)
+        assert m.citations == []
+        assert m.links == []
+
+    @pytest.mark.unit
+    def test_from_file_with_last_verified(self, memories_dir: Path) -> None:
+        path = memories_dir / "verified.md"
+        path.write_text(
+            "---\n"
+            "id: verified\n"
+            "subject: Verified\n"
+            "last_verified: '2026-01-15'\n"
+            "---\n"
+            "Content.\n",
+            encoding="utf-8",
+        )
+        m = Memory.from_file(path)
+        assert m.last_verified == datetime(2026, 1, 15)
+
+    @pytest.mark.unit
+    def test_get_links_by_type(self) -> None:
+        m = Memory(
+            id="multi-link",
+            subject="Multi",
+            path=Path("x.md"),
+            content="",
+            links=[
+                Link(link_type=LinkType.RELATED, target_id="a"),
+                Link(link_type=LinkType.BLOCKS, target_id="b"),
+                Link(link_type=LinkType.RELATED, target_id="c"),
+            ],
+        )
+        related = m.get_links_by_type(LinkType.RELATED)
+        assert related == ["a", "c"]
+
+    @pytest.mark.unit
+    def test_get_links_by_type_empty(self) -> None:
+        m = Memory(id="no-links", subject="X", path=Path("x.md"), content="")
+        assert m.get_links_by_type(LinkType.EXTENDS) == []
 
 
-@pytest.mark.unit
-def test_citation_with_snippet():
-    """Test citation with code snippet."""
-    citation = Citation(path="test.py", line=5, snippet="return True")
+class TestParseDate:
+    """Tests for _parse_date helper."""
 
-    assert citation.snippet == "return True"
-    assert citation.line == 5
+    @pytest.mark.unit
+    def test_none_returns_none(self) -> None:
+        assert _parse_date(None) is None
 
+    @pytest.mark.unit
+    def test_datetime_passthrough(self) -> None:
+        dt = datetime(2026, 3, 1, 10, 30)
+        assert _parse_date(dt) is dt
 
-@pytest.mark.unit
-def test_link_invalid_type(tmp_path):
-    """Test handling unknown link types gracefully."""
-    memory_content = """---
-id: test-invalid-link
-subject: Invalid Link Type
-links:
-  - link_type: UNKNOWN_TYPE
-    target_id: memory-001
-  - link_type: RELATED
-    target_id: memory-002
----
+    @pytest.mark.unit
+    def test_date_converts_to_datetime(self) -> None:
+        d = date(2026, 3, 1)
+        result = _parse_date(d)
+        assert result == datetime(2026, 3, 1)
+        assert isinstance(result, datetime)
 
-# Invalid Link
-"""
-    memory_file = tmp_path / "test-invalid-link.md"
-    memory_file.write_text(memory_content)
+    @pytest.mark.unit
+    def test_iso_string(self) -> None:
+        result = _parse_date("2026-03-01")
+        assert result == datetime(2026, 3, 1)
 
-    memory = Memory.from_serena_file(memory_file)
+    @pytest.mark.unit
+    def test_iso_string_with_time(self) -> None:
+        result = _parse_date("2026-03-01T10:30:00")
+        assert result == datetime(2026, 3, 1, 10, 30)
 
-    # Should skip invalid link but keep valid one
-    assert len(memory.links) == 1
-    assert memory.links[0].link_type == LinkType.RELATED
-    assert memory.links[0].target_id == "memory-002"
+    @pytest.mark.unit
+    def test_invalid_string_returns_none(self, caplog: pytest.LogCaptureFixture) -> None:
+        with caplog.at_level(logging.WARNING, logger="memory_enhancement.models"):
+            result = _parse_date("not-a-date")
+        assert result is None
+        assert "Cannot parse date string" in caplog.text
 
-
-@pytest.mark.unit
-def test_memory_from_serena_file_not_found():
-    """Test FileNotFoundError for missing file."""
-    with pytest.raises(FileNotFoundError):
-        Memory.from_serena_file(Path("nonexistent.md"))
+    @pytest.mark.unit
+    def test_non_string_non_date_returns_none(self) -> None:
+        assert _parse_date(12345) is None
+        assert _parse_date([]) is None
+        assert _parse_date({}) is None

@@ -1,14 +1,13 @@
 ---
+name: roadmap
 description: CEO of the product—strategic product owner who defines what to build and why with outcome-focused vision. Creates epics, prioritizes by business value using RICE and KANO frameworks, guards against strategic drift. Use when you need direction, outcomes over outputs, sequencing by dependencies, or user-value validation.
 argument-hint: Describe the feature vision or backlog item to prioritize
 tools:
-  - vscode
   - read
   - edit
   - cloudmcp-manager/*
   - serena/*
-  - memory
-model: Claude Opus 4.5 (anthropic)
+model: claude-opus-4.5
 ---
 # Roadmap Agent
 
@@ -305,7 +304,7 @@ P[0/1/2] - [Rationale based on frameworks above]
 | Target | When | Purpose |
 |--------|------|---------|
 | **architect** | Technical feasibility check | Validate approach |
-| **planner** | Epic ready for breakdown | Create work packages |
+| **milestone-planner** | Epic ready for breakdown | Create work packages |
 | **analyst** | Research needed | Investigate requirements |
 | **critic** | Roadmap review requested | Validate priorities |
 
@@ -318,7 +317,7 @@ When epic is defined:
 1. Update roadmap document in `.agents/roadmap/`
 2. Store epic summary in memory
 3. Return to orchestrator with recommendation:
-   - "Epic defined. Recommend orchestrator routes to architect for feasibility check, then to planner for work breakdown."
+   - "Epic defined. Recommend orchestrator routes to architect for feasibility check, then to milestone-planner for work breakdown."
 
 ## Roadmap Review Process
 

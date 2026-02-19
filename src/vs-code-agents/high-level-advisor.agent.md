@@ -238,7 +238,7 @@ For effective advice, I need:
 | Target | When | Purpose |
 |--------|------|---------|
 | **implementer** | Direction set | Execute priority |
-| **planner** | Strategy clear | Break into tasks |
+| **milestone-planner** | Strategy clear | Break into tasks |
 | **analyst** | Research needed | Gather data first |
 | **independent-thinker** | Second challenge | Validate verdict |
 

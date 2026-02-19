@@ -22,7 +22,7 @@ argument-hint: Example of how to invoke this agent
 **Model Selection** (per ADR-002):
 
 - **opus**: architect, high-level-advisor, implementer, independent-thinker, orchestrator, roadmap, security
-- **sonnet**: analyst, critic, devops, explainer, memory, planner, pr-comment-responder, qa, retrospective, skillbook, task-generator  
+- **sonnet**: analyst, critic, devops, explainer, memory, milestone-planner, pr-comment-responder, qa, retrospective, skillbook, task-decomposer  
 - **haiku**: Reserved for high-volume/low-latency routing (not currently used)
 
 **Structure Requirements:**

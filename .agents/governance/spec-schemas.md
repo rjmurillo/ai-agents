@@ -1,9 +1,15 @@
-# Specification YAML Schema Definitions
+---
+type: governance
+id: spec-schemas
+status: active
+version: 1.0.0
+created: 2025-12-30
+related:
+  - ears-format.md
+  - enhancement-PROJECT-PLAN.md
+---
 
-> **Version**: 1.0.0
-> **Created**: 2025-12-30
-> **Status**: Active
-> **References**: [ears-format.md](./ears-format.md), [enhancement-PROJECT-PLAN.md](../planning/enhancement-PROJECT-PLAN.md)
+# Specification YAML Schema Definitions
 
 ## Overview
 
@@ -283,7 +289,7 @@ blocks:                  # Optional: tasks this blocks
 assignee: implementer    # Optional: assigned agent/person
 created: 2025-12-30
 updated: 2025-12-30
-author: task-generator
+author: task-decomposer
 tags:
   - mcp
   - typescript
@@ -358,7 +364,7 @@ blocks:
 assignee: implementer
 created: 2025-12-30
 updated: 2025-12-30
-author: task-generator
+author: task-decomposer
 tags:
   - mcp
   - typescript

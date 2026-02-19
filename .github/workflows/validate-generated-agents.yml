@@ -4,7 +4,7 @@
 # Regenerates all agents from templates and fails if committed files differ.
 #
 # Local developers and AI agents can run the same validation using:
-#   pwsh -NoProfile ./build/Generate-Agents.ps1 -Validate
+#   python3 build/generate_agents.py --validate
 
 name: Validate Generated Agents
 
@@ -52,7 +52,7 @@ jobs:
               - 'templates/**'
               - 'src/vs-code-agents/**'
               - 'src/copilot-cli/**'
-              - 'build/Generate-Agents.ps1'
+              - 'build/generate_agents.py'
               - '.github/workflows/validate-generated-agents.yml'
 
       - name: Determine if validation should run
@@ -90,49 +90,46 @@ jobs:
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
       - name: Regenerate and validate agent files
-        shell: pwsh -NoProfile -Command "& '{0}'"
         run: |
-          Write-Host "Running agent generation in validation mode..."
-          ./build/Generate-Agents.ps1 -Validate
+          echo "Running agent generation in validation mode..."
+          python3 build/generate_agents.py --validate
 
       - name: Validate GitHub Actions SHA Pinning
-        shell: pwsh -NoProfile -Command "& '{0}'"
+        shell: bash
         run: |
-          Write-Host "Validating GitHub Actions SHA pinning..."
-          ./scripts/Validate-ActionSHAPinning.ps1 -CI
+          echo "Validating GitHub Actions SHA pinning..."
+          python3 scripts/validation/sha_pinning.py --ci
 
       - name: Show diff on failure
         if: failure()
-        shell: pwsh -NoProfile -Command "& '{0}'"
         run: |
-          Write-Host ""
-          Write-Host "=== Files that differ from generated output ===" -ForegroundColor Red
-          Write-Host ""
+          echo ""
+          echo "=== Files that differ from generated output ==="
+          echo ""
 
           # Regenerate without validation to get the expected content
-          ./build/Generate-Agents.ps1
+          python3 build/generate_agents.py
 
           # Show which files changed
-          $changedFiles = git diff --name-only
+          CHANGED_FILES=$(git diff --name-only)
 
-          if ($changedFiles) {
-            Write-Host "The following generated files were manually edited:" -ForegroundColor Red
-            Write-Host ""
-            foreach ($file in $changedFiles) {
-              Write-Host "  - $file" -ForegroundColor Yellow
-            }
-            Write-Host ""
-            Write-Host "To fix this issue:" -ForegroundColor Cyan
-            Write-Host "  1. Edit the source template in templates/agents/*.shared.md" -ForegroundColor White
-            Write-Host "  2. Run: pwsh -NoProfile build/Generate-Agents.ps1" -ForegroundColor White
-            Write-Host "  3. Commit the regenerated files" -ForegroundColor White
-            Write-Host ""
-            Write-Host "=== Detailed diff ===" -ForegroundColor Red
+          if [ -n "$CHANGED_FILES" ]; then
+            echo "The following generated files were manually edited:"
+            echo ""
+            echo "$CHANGED_FILES" | while read -r file; do
+              echo "  - $file"
+            done
+            echo ""
+            echo "To fix this issue:"
+            echo "  1. Edit the source template in templates/agents/*.shared.md"
+            echo "  2. Run: python3 build/generate_agents.py"
+            echo "  3. Commit the regenerated files"
+            echo ""
+            echo "=== Detailed diff ==="
             git diff
-          }
-          else {
-            Write-Host "No differences detected in git diff (validation may have failed for other reasons)"
-          }
+          else
+            echo "No differences detected in git diff (validation may have failed for other reasons)"
+          fi
 
   # Skip job that provides passing status when no relevant files changed
   # Uses the SAME NAME as the real job to satisfy required status checks
@@ -157,7 +154,7 @@ jobs:
           echo "  - templates/**"
           echo "  - src/vs-code-agents/**"
           echo "  - src/copilot-cli/**"
-          echo "  - build/Generate-Agents.ps1"
+          echo "  - build/generate_agents.py"
           echo "  - .github/workflows/validate-generated-agents.yml"
           echo ""
           echo "Status: PASS (skipped - no relevant changes)"

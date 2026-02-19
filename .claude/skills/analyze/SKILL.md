@@ -1,13 +1,75 @@
 ---
 name: analyze
-description: Invoke IMMEDIATELY via python script when user requests codebase analysis, architecture review, security assessment, or quality evaluation. Do NOT explore first - the script orchestrates exploration.
+version: 1.0.0
+model: claude-sonnet-4-5
+description: Analyze codebase architecture, security posture, or code quality through
+  guided multi-step investigation. Use when performing architecture reviews, security
+  assessments, quality evaluations, or deep technical investigations. Produces
+  prioritized findings with evidence.
 license: MIT
-metadata:
 ---
 
 # Analyze Skill
 
 When this skill activates, IMMEDIATELY invoke the script. The script IS the workflow.
+
+## Triggers
+
+| Trigger Phrase | Operation |
+|----------------|-----------|
+| `analyze this codebase` | analyze.py with architecture + quality focus |
+| `review code quality` | analyze.py with quality focus |
+| `run security assessment` | analyze.py with security focus |
+| `architecture review of this system` | analyze.py with architecture focus |
+| `find code smells` | analyze.py with quality focus |
+
+---
+
+## When to Use
+
+Use this skill when:
+
+- A broad investigation is needed across multiple files or components
+- The analysis requires structured multi-step exploration
+- Findings need prioritization by severity and evidence
+
+Use direct code reading instead when:
+
+- Checking a single file or function
+- The question has a known, specific location
+- A quick grep or symbol search answers the question
+
+---
+
+## Anti-Patterns
+
+| Avoid | Why | Instead |
+|-------|-----|---------|
+| Exploring the codebase before invoking the script | Script orchestrates exploration order | Run step 1 immediately, let script direct you |
+| Skipping the Explore agent delegation | Misses broad codebase context | Follow step 1 REQUIRED ACTIONS to delegate |
+| Passing empty thoughts to later steps | Loses accumulated context | Include all findings from previous steps |
+| Reducing total-steps below 6 | Skips verification and synthesis | Keep minimum 6, increase as script directs |
+| Reporting findings without file:line evidence | Unverifiable claims | Always cite specific locations |
+
+---
+
+## Verification
+
+After execution:
+
+- [ ] All priority areas investigated with file-level evidence
+- [ ] Findings include severity classification (critical/high/medium/low)
+- [ ] Each finding has specific file:line references
+- [ ] Synthesis step completed with prioritized recommendations
+- [ ] No investigation areas left unexplored from the plan
+
+---
+
+## Scripts
+
+| Script | Purpose |
+|--------|---------|
+| `scripts/analyze.py` | Multi-step guided analysis with exploration, investigation, and synthesis |
 
 ## Invocation
 
@@ -24,11 +86,11 @@ python3 scripts/analyze.py \
 | `--total-steps` | Yes      | Minimum 6; adjust as script instructs     |
 | `--thoughts`    | Yes      | Accumulated state from all previous steps |
 
-## Workflow
+## Process
 
 The script outputs REQUIRED ACTIONS at each step. Follow them exactly.
 
-```
+```text
 Step 1: EXPLORATION         - Script tells you to delegate to Explore agent
 Step 2: FOCUS SELECTION     - Classify areas, assign priorities
 Step 3: INVESTIGATION PLAN  - Commit to specific files and questions

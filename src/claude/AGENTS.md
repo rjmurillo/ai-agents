@@ -133,8 +133,8 @@ flowchart TD
 | Agent | File | Role |
 |-------|------|------|
 | orchestrator | `orchestrator.md` | Task routing and coordination |
-| planner | `planner.md` | Milestone and work package creation |
-| task-generator | `task-generator.md` | Atomic task generation |
+| milestone-planner | `milestone-planner.md` | Milestone and work package creation |
+| task-decomposer | `task-decomposer.md` | Atomic task generation |
 
 ### Analysis Agents
 
@@ -198,7 +198,7 @@ argument-hint: Guidance for users
 | `## Core Mission` | Primary objective |
 | `## Key Responsibilities` | Numbered responsibilities |
 | `## Constraints` | What agent must NOT do |
-| `## Memory Protocol` | cloudmcp-manager usage |
+| `## Memory Protocol` | Memory Router + Serena usage |
 | `## Handoff Options` | When to delegate |
 | `## Output Format` | Expected deliverables |
 
@@ -218,13 +218,13 @@ Task(subagent_type="orchestrator", prompt="Coordinate implementation of EPIC-001
 
 ```text
 Feature Development:
-  orchestrator → analyst → architect → planner → critic → implementer → qa → retrospective
+  orchestrator → analyst → architect → milestone-planner → critic → implementer → qa → retrospective
 
 Quick Fix:
   implementer → qa
 
 Strategic Decision:
-  independent-thinker → high-level-advisor → task-generator
+  independent-thinker → high-level-advisor → task-decomposer
 
 PR Review:
   pr-comment-responder → (implementer | architect | security)
@@ -239,15 +239,17 @@ PR Review:
 Claude agents use MCP tool prefix syntax:
 
 ```text
-mcp__cloudmcp-manager__memory-search_nodes
-mcp__cognitionai-deepwiki__ask_question
+pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "topic"  # Memory Router (ADR-037)
+mcp__serena__write_memory  # Serena write tools
+mcp__deepwiki__ask_question
 mcp__serena__find_symbol
 ```
 
 VS Code/Copilot use path notation:
 
 ```text
-cloudmcp-manager/memory-search_nodes
+Search-Memory.ps1  # Memory Router (ADR-037)
+serena/write_memory
 cognitionai/deepwiki/ask_question
 serena/find_symbol
 ```
@@ -344,4 +346,4 @@ Invoke-Pester ./build/tests/
 - [build/AGENTS.md](../../build/AGENTS.md) - Build automation
 - [Root AGENTS.md](../../AGENTS.md) - Agent usage instructions
 - [AGENT-SYSTEM.md](../../.agents/AGENT-SYSTEM.md) - Full system documentation
-- usage-mandatory (use `mcp__serena__read_memory` with `memory_file_name="usage-mandatory"`) - GitHub skill rules
+- usage-mandatory (read via `Read .serena/memories/usage-mandatory.md`) - GitHub skill rules

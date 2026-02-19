@@ -15,7 +15,7 @@ Review and respond to comments on PR #788.
 
 | Req | Step | Status | Evidence |
 |-----|------|--------|----------|
-| MUST | Initialize Serena: `mcp__serena__activate_project` | [x] | Project 'ai-agents' at /home/richard/ai-agents is activated |
+| MUST | Initialize Serena: `mcp__serena__activate_project` | [x] | Project 'ai-agents' at <project-root> is activated |
 | MUST | Initialize Serena: `mcp__serena__initial_instructions` | [x] | Tool output present, Serena instructions manual loaded |
 | MUST | Read `.agents/HANDOFF.md` | [x] | Content in context, read-only dashboard verified |
 | MUST | Create this session log | [x] | This file exists |

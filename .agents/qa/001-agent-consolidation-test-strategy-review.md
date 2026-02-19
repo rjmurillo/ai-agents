@@ -347,4 +347,4 @@ The consolidation plan is well-structured but lacks the test strategy depth need
 
 ---
 
-**Handoff**: Route to **planner** to incorporate test strategy feedback into task breakdown.
+**Handoff**: Route to **milestone-planner** to incorporate test strategy feedback into task breakdown.
