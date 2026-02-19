@@ -362,6 +362,87 @@ When reviewing an ADR:
 - [ ] Related ADRs are linked
 ```
 
+## Design Review Template (MANDATORY)
+
+All DESIGN-REVIEW documents MUST use YAML frontmatter for automated parsing. The CI quality gate enforces blocking verdicts.
+
+Save to: `.agents/architecture/DESIGN-REVIEW-[topic].md`
+
+```markdown
+---
+status: "APPROVED | NEEDS_CHANGES | NEEDS_ADR | BLOCKED | REJECTED"
+priority: "P0 | P1 | P2"
+blocking: true | false
+reviewer: "architect"
+date: "YYYY-MM-DD"
+pr: 0
+issue: 0
+---
+
+# Design Review: [Topic]
+
+## Executive Summary
+
+**Verdict**: [STATUS]
+
+[2-3 sentence summary of findings and recommendation]
+
+## Context
+
+[Problem statement and background]
+
+## Evaluation
+
+### [Section 1]
+[Analysis with [PASS]/[FAIL]/[WARNING] indicators]
+
+### [Section 2]
+[Analysis with [PASS]/[FAIL]/[WARNING] indicators]
+
+## Issues Discovered
+
+| Issue | Priority | Category | Description |
+|-------|----------|----------|-------------|
+| [ID] | [P0/P1/P2] | [Category] | [Brief description] |
+
+**Issue Summary**: P0: [N], P1: [N], P2: [N], Total: [N]
+
+## Recommendations
+
+1. [Recommendation with rationale]
+2. [Recommendation with rationale]
+
+## Verdict
+
+**[STATUS]** with [conditions if any].
+
+### Approval Conditions (if NEEDS_CHANGES)
+
+1. [ ] [Condition 1]
+2. [ ] [Condition 2]
+
+## Handoff
+
+**Orchestrator**: Route to **[agent]** for [next step].
+```
+
+### Status Definitions
+
+| Status | Meaning | blocking Value |
+|--------|---------|----------------|
+| **APPROVED** | Design meets all criteria | `false` |
+| **NEEDS_CHANGES** | Minor issues, can proceed with fixes | `false` |
+| **NEEDS_ADR** | ADR required before proceeding | `true` |
+| **BLOCKED** | Major issues, cannot proceed | `true` |
+| **REJECTED** | Design fundamentally flawed | `true` |
+
+### CI Enforcement
+
+The `synthesis-panel-gate.yml` workflow parses frontmatter and blocks PRs when:
+
+- `blocking: true` and status is NEEDS_ADR, BLOCKED, or REJECTED
+- No `status` field present in frontmatter
+
 ## Architectural Principles
 
 - **Consistency**: Follow established patterns
@@ -553,8 +634,8 @@ Accept that systems have lifespans and plan for replacement rather than indefini
 
 `.agents/architecture/`
 
-- `ADR-NNNN-[decision].md` - Architecture Decision Records
-- `DESIGN-REVIEW-[topic].md` - Design review notes
+- `ADR-NNNN-[decision].md` - Architecture Decision Records (use MADR 4.0 template)
+- `DESIGN-REVIEW-[topic].md` - Design reviews (MUST use YAML frontmatter template above)
 
 ## Handoff Options
 
