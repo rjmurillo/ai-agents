@@ -39,7 +39,9 @@ class TestIsProjectRepo:
         monkeypatch.chdir(REPO_ROOT)
         assert is_project_repo() is True
 
-    def test_returns_false_in_consumer(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_returns_false_in_consumer(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.chdir(tmp_path)
         assert is_project_repo() is False
 
