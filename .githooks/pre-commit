@@ -712,6 +712,7 @@ if [ -n "$STAGED_SKILL_FILES" ]; then
         if set_python_cmd; then
             # Validate each staged SKILL.md file
             VALIDATION_FAILED=0
+            # Use process substitution to avoid subshell (heredoc runs in subshell, breaking output and variable propagation)
             while IFS= read -r skill_md; do
                 [ -z "$skill_md" ] && continue
 
@@ -734,7 +735,7 @@ if [ -n "$STAGED_SKILL_FILES" ]; then
                     echo "$validator_output"
                     VALIDATION_FAILED=1
                 fi
-            done <<< "$STAGED_SKILL_FILES"
+            done < <(echo "$STAGED_SKILL_FILES")
 
             if [ "$VALIDATION_FAILED" -eq 1 ]; then
                 echo_error "One or more skills failed validation."
