@@ -41,7 +41,7 @@ LIB_ONLY_FILES: set[str] = set()
 # Non-Python files in the lib directory that should be left untouched.
 SKIP_EXTENSIONS: set[str] = {".md", ".pyc"}
 
-CANONICAL_NOTE = "Canonical copy lives at {src_rel}; keep in sync via scripts/sync_plugin_lib.py."
+CANONICAL_NOTE = "Canonical: {src_rel}. Sync via scripts/sync_plugin_lib.py."
 
 
 # ---------------------------------------------------------------------------

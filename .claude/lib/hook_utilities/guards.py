@@ -1,4 +1,4 @@
-"""Canonical copy lives at scripts/hook_utilities/guards.py; keep in sync via scripts/sync_plugin_lib.py."""
+"""Canonical: scripts/hook_utilities/guards.py. Sync via scripts/sync_plugin_lib.py."""
 
 import sys
 from pathlib import Path

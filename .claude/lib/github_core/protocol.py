@@ -1,4 +1,4 @@
-"""Canonical copy lives at scripts/github_core/protocol.py; keep in sync via scripts/sync_plugin_lib.py."""
+"""Canonical: scripts/github_core/protocol.py. Sync via scripts/sync_plugin_lib.py."""
 
 from __future__ import annotations
 

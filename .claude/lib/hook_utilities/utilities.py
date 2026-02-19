@@ -1,4 +1,4 @@
-"""Canonical copy lives at scripts/hook_utilities/utilities.py; keep in sync via scripts/sync_plugin_lib.py.
+"""Canonical: scripts/hook_utilities/utilities.py. Sync via scripts/sync_plugin_lib.py.
 
 Migrated from .claude/hooks/Common/HookUtilities.psm1 per issue #1053.
 """
