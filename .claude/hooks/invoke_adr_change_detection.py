@@ -18,6 +18,19 @@ import subprocess
 import sys
 from pathlib import Path
 
+_plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+if _plugin_root:
+    _lib_dir = os.path.join(_plugin_root, "lib")
+else:
+    _lib_dir = str(Path(__file__).resolve().parents[1] / "lib")
+if not os.path.isdir(_lib_dir):
+    print(f"Plugin lib directory not found: {_lib_dir}", file=sys.stderr)
+    sys.exit(2)  # Config error per ADR-035
+if _lib_dir not in sys.path:
+    sys.path.insert(0, _lib_dir)
+
+from hook_utilities.guards import skip_if_consumer_repo  # noqa: E402
+
 
 def get_project_root() -> str | None:
     """Get the project root directory with path traversal validation.
@@ -48,8 +61,7 @@ def get_project_root() -> str | None:
 
 def main() -> int:
     """Main hook entry point. Returns exit code."""
-    if not Path(".agents").is_dir():
-        print("[SKIP] adr-change-detection: .agents/ not found (consumer repo)", file=sys.stderr)
+    if skip_if_consumer_repo("adr-change-detection"):
         return 0
 
     project_root = get_project_root()

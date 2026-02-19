@@ -19,6 +19,19 @@ import re
 import sys
 from pathlib import Path
 
+_plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+if _plugin_root:
+    _lib_dir = os.path.join(_plugin_root, "lib")
+else:
+    _lib_dir = str(Path(__file__).resolve().parents[2] / "lib")
+if not os.path.isdir(_lib_dir):
+    print(f"Plugin lib directory not found: {_lib_dir}", file=sys.stderr)
+    sys.exit(2)  # Config error per ADR-035
+if _lib_dir not in sys.path:
+    sys.path.insert(0, _lib_dir)
+
+from hook_utilities.guards import skip_if_consumer_repo  # noqa: E402
+
 # Keywords signaling autonomous/unattended execution
 AUTONOMY_PATTERNS: list[re.Pattern[str]] = [
     re.compile(r"\bautonomous\b", re.IGNORECASE),
@@ -69,9 +82,7 @@ def extract_prompt(hook_input: dict[str, object]) -> str | None:
 
 def main() -> int:
     """Main hook entry point. Returns exit code."""
-    if not Path(".agents").is_dir():
-        msg = "[SKIP] autonomous-execution-detector: consumer repo"
-        print(msg, file=sys.stderr)
+    if skip_if_consumer_repo("autonomous-execution-detector"):
         return 0
 
     try:
