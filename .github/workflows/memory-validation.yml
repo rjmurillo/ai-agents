@@ -168,18 +168,14 @@ jobs:
           echo "::warning::Found ${{ steps.parse.outputs.stale }} memories with stale citations"
           # Currently non-blocking - change to 'exit 1' to make blocking
 
+  # Pass-through job: emits SUCCESS for "Validate memory citations" required check
+  # when path filter skips the real validation job (issue #1168).
+  # Name must match validate-memories job name for branch protection.
   skip-validation:
-    name: Skip validation (no changes)
+    name: Validate memory citations
     needs: check-paths
     if: needs.check-paths.outputs.memories-changed != 'true' && needs.check-paths.outputs.code-changed != 'true'
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 1
     steps:
-      - name: Checkout code
-        # Required for dorny/paths-filter pattern consistency
-        # See: .serena/memories/ci-infrastructure-dorny-paths-filter-checkout.md
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
-
-      - name: Skip message
-        run: |
-          echo "No memory or code changes detected - skipping validation"
+      - run: echo "No memory or code changes detected, skipping validation"
