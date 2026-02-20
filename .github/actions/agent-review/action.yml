@@ -230,15 +230,25 @@ runs:
             }
           }
 
-          Write-Output "::error::[$agent] ${verdict}: $summary"
-          Write-Output ""
-          Write-Output "❌ $emoji $agent review failed with verdict: $verdict"
-          Write-Output ""
-          Write-Output "See the step summary above for full findings."
-          exit 1
+          # Infrastructure failures are not code quality issues. Downgrade to warning
+          # so the aggregate job can determine the final verdict holistically.
+          if ($env:INFRASTRUCTURE_FAILURE -eq 'true') {
+            Write-Output "::warning::[$agent] ${verdict}: $summary (infrastructure failure, downgrading to warning)"
+            Write-Output ""
+            Write-Output "⚠️ $emoji $agent review had infrastructure failure (verdict: $verdict)"
+            Write-Output ""
+            Write-Output "Infrastructure failures are non-blocking. See aggregate results for final verdict."
+          } else {
+            Write-Output "::error::[$agent] ${verdict}: $summary"
+            Write-Output ""
+            Write-Output "❌ $emoji $agent review failed with verdict: $verdict"
+            Write-Output ""
+            Write-Output "See the step summary above for full findings."
+            exit 1
+          }
+        } else {
+          Write-Output "✅ $emoji $agent review passed with verdict: $verdict"
         }
-
-        Write-Output "✅ $emoji $agent review passed with verdict: $verdict"
 
     - name: Skip ${{ inputs.agent }} review (no relevant changes)
       if: inputs.should-run != 'true'
