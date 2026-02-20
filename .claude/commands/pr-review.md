@@ -6,11 +6,11 @@ description: Use when responding to PR review comments for specified pull reques
 
 # PR Review Command
 
-> **Note**: This command uses extended thinking (`ultrathink`) for deep PR analysis.
-
 ultrathink
 
-Respond to PR review comments for the specified pull request(s): $ARGUMENTS
+Respond to PR review comments for: $ARGUMENTS
+
+Load configuration from `.claude/commands/pr-review-config.yaml` for scripts, completion criteria, error recovery, and failure handling tables.
 
 ## Context
 
@@ -20,11 +20,9 @@ Respond to PR review comments for the specified pull request(s): $ARGUMENTS
 
 ## Arguments
 
-Parse the input: `$ARGUMENTS`
-
 | Argument | Description | Default |
 |----------|-------------|---------|
-| `PR_NUMBERS` | Comma-separated PR numbers (e.g., `53,141,143`) or `all-open` | Required |
+| `PR_NUMBERS` | Comma-separated PR numbers or `all-open` | Required |
 | `--parallel` | Use git worktrees for parallel execution | false |
 | `--cleanup` | Clean up worktrees after completion | true |
 
@@ -32,319 +30,47 @@ Parse the input: `$ARGUMENTS`
 
 ### Step 1: Parse and Validate PRs
 
-For `all-open`, query: `gh pr list --state open --json number,reviewDecision`
+For `all-open`, query open PRs. For each PR number, validate using `scripts.claude_code.get_pr_context` from config.
 
-For each PR number, validate using:
+Verify PR merge state using `scripts.claude_code.test_pr_merged`. Exit code 0 = not merged (safe), 1 = merged (skip). This avoids stale state from `gh pr view`.
 
-```bash
-python3 .claude/skills/github/scripts/pr/get_pr_context.py --pull-request {number}
-```
+### Step 2: Comprehensive PR Status Check
 
-Verify: PR exists, is open (state != MERGED, CLOSED), targets current repo.
+Before addressing comments, gather full context:
 
-**CRITICAL - Verify PR Merge State (pr-review-007-merge-state-verification)**:
+1. **Review ALL comments**: Use `get_review_threads`, `get_unresolved_threads`, `get_unaddressed_comments`, and `get_pr_context` scripts from config.
+2. **Check merge eligibility**: Verify `mergeable=MERGEABLE` and no conflicts.
+3. **Review failing checks**: Use `get_pr_checks` script. Handle failures per `check_failure_actions` table in config.
 
-Before proceeding with review work, verify PR has not been merged via GraphQL (source of truth):
-
-```bash
-# Check merge state via test_pr_merged.py
-python3 .claude/skills/github/scripts/pr/test_pr_merged.py --pull-request {number}
-# Exit code 0 = not merged (safe to proceed), 1 = merged (skip)
-
-if [ $? -eq 1 ]; then
-    echo "PR #{number} is already merged. Skipping review work."
-    continue
-fi
-```
-
-**Why this matters**: `gh pr view --json state` may return stale "OPEN" for recently merged PRs, leading to wasted effort (see Issue #321, Session 85).
-
-### Step 1.5: Comprehensive PR Status Check (REQUIRED)
-
-Before addressing comments, gather full PR context:
-
-**1. Review ALL Comments** (review comments + PR comments):
-
-```bash
-# Get review threads with resolution status
-python3 .claude/skills/github/scripts/pr/get_pr_review_threads.py --pull-request {number}
-
-# Get unresolved review threads
-python3 .claude/skills/github/scripts/pr/get_unresolved_review_threads.py --pull-request {number}
-
-# Get unaddressed comments (comments without replies)
-python3 .claude/skills/github/scripts/pr/get_unaddressed_comments.py --pull-request {number}
-
-# Get full PR context including comments
-python3 .claude/skills/github/scripts/pr/get_pr_context.py --pull-request {number}
-```
-
-**2. Check Merge Eligibility with Base Branch**:
-
-```bash
-# Get PR context including merge state
-python3 .claude/skills/github/scripts/pr/get_pr_context.py --pull-request {number}
-# Check: "mergeable" should be "MERGEABLE"
-# Check: "merge_state_status" for conflicts
-
-# Verify PR is not already merged
-python3 .claude/skills/github/scripts/pr/test_pr_merged.py --pull-request {number}
-# Exit code 0 = not merged (safe to proceed), 1 = merged (skip)
-```
-
-**3. Review ALL Failing Checks**:
-
-```bash
-# Get all checks with conclusions using get_pr_checks.py
-python3 .claude/skills/github/scripts/pr/get_pr_checks.py --pull-request {number}
-# Output is JSON with FailedCount, AllPassing, and Checks array
-
-# For each failing check, investigate:
-# - If session validation: Use session-log-fixer skill
-# - If AI reviewer: Check for infrastructure vs code quality issues
-# - If Pester/pytest tests: Run tests locally to verify
-# - If linting: Run npx markdownlint-cli2 --fix
-```
-
-**Action on failures**:
-
-| Check Type | Failure Action |
-|------------|----------------|
-| Session validation | Invoke `session-log-fixer` skill |
-| AI reviewer (infra) | May be transient; note and continue |
-| AI reviewer (code quality) | Address findings or acknowledge |
-| Tests (Pester/pytest) | Run locally, fix failures |
-| Markdown lint | Run `npx markdownlint-cli2 --fix` |
-| PR title validation | Update title to conventional commit format |
-
-### Step 2: Create Worktrees (if --parallel)
-
-For parallel execution:
+### Step 3: Create Worktrees (if --parallel)
 
 ```bash
 branch=$(gh pr view {number} --json headRefName -q '.headRefName')
 git worktree add "../worktree-pr-{number}" "$branch"
 ```
 
-### Step 3: Launch Agents
+### Step 4: Launch Agents
 
-**Sequential (default):**
+**Sequential**: Invoke `pr-comment-responder` skill for each PR with session context at `.agents/pr-comments/PR-{pr}/`.
 
-```python
-for pr in pr_numbers:
-    # Pass session context path for state continuity
-    session_context = f".agents/pr-comments/PR-{pr}/"
-    Skill(skill="pr-comment-responder", args=f"{pr} --session-context={session_context}")
-```
+**Parallel**: Launch background Task agents per PR. Wait for all with `TaskOutput`.
 
-**Parallel (--parallel):**
+### Step 5: Verify, Push, and Cleanup
 
-```python
-agents = []
-for pr in pr_numbers:
-    session_context = f".agents/pr-comments/PR-{pr}/"
-    agent = Task(
-        subagent_type="pr-comment-responder",
-        prompt=f"""PR #{pr}
-
-Session context: {session_context}
-
-Check for existing session state before starting. If previous session exists:
-1. Load existing comment map
-2. Check for NEW comments only
-3. Skip to verification if no new comments
-
-Completion requires ALL criteria:
-- All comments [COMPLETE] or [WONTFIX]
-- No new comments after 45s wait post-commit
-- All CI checks pass (including AI Quality Gate)
-- Commits pushed to remote
-""",
-        run_in_background=True
-    )
-    agents.append(agent)
-
-for agent_id in agents:
-    TaskOutput(task_id=agent_id, block=True, timeout=600000)
-```
-
-### Step 4: Verify and Push
-
-For each worktree:
-
-```bash
-cd "../worktree-pr-{number}"
-if [[ -n "$(git status --short)" ]]; then
-    git add .
-    git commit -m "chore(pr-{number}): finalize review response session"
-    git push origin "$branch"
-fi
-```
-
-### Step 5: Cleanup Worktrees (if --cleanup)
-
-```bash
-cd "{main_repo}"
-for pr in pr_numbers; do
-    worktree_path="../worktree-pr-${pr}"
-    cd "$worktree_path"
-    status="$(git status --short)"
-    if [[ -z "$status" ]]; then
-        cd "{main_repo}"
-        git worktree remove "$worktree_path"
-    else
-        echo "WARNING: worktree-pr-${pr} has uncommitted changes"
-    fi
-done
-```
+Push any changes per worktree. Clean up worktrees if `--cleanup`. Check `worktree_constraints` in config for isolation rules.
 
 ### Step 6: Generate Summary
 
-Output:
+Report per-PR status table: PR, Branch, Comments, Acknowledged, Implemented, Commit, Status.
 
-```markdown
-## PR Review Summary
+## Thread Resolution
 
-| PR | Branch | Comments | Acknowledged | Implemented | Commit | Status |
-|----|--------|----------|--------------|-------------|--------|--------|
-| #53 | feat/xyz | 4 | 4 | 3 | abc1234 | COMPLETE |
-| #141 | fix/auth | 7 | 7 | 5 | def5678 | COMPLETE |
+Replying does NOT resolve threads. Use `add_thread_reply_resolve` or separate `resolve_thread` calls. For batch resolution, use the GraphQL template in config.
 
-### Statistics
-- **PRs Processed**: N
-- **Comments Reviewed**: N
-- **Fixes Implemented**: N
-- **Commits Pushed**: N
-- **Worktrees Cleaned**: N
-```
+## Completion Gate
 
-## Error Recovery
-
-| Scenario | Action |
-|----------|--------|
-| PR not found | Log warning, skip PR, continue |
-| Branch conflict | Log error, skip PR, continue |
-| Agent timeout | Log partial status, force cleanup |
-| Push rejection | Detect concurrent updates (fetch and compare remote). If no concurrent changes, retry with `--force-with-lease`; otherwise, log rejection and require manual resolution (do not force push in parallel scenarios). |
-| Merge conflict | Log conflict, skip cleanup, report for manual resolution |
-
-## Critical Constraints (MUST)
-
-When using `--parallel` with worktrees:
-
-1. **Worktree Isolation**: ALL changes MUST be contained within the assigned worktree
-2. **Working Directory**: Agents MUST set working directory to their worktree before file operations
-3. **Path Validation**: All file paths MUST be relative to worktree root
-4. **Git Operations**: Git commands MUST be executed from within the worktree directory
-5. **Verification Gate**: Before cleanup, verify no files were written outside worktrees
-
-## Completion Criteria
-
-**ALL criteria must be true before claiming PR review complete**:
-
-| Criterion | Verification | Required |
-|-----------|--------------|----------|
-| All review comments addressed | Each review thread has reply + resolution | Yes |
-| All PR comments acknowledged | Each PR comment has acknowledgment (reply or reaction) | Yes |
-| No new comments | Re-check after 45s wait returned 0 new | Yes |
-| CI checks pass | `get_pr_checks.py` AllPassing = true (or failures acknowledged) | Yes |
-| No unresolved threads | GraphQL query for unresolved reviewThreads = 0 | Yes |
-| Merge eligible | `mergeable=MERGEABLE`, no conflicts with base | Yes |
-| PR not merged | `test_pr_merged.py` exit code 0 | Yes |
-| Commits pushed | `git status` shows "up to date with origin" | Yes |
-
-**If ANY criterion fails**: Do NOT claim completion. The agent must loop back to address the issue.
-
-**Failure handling by type**:
-
-| Failure Type | Action |
-|--------------|--------|
-| Session validation fails | Use `session-log-fixer` skill to diagnose and fix |
-| AI reviewer fails (infra) | Note as infrastructure issue; may be transient |
-| AI reviewer fails (code quality) | Address findings or document acknowledgment |
-| Merge conflicts | Resolve conflicts or merge base branch |
-| Behind base branch | Merge base or rebase as appropriate |
-
-### Verification Command
-
-```bash
-# Run after each PR to verify completion
-for pr in "${pr_numbers[@]}"; do
-    echo "=== PR #$pr Completion Check ==="
-
-    # Get CI check status
-    checks=$(python3 .claude/skills/github/scripts/pr/get_pr_checks.py --pull-request "$pr")
-    all_passing=$(echo "$checks" | jq -r '.AllPassing')
-    if [ "$all_passing" != "true" ]; then
-        echo "$checks" | jq -r '.Checks[] | select(.Conclusion != "SUCCESS" and .Conclusion != "NEUTRAL" and .Conclusion != "SKIPPED" and .Conclusion != null) | "  FAIL: \(.Name) - \(.Conclusion)"'
-    fi
-
-    # Check for unresolved threads
-    python3 .claude/skills/github/scripts/pr/get_pr_review_threads.py --pull-request "$pr" --unresolved-only | jq '.unresolved_count'
-done
-```
-
-## Thread Resolution Protocol
-
-### Overview (pr-review-004-thread-resolution-single, pr-review-005-thread-resolution-batch)
-
-**CRITICAL**: Replying to a review comment does NOT automatically resolve the thread. Thread resolution requires a separate GraphQL mutation.
-
-### Single Thread Resolution (pr-review-004-thread-resolution-single)
-
-After replying to a review comment, resolve the thread:
-
-```bash
-# Step 1: Reply to thread and resolve in one call
-python3 .claude/skills/github/scripts/pr/add_pr_review_thread_reply.py \
-  --thread-id "PRRT_xxx" --body "Response text" --resolve
-
-# Or as two separate steps:
-# Step 1: Reply to comment
-python3 .claude/skills/github/scripts/pr/add_pr_review_thread_reply.py \
-  --thread-id "PRRT_xxx" --body "Response text"
-
-# Step 2: Resolve thread (REQUIRED separate step)
-python3 .claude/skills/github/scripts/pr/resolve_pr_review_thread.py --thread-id "PRRT_xxx"
-```
-
-**Why this matters**: Replying to a comment does NOT automatically resolve the thread. Thread resolution requires a separate GraphQL mutation. Unresolved threads block PR merge per branch protection rules.
-
-### Batch Thread Resolution (pr-review-005-thread-resolution-batch)
-
-For 2+ threads, use the script with multiple thread IDs:
-
-```bash
-# Resolve multiple threads efficiently with reply + resolve
-for thread_id in "PRRT_xxx" "PRRT_yyy" "PRRT_zzz"; do
-    python3 .claude/skills/github/scripts/pr/add_pr_review_thread_reply.py \
-      --thread-id "$thread_id" --body "Addressed." --resolve
-done
-
-# Or use GraphQL batch mutation for maximum efficiency (1 API call)
-gh api graphql -f query='
-mutation {
-  t1: resolveReviewThread(input: {threadId: "PRRT_xxx"}) { thread { id isResolved } }
-  t2: resolveReviewThread(input: {threadId: "PRRT_yyy"}) { thread { id isResolved } }
-  t3: resolveReviewThread(input: {threadId: "PRRT_zzz"}) { thread { id isResolved } }
-}'
-```
-
-**Benefits**:
-
-- 1 API call instead of N calls
-- Reduced network latency (1 round trip vs N)
-- Atomic operation (all succeed or all fail)
+ALL criteria from `completion_criteria` in config must pass before claiming completion. If ANY fails, loop back. See `failure_handling` and `error_recovery` in config for recovery actions.
 
 ## Related Memories
 
-When reviewing PRs, consult these Serena memories for context:
-
-| Memory | Purpose |
-|--------|---------|
-| `pr-review-007-merge-state-verification` | GraphQL source of truth for merge state |
-| `pr-review-004-thread-resolution-single` | Single thread resolution via GraphQL |
-| `pr-review-005-thread-resolution-batch` | Batch thread resolution efficiency |
-| `pr-review-008-session-state-continuity` | Session context for multi-round reviews |
-| `ai-quality-gate-failure-categorization` | Infrastructure vs code quality failures |
-| `session-log-fixer` (skill) | Diagnose and fix session protocol failures |
+See `related_memories` in config for Serena memories to consult during PR review.
