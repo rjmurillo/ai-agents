@@ -7,6 +7,8 @@ from .utilities import (
     get_today_session_log,
     get_today_session_logs,
     is_git_commit_command,
+    is_git_commit_or_push_command,
+    is_git_push_command,
 )
 
 __all__ = [
@@ -14,4 +16,6 @@ __all__ = [
     "get_today_session_log",
     "get_today_session_logs",
     "is_git_commit_command",
+    "is_git_commit_or_push_command",
+    "is_git_push_command",
 ]

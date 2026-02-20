@@ -17,6 +17,8 @@ from scripts.hook_utilities import (
     get_today_session_log,
     get_today_session_logs,
     is_git_commit_command,
+    is_git_commit_or_push_command,
+    is_git_push_command,
 )
 
 
@@ -36,9 +38,7 @@ class TestGetProjectDirectory:
             result = get_project_directory()
         assert result == str(tmp_path)
 
-    def test_finds_git_by_walking_up(
-        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-    ) -> None:
+    def test_finds_git_by_walking_up(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
         monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
@@ -48,9 +48,7 @@ class TestGetProjectDirectory:
         result = get_project_directory()
         assert result == str(tmp_path)
 
-    def test_ignores_empty_env_var(
-        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-    ) -> None:
+    def test_ignores_empty_env_var(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
         monkeypatch.setenv("CLAUDE_PROJECT_DIR", "  ")
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
@@ -80,6 +78,58 @@ class TestIsGitCommitCommand:
 
     def test_returns_false_for_partial_match(self) -> None:
         assert is_git_commit_command("nogit commit") is False
+
+
+class TestIsGitPushCommand:
+    def test_returns_true_for_git_push(self) -> None:
+        assert is_git_push_command("git push") is True
+
+    def test_returns_true_for_git_push_with_remote(self) -> None:
+        assert is_git_push_command("git push origin main") is True
+
+    def test_returns_true_for_git_push_with_flags(self) -> None:
+        assert is_git_push_command("git push -u origin feat/branch") is True
+
+    def test_returns_false_for_git_status(self) -> None:
+        assert is_git_push_command("git status") is False
+
+    def test_returns_false_for_git_commit(self) -> None:
+        assert is_git_push_command("git commit -m 'test'") is False
+
+    def test_returns_false_for_empty_string(self) -> None:
+        assert is_git_push_command("") is False
+
+    def test_returns_false_for_none(self) -> None:
+        assert is_git_push_command(None) is False
+
+    def test_returns_true_when_preceded_by_whitespace(self) -> None:
+        assert is_git_push_command("  git push") is True
+
+
+class TestIsGitCommitOrPushCommand:
+    def test_returns_true_for_git_commit(self) -> None:
+        assert is_git_commit_or_push_command("git commit -m 'test'") is True
+
+    def test_returns_true_for_git_ci(self) -> None:
+        assert is_git_commit_or_push_command("git ci -m 'test'") is True
+
+    def test_returns_true_for_git_push(self) -> None:
+        assert is_git_commit_or_push_command("git push") is True
+
+    def test_returns_true_for_git_push_with_args(self) -> None:
+        assert is_git_commit_or_push_command("git push origin main") is True
+
+    def test_returns_false_for_git_status(self) -> None:
+        assert is_git_commit_or_push_command("git status") is False
+
+    def test_returns_false_for_git_pull(self) -> None:
+        assert is_git_commit_or_push_command("git pull") is False
+
+    def test_returns_false_for_empty_string(self) -> None:
+        assert is_git_commit_or_push_command("") is False
+
+    def test_returns_false_for_none(self) -> None:
+        assert is_git_commit_or_push_command(None) is False
 
 
 class TestGetTodaySessionLog:
@@ -171,18 +221,26 @@ class TestModuleExports:
             get_today_session_log,
             get_today_session_logs,
             is_git_commit_command,
+            is_git_commit_or_push_command,
+            is_git_push_command,
         )
+
         assert callable(get_project_directory)
         assert callable(is_git_commit_command)
+        assert callable(is_git_push_command)
+        assert callable(is_git_commit_or_push_command)
         assert callable(get_today_session_log)
         assert callable(get_today_session_logs)
 
     def test_all_exports_listed(self) -> None:
         import scripts.hook_utilities as mod
+
         expected = {
             "get_project_directory",
             "get_today_session_log",
             "get_today_session_logs",
             "is_git_commit_command",
+            "is_git_commit_or_push_command",
+            "is_git_push_command",
         }
         assert set(mod.__all__) == expected

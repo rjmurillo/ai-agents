@@ -27,6 +27,11 @@
           },
           {
             "type": "command",
+            "command": "python3 -u .claude/hooks/PreToolUse/invoke_branch_context_guard.py",
+            "statusMessage": "Verifying branch matches session context (BLOCKING)"
+          },
+          {
+            "type": "command",
             "command": "python3 -u .claude/hooks/PreToolUse/invoke_adr_review_guard.py",
             "statusMessage": "Verifying ADR review completed (MUST requirement)"
           },
@@ -40,6 +45,11 @@
       {
         "matcher": "Bash(git push*)",
         "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -u .claude/hooks/PreToolUse/invoke_branch_context_guard.py",
+            "statusMessage": "Verifying branch matches session context (BLOCKING)"
+          },
           {
             "type": "command",
             "command": "python3 -u .claude/hooks/PreToolUse/invoke_branch_protection_guard.py",
