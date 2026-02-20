@@ -49,6 +49,7 @@ config:
   MD033:
     allowed_elements:
       - br
+      - code
       - kbd
       - sup
       - sub
