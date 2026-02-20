@@ -25,7 +25,7 @@ from pathlib import Path
 
 _plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
 if _plugin_root:
-    _lib_dir = os.path.join(_plugin_root, "lib")
+    _lib_dir = str(Path(_plugin_root).resolve() / "lib")
 else:
     _lib_dir = str(Path(__file__).resolve().parents[2] / "lib")
 if not os.path.isdir(_lib_dir):
@@ -35,6 +35,7 @@ if _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
 
 from hook_utilities import get_project_directory  # noqa: E402
+from hook_utilities.guards import skip_if_consumer_repo  # noqa: E402
 
 _GH_COMMAND_PATTERN = re.compile(r"\bgh\s+(\w+)\s+(\w+)")
 
@@ -215,6 +216,8 @@ def main() -> int:
     """Main hook entry point. Returns exit code."""
     try:
         if sys.stdin.isatty():
+            return 0
+        if skip_if_consumer_repo("skill-first-guard"):
             return 0
 
         input_json = sys.stdin.read()

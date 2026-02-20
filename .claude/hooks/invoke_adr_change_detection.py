@@ -20,7 +20,7 @@ from pathlib import Path
 
 _plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
 if _plugin_root:
-    _lib_dir = os.path.join(_plugin_root, "lib")
+    _lib_dir = str(Path(_plugin_root).resolve() / "lib")
 else:
     _lib_dir = str(Path(__file__).resolve().parents[1] / "lib")
 if not os.path.isdir(_lib_dir):
