@@ -64,8 +64,11 @@ def get_session_branch(session_log_path: Path) -> str | None:
         # Session logs store branch at top level
         if isinstance(data, dict):
             return data.get("branch")
-    except (json.JSONDecodeError, OSError, ValueError):
-        pass
+    except (json.JSONDecodeError, OSError, ValueError) as exc:
+        print(
+            f"branch_context_guard: Error reading session log '{session_log_path}': {exc}",
+            file=sys.stderr,
+        )
     return None
 
 
