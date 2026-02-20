@@ -28,7 +28,7 @@ Apply the criteria from: @.github/prompts/pr-quality-gate-security.md
 
 ### Changed Files
 
-<!-- NOTE: Backtick-prefixed commands below run at PREPROCESSING time in an
+<!-- NOTE: Commands prefixed with an exclamation mark and a backtick run at PREPROCESSING time in an
      isolated shell. $ARGUMENTS is NOT available here. See #1088. -->
 !`git diff main --name-only`
 

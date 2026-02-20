@@ -13,7 +13,7 @@ Run all 6 quality gate agents (security, QA, analyst, architect, DevOps, and roa
 
 ## Pre-flight Checks
 
-<!-- NOTE: Backtick-prefixed commands below run at PREPROCESSING time in an
+<!-- NOTE: Commands prefixed with an exclamation mark and a backtick run at PREPROCESSING time in an
      isolated shell. $ARGUMENTS and positional params ($0, $1) are NOT
      available in that shell. Only $ARGUMENTS substitution in prompt text
      works. This is why git diff uses hardcoded "main" below. See #1088. -->
