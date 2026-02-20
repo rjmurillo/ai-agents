@@ -71,6 +71,12 @@ def pr_is_open(number: int) -> bool:
 def main() -> int:
     print(f"=== close_eval_617: closing issue #{ISSUE} and PRs #{PR_EVAL}, #{PR_THIS} ===")
 
+    # Pre-flight: ensure gh CLI is available
+    code, _ = gh_try("version")
+    if code != 0:
+        print("ERROR: 'gh' CLI not found or not authenticated.", file=sys.stderr)
+        return 1
+
     # Step 1: Fetch eval file content from PR branch
     print(f"Fetching eval content from branch '{EVAL_BRANCH}'...")
     eval_content = get_eval_content()
