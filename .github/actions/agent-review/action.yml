@@ -72,7 +72,7 @@ runs:
         additional-context: ${{ inputs.additional-context }}
 
     - name: Save review results
-      if: inputs.should-run == 'true'
+      if: always() && inputs.should-run == 'true'
       shell: pwsh -NoProfile -Command "& '{0}'"
       env:
         AGENT: ${{ inputs.agent }}
@@ -88,14 +88,21 @@ runs:
           throw "Invalid agent name: $($env:AGENT). Must be one of: $($allowedAgents -join ', ')"
         }
 
+        # Default empty verdict to NEEDS_REVIEW so aggregate job can process it
+        $verdict = $env:VERDICT
+        if ([string]::IsNullOrWhiteSpace($verdict)) {
+          $verdict = 'NEEDS_REVIEW'
+          Write-Output "::warning::Verdict was empty, defaulting to NEEDS_REVIEW"
+        }
+
         $basePath = "ai-review-results"
         New-Item -ItemType Directory -Path $basePath -Force | Out-Null
-        $env:VERDICT | Set-Content "$basePath/$($env:AGENT)-verdict.txt" -NoNewline
+        $verdict | Set-Content "$basePath/$($env:AGENT)-verdict.txt" -NoNewline
         $env:FINDINGS | Set-Content "$basePath/$($env:AGENT)-findings.txt" -NoNewline
         $env:INFRASTRUCTURE_FAILURE | Set-Content "$basePath/$($env:AGENT)-infrastructure-failure.txt" -NoNewline
         $env:RETRY_COUNT | Set-Content "$basePath/$($env:AGENT)-retry-count.txt" -NoNewline
         Write-Output "Saved $($env:AGENT) results:"
-        Write-Output "  Verdict: $($env:VERDICT)"
+        Write-Output "  Verdict: $verdict"
         Write-Output "  Findings: $((Get-Item "$basePath/$($env:AGENT)-findings.txt").Length) bytes"
         Write-Output "  Infrastructure failure: $($env:INFRASTRUCTURE_FAILURE)"
         Write-Output "  Retry count: $($env:RETRY_COUNT)"
@@ -132,8 +139,8 @@ runs:
         try:
             verdict = os.environ.get('VERDICT', '').strip()
             if not verdict:
-                print("::error::VERDICT environment variable is missing or empty")
-                sys.exit(1)
+                print("::warning::VERDICT environment variable is missing or empty, defaulting to NEEDS_REVIEW")
+                verdict = "NEEDS_REVIEW"
 
             agent = os.environ.get('AGENT', '')
             emoji = os.environ.get('EMOJI', '')
@@ -193,6 +200,12 @@ runs:
         $verdict = $env:VERDICT
         $findings = $env:FINDINGS
 
+        # Default empty verdict to NEEDS_REVIEW (blocking) so failures are not silently passed
+        if ([string]::IsNullOrWhiteSpace($verdict)) {
+          $verdict = 'NEEDS_REVIEW'
+          Write-Output "::warning::Verdict was empty, defaulting to NEEDS_REVIEW"
+        }
+
         $blockingVerdicts = @('CRITICAL_FAIL', 'REJECTED', 'FAIL', 'NEEDS_REVIEW')
 
         # Infrastructure failures should not block the PR (aggregate handles downgrade to WARN)
@@ -217,15 +230,25 @@ runs:
             }
           }
 
-          Write-Output "::error::[$agent] ${verdict}: $summary"
-          Write-Output ""
-          Write-Output "❌ $emoji $agent review failed with verdict: $verdict"
-          Write-Output ""
-          Write-Output "See the step summary above for full findings."
-          exit 1
+          # Infrastructure failures are not code quality issues. Downgrade to warning
+          # so the aggregate job can determine the final verdict holistically.
+          if ($env:INFRASTRUCTURE_FAILURE -eq 'true') {
+            Write-Output "::warning::[$agent] ${verdict}: $summary (infrastructure failure, downgrading to warning)"
+            Write-Output ""
+            Write-Output "⚠️ $emoji $agent review had infrastructure failure (verdict: $verdict)"
+            Write-Output ""
+            Write-Output "Infrastructure failures are non-blocking. See aggregate results for final verdict."
+          } else {
+            Write-Output "::error::[$agent] ${verdict}: $summary"
+            Write-Output ""
+            Write-Output "❌ $emoji $agent review failed with verdict: $verdict"
+            Write-Output ""
+            Write-Output "See the step summary above for full findings."
+            exit 1
+          }
+        } else {
+          Write-Output "✅ $emoji $agent review passed with verdict: $verdict"
         }
-
-        Write-Output "✅ $emoji $agent review passed with verdict: $verdict"
 
     - name: Skip ${{ inputs.agent }} review (no relevant changes)
       if: inputs.should-run != 'true'
