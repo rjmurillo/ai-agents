@@ -18,6 +18,8 @@ VALID_CONFIG: dict = {
             "get_unresolved_threads": "python3 script.py",
             "get_unaddressed_comments": "python3 script.py",
             "get_pr_checks": "python3 script.py",
+            "add_thread_reply": "python3 script.py",
+            "add_thread_reply_resolve": "python3 script.py",
             "resolve_thread": "python3 script.py",
         },
         "copilot": {
@@ -27,6 +29,7 @@ VALID_CONFIG: dict = {
             "get_unresolved_threads": "pwsh script.ps1",
             "get_unaddressed_comments": "pwsh script.ps1",
             "get_pr_checks": "pwsh script.ps1",
+            "add_thread_reply": "pwsh script.ps1",
             "resolve_thread": "pwsh script.ps1",
         },
     },
@@ -125,3 +128,18 @@ class TestValidateConfig:
         del config["failure_handling"][0]["type"]
         errors = validate_config(config)
         assert any("failure_handling[0] missing field: type" in e for e in errors)
+
+    def test_missing_add_thread_reply(self) -> None:
+        config = copy.deepcopy(VALID_CONFIG)
+        del config["scripts"]["claude_code"]["add_thread_reply"]
+        errors = validate_config(config)
+        assert any("add_thread_reply" in e for e in errors)
+
+    def test_missing_add_thread_reply_resolve_claude_code_only(self) -> None:
+        config = copy.deepcopy(VALID_CONFIG)
+        del config["scripts"]["claude_code"]["add_thread_reply_resolve"]
+        errors = validate_config(config)
+        # Should fail for claude_code
+        assert any("add_thread_reply_resolve" in e for e in errors)
+        # Copilot section doesn't need this key
+        assert not any("copilot" in e and "add_thread_reply_resolve" in e for e in errors)

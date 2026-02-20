@@ -59,7 +59,7 @@ Before addressing comments, gather full context:
 
 ```bash
 branch=$(gh pr view {number} --json headRefName -q '.headRefName')
-git worktree add "../worktree-pr-{number}" "$branch"
+git worktree add "./.worktrees/pr-{number}" "$branch"
 ```
 
 ### Step 4: Launch Agents

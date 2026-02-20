@@ -42,7 +42,13 @@ REQUIRED_SCRIPT_KEYS = [
     "get_unresolved_threads",
     "get_unaddressed_comments",
     "get_pr_checks",
+    "add_thread_reply",
     "resolve_thread",
+]
+
+# Keys only required for claude_code section (has --resolve flag variant)
+CLAUDE_CODE_ONLY_KEYS = [
+    "add_thread_reply_resolve",
 ]
 
 REQUIRED_SCRIPT_SECTIONS = ["claude_code", "copilot"]
@@ -73,6 +79,13 @@ def validate_config(config: dict) -> list[str]:
                     errors.append(
                         f"Missing script in scripts.{section}: {script_key}"
                     )
+            # Check claude_code-specific keys
+            if section == "claude_code":
+                for script_key in CLAUDE_CODE_ONLY_KEYS:
+                    if script_key not in scripts[section]:
+                        errors.append(
+                            f"Missing script in scripts.{section}: {script_key}"
+                        )
 
     if "completion_criteria" in config:
         for i, item in enumerate(config["completion_criteria"]):
