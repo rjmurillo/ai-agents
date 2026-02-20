@@ -36,11 +36,11 @@ from hook_utilities import get_project_directory  # noqa: E402
 
 # File path patterns that indicate auth-related code
 _AUTH_PATH_PATTERNS = [
-    re.compile(r"[/\\][Aa]uth[/\\]"),
-    re.compile(r"[/\\][Aa]uthentication[/\\]"),
-    re.compile(r"[/\\][Aa]uthorization[/\\]"),
+    re.compile(r"(^|[/\\])[Aa]uth[/\\]"),
+    re.compile(r"(^|[/\\])[Aa]uthentication[/\\]"),
+    re.compile(r"(^|[/\\])[Aa]uthorization[/\\]"),
     re.compile(r"\.auth\.(ts|js|py|cs|java|go|rb)$"),
-    re.compile(r"[/\\]middleware[/\\]auth"),
+    re.compile(r"(^|[/\\])middleware[/\\]auth", re.IGNORECASE),
 ]
 
 # Session log patterns indicating security review was performed

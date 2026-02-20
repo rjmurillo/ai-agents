@@ -33,6 +33,12 @@ class TestIsAuthPath:
             "server.auth.py",
             "services/auth/tokens.go",
             "/home/user/project/Auth/models.cs",
+            "Auth/Login.cs",
+            "auth/handler.py",
+            "Authentication/oauth.ts",
+            "authorization/rbac.py",
+            "middleware/authHandler.js",
+            "app/Middleware/auth.js",
         ],
     )
     def test_matches_auth_paths(self, path: str) -> None:
