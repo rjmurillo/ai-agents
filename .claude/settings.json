@@ -46,6 +46,16 @@
             "statusMessage": "Verifying branch protection"
           }
         ]
+      },
+      {
+        "matcher": "^(Edit|Write)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -u .claude/hooks/PreToolUse/invoke_adr_architect_gate.py",
+            "statusMessage": "Verifying architect review for ADR files (BLOCKING)"
+          }
+        ]
       }
     ],
     "SessionStart": [
