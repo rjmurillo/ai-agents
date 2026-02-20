@@ -115,6 +115,7 @@ def add_mapping(
     """Add or update a PR-to-branch mapping entry.
 
     If the PR number already exists, updates the entry. Otherwise adds a new one.
+    Ensures branch uniqueness by removing any other PR mapped to the same branch.
 
     Args:
         mapping: Current mapping state.
@@ -126,6 +127,12 @@ def add_mapping(
         Updated mapping with the new/updated entry.
     """
     now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    # Ensure branch uniqueness: remove any other PR mapped to this branch
+    mapping.mappings = [
+        m for m in mapping.mappings
+        if m.branch_name != branch_name or m.pr_number == pr_number
+    ]
 
     existing = _find_entry(mapping, pr_number=pr_number)
     if existing:

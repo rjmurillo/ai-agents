@@ -175,6 +175,31 @@ class TestAddMapping:
 
         assert empty_mapping.mappings[0].created_at != ""
 
+    def test_removes_other_pr_with_same_branch(
+        self, empty_mapping: PRBranchMapping
+    ) -> None:
+        """Ensure branch uniqueness: adding a new PR with an existing branch removes the old mapping."""
+        add_mapping(empty_mapping, pr_number=100, branch_name="feat/shared")
+        add_mapping(empty_mapping, pr_number=200, branch_name="feat/shared")
+
+        # Should only have one entry (PR 200), not two
+        assert len(empty_mapping.mappings) == 1
+        assert empty_mapping.mappings[0].pr_number == 200
+        assert empty_mapping.mappings[0].branch_name == "feat/shared"
+
+    def test_preserves_other_entries_when_removing_duplicate_branch(
+        self, empty_mapping: PRBranchMapping
+    ) -> None:
+        """Other mappings with different branches should be preserved."""
+        add_mapping(empty_mapping, pr_number=100, branch_name="feat/first")
+        add_mapping(empty_mapping, pr_number=101, branch_name="feat/second")
+        add_mapping(empty_mapping, pr_number=200, branch_name="feat/first")  # Takes over feat/first
+
+        # Should have PR 200 (feat/first) and PR 101 (feat/second)
+        assert len(empty_mapping.mappings) == 2
+        pr_numbers = {m.pr_number for m in empty_mapping.mappings}
+        assert pr_numbers == {101, 200}
+
 
 class TestGetBranchForPR:
     """Tests for get_branch_for_pr function."""
