@@ -67,8 +67,11 @@ class LLMClassifier:
         cache: ClassificationCache | None = None,
     ) -> None:
         """Initialize classifier with config and optional cache."""
-        self._config = config or LLMFallbackConfig.from_env()
-        self._cache = cache or ClassificationCache(self._config.cache_max_entries)
+        self._config = config if config is not None else LLMFallbackConfig.from_env()
+        self._cache = (
+            cache if cache is not None
+            else ClassificationCache(self._config.cache_max_entries)
+        )
         self._client: anthropic.Anthropic | None = None
 
     def _get_client(self) -> Any:
