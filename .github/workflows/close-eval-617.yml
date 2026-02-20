@@ -1,0 +1,30 @@
+name: Close Eval Issue 617 and PR 1220
+
+# Triggered when this branch is pushed.
+# Posts the spec-generator evaluation result as an issue comment,
+# then closes issue #617, PR #1220, and this PR (#1221).
+on:
+  push:
+    branches:
+      - copilot/close-issue-and-pr
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  close-eval-and-prs:
+    name: Post eval comment and close
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 5
+
+    env:
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Post eval comment, close issue and PRs
+        run: python3 scripts/close_eval_617.py
