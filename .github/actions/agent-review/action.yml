@@ -195,16 +195,21 @@ runs:
 
         $blockingVerdicts = @('CRITICAL_FAIL', 'REJECTED', 'FAIL', 'NEEDS_REVIEW')
 
+        # Infrastructure failures should not block the PR (aggregate handles downgrade to WARN)
+        if ($verdict -in $blockingVerdicts -and $env:INFRASTRUCTURE_FAILURE -eq 'true') {
+          Write-Output "::warning::[$agent] Infrastructure failure (verdict: $verdict). Not blocking PR."
+          Write-Output ""
+          Write-Output "⚠️ $emoji $agent review had infrastructure failure (Copilot CLI unavailable)"
+          Write-Output ""
+          Write-Output "Verdict downgraded by aggregate step. See workflow summary for details."
+          exit 0
+        }
+
         if ($verdict -in $blockingVerdicts) {
           $maxAnnotationLength = 180
           if ([string]::IsNullOrWhiteSpace($findings)) {
-            if ($env:INFRASTRUCTURE_FAILURE -eq 'true') {
-              $summary = "Findings data is missing (possible infrastructure failure)"
-              Write-Output "::warning::[$agent] Verdict is $verdict but findings are null"
-            } else {
-              $summary = "Review failed but no details were provided by the AI model"
-              Write-Output "::warning::[$agent] Verdict is $verdict but findings are empty"
-            }
+            $summary = "Review failed but no details were provided by the AI model"
+            Write-Output "::warning::[$agent] Verdict is $verdict but findings are empty"
           } else {
             $summary = ($findings -replace "`n", " ")
             if ($summary.Length -gt $maxAnnotationLength) {
