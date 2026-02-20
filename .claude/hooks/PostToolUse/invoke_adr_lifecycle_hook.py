@@ -26,10 +26,11 @@ import re
 import sys
 
 _ADR_PATH_PATTERN = re.compile(r"ADR-\d+.*\.md$", re.IGNORECASE)
+_CANONICAL_SOURCE_PATTERN = re.compile(r"SESSION-PROTOCOL\.md$")
 
 # Bash commands that remove or rename files
 _DESTRUCTIVE_CMD_PATTERN = re.compile(
-    r"\b(?:rm|git\s+rm|mv|git\s+mv)\b.*ADR-\d+",
+    r"\b(?:rm|git\s+rm|mv|git\s+mv)\b.*(?:ADR-\d+|SESSION-PROTOCOL)",
     re.IGNORECASE,
 )
 
@@ -65,8 +66,11 @@ The commit-time gate will block without review evidence.
 
 
 def _is_adr_path(file_path: str) -> bool:
-    """Check if a file path targets an ADR file."""
-    return bool(_ADR_PATH_PATTERN.search(file_path))
+    """Check if a file path targets an ADR or canonical source file."""
+    return bool(
+        _ADR_PATH_PATTERN.search(file_path)
+        or _CANONICAL_SOURCE_PATTERN.search(file_path)
+    )
 
 
 def _detect_adr_in_bash(command: str) -> bool:

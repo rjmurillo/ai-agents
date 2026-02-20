@@ -136,3 +136,32 @@ class TestEdgeCases:
         result = _run_hook("Edit", {"file_path": file_path})
         assert result.returncode == 0
         assert "ADR Change Detected" in result.stdout
+
+
+class TestSessionProtocolDetection:
+    """Verify SESSION-PROTOCOL.md triggers the same gate as ADR files."""
+
+    def test_write_session_protocol_injects_guidance(self) -> None:
+        result = _run_hook("Write", {"file_path": ".agents/SESSION-PROTOCOL.md"})
+        assert result.returncode == 0
+        assert "ADR Change Detected" in result.stdout
+        assert "/adr-review" in result.stdout
+
+    def test_edit_session_protocol_injects_guidance(self) -> None:
+        result = _run_hook("Edit", {"file_path": ".agents/SESSION-PROTOCOL.md"})
+        assert result.returncode == 0
+        assert "ADR Change Detected" in result.stdout
+        assert "Modified" in result.stdout
+
+    def test_bash_rm_session_protocol_injects_guidance(self) -> None:
+        result = _run_hook("Bash", {"command": "rm .agents/SESSION-PROTOCOL.md"})
+        assert result.returncode == 0
+        assert "ADR Change Detected" in result.stdout
+        assert "Removed" in result.stdout
+
+    def test_bash_git_rm_session_protocol_injects_guidance(self) -> None:
+        result = _run_hook(
+            "Bash", {"command": "git rm .agents/SESSION-PROTOCOL.md"}
+        )
+        assert result.returncode == 0
+        assert "ADR Change Detected" in result.stdout

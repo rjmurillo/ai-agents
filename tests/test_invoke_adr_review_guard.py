@@ -15,6 +15,7 @@ _project_root = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(_project_root / ".claude" / "hooks" / "PreToolUse"))
 
 from invoke_adr_review_guard import (  # noqa: E402
+    _is_gated_file,
     check_adr_review_evidence,
     get_staged_adr_changes,
     main,
@@ -57,6 +58,43 @@ class TestGetStagedADRChanges:
         )
         result = get_staged_adr_changes()
         assert result == ["docs/adr-001.md"]
+
+    @patch("invoke_adr_review_guard.subprocess.run")
+    def test_returns_session_protocol(self, mock_run: MagicMock) -> None:
+        mock_run.return_value = MagicMock(
+            returncode=0,
+            stdout="src/main.py\n.agents/SESSION-PROTOCOL.md\nREADME.md\n",
+            stderr="",
+        )
+        result = get_staged_adr_changes()
+        assert result == [".agents/SESSION-PROTOCOL.md"]
+
+    @patch("invoke_adr_review_guard.subprocess.run")
+    def test_returns_both_adr_and_session_protocol(self, mock_run: MagicMock) -> None:
+        mock_run.return_value = MagicMock(
+            returncode=0,
+            stdout=".agents/architecture/ADR-042.md\n.agents/SESSION-PROTOCOL.md\n",
+            stderr="",
+        )
+        result = get_staged_adr_changes()
+        assert result == [
+            ".agents/architecture/ADR-042.md",
+            ".agents/SESSION-PROTOCOL.md",
+        ]
+
+
+class TestIsGatedFile:
+    def test_matches_adr_file(self) -> None:
+        assert _is_gated_file(".agents/architecture/ADR-042.md") is True
+
+    def test_matches_session_protocol(self) -> None:
+        assert _is_gated_file(".agents/SESSION-PROTOCOL.md") is True
+
+    def test_rejects_unrelated_file(self) -> None:
+        assert _is_gated_file("README.md") is False
+
+    def test_rejects_partial_session_protocol(self) -> None:
+        assert _is_gated_file("MY-SESSION-PROTOCOL.md.bak") is False
 
 
 class TestTestADRReviewEvidence:

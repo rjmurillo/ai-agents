@@ -45,6 +45,7 @@ from hook_utilities import (  # noqa: E402
 )
 
 _ADR_PATTERN = re.compile(r"ADR-\d+\.md$", re.IGNORECASE)
+_CANONICAL_SOURCE_PATTERN = re.compile(r"SESSION-PROTOCOL\.md$")
 
 _REVIEW_PATTERNS = [
     re.compile(r"/adr-review"),
@@ -124,8 +125,13 @@ def write_audit_log(message: str) -> None:
         )
 
 
+def _is_gated_file(path: str) -> bool:
+    """Return True if the path is an ADR or canonical source requiring review."""
+    return bool(_ADR_PATTERN.search(path) or _CANONICAL_SOURCE_PATTERN.search(path))
+
+
 def get_staged_adr_changes() -> list[str]:
-    """Get staged files that match the ADR naming pattern.
+    """Get staged files that match ADR or canonical source patterns.
 
     Raises on git errors to maintain fail-closed posture for security.
     """
@@ -142,7 +148,7 @@ def get_staged_adr_changes() -> list[str]:
     if not result.stdout.strip():
         return []
 
-    return [f for f in result.stdout.strip().splitlines() if _ADR_PATTERN.search(f)]
+    return [f for f in result.stdout.strip().splitlines() if _is_gated_file(f)]
 
 
 def check_adr_review_evidence(
