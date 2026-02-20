@@ -655,7 +655,11 @@ echo_phase "Phase 5: Security & Governance"
 # 15. Semgrep security scan
 SEMGREP_SCRIPT="$REPO_ROOT/scripts/security/run_semgrep.py"
 
-if [ -n "$CHANGED_PY" ] || [ -n "$CHANGED_PS" ]; then
+# Semgrep supports Python, PowerShell, JavaScript, TypeScript, and YAML
+CHANGED_JS=$(echo "$CHANGED_FILES" | grep -E '\.(js|ts)$' || true)
+SEMGREP_TARGETS="$CHANGED_PY$CHANGED_PS$CHANGED_JS$CHANGED_YAML"
+
+if [ -n "$SEMGREP_TARGETS" ]; then
     if [ -L "$SEMGREP_SCRIPT" ]; then
         record_warn "Semgrep script is a symlink (skipping)"
     elif [ -f "$SEMGREP_SCRIPT" ]; then
@@ -686,7 +690,7 @@ else
     record_skip "Semgrep security scan (no code files changed)"
 fi
 
-# 17. Security suppression detection
+# 16. Security suppression detection
 if [ -n "$CHANGED_PY" ] || [ -n "$CHANGED_PS" ]; then
     ALL_CODE_FILES=""
     [ -n "$CHANGED_PY" ] && ALL_CODE_FILES="$CHANGED_PY"

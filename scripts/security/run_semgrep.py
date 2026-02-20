@@ -137,7 +137,7 @@ class SemgrepScanner:
             filtered = [
                 self.repo_root / f
                 for f in files
-                if Path(f).suffix in self.SUPPORTED_EXTENSIONS and Path(f).exists()
+                if Path(f).suffix in self.SUPPORTED_EXTENSIONS and (self.repo_root / f).exists()
             ]
 
             return filtered
