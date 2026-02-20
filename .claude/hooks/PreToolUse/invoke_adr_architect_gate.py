@@ -51,8 +51,8 @@ _ARCHITECT_EVIDENCE_PATTERNS = [
     re.compile(r"/adr-review"),
     re.compile(r"adr-review skill"),
     re.compile(r"ADR Review Protocol"),
-    re.compile(r"subagent_type\s*=\s*['\"]?architect"),
-    re.compile(r"Task\s*\(\s*.*architect.*\)", re.DOTALL),
+    re.compile(r"subagent_type\s*=\s*['\"]?architect\b['\"]?"),
+    re.compile(r"Task\s*\([^)]*subagent_type\s*=\s*['\"]?architect\b"),
     re.compile(r"\barchitect\s+agent\b", re.IGNORECASE),
     re.compile(r"multi-agent consensus.{0,200}\bADR\b", re.DOTALL),
 ]
@@ -123,7 +123,7 @@ def check_architect_evidence(project_dir: str) -> dict[str, object]:
     for artifact_dir in [".agents/analysis", ".agents/critique"]:
         analysis_dir = Path(project_dir) / artifact_dir
         if analysis_dir.is_dir():
-            debate_logs = list(analysis_dir.glob("*debate*.md"))
+            debate_logs = list(analysis_dir.rglob("*debate*.md"))
             for log in debate_logs:
                 if log.stat().st_mtime > (datetime.now(tz=UTC).timestamp() - 86400):
                     return {
