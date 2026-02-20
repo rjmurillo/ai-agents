@@ -28,8 +28,8 @@ Apply the criteria from: @.github/prompts/pr-quality-gate-qa.md
 
 ### Changed Files
 
-<!-- NOTE: !` backtick commands run at PREPROCESSING time in an isolated shell.
-     $ARGUMENTS is NOT available here (only in prompt text substitution). See #1088. -->
+<!-- NOTE: Backtick-prefixed commands below run at PREPROCESSING time in an
+     isolated shell. $ARGUMENTS is NOT available here. See #1088. -->
 !`git diff main --name-only`
 
 ### Full Diff
