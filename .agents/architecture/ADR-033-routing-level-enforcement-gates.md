@@ -136,6 +136,7 @@ Instead of exit code 2, hooks can output JSON with `decision: "deny"` and exit 0
 | **QA Validation** | `gh pr create` | `.agents/qa/` report exists | JSON deny |
 | **Critic Review** | `gh pr merge` | Critic agent invoked in transcript | JSON deny |
 | **ADR Existence** | `gh pr create --head feat/*` | ADR file exists for features | JSON deny |
+| **Retrospective** | `git push` | Retrospective evidence in session or file | Exit code 2 |
 
 ### Hook Configuration
 
@@ -380,6 +381,21 @@ SkillCreator enforces:
 2. Block PR merge without critic review evidence
 3. Consider prompt-based hook for intelligent detection
 
+### Phase 3.5: Retrospective Gate (Issue #618)
+
+Implemented `invoke_retrospective_gate.py` to enforce retrospective before push:
+
+1. **Trigger**: `git push` commands
+2. **Evidence Requirements** (any satisfies):
+   - Retrospective section in session log (`## Retrospective`)
+   - Retrospective file in `.agents/retrospective/` for today
+   - Reference to retrospective file in session log
+3. **Bypass Conditions**:
+   - Documentation-only changes (auto-detected)
+   - Trivial sessions (<10 minutes, single file change)
+   - `SKIP_RETROSPECTIVE_GATE=true` environment variable
+4. **Hook Configuration**: Added to `.claude/settings.json` under `Bash(git push*)` matcher
+
 ### Phase 4: "Do Router" Integration
 
 1. Add keyword-based mandatory routing
@@ -448,7 +464,7 @@ flowchart TB
 
 ---
 
-*ADR Version: 1.2*
+*ADR Version: 1.3*
 *Created: 2025-12-30*
-*Updated: 2025-12-30 - Added SkillCreator guidance for gate-related skill creation*
+*Updated: 2026-02-20 - Added Retrospective Gate implementation (Issue #618)*
 *Note: ADR-032 reserved for Exit Code Standardization (PR #557)*
