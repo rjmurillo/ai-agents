@@ -26,7 +26,7 @@ import re
 import sys
 
 _ADR_PATH_PATTERN = re.compile(r"ADR-\d+.*\.md$", re.IGNORECASE)
-_CANONICAL_SOURCE_PATTERN = re.compile(r"SESSION-PROTOCOL\.md$")
+_CANONICAL_SOURCE_PATTERN = re.compile(r"SESSION-PROTOCOL\.md$", re.IGNORECASE)
 
 # Bash commands that remove or rename files
 _DESTRUCTIVE_CMD_PATTERN = re.compile(

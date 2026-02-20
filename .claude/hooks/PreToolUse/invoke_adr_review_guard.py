@@ -45,7 +45,7 @@ from hook_utilities import (  # noqa: E402
 )
 
 _ADR_PATTERN = re.compile(r"ADR-\d+\.md$", re.IGNORECASE)
-_CANONICAL_SOURCE_PATTERN = re.compile(r"SESSION-PROTOCOL\.md$")
+_CANONICAL_SOURCE_PATTERN = re.compile(r"SESSION-PROTOCOL\.md$", re.IGNORECASE)
 
 _REVIEW_PATTERNS = [
     re.compile(r"/adr-review"),
