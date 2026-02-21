@@ -128,6 +128,49 @@ jobs:
           fi
 
 # ==============================================================================
+# Infrastructure Health Check (Issue #153)
+# ==============================================================================
+#
+# Lightweight, zero-cost validation of agent prerequisites.
+# Distinguishes environment errors from code quality issues.
+# When Copilot CLI is unavailable, agents are skipped (not failed).
+
+  infra-check:
+    name: Infrastructure Check
+    runs-on: ubuntu-24.04-arm
+    needs: check-changes
+    if: always() && needs.check-changes.result == 'success' && needs.check-changes.outputs.should-run == 'true'
+    timeout-minutes: 2
+    permissions:
+      contents: read
+
+    outputs:
+      copilot-available: ${{ steps.infra.outputs.copilot-available }}
+      overall-status: ${{ steps.infra.outputs.overall-status }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - name: Check agent infrastructure
+        id: infra
+        uses: ./.github/actions/check-agent-infrastructure
+        with:
+          bot-pat: ${{ secrets.BOT_PAT }}
+          copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+
+      - name: Report infrastructure status
+        if: steps.infra.outputs.overall-status != 'ready'
+        shell: bash
+        env:
+          INFRA_STATUS: ${{ steps.infra.outputs.overall-status }}
+          COPILOT_STATUS: ${{ steps.infra.outputs.copilot-available }}
+        run: |
+          echo "::warning::Agent infrastructure is $INFRA_STATUS."
+          echo "::warning::Copilot available: $COPILOT_STATUS"
+          echo "::warning::Agent reviews requiring Copilot CLI will be skipped."
+
+# ==============================================================================
 # Pre-execute Tests (Issue #77: QA agent cannot run tests directly)
 # ==============================================================================
 #
@@ -252,7 +295,7 @@ jobs:
   security-review:
     name: Security Review
     runs-on: ubuntu-24.04-arm
-    needs: check-changes
+    needs: [check-changes, infra-check]
     if: always() && needs.check-changes.result == 'success'
     timeout-minutes: 10
     permissions:
@@ -269,7 +312,7 @@ jobs:
           agent: security
           emoji: 🔒
           prompt-file: .github/prompts/pr-quality-gate-security.md
-          should-run: ${{ needs.check-changes.outputs.should-run }}
+          should-run: ${{ needs.check-changes.outputs.should-run == 'true' && needs.infra-check.outputs.copilot-available == 'true' }}
           pr-number: ${{ env.PR_NUMBER }}
           bot-pat: ${{ secrets.BOT_PAT }}
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
@@ -277,7 +320,7 @@ jobs:
   qa-review:
     name: QA Review
     runs-on: ubuntu-24.04-arm
-    needs: [check-changes, run-tests]
+    needs: [check-changes, infra-check, run-tests]
     if: always() && needs.check-changes.result == 'success'
     timeout-minutes: 10
     permissions:
@@ -294,7 +337,7 @@ jobs:
           agent: qa
           emoji: 🧪
           prompt-file: .github/prompts/pr-quality-gate-qa.md
-          should-run: ${{ needs.check-changes.outputs.should-run }}
+          should-run: ${{ needs.check-changes.outputs.should-run == 'true' && needs.infra-check.outputs.copilot-available == 'true' }}
           pr-number: ${{ env.PR_NUMBER }}
           bot-pat: ${{ secrets.BOT_PAT }}
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
@@ -303,7 +346,7 @@ jobs:
   analyst-review:
     name: Analyst Review
     runs-on: ubuntu-24.04-arm
-    needs: check-changes
+    needs: [check-changes, infra-check]
     if: always() && needs.check-changes.result == 'success'
     timeout-minutes: 10
     permissions:
@@ -320,7 +363,7 @@ jobs:
           agent: analyst
           emoji: 📊
           prompt-file: .github/prompts/pr-quality-gate-analyst.md
-          should-run: ${{ needs.check-changes.outputs.should-run }}
+          should-run: ${{ needs.check-changes.outputs.should-run == 'true' && needs.infra-check.outputs.copilot-available == 'true' }}
           pr-number: ${{ env.PR_NUMBER }}
           bot-pat: ${{ secrets.BOT_PAT }}
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
@@ -328,7 +371,7 @@ jobs:
   architect-review:
     name: Architect Review
     runs-on: ubuntu-24.04-arm
-    needs: check-changes
+    needs: [check-changes, infra-check]
     if: always() && needs.check-changes.result == 'success'
     timeout-minutes: 10
     permissions:
@@ -345,7 +388,7 @@ jobs:
           agent: architect
           emoji: 📐
           prompt-file: .github/prompts/pr-quality-gate-architect.md
-          should-run: ${{ needs.check-changes.outputs.should-run }}
+          should-run: ${{ needs.check-changes.outputs.should-run == 'true' && needs.infra-check.outputs.copilot-available == 'true' }}
           pr-number: ${{ env.PR_NUMBER }}
           bot-pat: ${{ secrets.BOT_PAT }}
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
@@ -353,7 +396,7 @@ jobs:
   devops-review:
     name: DevOps Review
     runs-on: ubuntu-24.04-arm
-    needs: check-changes
+    needs: [check-changes, infra-check]
     if: always() && needs.check-changes.result == 'success'
     timeout-minutes: 10
     permissions:
@@ -370,7 +413,7 @@ jobs:
           agent: devops
           emoji: ⚙️
           prompt-file: .github/prompts/pr-quality-gate-devops.md
-          should-run: ${{ needs.check-changes.outputs.should-run }}
+          should-run: ${{ needs.check-changes.outputs.should-run == 'true' && needs.infra-check.outputs.copilot-available == 'true' }}
           pr-number: ${{ env.PR_NUMBER }}
           bot-pat: ${{ secrets.BOT_PAT }}
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
@@ -378,7 +421,7 @@ jobs:
   roadmap-review:
     name: Roadmap Review
     runs-on: ubuntu-24.04-arm
-    needs: check-changes
+    needs: [check-changes, infra-check]
     if: always() && needs.check-changes.result == 'success'
     timeout-minutes: 10
     permissions:
@@ -395,7 +438,7 @@ jobs:
           agent: roadmap
           emoji: 🗺️
           prompt-file: .github/prompts/pr-quality-gate-roadmap.md
-          should-run: ${{ needs.check-changes.outputs.should-run }}
+          should-run: ${{ needs.check-changes.outputs.should-run == 'true' && needs.infra-check.outputs.copilot-available == 'true' }}
           pr-number: ${{ env.PR_NUMBER }}
           bot-pat: ${{ secrets.BOT_PAT }}
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
@@ -411,7 +454,7 @@ jobs:
     name: Aggregate Results
     # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-24.04-arm
-    needs: [check-changes, security-review, qa-review, analyst-review, architect-review, devops-review, roadmap-review]
+    needs: [check-changes, infra-check, security-review, qa-review, analyst-review, architect-review, devops-review, roadmap-review]
     # Always run if check-changes ran and said to run, even if some agent jobs failed
     if: always() && needs.check-changes.outputs.should-run == 'true'
 
