@@ -194,27 +194,7 @@ def create_recorder_from_config(config_path: str | None = None) -> SemanticRecor
     Returns:
         Configured SemanticRecorder instance
     """
-    from pathlib import Path
+    from semantic_hooks.memory import load_config_and_create_memory
 
-    import yaml
-
-    from semantic_hooks.embedder import OpenAIEmbedder
-
-    config_file = Path(config_path) if config_path else (
-        Path.home() / ".semantic-hooks" / "config.yaml"
-    )
-
-    embedder_kwargs: dict = {}
-
-    if config_file.exists():
-        with open(config_file) as f:
-            cfg = yaml.safe_load(f) or {}
-
-        if "embedding" in cfg:
-            e = cfg["embedding"]
-            embedder_kwargs["model"] = e.get("model", "text-embedding-3-small")
-
-    embedder = OpenAIEmbedder(**embedder_kwargs)
-    memory = SemanticMemory(embedder=embedder)
-
+    _, embedder, memory = load_config_and_create_memory(config_path)
     return SemanticRecorder(memory=memory, embedder=embedder)

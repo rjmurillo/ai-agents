@@ -1,10 +1,12 @@
 """Semantic memory storage and retrieval."""
 
+from __future__ import annotations
+
 from datetime import datetime
 from pathlib import Path
 import json
 import sqlite3
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 from semantic_hooks.core import (
     DEFAULT_ZONE_THRESHOLDS,
@@ -14,6 +16,9 @@ from semantic_hooks.core import (
     ZoneThresholds,
 )
 from semantic_hooks.embedder import Embedder, cosine_similarity
+
+if TYPE_CHECKING:
+    from semantic_hooks.embedder import OpenAIEmbedder
 
 
 class SemanticMemory:
@@ -371,3 +376,41 @@ class SemanticMemory:
         for node in nodes:
             summary[node.zone.value] += 1
         return summary
+
+
+def load_config_and_create_memory(
+    config_path: str | None = None,
+) -> tuple[dict[str, Any], OpenAIEmbedder, SemanticMemory]:
+    """Load config file and create embedder and memory instances.
+
+    This is a shared helper for factory functions in guards and recorder modules.
+
+    Args:
+        config_path: Path to YAML config (default: ~/.semantic-hooks/config.yaml)
+
+    Returns:
+        Tuple of (config_dict, embedder, memory)
+    """
+    import yaml
+
+    from semantic_hooks.embedder import OpenAIEmbedder
+
+    config_file = Path(config_path) if config_path else (
+        Path.home() / ".semantic-hooks" / "config.yaml"
+    )
+
+    cfg: dict[str, Any] = {}
+    embedder_kwargs: dict[str, Any] = {}
+
+    if config_file.exists():
+        with open(config_file) as f:
+            cfg = yaml.safe_load(f) or {}
+
+        if "embedding" in cfg:
+            e = cfg["embedding"]
+            embedder_kwargs["model"] = e.get("model", "text-embedding-3-small")
+
+    embedder = OpenAIEmbedder(**embedder_kwargs)
+    memory = SemanticMemory(embedder=embedder)
+
+    return cfg, embedder, memory

@@ -99,21 +99,26 @@ logging:
         print("    Ensure semantic-hooks is properly installed.")
         return 1
 
-    # Copy hook scripts
-    hooks_to_install = list(SEMANTIC_HOOKS_FILENAMES)
+    # Copy hook scripts and track which were successfully installed
+    installed_hooks: set[str] = set()
 
-    for hook_name in hooks_to_install:
+    for hook_name in SEMANTIC_HOOKS_FILENAMES:
         src = hooks_dir / hook_name
         dst = CLAUDE_HOOKS_DIR / hook_name
         if src.exists():
             shutil.copy2(src, dst)
             dst.chmod(0o755)
             print(f"  ✓ Installed hook: {hook_name}")
+            installed_hooks.add(hook_name)
         else:
             print(f"  ⚠ Hook not found: {src}")
 
-    # Update Claude settings
-    if not _update_claude_settings(args.force):
+    if not installed_hooks:
+        print("  ✗ No hooks were installed successfully")
+        return 1
+
+    # Update Claude settings only for hooks that were successfully installed
+    if not _update_claude_settings(args.force, installed_hooks):
         print("  ⚠ Could not update Claude settings automatically")
         print(f"    Add hooks manually to: {CLAUDE_SETTINGS}")
         return 1
@@ -312,8 +317,17 @@ def _is_semantic_hooks_entry(hook_entry: dict) -> bool:
     return any(filename in command for filename in SEMANTIC_HOOKS_FILENAMES)
 
 
-def _update_claude_settings(force: bool = False) -> bool:
-    """Update Claude settings.json with hook configuration."""
+def _update_claude_settings(force: bool = False, installed_hooks: set[str] | None = None) -> bool:
+    """Update Claude settings.json with hook configuration.
+
+    Args:
+        force: Overwrite existing config even if malformed
+        installed_hooks: Set of hook filenames that were successfully installed.
+                         Only these hooks will be registered in settings.
+
+    Returns:
+        True if settings were updated successfully
+    """
     CLAUDE_SETTINGS.parent.mkdir(parents=True, exist_ok=True)
 
     settings: dict = {}
@@ -332,57 +346,60 @@ def _update_claude_settings(force: bool = False) -> bool:
         script_path = str(CLAUDE_HOOKS_DIR / script_name)
         return f"python3 {shlex.quote(script_path)}"
 
-    # Define our hooks
-    hook_definitions = {
-        "SessionStart": {
+    # Mapping from hook filename to event name and definition
+    hook_file_to_event: dict[str, tuple[str, dict]] = {
+        "session_start.py": ("SessionStart", {
             "matcher": "*",
             "hooks": [{
                 "type": "command",
                 "command": _make_hook_command("session_start.py"),
             }],
-        },
-        "PreToolUse": {
+        }),
+        "pre_tool_use.py": ("PreToolUse", {
             "matcher": "*",
             "hooks": [{
                 "type": "command",
                 "command": _make_hook_command("pre_tool_use.py"),
                 "timeout": 5000,
             }],
-        },
-        "PostToolUse": {
+        }),
+        "post_tool_use.py": ("PostToolUse", {
             "matcher": "*",
             "hooks": [{
                 "type": "command",
                 "command": _make_hook_command("post_tool_use.py"),
                 "timeout": 3000,
             }],
-        },
-        "PostResponse": {
+        }),
+        "post_response.py": ("PostResponse", {
             "matcher": "*",
             "hooks": [{
                 "type": "command",
                 "command": _make_hook_command("post_response.py"),
                 "timeout": 3000,
             }],
-        },
-        "PreCompact": {
+        }),
+        "pre_compact.py": ("PreCompact", {
             "matcher": "*",
             "hooks": [{
                 "type": "command",
                 "command": _make_hook_command("pre_compact.py"),
             }],
-        },
-        "SessionEnd": {
+        }),
+        "session_end.py": ("SessionEnd", {
             "matcher": "*",
             "hooks": [{
                 "type": "command",
                 "command": _make_hook_command("session_end.py"),
             }],
-        },
+        }),
     }
 
-    # Add/update hooks
-    for event, definition in hook_definitions.items():
+    # Determine which hooks to register
+    hooks_to_register = installed_hooks if installed_hooks else set(hook_file_to_event.keys())
+
+    # Add/update only successfully installed hooks
+    for hook_file, (event, definition) in hook_file_to_event.items():
         if event not in hooks_config:
             hooks_config[event] = []
 
@@ -392,8 +409,16 @@ def _update_claude_settings(force: bool = False) -> bool:
             if not _is_semantic_hooks_entry(h)
         ]
 
-        # Add our hook
-        hooks_config[event].append(definition)
+        # Only add hook if it was successfully installed
+        if hook_file in hooks_to_register:
+            hooks_config[event].append(definition)
+
+        # Clean up empty event lists
+        if not hooks_config[event]:
+            del hooks_config[event]
+
+    if not hooks_config:
+        del settings["hooks"]
 
     CLAUDE_SETTINGS.write_text(json.dumps(settings, indent=2))
     return True

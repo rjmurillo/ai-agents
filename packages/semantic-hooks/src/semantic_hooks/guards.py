@@ -507,46 +507,25 @@ def create_guard_from_config(config_path: str | None = None) -> SemanticGuard:
     Returns:
         Configured SemanticGuard instance
     """
-    from pathlib import Path
+    from semantic_hooks.memory import load_config_and_create_memory
 
-    import yaml
-
-    from semantic_hooks.embedder import OpenAIEmbedder
-
-    config_file = Path(config_path) if config_path else (
-        Path.home() / ".semantic-hooks" / "config.yaml"
-    )
+    cfg, embedder, memory = load_config_and_create_memory(config_path)
 
     guard_config = GuardConfig()
-    embedder_kwargs: dict = {}
 
-    if config_file.exists():
-        with open(config_file) as f:
-            cfg = yaml.safe_load(f) or {}
+    # Load thresholds from config
+    if "thresholds" in cfg:
+        t = cfg["thresholds"]
+        guard_config.safe_threshold = t.get("safe", 0.4)
+        guard_config.transitional_threshold = t.get("transitional", 0.6)
+        guard_config.risk_threshold = t.get("risk", 0.85)
 
-        # Load thresholds
-        if "thresholds" in cfg:
-            t = cfg["thresholds"]
-            guard_config.safe_threshold = t.get("safe", 0.4)
-            guard_config.transitional_threshold = t.get("transitional", 0.6)
-            guard_config.risk_threshold = t.get("risk", 0.85)
-
-        # Load guard settings
-        if "guard" in cfg:
-            g = cfg["guard"]
-            guard_config.block_in_danger = g.get("block_in_danger", False)
-            guard_config.inject_bridge_context = g.get("inject_bridge_context", True)
-            guard_config.trajectory_window = g.get("trajectory_window", 5)
-
-        # Load embedder settings
-        if "embedding" in cfg:
-            e = cfg["embedding"]
-            embedder_kwargs["model"] = e.get("model", "text-embedding-3-small")
-
-    embedder = OpenAIEmbedder(**embedder_kwargs)
-    
-    from semantic_hooks.memory import SemanticMemory
-    memory = SemanticMemory(embedder=embedder)
+    # Load guard settings from config
+    if "guard" in cfg:
+        g = cfg["guard"]
+        guard_config.block_in_danger = g.get("block_in_danger", False)
+        guard_config.inject_bridge_context = g.get("inject_bridge_context", True)
+        guard_config.trajectory_window = g.get("trajectory_window", 5)
 
     return SemanticGuard(memory=memory, embedder=embedder, config=guard_config)
 

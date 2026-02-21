@@ -103,11 +103,14 @@ class OpenAIEmbedder(Embedder):
                 model=self.model,
                 input=uncached_texts,
             )
-            for idx, embedding_data in zip(uncached_indices, response.data):
+            for embedding_data in response.data:
+                # Use the index field to map back to the correct input position
+                batch_idx = embedding_data.index
+                original_idx = uncached_indices[batch_idx]
                 embedding = tuple(embedding_data.embedding)
-                results[idx] = list(embedding)
-                # Add to cache
-                self._add_to_cache(texts[idx], embedding)
+                results[original_idx] = list(embedding)
+                # Add to cache using the original text
+                self._add_to_cache(texts[original_idx], embedding)
 
         return results
 
