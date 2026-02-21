@@ -346,6 +346,27 @@ Document which strategic frameworks informed this decision:
 | **Stale ADRs** | No review schedule | Set expiration or review date |
 | **Cargo culting** | Choosing based on popularity alone | Evaluate against actual requirements |
 
+### ADR Exception Evaluation (BLOCKING)
+
+When reviewing an ADR exception request, apply Chesterton's Fence analysis:
+
+**MUST verify before approval:**
+
+1. **Rule understanding**: Author articulates why the rule exists (quote from original ADR)
+2. **Alternatives exhausted**: At least two alternatives attempted with failure evidence
+3. **Scope bounded**: Explicit paths/files/conditions where exception applies
+4. **Reversibility defined**: Plan to undo exception if circumstances change
+5. **Amendment format**: Exception added to original ADR, not a standalone document
+
+**MUST reject if:**
+
+- Author cannot explain original rationale
+- Alternatives are convenience-based ("faster to write")
+- Scope is vague or expandable
+- No reversibility consideration
+
+**Reference**: [ADR-EXCEPTION-CRITERIA.md](../../.agents/governance/ADR-EXCEPTION-CRITERIA.md)
+
 ### ADR Review Checklist
 
 When reviewing an ADR:
