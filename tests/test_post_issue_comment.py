@@ -11,6 +11,8 @@ from unittest.mock import patch
 
 import pytest
 
+from scripts.github_core.api import RepoInfo
+
 # ---------------------------------------------------------------------------
 # Import the consumer script via importlib (not a package)
 # ---------------------------------------------------------------------------
@@ -153,7 +155,7 @@ class TestMainBody:
         _setup_output(tmp_path, monkeypatch)
         with patch("subprocess.run", return_value=_completed(rc=0)), patch(
             "post_issue_comment.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--issue", "1", "--body", ""])
@@ -173,7 +175,7 @@ class TestMainBody:
 
         with patch("subprocess.run", side_effect=_side_effect), patch(
             "post_issue_comment.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ):
             rc = main(["--issue", "1", "--body-file", str(body_file)])
         assert rc == 0
@@ -182,7 +184,7 @@ class TestMainBody:
         _setup_output(tmp_path, monkeypatch)
         with patch("subprocess.run", return_value=_completed(rc=0)), patch(
             "post_issue_comment.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--issue", "1", "--body-file", "/nonexistent/body.md"])
@@ -201,7 +203,7 @@ class TestMainIdempotency:
 
         with patch("subprocess.run", return_value=_completed(rc=0)), patch(
             "post_issue_comment.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "post_issue_comment.get_issue_comments",
             return_value=existing_comments,
@@ -222,7 +224,7 @@ class TestMainIdempotency:
 
         with patch("subprocess.run", return_value=_completed(rc=0)), patch(
             "post_issue_comment.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "post_issue_comment.get_issue_comments",
             return_value=existing_comments,
@@ -255,7 +257,7 @@ class TestMainIdempotency:
 
         with patch("subprocess.run", side_effect=_side_effect), patch(
             "post_issue_comment.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "post_issue_comment.get_issue_comments",
             return_value=[],
@@ -290,7 +292,7 @@ class TestMainPostErrors:
 
         with patch("subprocess.run", side_effect=_side_effect), patch(
             "post_issue_comment.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--issue", "1", "--body", "test body"])
@@ -309,7 +311,7 @@ class TestMainPostErrors:
 
         with patch("subprocess.run", side_effect=_side_effect), patch(
             "post_issue_comment.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--issue", "1", "--body", "test body"])
@@ -328,7 +330,7 @@ class TestMainPostErrors:
 
         with patch("subprocess.run", side_effect=_side_effect), patch(
             "post_issue_comment.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--issue", "1", "--body", "test body"])
@@ -347,7 +349,7 @@ class TestMainPostErrors:
 
         with patch("subprocess.run", side_effect=_side_effect), patch(
             "post_issue_comment.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ):
             rc = main(["--issue", "1", "--body", "test body"])
         assert rc == 0

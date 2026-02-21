@@ -9,6 +9,8 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
+from scripts.github_core.api import RepoInfo
+
 # ---------------------------------------------------------------------------
 # Import the script via importlib (same pattern as test_invoke_pr_maintenance.py)
 # ---------------------------------------------------------------------------
@@ -489,7 +491,7 @@ class TestMain:
             "measure_workflow_coalescing.test_prerequisites",
         ), patch(
             "measure_workflow_coalescing.get_repository_context",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "measure_workflow_coalescing.get_workflow_runs",
             return_value=[],
@@ -505,7 +507,7 @@ class TestMain:
             "measure_workflow_coalescing.test_prerequisites",
         ), patch(
             "measure_workflow_coalescing.get_repository_context",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "measure_workflow_coalescing.get_workflow_runs",
             return_value=runs,
@@ -532,7 +534,7 @@ class TestMain:
             "measure_workflow_coalescing.test_prerequisites",
         ), patch(
             "measure_workflow_coalescing.get_repository_context",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "measure_workflow_coalescing.get_workflow_runs",
             return_value=runs,
@@ -564,7 +566,7 @@ class TestMain:
             "measure_workflow_coalescing.test_prerequisites",
         ), patch(
             "measure_workflow_coalescing.get_repository_context",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "measure_workflow_coalescing.get_workflow_runs",
             return_value=runs,

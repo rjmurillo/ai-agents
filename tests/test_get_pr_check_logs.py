@@ -11,6 +11,8 @@ from unittest.mock import patch
 
 import pytest
 
+from scripts.github_core.api import RepoInfo
+
 # ---------------------------------------------------------------------------
 # Import the script via importlib (not a package)
 # ---------------------------------------------------------------------------
@@ -150,7 +152,7 @@ class TestMain:
     def test_no_pr_or_input_returns_1(self, capsys):
         with patch("get_pr_check_logs.assert_gh_authenticated"), patch(
             "get_pr_check_logs.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ):
             rc = main([])
         assert rc == 1
@@ -167,7 +169,7 @@ class TestMain:
         })
         with patch("get_pr_check_logs.assert_gh_authenticated"), patch(
             "get_pr_check_logs.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ):
             rc = main(["--checks-input", checks_json])
         assert rc == 0
@@ -188,7 +190,7 @@ class TestMain:
         })
         with patch("get_pr_check_logs.assert_gh_authenticated"), patch(
             "get_pr_check_logs.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ):
             rc = main(["--checks-input", checks_json])
         assert rc == 0

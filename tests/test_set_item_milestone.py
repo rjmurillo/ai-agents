@@ -11,6 +11,8 @@ from unittest.mock import patch
 
 import pytest
 
+from scripts.github_core.api import RepoInfo
+
 # ---------------------------------------------------------------------------
 # Import the consumer script via importlib (not a package)
 # ---------------------------------------------------------------------------
@@ -227,7 +229,7 @@ class TestMain:
         _setup_summary(tmp_path, monkeypatch)
         with patch("subprocess.run", return_value=_completed(rc=0)), patch(
             "set_item_milestone.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "set_item_milestone.get_item_milestone",
             return_value="0.2.0",
@@ -243,7 +245,7 @@ class TestMain:
         _setup_summary(tmp_path, monkeypatch)
         with patch("subprocess.run", return_value=_completed(rc=0)), patch(
             "set_item_milestone.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "set_item_milestone.get_item_milestone",
             return_value=None,
@@ -265,7 +267,7 @@ class TestMain:
         _setup_summary(tmp_path, monkeypatch)
         with patch("subprocess.run", return_value=_completed(rc=0)), patch(
             "set_item_milestone.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "set_item_milestone.get_item_milestone",
             return_value=None,
@@ -283,7 +285,7 @@ class TestMain:
         _setup_summary(tmp_path, monkeypatch)
         with patch("subprocess.run", return_value=_completed(rc=0)), patch(
             "set_item_milestone.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "set_item_milestone.get_item_milestone",
             return_value=None,

@@ -12,6 +12,7 @@ import pytest
 
 from scripts.github_core import (
     RateLimitResult,
+    RepoInfo,
     assert_gh_authenticated,
     assert_valid_body_file,
     check_workflow_rate_limit,
@@ -215,13 +216,13 @@ class TestGetRepoInfo:
         stdout = "https://github.com/rjmurillo/ai-agents.git\n"
         with patch("subprocess.run", return_value=_completed(stdout=stdout)):
             info = get_repo_info()
-        assert info == {"Owner": "rjmurillo", "Repo": "ai-agents"}
+        assert info == RepoInfo(owner="rjmurillo", repo="ai-agents")
 
     def test_parses_ssh_remote(self):
         stdout = "git@github.com:myorg/myrepo.git\n"
         with patch("subprocess.run", return_value=_completed(stdout=stdout)):
             info = get_repo_info()
-        assert info == {"Owner": "myorg", "Repo": "myrepo"}
+        assert info == RepoInfo(owner="myorg", repo="myrepo")
 
     def test_returns_none_when_not_git_repo(self):
         with patch("subprocess.run", return_value=_completed(rc=1, stderr="fatal")):
@@ -236,7 +237,7 @@ class TestGetRepoInfo:
         with patch("subprocess.run", return_value=_completed(stdout=stdout)):
             info = get_repo_info()
         assert info is not None
-        assert info["Repo"] == "repo"
+        assert info.repo == "repo"
 
     def test_returns_none_on_file_not_found(self):
         with patch("subprocess.run", side_effect=FileNotFoundError):
@@ -246,15 +247,15 @@ class TestGetRepoInfo:
 class TestResolveRepoParams:
     def test_uses_provided_params(self):
         result = resolve_repo_params("myowner", "myrepo")
-        assert result == {"Owner": "myowner", "Repo": "myrepo"}
+        assert result == RepoInfo(owner="myowner", repo="myrepo")
 
     def test_infers_from_git_remote(self):
         with patch(
             "scripts.github_core.api.get_repo_info",
-            return_value={"Owner": "inferred", "Repo": "repo"},
+            return_value=RepoInfo(owner="inferred", repo="repo"),
         ):
             result = resolve_repo_params()
-        assert result == {"Owner": "inferred", "Repo": "repo"}
+        assert result == RepoInfo(owner="inferred", repo="repo")
 
     def test_exits_when_cannot_infer(self):
         with patch("scripts.github_core.api.get_repo_info", return_value=None):

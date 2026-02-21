@@ -11,6 +11,8 @@ from unittest.mock import patch
 
 import pytest
 
+from scripts.github_core.api import RepoInfo
+
 # ---------------------------------------------------------------------------
 # Import the script via importlib (not a package)
 # ---------------------------------------------------------------------------
@@ -104,7 +106,7 @@ class TestMain:
             "get_pull_requests.assert_gh_authenticated",
         ), patch(
             "get_pull_requests.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "subprocess.run",
             return_value=_completed(stdout=_prs_json(prs), rc=0),
@@ -124,7 +126,7 @@ class TestMain:
             "get_pull_requests.assert_gh_authenticated",
         ), patch(
             "get_pull_requests.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "subprocess.run",
             return_value=_completed(stdout=_prs_json(prs), rc=0),
@@ -140,7 +142,7 @@ class TestMain:
             "get_pull_requests.assert_gh_authenticated",
         ), patch(
             "get_pull_requests.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "subprocess.run",
             return_value=_completed(rc=1, stderr="API error"),
@@ -154,7 +156,7 @@ class TestMain:
             "get_pull_requests.assert_gh_authenticated",
         ), patch(
             "get_pull_requests.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "subprocess.run",
             return_value=_completed(stdout="[]", rc=0),
@@ -169,7 +171,7 @@ class TestMain:
             "get_pull_requests.assert_gh_authenticated",
         ), patch(
             "get_pull_requests.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--limit", "0"])
