@@ -129,16 +129,7 @@ def cmd_uninstall(args: argparse.Namespace) -> int:
     print("Uninstalling semantic-hooks from Claude Code...")
 
     # Remove hook scripts
-    hooks_to_remove = [
-        "pre_tool_use.py",
-        "post_tool_use.py",
-        "post_response.py",
-        "session_start.py",
-        "session_end.py",
-        "pre_compact.py",
-    ]
-
-    for hook_name in hooks_to_remove:
+    for hook_name in SEMANTIC_HOOKS_FILENAMES:
         hook_path = CLAUDE_HOOKS_DIR / hook_name
         if hook_path.exists():
             hook_path.unlink()
@@ -200,8 +191,7 @@ def cmd_status(args: argparse.Namespace) -> int:
 
     # Check hooks
     print(f"\nClaude Hooks: {CLAUDE_HOOKS_DIR}")
-    hooks = ["pre_tool_use.py", "post_tool_use.py", "post_response.py", "session_start.py", "session_end.py", "pre_compact.py"]
-    for hook in hooks:
+    for hook in SEMANTIC_HOOKS_FILENAMES:
         hook_path = CLAUDE_HOOKS_DIR / hook
         status = "✓" if hook_path.exists() else "✗"
         print(f"  {hook}: {status}")
