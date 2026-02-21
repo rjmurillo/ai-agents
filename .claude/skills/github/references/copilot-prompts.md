@@ -18,18 +18,18 @@ GitHub Copilot is **amnesiac**. It has no memory of the codebase, PR context, or
 2. Invoke prompt-builder to synthesize a comprehensive prompt
 3. Post the generated prompt via issue comment or PR comment reply
 
-```powershell
+```bash
 # Step 1: Gather context
-$pr = pwsh -NoProfile scripts/pr/Get-PRContext.ps1 -PullRequest 50 -IncludeChangedFiles | ConvertFrom-Json
-$threads = pwsh -NoProfile scripts/pr/Get-UnresolvedReviewThreads.ps1 -PullRequest 50 | ConvertFrom-Json
+pr=$(python3 .claude/skills/github/scripts/pr/get_pr_context.py --pull-request 50 --include-changed-files)
+threads=$(python3 .claude/skills/github/scripts/pr/get_unresolved_review_threads.py --pull-request 50)
 
 # Step 2: Use prompt-builder agent to generate the directive
 # Pass context to prompt-builder, which will create an actionable, specific prompt
 
 # Step 3: Post the generated prompt
-pwsh -NoProfile scripts/issue/Post-IssueComment.ps1 -Issue 123 -Body "$generatedPrompt"
+python3 .claude/skills/github/scripts/issue/post_issue_comment.py --issue 123 --body "$generatedPrompt"
 # OR for PR comment reply:
-pwsh -NoProfile scripts/pr/Post-PRCommentReply.ps1 -PullRequest 50 -CommentId 123 -Body "$generatedPrompt"
+python3 .claude/skills/github/scripts/pr/post_pr_comment_reply.py --pull-request 50 --comment-id 123 --body "$generatedPrompt"
 ```
 
 ---

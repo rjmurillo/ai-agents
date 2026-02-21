@@ -18,48 +18,43 @@ Reference documentation for the GitHub skill. For usage, see `../SKILL.md`.
 
 | Script | Endpoint |
 |--------|----------|
-| `Get-PRContext` | `gh pr view --json ...` |
-| `Get-PRReviewComments` | `repos/{owner}/{repo}/pulls/{pr}/comments` |
-| `Get-PRReviewThreads` | GraphQL: `repository.pullRequest.reviewThreads` |
-| `Get-PRReviewers` | Multiple: pulls/comments, issues/comments, pr view |
-| `Post-PRCommentReply` | `repos/{owner}/{repo}/pulls/{pr}/comments` (with in_reply_to) |
-| `Resolve-PRReviewThread` | GraphQL: `resolveReviewThread` mutation |
-| `Close-PR` | `gh pr close` |
-| `Merge-PR` | `gh pr merge` |
-| `Get-IssueContext` | `gh issue view --json ...` |
-| `Set-IssueLabels` | `repos/{owner}/{repo}/labels`, `gh issue edit --add-label` |
-| `Set-IssueMilestone` | `gh issue edit --milestone` |
-| `Post-IssueComment` | `repos/{owner}/{repo}/issues/{issue}/comments` |
-| `Add-CommentReaction` | `repos/{owner}/{repo}/pulls/comments/{id}/reactions` or `issues/comments/{id}/reactions` |
-| `Invoke-CopilotAssignment` | `repos/{owner}/{repo}/issues/{issue}/comments`, `gh issue edit --add-assignee` |
+| `get_pr_context.py` | `gh pr view --json ...` |
+| `get_pr_review_comments.py` | `repos/{owner}/{repo}/pulls/{pr}/comments` |
+| `get_pr_review_threads.py` | GraphQL: `repository.pullRequest.reviewThreads` |
+| `get_pr_reviewers.py` | Multiple: pulls/comments, issues/comments, pr view |
+| `post_pr_comment_reply.py` | `repos/{owner}/{repo}/pulls/{pr}/comments` (with in_reply_to) |
+| `resolve_pr_review_thread.py` | GraphQL: `resolveReviewThread` mutation |
+| `close_pr.py` | `gh pr close` |
+| `merge_pr.py` | `gh pr merge` |
+| `get_issue_context.py` | `gh issue view --json ...` |
+| `set_issue_labels.py` | `repos/{owner}/{repo}/labels`, `gh issue edit --add-label` |
+| `set_issue_milestone.py` | `gh issue edit --milestone` |
+| `post_issue_comment.py` | `repos/{owner}/{repo}/issues/{issue}/comments` |
+| `add_comment_reaction.py` | `repos/{owner}/{repo}/pulls/comments/{id}/reactions` or `issues/comments/{id}/reactions` |
+| `invoke_copilot_assignment.py` | `repos/{owner}/{repo}/issues/{issue}/comments`, `gh issue edit --add-assignee` |
 
-## Shared Module Functions
+## Shared Library Functions
 
-All scripts import `modules/GitHubCore.psm1`:
+All scripts use `github_core` Python package (`.claude/lib/github_core/`):
 
 | Function | Purpose |
 |----------|---------|
-| `Get-RepoInfo` | Infer owner/repo from git remote |
-| `Resolve-RepoParams` | Resolve or error on owner/repo |
-| `Test-GhAuthenticated` | Check gh CLI auth status |
-| `Assert-GhAuthenticated` | Exit if not authenticated |
-| `Write-ErrorAndExit` | Consistent error handling |
-| `Invoke-GhApiPaginated` | Fetch all pages from API |
-| `Get-IssueComments` | Fetch all comments for an issue |
-| `Update-IssueComment` | Update an existing comment |
-| `New-IssueComment` | Create a new issue comment |
-| `Get-TrustedSourceComments` | Filter comments by trusted users |
-| `Get-PriorityEmoji` | P0-P3 to emoji mapping |
-| `Get-ReactionEmoji` | Reaction type to emoji |
-| `Test-GitHubNameValid` | Validate owner/repo names (CWE-78 prevention) |
-| `Test-SafeFilePath` | Prevent path traversal (CWE-22 prevention) |
-| `Assert-ValidBodyFile` | Validate BodyFile parameter |
+| `get_repo_info()` | Infer owner/repo from git remote |
+| `resolve_repo_params()` | Resolve or error on owner/repo |
+| `check_gh_authenticated()` | Check gh CLI auth status |
+| `assert_gh_authenticated()` | Exit if not authenticated |
+| `gh_api_paginated()` | Fetch all pages from API |
+| `get_issue_comments()` | Fetch all comments for an issue |
+| `update_issue_comment()` | Update an existing comment |
+| `new_issue_comment()` | Create a new issue comment |
+| `validate_github_name()` | Validate owner/repo names (CWE-78 prevention) |
+| `validate_safe_file_path()` | Prevent path traversal (CWE-22 prevention) |
 
 ## Troubleshooting
 
 ### "Could not infer repository info"
 
-Run from within a git repository, or provide `-Owner` and `-Repo` explicitly.
+Run from within a git repository, or provide `--owner` and `--repo` explicitly.
 
 ### "gh CLI not authenticated"
 
@@ -75,18 +70,18 @@ The milestone must already exist in the repository. Create it via GitHub UI or `
 
 ### "PR is not mergeable"
 
-Check for merge conflicts or failing required checks. Use `Get-PRContext` to see `Mergeable` status.
+Check for merge conflicts or failing required checks. Use `get_pr_context.py` to see `Mergeable` status.
 
 ## Skills Applied
 
 | Skill ID | Description | Script |
 |----------|-------------|--------|
-| Skill-PR-001 | Enumerate all reviewers before triaging | `Get-PRReviewers.ps1` |
-| Skill-PR-004 | Use `in_reply_to` for thread replies | `Post-PRCommentReply.ps1` |
+| Skill-PR-001 | Enumerate all reviewers before triaging | `get_pr_reviewers.py` |
+| Skill-PR-004 | Use `in_reply_to` for thread replies | `post_pr_comment_reply.py` |
 
 ## Related
 
 - **Agent**: `pr-comment-responder` - Full PR comment handling workflow
 - **Workflow**: `.github/workflows/ai-issue-triage.yml` - Uses issue scripts
-- **Module**: `.github/scripts/AIReviewCommon.psm1` - Simple wrappers for workflows
+- **Library**: `.claude/lib/github_core/` - Shared Python helper functions
 - **Memory**: `usage-mandatory` - Enforcement rules for using skills

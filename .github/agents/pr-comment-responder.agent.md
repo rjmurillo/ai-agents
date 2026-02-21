@@ -60,20 +60,20 @@ This agent delegates to orchestrator, which uses these canonical workflow paths:
 
 See `orchestrator.md` for full routing logic. This agent passes context to orchestrator; orchestrator determines the path.
 
-## GitHub Skill (Cross-Platform Note)
+## GitHub Skill
 
-When running in environments with PowerShell support (Windows, PowerShell Core on Linux/macOS), the unified github skill at `.claude/skills/github/` provides tested scripts with pagination, error handling, and security validation. See `.claude/skills/github/SKILL.md` for details.
+The unified github skill at `.claude/skills/github/` provides tested Python scripts with pagination, error handling, and security validation. See `.claude/skills/github/SKILL.md` for details.
 
-| Operation | Skill Script | Bash Fallback |
-|-----------|--------------|---------------|
-| PR metadata | `Get-PRContext.ps1` | `gh pr view` |
-| Review + Issue comments | `Get-PRReviewComments.ps1 -IncludeIssueComments` | Manual pagination of both endpoints |
-| Reviewer list | `Get-PRReviewers.ps1` | `gh api ... \| jq` |
-| Reply to comment | `Post-PRCommentReply.ps1` | `gh api -X POST` |
-| Add reaction (batch) | `Add-CommentReaction.ps1 -CommentId @(id1,id2,...)` | Individual `gh api` calls |
-| CI check status | `Get-PRChecks.ps1` | `gh pr checks` (limited) |
+| Operation | Skill Script | Raw Fallback |
+|-----------|--------------|--------------|
+| PR metadata | `get_pr_context.py` | `gh pr view` |
+| Review + Issue comments | `get_pr_review_comments.py --include-issue-comments` | Manual pagination of both endpoints |
+| Reviewer list | `get_pr_reviewers.py` | `gh api ... \| jq` |
+| Reply to comment | `post_pr_comment_reply.py` | `gh api -X POST` |
+| Add reaction (batch) | `add_comment_reaction.py --comment-ids id1 id2` | Individual `gh api` calls |
+| CI check status | `get_pr_checks.py` | `gh pr checks` (limited) |
 
-The bash examples below work cross-platform; use skill scripts when PowerShell is available.
+Use skill scripts instead of raw `gh` commands for consistent error handling and structured output.
 
 ## Triage Heuristics
 

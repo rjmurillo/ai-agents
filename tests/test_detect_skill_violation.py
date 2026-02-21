@@ -320,7 +320,7 @@ class TestMainFunction:
         # Create skills directory
         skills_dir = tmp_path / ".claude" / "skills" / "github" / "scripts" / "pr"
         skills_dir.mkdir(parents=True)
-        (skills_dir / "Get-PRContext.ps1").touch()
+        (skills_dir / "get_pr_context.py").touch()
 
         # Create test files
         (tmp_path / "clean.md").write_text("# Clean file")
