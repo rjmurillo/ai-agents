@@ -23,6 +23,7 @@ from scripts.validate_session_json import (
     get_case_insensitive,
     has_case_insensitive,
     load_session_file,
+    validate_must_item,
     validate_protocol_compliance,
     validate_session_end,
     validate_session_log,
@@ -280,6 +281,125 @@ class TestValidateSessionEnd:
         assert any("MUST NOT violated" in e for e in result.errors)
 
 
+class TestDynamicMustValidation:
+    """Tests that ALL MUST-level items are validated, not just the hardcoded set."""
+
+    def test_unknown_must_item_incomplete_fails(self) -> None:
+        """MUST item not in required set still fails when incomplete."""
+        session_start = {
+            "usageMandatoryRead": {"complete": False, "evidence": "", "level": "MUST"},
+        }
+        result = ValidationResult()
+
+        validate_session_start(session_start, result)
+
+        assert not result.is_valid
+        assert any("usageMandatoryRead" in e for e in result.errors)
+
+    def test_unknown_must_item_complete_passes(self) -> None:
+        """MUST item not in required set passes when complete."""
+        session_start = {
+            "customItem": {"complete": True, "evidence": "Done", "level": "MUST"},
+        }
+        result = ValidationResult()
+
+        validate_session_start(session_start, result)
+
+        assert result.is_valid
+
+    def test_should_level_items_not_validated_as_must(self) -> None:
+        """SHOULD-level items are not treated as MUST."""
+        session_start = {
+            "optionalCheck": {"complete": False, "evidence": "", "level": "SHOULD"},
+        }
+        result = ValidationResult()
+
+        validate_session_start(session_start, result)
+
+        assert result.is_valid
+
+    def test_session_end_unknown_must_item_fails(self) -> None:
+        """Unknown MUST item in sessionEnd fails when incomplete."""
+        session_end = {
+            "newEndRequirement": {"complete": False, "evidence": "", "level": "MUST"},
+        }
+        result = ValidationResult()
+
+        validate_session_end(session_end, result)
+
+        assert not result.is_valid
+        assert any("newEndRequirement" in e for e in result.errors)
+
+    def test_non_dict_items_ignored(self) -> None:
+        """Non-dict values in session sections are skipped."""
+        session_start = {
+            "serenaActivated": {"complete": True, "evidence": "OK", "level": "MUST"},
+            "someString": "not a dict",
+            "someNumber": 42,
+        }
+        result = ValidationResult()
+
+        validate_session_start(session_start, result)
+
+        assert result.is_valid
+
+
+class TestEvidenceContradiction:
+    """Tests for evidence-contradiction detection."""
+
+    @pytest.mark.parametrize(
+        "evidence",
+        [
+            "not available",
+            "Not Available",
+            "SKIPPED",
+            "Skipped due to time",
+            "N/A",
+            "n/a",
+            "Deferred to next session",
+            "will validate later",
+            "will be done next session",
+        ],
+    )
+    def test_contradiction_detected(self, evidence: str) -> None:
+        """Complete MUST with contradictory evidence generates warning."""
+        result = ValidationResult()
+        check_data = {"complete": True, "evidence": evidence, "level": "MUST"}
+
+        validate_must_item(check_data, "testItem", "sessionStart", result)
+
+        assert any("Evidence contradiction" in w for w in result.warnings)
+
+    @pytest.mark.parametrize(
+        "evidence",
+        [
+            "Serena activated successfully",
+            "Commit abc1234",
+            "All checks passed",
+            "Memory updated with session context",
+        ],
+    )
+    def test_no_contradiction_for_valid_evidence(self, evidence: str) -> None:
+        """Complete MUST with valid evidence generates no warning."""
+        result = ValidationResult()
+        check_data = {"complete": True, "evidence": evidence, "level": "MUST"}
+
+        validate_must_item(check_data, "testItem", "sessionStart", result)
+
+        assert not any("Evidence contradiction" in w for w in result.warnings)
+
+    def test_contradiction_not_checked_for_incomplete(self) -> None:
+        """Contradiction check skipped for incomplete items."""
+        result = ValidationResult()
+        check_data = {"complete": False, "evidence": "SKIPPED", "level": "MUST"}
+
+        validate_must_item(check_data, "testItem", "sessionStart", result)
+
+        # Should have error for incomplete, but no contradiction warning
+        assert any("Incomplete MUST" in e for e in result.errors)
+        assert not any("Evidence contradiction" in w for w in result.warnings)
+
+
 class TestValidateProtocolCompliance:
     """Tests for validate_protocol_compliance function."""
 
@@ -449,9 +569,7 @@ class TestMainFunction:
         from scripts import validate_session_json
 
         # Allow temp directory paths for testing
-        monkeypatch.setattr(
-            validate_session_json, "_PROJECT_ROOT", valid_session_file.parent
-        )
+        monkeypatch.setattr(validate_session_json, "_PROJECT_ROOT", valid_session_file.parent)
         monkeypatch.setattr(
             "sys.argv",
             ["validate_session_json.py", str(valid_session_file)],
@@ -473,9 +591,7 @@ class TestMainFunction:
         from scripts import validate_session_json
 
         # Allow temp directory paths for testing
-        monkeypatch.setattr(
-            validate_session_json, "_PROJECT_ROOT", invalid_session_file.parent
-        )
+        monkeypatch.setattr(validate_session_json, "_PROJECT_ROOT", invalid_session_file.parent)
         monkeypatch.setattr(
             "sys.argv",
             ["validate_session_json.py", str(invalid_session_file)],
@@ -497,9 +613,7 @@ class TestMainFunction:
         from scripts import validate_session_json
 
         # Allow temp directory paths for testing
-        monkeypatch.setattr(
-            validate_session_json, "_PROJECT_ROOT", invalid_session_file.parent
-        )
+        monkeypatch.setattr(validate_session_json, "_PROJECT_ROOT", invalid_session_file.parent)
         monkeypatch.setattr(
             "sys.argv",
             ["validate_session_json.py", str(invalid_session_file), "--pre-commit"],
