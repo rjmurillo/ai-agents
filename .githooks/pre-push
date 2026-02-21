@@ -652,7 +652,45 @@ fi
 # ============================================================================
 echo_phase "Phase 5: Security & Governance"
 
-# 15. Security suppression detection
+# 15. Semgrep security scan
+SEMGREP_SCRIPT="$REPO_ROOT/scripts/security/run_semgrep.py"
+
+# Semgrep supports Python, PowerShell, JavaScript, TypeScript, and YAML
+CHANGED_JS=$(echo "$CHANGED_FILES" | grep -E '\.(js|ts)$' || true)
+SEMGREP_TARGETS="$CHANGED_PY$CHANGED_PS$CHANGED_JS$CHANGED_YAML"
+
+if [ -n "$SEMGREP_TARGETS" ]; then
+    if [ -L "$SEMGREP_SCRIPT" ]; then
+        record_warn "Semgrep script is a symlink (skipping)"
+    elif [ -f "$SEMGREP_SCRIPT" ]; then
+        if set_python_cmd; then
+            if command -v semgrep &> /dev/null; then
+                SEMGREP_OUTPUT=$(mktemp)
+                TEMP_FILES+=("$SEMGREP_OUTPUT")
+                if "${PYTHON_CMD[@]}" "$SEMGREP_SCRIPT" --config auto --severity error > "$SEMGREP_OUTPUT" 2>&1; then
+                    record_pass "Semgrep security scan"
+                else
+                    echo_info "  Semgrep findings:"
+                    head -30 "$SEMGREP_OUTPUT"
+                    record_fail "Semgrep security scan"
+                    echo_info "  Fix HIGH/CRITICAL findings before pushing"
+                fi
+                rm -f "$SEMGREP_OUTPUT"
+            else
+                record_skip "Semgrep security scan (semgrep not installed)"
+                echo_info "  Install: pip install semgrep"
+            fi
+        else
+            record_skip "Semgrep security scan (Python 3 not available)"
+        fi
+    else
+        record_skip "Semgrep security scan (script not found)"
+    fi
+else
+    record_skip "Semgrep security scan (no code files changed)"
+fi
+
+# 16. Security suppression detection
 if [ -n "$CHANGED_PY" ] || [ -n "$CHANGED_PS" ]; then
     ALL_CODE_FILES=""
     [ -n "$CHANGED_PY" ] && ALL_CODE_FILES="$CHANGED_PY"
@@ -695,7 +733,7 @@ else
     record_skip "Security suppression check (no code files changed)"
 fi
 
-# 16. Session log validation
+# 18. Session log validation
 SESSION_VALIDATE_SCRIPT="$REPO_ROOT/scripts/validate_session_json.py"
 
 if [ -n "$CHANGED_SESSIONS" ]; then
@@ -737,7 +775,7 @@ else
     record_skip "Session log validation (no session files changed)"
 fi
 
-# 17. Planning artifacts
+# 19. Planning artifacts
 PLANNING_VALIDATE_SCRIPT="$REPO_ROOT/build/scripts/Validate-PlanningArtifacts.ps1"
 
 if [ -n "$CHANGED_PLANNING" ]; then
@@ -765,7 +803,7 @@ else
     record_skip "Planning artifacts (no planning files changed)"
 fi
 
-# 18. ADR review reminder
+# 20. ADR review reminder
 if [ -n "$CHANGED_ADRS" ]; then
     record_warn "ADR files changed - ensure /adr-review skill was run"
     echo_info "  Changed ADRs:"
