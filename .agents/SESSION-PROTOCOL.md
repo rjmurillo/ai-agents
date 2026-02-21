@@ -501,7 +501,7 @@ Session logs (`.agents/sessions/`), analysis artifacts (`.agents/analysis/`), an
 **Valid investigation sessions** (may use `SKIPPED: investigation-only`):
 
 1. **Pure analysis** - Reading code, documenting findings in `.agents/analysis/`
-2. **Memory updates** - Cross-session context updates in `.serena/memories/`
+2. **Memory updates** - Cross-session context updates in `.serena/memories/`. This includes sessions where the agent reads code, reviews patterns, or audits memories and writes updated context to `.serena/memories/`. Memory-update sessions are investigation work because they produce no code or configuration changes, only cross-session context artifacts.
 3. **CI debugging** - Investigating CI failures, documenting in session log
 4. **Security assessments** - Writing security analysis to `.agents/security/`
 5. **Retrospectives** - Extracting learnings to `.agents/retrospective/`
@@ -685,6 +685,66 @@ python3 scripts/validate_session_json.py [session].json
 ```
 
 For detailed schema structure, load `.agents/schemas/session-log.schema.json` when needed.
+
+### Investigation-Only Session Log Example
+
+Investigation sessions that skip QA validation use `SKIPPED: investigation-only` as evidence. The following example shows a memory-update session where the agent reads code patterns and updates cross-session context. No code or configuration files are changed.
+
+```json
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 200,
+    "date": "2026-01-15",
+    "branch": "feat/my-feature",
+    "startingCommit": "abc1234",
+    "objective": "Investigate error handling patterns and update memory context"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": { "level": "MUST", "Complete": true, "Evidence": "Tool output present" },
+      "serenaInstructions": { "level": "MUST", "Complete": true, "Evidence": "Tool output present" },
+      "handoffRead": { "level": "MUST", "Complete": true, "Evidence": "Content in context" },
+      "sessionLogCreated": { "level": "MUST", "Complete": true, "Evidence": "This file" },
+      "skillScriptsListed": { "level": "MUST", "Complete": true, "Evidence": "Listed in transcript" },
+      "usageMandatoryRead": { "level": "MUST", "Complete": true, "Evidence": "Content in context" },
+      "constraintsRead": { "level": "MUST", "Complete": true, "Evidence": "Content in context" },
+      "memoriesLoaded": { "level": "MUST", "Complete": true, "Evidence": "memory-index loaded" },
+      "branchVerified": { "level": "MUST", "Complete": true, "Evidence": "feat/my-feature" },
+      "notOnMain": { "level": "MUST", "Complete": true, "Evidence": "On feat/my-feature" }
+    },
+    "sessionEnd": {
+      "checklistComplete": { "level": "MUST", "Complete": true, "Evidence": "All MUST items complete" },
+      "handoffNotUpdated": { "level": "MUST NOT", "Complete": false, "Evidence": "HANDOFF.md not modified" },
+      "serenaMemoryUpdated": { "level": "MUST", "Complete": true, "Evidence": "Memory write confirmed" },
+      "markdownLintRun": { "level": "MUST", "Complete": true, "Evidence": "Lint output clean" },
+      "qaValidation": { "level": "MUST", "Complete": true, "Evidence": "SKIPPED: investigation-only" },
+      "changesCommitted": { "level": "MUST", "Complete": true, "Evidence": "Commit SHA: def5678" },
+      "validationPassed": { "level": "MUST", "Complete": true, "Evidence": "validate_session_json.py exit 0" }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Analyzed error handling patterns across src/",
+      "outcome": "Documented 3 patterns in .agents/analysis/error-handling-patterns.md"
+    },
+    {
+      "action": "Updated Serena memory with error handling conventions",
+      "outcome": "Memory write confirmed for cross-session reference"
+    }
+  ],
+  "endingCommit": "def5678",
+  "nextSteps": [
+    "Implement standardized error handling in session 201 (requires QA validation)"
+  ]
+}
+```
+
+Key points in this example:
+
+- The `qaValidation` evidence field uses `SKIPPED: investigation-only` (see ADR-034)
+- Only investigation artifacts are staged: session logs, analysis docs, and memory files
+- Follow-up implementation work references this session and requires its own QA validation
 
 ---
 
