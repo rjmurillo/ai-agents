@@ -14,7 +14,7 @@ AI Agents is a multi-platform agent system built on three layers:
 templates/agents/*.shared.md     (source of truth)
         |
         v
-build/Generate-Agents.ps1       (generation)
+build/generate_agents.py        (generation)
         |
         +---> src/claude/        (Claude Code agents)
         +---> src/copilot-cli/   (Copilot CLI agents)
@@ -63,7 +63,7 @@ Claude Code agents in `src/claude/` use a different format. They are plain markd
 To change an agent:
 
 1. Edit the template in `templates/agents/<agent>.shared.md`
-2. Run `pwsh build/Generate-Agents.ps1` to regenerate platform files
+2. Run `python3 build/generate_agents.py` to regenerate platform files
 3. Commit both the template and generated outputs
 
 Do not edit files in `src/vs-code-agents/` or `src/copilot-cli/` directly. They are overwritten on regeneration.

@@ -41,7 +41,7 @@ Define the structured output format the agent produces.
 Run the generation script to produce platform-specific agent files:
 
 ```bash
-pwsh build/Generate-Agents.ps1
+python3 build/generate_agents.py
 ```
 
 This creates agent files in `src/vs-code-agents/` and `src/copilot-cli/`.

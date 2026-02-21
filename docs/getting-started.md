@@ -24,8 +24,10 @@ The fastest method uses the built-in plugin marketplace. Run this command inside
 
 **GitHub Copilot CLI:**
 
-```text
-/install-plugin rjmurillo/ai-agents
+GitHub Copilot CLI does not support the `/install-plugin` command. Use [skill-installer](installation.md) instead:
+
+```bash
+uvx --from git+https://github.com/rjmurillo/skill-installer skill-installer interactive
 ```
 
 This installs all agents for your platform. For selective installation, see [docs/installation.md](installation.md).
