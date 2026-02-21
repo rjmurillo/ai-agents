@@ -53,25 +53,34 @@ BRANCH_PATTERN = re.compile(r"^(feat|fix|docs|chore|refactor|test|ci)/")
 # Commit SHA pattern
 COMMIT_SHA_PATTERN = re.compile(r"^[a-f0-9]{7,40}$")
 
-# Session start MUST items
-SESSION_START_MUST_ITEMS = frozenset({
-    "serenaActivated",
-    "serenaInstructions",
-    "handoffRead",
-    "sessionLogCreated",
-    "branchVerified",
-    "notOnMain",
-})
+# Minimum required session start items (must exist in every session log)
+SESSION_START_REQUIRED_ITEMS = frozenset(
+    {
+        "serenaActivated",
+        "serenaInstructions",
+        "handoffRead",
+        "sessionLogCreated",
+        "branchVerified",
+        "notOnMain",
+    }
+)
 
-# Session end MUST items
-SESSION_END_MUST_ITEMS = frozenset({
-    "checklistComplete",
-    "handoffNotUpdated",
-    "serenaMemoryUpdated",
-    "markdownLintRun",
-    "changesCommitted",
-    "validationPassed",
-})
+# Minimum required session end items (must exist in every session log)
+SESSION_END_REQUIRED_ITEMS = frozenset(
+    {
+        "checklistComplete",
+        "handoffNotUpdated",
+        "serenaMemoryUpdated",
+        "markdownLintRun",
+        "changesCommitted",
+        "validationPassed",
+    }
+)
+
+# Evidence patterns that contradict a Complete: true claim
+EVIDENCE_CONTRADICTION_PATTERNS = re.compile(
+    r"(?i)\b(?:not\s+available|skipped|n/a|deferred|will\s+validate|will\s+be)\b"
+)
 
 
 def get_case_insensitive(data: dict[str, Any], key: str) -> Any | None:
@@ -153,6 +162,48 @@ def validate_must_item(
     if level == "MUST" and is_complete and not evidence:
         result.warnings.append(f"Missing evidence: {section_name}.{item_name}")
 
+    if level == "MUST" and is_complete and evidence:
+        if EVIDENCE_CONTRADICTION_PATTERNS.search(str(evidence)):
+            result.warnings.append(
+                f"Evidence contradiction: {section_name}.{item_name} "
+                f"is complete but evidence suggests otherwise"
+            )
+
+
+def _validate_section_items(
+    section: dict[str, Any],
+    section_name: str,
+    required_items: frozenset[str],
+    result: ValidationResult,
+) -> None:
+    """Validate all MUST-level items in a section.
+
+    Checks every item in the section that declares level=MUST, not just
+    the required minimum set. The required_items set defines items that
+    must exist; all other MUST-level items are validated dynamically.
+
+    Args:
+        section: The section data (sessionStart or sessionEnd).
+        section_name: Section name for error messages.
+        required_items: Minimum set of items that must exist.
+        result: ValidationResult to update with errors/warnings.
+    """
+    validated = set()
+
+    # Validate all items present in the section
+    for item_name, item_data in section.items():
+        if not isinstance(item_data, dict):
+            continue
+        level = get_case_insensitive(item_data, "level")
+        if level in ("MUST", "MUST NOT"):
+            validate_must_item(item_data, item_name, section_name, result)
+            validated.add(item_name)
+
+    # Warn about required items that are missing from the section
+    for item_name in required_items:
+        if item_name not in section:
+            result.warnings.append(f"Missing required item: {section_name}.{item_name}")
+
 
 def validate_session_start(session_start: dict[str, Any], result: ValidationResult) -> None:
     """Validate the sessionStart section.
@@ -161,9 +212,7 @@ def validate_session_start(session_start: dict[str, Any], result: ValidationResu
         session_start: The sessionStart section data.
         result: ValidationResult to update with errors/warnings.
     """
-    for item in SESSION_START_MUST_ITEMS:
-        if item in session_start:
-            validate_must_item(session_start[item], item, "sessionStart", result)
+    _validate_section_items(session_start, "sessionStart", SESSION_START_REQUIRED_ITEMS, result)
 
 
 def validate_session_end(session_end: dict[str, Any], result: ValidationResult) -> None:
@@ -173,9 +222,7 @@ def validate_session_end(session_end: dict[str, Any], result: ValidationResult) 
         session_end: The sessionEnd section data.
         result: ValidationResult to update with errors/warnings.
     """
-    for item in SESSION_END_MUST_ITEMS:
-        if item in session_end:
-            validate_must_item(session_end[item], item, "sessionEnd", result)
+    _validate_section_items(session_end, "sessionEnd", SESSION_END_REQUIRED_ITEMS, result)
 
     # MUST NOT check: handoffNotUpdated should NOT be complete (HANDOFF.md is read-only)
     if "handoffNotUpdated" in session_end:
