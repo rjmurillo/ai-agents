@@ -41,6 +41,7 @@ runs:
         GH_TOKEN: ${{ inputs.bot-pat }}
         COPILOT_GITHUB_TOKEN: ${{ inputs.copilot-token || inputs.bot-pat }}
       run: |
+        set -o pipefail
         GITHUB_CLI_AVAILABLE=false
         COPILOT_AVAILABLE=false
         AUTH_VALID=false
@@ -60,9 +61,8 @@ runs:
 
         # 2. GitHub API authentication
         if [ "$GITHUB_CLI_AVAILABLE" = "true" ]; then
-          if gh api user -q '.login' >/dev/null 2>&1; then
+          if AUTH_USER=$(gh api user -q '.login' 2>/dev/null); then
             AUTH_VALID=true
-            AUTH_USER=$(gh api user -q '.login' 2>/dev/null || echo "unknown")
             SUMMARY_LINES+=("Authentication: valid (user: $AUTH_USER)")
             echo "::notice::GitHub API authenticated as $AUTH_USER"
           else
