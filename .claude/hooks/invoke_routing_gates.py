@@ -39,6 +39,19 @@ import time
 from datetime import UTC, datetime
 from pathlib import Path
 
+_plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+if _plugin_root:
+    _lib_dir = str(Path(_plugin_root).resolve() / "lib")
+else:
+    _lib_dir = str(Path(__file__).resolve().parents[1] / "lib")
+if not os.path.isdir(_lib_dir):
+    print(f"Plugin lib directory not found: {_lib_dir}", file=sys.stderr)
+    sys.exit(2)  # Config error per ADR-035
+if _lib_dir not in sys.path:
+    sys.path.insert(0, _lib_dir)
+
+from hook_utilities.guards import skip_if_consumer_repo  # noqa: E402
+
 _QA_EVIDENCE_PATTERN = re.compile(r"(?i)## QA|qa agent|Test Results|QA Validation|Test Strategy")
 _CRITIC_EVIDENCE_PATTERN = re.compile(
     r"(?i)critic agent|critic review|APPROVED|REJECTED|NEEDS.?WORK"
@@ -228,6 +241,9 @@ def is_valid_project_root() -> bool:
 
 def main() -> int:
     """Main hook entry point. Returns exit code."""
+    if skip_if_consumer_repo("routing-gates"):
+        return 0
+
     if not is_valid_project_root():
         cwd = Path.cwd()
         print(
@@ -260,11 +276,12 @@ def main() -> int:
         )
         command = ""
 
-    # Pre-check: graceful degradation when .agents/ infrastructure is absent
+    # Pre-check: graceful degradation when sessions directory is absent
     sessions_dir = Path(".agents/sessions")
     if not sessions_dir.is_dir():
         print(
-            "[SKIP] .agents/sessions/ not found (consumer repo). QA enforcement skipped.",
+            "[SKIP] routing-gates: .agents/sessions/ not found "
+            "(sessions directory missing)",
             file=sys.stderr,
         )
         return 0

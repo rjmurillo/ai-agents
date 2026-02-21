@@ -28,40 +28,40 @@ This registry provides a central index of all skills in the ai-agents memory sys
 
 | Domain | Count | Index File |
 |--------|-------|------------|
-| [Agent Workflow](#agent-workflow-skills) | 11 | skills-agent-workflow-index |
-| [Analysis](#analysis-skills) | 6 | skills-analysis-index |
-| [Architecture](#architecture-skills) | 11 | skills-architecture-index |
-| [Autonomous Execution](#autonomous-execution-skills) | 4 | skills-autonomous-execution-index |
-| [Bash Integration](#bash-integration-skills) | 3 | skills-bash-integration-index |
-| [CI Infrastructure](#ci-infrastructure-skills) | 19 | skills-ci-infrastructure-index |
-| [CodeRabbit](#coderabbit-skills) | 6 | skills-coderabbit-index |
-| [Copilot](#copilot-skills) | 8 | skills-copilot-index |
-| [Design](#design-skills) | 10 | skills-design-index |
-| [Documentation](#documentation-skills) | 12 | skills-documentation-index |
-| [Gemini](#gemini-skills) | 6 | skills-gemini-index |
-| [GitHub CLI](#github-cli-skills) | 15 | skills-github-cli-index |
-| [GitHub Extensions](#github-extensions-skills) | 12 | skills-gh-extensions-index |
-| [Git](#git-skills) | 11 | skills-git-index |
-| [Git Hooks](#git-hooks-skills) | 12 | skills-git-hooks-index |
-| [GraphQL](#graphql-skills) | 4 | skills-graphql-index |
-| [Implementation](#implementation-skills) | 11 | skills-implementation-index |
-| [JQ](#jq-skills) | 14 | skills-jq-index |
-| [Labeler](#labeler-skills) | 6 | skills-labeler-index |
-| [Linting](#linting-skills) | 5 | skills-linting-index |
-| [Orchestration](#orchestration-skills) | 13 | skills-orchestration-index |
-| [Pester Testing](#pester-testing-skills) | 5 | skills-pester-testing-index |
-| [Planning](#planning-skills) | 6 | skills-planning-index |
-| [PowerShell](#powershell-skills) | 11 | skills-powershell-index |
-| [PR Review](#pr-review-skills) | 30 | skills-pr-review-index |
-| [Protocol](#protocol-skills) | 9 | skills-protocol-index |
-| [Quality](#quality-skills) | 11 | skills-quality-index |
-| [Retrospective](#retrospective-skills) | 17 | skills-retrospective-index |
-| [Security](#security-skills) | 16 | skills-security-index |
-| [Serena](#serena-skills) | 14 | skills-serena-index |
-| [Session Init](#session-init-skills) | 7 | skills-session-init-index |
-| [Utilities](#utilities-skills) | 6 | skills-utilities-index |
-| [Validation](#validation-skills) | 16 | skills-validation-index |
-| [Workflow Patterns](#workflow-patterns-skills) | 8 | skills-workflow-patterns-index |
+| [Agent Workflow](#agent-workflow-skills) | 11 | [skills-agent-workflow-index](skills-agent-workflow-index.md) |
+| [Analysis](#analysis-skills) | 6 | [skills-analysis-index](skills-analysis-index.md) |
+| [Architecture](#architecture-skills) | 11 | [skills-architecture-index](skills-architecture-index.md) |
+| [Autonomous Execution](#autonomous-execution-skills) | 4 | [skills-autonomous-execution-index](skills-autonomous-execution-index.md) |
+| [Bash Integration](#bash-integration-skills) | 3 | [skills-bash-integration-index](skills-bash-integration-index.md) |
+| [CI Infrastructure](#ci-infrastructure-skills) | 19 | [skills-ci-infrastructure-index](skills-ci-infrastructure-index.md) |
+| [CodeRabbit](#coderabbit-skills) | 6 | [skills-coderabbit-index](skills-coderabbit-index.md) |
+| [Copilot](#copilot-skills) | 8 | [skills-copilot-index](skills-copilot-index.md) |
+| [Design](#design-skills) | 10 | [skills-design-index](skills-design-index.md) |
+| [Documentation](#documentation-skills) | 12 | [skills-documentation-index](skills-documentation-index.md) |
+| [Gemini](#gemini-skills) | 6 | [skills-gemini-index](skills-gemini-index.md) |
+| [GitHub CLI](#github-cli-skills) | 15 | [skills-github-cli-index](skills-github-cli-index.md) |
+| [GitHub Extensions](#github-extensions-skills) | 12 | [skills-gh-extensions-index](skills-gh-extensions-index.md) |
+| [Git](#git-skills) | 11 | [skills-git-index](skills-git-index.md) |
+| [Git Hooks](#git-hooks-skills) | 12 | [skills-git-hooks-index](skills-git-hooks-index.md) |
+| [GraphQL](#graphql-skills) | 4 | [skills-graphql-index](skills-graphql-index.md) |
+| [Implementation](#implementation-skills) | 11 | [skills-implementation-index](skills-implementation-index.md) |
+| [JQ](#jq-skills) | 14 | [skills-jq-index](skills-jq-index.md) |
+| [Labeler](#labeler-skills) | 6 | [skills-labeler-index](skills-labeler-index.md) |
+| [Linting](#linting-skills) | 5 | [skills-linting-index](skills-linting-index.md) |
+| [Orchestration](#orchestration-skills) | 13 | [skills-orchestration-index](skills-orchestration-index.md) |
+| [Pester Testing](#pester-testing-skills) | 5 | [skills-pester-testing-index](skills-pester-testing-index.md) |
+| [Planning](#planning-skills) | 6 | [skills-planning-index](skills-planning-index.md) |
+| [PowerShell](#powershell-skills) | 11 | [skills-powershell-index](skills-powershell-index.md) |
+| [PR Review](#pr-review-skills) | 30 | [skills-pr-review-index](skills-pr-review-index.md) |
+| [Protocol](#protocol-skills) | 9 | [skills-protocol-index](skills-protocol-index.md) |
+| [Quality](#quality-skills) | 11 | [skills-quality-index](skills-quality-index.md) |
+| [Retrospective](#retrospective-skills) | 17 | [skills-retrospective-index](skills-retrospective-index.md) |
+| [Security](#security-skills) | 16 | [skills-security-index](skills-security-index.md) |
+| [Serena](#serena-skills) | 14 | [skills-serena-index](skills-serena-index.md) |
+| [Session Init](#session-init-skills) | 7 | [skills-session-init-index](skills-session-init-index.md) |
+| [Utilities](#utilities-skills) | 6 | [skills-utilities-index](skills-utilities-index.md) |
+| [Validation](#validation-skills) | 16 | [skills-validation-index](skills-validation-index.md) |
+| [Workflow Patterns](#workflow-patterns-skills) | 8 | [skills-workflow-patterns-index](skills-workflow-patterns-index.md) |
 
 ## Agent Workflow Skills
 
@@ -604,7 +604,7 @@ This registry provides a central index of all skills in the ai-agents memory sys
 
 ### Creation Process
 
-1. Read `skills-index` memory to check for ID collisions
+1. Read [skills-index](skills-index.md) memory to check for ID collisions
 2. Assign next available skill number in domain
 3. Create skill file: `{domain}/{domain}-{number}-{name}.md`
 4. Update `skills-index.md` with new entry (status: Draft)
