@@ -24,6 +24,18 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
+@dataclass(frozen=True)
+class RepoInfo:
+    """Structured repository information from git remote.
+
+    Frozen dataclass enforces immutability and enables type-safe attribute access.
+    Replaces dict[str, str] return types that caused key case inconsistencies.
+    """
+
+    owner: str
+    repo: str
+
+
 @dataclass
 class RateLimitResult:
     """Structured result from rate limit check."""
@@ -60,11 +72,11 @@ def error_and_exit(message: str, exit_code: int) -> NoReturn:
 _GITHUB_REMOTE_PATTERN = re.compile(r"github\.com[:/]([^/]+)/([^/.]+)")
 
 
-def get_repo_info() -> dict[str, str] | None:
+def get_repo_info() -> RepoInfo | None:
     """Infer repository owner and name from git remote origin URL.
 
     Returns:
-        Dict with 'Owner' and 'Repo' keys, or None if not in a git repo.
+        RepoInfo with owner and repo attributes, or None if not in a git repo.
     """
     try:
         result = subprocess.run(
@@ -78,10 +90,10 @@ def get_repo_info() -> dict[str, str] | None:
 
         match = _GITHUB_REMOTE_PATTERN.search(result.stdout.strip())
         if match:
-            return {
-                "Owner": match.group(1),
-                "Repo": re.sub(r"\.git$", "", match.group(2)),
-            }
+            return RepoInfo(
+                owner=match.group(1),
+                repo=re.sub(r"\.git$", "", match.group(2)),
+            )
     except subprocess.TimeoutExpired:
         logger.debug("git remote get-url origin timed out")
     except FileNotFoundError:
@@ -89,19 +101,19 @@ def get_repo_info() -> dict[str, str] | None:
     return None
 
 
-def resolve_repo_params(owner: str = "", repo: str = "") -> dict[str, str]:
-    """Resolve Owner and Repo, inferring from git remote if not provided.
+def resolve_repo_params(owner: str = "", repo: str = "") -> RepoInfo:
+    """Resolve owner and repo, inferring from git remote if not provided.
 
     Raises SystemExit if parameters cannot be determined or are invalid.
 
     Returns:
-        Dict with 'Owner' and 'Repo' keys.
+        RepoInfo with owner and repo attributes.
     """
     if not owner or not repo:
         repo_info = get_repo_info()
         if repo_info:
-            owner = owner or repo_info["Owner"]
-            repo = repo or repo_info["Repo"]
+            owner = owner or repo_info.owner
+            repo = repo or repo_info.repo
         else:
             error_and_exit(
                 "Could not infer repository info. Please provide -Owner and -Repo parameters.",
@@ -113,7 +125,7 @@ def resolve_repo_params(owner: str = "", repo: str = "") -> dict[str, str]:
     if not is_github_name_valid(repo, "Repo"):
         error_and_exit(f"Invalid GitHub repository name: {repo}", 1)
 
-    return {"Owner": owner, "Repo": repo}
+    return RepoInfo(owner=owner, repo=repo)
 
 
 # ---------------------------------------------------------------------------
@@ -341,14 +353,10 @@ query($owner: String!, $repo: String!, $cursor: String) {
 
         repo_data = data.get("repository")
         if repo_data is None:
-            raise RuntimeError(
-                f"Repository {owner}/{repo} not found or not accessible"
-            )
+            raise RuntimeError(f"Repository {owner}/{repo} not found or not accessible")
         pr_data = repo_data.get("pullRequests")
         if pr_data is None:
-            raise RuntimeError(
-                f"Could not retrieve pull requests for {owner}/{repo}"
-            )
+            raise RuntimeError(f"Could not retrieve pull requests for {owner}/{repo}")
 
         for pr in pr_data["nodes"]:
             updated_at = datetime.fromisoformat(pr["updatedAt"].replace("Z", "+00:00"))
@@ -357,9 +365,7 @@ query($owner: String!, $repo: String!, $cursor: String) {
                 break
 
             threads = pr.get("reviewThreads", {}).get("nodes", [])
-            has_comments = any(
-                len(t.get("comments", {}).get("nodes", [])) > 0 for t in threads
-            )
+            has_comments = any(len(t.get("comments", {}).get("nodes", [])) > 0 for t in threads)
             if has_comments:
                 all_prs.append(pr)
 
@@ -426,10 +432,13 @@ def update_issue_comment(owner: str, repo: str, comment_id: int, body: str) -> d
 
     result = subprocess.run(
         [
-            "gh", "api",
+            "gh",
+            "api",
             f"repos/{owner}/{repo}/issues/comments/{comment_id}",
-            "-X", "PATCH",
-            "--input", "-",
+            "-X",
+            "PATCH",
+            "--input",
+            "-",
         ],
         input=payload,
         capture_output=True,
@@ -578,10 +587,7 @@ query($owner: String!, $name: String!, $prNumber: Int!) {
         return []
 
     threads = (
-        data.get("repository", {})
-        .get("pullRequest", {})
-        .get("reviewThreads", {})
-        .get("nodes", [])
+        data.get("repository", {}).get("pullRequest", {}).get("reviewThreads", {}).get("nodes", [])
     )
 
     if not threads:
@@ -669,9 +675,7 @@ def check_workflow_rate_limit(
             "Passed": passed,
         }
 
-        summary_lines.append(
-            f"| {resource} | {remaining} | {threshold} | {status_icon} {status} |"
-        )
+        summary_lines.append(f"| {resource} | {remaining} | {threshold} | {status_icon} {status} |")
 
     return RateLimitResult(
         success=all_passed,
