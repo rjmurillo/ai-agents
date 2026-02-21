@@ -54,6 +54,11 @@
             "type": "command",
             "command": "python3 -u .claude/hooks/PreToolUse/invoke_branch_protection_guard.py",
             "statusMessage": "Verifying branch protection"
+          },
+          {
+            "type": "command",
+            "command": "python3 -u .claude/hooks/PreToolUse/invoke_retrospective_gate.py",
+            "statusMessage": "Verifying retrospective evidence (ADR-033)"
           }
         ]
       },
