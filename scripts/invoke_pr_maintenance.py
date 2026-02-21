@@ -399,8 +399,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Failed to resolve repository parameters: {exc}", file=sys.stderr)
         return 2
 
-    owner = repo_params["Owner"]
-    repo = repo_params["Repo"]
+    owner = repo_params.owner
+    repo = repo_params.repo
 
     try:
         prs = get_open_prs(owner, repo, args.max_prs)

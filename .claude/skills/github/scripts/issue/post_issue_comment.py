@@ -153,7 +153,7 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901 - faithful port of
 
     assert_gh_authenticated()
     resolved = resolve_repo_params(args.owner, args.repo)
-    owner, repo = resolved["Owner"], resolved["Repo"]
+    owner, repo = resolved.owner, resolved.repo
     issue: int = args.issue
 
     body: str = args.body

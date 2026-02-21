@@ -9,6 +9,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from scripts.github_core.api import RepoInfo
 
 # ---------------------------------------------------------------------------
 # Import the script via importlib (not a package)
@@ -76,7 +77,7 @@ class TestMain:
             "get_unresolved_review_threads.assert_gh_authenticated",
         ), patch(
             "get_unresolved_review_threads.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "-1"])
@@ -88,7 +89,7 @@ class TestMain:
             "get_unresolved_review_threads.assert_gh_authenticated",
         ), patch(
             "get_unresolved_review_threads.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "get_unresolved_review_threads.get_unresolved_review_threads",
             return_value=threads,
@@ -104,7 +105,7 @@ class TestMain:
             "get_unresolved_review_threads.assert_gh_authenticated",
         ), patch(
             "get_unresolved_review_threads.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "get_unresolved_review_threads.get_unresolved_review_threads",
             return_value=[],

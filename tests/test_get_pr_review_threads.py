@@ -10,6 +10,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from scripts.github_core.api import RepoInfo
 
 from tests.mock_fidelity import assert_mock_keys_match
 
@@ -135,7 +136,7 @@ class TestMain:
             "get_pr_review_threads.assert_gh_authenticated",
         ), patch(
             "get_pr_review_threads.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "subprocess.run",
             return_value=_completed(rc=1, stderr="Could not resolve"),
@@ -151,7 +152,7 @@ class TestMain:
             "get_pr_review_threads.assert_gh_authenticated",
         ), patch(
             "get_pr_review_threads.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "subprocess.run",
             return_value=_completed(stdout=response, rc=0),
@@ -175,7 +176,7 @@ class TestMain:
             "get_pr_review_threads.assert_gh_authenticated",
         ), patch(
             "get_pr_review_threads.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "subprocess.run",
             return_value=_completed(stdout=response, rc=0),
@@ -193,7 +194,7 @@ class TestMain:
             "get_pr_review_threads.assert_gh_authenticated",
         ), patch(
             "get_pr_review_threads.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "subprocess.run",
             return_value=_completed(stdout=response, rc=0),
@@ -210,7 +211,7 @@ class TestMain:
             "get_pr_review_threads.assert_gh_authenticated",
         ), patch(
             "get_pr_review_threads.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "subprocess.run",
             return_value=_completed(stdout=response, rc=0),

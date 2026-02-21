@@ -10,6 +10,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from scripts.github_core.api import RepoInfo
 
 # ---------------------------------------------------------------------------
 # Import the script via importlib (not a package)
@@ -89,7 +90,7 @@ class TestMain:
             "post_pr_comment_reply.assert_gh_authenticated",
         ), patch(
             "post_pr_comment_reply.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "1", "--body", ""])
@@ -100,7 +101,7 @@ class TestMain:
             "post_pr_comment_reply.assert_gh_authenticated",
         ), patch(
             "post_pr_comment_reply.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "1", "--body-file", "/nonexistent/file.md"])
@@ -112,7 +113,7 @@ class TestMain:
             "post_pr_comment_reply.assert_gh_authenticated",
         ), patch(
             "post_pr_comment_reply.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "1", "--body-file", "../../etc/passwd"])
@@ -126,7 +127,7 @@ class TestMain:
             "post_pr_comment_reply.assert_gh_authenticated",
         ), patch(
             "post_pr_comment_reply.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "subprocess.run",
             return_value=_completed(stdout=response, rc=0),
@@ -147,7 +148,7 @@ class TestMain:
             "post_pr_comment_reply.assert_gh_authenticated",
         ), patch(
             "post_pr_comment_reply.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "subprocess.run",
             return_value=_completed(stdout=response, rc=0),
@@ -163,7 +164,7 @@ class TestMain:
             "post_pr_comment_reply.assert_gh_authenticated",
         ), patch(
             "post_pr_comment_reply.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "subprocess.run",
             return_value=_completed(rc=1, stderr="API error"),
@@ -182,7 +183,7 @@ class TestMain:
             "post_pr_comment_reply.assert_gh_authenticated",
         ), patch(
             "post_pr_comment_reply.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "subprocess.run",
             return_value=_completed(stdout=response, rc=0),
