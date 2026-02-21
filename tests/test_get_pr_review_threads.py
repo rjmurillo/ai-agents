@@ -11,6 +11,8 @@ from unittest.mock import patch
 
 import pytest
 
+from tests.mock_fidelity import assert_mock_keys_match
+
 # ---------------------------------------------------------------------------
 # Import the script via importlib (not a package)
 # ---------------------------------------------------------------------------
@@ -89,6 +91,12 @@ def _thread(thread_id="PRRT_1", resolved=False, outdated=False, path="file.py",
     }
 
 
+def test_mock_thread_shape_matches_fixture():
+    """Validate that the thread mock shape matches the canonical fixture."""
+    thread = _thread()
+    assert_mock_keys_match(thread, "review_thread", allow_extra=True)
+
+
 # ---------------------------------------------------------------------------
 # Tests: build_parser
 # ---------------------------------------------------------------------------
@@ -151,9 +159,14 @@ class TestMain:
             rc = main(["--pull-request", "50"])
         assert rc == 0
         output = json.loads(capsys.readouterr().out)
+        assert isinstance(output, dict)
+        assert isinstance(output["total_threads"], int)
         assert output["total_threads"] == 2
+        assert isinstance(output["unresolved_count"], int)
         assert output["unresolved_count"] == 1
+        assert isinstance(output["resolved_count"], int)
         assert output["resolved_count"] == 1
+        assert isinstance(output["threads"], list)
 
     def test_unresolved_only_filter(self, capsys):
         threads = [_thread("PRRT_1", resolved=False), _thread("PRRT_2", resolved=True)]

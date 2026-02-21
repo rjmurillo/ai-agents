@@ -36,6 +36,7 @@ from scripts.github_core import (
 )
 from scripts.github_core.api import _403_PATTERN
 from scripts.github_core.bot_config import _DEFAULT_BOTS
+from tests.mock_fidelity import assert_mock_keys_match
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -63,6 +64,12 @@ def _thread(tid: str, resolved: bool, db_id: int) -> dict:
         "isResolved": resolved,
         "comments": {"nodes": [{"databaseId": db_id}]},
     }
+
+
+def test_thread_mock_keys_subset_of_fixture():
+    """The minimal _thread mock should be a subset of the review_thread fixture."""
+    thread = _thread("T1", False, 1)
+    assert_mock_keys_match(thread, "review_thread", allow_missing=True)
 
 
 # ---------------------------------------------------------------------------
