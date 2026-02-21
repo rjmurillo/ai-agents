@@ -27,10 +27,17 @@ def load_fixture(name: str) -> dict[str, Any]:
 
     Raises:
         FileNotFoundError: If the fixture file does not exist.
+        ValueError: If a path traversal attempt is detected.
     """
-    path = _FIXTURES_DIR / f"{name}.json"
-    with open(path) as f:
-        return json.load(f)
+    fixture_path = (_FIXTURES_DIR / f"{name}.json").resolve()
+    base_dir = _FIXTURES_DIR.resolve()
+
+    if not fixture_path.is_relative_to(base_dir):
+        raise ValueError(f"Path traversal attempt detected for fixture '{name}'")
+
+    with open(fixture_path) as f:
+        data: dict[str, Any] = json.load(f)
+        return data
 
 
 def get_fixture_keys(name: str) -> set[str]:
