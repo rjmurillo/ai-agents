@@ -89,11 +89,20 @@ jobs:
               - 'build/**'
               - '.claude/skills/**'
 
+  # Pass-through job: emits SUCCESS for "Validate Spec Coverage" required check
+  # when path filter skips the real validation job (issue #1168)
+  skip-spec:
+    name: Validate Spec Coverage
+    runs-on: ubuntu-24.04-arm
+    needs: check-paths
+    if: needs.check-paths.outputs.has-code-changes != 'true'
+    steps:
+      - run: echo "No code changes detected, skipping spec validation"
+
   validate-spec:
     name: Validate Spec Coverage
     needs: check-paths
     # Only run full validation when code paths are changed
-    # When skipped, required check is satisfied with SKIPPED conclusion
     if: needs.check-paths.outputs.has-code-changes == 'true'
     # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-24.04-arm
