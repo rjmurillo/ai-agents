@@ -121,7 +121,7 @@ If no skill exists, proceed with raw command. If capability is missing, add to s
 
 ### ADR Review (BLOCKING)
 
-Any file matching `.agents/architecture/ADR-*.md` created or edited triggers mandatory adr-review skill before workflow continues.
+Any file matching `.agents/architecture/ADR-*.md` or `.agents/SESSION-PROTOCOL.md` created or edited triggers mandatory adr-review skill before workflow continues.
 
 ## Agent Catalog
 
