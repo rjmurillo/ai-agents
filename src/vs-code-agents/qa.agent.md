@@ -175,7 +175,7 @@ Save to: `.agents/planning/impact-analysis-qa-[feature].md`
 
 ## Pre-PR Quality Gate (MANDATORY)
 
-**Trigger**: Orchestrator routes to QA before PR creation (see Issue #259).
+**Trigger**: Orchestrator routes to QA before PR creation.
 
 **Purpose**: Validate quality gates before PR. Return APPROVED or BLOCKED verdict.
 

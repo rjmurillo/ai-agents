@@ -91,7 +91,7 @@ Report violations in test strategy document with specific file:line references.
 
 Tests must verify actual behavior, not code structure. Pattern-matching tests that pass without exercising the code under test are insufficient.
 
-### Insufficient Test Patterns (CRITICAL_FAIL)
+### Insufficient Test Patterns [CRITICAL_FAIL]
 
 Flag tests that match these anti-patterns:
 
@@ -105,7 +105,7 @@ Flag tests that match these anti-patterns:
 
 **Detection**: Search for `Should -Match`, `Select-String`, `Get-Content.*Should` patterns without corresponding function invocations.
 
-### Required Test Patterns (PASS)
+### Required Test Patterns [PASS]
 
 Tests must demonstrate these characteristics:
 
@@ -142,7 +142,7 @@ When flagging insufficient tests:
 |-----------|-----------|--------------|----------------|
 | [File] | [Name] | Pattern-match without execution | [File:Line] |
 
-**Verdict**: CRITICAL_FAIL
+**Verdict**: [CRITICAL_FAIL]
 **Reason**: [N] tests verify code structure instead of behavior
 **Required Fix**: Rewrite tests to execute functions and validate outputs
 ```
@@ -299,7 +299,7 @@ Save to: `.agents/planning/impact-analysis-qa-[feature].md`
 
 ## Pre-PR Quality Gate (MANDATORY)
 
-**Trigger**: Orchestrator routes to QA before PR creation (see Issue #259).
+**Trigger**: Orchestrator routes to QA before PR creation.
 
 **Purpose**: Validate quality gates before PR. Return APPROVED or BLOCKED verdict.
 
