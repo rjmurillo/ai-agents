@@ -303,12 +303,13 @@ class SemanticMemory:
             session_id: Optional filter by session
 
         Returns:
-            Tree structure with nodes and metadata
+            Tree structure with nodes and metadata, nodes ordered chronologically
         """
         if session_id:
             nodes = self.get_session_tree(session_id)
         else:
             nodes = self.get_recent(n=1000, include_embeddings=False)
+            nodes = list(reversed(nodes))
 
         return {
             "version": "1.0",

@@ -127,7 +127,9 @@ def _load_history(path: Path) -> list[dict]:
     """Load topic history from JSON file."""
     try:
         if path.exists():
-            return json.loads(path.read_text())
+            result = json.loads(path.read_text())
+            if isinstance(result, list):
+                return result
     except (json.JSONDecodeError, OSError):
         pass
     return []
