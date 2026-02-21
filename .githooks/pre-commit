@@ -1635,6 +1635,42 @@ if [ -n "$STAGED_MEMORY_FILES" ]; then
 fi
 
 #
+# Scope Explosion Detection (BLOCKING at 50 files, WARNING at 10/20)
+#
+# Tracks cumulative PR size since branch diverged from main.
+# Prevents scope creep that leads to unreviewable PRs.
+#
+# Bypass: SKIP_SCOPE_CHECK=1 git commit ...
+#
+# Related: Issue #944, PR #908 (95 files)
+#
+SCOPE_DETECT_SCRIPT="$REPO_ROOT/scripts/detect_scope_explosion.py"
+
+if [ "$SKIP_SCOPE_CHECK" != "1" ]; then
+    # MEDIUM-002: Reject symlinks for security
+    if [ -L "$SCOPE_DETECT_SCRIPT" ]; then
+        echo_warning "Skipping scope detection: script path is a symlink"
+    elif [ -f "$SCOPE_DETECT_SCRIPT" ]; then
+        if set_python_cmd; then
+            SCOPE_OUTPUT=$("${PYTHON_CMD[@]}" "$SCOPE_DETECT_SCRIPT" 2>&1)
+            SCOPE_EXIT=$?
+            if [ $SCOPE_EXIT -eq 1 ]; then
+                echo ""
+                echo "$SCOPE_OUTPUT"
+                echo_error "Scope explosion detected. See remediation above."
+                EXIT_STATUS=1
+            elif [ $SCOPE_EXIT -eq 0 ] && [ -n "$SCOPE_OUTPUT" ]; then
+                echo "$SCOPE_OUTPUT"
+            fi
+            # Exit code 2 (error) is non-blocking: log and continue
+            if [ $SCOPE_EXIT -eq 2 ]; then
+                echo_warning "Scope detection encountered an error (non-blocking)"
+            fi
+        fi
+    fi
+fi
+
+#
 # Final Summary
 #
 echo ""
