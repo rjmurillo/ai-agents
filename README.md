@@ -393,7 +393,7 @@ ai-agents/
 </details>
 
 <details>
-<summary><strong><code>/install-plugin</code> command not recognized</strong></summary>
+<summary><strong>/install-plugin command not recognized</strong></summary>
 
 - Ensure you're running inside **Claude Code CLI** or **GitHub Copilot CLI**, not a regular terminal
 - The command is built into the AI tool, not your shell
