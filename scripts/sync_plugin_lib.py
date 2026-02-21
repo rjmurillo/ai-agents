@@ -65,7 +65,7 @@ def _replace_first_docstring_line(content: str, note: str) -> str:
     If the module has no leading docstring, prepend one.
     """
     # Single-line docstring: """some text.""" (opening and closing on same line)
-    match = re.match(r'^("""|\'\'\')[^\n]*?("""|\'\'\')', content)
+    match = re.match(r'^("""|\'\'\')[^\n]*?\1', content)
     if match:
         quote = match.group(1)
         close_end = match.end()

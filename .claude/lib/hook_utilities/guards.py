@@ -3,10 +3,17 @@
 import sys
 from pathlib import Path
 
+from .utilities import get_project_directory
+
 
 def is_project_repo() -> bool:
-    """Check if running in ai-agents project (has .agents/ directory)."""
-    agents_path = Path(".agents")
+    """Check if running in ai-agents project (has .agents/ directory).
+
+    Uses get_project_directory() to find the repo root, so this works
+    correctly even when CWD is a subdirectory.
+    """
+    project_root = get_project_directory()
+    agents_path = Path(project_root) / ".agents"
     if agents_path.exists() and not agents_path.is_dir():
         print(
             "[WARNING] .agents exists but is not a directory. "

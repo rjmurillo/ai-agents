@@ -214,10 +214,11 @@ def write_block_response(
 
 def main() -> int:
     """Main hook entry point. Returns exit code."""
+    if skip_if_consumer_repo("skill-first-guard"):
+        return 0
+
     try:
         if sys.stdin.isatty():
-            return 0
-        if skip_if_consumer_repo("skill-first-guard"):
             return 0
 
         input_json = sys.stdin.read()
