@@ -44,6 +44,7 @@ Use this skill when you need to:
 | `analyze_skill_placement.py` | Classify content as Skill/PassiveContext/Hybrid | 0=success, 1=error |
 | `compress_markdown_content.py` | Compress markdown with token reduction metrics | 0=success, 1=error, 2=config, 3=external |
 | `test_skill_passive_compliance.py` | Validate compliance with decision framework | 0=pass, 1=violations |
+| `extract_and_index.py` | Extract sections into detail files with pipe-delimited index | 0=success, 1=error, 2=config, 3=external |
 | `path_validation.py` | Shared CWE-22 repo-root-anchored path validation | N/A (library module) |
 
 ## Prerequisites
@@ -219,7 +220,61 @@ session protocol has multiple phases:
 2. Read HANDOFF.md - handoff file
 ```
 
-### 3. Compliance Validator
+### 3. Extract-and-Index Utility
+
+**Script**: `scripts/extract_and_index.py`
+
+Implements the Vercel extract-and-index pattern for 60-80% token reduction. Splits markdown by headings into separate detail files, then generates a compact pipe-delimited index referencing those files.
+
+**Usage**:
+
+```bash
+# Extract sections and output JSON to stdout
+python3 scripts/extract_and_index.py -i AGENTS.md -d .agents-details
+
+# Write index to a file
+python3 scripts/extract_and_index.py \
+  -i AGENTS.md \
+  -d .agents-details \
+  -o AGENTS-INDEX.md
+
+# Custom reference path in index
+python3 scripts/extract_and_index.py \
+  -i AGENTS.md \
+  -d .agents-details \
+  -r .agents-docs \
+  -o AGENTS-INDEX.md
+```
+
+**Output Index Format** (Vercel pattern):
+
+```text
+[Architecture]
+|Layered design with separation of concerns (see: .agents-details/architecture.md)
+[Testing]
+|80% coverage required for business logic (see: .agents-details/testing.md)
+```
+
+**Output JSON**:
+
+```json
+{
+  "success": true,
+  "index_content": "[Architecture]\n|Layered design... (see: .details/architecture.md)",
+  "metrics": {
+    "original_tokens": 1200,
+    "index_tokens": 180,
+    "reduction_percent": 85.0,
+    "sections_extracted": 8,
+    "detail_files_written": 8
+  },
+  "detail_dir": ".details"
+}
+```
+
+**Compatibility**: Works with CLAUDE.md @import mechanism. Generate the index file, then reference it via `@AGENTS-INDEX.md` in your CLAUDE.md.
+
+### 4. Compliance Validator
 
 **Script**: `scripts/test_skill_passive_compliance.py`
 
@@ -440,6 +495,18 @@ python3 -m pytest tests/ --cov=scripts --cov-report=term-missing
 - Edge cases (empty content, whitespace, special chars)
 - Confidence scoring (0-100 range)
 - Exit codes (0 success, 1 error)
+
+**Coverage - Extract-and-Index** (36 tests):
+
+- Slug generation (simple, spaces, special chars, empty, underscores)
+- Section parsing (H1/H2 splitting, preamble, empty, no headings, H3 preservation)
+- Section summarization (first line, code fence skipping, truncation, fallback)
+- Index generation (pipe-delimited format, preamble handling, overview label)
+- Detail file writing (creation, duplicate slugs, nested directories)
+- Full pipeline integration (extraction, reduction metrics, file references)
+- Reduction targets (60%+ on realistic documents)
+- CLI interface (JSON output, file output, custom reference paths, error handling)
+- Token counting (empty and non-empty inputs)
 
 **Coverage - Compressor**:
 
