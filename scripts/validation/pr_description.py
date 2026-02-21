@@ -20,9 +20,13 @@ import re
 import subprocess
 import sys
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
-from scripts.github_core import RepoInfo
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(_PROJECT_ROOT))
+
+from scripts.github_core import RepoInfo  # noqa: E402
 
 # File extensions considered significant for mention checking
 SIGNIFICANT_EXTENSIONS: frozenset[str] = frozenset(
