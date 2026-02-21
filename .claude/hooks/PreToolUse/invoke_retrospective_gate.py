@@ -90,8 +90,6 @@ _DOC_PATTERNS = [
     re.compile(r"\.editorconfig$"),
 ]
 
-# Session start time for trivial session detection
-_SESSION_START_TIME = time.time()
 _TRIVIAL_SESSION_MINUTES = 10
 
 
@@ -163,10 +161,22 @@ def check_documentation_only() -> bool:
         return False
 
 
-def check_trivial_session() -> bool:
-    """Check if this is a trivial session (short duration, minimal changes)."""
-    # Check session duration
-    elapsed_minutes = (time.time() - _SESSION_START_TIME) / 60
+def check_trivial_session(session_log: Path | None) -> bool:
+    """Check if this is a trivial session (short duration, minimal changes).
+
+    Uses the session log creation time to measure duration. Falls back to
+    allowing bypass only when no session log exists (no session started).
+    """
+    if session_log is None:
+        return False
+
+    # Derive elapsed time from session log creation
+    try:
+        log_ctime = session_log.stat().st_ctime
+        elapsed_minutes = (time.time() - log_ctime) / 60
+    except OSError:
+        return False
+
     if elapsed_minutes > _TRIVIAL_SESSION_MINUTES:
         return False
 
@@ -230,17 +240,17 @@ def main() -> int:
             )
             return 0
 
+        # Resolve session log early (needed by trivial session check)
+        today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+        session_log = get_today_session_log(sessions_dir, date=today)
+
         # Bypass 2: Documentation-only changes
         if check_documentation_only():
             return 0
 
         # Bypass 3: Trivial session
-        if check_trivial_session():
+        if check_trivial_session(session_log):
             return 0
-
-        # Check for retrospective evidence
-        today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
-        session_log = get_today_session_log(sessions_dir, date=today)
 
         has_retrospective = False
 
