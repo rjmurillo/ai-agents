@@ -585,8 +585,8 @@ def main(argv: list[str] | None = None) -> int:
         logger.exception("Failed to resolve repository parameters")
         return 2
 
-    owner = repo_params["Owner"]
-    repo = repo_params["Repo"]
+    owner = repo_params.owner
+    repo = repo_params.repo
     logger.info("Repository: %s/%s", owner, repo)
 
     # Calculate date range

@@ -532,8 +532,8 @@ def main(argv: list[str] | None = None) -> int:
         print("Failed to resolve repository parameters.", file=sys.stderr)
         return 2
 
-    owner = repo_params["Owner"]
-    repo = repo_params["Repo"]
+    owner = repo_params.owner
+    repo = repo_params.repo
 
     results = discover_and_classify(owner, repo, args.max_prs)
 

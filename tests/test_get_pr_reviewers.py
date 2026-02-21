@@ -11,6 +11,8 @@ from unittest.mock import patch
 
 import pytest
 
+from scripts.github_core.api import RepoInfo
+
 # ---------------------------------------------------------------------------
 # Import the script via importlib (not a package)
 # ---------------------------------------------------------------------------
@@ -91,7 +93,7 @@ class TestMain:
             "get_pr_reviewers.assert_gh_authenticated",
         ), patch(
             "get_pr_reviewers.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "subprocess.run",
             return_value=_completed(rc=1, stderr="not found"),
@@ -109,7 +111,7 @@ class TestMain:
             "get_pr_reviewers.assert_gh_authenticated",
         ), patch(
             "get_pr_reviewers.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "subprocess.run",
             return_value=_completed(stdout=pr_data, rc=0),
@@ -133,7 +135,7 @@ class TestMain:
             "get_pr_reviewers.assert_gh_authenticated",
         ), patch(
             "get_pr_reviewers.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "subprocess.run",
             return_value=_completed(stdout=pr_data, rc=0),
@@ -158,7 +160,7 @@ class TestMain:
             "get_pr_reviewers.assert_gh_authenticated",
         ), patch(
             "get_pr_reviewers.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "subprocess.run",
             return_value=_completed(stdout=pr_data, rc=0),

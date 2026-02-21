@@ -172,8 +172,8 @@ def main(argv: list[str] | None = None) -> int:
 
     # --- Repo resolution ---
     resolved = resolve_repo_params(args.owner, args.repo)
-    owner = resolved["Owner"]
-    repo = resolved["Repo"]
+    owner = resolved.owner
+    repo = resolved.repo
     issue: int = args.issue
 
     # --- Body resolution ---

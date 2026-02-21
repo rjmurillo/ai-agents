@@ -10,6 +10,8 @@ from unittest.mock import patch
 
 import pytest
 
+from scripts.github_core.api import RepoInfo
+
 # ---------------------------------------------------------------------------
 # Import the script via importlib (not a package)
 # ---------------------------------------------------------------------------
@@ -79,7 +81,7 @@ class TestMain:
             "test_pr_merged.assert_gh_authenticated",
         ), patch(
             "test_pr_merged.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "test_pr_merged.gh_graphql",
             return_value=graphql_data,
@@ -104,7 +106,7 @@ class TestMain:
             "test_pr_merged.assert_gh_authenticated",
         ), patch(
             "test_pr_merged.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "test_pr_merged.gh_graphql",
             return_value=graphql_data,
@@ -121,7 +123,7 @@ class TestMain:
             "test_pr_merged.assert_gh_authenticated",
         ), patch(
             "test_pr_merged.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "test_pr_merged.gh_graphql",
             return_value=graphql_data,
@@ -135,7 +137,7 @@ class TestMain:
             "test_pr_merged.assert_gh_authenticated",
         ), patch(
             "test_pr_merged.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "test_pr_merged.gh_graphql",
             side_effect=RuntimeError("GraphQL failed"),

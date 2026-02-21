@@ -83,7 +83,7 @@ def main(argv: list[str] | None = None) -> int:
 
     assert_gh_authenticated()
     resolved = resolve_repo_params(args.owner, args.repo)
-    owner, repo = resolved["Owner"], resolved["Repo"]
+    owner, repo = resolved.owner, resolved.repo
     pr = args.pull_request
 
     pr_result = subprocess.run(

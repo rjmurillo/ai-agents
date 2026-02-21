@@ -9,6 +9,7 @@ from __future__ import annotations
 from .api import (  # noqa: F401
     DEFAULT_RATE_THRESHOLDS,
     RateLimitResult,
+    RepoInfo,
     assert_gh_authenticated,
     check_workflow_rate_limit,
     create_issue_comment,
@@ -45,6 +46,7 @@ __all__ = [
     "GhCliClient",
     "GitHubClient",
     "RateLimitResult",
+    "RepoInfo",
     "assert_gh_authenticated",
     "assert_valid_body_file",
     "check_workflow_rate_limit",

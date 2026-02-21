@@ -79,7 +79,7 @@ def main(argv: list[str] | None = None) -> int:
 
     assert_gh_authenticated()
     resolved = resolve_repo_params(args.owner, args.repo)
-    owner, repo = resolved["Owner"], resolved["Repo"]
+    owner, repo = resolved.owner, resolved.repo
 
     if not args.title or not args.title.strip():
         error_and_exit("Title cannot be empty.", 1)

@@ -273,8 +273,8 @@ def main(argv: list[str] | None = None) -> int:
     assert_gh_authenticated()
 
     resolved = resolve_repo_params(args.owner, args.repo)
-    owner = resolved["Owner"]
-    repo = resolved["Repo"]
+    owner = resolved.owner
+    repo = resolved.repo
 
     start_time = time.monotonic()
     max_iterations = math.ceil(args.timeout_seconds / 10)
