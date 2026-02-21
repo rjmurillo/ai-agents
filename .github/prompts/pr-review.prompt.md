@@ -49,8 +49,8 @@ For `all-open`, query: `gh pr list --state open --json number,reviewDecision`
 
 For each PR number, validate using:
 
-```powershell
-pwsh -NoProfile .claude/skills/github/scripts/pr/Get-PRContext.ps1 -PullRequest {number}
+```bash
+python3 .claude/skills/github/scripts/pr/get_pr_context.py --pull-request {number}
 ```
 
 Verify: PR exists, is open (state != MERGED, CLOSED), targets current repo.
@@ -59,15 +59,15 @@ Verify: PR exists, is open (state != MERGED, CLOSED), targets current repo.
 
 Before proceeding with review work, verify PR has not been merged via GraphQL (source of truth):
 
-```powershell
-# Check merge state via Test-PRMerged.ps1
-pwsh -NoProfile .claude/skills/github/scripts/pr/Test-PRMerged.ps1 -PullRequest {number}
-$merged = $LASTEXITCODE -eq 1
+```bash
+# Check merge state via test_pr_merged.py
+python3 .claude/skills/github/scripts/pr/test_pr_merged.py --pull-request {number}
+# Exit code 0 = not merged (safe to proceed), 1 = merged (skip)
 
-if ($merged) {
-    Write-Host "PR #{number} is already merged. Skipping review work." -ForegroundColor Yellow
-    return  # Exit current script/function; caller handles iteration to next PR
-}
+if [ $? -eq 1 ]; then
+    echo "PR #{number} is already merged. Skipping review work."
+    exit 0
+fi
 ```
 
 **Why this matters**: `gh pr view --json state` may return stale "OPEN" for recently merged PRs, leading to wasted effort (see Issue #321, Session 85).
@@ -78,31 +78,31 @@ Before addressing comments, gather full PR context:
 
 **1. Review ALL Comments** (review comments + PR comments):
 
-```powershell
+```bash
 # Get review threads with resolution status
-pwsh -NoProfile .claude/skills/github/scripts/pr/Get-PRReviewThreads.ps1 -PullRequest {number}
+python3 .claude/skills/github/scripts/pr/get_pr_review_threads.py --pull-request {number}
 
 # Get unresolved review threads
-pwsh -NoProfile .claude/skills/github/scripts/pr/Get-UnresolvedReviewThreads.ps1 -PullRequest {number}
+python3 .claude/skills/github/scripts/pr/get_unresolved_review_threads.py --pull-request {number}
 
 # Get unaddressed comments (comments without replies)
-pwsh -NoProfile .claude/skills/github/scripts/pr/Get-UnaddressedComments.ps1 -PullRequest {number}
+python3 .claude/skills/github/scripts/pr/get_unaddressed_comments.py --pull-request {number}
 
 # Get full PR context including comments
-pwsh -NoProfile .claude/skills/github/scripts/pr/Get-PRContext.ps1 -PullRequest {number}
+python3 .claude/skills/github/scripts/pr/get_pr_context.py --pull-request {number}
 ```
 
 **2. Check Merge Eligibility with Base Branch**:
 
-```powershell
+```bash
 # Get PR context including merge state
-$context = pwsh -NoProfile .claude/skills/github/scripts/pr/Get-PRContext.ps1 -PullRequest {number}
+context=$(python3 .claude/skills/github/scripts/pr/get_pr_context.py --pull-request {number})
 
-# Check: $context.Mergeable should be "MERGEABLE"
-# Check: $context.MergeStateStatus for conflicts
+# Check: Mergeable should be "MERGEABLE"
+echo "$context" | jq '.Mergeable'
 
 # Verify PR is not already merged
-pwsh -NoProfile .claude/skills/github/scripts/pr/Test-PRMerged.ps1 -PullRequest {number}
+python3 .claude/skills/github/scripts/pr/test_pr_merged.py --pull-request {number}
 # Exit code 0 = not merged (safe to proceed), 1 = merged (skip)
 ```
 

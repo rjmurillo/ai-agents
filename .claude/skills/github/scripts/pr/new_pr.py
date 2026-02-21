@@ -88,14 +88,13 @@ def run_validations(repo_root: str, base: str, head: str) -> None:
         ]
         if session_logs:
             session_log = session_logs[-1]
-            validate_script = os.path.join(repo_root, "scripts/Validate-Session.ps1")
+            validate_script = os.path.join(repo_root, "scripts/validate_session_json.py")
             if os.path.exists(validate_script):
                 session_log_path = os.path.join(repo_root, session_log)
                 vresult = subprocess.run(
                     [
-                        "pwsh", "-NoProfile", "-File",
-                        validate_script,
-                        "-SessionLogPath", session_log_path,
+                        sys.executable, validate_script,
+                        session_log_path,
                     ],
                     capture_output=True,
                     text=True,
@@ -122,10 +121,10 @@ def run_validations(repo_root: str, base: str, head: str) -> None:
     # Validation 3: Test coverage detection (WARNING)
     print()
     print("[3/3] Checking test coverage...")
-    test_script = os.path.join(repo_root, "scripts/Detect-TestCoverageGaps.ps1")
+    test_script = os.path.join(repo_root, "scripts/detect_test_coverage_gaps.py")
     if os.path.exists(test_script):
         subprocess.run(
-            ["pwsh", "-NoProfile", "-File", test_script],
+            [sys.executable, test_script],
             timeout=30,
         )
 

@@ -64,38 +64,34 @@ You have direct access to:
 
 | Operation | Script | Replaces |
 |-----------|--------|----------|
-| PR metadata | `Get-PRContext.ps1` | `gh pr view` |
-| Review + Issue comments | `Get-PRReviewComments.ps1 -IncludeIssueComments` | Manual pagination of both endpoints |
-| Review + Issue comments (exclude stale) | `Get-PRReviewComments.ps1 -IncludeIssueComments -DetectStale -ExcludeStale` | Manual pagination + stale detection |
-| Reviewer list | `Get-PRReviewers.ps1` | `gh api ... \| jq unique` |
-| Reply to comment | `Post-PRCommentReply.ps1` | `gh api ... -X POST` |
-| Add reaction | `Add-CommentReaction.ps1` | `gh api .../reactions` |
-| Issue comment | `Post-IssueComment.ps1` | `gh api .../comments` |
+| PR metadata | `get_pr_context.py` | `gh pr view` |
+| Review + Issue comments | `get_pr_review_comments.py --include-issue-comments` | Manual pagination of both endpoints |
+| Review + Issue comments (exclude stale) | `get_pr_review_comments.py --include-issue-comments --detect-stale --exclude-stale` | Manual pagination + stale detection |
+| Reviewer list | `get_pr_reviewers.py` | `gh api ... \| jq unique` |
+| Reply to comment | `post_pr_comment_reply.py` | `gh api ... -X POST` |
+| Add reaction | `add_comment_reaction.py` | `gh api .../reactions` |
+| Issue comment | `post_issue_comment.py` | `gh api .../comments` |
 
 ### Skill Usage Pattern
 
-```powershell
+```bash
 # All scripts are in .claude/skills/github/scripts/
-# From repo root, invoke with pwsh:
-pwsh .claude/skills/github/scripts/pr/Get-PRContext.ps1 -PullRequest 50
-
-# For global installs, use $HOME:
-pwsh $HOME/.claude/skills/github/scripts/pr/Get-PRContext.ps1 -PullRequest 50
+python3 .claude/skills/github/scripts/pr/get_pr_context.py --pull-request 50
 ```
 
 See `.claude/skills/github/SKILL.md` for full documentation.
 
 ### Stale Comment Detection
 
-Use `-DetectStale` with `Get-PRReviewComments.ps1` to identify comments referencing deleted or moved code:
+Use `--detect-stale` with `get_pr_review_comments.py` to identify comments referencing deleted or moved code:
 
-```powershell
+```bash
 # Detect and exclude stale comments (recommended for response workflow)
-pwsh .claude/skills/github/scripts/pr/Get-PRReviewComments.ps1 `
-  -PullRequest 908 `
-  -IncludeIssueComments `
-  -DetectStale `
-  -ExcludeStale
+python3 .claude/skills/github/scripts/pr/get_pr_review_comments.py \
+  --pull-request 908 \
+  --include-issue-comments \
+  --detect-stale \
+  --exclude-stale
 ```
 
 **Stale Reasons**:
@@ -443,7 +439,7 @@ if [ -d "$SESSION_DIR" ]; then
   echo "Previous session had $PREVIOUS_COMMENTS comments"
 
   # Check for NEW comments only (include issue comments to catch AI Quality Gate, etc.)
-  CURRENT_COMMENTS=$(pwsh .claude/skills/github/scripts/pr/Get-PRReviewComments.ps1 -PullRequest [number] -IncludeIssueComments | jq '.TotalComments')
+  CURRENT_COMMENTS=$(python3 .claude/skills/github/scripts/pr/get_pr_review_comments.py --pull-request [number] --include-issue-comments | jq '.TotalComments')
 
   if [ "$CURRENT_COMMENTS" -gt "$PREVIOUS_COMMENTS" ]; then
     echo "[NEW COMMENTS] $((CURRENT_COMMENTS - PREVIOUS_COMMENTS)) new comments since last session"
@@ -471,9 +467,9 @@ fi
 
 #### Step 1.1: Fetch PR Metadata
 
-```powershell
+```bash
 # Using github skill (PREFERRED)
-pwsh .claude/skills/github/scripts/pr/Get-PRContext.ps1 -PullRequest [number] -IncludeChangedFiles
+python3 .claude/skills/github/scripts/pr/get_pr_context.py --pull-request [number] --include-changed-files
 
 # Returns JSON with: number, title, body, headRefName, baseRefName, state, author, changedFiles
 ```
@@ -543,12 +539,12 @@ fi
 
 #### Step 1.2: Enumerate All Reviewers
 
-```powershell
+```bash
 # Using github skill (PREFERRED) - prevents single-bot blindness (pr-enum-001)
-pwsh .claude/skills/github/scripts/pr/Get-PRReviewers.ps1 -PullRequest [number]
+python3 .claude/skills/github/scripts/pr/get_pr_reviewers.py --pull-request [number]
 
 # Exclude bots from enumeration
-pwsh .claude/skills/github/scripts/pr/Get-PRReviewers.ps1 -PullRequest [number] -ExcludeBots
+python3 .claude/skills/github/scripts/pr/get_pr_reviewers.py --pull-request [number] --exclude-bots
 ```
 
 <details>
@@ -587,7 +583,7 @@ for reviewer in ALL_REVIEWERS:
 ```powershell
 # Using github skill (PREFERRED) - handles pagination automatically
 # IMPORTANT: Use -IncludeIssueComments to capture AI Quality Gate, CodeRabbit summaries, etc.
-pwsh .claude/skills/github/scripts/pr/Get-PRReviewComments.ps1 -PullRequest [number] -IncludeIssueComments
+python3 .claude/skills/github/scripts/pr/get_pr_review_comments.py --pull-request [number] --include-issue-comments
 
 # Returns all comments with: id, CommentType (Review/Issue), author, path, line, body, diff_hunk, created_at, in_reply_to_id
 ```
@@ -681,11 +677,11 @@ React with eyes emoji to acknowledge all comments. Use batch mode for 88% faster
 ```powershell
 # PREFERRED: Batch acknowledge all comments (88% faster than individual calls)
 # Get all comment IDs from the comments retrieved in Phase 1
-$comments = pwsh -NoProfile .claude/skills/github/scripts/pr/Get-PRReviewComments.ps1 -PullRequest [number] -IncludeIssueComments | ConvertFrom-Json
-$ids = $comments.Comments | ForEach-Object { $_.id }
+comments=$(python3 .claude/skills/github/scripts/pr/get_pr_review_comments.py --pull-request [number] --include-issue-comments)
+ids=$(echo "$comments" | jq -r '.Comments[].id')
 
-# Batch acknowledge - single process, all comments
-$result = pwsh -NoProfile .claude/skills/github/scripts/reactions/Add-CommentReaction.ps1 -CommentId $ids -Reaction "eyes" | ConvertFrom-Json
+# Batch acknowledge - single call, all comments
+result=$(python3 .claude/skills/github/scripts/reactions/add_comment_reaction.py --comment-ids $ids --reaction "eyes")
 
 # Verify all acknowledged
 Write-Host "Acknowledged $($result.Succeeded)/$($result.TotalCount) comments"
@@ -697,12 +693,12 @@ if ($result.Failed -gt 0) {
 <details>
 <summary>Alternative: Individual reactions (legacy)</summary>
 
-```powershell
+```bash
 # Individual comment reaction (slower - use batch above instead)
-pwsh .claude/skills/github/scripts/reactions/Add-CommentReaction.ps1 -CommentId [comment_id] -Reaction "eyes"
+python3 .claude/skills/github/scripts/reactions/add_comment_reaction.py --comment-ids [comment_id] --reaction "eyes"
 
 # Issue comment reaction
-pwsh .claude/skills/github/scripts/reactions/Add-CommentReaction.ps1 -CommentId [comment_id] -CommentType "issue" -Reaction "eyes"
+python3 .claude/skills/github/scripts/reactions/add_comment_reaction.py --comment-ids [comment_id] --comment-type "issue" --reaction "eyes"
 ```
 
 </details>
@@ -1023,13 +1019,13 @@ Reply to comments that need immediate response BEFORE implementation:
 ```powershell
 # Using github skill (PREFERRED) - handles thread-preserving replies correctly (pr-thread-reply)
 # Reply to review comment (in-thread reply using /replies endpoint)
-pwsh .claude/skills/github/scripts/pr/Post-PRCommentReply.ps1 -PullRequest [number] -CommentId [comment_id] -Body "[response]"
+python3 .claude/skills/github/scripts/pr/post_pr_comment_reply.py --pull-request [number] --comment-id [comment_id] --body "[response]"
 
-# For multi-line responses, use -BodyFile to avoid escaping issues
-pwsh .claude/skills/github/scripts/pr/Post-PRCommentReply.ps1 -PullRequest [number] -CommentId [comment_id] -BodyFile reply.md
+# For multi-line responses, use --body-file to avoid escaping issues
+python3 .claude/skills/github/scripts/pr/post_pr_comment_reply.py --pull-request [number] --comment-id [comment_id] --body-file reply.md
 
-# Post new top-level PR comment (no CommentId = issue comment)
-pwsh .claude/skills/github/scripts/pr/Post-PRCommentReply.ps1 -PullRequest [number] -Body "[response]"
+# Post new top-level PR comment (no --comment-id = issue comment)
+python3 .claude/skills/github/scripts/pr/post_pr_comment_reply.py --pull-request [number] --body "[response]"
 ```
 
 <details>
@@ -1134,12 +1130,12 @@ git push origin [branch]
 
 #### Step 6.3: Reply with Resolution
 
-```powershell
+```bash
 # Using github skill (PREFERRED)
-pwsh .claude/skills/github/scripts/pr/Post-PRCommentReply.ps1 -PullRequest [pull_number] -CommentId [comment_id] -Body "Fixed in [commit_hash].`n`n[Brief summary of change]"
+python3 .claude/skills/github/scripts/pr/post_pr_comment_reply.py --pull-request [pull_number] --comment-id [comment_id] --body "Fixed in [commit_hash]."
 
 # Or use a file for multi-line content
-pwsh .claude/skills/github/scripts/pr/Post-PRCommentReply.ps1 -PullRequest [pull_number] -CommentId [comment_id] -BodyFile resolution.md
+python3 .claude/skills/github/scripts/pr/post_pr_comment_reply.py --pull-request [pull_number] --comment-id [comment_id] --body-file resolution.md
 ```
 
 <details>
@@ -1166,12 +1162,12 @@ After replying with resolution, mark the thread as resolved. This is required fo
 1. The reviewer is human (let them resolve after verifying)
 2. You need a response from the reviewer (human or bot)
 
-```powershell
+```bash
 # Resolve all unresolved threads on the PR (PREFERRED for bulk resolution)
-pwsh .claude/skills/github/scripts/pr/Resolve-PRReviewThread.ps1 -PullRequest [number] -All
+python3 .claude/skills/github/scripts/pr/resolve_pr_review_thread.py --pull-request [number] --all
 
 # Or resolve a single thread by ID
-pwsh .claude/skills/github/scripts/pr/Resolve-PRReviewThread.ps1 -ThreadId "PRRT_kwDOQoWRls5m7ln8"
+python3 .claude/skills/github/scripts/pr/resolve_pr_review_thread.py --thread-id "PRRT_kwDOQoWRls5m7ln8"
 ```
 
 **Complete Workflow**: Code fix → Reply → **Resolve** (all three steps required)
@@ -1238,9 +1234,9 @@ fi
 
 **Exception**: Do NOT auto-resolve threads from human reviewers. Let them verify and resolve.
 
-```powershell
+```bash
 # Run bulk resolution to ensure all threads are resolved
-pwsh .claude/skills/github/scripts/pr/Resolve-PRReviewThread.ps1 -PullRequest [number] -All
+python3 .claude/skills/github/scripts/pr/resolve_pr_review_thread.py --pull-request [number] --all
 ```
 
 The script will:
@@ -1266,7 +1262,7 @@ After pushing commits, bots may post new comments. Wait and re-check:
 sleep 45
 
 # Re-fetch comments (include issue comments to catch AI Quality Gate, CodeRabbit summaries, etc.)
-NEW_COMMENTS=$(pwsh .claude/skills/github/scripts/pr/Get-PRReviewComments.ps1 -PullRequest [number] -IncludeIssueComments | jq '.TotalComments')
+NEW_COMMENTS=$(python3 .claude/skills/github/scripts/pr/get_pr_review_comments.py --pull-request [number] --include-issue-comments | jq '.TotalComments')
 
 # Compare to original count
 if [ "$NEW_COMMENTS" -gt "$TOTAL_COMMENTS" ]; then
@@ -1294,10 +1290,10 @@ It does NOT mean:
 
 **Always verify CI explicitly** using the Get-PRChecks.ps1 skill:
 
-```powershell
+```bash
 # Check ALL CI checks status with wait for completion
-$checks = pwsh -NoProfile .claude/skills/github/scripts/pr/Get-PRChecks.ps1 -PullRequest [number] -Wait -TimeoutSeconds 300 | ConvertFrom-Json
-$exitCode = $LASTEXITCODE
+checks=$(python3 .claude/skills/github/scripts/pr/get_pr_checks.py --pull-request [number] --wait --timeout-seconds 300)
+exit_code=$?
 
 # Handle timeout (exit code 7)
 if ($exitCode -eq 7) {
@@ -1355,9 +1351,9 @@ Write-Host "[ ] Comments: $($ADDRESSED + $WONTFIX)/$TOTAL resolved"
 Write-Host "[ ] New comments: None after 45s wait"
 
 # CI check verification using skill
-$checks = pwsh -NoProfile .claude/skills/github/scripts/pr/Get-PRChecks.ps1 -PullRequest [number] | ConvertFrom-Json
-$ciStatus = if ($checks.AllPassing) { "PASS" } else { "$($checks.FailedCount) failures, $($checks.PendingCount) pending" }
-Write-Host "[ ] CI checks: $ciStatus"
+checks=$(python3 .claude/skills/github/scripts/pr/get_pr_checks.py --pull-request [number])
+all_passing=$(echo "$checks" | jq '.AllPassing')
+echo "[ ] CI checks: $(if [ "$all_passing" = "true" ]; then echo PASS; else echo FAILING; fi)"
 
 Write-Host "[ ] Pushed: $(git status -sb | Select-Object -First 1)"
 ```
@@ -1458,8 +1454,8 @@ Use Memory Router for search and Serena tools for persistence (ADR-037). Memory 
 
 **At start (MANDATORY, retrieve context):**
 
-```powershell
-pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "PR review patterns bot behaviors reviewer preferences"
+```bash
+python3 .claude/skills/memory/scripts/search_memory.py --query "PR review patterns bot behaviors reviewer preferences"
 ```
 
 **After EVERY triage decision (store learnings):**
