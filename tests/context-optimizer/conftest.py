@@ -1,10 +1,13 @@
 """
 conftest.py for context-optimizer tests.
 
-Skips all tests in this directory when tiktoken's BPE data cannot be loaded
-(e.g., in network-restricted environments where openaipublic.blob.core.windows.net
-is unreachable). Tests that call compress_markdown_content.py require tiktoken
-for token count metrics, making the entire test module network-dependent.
+Skips tests in test_compress_markdown_content.py when tiktoken's BPE data cannot
+be loaded (e.g., in network-restricted environments where
+openaipublic.blob.core.windows.net is unreachable). Only tests that call
+compress_markdown_content.py require tiktoken for token count metrics.
+
+Other test modules (test_analyze_skill_placement.py, test_skill_passive_compliance_test.py)
+do not depend on tiktoken and should run regardless of network availability.
 """
 
 from __future__ import annotations
@@ -26,7 +29,7 @@ _TIKTOKEN_AVAILABLE = _tiktoken_available()
 
 
 def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
-    """Skip context-optimizer tests when tiktoken BPE data is unavailable."""
+    """Skip tiktoken-dependent tests when tiktoken BPE data is unavailable."""
     if _TIKTOKEN_AVAILABLE:
         return
 
@@ -34,5 +37,5 @@ def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
         reason="tiktoken BPE data unavailable (requires network access to download)",
     )
     for item in items:
-        if "context-optimizer" in str(item.fspath):
+        if "test_compress_markdown_content.py" in str(item.fspath):
             item.add_marker(skip)
