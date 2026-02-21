@@ -116,8 +116,13 @@ def fetch_pr_data(
 
 
 def normalize_path(path: str) -> str:
-    """Normalize a file path for comparison."""
+    """Normalize a file path for comparison.
+
+    Strips whitespace, markdown bold markers, and normalizes slashes.
+    """
     path = path.strip()
+    # Strip markdown bold markers that may be captured by list item pattern
+    path = path.strip("*")
     path = path.replace("\\", "/")
     if path.startswith("./"):
         path = path[2:]
