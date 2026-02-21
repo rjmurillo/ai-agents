@@ -218,7 +218,7 @@ When any changed file matches security trigger patterns, orchestrator MUST route
 #   **/token*, **/oauth/**, **/jwt/**
 
 # When security-relevant files change:
-/agent security
+#runSubagent with subagentType=security
 Run Post-Implementation Verification for [feature].
 
 Implementation completed by implementer.

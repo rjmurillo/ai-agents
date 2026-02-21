@@ -182,14 +182,14 @@ For atomic bugs that meet ALL of these criteria, delegate directly to `implement
 **When to bypass orchestrator:**
 
 ```text
-/agent implementer
+#runSubagent with subagentType=implementer
 Fix: [one-sentence description]...
 ```
 
 For Standard/Strategic paths, still use orchestrator:
 
 ```text
-/agent orchestrator
+#runSubagent with subagentType=orchestrator
 Analyze and implement...
 ```
 
@@ -206,7 +206,7 @@ Analyze and implement...
 Evidence: In PR #47, QA agent added a regression test for a "simple" PathInfo bug that would have otherwise gone untested.
 
 ```text
-/agent qa
+#runSubagent with subagentType=qa
 Verify fix and assess regression test needs...
 ```
 
@@ -726,7 +726,7 @@ Analyze this PR comment and determine:
 #### Step 3.2: Delegate to Orchestrator
 
 ```text
-/agent orchestrator
+#runSubagent with subagentType=orchestrator
 [Context from Step 3.1]
 
 After analysis, save plan to: `.agents/pr-comments/PR-[number]/[comment_id]-plan.md`
@@ -966,7 +966,7 @@ Implement tasks in priority order. For each task:
 #### Step 6.1: Delegate to Orchestrator
 
 ```text
-/agent orchestrator
+#runSubagent with subagentType=orchestrator
 Implement this PR comment fix:
 
 ## Task
