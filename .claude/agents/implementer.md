@@ -835,8 +835,15 @@ public void Dispose()
 {
     if (Interlocked.Exchange(ref _disposed, 1) != 0)
         return;
-    GC.SuppressFinalize(this);
-    // cleanup...
+
+    try
+    {
+        // cleanup...
+    }
+    finally
+    {
+        GC.SuppressFinalize(this);
+    }
 }
 ```
 
