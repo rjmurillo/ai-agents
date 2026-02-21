@@ -1,0 +1,123 @@
+name: 'Check Agent Infrastructure'
+description: 'Validate infrastructure prerequisites before invoking AI agents'
+
+# Lightweight, zero-cost health checks that run by default.
+# Distinct from ai-review's enable-diagnostics (which runs test prompts).
+# See: https://github.com/rjmurillo/ai-agents/issues/153
+
+inputs:
+  bot-pat:
+    description: 'GitHub PAT for authentication checks'
+    required: true
+  copilot-token:
+    description: 'Copilot token to validate (falls back to bot-pat)'
+    required: false
+    default: ''
+
+outputs:
+  github-cli-available:
+    description: 'Whether GitHub CLI is installed and functional'
+    value: ${{ steps.check.outputs.github-cli-available }}
+  copilot-available:
+    description: 'Whether Copilot CLI binary is available'
+    value: ${{ steps.check.outputs.copilot-available }}
+  auth-valid:
+    description: 'Whether GitHub API authentication succeeds'
+    value: ${{ steps.check.outputs.auth-valid }}
+  overall-status:
+    description: 'Overall infrastructure status: ready, degraded, unavailable'
+    value: ${{ steps.check.outputs.overall-status }}
+  summary:
+    description: 'Human-readable summary of check results'
+    value: ${{ steps.check.outputs.summary }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Check Agent Infrastructure
+      id: check
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.bot-pat }}
+        COPILOT_GITHUB_TOKEN: ${{ inputs.copilot-token || inputs.bot-pat }}
+      run: |
+        GITHUB_CLI_AVAILABLE=false
+        COPILOT_AVAILABLE=false
+        AUTH_VALID=false
+        OVERALL_STATUS="unavailable"
+        SUMMARY_LINES=()
+
+        # 1. GitHub CLI availability
+        if command -v gh >/dev/null 2>&1; then
+          GITHUB_CLI_AVAILABLE=true
+          GH_VERSION=$(gh --version 2>&1 | head -1)
+          SUMMARY_LINES+=("GitHub CLI: $GH_VERSION")
+          echo "::notice::GitHub CLI available ($GH_VERSION)"
+        else
+          SUMMARY_LINES+=("GitHub CLI: NOT FOUND")
+          echo "::warning::GitHub CLI not found. Agent workflows require gh."
+        fi
+
+        # 2. GitHub API authentication
+        if [ "$GITHUB_CLI_AVAILABLE" = "true" ]; then
+          if gh api user -q '.login' >/dev/null 2>&1; then
+            AUTH_VALID=true
+            AUTH_USER=$(gh api user -q '.login' 2>/dev/null || echo "unknown")
+            SUMMARY_LINES+=("Authentication: valid (user: $AUTH_USER)")
+            echo "::notice::GitHub API authenticated as $AUTH_USER"
+          else
+            SUMMARY_LINES+=("Authentication: FAILED")
+            echo "::warning::GitHub API authentication failed. Check bot-pat token."
+          fi
+        else
+          SUMMARY_LINES+=("Authentication: skipped (no gh CLI)")
+        fi
+
+        # 3. Copilot CLI availability (binary check only, no API call)
+        if command -v copilot >/dev/null 2>&1; then
+          COPILOT_AVAILABLE=true
+          COPILOT_VERSION=$(copilot --version 2>&1 | head -1 || echo "unknown")
+          SUMMARY_LINES+=("Copilot CLI: $COPILOT_VERSION")
+          echo "::notice::Copilot CLI available ($COPILOT_VERSION)"
+        elif [ "$GITHUB_CLI_AVAILABLE" = "true" ] && gh copilot --version >/dev/null 2>&1; then
+          COPILOT_AVAILABLE=true
+          COPILOT_VERSION=$(gh copilot --version 2>&1 | head -1 || echo "unknown")
+          SUMMARY_LINES+=("Copilot CLI (via gh extension): $COPILOT_VERSION")
+          echo "::notice::Copilot CLI available via gh extension ($COPILOT_VERSION)"
+        else
+          SUMMARY_LINES+=("Copilot CLI: NOT FOUND")
+          echo "::warning::Copilot CLI not available. Configure COPILOT_GITHUB_TOKEN or install gh copilot extension."
+        fi
+
+        # 4. Determine overall status
+        if [ "$GITHUB_CLI_AVAILABLE" = "true" ] && [ "$AUTH_VALID" = "true" ] && [ "$COPILOT_AVAILABLE" = "true" ]; then
+          OVERALL_STATUS="ready"
+        elif [ "$GITHUB_CLI_AVAILABLE" = "true" ] && [ "$AUTH_VALID" = "true" ]; then
+          OVERALL_STATUS="degraded"
+        else
+          OVERALL_STATUS="unavailable"
+        fi
+        SUMMARY_LINES+=("Overall: $OVERALL_STATUS")
+
+        # Set outputs
+        echo "github-cli-available=$GITHUB_CLI_AVAILABLE" >> "$GITHUB_OUTPUT"
+        echo "copilot-available=$COPILOT_AVAILABLE" >> "$GITHUB_OUTPUT"
+        echo "auth-valid=$AUTH_VALID" >> "$GITHUB_OUTPUT"
+        echo "overall-status=$OVERALL_STATUS" >> "$GITHUB_OUTPUT"
+
+        # Build multi-line summary
+        {
+          echo "summary<<EOF_SUMMARY"
+          for line in "${SUMMARY_LINES[@]}"; do
+            echo "$line"
+          done
+          echo "EOF_SUMMARY"
+        } >> "$GITHUB_OUTPUT"
+
+        # Log summary
+        echo ""
+        echo "=== Infrastructure Health Check ==="
+        for line in "${SUMMARY_LINES[@]}"; do
+          echo "  $line"
+        done
+        echo "=================================="
