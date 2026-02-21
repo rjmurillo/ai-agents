@@ -308,7 +308,7 @@ class SemanticMemory:
         if session_id:
             nodes = self.get_session_tree(session_id)
         else:
-            nodes = self.get_recent(n=1000)
+            nodes = self.get_recent(n=1000, include_embeddings=False)
 
         return {
             "version": "1.0",

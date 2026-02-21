@@ -142,6 +142,9 @@ class SemanticRecorder:
             if len(lines) > 5:
                 # First and last few lines often most informative
                 result = "\n".join(lines[:2] + ["..."] + lines[-2:])
+                # Cap the multi-line result to avoid exceeding reasonable length
+                if len(result) > 200:
+                    result = result[:200] + "..."
             else:
                 result = result[:200] + "..."
 

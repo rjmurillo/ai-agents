@@ -172,7 +172,7 @@ def check_stuck(text: str, history_path: Path, config: StuckConfig | None = None
 
     Args:
         text: The response text to check
-        history_path: Path to JSON history file
+        history_path: Path to JSON history file (used if config is None)
         config: Optional stuck detection configuration
 
     Returns:
@@ -181,11 +181,15 @@ def check_stuck(text: str, history_path: Path, config: StuckConfig | None = None
     if config is None:
         config = StuckConfig(history_path=history_path)
 
+    # Use config.history_path to avoid inconsistency when config is provided
+    effective_path = config.history_path
+    assert effective_path is not None
+
     signature = extract_topic_signature(text, config.min_significant_words)
     if signature is None:
         return StuckResult(stuck=False, signature=None)
 
-    history = _load_history(history_path)
+    history = _load_history(effective_path)
 
     # Add current signature to history
     from datetime import datetime
@@ -193,7 +197,7 @@ def check_stuck(text: str, history_path: Path, config: StuckConfig | None = None
         "signature": signature,
         "timestamp": datetime.now().isoformat(),
     })
-    _save_history(history_path, history, config.max_history)
+    _save_history(effective_path, history, config.max_history)
 
     if len(history) < config.stuck_threshold:
         return StuckResult(stuck=False, signature=signature)

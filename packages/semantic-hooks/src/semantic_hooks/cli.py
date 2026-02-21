@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import shlex
 import shutil
 import sys
 from pathlib import Path
@@ -46,24 +47,6 @@ def _find_hooks_dir() -> Path | None:
             shared_hooks = Path(base) / "share" / "semantic-hooks" / "hooks"
             if shared_hooks.is_dir() and (shared_hooks / "pre_tool_use.py").exists():
                 return shared_hooks
-
-    return None
-
-
-def _find_templates_dir() -> Path | None:
-    """Find the templates directory using multiple strategies."""
-    # Strategy 1: Development layout
-    dev_templates = Path(__file__).parent.parent.parent / "templates"
-    if dev_templates.is_dir():
-        return dev_templates
-
-    # Strategy 2: Installed shared data location
-    import site
-    for base in [sys.prefix, site.USER_BASE] if hasattr(site, 'USER_BASE') else [sys.prefix]:
-        if base:
-            shared_templates = Path(base) / "share" / "semantic-hooks" / "templates"
-            if shared_templates.is_dir():
-                return shared_templates
 
     return None
 
@@ -259,7 +242,7 @@ def cmd_tree(args: argparse.Namespace) -> int:
         return 0
 
     # Show tree
-    nodes = memory.get_recent(n=args.limit or 20, session_id=args.session)
+    nodes = memory.get_recent(n=args.limit or 20, session_id=args.session, include_embeddings=False)
     if not nodes:
         print("No nodes in memory.")
         return 0
@@ -331,7 +314,10 @@ def _is_semantic_hooks_entry(hook_entry: dict) -> bool:
     Returns:
         True if this is a semantic-hooks entry, False otherwise.
     """
-    command = str(hook_entry.get("hooks", [{}])[0].get("command", ""))
+    hooks_list = hook_entry.get("hooks", [])
+    if not hooks_list:
+        return False
+    command = str(hooks_list[0].get("command", ""))
     # Check if the command references any of our specific hook filenames
     return any(filename in command for filename in SEMANTIC_HOOKS_FILENAMES)
 
@@ -351,20 +337,25 @@ def _update_claude_settings(force: bool = False) -> bool:
 
     hooks_config = settings.setdefault("hooks", {})
 
+    # Quote the hooks directory path to handle paths with spaces
+    def _make_hook_command(script_name: str) -> str:
+        script_path = str(CLAUDE_HOOKS_DIR / script_name)
+        return f"python3 {shlex.quote(script_path)}"
+
     # Define our hooks
     hook_definitions = {
         "SessionStart": {
             "matcher": "*",
             "hooks": [{
                 "type": "command",
-                "command": f"python3 {CLAUDE_HOOKS_DIR}/session_start.py",
+                "command": _make_hook_command("session_start.py"),
             }],
         },
         "PreToolUse": {
             "matcher": "*",
             "hooks": [{
                 "type": "command",
-                "command": f"python3 {CLAUDE_HOOKS_DIR}/pre_tool_use.py",
+                "command": _make_hook_command("pre_tool_use.py"),
                 "timeout": 5000,
             }],
         },
@@ -372,7 +363,7 @@ def _update_claude_settings(force: bool = False) -> bool:
             "matcher": "*",
             "hooks": [{
                 "type": "command",
-                "command": f"python3 {CLAUDE_HOOKS_DIR}/post_tool_use.py",
+                "command": _make_hook_command("post_tool_use.py"),
                 "timeout": 3000,
             }],
         },
@@ -380,7 +371,7 @@ def _update_claude_settings(force: bool = False) -> bool:
             "matcher": "*",
             "hooks": [{
                 "type": "command",
-                "command": f"python3 {CLAUDE_HOOKS_DIR}/post_response.py",
+                "command": _make_hook_command("post_response.py"),
                 "timeout": 3000,
             }],
         },
@@ -388,14 +379,14 @@ def _update_claude_settings(force: bool = False) -> bool:
             "matcher": "*",
             "hooks": [{
                 "type": "command",
-                "command": f"python3 {CLAUDE_HOOKS_DIR}/pre_compact.py",
+                "command": _make_hook_command("pre_compact.py"),
             }],
         },
         "SessionEnd": {
             "matcher": "*",
             "hooks": [{
                 "type": "command",
-                "command": f"python3 {CLAUDE_HOOKS_DIR}/session_end.py",
+                "command": _make_hook_command("session_end.py"),
             }],
         },
     }
