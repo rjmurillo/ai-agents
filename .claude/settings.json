@@ -38,12 +38,32 @@
         ]
       },
       {
+        "matcher": "^(Write|Edit)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -u .claude/hooks/PreToolUse/invoke_security_gate.py",
+            "statusMessage": "Checking security gate for auth files (ADR-033)"
+          }
+        ]
+      },
+      {
         "matcher": "Bash(git push*)",
         "hooks": [
           {
             "type": "command",
             "command": "python3 -u .claude/hooks/PreToolUse/invoke_branch_protection_guard.py",
             "statusMessage": "Verifying branch protection"
+          }
+        ]
+      },
+      {
+        "matcher": "^(Edit|Write)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -u .claude/hooks/PreToolUse/invoke_adr_architect_gate.py",
+            "statusMessage": "Verifying architect review for ADR files (BLOCKING)"
           }
         ]
       }

@@ -2,15 +2,26 @@
 """Routing-level enforcement gates for Claude Code per ADR-033.
 
 Blocks high-stakes actions until validation prerequisites are met.
-Implements Gate 2: QA Validation Gate that blocks PR creation without QA evidence.
+
+Gates:
+- Gate 2: QA Validation Gate - blocks PR creation without QA evidence
+- Gate 3: Critic Review Gate - blocks PR merge without critic validation
 
 QA Evidence is satisfied by:
 1. QA report exists in .agents/qa/ from the last 24 hours
 2. QA section in today's session log
 
-Bypass conditions:
+Critic Evidence is satisfied by:
+1. Critic verdict in today's session log (APPROVED/REJECTED/NEEDS WORK)
+2. Critique file in .agents/critique/ from the last 24 hours
+
+Bypass conditions (QA):
 - Documentation-only PRs (no code changes)
 - SKIP_QA_GATE environment variable set
+
+Bypass conditions (Critic):
+- Documentation-only PRs (no code changes)
+- SKIP_CRITIC_GATE environment variable set
 
 Hook Type: PreToolUse
 Exit Codes (Claude Hook Semantics, exempt from ADR-035):
@@ -42,6 +53,9 @@ if _lib_dir not in sys.path:
 from hook_utilities.guards import skip_if_consumer_repo  # noqa: E402
 
 _QA_EVIDENCE_PATTERN = re.compile(r"(?i)## QA|qa agent|Test Results|QA Validation|Test Strategy")
+_CRITIC_EVIDENCE_PATTERN = re.compile(
+    r"(?i)critic agent|critic review|APPROVED|REJECTED|NEEDS.?WORK"
+)
 
 # Documentation-only file patterns (anchored to prevent substring matches)
 _DOC_PATTERNS = [
@@ -129,6 +143,33 @@ def check_qa_evidence() -> bool:
             return False
 
         if content and _QA_EVIDENCE_PATTERN.search(content):
+            return True
+
+    return False
+
+
+def check_critic_evidence() -> bool:
+    """Check for critic review evidence in critique files or session log."""
+    # Option 1: Critique file in .agents/critique/ from last 24 hours
+    critique_dir = Path(".agents/critique")
+    if critique_dir.is_dir():
+        cutoff_time = time.time() - (24 * 3600)
+        for critique in critique_dir.glob("*.md"):
+            if critique.stat().st_mtime > cutoff_time:
+                return True
+
+    # Option 2: Critic verdict in session log
+    session_log = get_today_session_log_local()
+    if session_log is not None:
+        try:
+            content = session_log.read_text(encoding="utf-8")
+        except OSError as exc:
+            msg = f"Session log exists but cannot be read: {exc}"
+            print(f"routing_gates: {msg}", file=sys.stderr)
+            write_audit_log("RoutingGates", f"Session log read failed: {exc}")
+            return False
+
+        if content and _CRITIC_EVIDENCE_PATTERN.search(content):
             return True
 
     return False
@@ -271,6 +312,39 @@ def main() -> int:
                     "Bypass conditions:\n"
                     "- Documentation-only PRs (auto-detected based on file extensions)\n"
                     "- Set SKIP_QA_GATE=true environment variable (requires justification)"
+                ),
+            }
+            print(json.dumps(output, separators=(",", ":")))
+            return 0  # JSON output with deny decision
+
+    # Gate 3: Critic Review (for PR merge)
+    if "gh pr merge" in command:
+        # Bypass 1: Environment variable override
+        if os.environ.get("SKIP_CRITIC_GATE") == "true":
+            write_audit_log(
+                "RoutingGates",
+                "Critic gate bypassed via SKIP_CRITIC_GATE environment variable",
+            )
+            return 0
+
+        # Bypass 2: Documentation-only changes
+        if check_documentation_only():
+            return 0
+
+        # Main check: Critic evidence required
+        if not check_critic_evidence():
+            output = {
+                "decision": "deny",
+                "reason": (
+                    "CRITIC REVIEW GATE: Critic validation required before merge.\n\n"
+                    "Run: Task(subagent_type='critic', prompt='Validate this PR "
+                    "for merge readiness')\n\n"
+                    "Expected verdict: APPROVED / REJECTED / NEEDS WORK\n\n"
+                    "Or create a critique file in .agents/critique/\n\n"
+                    "Bypass conditions:\n"
+                    "- Documentation-only PRs (auto-detected based on file extensions)\n"
+                    "- Set SKIP_CRITIC_GATE=true environment variable "
+                    "(requires justification)"
                 ),
             }
             print(json.dumps(output, separators=(",", ":")))

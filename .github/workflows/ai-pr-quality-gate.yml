@@ -102,6 +102,8 @@ jobs:
               - 'build/**'
               - '.github/**'
               - '.agents/**'
+              - '!.agents/planning/**'
+              - '!.agents/sessions/**'
               - '.claude/skills/**'
 
       - name: Determine if review should run
@@ -565,6 +567,7 @@ jobs:
         run: python3 .github/scripts/generate_quality_report.py
 
       - name: Check for infrastructure failures and add label
+        continue-on-error: true
         shell: pwsh -NoProfile -Command "& '{0}'"
         env:
           GH_TOKEN: ${{ github.token }}
@@ -604,25 +607,21 @@ jobs:
               # Verify gh CLI is authenticated
               $authStatus = gh auth status 2>&1
               if ($LASTEXITCODE -ne 0) {
-                Write-Output "::error::gh CLI authentication failed: $authStatus"
-                Write-Output "::error::Cannot add infrastructure-failure label"
-                exit 1
+                Write-Output "::warning::gh CLI authentication failed, cannot add label"
+                exit 0
               }
 
-              # Add label with error handling
+              # Add label (best-effort, should not block aggregation)
               gh pr edit $env:PR_NUMBER --repo $env:GITHUB_REPOSITORY --add-label "infrastructure-failure"
 
               if ($LASTEXITCODE -ne 0) {
-                Write-Output "::error::Failed to add infrastructure-failure label (exit code: $LASTEXITCODE)"
-                Write-Output "::error::Ensure 'infrastructure-failure' label exists in repository"
-                exit 1
+                Write-Output "::warning::Failed to add infrastructure-failure label (exit code: $LASTEXITCODE)"
+              } else {
+                Write-Output "Successfully added infrastructure-failure label"
               }
-
-              Write-Output "✓ Successfully added infrastructure-failure label"
             }
             catch {
-              Write-Output "::error::Failed to add label: $_"
-              exit 1
+              Write-Output "::warning::Failed to add label: $_"
             }
           } else {
             Write-Output "No infrastructure failures detected"
