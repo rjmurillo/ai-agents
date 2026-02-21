@@ -89,11 +89,22 @@ jobs:
               - 'build/**'
               - '.claude/skills/**'
 
+  # Pass-through job: satisfies required "Validate Spec Coverage" check when no code changes.
+  # GitHub branch protection requires SUCCESS (not SKIPPED) for required checks.
+  # See: Issue #1168
+  validate-spec-skip:
+    name: Validate Spec Coverage
+    runs-on: ubuntu-24.04-arm
+    needs: check-paths
+    if: needs.check-paths.outputs.has-code-changes != 'true'
+    steps:
+      - name: No code changes
+        run: echo "Skipped - no code changes detected"
+
   validate-spec:
     name: Validate Spec Coverage
     needs: check-paths
     # Only run full validation when code paths are changed
-    # When skipped, required check is satisfied with SKIPPED conclusion
     if: needs.check-paths.outputs.has-code-changes == 'true'
     # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-24.04-arm
