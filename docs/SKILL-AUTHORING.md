@@ -202,7 +202,7 @@ model: claude-sonnet-4-5
 ---
 name: analyze
 version: 1.0.0
-model: claude-sonnet-4-5
+model: claude-opus-4-5
 description: Analyze codebase architecture, security posture, or code quality through guided multi-step investigation. Use when performing architecture reviews, security assessments, quality evaluations, or deep technical investigations. Produces prioritized findings with evidence.
 license: MIT
 ---
