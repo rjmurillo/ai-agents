@@ -9,6 +9,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from scripts.github_core.api import RepoInfo
 
 # ---------------------------------------------------------------------------
 # Import the script via importlib (not a package)
@@ -165,7 +166,7 @@ class TestMain:
             "set_pr_auto_merge.assert_gh_authenticated",
         ), patch(
             "set_pr_auto_merge.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "set_pr_auto_merge.gh_graphql",
             side_effect=[pr_query_data, enable_data],

@@ -9,6 +9,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from scripts.github_core.api import RepoInfo
 
 # ---------------------------------------------------------------------------
 # Import the script via importlib (not a package)
@@ -209,7 +210,7 @@ class TestMain:
             "get_pr_checks.assert_gh_authenticated",
         ), patch(
             "get_pr_checks.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "get_pr_checks.gh_graphql",
             side_effect=RuntimeError("Could not resolve PR"),
@@ -252,7 +253,7 @@ class TestMain:
             "get_pr_checks.assert_gh_authenticated",
         ), patch(
             "get_pr_checks.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "get_pr_checks.gh_graphql",
             return_value=gql_data,
@@ -297,7 +298,7 @@ class TestMain:
             "get_pr_checks.assert_gh_authenticated",
         ), patch(
             "get_pr_checks.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "get_pr_checks.gh_graphql",
             return_value=gql_data,

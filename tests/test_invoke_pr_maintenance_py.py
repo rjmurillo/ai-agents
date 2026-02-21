@@ -6,6 +6,7 @@ import subprocess
 from unittest.mock import MagicMock, patch
 
 import pytest
+from scripts.github_core.api import RepoInfo
 
 from scripts.invoke_pr_maintenance import (
     classify_prs,
@@ -298,7 +299,7 @@ class TestMain:
     @patch("scripts.invoke_pr_maintenance.get_open_prs", return_value=[])
     @patch(
         "scripts.invoke_pr_maintenance.resolve_repo_params",
-        return_value={"Owner": "owner", "Repo": "repo"},
+        return_value=RepoInfo(owner="owner", repo="repo"),
     )
     @patch("scripts.invoke_pr_maintenance.check_workflow_rate_limit")
     def test_output_json_mode(
@@ -314,7 +315,7 @@ class TestMain:
     )
     @patch(
         "scripts.invoke_pr_maintenance.resolve_repo_params",
-        return_value={"Owner": "owner", "Repo": "repo"},
+        return_value=RepoInfo(owner="owner", repo="repo"),
     )
     @patch("scripts.invoke_pr_maintenance.check_workflow_rate_limit")
     def test_exits_2_on_api_failure(
