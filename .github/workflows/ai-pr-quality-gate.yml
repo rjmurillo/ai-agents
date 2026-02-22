@@ -450,6 +450,18 @@ jobs:
 # Depends on all six agent review jobs explicitly (not matrix).
 # Downloads artifacts using pattern `review-*` to gather all agent verdicts.
 
+  # Pass-through job: satisfies required "Aggregate Results" check when path
+  # filter skips the real aggregate job. GitHub branch protection requires
+  # SUCCESS (not SKIPPED) for required checks. See issue #1168.
+  aggregate-skip:
+    name: Aggregate Results
+    runs-on: ubuntu-24.04-arm
+    needs: [check-changes]
+    if: always() && needs.check-changes.result == 'success' && needs.check-changes.outputs.should-run != 'true'
+    steps:
+      - name: No relevant changes
+        run: echo "Skipped - no relevant file changes detected"
+
   aggregate:
     name: Aggregate Results
     # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
