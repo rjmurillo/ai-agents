@@ -53,8 +53,8 @@ in config comments
 
 | Scenario | Action | Example |
 |----------|--------|---------|
-| PSScriptAnalyzer rule fails | Update `.psscriptanalyzerrc` | Suppress `PSAvoidUsingWriteHost` with rationale |
-| markdownlint rule fails | Update `.markdownlint.json` | Disable `MD013` line-length for generated docs |
+| PSScriptAnalyzer rule fails | Update `.psscriptanalyzerrc.psd1` | Suppress `PSAvoidUsingWriteHost` with rationale |
+| markdownlint rule fails | Update `.markdownlint.yaml` | Disable `MD013` line-length for generated docs |
 | ESLint rule conflicts | Update `.eslintrc` | Override `no-console` for CLI tools |
 | Upstream tool has a bug | File issue upstream, add workaround in config | Pin tool version, suppress specific rule |
 | Tool default changed after upgrade | Review and align local config to new default | Update config after major version bump |
@@ -89,15 +89,15 @@ After applying this skill:
 
 **Correct approach**:
 
-```json
-// .psscriptanalyzerrc
-{
-  "Rules": {
-    "PSAvoidUsingWriteHost": {
-      "Enable": false
-      // Rationale: CLI scripts use Write-Host for user-facing output
+```powershell
+# .psscriptanalyzerrc.psd1
+# Rationale: CLI scripts use Write-Host for user-facing output
+@{
+    Rules = @{
+        PSAvoidUsingWriteHost = @{
+            Enable = $false
+        }
     }
-  }
 }
 ```
 
@@ -109,15 +109,12 @@ After applying this skill:
 
 **Correct approach**:
 
-```json
-// .markdownlint.json
-{
-  "MD013": {
-    "line_length": 200,
-    "tables": false
-  }
-  // Rationale: Generated docs have long lines from tool output
-}
+```yaml
+# .markdownlint.yaml
+# Rationale: Generated docs have long lines from tool output
+MD013:
+  line_length: 200
+  tables: false
 ```
 
 ### Example 3: New Tool Integration
