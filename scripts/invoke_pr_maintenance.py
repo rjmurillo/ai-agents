@@ -114,6 +114,17 @@ def has_failing_checks(pr: dict[str, Any]) -> bool:
     return False
 
 
+def has_unresolved_threads(pr: dict[str, Any]) -> bool:
+    """Return True if the PR has unresolved review threads."""
+    threads = pr.get("reviewThreads")
+    if not threads:
+        return False
+    for node in threads.get("nodes", []):
+        if node and not node.get("isResolved", True):
+            return True
+    return False
+
+
 GRAPHQL_QUERY = """
 query($owner: String!, $name: String!, $limit: Int!) {
     repository(owner: $owner, name: $name) {
@@ -134,6 +145,11 @@ query($owner: String!, $name: String!, $limit: Int!) {
                             ... on Team { name }
                             ... on Bot { login }
                         }
+                    }
+                }
+                reviewThreads(first: 100) {
+                    nodes {
+                        isResolved
                     }
                 }
                 commits(last: 1) {
@@ -245,8 +261,11 @@ def classify_prs(
             has_changes = pr.get("reviewDecision") == "CHANGES_REQUESTED"
             has_conflicts = pr.get("mergeable") == "CONFLICTING"
             has_failures = has_failing_checks(pr)
+            has_unresolved = has_unresolved_threads(pr)
 
-            needs_action = has_changes or has_conflicts or has_failures
+            needs_action = (
+                has_changes or has_conflicts or has_failures or has_unresolved
+            )
             if not needs_action:
                 continue
 
@@ -254,8 +273,10 @@ def classify_prs(
                 reason = "CHANGES_REQUESTED"
             elif has_conflicts:
                 reason = "HAS_CONFLICTS"
-            else:
+            elif has_failures:
                 reason = "HAS_FAILING_CHECKS"
+            else:
+                reason = "HAS_UNRESOLVED_THREADS"
 
             if is_agent or is_reviewer:
                 results.action_required.append(

@@ -71,6 +71,11 @@ query($owner: String!, $name: String!, $limit: Int!) {
                         }
                     }
                 }
+                reviewThreads(first: 100) {
+                    nodes {
+                        isResolved
+                    }
+                }
                 commits(last: 1) {
                     nodes {
                         commit {
@@ -213,6 +218,19 @@ def has_failing_checks(pr: dict) -> bool:
     return False
 
 
+def has_unresolved_threads(pr: dict) -> bool:
+    """Return True if the PR has unresolved review threads."""
+    threads = pr.get("reviewThreads")
+    if not threads:
+        return False
+    for node in threads.get("nodes", []):
+        if not node:
+            continue
+        if not node.get("isResolved", True):
+            return True
+    return False
+
+
 # ---------------------------------------------------------------------------
 # Derivative detection
 # ---------------------------------------------------------------------------
@@ -312,8 +330,14 @@ def discover_and_classify(owner: str, repo: str, max_prs: int) -> dict:
             pr_has_changes_requested = pr.get("reviewDecision") == "CHANGES_REQUESTED"
             pr_has_conflicts = has_conflicts(pr)
             pr_has_failing = has_failing_checks(pr)
+            pr_has_unresolved = has_unresolved_threads(pr)
 
-            needs_action = pr_has_changes_requested or pr_has_conflicts or pr_has_failing
+            needs_action = (
+                pr_has_changes_requested
+                or pr_has_conflicts
+                or pr_has_failing
+                or pr_has_unresolved
+            )
             if not needs_action:
                 continue
 
@@ -321,8 +345,10 @@ def discover_and_classify(owner: str, repo: str, max_prs: int) -> dict:
                 reason = "CHANGES_REQUESTED"
             elif pr_has_conflicts:
                 reason = "HAS_CONFLICTS"
-            else:
+            elif pr_has_failing:
                 reason = "HAS_FAILING_CHECKS"
+            else:
+                reason = "HAS_UNRESOLVED_THREADS"
 
             pr_entry = {
                 "number": pr["number"],
