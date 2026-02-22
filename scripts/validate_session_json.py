@@ -66,12 +66,17 @@ SESSION_START_MUST_ITEMS = frozenset({
 # Session end MUST items
 SESSION_END_MUST_ITEMS = frozenset({
     "checklistComplete",
-    "handoffNotUpdated",
+    "handoffPreserved",
     "serenaMemoryUpdated",
     "markdownLintRun",
     "changesCommitted",
     "validationPassed",
 })
+
+# Legacy field name for backward compatibility with existing session logs.
+# Issue #868: "handoffNotUpdated" with Complete=false was a confusing double negative.
+# New logs use "handoffPreserved" (level=MUST, Complete=true when satisfied).
+_LEGACY_HANDOFF_FIELD = "handoffNotUpdated"
 
 
 def get_case_insensitive(data: dict[str, Any], key: str) -> Any | None:
@@ -177,14 +182,16 @@ def validate_session_end(session_end: dict[str, Any], result: ValidationResult) 
         if item in session_end:
             validate_must_item(session_end[item], item, "sessionEnd", result)
 
-    # MUST NOT check: handoffNotUpdated should NOT be complete (HANDOFF.md is read-only)
-    if "handoffNotUpdated" in session_end:
-        check_data = session_end["handoffNotUpdated"]
+    # Backward compatibility: accept legacy "handoffNotUpdated" field (issue #868).
+    # Old format: level="MUST NOT", Complete=false means constraint satisfied.
+    # New format: "handoffPreserved" with level="MUST", Complete=true means satisfied.
+    if _LEGACY_HANDOFF_FIELD in session_end and "handoffPreserved" not in session_end:
+        check_data = session_end[_LEGACY_HANDOFF_FIELD]
         is_complete = get_case_insensitive(check_data, "complete")
         level = get_case_insensitive(check_data, "level")
         if level == "MUST NOT" and is_complete:
             result.errors.append(
-                "MUST NOT violated: handoffNotUpdated should be false (HANDOFF.md is read-only)"
+                "MUST NOT violated: HANDOFF.md was modified (read-only)"
             )
 
 

@@ -201,12 +201,12 @@ def _convert_markdown_session(content: str, filename: str) -> dict:
         "checklistComplete": _find_checklist_item(
             content, _checklist_pat,
         ),
-        "handoffNotUpdated": {
-            "level": "MUST NOT",
-            "Complete": False,
+        "handoffPreserved": {
+            "level": "MUST",
+            "Complete": True,
             "Evidence": _find_checklist_item(
                 content, _handoff_pat,
-            ).get("Evidence", ""),
+            ).get("Evidence", "HANDOFF.md not modified"),
         },
         "serenaMemoryUpdated": _find_checklist_item(
             content, _memory_pat,

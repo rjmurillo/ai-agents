@@ -261,7 +261,7 @@ The migration script maps markdown checklist patterns to JSON keys.
 | Regex Pattern | JSON Key | Level |
 |---------------|----------|-------|
 | `Complete.*session.*log\|session.*log.*complete\|all.*section` | `checklistComplete` | MUST |
-| `HANDOFF.*read-only\|Update.*HANDOFF` | `handoffNotUpdated` | MUST NOT |
+| `HANDOFF.*read-only\|Update.*HANDOFF` | `handoffPreserved` | MUST |
 | `Serena.*memory\|Update.*memory\|memory.*updat` | `serenaMemoryUpdated` | MUST |
 | `markdownlint\|markdown.*lint\|Run.*lint` | `markdownLintRun` | MUST |
 | `Commit.*change\|change.*commit` | `changesCommitted` | MUST |
