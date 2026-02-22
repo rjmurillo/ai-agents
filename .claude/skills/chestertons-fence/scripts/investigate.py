@@ -72,12 +72,12 @@ def find_origin_commit(target: str) -> tuple[str, str, str, str]:
     if path.exists():
         log_output = run_git([
             "log", "--diff-filter=A", "--follow",
-            "--format=%H|%aI|%an|%s", "--", target,
+            "--format=%H%x00%aI%x00%an%x00%s", "--", target,
         ])
         if log_output:
             lines = log_output.strip().split("\n")
             last_line = lines[-1]
-            parts = last_line.split("|", 3)
+            parts = last_line.split("\x00", 3)
             if len(parts) == 4:
                 return parts[0], parts[1], parts[2], parts[3]
 
@@ -119,7 +119,7 @@ def find_dependents(target: str) -> list[str]:
     search_term = target_path.stem if target_path.exists() else target
 
     result = subprocess.run(
-        ["git", "grep", "-l", search_term, "--", "*.md", "*.py", "*.ps1", "*.yml", "*.yaml"],
+        ["git", "grep", "-l", "-e", search_term, "--", "*.md", "*.py", "*.ps1", "*.yml", "*.yaml"],
         capture_output=True,
         text=True,
         timeout=30,
