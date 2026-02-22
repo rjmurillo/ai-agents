@@ -85,8 +85,7 @@ Need to modify a validator/linter?
 
 | Signal | Location | Example |
 |--------|----------|---------|
-| Package manifest entry | `package.json`, `requirements.txt`, `*.csproj` | `"markdownlint-cli2": "^0.12.1"` |
-| Lockfile reference | `package-lock.json`, `uv.lock`, `packages.lock.json` | SHA/version hash |
+| Package manifest entry | `package.json` | `"markdownlint-cli2": "^0.12.1"` |
 | Node modules path | `node_modules/` | Any file under this directory |
 | Python site-packages | `.venv/`, `site-packages/` | Any file under these directories |
 | NuGet cache | `.nuget/`, `packages/` | Any file under these directories |

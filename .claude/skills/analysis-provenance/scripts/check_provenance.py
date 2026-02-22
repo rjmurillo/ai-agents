@@ -173,16 +173,16 @@ def check_git_submodule(target: Path, project_root: Path) -> list[Evidence]:
 
     try:
         content = gitmodules.read_text(encoding="utf-8")
-        if target.is_relative_to(project_root):
-            relative_path = target.relative_to(project_root)
-        else:
-            relative_path = target
-
         for line in content.splitlines():
-            if line.strip().startswith("path"):
-                path_value = line.split("=", 1)[-1].strip()
-                if str(relative_path).startswith(path_value):
-                    evidence.append(Evidence(signal="git_submodule", value=path_value, weight=9))
+            line_strip = line.strip()
+            if line_strip.startswith("path = "):
+                submodule_path = line_strip.split("=", 1)[-1].strip()
+                submodule_abs_path = project_root / submodule_path
+                if target.is_relative_to(submodule_abs_path):
+                    evidence.append(
+                        Evidence(signal="git_submodule", value=submodule_path, weight=9)
+                    )
+                    break
 
     except (OSError, UnicodeDecodeError):
         pass
