@@ -25,7 +25,7 @@ import json
 import subprocess
 import sys
 from dataclasses import asdict, dataclass, field
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 
@@ -177,7 +177,7 @@ def analyze_commits(
     commits = get_pr_commits(base_ref)
 
     report = AuditReport(
-        timestamp=datetime.now(UTC).isoformat(),
+        timestamp=datetime.now(timezone.utc).isoformat(),
         branch=branch,
         base_ref=base_ref,
         total_commits=len(commits),
