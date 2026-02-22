@@ -23,6 +23,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 
@@ -57,6 +58,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="Max items per category (1-100, default: 20)",
     )
     return parser
+
+
+_REPO_PATTERN = re.compile(r"^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$")
+
+
+def _validate_repo_flag(repo_flag: str) -> None:
+    """Reject repo_flag values that could inject into shell or jq."""
+    if not _REPO_PATTERN.match(repo_flag):
+        error_and_exit(f"Invalid repository format: {repo_flag}", 1)
 
 
 def _get_current_user() -> str:
@@ -210,6 +220,7 @@ def main(argv: list[str] | None = None) -> int:
     resolved = resolve_repo_params(args.owner, args.repo)
     owner, repo = resolved["Owner"], resolved["Repo"]
     repo_flag = f"{owner}/{repo}"
+    _validate_repo_flag(repo_flag)
 
     user = _get_current_user()
 
