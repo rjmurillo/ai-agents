@@ -76,7 +76,7 @@ def get_pr_commits(base_ref: str) -> list[tuple[str, str]]:
         [
             "git",
             "log",
-            f"{base_ref}...HEAD",
+            f"{base_ref}..HEAD",
             "--format=%H %s",
         ],
         capture_output=True,
@@ -98,7 +98,7 @@ def get_pr_commits(base_ref: str) -> list[tuple[str, str]]:
 def get_commit_files(sha: str) -> list[str]:
     """Get files changed in a specific commit."""
     result = subprocess.run(
-        ["git", "diff-tree", "--no-commit-id", "-r", "--name-only", sha],
+        ["git", "diff-tree", "--no-commit-id", "-r", "-m", "--name-only", sha],
         capture_output=True,
         text=True,
         timeout=30,
