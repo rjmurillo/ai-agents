@@ -65,6 +65,57 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+_STRATEGY_TO_REPO_FIELD = {
+    "merge": "allow_merge_commit",
+    "squash": "allow_squash_merge",
+    "rebase": "allow_rebase_merge",
+}
+
+_BLOCKED_KEYWORDS = ("BLOCKED", "branch protection", "required status check")
+
+
+def get_allowed_merge_methods(repo_flag: str) -> dict[str, bool]:
+    """Query repository settings for allowed merge methods.
+
+    Returns a dict mapping strategy names to booleans.
+    """
+    result = subprocess.run(
+        [
+            "gh", "api", f"repos/{repo_flag}",
+            "--jq", "{allow_merge_commit, allow_squash_merge, allow_rebase_merge}",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    if result.returncode != 0:
+        return {}
+
+    try:
+        return json.loads(result.stdout)
+    except json.JSONDecodeError:
+        return {}
+
+
+def validate_strategy(strategy: str, repo_settings: dict[str, bool], repo_flag: str) -> None:
+    """Exit with code 1 if the requested strategy is not allowed by the repo."""
+    if not repo_settings:
+        return
+
+    field = _STRATEGY_TO_REPO_FIELD.get(strategy)
+    if field and not repo_settings.get(field, True):
+        allowed = [
+            name for name, fld in _STRATEGY_TO_REPO_FIELD.items()
+            if repo_settings.get(fld, False)
+        ]
+        hint = f" Allowed: {', '.join(allowed)}." if allowed else ""
+        error_and_exit(
+            f"Strategy '{strategy}' is not allowed by {repo_flag}.{hint}",
+            1,
+        )
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
 
@@ -73,6 +124,9 @@ def main(argv: list[str] | None = None) -> int:
     owner, repo = resolved["Owner"], resolved["Repo"]
     pr = args.pull_request
     repo_flag = f"{owner}/{repo}"
+
+    repo_settings = get_allowed_merge_methods(repo_flag)
+    validate_strategy(args.strategy, repo_settings, repo_flag)
 
     pr_result = subprocess.run(
         [
@@ -133,6 +187,12 @@ def main(argv: list[str] | None = None) -> int:
         output = merge_result.stderr or merge_result.stdout
         if any(kw in output for kw in ("not mergeable", "cannot be merged", "conflicts")):
             error_and_exit(f"PR #{pr} is not mergeable: {output}", 6)
+        if not args.auto and any(kw in output for kw in _BLOCKED_KEYWORDS):
+            error_and_exit(
+                f"PR #{pr} is blocked by branch protection policy: {output}\n"
+                "Hint: use --auto to enable auto-merge when checks pass.",
+                6,
+            )
         error_and_exit(f"Failed to merge PR #{pr}: {output}", 3)
 
     action = "auto-merge-enabled" if args.auto else "merged"
