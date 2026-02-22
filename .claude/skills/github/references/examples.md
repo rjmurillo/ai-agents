@@ -68,6 +68,9 @@ python3 scripts/pr/get_pull_requests.py --label "bug,priority:P1" --state open
 # Filter PRs by author and base branch
 python3 scripts/pr/get_pull_requests.py --author rjmurillo --base main
 
+# Search PRs by keyword or GitHub search syntax
+python3 scripts/pr/get_pull_requests.py --search "fix auth" --state open
+
 # Get PR with changed files
 python3 scripts/pr/get_pr_context.py --pull-request 50 --include-changed-files
 

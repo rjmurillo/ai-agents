@@ -66,6 +66,10 @@ def build_parser() -> argparse.ArgumentParser:
         help="Filter by head (source) branch. Format: OWNER:branch or branch.",
     )
     parser.add_argument(
+        "--search", default="",
+        help="GitHub search query (e.g. 'fix auth' or 'is:draft').",
+    )
+    parser.add_argument(
         "--limit", type=int, default=30,
         help="Max number of PRs to return (1-1000, default: 30)",
     )
@@ -108,6 +112,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.head:
         list_args.extend(["--head", args.head])
+
+    if args.search:
+        list_args.extend(["--search", args.search])
 
     result = subprocess.run(
         list_args, capture_output=True, text=True, timeout=30, check=False,
