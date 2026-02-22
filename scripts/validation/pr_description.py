@@ -14,6 +14,7 @@ Exit codes follow ADR-035:
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import json
 import os
 import re
@@ -152,12 +153,16 @@ def extract_mentioned_files(description: str) -> list[str]:
 def file_matches(actual: str, mentioned: str) -> bool:
     """Check if an actual diff path matches a mentioned path.
 
-    Supports exact match and suffix match (e.g. "file.ps1" matches "path/to/file.ps1").
+    Supports exact match, suffix match (e.g. "file.ps1" matches
+    "path/to/file.ps1"), and glob patterns (e.g. "src/*.py" matches
+    "src/main.py").
     """
     if actual == mentioned:
         return True
     if actual.endswith(f"/{mentioned}"):
         return True
+    if "*" in mentioned or "?" in mentioned:
+        return fnmatch.fnmatch(actual, mentioned)
     return False
 
 
