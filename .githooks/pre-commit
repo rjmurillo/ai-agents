@@ -785,6 +785,44 @@ else
 fi
 
 #
+# Skill Size Validation (BLOCKING)
+#
+# Validates SKILL.md files do not exceed size limits.
+# Prevents prompt bloat and token waste.
+#
+# Limits: 500 lines (error), 300 lines (warning)
+# Exception: size-exception: true in frontmatter
+#
+# Related: Issue #676 (Skill Prompt Size Limits)
+#
+SKILL_SIZE_SCRIPT="$REPO_ROOT/scripts/validation/skill_size.py"
+
+if [ -n "$STAGED_SKILL_FILES" ]; then
+    # MEDIUM-002: Reject symlinks for security
+    if [ -L "$SKILL_SIZE_SCRIPT" ]; then
+        echo_error "Skill size validator path is a symlink (security violation)"
+        EXIT_STATUS=1
+    elif [ -f "$SKILL_SIZE_SCRIPT" ]; then
+        if set_python_cmd; then
+            echo_info "Checking skill prompt sizes..."
+            if ! "${PYTHON_CMD[@]}" "$SKILL_SIZE_SCRIPT" --staged-only --ci; then
+                echo_error "One or more skills exceed size limits."
+                echo_info "  Refactor using progressive disclosure or add size-exception."
+                EXIT_STATUS=1
+            else
+                echo_success "All skill files within size limits."
+            fi
+        else
+            echo_warning "Python 3 not available. Skipping skill size validation."
+        fi
+    else
+        echo_warning "Skill size validator not found: $SKILL_SIZE_SCRIPT"
+    fi
+else
+    echo_info "No SKILL.md files staged. Skipping skill size validation."
+fi
+
+#
 # Security Detection (Non-blocking warning)
 #
 # Detects infrastructure and security-critical file changes
