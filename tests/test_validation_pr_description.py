@@ -41,6 +41,12 @@ class TestNormalizePath:
     def test_combined_normalization(self) -> None:
         assert normalize_path(" .\\src\\bar.py ") == "src/bar.py"
 
+    def test_strips_backticks(self) -> None:
+        assert normalize_path("`foo.yml") == "foo.yml"
+
+    def test_strips_surrounding_backticks(self) -> None:
+        assert normalize_path("`foo.yml`") == "foo.yml"
+
 
 # ---------------------------------------------------------------------------
 # file_matches

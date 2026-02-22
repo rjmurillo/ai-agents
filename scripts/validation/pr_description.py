@@ -121,8 +121,9 @@ def normalize_path(path: str) -> str:
     Strips whitespace, markdown bold markers, and normalizes slashes.
     """
     path = path.strip()
-    # Strip markdown bold markers that may be captured by list item pattern
+    # Strip markdown formatting that may be captured by list item pattern
     path = path.strip("*")
+    path = path.strip("`")
     path = path.replace("\\", "/")
     if path.startswith("./"):
         path = path[2:]
