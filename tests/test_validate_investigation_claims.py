@@ -150,3 +150,19 @@ class TestMain:
         assert exit_code == 0
         outputs = _read_outputs(output_file)
         assert outputs["investigation_violations"] == "2"
+
+    def test_base_ref_injection_rejected(self, tmp_path, monkeypatch, capsys):
+        """Refs starting with a dash are rejected (CWE-78)."""
+        _setup_output(tmp_path, monkeypatch)
+        exit_code = main(["--base-ref=--staged"])
+        assert exit_code == 1
+        captured = capsys.readouterr()
+        assert "cannot start with a dash" in captured.err.lower()
+
+    def test_head_ref_injection_rejected(self, tmp_path, monkeypatch, capsys):
+        """Refs starting with a dash are rejected (CWE-78)."""
+        _setup_output(tmp_path, monkeypatch)
+        exit_code = main(["--head-ref=--quiet"])
+        assert exit_code == 1
+        captured = capsys.readouterr()
+        assert "cannot start with a dash" in captured.err.lower()

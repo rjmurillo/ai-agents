@@ -67,8 +67,21 @@ def validate_claims(changed_files: list[str]) -> list[str]:
     return [f for f in changed_files if not test_file_matches_allowlist(f)]
 
 
+def _validate_ref(ref: str) -> bool:
+    """Reject refs starting with a dash to prevent argument injection (CWE-78)."""
+    return not ref.startswith("-")
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+
+    if not _validate_ref(args.base_ref) or not _validate_ref(args.head_ref):
+        print(
+            f"::error::Refs cannot start with a dash to prevent argument injection: "
+            f"base='{args.base_ref}', head='{args.head_ref}'",
+            file=sys.stderr,
+        )
+        return 1
 
     changed_files = get_changed_files(args.base_ref, args.head_ref)
     if not changed_files:
