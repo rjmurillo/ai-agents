@@ -335,3 +335,107 @@ class TestMain:
         mock_rate.return_value = self._rate_limit_ok()
         result = main(["--owner", "", "--repo", ""])
         assert result == 2
+
+
+class TestHasUnresolvedThreads:
+    """Tests for has_unresolved_threads function (Issue #974)."""
+
+    def test_returns_true_when_threads_exist(self) -> None:
+        from scripts.invoke_pr_maintenance import has_unresolved_threads
+
+        threads = [{"id": "T1", "isResolved": False}]
+        with patch(
+            "scripts.invoke_pr_maintenance.get_unresolved_review_threads",
+            return_value=threads,
+        ):
+            result = has_unresolved_threads("owner", "repo", 123)
+        assert result is True
+
+    def test_returns_false_when_no_threads(self) -> None:
+        from scripts.invoke_pr_maintenance import has_unresolved_threads
+
+        with patch(
+            "scripts.invoke_pr_maintenance.get_unresolved_review_threads",
+            return_value=[],
+        ):
+            result = has_unresolved_threads("owner", "repo", 123)
+        assert result is False
+
+
+class TestClassifyPrsWithUnresolvedThreads:
+    """Tests for classify_prs with unresolved thread detection (Issue #974)."""
+
+    def test_detects_unresolved_threads_for_agent_pr(self) -> None:
+        """PR with acknowledged (eyes) but unresolved threads needs action."""
+        prs = [
+            {
+                "number": 100,
+                "title": "Agent PR with unresolved threads",
+                "author": {"login": "rjmurillo-bot"},
+                "headRefName": "feat/test",
+                "baseRefName": "main",
+                "mergeable": "MERGEABLE",
+                "reviewDecision": None,
+                "reviewRequests": {"nodes": []},
+                "commits": {"nodes": []},
+            },
+        ]
+        with patch(
+            "scripts.invoke_pr_maintenance.has_unresolved_threads",
+            return_value=True,
+        ):
+            results = classify_prs("owner", "repo", prs)
+
+        assert len(results.action_required) == 1
+        assert results.action_required[0]["reason"] == "UNRESOLVED_THREADS"
+        assert results.action_required[0]["hasUnresolvedThreads"] is True
+
+    def test_skips_thread_check_for_human_pr(self) -> None:
+        """Human-authored PRs skip the thread check to save API calls."""
+        prs = [
+            {
+                "number": 200,
+                "title": "Human PR",
+                "author": {"login": "humandev"},
+                "headRefName": "feat/human",
+                "baseRefName": "main",
+                "mergeable": "MERGEABLE",
+                "reviewDecision": None,
+                "reviewRequests": {"nodes": []},
+                "commits": {"nodes": []},
+            },
+        ]
+        mock_threads = MagicMock()
+        with patch(
+            "scripts.invoke_pr_maintenance.has_unresolved_threads",
+            mock_threads,
+        ):
+            classify_prs("owner", "repo", prs)
+
+        # Should not be called for human PRs
+        mock_threads.assert_not_called()
+
+    def test_reason_priority_conflicts_over_threads(self) -> None:
+        """Conflicts take priority over unresolved threads in reason."""
+        prs = [
+            {
+                "number": 300,
+                "title": "Agent PR with conflicts and threads",
+                "author": {"login": "rjmurillo-bot"},
+                "headRefName": "feat/conflict",
+                "baseRefName": "main",
+                "mergeable": "CONFLICTING",
+                "reviewDecision": None,
+                "reviewRequests": {"nodes": []},
+                "commits": {"nodes": []},
+            },
+        ]
+        with patch(
+            "scripts.invoke_pr_maintenance.has_unresolved_threads",
+            return_value=True,
+        ):
+            results = classify_prs("owner", "repo", prs)
+
+        assert results.action_required[0]["reason"] == "HAS_CONFLICTS"
+        assert results.action_required[0]["hasConflicts"] is True
+        assert results.action_required[0]["hasUnresolvedThreads"] is True

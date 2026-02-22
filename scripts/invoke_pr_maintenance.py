@@ -29,7 +29,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from scripts.github_core import check_workflow_rate_limit, resolve_repo_params
+from scripts.github_core import (
+    check_workflow_rate_limit,
+    get_unresolved_review_threads,
+    resolve_repo_params,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -112,6 +116,20 @@ def has_failing_checks(pr: dict[str, Any]) -> bool:
             return True
 
     return False
+
+
+def has_unresolved_threads(owner: str, repo: str, pr_number: int) -> bool:
+    """Return True if the PR has unresolved review threads.
+
+    Checks for threads where isResolved=false. A thread may be acknowledged
+    (eyes reaction) but still unresolved, requiring action.
+
+    Part of the "Acknowledged vs Resolved" lifecycle model (Issue #974):
+    - Eyes reaction = acknowledged for processing
+    - Thread resolution = issue actually addressed
+    """
+    threads = get_unresolved_review_threads(owner, repo, pr_number)
+    return len(threads) > 0
 
 
 GRAPHQL_QUERY = """
@@ -246,16 +264,28 @@ def classify_prs(
             has_conflicts = pr.get("mergeable") == "CONFLICTING"
             has_failures = has_failing_checks(pr)
 
-            needs_action = has_changes or has_conflicts or has_failures
+            # Check unresolved threads only for agent-controlled PRs to avoid
+            # extra API calls for human PRs. Per Issue #974: acknowledged (eyes)
+            # does not mean resolved (thread closed).
+            has_unresolved = False
+            if is_agent or is_reviewer:
+                has_unresolved = has_unresolved_threads(owner, repo, pr["number"])
+
+            needs_action = has_changes or has_conflicts or has_failures or has_unresolved
             if not needs_action:
                 continue
 
-            if has_changes:
-                reason = "CHANGES_REQUESTED"
-            elif has_conflicts:
+            # Determine reason with priority: conflicts > failing > changes > unresolved
+            if has_conflicts:
                 reason = "HAS_CONFLICTS"
-            else:
+            elif has_failures:
                 reason = "HAS_FAILING_CHECKS"
+            elif has_changes:
+                reason = "CHANGES_REQUESTED"
+            elif has_unresolved:
+                reason = "UNRESOLVED_THREADS"
+            else:
+                reason = "UNKNOWN"
 
             if is_agent or is_reviewer:
                 results.action_required.append(
@@ -264,6 +294,7 @@ def classify_prs(
                         "category": "agent-controlled",
                         "hasConflicts": has_conflicts,
                         "hasFailingChecks": has_failures,
+                        "hasUnresolvedThreads": has_unresolved,
                         "reason": reason,
                         "author": author_login,
                         "title": pr.get("title", ""),
@@ -278,6 +309,7 @@ def classify_prs(
                         "category": "mention-triggered",
                         "hasConflicts": has_conflicts,
                         "hasFailingChecks": has_failures,
+                        "hasUnresolvedThreads": has_unresolved,
                         "reason": reason,
                         "author": author_login,
                         "title": pr.get("title", ""),
@@ -330,6 +362,8 @@ def print_summary(results: MaintenanceResults) -> None:
             print(f"  PR #{item['number']}: {item['reason']} [{item['category']}]")
             if item.get("hasConflicts"):
                 print("    -> Has conflicts, run /merge-resolver first")
+            if item.get("hasUnresolvedThreads"):
+                print("    -> Has unresolved review threads, run /pr-review")
 
         pr_numbers = ",".join(str(item["number"]) for item in results.action_required)
         print(f"Run: /pr-comment-responder {pr_numbers}")
