@@ -265,6 +265,16 @@ def build_parser() -> argparse.ArgumentParser:
         "--required-only", action="store_true",
         help="Filter output to required checks only",
     )
+    parser.add_argument(
+        "--output-format",
+        choices=["json", "text"],
+        default="text",
+        help=(
+            "Output format. 'json' emits only JSON on stdout "
+            "(no status messages on stderr). 'text' (default) "
+            "emits JSON on stdout and status summaries on stderr."
+        ),
+    )
     return parser
 
 
@@ -275,6 +285,8 @@ def main(argv: list[str] | None = None) -> int:
     resolved = resolve_repo_params(args.owner, args.repo)
     owner = resolved["Owner"]
     repo = resolved["Repo"]
+
+    quiet = args.output_format == "json"
 
     start_time = time.monotonic()
     max_iterations = math.ceil(args.timeout_seconds / 10)
@@ -313,11 +325,12 @@ def main(argv: list[str] | None = None) -> int:
         elapsed = time.monotonic() - start_time
         if elapsed >= args.timeout_seconds:
             print(json.dumps(output, indent=2))
-            print(
-                f"Timeout: {output['PendingCount']} checks still pending "
-                f"after {args.timeout_seconds} seconds",
-                file=sys.stderr,
-            )
+            if not quiet:
+                print(
+                    f"Timeout: {output['PendingCount']} checks still pending "
+                    f"after {args.timeout_seconds} seconds",
+                    file=sys.stderr,
+                )
             return 7
 
         if iteration >= max_iterations:
@@ -328,23 +341,26 @@ def main(argv: list[str] | None = None) -> int:
     print(json.dumps(output, indent=2))
 
     if output["FailedCount"] > 0:
-        print(
-            f"PR #{output['Number']}: {output['FailedCount']} check(s) failed",
-            file=sys.stderr,
-        )
+        if not quiet:
+            print(
+                f"PR #{output['Number']}: {output['FailedCount']} check(s) failed",
+                file=sys.stderr,
+            )
         return 1
 
     if output["PendingCount"] > 0:
-        print(
-            f"PR #{output['Number']}: {output['PendingCount']} check(s) still pending",
-            file=sys.stderr,
-        )
+        if not quiet:
+            print(
+                f"PR #{output['Number']}: {output['PendingCount']} check(s) still pending",
+                file=sys.stderr,
+            )
         return 0
 
-    print(
-        f"PR #{output['Number']}: All {output['PassedCount']} check(s) passing",
-        file=sys.stderr,
-    )
+    if not quiet:
+        print(
+            f"PR #{output['Number']}: All {output['PassedCount']} check(s) passing",
+            file=sys.stderr,
+        )
     return 0
 
 

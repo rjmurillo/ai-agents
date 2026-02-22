@@ -58,6 +58,22 @@ class TestBuildParser:
         assert args.wait is True
         assert args.timeout_seconds == 60
 
+    def test_output_format_default_is_text(self):
+        args = build_parser().parse_args(["--pull-request", "1"])
+        assert args.output_format == "text"
+
+    def test_output_format_json(self):
+        args = build_parser().parse_args([
+            "--pull-request", "1", "--output-format", "json",
+        ])
+        assert args.output_format == "json"
+
+    def test_output_format_invalid_rejected(self):
+        with pytest.raises(SystemExit):
+            build_parser().parse_args([
+                "--pull-request", "1", "--output-format", "xml",
+            ])
+
 
 # ---------------------------------------------------------------------------
 # Tests: normalize_check
@@ -261,6 +277,145 @@ class TestMain:
         assert rc == 0
         output = json.loads(capsys.readouterr().out)
         assert output["AllPassing"] is True
+
+    def test_output_format_json_suppresses_stderr(self, capsys):
+        gql_data = {
+            "repository": {
+                "pullRequest": {
+                    "number": 42,
+                    "commits": {
+                        "nodes": [
+                            {
+                                "commit": {
+                                    "statusCheckRollup": {
+                                        "state": "SUCCESS",
+                                        "contexts": {
+                                            "nodes": [
+                                                {
+                                                    "__typename": "CheckRun",
+                                                    "name": "build",
+                                                    "status": "COMPLETED",
+                                                    "conclusion": "SUCCESS",
+                                                    "detailsUrl": "",
+                                                    "isRequired": True,
+                                                },
+                                            ],
+                                        },
+                                    },
+                                },
+                            },
+                        ],
+                    },
+                },
+            },
+        }
+        with patch(
+            "get_pr_checks.assert_gh_authenticated",
+        ), patch(
+            "get_pr_checks.resolve_repo_params",
+            return_value={"Owner": "o", "Repo": "r"},
+        ), patch(
+            "get_pr_checks.gh_graphql",
+            return_value=gql_data,
+        ):
+            rc = main(["--pull-request", "42", "--output-format", "json"])
+        assert rc == 0
+        captured = capsys.readouterr()
+        assert captured.err == ""
+        output = json.loads(captured.out)
+        assert output["AllPassing"] is True
+
+    def test_output_format_text_includes_stderr(self, capsys):
+        gql_data = {
+            "repository": {
+                "pullRequest": {
+                    "number": 42,
+                    "commits": {
+                        "nodes": [
+                            {
+                                "commit": {
+                                    "statusCheckRollup": {
+                                        "state": "SUCCESS",
+                                        "contexts": {
+                                            "nodes": [
+                                                {
+                                                    "__typename": "CheckRun",
+                                                    "name": "build",
+                                                    "status": "COMPLETED",
+                                                    "conclusion": "SUCCESS",
+                                                    "detailsUrl": "",
+                                                    "isRequired": True,
+                                                },
+                                            ],
+                                        },
+                                    },
+                                },
+                            },
+                        ],
+                    },
+                },
+            },
+        }
+        with patch(
+            "get_pr_checks.assert_gh_authenticated",
+        ), patch(
+            "get_pr_checks.resolve_repo_params",
+            return_value={"Owner": "o", "Repo": "r"},
+        ), patch(
+            "get_pr_checks.gh_graphql",
+            return_value=gql_data,
+        ):
+            rc = main(["--pull-request", "42", "--output-format", "text"])
+        assert rc == 0
+        captured = capsys.readouterr()
+        assert "All 1 check(s) passing" in captured.err
+
+    def test_output_format_json_suppresses_stderr_on_failure(self, capsys):
+        gql_data = {
+            "repository": {
+                "pullRequest": {
+                    "number": 42,
+                    "commits": {
+                        "nodes": [
+                            {
+                                "commit": {
+                                    "statusCheckRollup": {
+                                        "state": "FAILURE",
+                                        "contexts": {
+                                            "nodes": [
+                                                {
+                                                    "__typename": "CheckRun",
+                                                    "name": "test",
+                                                    "status": "COMPLETED",
+                                                    "conclusion": "FAILURE",
+                                                    "detailsUrl": "",
+                                                    "isRequired": True,
+                                                },
+                                            ],
+                                        },
+                                    },
+                                },
+                            },
+                        ],
+                    },
+                },
+            },
+        }
+        with patch(
+            "get_pr_checks.assert_gh_authenticated",
+        ), patch(
+            "get_pr_checks.resolve_repo_params",
+            return_value={"Owner": "o", "Repo": "r"},
+        ), patch(
+            "get_pr_checks.gh_graphql",
+            return_value=gql_data,
+        ):
+            rc = main(["--pull-request", "42", "--output-format", "json"])
+        assert rc == 1
+        captured = capsys.readouterr()
+        assert captured.err == ""
+        output = json.loads(captured.out)
+        assert output["FailedCount"] == 1
 
     def test_failed_check_returns_1(self, capsys):
         gql_data = {
