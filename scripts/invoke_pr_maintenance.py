@@ -264,9 +264,9 @@ def classify_prs(
             has_conflicts = pr.get("mergeable") == "CONFLICTING"
             has_failures = has_failing_checks(pr)
 
-            # Check unresolved threads only for agent-controlled PRs to avoid
-            # extra API calls for human PRs. Per Issue #974: acknowledged (eyes)
-            # does not mean resolved (thread closed).
+            # Check unresolved threads only for bot-associated PRs (agent
+            # author or bot reviewer) to avoid extra API calls for human PRs.
+            # Per Issue #974: acknowledged (eyes) != resolved (thread closed).
             has_unresolved = False
             if is_agent or is_reviewer:
                 has_unresolved = has_unresolved_threads(owner, repo, pr["number"])
@@ -282,10 +282,8 @@ def classify_prs(
                 reason = "HAS_FAILING_CHECKS"
             elif has_changes:
                 reason = "CHANGES_REQUESTED"
-            elif has_unresolved:
-                reason = "UNRESOLVED_THREADS"
             else:
-                reason = "UNKNOWN"
+                reason = "UNRESOLVED_THREADS"
 
             if is_agent or is_reviewer:
                 results.action_required.append(
@@ -325,6 +323,7 @@ def classify_prs(
                         "category": "human-blocked",
                         "hasConflicts": has_conflicts,
                         "hasFailingChecks": has_failures,
+                        "hasUnresolvedThreads": has_unresolved,
                         "reason": reason,
                         "author": author_login,
                         "title": pr.get("title", ""),

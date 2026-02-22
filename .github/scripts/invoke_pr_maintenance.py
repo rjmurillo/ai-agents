@@ -328,9 +328,9 @@ def discover_and_classify(owner: str, repo: str, max_prs: int) -> dict:
             pr_has_conflicts = has_conflicts(pr)
             pr_has_failing = has_failing_checks(pr)
 
-            # Check unresolved threads only for agent-controlled PRs to avoid
-            # extra API calls for human PRs. Per Issue #974: acknowledged (eyes)
-            # does not mean resolved (thread closed).
+            # Check unresolved threads only for bot-associated PRs (agent
+            # author or bot reviewer) to avoid extra API calls for human PRs.
+            # Per Issue #974: acknowledged (eyes) != resolved (thread closed).
             pr_has_unresolved = False
             if is_agent_controlled or is_bot_reviewer:
                 pr_has_unresolved = has_unresolved_threads(owner, repo, pr["number"])
@@ -351,10 +351,8 @@ def discover_and_classify(owner: str, repo: str, max_prs: int) -> dict:
                 reason = "HAS_FAILING_CHECKS"
             elif pr_has_changes_requested:
                 reason = "CHANGES_REQUESTED"
-            elif pr_has_unresolved:
-                reason = "UNRESOLVED_THREADS"
             else:
-                reason = "UNKNOWN"
+                reason = "UNRESOLVED_THREADS"
 
             pr_entry = {
                 "number": pr["number"],
