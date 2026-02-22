@@ -123,11 +123,91 @@ if [ ! -d "$REPO_ROOT" ]; then
 fi
 cd "$REPO_ROOT"
 
+#
+# Merge Commit Detection (Issue #877)
+#
+# Detects merge commits to use lenient validation. During merge commits,
+# files from the upstream branch may have pre-existing linting issues
+# that were allowed on main (e.g., non-blocking warnings). Validating
+# these files blocks legitimate merge commits.
+#
+# When a merge commit is detected:
+# - Only validate files changed in the CURRENT branch, not upstream
+# - Use git diff HEAD...MERGE_HEAD to identify branch-specific changes
+# - Skip validation of files that only exist in upstream
+#
+# Related: Issue #877, PR #875
+#
+IS_MERGE_COMMIT=0
+
+# Check for .git/MERGE_HEAD which exists during a merge
+if [ -f "$REPO_ROOT/.git/MERGE_HEAD" ]; then
+    IS_MERGE_COMMIT=1
+    echo_info "Merge commit detected - using lenient validation"
+    echo_info "  Only validating files changed in current branch"
+fi
+
+# Function to filter staged files to branch-specific changes during merges
+# Usage: filter_merge_files "$STAGED_FILES"
+# Returns: Only files changed in current branch (not upstream)
+filter_merge_files() {
+    local all_files="$1"
+
+    if [ "$IS_MERGE_COMMIT" = "0" ]; then
+        # Not a merge commit - return all files
+        echo "$all_files"
+        return
+    fi
+
+    # Get files changed in current branch (HEAD vs MERGE_HEAD)
+    # Using --diff-filter=ACMR to match staged files filter
+    local branch_changes
+    branch_changes=$(git diff --name-only HEAD...MERGE_HEAD --diff-filter=ACMR 2>/dev/null || true)
+
+    if [ -z "$branch_changes" ]; then
+        # Fallback: if diff fails, allow all files (fail-open for merges)
+        echo "$all_files"
+        return
+    fi
+
+    # Filter staged files to only include branch-specific changes
+    local filtered=""
+    while IFS= read -r file; do
+        [ -z "$file" ] && continue
+        if echo "$branch_changes" | grep -qxF "$file"; then
+            if [ -z "$filtered" ]; then
+                filtered="$file"
+            else
+                filtered="$filtered"$'\n'"$file"
+            fi
+        fi
+    done <<< "$all_files"
+
+    echo "$filtered"
+}
+
 # Get staged files (Added, Copied, Modified, Renamed - excluding Deleted)
-STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACMR)
+ALL_STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACMR)
+
+if [ -z "$ALL_STAGED_FILES" ]; then
+    echo_info "No staged files to check."
+    exit 0
+fi
+
+# Filter to branch-specific changes during merge commits (Issue #877)
+STAGED_FILES=$(filter_merge_files "$ALL_STAGED_FILES")
+
+if [ "$IS_MERGE_COMMIT" = "1" ]; then
+    total_staged=$(echo "$ALL_STAGED_FILES" | wc -l | tr -d ' ')
+    branch_specific=$(echo "$STAGED_FILES" | grep -c . 2>/dev/null || echo "0")
+    if [ "$branch_specific" -lt "$total_staged" ]; then
+        skipped=$((total_staged - branch_specific))
+        echo_info "  Skipping $skipped upstream file(s) from validation"
+    fi
+fi
 
 if [ -z "$STAGED_FILES" ]; then
-    echo_info "No staged files to check."
+    echo_info "No branch-specific files to check (merge commit)."
     exit 0
 fi
 
