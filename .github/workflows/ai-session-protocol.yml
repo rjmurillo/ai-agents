@@ -255,6 +255,26 @@ jobs:
           path: validation-results/
           retention-days: 1
 
+# Validate investigation-only claims (advisory, non-blocking)
+# ADR-034 defense-in-depth: re-checks allowlist compliance post-commit
+
+  validate-investigation-claims:
+    name: Validate Investigation Claims
+    runs-on: ubuntu-24.04-arm
+    needs: detect-changes
+    if: needs.detect-changes.outputs.has_sessions == 'true'
+    timeout-minutes: 3
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          fetch-depth: 2
+
+      - name: Validate investigation-only claims
+        id: validate-claims
+        run: python3 .github/scripts/validate_investigation_claims.py
+
 # Aggregate results and post comment
 
   aggregate:
