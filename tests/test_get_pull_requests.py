@@ -197,4 +197,4 @@ class TestMain:
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--limit", "0"])
-            assert exc.value.code == 1
+            assert exc.value.code == 2

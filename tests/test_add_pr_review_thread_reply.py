@@ -64,18 +64,18 @@ class TestBuildParser:
 
 
 class TestMain:
-    def test_invalid_thread_id_exits_1(self):
+    def test_invalid_thread_id_exits_2(self):
         with pytest.raises(SystemExit) as exc:
             main(["--thread-id", "INVALID_123", "--body", "test"])
-        assert exc.value.code == 1
+        assert exc.value.code == 2
 
-    def test_empty_body_exits_1(self):
+    def test_empty_body_exits_2(self):
         with patch(
             "add_pr_review_thread_reply.assert_gh_authenticated",
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--thread-id", "PRRT_abc", "--body", ""])
-        assert exc.value.code == 1
+        assert exc.value.code == 2
 
     def test_not_authenticated_exits_4(self):
         with patch(
@@ -193,11 +193,11 @@ class TestMain:
             ])
         assert exc.value.code == 2
 
-    def test_body_file_path_traversal_exits_1(self):
+    def test_body_file_path_traversal_exits_2(self):
         """CWE-22: Path traversal in body-file is rejected."""
         with pytest.raises(SystemExit) as exc:
             main([
                 "--thread-id", "PRRT_abc",
                 "--body-file", "../../etc/passwd",
             ])
-        assert exc.value.code == 1
+        assert exc.value.code == 2

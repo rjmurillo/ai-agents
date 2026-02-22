@@ -150,7 +150,7 @@ class TestMainAuth:
 
 
 class TestMainBody:
-    def test_empty_body_exits_1(self, tmp_path, monkeypatch):
+    def test_empty_body_exits_2(self, tmp_path, monkeypatch):
         _setup_output(tmp_path, monkeypatch)
         with patch("subprocess.run", return_value=_completed(rc=0)), patch(
             "post_issue_comment.resolve_repo_params",
@@ -158,7 +158,7 @@ class TestMainBody:
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--issue", "1", "--body", ""])
-            assert exc.value.code == 1
+            assert exc.value.code == 2
 
     def test_body_from_file(self, tmp_path, monkeypatch):
         _setup_output(tmp_path, monkeypatch)

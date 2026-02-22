@@ -81,7 +81,7 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
 
     if not 1 <= args.limit <= 1000:
-        error_and_exit("Limit must be between 1 and 1000.", 1)
+        error_and_exit("Limit must be between 1 and 1000.", 2)
 
     assert_gh_authenticated()
     resolved = resolve_repo_params(args.owner, args.repo)

@@ -82,7 +82,7 @@ def main(argv: list[str] | None = None) -> int:
     owner, repo = resolved.owner, resolved.repo
 
     if not args.title or not args.title.strip():
-        error_and_exit("Title cannot be empty.", 1)
+        error_and_exit("Title cannot be empty.", 2)
 
     body = args.body
     if args.body_file:
