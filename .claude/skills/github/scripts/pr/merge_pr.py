@@ -90,21 +90,20 @@ def get_allowed_merge_methods(repo_flag: str) -> dict[str, bool]:
         check=False,
     )
     if result.returncode != 0:
-        return {}
+        print(f"Error querying repository settings: {result.stderr}", file=sys.stderr)
+        raise RuntimeError(f"Failed to query repository settings: {result.stderr.strip()}")
 
     try:
         return json.loads(result.stdout)
-    except json.JSONDecodeError:
-        return {}
+    except json.JSONDecodeError as e:
+        print(f"Error decoding JSON from GitHub API: {e}", file=sys.stderr)
+        raise ValueError(f"Failed to decode JSON from GitHub API response: {e}") from e
 
 
 def validate_strategy(strategy: str, repo_settings: dict[str, bool], repo_flag: str) -> None:
     """Exit with code 1 if the requested strategy is not allowed by the repo."""
-    if not repo_settings:
-        return
-
     field = _STRATEGY_TO_REPO_FIELD.get(strategy)
-    if field and not repo_settings.get(field, True):
+    if field and not repo_settings.get(field, False):
         allowed = [
             name for name, fld in _STRATEGY_TO_REPO_FIELD.items()
             if repo_settings.get(fld, False)

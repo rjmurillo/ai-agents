@@ -46,6 +46,14 @@ def _completed(stdout: str = "", stderr: str = "", rc: int = 0):
     return subprocess.CompletedProcess(args=[], returncode=rc, stdout=stdout, stderr=stderr)
 
 
+# Default settings allowing all merge methods
+_ALL_METHODS_ALLOWED = {
+    "allow_merge_commit": True,
+    "allow_squash_merge": True,
+    "allow_rebase_merge": True,
+}
+
+
 # ---------------------------------------------------------------------------
 # Tests: build_parser
 # ---------------------------------------------------------------------------
@@ -95,7 +103,7 @@ class TestMain:
             "merge_pr.resolve_repo_params",
             return_value={"Owner": "o", "Repo": "r"},
         ), patch(
-            "merge_pr.get_allowed_merge_methods", return_value={},
+            "merge_pr.get_allowed_merge_methods", return_value=_ALL_METHODS_ALLOWED,
         ), patch(
             "subprocess.run",
             return_value=_completed(rc=1, stderr="not found"),
@@ -114,7 +122,7 @@ class TestMain:
             "merge_pr.resolve_repo_params",
             return_value={"Owner": "o", "Repo": "r"},
         ), patch(
-            "merge_pr.get_allowed_merge_methods", return_value={},
+            "merge_pr.get_allowed_merge_methods", return_value=_ALL_METHODS_ALLOWED,
         ), patch(
             "subprocess.run",
             return_value=_completed(stdout=state_json, rc=0),
@@ -134,7 +142,7 @@ class TestMain:
             "merge_pr.resolve_repo_params",
             return_value={"Owner": "o", "Repo": "r"},
         ), patch(
-            "merge_pr.get_allowed_merge_methods", return_value={},
+            "merge_pr.get_allowed_merge_methods", return_value=_ALL_METHODS_ALLOWED,
         ), patch(
             "subprocess.run",
             return_value=_completed(stdout=state_json, rc=0),
@@ -163,7 +171,7 @@ class TestMain:
             "merge_pr.resolve_repo_params",
             return_value={"Owner": "o", "Repo": "r"},
         ), patch(
-            "merge_pr.get_allowed_merge_methods", return_value={},
+            "merge_pr.get_allowed_merge_methods", return_value=_ALL_METHODS_ALLOWED,
         ), patch(
             "subprocess.run",
             side_effect=_side_effect,
@@ -194,7 +202,7 @@ class TestMain:
             "merge_pr.resolve_repo_params",
             return_value={"Owner": "o", "Repo": "r"},
         ), patch(
-            "merge_pr.get_allowed_merge_methods", return_value={},
+            "merge_pr.get_allowed_merge_methods", return_value=_ALL_METHODS_ALLOWED,
         ), patch(
             "subprocess.run",
             side_effect=_side_effect,
@@ -225,7 +233,7 @@ class TestMain:
             "merge_pr.resolve_repo_params",
             return_value={"Owner": "o", "Repo": "r"},
         ), patch(
-            "merge_pr.get_allowed_merge_methods", return_value={},
+            "merge_pr.get_allowed_merge_methods", return_value=_ALL_METHODS_ALLOWED,
         ), patch(
             "subprocess.run",
             side_effect=_side_effect,
@@ -254,7 +262,7 @@ class TestMain:
             "merge_pr.resolve_repo_params",
             return_value={"Owner": "o", "Repo": "r"},
         ), patch(
-            "merge_pr.get_allowed_merge_methods", return_value={},
+            "merge_pr.get_allowed_merge_methods", return_value=_ALL_METHODS_ALLOWED,
         ), patch(
             "subprocess.run",
             side_effect=_side_effect,
@@ -283,7 +291,7 @@ class TestMain:
             "merge_pr.resolve_repo_params",
             return_value={"Owner": "o", "Repo": "r"},
         ), patch(
-            "merge_pr.get_allowed_merge_methods", return_value={},
+            "merge_pr.get_allowed_merge_methods", return_value=_ALL_METHODS_ALLOWED,
         ), patch(
             "subprocess.run",
             side_effect=_side_effect,
@@ -313,21 +321,23 @@ class TestGetAllowedMergeMethods:
             result = get_allowed_merge_methods("o/r")
         assert result["allow_rebase_merge"] is False
 
-    def test_returns_empty_on_api_failure(self):
+    def test_raises_on_api_failure(self):
         with patch(
             "subprocess.run",
             return_value=_completed(rc=1, stderr="error"),
         ):
-            result = get_allowed_merge_methods("o/r")
-        assert result == {}
+            with pytest.raises(RuntimeError) as exc:
+                get_allowed_merge_methods("o/r")
+            assert "Failed to query repository settings" in str(exc.value)
 
-    def test_returns_empty_on_invalid_json(self):
+    def test_raises_on_invalid_json(self):
         with patch(
             "subprocess.run",
             return_value=_completed(stdout="not-json", rc=0),
         ):
-            result = get_allowed_merge_methods("o/r")
-        assert result == {}
+            with pytest.raises(ValueError) as exc:
+                get_allowed_merge_methods("o/r")
+            assert "Failed to decode JSON" in str(exc.value)
 
 
 # ---------------------------------------------------------------------------
@@ -336,8 +346,11 @@ class TestGetAllowedMergeMethods:
 
 
 class TestValidateStrategy:
-    def test_no_settings_skips_validation(self):
-        validate_strategy("merge", {}, "o/r")
+    def test_empty_settings_rejects_strategy(self):
+        """Empty settings should reject strategies by defaulting to False."""
+        with pytest.raises(SystemExit) as exc:
+            validate_strategy("merge", {}, "o/r")
+        assert exc.value.code == 1
 
     def test_allowed_strategy_passes(self):
         settings = {
