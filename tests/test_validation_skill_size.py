@@ -145,7 +145,8 @@ class TestMain:
         exit_code = main(["--path", str(tmp_path), "--ci"])
         assert exit_code == 1
 
-    def test_oversized_passes_locally(self, tmp_path: Path) -> None:
+    def test_oversized_passes_locally(self, tmp_path: Path, monkeypatch: object) -> None:
+        monkeypatch.delenv("CI", raising=False)
         skill_dir = tmp_path / "big-skill"
         skill_dir.mkdir()
         (skill_dir / "SKILL.md").write_text(
