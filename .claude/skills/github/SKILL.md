@@ -39,6 +39,8 @@ Use these scripts instead of raw `gh` commands for consistent error handling and
 | `check CI status` | get_pr_checks.py / get_pr_check_logs.py |
 | `close issue` | close_pr.py / set_issue_labels.py |
 | `add label to issue` | set_issue_labels.py |
+| `list actionable items` | get_actionable_items.py |
+| `check notifications` | get_actionable_items.py |
 
 ---
 
@@ -59,6 +61,7 @@ Need GitHub data?
 ├─ Issue info → get_issue_context.py
 ├─ Merge readiness check → test_pr_merge_ready.py
 ├─ Latest milestone → get_latest_semantic_milestone.py
+├─ Actionable backlog → get_actionable_items.py
 └─ Need to take action?
    ├─ Create issue → new_issue.py
    ├─ Create PR → new_pr.py
@@ -136,6 +139,12 @@ Need GitHub data?
 |--------|---------|----------------|
 | `add_comment_reaction.py` | Add emoji reactions (batch support) | `--comment-ids`, `--reaction`, `--comment-type` |
 
+### Notifications (`scripts/notifications/`)
+
+| Script | Purpose | Key Parameters |
+|--------|---------|----------------|
+| `get_actionable_items.py` | List actionable backlog (reviews, authored PRs, assigned issues) | `--owner`, `--repo`, `--limit` |
+
 ### Utilities (`scripts/utils/`)
 
 | Script | Purpose | Key Parameters |
@@ -201,6 +210,7 @@ python3 .claude/skills/github/scripts/pr/post_pr_comment_reply.py --pull-request
 | Hardcoding owner/repo | Breaks in forks | Let scripts infer from `git remote` |
 | Ignoring exit codes | Missing error handling | Check exit codes per ADR-035 |
 | Skipping idempotency markers | Duplicate comments | Use `--marker` parameter |
+| Raw `gh notify` or notifications API | 403 with app tokens | Use `get_actionable_items.py` |
 
 ---
 
