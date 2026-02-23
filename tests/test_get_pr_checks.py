@@ -459,3 +459,456 @@ class TestMain:
         ):
             rc = main(["--pull-request", "42"])
         assert rc == 1
+
+    def test_api_error_returns_3(self, capsys):
+        """Generic RuntimeError (not 'not found') returns exit code 3."""
+        with patch(
+            "get_pr_checks.assert_gh_authenticated",
+        ), patch(
+            "get_pr_checks.resolve_repo_params",
+            return_value={"Owner": "o", "Repo": "r"},
+        ), patch(
+            "get_pr_checks.gh_graphql",
+            side_effect=RuntimeError("internal server error"),
+        ):
+            rc = main(["--pull-request", "42"])
+        assert rc == 3
+        output = json.loads(capsys.readouterr().out)
+        assert output["Success"] is False
+        assert "internal server error" in output["Error"]
+
+    def test_no_commits_returns_unknown(self, capsys):
+        """PR with no commits returns UNKNOWN state."""
+        gql_data = {
+            "repository": {
+                "pullRequest": {
+                    "number": 42,
+                    "commits": {"nodes": []},
+                },
+            },
+        }
+        with patch(
+            "get_pr_checks.assert_gh_authenticated",
+        ), patch(
+            "get_pr_checks.resolve_repo_params",
+            return_value={"Owner": "o", "Repo": "r"},
+        ), patch(
+            "get_pr_checks.gh_graphql",
+            return_value=gql_data,
+        ):
+            rc = main(["--pull-request", "42"])
+        assert rc == 0
+        output = json.loads(capsys.readouterr().out)
+        assert output["HasChecks"] is False
+        assert output["OverallState"] == "UNKNOWN"
+
+    def test_no_rollup_returns_unknown(self, capsys):
+        """PR with no statusCheckRollup returns UNKNOWN state."""
+        gql_data = {
+            "repository": {
+                "pullRequest": {
+                    "number": 42,
+                    "commits": {
+                        "nodes": [{"commit": {"statusCheckRollup": None}}],
+                    },
+                },
+            },
+        }
+        with patch(
+            "get_pr_checks.assert_gh_authenticated",
+        ), patch(
+            "get_pr_checks.resolve_repo_params",
+            return_value={"Owner": "o", "Repo": "r"},
+        ), patch(
+            "get_pr_checks.gh_graphql",
+            return_value=gql_data,
+        ):
+            rc = main(["--pull-request", "42"])
+        assert rc == 0
+        output = json.loads(capsys.readouterr().out)
+        assert output["HasChecks"] is False
+
+    def test_pr_not_in_response_returns_2(self, capsys):
+        """PR not found in GraphQL response returns exit code 2."""
+        gql_data = {"repository": {"pullRequest": None}}
+        with patch(
+            "get_pr_checks.assert_gh_authenticated",
+        ), patch(
+            "get_pr_checks.resolve_repo_params",
+            return_value={"Owner": "o", "Repo": "r"},
+        ), patch(
+            "get_pr_checks.gh_graphql",
+            return_value=gql_data,
+        ):
+            rc = main(["--pull-request", "42"])
+        assert rc == 2
+        output = json.loads(capsys.readouterr().out)
+        assert output["Success"] is False
+
+    def test_pending_checks_returns_0(self, capsys):
+        """Pending checks (no --wait) return exit code 0 with stderr message."""
+        gql_data = {
+            "repository": {
+                "pullRequest": {
+                    "number": 42,
+                    "commits": {
+                        "nodes": [
+                            {
+                                "commit": {
+                                    "statusCheckRollup": {
+                                        "state": "PENDING",
+                                        "contexts": {
+                                            "nodes": [
+                                                {
+                                                    "__typename": "CheckRun",
+                                                    "name": "build",
+                                                    "status": "IN_PROGRESS",
+                                                    "conclusion": "",
+                                                    "detailsUrl": "",
+                                                    "isRequired": True,
+                                                },
+                                            ],
+                                        },
+                                    },
+                                },
+                            },
+                        ],
+                    },
+                },
+            },
+        }
+        with patch(
+            "get_pr_checks.assert_gh_authenticated",
+        ), patch(
+            "get_pr_checks.resolve_repo_params",
+            return_value={"Owner": "o", "Repo": "r"},
+        ), patch(
+            "get_pr_checks.gh_graphql",
+            return_value=gql_data,
+        ):
+            rc = main(["--pull-request", "42"])
+        assert rc == 0
+        captured = capsys.readouterr()
+        assert "pending" in captured.err
+
+    def test_wait_timeout_returns_7(self, capsys):
+        """--wait with timeout returns exit code 7."""
+        gql_data = {
+            "repository": {
+                "pullRequest": {
+                    "number": 42,
+                    "commits": {
+                        "nodes": [
+                            {
+                                "commit": {
+                                    "statusCheckRollup": {
+                                        "state": "PENDING",
+                                        "contexts": {
+                                            "nodes": [
+                                                {
+                                                    "__typename": "CheckRun",
+                                                    "name": "build",
+                                                    "status": "IN_PROGRESS",
+                                                    "conclusion": "",
+                                                    "detailsUrl": "",
+                                                    "isRequired": True,
+                                                },
+                                            ],
+                                        },
+                                    },
+                                },
+                            },
+                        ],
+                    },
+                },
+            },
+        }
+        with patch(
+            "get_pr_checks.assert_gh_authenticated",
+        ), patch(
+            "get_pr_checks.resolve_repo_params",
+            return_value={"Owner": "o", "Repo": "r"},
+        ), patch(
+            "get_pr_checks.gh_graphql",
+            return_value=gql_data,
+        ), patch(
+            "get_pr_checks.time.monotonic",
+            side_effect=[0.0, 999.0],
+        ), patch(
+            "get_pr_checks.time.sleep",
+        ):
+            rc = main([
+                "--pull-request", "42",
+                "--wait", "--timeout-seconds", "10",
+            ])
+        assert rc == 7
+        captured = capsys.readouterr()
+        assert "Timeout" in captured.err
+
+    def test_wait_timeout_json_suppresses_stderr(self, capsys):
+        """--wait timeout with --output-format json suppresses stderr."""
+        gql_data = {
+            "repository": {
+                "pullRequest": {
+                    "number": 42,
+                    "commits": {
+                        "nodes": [
+                            {
+                                "commit": {
+                                    "statusCheckRollup": {
+                                        "state": "PENDING",
+                                        "contexts": {
+                                            "nodes": [
+                                                {
+                                                    "__typename": "CheckRun",
+                                                    "name": "build",
+                                                    "status": "IN_PROGRESS",
+                                                    "conclusion": "",
+                                                    "detailsUrl": "",
+                                                    "isRequired": True,
+                                                },
+                                            ],
+                                        },
+                                    },
+                                },
+                            },
+                        ],
+                    },
+                },
+            },
+        }
+        with patch(
+            "get_pr_checks.assert_gh_authenticated",
+        ), patch(
+            "get_pr_checks.resolve_repo_params",
+            return_value={"Owner": "o", "Repo": "r"},
+        ), patch(
+            "get_pr_checks.gh_graphql",
+            return_value=gql_data,
+        ), patch(
+            "get_pr_checks.time.monotonic",
+            side_effect=[0.0, 999.0],
+        ), patch(
+            "get_pr_checks.time.sleep",
+        ):
+            rc = main([
+                "--pull-request", "42",
+                "--wait", "--timeout-seconds", "10",
+                "--output-format", "json",
+            ])
+        assert rc == 7
+        captured = capsys.readouterr()
+        assert captured.err == ""
+
+
+# ---------------------------------------------------------------------------
+# Tests: normalize_check - additional coverage
+# ---------------------------------------------------------------------------
+
+
+class TestNormalizeCheckAdditional:
+    def test_status_context_pending(self):
+        ctx = {
+            "__typename": "StatusContext",
+            "context": "ci/pending",
+            "state": "PENDING",
+            "targetUrl": "",
+            "isRequired": False,
+        }
+        result = normalize_check(ctx)
+        assert result["IsPending"] is True
+        assert result["IsPassing"] is False
+
+    def test_status_context_expected(self):
+        ctx = {
+            "__typename": "StatusContext",
+            "context": "ci/expected",
+            "state": "EXPECTED",
+            "targetUrl": "",
+            "isRequired": False,
+        }
+        result = normalize_check(ctx)
+        assert result["IsPending"] is True
+
+    def test_status_context_failure(self):
+        ctx = {
+            "__typename": "StatusContext",
+            "context": "ci/failing",
+            "state": "FAILURE",
+            "targetUrl": "",
+            "isRequired": True,
+        }
+        result = normalize_check(ctx)
+        assert result["IsFailing"] is True
+
+    def test_status_context_error(self):
+        ctx = {
+            "__typename": "StatusContext",
+            "context": "ci/error",
+            "state": "ERROR",
+            "targetUrl": "",
+            "isRequired": True,
+        }
+        result = normalize_check(ctx)
+        assert result["IsFailing"] is True
+
+    def test_check_run_cancelled(self):
+        ctx = {
+            "__typename": "CheckRun",
+            "name": "cancelled",
+            "status": "COMPLETED",
+            "conclusion": "CANCELLED",
+            "detailsUrl": "",
+            "isRequired": False,
+        }
+        result = normalize_check(ctx)
+        assert result["IsFailing"] is True
+
+    def test_check_run_neutral(self):
+        ctx = {
+            "__typename": "CheckRun",
+            "name": "neutral",
+            "status": "COMPLETED",
+            "conclusion": "NEUTRAL",
+            "detailsUrl": "",
+            "isRequired": False,
+        }
+        result = normalize_check(ctx)
+        assert result["IsPassing"] is True
+
+    def test_check_run_skipped(self):
+        ctx = {
+            "__typename": "CheckRun",
+            "name": "skipped",
+            "status": "COMPLETED",
+            "conclusion": "SKIPPED",
+            "detailsUrl": "",
+            "isRequired": False,
+        }
+        result = normalize_check(ctx)
+        assert result["IsPassing"] is True
+
+    def test_check_run_missing_fields(self):
+        """Handles missing optional fields gracefully."""
+        ctx = {"__typename": "CheckRun"}
+        result = normalize_check(ctx)
+        assert result["Name"] == ""
+        assert result["State"] == ""
+        assert result["Conclusion"] == ""
+
+    def test_no_typename_returns_none(self):
+        result = normalize_check({})
+        assert result is None
+
+
+# ---------------------------------------------------------------------------
+# Tests: fetch_checks - unit tests
+# ---------------------------------------------------------------------------
+
+
+class TestFetchChecks:
+    def test_not_found_error(self):
+        with patch(
+            "get_pr_checks.gh_graphql",
+            side_effect=RuntimeError("Could not resolve to a PullRequest"),
+        ):
+            result = fetch_checks("o", "r", 999)
+        assert result["Error"] == "NotFound"
+
+    def test_generic_api_error(self):
+        with patch(
+            "get_pr_checks.gh_graphql",
+            side_effect=RuntimeError("rate limit exceeded"),
+        ):
+            result = fetch_checks("o", "r", 1)
+        assert result["Error"] == "ApiError"
+        assert "rate limit" in result["Message"]
+
+    def test_pr_none_in_response(self):
+        with patch(
+            "get_pr_checks.gh_graphql",
+            return_value={"repository": {"pullRequest": None}},
+        ):
+            result = fetch_checks("o", "r", 1)
+        assert result["Error"] == "NotFound"
+
+    def test_empty_commits(self):
+        with patch(
+            "get_pr_checks.gh_graphql",
+            return_value={
+                "repository": {
+                    "pullRequest": {
+                        "number": 1,
+                        "commits": {"nodes": []},
+                    },
+                },
+            },
+        ):
+            result = fetch_checks("o", "r", 1)
+        assert result["HasChecks"] is False
+        assert result["OverallState"] == "UNKNOWN"
+
+    def test_no_rollup(self):
+        with patch(
+            "get_pr_checks.gh_graphql",
+            return_value={
+                "repository": {
+                    "pullRequest": {
+                        "number": 1,
+                        "commits": {
+                            "nodes": [
+                                {"commit": {"statusCheckRollup": None}},
+                            ],
+                        },
+                    },
+                },
+            },
+        ):
+            result = fetch_checks("o", "r", 1)
+        assert result["HasChecks"] is False
+
+
+# ---------------------------------------------------------------------------
+# Tests: build_output - additional coverage
+# ---------------------------------------------------------------------------
+
+
+class TestBuildOutputAdditional:
+    def test_no_checks_not_all_passing(self):
+        """No checks means AllPassing is False."""
+        check_data = {
+            "Number": 42,
+            "HasChecks": True,
+            "OverallState": "SUCCESS",
+            "Checks": [],
+        }
+        output = build_output(check_data, "o", "r")
+        assert output["AllPassing"] is False
+
+    def test_pending_count(self):
+        check_data = {
+            "Number": 42,
+            "HasChecks": True,
+            "OverallState": "PENDING",
+            "Checks": [
+                {
+                    "Name": "build", "IsPassing": False,
+                    "IsFailing": False, "IsPending": True,
+                    "IsRequired": True, "State": "IN_PROGRESS",
+                    "Conclusion": "", "DetailsUrl": "",
+                },
+            ],
+        }
+        output = build_output(check_data, "o", "r")
+        assert output["PendingCount"] == 1
+        assert output["AllPassing"] is False
+
+    def test_has_checks_false(self):
+        check_data = {
+            "Number": 42,
+            "HasChecks": False,
+            "OverallState": "UNKNOWN",
+            "Checks": [],
+        }
+        output = build_output(check_data, "o", "r")
+        assert output["AllPassing"] is False
