@@ -147,7 +147,7 @@ jobs:
           retention-days: 7
 
   skip-tests:
-    name: Skip Python Tests (No Changes)
+    name: Run Python Tests
     needs: check-paths
     if: needs.check-paths.outputs.python-changed != 'true'
     # ADR-025: ARM runner for cost optimization
@@ -155,9 +155,5 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: Skip tests (no Python files changed)
-        run: |
-          echo "No Python files changed - skipping tests"
-          echo ""
-          echo "See the 'python' filter in check-paths job for paths that trigger tests."
-          echo "Reference: .github/workflows/pytest.yml"
+      - name: No Python files changed
+        run: echo "No Python files changed - skipping tests"
