@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -264,7 +265,7 @@ def compute_memory_health(memories_dir: Path) -> list[ComponentHealth]:
 
         # Check for staleness indicators in frontmatter
         frontmatter = parts[1]
-        if "stale: true" in frontmatter or "deprecated: true" in frontmatter:
+        if re.search(r"^\s*(?:stale|deprecated):\s*true", frontmatter, re.MULTILINE):
             stale_count += 1
 
     stale_rate = stale_count / total
