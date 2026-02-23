@@ -16,6 +16,7 @@ from typing import Any
 import yaml
 
 from scripts.workflow.schema import (
+    CoordinationMode,
     StepKind,
     StepRef,
     WorkflowDefinition,
@@ -55,11 +56,18 @@ def parse_workflow(data: dict[str, Any]) -> WorkflowDefinition:
     max_iterations = int(data.get("max_iterations", 1))
     metadata = data.get("metadata", {})
 
+    mode_str = data.get("coordination_mode", "centralized")
+    try:
+        coordination_mode = CoordinationMode(mode_str)
+    except ValueError as exc:
+        raise ValueError(f"Invalid coordination_mode '{mode_str}'") from exc
+
     return WorkflowDefinition(
         name=name,
         steps=steps,
         max_iterations=max_iterations,
         metadata=metadata if isinstance(metadata, dict) else {},
+        coordination_mode=coordination_mode,
     )
 
 
@@ -73,14 +81,21 @@ def _parse_step(data: Any) -> WorkflowStep:
     kind_str = data.get("kind", "agent")
     try:
         kind = StepKind(kind_str)
-    except ValueError:
-        raise ValueError(f"Invalid step kind '{kind_str}' for step '{name}'")
+    except ValueError as exc:
+        raise ValueError(f"Invalid step kind '{kind_str}' for step '{name}'") from exc
 
     inputs_from_raw = data.get("inputs_from", [])
     if isinstance(inputs_from_raw, list):
         inputs_from = [StepRef(name=str(r)) for r in inputs_from_raw]
     else:
         inputs_from = []
+
+    subordinates_raw = data.get("subordinates", [])
+    subordinates = (
+        [str(s) for s in subordinates_raw]
+        if isinstance(subordinates_raw, list)
+        else []
+    )
 
     return WorkflowStep(
         name=name,
@@ -90,4 +105,6 @@ def _parse_step(data: Any) -> WorkflowStep:
         prompt_template=str(data.get("prompt_template", "")),
         max_retries=int(data.get("max_retries", 0)),
         condition=str(data.get("condition", "")),
+        is_coordinator=bool(data.get("is_coordinator", False)),
+        subordinates=subordinates,
     )

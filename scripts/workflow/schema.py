@@ -25,6 +25,19 @@ class StepKind(enum.Enum):
     CONDITIONAL = "conditional"
 
 
+class CoordinationMode(enum.Enum):
+    """Coordination pattern for multi-agent workflows.
+
+    Centralized: Single orchestrator manages all agents (default).
+    Hierarchical: Tree structure with nested coordinators.
+    Mesh: Peer-to-peer collaboration with shared task queue.
+    """
+
+    CENTRALIZED = "centralized"
+    HIERARCHICAL = "hierarchical"
+    MESH = "mesh"
+
+
 class WorkflowStatus(enum.Enum):
     """Execution status of a workflow or step."""
 
@@ -60,6 +73,8 @@ class WorkflowStep:
     prompt_template: str = ""
     max_retries: int = 0
     condition: str = ""
+    is_coordinator: bool = False
+    subordinates: list[str] = field(default_factory=list)
 
     def depends_on(self) -> list[str]:
         """Return names of steps this step depends on."""
@@ -78,6 +93,7 @@ class WorkflowDefinition:
     steps: list[WorkflowStep] = field(default_factory=list)
     max_iterations: int = 1
     metadata: dict[str, Any] = field(default_factory=dict)
+    coordination_mode: CoordinationMode = CoordinationMode.CENTRALIZED
 
     def step_names(self) -> list[str]:
         """Return ordered list of step names."""
@@ -129,6 +145,27 @@ class WorkflowDefinition:
 
         if self.max_iterations < 1:
             errors.append("max_iterations must be at least 1")
+
+        # Validate coordination mode constraints
+        if self.coordination_mode == CoordinationMode.HIERARCHICAL:
+            coordinators = [s for s in self.steps if s.is_coordinator]
+            if not coordinators:
+                errors.append(
+                    "Hierarchical mode requires at least one step "
+                    "with is_coordinator=True"
+                )
+            for coord in coordinators:
+                for sub in coord.subordinates:
+                    if sub not in seen:
+                        errors.append(
+                            f"Coordinator '{coord.name}' references "
+                            f"unknown subordinate '{sub}'"
+                        )
+
+        if self.coordination_mode == CoordinationMode.MESH:
+            # Mesh mode requires at least 2 steps for peer collaboration
+            if len(self.steps) < 2:
+                errors.append("Mesh mode requires at least 2 steps")
 
         return errors
 
