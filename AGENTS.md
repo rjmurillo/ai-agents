@@ -146,6 +146,7 @@ Any file matching `.agents/architecture/ADR-*.md` created or edited triggers man
 | memory | Cross-session context, knowledge retrieval | haiku |
 | pr-comment-responder | PR review triage, comment tracking, resolution | sonnet |
 | backlog-generator | Proactive task discovery when idle | sonnet |
+| merge-resolver | Git conflict resolution, intent analysis, heuristic merge | sonnet |
 
 ## Workflow Patterns
 
