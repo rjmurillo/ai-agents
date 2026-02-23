@@ -93,6 +93,8 @@ class HierarchicalStrategy(CoordinationStrategy):
             step = by_name[name]
             for sub in step.subordinates:
                 visit(sub)
+            for dep in step.depends_on():
+                visit(dep)
             visited.add(name)
             ordered.append(step)
 
@@ -182,7 +184,7 @@ def find_ready_steps(
     strategy = get_strategy(workflow.coordination_mode)
     ready: list[WorkflowStep] = []
 
-    for step in workflow.steps:
+    for step in strategy.order_steps(workflow):
         if step.name in completed or step.name in running:
             continue
         if strategy.can_execute_parallel(step, completed, workflow):
@@ -231,21 +233,20 @@ def build_execution_plan(
     completed: set[str] = set()
 
     remaining = set(s.name for s in workflow.steps)
-    by_name = {s.name: s for s in workflow.steps}
 
     while remaining:
         phase: list[str] = []
-        for name in list(remaining):
-            step = by_name[name]
+        for step in ordered:
+            name = step.name
+            if name not in remaining:
+                continue
             deps = step.depends_on()
             if all(d in completed for d in deps):
                 if strategy.can_execute_parallel(step, completed, workflow):
                     phase.append(name)
-
-        if not phase:
-            leftover = list(remaining)
-            if leftover:
-                phase = [leftover[0]]
+                elif not phase:
+                    phase.append(name)
+                    break
 
         for name in phase:
             remaining.discard(name)
