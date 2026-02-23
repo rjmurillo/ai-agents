@@ -80,15 +80,16 @@ class WorkflowExecutor:
             status=WorkflowStatus.RUNNING,
         )
 
+        # Preserve outputs across iterations for refinement loops
+        step_outputs: dict[str, str] = {}
+
         for iteration in range(1, workflow.max_iterations + 1):
             result.iterations_completed = iteration
-            step_outputs: dict[str, str] = {}
-            step_results: list[StepResult] = []
             failed = False
 
-            for step in workflow.steps:
+            for idx, step in enumerate(workflow.steps):
                 if failed:
-                    step_results.append(
+                    result.step_results.append(
                         StepResult(
                             step_name=step.name,
                             status=WorkflowStatus.SKIPPED,
@@ -100,7 +101,7 @@ class WorkflowExecutor:
                 if step.condition and not self._evaluate_condition(
                     step.condition, step_outputs
                 ):
-                    step_results.append(
+                    result.step_results.append(
                         StepResult(
                             step_name=step.name,
                             status=WorkflowStatus.SKIPPED,
@@ -109,16 +110,14 @@ class WorkflowExecutor:
                     )
                     continue
 
-                combined_input = self._gather_inputs(step, step_outputs, workflow)
+                combined_input = self._gather_inputs(step, idx, step_outputs, workflow)
                 step_result = self._run_step(step, combined_input, iteration)
-                step_results.append(step_result)
+                result.step_results.append(step_result)
 
                 if step_result.succeeded:
                     step_outputs[step.name] = step_result.output
                 else:
                     failed = True
-
-            result.step_results = step_results
 
             if failed:
                 result.status = WorkflowStatus.FAILED
@@ -130,19 +129,28 @@ class WorkflowExecutor:
     def _gather_inputs(
         self,
         step: WorkflowStep,
+        idx: int,
         step_outputs: dict[str, str],
         workflow: WorkflowDefinition,
     ) -> str:
-        """Combine outputs from upstream steps into a single input string."""
+        """Combine outputs from upstream steps into a single input string.
+
+        For refinement loops, the first step of iteration N receives the
+        output from the last step of iteration N-1.
+        """
         deps = step.depends_on()
         if deps:
             parts = [step_outputs[d] for d in deps if d in step_outputs]
             return "\n---\n".join(parts)
 
-        idx = workflow.steps.index(step)
         if idx > 0:
             prev_name = workflow.steps[idx - 1].name
             return step_outputs.get(prev_name, "")
+
+        # First step in a refinement loop gets output from last step
+        if idx == 0 and workflow.steps:
+            last_step_name = workflow.steps[-1].name
+            return step_outputs.get(last_step_name, "")
 
         return ""
 

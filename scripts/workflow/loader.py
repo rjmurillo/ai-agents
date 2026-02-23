@@ -71,7 +71,10 @@ def _parse_step(data: Any) -> WorkflowStep:
     name = data.get("name", "")
     agent = data.get("agent", "")
     kind_str = data.get("kind", "agent")
-    kind = StepKind(kind_str) if kind_str in {k.value for k in StepKind} else StepKind.AGENT
+    try:
+        kind = StepKind(kind_str)
+    except ValueError:
+        raise ValueError(f"Invalid step kind '{kind_str}' for step '{name}'")
 
     inputs_from_raw = data.get("inputs_from", [])
     if isinstance(inputs_from_raw, list):

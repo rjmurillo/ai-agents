@@ -119,6 +119,14 @@ class WorkflowDefinition:
                         f"which is not defined before it"
                     )
 
+            # Validate condition references (e.g., has:step_name, empty:step_name)
+            if step.condition and ":" in step.condition:
+                ref = step.condition.split(":", 1)[1].strip()
+                if ref not in seen:
+                    errors.append(
+                        f"Step '{step.name}' references unknown step '{ref}' in condition"
+                    )
+
         if self.max_iterations < 1:
             errors.append("max_iterations must be at least 1")
 
