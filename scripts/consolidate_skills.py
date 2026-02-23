@@ -572,12 +572,11 @@ def main() -> int:
     sessions_dir = args.sessions_dir or (project_root / ".agents" / "sessions")
     memories_dir = args.memories_dir or (project_root / ".serena" / "memories")
 
-    # CWE-22 path containment
+    # CWE-22 path traversal prevention: reject ".." in raw path, then resolve
     for dir_path, name in [(sessions_dir, "sessions"), (memories_dir, "memories")]:
-        resolved = dir_path.resolve()
-        if not resolved.is_relative_to(project_root):
+        if ".." in dir_path.parts:
             print(
-                f"[ERROR] {name} directory must be within project root ({project_root})",
+                f"[ERROR] {name} directory contains path traversal component",
                 file=sys.stderr,
             )
             return 2

@@ -538,15 +538,33 @@ class TestCli:
         data = json.loads(result.stdout)
         assert "sessions_scanned" in data
 
-    def test_path_containment_rejects_outside_root(self, tmp_path: Path) -> None:
+    def test_path_traversal_rejects_dotdot_components(self, tmp_path: Path) -> None:
         result = subprocess.run(
             [
                 sys.executable,
                 "scripts/consolidate_skills.py",
-                "--sessions-dir", "/tmp/outside",
+                "--sessions-dir", str(tmp_path / "sessions" / ".." / ".." / "etc"),
                 "--project-root", str(tmp_path),
             ],
             capture_output=True,
             text=True,
         )
         assert result.returncode == 2
+        assert "traversal" in result.stderr
+
+    def test_absolute_path_outside_root_allowed(self, tmp_path: Path) -> None:
+        """Absolute paths without traversal are allowed (OS permissions control access)."""
+        sessions = tmp_path / "external-sessions"
+        sessions.mkdir()
+        result = subprocess.run(
+            [
+                sys.executable,
+                "scripts/consolidate_skills.py",
+                "--sessions-dir", str(sessions),
+                "--project-root", str(tmp_path / "project"),
+                "--dry-run",
+            ],
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode != 2
