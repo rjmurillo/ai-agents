@@ -378,10 +378,13 @@ class TestWriteAuditLog:
         assert "testuser" in content
 
     def test_falls_back_to_user_env(self, tmp_path):
-        env = {k: v for k, v in os.environ.items() if k not in ("USERNAME",)}
-        env["USER"] = "fallbackuser"
-        with patch.dict(os.environ, env, clear=True):
-            write_audit_log(str(tmp_path), "feat/b", "main", "feat: t", "reason")
+        original_username = os.environ.pop("USERNAME", None)
+        try:
+            with patch.dict(os.environ, {"USER": "fallbackuser"}):
+                write_audit_log(str(tmp_path), "feat/b", "main", "feat: t", "reason")
+        finally:
+            if original_username is not None:
+                os.environ["USERNAME"] = original_username
         files = list((tmp_path / ".agents" / "audit").glob("*.txt"))
         content = files[0].read_text()
         assert "fallbackuser" in content
