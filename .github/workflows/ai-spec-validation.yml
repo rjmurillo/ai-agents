@@ -95,7 +95,7 @@ jobs:
   validate-spec-skip:
     name: Validate Spec Coverage
     needs: check-paths
-    if: needs.check-paths.outputs.has-code-changes != 'true'
+    if: always() && needs.check-paths.result == 'success' && needs.check-paths.outputs.has-code-changes != 'true'
     runs-on: ubuntu-24.04-arm
     steps:
       - name: No code changes
@@ -105,7 +105,9 @@ jobs:
     name: Validate Spec Coverage
     needs: check-paths
     # Only run full validation when code paths are changed
-    if: needs.check-paths.outputs.has-code-changes == 'true'
+    # always() required: transitive dependency on debounce (which may be SKIPPED)
+    # would otherwise cause this job to be skipped even when check-paths succeeds
+    if: always() && needs.check-paths.result == 'success' && needs.check-paths.outputs.has-code-changes == 'true'
     # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 15
