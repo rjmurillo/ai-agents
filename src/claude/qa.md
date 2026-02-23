@@ -87,6 +87,22 @@ Report violations in test strategy document with specific file:line references.
 - **Clarity**: Test name describes what's tested
 - **Coverage**: New code ≥80% covered
 
+## Test Quality Criteria
+
+### Insufficient Test Patterns (CRITICAL_FAIL)
+
+- Tests that use `Should -Match` on script content instead of executing functions
+- Tests that verify code structure via regex without testing behavior
+- Tests claiming AAA pattern but only verifying existence of code blocks
+- Tests without Mock blocks for external dependencies (gh CLI, APIs)
+
+### Required Test Patterns (PASS)
+
+- Tests that execute the function under test
+- Mock blocks for all external dependencies
+- Edge case coverage: null inputs, empty arrays, error conditions
+- Integration tests that verify end-to-end behavior
+
 ## Quality Metrics
 
 All test reports MUST include quantified metrics:
