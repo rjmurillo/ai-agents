@@ -94,12 +94,12 @@ Report violations in test strategy document with specific file:line references.
 - Tests that use `Should -Match` on script content instead of executing functions
 - Tests that verify code structure via regex without testing behavior
 - Tests claiming AAA pattern but only verifying existence of code blocks
-- Tests without Mock blocks for external dependencies (gh CLI, APIs)
+- Unit tests without Mock blocks for external dependencies (gh CLI, APIs)
 
 ### Required Test Patterns (PASS)
 
 - Tests that execute the function under test
-- Mock blocks for all external dependencies
+- Unit tests with Mock blocks for all external dependencies
 - Edge case coverage: null inputs, empty arrays, error conditions
 - Integration tests that verify end-to-end behavior
 
