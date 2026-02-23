@@ -188,8 +188,11 @@ class ProjectInitializer:
         if gitignore_path.exists():
             existing = gitignore_path.read_text(encoding="utf-8")
 
+        existing_lines = {line.strip() for line in existing.splitlines()}
         entries_to_add = [
-            entry for entry in _GITIGNORE_ENTRIES if entry not in existing
+            entry
+            for entry in _GITIGNORE_ENTRIES
+            if entry.strip() not in existing_lines
         ]
 
         if not entries_to_add:
