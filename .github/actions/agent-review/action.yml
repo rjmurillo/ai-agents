@@ -68,6 +68,18 @@ outputs:
 runs:
   using: 'composite'
   steps:
+    # CWE-22 mitigation: validate agent name before any file path usage
+    - name: Validate agent name
+      if: inputs.should-run == 'true'
+      shell: bash
+      env:
+        AGENT: ${{ inputs.agent }}
+      run: |
+        if [[ ! "$AGENT" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+          echo "::error::Invalid agent name: $AGENT. Must match '^[a-zA-Z0-9_-]+$'."
+          exit 1
+        fi
+
     # Cache check: restore previous review results for same commit + prompt
     - name: Restore cached review
       if: inputs.should-run == 'true' && inputs.commit-sha != '' && inputs.bypass-cache != 'true'
@@ -84,6 +96,10 @@ runs:
       env:
         AGENT: ${{ inputs.agent }}
       run: |
+        if [[ ! "$AGENT" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+          echo "::error::Invalid agent name: $AGENT. Must match '^[a-zA-Z0-9_-]+$'."
+          exit 1
+        fi
         echo "Cache hit for $AGENT review, skipping Copilot API call"
         CACHE_DIR="ai-review-cache/$AGENT"
         echo "verdict=$(cat "$CACHE_DIR/verdict.txt")" >> $GITHUB_OUTPUT
@@ -119,6 +135,10 @@ runs:
         FINDINGS: ${{ steps.review.outputs.findings }}
         INFRA_FAILURE: ${{ steps.review.outputs.infrastructure-failure }}
       run: |
+        if [[ ! "$AGENT" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+          echo "::error::Invalid agent name: $AGENT. Must match '^[a-zA-Z0-9_-]+$'."
+          exit 1
+        fi
         # Only cache successful reviews (not infrastructure failures)
         if [ "$INFRA_FAILURE" = "true" ]; then
           echo "Skipping cache save: infrastructure failure"
