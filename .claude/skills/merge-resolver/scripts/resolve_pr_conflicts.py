@@ -28,7 +28,14 @@ from pathlib import Path
 from typing import Any
 
 # Add .claude/lib to path for github_core imports (synced from scripts/)
-_LIB_DIR = str(Path(__file__).resolve().parents[3] / "lib")
+_plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+_workspace = os.environ.get("GITHUB_WORKSPACE")
+if _plugin_root:
+    _LIB_DIR = os.path.join(_plugin_root, "lib")
+elif _workspace:
+    _LIB_DIR = os.path.join(_workspace, ".claude", "lib")
+else:
+    _LIB_DIR = str(Path(__file__).resolve().parents[3] / "lib")
 if _LIB_DIR not in sys.path:
     sys.path.insert(0, _LIB_DIR)
 
