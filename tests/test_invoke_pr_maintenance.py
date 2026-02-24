@@ -7,6 +7,8 @@ import sys
 from pathlib import Path
 from unittest.mock import patch
 
+from scripts.github_core.api import RepoInfo
+
 # ---------------------------------------------------------------------------
 # Import the consumer script via importlib (not a package)
 # ---------------------------------------------------------------------------
@@ -285,7 +287,7 @@ class TestMain:
             return_value=self._mock_rate_limit_ok(),
         ), patch(
             "invoke_pr_maintenance.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "invoke_pr_maintenance.get_open_prs",
             return_value=[],
@@ -301,7 +303,7 @@ class TestMain:
             return_value=self._mock_rate_limit_ok(),
         ), patch(
             "invoke_pr_maintenance.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "invoke_pr_maintenance.get_open_prs",
             return_value=[],
