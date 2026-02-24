@@ -50,12 +50,35 @@ Output your analysis in this format:
 ### Gaps
 
 1. [Specific gaps or missing implementations]
-
-VERDICT: PASS
-MESSAGE: [Brief explanation]
 ```
 
-**IMPORTANT**: Output exactly `VERDICT: PASS`, `VERDICT: PARTIAL`, or `VERDICT: FAIL` (no brackets).
+End your analysis with a GitHub Alert block matching the verdict:
+
+For PASS:
+
+```markdown
+> [!TIP]
+> **VERDICT: PASS**
+> All requirements are covered by the implementation.
+```
+
+For PARTIAL:
+
+```markdown
+> [!WARNING]
+> **VERDICT: PARTIAL**
+> Some requirements have gaps. [Brief explanation]
+```
+
+For FAIL:
+
+```markdown
+> [!CAUTION]
+> **VERDICT: FAIL**
+> Critical requirements are not covered. [Brief explanation]
+```
+
+**IMPORTANT**: The alert block must contain exactly `VERDICT: PASS`, `VERDICT: PARTIAL`, or `VERDICT: FAIL` (no brackets around the token).
 
 ## Verdict Guidelines
 
