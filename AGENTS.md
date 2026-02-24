@@ -185,6 +185,21 @@ ANY non-zero exit code from test frameworks blocks commits.
 
 Both "failed" and "error" are failures. Run full test suite before every commit.
 
+### Test Location Standards
+
+| Category | Location | Example |
+|----------|----------|---------|
+| Python unit/integration tests | `tests/` | `tests/test_validate_session_json.py` |
+| Skill-specific tests | `.claude/skills/<name>/tests/` | `.claude/skills/memory/tests/test_schema_validation.py` |
+| Security benchmarks | `.agents/security/benchmarks/` | `.agents/security/benchmarks/test_cwe22_path_traversal.py` |
+
+Rules:
+
+- New Python tests go in `tests/` unless they test a self-contained skill module. Skill tests colocate with the skill under `.claude/skills/<name>/tests/`.
+- Test files follow `test_*.py` naming (Python) or `*.Tests.ps1` naming (PowerShell).
+- Each test directory containing tests must have a `conftest.py` when shared fixtures are needed.
+- `pyproject.toml` configures `testpaths = ["tests", "test"]` for the primary pytest run. Skill-specific and security benchmark tests live within their respective modules and run via explicit paths (e.g., `pytest .claude/skills/<name>/tests/`). Do not add new root-level test directories alongside `tests/`.
+
 ## Tech Stack
 
 | Component | Version | Notes |
