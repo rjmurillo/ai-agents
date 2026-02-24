@@ -47,8 +47,8 @@ def main(argv: list[str] | None = None) -> int:
     try:
         with open("/tmp/feature-review-output.txt", "w", encoding="utf-8") as f:
             f.write(raw_output)
-    except OSError:
-        pass
+    except OSError as e:
+        print(f"Error writing to /tmp/feature-review-output.txt: {e}", file=sys.stderr)
 
     recommendation = get_feature_review_recommendation(raw_output)
     assignees = get_feature_review_assignees(raw_output)

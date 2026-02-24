@@ -18,6 +18,9 @@ _RECOMMENDATION_PATTERN = re.compile(
     r"RECOMMENDATION:\s*(PROCEED|DEFER|REQUEST_EVIDENCE|NEEDS_RESEARCH|DECLINE)"
 )
 
+# Fallback rules when no explicit RECOMMENDATION: line is found.
+# Order matters: DECLINE first (most conservative), then DEFER, then PROCEED.
+# This prevents false positives like "PROCEED but DECLINE if X" from matching PROCEED.
 _KEYWORD_FALLBACK_RULES: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"\bDECLINE\b"), "DECLINE"),
     (re.compile(r"\bDEFER\b"), "DEFER"),
@@ -123,10 +126,10 @@ def get_feature_review_labels(output: str) -> str:
         if label and label.lower() not in _SKIP_WORDS:
             labels.append(label)
 
-    if not labels:
-        for plain_match in _LABEL_PLAIN_PATTERN.finditer(value):
-            label = plain_match.group(1)
-            if label and label.lower() not in _SKIP_WORDS:
-                labels.append(label)
+    # Also extract plain labels even if backtick labels were found
+    for plain_match in _LABEL_PLAIN_PATTERN.finditer(value):
+        label = plain_match.group(1)
+        if label and label.lower() not in _SKIP_WORDS and label not in labels:
+            labels.append(label)
 
     return ",".join(labels)
