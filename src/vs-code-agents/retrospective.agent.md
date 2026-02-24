@@ -1208,13 +1208,13 @@ Process Delta items to capture actionable improvements. Delta items represent ch
 
 **P0/P1 Issue Creation:**
 
-Use GitHub CLI to create issues for high-priority items:
+Use the GitHub skill to create issues for high-priority items:
 
-```bash
-gh issue create \
-    --title "[Retrospective] Delta item description" \
-    --body "## Source\nRetrospective: [session-ref]\n\n## Problem\n[Delta item detail]\n\n## Proposed Solution\n[If known]" \
-    --label "enhancement,source:retrospective,priority:P0"
+```powershell
+pwsh /home/richard/.claude/skills/github/scripts/issue/New-Issue.ps1 `
+    -Title "[Retrospective] Delta item description" `
+    -Body "## Source\nRetrospective: [session-ref]\n\n## Problem\n[Delta item detail]\n\n## Proposed Solution\n[If known]" `
+    -Labels "enhancement,source:retrospective,priority:P0"
 ```
 
 **P2/P3 Backlog Memory Storage:**
