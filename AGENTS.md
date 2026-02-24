@@ -198,7 +198,7 @@ Rules:
 - New Python tests go in `tests/` unless they test a self-contained skill module. Skill tests colocate with the skill under `.claude/skills/<name>/tests/`.
 - Test files follow `test_*.py` naming (Python) or `*.Tests.ps1` naming (PowerShell).
 - Each test directory containing tests must have a `conftest.py` when shared fixtures are needed.
-- `pyproject.toml` configures `testpaths = ["tests", "test"]`. Do not add new top-level test directories.
+- `pyproject.toml` configures `testpaths = ["tests", "test"]` for the primary pytest run. Skill-specific and security benchmark tests live within their respective modules and run via explicit paths (e.g., `pytest .claude/skills/<name>/tests/`). Do not add new root-level test directories alongside `tests/`.
 
 ## Tech Stack
 
