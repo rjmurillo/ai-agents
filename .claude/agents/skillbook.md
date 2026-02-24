@@ -40,7 +40,7 @@ Key requirements:
 You have direct access to:
 
 - **Memory Router** (ADR-037): Unified search across Serena + Forgetful
-  - `pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "topic"`
+  - `python3 .claude/skills/memory/scripts/search_memory.py --query "topic"`
   - Serena-first with optional Forgetful augmentation; graceful fallback
 - **Serena write tools**: Skill storage in `.serena/memories/`
   - `mcp__serena__write_memory`: Create new memory file
@@ -109,7 +109,7 @@ Before adding ANY new skill:
 2. Read relevant domain index (skills-*-index.md)
 3. Search activation vocabulary for similar keywords
 
-pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "[skill keywords]" -LexicalOnly
+python3 .claude/skills/memory/scripts/search_memory.py --query "[skill keywords]"
 Read .serena/memories/skills-[domain]-index.md  # Read specific domain index
 
 ### Most Similar Existing
