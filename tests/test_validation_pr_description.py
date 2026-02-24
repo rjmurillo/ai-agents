@@ -125,6 +125,11 @@ class TestExtractMentionedFiles:
         result = extract_mentioned_files(desc)
         assert len(result) == 3
 
+    def test_command_in_backticks_not_treated_as_file(self) -> None:
+        desc = "- [x] `uv run mypy scripts/homework_scanner.py` (clean)"
+        result = extract_mentioned_files(desc)
+        assert "uv run mypy scripts/homework_scanner.py" not in result
+
 
 # ---------------------------------------------------------------------------
 # validate_pr_description
