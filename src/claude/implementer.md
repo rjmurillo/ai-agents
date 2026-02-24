@@ -650,6 +650,14 @@ Ask: "Does this refactoring unblock my task or improve testability of code I'm c
 
 ### Writing Code
 
+**Before writing new functions or helpers:**
+
+1. Search the codebase for existing functionality that overlaps
+2. Check shared modules and utility files for reusable implementations
+3. Prefer extending existing helpers over creating new ones
+
+**While writing:**
+
 1. Before writing, identify what varies and apply Chesterton's Fence
 2. Ask "how would I test this?" If hard, redesign.
 3. Sergeant methods direct, private methods implement
