@@ -25,6 +25,7 @@ import logging
 import sys
 from pathlib import Path
 
+import frontmatter
 import yaml
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -41,23 +42,18 @@ GLOBAL_SKILL_PATHS = {
 def parse_frontmatter(skill_md: Path) -> dict | None:
     """Extract YAML frontmatter from a SKILL.md file."""
     try:
-        content = skill_md.read_text(encoding="utf-8")
+        post = frontmatter.load(skill_md)
     except OSError as e:
         logger.error("  Cannot read %s: %s", skill_md, e)
         return None
-
-    if not content.startswith("---"):
-        return None
-
-    end = content.find("---", 3)
-    if end == -1:
-        return None
-
-    try:
-        return yaml.safe_load(content[3:end])
     except yaml.YAMLError as e:
         logger.error("  Invalid YAML frontmatter in %s: %s", skill_md, e)
         return None
+
+    if not post.metadata:
+        return None
+
+    return dict(post.metadata)
 
 
 def validate_skill_dir(skill_dir: Path, verbose: bool = False) -> list[str]:
