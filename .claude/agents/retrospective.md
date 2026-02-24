@@ -108,6 +108,7 @@ Phase 5: Recursive Learning Extraction
 
 Phase 6: Close the Retrospective
   |-- +/Delta
+  |-- Delta Triage
   |-- ROTI
   +-- Helped, Hindered, Hypothesis
 ```
@@ -1147,6 +1148,89 @@ Quick self-assessment of the retrospective process.
 
 ### Delta Change
 - [What should be different next time]
+
+### Backlog Candidates
+| Delta Item | Priority | Action |
+|------------|----------|--------|
+| [Item] | P0/P1/P2/P3 | Issue/Memory/Skip |
+````
+
+### Activity: Delta Triage
+
+Process Delta items to capture actionable improvements. Delta items represent change requests that should not be forgotten.
+
+**Actionable Delta Categories:**
+
+| Category | Description | Examples |
+|----------|-------------|----------|
+| **Missing Documentation** | Gaps in guides, READMEs, or inline comments | "Agent didn't know about X script" |
+| **Tool/Script Awareness** | Existing tools that agents fail to discover | "Should have used Y instead of Z" |
+| **Process Improvements** | Workflow or protocol changes | "Need earlier validation step" |
+| **Feature Requests** | New capabilities needed | "Add automated X detection" |
+
+**Triage Protocol:**
+
+1. **Review each Delta item** from the +/Delta output
+2. **Classify as actionable** if it matches a category above
+3. **Assign priority** based on impact and frequency:
+   - **P0**: Blocks core functionality, recurring failures
+   - **P1**: Significant impact, affects multiple sessions
+   - **P2**: Normal improvement, would help efficiency
+   - **P3**: Nice-to-have, low frequency
+4. **Route to destination**:
+   - **P0/P1**: Create GitHub issue immediately
+   - **P2/P3**: Store in backlog memory for future triage
+   - **Skip**: Not actionable or duplicate of existing item
+
+**P0/P1 Issue Creation:**
+
+Use the GitHub skill to create issues for high-priority items:
+
+```powershell
+pwsh /home/richard/.claude/skills/github/scripts/issue/New-Issue.ps1 `
+    -Title "[Retrospective] Delta item description" `
+    -Body "## Source\nRetrospective: [session-ref]\n\n## Problem\n[Delta item detail]\n\n## Proposed Solution\n[If known]" `
+    -Labels "enhancement,source:retrospective,priority:P0"
+```
+
+**P2/P3 Backlog Memory Storage:**
+
+Store lower-priority items in backlog memory for future sessions:
+
+```text
+mcp__serena__write_memory
+memory_file_name: "backlog/retro-{YYYY-MM-DD}-items"
+content: "# Retrospective Backlog Items\n\n## Source\nSession: [session-ref]\n\n## Items\n\n| Item | Priority | Category | Status |\n|------|----------|----------|--------|\n| [Delta item] | P2/P3 | [Category] | pending |"
+```
+
+**Delta Triage Template:**
+
+````markdown
+## Delta Triage
+
+### Actionable Items Identified
+
+| Delta Item | Category | Priority | Destination | Reference |
+|------------|----------|----------|-------------|-----------|
+| [Item from Delta] | [Missing Docs/Tool Gap/Process/Feature] | P0/P1/P2/P3 | Issue #N / Memory / Skip | [Link] |
+
+### Issues Created
+
+| Issue | Title | Priority | Labels |
+|-------|-------|----------|--------|
+| #[N] | [Title] | P0/P1 | enhancement, source:retrospective |
+
+### Backlog Items Stored
+
+| Item | Priority | Memory File |
+|------|----------|-------------|
+| [Item] | P2/P3 | backlog/retro-YYYY-MM-DD-items.md |
+
+### Skipped Items
+
+| Item | Reason |
+|------|--------|
+| [Item] | [Duplicate of #X / Not actionable / Already addressed] |
 ````
 
 ### Activity: ROTI (Return on Time Invested)
