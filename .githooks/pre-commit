@@ -159,7 +159,7 @@ if [ "$IS_MERGE" = "1" ] && [ -n "$MERGE_BASE" ]; then
         while IFS= read -r staged_file; do
             [ -z "$staged_file" ] && continue
             # Check if this file was changed in the branch
-            if echo "$BRANCH_FILES" | grep -qxF "$staged_file"; then
+            if printf '%s\n' "$BRANCH_FILES" | grep -qxF -- "$staged_file"; then
                 FILTERED_STAGED="${FILTERED_STAGED}${staged_file}"$'\n'
             fi
         done <<< "$STAGED_FILES"
