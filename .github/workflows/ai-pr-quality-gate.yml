@@ -619,6 +619,7 @@ jobs:
           ARCHITECT_CATEGORY: ${{ steps.aggregate.outputs.architect_category }}
           DEVOPS_CATEGORY: ${{ steps.aggregate.outputs.devops_category }}
           ROADMAP_CATEGORY: ${{ steps.aggregate.outputs.roadmap_category }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
         run: python3 .github/scripts/generate_quality_report.py
 
       - name: Check for infrastructure failures and add label
