@@ -51,10 +51,10 @@ The CSV data contains PR metrics with these columns:
 
 | Metric | Value | Target | Status |
 |--------|-------|--------|--------|
-| Avg Time to First Review | HH:MM | <4h | PASS/WARN/FAIL |
-| Avg Comments per PR | N | <5 | PASS/WARN/FAIL |
-| Avg Review Duration | HH:MM | <24h | PASS/WARN/FAIL |
-| Avg Approval to Merge | HH:MM | <2h | PASS/WARN/FAIL |
+| Avg Time to First Review | HH:MM | <4h | [PASS]/[WARNING]/[FAIL] |
+| Avg Comments per PR | N | <5 | [PASS]/[WARNING]/[FAIL] |
+| Avg Review Duration | HH:MM | <24h | [PASS]/[WARNING]/[FAIL] |
+| Avg Approval to Merge | HH:MM | <2h | [PASS]/[WARNING]/[FAIL] |
 
 ### Trends
 
@@ -70,15 +70,18 @@ Describe any patterns observed: improving, stable, or degrading.
 
 Numbered list of specific, actionable improvements with expected impact.
 
-### Verdict
+### Conclusion
 
-Use one of:
+Use one of the following verdicts:
 
-- `VERDICT: PASS` - Metrics are within acceptable ranges
-- `VERDICT: WARN` - Some metrics need attention
-- `VERDICT: CRITICAL_FAIL` - Significant process issues detected
+- `PASS`: Metrics are within acceptable ranges
+- `WARN`: Some metrics need attention
+- `CRITICAL_FAIL`: Significant process issues detected
+
+The final output must be in this format:
 
 ```text
-VERDICT: [PASS|WARN|CRITICAL_FAIL]
-MESSAGE: [Brief explanation of overall health]
+**Verdict**: [PASS|WARN|CRITICAL_FAIL]
+**Confidence**: [High|Medium|Low]
+**Rationale**: [Brief explanation of overall health]
 ```
