@@ -65,7 +65,7 @@ For PASS:
 ```markdown
 > [!TIP]
 > **VERDICT: PASS**
-> Implementation aligns with specification requirements.
+> Implementation aligns with specification requirements. [Brief explanation]
 ```
 
 For PARTIAL:

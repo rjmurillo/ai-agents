@@ -59,7 +59,7 @@ For PASS:
 ```markdown
 > [!TIP]
 > **VERDICT: PASS**
-> All requirements are covered by the implementation.
+> All requirements are covered by the implementation. [Brief explanation]
 ```
 
 For PARTIAL:
