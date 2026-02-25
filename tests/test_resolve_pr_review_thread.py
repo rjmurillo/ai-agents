@@ -158,3 +158,176 @@ class TestMain:
         ):
             rc = main(["--pull-request", "10"])
         assert rc == 3
+
+    def test_all_threads_resolved_successfully(self, capsys):
+        threads = [
+            {
+                "id": "PRRT_1",
+                "isResolved": False,
+                "comments": {"nodes": [
+                    {"databaseId": 100, "author": {"login": "user1"}},
+                ]},
+            },
+            {
+                "id": "PRRT_2",
+                "isResolved": False,
+                "comments": {"nodes": [
+                    {"databaseId": 200, "author": {"login": "user2"}},
+                ]},
+            },
+        ]
+        with patch(
+            "resolve_pr_review_thread.assert_gh_authenticated",
+        ), patch(
+            "resolve_pr_review_thread.get_unresolved_threads",
+            return_value=threads,
+        ), patch(
+            "resolve_pr_review_thread.resolve_review_thread",
+            return_value=True,
+        ):
+            rc = main(["--pull-request", "10"])
+        assert rc == 0
+        stdout = capsys.readouterr().out
+        json_start = stdout.rfind("{")
+        output = json.loads(stdout[json_start:])
+        assert output["Resolved"] == 2
+        assert output["Failed"] == 0
+        assert output["Success"] is True
+
+    def test_partial_resolution_returns_1(self, capsys):
+        threads = [
+            {
+                "id": "PRRT_1",
+                "isResolved": False,
+                "comments": {"nodes": [
+                    {"databaseId": 100, "author": {"login": "user1"}},
+                ]},
+            },
+            {
+                "id": "PRRT_2",
+                "isResolved": False,
+                "comments": {"nodes": []},
+            },
+        ]
+        with patch(
+            "resolve_pr_review_thread.assert_gh_authenticated",
+        ), patch(
+            "resolve_pr_review_thread.get_unresolved_threads",
+            return_value=threads,
+        ), patch(
+            "resolve_pr_review_thread.resolve_review_thread",
+            side_effect=[True, False],
+        ):
+            rc = main(["--pull-request", "10"])
+        assert rc == 1
+        stdout = capsys.readouterr().out
+        json_start = stdout.rfind("{")
+        output = json.loads(stdout[json_start:])
+        assert output["Resolved"] == 1
+        assert output["Failed"] == 1
+        assert output["Success"] is False
+
+    def test_thread_with_empty_comments(self, capsys):
+        threads = [
+            {
+                "id": "PRRT_1",
+                "isResolved": False,
+                "comments": {"nodes": []},
+            },
+        ]
+        with patch(
+            "resolve_pr_review_thread.assert_gh_authenticated",
+        ), patch(
+            "resolve_pr_review_thread.get_unresolved_threads",
+            return_value=threads,
+        ), patch(
+            "resolve_pr_review_thread.resolve_review_thread",
+            return_value=True,
+        ):
+            rc = main(["--pull-request", "10"])
+        assert rc == 0
+
+
+# ---------------------------------------------------------------------------
+# Tests: get_unresolved_threads
+# ---------------------------------------------------------------------------
+
+
+class TestGetUnresolvedThreads:
+    def test_returns_unresolved_threads(self):
+        repo_json = json.dumps({"owner": {"login": "o"}, "name": "r"})
+        graphql_data = {
+            "repository": {
+                "pullRequest": {
+                    "reviewThreads": {
+                        "nodes": [
+                            {"id": "t1", "isResolved": False, "comments": {"nodes": []}},
+                            {"id": "t2", "isResolved": True, "comments": {"nodes": []}},
+                            {"id": "t3", "isResolved": False, "comments": {"nodes": []}},
+                        ],
+                    },
+                },
+            },
+        }
+        with patch(
+            "subprocess.run",
+            return_value=_completed(stdout=repo_json, rc=0),
+        ), patch(
+            "resolve_pr_review_thread.gh_graphql",
+            return_value=graphql_data,
+        ):
+            result = get_unresolved_threads(42)
+        assert len(result) == 2
+        assert all(not t["isResolved"] for t in result)
+
+    def test_repo_view_failure_raises(self):
+        with patch(
+            "subprocess.run",
+            return_value=_completed(rc=1, stderr="not logged in"),
+        ):
+            with pytest.raises(RuntimeError, match="Failed to get repo info"):
+                get_unresolved_threads(42)
+
+    def test_empty_threads_returns_empty(self):
+        repo_json = json.dumps({"owner": {"login": "o"}, "name": "r"})
+        graphql_data = {
+            "repository": {
+                "pullRequest": {
+                    "reviewThreads": {
+                        "nodes": [],
+                    },
+                },
+            },
+        }
+        with patch(
+            "subprocess.run",
+            return_value=_completed(stdout=repo_json, rc=0),
+        ), patch(
+            "resolve_pr_review_thread.gh_graphql",
+            return_value=graphql_data,
+        ):
+            result = get_unresolved_threads(42)
+        assert result == []
+
+    def test_all_resolved_returns_empty(self):
+        repo_json = json.dumps({"owner": {"login": "o"}, "name": "r"})
+        graphql_data = {
+            "repository": {
+                "pullRequest": {
+                    "reviewThreads": {
+                        "nodes": [
+                            {"id": "t1", "isResolved": True, "comments": {"nodes": []}},
+                        ],
+                    },
+                },
+            },
+        }
+        with patch(
+            "subprocess.run",
+            return_value=_completed(stdout=repo_json, rc=0),
+        ), patch(
+            "resolve_pr_review_thread.gh_graphql",
+            return_value=graphql_data,
+        ):
+            result = get_unresolved_threads(42)
+        assert result == []

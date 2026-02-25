@@ -168,9 +168,9 @@ jobs:
           echo "::warning::Found ${{ steps.parse.outputs.stale }} memories with stale citations"
           # Currently non-blocking - change to 'exit 1' to make blocking
 
-  # Pass-through job: emits SUCCESS for "Validate memory citations" required check
-  # when path filter skips the real validation job (issue #1168).
-  # Name must match validate-memories job name for branch protection.
+  # Pass-through job: satisfies required "Validate memory citations" check when
+  # path filter skips the real validation job. GitHub branch protection requires
+  # SUCCESS (not SKIPPED) for required checks. See issue #1168.
   skip-validation:
     name: Validate memory citations
     needs: check-paths
@@ -178,4 +178,5 @@ jobs:
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 1
     steps:
-      - run: echo "No memory or code changes detected, skipping validation"
+      - name: No relevant changes
+        run: echo "Skipped - no memory or code changes detected"

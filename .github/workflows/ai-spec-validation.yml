@@ -89,21 +89,25 @@ jobs:
               - 'build/**'
               - '.claude/skills/**'
 
-  # Pass-through job: emits SUCCESS for "Validate Spec Coverage" required check
-  # when path filter skips the real validation job (issue #1168)
-  skip-spec:
+  # Pass-through job: satisfies required "Validate Spec Coverage" check when
+  # path filter skips the real validation job. GitHub branch protection requires
+  # SUCCESS (not SKIPPED) for required checks. See issue #1168.
+  validate-spec-skip:
     name: Validate Spec Coverage
-    runs-on: ubuntu-24.04-arm
     needs: check-paths
-    if: needs.check-paths.outputs.has-code-changes != 'true'
+    if: always() && needs.check-paths.result == 'success' && needs.check-paths.outputs.has-code-changes != 'true'
+    runs-on: ubuntu-24.04-arm
     steps:
-      - run: echo "No code changes detected, skipping spec validation"
+      - name: No code changes
+        run: echo "Skipped - no code changes detected"
 
   validate-spec:
     name: Validate Spec Coverage
     needs: check-paths
     # Only run full validation when code paths are changed
-    if: needs.check-paths.outputs.has-code-changes == 'true'
+    # always() required: transitive dependency on debounce (which may be SKIPPED)
+    # would otherwise cause this job to be skipped even when check-paths succeeds
+    if: always() && needs.check-paths.result == 'success' && needs.check-paths.outputs.has-code-changes == 'true'
     # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 15
@@ -116,11 +120,12 @@ jobs:
 
       - name: Extract Spec References
         id: spec-ref
+        env:
+          PR_TITLE_INPUT: ${{ github.event.pull_request.title }}
+          PR_BODY_INPUT: ${{ github.event.pull_request.body }}
         run: |
-          # Capture PR context; fallback to gh for workflow_dispatch runs
-          PR_TITLE_INPUT="${{ github.event.pull_request.title }}"
-          PR_BODY_INPUT="${{ github.event.pull_request.body }}"
-
+          # PR context passed via env vars to avoid shell injection from
+          # backticks and other special characters in PR title/body
           if [ -z "$PR_TITLE_INPUT" ] && [ -z "$PR_BODY_INPUT" ]; then
             PR_TITLE_INPUT=$(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json title -q .title 2>/dev/null || true)
             PR_BODY_INPUT=$(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json body -q .body 2>/dev/null || true)
@@ -313,4 +318,6 @@ jobs:
         env:
           TRACE_VERDICT: ${{ steps.trace.outputs.verdict }}
           COMPLETENESS_VERDICT: ${{ steps.completeness.outputs.verdict }}
+          TRACE_INFRA_FAILURE: ${{ steps.trace.outputs['infrastructure-failure'] }}
+          COMPLETENESS_INFRA_FAILURE: ${{ steps.completeness.outputs['infrastructure-failure'] }}
         run: python3 .github/scripts/check_spec_failures.py

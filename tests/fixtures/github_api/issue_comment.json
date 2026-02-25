@@ -1,0 +1,12 @@
+{
+  "_description": "Canonical GitHub REST API issue comment shape (GET /repos/{owner}/{repo}/issues/{issue_number}/comments). Used for mock fidelity validation.",
+  "id": 1001,
+  "body": "This is a comment on the issue.",
+  "user": {
+    "login": "commenter",
+    "id": 12345
+  },
+  "created_at": "2025-01-01T12:00:00Z",
+  "updated_at": "2025-01-01T12:00:00Z",
+  "author_association": "MEMBER"
+}

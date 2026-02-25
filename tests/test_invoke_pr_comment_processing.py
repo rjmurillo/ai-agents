@@ -10,6 +10,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from scripts.github_core.api import RepoInfo
 
 # ---------------------------------------------------------------------------
 # Import the consumer script via importlib (not a package)
@@ -230,7 +231,7 @@ class TestMain:
         findings = _make_findings([])
         with patch(
             "invoke_pr_comment_processing.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ):
             rc = main([
                 "--pr-number", "1",
@@ -243,7 +244,7 @@ class TestMain:
         findings = _make_findings([{"id": 1, "classification": "stale"}])
         with patch(
             "invoke_pr_comment_processing.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch("subprocess.run", return_value=_completed(rc=0)):
             rc = main([
                 "--pr-number", "1",
@@ -256,7 +257,7 @@ class TestMain:
         findings = _make_findings([{"id": 1, "classification": "stale"}])
         with patch(
             "invoke_pr_comment_processing.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch("subprocess.run", return_value=_completed(rc=1, stderr="err")):
             rc = main([
                 "--pr-number", "1",
