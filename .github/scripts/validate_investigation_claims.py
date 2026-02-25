@@ -1,7 +1,12 @@
-#!/usr/bin/env python3
+#\!/usr/bin/env python3
 """CI backstop for investigation-only QA skip claims per ADR-034.
 
 Validates commits claiming "SKIPPED: investigation-only" have only allowed files.
+Also validates investigation-only claims against the shared allowlist.
+
+CI backstop for ADR-034: re-validates that commits claiming investigation-only
+status only modified files within the investigation allowlist. Advisory only,
+logs violations for metrics without blocking.
 
 Exit codes per ADR-035:
     0 - Validation passed (all claims valid)
@@ -10,6 +15,13 @@ Exit codes per ADR-035:
 Input:
     --session-dir: Directory containing session log JSON files
     --commits: Comma-separated commit SHAs to validate (optional)
+    --base-ref: Base ref for diff comparison (default: HEAD~1)
+    --head-ref: Head ref for diff comparison (default: HEAD)
+    --mode: Validation mode: session (default), diff, or both
+
+Input env vars (used as defaults for CLI args):
+    GITHUB_OUTPUT    - Path to GitHub Actions output file
+    GITHUB_WORKSPACE - Workspace root (for package imports)
 
 Output:
     JSON report with violations to stdout
@@ -34,6 +46,10 @@ workspace = os.environ.get(
 sys.path.insert(0, workspace)
 
 from scripts.ai_review_common import write_log, write_output  # noqa: E402
+from scripts.modules.investigation_allowlist import (  # noqa: E402
+    get_investigation_allowlist_display,
+    test_file_matches_allowlist,
+)
 
 # Investigation allowlist patterns per ADR-034 + authorized extensions
 # Must match .claude/skills/session/scripts/test_investigation_eligibility.py
@@ -89,7 +105,7 @@ def get_files_in_commit(commit_sha: str) -> list[str]:
         timeout=30,
         check=False,
     )
-    if result.returncode != 0:
+    if result.returncode \!= 0:
         write_log(f"WARNING: Could not get files for commit {commit_sha}")
         return []
 
@@ -129,7 +145,7 @@ def get_commit_for_session(session_path: Path) -> str | None:
         timeout=30,
         check=False,
     )
-    if result.returncode != 0 or not result.stdout.strip():
+    if result.returncode \!= 0 or not result.stdout.strip():
         return None
     return result.stdout.strip()[:7]  # Short SHA
 
@@ -187,6 +203,30 @@ def validate_investigation_claims(
     return result
 
 
+def get_changed_files(base_ref: str, head_ref: str) -> list[str]:
+    """Get list of changed files between two refs."""
+    result = subprocess.run(
+        ["git", "diff", "--name-only", base_ref, head_ref],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode \!= 0:
+        write_log(f"WARNING: git diff failed: {result.stderr.strip()}")
+        return []
+    return [f for f in result.stdout.strip().split("\n") if f]
+
+
+def validate_claims(changed_files: list[str]) -> list[str]:
+    """Return files that violate the investigation-only allowlist."""
+    return [f for f in changed_files if not test_file_matches_allowlist(f)]
+
+
+def _validate_ref(ref: str) -> bool:
+    """Reject refs starting with a dash to prevent argument injection (CWE-78)."""
+    return not ref.startswith("-")
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build argument parser."""
     parser = argparse.ArgumentParser(
@@ -211,6 +251,22 @@ def build_parser() -> argparse.ArgumentParser:
         default="text",
         help="Output format",
     )
+    parser.add_argument(
+        "--base-ref",
+        default="HEAD~1",
+        help="Base ref for diff comparison (default: HEAD~1)",
+    )
+    parser.add_argument(
+        "--head-ref",
+        default="HEAD",
+        help="Head ref for diff comparison (default: HEAD)",
+    )
+    parser.add_argument(
+        "--mode",
+        choices=["session", "diff", "both"],
+        default="both",
+        help="Validation mode: session (session-log), diff (git-diff), both (default)",
+    )
     return parser
 
 
@@ -218,63 +274,113 @@ def main(argv: list[str] | None = None) -> int:
     """Main entry point."""
     args = build_parser().parse_args(argv)
 
-    if not args.session_dir.exists():
-        write_log(f"Session directory not found: {args.session_dir}")
-        print(f"ERROR: Session directory not found: {args.session_dir}")
+    if not _validate_ref(args.base_ref) or not _validate_ref(args.head_ref):
+        print(
+            f"::error::Refs cannot start with a dash to prevent argument injection: "
+            f"base='{args.base_ref}', head='{args.head_ref}'",
+            file=sys.stderr,
+        )
         return 1
 
-    commits = [c.strip() for c in args.commits.split(",") if c.strip()] or None
+    exit_code = 0
 
-    result = validate_investigation_claims(args.session_dir, commits)
+    # Session-log mode: validate session files claiming investigation-only
+    if args.mode in ("session", "both"):
+        if not args.session_dir.exists():
+            write_log(f"Session directory not found: {args.session_dir}")
+            print(f"ERROR: Session directory not found: {args.session_dir}")
+            return 1
 
-    # Write GitHub Actions outputs
-    write_output("verdict", "PASS" if result.valid else "FAIL")
-    write_output("violation_count", str(len(result.violations)))
+        commits = [c.strip() for c in args.commits.split(",") if c.strip()] or None
 
-    if result.violations:
-        violations_json = json.dumps(
-            [
-                {
-                    "session": v.session_file,
-                    "commit": v.commit_sha,
-                    "files": v.disallowed_files,
-                }
-                for v in result.violations
-            ]
-        )
-        write_output("violations", violations_json)
+        result = validate_investigation_claims(args.session_dir, commits)
 
-    # Output report
-    if args.output_format == "json":
-        report = {
-            "valid": result.valid,
-            "sessions_checked": result.sessions_checked,
-            "claims_found": result.claims_found,
-            "violations": [
-                {
-                    "session_file": v.session_file,
-                    "commit_sha": v.commit_sha,
-                    "disallowed_files": v.disallowed_files,
-                }
-                for v in result.violations
-            ],
-        }
-        print(json.dumps(report, indent=2))
-    else:
-        print("Investigation-Only Claim Validation")
-        print(f"Sessions checked: {result.sessions_checked}")
-        print(f"Claims found: {result.claims_found}")
-        print(f"Violations: {len(result.violations)}")
+        # Write GitHub Actions outputs
+        write_output("verdict", "PASS" if result.valid else "FAIL")
+        write_output("violation_count", str(len(result.violations)))
 
         if result.violations:
-            print()
-            print("VIOLATIONS DETECTED:")
-            for v in result.violations:
-                print(f"  Session: {v.session_file} (commit {v.commit_sha})")
-                for f in v.disallowed_files:
-                    print(f"    - {f}")
+            violations_json = json.dumps(
+                [
+                    {
+                        "session": v.session_file,
+                        "commit": v.commit_sha,
+                        "files": v.disallowed_files,
+                    }
+                    for v in result.violations
+                ]
+            )
+            write_output("violations", violations_json)
 
-    return 0 if result.valid else 1
+        # Output report
+        if args.output_format == "json":
+            report = {
+                "valid": result.valid,
+                "sessions_checked": result.sessions_checked,
+                "claims_found": result.claims_found,
+                "violations": [
+                    {
+                        "session_file": v.session_file,
+                        "commit_sha": v.commit_sha,
+                        "disallowed_files": v.disallowed_files,
+                    }
+                    for v in result.violations
+                ],
+            }
+            print(json.dumps(report, indent=2))
+        else:
+            print("Investigation-Only Claim Validation")
+            print(f"Sessions checked: {result.sessions_checked}")
+            print(f"Claims found: {result.claims_found}")
+            print(f"Violations: {len(result.violations)}")
+
+            if result.violations:
+                print()
+                print("VIOLATIONS DETECTED:")
+                for v in result.violations:
+                    print(f"  Session: {v.session_file} (commit {v.commit_sha})")
+                    for f in v.disallowed_files:
+                        print(f"    - {f}")
+
+        if not result.valid:
+            exit_code = 1
+
+    # Diff mode: validate changed files against shared allowlist
+    if args.mode in ("diff", "both"):
+        changed_files = get_changed_files(args.base_ref, args.head_ref)
+        if not changed_files:
+            write_log("No changed files found.")
+            write_output("investigation_violations", "0")
+            write_output("violation_details", "")
+        else:
+            write_log(f"Checking {len(changed_files)} changed file(s) against allowlist")
+
+            violations = validate_claims(changed_files)
+
+            write_output("investigation_violations", str(len(violations)))
+
+            if violations:
+                details = "\n".join(f"  - {v}" for v in violations)
+                write_output("violation_details", details)
+                write_log(
+                    f"Investigation-only claim violated by {len(violations)} file(s):"
+                )
+                for v in violations:
+                    write_log(f"  {v}")
+                write_log("")
+                write_log("Allowed paths:")
+                for path in get_investigation_allowlist_display():
+                    write_log(f"  {path}")
+                print(
+                    f"::warning::Investigation-only claim violated by "
+                    f"{len(violations)} file(s). This is advisory only.",
+                    file=sys.stderr,
+                )
+            else:
+                write_output("violation_details", "")
+                write_log("All changed files match investigation-only allowlist.")
+
+    return exit_code
 
 
 if __name__ == "__main__":

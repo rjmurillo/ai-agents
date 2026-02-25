@@ -36,7 +36,7 @@ Task(subagent_type="analyst", prompt="Investigate API latency issues")
 
 ### Agent Count
 
-This system includes **19 specialized agents** organized into 5 categories.
+This system includes **20 specialized agents** organized into 5 categories.
 
 ---
 
@@ -300,6 +300,40 @@ on release tags. Include security scanning.
 ```text
 @security Review the OAuth implementation for vulnerabilities.
 Create a threat model and identify required controls.
+```
+
+---
+
+#### merge-resolver
+
+**File**: `src/claude/merge-resolver.md`
+
+**Role**: Resolves git merge conflicts by analyzing commit history and code intent
+
+**Specialization**: Git conflict analysis, intent classification, heuristic-based resolution
+
+**Input**:
+- PR number or branch name with conflicts
+- Base and head branch references
+
+**Output**:
+- Resolved conflict files (staged)
+- Resolution report with confidence scores
+- Merge commit with rationale
+
+**Delegates To**: None (returns to orchestrator)
+
+**Called By**: orchestrator, implementer, qa
+
+**When to Use**:
+- PR has merge conflicts with base branch
+- Rebase failures need systematic resolution
+- Automated conflict resolution for known patterns
+
+**Example Invocation**:
+```text
+@merge-resolver Resolve conflicts on PR #123. The PR branch has diverged
+from main with conflicts in 3 source files.
 ```
 
 ---

@@ -450,7 +450,7 @@ fi
 1. **Run retrospective analysis**: Determine why the PR required so many commits
 
    ```text
-   #runSubagent with subagentType=retrospective
+   /agent retrospective
    Analyze PR #[number] to determine why it exceeded commit thresholds.
 
    Focus on:

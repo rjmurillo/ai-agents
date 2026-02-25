@@ -19,7 +19,6 @@ import argparse
 import json
 import re
 import sys
-from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -29,20 +28,7 @@ _PROJECT_ROOT = _SCRIPT_DIR.parent
 sys.path.insert(0, str(_PROJECT_ROOT))
 
 from scripts.utils.path_validation import validate_safe_path  # noqa: E402
-
-
-@dataclass
-class ValidationResult:
-    """Result of session log validation."""
-
-    errors: list[str] = field(default_factory=list)
-    warnings: list[str] = field(default_factory=list)
-
-    @property
-    def is_valid(self) -> bool:
-        """Return True if no errors were found."""
-        return len(self.errors) == 0
-
+from scripts.validation.types import ValidationResult  # noqa: E402
 
 # Required session fields
 REQUIRED_SESSION_FIELDS = frozenset({"number", "date", "branch", "startingCommit", "objective"})

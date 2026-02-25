@@ -39,26 +39,80 @@ inputs:
     description: 'Additional context to pass to the AI agent (e.g., pre-executed test results)'
     required: false
     default: ''
+  commit-sha:
+    description: 'Commit SHA for cache key (same commit = same diff = cache hit)'
+    required: false
+    default: ''
+  bypass-cache:
+    description: 'Bypass cached results and force fresh Copilot API call'
+    required: false
+    default: 'false'
 
 outputs:
   verdict:
     description: 'Review verdict (PASS, WARN, FAIL, CRITICAL_FAIL, REJECTED, NEEDS_REVIEW)'
-    value: ${{ steps.review.outputs.verdict }}
+    value: ${{ steps.cache.outputs.cache-hit == 'true' && steps.cached-results.outputs.verdict || steps.review.outputs.verdict }}
   findings:
     description: 'Review findings'
-    value: ${{ steps.review.outputs.findings }}
+    value: ${{ steps.cache.outputs.cache-hit == 'true' && steps.cached-results.outputs.findings || steps.review.outputs.findings }}
   infrastructure-failure:
     description: 'Whether review failed due to infrastructure issues'
-    value: ${{ steps.review.outputs.infrastructure-failure }}
+    value: ${{ steps.cache.outputs.cache-hit == 'true' && steps.cached-results.outputs.infrastructure_failure || steps.review.outputs.infrastructure-failure }}
   retry-count:
     description: 'Number of retries attempted'
-    value: ${{ steps.review.outputs.retry-count }}
+    value: ${{ steps.cache.outputs.cache-hit == 'true' && '0' || steps.review.outputs.retry-count }}
+  cache-hit:
+    description: 'Whether cached results were used'
+    value: ${{ steps.cache.outputs.cache-hit == 'true' && 'true' || 'false' }}
 
 runs:
   using: 'composite'
   steps:
-    - name: ${{ inputs.emoji }} ${{ inputs.agent }} Review
+    # CWE-22 mitigation: validate agent name before any file path usage
+    - name: Validate agent name
       if: inputs.should-run == 'true'
+      shell: bash
+      env:
+        AGENT: ${{ inputs.agent }}
+      run: |
+        if [[ ! "$AGENT" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+          echo "::error::Invalid agent name: $AGENT. Must match '^[a-zA-Z0-9_-]+$'."
+          exit 1
+        fi
+
+    # Cache check: restore previous review results for same commit + prompt
+    - name: Restore cached review
+      if: inputs.should-run == 'true' && inputs.commit-sha != '' && inputs.bypass-cache != 'true'
+      id: cache
+      uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4
+      with:
+        path: ai-review-cache/${{ inputs.agent }}
+        key: ai-review-${{ inputs.agent }}-${{ inputs.commit-sha }}-${{ hashFiles(inputs.prompt-file) }}
+
+    - name: Load cached results
+      if: inputs.should-run == 'true' && steps.cache.outputs.cache-hit == 'true'
+      id: cached-results
+      shell: bash
+      env:
+        AGENT: ${{ inputs.agent }}
+      run: |
+        if [[ ! "$AGENT" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+          echo "::error::Invalid agent name: $AGENT. Must match '^[a-zA-Z0-9_-]+$'."
+          exit 1
+        fi
+        echo "Cache hit for $AGENT review, skipping Copilot API call"
+        CACHE_DIR="ai-review-cache/$AGENT"
+        echo "verdict=$(cat "$CACHE_DIR/verdict.txt")" >> $GITHUB_OUTPUT
+        echo "infrastructure_failure=$(cat "$CACHE_DIR/infrastructure-failure.txt" 2>/dev/null || echo false)" >> $GITHUB_OUTPUT
+        echo "retry_count=0" >> $GITHUB_OUTPUT
+        {
+          echo "findings<<EOF_CACHED_FINDINGS"
+          cat "$CACHE_DIR/findings.txt"
+          echo "EOF_CACHED_FINDINGS"
+        } >> $GITHUB_OUTPUT
+
+    - name: ${{ inputs.emoji }} ${{ inputs.agent }} Review
+      if: inputs.should-run == 'true' && steps.cache.outputs.cache-hit != 'true'
       id: review
       uses: ./.github/actions/ai-review
       with:
@@ -71,15 +125,50 @@ runs:
         copilot-token: ${{ inputs.copilot-token }}
         additional-context: ${{ inputs.additional-context }}
 
-    - name: Save review results
-      if: inputs.should-run == 'true'
-      shell: pwsh -NoProfile -Command "& '{0}'"
+    # Save results to cache directory for future runs
+    - name: Populate cache directory
+      if: always() && inputs.should-run == 'true' && steps.cache.outputs.cache-hit != 'true' && inputs.commit-sha != ''
+      shell: bash
       env:
         AGENT: ${{ inputs.agent }}
         VERDICT: ${{ steps.review.outputs.verdict }}
         FINDINGS: ${{ steps.review.outputs.findings }}
-        INFRASTRUCTURE_FAILURE: ${{ steps.review.outputs.infrastructure-failure }}
-        RETRY_COUNT: ${{ steps.review.outputs.retry-count }}
+        INFRA_FAILURE: ${{ steps.review.outputs.infrastructure-failure }}
+      run: |
+        if [[ ! "$AGENT" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+          echo "::error::Invalid agent name: $AGENT. Must match '^[a-zA-Z0-9_-]+$'."
+          exit 1
+        fi
+        # Only cache successful reviews (not infrastructure failures)
+        if [ "$INFRA_FAILURE" = "true" ]; then
+          echo "Skipping cache save: infrastructure failure"
+          exit 0
+        fi
+        CACHE_DIR="ai-review-cache/$AGENT"
+        mkdir -p "$CACHE_DIR"
+        printf '%s' "${VERDICT:-NEEDS_REVIEW}" > "$CACHE_DIR/verdict.txt"
+        printf '%s' "$FINDINGS" > "$CACHE_DIR/findings.txt"
+        printf '%s' "${INFRA_FAILURE:-false}" > "$CACHE_DIR/infrastructure-failure.txt"
+        echo "Populated cache directory for $AGENT"
+
+    - name: Save cache
+      if: always() && inputs.should-run == 'true' && steps.cache.outputs.cache-hit != 'true' && inputs.commit-sha != ''
+      uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4
+      with:
+        path: ai-review-cache/${{ inputs.agent }}
+        key: ai-review-${{ inputs.agent }}-${{ inputs.commit-sha }}-${{ hashFiles(inputs.prompt-file) }}
+      continue-on-error: true
+
+    - name: Save review results
+      if: always() && inputs.should-run == 'true'
+      shell: pwsh -NoProfile -Command "& '{0}'"
+      env:
+        AGENT: ${{ inputs.agent }}
+        VERDICT: ${{ steps.cache.outputs.cache-hit == 'true' && steps.cached-results.outputs.verdict || steps.review.outputs.verdict }}
+        FINDINGS: ${{ steps.cache.outputs.cache-hit == 'true' && steps.cached-results.outputs.findings || steps.review.outputs.findings }}
+        INFRASTRUCTURE_FAILURE: ${{ steps.cache.outputs.cache-hit == 'true' && steps.cached-results.outputs.infrastructure_failure || steps.review.outputs.infrastructure-failure }}
+        RETRY_COUNT: ${{ steps.cache.outputs.cache-hit == 'true' && '0' || steps.review.outputs.retry-count }}
+        CACHE_HIT: ${{ steps.cache.outputs.cache-hit }}
       run: |
         $ErrorActionPreference = 'Stop'
         # CWE-22 mitigation: Validate agent name against allowlist
@@ -88,17 +177,29 @@ runs:
           throw "Invalid agent name: $($env:AGENT). Must be one of: $($allowedAgents -join ', ')"
         }
 
+        # Default empty verdict to NEEDS_REVIEW so aggregate job can process it
+        $verdict = $env:VERDICT
+        if ([string]::IsNullOrWhiteSpace($verdict)) {
+          $verdict = 'NEEDS_REVIEW'
+          Write-Output "::warning::Verdict was empty, defaulting to NEEDS_REVIEW"
+        }
+
+        if ($env:CACHE_HIT -eq 'true') {
+          Write-Output "Using cached review result for $($env:AGENT)"
+        }
+
         $basePath = "ai-review-results"
         New-Item -ItemType Directory -Path $basePath -Force | Out-Null
-        $env:VERDICT | Set-Content "$basePath/$($env:AGENT)-verdict.txt" -NoNewline
+        $verdict | Set-Content "$basePath/$($env:AGENT)-verdict.txt" -NoNewline
         $env:FINDINGS | Set-Content "$basePath/$($env:AGENT)-findings.txt" -NoNewline
         $env:INFRASTRUCTURE_FAILURE | Set-Content "$basePath/$($env:AGENT)-infrastructure-failure.txt" -NoNewline
         $env:RETRY_COUNT | Set-Content "$basePath/$($env:AGENT)-retry-count.txt" -NoNewline
         Write-Output "Saved $($env:AGENT) results:"
-        Write-Output "  Verdict: $($env:VERDICT)"
+        Write-Output "  Verdict: $verdict"
         Write-Output "  Findings: $((Get-Item "$basePath/$($env:AGENT)-findings.txt").Length) bytes"
         Write-Output "  Infrastructure failure: $($env:INFRASTRUCTURE_FAILURE)"
         Write-Output "  Retry count: $($env:RETRY_COUNT)"
+        Write-Output "  Cache hit: $($env:CACHE_HIT)"
 
     - name: Upload review results
       if: always() && inputs.should-run == 'true'
@@ -114,12 +215,13 @@ runs:
       env:
         AGENT: ${{ inputs.agent }}
         EMOJI: ${{ inputs.emoji }}
-        VERDICT: ${{ steps.review.outputs.verdict }}
-        FINDINGS: ${{ steps.review.outputs.findings }}
+        VERDICT: ${{ steps.cache.outputs.cache-hit == 'true' && steps.cached-results.outputs.verdict || steps.review.outputs.verdict }}
+        FINDINGS: ${{ steps.cache.outputs.cache-hit == 'true' && steps.cached-results.outputs.findings || steps.review.outputs.findings }}
         RUN_ID: ${{ github.run_id }}
         SERVER_URL: ${{ github.server_url }}
         REPOSITORY: ${{ github.repository }}
         PR_NUMBER: ${{ inputs.pr-number }}
+        CACHE_HIT: ${{ steps.cache.outputs.cache-hit }}
       run: |
         import os
         import sys
@@ -132,8 +234,8 @@ runs:
         try:
             verdict = os.environ.get('VERDICT', '').strip()
             if not verdict:
-                print("::error::VERDICT environment variable is missing or empty")
-                sys.exit(1)
+                print("::warning::VERDICT environment variable is missing or empty, defaulting to NEEDS_REVIEW")
+                verdict = "NEEDS_REVIEW"
 
             agent = os.environ.get('AGENT', '')
             emoji = os.environ.get('EMOJI', '')
@@ -146,12 +248,14 @@ runs:
             alert_type = get_verdict_alert_type(verdict)
             verdict_emoji = get_verdict_emoji(verdict)
             agent_display = agent.title() if agent else "Unknown"
+            cache_hit = os.environ.get('CACHE_HIT', '') == 'true'
+            cache_label = " (cached)" if cache_hit else ""
 
             lines = [
-                f"## {emoji} {agent_display} Review",
+                f"## {emoji} {agent_display} Review{cache_label}",
                 "",
                 f"> [!{alert_type}]",
-                f"> {verdict_emoji} **Verdict: {verdict}**",
+                f"> {verdict_emoji} **Verdict: {verdict}**{cache_label}",
                 "",
                 "<details>",
                 "<summary>Review Findings</summary>",
@@ -183,9 +287,9 @@ runs:
       env:
         AGENT: ${{ inputs.agent }}
         EMOJI: ${{ inputs.emoji }}
-        VERDICT: ${{ steps.review.outputs.verdict }}
-        FINDINGS: ${{ steps.review.outputs.findings }}
-        INFRASTRUCTURE_FAILURE: ${{ steps.review.outputs.infrastructure-failure }}
+        VERDICT: ${{ steps.cache.outputs.cache-hit == 'true' && steps.cached-results.outputs.verdict || steps.review.outputs.verdict }}
+        FINDINGS: ${{ steps.cache.outputs.cache-hit == 'true' && steps.cached-results.outputs.findings || steps.review.outputs.findings }}
+        INFRASTRUCTURE_FAILURE: ${{ steps.cache.outputs.cache-hit == 'true' && steps.cached-results.outputs.infrastructure_failure || steps.review.outputs.infrastructure-failure }}
       run: |
         $ErrorActionPreference = 'Stop'
         $agent = $env:AGENT
@@ -193,18 +297,29 @@ runs:
         $verdict = $env:VERDICT
         $findings = $env:FINDINGS
 
+        # Default empty verdict to NEEDS_REVIEW (blocking) so failures are not silently passed
+        if ([string]::IsNullOrWhiteSpace($verdict)) {
+          $verdict = 'NEEDS_REVIEW'
+          Write-Output "::warning::Verdict was empty, defaulting to NEEDS_REVIEW"
+        }
+
         $blockingVerdicts = @('CRITICAL_FAIL', 'REJECTED', 'FAIL', 'NEEDS_REVIEW')
+
+        # Infrastructure failures should not block the PR (aggregate handles downgrade to WARN)
+        if ($verdict -in $blockingVerdicts -and $env:INFRASTRUCTURE_FAILURE -eq 'true') {
+          Write-Output "::warning::[$agent] Infrastructure failure (verdict: $verdict). Not blocking PR."
+          Write-Output ""
+          Write-Output "⚠️ $emoji $agent review had infrastructure failure (Copilot CLI unavailable)"
+          Write-Output ""
+          Write-Output "Verdict downgraded by aggregate step. See workflow summary for details."
+          exit 0
+        }
 
         if ($verdict -in $blockingVerdicts) {
           $maxAnnotationLength = 180
           if ([string]::IsNullOrWhiteSpace($findings)) {
-            if ($env:INFRASTRUCTURE_FAILURE -eq 'true') {
-              $summary = "Findings data is missing (possible infrastructure failure)"
-              Write-Output "::warning::[$agent] Verdict is $verdict but findings are null"
-            } else {
-              $summary = "Review failed but no details were provided by the AI model"
-              Write-Output "::warning::[$agent] Verdict is $verdict but findings are empty"
-            }
+            $summary = "Review failed but no details were provided by the AI model"
+            Write-Output "::warning::[$agent] Verdict is $verdict but findings are empty"
           } else {
             $summary = ($findings -replace "`n", " ")
             if ($summary.Length -gt $maxAnnotationLength) {
@@ -212,15 +327,25 @@ runs:
             }
           }
 
-          Write-Output "::error::[$agent] ${verdict}: $summary"
-          Write-Output ""
-          Write-Output "❌ $emoji $agent review failed with verdict: $verdict"
-          Write-Output ""
-          Write-Output "See the step summary above for full findings."
-          exit 1
+          # Infrastructure failures are not code quality issues. Downgrade to warning
+          # so the aggregate job can determine the final verdict holistically.
+          if ($env:INFRASTRUCTURE_FAILURE -eq 'true') {
+            Write-Output "::warning::[$agent] ${verdict}: $summary (infrastructure failure, downgrading to warning)"
+            Write-Output ""
+            Write-Output "⚠️ $emoji $agent review had infrastructure failure (verdict: $verdict)"
+            Write-Output ""
+            Write-Output "Infrastructure failures are non-blocking. See aggregate results for final verdict."
+          } else {
+            Write-Output "::error::[$agent] ${verdict}: $summary"
+            Write-Output ""
+            Write-Output "❌ $emoji $agent review failed with verdict: $verdict"
+            Write-Output ""
+            Write-Output "See the step summary above for full findings."
+            exit 1
+          }
+        } else {
+          Write-Output "✅ $emoji $agent review passed with verdict: $verdict"
         }
-
-        Write-Output "✅ $emoji $agent review passed with verdict: $verdict"
 
     - name: Skip ${{ inputs.agent }} review (no relevant changes)
       if: inputs.should-run != 'true'
