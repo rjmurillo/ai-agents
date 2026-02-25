@@ -20,7 +20,13 @@ import re
 import subprocess
 import sys
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
+
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(_PROJECT_ROOT))
+
+from scripts.github_core.api import RepoInfo  # noqa: E402
 
 # File extensions considered significant for mention checking
 SIGNIFICANT_EXTENSIONS: frozenset[str] = frozenset(
@@ -54,10 +60,10 @@ class Issue:
     message: str
 
 
-def get_repo_info() -> dict[str, str]:
+def get_repo_info() -> RepoInfo:
     """Parse owner/repo from git remote origin URL.
 
-    Returns dict with 'owner' and 'repo' keys.
+    Returns RepoInfo with owner and repo.
     Raises RuntimeError on failure.
     """
     try:
@@ -80,7 +86,7 @@ def get_repo_info() -> dict[str, str]:
             f"Could not parse GitHub owner/repo from remote URL: {remote_url}"
         )
 
-    return {"owner": match.group(1), "repo": match.group(2)}
+    return RepoInfo(owner=match.group(1), repo=match.group(2))
 
 
 def fetch_pr_data(
@@ -293,9 +299,9 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Error: {exc}", file=sys.stderr)
             return 2
         if not owner:
-            owner = repo_info["owner"]
+            owner = repo_info.owner
         if not repo:
-            repo = repo_info["repo"]
+            repo = repo_info.repo
 
     # Fetch PR data
     print(f"Fetching PR #{args.pr_number} data...")
