@@ -49,7 +49,7 @@ TYPE: [TODO|LESSON|BLOCKED|IMPROVEMENT|FOLLOWUP]
 TITLE: [Concise issue title, 50-70 chars, conventional commit style]
 BODY: [Issue body with context, 2-4 sentences]
 PRIORITY: [P0|P1|P2|P3]
-LABELS: [comma-separated labels from: enhancement, bug, documentation, automation, area-workflows, area-prompts, area-infrastructure]
+LABELS: [comma-separated labels from: enhancement, bug, documentation, automation, area-workflows, area-prompts, area-infrastructure, area-installation]
 SOURCE: [file path and line/section reference]
 ---
 ```

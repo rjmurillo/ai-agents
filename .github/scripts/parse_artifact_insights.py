@@ -128,8 +128,8 @@ def parse_finding_block(block: str) -> Finding | None:
         print(f"Invalid title length: {len(title)}", file=sys.stderr)
         return None
 
-    # Sanitize title (remove potential injection characters)
-    title = re.sub(r"[`$\\\"']", "", title)
+    # Sanitize title (allow-list: only conventional commit title characters)
+    title = re.sub(r"[^a-zA-Z0-9\s\-\(\):.,/]", "", title)
 
     return Finding(
         finding_type=finding_type,
