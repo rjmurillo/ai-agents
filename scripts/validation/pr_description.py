@@ -144,7 +144,11 @@ def extract_mentioned_files(description: str) -> list[str]:
     mentioned: list[str] = []
     for pattern in FILE_MENTION_PATTERNS:
         for match in pattern.finditer(description):
-            mentioned.append(normalize_path(match.group(1)))
+            raw = match.group(1)
+            # Skip command-like strings (file paths never contain spaces)
+            if " " in raw.strip():
+                continue
+            mentioned.append(normalize_path(raw))
 
     # Deduplicate while preserving order
     seen: set[str] = set()
