@@ -740,8 +740,9 @@ if [ -L "$INFRA_DETECT_SCRIPT" ]; then
     record_warn "Infrastructure detection script is a symlink (skipping)"
 elif [ -f "$INFRA_DETECT_SCRIPT" ]; then
     if set_python_cmd; then
-        # Pass all changed files to infrastructure detection
-        INFRA_OUTPUT=$("${PYTHON_CMD[@]}" "$INFRA_DETECT_SCRIPT" $CHANGED_FILES 2>&1)
+        # Pass all changed files to infrastructure detection (newline-safe)
+        mapfile -t _infra_files <<< "$CHANGED_FILES"
+        INFRA_OUTPUT=$("${PYTHON_CMD[@]}" "$INFRA_DETECT_SCRIPT" "${_infra_files[@]}" 2>&1)
         if echo "$INFRA_OUTPUT" | grep -q "CRITICAL"; then
             echo_info "  Infrastructure detection output:"
             echo "$INFRA_OUTPUT"
