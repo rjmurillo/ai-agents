@@ -1,7 +1,4 @@
-"""GhCliClient: concrete GitHubClient backed by the ``gh`` CLI.
-
-Canonical copy lives at scripts/github_core/gh_client.py; keep in sync.
-"""
+"""Canonical: scripts/github_core/gh_client.py. Sync via scripts/sync_plugin_lib.py."""
 
 from __future__ import annotations
 
@@ -19,7 +16,7 @@ class GhCliClient:
     """GitHubClient implementation that delegates to ``gh`` CLI subprocess calls.
 
     Follows the same error-handling and timeout conventions as
-    :pymod:`github_core.api`.
+    :pymod:`scripts.github_core.api`.
     """
 
     def rest_get(self, endpoint: str) -> dict[str, Any]:

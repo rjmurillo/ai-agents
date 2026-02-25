@@ -17,6 +17,7 @@ _project_root = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(_project_root / ".claude" / "hooks"))
 
 from invoke_routing_gates import (  # noqa: E402
+    check_critic_evidence,
     check_documentation_only,
     check_qa_evidence,
     get_today_session_log_local,
@@ -234,6 +235,83 @@ class TestMainAllowPath:
             assert main() == 0
 
 
+class TestCheckCriticEvidence:
+    def test_finds_recent_critique_file(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.chdir(tmp_path)
+        critique_dir = tmp_path / ".agents" / "critique"
+        critique_dir.mkdir(parents=True)
+        critique = critique_dir / "review.md"
+        critique.write_text("# Critique\nAPPROVED", encoding="utf-8")
+        os.utime(critique, (time.time(), time.time()))
+        assert check_critic_evidence() is True
+
+    def test_ignores_old_critique_files(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.chdir(tmp_path)
+        critique_dir = tmp_path / ".agents" / "critique"
+        critique_dir.mkdir(parents=True)
+        critique = critique_dir / "review.md"
+        critique.write_text("# Critique\nAPPROVED", encoding="utf-8")
+        old_time = time.time() - (48 * 3600)
+        os.utime(critique, (old_time, old_time))
+
+        sessions = tmp_path / ".agents" / "sessions"
+        sessions.mkdir(parents=True)
+
+        assert check_critic_evidence() is False
+
+    def test_finds_critic_verdict_in_session_log(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.chdir(tmp_path)
+        sessions = tmp_path / ".agents" / "sessions"
+        sessions.mkdir(parents=True)
+
+        from datetime import UTC, datetime
+
+        today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+        log_content = "## Critic Review\nVerdict: APPROVED"
+        (sessions / f"{today}-session-1.json").write_text(log_content, encoding="utf-8")
+
+        assert check_critic_evidence() is True
+
+    def test_finds_needs_work_verdict(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.chdir(tmp_path)
+        sessions = tmp_path / ".agents" / "sessions"
+        sessions.mkdir(parents=True)
+
+        from datetime import UTC, datetime
+
+        today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+        log_content = "Critic returned NEEDS WORK for this PR."
+        (sessions / f"{today}-session-1.json").write_text(log_content, encoding="utf-8")
+
+        assert check_critic_evidence() is True
+
+    def test_returns_false_without_evidence(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.chdir(tmp_path)
+        sessions = tmp_path / ".agents" / "sessions"
+        sessions.mkdir(parents=True)
+        assert check_critic_evidence() is False
+
+
 class TestMainQAGate:
     @patch("invoke_routing_gates.write_audit_log")
     @patch("invoke_routing_gates.is_valid_project_root", return_value=True)
@@ -308,6 +386,85 @@ class TestMainQAGate:
     ) -> None:
         monkeypatch.delenv("SKIP_QA_GATE", raising=False)
         data = json.dumps({"tool_input": {"command": "gh pr create --title test"}})
+        mock_stdin.write(data)
+        mock_stdin.seek(0)
+        with patch.object(mock_stdin, "isatty", return_value=False):
+            assert main() == 0
+
+
+class TestMainCriticGate:
+    @patch("invoke_routing_gates.write_audit_log")
+    @patch("invoke_routing_gates.is_valid_project_root", return_value=True)
+    @patch("invoke_routing_gates.sys.stdin", new_callable=StringIO)
+    def test_bypass_with_skip_critic_gate_env(
+        self,
+        mock_stdin: StringIO,
+        _mock_root: MagicMock,
+        _mock_audit: MagicMock,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv("SKIP_CRITIC_GATE", "true")
+        data = json.dumps({"tool_input": {"command": "gh pr merge --auto"}})
+        mock_stdin.write(data)
+        mock_stdin.seek(0)
+        with patch.object(mock_stdin, "isatty", return_value=False):
+            assert main() == 0
+
+    @patch("invoke_routing_gates.check_documentation_only", return_value=True)
+    @patch("invoke_routing_gates.is_valid_project_root", return_value=True)
+    @patch("invoke_routing_gates.sys.stdin", new_callable=StringIO)
+    def test_bypass_for_docs_only_merges(
+        self,
+        mock_stdin: StringIO,
+        _mock_root: MagicMock,
+        _mock_docs: MagicMock,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.delenv("SKIP_CRITIC_GATE", raising=False)
+        data = json.dumps({"tool_input": {"command": "gh pr merge 123"}})
+        mock_stdin.write(data)
+        mock_stdin.seek(0)
+        with patch.object(mock_stdin, "isatty", return_value=False):
+            assert main() == 0
+
+    @patch("invoke_routing_gates.check_critic_evidence", return_value=False)
+    @patch("invoke_routing_gates.check_documentation_only", return_value=False)
+    @patch("invoke_routing_gates.is_valid_project_root", return_value=True)
+    @patch("invoke_routing_gates.sys.stdin", new_callable=StringIO)
+    def test_denies_merge_without_critic_evidence(
+        self,
+        mock_stdin: StringIO,
+        _mock_root: MagicMock,
+        _mock_docs: MagicMock,
+        _mock_critic: MagicMock,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        monkeypatch.delenv("SKIP_CRITIC_GATE", raising=False)
+        data = json.dumps({"tool_input": {"command": "gh pr merge --auto"}})
+        mock_stdin.write(data)
+        mock_stdin.seek(0)
+        with patch.object(mock_stdin, "isatty", return_value=False):
+            assert main() == 0
+            captured = capsys.readouterr()
+            output = json.loads(captured.out.strip())
+            assert output["decision"] == "deny"
+            assert "CRITIC" in output["reason"]
+
+    @patch("invoke_routing_gates.check_critic_evidence", return_value=True)
+    @patch("invoke_routing_gates.check_documentation_only", return_value=False)
+    @patch("invoke_routing_gates.is_valid_project_root", return_value=True)
+    @patch("invoke_routing_gates.sys.stdin", new_callable=StringIO)
+    def test_allows_merge_with_critic_evidence(
+        self,
+        mock_stdin: StringIO,
+        _mock_root: MagicMock,
+        _mock_docs: MagicMock,
+        _mock_critic: MagicMock,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.delenv("SKIP_CRITIC_GATE", raising=False)
+        data = json.dumps({"tool_input": {"command": "gh pr merge --auto"}})
         mock_stdin.write(data)
         mock_stdin.seek(0)
         with patch.object(mock_stdin, "isatty", return_value=False):

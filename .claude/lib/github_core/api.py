@@ -1,7 +1,4 @@
-"""GitHub API helpers: auth, pagination, GraphQL, issue comments, rate limits.
-
-Canonical copy lives at scripts/github_core/api.py; keep in sync.
-"""
+"""Canonical: scripts/github_core/api.py. Sync via scripts/sync_plugin_lib.py."""
 
 from __future__ import annotations
 
@@ -25,6 +22,19 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Result types
 # ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class RepoInfo:
+    """Repository owner and name.
+
+    Replaces raw ``dict[str, str]`` returns that had inconsistent key
+    casing across modules.  Attribute access (``info.owner``) is enforced
+    by the type checker, eliminating ``KeyError`` risks.
+    """
+
+    owner: str
+    repo: str
 
 
 @dataclass
@@ -63,11 +73,11 @@ def error_and_exit(message: str, exit_code: int) -> NoReturn:
 _GITHUB_REMOTE_PATTERN = re.compile(r"github\.com[:/]([^/]+)/([^/.]+)")
 
 
-def get_repo_info() -> dict[str, str] | None:
+def get_repo_info() -> RepoInfo | None:
     """Infer repository owner and name from git remote origin URL.
 
     Returns:
-        Dict with 'Owner' and 'Repo' keys, or None if not in a git repo.
+        RepoInfo with owner and repo, or None if not in a git repo.
     """
     try:
         result = subprocess.run(
@@ -81,10 +91,10 @@ def get_repo_info() -> dict[str, str] | None:
 
         match = _GITHUB_REMOTE_PATTERN.search(result.stdout.strip())
         if match:
-            return {
-                "Owner": match.group(1),
-                "Repo": re.sub(r"\.git$", "", match.group(2)),
-            }
+            return RepoInfo(
+                owner=match.group(1),
+                repo=re.sub(r"\.git$", "", match.group(2)),
+            )
     except subprocess.TimeoutExpired:
         logger.debug("git remote get-url origin timed out")
     except FileNotFoundError:
@@ -92,19 +102,19 @@ def get_repo_info() -> dict[str, str] | None:
     return None
 
 
-def resolve_repo_params(owner: str = "", repo: str = "") -> dict[str, str]:
-    """Resolve Owner and Repo, inferring from git remote if not provided.
+def resolve_repo_params(owner: str = "", repo: str = "") -> RepoInfo:
+    """Resolve owner and repo, inferring from git remote if not provided.
 
     Raises SystemExit if parameters cannot be determined or are invalid.
 
     Returns:
-        Dict with 'Owner' and 'Repo' keys.
+        RepoInfo with owner and repo.
     """
     if not owner or not repo:
         repo_info = get_repo_info()
         if repo_info:
-            owner = owner or repo_info["Owner"]
-            repo = repo or repo_info["Repo"]
+            owner = owner or repo_info.owner
+            repo = repo or repo_info.repo
         else:
             error_and_exit(
                 "Could not infer repository info. Please provide -Owner and -Repo parameters.",
@@ -116,7 +126,7 @@ def resolve_repo_params(owner: str = "", repo: str = "") -> dict[str, str]:
     if not is_github_name_valid(repo, "Repo"):
         error_and_exit(f"Invalid GitHub repository name: {repo}", 1)
 
-    return {"Owner": owner, "Repo": repo}
+    return RepoInfo(owner=owner, repo=repo)
 
 
 # ---------------------------------------------------------------------------

@@ -1,0 +1,32 @@
+{
+  "_description": "Canonical GitHub CLI PR response shape (gh pr view --json). Used for mock fidelity validation.",
+  "number": 50,
+  "title": "Example PR",
+  "body": "PR description text.",
+  "headRefName": "feature-branch",
+  "baseRefName": "main",
+  "state": "OPEN",
+  "author": {
+    "login": "alice"
+  },
+  "labels": [
+    {
+      "name": "enhancement"
+    }
+  ],
+  "reviewRequests": [],
+  "commits": [
+    {
+      "oid": "abc123def456",
+      "messageHeadline": "feat: add new feature"
+    }
+  ],
+  "additions": 10,
+  "deletions": 5,
+  "changedFiles": 2,
+  "mergeable": "MERGEABLE",
+  "mergedAt": null,
+  "mergedBy": null,
+  "createdAt": "2025-01-01T00:00:00Z",
+  "updatedAt": "2025-01-02T00:00:00Z"
+}

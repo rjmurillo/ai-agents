@@ -21,11 +21,15 @@ The specification layer implements a structured 3-tier hierarchy for planning an
 
 **Format**: EARS (Easy Approach to Requirements Syntax)
 
+**Template**: [EARS-TEMPLATE.md](./requirements/EARS-TEMPLATE.md)
+
 **Location**: `.agents/specs/requirements/`
 
 **Owner**: spec-generator agent (Phase 1)
 
 **Example**: `REQ-001-user-authentication.md`
+
+**Categories**: Ubiquitous, Event-driven, State-driven, Unwanted behavior, Optional feature, Complex
 
 ### Tier 2: Design
 
@@ -122,11 +126,12 @@ Automated validation checks:
 | Phase | Status | Notes |
 |-------|--------|-------|
 | Phase 0: Foundation | ✅ Complete | Directory structure created |
-| Phase 1: Spec Layer | 📋 Planned | Agent prompts and templates |
+| Phase 1: Spec Layer | 🔄 In Progress | S-001 EARS template complete |
 | Phase 2: Traceability | 📋 Planned | Validation automation |
 
 ## Related Documents
 
+- [EARS Template](./requirements/EARS-TEMPLATE.md) - Complete EARS patterns and examples
 - [Enhancement Project Plan](../planning/enhancement-PROJECT-PLAN.md)
 - [Naming Conventions](../governance/naming-conventions.md)
 - [Consistency Protocol](../governance/consistency-protocol.md)
@@ -134,6 +139,7 @@ Automated validation checks:
 
 ---
 
-*Version: 1.0*
+*Version: 1.1*
 *Created: 2025-12-18*
-*Phase: 0 - Foundation*
+*Updated: 2026-02-21*
+*Phase: 1 - Spec Layer (In Progress)*

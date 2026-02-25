@@ -94,6 +94,18 @@ The generation script applies platform-specific transformations:
 | File extension | `.agent.md` | `.agent.md` |
 | Tools array | `tools_vscode` | `tools_copilot` |
 
+### Agent Invocation Syntax
+
+**Templates use `/agent [agent_name]`** as the canonical syntax for agent delegation. The generation script transforms this to platform-specific syntax:
+
+| Platform | Template Syntax | Generated Syntax |
+|----------|-----------------|------------------|
+| Copilot CLI | `/agent implementer` | `/agent implementer` (unchanged) |
+| VS Code | `/agent implementer` | `#runSubagent with subagentType=implementer` |
+| Claude Code | N/A (separate source) | `Task(subagent_type="implementer", ...)` |
+
+Do NOT use `runSubagent(...)`, `Task(...)`, or `#runSubagent` directly in templates. Use `/agent [agent_name]` and let the generator handle transformation.
+
 ## Usage
 
 ### Generate Platform Files

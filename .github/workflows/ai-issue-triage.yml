@@ -58,6 +58,26 @@ jobs:
           FALLBACK_LABELS: ${{ steps.categorize.outputs.labels }}
         run: python3 .github/scripts/parse_triage_labels.py
 
+      - name: 🔍 Review Feature Request (Analyst Agent)
+        id: review-feature
+        if: steps.parse-categorize.outputs.category == 'enhancement'
+        uses: ./.github/actions/ai-review
+        with:
+          agent: analyst
+          context-type: issue
+          issue-number: ${{ github.event.issue.number }}
+          prompt-file: .github/prompts/issue-feature-review.md
+          timeout-minutes: 3
+          bot-pat: ${{ secrets.BOT_PAT }}
+          copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+
+      - name: Parse Feature Review Results
+        id: parse-review
+        if: steps.review-feature.outcome == 'success'
+        env:
+          RAW_OUTPUT: ${{ steps.review-feature.outputs.findings }}
+        run: python3 .github/scripts/parse_feature_review.py
+
       - name: 🗺️ Align to Roadmap (Roadmap Agent)
         id: align
         uses: ./.github/actions/ai-review
@@ -301,6 +321,8 @@ jobs:
           ESCALATE_TO_PRD: ${{ steps.parse-align.outputs.escalate_to_prd }}
           COMPLEXITY_SCORE: ${{ steps.parse-align.outputs.complexity_score }}
           ESCALATION_CRITERIA: ${{ steps.parse-align.outputs.escalation_criteria }}
+          FEATURE_REVIEW: ${{ steps.parse-review.outputs.recommendation }}
+          FEATURE_REVIEW_OUTPUT: ${{ steps.review-feature.outputs.findings }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           SERVER_URL: ${{ github.server_url }}
           RUN_ID: ${{ github.run_id }}
@@ -321,6 +343,13 @@ jobs:
             ""
           }
 
+          # Determine feature review status
+          $featureReviewRow = if ($env:FEATURE_REVIEW -and $env:FEATURE_REVIEW -ne 'UNKNOWN') {
+            "| **Feature Review** | ``$($env:FEATURE_REVIEW)`` |"
+          } else {
+            ""
+          }
+
           # Get analysis outputs
           $categorizeOutput = if (Test-Path /tmp/categorize-output.txt) {
             Get-Content /tmp/categorize-output.txt -Raw
@@ -329,6 +358,10 @@ jobs:
           $alignOutput = if (Test-Path /tmp/align-output.txt) {
             Get-Content /tmp/align-output.txt -Raw
           } else { "N/A" }
+
+          $featureReviewOutput = if (Test-Path /tmp/feature-review-output.txt) {
+            Get-Content /tmp/feature-review-output.txt -Raw
+          } else { "" }
 
           $labelsDisplay = if ($env:LABELS) { $env:LABELS } else { "*None assigned*" }
           $milestoneDisplay = if ($env:MILESTONE) { $env:MILESTONE } else { "*Not assigned*" }
@@ -360,6 +393,7 @@ jobs:
           | **Labels** | $labelsDisplay |
           | $priorityEmoji **Priority** | ``$($env:PRIORITY)`` |
           | **Milestone** | $milestoneDisplay |
+          $featureReviewRow
           $prdRow
 
           <details>
@@ -379,6 +413,16 @@ jobs:
           ``````
 
           </details>
+
+          $(if ($featureReviewOutput) { @"
+
+          <details>
+          <summary>Feature Request Review</summary>
+
+          $featureReviewOutput
+
+          </details>
+          "@ })
 
           ---
 

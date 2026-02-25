@@ -82,10 +82,9 @@ the next implementation session begins.
 
 ## The Traceability Chain
 
-```text
-REQ-NNN ──traces_to──> DESIGN-NNN ──traces_to──> TASK-NNN
-   │                      │                         │
-   └─── Requirement ──────┴─── Design ─────────────┴─── Task
+```mermaid
+graph LR
+    REQ-NNN -->|traces_to| DESIGN-NNN -->|traces_to| TASK-NNN
 ```
 
 **Rule**: Every DESIGN must have at least one REQ reference (backward) and at least one TASK reference (forward).
@@ -305,14 +304,25 @@ pwsh scripts/Validate-Traceability.ps1 -Format markdown > .agents/reports/tracea
 8. Retrospective captures metrics
 ```
 
+```mermaid
+graph TD
+    A[Triage GitHub Issue] --> B[Run spec-generator to create REQ-NNN]
+    B --> C[Post REQ link as comment on GitHub issue]
+    C --> D[Create DESIGN-NNN referencing REQ-NNN]
+    D --> E[Create TASK-NNN referencing DESIGN-NNN]
+    E --> F[Pre-commit validates traceability]
+    F --> G[Critic validates during plan review]
+    G --> H[Retrospective captures metrics]
+```
+
 ### Spec Modification Flow
 
-```text
-1. Modify spec file
-2. Update related field if references change
-3. Run validation: pwsh scripts/Validate-Traceability.ps1
-4. Fix any errors before committing
-5. Pre-commit hook validates on commit
+```mermaid
+graph TD
+    A[Modify spec file] --> B[Update related field if references change]
+    B --> C[Run validation: Validate-Traceability.ps1]
+    C --> D[Fix any errors before committing]
+    D --> E[Pre-commit hook validates on commit]
 ```
 
 ## Troubleshooting
