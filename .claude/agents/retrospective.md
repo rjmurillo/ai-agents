@@ -1187,10 +1187,10 @@ Process Delta items to capture actionable improvements. Delta items represent ch
 Use the GitHub skill to create issues for high-priority items:
 
 ```powershell
-pwsh /home/richard/.claude/skills/github/scripts/issue/New-Issue.ps1 `
+pwsh .claude/skills/github/scripts/issue/New-Issue.ps1 `
     -Title "[Retrospective] Delta item description" `
     -Body "## Source\nRetrospective: [session-ref]\n\n## Problem\n[Delta item detail]\n\n## Proposed Solution\n[If known]" `
-    -Labels "enhancement,source:retrospective,priority:P0"
+    -Labels "enhancement,source:retrospective,priority:{PRIORITY}"
 ```
 
 **P2/P3 Backlog Memory Storage:**
@@ -1199,7 +1199,7 @@ Store lower-priority items in backlog memory for future sessions:
 
 ```text
 mcp__serena__write_memory
-memory_file_name: "backlog/retro-{YYYY-MM-DD}-items"
+memory_file_name: "backlog/retro-{YYYY-MM-DD}-items.md"
 content: "# Retrospective Backlog Items\n\n## Source\nSession: [session-ref]\n\n## Items\n\n| Item | Priority | Category | Status |\n|------|----------|----------|--------|\n| [Delta item] | P2/P3 | [Category] | pending |"
 ```
 
