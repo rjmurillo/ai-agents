@@ -25,6 +25,8 @@ import sys
 from dataclasses import asdict, dataclass, field
 from typing import TYPE_CHECKING, Any
 
+from scripts.github_core.api import gh_api_paginated
+
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
@@ -100,37 +102,26 @@ def fetch_pr_comments(
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """Fetch review comments and reviews for a PR via gh CLI.
 
+    Uses gh_api_paginated from github_core for robust pagination and error
+    handling.
+
     Returns:
         Tuple of (review_comments, reviews).
 
     Raises:
         RuntimeError: If gh CLI call fails.
     """
-    review_comments = _gh_api(
-        f"repos/{owner}/{repo}/pulls/{pr_number}/comments"
-    )
-    reviews = _gh_api(f"repos/{owner}/{repo}/pulls/{pr_number}/reviews")
+    try:
+        review_comments = gh_api_paginated(
+            f"repos/{owner}/{repo}/pulls/{pr_number}/comments"
+        )
+        reviews = gh_api_paginated(
+            f"repos/{owner}/{repo}/pulls/{pr_number}/reviews"
+        )
+    except SystemExit as exc:
+        msg = f"GitHub API failed for PR #{pr_number}"
+        raise RuntimeError(msg) from exc
     return review_comments, reviews
-
-
-def _gh_api(endpoint: str) -> list[dict[str, Any]]:
-    """Call gh api and return parsed JSON list."""
-    result = subprocess.run(
-        ["gh", "api", endpoint, "--paginate"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if result.returncode != 0:
-        msg = f"gh api {endpoint} failed: {result.stderr.strip()}"
-        raise RuntimeError(msg)
-    raw = result.stdout.strip()
-    if not raw:
-        return []
-    parsed = json.loads(raw)
-    if isinstance(parsed, list):
-        return parsed
-    return [parsed]
 
 
 def scan_pr(owner: str, repo: str, pr_number: int) -> ScanResult:
@@ -247,6 +238,7 @@ def create_issues(
             capture_output=True,
             text=True,
             check=False,
+            shell=False,
         )
         if result.returncode == 0:
             issue_url = result.stdout.strip()
