@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from scripts.github_core.api import RepoInfo
 from scripts.validation.pr_description import (
     Issue,
     extract_mentioned_files,
@@ -125,6 +126,11 @@ class TestExtractMentionedFiles:
         result = extract_mentioned_files(desc)
         assert len(result) == 3
 
+    def test_command_in_backticks_not_treated_as_file(self) -> None:
+        desc = "- [x] `uv run mypy scripts/homework_scanner.py` (clean)"
+        result = extract_mentioned_files(desc)
+        assert "uv run mypy scripts/homework_scanner.py" not in result
+
 
 # ---------------------------------------------------------------------------
 # validate_pr_description
@@ -240,8 +246,7 @@ class TestGetRepoInfo:
             stdout="https://github.com/myorg/myrepo.git\n",
         )
         info = get_repo_info()
-        assert info["owner"] == "myorg"
-        assert info["repo"] == "myrepo"
+        assert info == RepoInfo(owner="myorg", repo="myrepo")
 
     @patch("scripts.validation.pr_description.subprocess.run")
     def test_ssh_url(self, mock_run: MagicMock) -> None:
@@ -250,8 +255,7 @@ class TestGetRepoInfo:
             stdout="git@github.com:myorg/myrepo.git\n",
         )
         info = get_repo_info()
-        assert info["owner"] == "myorg"
-        assert info["repo"] == "myrepo"
+        assert info == RepoInfo(owner="myorg", repo="myrepo")
 
     @patch("scripts.validation.pr_description.subprocess.run")
     def test_nonzero_exit_raises(self, mock_run: MagicMock) -> None:
@@ -329,7 +333,7 @@ class TestMain:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.delenv("CI", raising=False)
-        mock_repo.return_value = {"owner": "o", "repo": "r"}
+        mock_repo.return_value = RepoInfo(owner="o", repo="r")
         mock_fetch.return_value = {
             "title": "Test",
             "body": "Changed `foo.py`",
@@ -345,7 +349,7 @@ class TestMain:
         mock_repo: MagicMock,
         mock_fetch: MagicMock,
     ) -> None:
-        mock_repo.return_value = {"owner": "o", "repo": "r"}
+        mock_repo.return_value = RepoInfo(owner="o", repo="r")
         mock_fetch.return_value = {
             "title": "Test",
             "body": "Changed `ghost.py`",
@@ -386,7 +390,7 @@ class TestMain:
         mock_repo: MagicMock,
         mock_fetch: MagicMock,
     ) -> None:
-        mock_repo.return_value = {"owner": "o", "repo": "r"}
+        mock_repo.return_value = RepoInfo(owner="o", repo="r")
         code = main(["--pr-number", "1"])
         assert code == 2
 
@@ -397,7 +401,7 @@ class TestMain:
         mock_repo: MagicMock,
         mock_fetch: MagicMock,
     ) -> None:
-        mock_repo.return_value = {"owner": "o", "repo": "r"}
+        mock_repo.return_value = RepoInfo(owner="o", repo="r")
         mock_fetch.return_value = {
             "title": "T",
             "body": None,

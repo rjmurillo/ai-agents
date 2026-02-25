@@ -14,6 +14,7 @@ import yaml
 from scripts.workflow.executor import WorkflowExecutor
 from scripts.workflow.loader import load_workflow, parse_workflow
 from scripts.workflow.schema import (
+    CoordinationMode,
     StepRef,
     StepResult,
     WorkflowDefinition,
@@ -368,3 +369,62 @@ class TestLoadWorkflow:
     def test_load_missing_file(self, tmp_path: Path) -> None:
         with pytest.raises(FileNotFoundError):
             load_workflow(tmp_path / "missing.yaml")
+
+
+class TestParseCoordinationMode:
+    def test_parse_centralized(self) -> None:
+        data = {
+            "name": "test",
+            "steps": [{"name": "a", "agent": "analyst"}],
+            "coordination_mode": "centralized",
+        }
+        wd = parse_workflow(data)
+        assert wd.coordination_mode == CoordinationMode.CENTRALIZED
+
+    def test_parse_hierarchical(self) -> None:
+        data = {
+            "name": "test",
+            "steps": [
+                {"name": "worker", "agent": "analyst"},
+                {
+                    "name": "lead",
+                    "agent": "orchestrator",
+                    "is_coordinator": True,
+                    "subordinates": ["worker"],
+                },
+            ],
+            "coordination_mode": "hierarchical",
+        }
+        wd = parse_workflow(data)
+        assert wd.coordination_mode == CoordinationMode.HIERARCHICAL
+        assert wd.steps[1].is_coordinator is True
+        assert wd.steps[1].subordinates == ["worker"]
+
+    def test_parse_mesh(self) -> None:
+        data = {
+            "name": "test",
+            "steps": [
+                {"name": "a", "agent": "analyst"},
+                {"name": "b", "agent": "critic"},
+            ],
+            "coordination_mode": "mesh",
+        }
+        wd = parse_workflow(data)
+        assert wd.coordination_mode == CoordinationMode.MESH
+
+    def test_parse_invalid_coordination_mode(self) -> None:
+        data = {
+            "name": "test",
+            "steps": [{"name": "a", "agent": "analyst"}],
+            "coordination_mode": "invalid",
+        }
+        with pytest.raises(ValueError, match="Invalid coordination_mode"):
+            parse_workflow(data)
+
+    def test_default_coordination_mode(self) -> None:
+        data = {
+            "name": "test",
+            "steps": [{"name": "a", "agent": "analyst"}],
+        }
+        wd = parse_workflow(data)
+        assert wd.coordination_mode == CoordinationMode.CENTRALIZED

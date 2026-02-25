@@ -10,6 +10,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from scripts.github_core.api import RepoInfo
 
 # ---------------------------------------------------------------------------
 # Import the script via importlib (not a package)
@@ -101,7 +102,7 @@ class TestMain:
             "merge_pr.assert_gh_authenticated",
         ), patch(
             "merge_pr.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "merge_pr.get_allowed_merge_methods", return_value=_ALL_METHODS_ALLOWED,
         ), patch(
@@ -120,7 +121,7 @@ class TestMain:
             "merge_pr.assert_gh_authenticated",
         ), patch(
             "merge_pr.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "merge_pr.get_allowed_merge_methods", return_value=_ALL_METHODS_ALLOWED,
         ), patch(
@@ -140,7 +141,7 @@ class TestMain:
             "merge_pr.assert_gh_authenticated",
         ), patch(
             "merge_pr.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "merge_pr.get_allowed_merge_methods", return_value=_ALL_METHODS_ALLOWED,
         ), patch(
@@ -169,7 +170,7 @@ class TestMain:
             "merge_pr.assert_gh_authenticated",
         ), patch(
             "merge_pr.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "merge_pr.get_allowed_merge_methods", return_value=_ALL_METHODS_ALLOWED,
         ), patch(
@@ -200,7 +201,7 @@ class TestMain:
             "merge_pr.assert_gh_authenticated",
         ), patch(
             "merge_pr.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "merge_pr.get_allowed_merge_methods", return_value=_ALL_METHODS_ALLOWED,
         ), patch(
@@ -231,7 +232,7 @@ class TestMain:
             "merge_pr.assert_gh_authenticated",
         ), patch(
             "merge_pr.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "merge_pr.get_allowed_merge_methods", return_value=_ALL_METHODS_ALLOWED,
         ), patch(
@@ -260,7 +261,7 @@ class TestMain:
             "merge_pr.assert_gh_authenticated",
         ), patch(
             "merge_pr.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "merge_pr.get_allowed_merge_methods", return_value=_ALL_METHODS_ALLOWED,
         ), patch(
@@ -289,7 +290,7 @@ class TestMain:
             "merge_pr.assert_gh_authenticated",
         ), patch(
             "merge_pr.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "merge_pr.get_allowed_merge_methods", return_value=_ALL_METHODS_ALLOWED,
         ), patch(
@@ -389,7 +390,7 @@ class TestValidateStrategy:
             "merge_pr.assert_gh_authenticated",
         ), patch(
             "merge_pr.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "merge_pr.get_allowed_merge_methods", return_value=settings,
         ):
@@ -440,7 +441,7 @@ class TestMainAdditional:
             "merge_pr.assert_gh_authenticated",
         ), patch(
             "merge_pr.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "merge_pr.get_allowed_merge_methods", return_value=_ALL_METHODS_ALLOWED,
         ), patch(
@@ -469,7 +470,7 @@ class TestMainAdditional:
             "merge_pr.assert_gh_authenticated",
         ), patch(
             "merge_pr.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "merge_pr.get_allowed_merge_methods", return_value=_ALL_METHODS_ALLOWED,
         ), patch(
@@ -497,7 +498,7 @@ class TestMainAdditional:
             "merge_pr.assert_gh_authenticated",
         ), patch(
             "merge_pr.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "merge_pr.get_allowed_merge_methods", return_value=_ALL_METHODS_ALLOWED,
         ), patch(
@@ -516,7 +517,7 @@ class TestMainAdditional:
             "merge_pr.assert_gh_authenticated",
         ), patch(
             "merge_pr.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "merge_pr.get_allowed_merge_methods", return_value=_ALL_METHODS_ALLOWED,
         ), patch(
@@ -544,7 +545,7 @@ class TestMainAdditional:
             "merge_pr.assert_gh_authenticated",
         ), patch(
             "merge_pr.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "merge_pr.get_allowed_merge_methods", return_value=_ALL_METHODS_ALLOWED,
         ), patch(
