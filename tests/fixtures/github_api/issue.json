@@ -1,0 +1,28 @@
+{
+  "_description": "Canonical GitHub CLI issue response shape (gh issue view --json). Used for mock fidelity validation.",
+  "number": 42,
+  "title": "Example Issue",
+  "body": "Issue body text describing the problem.",
+  "state": "OPEN",
+  "author": {
+    "login": "testuser"
+  },
+  "labels": [
+    {
+      "name": "bug"
+    },
+    {
+      "name": "priority:P1"
+    }
+  ],
+  "milestone": {
+    "title": "v1.0.0"
+  },
+  "assignees": [
+    {
+      "login": "dev1"
+    }
+  ],
+  "createdAt": "2025-01-01T00:00:00Z",
+  "updatedAt": "2025-01-02T00:00:00Z"
+}

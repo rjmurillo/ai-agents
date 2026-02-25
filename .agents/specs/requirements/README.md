@@ -6,7 +6,20 @@ This directory contains EARS-format requirements that define **WHAT** the system
 
 ## EARS Format
 
-EARS (Easy Approach to Requirements Syntax) enforces testable, unambiguous requirements:
+EARS (Easy Approach to Requirements Syntax) enforces testable, unambiguous requirements. EARS provides five main categories plus complex combinations:
+
+| Category | Keyword | Use When |
+|----------|---------|----------|
+| Ubiquitous | (none) | Always active |
+| Event-driven | WHEN | Triggered by event |
+| State-driven | WHILE | Active during state |
+| Unwanted behavior | IF/THEN | Error handling |
+| Optional feature | WHERE | Feature-dependent |
+| Complex | (combined) | Multiple patterns |
+
+See [EARS-TEMPLATE.md](./EARS-TEMPLATE.md) for complete patterns and examples for each category.
+
+### Basic Pattern
 
 ```text
 WHEN [precondition/trigger]
@@ -114,18 +127,20 @@ SO THAT user experience remains responsive
 
 Requirements are validated for:
 
-1. **EARS Compliance**: Must follow WHEN/SHALL/SO THAT format
+1. **EARS Compliance**: Must follow correct pattern for category (see [EARS-TEMPLATE.md](./EARS-TEMPLATE.md))
 2. **Testability**: Acceptance criteria must be measurable
 3. **Traceability**: Must link to design documents
 4. **Uniqueness**: No duplicate REQ-NNN IDs
 
 ## Related Documents
 
+- [EARS Template](./EARS-TEMPLATE.md) - Complete patterns for all EARS categories
 - [Spec Layer Overview](../README.md)
 - [Naming Conventions](../../governance/naming-conventions.md)
 - [Consistency Protocol](../../governance/consistency-protocol.md)
 
 ---
 
-*Version: 1.0*
+*Version: 1.1*
 *Created: 2025-12-18*
+*Updated: 2026-02-21*

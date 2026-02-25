@@ -126,8 +126,10 @@ class TestMain:
 
     def test_outputs_adr007_for_planning_keywords(self, tmp_path: Path) -> None:
         (tmp_path / ".git").mkdir()
+        (tmp_path / ".agents").mkdir()
         input_data = json.dumps({"prompt": "implement the new feature"})
         with (
+            patch("invoke_user_prompt_memory_check.skip_if_consumer_repo", return_value=False),
             patch("invoke_user_prompt_memory_check.os.getcwd", return_value=str(tmp_path)),
             patch("sys.stdin", StringIO(input_data)),
             patch("sys.stdout", new_callable=StringIO) as mock_stdout,
@@ -138,8 +140,10 @@ class TestMain:
 
     def test_outputs_pre_pr_gate(self, tmp_path: Path) -> None:
         (tmp_path / ".git").mkdir()
+        (tmp_path / ".agents").mkdir()
         input_data = json.dumps({"prompt": "create pr for the changes"})
         with (
+            patch("invoke_user_prompt_memory_check.skip_if_consumer_repo", return_value=False),
             patch("invoke_user_prompt_memory_check.os.getcwd", return_value=str(tmp_path)),
             patch("sys.stdin", StringIO(input_data)),
             patch("sys.stdout", new_callable=StringIO) as mock_stdout,
@@ -150,8 +154,10 @@ class TestMain:
 
     def test_outputs_skill_first_for_gh_cli(self, tmp_path: Path) -> None:
         (tmp_path / ".git").mkdir()
+        (tmp_path / ".agents").mkdir()
         input_data = json.dumps({"prompt": "run gh pr create --title test"})
         with (
+            patch("invoke_user_prompt_memory_check.skip_if_consumer_repo", return_value=False),
             patch("invoke_user_prompt_memory_check.os.getcwd", return_value=str(tmp_path)),
             patch("sys.stdin", StringIO(input_data)),
             patch("sys.stdout", new_callable=StringIO) as mock_stdout,
@@ -162,7 +168,9 @@ class TestMain:
 
     def test_returns_zero_on_json_parse_error(self, tmp_path: Path) -> None:
         (tmp_path / ".git").mkdir()
+        (tmp_path / ".agents").mkdir()
         with (
+            patch("invoke_user_prompt_memory_check.skip_if_consumer_repo", return_value=False),
             patch("invoke_user_prompt_memory_check.os.getcwd", return_value=str(tmp_path)),
             patch("sys.stdin", StringIO("implement the fix")),
             patch("sys.stdout", new_callable=StringIO) as mock_stdout,

@@ -22,6 +22,9 @@ from unittest.mock import patch
 
 import pytest
 
+from tests.mock_fidelity import assert_mock_keys_match
+from scripts.github_core.api import RepoInfo
+
 # ---------------------------------------------------------------------------
 # Import the script via importlib (not a package)
 # ---------------------------------------------------------------------------
@@ -55,8 +58,8 @@ def _completed(stdout: str = "", stderr: str = "", rc: int = 0):
     return subprocess.CompletedProcess(args=[], returncode=rc, stdout=stdout, stderr=stderr)
 
 
-def _pr_json(**overrides):
-    """Build a realistic PR JSON response.
+def _pr_data(**overrides):
+    """Build a realistic PR data dict matching the canonical fixture shape.
 
     The ``commits`` field is a list of commit objects, matching the actual
     ``gh pr view --json commits`` output format.
@@ -86,7 +89,17 @@ def _pr_json(**overrides):
         "updatedAt": "2025-01-02T00:00:00Z",
     }
     data.update(overrides)
-    return json.dumps(data)
+    return data
+
+
+def _pr_json(**overrides):
+    return json.dumps(_pr_data(**overrides))
+
+
+def test_mock_shape_matches_fixture():
+    """Validate that the test mock shape matches the canonical API fixture."""
+    mock = _pr_data()
+    assert_mock_keys_match(mock, "pull_request", allow_extra=True)
 
 
 def _patch_auth_and_repo():
@@ -95,7 +108,7 @@ def _patch_auth_and_repo():
         patch("get_pr_context.assert_gh_authenticated"),
         patch(
             "get_pr_context.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ),
     )
 
@@ -200,19 +213,28 @@ class TestMainSuccess:
             rc = main(["--pull-request", "50"])
         assert rc == 0
         output = json.loads(capsys.readouterr().out)
+        assert isinstance(output, dict)
         assert output["success"] is True
+        assert isinstance(output["number"], int)
         assert output["number"] == 50
+        assert isinstance(output["title"], str)
         assert output["title"] == "Test PR"
+        assert isinstance(output["body"], str)
         assert output["body"] == "Description"
         assert output["state"] == "OPEN"
         assert output["author"] == "alice"
         assert output["head_branch"] == "feature"
         assert output["base_branch"] == "main"
+        assert isinstance(output["labels"], list)
         assert output["labels"] == ["bug"]
+        assert isinstance(output["additions"], int)
         assert output["additions"] == 10
+        assert isinstance(output["deletions"], int)
         assert output["deletions"] == 5
+        assert isinstance(output["changed_files"], int)
         assert output["changed_files"] == 2
         assert output["mergeable"] == "MERGEABLE"
+        assert isinstance(output["merged"], bool)
         assert output["merged"] is False
         assert output["merged_by"] is None
         assert output["diff"] is None

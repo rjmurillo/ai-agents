@@ -5,6 +5,9 @@
 # - Effort estimate consistency (20% threshold)
 # - Condition-to-task traceability (no orphan conditions)
 #
+# Uses dorny/paths-filter pattern (Issue #103): fires on all PRs,
+# skips with passing status when no planning files changed.
+#
 # Related: Issue rjmurillo/ai-agents#I2, #I4 (Cross-Document Consistency)
 # CodeRabbit PR rjmurillo/ai-agents#43 findings
 
@@ -17,30 +20,53 @@ on:
       - 'feat/**'
       - 'fix/**'
       - 'copilot/**'
-    paths:
-      - '.agents/planning/**'
-      - 'build/scripts/validate_planning_artifacts.py'
-      - '.github/workflows/validate-planning-artifacts.yml'
+    # NO paths: filter here - dorny/paths-filter handles filtering
   pull_request:
     branches:
       - main
-    paths:
-      - '.agents/planning/**'
-      - 'build/scripts/validate_planning_artifacts.py'
-      - '.github/workflows/validate-planning-artifacts.yml'
+    types: [opened, synchronize, reopened]
+    # NO paths: filter here - dorny/paths-filter handles filtering
   workflow_dispatch: # Allow manual triggering
 
 jobs:
-  validate-planning:
-    name: Validate Planning Artifacts
+  check-changes:
+    name: Check for Planning Changes
     # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-24.04-arm
+    timeout-minutes: 3
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      should-run: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.planning }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Check path filters
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        id: filter
+        if: github.event_name != 'workflow_dispatch'
+        with:
+          filters: |
+            planning:
+              - '.agents/planning/**'
+              - 'build/scripts/validate_planning_artifacts.py'
+              - '.github/workflows/validate-planning-artifacts.yml'
+
+  validate-planning:
+    name: Validate Planning Artifacts
+    needs: check-changes
+    if: needs.check-changes.outputs.should-run == 'true'
+    # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 5
     permissions:
       contents: read
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
       - name: Validate planning artifact consistency
         run: |
@@ -65,3 +91,25 @@ jobs:
           echo "  3. For orphan conditions: Add 'Conditions' column to Work Breakdown table"
           echo "  4. See src/claude/milestone-planner.md and src/claude/task-decomposer.md for templates"
           echo ""
+
+  skip-validation:
+    name: Skip Validation (No Planning Changes)
+    needs: check-changes
+    if: needs.check-changes.outputs.should-run != 'true'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 1
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        # Required for dorny/paths-filter pattern consistency
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Skip message
+        run: |
+          echo "Planning artifacts validation skipped - no planning files changed"
+          echo ""
+          echo "Paths that trigger validation:"
+          echo "  - .agents/planning/**"
+          echo "  - build/scripts/validate_planning_artifacts.py"
+          echo "  - .github/workflows/validate-planning-artifacts.yml"

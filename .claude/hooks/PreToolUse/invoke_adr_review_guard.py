@@ -29,7 +29,7 @@ from pathlib import Path
 
 _plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
 if _plugin_root:
-    _lib_dir = os.path.join(_plugin_root, "lib")
+    _lib_dir = str(Path(_plugin_root).resolve() / "lib")
 else:
     _lib_dir = str(Path(__file__).resolve().parents[2] / "lib")
 if not os.path.isdir(_lib_dir):
@@ -43,6 +43,7 @@ from hook_utilities import (  # noqa: E402
     get_today_session_log,
     is_git_commit_command,
 )
+from hook_utilities.guards import skip_if_consumer_repo  # noqa: E402
 
 _ADR_PATTERN = re.compile(r"ADR-\d+\.md$", re.IGNORECASE)
 
@@ -215,6 +216,8 @@ def check_adr_review_evidence(
 
 def main() -> int:
     """Main hook entry point. Returns exit code."""
+    if skip_if_consumer_repo("adr-review-guard"):
+        return 0
     try:
         today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
 

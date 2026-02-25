@@ -11,10 +11,27 @@ index:
     - What is this project?
     use_cases:
     - new_user_onboarding
-total_docs_indexed: 1
-last_updated: '2025-12-19'
+  SKILL-AUTHORING.md:
+    tags:
+    - skills
+    - authoring
+    - frontmatter
+    - model-selection
+    concepts:
+    - Skill YAML frontmatter schema
+    - Model selection strategy
+    - Progressive disclosure
+    questions:
+    - How do I create a Claude Code skill?
+    - What frontmatter fields are required?
+    - Which model should I use for my skill?
+    use_cases:
+    - skill_development
+    - skill_validation
+total_docs_indexed: 2
+last_updated: '2026-02-21'
 coverage:
-  core_concepts: 1
+  core_concepts: 2
   quickstart: 0
   architecture: 0
   api: 0

@@ -33,10 +33,9 @@ Applies to all files in:
 
 ## The Traceability Chain
 
-```text
-REQ-NNN ──traces_to──> DESIGN-NNN ──traces_to──> TASK-NNN
-   │                      │                         │
-   └─── Requirement ──────┴─── Design ─────────────┴─── Task
+```mermaid
+graph LR
+    REQ-NNN -->|traces_to| DESIGN-NNN -->|traces_to| TASK-NNN
 ```
 
 **Rule**: Every DESIGN must have at least one REQ reference (backward) and at least one TASK reference (forward).
@@ -245,23 +244,23 @@ pwsh scripts/Validate-Traceability.ps1 -Format markdown > .agents/reports/tracea
 
 ### Feature Development Flow
 
-```text
-1. Create REQ-NNN (requirement)
-2. Create DESIGN-NNN referencing REQ-NNN
-3. Create TASK-NNN referencing DESIGN-NNN
-4. Pre-commit validates traceability
-5. Critic validates during plan review
-6. Retrospective captures metrics
+```mermaid
+graph TD
+    A[Create REQ-NNN] --> B[Create DESIGN-NNN referencing REQ-NNN]
+    B --> C[Create TASK-NNN referencing DESIGN-NNN]
+    C --> D[Pre-commit validates traceability]
+    D --> E[Critic validates during plan review]
+    E --> F[Retrospective captures metrics]
 ```
 
 ### Spec Modification Flow
 
-```text
-1. Modify spec file
-2. Update related field if references change
-3. Run validation: pwsh scripts/Validate-Traceability.ps1
-4. Fix any errors before committing
-5. Pre-commit hook validates on commit
+```mermaid
+graph TD
+    A[Modify spec file] --> B[Update related field if references change]
+    B --> C[Run validation: Validate-Traceability.ps1]
+    C --> D[Fix any errors before committing]
+    D --> E[Pre-commit hook validates on commit]
 ```
 
 ## Troubleshooting
