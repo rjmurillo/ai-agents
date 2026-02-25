@@ -243,6 +243,12 @@ class TestGetRepoInfo:
         with patch("subprocess.run", side_effect=FileNotFoundError):
             assert get_repo_info() is None
 
+    def test_returns_repo_info_type(self):
+        stdout = "https://github.com/owner/repo.git\n"
+        with patch("subprocess.run", return_value=_completed(stdout=stdout)):
+            info = get_repo_info()
+        assert isinstance(info, RepoInfo)
+
 
 class TestResolveRepoParams:
     def test_uses_provided_params(self):
@@ -272,6 +278,10 @@ class TestResolveRepoParams:
         with pytest.raises(SystemExit) as exc:
             resolve_repo_params("owner", "bad/repo/name!")
         assert exc.value.code == 1
+
+    def test_returns_repo_info_type(self):
+        result = resolve_repo_params("owner", "repo")
+        assert isinstance(result, RepoInfo)
 
 
 # ---------------------------------------------------------------------------
