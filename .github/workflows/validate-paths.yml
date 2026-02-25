@@ -105,9 +105,7 @@ jobs:
     steps:
       - name: Skip validation (no relevant files changed)
         run: |
-          echo "✅ No markdown files changed - skipping path validation"
+          echo "No relevant files changed - skipping path validation"
           echo ""
-          echo "Paths that would trigger validation:"
-          echo "  - **.md"
-          echo "  - build/scripts/Validate-PathNormalization.ps1"
-          echo "  - .github/workflows/validate-paths.yml"
+          echo "See the 'paths' filter in check-paths job for paths that trigger validation."
+          echo "Reference: .github/workflows/validate-paths.yml"
