@@ -3,31 +3,31 @@ project: ai-agents
 index:
   README.md:
     tags:
-    - readme
-    - getting-started
+      - readme
+      - getting-started
     concepts:
-    - Project overview
+      - Project overview
     questions:
-    - What is this project?
+      - What is this project?
     use_cases:
-    - new_user_onboarding
+      - new_user_onboarding
   SKILL-AUTHORING.md:
     tags:
-    - skills
-    - authoring
-    - frontmatter
-    - model-selection
+      - skills
+      - authoring
+      - frontmatter
+      - model-selection
     concepts:
-    - Skill YAML frontmatter schema
-    - Model selection strategy
-    - Progressive disclosure
+      - Skill YAML frontmatter schema
+      - Model selection strategy
+      - Progressive disclosure
     questions:
-    - How do I create a Claude Code skill?
-    - What frontmatter fields are required?
-    - Which model should I use for my skill?
+      - How do I create a Claude Code skill?
+      - What frontmatter fields are required?
+      - Which model should I use for my skill?
     use_cases:
-    - skill_development
-    - skill_validation
+      - skill_development
+      - skill_validation
 total_docs_indexed: 2
 last_updated: '2026-02-21'
 coverage:
