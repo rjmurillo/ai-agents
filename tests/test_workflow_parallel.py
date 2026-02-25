@@ -10,6 +10,8 @@ import threading
 import time
 from unittest.mock import MagicMock
 
+import pytest
+
 from scripts.workflow.parallel import (
     AggregationStrategy,
     ParallelGroup,
@@ -83,6 +85,18 @@ class TestIdentifyParallelGroups:
         wd = WorkflowDefinition(name="empty", steps=[])
         groups = identify_parallel_groups(wd)
         assert groups == []
+
+    def test_circular_dependency_raises_error(self) -> None:
+        """Circular dependency raises ValueError."""
+        # Create A -> B -> A cycle
+        steps = [
+            WorkflowStep(name="a", agent="analyst", inputs_from=[StepRef(name="b")]),
+            WorkflowStep(name="b", agent="critic", inputs_from=[StepRef(name="a")]),
+        ]
+        wd = WorkflowDefinition(name="circular", steps=steps)
+
+        with pytest.raises(ValueError, match="Circular dependency detected"):
+            identify_parallel_groups(wd)
 
 
 class TestCanParallelize:

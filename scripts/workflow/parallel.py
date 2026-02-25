@@ -103,9 +103,10 @@ def identify_parallel_groups(workflow: WorkflowDefinition) -> list[ParallelGroup
         }
 
         if not ready:
-            # Circular dependency, should not happen after validation
-            logger.warning("Circular dependency detected in workflow")
-            break
+            # Circular dependency is a critical error
+            remaining_steps = ", ".join(sorted(remaining))
+            msg = f"Circular dependency detected in workflow steps: {remaining_steps}"
+            raise ValueError(msg)
 
         for name in ready:
             levels[name] = current_level
