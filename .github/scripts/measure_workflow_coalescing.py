@@ -635,8 +635,8 @@ def main(argv: list[str] | None = None) -> int:
         test_prerequisites()
 
         repo_context = get_repository_context(args.repository)
-        owner = repo_context["Owner"]
-        repo = repo_context["Repo"]
+        owner = repo_context.owner
+        repo = repo_context.repo
         print(f"Analyzing repository: {owner}/{repo}", file=sys.stderr)
 
         end_date = datetime.now(UTC)

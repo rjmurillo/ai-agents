@@ -22,9 +22,18 @@ import json
 import os
 import re
 import subprocess
+from dataclasses import dataclass
 from fnmatch import fnmatch
 from pathlib import Path
 from typing import Any
+
+
+@dataclass(frozen=True)
+class RepoInfo:
+    """Repository owner and name. Mirrors scripts.github_core.api.RepoInfo."""
+
+    owner: str
+    repo: str
 
 # Files that can be auto-resolved by accepting target branch (main) version.
 # These are typically auto-generated or frequently-updated files where
@@ -94,8 +103,8 @@ def get_safe_worktree_path(base_path: str, pr_number: int) -> str:
 
     try:
         repo_info = get_repo_info()
-        repo_name = repo_info["repo"]
-    except (RuntimeError, KeyError):
+        repo_name = repo_info.repo
+    except RuntimeError:
         repo_name = "plugin"
     worktree_name = f"{repo_name}-pr-{pr_number}"
     worktree_path = (base / worktree_name).resolve()
@@ -109,7 +118,7 @@ def get_safe_worktree_path(base_path: str, pr_number: int) -> str:
     return str(worktree_path)
 
 
-def get_repo_info() -> dict[str, str]:
+def get_repo_info() -> RepoInfo:
     """Auto-detect owner/repo from git remote."""
     result = subprocess.run(
         ["git", "remote", "get-url", "origin"],
@@ -124,10 +133,10 @@ def get_repo_info() -> dict[str, str]:
     if not match:
         raise RuntimeError(f"Could not parse GitHub repository from remote: {remote}")
 
-    return {
-        "owner": match.group(1),
-        "repo": match.group(2).removesuffix(".git"),
-    }
+    return RepoInfo(
+        owner=match.group(1),
+        repo=match.group(2).removesuffix(".git"),
+    )
 
 
 def is_github_runner() -> bool:
@@ -430,9 +439,9 @@ def main(argv: list[str] | None = None) -> int:
     if not owner or not repo:
         try:
             info = get_repo_info()
-            owner = owner or info["owner"]
-            repo = repo or info["repo"]
-        except (RuntimeError, KeyError) as exc:
+            owner = owner or info.owner
+            repo = repo or info.repo
+        except RuntimeError as exc:
             print(json.dumps({"success": False, "message": str(exc)}))
             return 1
 

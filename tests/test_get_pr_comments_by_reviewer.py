@@ -10,6 +10,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from scripts.github_core.api import RepoInfo
 
 # ---------------------------------------------------------------------------
 # Import the script via importlib (not a package)
@@ -152,7 +153,7 @@ class TestMain:
             f"{_MODULE}.assert_gh_authenticated",
         ), patch(
             f"{_MODULE}.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             f"{_MODULE}.subprocess.run",
             return_value=pr_view,
@@ -178,7 +179,7 @@ class TestMain:
             f"{_MODULE}.assert_gh_authenticated",
         ), patch(
             f"{_MODULE}.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             f"{_MODULE}.subprocess.run",
             return_value=pr_view,
