@@ -275,6 +275,18 @@ jobs:
         id: validate-claims
         run: python3 .github/scripts/validate_investigation_claims.py
 
+# Pass-through job: satisfies required "Aggregate Results" check when path
+# filter skips the real aggregate job. GitHub branch protection requires
+# SUCCESS (not SKIPPED) for required checks. See issue #1168.
+
+  aggregate-skip:
+    name: Aggregate Results
+    runs-on: ubuntu-24.04-arm
+    needs: [detect-changes]
+    if: always() && needs.detect-changes.result == 'success' && needs.detect-changes.outputs.has_sessions != 'true'
+    steps:
+      - run: echo "Skipped - no session file changes detected"
+
 # Aggregate results and post comment
 
   aggregate:
