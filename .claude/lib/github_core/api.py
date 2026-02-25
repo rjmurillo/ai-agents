@@ -26,7 +26,12 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class RepoInfo:
-    """Repository owner and name, replacing raw dict returns."""
+    """Repository owner and name.
+
+    Replaces raw ``dict[str, str]`` returns that had inconsistent key
+    casing across modules.  Attribute access (``info.owner``) is enforced
+    by the type checker, eliminating ``KeyError`` risks.
+    """
 
     owner: str
     repo: str
