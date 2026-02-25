@@ -246,11 +246,13 @@ pwsh scripts/Validate-Traceability.ps1 -Format markdown > .agents/reports/tracea
 
 ```mermaid
 graph TD
-    A[Create REQ-NNN] --> B[Create DESIGN-NNN referencing REQ-NNN]
-    B --> C[Create TASK-NNN referencing DESIGN-NNN]
-    C --> D[Pre-commit validates traceability]
-    D --> E[Critic validates during plan review]
-    E --> F[Retrospective captures metrics]
+    A[Triage GitHub Issue] --> B[Run spec-generator to create REQ-NNN]
+    B --> C[Post REQ link as comment on GitHub issue]
+    C --> D[Create DESIGN-NNN referencing REQ-NNN]
+    D --> E[Create TASK-NNN referencing DESIGN-NNN]
+    E --> F[Pre-commit validates traceability]
+    F --> G[Critic validates during plan review]
+    G --> H[Retrospective captures metrics]
 ```
 
 ### Spec Modification Flow
