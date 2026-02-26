@@ -184,6 +184,8 @@ def validate_checklist_section(
     for item_name in items_to_check:
         if item_name in section_data:
             validate_must_item(section_data[item_name], item_name, section_name, result)
+        else:
+            result.errors.append(f"Missing required item: {section_name}.{item_name}")
 
 
 def validate_session_start(session_start: dict[str, Any], result: ValidationResult) -> None:
