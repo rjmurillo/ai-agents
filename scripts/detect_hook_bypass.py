@@ -109,6 +109,23 @@ def get_commit_files(sha: str) -> list[str]:
     return [f.strip() for f in result.stdout.strip().split("\n") if f.strip()]
 
 
+def is_merge_commit(sha: str) -> bool:
+    """Check if a commit is a merge commit (has 2+ parents).
+
+    Merge commits are exempt from bypass detection because they bring in
+    upstream changes that were already validated in the source branch.
+    """
+    result = subprocess.run(
+        ["git", "rev-parse", f"{sha}^2"],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    # If rev-parse succeeds, there's a second parent, so it's a merge
+    return result.returncode == 0
+
+
 def check_agents_without_session(
     sha: str,
     subject: str,
@@ -190,6 +207,9 @@ def analyze_commits(
     ]
 
     for sha, subject in commits:
+        # Skip merge commits: they bring in upstream changes already validated
+        if is_merge_commit(sha):
+            continue
         files = get_commit_files(sha)
         for check_fn in checks:
             indicator = check_fn(sha, subject, files)

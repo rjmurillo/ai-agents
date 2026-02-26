@@ -348,8 +348,8 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 1
 
-    owner = resolved["Owner"]
-    repo = resolved["Repo"]
+    owner = resolved.owner
+    repo = resolved.repo
 
     stats = process_comments(owner, repo, pr_number, findings)
 

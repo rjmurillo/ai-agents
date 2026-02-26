@@ -11,8 +11,8 @@ name: Session Protocol Validation
 on:
   pull_request:
     branches: [main]
-    paths:
-      - '.agents/sessions/*.json'
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -40,15 +40,36 @@ env:
   GH_TOKEN: ${{ secrets.BOT_PAT }}
 
 jobs:
+  # Check if any session-related files changed
+  check-changes:
+    name: Check for Session Changes
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 3
+    outputs:
+      should-run: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.sessions }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Check path filters
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        id: filter
+        if: github.event_name != 'workflow_dispatch'
+        with:
+          filters: |
+            sessions:
+              - '.agents/sessions/**'
+              - '.agents/SESSION-PROTOCOL.md'
 
 # Identify changed session files and build matrix
 
   detect-changes:
     name: Detect Changed Sessions
+    needs: check-changes
     # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 3
-    if: github.actor != 'dependabot[bot]' && github.actor != 'github-actions[bot]'
+    if: needs.check-changes.outputs.should-run == 'true' && github.actor != 'dependabot[bot]' && github.actor != 'github-actions[bot]'
 
     outputs:
       has_sessions: ${{ steps.changed.outputs.has_sessions }}
@@ -344,3 +365,25 @@ jobs:
           }
 
           Write-Output "Session protocol validation passed"
+
+# Skip validation when no session files changed (provides passing status for required checks)
+
+  skip-validation:
+    name: Skip Validation (No Session Changes)
+    needs: check-changes
+    if: needs.check-changes.outputs.should-run != 'true'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 1
+    steps:
+      - name: Checkout repository
+        # Required for dorny/paths-filter pattern consistency
+        # See: .serena/memories/ci-infrastructure-dorny-paths-filter-checkout.md
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Skip message
+        run: |
+          echo "Session protocol validation skipped - no session files changed"
+          echo ""
+          echo "Paths that trigger validation:"
+          echo "  - .agents/sessions/**"
+          echo "  - .agents/SESSION-PROTOCOL.md"
