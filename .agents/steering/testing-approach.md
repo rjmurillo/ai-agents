@@ -386,6 +386,18 @@ $result | Should -BeOfType [PSCustomObject]
 $result.number | Should -Be 123
 ```
 
+## Test File Placement
+
+Place test files according to the standards in [AGENTS.md](../../AGENTS.md#test-location-standards):
+
+| Category | Location |
+|----------|----------|
+| Python tests | `tests/` (primary) |
+| Skill tests | `.claude/skills/<name>/tests/` |
+| Security benchmarks | `.agents/security/benchmarks/` |
+
+New tests default to `tests/` unless testing a self-contained skill module.
+
 ## Coverage Expectations
 
 - Target: ≥80% code coverage for happy paths

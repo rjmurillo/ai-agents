@@ -274,8 +274,8 @@ def main(argv: list[str] | None = None) -> int:
     assert_gh_authenticated()
 
     resolved = resolve_repo_params(args.owner, args.repo)
-    owner = resolved["Owner"]
-    repo = resolved["Repo"]
+    owner = resolved.owner
+    repo = resolved.repo
 
     pr_id, pr_data = get_pr_node_id(owner, repo, args.pull_request)
 

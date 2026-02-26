@@ -9,6 +9,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from scripts.github_core.api import RepoInfo
 
 # ---------------------------------------------------------------------------
 # Import the script via importlib (not a package)
@@ -74,7 +75,7 @@ class TestMain:
             "get_thread_by_id.assert_gh_authenticated",
         ), patch(
             "get_thread_by_id.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "get_thread_by_id.gh_graphql",
             side_effect=RuntimeError("Could not resolve to a node"),
@@ -88,7 +89,7 @@ class TestMain:
             "get_thread_by_id.assert_gh_authenticated",
         ), patch(
             "get_thread_by_id.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "get_thread_by_id.gh_graphql",
             return_value={"node": None},
@@ -138,7 +139,7 @@ class TestMain:
             "get_thread_by_id.assert_gh_authenticated",
         ), patch(
             "get_thread_by_id.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "get_thread_by_id.gh_graphql",
             return_value=thread_data,
@@ -158,7 +159,7 @@ class TestMain:
             "get_thread_by_id.assert_gh_authenticated",
         ), patch(
             "get_thread_by_id.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "get_thread_by_id.gh_graphql",
             side_effect=RuntimeError("Server error"),
