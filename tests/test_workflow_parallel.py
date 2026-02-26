@@ -86,6 +86,20 @@ class TestIdentifyParallelGroups:
         groups = identify_parallel_groups(wd)
         assert groups == []
 
+    def test_priority_ordering_within_group(self) -> None:
+        """Steps in the same group are ordered by priority (highest first)."""
+        steps = [
+            WorkflowStep(name="low", agent="analyst", priority=1),
+            WorkflowStep(name="high", agent="security", priority=10),
+            WorkflowStep(name="mid", agent="devops", priority=5),
+        ]
+        wd = WorkflowDefinition(name="priority", steps=steps)
+
+        groups = identify_parallel_groups(wd)
+
+        assert len(groups) == 1
+        assert groups[0].step_names == ["high", "mid", "low"]
+
     def test_circular_dependency_raises_error(self) -> None:
         """Circular dependency raises ValueError."""
         # Create A -> B -> A cycle
@@ -183,6 +197,27 @@ class TestParallelStepExecutor:
         assert "fail" in result.failed_steps
         assert result.outputs() == {"ok": "ok"}
 
+    def test_priority_ordering_in_execution(self) -> None:
+        """Higher-priority steps are submitted first to the thread pool."""
+        submission_order: list[str] = []
+        lock = threading.Lock()
+
+        def tracking_runner(step: WorkflowStep, inp: str, iteration: int) -> str:
+            with lock:
+                submission_order.append(step.name)
+            return "ok"
+
+        executor = ParallelStepExecutor(runner=tracking_runner, max_workers=1)
+        steps = [
+            WorkflowStep(name="low", agent="analyst", priority=1),
+            WorkflowStep(name="high", agent="security", priority=10),
+        ]
+
+        executor.execute_parallel(steps, {})
+
+        # With max_workers=1, execution is serial in submission order
+        assert submission_order == ["high", "low"]
+
     def test_outputs_method(self) -> None:
         """outputs() returns completed step outputs."""
         runner = MagicMock(return_value="result")
@@ -233,6 +268,7 @@ class TestAggregationStrategies:
         result = executor.aggregate_outputs(outputs)
 
         assert "CONFLICT DETECTED" in result
+        assert "high-level-advisor" in result
         assert "option1" in result
         assert "option2" in result
 

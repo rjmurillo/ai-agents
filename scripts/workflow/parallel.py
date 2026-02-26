@@ -114,11 +114,15 @@ def identify_parallel_groups(workflow: WorkflowDefinition) -> list[ParallelGroup
 
         current_level += 1
 
-    # Group by level
+    # Build priority lookup from workflow steps
+    priority_map: dict[str, int] = {s.name: s.priority for s in workflow.steps}
+
+    # Group by level, sorted by priority (higher priority first)
     max_level = max(levels.values()) if levels else 0
     groups: list[ParallelGroup] = []
     for level in range(max_level + 1):
         step_names = [name for name, lvl in levels.items() if lvl == level]
+        step_names.sort(key=lambda n: priority_map.get(n, 0), reverse=True)
         groups.append(ParallelGroup(step_names=step_names))
 
     return groups
@@ -193,12 +197,15 @@ class ParallelStepExecutor:
         # Parallel execution with thread pool
         result = ParallelResult()
 
+        # Submit higher-priority steps first for earlier scheduling
+        sorted_steps = sorted(steps, key=lambda s: s.priority, reverse=True)
+
         with concurrent.futures.ThreadPoolExecutor(
             max_workers=self._max_workers
         ) as pool:
             futures: dict[concurrent.futures.Future[str], WorkflowStep] = {}
 
-            for step in steps:
+            for step in sorted_steps:
                 step_input = inputs.get(step.name, "")
                 future = pool.submit(self._runner, step, step_input, iteration)
                 futures[future] = step
@@ -301,9 +308,12 @@ class ParallelStepExecutor:
             return ""
 
         if strategy == AggregationStrategy.ESCALATE:
-            # Return all outputs with conflict marker
+            # Return all outputs with conflict marker and routing directive
             if len(set(outputs.values())) > 1:
-                header = "## CONFLICT DETECTED - Multiple outputs require resolution\n\n"
+                header = (
+                    "## CONFLICT DETECTED - Multiple outputs require resolution\n"
+                    "**Route to: high-level-advisor** (ADR-009 consensus escalation)\n\n"
+                )
                 parts = [f"### {name}\n{output}" for name, output in outputs.items()]
                 return header + "\n\n---\n\n".join(parts)
             # No conflict, return single value
@@ -340,6 +350,7 @@ def mark_parallel_steps(workflow: WorkflowDefinition) -> WorkflowDefinition:
                 prompt_template=step.prompt_template,
                 max_retries=step.max_retries,
                 condition=step.condition,
+                priority=step.priority,
             )
         else:
             new_step = step
