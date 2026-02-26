@@ -68,7 +68,11 @@ def get_current_branch() -> str:
 
 
 def get_pr_commits(base_ref: str) -> list[tuple[str, str]]:
-    """Get commits in the PR (since diverging from base).
+    """Get non-merge commits in the PR (since diverging from base).
+
+    Skips merge commits because they integrate changes already validated
+    on their source branches. Only authored commits are checked for
+    hook bypass indicators.
 
     Returns list of (sha, subject) tuples.
     """
@@ -76,6 +80,7 @@ def get_pr_commits(base_ref: str) -> list[tuple[str, str]]:
         [
             "git",
             "log",
+            "--no-merges",
             f"{base_ref}..HEAD",
             "--format=%H %s",
         ],
