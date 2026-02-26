@@ -18,11 +18,14 @@ import pytest
 from scripts.validate_session_json import (
     BRANCH_PATTERN,
     COMMIT_SHA_PATTERN,
+    CONTRADICTION_PATTERNS,
     REQUIRED_SESSION_FIELDS,
+    SESSION_START_REQUIRED_ITEMS,
     ValidationResult,
     get_case_insensitive,
     has_case_insensitive,
     load_session_file,
+    validate_checklist_section,
     validate_protocol_compliance,
     validate_session_end,
     validate_session_log,
@@ -280,6 +283,123 @@ class TestValidateSessionEnd:
         assert any("MUST NOT violated" in e for e in result.errors)
 
 
+class TestChecklistSectionValidation:
+    """Tests for validate_checklist_section - the core fix for issue #1028."""
+
+    def test_unknown_must_item_incomplete_causes_error(self) -> None:
+        """MUST items NOT in the required set are still validated."""
+        section_data = {
+            "usageMandatoryRead": {"complete": False, "evidence": "", "level": "MUST"},
+        }
+        result = ValidationResult()
+
+        validate_checklist_section(
+            section_data, SESSION_START_REQUIRED_ITEMS, "sessionStart", result
+        )
+
+        assert not result.is_valid
+        assert any("usageMandatoryRead" in e for e in result.errors)
+
+    def test_unknown_must_item_complete_passes(self) -> None:
+        """Complete MUST items NOT in the required set pass validation."""
+        section_data = {
+            "customMustItem": {"complete": True, "evidence": "Done", "level": "MUST"},
+        }
+        result = ValidationResult()
+
+        validate_checklist_section(
+            section_data, SESSION_START_REQUIRED_ITEMS, "sessionStart", result
+        )
+
+        assert result.is_valid
+
+    def test_should_items_not_checked_as_must(self) -> None:
+        """SHOULD items that are incomplete do not cause errors."""
+        section_data = {
+            "optionalItem": {"complete": False, "evidence": "", "level": "SHOULD"},
+        }
+        result = ValidationResult()
+
+        validate_checklist_section(
+            section_data, SESSION_START_REQUIRED_ITEMS, "sessionStart", result
+        )
+
+        assert result.is_valid
+
+    def test_non_dict_items_ignored(self) -> None:
+        """Non-dict values in section data are ignored."""
+        section_data = {
+            "someString": "not a dict",
+            "someNumber": 42,
+        }
+        result = ValidationResult()
+
+        validate_checklist_section(
+            section_data, SESSION_START_REQUIRED_ITEMS, "sessionStart", result
+        )
+
+        assert result.is_valid
+
+
+class TestEvidenceContradiction:
+    """Tests for evidence-contradiction detection."""
+
+    @pytest.mark.parametrize(
+        "evidence",
+        [
+            "not available",
+            "SKIPPED",
+            "N/A",
+            "Deferred to next session",
+            "will validate later",
+            "will run after merge",
+            "TODO",
+            "pending review",
+            "TBD",
+        ],
+    )
+    def test_contradiction_detected(self, evidence: str) -> None:
+        """Evidence containing skip/waiver patterns triggers warning."""
+        section_data = {
+            "serenaActivated": {
+                "complete": True,
+                "evidence": evidence,
+                "level": "MUST",
+            },
+        }
+        result = ValidationResult()
+
+        validate_checklist_section(
+            section_data, SESSION_START_REQUIRED_ITEMS, "sessionStart", result
+        )
+
+        assert any("Evidence contradiction" in w for w in result.warnings)
+
+    def test_legitimate_evidence_no_contradiction(self) -> None:
+        """Legitimate evidence does not trigger contradiction warning."""
+        section_data = {
+            "serenaActivated": {
+                "complete": True,
+                "evidence": "mcp__serena__activate_project output confirmed",
+                "level": "MUST",
+            },
+        }
+        result = ValidationResult()
+
+        validate_checklist_section(
+            section_data, SESSION_START_REQUIRED_ITEMS, "sessionStart", result
+        )
+
+        assert not any("Evidence contradiction" in w for w in result.warnings)
+
+    def test_contradiction_pattern_matches_expected(self) -> None:
+        """CONTRADICTION_PATTERNS matches known skip indicators."""
+        assert CONTRADICTION_PATTERNS.search("not available")
+        assert CONTRADICTION_PATTERNS.search("SKIPPED due to CI")
+        assert CONTRADICTION_PATTERNS.search("N/A for this session")
+        assert not CONTRADICTION_PATTERNS.search("Tool output confirmed")
+
+
 class TestValidateProtocolCompliance:
     """Tests for validate_protocol_compliance function."""
 
@@ -449,9 +569,7 @@ class TestMainFunction:
         from scripts import validate_session_json
 
         # Allow temp directory paths for testing
-        monkeypatch.setattr(
-            validate_session_json, "_PROJECT_ROOT", valid_session_file.parent
-        )
+        monkeypatch.setattr(validate_session_json, "_PROJECT_ROOT", valid_session_file.parent)
         monkeypatch.setattr(
             "sys.argv",
             ["validate_session_json.py", str(valid_session_file)],
@@ -473,9 +591,7 @@ class TestMainFunction:
         from scripts import validate_session_json
 
         # Allow temp directory paths for testing
-        monkeypatch.setattr(
-            validate_session_json, "_PROJECT_ROOT", invalid_session_file.parent
-        )
+        monkeypatch.setattr(validate_session_json, "_PROJECT_ROOT", invalid_session_file.parent)
         monkeypatch.setattr(
             "sys.argv",
             ["validate_session_json.py", str(invalid_session_file)],
@@ -497,9 +613,7 @@ class TestMainFunction:
         from scripts import validate_session_json
 
         # Allow temp directory paths for testing
-        monkeypatch.setattr(
-            validate_session_json, "_PROJECT_ROOT", invalid_session_file.parent
-        )
+        monkeypatch.setattr(validate_session_json, "_PROJECT_ROOT", invalid_session_file.parent)
         monkeypatch.setattr(
             "sys.argv",
             ["validate_session_json.py", str(invalid_session_file), "--pre-commit"],
