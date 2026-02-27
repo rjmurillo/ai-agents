@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import enum
 import json
+import logging
 import re
 from collections import Counter
 from dataclasses import asdict, dataclass, field
@@ -24,6 +25,8 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+
+_logger = logging.getLogger(__name__)
 
 # Default paths for error logging and graduation.
 _DEFAULT_ERROR_LOG = Path(".agents/sessions/errors.jsonl")
@@ -103,6 +106,8 @@ def load_recovery_hints(
         Dict mapping section names to lists of RecoveryHint objects.
     """
     if hints_path is None:
+        # Default path: scripts/ is at repo root, so parents[1] is repo root.
+        # Override via hints_path parameter for different layouts.
         hints_path = Path(__file__).resolve().parents[1] / ".agents" / "recovery-hints.yaml"
 
     if not hints_path.is_file():
@@ -118,6 +123,8 @@ def load_recovery_hints(
         for entry in entries:
             if isinstance(entry, dict) and "pattern" in entry and "hint" in entry:
                 hints.append(RecoveryHint(pattern=entry["pattern"], hint=entry["hint"]))
+            else:
+                _logger.warning("Skipped malformed entry in section '%s': %s", section, entry)
         if hints:
             result[section] = hints
 
