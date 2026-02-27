@@ -142,7 +142,7 @@ def test_milestone_not_found(mock_run):
 
 @patch("subprocess.run")
 def test_neither_milestone_nor_clear(mock_run):
-    """Must specify --milestone or --clear, otherwise exit 1."""
+    """Must specify --milestone or --clear, otherwise exit 2 (config/usage error per ADR-035)."""
     mock_run.side_effect = [
         _completed(rc=0),  # auth
         _completed(stdout="https://github.com/o/r\n"),  # remote
@@ -150,7 +150,7 @@ def test_neither_milestone_nor_clear(mock_run):
 
     with pytest.raises(SystemExit) as exc_info:
         main(["--issue", "1"])
-    assert exc_info.value.code == 1
+    assert exc_info.value.code == 2
 
 
 @patch("subprocess.run")

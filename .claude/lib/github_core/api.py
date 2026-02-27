@@ -118,13 +118,13 @@ def resolve_repo_params(owner: str = "", repo: str = "") -> RepoInfo:
         else:
             error_and_exit(
                 "Could not infer repository info. Please provide -Owner and -Repo parameters.",
-                1,
+                2,
             )
 
     if not is_github_name_valid(owner, "Owner"):
-        error_and_exit(f"Invalid GitHub owner name: {owner}", 1)
+        error_and_exit(f"Invalid GitHub owner name: {owner}", 2)
     if not is_github_name_valid(repo, "Repo"):
-        error_and_exit(f"Invalid GitHub repository name: {repo}", 1)
+        error_and_exit(f"Invalid GitHub repository name: {repo}", 2)
 
     return RepoInfo(owner=owner, repo=repo)
 
