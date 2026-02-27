@@ -147,7 +147,7 @@ jobs:
           retention-days: 7
 
   skip-tests:
-    name: Skip Python Tests (No Changes)
+    name: Run Python Tests
     needs: check-paths
     if: needs.check-paths.outputs.python-changed != 'true'
     # ADR-025: ARM runner for cost optimization
