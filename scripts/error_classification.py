@@ -2,6 +2,7 @@
 
 Classifies tool execution failures into a taxonomy aligned with ADR-035
 exit codes. Provides recovery hints from a YAML configuration file.
+Logs errors for pattern learning and graduation to MEMORY.md.
 
 Exit Codes (ADR-035):
     0 = success
@@ -14,12 +15,19 @@ Exit Codes (ADR-035):
 from __future__ import annotations
 
 import enum
+import json
 import re
-from dataclasses import dataclass, field
+from collections import Counter
+from dataclasses import asdict, dataclass, field
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 import yaml
+
+# Default paths for error logging and graduation.
+_DEFAULT_ERROR_LOG = Path(".agents/sessions/errors.jsonl")
+_GRADUATION_THRESHOLD = 3  # Patterns with 3+ successful recoveries graduate.
 
 
 class ErrorType(enum.Enum):
@@ -191,3 +199,99 @@ def classify_error(
         is_transient=transient,
         recovery_hints=hints,
     )
+
+
+@dataclass
+class ErrorLogEntry:
+    """A single error log entry for pattern learning."""
+
+    timestamp: str
+    error_type: str
+    tool: str
+    exit_code: int
+    recovery: str
+    success: bool
+
+
+def log_error(
+    classified: ClassifiedError,
+    recovery_action: str,
+    success: bool,
+    *,
+    log_path: Path | None = None,
+) -> None:
+    """Log an error and its recovery outcome for pattern learning.
+
+    Args:
+        classified: The classified error from classify_error().
+        recovery_action: Description of the recovery action taken.
+        success: True if the recovery was successful.
+        log_path: Path to errors.jsonl. Defaults to .agents/sessions/errors.jsonl.
+    """
+    if log_path is None:
+        log_path = _DEFAULT_ERROR_LOG
+
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+
+    entry = ErrorLogEntry(
+        timestamp=datetime.now(UTC).isoformat(),
+        error_type=classified.error_type.value,
+        tool=classified.tool_name,
+        exit_code=classified.exit_code,
+        recovery=recovery_action,
+        success=success,
+    )
+
+    with log_path.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(asdict(entry)) + "\n")
+
+
+def get_graduation_candidates(
+    log_path: Path | None = None,
+    threshold: int = _GRADUATION_THRESHOLD,
+) -> list[dict[str, Any]]:
+    """Identify patterns eligible for graduation to MEMORY.md.
+
+    Patterns with `threshold` or more successful recoveries are candidates.
+
+    Args:
+        log_path: Path to errors.jsonl. Defaults to .agents/sessions/errors.jsonl.
+        threshold: Minimum successful recoveries required (default: 3).
+
+    Returns:
+        List of dicts with tool, error_type, recovery, and count.
+    """
+    if log_path is None:
+        log_path = _DEFAULT_ERROR_LOG
+
+    if not log_path.is_file():
+        return []
+
+    success_counter: Counter[tuple[str, str, str]] = Counter()
+
+    with log_path.open("r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                entry = json.loads(line)
+                if entry.get("success"):
+                    key = (entry["tool"], entry["error_type"], entry["recovery"])
+                    success_counter[key] += 1
+            except (json.JSONDecodeError, KeyError):
+                continue
+
+    candidates = []
+    for (tool, error_type, recovery), count in success_counter.items():
+        if count >= threshold:
+            candidates.append(
+                {
+                    "tool": tool,
+                    "error_type": error_type,
+                    "recovery": recovery,
+                    "count": count,
+                }
+            )
+
+    return sorted(candidates, key=lambda x: x["count"], reverse=True)
