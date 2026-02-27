@@ -219,7 +219,15 @@ def has_failing_checks(pr: dict) -> bool:
 
 
 def has_unresolved_threads(pr: dict) -> bool:
-    """Return True if the PR has unresolved review threads."""
+    """Return True if the PR has unresolved review threads.
+
+    Reads thread data from the bulk GraphQL query (zero additional API calls).
+    A thread may be acknowledged (eyes reaction) but still unresolved.
+
+    Part of the "Acknowledged vs Resolved" lifecycle model (Issue #974):
+    - Eyes reaction = acknowledged for processing
+    - Thread resolution = issue actually addressed
+    """
     threads = pr.get("reviewThreads")
     if not threads:
         return False
@@ -341,12 +349,13 @@ def discover_and_classify(owner: str, repo: str, max_prs: int) -> dict:
             if not needs_action:
                 continue
 
-            if pr_has_changes_requested:
-                reason = "CHANGES_REQUESTED"
-            elif pr_has_conflicts:
+            # Determine reason with priority: conflicts > failing > changes > unresolved
+            if pr_has_conflicts:
                 reason = "HAS_CONFLICTS"
             elif pr_has_failing:
                 reason = "HAS_FAILING_CHECKS"
+            elif pr_has_changes_requested:
+                reason = "CHANGES_REQUESTED"
             else:
                 reason = "HAS_UNRESOLVED_THREADS"
 
@@ -354,6 +363,7 @@ def discover_and_classify(owner: str, repo: str, max_prs: int) -> dict:
                 "number": pr["number"],
                 "hasConflicts": pr_has_conflicts,
                 "hasFailingChecks": pr_has_failing,
+                "hasUnresolvedThreads": pr_has_unresolved,
                 "reason": reason,
                 "author": author_login,
                 "title": pr.get("title", ""),
@@ -420,6 +430,11 @@ def _print_summary(results: dict) -> None:
                     "    -> Has conflicts, run /merge-resolver first",
                     file=sys.stderr,
                 )
+            if item.get("hasUnresolvedThreads"):
+                print(
+                    "    -> Has unresolved review threads, run /pr-review",
+                    file=sys.stderr,
+                )
 
     if blocked_list:
         print("---", file=sys.stderr)
@@ -462,13 +477,19 @@ def _write_step_summary(results: dict) -> None:
             [
                 "### PRs Requiring Action",
                 "",
-                "| PR | Category | Reason | Has Conflicts |",
-                "|----|----------|--------|---------------|",
+                "| PR | Category | Reason | Has Conflicts | Unresolved Threads |",
+                "|----|----------|--------|---------------|-------------------|",
             ]
         )
         for item in action:
-            icon = ":warning:" if item.get("hasConflicts") else ":white_check_mark:"
-            lines.append(f"| #{item['number']} | {item['category']} | {item['reason']} | {icon} |")
+            has_conflicts = item.get("hasConflicts")
+            has_threads = item.get("hasUnresolvedThreads")
+            conflict_icon = ":warning:" if has_conflicts else ":white_check_mark:"
+            thread_icon = ":speech_balloon:" if has_threads else ":white_check_mark:"
+            lines.append(
+                f"| #{item['number']} | {item['category']} | {item['reason']} "
+                f"| {conflict_icon} | {thread_icon} |"
+            )
         lines.append("")
 
     if blocked_list:
@@ -558,8 +579,8 @@ def main(argv: list[str] | None = None) -> int:
         print("Failed to resolve repository parameters.", file=sys.stderr)
         return 2
 
-    owner = repo_params["Owner"]
-    repo = repo_params["Repo"]
+    owner = repo_params.owner
+    repo = repo_params.repo
 
     results = discover_and_classify(owner, repo, args.max_prs)
 

@@ -10,6 +10,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from scripts.github_core.api import RepoInfo
 
 # ---------------------------------------------------------------------------
 # Import the script via importlib (not a package)
@@ -79,7 +80,7 @@ class TestMain:
             "close_pr.assert_gh_authenticated",
         ), patch(
             "close_pr.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "subprocess.run",
             return_value=_completed(rc=1, stderr="not found"),
@@ -94,7 +95,7 @@ class TestMain:
             "close_pr.assert_gh_authenticated",
         ), patch(
             "close_pr.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "subprocess.run",
             return_value=_completed(stdout=state_json, rc=0),
@@ -111,7 +112,7 @@ class TestMain:
             "close_pr.assert_gh_authenticated",
         ), patch(
             "close_pr.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "subprocess.run",
             return_value=_completed(stdout=state_json, rc=0),
@@ -136,7 +137,7 @@ class TestMain:
             "close_pr.assert_gh_authenticated",
         ), patch(
             "close_pr.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "subprocess.run",
             side_effect=_side_effect,
@@ -161,7 +162,7 @@ class TestMain:
             "close_pr.assert_gh_authenticated",
         ), patch(
             "close_pr.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "subprocess.run",
             side_effect=_side_effect,
@@ -187,10 +188,67 @@ class TestMain:
             "close_pr.assert_gh_authenticated",
         ), patch(
             "close_pr.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "subprocess.run",
             side_effect=_side_effect,
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main(["--pull-request", "50"])
+            assert exc.value.code == 3
+
+    def test_comment_file_used(self, tmp_path, capsys):
+        comment_file = tmp_path / "reason.md"
+        comment_file.write_text("Closing because superseded")
+        state_json = json.dumps({"state": "OPEN"})
+        call_count = 0
+
+        def _side_effect(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return _completed(stdout=state_json, rc=0)
+            return _completed(rc=0)
+
+        with patch(
+            "close_pr.assert_gh_authenticated",
+        ), patch(
+            "close_pr.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "subprocess.run",
+            side_effect=_side_effect,
+        ):
+            rc = main([
+                "--pull-request", "50",
+                "--comment-file", str(comment_file),
+            ])
+        assert rc == 0
+        assert call_count == 3
+
+    def test_comment_file_not_found_exits_2(self):
+        with patch(
+            "close_pr.assert_gh_authenticated",
+        ), patch(
+            "close_pr.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main([
+                    "--pull-request", "50",
+                    "--comment-file", "/nonexistent/file.md",
+                ])
+            assert exc.value.code == 2
+
+    def test_pr_view_non_not_found_error_exits_3(self):
+        with patch(
+            "close_pr.assert_gh_authenticated",
+        ), patch(
+            "close_pr.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "subprocess.run",
+            return_value=_completed(rc=1, stderr="internal server error"),
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "50"])

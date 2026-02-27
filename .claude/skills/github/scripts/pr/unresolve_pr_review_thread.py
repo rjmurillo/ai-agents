@@ -6,7 +6,8 @@ Counterpart to resolve_pr_review_thread.py.
 
 Exit codes follow ADR-035:
     0 - Success
-    1 - Operation failed or invalid parameters
+    1 - Operation failed (unresolve returned error)
+    2 - Config/usage error (invalid parameters)
     3 - API error
     4 - Auth error
 """
@@ -155,9 +156,9 @@ def build_parser() -> argparse.ArgumentParser:
 def _validate_thread_id(thread_id: str) -> None:
     """Validate thread ID format."""
     if not thread_id or not thread_id.strip():
-        error_and_exit("ThreadId parameter is required.", 1)
+        error_and_exit("ThreadId parameter is required.", 2)
     if not thread_id.startswith("PRRT_"):
-        error_and_exit("Invalid ThreadId format. Expected PRRT_... format.", 1)
+        error_and_exit("Invalid ThreadId format. Expected PRRT_... format.", 2)
 
 
 def main(argv: list[str] | None = None) -> int:
