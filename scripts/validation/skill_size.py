@@ -56,7 +56,11 @@ def has_size_exception(content: str) -> bool:
     return False
 
 
-def check_skill_size(file_path: Path) -> SizeCheckResult:
+def check_skill_size(
+    file_path: Path,
+    limit: int = SKILL_SIZE_LIMIT,
+    warn: int = SKILL_SIZE_WARNING,
+) -> SizeCheckResult:
     """Check a single SKILL.md file against size limits."""
     try:
         relative = file_path.relative_to(Path.cwd())
@@ -82,18 +86,18 @@ def check_skill_size(file_path: Path) -> SizeCheckResult:
         has_exception=exception,
     )
 
-    if line_count > SKILL_SIZE_LIMIT:
+    if line_count > limit:
         if exception:
             result.warning = True
         else:
             result.passed = False
             result.errors.append(
-                f"SKILL.md exceeds {SKILL_SIZE_LIMIT} lines ({line_count} lines). "
+                f"SKILL.md exceeds {limit} lines ({line_count} lines). "
                 f"Refactor using progressive disclosure: move details to references/, "
                 f"modules/, or scripts/. Add 'size-exception: true' to frontmatter "
                 f"if overage is justified."
             )
-    elif line_count > SKILL_SIZE_WARNING:
+    elif line_count > warn:
         result.warning = True
 
     return result
@@ -116,7 +120,7 @@ def get_staged_skill_files() -> list[Path]:
 
     files: list[Path] = []
     for line in result.stdout.strip().split("\n"):
-        if re.search(r"\.claude/skills/.*/SKILL\.md$", line):
+        if re.search(r"^\.claude/skills/.*/SKILL\.md$", line):
             path = Path(line)
             if path.exists():
                 files.append(path)
@@ -130,10 +134,7 @@ def get_skill_files(
 ) -> list[Path]:
     """Get list of SKILL.md files to validate."""
     if changed_files:
-        skill_files = [
-            f for f in changed_files
-            if re.search(r"\.claude/skills/.*/SKILL\.md$", f)
-        ]
+        skill_files = [f for f in changed_files if re.search(r"^\.claude/skills/.*/SKILL\.md$", f)]
         if not skill_files:
             return []
         return [Path(f) for f in skill_files if Path(f).exists()]
@@ -199,10 +200,9 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    # Allow overriding thresholds via CLI
-    global SKILL_SIZE_LIMIT, SKILL_SIZE_WARNING  # noqa: PLW0603
-    SKILL_SIZE_LIMIT = args.limit
-    SKILL_SIZE_WARNING = args.warn
+    # Use local variables instead of modifying globals
+    limit = args.limit
+    warn = args.warn
 
     print("Validating skill prompt sizes...")
 
@@ -223,7 +223,7 @@ def main(argv: list[str] | None = None) -> int:
     fail_count = 0
 
     for file_path in files:
-        result = check_skill_size(file_path)
+        result = check_skill_size(file_path, limit=limit, warn=warn)
 
         if not result.passed:
             fail_count += 1
@@ -251,7 +251,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  Passed:   {pass_count}")
     print(f"  Warnings: {warn_count}")
     print(f"  Failed:   {fail_count}")
-    print(f"  Limit:    {SKILL_SIZE_LIMIT} lines")
+    print(f"  Limit:    {limit} lines")
     print()
 
     if fail_count > 0:
