@@ -96,19 +96,24 @@ def parse_agent_file(file_path: Path) -> AgentDefinition | None:
     )
 
 
-def parse_agent_files(agent_dir: Path) -> list[AgentDefinition]:
+def parse_agent_files(agent_dir: Path) -> tuple[list[AgentDefinition], list[str]]:
     """Parse all agent definitions from a directory of markdown files.
 
     Skips non-agent files listed in _EXCLUDED_FILES.
+    Returns a tuple of parsed agents and a list of file-level errors.
     """
     agents: list[AgentDefinition] = []
+    errors: list[str] = []
     for md_file in sorted(agent_dir.glob("*.md")):
         if md_file.name in _EXCLUDED_FILES:
             continue
-        defn = parse_agent_file(md_file)
-        if defn is not None:
-            agents.append(defn)
-    return agents
+        try:
+            defn = parse_agent_file(md_file)
+            if defn is not None:
+                agents.append(defn)
+        except OSError as e:
+            errors.append(f"Cannot read file {md_file.name}: {e}")
+    return agents, errors
 
 
 def parse_catalog(agents_md_path: Path) -> list[CatalogEntry]:
@@ -225,9 +230,16 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Error: catalog file not found: {args.catalog}", file=sys.stderr)
         return 2
 
-    agents = parse_agent_files(args.agent_dir)
-    catalog = parse_catalog(args.catalog)
+    agents, parsing_errors = parse_agent_files(args.agent_dir)
+
+    try:
+        catalog = parse_catalog(args.catalog)
+    except OSError as e:
+        print(f"Error reading catalog file {args.catalog}: {e}", file=sys.stderr)
+        return 2
+
     result = validate(agents, catalog)
+    result.errors.extend(parsing_errors)
 
     if args.json:
         import json

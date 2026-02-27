@@ -159,11 +159,28 @@ class TestParseAgentFiles:
             ---
             """,
         )
-        agents = parse_agent_files(tmp_agent_dir)
+        agents, errors = parse_agent_files(tmp_agent_dir)
+        assert errors == []
         names = [a.name for a in agents]
         assert "real-agent" in names
         assert "should-skip" not in names
         assert "template" not in names
+
+    def test_unreadable_file_collected_as_error(self, tmp_agent_dir: Path) -> None:
+        _write_agent(
+            tmp_agent_dir,
+            "good.md",
+            "---\nname: good\ndescription: Good agent\nmodel: sonnet\n---\n",
+        )
+        bad = tmp_agent_dir / "bad.md"
+        bad.write_text("---\nname: bad\n---\n", encoding="utf-8")
+        bad.chmod(0o000)
+        agents, errors = parse_agent_files(tmp_agent_dir)
+        bad.chmod(0o644)  # restore for cleanup
+        assert len(agents) == 1
+        assert agents[0].name == "good"
+        assert len(errors) == 1
+        assert "bad.md" in errors[0]
 
     def test_sorted_output(self, tmp_agent_dir: Path) -> None:
         for name in ["zebra", "alpha", "middle"]:
@@ -172,7 +189,8 @@ class TestParseAgentFiles:
                 f"{name}.md",
                 f"---\nname: {name}\ndescription: Agent {name}\nmodel: sonnet\n---\n",
             )
-        agents = parse_agent_files(tmp_agent_dir)
+        agents, errors = parse_agent_files(tmp_agent_dir)
+        assert errors == []
         names = [a.name for a in agents]
         assert names == ["alpha", "middle", "zebra"]
 
@@ -296,7 +314,7 @@ class TestValidate:
 @pytest.mark.skipif(not AGENTS_MD.is_file(), reason="AGENTS.md not found")
 class TestIntegration:
     def test_parse_real_agents(self) -> None:
-        agents = parse_agent_files(AGENT_DIR)
+        agents, _errors = parse_agent_files(AGENT_DIR)
         assert len(agents) >= 15, f"Expected at least 15 agents, got {len(agents)}"
         names = {a.name for a in agents}
         assert "orchestrator" in names
@@ -316,7 +334,7 @@ class TestIntegration:
         between agent files and AGENTS.md is a known condition.
         The validator correctly detects this drift.
         """
-        agents = parse_agent_files(AGENT_DIR)
+        agents, _errors = parse_agent_files(AGENT_DIR)
         catalog = parse_catalog(AGENTS_MD)
         result = validate(agents, catalog)
         assert isinstance(result, ValidationResult)
