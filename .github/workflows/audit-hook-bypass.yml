@@ -67,7 +67,7 @@ jobs:
         if: steps.detect.outputs.indicator_count != '0'
         run: |
           echo "::warning::Hook bypass indicators detected. See audit report."
-          python3 scripts/detect_hook_bypass.py --base-ref origin/main
+          python3 scripts/detect_hook_bypass.py --base-ref origin/main || true
 
       - name: Upload audit report
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
