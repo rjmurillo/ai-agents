@@ -8,19 +8,18 @@
 
 /**
  * Valid agent names in the system.
- * Derived from agent definition files in src/claude/*.md
+ * Canonical source: AGENTS.md Agent Catalog table.
  */
 export type AgentName =
   | "analyst"
   | "architect"
+  | "backlog-generator"
   | "critic"
-  | "debug"
   | "devops"
   | "explainer"
   | "high-level-advisor"
   | "implementer"
   | "independent-thinker"
-  | "janitor"
   | "memory"
   | "merge-resolver"
   | "milestone-planner"
@@ -31,7 +30,6 @@ export type AgentName =
   | "roadmap"
   | "security"
   | "skillbook"
-  | "spec-generator"
   | "task-decomposer";
 
 /**
