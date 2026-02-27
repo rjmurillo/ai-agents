@@ -17,6 +17,7 @@ sys.path.insert(0, workspace)
 
 from scripts.github_core.api import (  # noqa: E402
     check_workflow_rate_limit,
+    get_unresolved_review_threads,
     gh_graphql,
     resolve_repo_params,
 )
@@ -213,6 +214,20 @@ def has_failing_checks(pr: dict) -> bool:
     return False
 
 
+def has_unresolved_threads(owner: str, repo: str, pr_number: int) -> bool:
+    """Return True if the PR has unresolved review threads.
+
+    Checks for threads where isResolved=false. A thread may be acknowledged
+    (eyes reaction) but still unresolved, requiring action.
+
+    Part of the "Acknowledged vs Resolved" lifecycle model (Issue #974):
+    - Eyes reaction = acknowledged for processing
+    - Thread resolution = issue actually addressed
+    """
+    threads = get_unresolved_review_threads(owner, repo, pr_number)
+    return len(threads) > 0
+
+
 # ---------------------------------------------------------------------------
 # Derivative detection
 # ---------------------------------------------------------------------------
@@ -313,21 +328,37 @@ def discover_and_classify(owner: str, repo: str, max_prs: int) -> dict:
             pr_has_conflicts = has_conflicts(pr)
             pr_has_failing = has_failing_checks(pr)
 
-            needs_action = pr_has_changes_requested or pr_has_conflicts or pr_has_failing
+            # Check unresolved threads only for bot-associated PRs (agent
+            # author or bot reviewer) to avoid extra API calls for human PRs.
+            # Per Issue #974: acknowledged (eyes) != resolved (thread closed).
+            pr_has_unresolved = False
+            if is_agent_controlled or is_bot_reviewer:
+                pr_has_unresolved = has_unresolved_threads(owner, repo, pr["number"])
+
+            needs_action = (
+                pr_has_changes_requested
+                or pr_has_conflicts
+                or pr_has_failing
+                or pr_has_unresolved
+            )
             if not needs_action:
                 continue
 
-            if pr_has_changes_requested:
-                reason = "CHANGES_REQUESTED"
-            elif pr_has_conflicts:
+            # Determine reason with priority: conflicts > failing > changes > unresolved
+            if pr_has_conflicts:
                 reason = "HAS_CONFLICTS"
-            else:
+            elif pr_has_failing:
                 reason = "HAS_FAILING_CHECKS"
+            elif pr_has_changes_requested:
+                reason = "CHANGES_REQUESTED"
+            else:
+                reason = "UNRESOLVED_THREADS"
 
             pr_entry = {
                 "number": pr["number"],
                 "hasConflicts": pr_has_conflicts,
                 "hasFailingChecks": pr_has_failing,
+                "hasUnresolvedThreads": pr_has_unresolved,
                 "reason": reason,
                 "author": author_login,
                 "title": pr.get("title", ""),
@@ -394,6 +425,11 @@ def _print_summary(results: dict) -> None:
                     "    -> Has conflicts, run /merge-resolver first",
                     file=sys.stderr,
                 )
+            if item.get("hasUnresolvedThreads"):
+                print(
+                    "    -> Has unresolved review threads, run /pr-review",
+                    file=sys.stderr,
+                )
 
     if blocked_list:
         print("---", file=sys.stderr)
@@ -436,13 +472,19 @@ def _write_step_summary(results: dict) -> None:
             [
                 "### PRs Requiring Action",
                 "",
-                "| PR | Category | Reason | Has Conflicts |",
-                "|----|----------|--------|---------------|",
+                "| PR | Category | Reason | Has Conflicts | Unresolved Threads |",
+                "|----|----------|--------|---------------|-------------------|",
             ]
         )
         for item in action:
-            icon = ":warning:" if item.get("hasConflicts") else ":white_check_mark:"
-            lines.append(f"| #{item['number']} | {item['category']} | {item['reason']} | {icon} |")
+            has_conflicts = item.get("hasConflicts")
+            has_threads = item.get("hasUnresolvedThreads")
+            conflict_icon = ":warning:" if has_conflicts else ":white_check_mark:"
+            thread_icon = ":speech_balloon:" if has_threads else ":white_check_mark:"
+            lines.append(
+                f"| #{item['number']} | {item['category']} | {item['reason']} "
+                f"| {conflict_icon} | {thread_icon} |"
+            )
         lines.append("")
 
     if blocked_list:
