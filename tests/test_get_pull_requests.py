@@ -180,6 +180,10 @@ class TestMain:
         cmd = mock_run.call_args[0][0]
         assert "--search" in cmd
         assert "fix auth" in cmd
+        # --search makes gh ignore other filter flags, so we must not pass them
+        assert "--state" not in cmd
+        assert "--label" not in cmd
+        assert "--author" not in cmd
         output = json.loads(capsys.readouterr().out)
         assert len(output) == 1
 

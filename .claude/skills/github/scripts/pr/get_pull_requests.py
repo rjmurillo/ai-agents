@@ -67,7 +67,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--search", default="",
-        help="GitHub search query (e.g. 'fix auth' or 'is:draft').",
+        help="GitHub search query (e.g. 'fix auth is:open'). "
+             "When used, --state/--label/--author/--base/--head are ignored.",
     )
     parser.add_argument(
         "--limit", type=int, default=30,
@@ -94,27 +95,29 @@ def main(argv: list[str] | None = None) -> int:
         "--json", "number,title,headRefName,baseRefName,state",
     ]
 
-    if args.state == "merged":
-        list_args.extend(["--state", "closed"])
-    elif args.state != "all":
-        list_args.extend(["--state", args.state])
-
-    if args.label:
-        labels = [lbl.strip() for lbl in args.label.split(",") if lbl.strip()]
-        for lbl in labels:
-            list_args.extend(["--label", lbl])
-
-    if args.author:
-        list_args.extend(["--author", args.author])
-
-    if args.base:
-        list_args.extend(["--base", args.base])
-
-    if args.head:
-        list_args.extend(["--head", args.head])
-
     if args.search:
+        # gh pr list --search ignores --state, --label, --author, --base,
+        # --head flags. Only pass --search to avoid misleading behavior.
         list_args.extend(["--search", args.search])
+    else:
+        if args.state == "merged":
+            list_args.extend(["--state", "closed"])
+        elif args.state != "all":
+            list_args.extend(["--state", args.state])
+
+        if args.label:
+            labels = [lbl.strip() for lbl in args.label.split(",") if lbl.strip()]
+            for lbl in labels:
+                list_args.extend(["--label", lbl])
+
+        if args.author:
+            list_args.extend(["--author", args.author])
+
+        if args.base:
+            list_args.extend(["--base", args.base])
+
+        if args.head:
+            list_args.extend(["--head", args.head])
 
     result = subprocess.run(
         list_args, capture_output=True, text=True, timeout=30, check=False,
