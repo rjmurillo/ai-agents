@@ -157,7 +157,7 @@ export interface InvokeAgentResult {
   suggested_next?: AgentName[];
 
   /** Context for next agent handoff */
-  handoff_context?: string;
+  handoff_context?: HandoffContext;
 }
 
 /**
@@ -255,8 +255,8 @@ export interface WorkflowDefinition {
  * Routing rule for agent selection.
  */
 export interface RoutingRule {
-  /** Pattern to match in task description */
-  pattern: RegExp;
+  /** Pattern to match in task description (regex string) */
+  pattern: string;
 
   /** Primary agent for this pattern */
   primary: AgentName;
