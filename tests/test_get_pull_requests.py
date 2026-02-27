@@ -171,7 +171,7 @@ class TestMain:
             "get_pull_requests.assert_gh_authenticated",
         ), patch(
             "get_pull_requests.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "subprocess.run",
             return_value=_completed(stdout=_prs_json(prs), rc=0),
