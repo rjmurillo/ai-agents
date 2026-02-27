@@ -439,3 +439,94 @@ class TestClassifyPrsWithUnresolvedThreads:
         assert results.action_required[0]["reason"] == "HAS_CONFLICTS"
         assert results.action_required[0]["hasConflicts"] is True
         assert results.action_required[0]["hasUnresolvedThreads"] is True
+
+    def test_reason_priority_failing_checks_over_threads(self) -> None:
+        """Failing checks take priority over unresolved threads in reason."""
+        prs = [
+            {
+                "number": 310,
+                "title": "Agent PR with failing checks and threads",
+                "author": {"login": "rjmurillo-bot"},
+                "headRefName": "feat/failing-checks",
+                "baseRefName": "main",
+                "mergeable": "MERGEABLE",
+                "reviewDecision": None,
+                "reviewRequests": {"nodes": []},
+                "commits": {
+                    "nodes": [
+                        {
+                            "commit": {
+                                "statusCheckRollup": {
+                                    "state": "FAILURE",
+                                    "contexts": {"nodes": []},
+                                }
+                            }
+                        }
+                    ]
+                },
+            },
+        ]
+        with patch(
+            "scripts.invoke_pr_maintenance.has_unresolved_threads",
+            return_value=True,
+        ):
+            results = classify_prs("owner", "repo", prs)
+
+        assert results.action_required[0]["reason"] == "HAS_FAILING_CHECKS"
+        assert results.action_required[0]["hasFailingChecks"] is True
+        assert results.action_required[0]["hasUnresolvedThreads"] is True
+
+    def test_reason_priority_changes_requested_over_threads(self) -> None:
+        """Changes requested take priority over unresolved threads in reason."""
+        prs = [
+            {
+                "number": 320,
+                "title": "Agent PR with changes requested and threads",
+                "author": {"login": "rjmurillo-bot"},
+                "headRefName": "feat/changes-and-threads",
+                "baseRefName": "main",
+                "mergeable": "MERGEABLE",
+                "reviewDecision": "CHANGES_REQUESTED",
+                "reviewRequests": {"nodes": []},
+                "commits": {"nodes": []},
+            },
+        ]
+        with patch(
+            "scripts.invoke_pr_maintenance.has_unresolved_threads",
+            return_value=True,
+        ):
+            results = classify_prs("owner", "repo", prs)
+
+        assert results.action_required[0]["reason"] == "CHANGES_REQUESTED"
+        assert results.action_required[0]["hasUnresolvedThreads"] is True
+
+    def test_reason_priority_failing_checks_over_changes_requested(self) -> None:
+        """Failing checks take priority over changes requested in reason."""
+        prs = [
+            {
+                "number": 330,
+                "title": "Agent PR with failing checks and changes requested",
+                "author": {"login": "rjmurillo-bot"},
+                "headRefName": "feat/failing-and-changes",
+                "baseRefName": "main",
+                "mergeable": "MERGEABLE",
+                "reviewDecision": "CHANGES_REQUESTED",
+                "reviewRequests": {"nodes": []},
+                "commits": {
+                    "nodes": [
+                        {
+                            "commit": {
+                                "statusCheckRollup": {
+                                    "state": "FAILURE",
+                                    "contexts": {"nodes": []},
+                                }
+                            }
+                        }
+                    ]
+                },
+            },
+        ]
+        results = classify_prs("owner", "repo", prs)
+
+        assert results.action_required[0]["reason"] == "HAS_FAILING_CHECKS"
+        assert results.action_required[0]["hasFailingChecks"] is True

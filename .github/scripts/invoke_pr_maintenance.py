@@ -328,8 +328,8 @@ def discover_and_classify(owner: str, repo: str, max_prs: int) -> dict:
             pr_has_conflicts = has_conflicts(pr)
             pr_has_failing = has_failing_checks(pr)
 
-            # Check unresolved threads only for bot-associated PRs (agent
-            # author or bot reviewer) to avoid extra API calls for human PRs.
+            # Check unresolved threads only for agent-controlled PRs or PRs with
+            # bot reviewers to avoid extra API calls for human-only PRs.
             # Per Issue #974: acknowledged (eyes) != resolved (thread closed).
             pr_has_unresolved = False
             if is_agent_controlled or is_bot_reviewer:

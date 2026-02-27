@@ -264,8 +264,8 @@ def classify_prs(
             has_conflicts = pr.get("mergeable") == "CONFLICTING"
             has_failures = has_failing_checks(pr)
 
-            # Check unresolved threads only for bot-associated PRs (agent
-            # author or bot reviewer) to avoid extra API calls for human PRs.
+            # Check unresolved threads only for agent-controlled PRs or PRs with
+            # bot reviewers to avoid extra API calls for human-only PRs.
             # Per Issue #974: acknowledged (eyes) != resolved (thread closed).
             has_unresolved = False
             if is_agent or is_reviewer:
