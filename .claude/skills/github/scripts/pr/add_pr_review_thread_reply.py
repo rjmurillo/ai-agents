@@ -88,12 +88,10 @@ def build_parser() -> argparse.ArgumentParser:
 
 def _resolve_body(args: argparse.Namespace) -> str:
     if args.body_file:
-        resolved = Path(args.body_file).resolve()
-        if ".." in Path(args.body_file).parts:
-            error_and_exit(f"Path traversal detected: {args.body_file}", 2)
-        if not resolved.is_file():
-            error_and_exit(f"Body file not found: {args.body_file}", 2)
-        return resolved.read_text(encoding="utf-8")
+        from github_core.validation import assert_valid_body_file
+
+        assert_valid_body_file(args.body_file)
+        return Path(args.body_file).read_text(encoding="utf-8")
     return str(args.body)
 
 

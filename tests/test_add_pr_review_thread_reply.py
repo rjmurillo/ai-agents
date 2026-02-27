@@ -180,6 +180,8 @@ class TestMain:
         ), patch(
             "add_pr_review_thread_reply.gh_graphql",
             return_value=reply_data,
+        ), patch(
+            "github_core.validation.assert_valid_body_file",
         ):
             rc = main([
                 "--thread-id", "PRRT_abc", "--body-file", str(body_file),

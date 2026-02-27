@@ -187,6 +187,8 @@ class TestMain:
         ), patch(
             "subprocess.run",
             return_value=_completed(stdout=response, rc=0),
+        ), patch(
+            "github_core.validation.assert_valid_body_file",
         ):
             rc = main([
                 "--pull-request", "1", "--body-file", str(body_file),
