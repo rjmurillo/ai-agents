@@ -439,6 +439,24 @@ class TestHasUnresolvedThreads:
         pr = {"reviewThreads": {"nodes": []}}
         assert has_unresolved_threads(pr) is False
 
+    def test_warns_when_threads_truncated(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        import logging
+
+        from scripts.invoke_pr_maintenance import has_unresolved_threads
+
+        pr = {
+            "number": 42,
+            "reviewThreads": {
+                "totalCount": 150,
+                "nodes": [{"isResolved": True}] * 100,
+            },
+        }
+        with caplog.at_level(logging.WARNING):
+            has_unresolved_threads(pr)
+        assert "150 review threads but only 100 fetched" in caplog.text
+
 
 class TestClassifyPrsWithUnresolvedThreads:
     """Tests for classify_prs with unresolved thread detection (Issue #974)."""

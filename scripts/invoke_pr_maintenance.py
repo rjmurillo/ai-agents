@@ -130,7 +130,14 @@ def has_unresolved_threads(pr: dict[str, Any]) -> bool:
     threads = pr.get("reviewThreads")
     if not threads:
         return False
-    for node in threads.get("nodes", []):
+    total = threads.get("totalCount", 0)
+    nodes = threads.get("nodes", [])
+    if total > len(nodes):
+        logging.warning(
+            "PR #%s has %d review threads but only %d fetched",
+            pr.get("number", "?"), total, len(nodes),
+        )
+    for node in nodes:
         if node and not node.get("isResolved", True):
             return True
     return False
@@ -159,6 +166,7 @@ query($owner: String!, $name: String!, $limit: Int!) {
                     }
                 }
                 reviewThreads(first: 100) {
+                    totalCount
                     nodes {
                         isResolved
                     }
