@@ -159,7 +159,7 @@ After your human-readable analysis, emit a fenced JSON block conforming to `.age
       "category": "injection|authentication|secrets|misconfiguration|dependency|infrastructure",
       "description": "What was found",
       "location": "file:line",
-      "cwe": "CWE-XXX",
+      "cwe": "CWE-NNN",
       "recommendation": "Suggested fix"
     }
   ]

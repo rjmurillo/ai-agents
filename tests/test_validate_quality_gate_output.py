@@ -98,6 +98,26 @@ class TestInvalidOutput:
         errors = validate_output(_valid_output(findings=[finding]))
         assert any("cwe" in e.lower() for e in errors)
 
+    def test_finding_cwe_missing_digits(self) -> None:
+        finding = {
+            "severity": "high",
+            "category": "test",
+            "description": "something",
+            "cwe": "CWE-",
+        }
+        errors = validate_output(_valid_output(findings=[finding]))
+        assert any("cwe" in e.lower() for e in errors)
+
+    def test_finding_cwe_non_numeric_suffix(self) -> None:
+        finding = {
+            "severity": "high",
+            "category": "test",
+            "description": "something",
+            "cwe": "CWE-XXX",
+        }
+        errors = validate_output(_valid_output(findings=[finding]))
+        assert any("cwe" in e.lower() for e in errors)
+
     def test_not_a_dict(self) -> None:
         errors = validate_output("not a dict")  # type: ignore[arg-type]
         assert errors == ["Root element must be a JSON object"]

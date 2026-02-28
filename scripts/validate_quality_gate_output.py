@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -82,7 +83,7 @@ def validate_output(data: dict) -> list[str]:
                 )
             if "cwe" in finding:
                 cwe = finding["cwe"]
-                if not isinstance(cwe, str) or not cwe.startswith("CWE-"):
+                if not isinstance(cwe, str) or not re.fullmatch(r"CWE-\d+", cwe):
                     errors.append(
                         f"findings[{i}]: 'cwe' must match pattern CWE-NNN"
                     )
