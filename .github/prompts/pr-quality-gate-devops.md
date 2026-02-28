@@ -234,3 +234,24 @@ Use `PASS` if:
 - All CI/CD checks pass
 - Expected patterns used appropriately
 - No blocking issues identified
+
+## Structured JSON Output
+
+After your human-readable analysis, emit a fenced JSON block conforming to `.agents/schemas/pr-quality-gate-output.schema.json`:
+
+```json
+{
+  "verdict": "PASS|WARN|CRITICAL_FAIL",
+  "message": "One sentence summary",
+  "agent": "devops",
+  "timestamp": "ISO 8601",
+  "findings": [
+    {
+      "severity": "critical|high|medium|low",
+      "category": "pipeline|actions|shell-quality|artifacts|secrets|performance|templates|automation",
+      "description": "What was found",
+      "location": "file:line",
+      "recommendation": "Suggested fix"
+    }
+  ]
+}

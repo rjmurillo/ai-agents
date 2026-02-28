@@ -19,7 +19,6 @@ import argparse
 import json
 import re
 import sys
-from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -29,20 +28,7 @@ _PROJECT_ROOT = _SCRIPT_DIR.parent
 sys.path.insert(0, str(_PROJECT_ROOT))
 
 from scripts.utils.path_validation import validate_safe_path  # noqa: E402
-
-
-@dataclass
-class ValidationResult:
-    """Result of session log validation."""
-
-    errors: list[str] = field(default_factory=list)
-    warnings: list[str] = field(default_factory=list)
-
-    @property
-    def is_valid(self) -> bool:
-        """Return True if no errors were found."""
-        return len(self.errors) == 0
-
+from scripts.validation.types import ValidationResult  # noqa: E402
 
 # Required session fields
 REQUIRED_SESSION_FIELDS = frozenset({"number", "date", "branch", "startingCommit", "objective"})
@@ -53,25 +39,34 @@ BRANCH_PATTERN = re.compile(r"^(feat|fix|docs|chore|refactor|test|ci)/")
 # Commit SHA pattern
 COMMIT_SHA_PATTERN = re.compile(r"^[a-f0-9]{7,40}$")
 
-# Session start MUST items
-SESSION_START_MUST_ITEMS = frozenset({
-    "serenaActivated",
-    "serenaInstructions",
-    "handoffRead",
-    "sessionLogCreated",
-    "branchVerified",
-    "notOnMain",
-})
+# Minimum required session start items (must exist in every session log)
+SESSION_START_REQUIRED_ITEMS = frozenset(
+    {
+        "serenaActivated",
+        "serenaInstructions",
+        "handoffRead",
+        "sessionLogCreated",
+        "branchVerified",
+        "notOnMain",
+    }
+)
 
-# Session end MUST items
-SESSION_END_MUST_ITEMS = frozenset({
-    "checklistComplete",
-    "handoffPreserved",
-    "serenaMemoryUpdated",
-    "markdownLintRun",
-    "changesCommitted",
-    "validationPassed",
-})
+# Minimum required session end items (must exist in every session log)
+SESSION_END_REQUIRED_ITEMS = frozenset(
+    {
+        "checklistComplete",
+        "handoffPreserved",
+        "serenaMemoryUpdated",
+        "markdownLintRun",
+        "changesCommitted",
+        "validationPassed",
+    }
+)
+
+# Evidence patterns that contradict a "complete: true" claim
+CONTRADICTION_PATTERNS = re.compile(
+    r"(?i)\b(not available|skipped|N/A|deferred|will validate|will run|TODO|pending|TBD)\b"
+)
 
 # Legacy field name for backward compatibility with existing session logs.
 # Issue #868: "handoffNotUpdated" with Complete=false was a confusing double negative.
@@ -158,6 +153,45 @@ def validate_must_item(
     if level == "MUST" and is_complete and not evidence:
         result.warnings.append(f"Missing evidence: {section_name}.{item_name}")
 
+    if level == "MUST" and is_complete and evidence and isinstance(evidence, str):
+        if CONTRADICTION_PATTERNS.search(evidence):
+            result.warnings.append(
+                f"Evidence contradiction: {section_name}.{item_name} "
+                f"is complete but evidence suggests otherwise: {evidence!r}"
+            )
+
+
+def validate_checklist_section(
+    section_data: dict[str, Any],
+    required_items: frozenset[str],
+    section_name: str,
+    result: ValidationResult,
+) -> None:
+    """Validate all MUST items in a checklist section.
+
+    Checks both the minimum required items and any additional items
+    in the section that declare level == "MUST".
+
+    Args:
+        section_data: The section data (e.g. sessionStart or sessionEnd).
+        required_items: Minimum items that must exist in the section.
+        section_name: Section name for error messages.
+        result: ValidationResult to update with errors/warnings.
+    """
+    # Collect all items to validate: required items + any item with level MUST
+    items_to_check: set[str] = set(required_items)
+    for item_name, item_data in section_data.items():
+        if isinstance(item_data, dict):
+            level = get_case_insensitive(item_data, "level")
+            if level in ("MUST", "MUST NOT"):
+                items_to_check.add(item_name)
+
+    for item_name in items_to_check:
+        if item_name in section_data:
+            validate_must_item(section_data[item_name], item_name, section_name, result)
+        else:
+            result.errors.append(f"Missing required item: {section_name}.{item_name}")
+
 
 def validate_session_start(session_start: dict[str, Any], result: ValidationResult) -> None:
     """Validate the sessionStart section.
@@ -166,9 +200,7 @@ def validate_session_start(session_start: dict[str, Any], result: ValidationResu
         session_start: The sessionStart section data.
         result: ValidationResult to update with errors/warnings.
     """
-    for item in SESSION_START_MUST_ITEMS:
-        if item in session_start:
-            validate_must_item(session_start[item], item, "sessionStart", result)
+    validate_checklist_section(session_start, SESSION_START_REQUIRED_ITEMS, "sessionStart", result)
 
 
 def validate_session_end(session_end: dict[str, Any], result: ValidationResult) -> None:
@@ -178,13 +210,15 @@ def validate_session_end(session_end: dict[str, Any], result: ValidationResult) 
         session_end: The sessionEnd section data.
         result: ValidationResult to update with errors/warnings.
     """
-    for item in SESSION_END_MUST_ITEMS:
-        if item in session_end:
-            validate_must_item(session_end[item], item, "sessionEnd", result)
+    # Backward compatibility (issue #868): legacy logs use "handoffNotUpdated"
+    # instead of "handoffPreserved". Swap the required item for legacy logs.
+    required = SESSION_END_REQUIRED_ITEMS
+    if _LEGACY_HANDOFF_FIELD in session_end and "handoffPreserved" not in session_end:
+        required = (required - {"handoffPreserved"}) | {_LEGACY_HANDOFF_FIELD}
 
-    # Backward compatibility: accept legacy "handoffNotUpdated" field (issue #868).
-    # Old format: level="MUST NOT", Complete=false means constraint satisfied.
-    # New format: "handoffPreserved" with level="MUST", Complete=true means satisfied.
+    validate_checklist_section(session_end, required, "sessionEnd", result)
+
+    # Legacy MUST NOT check: Complete=true means HANDOFF.md was modified (violation).
     if _LEGACY_HANDOFF_FIELD in session_end and "handoffPreserved" not in session_end:
         check_data = session_end[_LEGACY_HANDOFF_FIELD]
         is_complete = get_case_insensitive(check_data, "complete")

@@ -23,6 +23,11 @@ on:
         required: false
         type: boolean
         default: false
+      bypass-cache:
+        description: 'Bypass cached review results and force fresh Copilot API calls'
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -316,6 +321,8 @@ jobs:
           pr-number: ${{ env.PR_NUMBER }}
           bot-pat: ${{ secrets.BOT_PAT }}
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+          commit-sha: ${{ github.event.pull_request.head.sha || github.sha }}
+          bypass-cache: ${{ inputs.bypass-cache == true && 'true' || 'false' }}
 
   qa-review:
     name: QA Review
@@ -342,6 +349,8 @@ jobs:
           bot-pat: ${{ secrets.BOT_PAT }}
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
           additional-context: ${{ needs.run-tests.outputs.test-summary || 'Test execution was skipped (no relevant file changes or test job did not run).' }}
+          commit-sha: ${{ github.event.pull_request.head.sha || github.sha }}
+          bypass-cache: ${{ inputs.bypass-cache == true && 'true' || 'false' }}
 
   analyst-review:
     name: Analyst Review
@@ -367,6 +376,8 @@ jobs:
           pr-number: ${{ env.PR_NUMBER }}
           bot-pat: ${{ secrets.BOT_PAT }}
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+          commit-sha: ${{ github.event.pull_request.head.sha || github.sha }}
+          bypass-cache: ${{ inputs.bypass-cache == true && 'true' || 'false' }}
 
   architect-review:
     name: Architect Review
@@ -392,6 +403,8 @@ jobs:
           pr-number: ${{ env.PR_NUMBER }}
           bot-pat: ${{ secrets.BOT_PAT }}
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+          commit-sha: ${{ github.event.pull_request.head.sha || github.sha }}
+          bypass-cache: ${{ inputs.bypass-cache == true && 'true' || 'false' }}
 
   devops-review:
     name: DevOps Review
@@ -417,6 +430,8 @@ jobs:
           pr-number: ${{ env.PR_NUMBER }}
           bot-pat: ${{ secrets.BOT_PAT }}
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+          commit-sha: ${{ github.event.pull_request.head.sha || github.sha }}
+          bypass-cache: ${{ inputs.bypass-cache == true && 'true' || 'false' }}
 
   roadmap-review:
     name: Roadmap Review
@@ -442,6 +457,8 @@ jobs:
           pr-number: ${{ env.PR_NUMBER }}
           bot-pat: ${{ secrets.BOT_PAT }}
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+          commit-sha: ${{ github.event.pull_request.head.sha || github.sha }}
+          bypass-cache: ${{ inputs.bypass-cache == true && 'true' || 'false' }}
 
 # ==============================================================================
 # Aggregate Results from All Agent Reviews
@@ -449,6 +466,18 @@ jobs:
 #
 # Depends on all six agent review jobs explicitly (not matrix).
 # Downloads artifacts using pattern `review-*` to gather all agent verdicts.
+
+  # Pass-through job: satisfies required "Aggregate Results" check when path
+  # filter skips the real aggregate job. GitHub branch protection requires
+  # SUCCESS (not SKIPPED) for required checks. See issue #1168.
+  aggregate-skip:
+    name: Aggregate Results
+    runs-on: ubuntu-24.04-arm
+    needs: [check-changes]
+    if: always() && needs.check-changes.result == 'success' && needs.check-changes.outputs.should-run != 'true'
+    steps:
+      - name: No relevant changes
+        run: echo "Skipped - no relevant file changes detected"
 
   aggregate:
     name: Aggregate Results
@@ -607,6 +636,7 @@ jobs:
           ARCHITECT_CATEGORY: ${{ steps.aggregate.outputs.architect_category }}
           DEVOPS_CATEGORY: ${{ steps.aggregate.outputs.devops_category }}
           ROADMAP_CATEGORY: ${{ steps.aggregate.outputs.roadmap_category }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
         run: python3 .github/scripts/generate_quality_report.py
 
       - name: Check for infrastructure failures and add label
