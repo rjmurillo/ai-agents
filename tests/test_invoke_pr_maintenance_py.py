@@ -13,6 +13,7 @@ from scripts.invoke_pr_maintenance import (
     get_bot_author_info,
     get_open_prs,
     has_failing_checks,
+    has_unresolved_threads,
     is_bot_reviewer,
     main,
     run_gh,
@@ -136,6 +137,40 @@ class TestHasFailingChecks:
         assert has_failing_checks(pr) is True
 
 
+class TestHasUnresolvedThreads:
+    def test_returns_true_when_threads_unresolved(self) -> None:
+        pr = {
+            "reviewThreads": {
+                "nodes": [
+                    {"isResolved": False},
+                    {"isResolved": True},
+                ]
+            }
+        }
+        assert has_unresolved_threads(pr) is True
+
+    def test_returns_false_when_all_resolved(self) -> None:
+        pr = {
+            "reviewThreads": {
+                "nodes": [
+                    {"isResolved": True},
+                    {"isResolved": True},
+                ]
+            }
+        }
+        assert has_unresolved_threads(pr) is False
+
+    def test_returns_false_when_no_threads(self) -> None:
+        pr = {"reviewThreads": {"nodes": []}}
+        assert has_unresolved_threads(pr) is False
+
+    def test_returns_false_when_missing_key(self) -> None:
+        assert has_unresolved_threads({}) is False
+
+    def test_returns_false_when_threads_none(self) -> None:
+        assert has_unresolved_threads({"reviewThreads": None}) is False
+
+
 class TestClassifyPrs:
     def test_detects_derivative_prs(self) -> None:
         prs = [
@@ -165,6 +200,53 @@ class TestClassifyPrs:
         results = classify_prs("owner", "repo", prs)
         assert len(results.derivative_prs) == 1
         assert results.derivative_prs[0]["number"] == 2
+
+    def test_classifies_pr_with_unresolved_threads(self) -> None:
+        prs = [
+            {
+                "number": 42,
+                "title": "PR with unresolved threads",
+                "author": {"login": "rjmurillo-bot"},
+                "headRefName": "feat/fix",
+                "baseRefName": "main",
+                "mergeable": "MERGEABLE",
+                "reviewDecision": None,
+                "reviewRequests": {"nodes": []},
+                "reviewThreads": {
+                    "nodes": [
+                        {"isResolved": False},
+                        {"isResolved": True},
+                    ]
+                },
+                "commits": {"nodes": []},
+            },
+        ]
+        results = classify_prs("owner", "repo", prs)
+        assert len(results.action_required) == 1
+        assert results.action_required[0]["reason"] == "HAS_UNRESOLVED_THREADS"
+        assert results.action_required[0]["category"] == "agent-controlled"
+
+    def test_skips_pr_with_all_threads_resolved(self) -> None:
+        prs = [
+            {
+                "number": 43,
+                "title": "PR with all threads resolved",
+                "author": {"login": "rjmurillo-bot"},
+                "headRefName": "feat/done",
+                "baseRefName": "main",
+                "mergeable": "MERGEABLE",
+                "reviewDecision": None,
+                "reviewRequests": {"nodes": []},
+                "reviewThreads": {
+                    "nodes": [
+                        {"isResolved": True},
+                    ]
+                },
+                "commits": {"nodes": []},
+            },
+        ]
+        results = classify_prs("owner", "repo", prs)
+        assert len(results.action_required) == 0
 
     def test_classifies_agent_pr_with_changes_requested(self) -> None:
         prs = [
@@ -344,23 +426,36 @@ class TestHasUnresolvedThreads:
     def test_returns_true_when_threads_exist(self) -> None:
         from scripts.invoke_pr_maintenance import has_unresolved_threads
 
-        threads = [{"id": "T1", "isResolved": False}]
-        with patch(
-            "scripts.invoke_pr_maintenance.get_unresolved_review_threads",
-            return_value=threads,
-        ):
-            result = has_unresolved_threads("owner", "repo", 123)
-        assert result is True
+        pr = {
+            "reviewThreads": {
+                "nodes": [{"isResolved": False}],
+            }
+        }
+        assert has_unresolved_threads(pr) is True
 
     def test_returns_false_when_no_threads(self) -> None:
         from scripts.invoke_pr_maintenance import has_unresolved_threads
 
-        with patch(
-            "scripts.invoke_pr_maintenance.get_unresolved_review_threads",
-            return_value=[],
-        ):
-            result = has_unresolved_threads("owner", "repo", 123)
-        assert result is False
+        pr = {"reviewThreads": {"nodes": []}}
+        assert has_unresolved_threads(pr) is False
+
+    def test_warns_when_threads_truncated(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        import logging
+
+        from scripts.invoke_pr_maintenance import has_unresolved_threads
+
+        pr = {
+            "number": 42,
+            "reviewThreads": {
+                "totalCount": 150,
+                "nodes": [{"isResolved": True}] * 100,
+            },
+        }
+        with caplog.at_level(logging.WARNING):
+            has_unresolved_threads(pr)
+        assert "150 review threads but only 100 fetched" in caplog.text
 
 
 class TestClassifyPrsWithUnresolvedThreads:
@@ -378,21 +473,18 @@ class TestClassifyPrsWithUnresolvedThreads:
                 "mergeable": "MERGEABLE",
                 "reviewDecision": None,
                 "reviewRequests": {"nodes": []},
+                "reviewThreads": {"nodes": [{"isResolved": False}]},
                 "commits": {"nodes": []},
             },
         ]
-        with patch(
-            "scripts.invoke_pr_maintenance.has_unresolved_threads",
-            return_value=True,
-        ):
-            results = classify_prs("owner", "repo", prs)
+        results = classify_prs("owner", "repo", prs)
 
         assert len(results.action_required) == 1
-        assert results.action_required[0]["reason"] == "UNRESOLVED_THREADS"
+        assert results.action_required[0]["reason"] == "HAS_UNRESOLVED_THREADS"
         assert results.action_required[0]["hasUnresolvedThreads"] is True
 
-    def test_skips_thread_check_for_human_pr(self) -> None:
-        """Human-authored PRs skip the thread check to save API calls."""
+    def test_human_pr_with_unresolved_threads_classified_as_blocked(self) -> None:
+        """Human PRs with unresolved threads are classified as blocked."""
         prs = [
             {
                 "number": 200,
@@ -403,18 +495,14 @@ class TestClassifyPrsWithUnresolvedThreads:
                 "mergeable": "MERGEABLE",
                 "reviewDecision": None,
                 "reviewRequests": {"nodes": []},
+                "reviewThreads": {"nodes": [{"isResolved": False}]},
                 "commits": {"nodes": []},
             },
         ]
-        mock_threads = MagicMock()
-        with patch(
-            "scripts.invoke_pr_maintenance.has_unresolved_threads",
-            mock_threads,
-        ):
-            classify_prs("owner", "repo", prs)
+        results = classify_prs("owner", "repo", prs)
 
-        # Should not be called for human PRs
-        mock_threads.assert_not_called()
+        assert len(results.blocked) == 1
+        assert results.blocked[0]["reason"] == "HAS_UNRESOLVED_THREADS"
 
     def test_reason_priority_conflicts_over_threads(self) -> None:
         """Conflicts take priority over unresolved threads in reason."""
@@ -428,14 +516,11 @@ class TestClassifyPrsWithUnresolvedThreads:
                 "mergeable": "CONFLICTING",
                 "reviewDecision": None,
                 "reviewRequests": {"nodes": []},
+                "reviewThreads": {"nodes": [{"isResolved": False}]},
                 "commits": {"nodes": []},
             },
         ]
-        with patch(
-            "scripts.invoke_pr_maintenance.has_unresolved_threads",
-            return_value=True,
-        ):
-            results = classify_prs("owner", "repo", prs)
+        results = classify_prs("owner", "repo", prs)
 
         assert results.action_required[0]["reason"] == "HAS_CONFLICTS"
         assert results.action_required[0]["hasConflicts"] is True

@@ -31,7 +31,6 @@ from typing import Any
 
 from scripts.github_core import (
     check_workflow_rate_limit,
-    get_unresolved_review_threads,
     resolve_repo_params,
 )
 
@@ -118,18 +117,30 @@ def has_failing_checks(pr: dict[str, Any]) -> bool:
     return False
 
 
-def has_unresolved_threads(owner: str, repo: str, pr_number: int) -> bool:
+def has_unresolved_threads(pr: dict[str, Any]) -> bool:
     """Return True if the PR has unresolved review threads.
 
-    Checks for threads where isResolved=false. A thread may be acknowledged
-    (eyes reaction) but still unresolved, requiring action.
+    Reads thread data from the bulk GraphQL query (zero additional API calls).
+    A thread may be acknowledged (eyes reaction) but still unresolved.
 
     Part of the "Acknowledged vs Resolved" lifecycle model (Issue #974):
     - Eyes reaction = acknowledged for processing
     - Thread resolution = issue actually addressed
     """
-    threads = get_unresolved_review_threads(owner, repo, pr_number)
-    return len(threads) > 0
+    threads = pr.get("reviewThreads")
+    if not threads:
+        return False
+    total = threads.get("totalCount", 0)
+    nodes = threads.get("nodes", [])
+    if total > len(nodes):
+        logging.warning(
+            "PR #%s has %d review threads but only %d fetched",
+            pr.get("number", "?"), total, len(nodes),
+        )
+    for node in nodes:
+        if node and not node.get("isResolved", True):
+            return True
+    return False
 
 
 GRAPHQL_QUERY = """
@@ -152,6 +163,12 @@ query($owner: String!, $name: String!, $limit: Int!) {
                             ... on Team { name }
                             ... on Bot { login }
                         }
+                    }
+                }
+                reviewThreads(first: 100) {
+                    totalCount
+                    nodes {
+                        isResolved
                     }
                 }
                 commits(last: 1) {
@@ -263,15 +280,11 @@ def classify_prs(
             has_changes = pr.get("reviewDecision") == "CHANGES_REQUESTED"
             has_conflicts = pr.get("mergeable") == "CONFLICTING"
             has_failures = has_failing_checks(pr)
+            has_unresolved = has_unresolved_threads(pr)
 
-            # Check unresolved threads only for bot-associated PRs (agent
-            # author or bot reviewer) to avoid extra API calls for human PRs.
-            # Per Issue #974: acknowledged (eyes) != resolved (thread closed).
-            has_unresolved = False
-            if is_agent or is_reviewer:
-                has_unresolved = has_unresolved_threads(owner, repo, pr["number"])
-
-            needs_action = has_changes or has_conflicts or has_failures or has_unresolved
+            needs_action = (
+                has_changes or has_conflicts or has_failures or has_unresolved
+            )
             if not needs_action:
                 continue
 
@@ -283,7 +296,7 @@ def classify_prs(
             elif has_changes:
                 reason = "CHANGES_REQUESTED"
             else:
-                reason = "UNRESOLVED_THREADS"
+                reason = "HAS_UNRESOLVED_THREADS"
 
             if is_agent or is_reviewer:
                 results.action_required.append(
