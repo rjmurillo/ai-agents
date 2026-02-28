@@ -9,6 +9,7 @@ from scripts.validate_memory_tier import (
     main,
     validate_domain_index_format,
     validate_memory_tier,
+    validate_references_exist,
     ValidationResult,
 )
 
@@ -28,6 +29,23 @@ class TestExtractFileReferences:
         content = "[link](page.html) [other](doc.md)"
         refs = extract_file_references(content)
         assert refs == ["doc.md"]
+
+
+class TestValidateReferencesExist:
+    def test_rejects_path_traversal(self, tmp_path: Path) -> None:
+        refs = ["../../etc/passwd.md"]
+        result = ValidationResult()
+        validate_references_exist(refs, tmp_path, "test-source.md", result)
+        assert not result.is_valid
+        assert "path traversal" in result.errors[0]
+
+    def test_allows_valid_subpath(self, tmp_path: Path) -> None:
+        sub = tmp_path / "sub"
+        sub.mkdir()
+        (sub / "valid.md").write_text("ok", encoding="utf-8")
+        result = ValidationResult()
+        validate_references_exist(["sub/valid.md"], tmp_path, "src.md", result)
+        assert result.is_valid
 
 
 class TestValidateDomainIndexFormat:

@@ -63,8 +63,14 @@ def validate_references_exist(
     references: list[str], base_dir: Path, source_file: str, result: ValidationResult
 ) -> None:
     """Check that all referenced files exist on disk."""
+    resolved_base = base_dir.resolve()
     for ref in references:
         ref_path = (base_dir / ref).resolve()
+        if not ref_path.is_relative_to(resolved_base):
+            result.errors.append(
+                f"{source_file}: path traversal attempt detected for reference '{ref}'"
+            )
+            continue
         if not ref_path.exists():
             result.errors.append(
                 f"{source_file}: broken reference -> {ref} (file not found)"
