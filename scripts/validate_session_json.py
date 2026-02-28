@@ -55,7 +55,7 @@ SESSION_START_REQUIRED_ITEMS = frozenset(
 SESSION_END_REQUIRED_ITEMS = frozenset(
     {
         "checklistComplete",
-        "handoffNotUpdated",
+        "handoffPreserved",
         "serenaMemoryUpdated",
         "markdownLintRun",
         "changesCommitted",
@@ -67,6 +67,11 @@ SESSION_END_REQUIRED_ITEMS = frozenset(
 CONTRADICTION_PATTERNS = re.compile(
     r"(?i)\b(not available|skipped|N/A|deferred|will validate|will run|TODO|pending|TBD)\b"
 )
+
+# Legacy field name for backward compatibility with existing session logs.
+# Issue #868: "handoffNotUpdated" with Complete=false was a confusing double negative.
+# New logs use "handoffPreserved" (level=MUST, Complete=true when satisfied).
+_LEGACY_HANDOFF_FIELD = "handoffNotUpdated"
 
 
 def get_case_insensitive(data: dict[str, Any], key: str) -> Any | None:
@@ -205,16 +210,22 @@ def validate_session_end(session_end: dict[str, Any], result: ValidationResult) 
         session_end: The sessionEnd section data.
         result: ValidationResult to update with errors/warnings.
     """
-    validate_checklist_section(session_end, SESSION_END_REQUIRED_ITEMS, "sessionEnd", result)
+    # Backward compatibility (issue #868): legacy logs use "handoffNotUpdated"
+    # instead of "handoffPreserved". Swap the required item for legacy logs.
+    required = SESSION_END_REQUIRED_ITEMS
+    if _LEGACY_HANDOFF_FIELD in session_end and "handoffPreserved" not in session_end:
+        required = (required - {"handoffPreserved"}) | {_LEGACY_HANDOFF_FIELD}
 
-    # MUST NOT check: handoffNotUpdated should NOT be complete (HANDOFF.md is read-only)
-    if "handoffNotUpdated" in session_end:
-        check_data = session_end["handoffNotUpdated"]
+    validate_checklist_section(session_end, required, "sessionEnd", result)
+
+    # Legacy MUST NOT check: Complete=true means HANDOFF.md was modified (violation).
+    if _LEGACY_HANDOFF_FIELD in session_end and "handoffPreserved" not in session_end:
+        check_data = session_end[_LEGACY_HANDOFF_FIELD]
         is_complete = get_case_insensitive(check_data, "complete")
         level = get_case_insensitive(check_data, "level")
         if level == "MUST NOT" and is_complete:
             result.errors.append(
-                "MUST NOT violated: handoffNotUpdated should be false (HANDOFF.md is read-only)"
+                "MUST NOT violated: HANDOFF.md was modified (read-only)"
             )
 
 

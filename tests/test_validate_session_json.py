@@ -23,6 +23,7 @@ from scripts.validate_session_json import (
     SESSION_END_REQUIRED_ITEMS,
     SESSION_START_REQUIRED_ITEMS,
     ValidationResult,
+    _LEGACY_HANDOFF_FIELD,
     get_case_insensitive,
     has_case_insensitive,
     load_session_file,
@@ -51,8 +52,8 @@ def _make_complete_end_section(**overrides: dict) -> dict:
         name: {"complete": True, "evidence": "Evidence", "level": "MUST"}
         for name in SESSION_END_REQUIRED_ITEMS
     }
-    # handoffNotUpdated is MUST NOT: complete=False is the correct state
-    section["handoffNotUpdated"] = {"complete": False, "evidence": "Not updated", "level": "MUST NOT"}
+    # handoffPreserved is MUST: complete=True means HANDOFF.md was not modified
+    section["handoffPreserved"] = {"complete": True, "evidence": "HANDOFF.md not modified", "level": "MUST"}
     section.update(overrides)
     return section
 
@@ -289,17 +290,60 @@ class TestValidateSessionEnd:
 
         assert result.is_valid
 
-    def test_must_not_violation(self) -> None:
-        """MUST NOT violation causes error."""
+    def test_handoff_preserved_satisfied(self) -> None:
+        """handoffPreserved with Complete=true passes (issue #868)."""
+        session_end = _make_complete_end_section()
+        result = ValidationResult()
+
+        validate_session_end(session_end, result)
+
+        assert result.is_valid
+
+    def test_handoff_preserved_violated(self) -> None:
+        """handoffPreserved with Complete=false fails (issue #868)."""
         session_end = _make_complete_end_section(
-            handoffNotUpdated={"complete": True, "level": "MUST NOT"},  # Violated!
+            handoffPreserved={"complete": False, "evidence": "HANDOFF.md was modified", "level": "MUST"},
         )
         result = ValidationResult()
 
         validate_session_end(session_end, result)
 
         assert not result.is_valid
+        assert any("Incomplete MUST" in e for e in result.errors)
+
+    def test_legacy_handoff_not_updated_satisfied(self) -> None:
+        """Legacy handoffNotUpdated with Complete=false passes (backward compat)."""
+        session_end = _make_complete_end_section()
+        # Replace handoffPreserved with legacy field
+        del session_end["handoffPreserved"]
+        session_end["handoffNotUpdated"] = {"complete": False, "level": "MUST NOT"}
+        result = ValidationResult()
+
+        validate_session_end(session_end, result)
+
+        # handoffNotUpdated is not in SESSION_END_REQUIRED_ITEMS but is
+        # picked up by validate_checklist_section as MUST NOT level item.
+        # Complete=false for MUST NOT is the satisfied state, and the legacy
+        # backward-compat check should not flag it as a violation.
+        assert result.is_valid
+
+    def test_legacy_handoff_not_updated_violated(self) -> None:
+        """Legacy handoffNotUpdated with Complete=true fails (backward compat)."""
+        session_end = _make_complete_end_section()
+        # Replace handoffPreserved with violated legacy field
+        del session_end["handoffPreserved"]
+        session_end["handoffNotUpdated"] = {"complete": True, "level": "MUST NOT"}
+        result = ValidationResult()
+
+        validate_session_end(session_end, result)
+
+        assert not result.is_valid
         assert any("MUST NOT violated" in e for e in result.errors)
+
+    def test_session_end_must_items_uses_handoff_preserved(self) -> None:
+        """SESSION_END_REQUIRED_ITEMS uses handoffPreserved (not legacy name)."""
+        assert "handoffPreserved" in SESSION_END_REQUIRED_ITEMS
+        assert _LEGACY_HANDOFF_FIELD not in SESSION_END_REQUIRED_ITEMS
 
 
 class TestChecklistSectionValidation:
