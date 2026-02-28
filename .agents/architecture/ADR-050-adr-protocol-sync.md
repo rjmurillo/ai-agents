@@ -1,4 +1,4 @@
-# ADR-048: ADR-to-Protocol Sync Process
+# ADR-050: ADR-to-Protocol Sync Process
 
 ## Status
 

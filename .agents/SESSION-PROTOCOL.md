@@ -835,10 +835,10 @@ audit sync coverage.
 | ADR-035 | Exit codes: 0=success, 1=logic, 2=config (per script headers) | Phase 3: Git Operations |
 | ADR-042 | Python for new scripts (not bash) | Phase 2: Quality Checks |
 | ADR-043 | Scoped tool execution (changed files only) | Phase 2: Quality Checks |
-| ADR-048 | ADR-to-Protocol sync process | This section |
+| ADR-050 | ADR-to-Protocol sync process | This section |
 
 **When creating or updating an ADR with MUST requirements**, update this table
-and the relevant protocol section. See ADR-048 for the full sync process.
+and the relevant protocol section. See ADR-050 for the full sync process.
 
 ---
 

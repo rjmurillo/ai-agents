@@ -10,7 +10,7 @@ EXIT CODES:
   1  - Error: Gaps detected (ADRs with MUST requirements not referenced)
   2  - Error: Configuration or file access error
 
-See: ADR-035 Exit Code Standardization, ADR-048 ADR-to-Protocol Sync
+See: ADR-035 Exit Code Standardization, ADR-050 ADR-to-Protocol Sync
 """
 
 from __future__ import annotations
@@ -145,7 +145,14 @@ def check_protocol_reference(protocol_content: str, adr_number: int) -> bool:
 def scan_adrs(adr_dir: Path) -> list[AdrRequirements]:
     """Scan ADR directory and extract requirements from each ADR."""
     results = []
+    resolved_adr_dir = adr_dir.resolve()
     for filepath in sorted(adr_dir.glob("ADR-*.md")):
+        if not filepath.resolve().is_relative_to(resolved_adr_dir):
+            print(
+                f"Warning: Skipping {filepath.name} (resolves outside ADR directory).",
+                file=sys.stderr,
+            )
+            continue
         if filepath.name == "ADR-TEMPLATE.md":
             continue
         match = ADR_NUMBER_PATTERN.search(filepath.stem)

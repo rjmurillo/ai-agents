@@ -231,3 +231,15 @@ class TestScanAdrs:
     def test_empty_directory(self, tmp_path: Path) -> None:
         results = scan_adrs(tmp_path)
         assert len(results) == 0
+
+    def test_skips_symlink_outside_directory(self, tmp_path: Path) -> None:
+        """CWE-22: symlinks resolving outside the ADR directory are skipped."""
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        secret = outside / "ADR-099-secret.md"
+        secret.write_text("# ADR-099: Secret\n\n## Status\n\nAccepted\n")
+        adr_dir = tmp_path / "adrs"
+        adr_dir.mkdir()
+        (adr_dir / "ADR-099-secret.md").symlink_to(secret)
+        results = scan_adrs(adr_dir)
+        assert len(results) == 0
