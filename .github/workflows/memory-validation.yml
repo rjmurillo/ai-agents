@@ -65,6 +65,9 @@ jobs:
         run: |
           uv pip install --system -e ".[dev]"
 
+      - name: Validate memory tier hierarchy (ADR-017)
+        run: python3 scripts/validate_memory_tier.py --ci
+
       - name: Verify all memories
         id: verify
         continue-on-error: true
