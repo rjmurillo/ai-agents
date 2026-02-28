@@ -821,6 +821,27 @@ These documents reference this protocol but MUST NOT duplicate it:
 
 ---
 
+## ADR Cross-Reference
+
+ADRs define governance decisions that may introduce enforceable requirements
+(MUST, SHOULD, MAY per RFC 2119). This section lists ADRs with requirements
+that affect session protocol. Run `python3 scripts/sync_adr_protocol.py` to
+audit sync coverage.
+
+| ADR | Requirement Summary | Protocol Section |
+|-----|---------------------|------------------|
+| ADR-001 | Markdown linting configuration | Phase 2: Quality Checks |
+| ADR-034 | Investigation session QA exemption | Phase 2.5: QA Validation |
+| ADR-035 | Exit codes: 0=success, 1=logic, 2=config (per script headers) | Phase 3: Git Operations |
+| ADR-042 | Python for new scripts (not bash) | Phase 2: Quality Checks |
+| ADR-043 | Scoped tool execution (changed files only) | Phase 2: Quality Checks |
+| ADR-050 | ADR-to-Protocol sync process | This section |
+
+**When creating or updating an ADR with MUST requirements**, update this table
+and the relevant protocol section. See ADR-050 for the full sync process.
+
+---
+
 ## Related Documents
 
 - [AGENTS.md](../AGENTS.md) - Full agent catalog and workflows
