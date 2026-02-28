@@ -29,7 +29,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from scripts.github_core import check_workflow_rate_limit, resolve_repo_params
+from scripts.github_core import (
+    check_workflow_rate_limit,
+    resolve_repo_params,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -114,6 +117,32 @@ def has_failing_checks(pr: dict[str, Any]) -> bool:
     return False
 
 
+def has_unresolved_threads(pr: dict[str, Any]) -> bool:
+    """Return True if the PR has unresolved review threads.
+
+    Reads thread data from the bulk GraphQL query (zero additional API calls).
+    A thread may be acknowledged (eyes reaction) but still unresolved.
+
+    Part of the "Acknowledged vs Resolved" lifecycle model (Issue #974):
+    - Eyes reaction = acknowledged for processing
+    - Thread resolution = issue actually addressed
+    """
+    threads = pr.get("reviewThreads")
+    if not threads:
+        return False
+    total = threads.get("totalCount", 0)
+    nodes = threads.get("nodes", [])
+    if total > len(nodes):
+        logging.warning(
+            "PR #%s has %d review threads but only %d fetched",
+            pr.get("number", "?"), total, len(nodes),
+        )
+    for node in nodes:
+        if node and not node.get("isResolved", True):
+            return True
+    return False
+
+
 GRAPHQL_QUERY = """
 query($owner: String!, $name: String!, $limit: Int!) {
     repository(owner: $owner, name: $name) {
@@ -134,6 +163,12 @@ query($owner: String!, $name: String!, $limit: Int!) {
                             ... on Team { name }
                             ... on Bot { login }
                         }
+                    }
+                }
+                reviewThreads(first: 100) {
+                    totalCount
+                    nodes {
+                        isResolved
                     }
                 }
                 commits(last: 1) {
@@ -245,17 +280,23 @@ def classify_prs(
             has_changes = pr.get("reviewDecision") == "CHANGES_REQUESTED"
             has_conflicts = pr.get("mergeable") == "CONFLICTING"
             has_failures = has_failing_checks(pr)
+            has_unresolved = has_unresolved_threads(pr)
 
-            needs_action = has_changes or has_conflicts or has_failures
+            needs_action = (
+                has_changes or has_conflicts or has_failures or has_unresolved
+            )
             if not needs_action:
                 continue
 
-            if has_changes:
-                reason = "CHANGES_REQUESTED"
-            elif has_conflicts:
+            # Determine reason with priority: conflicts > failing > changes > unresolved
+            if has_conflicts:
                 reason = "HAS_CONFLICTS"
-            else:
+            elif has_failures:
                 reason = "HAS_FAILING_CHECKS"
+            elif has_changes:
+                reason = "CHANGES_REQUESTED"
+            else:
+                reason = "HAS_UNRESOLVED_THREADS"
 
             if is_agent or is_reviewer:
                 results.action_required.append(
@@ -264,6 +305,7 @@ def classify_prs(
                         "category": "agent-controlled",
                         "hasConflicts": has_conflicts,
                         "hasFailingChecks": has_failures,
+                        "hasUnresolvedThreads": has_unresolved,
                         "reason": reason,
                         "author": author_login,
                         "title": pr.get("title", ""),
@@ -278,6 +320,7 @@ def classify_prs(
                         "category": "mention-triggered",
                         "hasConflicts": has_conflicts,
                         "hasFailingChecks": has_failures,
+                        "hasUnresolvedThreads": has_unresolved,
                         "reason": reason,
                         "author": author_login,
                         "title": pr.get("title", ""),
@@ -293,6 +336,7 @@ def classify_prs(
                         "category": "human-blocked",
                         "hasConflicts": has_conflicts,
                         "hasFailingChecks": has_failures,
+                        "hasUnresolvedThreads": has_unresolved,
                         "reason": reason,
                         "author": author_login,
                         "title": pr.get("title", ""),
@@ -330,6 +374,8 @@ def print_summary(results: MaintenanceResults) -> None:
             print(f"  PR #{item['number']}: {item['reason']} [{item['category']}]")
             if item.get("hasConflicts"):
                 print("    -> Has conflicts, run /merge-resolver first")
+            if item.get("hasUnresolvedThreads"):
+                print("    -> Has unresolved review threads, run /pr-review")
 
         pr_numbers = ",".join(str(item["number"]) for item in results.action_required)
         print(f"Run: /pr-comment-responder {pr_numbers}")
@@ -399,8 +445,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Failed to resolve repository parameters: {exc}", file=sys.stderr)
         return 2
 
-    owner = repo_params["Owner"]
-    repo = repo_params["Repo"]
+    owner = repo_params.owner
+    repo = repo_params.repo
 
     try:
         prs = get_open_prs(owner, repo, args.max_prs)

@@ -91,3 +91,24 @@ Automatically use `CRITICAL_FAIL` if you find:
 - Missing critical documentation for public APIs
 - Changes that break established contracts
 - Over-engineering that adds unnecessary complexity
+
+## Structured JSON Output
+
+After your human-readable analysis, emit a fenced JSON block conforming to `.agents/schemas/pr-quality-gate-output.schema.json`:
+
+```json
+{
+  "verdict": "PASS|WARN|CRITICAL_FAIL",
+  "message": "One sentence summary",
+  "agent": "analyst",
+  "timestamp": "ISO 8601",
+  "findings": [
+    {
+      "severity": "critical|high|medium|low",
+      "category": "readability|maintainability|consistency|simplicity|impact|documentation",
+      "description": "What was found",
+      "location": "file:line",
+      "recommendation": "Suggested fix"
+    }
+  ]
+}

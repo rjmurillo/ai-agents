@@ -733,6 +733,34 @@ else
     record_skip "Security suppression check (no code files changed)"
 fi
 
+# 17. Infrastructure security gate (issue #42)
+INFRA_DETECT_SCRIPT="$REPO_ROOT/.claude/skills/security-detection/detect_infrastructure.py"
+
+if [ -L "$INFRA_DETECT_SCRIPT" ]; then
+    record_warn "Infrastructure detection script is a symlink (skipping)"
+elif [ -f "$INFRA_DETECT_SCRIPT" ]; then
+    if set_python_cmd; then
+        # Pass all changed files to infrastructure detection (newline-safe)
+        mapfile -t _infra_files <<< "$CHANGED_FILES"
+        INFRA_OUTPUT=$("${PYTHON_CMD[@]}" "$INFRA_DETECT_SCRIPT" "${_infra_files[@]}" 2>&1)
+        if echo "$INFRA_OUTPUT" | grep -q "CRITICAL"; then
+            echo_info "  Infrastructure detection output:"
+            echo "$INFRA_OUTPUT"
+            record_warn "CRITICAL infrastructure changes detected, ensure security review"
+        elif echo "$INFRA_OUTPUT" | grep -q "HIGH"; then
+            echo_info "  Infrastructure detection output:"
+            echo "$INFRA_OUTPUT"
+            record_warn "HIGH-risk infrastructure changes detected, consider security review"
+        else
+            record_pass "Infrastructure security gate (no high-risk files)"
+        fi
+    else
+        record_skip "Infrastructure detection (Python 3 not available)"
+    fi
+else
+    record_skip "Infrastructure detection (script not found)"
+fi
+
 # 18. Session log validation
 SESSION_VALIDATE_SCRIPT="$REPO_ROOT/scripts/validate_session_json.py"
 
