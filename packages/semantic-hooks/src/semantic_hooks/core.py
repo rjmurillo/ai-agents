@@ -203,4 +203,6 @@ class HookResult:
         """Get exit code for Claude hooks (0=allow, 1=error, 2=block)."""
         if self.block:
             return 2
+        if not self.allow:
+            return 1
         return 0

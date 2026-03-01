@@ -268,7 +268,7 @@ def cmd_config(args: argparse.Namespace) -> int:
 
     if not config_file.exists():
         print(f"Config not found: {config_file}")
-        print("Run 'semantic-hooks install --claude' first.")
+        print("Run 'semantic-hooks install' first.")
         return 1
 
     config = yaml.safe_load(config_file.read_text()) or {}
@@ -341,10 +341,12 @@ def _update_claude_settings(force: bool = False, installed_hooks: set[str] | Non
 
     hooks_config = settings.setdefault("hooks", {})
 
-    # Quote the hooks directory path to handle paths with spaces
+    # Use the running interpreter to avoid PATH issues on systems without python3
+    python_path = shlex.quote(sys.executable)
+
     def _make_hook_command(script_name: str) -> str:
-        script_path = str(CLAUDE_HOOKS_DIR / script_name)
-        return f"python3 {shlex.quote(script_path)}"
+        script_path = shlex.quote(str(CLAUDE_HOOKS_DIR / script_name))
+        return f"{python_path} {script_path}"
 
     # Mapping from hook filename to event name and definition
     hook_file_to_event: dict[str, tuple[str, dict]] = {
@@ -434,13 +436,11 @@ def main() -> int:
 
     # install
     install_parser = subparsers.add_parser("install", help="Install hooks")
-    install_parser.add_argument("--claude", action="store_true", help="Install for Claude Code")
     install_parser.add_argument("--force", action="store_true", help="Overwrite existing config")
     install_parser.set_defaults(func=cmd_install)
 
     # uninstall
     uninstall_parser = subparsers.add_parser("uninstall", help="Uninstall hooks")
-    uninstall_parser.add_argument("--claude", action="store_true", help="Uninstall from Claude Code")
     uninstall_parser.add_argument("--purge", action="store_true", help="Also remove config and memory")
     uninstall_parser.set_defaults(func=cmd_uninstall)
 

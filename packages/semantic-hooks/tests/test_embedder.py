@@ -1,7 +1,6 @@
 """Tests for embedder module."""
 
 import pytest
-import numpy as np
 
 from semantic_hooks.embedder import (
     cosine_similarity,

@@ -171,7 +171,7 @@ def compute_trajectory_embedding(
 
     Args:
         embeddings: List of recent embedding vectors (oldest first)
-        weights: Optional custom weights (must sum to 1)
+        weights: Optional custom weights (relative, not required to sum to 1)
 
     Returns:
         Weighted average embedding representing expected trajectory

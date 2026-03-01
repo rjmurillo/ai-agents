@@ -1,13 +1,25 @@
 #!/usr/bin/env python3
 """Claude Code SessionEnd hook - persist and summarize session."""
 
-import json
+import os
 import sys
-from datetime import datetime
-from pathlib import Path
 
-from semantic_hooks.logging import log
-from semantic_hooks.memory import SemanticMemory
+# Resolve package path: works as both a .claude/ repo skill and a marketplace plugin
+_plugin_root = os.environ.get('CLAUDE_PLUGIN_ROOT', '')
+if _plugin_root:
+    _src = os.path.join(_plugin_root, 'src')
+else:
+    _src = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'src')
+_src = os.path.normpath(_src)
+if _src not in sys.path:
+    sys.path.insert(0, _src)
+
+import json  # noqa: E402
+from datetime import datetime  # noqa: E402
+from pathlib import Path  # noqa: E402
+
+from semantic_hooks.logging import log  # noqa: E402
+from semantic_hooks.memory import SemanticMemory  # noqa: E402
 
 
 def main() -> int:
@@ -45,7 +57,6 @@ def main() -> int:
     except Exception as e:
         log(f"SessionEnd ERROR: {e}")
         return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

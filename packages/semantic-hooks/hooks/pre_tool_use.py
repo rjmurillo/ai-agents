@@ -1,12 +1,24 @@
 #!/usr/bin/env python3
 """Claude Code PreToolUse hook - semantic tension guard."""
 
-import json
+import os
 import sys
 
-from semantic_hooks.core import HookContext, HookEvent
-from semantic_hooks.guards import create_guard_from_config
-from semantic_hooks.logging import log
+# Resolve package path: works as both a .claude/ repo skill and a marketplace plugin
+_plugin_root = os.environ.get('CLAUDE_PLUGIN_ROOT', '')
+if _plugin_root:
+    _src = os.path.join(_plugin_root, 'src')
+else:
+    _src = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'src')
+_src = os.path.normpath(_src)
+if _src not in sys.path:
+    sys.path.insert(0, _src)
+
+import json  # noqa: E402
+
+from semantic_hooks.core import HookContext, HookEvent  # noqa: E402
+from semantic_hooks.guards import create_guard_from_config  # noqa: E402
+from semantic_hooks.logging import log  # noqa: E402
 
 
 def main() -> int:
@@ -34,9 +46,9 @@ def main() -> int:
 
     except Exception as e:
         log(f"PreToolUse ERROR: {e}")
-        # Don't block on errors - fail open
-        return 0
-
+        # Fail closed: block tool execution when guard cannot verify safety
+        print(json.dumps({"message": f"SECURITY_GUARD_ERROR: {e}. Blocking tool execution."}))
+        return 2
 
 if __name__ == "__main__":
     sys.exit(main())

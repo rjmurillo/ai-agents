@@ -92,7 +92,7 @@ class SemanticMemory:
             node.embedding = self.embedder.embed(text)
 
         embedding_blob = (
-            json.dumps(node.embedding).encode() if node.embedding else None
+            json.dumps(node.embedding) if node.embedding else None
         )
         metadata_json = json.dumps(node.metadata) if node.metadata else None
 
@@ -346,11 +346,18 @@ class SemanticMemory:
         """Convert database row to SemanticNode."""
         embedding = None
         if include_embeddings and row["embedding"]:
-            embedding = json.loads(row["embedding"])
+            raw = row["embedding"]
+            # Handle bytes from legacy storage (pre-fix data stored via .encode())
+            if isinstance(raw, bytes):
+                raw = raw.decode("utf-8")
+            embedding = json.loads(raw)
 
         metadata = {}
         if row["metadata"]:
-            metadata = json.loads(row["metadata"])
+            raw_meta = row["metadata"]
+            if isinstance(raw_meta, bytes):
+                raw_meta = raw_meta.decode("utf-8")
+            metadata = json.loads(raw_meta)
 
         return SemanticNode(
             id=row["id"],

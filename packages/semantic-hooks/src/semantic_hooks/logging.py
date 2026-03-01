@@ -17,5 +17,7 @@ def log(message: str) -> None:
         log_file.parent.mkdir(parents=True, exist_ok=True)
         with open(log_file, "a") as f:
             f.write(f"{datetime.now().isoformat()} {message}\n")
-    except Exception:
-        pass
+    except Exception as e:
+        # Last resort: write to stderr so failures are diagnosable
+        import sys
+        print(f"Failed to write to log file: {e}", file=sys.stderr)

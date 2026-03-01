@@ -1,6 +1,5 @@
 """Tests for core data structures."""
 
-import pytest
 from datetime import datetime
 
 from semantic_hooks.core import (
@@ -85,6 +84,12 @@ class TestHookResult:
     def test_exit_code_block(self):
         result = HookResult(allow=False, block=True)
         assert result.exit_code == 2
+
+
+    def test_exit_code_disallow_without_block(self):
+        """allow=False, block=False should return exit code 1 (error)."""
+        result = HookResult(allow=False, block=False)
+        assert result.exit_code == 1
 
     def test_to_stdout_json_with_context(self):
         result = HookResult(

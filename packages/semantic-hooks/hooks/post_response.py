@@ -4,19 +4,23 @@
 Checks agent responses for repetitive topic loops and injects nudges.
 """
 
-import json
+import os
 import sys
 
-from semantic_hooks.guards import StuckDetectionGuard, create_stuck_guard_from_config
+# Resolve package path: works as both a .claude/ repo skill and a marketplace plugin
+_plugin_root = os.environ.get('CLAUDE_PLUGIN_ROOT', '')
+if _plugin_root:
+    _src = os.path.join(_plugin_root, 'src')
+else:
+    _src = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'src')
+_src = os.path.normpath(_src)
+if _src not in sys.path:
+    sys.path.insert(0, _src)
 
+import json  # noqa: E402
 
-def log(message: str) -> None:
-    """Log message to stderr (fail-safe logging)."""
-    try:
-        from semantic_hooks.logging import log as _log
-        _log(message)
-    except Exception:
-        pass  # Fail silently if logging unavailable
+from semantic_hooks.guards import create_stuck_guard_from_config  # noqa: E402
+from semantic_hooks.logging import log  # noqa: E402
 
 
 def main() -> int:
@@ -56,9 +60,8 @@ def main() -> int:
 
     except Exception as e:
         log(f"PostResponse ERROR: {e}")
-        # Don't block on errors - fail open
-        return 0
-
+        # Fail closed: security-relevant hooks should not silently pass on error
+        return 2
 
 if __name__ == "__main__":
     sys.exit(main())
