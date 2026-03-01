@@ -42,6 +42,12 @@ class TestNormalizePath:
     def test_combined_normalization(self) -> None:
         assert normalize_path(" .\\src\\bar.py ") == "src/bar.py"
 
+    def test_strips_markdown_bold_markers(self) -> None:
+        assert normalize_path("**foo.yml") == "foo.yml"
+
+    def test_strips_surrounding_bold_markers(self) -> None:
+        assert normalize_path("**foo.yml**") == "foo.yml"
+
     def test_strips_backticks(self) -> None:
         assert normalize_path("`foo.yml") == "foo.yml"
 
@@ -140,6 +146,12 @@ class TestExtractMentionedFiles:
         desc = "`a.py` and **b.yml** and\n- c.ts"
         result = extract_mentioned_files(desc)
         assert len(result) == 3
+
+    def test_bold_in_list_item_deduplicates(self) -> None:
+        """Bold filenames in list items should not produce duplicates with bold markers."""
+        desc = "- **workflow.yml**: Added skip job"
+        result = extract_mentioned_files(desc)
+        assert result == ["workflow.yml"]
 
     def test_command_in_backticks_not_treated_as_file(self) -> None:
         desc = "- [x] `uv run mypy scripts/homework_scanner.py` (clean)"
