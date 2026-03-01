@@ -206,7 +206,7 @@ def build_index(sections: list[Section], detail_dir: str) -> str:
             heading_display = "Overview"
         lines.append(f"[{heading_display}]")
         summary = summarize_section(section)
-        detail_path = f"{detail_dir}/{section.slug}.md"
+        detail_path = (Path(detail_dir) / f"{section.slug}.md").as_posix()
         lines.append(f"|{summary} (see: {detail_path})")
     return "\n".join(lines)
 

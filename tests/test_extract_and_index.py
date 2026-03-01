@@ -22,9 +22,7 @@ import sys
 from pathlib import Path
 from textwrap import dedent
 
-import pytest
-
-REPO_ROOT = Path(__file__).parent.parent.parent
+REPO_ROOT = Path(__file__).parent.parent
 SCRIPT_PATH = (
     REPO_ROOT
     / ".claude"
@@ -39,7 +37,6 @@ SCRIPTS_DIR = SCRIPT_PATH.parent
 sys.path.insert(0, str(SCRIPTS_DIR))
 
 from extract_and_index import (  # noqa: E402
-    ExtractionResult,
     Section,
     build_index,
     count_tokens,
@@ -49,7 +46,6 @@ from extract_and_index import (  # noqa: E402
     summarize_section,
     write_detail_files,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -221,7 +217,9 @@ class TestSummarizeSection:
 class TestBuildIndex:
     def test_produces_pipe_delimited_format(self):
         sections = [
-            Section(heading="Architecture", level=2, content="Layered design.", slug="architecture"),
+            Section(
+                heading="Architecture", level=2, content="Layered design.", slug="architecture",
+            ),
             Section(heading="Testing", level=2, content="80% coverage required.", slug="testing"),
         ]
         index = build_index(sections, ".details")
