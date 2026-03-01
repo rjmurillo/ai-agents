@@ -158,10 +158,9 @@ class SemanticRecorder:
 
         # Skip common low-value tools
         trivial_tools = {"echo", "pwd", "whoami"}
-        if context.tool_name and context.tool_name.lower() in trivial_tools:
-            return True
-
-        return False
+        return bool(
+            context.tool_name and context.tool_name.lower() in trivial_tools
+        )
 
     def start_session(self, session_id: str) -> None:
         """Initialize session tracking.

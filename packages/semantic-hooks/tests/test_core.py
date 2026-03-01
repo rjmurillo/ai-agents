@@ -1,6 +1,5 @@
 """Tests for core data structures."""
 
-from datetime import datetime
 
 from semantic_hooks.core import (
     HookContext,

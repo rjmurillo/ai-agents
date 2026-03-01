@@ -3,9 +3,9 @@
 import pytest
 
 from semantic_hooks.embedder import (
+    compute_trajectory_embedding,
     cosine_similarity,
     semantic_tension,
-    compute_trajectory_embedding,
 )
 
 

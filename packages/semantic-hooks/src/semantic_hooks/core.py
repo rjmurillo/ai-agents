@@ -1,10 +1,10 @@
 """Core data structures for semantic tension tracking."""
 
+import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from typing import Any
-import uuid
 
 
 class HookEvent(Enum):

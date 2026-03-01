@@ -7,6 +7,7 @@ per ADR-042.
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -79,10 +80,17 @@ class TestGetRepoRoot:
         assert result.exists()
         assert (result / ".git").exists() or (result / ".git").is_file()
 
-    def test_raises_for_non_git_directory(self, tmp_path: Path) -> None:
+    def test_raises_for_non_git_directory(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
         """Raises RuntimeError for non-git directory."""
         non_git_dir = tmp_path / "not_a_repo"
         non_git_dir.mkdir()
+        # Isolate git discovery from any parent repos or worktrees
+        for var in list(os.environ):
+            if var.startswith("GIT_"):
+                monkeypatch.delenv(var, raising=False)
+        monkeypatch.setenv("GIT_CEILING_DIRECTORIES", str(tmp_path))
 
         with pytest.raises(RuntimeError, match="Could not find git repo root"):
             get_repo_root(non_git_dir)
@@ -402,6 +410,11 @@ class TestMainFunction:
 
         non_git_dir = tmp_path / "not_a_repo"
         non_git_dir.mkdir()
+        # Isolate git discovery from any parent repos or worktrees
+        for var in list(os.environ):
+            if var.startswith("GIT_"):
+                monkeypatch.delenv(var, raising=False)
+        monkeypatch.setenv("GIT_CEILING_DIRECTORIES", str(tmp_path))
 
         monkeypatch.setattr(
             "sys.argv",

@@ -11,6 +11,7 @@ from semantic_hooks.guards import (
     reset_stuck_history,
 )
 
+
 # Lazy imports for heavy dependencies
 def __getattr__(name: str):
     """Lazy import heavy modules to avoid numpy dependency for stuck detection."""
