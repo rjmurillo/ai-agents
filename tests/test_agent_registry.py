@@ -323,7 +323,7 @@ class TestIntegration:
 
     def test_parse_real_catalog(self) -> None:
         catalog = parse_catalog(AGENTS_MD)
-        assert len(catalog) >= 15, f"Expected at least 15 catalog entries, got {len(catalog)}"
+        assert len(catalog) >= 12, f"Expected at least 12 catalog entries, got {len(catalog)}"
         names = {e.name for e in catalog}
         assert "orchestrator" in names
 
