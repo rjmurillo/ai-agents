@@ -8,6 +8,8 @@ Usage:
     python -m memory_enhancement graph <memory_id> --score [--json] [--dir PATH]
     python -m memory_enhancement health [--dir PATH] [--json] [--markdown] [--repo-root PATH]
     python -m memory_enhancement health --summary [--dir PATH] [--repo-root PATH]
+    python -m memory_enhancement confidence [--dir PATH] [--json] [--markdown] [--repo-root PATH]
+    python -m memory_enhancement confidence <memory_id> [--json] [--repo-root PATH]
 """
 
 import argparse
@@ -16,6 +18,13 @@ import sys
 from pathlib import Path
 
 from .citations import VerificationResult, verify_all_memories, verify_memory
+from .confidence import (
+    apply_decay,
+    classify_trend,
+    load_confidence_history,
+    render_dashboard,
+    render_dashboard_json,
+)
 from .graph import MemoryGraph
 from .health import check_all_health
 from .models import Memory
@@ -131,7 +140,7 @@ def cmd_verify(args: argparse.Namespace) -> int:
 
     try:
         memory = Memory.from_file(memory_path)
-    except (yaml.YAMLError, UnicodeDecodeError, OSError) as e:
+    except (yaml.YAMLError, UnicodeDecodeError, OSError, ValueError) as e:
         print(f"Error: Cannot parse {memory_path}: {e}", file=sys.stderr)
         return 2
 
@@ -423,6 +432,132 @@ def cmd_health(args: argparse.Namespace) -> int:
     return 1 if report.has_stale else 0
 
 
+def cmd_confidence(args: argparse.Namespace) -> int:
+    """Show confidence scores with decay applied, or a full dashboard."""
+    try:
+        repo_root = Path(args.repo_root).resolve(strict=True)
+    except (FileNotFoundError, OSError) as e:
+        print(f"Error: Repository root not found: {e}", file=sys.stderr)
+        return 2
+
+    memories_dir_path = Path(args.dir)
+    if not memories_dir_path.is_absolute():
+        memories_dir = (repo_root / memories_dir_path).resolve()
+    else:
+        try:
+            memories_dir = memories_dir_path.resolve(strict=True)
+        except (FileNotFoundError, OSError) as e:
+            print(f"Error: Memories directory not found: {e}", file=sys.stderr)
+            return 2
+
+    try:
+        memories_dir.relative_to(repo_root)
+    except ValueError:
+        print(
+            f"Error: Memories directory is outside the repository: {args.dir}",
+            file=sys.stderr,
+        )
+        return 2
+
+    if not memories_dir.exists():
+        print(f"Error: Memories directory not found: {memories_dir}", file=sys.stderr)
+        return 2
+
+    half_life = args.half_life
+
+    if args.memory_id:
+        return _confidence_single(args, memories_dir, repo_root, half_life)
+
+    return _confidence_dashboard(args, memories_dir, half_life)
+
+
+def _confidence_single(
+    args: argparse.Namespace,
+    memories_dir: Path,
+    repo_root: Path,
+    half_life: float,
+) -> int:
+    """Show confidence details for a single memory."""
+    import yaml as yaml_lib
+
+    try:
+        memory_path = _find_memory(args.memory_id, memories_dir, repo_root)
+    except FileNotFoundError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 2
+
+    try:
+        memory = Memory.from_file(memory_path)
+    except (yaml_lib.YAMLError, UnicodeDecodeError, OSError, ValueError) as e:
+        print(f"Error: Cannot parse {memory_path}: {e}", file=sys.stderr)
+        return 2
+
+    try:
+        history = load_confidence_history(memory_path)
+        decayed = apply_decay(memory, half_life_days=half_life)
+        trend = classify_trend(history)
+    except (ValueError, TypeError, ZeroDivisionError) as e:
+        print(
+            f"Error: Failed to process confidence data for {memory.id}: {e}",
+            file=sys.stderr,
+        )
+        return 2
+
+    if args.json:
+        data = {
+            "memory_id": memory.id,
+            "raw_confidence": round(memory.confidence, 2),
+            "decayed_confidence": round(decayed, 2),
+            "trend": trend,
+            "last_verified": (
+                memory.last_verified.isoformat() if memory.last_verified else None
+            ),
+            "history": [
+                {
+                    "timestamp": r.timestamp.isoformat(),
+                    "score": round(r.score, 2),
+                    "valid_count": r.valid_count,
+                    "total_count": r.total_count,
+                }
+                for r in history
+            ],
+        }
+        print(json.dumps(data, indent=2))
+    else:
+        lv = memory.last_verified.strftime("%Y-%m-%d") if memory.last_verified else "never"
+        print(f"Memory: {memory.id}")
+        print(f"  Raw confidence: {memory.confidence:.2f}")
+        print(f"  Decayed confidence: {decayed:.2f}")
+        print(f"  Trend: {trend}")
+        print(f"  Last verified: {lv}")
+        print(f"  History records: {len(history)}")
+        if history:
+            print("  History:")
+            for r in history:
+                print(
+                    f"    {r.timestamp.strftime('%Y-%m-%d')} "
+                    f"score={r.score:.2f} "
+                    f"({r.valid_count}/{r.total_count})"
+                )
+    return 0
+
+
+def _confidence_dashboard(
+    args: argparse.Namespace,
+    memories_dir: Path,
+    half_life: float,
+) -> int:
+    """Show a dashboard of all memories' confidence scores."""
+    if args.json:
+        data = render_dashboard_json(memories_dir, half_life_days=half_life)
+        print(json.dumps(data, indent=2))
+    elif args.markdown:
+        print(render_dashboard(memories_dir, half_life_days=half_life))
+    else:
+        print(render_dashboard(memories_dir, half_life_days=half_life))
+    return 0
+
+
 def main() -> int:
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
@@ -491,6 +626,24 @@ def main() -> int:
         help="Show abbreviated summary only",
     )
 
+    confidence_parser = subparsers.add_parser(
+        "confidence",
+        help="Show confidence scores with temporal decay",
+        parents=[common],
+    )
+    confidence_parser.add_argument(
+        "memory_id", nargs="?", default=None,
+        help="Memory ID for single-memory detail (omit for dashboard)",
+    )
+    confidence_parser.add_argument(
+        "--markdown", action="store_true",
+        help="Output as Markdown",
+    )
+    confidence_parser.add_argument(
+        "--half-life", type=float, default=30.0,
+        help="Decay half-life in days (default: 30)",
+    )
+
     args = parser.parse_args()
 
     if args.command == "verify":
@@ -501,6 +654,8 @@ def main() -> int:
         return cmd_graph(args)
     elif args.command == "health":
         return cmd_health(args)
+    elif args.command == "confidence":
+        return cmd_confidence(args)
 
     parser.print_help()
     return 2
