@@ -9,6 +9,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from scripts.github_core.api import RepoInfo
 
 # ---------------------------------------------------------------------------
 # Import the script via importlib (not a package)
@@ -79,7 +80,7 @@ class TestMain:
             "test_pr_merged.assert_gh_authenticated",
         ), patch(
             "test_pr_merged.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "test_pr_merged.gh_graphql",
             return_value=graphql_data,
@@ -89,7 +90,7 @@ class TestMain:
         output = json.loads(capsys.readouterr().out)
         assert output["merged"] is False
 
-    def test_pr_merged_returns_1(self, capsys):
+    def test_pr_merged_returns_100(self, capsys):
         graphql_data = {
             "repository": {
                 "pullRequest": {
@@ -104,13 +105,13 @@ class TestMain:
             "test_pr_merged.assert_gh_authenticated",
         ), patch(
             "test_pr_merged.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "test_pr_merged.gh_graphql",
             return_value=graphql_data,
         ):
             rc = main(["--pull-request", "315"])
-        assert rc == 1
+        assert rc == 100
         output = json.loads(capsys.readouterr().out)
         assert output["merged"] is True
         assert output["merged_by"] == "admin"
@@ -121,7 +122,7 @@ class TestMain:
             "test_pr_merged.assert_gh_authenticated",
         ), patch(
             "test_pr_merged.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "test_pr_merged.gh_graphql",
             return_value=graphql_data,
@@ -135,7 +136,7 @@ class TestMain:
             "test_pr_merged.assert_gh_authenticated",
         ), patch(
             "test_pr_merged.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "test_pr_merged.gh_graphql",
             side_effect=RuntimeError("GraphQL failed"),

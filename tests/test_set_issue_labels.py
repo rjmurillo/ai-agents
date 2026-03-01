@@ -107,3 +107,71 @@ def test_apply_failure(mock_run):
     with pytest.raises(SystemExit) as exc_info:
         main(["--issue", "1", "--labels", "broken"])
     assert exc_info.value.code == 3
+
+
+@patch("subprocess.run")
+def test_create_failure_skips_apply(mock_run, capsys):
+    """When label creation fails, the label is marked failed and apply is skipped."""
+    mock_run.side_effect = [
+        _completed(rc=0),  # auth
+        _completed(stdout="https://github.com/o/r\n"),  # remote
+        _completed(rc=1),  # label does not exist
+        _completed(rc=1),  # create fails
+    ]
+
+    with pytest.raises(SystemExit) as exc_info:
+        main(["--issue", "1", "--labels", "fail-to-create"])
+    assert exc_info.value.code == 3
+    output = json.loads(capsys.readouterr().out)
+    assert "fail-to-create" in output["failed"]
+    assert output["applied"] == []
+
+
+@patch("subprocess.run")
+def test_no_create_missing_skips_label(mock_run, capsys):
+    """With --no-create-missing, missing labels are silently skipped."""
+    mock_run.side_effect = [
+        _completed(rc=0),  # auth
+        _completed(stdout="https://github.com/o/r\n"),  # remote
+        _completed(rc=1),  # label does not exist
+    ]
+
+    rc = main(["--issue", "1", "--labels", "missing", "--no-create-missing"])
+    assert rc == 0
+    output = json.loads(capsys.readouterr().out)
+    assert output["applied"] == []
+    assert output["failed"] == []
+    assert output["success"] is True
+
+
+@patch("subprocess.run")
+def test_mixed_existing_and_missing_labels(mock_run, capsys):
+    """Multiple labels: one exists, one is created, both applied."""
+    mock_run.side_effect = [
+        _completed(rc=0),  # auth
+        _completed(stdout="https://github.com/o/r\n"),  # remote
+        _completed(rc=0),  # "bug" exists
+        _completed(rc=0),  # apply "bug"
+        _completed(rc=1),  # "new-one" does not exist
+        _completed(rc=0),  # create "new-one"
+        _completed(rc=0),  # apply "new-one"
+    ]
+
+    rc = main(["--issue", "1", "--labels", "bug", "new-one"])
+    assert rc == 0
+    output = json.loads(capsys.readouterr().out)
+    assert output["applied"] == ["bug", "new-one"]
+    assert output["created"] == ["new-one"]
+    assert output["total_applied"] == 2
+
+
+@patch("subprocess.run")
+def test_whitespace_labels_stripped(mock_run, capsys):
+    """Whitespace-only labels are filtered out."""
+    mock_run.side_effect = [
+        _completed(rc=0),  # auth
+        _completed(stdout="https://github.com/o/r\n"),  # remote
+    ]
+
+    rc = main(["--issue", "1", "--labels", "  ", ""])
+    assert rc == 0

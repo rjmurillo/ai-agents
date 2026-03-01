@@ -153,7 +153,7 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901 - faithful port of
 
     assert_gh_authenticated()
     resolved = resolve_repo_params(args.owner, args.repo)
-    owner, repo = resolved["Owner"], resolved["Repo"]
+    owner, repo = resolved.owner, resolved.repo
     issue: int = args.issue
 
     body: str = args.body
@@ -164,7 +164,7 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901 - faithful port of
         body = body_path.read_text(encoding="utf-8")
 
     if not body or not body.strip():
-        error_and_exit("Body cannot be empty.", 1)
+        error_and_exit("Body cannot be empty.", 2)
 
     # Marker / idempotency check
     if args.marker:

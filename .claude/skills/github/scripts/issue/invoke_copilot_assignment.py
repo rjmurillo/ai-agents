@@ -483,7 +483,7 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901 - faithful port of
 
     assert_gh_authenticated()
     resolved = resolve_repo_params(args.owner, args.repo)
-    owner, repo = resolved["Owner"], resolved["Repo"]
+    owner, repo = resolved.owner, resolved.repo
     issue_number: int = args.issue_number
 
     print(f"Processing issue #{issue_number} in {owner}/{repo}")
@@ -496,7 +496,7 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901 - faithful port of
             "No trusted sources configured. "
             "Create a copilot-synthesis.yml with maintainers and ai_agents lists. "
             "See .claude/skills/github/copilot-synthesis.yml for the expected format.",
-            1,
+            2,
         )
 
     # Fetch issue details
