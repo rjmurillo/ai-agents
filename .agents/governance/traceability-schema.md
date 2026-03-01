@@ -150,26 +150,28 @@ FUNCTION DetectOrphans(specs):
 
 ## Graph Visualization
 
-```text
-                    REQUIREMENTS LAYER
-                    ┌─────────────┐
-                    │   REQ-001   │
-                    │   REQ-002   │
-                    └──────┬──────┘
-                           │ traces_to
-                           ▼
-                    DESIGN LAYER
-                    ┌─────────────┐
-                    │  DESIGN-001 │
-                    └──────┬──────┘
-                           │ traces_to
-                           ▼
-                    TASK LAYER
-          ┌────────┬────────┬────────┐
-          ▼        ▼        ▼        ▼
-     ┌────────┐┌────────┐┌────────┐
-     │TASK-001││TASK-002││TASK-003│
-     └────────┘└────────┘└────────┘
+```mermaid
+graph TD
+    subgraph Requirements Layer
+        REQ-001
+        REQ-002
+    end
+
+    subgraph Design Layer
+        DESIGN-001
+    end
+
+    subgraph Task Layer
+        TASK-001
+        TASK-002
+        TASK-003
+    end
+
+    REQ-001 -->|traces_to| DESIGN-001
+    REQ-002 -->|traces_to| DESIGN-001
+    DESIGN-001 -->|traces_to| TASK-001
+    DESIGN-001 -->|traces_to| TASK-002
+    DESIGN-001 -->|traces_to| TASK-003
 ```
 
 ## Validation Levels

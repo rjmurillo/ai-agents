@@ -10,6 +10,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from scripts.github_core.api import RepoInfo
 
 # ---------------------------------------------------------------------------
 # Import the script via importlib (not a package)
@@ -33,6 +34,8 @@ def _import_script(name: str):
 _mod = _import_script("merge_pr")
 main = _mod.main
 build_parser = _mod.build_parser
+get_allowed_merge_methods = _mod.get_allowed_merge_methods
+validate_strategy = _mod.validate_strategy
 
 
 # ---------------------------------------------------------------------------
@@ -42,6 +45,14 @@ build_parser = _mod.build_parser
 
 def _completed(stdout: str = "", stderr: str = "", rc: int = 0):
     return subprocess.CompletedProcess(args=[], returncode=rc, stdout=stdout, stderr=stderr)
+
+
+# Default settings allowing all merge methods
+_ALL_METHODS_ALLOWED = {
+    "allow_merge_commit": True,
+    "allow_squash_merge": True,
+    "allow_rebase_merge": True,
+}
 
 
 # ---------------------------------------------------------------------------
@@ -91,7 +102,9 @@ class TestMain:
             "merge_pr.assert_gh_authenticated",
         ), patch(
             "merge_pr.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "merge_pr.get_allowed_merge_methods", return_value=_ALL_METHODS_ALLOWED,
         ), patch(
             "subprocess.run",
             return_value=_completed(rc=1, stderr="not found"),
@@ -108,7 +121,9 @@ class TestMain:
             "merge_pr.assert_gh_authenticated",
         ), patch(
             "merge_pr.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "merge_pr.get_allowed_merge_methods", return_value=_ALL_METHODS_ALLOWED,
         ), patch(
             "subprocess.run",
             return_value=_completed(stdout=state_json, rc=0),
@@ -126,7 +141,9 @@ class TestMain:
             "merge_pr.assert_gh_authenticated",
         ), patch(
             "merge_pr.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "merge_pr.get_allowed_merge_methods", return_value=_ALL_METHODS_ALLOWED,
         ), patch(
             "subprocess.run",
             return_value=_completed(stdout=state_json, rc=0),
@@ -153,7 +170,9 @@ class TestMain:
             "merge_pr.assert_gh_authenticated",
         ), patch(
             "merge_pr.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "merge_pr.get_allowed_merge_methods", return_value=_ALL_METHODS_ALLOWED,
         ), patch(
             "subprocess.run",
             side_effect=_side_effect,
@@ -182,7 +201,9 @@ class TestMain:
             "merge_pr.assert_gh_authenticated",
         ), patch(
             "merge_pr.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "merge_pr.get_allowed_merge_methods", return_value=_ALL_METHODS_ALLOWED,
         ), patch(
             "subprocess.run",
             side_effect=_side_effect,
@@ -211,7 +232,9 @@ class TestMain:
             "merge_pr.assert_gh_authenticated",
         ), patch(
             "merge_pr.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "merge_pr.get_allowed_merge_methods", return_value=_ALL_METHODS_ALLOWED,
         ), patch(
             "subprocess.run",
             side_effect=_side_effect,
@@ -219,3 +242,324 @@ class TestMain:
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "50"])
             assert exc.value.code == 6
+
+    def test_blocked_policy_without_auto_exits_6(self):
+        state_json = json.dumps({
+            "state": "OPEN", "mergeable": "MERGEABLE",
+            "mergeStateStatus": "BLOCKED", "headRefName": "feature",
+        })
+        call_count = 0
+
+        def _side_effect(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return _completed(stdout=state_json, rc=0)
+            return _completed(rc=1, stderr="BLOCKED by branch protection")
+
+        with patch(
+            "merge_pr.assert_gh_authenticated",
+        ), patch(
+            "merge_pr.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "merge_pr.get_allowed_merge_methods", return_value=_ALL_METHODS_ALLOWED,
+        ), patch(
+            "subprocess.run",
+            side_effect=_side_effect,
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main(["--pull-request", "50"])
+            assert exc.value.code == 6
+
+    def test_blocked_policy_with_auto_succeeds(self, capsys):
+        state_json = json.dumps({
+            "state": "OPEN", "mergeable": "MERGEABLE",
+            "mergeStateStatus": "BLOCKED", "headRefName": "feature",
+        })
+        call_count = 0
+
+        def _side_effect(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return _completed(stdout=state_json, rc=0)
+            return _completed(rc=0)
+
+        with patch(
+            "merge_pr.assert_gh_authenticated",
+        ), patch(
+            "merge_pr.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "merge_pr.get_allowed_merge_methods", return_value=_ALL_METHODS_ALLOWED,
+        ), patch(
+            "subprocess.run",
+            side_effect=_side_effect,
+        ):
+            rc = main(["--pull-request", "50", "--auto"])
+        assert rc == 0
+        output = json.loads(capsys.readouterr().out)
+        assert output["action"] == "auto-merge-enabled"
+
+
+# ---------------------------------------------------------------------------
+# Tests: get_allowed_merge_methods
+# ---------------------------------------------------------------------------
+
+
+class TestGetAllowedMergeMethods:
+    def test_returns_settings_on_success(self):
+        settings = json.dumps({
+            "allow_merge_commit": True,
+            "allow_squash_merge": True,
+            "allow_rebase_merge": False,
+        })
+        with patch(
+            "subprocess.run",
+            return_value=_completed(stdout=settings, rc=0),
+        ):
+            result = get_allowed_merge_methods("o/r")
+        assert result["allow_rebase_merge"] is False
+
+    def test_raises_on_api_failure(self):
+        with patch(
+            "subprocess.run",
+            return_value=_completed(rc=1, stderr="error"),
+        ):
+            with pytest.raises(RuntimeError) as exc:
+                get_allowed_merge_methods("o/r")
+            assert "Failed to query repository settings" in str(exc.value)
+
+    def test_raises_on_invalid_json(self):
+        with patch(
+            "subprocess.run",
+            return_value=_completed(stdout="not-json", rc=0),
+        ):
+            with pytest.raises(ValueError) as exc:
+                get_allowed_merge_methods("o/r")
+            assert "Failed to decode JSON" in str(exc.value)
+
+
+# ---------------------------------------------------------------------------
+# Tests: validate_strategy
+# ---------------------------------------------------------------------------
+
+
+class TestValidateStrategy:
+    def test_empty_settings_rejects_strategy(self):
+        """Empty settings should reject strategies by defaulting to False."""
+        with pytest.raises(SystemExit) as exc:
+            validate_strategy("merge", {}, "o/r")
+        assert exc.value.code == 1
+
+    def test_allowed_strategy_passes(self):
+        settings = {
+            "allow_merge_commit": True,
+            "allow_squash_merge": True,
+            "allow_rebase_merge": False,
+        }
+        validate_strategy("squash", settings, "o/r")
+
+    def test_disallowed_strategy_exits_1(self):
+        settings = {
+            "allow_merge_commit": False,
+            "allow_squash_merge": True,
+            "allow_rebase_merge": False,
+        }
+        with pytest.raises(SystemExit) as exc:
+            validate_strategy("merge", settings, "o/r")
+        assert exc.value.code == 1
+
+    def test_disallowed_strategy_lists_allowed(self, capsys):
+        settings = {
+            "allow_merge_commit": False,
+            "allow_squash_merge": True,
+            "allow_rebase_merge": False,
+        }
+        with pytest.raises(SystemExit):
+            validate_strategy("merge", settings, "o/r")
+
+    def test_strategy_rejected_in_main(self):
+        settings = {
+            "allow_merge_commit": False,
+            "allow_squash_merge": True,
+            "allow_rebase_merge": False,
+        }
+        with patch(
+            "merge_pr.assert_gh_authenticated",
+        ), patch(
+            "merge_pr.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "merge_pr.get_allowed_merge_methods", return_value=settings,
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main(["--pull-request", "50", "--strategy", "merge"])
+            assert exc.value.code == 1
+
+    def test_rebase_strategy_rejected(self):
+        settings = {
+            "allow_merge_commit": True,
+            "allow_squash_merge": True,
+            "allow_rebase_merge": False,
+        }
+        with pytest.raises(SystemExit) as exc:
+            validate_strategy("rebase", settings, "o/r")
+        assert exc.value.code == 1
+
+    def test_rebase_strategy_allowed(self):
+        settings = {
+            "allow_merge_commit": False,
+            "allow_squash_merge": False,
+            "allow_rebase_merge": True,
+        }
+        validate_strategy("rebase", settings, "o/r")
+
+
+# ---------------------------------------------------------------------------
+# Tests: additional main scenarios
+# ---------------------------------------------------------------------------
+
+
+class TestMainAdditional:
+    def test_merge_generic_failure_exits_3(self):
+        state_json = json.dumps({
+            "state": "OPEN", "mergeable": "MERGEABLE",
+            "mergeStateStatus": "CLEAN", "headRefName": "feature",
+        })
+        call_count = 0
+
+        def _side_effect(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return _completed(stdout=state_json, rc=0)
+            return _completed(rc=1, stderr="unknown error")
+
+        with patch(
+            "merge_pr.assert_gh_authenticated",
+        ), patch(
+            "merge_pr.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "merge_pr.get_allowed_merge_methods", return_value=_ALL_METHODS_ALLOWED,
+        ), patch(
+            "subprocess.run",
+            side_effect=_side_effect,
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main(["--pull-request", "50"])
+            assert exc.value.code == 3
+
+    def test_conflicts_keyword_exits_6(self):
+        state_json = json.dumps({
+            "state": "OPEN", "mergeable": "CONFLICTING",
+            "mergeStateStatus": "DIRTY", "headRefName": "feature",
+        })
+        call_count = 0
+
+        def _side_effect(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return _completed(stdout=state_json, rc=0)
+            return _completed(rc=1, stderr="conflicts must be resolved")
+
+        with patch(
+            "merge_pr.assert_gh_authenticated",
+        ), patch(
+            "merge_pr.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "merge_pr.get_allowed_merge_methods", return_value=_ALL_METHODS_ALLOWED,
+        ), patch(
+            "subprocess.run",
+            side_effect=_side_effect,
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main(["--pull-request", "50"])
+            assert exc.value.code == 6
+
+    def test_delete_branch_flag(self, capsys):
+        state_json = json.dumps({
+            "state": "OPEN", "mergeable": "MERGEABLE",
+            "mergeStateStatus": "CLEAN", "headRefName": "feature",
+        })
+        calls = []
+
+        def _side_effect(*args, **kwargs):
+            calls.append(args[0] if args else kwargs.get("args", []))
+            if len(calls) == 1:
+                return _completed(stdout=state_json, rc=0)
+            return _completed(rc=0)
+
+        with patch(
+            "merge_pr.assert_gh_authenticated",
+        ), patch(
+            "merge_pr.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "merge_pr.get_allowed_merge_methods", return_value=_ALL_METHODS_ALLOWED,
+        ), patch(
+            "subprocess.run",
+            side_effect=_side_effect,
+        ):
+            rc = main(["--pull-request", "50", "--delete-branch"])
+        assert rc == 0
+        merge_cmd = calls[-1]
+        assert "--delete-branch" in merge_cmd
+        output = json.loads(capsys.readouterr().out)
+        assert output["branch_deleted"] is True
+
+    def test_pr_view_non_not_found_error_exits_3(self):
+        with patch(
+            "merge_pr.assert_gh_authenticated",
+        ), patch(
+            "merge_pr.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "merge_pr.get_allowed_merge_methods", return_value=_ALL_METHODS_ALLOWED,
+        ), patch(
+            "subprocess.run",
+            return_value=_completed(rc=1, stderr="internal server error"),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main(["--pull-request", "50"])
+            assert exc.value.code == 3
+
+    def test_subject_and_body_passed(self, capsys):
+        state_json = json.dumps({
+            "state": "OPEN", "mergeable": "MERGEABLE",
+            "mergeStateStatus": "CLEAN", "headRefName": "feature",
+        })
+        calls = []
+
+        def _side_effect(*args, **kwargs):
+            calls.append(args[0] if args else kwargs.get("args", []))
+            if len(calls) == 1:
+                return _completed(stdout=state_json, rc=0)
+            return _completed(rc=0)
+
+        with patch(
+            "merge_pr.assert_gh_authenticated",
+        ), patch(
+            "merge_pr.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "merge_pr.get_allowed_merge_methods", return_value=_ALL_METHODS_ALLOWED,
+        ), patch(
+            "subprocess.run",
+            side_effect=_side_effect,
+        ):
+            rc = main([
+                "--pull-request", "50",
+                "--subject", "Custom subject",
+                "--body", "Custom body",
+            ])
+        assert rc == 0
+        merge_cmd = calls[-1]
+        assert "--subject" in merge_cmd
+        assert "Custom subject" in merge_cmd
+        assert "--body" in merge_cmd
+        assert "Custom body" in merge_cmd

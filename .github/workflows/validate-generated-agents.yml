@@ -146,15 +146,7 @@ jobs:
     steps:
       - name: Skip validation (no agent files changed)
         run: |
-          echo "✅ Agent file validation skipped - no relevant file changes detected"
+          echo "No agent files changed - skipping validation"
           echo ""
-          echo "This PR/push only contains changes to files that don't affect generated agents."
-          echo ""
-          echo "Monitored paths that would trigger validation:"
-          echo "  - templates/**"
-          echo "  - src/vs-code-agents/**"
-          echo "  - src/copilot-cli/**"
-          echo "  - build/generate_agents.py"
-          echo "  - .github/workflows/validate-generated-agents.yml"
-          echo ""
-          echo "Status: PASS (skipped - no relevant changes)"
+          echo "See the 'agents' filter in check-paths job for paths that trigger validation."
+          echo "Reference: .github/workflows/validate-generated-agents.yml"

@@ -14,13 +14,20 @@ Exit codes follow ADR-035:
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import json
 import os
 import re
 import subprocess
 import sys
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
+
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(_PROJECT_ROOT))
+
+from scripts.github_core.api import RepoInfo  # noqa: E402
 
 # File extensions considered significant for mention checking
 SIGNIFICANT_EXTENSIONS: frozenset[str] = frozenset(
@@ -54,10 +61,10 @@ class Issue:
     message: str
 
 
-def get_repo_info() -> dict[str, str]:
+def get_repo_info() -> RepoInfo:
     """Parse owner/repo from git remote origin URL.
 
-    Returns dict with 'owner' and 'repo' keys.
+    Returns RepoInfo with owner and repo.
     Raises RuntimeError on failure.
     """
     try:
@@ -80,7 +87,7 @@ def get_repo_info() -> dict[str, str]:
             f"Could not parse GitHub owner/repo from remote URL: {remote_url}"
         )
 
-    return {"owner": match.group(1), "repo": match.group(2)}
+    return RepoInfo(owner=match.group(1), repo=match.group(2))
 
 
 def fetch_pr_data(
@@ -116,8 +123,13 @@ def fetch_pr_data(
 
 
 def normalize_path(path: str) -> str:
-    """Normalize a file path for comparison."""
+    """Normalize a file path for comparison.
+
+    Strips whitespace, markdown bold markers, and normalizes slashes.
+    """
     path = path.strip()
+    # Strip markdown formatting that may be captured by list item pattern
+    path = path.strip("*")
     path = path.strip("`")
     path = path.replace("\\", "/")
     if path.startswith("./"):
@@ -133,7 +145,11 @@ def extract_mentioned_files(description: str) -> list[str]:
     mentioned: list[str] = []
     for pattern in FILE_MENTION_PATTERNS:
         for match in pattern.finditer(description):
-            mentioned.append(normalize_path(match.group(1)))
+            raw = match.group(1)
+            # Skip command-like strings (file paths never contain spaces)
+            if " " in raw.strip():
+                continue
+            mentioned.append(normalize_path(raw))
 
     # Deduplicate while preserving order
     seen: set[str] = set()
@@ -148,12 +164,16 @@ def extract_mentioned_files(description: str) -> list[str]:
 def file_matches(actual: str, mentioned: str) -> bool:
     """Check if an actual diff path matches a mentioned path.
 
-    Supports exact match and suffix match (e.g. "file.ps1" matches "path/to/file.ps1").
+    Supports exact match, suffix match (e.g. "file.ps1" matches
+    "path/to/file.ps1"), and glob patterns (e.g. "src/*.py" matches
+    "src/main.py").
     """
     if actual == mentioned:
         return True
     if actual.endswith(f"/{mentioned}"):
         return True
+    if "*" in mentioned or "?" in mentioned:
+        return fnmatch.fnmatch(actual, mentioned)
     return False
 
 
@@ -288,9 +308,9 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Error: {exc}", file=sys.stderr)
             return 2
         if not owner:
-            owner = repo_info["owner"]
+            owner = repo_info.owner
         if not repo:
-            repo = repo_info["repo"]
+            repo = repo_info.repo
 
     # Fetch PR data
     print(f"Fetching PR #{args.pr_number} data...")

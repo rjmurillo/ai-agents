@@ -108,10 +108,10 @@ def main(argv: list[str] | None = None) -> int:
 
     assert_gh_authenticated()
     resolved = resolve_repo_params(args.owner, args.repo)
-    owner, repo = resolved["Owner"], resolved["Repo"]
+    owner, repo = resolved.owner, resolved.repo
 
     if not args.clear and not args.milestone:
-        error_and_exit("Must specify --milestone or --clear.", 1)
+        error_and_exit("Must specify --milestone or --clear.", 2)
 
     current_milestone = _get_current_milestone(owner, repo, args.issue)
 

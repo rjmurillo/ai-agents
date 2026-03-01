@@ -73,7 +73,7 @@ def test_empty_title_fails(mock_run):
 
     with pytest.raises(SystemExit) as exc_info:
         main(["--title", "   "])
-    assert exc_info.value.code == 1
+    assert exc_info.value.code == 2
 
 
 @patch("subprocess.run")

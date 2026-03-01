@@ -45,7 +45,7 @@ Rule: Read first, reason second. Pre-training is the last resort, never the defa
 | Level | Step | Verification |
 |-------|------|--------------|
 | MUST | Complete session log (all MUST items `[x]`) | All MUST items marked complete |
-| MUST NOT | Update `.agents/HANDOFF.md` | File unchanged |
+| MUST | Preserve `.agents/HANDOFF.md` (read-only) | File unchanged |
 | MUST | Update Serena memory (cross-session context) | Memory write confirmed |
 | MUST | Run scoped markdownlint on changed `.md` files (ADR-043) | Lint passes |
 | MUST | Commit all changes including `.agents/` | Commit SHA recorded |
@@ -146,6 +146,7 @@ Any file matching `.agents/architecture/ADR-*.md` created or edited triggers man
 | memory | Cross-session context, knowledge retrieval | haiku |
 | pr-comment-responder | PR review triage, comment tracking, resolution | sonnet |
 | backlog-generator | Proactive task discovery when idle | sonnet |
+| merge-resolver | Git conflict resolution, intent analysis, heuristic merge | sonnet |
 
 ## Workflow Patterns
 
@@ -183,6 +184,21 @@ ANY non-zero exit code from test frameworks blocks commits.
 | `66 passed, 1 error` | 1 | FAIL, fix before commit |
 
 Both "failed" and "error" are failures. Run full test suite before every commit.
+
+### Test Location Standards
+
+| Category | Location | Example |
+|----------|----------|---------|
+| Python unit/integration tests | `tests/` | `tests/test_validate_session_json.py` |
+| Skill-specific tests | `.claude/skills/<name>/tests/` | `.claude/skills/memory/tests/test_schema_validation.py` |
+| Security benchmarks | `.agents/security/benchmarks/` | `.agents/security/benchmarks/test_cwe22_path_traversal.py` |
+
+Rules:
+
+- New Python tests go in `tests/` unless they test a self-contained skill module. Skill tests colocate with the skill under `.claude/skills/<name>/tests/`.
+- Test files follow `test_*.py` naming (Python) or `*.Tests.ps1` naming (PowerShell).
+- Each test directory containing tests must have a `conftest.py` when shared fixtures are needed.
+- `pyproject.toml` configures `testpaths = ["tests", "test"]` for the primary pytest run. Skill-specific and security benchmark tests live within their respective modules and run via explicit paths (e.g., `pytest .claude/skills/<name>/tests/`). Do not add new root-level test directories alongside `tests/`.
 
 ## Tech Stack
 

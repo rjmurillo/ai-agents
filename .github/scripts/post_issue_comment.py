@@ -172,8 +172,8 @@ def main(argv: list[str] | None = None) -> int:
 
     # --- Repo resolution ---
     resolved = resolve_repo_params(args.owner, args.repo)
-    owner = resolved["Owner"]
-    repo = resolved["Repo"]
+    owner = resolved.owner
+    repo = resolved.repo
     issue: int = args.issue
 
     # --- Body resolution ---
@@ -185,7 +185,7 @@ def main(argv: list[str] | None = None) -> int:
         body = body_path.read_text(encoding="utf-8")
 
     if not body or not body.strip():
-        error_and_exit("Body cannot be empty.", 1)
+        error_and_exit("Body cannot be empty.", 2)
 
     # --- Marker / idempotency ---
     if args.marker:

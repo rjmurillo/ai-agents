@@ -17,6 +17,15 @@ import os
 import re
 import sys
 
+# Allow importing from scripts/utils when run from repo root
+_repo_root = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+)
+if _repo_root not in sys.path:
+    sys.path.insert(0, _repo_root)
+
+from scripts.utils.markdown_parser import find_checklist_item as _ast_find  # noqa: E402
+
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -37,15 +46,13 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def _find_checklist_item(content: str, pattern: str) -> dict:
-    """Look for table rows with [x] that match the pattern."""
-    rx = re.compile(
-        r"\|[^|]*\|[^|]*" + pattern + r"[^|]*\|\s*\[x\]\s*\|([^|]*)\|",
-        re.IGNORECASE,
-    )
-    m = rx.search(content)
-    if m:
-        return {"Complete": True, "Evidence": m.group(1).strip()}
-    return {"Complete": False, "Evidence": ""}
+    """Look for table rows with [x] that match the pattern.
+
+    Uses AST-based Markdown parsing via markdown-it-py for reliable
+    table extraction instead of fragile regex patterns.
+    """
+    result = _ast_find(content, pattern)
+    return {"Complete": result.complete, "Evidence": result.evidence}
 
 
 def _parse_work_log(content: str) -> list[dict]:
@@ -201,12 +208,12 @@ def _convert_markdown_session(content: str, filename: str) -> dict:
         "checklistComplete": _find_checklist_item(
             content, _checklist_pat,
         ),
-        "handoffNotUpdated": {
-            "level": "MUST NOT",
-            "Complete": False,
+        "handoffPreserved": {
+            "level": "MUST",
+            "Complete": True,
             "Evidence": _find_checklist_item(
                 content, _handoff_pat,
-            ).get("Evidence", ""),
+            ).get("Evidence", "HANDOFF.md not modified"),
         },
         "serenaMemoryUpdated": _find_checklist_item(
             content, _memory_pat,
