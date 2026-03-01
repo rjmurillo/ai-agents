@@ -10,11 +10,12 @@ Extract PR number and repository context from the user prompt before any API cal
 
 ### Step -1.1: Extract GitHub Context
 
-```powershell
+```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 # Extract PR numbers, issue numbers, owner/repo from user prompt
-$context = pwsh .claude/skills/github/scripts/utils/Extract-GitHubContext.ps1 -Text "[user_prompt]" -RequirePR
+python3 "$SCRIPTS_DIR/utils/extract_github_context.py" --text "[user_prompt]" --require-pr
 
-# Result contains:
+# Result contains JSON with:
 # - PRNumbers: Array of PR numbers found
 # - IssueNumbers: Array of issue numbers found
 # - Owner: Repository owner (from URL)
@@ -25,25 +26,28 @@ $context = pwsh .claude/skills/github/scripts/utils/Extract-GitHubContext.ps1 -T
 
 ### Step -1.2: Validate Context
 
-```powershell
-if ($context.PRNumbers.Count -eq 0) {
+```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+context=$(python3 "$SCRIPTS_DIR/utils/extract_github_context.py" --text "[user_prompt]" --require-pr)
+
+if [ -z "$context" ]; then
     # FAIL FAST - Do not prompt the user
-    throw "Cannot extract PR number from prompt. Provide explicit PR number or URL."
-}
+    echo "ERROR: Cannot extract PR number from prompt. Provide explicit PR number or URL."
+    exit 1
+fi
 
 # Use first PR number (most common case is single PR)
-$prNumber = $context.PRNumbers[0]
+pr_number=$(echo "$context" | jq -r '.PRNumbers[0]')
 
 # Use URL-derived owner/repo if available, otherwise infer from git remote
-if ($context.Owner) {
-    $owner = $context.Owner
-    $repo = $context.Repo
-} else {
+owner=$(echo "$context" | jq -r '.Owner // empty')
+repo=$(echo "$context" | jq -r '.Repo // empty')
+if [ -z "$owner" ]; then
     # Fall back to current repository
-    $repoInfo = pwsh -c "Import-Module .claude/skills/github/modules/GitHubCore.psm1; Get-RepoInfo"
-    $owner = $repoInfo.Owner
-    $repo = $repoInfo.Repo
-}
+    repo_info=$(python3 "$SCRIPTS_DIR/../modules/github_core.py" get-repo-info)
+    owner=$(echo "$repo_info" | jq -r '.Owner')
+    repo=$(echo "$repo_info" | jq -r '.Repo')
+fi
 ```
 
 ### Supported Patterns
@@ -61,13 +65,14 @@ if ($context.Owner) {
 
 When running autonomously (no user interaction possible):
 
-- Use `-RequirePR` flag to fail fast if PR cannot be inferred
+- Use `--require-pr` flag to fail fast if PR cannot be inferred
 - Never prompt for clarification
 - Error message must be actionable: include what patterns are supported
 
-```powershell
+```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 # Autonomous execution - fail if context missing
-$context = pwsh .claude/skills/github/scripts/utils/Extract-GitHubContext.ps1 -Text "[prompt]" -RequirePR
+python3 "$SCRIPTS_DIR/utils/extract_github_context.py" --text "[prompt]" --require-pr
 
 # This will exit with code 1 and error message if no PR found:
 # "Cannot extract PR number from prompt. Provide explicit PR number or URL."
@@ -98,7 +103,7 @@ SESSION_DIR=".agents/pr-comments/PR-[number]"
 if [ -d "$SESSION_DIR" ]; then
   echo "[CONTINUATION] Previous session found"
   PREVIOUS_COMMENTS=$(grep -c "^### Comment" "$SESSION_DIR/comments.md" 2>/dev/null || echo 0)
-  CURRENT_COMMENTS=$(pwsh .claude/skills/github/scripts/pr/Get-PRReviewComments.ps1 -PullRequest [number] -IncludeIssueComments | jq '.TotalComments')
+  CURRENT_COMMENTS=$(python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request [number] --include-issue-comments | jq '.TotalComments')
 
   if [ "$CURRENT_COMMENTS" -gt "$PREVIOUS_COMMENTS" ]; then
     echo "[NEW COMMENTS] $((CURRENT_COMMENTS - PREVIOUS_COMMENTS)) new comments"
@@ -108,14 +113,16 @@ fi
 
 ### Step 1.1: Fetch PR Metadata
 
-```powershell
-pwsh .claude/skills/github/scripts/pr/Get-PRContext.ps1 -PullRequest [number] -IncludeChangedFiles
+```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+python3 "$SCRIPTS_DIR/pr/get_pr_context.py" --pull-request [number] --include-changed-files
 ```
 
 ### Step 1.2: Enumerate All Reviewers
 
-```powershell
-pwsh .claude/skills/github/scripts/pr/Get-PRReviewers.ps1 -PullRequest [number]
+```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+python3 "$SCRIPTS_DIR/pr/get_pr_reviewers.py" --pull-request [number]
 ```
 
 ### Step 1.2a: Load Reviewer-Specific Memories
@@ -130,21 +137,23 @@ for reviewer in ALL_REVIEWERS:
 
 ### Step 1.3: Retrieve ALL Comments
 
-```powershell
-# IMPORTANT: Use -IncludeIssueComments to capture AI Quality Gate, CodeRabbit summaries
-pwsh .claude/skills/github/scripts/pr/Get-PRReviewComments.ps1 -PullRequest [number] -IncludeIssueComments
+```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+# IMPORTANT: Use --include-issue-comments to capture AI Quality Gate, CodeRabbit summaries
+python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request [number] --include-issue-comments
 ```
 
 ## Phase 2: Comment Map Generation
 
 ### Step 2.1: Acknowledge All Comments (Batch)
 
-```powershell
-$comments = pwsh -NoProfile .claude/skills/github/scripts/pr/Get-PRReviewComments.ps1 -PullRequest [number] -IncludeIssueComments | ConvertFrom-Json
-$ids = $comments.Comments | ForEach-Object { $_.id }
+```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+comments=$(python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request [number] --include-issue-comments)
+ids=$(echo "$comments" | jq -r '.Comments[].id')
 
 # Batch acknowledge - single process, all comments
-$result = pwsh -NoProfile .claude/skills/github/scripts/reactions/Add-CommentReaction.ps1 -CommentId $ids -Reaction "eyes" | ConvertFrom-Json
+echo "$ids" | xargs -I{} python3 "$SCRIPTS_DIR/reactions/add_comment_reaction.py" --comment-id {} --reaction "eyes"
 ```
 
 ### Step 2.2: Generate Comment Map
@@ -204,9 +213,10 @@ Categories:
 
 Reply to Won't Fix, Questions, Clarification Needed before implementation.
 
-```powershell
+```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 # In-thread reply
-pwsh .claude/skills/github/scripts/pr/Post-PRCommentReply.ps1 -PullRequest [number] -CommentId [id] -Body "[response]"
+python3 "$SCRIPTS_DIR/pr/post_pr_comment_reply.py" --pull-request [number] --comment-id [id] --body "[response]"
 ```
 
 ## Phase 6: Implementation

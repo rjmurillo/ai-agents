@@ -112,13 +112,13 @@ function Get-SkillScript {
     # Stage 1: Exact mapping (hardcoded)
     $skillMappings = @{
         'pr' = @{
-            'view'    = @{ Script = 'Get-PRContext.ps1'; Example = 'pwsh .claude/skills/github/scripts/pr/Get-PRContext.ps1 -PullRequest 123' }
-            'list'    = @{ Script = 'Get-PullRequests.ps1'; Example = 'pwsh .claude/skills/github/scripts/pr/Get-PullRequests.ps1' }
-            'create'  = @{ Script = 'New-PR.ps1'; Example = 'pwsh .claude/skills/github/scripts/pr/New-PR.ps1 -Title "..." -Body "..."' }
-            'comment' = @{ Script = 'Post-PRCommentReply.ps1'; Example = 'pwsh .claude/skills/github/scripts/pr/Post-PRCommentReply.ps1 -PullRequest 123 -Body "..."' }
-            'merge'   = @{ Script = 'Merge-PR.ps1'; Example = 'pwsh .claude/skills/github/scripts/pr/Merge-PR.ps1 -PullRequest 123' }
-            'close'   = @{ Script = 'Close-PR.ps1'; Example = 'pwsh .claude/skills/github/scripts/pr/Close-PR.ps1 -PullRequest 123' }
-            'checks'  = @{ Script = 'Get-PRChecks.ps1'; Example = 'pwsh .claude/skills/github/scripts/pr/Get-PRChecks.ps1 -PullRequest 123' }
+            'view'    = @{ Script = 'get_pr_context.py'; Example = 'python3 "$SCRIPTS_DIR/pr/get_pr_context.py" --pull-request 123' }
+            'list'    = @{ Script = 'get_pull_requests.py'; Example = 'python3 "$SCRIPTS_DIR/pr/get_pull_requests.py"' }
+            'create'  = @{ Script = 'new_pr.py'; Example = 'python3 "$SCRIPTS_DIR/pr/new_pr.py" --title "feat: ..." --body "..."' }
+            'comment' = @{ Script = 'post_pr_comment_reply.py'; Example = 'python3 "$SCRIPTS_DIR/pr/post_pr_comment_reply.py" --pull-request 123 --body "..."' }
+            'merge'   = @{ Script = 'merge_pr.py'; Example = 'python3 "$SCRIPTS_DIR/pr/merge_pr.py" --pull-request 123' }
+            'close'   = @{ Script = 'close_pr.py'; Example = 'python3 "$SCRIPTS_DIR/pr/close_pr.py" --pull-request 123' }
+            'checks'  = @{ Script = 'get_pr_checks.py'; Example = 'python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request 123' }
         }
         'issue' = @{
             'view'    = @{ Script = 'Get-IssueContext.ps1'; Example = 'pwsh .claude/skills/github/scripts/issue/Get-IssueContext.ps1 -Issue 456' }
@@ -149,13 +149,13 @@ function Get-SkillScript {
         return $null
     }
 
-    $matchingScripts = @(Get-ChildItem -Path $searchPath -Filter "*$Action*.ps1" -ErrorAction SilentlyContinue)
+    $matchingScripts = @(Get-ChildItem -Path $searchPath -Filter "*$Action*.py" -ErrorAction SilentlyContinue)
     if ($matchingScripts.Count -gt 0) {
         $script = $matchingScripts[0]
         $relativePath = ".claude/skills/github/scripts/$Operation/$($script.Name)"
         return @{
             Path = $script.FullName
-            Example = "pwsh $relativePath [parameters]"
+            Example = "python3 $relativePath [parameters]"
         }
     }
 

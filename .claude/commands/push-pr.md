@@ -7,7 +7,7 @@ allowed-tools:
   - Bash(git status:*)
   - Bash(git push:*)
   - Bash(git commit:*)
-  - Bash(pwsh .claude/skills/github/scripts/pr/New-PR.ps1:*)
+  - Bash(python3 *skills/github/scripts/pr/new_pr.py:*)
   - Bash(git diff:*)
   - Bash(git branch:*)
 # Security Note: Wildcards are Claude Code tool patterns, not shell globs.
@@ -41,7 +41,8 @@ Based on the above changes:
 5. Create a pull request using the New-PR skill script:
 
    ```bash
-   pwsh .claude/skills/github/scripts/pr/New-PR.ps1 -Title "<conventional commit title>" -BodyFile /tmp/PR-123-BODY.md
+   SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+   python3 "$SCRIPTS_DIR/pr/new_pr.py" --title "<conventional commit title>" --body-file /tmp/PR-123-BODY.md
    ```
 
    - Title MUST follow conventional commit format (e.g., `feat: Add feature`, `fix(auth): Resolve bug`)

@@ -135,17 +135,17 @@ end {
     # GitHub CLI commands that should use skills instead
     $GhCliPatterns = @(
         # PR commands - use skills from .claude/skills/github/scripts/pr/
-        'gh pr create',      # Use New-PR.ps1
-        'gh pr list',        # Use Get-PullRequests.ps1
-        'gh pr view',        # Use Get-PRContext.ps1
-        'gh pr merge',       # Use Merge-PR.ps1
-        'gh pr close',       # Use Close-PR.ps1
-        'gh pr checks',      # Use Get-PRChecks.ps1
-        'gh pr review',      # Use Add-PRReviewThreadReply.ps1
-        'gh pr comment',     # Use Post-PRCommentReply.ps1
+        'gh pr create',      # Use new_pr.py
+        'gh pr list',        # Use get_pull_requests.py
+        'gh pr view',        # Use get_pr_context.py
+        'gh pr merge',       # Use merge_pr.py
+        'gh pr close',       # Use close_pr.py
+        'gh pr checks',      # Use get_pr_checks.py
+        'gh pr review',      # Use add_pr_review_thread_reply.py
+        'gh pr comment',     # Use post_pr_comment_reply.py
         'gh pr diff',        # Check for skill alternative
-        'gh pr ready',       # Use Test-PRMergeReady.ps1
-        'gh pr status',      # Use Get-PRContext.ps1
+        'gh pr ready',       # Use test_pr_merge_ready.py
+        'gh pr status',      # Use get_pr_context.py
         # Issue commands - use skills from .claude/skills/github/scripts/issue/
         'gh issue create',   # Use New-Issue.ps1
         'gh issue list',     # Check for skill
@@ -181,7 +181,7 @@ Before using raw ``gh`` CLI, read the GitHub skills documentation:
 ``Read .claude/skills/github/SKILL.md``
 
 **Available skill categories**:
-- PR operations: New-PR, Merge-PR, Get-PRChecks, Get-PRContext, etc.
+- PR operations: get_pr_context.py, get_pr_checks.py, post_pr_comment_reply.py, etc.
 - Issue operations: New-Issue, Post-IssueComment, Set-IssueLabels, etc.
 - Reactions: Add-CommentReaction
 

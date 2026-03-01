@@ -259,9 +259,11 @@ serena/find_symbol
 
 Claude agents reference `.claude/skills/github/`:
 
-```powershell
+```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+
 # CORRECT - Use skill scripts
-pwsh .claude/skills/github/scripts/pr/Get-PRContext.ps1 -PullRequest 50
+python3 "$SCRIPTS_DIR/pr/get_pr_context.py" --pull-request 50
 
 # WRONG - Raw gh commands (see usage-mandatory memory)
 gh pr view 50 --json ...

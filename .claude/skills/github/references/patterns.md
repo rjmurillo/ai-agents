@@ -31,83 +31,97 @@ For multi-line content, use `-BodyFile` to avoid escaping issues.
 
 ## Thread Management Workflow
 
-```powershell
+```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+
 # 1. Get unresolved threads
-$threads = pwsh -NoProfile scripts/pr/Get-PRReviewThreads.ps1 -PullRequest 50 -UnresolvedOnly | ConvertFrom-Json
+threads=$(python3 "$SCRIPTS_DIR/pr/get_pr_review_threads.py" --pull-request 50 --unresolved-only)
 
-# 2. Reply to each thread using thread ID (recommended for GraphQL)
-foreach ($t in $threads.Threads) {
-    pwsh -NoProfile scripts/pr/Add-PRReviewThreadReply.ps1 -ThreadId $t.ThreadId -Body "Fixed." -Resolve
-}
+# 2. Reply to each thread using thread ID (recommended, combines reply + resolve)
+for thread_id in $(echo "$threads" | jq -r '.Threads[].ThreadId'); do
+    python3 "$SCRIPTS_DIR/pr/add_pr_review_thread_reply.py" --thread-id "$thread_id" --body "Fixed." --resolve
+done
 
-# 3. Or reply using comment ID (REST API)
-foreach ($t in $threads.Threads) {
-    pwsh -NoProfile scripts/pr/Post-PRCommentReply.ps1 -PullRequest 50 -CommentId $t.FirstCommentId -Body "Fixed."
-}
-pwsh -NoProfile scripts/pr/Resolve-PRReviewThread.ps1 -PullRequest 50 -All
+# 3. Or reply using comment ID (REST API), then batch resolve
+for comment_id in $(echo "$threads" | jq -r '.Threads[].FirstCommentId'); do
+    python3 "$SCRIPTS_DIR/pr/post_pr_comment_reply.py" --pull-request 50 --comment-id "$comment_id" --body "Fixed."
+done
+python3 "$SCRIPTS_DIR/pr/resolve_pr_review_thread.py" --pull-request 50 --all
 
 # 4. Merge
-pwsh -NoProfile scripts/pr/Merge-PR.ps1 -PullRequest 50 -Strategy squash -DeleteBranch
+python3 "$SCRIPTS_DIR/pr/merge_pr.py" --pull-request 50 --strategy squash --delete-branch
 ```
 
 ---
 
 ## Merge Readiness Check
 
-```powershell
-# Full merge readiness check
-$ready = pwsh -NoProfile scripts/pr/Test-PRMergeReady.ps1 -PullRequest 50 | ConvertFrom-Json
+```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 
-if ($ready.CanMerge) {
-    pwsh -NoProfile scripts/pr/Merge-PR.ps1 -PullRequest 50 -Strategy squash -DeleteBranch
-} else {
-    Write-Host "Cannot merge. Reasons:"
-    $ready.Reasons | ForEach-Object { Write-Host "  - $_" }
+# Full merge readiness check
+ready=$(python3 "$SCRIPTS_DIR/pr/test_pr_merge_ready.py" --pull-request 50)
+
+can_merge=$(echo "$ready" | jq -r '.CanMerge')
+if [ "$can_merge" = "true" ]; then
+    python3 "$SCRIPTS_DIR/pr/merge_pr.py" --pull-request 50 --strategy squash --delete-branch
+else
+    echo "Cannot merge. Reasons:"
+    echo "$ready" | jq -r '.Reasons[]' | while read -r reason; do echo "  - $reason"; done
 
     # Check specific blockers
-    if ($ready.UnresolvedThreads -gt 0) {
-        Write-Host "Unresolved threads: $($ready.UnresolvedThreads)"
-    }
-    if (-not $ready.CIPassing) {
-        Write-Host "Failed checks: $($ready.FailedChecks -join ', ')"
-        Write-Host "Pending checks: $($ready.PendingChecks -join ', ')"
-    }
-}
+    unresolved=$(echo "$ready" | jq -r '.UnresolvedThreads')
+    if [ "$unresolved" -gt 0 ]; then
+        echo "Unresolved threads: $unresolved"
+    fi
+
+    ci_passing=$(echo "$ready" | jq -r '.CIPassing')
+    if [ "$ci_passing" = "false" ]; then
+        echo "Failed checks: $(echo "$ready" | jq -r '.FailedChecks | join(", ")')"
+        echo "Pending checks: $(echo "$ready" | jq -r '.PendingChecks | join(", ")')"
+    fi
+fi
 ```
 
 ---
 
 ## Auto-Merge Workflow
 
-```powershell
-# Check current readiness (threads must be resolved, but CI can be pending)
-$ready = pwsh -NoProfile scripts/pr/Test-PRMergeReady.ps1 -PullRequest 50 -IgnoreCI | ConvertFrom-Json
+```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 
-if ($ready.CanMerge) {
+# Check current readiness (ignore CI since auto-merge waits for it)
+ready=$(python3 "$SCRIPTS_DIR/pr/test_pr_merge_ready.py" --pull-request 50 --ignore-ci)
+
+can_merge=$(echo "$ready" | jq -r '.CanMerge')
+if [ "$can_merge" = "true" ]; then
     # Enable auto-merge - PR will merge when CI passes
-    pwsh -NoProfile scripts/pr/Set-PRAutoMerge.ps1 -PullRequest 50 -Enable -MergeMethod SQUASH
-    Write-Host "Auto-merge enabled. PR will merge when all checks pass."
-} else {
-    Write-Host "Cannot enable auto-merge: $($ready.Reasons -join '; ')"
-}
+    python3 "$SCRIPTS_DIR/pr/set_pr_auto_merge.py" --pull-request 50 --enable --merge-method SQUASH
+    echo "Auto-merge enabled. PR will merge when all checks pass."
+else
+    echo "Cannot enable auto-merge: $(echo "$ready" | jq -r '.Reasons | join("; ")')"
+fi
 ```
 
 ---
 
 ## PR Enumeration Workflow
 
-```powershell
+```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+
 # Get all open PRs targeting main
-$prs = pwsh -NoProfile scripts/pr/Get-PullRequests.ps1 -State open -Base main | ConvertFrom-Json
+prs=$(python3 "$SCRIPTS_DIR/pr/get_pull_requests.py" --state open --base main)
 
 # Check each PR for merge readiness
-foreach ($pr in $prs) {
-    $ready = pwsh -NoProfile scripts/pr/Test-PRMergeReady.ps1 -PullRequest $pr.number | ConvertFrom-Json
-    if ($ready.CanMerge) {
-        Write-Host "PR #$($pr.number) is ready to merge"
-        pwsh -NoProfile scripts/pr/Merge-PR.ps1 -PullRequest $pr.number -Strategy squash -DeleteBranch
-    }
-}
+for pr_number in $(echo "$prs" | jq -r '.[].number'); do
+    ready=$(python3 "$SCRIPTS_DIR/pr/test_pr_merge_ready.py" --pull-request "$pr_number")
+    can_merge=$(echo "$ready" | jq -r '.CanMerge')
+    if [ "$can_merge" = "true" ]; then
+        echo "PR #$pr_number is ready to merge"
+        python3 "$SCRIPTS_DIR/pr/merge_pr.py" --pull-request "$pr_number" --strategy squash --delete-branch
+    fi
+done
 ```
 
 ---
@@ -116,12 +130,14 @@ foreach ($pr in $prs) {
 
 Always check if PR is merged before starting review work:
 
-```powershell
-$result = pwsh -NoProfile scripts/pr/Test-PRMerged.ps1 -PullRequest 50
-if ($LASTEXITCODE -eq 1) {
-    Write-Host "PR already merged, skipping review"
+```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+
+python3 "$SCRIPTS_DIR/pr/test_pr_merged.py" --pull-request 50
+if [ $? -eq 1 ]; then
+    echo "PR already merged, skipping review"
     exit 0
-}
+fi
 ```
 
 ---
@@ -130,65 +146,83 @@ if ($LASTEXITCODE -eq 1) {
 
 Use batch mode for 88% faster acknowledgment of multiple comments:
 
-```powershell
+```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+
 # Get all review comment IDs
-$comments = pwsh -NoProfile scripts/pr/Get-PRReviewComments.ps1 -PullRequest 50 | ConvertFrom-Json
-$ids = $comments | ForEach-Object { $_.id }
+comments=$(python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request 50)
+ids=$(echo "$comments" | jq -r '.[].id')
 
 # Batch acknowledge (saves ~1.2s per comment vs. individual calls)
-$result = pwsh -NoProfile scripts/reactions/Add-CommentReaction.ps1 -CommentId $ids -Reaction "eyes" | ConvertFrom-Json
+for id in $ids; do
+    pwsh -NoProfile "$SCRIPTS_DIR/reactions/Add-CommentReaction.ps1" -CommentId "$id" -Reaction "eyes"
+done
+
+# Or use batch mode with array
+id_array=$(echo "$comments" | jq -r '[.[].id] | join(",")')
+result=$(pwsh -NoProfile "$SCRIPTS_DIR/reactions/Add-CommentReaction.ps1" -CommentId "$id_array" -Reaction "eyes")
 
 # Check results
-Write-Host "Acknowledged $($result.Succeeded)/$($result.TotalCount) comments"
-if ($result.Failed -gt 0) {
-    Write-Host "Failed reactions: $($result.Results | Where-Object { -not $_.Success } | ForEach-Object { $_.CommentId })"
-}
+echo "$result" | jq '"Acknowledged \(.Succeeded)/\(.TotalCount) comments"'
 ```
 
 ---
 
 ## CI Check Verification
 
-```powershell
-# Quick check - get current status
-$checks = pwsh -NoProfile scripts/pr/Get-PRChecks.ps1 -PullRequest 50 | ConvertFrom-Json
+```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 
-if ($checks.AllPassing) {
-    Write-Host "All CI checks passing"
-} elseif ($checks.FailedCount -gt 0) {
-    Write-Host "BLOCKED: $($checks.FailedCount) check(s) failed"
-    $checks.Checks | Where-Object { $_.Conclusion -notin @('SUCCESS', 'NEUTRAL', 'SKIPPED', $null) } | ForEach-Object {
-        Write-Host "  - $($_.Name): $($_.DetailsUrl)"
-    }
+# Quick check - get current status
+checks=$(python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request 50)
+
+all_passing=$(echo "$checks" | jq -r '.AllPassing')
+failed_count=$(echo "$checks" | jq -r '.FailedCount')
+pending_count=$(echo "$checks" | jq -r '.PendingCount')
+
+if [ "$all_passing" = "true" ]; then
+    echo "All CI checks passing"
+elif [ "$failed_count" -gt 0 ]; then
+    echo "BLOCKED: ${failed_count} check(s) failed"
+    echo "$checks" | jq -r '.Checks[] | select(.Conclusion != "SUCCESS" and .Conclusion != "NEUTRAL" and .Conclusion != "SKIPPED" and .Conclusion != null) | "  - \(.Name): \(.DetailsUrl)"'
     exit 1
-} else {
-    Write-Host "Pending: $($checks.PendingCount) check(s) still running"
-}
+else
+    echo "Pending: ${pending_count} check(s) still running"
+fi
 
 # Poll until all checks complete (or timeout)
-$checks = pwsh -NoProfile scripts/pr/Get-PRChecks.ps1 -PullRequest 50 -Wait -TimeoutSeconds 600 | ConvertFrom-Json
+checks=$(python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request 50 --wait --timeout-seconds 600)
+exit_code=$?
 
-if ($LASTEXITCODE -eq 7) {
-    Write-Host "Timeout waiting for checks"
+if [ "$exit_code" -eq 7 ]; then
+    echo "Timeout waiting for checks"
     exit 1
-}
+fi
 
-if ($checks.AllPassing) {
-    pwsh -NoProfile scripts/pr/Merge-PR.ps1 -PullRequest 50 -Strategy squash -DeleteBranch
-}
+all_passing=$(echo "$checks" | jq -r '.AllPassing')
+if [ "$all_passing" = "true" ]; then
+    python3 "$SCRIPTS_DIR/pr/merge_pr.py" --pull-request 50 --strategy squash --delete-branch
+fi
 ```
 
 ---
 
 ## Integration Pattern
 
-```powershell
-# Chain operations with error handling
-$pr = pwsh -NoProfile scripts/pr/Get-PRContext.ps1 -PullRequest 50 | ConvertFrom-Json
-if (-not $pr.Success) { throw "Failed to get PR context" }
+```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 
-$checks = pwsh -NoProfile scripts/pr/Get-PRChecks.ps1 -PullRequest 50 -Wait | ConvertFrom-Json
-if ($checks.AllPassing) {
-    pwsh -NoProfile scripts/pr/Merge-PR.ps1 -PullRequest 50 -Strategy squash
-}
+# Chain operations with error handling
+pr=$(python3 "$SCRIPTS_DIR/pr/get_pr_context.py" --pull-request 50)
+success=$(echo "$pr" | jq -r '.Success')
+if [ "$success" != "true" ]; then
+    echo "Failed to get PR context" >&2
+    exit 1
+fi
+
+checks=$(python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request 50 --wait)
+all_passing=$(echo "$checks" | jq -r '.AllPassing')
+if [ "$all_passing" = "true" ]; then
+    python3 "$SCRIPTS_DIR/pr/merge_pr.py" --pull-request 50 --strategy squash
+fi
 ```

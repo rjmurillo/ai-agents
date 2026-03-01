@@ -1,7 +1,7 @@
 ---
 name: fix-ci
 description: Autonomously inspect failing GitHub Actions CI checks, fetch logs, analyze
-  failures, and implement fixes without user approval. Integrates with Get-PRCheckLogs.ps1
+  failures, and implement fixes without user approval. Integrates with get_pr_check_logs.py
   for log retrieval. Use for "fix ci", "why is ci failing", "debug ci failures".
 license: MIT
 version: 1.0.0
@@ -44,12 +44,12 @@ Autonomous workflow for debugging and fixing failing GitHub Actions CI checks.
 | Phase | Script/Tool | Purpose |
 |-------|-------------|---------|
 | 1. Identify PR | `gh pr view --json` | Resolve target PR |
-| 2. Check Status | `Get-PRChecks.ps1` | Get failing checks |
-| 3. Fetch Logs | `Get-PRCheckLogs.ps1` | Extract failure snippets |
+| 2. Check Status | `get_pr_checks.py` | Get failing checks |
+| 3. Fetch Logs | `get_pr_check_logs.py` | Extract failure snippets |
 | 4. Analyze | Agent analysis | Categorize and plan fixes |
 | 5. Implement | Edit/Write tools | Apply code changes |
 | 6. Commit | Git operations | Push fixes |
-| 7. Verify | `Get-PRChecks.ps1 -Wait` | Confirm CI passes |
+| 7. Verify | `get_pr_checks.py --wait` | Confirm CI passes |
 
 ---
 
@@ -77,8 +77,9 @@ gh pr view --json number,state,headRefName 2>/dev/null
 
 Use the GitHub skill to retrieve CI check status:
 
-```powershell
-pwsh -NoProfile .claude/skills/github/scripts/pr/Get-PRChecks.ps1 -PullRequest <PR_NUMBER>
+```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request <PR_NUMBER>
 ```
 
 **Parse output to identify:**
@@ -97,8 +98,9 @@ pwsh -NoProfile .claude/skills/github/scripts/pr/Get-PRChecks.ps1 -PullRequest <
 
 For failing GitHub Actions checks, retrieve logs:
 
-```powershell
-pwsh -NoProfile .claude/skills/github/scripts/pr/Get-PRCheckLogs.ps1 -PullRequest <PR_NUMBER> -MaxLines 200 -ContextLines 40
+```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+python3 "$SCRIPTS_DIR/pr/get_pr_check_logs.py" --pull-request <PR_NUMBER> --max-lines 200 --context-lines 40
 ```
 
 **Output structure:**
@@ -179,8 +181,9 @@ git push
 
 Wait for CI to re-run:
 
-```powershell
-pwsh -NoProfile .claude/skills/github/scripts/pr/Get-PRChecks.ps1 -PullRequest <PR_NUMBER> -Wait -TimeoutSeconds 300
+```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request <PR_NUMBER> --wait --timeout-seconds 300
 ```
 
 **Report final status to user.**
@@ -256,10 +259,10 @@ Before claiming completion:
 | Dependency | Type | Stability |
 |------------|------|-----------|
 | `gh` CLI | External | Stable |
-| `Get-PRChecks.ps1` | Internal | Stable |
-| `Get-PRCheckLogs.ps1` | Internal | Stable |
+| `get_pr_checks.py` | Internal | Stable |
+| `get_pr_check_logs.py` | Internal | Stable |
 | GitHub Actions API | External | Stable |
-| PowerShell 7+ | External | Stable |
+| Python 3.10+ | External | Stable |
 
 ---
 
@@ -302,6 +305,6 @@ Agent: Checking PR status for current branch...
 
 | Skill | Relationship |
 |-------|--------------|
-| github | Parent skill with Get-PRCheckLogs.ps1 |
+| github | Parent skill with get_pr_checks.py, get_pr_check_logs.py |
 | pr-comment-responder | Handle CI failure comments on PRs |
 | code-review | Review fixes before committing |

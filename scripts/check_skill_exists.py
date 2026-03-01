@@ -53,7 +53,7 @@ def list_available_skills(skill_base_path: Path) -> None:
         operation_path = skill_base_path / operation
         if operation_path.exists() and operation_path.is_dir():
             print(f"\n=== {operation} ===")
-            for script in sorted(operation_path.glob("*.ps1")):
+            for script in sorted(operation_path.glob("*.py")):
                 print(f"  - {script.stem}")
 
 
@@ -88,7 +88,7 @@ def check_skill_exists(
         return False
 
     # Search for matching scripts using substring matching
-    matching_scripts = list(search_path.glob(f"*{action}*.ps1"))
+    matching_scripts = list(search_path.glob(f"*{action}*.py"))
     return len(matching_scripts) > 0
 
 

@@ -1294,7 +1294,7 @@ else
 
             # Map changed code files to their corresponding test files (Issue #917)
             # NOTE: This assumes a strict 1:1 mapping between source scripts/modules and test files,
-            # e.g. .claude/skills/github/scripts/pr/Get-PRChecks.ps1 -> .claude/skills/github/tests/Get-PRChecks.Tests.ps1.
+            # e.g. .claude/skills/github/scripts/issue/Set-IssueLabels.ps1 -> .claude/skills/github/tests/Set-IssueLabels.Tests.ps1.
             # This means shared test files that cover multiple scripts (for example, a single
             # ThreadManagement.Tests.ps1 validating several ThreadManagement scripts) will NOT
             # automatically run when only one of those scripts changes, unless the shared test file
@@ -1305,7 +1305,7 @@ else
                 case "$cf" in
                     .claude/skills/*/scripts/**/*.ps1|.claude/skills/*/scripts/**/*.psm1)
                         # Map skill script or module to its test file (supports nested directories)
-                        # Example: .claude/skills/github/scripts/pr/Get-PRChecks.ps1 -> .claude/skills/github/tests/Get-PRChecks.Tests.ps1
+                        # Example: .claude/skills/github/scripts/issue/Set-IssueLabels.ps1 -> .claude/skills/github/tests/Set-IssueLabels.Tests.ps1
                         skilldir=${cf%%/scripts/*}
                         scriptname=$(basename "$cf")
                         testfile="$skilldir/tests/${scriptname%.*}.Tests.ps1"

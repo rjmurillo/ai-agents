@@ -3,7 +3,7 @@ name: github
 version: 3.1.0
 model: claude-opus-4-5
 description: Execute GitHub operations (PRs, issues, milestones, labels, comments, merges)
-  using PowerShell scripts with structured output and error handling. Use when working
+  using Python scripts with structured output and error handling. Use when working
   with pull requests, issues, review comments, CI checks, or milestones instead of raw gh.
 license: MIT
 metadata:
@@ -34,9 +34,9 @@ Use these scripts instead of raw `gh` commands for consistent error handling and
 
 | Phrase | Operation |
 |--------|-----------|
-| `create a PR` | Create-PullRequest.ps1 or New-ValidatedPR.ps1 |
-| `respond to review comments on PR #123` | Post-PRCommentReply.ps1 |
-| `check CI status for PR #123` | Get-PRChecks.ps1 / Get-PRCheckLogs.ps1 |
+| `create a PR` | new_pr.py |
+| `respond to review comments on PR #123` | post_pr_comment_reply.py |
+| `check CI status for PR #123` | get_pr_checks.py |
 | `close issue #123` | Close-Issue operations |
 | `add label to issue #123` | Set-IssueLabels.ps1 |
 
@@ -45,70 +45,81 @@ Use these scripts instead of raw `gh` commands for consistent error handling and
 ## Decision Tree
 
 ```text
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+
 Need GitHub data?
-├─ List PRs (filtered) → Get-PullRequests.ps1
-├─ PR info/diff → Get-PRContext.ps1
-├─ CI check status → Get-PRChecks.ps1
-├─ CI failure logs → Get-PRCheckLogs.ps1
-├─ Review comments → Get-PRReviewComments.ps1
-├─ Review threads → Get-PRReviewThreads.ps1
-├─ Unique reviewers → Get-PRReviewers.ps1
-├─ Unaddressed bot comments → Get-UnaddressedComments.ps1
-├─ PR merged check → Test-PRMerged.ps1
-├─ Copilot follow-up PRs → Detect-CopilotFollowUpPR.ps1
-├─ Issue info → Get-IssueContext.ps1
-├─ Merge readiness check → Test-PRMergeReady.ps1
-├─ Latest milestone → Get-LatestSemanticMilestone.ps1
+├─ PR info/diff → get_pr_context.py
+├─ CI check status → get_pr_checks.py
+├─ Review threads → get_pr_review_threads.py
+├─ Unresolved threads → get_unresolved_review_threads.py
+├─ Unaddressed bot comments → get_unaddressed_comments.py
+├─ PR merged check → test_pr_merged.py
+├─ List PRs (filtered) → get_pull_requests.py
+├─ CI failure logs → get_pr_check_logs.py
+├─ Review comments → get_pr_review_comments.py
+├─ Unique reviewers → get_pr_reviewers.py
+├─ Copilot follow-up PRs → detect_copilot_follow_up_pr.py
+├─ Issue info → Get-IssueContext.ps1 (legacy)
+├─ Merge readiness check → test_pr_merge_ready.py
+├─ Latest milestone → Get-LatestSemanticMilestone.ps1 (legacy)
 └─ Need to take action?
-   ├─ Create issue → New-Issue.ps1
-   ├─ Create PR → New-PR.ps1
-   ├─ Reply to review → Post-PRCommentReply.ps1
-   ├─ Reply to thread (GraphQL) → Add-PRReviewThreadReply.ps1
-   ├─ Comment on issue → Post-IssueComment.ps1
-   ├─ Add reaction → Add-CommentReaction.ps1
-   ├─ Apply labels → Set-IssueLabels.ps1
-   ├─ Set issue milestone → Set-IssueMilestone.ps1
-   ├─ Set PR/issue milestone (auto-detect) → Set-ItemMilestone.ps1
-   ├─ Assign issue → Set-IssueAssignee.ps1
-   ├─ Resolve threads → Resolve-PRReviewThread.ps1
-   ├─ Process AI triage → Invoke-PRCommentProcessing.ps1
-   ├─ Assign Copilot → Invoke-CopilotAssignment.ps1
-   ├─ Enable/disable auto-merge → Set-PRAutoMerge.ps1
-   ├─ Close PR → Close-PR.ps1
-   └─ Merge PR → Merge-PR.ps1
+   ├─ Reply to review → post_pr_comment_reply.py
+   ├─ Reply to thread (GraphQL) → add_pr_review_thread_reply.py
+   ├─ Resolve threads → resolve_pr_review_thread.py
+   ├─ Unresolve threads → unresolve_pr_review_thread.py
+   ├─ Create PR → new_pr.py
+   ├─ Create issue → New-Issue.ps1 (legacy)
+   ├─ Comment on issue → Post-IssueComment.ps1 (legacy)
+   ├─ Add reaction → Add-CommentReaction.ps1 (legacy)
+   ├─ Apply labels → Set-IssueLabels.ps1 (legacy)
+   ├─ Set issue milestone → Set-IssueMilestone.ps1 (legacy)
+   ├─ Set PR/issue milestone (auto-detect) → Set-ItemMilestone.ps1 (legacy)
+   ├─ Assign issue → Set-IssueAssignee.ps1 (legacy)
+   ├─ Process AI triage → invoke_pr_comment_processing.py
+   ├─ Assign Copilot → Invoke-CopilotAssignment.ps1 (legacy)
+   ├─ Enable/disable auto-merge → set_pr_auto_merge.py
+   ├─ Close PR → close_pr.py
+   └─ Merge PR → merge_pr.py
 ```
 
 ---
 
 ## Script Reference
 
-### PR Operations (`scripts/pr/`)
+### PR Operations - Python (`scripts/pr/`)
+
+Path resolution: `SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"`
 
 | Script | Purpose | Key Parameters |
 |--------|---------|----------------|
-| `Get-PullRequests.ps1` | List PRs with filters | `-State`, `-Label`, `-Author`, `-Base`, `-Head`, `-Limit` |
-| `Get-PRContext.ps1` | PR metadata, diff, files | `-PullRequest`, `-IncludeChangedFiles`, `-IncludeDiff` |
-| `Get-PRChecks.ps1` | CI check status, polling | `-PullRequest`, `-Wait`, `-TimeoutSeconds`, `-RequiredOnly` |
-| `Get-PRCheckLogs.ps1` | Fetch logs from failing CI checks | `-PullRequest`, `-MaxLines`, `-ContextLines` |
-| `Get-PRReviewComments.ps1` | Paginated review comments with stale detection | `-PullRequest`, `-IncludeIssueComments`, `-DetectStale`, `-ExcludeStale`, `-OnlyStale` |
-| `Get-PRReviewThreads.ps1` | Thread-level review data | `-PullRequest`, `-UnresolvedOnly` |
-| `Get-PRReviewers.ps1` | Enumerate unique reviewers | `-PullRequest`, `-ExcludeBots` |
-| `Get-UnaddressedComments.ps1` | Bot comments needing attention | `-PullRequest` |
-| `Get-UnresolvedReviewThreads.ps1` | Unresolved thread IDs | `-PullRequest` |
-| `Test-PRMerged.ps1` | Check if PR is merged | `-PullRequest` |
-| `Detect-CopilotFollowUpPR.ps1` | Detect Copilot follow-up PRs | `-PRNumber`, `-Owner`, `-Repo` |
-| `Post-PRCommentReply.ps1` | Thread-preserving replies | `-PullRequest`, `-CommentId`, `-Body` |
-| `Add-PRReviewThreadReply.ps1` | Reply to thread by ID (GraphQL) | `-ThreadId`, `-Body`, `-Resolve` |
-| `Resolve-PRReviewThread.ps1` | Mark threads resolved | `-ThreadId` or `-PullRequest -All` |
-| `Unresolve-PRReviewThread.ps1` | Mark threads unresolved | `-ThreadId` or `-PullRequest -All` |
-| `Get-ThreadById.ps1` | Get single thread by ID | `-ThreadId` |
-| `Get-ThreadConversationHistory.ps1` | Full thread comment history | `-ThreadId`, `-IncludeMinimized` |
-| `Test-PRMergeReady.ps1` | Check merge readiness | `-PullRequest`, `-IgnoreCI`, `-IgnoreThreads` |
-| `Set-PRAutoMerge.ps1` | Enable/disable auto-merge | `-PullRequest`, `-Enable`/`-Disable`, `-MergeMethod` |
-| `Invoke-PRCommentProcessing.ps1` | Process AI triage output | `-PRNumber`, `-Verdict`, `-FindingsJson` |
-| `New-PR.ps1` | Create PR with validation | `-Title`, `-Body`, `-Base` |
-| `Close-PR.ps1` | Close PR with comment | `-PullRequest`, `-Comment` |
-| `Merge-PR.ps1` | Merge with strategy | `-PullRequest`, `-Strategy`, `-DeleteBranch`, `-Auto` |
+| `get_pr_context.py` | PR metadata, diff, files | `--pull-request`, `--include-diff`, `--include-changed-files` |
+| `get_pr_checks.py` | CI check status, polling | `--pull-request`, `--wait`, `--timeout-seconds`, `--required-only` |
+| `get_pr_review_threads.py` | Thread-level review data | `--pull-request`, `--unresolved-only`, `--include-comments` |
+| `get_unresolved_review_threads.py` | Unresolved thread IDs | `--pull-request` |
+| `get_unaddressed_comments.py` | Bot comments needing attention | `--pull-request` |
+| `test_pr_merged.py` | Check if PR is merged | `--pull-request` |
+| `post_pr_comment_reply.py` | Thread-preserving replies | `--pull-request`, `--comment-id`, `--body` |
+| `add_pr_review_thread_reply.py` | Reply to thread by ID (GraphQL) | `--thread-id`, `--body`, `--resolve` |
+| `resolve_pr_review_thread.py` | Mark threads resolved | `--thread-id` or `--pull-request --all` |
+
+### PR Operations - Additional Python (`scripts/pr/`)
+
+| Script | Purpose | Key Parameters |
+|--------|---------|----------------|
+| `get_pull_requests.py` | List PRs with filters | `--state`, `--label`, `--author`, `--base`, `--head`, `--limit` |
+| `get_pr_check_logs.py` | Fetch logs from failing CI checks | `--pull-request`, `--max-lines`, `--context-lines` |
+| `get_pr_review_comments.py` | Review comments with domain classification | `--pull-request`, `--include-issue-comments`, `--only-unaddressed` |
+| `get_pr_reviewers.py` | Enumerate unique reviewers | `--pull-request`, `--exclude-bots` |
+| `detect_copilot_follow_up_pr.py` | Detect Copilot follow-up PRs | `--pr-number` |
+| `test_pr_merge_ready.py` | Check merge readiness | `--pull-request`, `--ignore-ci`, `--ignore-threads` |
+| `set_pr_auto_merge.py` | Enable/disable auto-merge | `--pull-request`, `--enable`/`--disable`, `--merge-method` |
+| `new_pr.py` | Create PR with validation | `--title`, `--body`, `--base` |
+| `close_pr.py` | Close PR with comment | `--pull-request`, `--comment` |
+| `merge_pr.py` | Merge with strategy | `--pull-request`, `--strategy`, `--delete-branch`, `--auto` |
+| `get_thread_by_id.py` | Get thread by GraphQL ID | `--thread-id` |
+| `get_thread_conversation_history.py` | Full thread conversation | `--thread-id`, `--include-minimized` |
+| `invoke_pr_comment_processing.py` | Process AI triage results | `--pr-number`, `--verdict`, `--findings-json` |
+| `unresolve_pr_review_thread.py` | Unresolve review threads | `--thread-id` or `--pull-request --all` |
 
 ### Issue Operations (`scripts/issue/`)
 
@@ -141,16 +152,17 @@ Need GitHub data?
 
 All scripts output structured JSON with `Success` boolean:
 
-```powershell
-$result = pwsh -NoProfile scripts/pr/Get-PRContext.ps1 -PullRequest 50 | ConvertFrom-Json
-if ($result.Success) { ... }
+```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+result=$(python3 "$SCRIPTS_DIR/pr/get_pr_context.py" --pull-request 50)
+echo "$result" | jq '.Success'
 ```
 
 ---
 
 ## Process
 
-This skill provides a toolkit of PowerShell scripts for GitHub operations. Use scripts directly or compose them into workflows.
+This skill provides scripts for GitHub operations. Use scripts directly or compose them into workflows.
 
 **Basic Usage:**
 
@@ -161,17 +173,17 @@ This skill provides a toolkit of PowerShell scripts for GitHub operations. Use s
 
 **Example Flow:**
 
-```powershell
+```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+
 # Get PR context
-$pr = pwsh scripts/pr/Get-PRContext.ps1 -PullRequest 123 | ConvertFrom-Json
+python3 "$SCRIPTS_DIR/pr/get_pr_context.py" --pull-request 123
 
 # Check CI status
-$checks = pwsh scripts/pr/Get-PRChecks.ps1 -PullRequest 123 | ConvertFrom-Json
+python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request 123
 
-# Add comment if needed
-if ($checks.FailedCount -gt 0) {
-    pwsh scripts/pr/Post-PRCommentReply.ps1 -PullRequest 123 -Body "CI failures detected"
-}
+# Post comment if needed
+python3 "$SCRIPTS_DIR/pr/post_pr_comment_reply.py" --pull-request 123 --body "CI failures detected"
 ```
 
 ---
@@ -180,14 +192,12 @@ if ($checks.FailedCount -gt 0) {
 
 | Avoid | Why | Instead |
 |-------|-----|---------|
-| Raw `gh pr view` commands | No structured output | Use `Get-PRContext.ps1` |
-| Raw `gh api` for comments | Doesn't preserve threading | Use `Post-PRCommentReply.ps1` |
-| Replying to thread expecting auto-resolve | Replies DON'T auto-resolve threads | Use `Resolve-PRReviewThread.ps1` after reply |
-| Inline issue creation | Missing validation | Use `New-Issue.ps1` |
-| Multiple individual reactions | 88% slower | Use batch mode in `Add-CommentReaction.ps1` |
+| Raw `gh pr view` commands | No structured output | Use `get_pr_context.py` |
+| Raw `gh api` for comments | Doesn't preserve threading | Use `post_pr_comment_reply.py` |
+| Replying to thread expecting auto-resolve | Replies DON'T auto-resolve threads | Use `resolve_pr_review_thread.py` after reply |
 | Hardcoding owner/repo | Breaks in forks | Let scripts infer from `git remote` |
-| Ignoring exit codes | Missing error handling | Check `$LASTEXITCODE` |
-| Skipping idempotency markers | Duplicate comments | Use `-Marker` parameter |
+| Ignoring exit codes | Missing error handling | Check `$?` exit code |
+| CWD-relative script paths | Breaks in plugin contexts | Use `$CLAUDE_PLUGIN_ROOT` for path resolution |
 
 ---
 
@@ -200,7 +210,7 @@ if ($checks.FailedCount -gt 0) {
 | [copilot-prompts.md](references/copilot-prompts.md) | Creating @copilot directives |
 | [copilot-synthesis-guide.md](references/copilot-synthesis-guide.md) | Copilot context synthesis |
 | [api-reference.md](references/api-reference.md) | Exit codes, API endpoints, troubleshooting |
-| `modules/GitHubCore.psm1` | Shared helper functions |
+| `lib/github_core/` | Shared Python library (api.py, validation.py) |
 
 ---
 

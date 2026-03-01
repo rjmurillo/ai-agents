@@ -519,7 +519,7 @@ Describe "Regression Test Scenarios" {
             @{
                 Name = "PR #458 - MIXED CODE + DOCS"
                 Files = @(
-                    ".claude/skills/github/scripts/pr/Resolve-PRReviewThread.ps1",
+                    ".claude/skills/github/scripts/pr/resolve_pr_review_thread.py",
                     ".claude/skills/merge-resolver/tests/Resolve-PRConflicts.Tests.ps1",
                     ".agents/qa/PR-453/2025-12-26-security-fixes-verification.md",
                     ".agents/sessions/2025-12-26-session-90-pr453-security-qa.md"

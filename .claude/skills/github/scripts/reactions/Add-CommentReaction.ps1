@@ -32,7 +32,7 @@
     # Batch: 88% faster than separate calls
 
 .EXAMPLE
-    $ids = Get-PRReviewComments.ps1 -PullRequest 42 | Select-Object -ExpandProperty id
+    $ids = python3 scripts/pr/get_pr_review_comments.py --pull-request 42 | ConvertFrom-Json | Select-Object -ExpandProperty id
     .\Add-CommentReaction.ps1 -CommentId $ids -Reaction "eyes"
     # Acknowledge all comments on a PR
 

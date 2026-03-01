@@ -17,9 +17,9 @@
     Import-Module ./.github/scripts/AIReviewCommon.psm1
 
     For GitHub operations, use the skill scripts directly:
-    - .claude/skills/github/scripts/pr/Post-PRCommentReply.ps1
+    - .claude/skills/github/scripts/pr/post_pr_comment_reply.py
     - .claude/skills/github/scripts/issue/Post-IssueComment.ps1
-    - .claude/skills/github/scripts/pr/Get-PRContext.ps1
+    - .claude/skills/github/scripts/pr/get_pr_context.py
     - .claude/skills/github/scripts/issue/Set-IssueLabels.ps1
     - .claude/skills/github/scripts/reactions/Add-CommentReaction.ps1
 #>

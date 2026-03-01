@@ -32,7 +32,7 @@ When in doubt: **Read first, reason second.**
 |------------|-----------|--------------|
 | **Python-first** (.py preferred) | ADR-042: AI/ML ecosystem alignment | New scripts in Python; PowerShell grandfathered |
 | **No raw gh when skill exists** | usage-mandatory: Skills are tested, validated | Check `.claude/skills/github/` first |
-| **No logic in workflow YAML** | ADR-006: Testability | Delegate to PowerShell scripts |
+| **No logic in workflow YAML** | ADR-006: Testability | Delegate to scripts |
 | **Verify branch before git ops** | SESSION-PROTOCOL: Prevent wrong-branch commits | `git branch --show-current` |
 | **HANDOFF.md is read-only** | ADR-014: Distributed handoff architecture | Never edit, only read |
 | **ADR created/edited → adr-review** | AGENTS.md: Multi-agent consensus required | Run adr-review skill |

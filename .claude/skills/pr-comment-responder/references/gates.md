@@ -99,15 +99,18 @@ fi
 
 ### Phase 8.2: Conversation Resolution
 
-```powershell
-pwsh .claude/skills/github/scripts/pr/Resolve-PRReviewThread.ps1 -PullRequest [number] -All
+```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+python3 "$SCRIPTS_DIR/pr/resolve_pr_review_thread.py" --pull-request [number] --all
 ```
 
 ### Phase 8.3: Re-check for New Comments
 
 ```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 sleep 45
-NEW_COMMENTS=$(pwsh .claude/skills/github/scripts/pr/Get-PRReviewComments.ps1 -PullRequest [number] -IncludeIssueComments | jq '.TotalComments')
+# Use get_unaddressed_comments.py for comment retrieval
+NEW_COMMENTS=$(python3 "$SCRIPTS_DIR/pr/get_unaddressed_comments.py" --pull-request [number] | jq '.TotalComments')
 
 if [ "$NEW_COMMENTS" -gt "$TOTAL_COMMENTS" ]; then
   echo "[NEW COMMENTS] $((NEW_COMMENTS - TOTAL_COMMENTS)) new comments detected"
@@ -116,13 +119,15 @@ fi
 
 ### Phase 8.4: CI Check Verification
 
-```powershell
-$checks = pwsh -NoProfile .claude/skills/github/scripts/pr/Get-PRChecks.ps1 -PullRequest [number] -Wait -TimeoutSeconds 300 | ConvertFrom-Json
+```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+checks=$(python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request [number] --wait --timeout-seconds 300)
+failed_count=$(echo "$checks" | jq '.FailedCount')
 
-if ($checks.FailedCount -gt 0) {
-    Write-Host "[BLOCKED] $($checks.FailedCount) CI check(s) not passing"
-    exit 1
-}
+if [ "$failed_count" -gt 0 ]; then
+  echo "[BLOCKED] $failed_count CI check(s) not passing"
+  exit 1
+fi
 ```
 
 Exit codes:

@@ -38,7 +38,7 @@ Describe "AIReviewCommon Module" {
                 'Initialize-AIReview'
                 'Invoke-WithRetry'
                 # Note: Send-PRComment and Send-IssueComment removed - use GitHub skill scripts instead:
-                # - .claude/skills/github/scripts/pr/Post-PRCommentReply.ps1
+                # - .claude/skills/github/scripts/pr/post_pr_comment_reply.py
                 # - .claude/skills/github/scripts/issue/Post-IssueComment.ps1
                 'Get-Verdict'
                 'Get-Labels'
@@ -728,7 +728,7 @@ Summary complete.
 
     # Note: Send-PRComment and Send-IssueComment tests removed.
     # These functions were moved to GitHub skill scripts:
-    # - .claude/skills/github/scripts/pr/Post-PRCommentReply.ps1
+    # - .claude/skills/github/scripts/pr/post_pr_comment_reply.py
     # - .claude/skills/github/scripts/issue/Post-IssueComment.ps1
     # See tests in .claude/skills/github/tests/ for coverage.
 

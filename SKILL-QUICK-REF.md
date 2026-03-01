@@ -143,15 +143,17 @@ Common validation failures and fixes:
 
 ### GitHub Operations
 
-```powershell
+```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+
 # Get unaddressed PR comments
-pwsh .claude/skills/github/scripts/pr/Get-UnaddressedComments.ps1 -PullRequest "<num>"
+python3 "$SCRIPTS_DIR/pr/get_unaddressed_comments.py" --pull-request "<num>"
 
 # Post PR comment reply
-pwsh .claude/skills/github/scripts/pr/Post-PRCommentReply.ps1 -PullRequest "<num>" -Body "..."
+python3 "$SCRIPTS_DIR/pr/post_pr_comment_reply.py" --pull-request "<num>" --body "..."
 
-# Get PR check logs for CI failures
-pwsh .claude/skills/github/scripts/pr/Get-PRCheckLogs.ps1 -PullRequest "<num>"
+# Get PR check status
+python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request "<num>"
 ```
 
 **NEVER**: Use raw `gh pr comment`, `gh issue edit` when these scripts exist.

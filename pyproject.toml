@@ -63,6 +63,10 @@ line-length = 100
 select = ["E", "F", "W", "I", "N", "UP", "B"]
 ignore = []
 
+[tool.ruff.per-file-ignores]
+# sys.path manipulation required before imports for plugin-context path resolution
+".claude/skills/github/scripts/**/*.py" = ["E402"]
+
 [tool.mypy]
 python_version = "3.12"
 warn_return_any = true
