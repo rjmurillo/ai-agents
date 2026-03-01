@@ -29,6 +29,8 @@ import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from scripts.validation.types import ValidationResult
+
 # Valid model identifiers (from .agents/analysis/claude-code-skill-frontmatter-2026.md)
 VALID_MODEL_ALIASES: frozenset[str] = frozenset(
     {
@@ -75,12 +77,14 @@ _XML_TAG_PATTERN: re.Pattern[str] = re.compile(r"<[^>]+>")
 
 
 @dataclass
-class FrontmatterResult:
-    """Result of parsing YAML frontmatter."""
+class FrontmatterResult(ValidationResult):
+    """Result of parsing YAML frontmatter.
 
-    is_valid: bool = True
+    Extends ValidationResult with parsed frontmatter data.
+    is_valid is derived from the errors list (no errors = valid).
+    """
+
     frontmatter: dict[str, str] = field(default_factory=dict)
-    errors: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -107,7 +111,6 @@ def parse_frontmatter(content: str) -> FrontmatterResult:
     result = FrontmatterResult()
 
     if not content.startswith("---"):
-        result.is_valid = False
         result.errors.append("Frontmatter must start with '---' on line 1")
         return result
 
@@ -120,7 +123,6 @@ def parse_frontmatter(content: str) -> FrontmatterResult:
             break
 
     if frontmatter_end == -1:
-        result.is_valid = False
         result.errors.append("Frontmatter must end with '---'")
         return result
 
@@ -128,7 +130,6 @@ def parse_frontmatter(content: str) -> FrontmatterResult:
 
     # Check for tab characters
     if "\t" in frontmatter_content:
-        result.is_valid = False
         result.errors.append(
             "Frontmatter must use spaces for indentation (tabs not allowed)"
         )
