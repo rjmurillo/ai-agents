@@ -7,7 +7,6 @@ import shutil
 import sys
 from pathlib import Path
 
-
 CONFIG_DIR = Path.home() / ".semantic-hooks"
 CLAUDE_HOOKS_DIR = Path.home() / ".claude" / "hooks"
 CLAUDE_SETTINGS = Path.home() / ".claude" / "settings.json"
@@ -146,7 +145,11 @@ def cmd_uninstall(args: argparse.Namespace) -> int:
             settings = json.loads(CLAUDE_SETTINGS.read_text())
             if "hooks" in settings:
                 # Remove only our hooks, preserve others
-                for event in ["SessionStart", "SessionEnd", "PreToolUse", "PostToolUse", "PostResponse", "PreCompact"]:
+                hook_events = [
+                    "SessionStart", "SessionEnd", "PreToolUse",
+                    "PostToolUse", "PostResponse", "PreCompact",
+                ]
+                for event in hook_events:
                     if event in settings["hooks"]:
                         settings["hooks"][event] = [
                             h for h in settings["hooks"][event]
@@ -161,11 +164,9 @@ def cmd_uninstall(args: argparse.Namespace) -> int:
         except Exception as e:
             print(f"  ⚠ Could not update settings: {e}")
 
-    if args.purge:
-        # Remove config and memory
-        if CONFIG_DIR.exists():
-            shutil.rmtree(CONFIG_DIR)
-            print(f"  ✓ Removed config directory: {CONFIG_DIR}")
+    if args.purge and CONFIG_DIR.exists():
+        shutil.rmtree(CONFIG_DIR)
+        print(f"  ✓ Removed config directory: {CONFIG_DIR}")
 
     print("\n✓ Uninstallation complete!")
     return 0
@@ -441,7 +442,10 @@ def main() -> int:
 
     # uninstall
     uninstall_parser = subparsers.add_parser("uninstall", help="Uninstall hooks")
-    uninstall_parser.add_argument("--purge", action="store_true", help="Also remove config and memory")
+    uninstall_parser.add_argument(
+        "--purge", action="store_true",
+        help="Also remove config and memory",
+    )
     uninstall_parser.set_defaults(func=cmd_uninstall)
 
     # status
@@ -459,8 +463,15 @@ def main() -> int:
     config_parser = subparsers.add_parser("config", help="View/update configuration")
     config_parser.add_argument("--show", action="store_true", help="Show current config")
     config_parser.add_argument("--delta-s-threshold", type=float, help="Set ΔS threshold")
-    config_parser.add_argument("--embedding-provider", choices=["openai", "local"], help="Set embedding provider")
-    config_parser.add_argument("--block-in-danger", type=lambda x: x.lower() == "true", help="Block in danger zone (true/false)")
+    config_parser.add_argument(
+        "--embedding-provider", choices=["openai", "local"],
+        help="Set embedding provider",
+    )
+    config_parser.add_argument(
+        "--block-in-danger",
+        type=lambda x: x.lower() == "true",
+        help="Block in danger zone (true/false)",
+    )
     config_parser.set_defaults(func=cmd_config)
 
     args = parser.parse_args()
