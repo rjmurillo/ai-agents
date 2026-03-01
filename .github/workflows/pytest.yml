@@ -156,6 +156,9 @@ jobs:
           path: artifacts/bandit-results.sarif
           retention-days: 7
 
+  # Pass-through job: satisfies required "Run Python Tests" check when no Python files changed.
+  # GitHub branch protection requires SUCCESS (not SKIPPED) for required checks.
+  # See: Issue #1168
   skip-tests:
     name: Run Python Tests
     needs: check-paths
