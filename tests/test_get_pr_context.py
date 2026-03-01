@@ -24,6 +24,7 @@ import pytest
 from scripts.github_core.api import RepoInfo
 
 from tests.mock_fidelity import assert_mock_keys_match
+from scripts.github_core.api import RepoInfo
 
 # ---------------------------------------------------------------------------
 # Import the script via importlib (not a package)

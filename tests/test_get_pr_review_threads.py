@@ -13,6 +13,7 @@ import pytest
 from scripts.github_core.api import RepoInfo
 
 from tests.mock_fidelity import assert_mock_keys_match
+from scripts.github_core.api import RepoInfo
 
 # ---------------------------------------------------------------------------
 # Import the script via importlib (not a package)
@@ -220,3 +221,109 @@ class TestMain:
         assert rc == 0
         output = json.loads(capsys.readouterr().out)
         assert output["total_threads"] == 0
+
+    def test_api_error_exits_3(self):
+        """Generic RuntimeError (not 'Could not resolve') exits with code 3."""
+        with patch(
+            "get_pr_review_threads.assert_gh_authenticated",
+        ), patch(
+            "get_pr_review_threads.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "get_pr_review_threads._run_threads_query",
+            side_effect=RuntimeError("rate limit exceeded"),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main(["--pull-request", "50"])
+            assert exc.value.code == 3
+
+    def test_threads_none_exits_2(self):
+        """PR found but reviewThreads nodes is None exits with code 2."""
+        data = {
+            "repository": {
+                "pullRequest": {
+                    "reviewThreads": {"nodes": None, "totalCount": 0},
+                },
+            },
+        }
+        with patch(
+            "get_pr_review_threads.assert_gh_authenticated",
+        ), patch(
+            "get_pr_review_threads.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "get_pr_review_threads._run_threads_query",
+            return_value=data,
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main(["--pull-request", "50"])
+            assert exc.value.code == 2
+
+    def test_missing_pull_request_exits_2(self):
+        """Missing pullRequest in response exits with code 2."""
+        data = {"repository": {}}
+        with patch(
+            "get_pr_review_threads.assert_gh_authenticated",
+        ), patch(
+            "get_pr_review_threads.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "get_pr_review_threads._run_threads_query",
+            return_value=data,
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main(["--pull-request", "50"])
+            assert exc.value.code == 2
+
+
+# ---------------------------------------------------------------------------
+# Tests: _transform_thread
+# ---------------------------------------------------------------------------
+
+_transform_thread = _mod._transform_thread
+
+
+class TestTransformThread:
+    def test_thread_with_no_comments(self):
+        thread = {
+            "id": "PRRT_1",
+            "isResolved": False,
+            "isOutdated": False,
+            "path": "file.py",
+            "line": 5,
+            "startLine": None,
+            "diffSide": "RIGHT",
+            "comments": {"totalCount": 0, "nodes": []},
+        }
+        result = _transform_thread(thread, include_comments=False)
+        assert result["first_comment_id"] is None
+        assert result["first_comment_author"] is None
+        assert result["first_comment_body"] is None
+        assert result["comments"] is None
+
+    def test_thread_with_missing_author(self):
+        thread = _thread()
+        thread["comments"]["nodes"][0]["author"] = None
+        result = _transform_thread(thread, include_comments=False)
+        assert result["first_comment_author"] is None
+
+    def test_include_comments_with_missing_author(self):
+        thread = _thread()
+        thread["comments"]["nodes"][0]["author"] = None
+        result = _transform_thread(thread, include_comments=True)
+        assert result["comments"][0]["author"] is None
+
+    def test_thread_with_multiple_comments(self):
+        thread = _thread()
+        thread["comments"]["nodes"].append({
+            "id": "C2",
+            "databaseId": 200,
+            "body": "reply",
+            "author": {"login": "bob"},
+            "createdAt": "2025-01-02T00:00:00Z",
+            "updatedAt": "2025-01-02T00:00:00Z",
+        })
+        thread["comments"]["totalCount"] = 2
+        result = _transform_thread(thread, include_comments=True)
+        assert len(result["comments"]) == 2
+        assert result["comments"][1]["author"] == "bob"

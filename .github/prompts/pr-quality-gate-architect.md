@@ -133,3 +133,24 @@ Automatically use `CRITICAL_FAIL` if you find:
 - Hard-coded dependencies that should be injected
 - Data layer accessed directly from presentation layer
 - Significant architectural decisions without corresponding ADR
+
+## Structured JSON Output
+
+After your human-readable analysis, emit a fenced JSON block conforming to `.agents/schemas/pr-quality-gate-output.schema.json`:
+
+```json
+{
+  "verdict": "PASS|WARN|CRITICAL_FAIL",
+  "message": "One sentence summary",
+  "agent": "architect",
+  "timestamp": "ISO 8601",
+  "findings": [
+    {
+      "severity": "critical|high|medium|low",
+      "category": "design-pattern|boundaries|coupling|cohesion|extensibility|breaking-change|tech-debt|adr",
+      "description": "What was found",
+      "location": "file:line",
+      "recommendation": "Suggested fix"
+    }
+  ]
+}

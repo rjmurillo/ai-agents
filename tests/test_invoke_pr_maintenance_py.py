@@ -8,11 +8,13 @@ from unittest.mock import MagicMock, patch
 import pytest
 from scripts.github_core.api import RepoInfo
 
+from scripts.github_core.api import RepoInfo
 from scripts.invoke_pr_maintenance import (
     classify_prs,
     get_bot_author_info,
     get_open_prs,
     has_failing_checks,
+    has_unresolved_threads,
     is_bot_reviewer,
     main,
     run_gh,
@@ -136,6 +138,40 @@ class TestHasFailingChecks:
         assert has_failing_checks(pr) is True
 
 
+class TestHasUnresolvedThreads:
+    def test_returns_true_when_threads_unresolved(self) -> None:
+        pr = {
+            "reviewThreads": {
+                "nodes": [
+                    {"isResolved": False},
+                    {"isResolved": True},
+                ]
+            }
+        }
+        assert has_unresolved_threads(pr) is True
+
+    def test_returns_false_when_all_resolved(self) -> None:
+        pr = {
+            "reviewThreads": {
+                "nodes": [
+                    {"isResolved": True},
+                    {"isResolved": True},
+                ]
+            }
+        }
+        assert has_unresolved_threads(pr) is False
+
+    def test_returns_false_when_no_threads(self) -> None:
+        pr = {"reviewThreads": {"nodes": []}}
+        assert has_unresolved_threads(pr) is False
+
+    def test_returns_false_when_missing_key(self) -> None:
+        assert has_unresolved_threads({}) is False
+
+    def test_returns_false_when_threads_none(self) -> None:
+        assert has_unresolved_threads({"reviewThreads": None}) is False
+
+
 class TestClassifyPrs:
     def test_detects_derivative_prs(self) -> None:
         prs = [
@@ -165,6 +201,53 @@ class TestClassifyPrs:
         results = classify_prs("owner", "repo", prs)
         assert len(results.derivative_prs) == 1
         assert results.derivative_prs[0]["number"] == 2
+
+    def test_classifies_pr_with_unresolved_threads(self) -> None:
+        prs = [
+            {
+                "number": 42,
+                "title": "PR with unresolved threads",
+                "author": {"login": "rjmurillo-bot"},
+                "headRefName": "feat/fix",
+                "baseRefName": "main",
+                "mergeable": "MERGEABLE",
+                "reviewDecision": None,
+                "reviewRequests": {"nodes": []},
+                "reviewThreads": {
+                    "nodes": [
+                        {"isResolved": False},
+                        {"isResolved": True},
+                    ]
+                },
+                "commits": {"nodes": []},
+            },
+        ]
+        results = classify_prs("owner", "repo", prs)
+        assert len(results.action_required) == 1
+        assert results.action_required[0]["reason"] == "HAS_UNRESOLVED_THREADS"
+        assert results.action_required[0]["category"] == "agent-controlled"
+
+    def test_skips_pr_with_all_threads_resolved(self) -> None:
+        prs = [
+            {
+                "number": 43,
+                "title": "PR with all threads resolved",
+                "author": {"login": "rjmurillo-bot"},
+                "headRefName": "feat/done",
+                "baseRefName": "main",
+                "mergeable": "MERGEABLE",
+                "reviewDecision": None,
+                "reviewRequests": {"nodes": []},
+                "reviewThreads": {
+                    "nodes": [
+                        {"isResolved": True},
+                    ]
+                },
+                "commits": {"nodes": []},
+            },
+        ]
+        results = classify_prs("owner", "repo", prs)
+        assert len(results.action_required) == 0
 
     def test_classifies_agent_pr_with_changes_requested(self) -> None:
         prs = [
@@ -336,3 +419,110 @@ class TestMain:
         mock_rate.return_value = self._rate_limit_ok()
         result = main(["--owner", "", "--repo", ""])
         assert result == 2
+
+
+class TestHasUnresolvedThreads:
+    """Tests for has_unresolved_threads function (Issue #974)."""
+
+    def test_returns_true_when_threads_exist(self) -> None:
+        from scripts.invoke_pr_maintenance import has_unresolved_threads
+
+        pr = {
+            "reviewThreads": {
+                "nodes": [{"isResolved": False}],
+            }
+        }
+        assert has_unresolved_threads(pr) is True
+
+    def test_returns_false_when_no_threads(self) -> None:
+        from scripts.invoke_pr_maintenance import has_unresolved_threads
+
+        pr = {"reviewThreads": {"nodes": []}}
+        assert has_unresolved_threads(pr) is False
+
+    def test_warns_when_threads_truncated(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        import logging
+
+        from scripts.invoke_pr_maintenance import has_unresolved_threads
+
+        pr = {
+            "number": 42,
+            "reviewThreads": {
+                "totalCount": 150,
+                "nodes": [{"isResolved": True}] * 100,
+            },
+        }
+        with caplog.at_level(logging.WARNING):
+            has_unresolved_threads(pr)
+        assert "150 review threads but only 100 fetched" in caplog.text
+
+
+class TestClassifyPrsWithUnresolvedThreads:
+    """Tests for classify_prs with unresolved thread detection (Issue #974)."""
+
+    def test_detects_unresolved_threads_for_agent_pr(self) -> None:
+        """PR with acknowledged (eyes) but unresolved threads needs action."""
+        prs = [
+            {
+                "number": 100,
+                "title": "Agent PR with unresolved threads",
+                "author": {"login": "rjmurillo-bot"},
+                "headRefName": "feat/test",
+                "baseRefName": "main",
+                "mergeable": "MERGEABLE",
+                "reviewDecision": None,
+                "reviewRequests": {"nodes": []},
+                "reviewThreads": {"nodes": [{"isResolved": False}]},
+                "commits": {"nodes": []},
+            },
+        ]
+        results = classify_prs("owner", "repo", prs)
+
+        assert len(results.action_required) == 1
+        assert results.action_required[0]["reason"] == "HAS_UNRESOLVED_THREADS"
+        assert results.action_required[0]["hasUnresolvedThreads"] is True
+
+    def test_human_pr_with_unresolved_threads_classified_as_blocked(self) -> None:
+        """Human PRs with unresolved threads are classified as blocked."""
+        prs = [
+            {
+                "number": 200,
+                "title": "Human PR",
+                "author": {"login": "humandev"},
+                "headRefName": "feat/human",
+                "baseRefName": "main",
+                "mergeable": "MERGEABLE",
+                "reviewDecision": None,
+                "reviewRequests": {"nodes": []},
+                "reviewThreads": {"nodes": [{"isResolved": False}]},
+                "commits": {"nodes": []},
+            },
+        ]
+        results = classify_prs("owner", "repo", prs)
+
+        assert len(results.blocked) == 1
+        assert results.blocked[0]["reason"] == "HAS_UNRESOLVED_THREADS"
+
+    def test_reason_priority_conflicts_over_threads(self) -> None:
+        """Conflicts take priority over unresolved threads in reason."""
+        prs = [
+            {
+                "number": 300,
+                "title": "Agent PR with conflicts and threads",
+                "author": {"login": "rjmurillo-bot"},
+                "headRefName": "feat/conflict",
+                "baseRefName": "main",
+                "mergeable": "CONFLICTING",
+                "reviewDecision": None,
+                "reviewRequests": {"nodes": []},
+                "reviewThreads": {"nodes": [{"isResolved": False}]},
+                "commits": {"nodes": []},
+            },
+        ]
+        results = classify_prs("owner", "repo", prs)
+
+        assert results.action_required[0]["reason"] == "HAS_CONFLICTS"
+        assert results.action_required[0]["hasConflicts"] is True
+        assert results.action_required[0]["hasUnresolvedThreads"] is True

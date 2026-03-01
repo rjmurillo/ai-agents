@@ -184,7 +184,7 @@ class TestAssertValidBodyFile:
             traversal_path = str(tmp_path / ".." / "body.md")
             with pytest.raises(SystemExit) as exc:
                 assert_valid_body_file(traversal_path, str(tmp_path))
-            assert exc.value.code == 1
+            assert exc.value.code == 2
         finally:
             f.unlink(missing_ok=True)
 
@@ -243,6 +243,12 @@ class TestGetRepoInfo:
         with patch("subprocess.run", side_effect=FileNotFoundError):
             assert get_repo_info() is None
 
+    def test_returns_repo_info_type(self):
+        stdout = "https://github.com/owner/repo.git\n"
+        with patch("subprocess.run", return_value=_completed(stdout=stdout)):
+            info = get_repo_info()
+        assert isinstance(info, RepoInfo)
+
 
 class TestResolveRepoParams:
     def test_uses_provided_params(self):
@@ -261,17 +267,21 @@ class TestResolveRepoParams:
         with patch("scripts.github_core.api.get_repo_info", return_value=None):
             with pytest.raises(SystemExit) as exc:
                 resolve_repo_params()
-            assert exc.value.code == 1
+            assert exc.value.code == 2
 
     def test_exits_on_invalid_owner(self):
         with pytest.raises(SystemExit) as exc:
             resolve_repo_params("-bad", "repo")
-        assert exc.value.code == 1
+        assert exc.value.code == 2
 
     def test_exits_on_invalid_repo(self):
         with pytest.raises(SystemExit) as exc:
             resolve_repo_params("owner", "bad/repo/name!")
-        assert exc.value.code == 1
+        assert exc.value.code == 2
+
+    def test_returns_repo_info_type(self):
+        result = resolve_repo_params("owner", "repo")
+        assert isinstance(result, RepoInfo)
 
 
 # ---------------------------------------------------------------------------
