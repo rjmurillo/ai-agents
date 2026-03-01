@@ -1,0 +1,71 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "semantic-hooks"
+version = "0.1.0"
+description = "Semantic tension tracking hooks for Claude Code CLI"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.11"
+authors = [
+    { name = "Richard Murillo", email = "rjmurillo@gmail.com" }
+]
+keywords = ["claude", "hooks", "semantic", "ai", "agents"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+dependencies = [
+    "openai>=1.0.0",
+    "numpy>=1.24.0",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-cov>=4.0.0",
+    "ruff>=0.1.0",
+]
+serena = [
+    # Serena memory integration (when available)
+]
+
+[project.scripts]
+semantic-hooks = "semantic_hooks.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/rjmurillo/ai-agents"
+Repository = "https://github.com/rjmurillo/ai-agents"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/semantic_hooks"]
+
+[tool.hatch.build.targets.wheel.shared-data]
+"hooks" = "share/semantic-hooks/hooks"
+"templates" = "share/semantic-hooks/templates"
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "src/",
+    "hooks/",
+    "templates/",
+]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
