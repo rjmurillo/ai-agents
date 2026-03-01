@@ -5,6 +5,7 @@ dashboard reports for memory health monitoring.
 """
 
 import math
+import sys
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -36,6 +37,8 @@ def compute_decay(
     Uses exponential decay: factor = 0.5 ^ (days_elapsed / half_life).
     Returns 1.0 when last_verified is None (no penalty without data).
     """
+    if half_life_days <= 0:
+        raise ValueError("half_life_days must be greater than zero")
     if last_verified is None:
         return 1.0
     if now is None:
@@ -108,21 +111,30 @@ def parse_confidence_history(
     """Parse confidence_history from YAML frontmatter data."""
     records: list[ConfidenceRecord] = []
     for entry in raw_history:
-        ts = entry.get("timestamp")
-        if isinstance(ts, str):
-            ts = datetime.fromisoformat(ts)
-        elif isinstance(ts, datetime):
-            pass
-        else:
-            continue
-        records.append(
-            ConfidenceRecord(
-                timestamp=ts,
-                score=float(entry.get("score", 0.5)),
-                valid_count=int(entry.get("valid_count", 0)),
-                total_count=int(entry.get("total_count", 0)),
+        try:
+            ts = entry.get("timestamp")
+            if isinstance(ts, str):
+                ts = datetime.fromisoformat(ts)
+            elif not isinstance(ts, datetime):
+                print(
+                    f"Warning: Skipping history entry with invalid timestamp type: {entry}",
+                    file=sys.stderr,
+                )
+                continue
+            records.append(
+                ConfidenceRecord(
+                    timestamp=ts,
+                    score=float(entry.get("score", 0.5)),
+                    valid_count=int(entry.get("valid_count", 0)),
+                    total_count=int(entry.get("total_count", 0)),
+                )
             )
-        )
+        except (ValueError, TypeError) as e:
+            print(
+                f"Warning: Skipping malformed history entry: {e} in {entry}",
+                file=sys.stderr,
+            )
+            continue
     return records
 
 

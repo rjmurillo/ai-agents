@@ -140,7 +140,7 @@ def cmd_verify(args: argparse.Namespace) -> int:
 
     try:
         memory = Memory.from_file(memory_path)
-    except (yaml.YAMLError, UnicodeDecodeError, OSError) as e:
+    except (yaml.YAMLError, UnicodeDecodeError, OSError, ValueError) as e:
         print(f"Error: Cannot parse {memory_path}: {e}", file=sys.stderr)
         return 2
 
@@ -488,13 +488,20 @@ def _confidence_single(
 
     try:
         memory = Memory.from_file(memory_path)
-    except (yaml_lib.YAMLError, UnicodeDecodeError, OSError) as e:
+    except (yaml_lib.YAMLError, UnicodeDecodeError, OSError, ValueError) as e:
         print(f"Error: Cannot parse {memory_path}: {e}", file=sys.stderr)
         return 2
 
-    history = load_confidence_history(memory_path)
-    decayed = apply_decay(memory, half_life_days=half_life)
-    trend = classify_trend(history)
+    try:
+        history = load_confidence_history(memory_path)
+        decayed = apply_decay(memory, half_life_days=half_life)
+        trend = classify_trend(history)
+    except (ValueError, TypeError, ZeroDivisionError) as e:
+        print(
+            f"Error: Failed to process confidence data for {memory.id}: {e}",
+            file=sys.stderr,
+        )
+        return 2
 
     if args.json:
         data = {
