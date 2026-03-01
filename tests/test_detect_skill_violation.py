@@ -79,10 +79,16 @@ class TestGetRepoRoot:
         assert result.exists()
         assert (result / ".git").exists() or (result / ".git").is_file()
 
-    def test_raises_for_non_git_directory(self, tmp_path: Path) -> None:
+    def test_raises_for_non_git_directory(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Raises RuntimeError for non-git directory."""
         non_git_dir = tmp_path / "not_a_repo"
         non_git_dir.mkdir()
+        # Prevent git hook env vars from overriding repo discovery
+        monkeypatch.delenv("GIT_DIR", raising=False)
+        monkeypatch.delenv("GIT_WORK_TREE", raising=False)
+        monkeypatch.setenv("GIT_CEILING_DIRECTORIES", str(tmp_path))
 
         with pytest.raises(RuntimeError, match="Could not find git repo root"):
             get_repo_root(non_git_dir)
@@ -306,6 +312,12 @@ class TestReportViolations:
 class TestMainFunction:
     """Tests for main() function via monkeypatching."""
 
+    @pytest.fixture(autouse=True)
+    def _isolate_git_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Clear git env vars that leak from hook execution contexts."""
+        monkeypatch.delenv("GIT_DIR", raising=False)
+        monkeypatch.delenv("GIT_WORK_TREE", raising=False)
+
     @pytest.fixture
     def test_repo(self, tmp_path: Path) -> Path:
         """Create a mock repository structure."""
@@ -402,6 +414,8 @@ class TestMainFunction:
 
         non_git_dir = tmp_path / "not_a_repo"
         non_git_dir.mkdir()
+        # Prevent git from traversing parent dirs (e.g. in worktrees)
+        monkeypatch.setenv("GIT_CEILING_DIRECTORIES", str(tmp_path))
 
         monkeypatch.setattr(
             "sys.argv",

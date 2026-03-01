@@ -1544,6 +1544,44 @@ else
 fi
 
 #
+# Memory Tier Validation (BLOCKING)
+#
+# Validates tiered memory hierarchy per ADR-017:
+# - Broken reference detection (memory-index and domain indexes)
+# - Pure lookup table format enforcement for domain indexes
+# - Deprecated skill- prefix detection
+# - Orphan detection (domain indexes not in memory-index, atomic files not in any index)
+#
+# Related: ADR-017, Issue #943
+#
+MEMORY_TIER_SCRIPT="$REPO_ROOT/scripts/validate_memory_tier.py"
+
+if [ -n "$STAGED_MEMORY_FILES" ]; then
+    echo_info "Checking memory tier hierarchy (ADR-017)..."
+
+    # MEDIUM-002: Reject symlinks for security
+    if [ -L "$MEMORY_TIER_SCRIPT" ]; then
+        echo_warning "Skipping memory tier validation: script path is a symlink"
+    elif [ -f "$MEMORY_TIER_SCRIPT" ]; then
+        if set_python_cmd; then
+            if ! "${PYTHON_CMD[@]}" "$MEMORY_TIER_SCRIPT" --path "$REPO_ROOT/.serena/memories" 2>&1; then
+                echo_error "Memory tier validation FAILED."
+                echo_info "  Run manually: python3 scripts/validate_memory_tier.py"
+                EXIT_STATUS=1
+            else
+                echo_success "Memory tier validation: PASS"
+            fi
+        else
+            echo_warning "Python 3 not available. Skipping memory tier validation."
+        fi
+    else
+        echo_info "Memory tier validation script not found. Skipping."
+    fi
+else
+    echo_info "No memory files staged. Skipping memory tier validation."
+fi
+
+#
 # Memory Cross-Reference (Non-blocking, auto-fix)
 #
 # Automatically adds cross-references to memory files:
