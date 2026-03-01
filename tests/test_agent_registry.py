@@ -322,6 +322,8 @@ class TestIntegration:
         assert "implementer" in names
 
     def test_parse_real_catalog(self) -> None:
+        # Threshold is 12 after AGENTS.md compression (was 20 pre-compression).
+        # The compressed pipe-delimited Agents table has 12 rows.
         catalog = parse_catalog(AGENTS_MD)
         assert len(catalog) >= 12, f"Expected at least 12 catalog entries, got {len(catalog)}"
         names = {e.name for e in catalog}
