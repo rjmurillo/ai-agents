@@ -153,6 +153,14 @@ def _strip_informational_sections(description: str) -> str:
         text,
         flags=re.DOTALL | re.MULTILINE,
     )
+    # Strip GitHub admonition blockquote blocks (> [!WARNING], > [!NOTE], etc.)
+    # These contain informational file references, not change claims.
+    text = re.sub(
+        r"^>\s*\[!(WARNING|NOTE|CAUTION|IMPORTANT|TIP)\].*?(?=\n(?!>)|\Z)",
+        "",
+        text,
+        flags=re.DOTALL | re.MULTILINE,
+    )
     return text
 
 

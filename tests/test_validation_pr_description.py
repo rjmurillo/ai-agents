@@ -160,6 +160,19 @@ class TestExtractMentionedFiles:
         assert ".github/workflows/pytest.yml" not in result
         assert "pyproject.toml" not in result
 
+    def test_github_admonition_blockquotes_ignored(self) -> None:
+        desc = (
+            "Welcome to Renovate!\n\n"
+            "> [!WARNING]\n"
+            "> Please correct these dependency lookup failures.\n"
+            ">\n"
+            "> Files affected: `.github/workflows/codeql-analysis.yml`\n\n"
+            "Updated `renovate.json`."
+        )
+        result = extract_mentioned_files(desc)
+        assert "renovate.json" in result
+        assert ".github/workflows/codeql-analysis.yml" not in result
+
     def test_details_blocks_ignored(self) -> None:
         desc = (
             "<details>\n"
@@ -199,6 +212,22 @@ class TestStripInformationalSections:
         result = _strip_informational_sections(text)
         assert "foo.yml" not in result
         assert "Footer" in result
+
+    def test_strips_github_admonition_blockquotes(self) -> None:
+        text = (
+            "Some intro text.\n\n"
+            "> [!WARNING]\n"
+            "> Please correct these dependency lookup failures.\n"
+            ">\n"
+            "> -   `Could not determine new digest`\n"
+            ">\n"
+            "> Files affected: `.github/workflows/codeql-analysis.yml`\n\n"
+            "Footer text."
+        )
+        result = _strip_informational_sections(text)
+        assert "codeql-analysis.yml" not in result
+        assert "Some intro text" in result
+        assert "Footer text" in result
 
     def test_preserves_non_informational_content(self) -> None:
         text = "Changed `scripts/foo.py` and **bar.yml**"
