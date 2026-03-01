@@ -580,9 +580,9 @@ for reviewer in ALL_REVIEWERS:
 
 #### Step 1.3: Retrieve ALL Comments (with pagination)
 
-```powershell
+```bash
 # Using github skill (PREFERRED) - handles pagination automatically
-# IMPORTANT: Use -IncludeIssueComments to capture AI Quality Gate, CodeRabbit summaries, etc.
+# IMPORTANT: Use --include-issue-comments to capture AI Quality Gate, CodeRabbit summaries, etc.
 python3 .claude/skills/github/scripts/pr/get_pr_review_comments.py --pull-request [number] --include-issue-comments
 
 # Returns all comments with: id, CommentType (Review/Issue), author, path, line, body, diff_hunk, created_at, in_reply_to_id
@@ -674,7 +674,7 @@ Create a persistent map of all comments. Save to `.agents/pr-comments/PR-[number
 
 React with eyes emoji to acknowledge all comments. Use batch mode for 88% faster acknowledgment:
 
-```powershell
+```bash
 # PREFERRED: Batch acknowledge all comments (88% faster than individual calls)
 # Get all comment IDs from the comments retrieved in Phase 1
 comments=$(python3 .claude/skills/github/scripts/pr/get_pr_review_comments.py --pull-request [number] --include-issue-comments)
@@ -684,10 +684,13 @@ ids=$(echo "$comments" | jq -r '.Comments[].id')
 result=$(python3 .claude/skills/github/scripts/reactions/add_comment_reaction.py --comment-ids $ids --reaction "eyes")
 
 # Verify all acknowledged
-Write-Host "Acknowledged $($result.Succeeded)/$($result.TotalCount) comments"
-if ($result.Failed -gt 0) {
-    Write-Host "Failed: $($result.Results | Where-Object { -not $_.Success } | ForEach-Object { $_.CommentId })"
-}
+succeeded=$(echo "$result" | jq -r '.Succeeded')
+total_count=$(echo "$result" | jq -r '.TotalCount')
+echo "Acknowledged ${succeeded}/${total_count} comments"
+failed=$(echo "$result" | jq -r '.Failed')
+if [ "$failed" -gt 0 ]; then
+    echo "Failed: $(echo "$result" | jq -r '.Results[] | select(.Success == false) | .CommentId')"
+fi
 ```
 
 <details>
@@ -1016,7 +1019,7 @@ Reply to comments that need immediate response BEFORE implementation:
 
 > **[CRITICAL]**: Never use the issue comments API (`/issues/{number}/comments`) to reply to review comments. This places replies out of context as top-level PR comments instead of in-thread.
 
-```powershell
+```bash
 # Using github skill (PREFERRED) - handles thread-preserving replies correctly (pr-thread-reply)
 # Reply to review comment (in-thread reply using /replies endpoint)
 python3 .claude/skills/github/scripts/pr/post_pr_comment_reply.py --pull-request [number] --comment-id [comment_id] --body "[response]"
@@ -1296,30 +1299,32 @@ checks=$(python3 .claude/skills/github/scripts/pr/get_pr_checks.py --pull-reques
 exit_code=$?
 
 # Handle timeout (exit code 7)
-if ($exitCode -eq 7) {
-    Write-Host "[BLOCKED] Timeout waiting for CI checks to complete"
-    Write-Host "  Pending: $($checks.PendingCount) check(s) still running"
+if [ "$exit_code" -eq 7 ]; then
+    echo "[BLOCKED] Timeout waiting for CI checks to complete"
+    pending=$(echo "$checks" | jq -r '.PendingCount')
+    echo "  Pending: ${pending} check(s) still running"
     exit 1
-}
+fi
 
 # Handle API errors
-if (-not $checks.Success) {
-    Write-Host "[ERROR] Failed to get CI check status: $($checks.Error)"
+success=$(echo "$checks" | jq -r '.Success')
+if [ "$success" != "true" ]; then
+    error_msg=$(echo "$checks" | jq -r '.Error')
+    echo "[ERROR] Failed to get CI check status: ${error_msg}"
     exit 1
-}
+fi
 
 # Check for failures
-if ($checks.FailedCount -gt 0) {
-    Write-Host "[BLOCKED] $($checks.FailedCount) CI check(s) not passing:"
-    $checks.Checks | Where-Object { $_.Conclusion -notin @('SUCCESS', 'NEUTRAL', 'SKIPPED') } | ForEach-Object {
-        Write-Host "  - $($_.Name): $($_.Conclusion)"
-        Write-Host "    Details: $($_.DetailsUrl)"
-    }
+failed_count=$(echo "$checks" | jq -r '.FailedCount')
+if [ "$failed_count" -gt 0 ]; then
+    echo "[BLOCKED] ${failed_count} CI check(s) not passing:"
+    echo "$checks" | jq -r '.Checks[] | select(.Conclusion != "SUCCESS" and .Conclusion != "NEUTRAL" and .Conclusion != "SKIPPED") | "  - \(.Name): \(.Conclusion)\n    Details: \(.DetailsUrl)"'
     # Do NOT claim completion - return to Phase 6 for fixes
     exit 1
-}
+fi
 
-Write-Host "[PASS] All CI checks passing ($($checks.PassedCount) checks)"
+passed_count=$(echo "$checks" | jq -r '.PassedCount')
+echo "[PASS] All CI checks passing (${passed_count} checks)"
 ```
 
 **Exit codes**:
@@ -1344,18 +1349,18 @@ Write-Host "[PASS] All CI checks passing ($($checks.PassedCount) checks)"
 | No unresolved threads | `gh pr view --json reviewThreads` all resolved | [ ] |
 | Commits pushed | `git status` shows "up to date with origin" | [ ] |
 
-```powershell
+```bash
 # Final verification
-Write-Host "=== Completion Criteria ==="
-Write-Host "[ ] Comments: $($ADDRESSED + $WONTFIX)/$TOTAL resolved"
-Write-Host "[ ] New comments: None after 45s wait"
+echo "=== Completion Criteria ==="
+echo "[ ] Comments: $((ADDRESSED + WONTFIX))/${TOTAL} resolved"
+echo "[ ] New comments: None after 45s wait"
 
 # CI check verification using skill
 checks=$(python3 .claude/skills/github/scripts/pr/get_pr_checks.py --pull-request [number])
 all_passing=$(echo "$checks" | jq '.AllPassing')
 echo "[ ] CI checks: $(if [ "$all_passing" = "true" ]; then echo PASS; else echo FAILING; fi)"
 
-Write-Host "[ ] Pushed: $(git status -sb | Select-Object -First 1)"
+echo "[ ] Pushed: $(git status -sb | head -n 1)"
 ```
 
 **If ANY criterion fails**: Do NOT claim completion. Return to appropriate phase.
