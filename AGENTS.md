@@ -40,6 +40,22 @@ Rule: Read first, reason second. Pre-training is the last resort, never the defa
 | SHOULD | Search relevant Serena memories | Memory results present |
 | SHOULD | Verify git status and starting commit | Output documented |
 
+### Session Mid
+
+| Level | Step | Verification |
+|-------|------|--------------|
+| MUST | Display commit count as `Commit X/20 (ADR-008)` after each commit | Count visible in transcript |
+| SHOULD | Warn when commit count exceeds 15 | Warning in transcript |
+
+### Before PR Creation (BLOCKING)
+
+| Level | Step | Verification |
+|-------|------|--------------|
+| MUST | Run `Validate-PRReadiness.ps1` (commits <=20, files <=10) | Script exit code 0 |
+| MUST | Verify no BLOCKING synthesis panel verdicts remain unresolved | Panel check documented |
+| MUST | Run local security scan (CodeQL or semgrep) | Scan output in transcript |
+| SHOULD | Review commit count against ADR-008 limit | Count documented |
+
 ### Session End (BLOCKING)
 
 | Level | Step | Verification |
@@ -147,6 +163,28 @@ Any file matching `.agents/architecture/ADR-*.md` created or edited triggers man
 | pr-comment-responder | PR review triage, comment tracking, resolution | sonnet |
 | backlog-generator | Proactive task discovery when idle | sonnet |
 | merge-resolver | Git conflict resolution, intent analysis, heuristic merge | sonnet |
+
+### Agent-Specific Requirements
+
+> Source: [PR #908 retrospective](.agents/retrospective/2026-01-15-pr-908-comprehensive-retrospective.md)
+
+**orchestrator**:
+
+- Before creating PR, run `Validate-PRReadiness.ps1` script
+- Display commit count as `Commit X/20 (ADR-008)` after each commit
+- Parse synthesis panel documents for BLOCKING verdicts before PR creation
+
+**implementer**:
+
+- Check commit count mid-session, warn if approaching 20 limit (ADR-008)
+- Before push, run local security scan (CodeQL or semgrep)
+- Never use `--no-verify` unless hook failure is a documented infrastructure bug
+
+**architect**:
+
+- Use structured YAML frontmatter when issuing BLOCKING verdicts in synthesis panels
+- Before approving an ADR exception, require Chesterton's Fence analysis (document original rationale)
+- Verify synthesis panel issues are resolved before approving PR merge
 
 ## Workflow Patterns
 
