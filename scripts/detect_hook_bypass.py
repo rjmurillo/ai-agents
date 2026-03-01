@@ -22,11 +22,17 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import subprocess
 import sys
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
+
+# Matches squashed merge-resolution commits (single parent, merge-like subject)
+_MERGE_SUBJECT_RE = re.compile(
+    r"^Merge (branch|remote-tracking branch) '.+' into .+"
+)
 
 
 @dataclass
@@ -68,7 +74,13 @@ def get_current_branch() -> str:
 
 
 def get_pr_commits(base_ref: str) -> list[tuple[str, str]]:
-    """Get commits in the PR (since diverging from base).
+    """Get non-merge commits in the PR (since diverging from base).
+
+    Skips merge commits because they integrate changes already validated
+    on their source branches. Also skips squashed merge-resolution commits
+    (single-parent commits with merge-like subjects) since they only
+    bring in base-branch changes. Only authored commits are checked for
+    hook bypass indicators.
 
     Returns list of (sha, subject) tuples.
     """
@@ -76,6 +88,7 @@ def get_pr_commits(base_ref: str) -> list[tuple[str, str]]:
         [
             "git",
             "log",
+            "--no-merges",
             f"{base_ref}..HEAD",
             "--format=%H %s",
         ],
@@ -91,6 +104,8 @@ def get_pr_commits(base_ref: str) -> list[tuple[str, str]]:
         if not line.strip():
             continue
         sha, _, subject = line.partition(" ")
+        if _MERGE_SUBJECT_RE.match(subject):
+            continue
         commits.append((sha, subject))
     return commits
 

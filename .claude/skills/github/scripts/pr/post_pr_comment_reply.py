@@ -7,8 +7,7 @@ Posts replies using the correct endpoint for thread preservation:
 
 Exit codes follow ADR-035:
     0 - Success
-    1 - Invalid parameters / logic error
-    2 - Config error (file not found)
+    2 - Config/usage error (invalid parameters, file not found)
     3 - External error (API failure)
     4 - Auth error
 """
@@ -64,12 +63,10 @@ def build_parser() -> argparse.ArgumentParser:
 
 def _resolve_body(args: argparse.Namespace) -> str:
     if args.body_file:
-        resolved = Path(args.body_file).resolve()
-        if ".." in Path(args.body_file).parts:
-            error_and_exit(f"Path traversal detected: {args.body_file}", 1)
-        if not resolved.is_file():
-            error_and_exit(f"Body file not found: {args.body_file}", 2)
-        return resolved.read_text(encoding="utf-8")
+        from github_core.validation import assert_valid_body_file
+
+        assert_valid_body_file(args.body_file)
+        return Path(args.body_file).read_text(encoding="utf-8")
     return str(args.body)
 
 
@@ -82,7 +79,7 @@ def main(argv: list[str] | None = None) -> int:
 
     body = _resolve_body(args)
     if not body or not body.strip():
-        error_and_exit("Body cannot be empty.", 1)
+        error_and_exit("Body cannot be empty.", 2)
 
     pr = args.pull_request
 

@@ -76,6 +76,21 @@ class TestFileMatches:
     def test_empty_strings(self) -> None:
         assert file_matches("", "") is True
 
+    def test_glob_star_match(self) -> None:
+        assert file_matches(".github/prompts/pr-quality-gate-qa.md",
+                            ".github/prompts/pr-quality-gate-*.md") is True
+
+    def test_glob_directory_star(self) -> None:
+        assert file_matches(".claude/commands/pr-quality/analyst.md",
+                            ".claude/commands/pr-quality/*.md") is True
+
+    def test_glob_no_match(self) -> None:
+        assert file_matches("scripts/foo.py",
+                            "scripts/*.md") is False
+
+    def test_glob_question_mark(self) -> None:
+        assert file_matches("src/a.py", "src/?.py") is True
+
 
 # ---------------------------------------------------------------------------
 # extract_mentioned_files
@@ -200,6 +215,17 @@ class TestValidatePRDescription:
     def test_empty_files_lists(self) -> None:
         issues = validate_pr_description(pr_files=[], mentioned_files=[])
         assert len(issues) == 0
+
+    def test_glob_pattern_prevents_critical(self) -> None:
+        issues = validate_pr_description(
+            pr_files=[
+                ".github/prompts/pr-quality-gate-analyst.md",
+                ".github/prompts/pr-quality-gate-qa.md",
+            ],
+            mentioned_files=[".github/prompts/pr-quality-gate-*.md"],
+        )
+        critical = [i for i in issues if i.severity == "CRITICAL"]
+        assert len(critical) == 0
 
     def test_mixed_critical_and_warning(self) -> None:
         issues = validate_pr_description(
