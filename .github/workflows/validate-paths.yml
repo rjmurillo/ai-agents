@@ -42,7 +42,7 @@ jobs:
       - uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
 
       - name: Check for validatable file changes
-        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36
+        uses: dorny/paths-filter@668c092af3649c4b664c54e4b704aa46782f6f7c
         id: filter
         # Skip paths-filter for workflow_dispatch as it may not have proper context
         if: github.event_name != 'workflow_dispatch'
