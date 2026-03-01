@@ -33,6 +33,11 @@ from scripts.github_core.api import (  # noqa: E402
     get_all_prs_with_comments,
     resolve_repo_params,
 )
+from scripts.llm_classification import (  # noqa: E402
+    LLMClassifier,
+    LLMFallbackConfig,
+    get_default_classifier,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -108,6 +113,7 @@ class ActionabilityResult:
     score: float
     reasons: list[str]
     is_actionable: bool
+    used_llm_fallback: bool = False
 
 
 @dataclass
@@ -195,15 +201,20 @@ def get_comments_by_reviewer(
 def get_actionability_score(
     comment_data: CommentData,
     heuristics: dict[str, float | int] | None = None,
+    llm_classifier: LLMClassifier | None = None,
 ) -> ActionabilityResult:
     """Calculate actionability score for a comment based on heuristics.
 
     Score starts at 0.5 (neutral) and adjusts based on matched patterns.
     Final score is clamped to [0, 1]. IsActionable = score >= 0.5.
 
+    When the heuristic score falls in the low-confidence range (default 0.4-0.6),
+    an LLM fallback is used if configured and available.
+
     Args:
         comment_data: The comment to score.
         heuristics: Scoring heuristics. Uses module default if None.
+        llm_classifier: Optional LLM classifier for low-confidence fallback.
 
     Returns:
         ActionabilityResult with score, reasons, and is_actionable flag.
@@ -269,22 +280,43 @@ def get_actionability_score(
     # Clamp score between 0 and 1
     score = max(0.0, min(1.0, score))
 
+    # LLM fallback for low-confidence scores
+    used_llm = False
+    if llm_classifier is not None and llm_classifier.should_use_fallback(score):
+        llm_result = llm_classifier.classify(comment_data.body)
+        if llm_result is not None:
+            used_llm = True
+            reasons.append("LLMFallback")
+            if llm_result.from_cache:
+                reasons.append("LLMCached")
+            # Use LLM result when confidence is higher than heuristic ambiguity
+            if llm_result.confidence >= 0.7:
+                return ActionabilityResult(
+                    score=0.9 if llm_result.is_actionable else 0.1,
+                    reasons=reasons,
+                    is_actionable=llm_result.is_actionable,
+                    used_llm_fallback=True,
+                )
+
     return ActionabilityResult(
         score=score,
         reasons=reasons,
         is_actionable=score >= 0.5,
+        used_llm_fallback=used_llm,
     )
 
 
 def get_reviewer_signal_stats(
     reviewer_stats: dict[str, ReviewerStats],
     heuristics: dict[str, float | int] | None = None,
+    llm_classifier: LLMClassifier | None = None,
 ) -> dict[str, SignalStats]:
     """Calculate signal quality statistics for each reviewer.
 
     Args:
         reviewer_stats: Dict mapping reviewer login to ReviewerStats.
         heuristics: Scoring heuristics. Uses module default if None.
+        llm_classifier: Optional LLM classifier for low-confidence fallback.
 
     Returns:
         Dict mapping reviewer login to SignalStats.
@@ -301,7 +333,7 @@ def get_reviewer_signal_stats(
         last_30_days_actionable = 0
 
         for comment in stats.comments:
-            score_result = get_actionability_score(comment, heuristics)
+            score_result = get_actionability_score(comment, heuristics, llm_classifier)
 
             if score_result.is_actionable:
                 actionable_count += 1
@@ -578,8 +610,22 @@ def main(argv: list[str] | None = None) -> int:
         logger.warning("No reviewer comments found (excluding self-comments)")
         return 0
 
+    # Initialize LLM classifier for low-confidence fallback
+    llm_config = LLMFallbackConfig.from_env()
+    llm_classifier: LLMClassifier | None = None
+    if llm_config.enabled:
+        try:
+            llm_classifier = get_default_classifier()
+            logger.info(
+                "LLM fallback enabled (threshold: %.1f-%.1f)",
+                llm_config.low_confidence_min,
+                llm_config.low_confidence_max,
+            )
+        except Exception:
+            logger.warning("LLM fallback unavailable, using heuristics only")
+
     # Calculate signal quality stats
-    signal_stats = get_reviewer_signal_stats(reviewer_stats)
+    signal_stats = get_reviewer_signal_stats(reviewer_stats, llm_classifier=llm_classifier)
 
     # Calculate total comments for summary
     total_comments = sum(s.total_comments for s in signal_stats.values())

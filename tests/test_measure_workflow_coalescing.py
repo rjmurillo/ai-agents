@@ -8,6 +8,7 @@ from datetime import UTC
 from pathlib import Path
 from typing import Any
 from unittest.mock import patch
+from scripts.github_core.api import RepoInfo
 
 from scripts.github_core.api import RepoInfo
 

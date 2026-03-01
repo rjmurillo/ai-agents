@@ -10,6 +10,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from scripts.github_core.api import RepoInfo
 
 from scripts.github_core.api import RepoInfo
 
@@ -95,7 +96,7 @@ class TestMain:
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "1", "--body", ""])
-            assert exc.value.code == 1
+            assert exc.value.code == 2
 
     def test_body_file_not_found_exits_2(self):
         with patch(
@@ -108,7 +109,7 @@ class TestMain:
                 main(["--pull-request", "1", "--body-file", "/nonexistent/file.md"])
             assert exc.value.code == 2
 
-    def test_body_file_path_traversal_exits_1(self):
+    def test_body_file_path_traversal_exits_2(self):
         """CWE-22: Path traversal in body-file is rejected."""
         with patch(
             "post_pr_comment_reply.assert_gh_authenticated",
@@ -118,7 +119,7 @@ class TestMain:
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "1", "--body-file", "../../etc/passwd"])
-            assert exc.value.code == 1
+            assert exc.value.code == 2
 
     def test_review_comment_reply_success(self, capsys):
         response = json.dumps({
@@ -188,6 +189,8 @@ class TestMain:
         ), patch(
             "subprocess.run",
             return_value=_completed(stdout=response, rc=0),
+        ), patch(
+            "github_core.validation.assert_valid_body_file",
         ):
             rc = main([
                 "--pull-request", "1", "--body-file", str(body_file),

@@ -22,10 +22,24 @@ import json
 import os
 import re
 import subprocess
-from dataclasses import dataclass
+import sys
 from fnmatch import fnmatch
 from pathlib import Path
 from typing import Any
+
+# Add .claude/lib to path for github_core imports (synced from scripts/)
+_plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+_workspace = os.environ.get("GITHUB_WORKSPACE")
+if _plugin_root:
+    _LIB_DIR = os.path.join(_plugin_root, "lib")
+elif _workspace:
+    _LIB_DIR = os.path.join(_workspace, ".claude", "lib")
+else:
+    _LIB_DIR = str(Path(__file__).resolve().parents[3] / "lib")
+if _LIB_DIR not in sys.path:
+    sys.path.insert(0, _LIB_DIR)
+
+from github_core.api import RepoInfo  # noqa: E402
 
 # Files that can be auto-resolved by accepting target branch (main) version.
 # These are typically auto-generated or frequently-updated files where
@@ -96,7 +110,7 @@ def get_safe_worktree_path(base_path: str, pr_number: int) -> str:
     try:
         repo_info = get_repo_info()
         repo_name = repo_info.repo
-    except RuntimeError:
+    except (RuntimeError, AttributeError):
         repo_name = "plugin"
     worktree_name = f"{repo_name}-pr-{pr_number}"
     worktree_path = (base / worktree_name).resolve()
@@ -108,14 +122,6 @@ def get_safe_worktree_path(base_path: str, pr_number: int) -> str:
         raise ValueError(f"Worktree path escapes base directory: {worktree_path}") from exc
 
     return str(worktree_path)
-
-
-@dataclass(frozen=True)
-class RepoInfo:
-    """Repository owner and name, inferred from git remote."""
-
-    owner: str
-    repo: str
 
 
 def get_repo_info() -> RepoInfo:

@@ -81,4 +81,4 @@ def assert_valid_body_file(body_file: str, allowed_base: str | None = None) -> N
         error_and_exit(f"Body file not found: {body_file}", 2)
 
     if not is_safe_file_path(body_file, allowed_base):
-        error_and_exit(f"Body file path traversal not allowed: {body_file}", 1)
+        error_and_exit(f"Body file path traversal not allowed: {body_file}", 2)

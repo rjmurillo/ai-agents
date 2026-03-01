@@ -9,6 +9,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from scripts.github_core.api import RepoInfo
 
 from scripts.github_core.api import RepoInfo
 
@@ -57,10 +58,10 @@ class TestBuildParser:
 
 
 class TestMain:
-    def test_invalid_thread_id_exits_1(self):
+    def test_invalid_thread_id_exits_2(self):
         with pytest.raises(SystemExit) as exc:
             main(["--thread-id", "INVALID_123"])
-        assert exc.value.code == 1
+        assert exc.value.code == 2
 
     def test_not_authenticated_exits_4(self):
         with patch(

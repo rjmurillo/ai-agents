@@ -9,6 +9,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from scripts.github_core.api import RepoInfo
 
 from scripts.github_core.api import RepoInfo
 
@@ -82,7 +83,7 @@ class TestMain:
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "-1"])
-            assert exc.value.code == 1
+            assert exc.value.code == 2
 
     def test_success_outputs_json(self, capsys):
         threads = [{"id": "t1", "isResolved": False}]

@@ -24,6 +24,19 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
+@dataclass(frozen=True)
+class RepoInfo:
+    """Repository owner and name.
+
+    Replaces raw ``dict[str, str]`` returns that had inconsistent key
+    casing across modules.  Attribute access (``info.owner``) is enforced
+    by the type checker, eliminating ``KeyError`` risks.
+    """
+
+    owner: str
+    repo: str
+
+
 @dataclass
 class RateLimitResult:
     """Structured result from rate limit check."""
@@ -60,14 +73,6 @@ def error_and_exit(message: str, exit_code: int) -> NoReturn:
 _GITHUB_REMOTE_PATTERN = re.compile(r"github\.com[:/]([^/]+)/([^/.]+)")
 
 
-@dataclass(frozen=True)
-class RepoInfo:
-    """Repository owner and name, inferred from git remote or provided explicitly."""
-
-    owner: str
-    repo: str
-
-
 def get_repo_info() -> RepoInfo | None:
     """Infer repository owner and name from git remote origin URL.
 
@@ -101,6 +106,9 @@ def resolve_repo_params(owner: str = "", repo: str = "") -> RepoInfo:
     """Resolve owner and repo, inferring from git remote if not provided.
 
     Raises SystemExit if parameters cannot be determined or are invalid.
+
+    Returns:
+        RepoInfo with owner and repo.
     """
     if not owner or not repo:
         repo_info = get_repo_info()
@@ -110,13 +118,13 @@ def resolve_repo_params(owner: str = "", repo: str = "") -> RepoInfo:
         else:
             error_and_exit(
                 "Could not infer repository info. Please provide -Owner and -Repo parameters.",
-                1,
+                2,
             )
 
     if not is_github_name_valid(owner, "Owner"):
-        error_and_exit(f"Invalid GitHub owner name: {owner}", 1)
+        error_and_exit(f"Invalid GitHub owner name: {owner}", 2)
     if not is_github_name_valid(repo, "Repo"):
-        error_and_exit(f"Invalid GitHub repository name: {repo}", 1)
+        error_and_exit(f"Invalid GitHub repository name: {repo}", 2)
 
     return RepoInfo(owner=owner, repo=repo)
 

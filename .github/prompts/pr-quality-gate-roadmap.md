@@ -112,3 +112,24 @@ Automatically use `CRITICAL_FAIL` if you find:
 ## Note on Verdict Selection
 
 For roadmap reviews, prefer `WARN` over `CRITICAL_FAIL` unless there is a clear strategic conflict. Roadmap concerns are often matters of prioritization rather than absolute blockers. Use `WARN` to surface discussion points while allowing the change to proceed if stakeholders choose.
+
+## Structured JSON Output
+
+After your human-readable analysis, emit a fenced JSON block conforming to `.agents/schemas/pr-quality-gate-output.schema.json`:
+
+```json
+{
+  "verdict": "PASS|WARN|CRITICAL_FAIL",
+  "message": "One sentence summary",
+  "agent": "roadmap",
+  "timestamp": "ISO 8601",
+  "findings": [
+    {
+      "severity": "critical|high|medium|low",
+      "category": "alignment|scope|user-value|business-impact|investment|documentation",
+      "description": "What was found",
+      "location": "file:line",
+      "recommendation": "Suggested fix"
+    }
+  ]
+}

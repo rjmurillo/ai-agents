@@ -99,3 +99,64 @@ class TestMain:
         main(["--trace-verdict", "FAIL", "--completeness-verdict", "PASS"])
         captured = capsys.readouterr()
         assert "Spec validation failed" in captured.out
+
+    def test_both_infra_failures_returns_0(self, capsys):
+        """Infrastructure failures should not block merge."""
+        rc = main([
+            "--trace-verdict", "CRITICAL_FAIL",
+            "--completeness-verdict", "CRITICAL_FAIL",
+            "--trace-infra-failure", "true",
+            "--completeness-infra-failure", "true",
+        ])
+        assert rc == 0
+        assert "infrastructure failure" in capsys.readouterr().out.lower()
+
+    def test_trace_infra_failure_only(self, capsys):
+        """When only trace has infra failure, completeness PASS still passes."""
+        rc = main([
+            "--trace-verdict", "CRITICAL_FAIL",
+            "--completeness-verdict", "PASS",
+            "--trace-infra-failure", "true",
+        ])
+        assert rc == 0
+
+    def test_real_fail_not_masked_by_infra(self):
+        """Real completeness failure should still block even if trace is infra."""
+        rc = main([
+            "--trace-verdict", "CRITICAL_FAIL",
+            "--completeness-verdict", "FAIL",
+            "--trace-infra-failure", "true",
+        ])
+        assert rc == 1
+
+    def test_infra_detected_from_findings_text(self, capsys):
+        """Findings text fallback detects infrastructure failures."""
+        rc = main([
+            "--trace-verdict", "CRITICAL_FAIL",
+            "--completeness-verdict", "CRITICAL_FAIL",
+            "--trace-findings",
+            "Copilot CLI infrastructure failure after 3 attempts",
+            "--completeness-findings",
+            "Copilot CLI infrastructure failure after 3 attempts",
+        ])
+        assert rc == 0
+        assert "infrastructure failure" in capsys.readouterr().out.lower()
+
+    def test_infra_detected_from_one_finding(self):
+        """One finding with infra text, other PASS, returns 0."""
+        rc = main([
+            "--trace-verdict", "CRITICAL_FAIL",
+            "--completeness-verdict", "PASS",
+            "--trace-findings",
+            "Copilot CLI infrastructure failure after 3 attempts",
+        ])
+        assert rc == 0
+
+    def test_findings_without_infra_keyword_still_fails(self):
+        """Findings without infrastructure keyword do not suppress failure."""
+        rc = main([
+            "--trace-verdict", "CRITICAL_FAIL",
+            "--completeness-verdict", "PASS",
+            "--trace-findings", "Some other error message",
+        ])
+        assert rc == 1
