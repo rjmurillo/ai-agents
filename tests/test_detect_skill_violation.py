@@ -7,6 +7,7 @@ per ADR-042.
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -309,12 +310,16 @@ class TestMainFunction:
     @pytest.fixture
     def test_repo(self, tmp_path: Path) -> Path:
         """Create a mock repository structure."""
-        # Initialize git repo
+        # Initialize git repo (strip GIT_DIR to avoid reinitializing
+        # the parent repo when running inside git hooks).
+        clean_env = {k: v for k, v in os.environ.items()
+                     if k not in ("GIT_DIR", "GIT_WORK_TREE")}
         subprocess.run(
             ["git", "init"],
             cwd=tmp_path,
             capture_output=True,
             check=True,
+            env=clean_env,
         )
 
         # Create skills directory
@@ -423,12 +428,16 @@ class TestMainFunction:
         """main() returns 0 (warning) when skills directory missing."""
         from scripts import detect_skill_violation
 
-        # Initialize git repo without skills directory
+        # Initialize git repo without skills directory (strip GIT_DIR
+        # to avoid reinitializing the parent repo inside git hooks).
+        clean_env = {k: v for k, v in os.environ.items()
+                     if k not in ("GIT_DIR", "GIT_WORK_TREE")}
         subprocess.run(
             ["git", "init"],
             cwd=tmp_path,
             capture_output=True,
             check=True,
+            env=clean_env,
         )
 
         monkeypatch.setattr(

@@ -19,6 +19,7 @@ See: ADR-035 Exit Code Standardization
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import subprocess
 import sys
@@ -69,6 +70,9 @@ def get_repo_root(start_dir: Path) -> Path:
     Raises:
         RuntimeError: If not in a git repository.
     """
+    # Strip GIT_DIR/GIT_WORK_TREE so discovery uses start_dir, not a
+    # parent hook's environment (e.g. pre-push sets GIT_DIR).
+    env = {k: v for k, v in os.environ.items() if k not in ("GIT_DIR", "GIT_WORK_TREE")}
     try:
         result = subprocess.run(
             ["git", "-C", str(start_dir), "rev-parse", "--show-toplevel"],
@@ -76,6 +80,7 @@ def get_repo_root(start_dir: Path) -> Path:
             text=True,
             timeout=30,
             check=False,
+            env=env,
         )
         if result.returncode != 0 or not result.stdout.strip():
             raise RuntimeError(f"Could not find git repo root from: {start_dir}")
