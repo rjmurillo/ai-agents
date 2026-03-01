@@ -65,9 +65,8 @@ rules:
         # scripts/Update-PR.ps1
         gh pr view $PRNumber --json title,body
       good: |
-        # scripts/Update-PR.ps1
-        . .claude/skills/github/scripts/pr/Get-PRContext.ps1
-        Get-PRContext -Number $PRNumber
+        # scripts/update_pr.py
+        python3 .claude/skills/github/scripts/pr/get_pr_context.py --pull-request "$pr_number"
 
     tags:
       - quality

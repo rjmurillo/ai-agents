@@ -194,9 +194,9 @@ gh api graphql -f query='
 
 | Skill | Location | Purpose |
 |-------|----------|---------|
-| `Get-PRContext.ps1` | `.claude/skills/github/scripts/pr/` | Get PR metadata |
-| `Set-IssueLabels.ps1` | `.claude/skills/github/scripts/issue/` | Manage issue labels |
-| `Add-CommentReaction.ps1` | `.claude/skills/github/scripts/reactions/` | Add emoji reactions |
+| `get_pr_context.py` | `.claude/skills/github/scripts/pr/` | Get PR metadata |
+| `set_issue_labels.py` | `.claude/skills/github/scripts/issue/` | Manage issue labels |
+| `add_comment_reaction.py` | `.claude/skills/github/scripts/reactions/` | Add emoji reactions |
 
 ### GraphQL API Skills
 

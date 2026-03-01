@@ -15,15 +15,15 @@ The synthesis comment is idempotent - if one already exists (detected by marker)
 
 ## Usage
 
-```powershell
+```bash
 # Basic usage
-pwsh .claude/skills/github/scripts/issue/Invoke-CopilotAssignment.ps1 -IssueNumber 123
+python3 .claude/skills/github/scripts/issue/invoke_copilot_assignment.py --issue-number 123
 
 # Preview without posting
-pwsh .claude/skills/github/scripts/issue/Invoke-CopilotAssignment.ps1 -IssueNumber 123 -WhatIf
+python3 .claude/skills/github/scripts/issue/invoke_copilot_assignment.py --issue-number 123 --what-if
 
 # Custom config
-pwsh .claude/skills/github/scripts/issue/Invoke-CopilotAssignment.ps1 -IssueNumber 123 -ConfigPath "custom.yml"
+python3 .claude/skills/github/scripts/issue/invoke_copilot_assignment.py --issue-number 123 --config-path "custom.yml"
 ```
 
 ## Configuration Reference
@@ -121,17 +121,17 @@ The marker enables update-in-place behavior:
 
 1. Add section under `extraction_patterns`
 2. Define patterns as key-value pairs
-3. Update `Invoke-CopilotAssignment.ps1` to use patterns
+3. Update `invoke_copilot_assignment.py` to use patterns
 4. Add tests
 
 ### Changing Synthesis Format
 
-1. Modify `New-SynthesisComment` function in script
+1. Modify the synthesis comment function in the script
 2. Update marker if needed
 3. Test with `-WhatIf` to preview
 
 ## Related
 
-- Script: `.claude/skills/github/scripts/issue/Invoke-CopilotAssignment.ps1`
-- Module: `.claude/skills/github/modules/GitHubCore.psm1`
+- Script: `.claude/skills/github/scripts/issue/invoke_copilot_assignment.py`
+- Library: `.claude/lib/github_core/`
 - Issue: <https://github.com/rjmurillo/ai-agents/issues/92>
