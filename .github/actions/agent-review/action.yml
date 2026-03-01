@@ -105,10 +105,12 @@ runs:
         echo "verdict=$(cat "$CACHE_DIR/verdict.txt")" >> $GITHUB_OUTPUT
         echo "infrastructure_failure=$(cat "$CACHE_DIR/infrastructure-failure.txt" 2>/dev/null || echo false)" >> $GITHUB_OUTPUT
         echo "retry_count=0" >> $GITHUB_OUTPUT
+        # Use a randomized delimiter to prevent collision with findings content
+        DELIMITER="EOF_CACHED_FINDINGS_${RANDOM}_${RANDOM}"
         {
-          echo "findings<<EOF_CACHED_FINDINGS"
+          echo "findings<<${DELIMITER}"
           cat "$CACHE_DIR/findings.txt"
-          echo "EOF_CACHED_FINDINGS"
+          echo "${DELIMITER}"
         } >> $GITHUB_OUTPUT
 
     - name: ${{ inputs.emoji }} ${{ inputs.agent }} Review
