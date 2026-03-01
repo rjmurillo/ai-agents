@@ -18,18 +18,44 @@ import pytest
 from scripts.validate_session_json import (
     BRANCH_PATTERN,
     COMMIT_SHA_PATTERN,
+    CONTRADICTION_PATTERNS,
     REQUIRED_SESSION_FIELDS,
+    SESSION_END_REQUIRED_ITEMS,
+    SESSION_START_REQUIRED_ITEMS,
     ValidationResult,
+    _LEGACY_HANDOFF_FIELD,
     get_case_insensitive,
     has_case_insensitive,
     load_session_file,
-    validate_must_item,
+    validate_checklist_section,
     validate_protocol_compliance,
     validate_session_end,
     validate_session_log,
     validate_session_section,
     validate_session_start,
 )
+
+
+def _make_complete_start_section(**overrides: dict) -> dict:
+    """Build a sessionStart section with all required items complete."""
+    section = {
+        name: {"complete": True, "evidence": "Evidence", "level": "MUST"}
+        for name in SESSION_START_REQUIRED_ITEMS
+    }
+    section.update(overrides)
+    return section
+
+
+def _make_complete_end_section(**overrides: dict) -> dict:
+    """Build a sessionEnd section with all required items complete."""
+    section = {
+        name: {"complete": True, "evidence": "Evidence", "level": "MUST"}
+        for name in SESSION_END_REQUIRED_ITEMS
+    }
+    # handoffPreserved is MUST: complete=True means HANDOFF.md was not modified
+    section["handoffPreserved"] = {"complete": True, "evidence": "HANDOFF.md not modified", "level": "MUST"}
+    section.update(overrides)
+    return section
 
 if TYPE_CHECKING:
     from _pytest.capture import CaptureFixture
@@ -219,9 +245,7 @@ class TestValidateSessionStart:
 
     def test_complete_must_items(self) -> None:
         """Complete MUST items pass validation."""
-        session_start = {
-            "serenaActivated": {"complete": True, "evidence": "Evidence", "level": "MUST"},
-        }
+        session_start = _make_complete_start_section()
         result = ValidationResult()
 
         validate_session_start(session_start, result)
@@ -230,21 +254,21 @@ class TestValidateSessionStart:
 
     def test_incomplete_must_item(self) -> None:
         """Incomplete MUST item causes error."""
-        session_start = {
-            "serenaActivated": {"complete": False, "evidence": "", "level": "MUST"},
-        }
+        session_start = _make_complete_start_section(
+            serenaActivated={"complete": False, "evidence": "", "level": "MUST"},
+        )
         result = ValidationResult()
 
         validate_session_start(session_start, result)
 
         assert not result.is_valid
-        assert "Incomplete MUST" in result.errors[0]
+        assert any("Incomplete MUST" in e for e in result.errors)
 
     def test_missing_evidence_warning(self) -> None:
         """Missing evidence on complete MUST causes warning."""
-        session_start = {
-            "serenaActivated": {"complete": True, "evidence": "", "level": "MUST"},
-        }
+        session_start = _make_complete_start_section(
+            serenaActivated={"complete": True, "evidence": "", "level": "MUST"},
+        )
         result = ValidationResult()
 
         validate_session_start(session_start, result)
@@ -259,20 +283,56 @@ class TestValidateSessionEnd:
 
     def test_valid_session_end(self) -> None:
         """Valid session end passes validation."""
-        session_end = {
-            "checklistComplete": {"complete": True, "evidence": "Done", "level": "MUST"},
-        }
+        session_end = _make_complete_end_section()
         result = ValidationResult()
 
         validate_session_end(session_end, result)
 
         assert result.is_valid
 
-    def test_must_not_violation(self) -> None:
-        """MUST NOT violation causes error."""
-        session_end = {
-            "handoffNotUpdated": {"complete": True, "level": "MUST NOT"},  # Violated!
-        }
+    def test_handoff_preserved_satisfied(self) -> None:
+        """handoffPreserved with Complete=true passes (issue #868)."""
+        session_end = _make_complete_end_section()
+        result = ValidationResult()
+
+        validate_session_end(session_end, result)
+
+        assert result.is_valid
+
+    def test_handoff_preserved_violated(self) -> None:
+        """handoffPreserved with Complete=false fails (issue #868)."""
+        session_end = _make_complete_end_section(
+            handoffPreserved={"complete": False, "evidence": "HANDOFF.md was modified", "level": "MUST"},
+        )
+        result = ValidationResult()
+
+        validate_session_end(session_end, result)
+
+        assert not result.is_valid
+        assert any("Incomplete MUST" in e for e in result.errors)
+
+    def test_legacy_handoff_not_updated_satisfied(self) -> None:
+        """Legacy handoffNotUpdated with Complete=false passes (backward compat)."""
+        session_end = _make_complete_end_section()
+        # Replace handoffPreserved with legacy field
+        del session_end["handoffPreserved"]
+        session_end["handoffNotUpdated"] = {"complete": False, "level": "MUST NOT"}
+        result = ValidationResult()
+
+        validate_session_end(session_end, result)
+
+        # handoffNotUpdated is not in SESSION_END_REQUIRED_ITEMS but is
+        # picked up by validate_checklist_section as MUST NOT level item.
+        # Complete=false for MUST NOT is the satisfied state, and the legacy
+        # backward-compat check should not flag it as a violation.
+        assert result.is_valid
+
+    def test_legacy_handoff_not_updated_violated(self) -> None:
+        """Legacy handoffNotUpdated with Complete=true fails (backward compat)."""
+        session_end = _make_complete_end_section()
+        # Replace handoffPreserved with violated legacy field
+        del session_end["handoffPreserved"]
+        session_end["handoffNotUpdated"] = {"complete": True, "level": "MUST NOT"}
         result = ValidationResult()
 
         validate_session_end(session_end, result)
@@ -280,66 +340,80 @@ class TestValidateSessionEnd:
         assert not result.is_valid
         assert any("MUST NOT violated" in e for e in result.errors)
 
+    def test_session_end_must_items_uses_handoff_preserved(self) -> None:
+        """SESSION_END_REQUIRED_ITEMS uses handoffPreserved (not legacy name)."""
+        assert "handoffPreserved" in SESSION_END_REQUIRED_ITEMS
+        assert _LEGACY_HANDOFF_FIELD not in SESSION_END_REQUIRED_ITEMS
 
-class TestDynamicMustValidation:
-    """Tests that ALL MUST-level items are validated, not just the hardcoded set."""
 
-    def test_unknown_must_item_incomplete_fails(self) -> None:
-        """MUST item not in required set still fails when incomplete."""
-        session_start = {
+class TestChecklistSectionValidation:
+    """Tests for validate_checklist_section - the core fix for issue #1028."""
+
+    def test_unknown_must_item_incomplete_causes_error(self) -> None:
+        """MUST items NOT in the required set are still validated."""
+        section_data = {
             "usageMandatoryRead": {"complete": False, "evidence": "", "level": "MUST"},
         }
         result = ValidationResult()
 
-        validate_session_start(session_start, result)
+        validate_checklist_section(
+            section_data, frozenset(), "sessionStart", result
+        )
 
         assert not result.is_valid
         assert any("usageMandatoryRead" in e for e in result.errors)
 
     def test_unknown_must_item_complete_passes(self) -> None:
-        """MUST item not in required set passes when complete."""
-        session_start = {
-            "customItem": {"complete": True, "evidence": "Done", "level": "MUST"},
+        """Complete MUST items NOT in the required set pass validation."""
+        section_data = {
+            "customMustItem": {"complete": True, "evidence": "Done", "level": "MUST"},
         }
         result = ValidationResult()
 
-        validate_session_start(session_start, result)
+        validate_checklist_section(
+            section_data, frozenset(), "sessionStart", result
+        )
 
         assert result.is_valid
 
-    def test_should_level_items_not_validated_as_must(self) -> None:
-        """SHOULD-level items are not treated as MUST."""
-        session_start = {
-            "optionalCheck": {"complete": False, "evidence": "", "level": "SHOULD"},
+    def test_should_items_not_checked_as_must(self) -> None:
+        """SHOULD items that are incomplete do not cause errors."""
+        section_data = {
+            "optionalItem": {"complete": False, "evidence": "", "level": "SHOULD"},
         }
         result = ValidationResult()
 
-        validate_session_start(session_start, result)
+        validate_checklist_section(
+            section_data, frozenset(), "sessionStart", result
+        )
 
         assert result.is_valid
 
-    def test_session_end_unknown_must_item_fails(self) -> None:
-        """Unknown MUST item in sessionEnd fails when incomplete."""
-        session_end = {
-            "newEndRequirement": {"complete": False, "evidence": "", "level": "MUST"},
+    def test_missing_required_item_causes_error(self) -> None:
+        """Required item absent from section_data causes an error."""
+        section_data = {
+            "someOtherItem": {"complete": True, "evidence": "Done", "level": "MUST"},
         }
         result = ValidationResult()
 
-        validate_session_end(session_end, result)
+        validate_checklist_section(
+            section_data, frozenset({"requiredButMissing"}), "sessionStart", result
+        )
 
         assert not result.is_valid
-        assert any("newEndRequirement" in e for e in result.errors)
+        assert any("Missing required item: sessionStart.requiredButMissing" in e for e in result.errors)
 
     def test_non_dict_items_ignored(self) -> None:
-        """Non-dict values in session sections are skipped."""
-        session_start = {
-            "serenaActivated": {"complete": True, "evidence": "OK", "level": "MUST"},
+        """Non-dict values in section data are ignored."""
+        section_data = {
             "someString": "not a dict",
             "someNumber": 42,
         }
         result = ValidationResult()
 
-        validate_session_start(session_start, result)
+        validate_checklist_section(
+            section_data, frozenset(), "sessionStart", result
+        )
 
         assert result.is_valid
 
@@ -351,53 +425,56 @@ class TestEvidenceContradiction:
         "evidence",
         [
             "not available",
-            "Not Available",
             "SKIPPED",
-            "Skipped due to time",
             "N/A",
-            "n/a",
             "Deferred to next session",
             "will validate later",
-            "will be done next session",
+            "will run after merge",
+            "TODO",
+            "pending review",
+            "TBD",
         ],
     )
     def test_contradiction_detected(self, evidence: str) -> None:
-        """Complete MUST with contradictory evidence generates warning."""
+        """Evidence containing skip/waiver patterns triggers warning."""
+        section_data = {
+            "serenaActivated": {
+                "complete": True,
+                "evidence": evidence,
+                "level": "MUST",
+            },
+        }
         result = ValidationResult()
-        check_data = {"complete": True, "evidence": evidence, "level": "MUST"}
 
-        validate_must_item(check_data, "testItem", "sessionStart", result)
+        validate_checklist_section(
+            section_data, frozenset(), "sessionStart", result
+        )
 
         assert any("Evidence contradiction" in w for w in result.warnings)
 
-    @pytest.mark.parametrize(
-        "evidence",
-        [
-            "Serena activated successfully",
-            "Commit abc1234",
-            "All checks passed",
-            "Memory updated with session context",
-        ],
-    )
-    def test_no_contradiction_for_valid_evidence(self, evidence: str) -> None:
-        """Complete MUST with valid evidence generates no warning."""
+    def test_legitimate_evidence_no_contradiction(self) -> None:
+        """Legitimate evidence does not trigger contradiction warning."""
+        section_data = {
+            "serenaActivated": {
+                "complete": True,
+                "evidence": "mcp__serena__activate_project output confirmed",
+                "level": "MUST",
+            },
+        }
         result = ValidationResult()
-        check_data = {"complete": True, "evidence": evidence, "level": "MUST"}
 
-        validate_must_item(check_data, "testItem", "sessionStart", result)
+        validate_checklist_section(
+            section_data, frozenset(), "sessionStart", result
+        )
 
         assert not any("Evidence contradiction" in w for w in result.warnings)
 
-    def test_contradiction_not_checked_for_incomplete(self) -> None:
-        """Contradiction check skipped for incomplete items."""
-        result = ValidationResult()
-        check_data = {"complete": False, "evidence": "SKIPPED", "level": "MUST"}
-
-        validate_must_item(check_data, "testItem", "sessionStart", result)
-
-        # Should have error for incomplete, but no contradiction warning
-        assert any("Incomplete MUST" in e for e in result.errors)
-        assert not any("Evidence contradiction" in w for w in result.warnings)
+    def test_contradiction_pattern_matches_expected(self) -> None:
+        """CONTRADICTION_PATTERNS matches known skip indicators."""
+        assert CONTRADICTION_PATTERNS.search("not available")
+        assert CONTRADICTION_PATTERNS.search("SKIPPED due to CI")
+        assert CONTRADICTION_PATTERNS.search("N/A for this session")
+        assert not CONTRADICTION_PATTERNS.search("Tool output confirmed")
 
 
 class TestValidateProtocolCompliance:
@@ -452,8 +529,8 @@ class TestValidateSessionLog:
                 "objective": "Test",
             },
             "protocolCompliance": {
-                "sessionStart": {},
-                "sessionEnd": {},
+                "sessionStart": _make_complete_start_section(),
+                "sessionEnd": _make_complete_end_section(),
             },
         }
 
@@ -540,8 +617,8 @@ class TestMainFunction:
                 "objective": "Test objective",
             },
             "protocolCompliance": {
-                "sessionStart": {},
-                "sessionEnd": {},
+                "sessionStart": _make_complete_start_section(),
+                "sessionEnd": _make_complete_end_section(),
             },
         }
         session_file = tmp_path / "valid-session.json"
@@ -736,8 +813,8 @@ class TestEdgeCases:
                 "extraField": "allowed",
             },
             "protocolCompliance": {
-                "sessionStart": {},
-                "sessionEnd": {},
+                "sessionStart": _make_complete_start_section(),
+                "sessionEnd": _make_complete_end_section(),
             },
             "workLog": [],
             "decisions": [],

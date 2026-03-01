@@ -138,7 +138,7 @@ def main(argv: list[str] | None = None) -> int:
             },
             "sessionEnd": {
                 "checklistComplete": {"level": "MUST", "Complete": False, "Evidence": ""},
-                "handoffNotUpdated": {"level": "MUST NOT", "Complete": False, "Evidence": ""},
+                "handoffPreserved": {"level": "MUST", "Complete": False, "Evidence": ""},
                 "serenaMemoryUpdated": {"level": "MUST", "Complete": False, "Evidence": ""},
                 "markdownLintRun": {"level": "MUST", "Complete": False, "Evidence": ""},
                 "changesCommitted": {"level": "MUST", "Complete": False, "Evidence": ""},
