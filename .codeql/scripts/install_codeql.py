@@ -31,23 +31,28 @@ def build_parser() -> argparse.ArgumentParser:
         description="Download and install the CodeQL CLI.",
     )
     parser.add_argument(
-        "--version", default=os.environ.get("CODEQL_VERSION", "v2.23.9"),
+        "--version",
+        default=os.environ.get("CODEQL_VERSION", "v2.23.9"),
         help="CodeQL CLI version to install.",
     )
     parser.add_argument(
-        "--install-path", default=os.environ.get("CODEQL_INSTALL_PATH", ".codeql/cli"),
+        "--install-path",
+        default=os.environ.get("CODEQL_INSTALL_PATH", ".codeql/cli"),
         help="Directory where CodeQL CLI will be installed.",
     )
     parser.add_argument(
-        "--force", action="store_true",
+        "--force",
+        action="store_true",
         help="Overwrite an existing CodeQL installation.",
     )
     parser.add_argument(
-        "--add-to-path", action="store_true",
+        "--add-to-path",
+        action="store_true",
         help="Add the CodeQL CLI to the PATH environment variable.",
     )
     parser.add_argument(
-        "--ci", action="store_true",
+        "--ci",
+        action="store_true",
         help="CI mode with non-interactive behavior.",
     )
     return parser
@@ -77,7 +82,10 @@ def check_codeql_installed(install_path: str) -> bool:
     try:
         result = subprocess.run(
             [str(codeql_path), "version"],
-            capture_output=True, text=True, timeout=30, check=False,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
         )
         if result.returncode != 0:
             print(
@@ -115,9 +123,7 @@ def install_codeql_cli(url: str, destination: str, ci: bool) -> None:
                 f"Failed to download CodeQL CLI (network error): {exc.reason}"
             ) from exc
         except OSError as exc:
-            raise RuntimeError(
-                f"Failed to download CodeQL CLI (filesystem error): {exc}"
-            ) from exc
+            raise RuntimeError(f"Failed to download CodeQL CLI (filesystem error): {exc}") from exc
 
         if not ci:
             print("Download complete. Extracting...", file=sys.stderr)
@@ -127,7 +133,10 @@ def install_codeql_cli(url: str, destination: str, ci: bool) -> None:
 
         result = subprocess.run(
             ["tar", "-xzf", archive_path, "-C", extract_dir],
-            capture_output=True, text=True, timeout=300, check=False,
+            capture_output=True,
+            text=True,
+            timeout=300,
+            check=False,
         )
         if result.returncode != 0:
             raise RuntimeError(
@@ -136,9 +145,7 @@ def install_codeql_cli(url: str, destination: str, ci: bool) -> None:
 
         codeql_dir = os.path.join(extract_dir, "codeql")
         if not os.path.isdir(codeql_dir):
-            raise RuntimeError(
-                "Extraction succeeded but expected 'codeql' directory not found."
-            )
+            raise RuntimeError("Extraction succeeded but expected 'codeql' directory not found.")
 
         parent_dir = os.path.dirname(destination)
         if parent_dir:
@@ -158,7 +165,38 @@ def install_codeql_cli(url: str, destination: str, ci: bool) -> None:
         shutil.rmtree(temp_dir, ignore_errors=True)
 
 
-def add_to_path(install_path: str, ci: bool) -> None:
+CODEQL_MARKER = "# Added by CodeQL installer"
+
+
+def get_default_profile_scripts() -> list[Path]:
+    """Return the default shell profile scripts based on current shell."""
+    home = Path.home()
+    shell = os.environ.get("SHELL", "")
+
+    profile_scripts: list[Path] = []
+    if "bash" in shell:
+        profile_scripts.append(home / ".bashrc")
+    if "zsh" in shell:
+        profile_scripts.append(home / ".zshrc")
+    profile_scripts.append(home / ".profile")
+
+    return list(dict.fromkeys(profile_scripts))
+
+
+def add_to_path(
+    install_path: str,
+    ci: bool,
+    profile_scripts: list[Path] | None = None,
+) -> None:
+    """Add CodeQL CLI to PATH environment variable and shell profiles.
+
+    Args:
+        install_path: Directory containing the CodeQL CLI.
+        ci: If True, suppress informational output.
+        profile_scripts: Shell profile files to update. If None, uses default
+            profiles based on current shell. Pass empty list to skip profile
+            updates (useful for testing).
+    """
     absolute_path = str(Path(install_path).resolve())
 
     current_path = os.environ.get("PATH", "")
@@ -172,29 +210,24 @@ def add_to_path(install_path: str, ci: bool) -> None:
     if not ci:
         print("Added CodeQL CLI to session PATH", file=sys.stderr)
 
-    home = Path.home()
-    shell = os.environ.get("SHELL", "")
+    if profile_scripts is None:
+        profile_scripts = get_default_profile_scripts()
+
     export_line = f'export PATH="{absolute_path}:$PATH"'
 
-    profile_scripts: list[Path] = []
-    if "bash" in shell:
-        profile_scripts.append(home / ".bashrc")
-    if "zsh" in shell:
-        profile_scripts.append(home / ".zshrc")
-    profile_scripts.append(home / ".profile")
-
-    for profile in dict.fromkeys(profile_scripts):
+    for profile in profile_scripts:
         try:
             if profile.exists():
                 content = profile.read_text(encoding="utf-8")
-                if absolute_path not in content:
-                    with open(profile, "a", encoding="utf-8") as f:
-                        f.write(f"\n# Added by CodeQL installer\n{export_line}\n")
-                    if not ci:
-                        print(f"Added CodeQL CLI to {profile}", file=sys.stderr)
+                if CODEQL_MARKER in content:
+                    continue
+                with open(profile, "a", encoding="utf-8") as f:
+                    f.write(f"\n{CODEQL_MARKER}\n{export_line}\n")
+                if not ci:
+                    print(f"Added CodeQL CLI to {profile}", file=sys.stderr)
             else:
                 profile.write_text(
-                    f"# Added by CodeQL installer\n{export_line}\n",
+                    f"{CODEQL_MARKER}\n{export_line}\n",
                     encoding="utf-8",
                 )
                 if not ci:

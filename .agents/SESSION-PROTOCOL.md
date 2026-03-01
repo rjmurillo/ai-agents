@@ -640,7 +640,7 @@ Copy this checklist to each session log and verify completion:
 | MUST | Route to qa agent (feature implementation) | [ ] | QA report: `.agents/qa/[report].md` OR `SKIPPED: investigation-only` |
 | MUST | Run pre-PR validation: `pwsh .agents/scripts/Validate-PRReadiness.ps1` | [ ] | Exit code 0 |
 | MUST | Commit all changes (including .serena/memories) | [ ] | Commit SHA: _______ |
-| MUST NOT | Update `.agents/HANDOFF.md` directly | [ ] | HANDOFF.md unchanged |
+| MUST | Preserve `.agents/HANDOFF.md` (read-only) | [ ] | HANDOFF.md unchanged |
 | SHOULD | Update PROJECT-PLAN.md | [ ] | Tasks checked off |
 | SHOULD | Invoke retrospective (significant sessions) | [ ] | Doc: _______ |
 | SHOULD | Check memory sizes (if memories modified) | [ ] | `python3 .claude/skills/memory/scripts/test_memory_size.py` |
@@ -818,6 +818,27 @@ These documents reference this protocol but MUST NOT duplicate it:
 | MUST | Violation would cause session failure or data loss |
 | SHOULD | Violation would degrade quality but not cause failure |
 | MAY | Truly optional enhancement |
+
+---
+
+## ADR Cross-Reference
+
+ADRs define governance decisions that may introduce enforceable requirements
+(MUST, SHOULD, MAY per RFC 2119). This section lists ADRs with requirements
+that affect session protocol. Run `python3 scripts/sync_adr_protocol.py` to
+audit sync coverage.
+
+| ADR | Requirement Summary | Protocol Section |
+|-----|---------------------|------------------|
+| ADR-001 | Markdown linting configuration | Phase 2: Quality Checks |
+| ADR-034 | Investigation session QA exemption | Phase 2.5: QA Validation |
+| ADR-035 | Exit codes: 0=success, 1=logic, 2=config (per script headers) | Phase 3: Git Operations |
+| ADR-042 | Python for new scripts (not bash) | Phase 2: Quality Checks |
+| ADR-043 | Scoped tool execution (changed files only) | Phase 2: Quality Checks |
+| ADR-050 | ADR-to-Protocol sync process | This section |
+
+**When creating or updating an ADR with MUST requirements**, update this table
+and the relevant protocol section. See ADR-050 for the full sync process.
 
 ---
 

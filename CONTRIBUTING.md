@@ -15,6 +15,7 @@ Thank you for your interest in contributing to this project. This guide explains
 - [Session Protocol](#session-protocol)
 - [Running Tests](#running-tests)
 - [Copilot CLI Version Management](#copilot-cli-version-management)
+- [ADR-to-Protocol Sync Process](#adr-to-protocol-sync-process)
 - [Pull Request Guidelines](#pull-request-guidelines)
   - [Commit Count Thresholds](#commit-count-thresholds)
 
@@ -572,6 +573,27 @@ When the upstream regression ([github/copilot-cli#1195](https://github.com/githu
 5. Update ADR-044 with the new version and test results
 
 See `.serena/memories/copilot-cli-frontmatter-regression-runbook.md` for the full diagnostic runbook.
+
+## ADR-to-Protocol Sync Process
+
+When you create or update an Architecture Decision Record (ADR) that introduces enforceable requirements (MUST, SHOULD, MAY per RFC 2119), you must sync those requirements into SESSION-PROTOCOL.md so agents enforce them.
+
+### Manual Checklist
+
+1. Identify MUST/SHOULD requirements in the ADR's Decision section
+2. Add a "Protocol Integration" section to the ADR listing which SESSION-PROTOCOL.md sections need updates
+3. Update SESSION-PROTOCOL.md with the new requirements
+4. Update the ADR Cross-Reference table in SESSION-PROTOCOL.md
+
+### Automated Audit
+
+Run the sync audit script to detect ADRs with MUST requirements not referenced in SESSION-PROTOCOL.md:
+
+```bash
+python3 scripts/sync_adr_protocol.py
+```
+
+The script parses all ADR files, extracts RFC 2119 requirements, and reports coverage gaps. See [ADR-050](.agents/architecture/ADR-050-adr-protocol-sync.md) for the full process.
 
 ## Pull Request Guidelines
 

@@ -123,8 +123,59 @@ if [ ! -d "$REPO_ROOT" ]; then
 fi
 cd "$REPO_ROOT"
 
+#
+# Merge Commit Detection (Issue #877)
+#
+# Detects merge commits and filters validation to only branch-specific changes.
+# When merging main into a feature branch, files from main may have pre-existing
+# issues that are allowed on main. These should not block the merge commit.
+#
+# Security: Only validates files changed in the current branch, not upstream
+# Related: Issue #877, ADR-005, SESSION-PROTOCOL.md
+#
+IS_MERGE=0
+MERGE_BASE=""
+if [ -f "$REPO_ROOT/.git/MERGE_HEAD" ]; then
+    IS_MERGE=1
+    echo_info "Merge commit detected - validating branch-specific changes only"
+    # Get the merge base to identify branch-specific files
+    MERGE_HEAD=$(cat "$REPO_ROOT/.git/MERGE_HEAD")
+    MERGE_BASE=$(git merge-base HEAD "$MERGE_HEAD" 2>/dev/null || echo "")
+fi
+
 # Get staged files (Added, Copied, Modified, Renamed - excluding Deleted)
 STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACMR)
+
+# For merge commits, filter to only files changed in the current branch
+# This excludes files that only exist in the upstream branch being merged
+if [ "$IS_MERGE" = "1" ] && [ -n "$MERGE_BASE" ]; then
+    # Get files that were changed in the current branch (from merge base to HEAD)
+    BRANCH_FILES=$(git diff --name-only "$MERGE_BASE"...HEAD --diff-filter=ACMR 2>/dev/null || echo "")
+
+    # Filter STAGED_FILES to only include files that are in BRANCH_FILES
+    # This ensures we only validate files the current branch actually changed
+    if [ -n "$BRANCH_FILES" ]; then
+        FILTERED_STAGED=""
+        while IFS= read -r staged_file; do
+            [ -z "$staged_file" ] && continue
+            # Check if this file was changed in the branch
+            if printf '%s\n' "$BRANCH_FILES" | grep -qxF -- "$staged_file"; then
+                FILTERED_STAGED="${FILTERED_STAGED}${staged_file}"$'\n'
+            fi
+        done <<< "$STAGED_FILES"
+
+        # Count files filtered out
+        ORIGINAL_COUNT=$(echo "$STAGED_FILES" | grep -c . || echo 0)
+        FILTERED_COUNT=$(echo "$FILTERED_STAGED" | grep -c . || echo 0)
+        SKIPPED_COUNT=$((ORIGINAL_COUNT - FILTERED_COUNT))
+
+        if [ "$SKIPPED_COUNT" -gt 0 ]; then
+            echo_info "  Skipping $SKIPPED_COUNT upstream file(s) from validation"
+        fi
+
+        STAGED_FILES="$FILTERED_STAGED"
+    fi
+fi
 
 if [ -z "$STAGED_FILES" ]; then
     echo_info "No staged files to check."
@@ -782,6 +833,44 @@ if [ -n "$STAGED_SKILL_FILES" ]; then
     echo_info "Skill frontmatter validation: covered by SkillForge validator above."
 else
     echo_info "No SKILL.md files staged. Skipping frontmatter validation."
+fi
+
+#
+# Skill Size Validation (BLOCKING)
+#
+# Validates SKILL.md files do not exceed size limits.
+# Prevents prompt bloat and token waste.
+#
+# Limits: 500 lines (error), 300 lines (warning)
+# Exception: size-exception: true in frontmatter
+#
+# Related: Issue #676 (Skill Prompt Size Limits)
+#
+SKILL_SIZE_SCRIPT="$REPO_ROOT/scripts/validation/skill_size.py"
+
+if [ -n "$STAGED_SKILL_FILES" ]; then
+    # MEDIUM-002: Reject symlinks for security
+    if [ -L "$SKILL_SIZE_SCRIPT" ]; then
+        echo_error "Skill size validator path is a symlink (security violation)"
+        EXIT_STATUS=1
+    elif [ -f "$SKILL_SIZE_SCRIPT" ]; then
+        if set_python_cmd; then
+            echo_info "Checking skill prompt sizes..."
+            if ! "${PYTHON_CMD[@]}" "$SKILL_SIZE_SCRIPT" --staged-only --ci; then
+                echo_error "One or more skills exceed size limits."
+                echo_info "  Refactor using progressive disclosure or add size-exception."
+                EXIT_STATUS=1
+            else
+                echo_success "All skill files within size limits."
+            fi
+        else
+            echo_warning "Python 3 not available. Skipping skill size validation."
+        fi
+    else
+        echo_warning "Skill size validator not found: $SKILL_SIZE_SCRIPT"
+    fi
+else
+    echo_info "No SKILL.md files staged. Skipping skill size validation."
 fi
 
 #

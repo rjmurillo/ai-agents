@@ -1,0 +1,79 @@
+name: rjmurillo-bot Mention Handler
+
+# Respond to @rjmurillo-bot mentions in issues, PRs, and review comments.
+# Uses pull_request_target for safe fork PR handling (no PR code checkout).
+# See: Issue #186
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  pull_request_target:
+    types: [opened, edited, synchronize, review_requested]
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+  id-token: write
+
+concurrency:
+  group: rjmurillo-bot-${{ github.event.issue.number || github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  respond:
+    name: Respond to @rjmurillo-bot
+    # ADR-025: ARM runner for cost optimization
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 15
+
+    # Gate: only run when @rjmurillo-bot is mentioned or on PR lifecycle events
+    if: >-
+      (
+        github.event_name == 'issue_comment' &&
+        contains(github.event.comment.body, '@rjmurillo-bot')
+      ) ||
+      (
+        github.event_name == 'pull_request_review_comment' &&
+        contains(github.event.comment.body, '@rjmurillo-bot')
+      ) ||
+      (
+        github.event_name == 'pull_request_target' &&
+        github.event.action == 'review_requested'
+      )
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup code environment
+        uses: ./.github/actions/setup-code-env
+        with:
+          gh-token: ${{ github.token }}
+          enable-git-hooks: true
+          skip-autofix: 0
+
+      # Pin to v1.0.28 - matches claude.yml
+      - name: Run Claude Code
+        uses: anthropics/claude-code-action@70e16deb18402428bd09e08d1ec3662a872e3c72 # v1.0.28
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+          trigger_phrase: "@rjmurillo-bot"
+
+          # Allow trusted bot users to interact
+          allowed_bots: "dependabot[bot],renovate[bot],github-actions[bot],copilot[bot],coderabbitai[bot],cursor[bot],gemini-ai[bot],claude-ai[bot],amazonq[bot],tabnine[bot]"
+
+          # Branch configuration
+          base_branch: "main"
+          branch_prefix: "rjmurillo-bot/"
+
+          # Progress tracking (not supported for labeled action)
+          track_progress: true
+
+          # Commit signing for security
+          use_commit_signing: true
