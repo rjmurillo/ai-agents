@@ -137,14 +137,35 @@ def normalize_path(path: str) -> str:
     return path
 
 
+def _strip_informational_sections(description: str) -> str:
+    """Remove bot-generated informational sections before file extraction.
+
+    Strips <details> blocks and "Detected Package Files" sections that list
+    files for informational purposes (e.g. Renovate onboarding PRs) rather
+    than claiming those files were changed.
+    """
+    # Strip <details>...</details> blocks (used by Renovate, Dependabot, etc.)
+    text = re.sub(r"<details>.*?</details>", "", description, flags=re.DOTALL)
+    # Strip "Detected Package Files" section up to the next heading or <hr>
+    text = re.sub(
+        r"###\s*Detected Package Files.*?(?=^###|\n---|\Z)",
+        "",
+        text,
+        flags=re.DOTALL | re.MULTILINE,
+    )
+    return text
+
+
 def extract_mentioned_files(description: str) -> list[str]:
     """Extract unique file paths mentioned in PR description text."""
     if not description:
         return []
 
+    cleaned = _strip_informational_sections(description)
+
     mentioned: list[str] = []
     for pattern in FILE_MENTION_PATTERNS:
-        for match in pattern.finditer(description):
+        for match in pattern.finditer(cleaned):
             raw = match.group(1)
             # Skip command-like strings (file paths never contain spaces)
             if " " in raw.strip():
