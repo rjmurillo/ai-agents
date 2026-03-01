@@ -1,4 +1,4 @@
-# ADR-048: Template Strategy for Multi-Platform Agent Distribution
+# ADR-051: Template Strategy for Multi-Platform Agent Distribution
 
 ## Status
 
@@ -6,7 +6,7 @@ Proposed
 
 ## Date
 
-2026-02-21
+2026-03-01
 
 ## Context
 
@@ -20,7 +20,7 @@ A drift detection script (`build/scripts/detect_agent_drift.py`) compares Claude
 
 ### Evidence of Failure
 
-A 2025-12-15 retrospective (`drift-analysis-claude-vs-templates.md`) measured similarity between Claude agents and shared templates:
+A 2025-12-15 analysis (`.agents/analysis/drift-analysis-claude-vs-templates.md`) measured similarity between Claude agents and shared templates:
 
 | Agent | Similarity | Gap |
 |-------|-----------|-----|
@@ -122,6 +122,7 @@ Create `build/scripts/generate_platform_agents.py` that:
 ## References
 
 - Issue #124: Strategic decision needed on dual template system
+- `.agents/analysis/drift-analysis-claude-vs-templates.md`
 - `.agents/retrospective/2025-12-15-accountability-analysis.md`
 - `build/scripts/detect_agent_drift.py`
 - ADR-044: Copilot CLI frontmatter compatibility
