@@ -1,0 +1,117 @@
+# PR Review Configuration
+# Structured data extracted from pr-review skill prompt.
+# Referenced by .claude/commands/pr-review.md and .github/prompts/pr-review.prompt.md
+
+scripts:
+  claude_code:
+    get_pr_context: "python3 .claude/skills/github/scripts/pr/get_pr_context.py --pull-request {number}"
+    test_pr_merged: "python3 .claude/skills/github/scripts/pr/test_pr_merged.py --pull-request {number}"
+    get_review_threads: "python3 .claude/skills/github/scripts/pr/get_pr_review_threads.py --pull-request {number}"
+    get_unresolved_threads: "python3 .claude/skills/github/scripts/pr/get_unresolved_review_threads.py --pull-request {number}"
+    get_unaddressed_comments: "python3 .claude/skills/github/scripts/pr/get_unaddressed_comments.py --pull-request {number}"
+    get_pr_checks: "python3 .claude/skills/github/scripts/pr/get_pr_checks.py --pull-request {number}"
+    add_thread_reply: "python3 .claude/skills/github/scripts/pr/add_pr_review_thread_reply.py --thread-id {thread_id} --body {body}"
+    add_thread_reply_resolve: "python3 .claude/skills/github/scripts/pr/add_pr_review_thread_reply.py --thread-id {thread_id} --body {body} --resolve"
+    resolve_thread: "python3 .claude/skills/github/scripts/pr/resolve_pr_review_thread.py --thread-id {thread_id}"
+  copilot:
+    get_pr_context: "pwsh -NoProfile .claude/skills/github/scripts/pr/Get-PRContext.ps1 -PullRequest {number}"
+    test_pr_merged: "pwsh -NoProfile .claude/skills/github/scripts/pr/Test-PRMerged.ps1 -PullRequest {number}"
+    get_review_threads: "pwsh -NoProfile .claude/skills/github/scripts/pr/Get-PRReviewThreads.ps1 -PullRequest {number}"
+    get_unresolved_threads: "pwsh -NoProfile .claude/skills/github/scripts/pr/Get-UnresolvedReviewThreads.ps1 -PullRequest {number}"
+    get_unaddressed_comments: "pwsh -NoProfile .claude/skills/github/scripts/pr/Get-UnaddressedComments.ps1 -PullRequest {number}"
+    get_pr_checks: "pwsh -NoProfile .claude/skills/github/scripts/pr/Get-PRChecks.ps1 -PullRequest {number}"
+    add_thread_reply: "pwsh -NoProfile .claude/skills/github/scripts/pr/Post-PRCommentReply.ps1 -PullRequest {number} -ThreadId {thread_id} -Body {body}"
+    resolve_thread: "pwsh -NoProfile .claude/skills/github/scripts/pr/Resolve-PRReviewThread.ps1 -ThreadId {thread_id}"
+
+check_failure_actions:
+  - check_type: "Session validation"
+    action: "Invoke session-log-fixer skill"
+  - check_type: "AI reviewer (infra)"
+    action: "May be transient; note and continue"
+  - check_type: "AI reviewer (code quality)"
+    action: "Address findings or acknowledge"
+  - check_type: "Tests (Pester/pytest)"
+    action: "Run locally, fix failures"
+  - check_type: "Markdown lint"
+    action: "Run npx markdownlint-cli2 --fix"
+  - check_type: "PR title validation"
+    action: "Update title to conventional commit format"
+
+error_recovery:
+  - scenario: "PR not found"
+    action: "Log warning, skip PR, continue"
+  - scenario: "Branch conflict"
+    action: "Log error, skip PR, continue"
+  - scenario: "Agent timeout"
+    action: "Log partial status, force cleanup"
+  - scenario: "Push rejection"
+    action: "Detect concurrent updates (fetch and compare remote). If no concurrent changes, retry with --force-with-lease; otherwise, log rejection and require manual resolution."
+  - scenario: "Merge conflict"
+    action: "Log conflict, skip cleanup, report for manual resolution"
+
+completion_criteria:
+  - criterion: "All review comments addressed"
+    verification: "Each review thread has reply + resolution"
+    required: true
+  - criterion: "All PR comments acknowledged"
+    verification: "Each PR comment has acknowledgment (reply or reaction)"
+    required: true
+  - criterion: "No new comments"
+    verification: "Re-check after 45s wait returned 0 new"
+    required: true
+  - criterion: "CI checks pass"
+    verification: "get_pr_checks AllPassing = true (or failures acknowledged)"
+    required: true
+  - criterion: "No unresolved threads"
+    verification: "GraphQL query for unresolved reviewThreads = 0"
+    required: true
+  - criterion: "Merge eligible"
+    verification: "mergeable=MERGEABLE, no conflicts with base"
+    required: true
+  - criterion: "PR not merged"
+    verification: "test_pr_merged exit code 0"
+    required: true
+  - criterion: "Commits pushed"
+    verification: "git status shows up to date with origin"
+    required: true
+
+failure_handling:
+  - type: "Session validation fails"
+    action: "Use session-log-fixer skill to diagnose and fix"
+  - type: "AI reviewer fails (infra)"
+    action: "Note as infrastructure issue; may be transient"
+  - type: "AI reviewer fails (code quality)"
+    action: "Address findings or document acknowledgment"
+  - type: "Merge conflicts"
+    action: "Resolve conflicts or merge base branch"
+  - type: "Behind base branch"
+    action: "Merge base or rebase as appropriate"
+
+worktree_constraints:
+  - "ALL changes MUST be contained within the assigned worktree"
+  - "Agents MUST set working directory to their worktree before file operations"
+  - "All file paths MUST be relative to worktree root"
+  - "Git commands MUST be executed from within the worktree directory"
+  - "Before cleanup, verify no files were written outside worktrees"
+
+related_memories:
+  - name: "pr-review-007-merge-state-verification"
+    purpose: "GraphQL source of truth for merge state"
+  - name: "pr-review-004-thread-resolution-single"
+    purpose: "Single thread resolution via GraphQL"
+  - name: "pr-review-005-thread-resolution-batch"
+    purpose: "Batch thread resolution efficiency"
+  - name: "pr-review-008-session-state-continuity"
+    purpose: "Session context for multi-round reviews"
+  - name: "ai-quality-gate-failure-categorization"
+    purpose: "Infrastructure vs code quality failures"
+  - name: "session-log-fixer"
+    purpose: "Diagnose and fix session protocol failures"
+
+thread_resolution:
+  note: "Replying to a review comment does NOT automatically resolve the thread. Thread resolution requires a separate GraphQL mutation."
+  batch_graphql_template: |
+    mutation {
+      t1: resolveReviewThread(input: {threadId: "THREAD_ID_1"}) { thread { id isResolved } }
+      t2: resolveReviewThread(input: {threadId: "THREAD_ID_2"}) { thread { id isResolved } }
+    }
