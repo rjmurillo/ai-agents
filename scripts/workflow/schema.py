@@ -73,6 +73,7 @@ class WorkflowStep:
     prompt_template: str = ""
     max_retries: int = 0
     condition: str = ""
+    priority: int = 0
     is_coordinator: bool = False
     subordinates: list[str] = field(default_factory=list)
 

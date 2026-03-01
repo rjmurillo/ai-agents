@@ -320,4 +320,6 @@ jobs:
           COMPLETENESS_VERDICT: ${{ steps.completeness.outputs.verdict }}
           TRACE_INFRA_FAILURE: ${{ steps.trace.outputs['infrastructure-failure'] }}
           COMPLETENESS_INFRA_FAILURE: ${{ steps.completeness.outputs['infrastructure-failure'] }}
+          TRACE_FINDINGS: ${{ steps.trace.outputs.findings }}
+          COMPLETENESS_FINDINGS: ${{ steps.completeness.outputs.findings }}
         run: python3 .github/scripts/check_spec_failures.py

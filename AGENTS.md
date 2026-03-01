@@ -45,7 +45,7 @@ Rule: Read first, reason second. Pre-training is the last resort, never the defa
 | Level | Step | Verification |
 |-------|------|--------------|
 | MUST | Complete session log (all MUST items `[x]`) | All MUST items marked complete |
-| MUST NOT | Update `.agents/HANDOFF.md` | File unchanged |
+| MUST | Preserve `.agents/HANDOFF.md` (read-only) | File unchanged |
 | MUST | Update Serena memory (cross-session context) | Memory write confirmed |
 | MUST | Run scoped markdownlint on changed `.md` files (ADR-043) | Lint passes |
 | MUST | Commit all changes including `.agents/` | Commit SHA recorded |
