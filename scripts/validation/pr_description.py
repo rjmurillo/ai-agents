@@ -35,9 +35,7 @@ SIGNIFICANT_EXTENSIONS: frozenset[str] = frozenset(
 )
 
 # Directories whose files are flagged when changed but not mentioned
-SIGNIFICANT_DIRS_PATTERN: re.Pattern[str] = re.compile(
-    r"^(\.github|scripts|src|\.agents)"
-)
+SIGNIFICANT_DIRS_PATTERN: re.Pattern[str] = re.compile(r"^(\.github|scripts|src|\.agents)")
 
 # File extension pattern for extracting file references from description
 _EXT_GROUP = r"ps1|md|yml|yaml|json|cs|ts|js|py|sh|bash"
@@ -83,16 +81,12 @@ def get_repo_info() -> RepoInfo:
     remote_url = result.stdout.strip()
     match = re.search(r"github\.com[:/]([^/]+)/([^/.]+)", remote_url)
     if not match:
-        raise RuntimeError(
-            f"Could not parse GitHub owner/repo from remote URL: {remote_url}"
-        )
+        raise RuntimeError(f"Could not parse GitHub owner/repo from remote URL: {remote_url}")
 
     return RepoInfo(owner=match.group(1), repo=match.group(2))
 
 
-def fetch_pr_data(
-    pr_number: int, owner: str, repo: str
-) -> dict[str, Any]:
+def fetch_pr_data(pr_number: int, owner: str, repo: str) -> dict[str, Any]:
     """Fetch PR data (title, body, files) via gh CLI.
 
     Returns parsed JSON dict. Raises RuntimeError on failure.
@@ -100,18 +94,21 @@ def fetch_pr_data(
     try:
         result = subprocess.run(
             [
-                "gh", "pr", "view", str(pr_number),
-                "--json", "title,body,files",
-                "--repo", f"{owner}/{repo}",
+                "gh",
+                "pr",
+                "view",
+                str(pr_number),
+                "--json",
+                "title,body,files",
+                "--repo",
+                f"{owner}/{repo}",
             ],
             capture_output=True,
             text=True,
             timeout=30,
         )
     except FileNotFoundError as exc:
-        raise RuntimeError(
-            "gh CLI not found. Install: https://cli.github.com/"
-        ) from exc
+        raise RuntimeError("gh CLI not found. Install: https://cli.github.com/") from exc
     except subprocess.TimeoutExpired as exc:
         raise RuntimeError(f"Timed out fetching PR #{pr_number}") from exc
 
@@ -194,8 +191,7 @@ def validate_pr_description(
                     issue_type="File mentioned but not in diff",
                     file=mentioned,
                     message=(
-                        "Description claims this file was changed, "
-                        "but it's not in the PR diff"
+                        "Description claims this file was changed, but it's not in the PR diff"
                     ),
                 )
             )
@@ -208,9 +204,7 @@ def validate_pr_description(
         if not SIGNIFICANT_DIRS_PATTERN.match(changed):
             continue
 
-        is_mentioned = any(
-            file_matches(changed, mentioned) for mentioned in mentioned_files
-        )
+        is_mentioned = any(file_matches(changed, mentioned) for mentioned in mentioned_files)
         if not is_mentioned:
             issues.append(
                 Issue(
@@ -249,9 +243,7 @@ def print_results(issues: list[Issue], ci: bool) -> int:
         if ci:
             return 1
     elif warning_count > 0:
-        print(
-            "Warnings found. Consider mentioning significant files in PR description."
-        )
+        print("Warnings found. Consider mentioning significant files in PR description.")
 
     return 0
 

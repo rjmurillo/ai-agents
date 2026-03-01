@@ -291,9 +291,7 @@ class TestGetRepoInfo:
 
     @patch("scripts.validation.pr_description.subprocess.run")
     def test_unparseable_url_raises(self, mock_run: MagicMock) -> None:
-        mock_run.return_value = MagicMock(
-            returncode=0, stdout="https://gitlab.com/foo/bar\n"
-        )
+        mock_run.return_value = MagicMock(returncode=0, stdout="https://gitlab.com/foo/bar\n")
         with pytest.raises(RuntimeError, match="Could not parse"):
             get_repo_info()
 
@@ -314,9 +312,7 @@ class TestGetRepoInfo:
 class TestFetchPRData:
     @patch("scripts.validation.pr_description.subprocess.run")
     def test_success(self, mock_run: MagicMock) -> None:
-        pr_json = json.dumps(
-            {"title": "Test", "body": "desc", "files": [{"path": "a.py"}]}
-        )
+        pr_json = json.dumps({"title": "Test", "body": "desc", "files": [{"path": "a.py"}]})
         mock_run.return_value = MagicMock(returncode=0, stdout=pr_json)
         data = fetch_pr_data(1, "owner", "repo")
         assert data["title"] == "Test"
@@ -386,7 +382,9 @@ class TestMain:
 
     @patch("scripts.validation.pr_description.fetch_pr_data")
     def test_owner_repo_from_args(
-        self, mock_fetch: MagicMock, monkeypatch: pytest.MonkeyPatch,
+        self,
+        mock_fetch: MagicMock,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.delenv("CI", raising=False)
         mock_fetch.return_value = {

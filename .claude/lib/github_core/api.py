@@ -354,14 +354,10 @@ query($owner: String!, $repo: String!, $cursor: String) {
 
         repo_data = data.get("repository")
         if repo_data is None:
-            raise RuntimeError(
-                f"Repository {owner}/{repo} not found or not accessible"
-            )
+            raise RuntimeError(f"Repository {owner}/{repo} not found or not accessible")
         pr_data = repo_data.get("pullRequests")
         if pr_data is None:
-            raise RuntimeError(
-                f"Could not retrieve pull requests for {owner}/{repo}"
-            )
+            raise RuntimeError(f"Could not retrieve pull requests for {owner}/{repo}")
 
         for pr in pr_data["nodes"]:
             updated_at = datetime.fromisoformat(pr["updatedAt"].replace("Z", "+00:00"))
@@ -370,9 +366,7 @@ query($owner: String!, $repo: String!, $cursor: String) {
                 break
 
             threads = pr.get("reviewThreads", {}).get("nodes", [])
-            has_comments = any(
-                len(t.get("comments", {}).get("nodes", [])) > 0 for t in threads
-            )
+            has_comments = any(len(t.get("comments", {}).get("nodes", [])) > 0 for t in threads)
             if has_comments:
                 all_prs.append(pr)
 
@@ -439,10 +433,13 @@ def update_issue_comment(owner: str, repo: str, comment_id: int, body: str) -> d
 
     result = subprocess.run(
         [
-            "gh", "api",
+            "gh",
+            "api",
             f"repos/{owner}/{repo}/issues/comments/{comment_id}",
-            "-X", "PATCH",
-            "--input", "-",
+            "-X",
+            "PATCH",
+            "--input",
+            "-",
         ],
         input=payload,
         capture_output=True,
@@ -591,10 +588,7 @@ query($owner: String!, $name: String!, $prNumber: Int!) {
         return []
 
     threads = (
-        data.get("repository", {})
-        .get("pullRequest", {})
-        .get("reviewThreads", {})
-        .get("nodes", [])
+        data.get("repository", {}).get("pullRequest", {}).get("reviewThreads", {}).get("nodes", [])
     )
 
     if not threads:
@@ -682,9 +676,7 @@ def check_workflow_rate_limit(
             "Passed": passed,
         }
 
-        summary_lines.append(
-            f"| {resource} | {remaining} | {threshold} | {status_icon} {status} |"
-        )
+        summary_lines.append(f"| {resource} | {remaining} | {threshold} | {status_icon} {status} |")
 
     return RateLimitResult(
         success=all_passed,

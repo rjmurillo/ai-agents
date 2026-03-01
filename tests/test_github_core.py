@@ -506,9 +506,7 @@ class TestGetAllPRsWithComments:
         }
 
         with patch("subprocess.run", return_value=_completed(stdout=json.dumps(graphql_response))):
-            result = get_all_prs_with_comments(
-                "owner", "repo", datetime(2026, 1, 1, tzinfo=UTC)
-            )
+            result = get_all_prs_with_comments("owner", "repo", datetime(2026, 1, 1, tzinfo=UTC))
         assert len(result) == 1
         assert result[0]["number"] == 1
 
@@ -527,9 +525,7 @@ class TestGetAllPRsWithComments:
         }
 
         with patch("subprocess.run", return_value=_completed(stdout=json.dumps(graphql_response))):
-            result = get_all_prs_with_comments(
-                "owner", "repo", datetime(2026, 1, 1, tzinfo=UTC)
-            )
+            result = get_all_prs_with_comments("owner", "repo", datetime(2026, 1, 1, tzinfo=UTC))
         assert len(result) == 1
 
     def test_raises_when_repository_is_null(self):
@@ -558,9 +554,7 @@ class TestGetAllPRsWithComments:
         }
 
         with patch("subprocess.run", return_value=_completed(stdout=json.dumps(graphql_response))):
-            result = get_all_prs_with_comments(
-                "owner", "repo", datetime(2026, 1, 1, tzinfo=UTC)
-            )
+            result = get_all_prs_with_comments("owner", "repo", datetime(2026, 1, 1, tzinfo=UTC))
         assert len(result) == 0
 
 
@@ -703,9 +697,7 @@ class TestGetTrustedSourceComments:
 class TestGetBotAuthorsConfig:
     def test_returns_dict_with_required_keys(self, tmp_path: Path):
         config = tmp_path / "bot-authors.yml"
-        config.write_text(
-            "reviewer:\n  - bot1\nautomation:\n  - bot2\nrepository:\n  - bot3\n"
-        )
+        config.write_text("reviewer:\n  - bot1\nautomation:\n  - bot2\nrepository:\n  - bot3\n")
         # Mock _find_repo_root to skip CWE-22 check (tmp_path is outside repo)
         with patch("scripts.github_core.bot_config._find_repo_root", return_value=None):
             result = get_bot_authors_config(config_path=str(config), force=True)
@@ -713,9 +705,7 @@ class TestGetBotAuthorsConfig:
 
     def test_each_category_has_entries(self, tmp_path: Path):
         config = tmp_path / "bot-authors.yml"
-        config.write_text(
-            "reviewer:\n  - r1\n  - r2\nautomation:\n  - a1\nrepository:\n  - p1\n"
-        )
+        config.write_text("reviewer:\n  - r1\n  - r2\nautomation:\n  - a1\nrepository:\n  - p1\n")
         with patch("scripts.github_core.bot_config._find_repo_root", return_value=None):
             result = get_bot_authors_config(config_path=str(config), force=True)
         assert len(result["reviewer"]) == 2
@@ -825,56 +815,52 @@ class TestGetBotAuthors:
 
 class TestGetUnresolvedReviewThreads:
     def test_returns_unresolved_threads(self):
-        graphql_response = json.dumps({
-            "data": {
-                "repository": {
-                    "pullRequest": {
-                        "reviewThreads": {
-                            "nodes": [
-                                _thread("t1", False, 1),
-                                _thread("t2", True, 2),
-                                _thread("t3", False, 3),
-                            ]
+        graphql_response = json.dumps(
+            {
+                "data": {
+                    "repository": {
+                        "pullRequest": {
+                            "reviewThreads": {
+                                "nodes": [
+                                    _thread("t1", False, 1),
+                                    _thread("t2", True, 2),
+                                    _thread("t3", False, 3),
+                                ]
+                            }
                         }
                     }
                 }
             }
-        })
+        )
         with patch("subprocess.run", return_value=_completed(stdout=graphql_response)):
             result = get_unresolved_review_threads("owner", "repo", 42)
         assert len(result) == 2
         assert all(not t["isResolved"] for t in result)
 
     def test_returns_empty_on_all_resolved(self):
-        graphql_response = json.dumps({
-            "data": {
-                "repository": {
-                    "pullRequest": {
-                        "reviewThreads": {
-                            "nodes": [
-                                _thread("t1", True, 1),
-                            ]
+        graphql_response = json.dumps(
+            {
+                "data": {
+                    "repository": {
+                        "pullRequest": {
+                            "reviewThreads": {
+                                "nodes": [
+                                    _thread("t1", True, 1),
+                                ]
+                            }
                         }
                     }
                 }
             }
-        })
+        )
         with patch("subprocess.run", return_value=_completed(stdout=graphql_response)):
             result = get_unresolved_review_threads("owner", "repo", 42)
         assert result == []
 
     def test_returns_empty_on_no_threads(self):
-        graphql_response = json.dumps({
-            "data": {
-                "repository": {
-                    "pullRequest": {
-                        "reviewThreads": {
-                            "nodes": []
-                        }
-                    }
-                }
-            }
-        })
+        graphql_response = json.dumps(
+            {"data": {"repository": {"pullRequest": {"reviewThreads": {"nodes": []}}}}}
+        )
         with patch("subprocess.run", return_value=_completed(stdout=graphql_response)):
             result = get_unresolved_review_threads("owner", "repo", 42)
         assert result == []
@@ -897,31 +883,37 @@ class TestGetUnresolvedReviewThreads:
 # Rate limits
 # ---------------------------------------------------------------------------
 
-RATE_LIMIT_ALL_OK = json.dumps({
-    "resources": {
-        "core": {"remaining": 5000, "limit": 5000, "reset": 1234567890},
-        "search": {"remaining": 30, "limit": 30, "reset": 1234567890},
-        "code_search": {"remaining": 10, "limit": 10, "reset": 1234567890},
-        "graphql": {"remaining": 5000, "limit": 5000, "reset": 1234567890},
+RATE_LIMIT_ALL_OK = json.dumps(
+    {
+        "resources": {
+            "core": {"remaining": 5000, "limit": 5000, "reset": 1234567890},
+            "search": {"remaining": 30, "limit": 30, "reset": 1234567890},
+            "code_search": {"remaining": 10, "limit": 10, "reset": 1234567890},
+            "graphql": {"remaining": 5000, "limit": 5000, "reset": 1234567890},
+        }
     }
-})
+)
 
-RATE_LIMIT_CORE_LOW = json.dumps({
-    "resources": {
-        "core": {"remaining": 50, "limit": 5000, "reset": 1234567890},
-        "search": {"remaining": 30, "limit": 30, "reset": 1234567890},
-        "code_search": {"remaining": 10, "limit": 10, "reset": 1234567890},
-        "graphql": {"remaining": 5000, "limit": 5000, "reset": 1234567890},
+RATE_LIMIT_CORE_LOW = json.dumps(
+    {
+        "resources": {
+            "core": {"remaining": 50, "limit": 5000, "reset": 1234567890},
+            "search": {"remaining": 30, "limit": 30, "reset": 1234567890},
+            "code_search": {"remaining": 10, "limit": 10, "reset": 1234567890},
+            "graphql": {"remaining": 5000, "limit": 5000, "reset": 1234567890},
+        }
     }
-})
+)
 
-RATE_LIMIT_MISSING_RESOURCE = json.dumps({
-    "resources": {
-        "core": {"remaining": 5000, "limit": 5000, "reset": 1234567890},
-        "search": {"remaining": 30, "limit": 30, "reset": 1234567890},
-        "graphql": {"remaining": 5000, "limit": 5000, "reset": 1234567890},
+RATE_LIMIT_MISSING_RESOURCE = json.dumps(
+    {
+        "resources": {
+            "core": {"remaining": 5000, "limit": 5000, "reset": 1234567890},
+            "search": {"remaining": 30, "limit": 30, "reset": 1234567890},
+            "graphql": {"remaining": 5000, "limit": 5000, "reset": 1234567890},
+        }
     }
-})
+)
 
 
 class TestCheckWorkflowRateLimit:
