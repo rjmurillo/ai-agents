@@ -5,12 +5,12 @@ from __future__ import annotations
 from pathlib import Path
 
 from scripts.validate_memory_tier import (
+    ValidationResult,
     extract_file_references,
     main,
     validate_domain_index_format,
     validate_memory_tier,
     validate_references_exist,
-    ValidationResult,
 )
 
 
