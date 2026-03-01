@@ -11,6 +11,7 @@ import pytest
 from scripts.github_core.api import RepoInfo
 from scripts.validation.pr_description import (
     Issue,
+    _strip_informational_sections,
     extract_mentioned_files,
     fetch_pr_data,
     file_matches,
@@ -145,6 +146,93 @@ class TestExtractMentionedFiles:
         desc = "- [x] `uv run mypy scripts/homework_scanner.py` (clean)"
         result = extract_mentioned_files(desc)
         assert "uv run mypy scripts/homework_scanner.py" not in result
+
+    def test_renovate_detected_package_files_ignored(self) -> None:
+        desc = (
+            "### Detected Package Files\n\n"
+            " * `.github/workflows/pytest.yml` (github-actions)\n"
+            " * `pyproject.toml` (pep621)\n\n"
+            "---\n\n"
+            "Changed `renovate.json` configuration."
+        )
+        result = extract_mentioned_files(desc)
+        assert "renovate.json" in result
+        assert ".github/workflows/pytest.yml" not in result
+        assert "pyproject.toml" not in result
+
+    def test_github_admonition_blockquotes_ignored(self) -> None:
+        desc = (
+            "Welcome to Renovate!\n\n"
+            "> [!WARNING]\n"
+            "> Please correct these dependency lookup failures.\n"
+            ">\n"
+            "> Files affected: `.github/workflows/codeql-analysis.yml`\n\n"
+            "Updated `renovate.json`."
+        )
+        result = extract_mentioned_files(desc)
+        assert "renovate.json" in result
+        assert ".github/workflows/codeql-analysis.yml" not in result
+
+    def test_details_blocks_ignored(self) -> None:
+        desc = (
+            "<details>\n"
+            "<summary>chore(deps): update actions/cache</summary>\n\n"
+            "  - Upgrade `actions/cache` to `abc123`\n"
+            "  - Branch: `renovate/actions-cache-digest`\n\n"
+            "</details>\n\n"
+            "Updated `renovate.json`."
+        )
+        result = extract_mentioned_files(desc)
+        assert "renovate.json" in result
+        assert not any("actions/cache" in f for f in result)
+
+
+# ---------------------------------------------------------------------------
+# _strip_informational_sections
+# ---------------------------------------------------------------------------
+
+
+class TestStripInformationalSections:
+    def test_strips_details_blocks(self) -> None:
+        text = "before\n<details>\nhidden\n</details>\nafter"
+        result = _strip_informational_sections(text)
+        assert "hidden" not in result
+        assert "before" in result
+        assert "after" in result
+
+    def test_strips_detected_package_files_section(self) -> None:
+        text = (
+            "Intro\n\n"
+            "### Detected Package Files\n\n"
+            " * `foo.yml`\n"
+            " * `bar.yml`\n\n"
+            "---\n\n"
+            "Footer"
+        )
+        result = _strip_informational_sections(text)
+        assert "foo.yml" not in result
+        assert "Footer" in result
+
+    def test_strips_github_admonition_blockquotes(self) -> None:
+        text = (
+            "Some intro text.\n\n"
+            "> [!WARNING]\n"
+            "> Please correct these dependency lookup failures.\n"
+            ">\n"
+            "> -   `Could not determine new digest`\n"
+            ">\n"
+            "> Files affected: `.github/workflows/codeql-analysis.yml`\n\n"
+            "Footer text."
+        )
+        result = _strip_informational_sections(text)
+        assert "codeql-analysis.yml" not in result
+        assert "Some intro text" in result
+        assert "Footer text" in result
+
+    def test_preserves_non_informational_content(self) -> None:
+        text = "Changed `scripts/foo.py` and **bar.yml**"
+        result = _strip_informational_sections(text)
+        assert result == text
 
 
 # ---------------------------------------------------------------------------
