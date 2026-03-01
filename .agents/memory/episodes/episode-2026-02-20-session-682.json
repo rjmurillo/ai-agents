@@ -1,0 +1,27 @@
+{
+  "id": "episode-2026-02-20-session-682",
+  "session": "2026-02-20-session-682",
+  "timestamp": "2026-02-25T23:37:07.407486+00:00",
+  "outcome": "partial",
+  "task": "",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-02-25T23:37:07.398835+00:00",
+      "type": "test",
+      "content": "\"outcome\": \"40 tests passing for hook_utilities\"",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 3,
+    "files_changed": 0
+  },
+  "lessons": []
+}
