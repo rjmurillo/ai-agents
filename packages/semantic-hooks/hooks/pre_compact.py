@@ -45,10 +45,17 @@ def main() -> int:
 
         checkpoint_file.write_text(json.dumps(tree, indent=2))
 
-        log(f"PreCompact: session={session_id}, nodes={tree['node_count']}, checkpoint={checkpoint_file}")
+        log(
+            f"PreCompact: session={session_id}, "
+            f"nodes={tree['node_count']}, checkpoint={checkpoint_file}"
+        )
 
         # Inject summary into context before compaction
-        recent = memory.get_recent(n=10, session_id=session_id if session_id else None, include_embeddings=False)
+        recent = memory.get_recent(
+            n=10,
+            session_id=session_id if session_id else None,
+            include_embeddings=False,
+        )
         if recent:
             summary_lines = []
             for node in recent:

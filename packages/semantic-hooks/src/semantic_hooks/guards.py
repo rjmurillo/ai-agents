@@ -268,7 +268,10 @@ class StuckDetectionGuard:
         if not text:
             return HookResult(allow=True)
 
-        result = check_stuck(text, self.config.history_path, self.config)
+        history = self.config.history_path or (
+            Path.home() / ".semantic-hooks" / "stuck-history.json"
+        )
+        result = check_stuck(text, history, self.config)
 
         if result.stuck and result.nudge:
             return HookResult(

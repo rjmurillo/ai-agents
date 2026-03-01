@@ -196,4 +196,5 @@ def compute_trajectory_embedding(
 
     weighted_sum: NDArray[np.float64] = np.sum(embeddings_np * weights_np, axis=0)
 
-    return weighted_sum.tolist()
+    result: list[float] = weighted_sum.tolist()  # type: ignore[assignment]
+    return result

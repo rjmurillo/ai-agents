@@ -101,7 +101,7 @@ result = guard.check(context)
 guard.reset()
 ```
 
-## Configuration
+## Global Configuration
 
 ```yaml
 # ~/.semantic-hooks/config.yaml
