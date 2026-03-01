@@ -88,7 +88,7 @@ jobs:
         run: cat metrics-report.txt
 
       - name: Upload metrics artifact
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
         with:
           name: agent-metrics-${{ github.run_number }}
           path: metrics-report.txt
