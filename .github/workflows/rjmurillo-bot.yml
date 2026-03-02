@@ -59,7 +59,7 @@ jobs:
 
       # Pin to v1.0.28 - matches claude.yml
       - name: Run Claude Code
-        uses: anthropics/claude-code-action@70e16deb18402428bd09e08d1ec3662a872e3c72 # v1.0.28
+        uses: anthropics/claude-code-action@64c7a0ef71df67b14cb4471f4d9c8565c61042bf # v1.0.28
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
 
