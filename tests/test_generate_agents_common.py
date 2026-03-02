@@ -229,6 +229,52 @@ class TestConvertFrontmatterForPlatform:
         result = convert_frontmatter_for_platform(fm, config, "test")
         assert result.get("tools") == "['read', 'edit']"
 
+    def test_model_tier_overrides_platform_default(self) -> None:
+        fm: dict[str, str | None] = {
+            "description": "test",
+            "model_tier": "sonnet",
+        }
+        config: dict[str, object] = {
+            "platform": "copilot-cli",
+            "frontmatter": {"includeNameField": True, "model": "claude-opus-4.5"},
+            "model_tiers": {
+                "opus": "claude-opus-4.5",
+                "sonnet": "claude-sonnet-4.5",
+                "haiku": "claude-haiku-4.5",
+            },
+        }
+        result = convert_frontmatter_for_platform(fm, config, "test")
+        assert result["model"] == "claude-sonnet-4.5"
+
+    def test_model_tier_absent_uses_platform_default(self) -> None:
+        fm: dict[str, str | None] = {"description": "test"}
+        config: dict[str, object] = {
+            "platform": "vscode",
+            "frontmatter": {"includeNameField": False, "model": "Claude Opus 4.5 (copilot)"},
+            "model_tiers": {
+                "opus": "Claude Opus 4.5 (copilot)",
+                "sonnet": "Claude Sonnet 4.5 (copilot)",
+            },
+        }
+        result = convert_frontmatter_for_platform(fm, config, "test")
+        assert result["model"] == "Claude Opus 4.5 (copilot)"
+
+    def test_model_tier_removed_from_output(self) -> None:
+        fm: dict[str, str | None] = {
+            "description": "test",
+            "model_tier": "sonnet",
+        }
+        config: dict[str, object] = {
+            "platform": "copilot-cli",
+            "frontmatter": {"includeNameField": True, "model": "claude-opus-4.5"},
+            "model_tiers": {
+                "opus": "claude-opus-4.5",
+                "sonnet": "claude-sonnet-4.5",
+            },
+        }
+        result = convert_frontmatter_for_platform(fm, config, "test")
+        assert "model_tier" not in result
+
 
 class TestFormatFrontmatterYaml:
     """Tests for format_frontmatter_yaml."""

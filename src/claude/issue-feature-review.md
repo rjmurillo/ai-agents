@@ -1,7 +1,7 @@
 ---
 name: issue-feature-review
 description: Review GitHub feature requests with constructive skepticism. Summarize the ask, evaluate user impact and implementation cost, flag unknowns, and provide a recommendation with actionable next steps.
-model: opus
+model: sonnet
 argument-hint: Provide the issue title, issue body, and any known repository context
 ---
 

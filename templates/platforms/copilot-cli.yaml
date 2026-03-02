@@ -12,6 +12,12 @@ frontmatter:
   # Copilot CLI requires name field
   includeNameField: true
 
+# Per-agent model tier mappings (used when template specifies model_tier)
+model_tiers:
+  opus: "claude-opus-4.5"
+  sonnet: "claude-sonnet-4.5"
+  haiku: "claude-haiku-4.5"
+
 # Agent handoff syntax
 handoffSyntax: "/agent"
 
