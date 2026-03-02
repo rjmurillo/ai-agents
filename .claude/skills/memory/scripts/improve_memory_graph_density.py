@@ -1,30 +1,71 @@
 #!/usr/bin/env python3
 """Improve graph density of Serena memories by adding Related sections.
 
-Analyzes memory files and adds Related sections based on naming patterns
-and topic domain grouping. Index files (*-index.md) are excluded per
-ADR-017 requirement for pure lookup table format (token efficiency).
+Analyzes memory files and adds Related sections based on:
+- Naming patterns (shared prefixes like security-, git-, ci-)
+- Topic domain grouping (files with same prefix are related)
+- Index file discovery (links to domain-specific index files)
 
-Exit Codes:
-    0  - Success: Processing completed
-    1  - Error: Git repository or path error
+Index files (*-index.md) are excluded from Related section addition
+per ADR-017 requirement for pure lookup table format (token efficiency).
 
-See: ADR-035 Exit Code Standardization
+Exit codes follow ADR-035:
+    0 - Success
+    1 - Logic error (processing failure)
+    2 - Configuration error (invalid path)
 """
+
+from __future__ import annotations
 
 import argparse
 import json
-import os
 import re
 import subprocess
 import sys
 from collections import OrderedDict
 from pathlib import Path
+from typing import Any
 
 
-# Domain patterns. More specific prefixes MUST come before shorter ones
-# because matching breaks on first match.
-DOMAIN_PATTERNS = OrderedDict([
+def _find_project_root(fallback_dir: Path | None = None) -> Path:
+    """Find project root via git or directory traversal."""
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode == 0:
+            return Path(result.stdout.strip())
+    except FileNotFoundError:
+        pass
+
+    search = fallback_dir or Path(__file__).resolve().parent
+    while search != search.parent:
+        if (search / ".git").exists():
+            return search
+        search = search.parent
+    raise SystemExit("Could not find project root (no .git directory found)")
+
+
+def _validate_path_within_project(
+    memories_path: str, project_root: Path
+) -> Path:
+    """Validate that a path is within the project root (CWE-22 mitigation)."""
+    resolved = Path(memories_path).resolve()
+    root_resolved = project_root.resolve()
+    if not resolved.is_relative_to(root_resolved):
+        raise SystemExit(
+            f"Security: MemoriesPath must be within project directory. "
+            f"Provided: {resolved}, Project root: {root_resolved}"
+        )
+    return resolved
+
+
+# Domain patterns for grouping related memories.
+# More specific prefixes MUST come before shorter ones (first-match-wins).
+DOMAIN_PATTERNS: OrderedDict[str, str] = OrderedDict([
     ("adr-", "Architecture Decision Records"),
     ("agent-workflow-", "Agent Workflow"),
     ("analysis-", "Analysis Patterns"),
@@ -76,51 +117,22 @@ DOMAIN_PATTERNS = OrderedDict([
 ])
 
 
-def get_project_root() -> str:
-    """Find project root via git or directory traversal."""
-    try:
-        result = subprocess.run(
-            ["git", "rev-parse", "--show-toplevel"],
-            capture_output=True, text=True, timeout=10,
-        )
-        if result.returncode == 0:
-            return result.stdout.strip()
-    except (subprocess.TimeoutExpired, FileNotFoundError):
-        pass
-
-    current = Path(__file__).resolve().parent
-    while current != current.parent:
-        if (current / ".git").exists():
-            return str(current)
-        current = current.parent
-
-    print("Could not find project root", file=sys.stderr)
-    sys.exit(1)
-
-
-def validate_path_containment(path: str, project_root: str) -> bool:
-    """CWE-22: Ensure path is within project root."""
-    resolved = os.path.realpath(path)
-    root = os.path.realpath(project_root)
-    root_with_sep = root.rstrip(os.sep) + os.sep
-    return resolved.startswith(root_with_sep) or resolved == root
-
-
-def find_related_files(
+def _find_related_files(
     base_name: str,
     all_memory_files: list[Path],
     memory_names: dict[str, str],
 ) -> list[str]:
-    """Find related files based on naming pattern."""
+    """Find related files based on naming patterns and index lookup."""
     related: list[str] = []
 
-    for pattern in DOMAIN_PATTERNS:
-        if base_name.startswith(pattern):
+    for prefix in DOMAIN_PATTERNS:
+        if base_name.startswith(prefix):
             domain_files = [
-                f.stem for f in all_memory_files
-                if f.stem.startswith(pattern) and f.stem != base_name
-            ][:5]
-            related.extend(domain_files)
+                f.stem
+                for f in all_memory_files
+                if f.stem.startswith(prefix) and f.stem != base_name
+            ]
+            related.extend(domain_files[:5])
             break
 
     domain_name = base_name.split("-")[0]
@@ -130,48 +142,48 @@ def find_related_files(
 
     seen: set[str] = set()
     unique: list[str] = []
-    for r in related:
-        if r not in seen:
-            seen.add(r)
-            unique.append(r)
+    for name in related:
+        if name not in seen:
+            seen.add(name)
+            unique.append(name)
     return unique[:5]
 
 
 def process_files(
     memories_path: Path,
-    files_to_process: list[Path] | None,
-    output_json: bool,
-    dry_run: bool,
+    files_to_process: list[Path] | None = None,
+    dry_run: bool = False,
+    output_json: bool = False,
 ) -> dict:
-    """Process memory files and add Related sections."""
-    all_memory_files = sorted(memories_path.glob("*.md"))
+    """Process memory files and add Related sections.
 
-    if files_to_process:
-        normalized = {os.path.realpath(str(f)) for f in files_to_process}
-        memory_files = [
-            f for f in all_memory_files
-            if os.path.realpath(str(f)) in normalized
-        ]
-    else:
-        memory_files = all_memory_files
+    Returns statistics dict with FilesProcessed, FilesModified,
+    RelationshipsAdded, Errors.
+    """
+    all_memory_files = sorted(memories_path.glob("*.md"))
 
     memory_names: dict[str, str] = {}
     for f in all_memory_files:
         memory_names[f.stem] = str(f)
 
-    stats = {
+    if files_to_process:
+        normalized = {f.resolve() for f in files_to_process}
+        target_files = [f for f in all_memory_files if f.resolve() in normalized]
+    else:
+        target_files = all_memory_files
+
+    if not output_json:
+        print(f"Analyzing {len(target_files)} memory files...")
+
+    stats: dict[str, Any] = {
         "FilesProcessed": 0,
         "FilesModified": 0,
         "RelationshipsAdded": 0,
         "Errors": [],
     }
 
-    if not output_json:
-        print(f"Analyzing {len(memory_files)} memory files...")
-
-    for file_path in memory_files:
+    for file_path in target_files:
         stats["FilesProcessed"] += 1
-
         try:
             base_name = file_path.stem
 
@@ -181,12 +193,14 @@ def process_files(
                 continue
 
             content = file_path.read_text(encoding="utf-8")
-            if not content.strip():
+            if not content:
                 continue
 
-            has_related = bool(re.search(r"(?m)^## Related", content))
+            has_related = bool(re.search(r"^## Related", content, re.MULTILINE))
 
-            related_files = find_related_files(base_name, all_memory_files, memory_names)
+            related_files = _find_related_files(
+                base_name, all_memory_files, memory_names
+            )
 
             if not has_related and related_files:
                 related_section = "\n## Related\n\n"
@@ -201,60 +215,88 @@ def process_files(
                         print(f"Added Related section to: {file_path.name}")
                 else:
                     if not output_json:
-                        print(f"[DRY RUN] Would add Related section to: {file_path.name}")
+                        print(
+                            f"[DRY RUN] Would add Related section to: {file_path.name}"
+                        )
 
                 stats["FilesModified"] += 1
                 stats["RelationshipsAdded"] += len(related_files)
 
-        except Exception as e:
-            error_msg = f"Error processing {file_path.name}: {e}"
-            stats["Errors"].append(error_msg)
+        except Exception as exc:
+            msg = f"Error processing {file_path.name}: {exc}"
+            stats["Errors"].append(msg)
             if not output_json:
-                print(f"Warning: {error_msg}", file=sys.stderr)
+                print(f"WARNING: {msg}", file=sys.stderr)
 
     return stats
 
 
-def main() -> None:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Improve graph density of Serena memories."
+        description="Improve graph density of Serena memories by adding Related sections.",
     )
-    parser.add_argument("--dry-run", action="store_true")
-    parser.add_argument("--memories-path", type=str, default="")
-    parser.add_argument("--files-to-process", nargs="*", default=None)
-    parser.add_argument("--output-json", action="store_true")
-    parser.add_argument("--skip-path-validation", action="store_true")
-    args = parser.parse_args()
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show what would be changed without modifying files.",
+    )
+    parser.add_argument(
+        "--memories-path",
+        help="Path to memories directory. Defaults to .serena/memories.",
+    )
+    parser.add_argument(
+        "--files",
+        nargs="*",
+        help="Specific files to process. Defaults to all *.md files.",
+    )
+    parser.add_argument(
+        "--output-json",
+        action="store_true",
+        help="Output machine-parseable JSON instead of human-readable text.",
+    )
+    parser.add_argument(
+        "--skip-path-validation",
+        action="store_true",
+        help="Skip CWE-22 path validation (for testing only).",
+    )
+    return parser
 
-    project_root = get_project_root()
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+
+    project_root = _find_project_root()
 
     if args.memories_path:
-        if not args.skip_path_validation:
-            if not validate_path_containment(args.memories_path, project_root):
-                print(
-                    "Security: MemoriesPath must be within project directory.",
-                    file=sys.stderr,
-                )
-                sys.exit(1)
-        memories_path = Path(os.path.realpath(args.memories_path))
+        if args.skip_path_validation:
+            memories_path = Path(args.memories_path).resolve()
+        else:
+            memories_path = _validate_path_within_project(
+                args.memories_path, project_root
+            )
     else:
-        memories_path = Path(project_root) / ".serena" / "memories"
+        memories_path = project_root / ".serena" / "memories"
 
-    files_to_process = None
-    if args.files_to_process:
-        files_to_process = [Path(f) for f in args.files_to_process]
+    files_to_process = [Path(f) for f in args.files] if args.files else None
 
-    stats = process_files(memories_path, files_to_process, args.output_json, args.dry_run)
+    stats = process_files(
+        memories_path,
+        files_to_process,
+        dry_run=args.dry_run,
+        output_json=args.output_json,
+    )
 
     if args.output_json:
-        print(json.dumps(stats))
+        print(json.dumps(stats, separators=(",", ":")))
     else:
-        print(f"\n=== Summary ===")
+        print("\n=== Summary ===")
         print(f"Files updated: {stats['FilesModified']}")
         print(f"Relationships added: {stats['RelationshipsAdded']}")
         if args.dry_run:
             print("\nThis was a dry run. Use without --dry-run to apply changes.")
 
+    return 1 if stats["Errors"] else 0
+
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

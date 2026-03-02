@@ -4,7 +4,7 @@
 **Agent**: pr-comment-responder
 **PR**: #566 - docs/506-autonomous-issue-development
 **Branch**: docs/506-autonomous-issue-development
-**Worktree**: /home/claude/worktree-pr-566
+**Worktree**: worktree-pr-566
 **Status**: COMPLETE
 
 ## Protocol Compliance

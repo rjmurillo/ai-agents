@@ -1,0 +1,33 @@
+#!/bin/bash
+# Pre-push hook: Validate workflows before pushing
+#
+# Installation:
+#   cp scripts/hooks/pre-push .git/hooks/pre-push
+#   chmod +x .git/hooks/pre-push
+#
+# This hook validates GitHub Actions workflows that have been changed
+# in the current push. It will block the push if validation fails.
+
+set -e
+
+echo "Running pre-push workflow validation..."
+
+# Run validation on changed workflows only
+python3 scripts/validate_workflows.py --changed
+
+exit_code=$?
+
+if [ $exit_code -ne 0 ]; then
+    echo ""
+    echo "❌ Workflow validation failed."
+    echo "   Fix errors before pushing."
+    echo ""
+    echo "To bypass this check (NOT recommended):"
+    echo "  git push --no-verify"
+    echo ""
+    echo "For help, see: docs/WORKFLOW-VALIDATION.md"
+    exit 1
+fi
+
+echo "✅ Workflow validation passed"
+exit 0

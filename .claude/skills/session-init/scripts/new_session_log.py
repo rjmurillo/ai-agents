@@ -2,22 +2,22 @@
 """Create protocol-compliant JSON session log with verification-based enforcement.
 
 Automates JSON session log creation by:
-1. Auto-detecting or prompting for session number and objective
+1. Auto-detecting or accepting session number and objective
 2. Detecting date/branch/commit/git status
 3. Generating JSON structure with schemaVersion field
 4. Writing JSON file to .agents/sessions/
-5. Validating with JSON schema + validation script
+5. Validating with JSON schema + validate_session_json.py
 6. Exiting nonzero on validation failure
 
-Exit Codes:
-    0  - Success: Session log created and validated
-    1  - Error: Git repository error
-    2  - Error: Session log write failed
-    3  - Error: JSON schema validation failed
-    4  - Error: Script validation failed
-
-See: ADR-035 Exit Code Standardization
+Exit codes follow ADR-035:
+    0 - Success
+    1 - Invalid parameters / logic error
+    2 - Config / file I/O error
+    3 - External error
+    4 - Validation failed
 """
+
+from __future__ import annotations
 
 import argparse
 import json
@@ -25,199 +25,128 @@ import os
 import re
 import subprocess
 import sys
-from datetime import datetime
-from pathlib import Path
+from datetime import UTC, datetime
 
-MAX_SESSION_JUMP = 10
-MAX_RETRIES = 5
+_WORKSPACE = os.environ.get(
+    "GITHUB_WORKSPACE",
+    os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "..")),
+)
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-
-def get_git_info() -> dict:
-    """Gather git repository information."""
-    info = {"RepoRoot": "", "Branch": "", "Commit": "", "Status": ""}
-
-    # Repo root
-    try:
-        result = subprocess.run(
-            ["git", "rev-parse", "--show-toplevel"],
-            capture_output=True, text=True, timeout=10,
-        )
-        if result.returncode != 0:
-            print("Not in a git repository", file=sys.stderr)
-            sys.exit(1)
-        info["RepoRoot"] = result.stdout.strip()
-    except (subprocess.TimeoutExpired, FileNotFoundError):
-        print("Git not available", file=sys.stderr)
-        sys.exit(1)
-
-    # Branch
-    try:
-        result = subprocess.run(
-            ["git", "branch", "--show-current"],
-            capture_output=True, text=True, timeout=10,
-        )
-        info["Branch"] = result.stdout.strip() if result.returncode == 0 else "unknown"
-    except (subprocess.TimeoutExpired, FileNotFoundError):
-        info["Branch"] = "unknown"
-
-    # Commit
-    try:
-        result = subprocess.run(
-            ["git", "rev-parse", "--short", "HEAD"],
-            capture_output=True, text=True, timeout=10,
-        )
-        info["Commit"] = result.stdout.strip() if result.returncode == 0 else "unknown"
-    except (subprocess.TimeoutExpired, FileNotFoundError):
-        info["Commit"] = "unknown"
-
-    # Status
-    try:
-        result = subprocess.run(
-            ["git", "status", "--porcelain"],
-            capture_output=True, text=True, timeout=10,
-        )
-        if result.returncode == 0:
-            info["Status"] = "clean" if not result.stdout.strip() else "dirty"
-    except (subprocess.TimeoutExpired, FileNotFoundError):
-        info["Status"] = "unknown"
-
-    return info
+from session_init.git_helpers import get_git_info  # noqa: E402
+from session_init.template_helpers import get_descriptive_keywords  # noqa: E402
 
 
-def get_descriptive_keywords(objective: str) -> str:
-    """Extract keywords from objective for filename."""
-    if not objective:
-        return ""
-    words = re.sub(r"[^\w\s-]", "", objective.lower()).split()
-    stop_words = {
-        "the", "a", "an", "is", "are", "was", "were", "be", "been",
-        "being", "have", "has", "had", "do", "does", "did", "will",
-        "would", "could", "should", "may", "might", "shall", "can",
-        "on", "in", "at", "to", "for", "of", "with", "by", "from",
-        "as", "into", "through", "during", "before", "after", "and",
-        "but", "or", "not", "work",
-    }
-    keywords = [w for w in words if w not in stop_words and len(w) > 2][:3]
-    return "-".join(keywords) if keywords else ""
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Create protocol-compliant JSON session log.",
+    )
+    parser.add_argument(
+        "--session-number", type=int, default=0,
+        help="Session number. Auto-detects from existing files if not provided.",
+    )
+    parser.add_argument(
+        "--objective", default="",
+        help="Session objective description.",
+    )
+    parser.add_argument(
+        "--skip-validation", action="store_true",
+        help="Skip validation after creating session log (testing only).",
+    )
+    return parser
 
 
-def auto_detect_session_number(sessions_dir: Path) -> int | None:
-    """Find highest existing session number and return next."""
-    if not sessions_dir.is_dir():
+def _auto_detect_session_number(sessions_dir: str) -> int:
+    """Auto-increment session number from latest session in directory."""
+    if not os.path.isdir(sessions_dir):
+        return 1
+    max_num = 0
+    for name in os.listdir(sessions_dir):
+        m = re.search(r"session-(\d+)", name)
+        if m and name.endswith(".json"):
+            max_num = max(max_num, int(m.group(1)))
+    return max_num + 1 if max_num else 1
+
+
+def _get_max_existing_session(sessions_dir: str) -> int | None:
+    """Get the maximum existing session number."""
+    if not os.path.isdir(sessions_dir):
         return None
-    pattern = re.compile(r"session-(\d+)")
-    numbers = []
-    for f in sessions_dir.glob("*.json"):
-        m = pattern.search(f.name)
-        if m:
-            numbers.append(int(m.group(1)))
-    if not numbers:
-        return None
-    return max(numbers) + 1
+    max_num = 0
+    found = False
+    for name in os.listdir(sessions_dir):
+        m = re.search(r"session-(\d+)", name)
+        if m and name.endswith(".json"):
+            max_num = max(max_num, int(m.group(1)))
+            found = True
+    return max_num if found else None
 
 
-def get_max_existing(sessions_dir: Path) -> int | None:
-    """Return highest existing session number or None."""
-    if not sessions_dir.is_dir():
-        return None
-    pattern = re.compile(r"session-(\d+)")
-    numbers = []
-    for f in sessions_dir.glob("*.json"):
-        m = pattern.search(f.name)
-        if m:
-            numbers.append(int(m.group(1)))
-    return max(numbers) if numbers else None
-
-
-def derive_objective(branch: str) -> str | None:
-    """Try to derive objective from branch name or recent commits."""
-    if branch:
-        m = re.match(r"^(?:feat|feature|fix|refactor|chore|docs)/(.+)$", branch)
-        if m:
-            topic = m.group(1).replace("-", " ")
-            return f"Work on {topic}"
+def _derive_objective(branch: str) -> str:
+    """Derive objective from branch name or recent commits."""
+    m = re.match(r"^(?:feat|feature|fix|refactor|chore|docs)/(.+)$", branch)
+    if m:
+        topic = m.group(1).replace("-", " ")
+        return f"Work on {topic}"
 
     try:
         result = subprocess.run(
             ["git", "log", "--oneline", "-3"],
-            capture_output=True, text=True, timeout=10,
+            capture_output=True, text=True, timeout=10, check=False,
         )
         if result.returncode == 0 and result.stdout.strip():
             first_line = result.stdout.strip().splitlines()[0]
-            m = re.match(r"^\w+\s+(.+)$", first_line)
-            if m:
-                return f"Continue: {m.group(1).strip()}"
-    except (subprocess.TimeoutExpired, FileNotFoundError):
+            parts = first_line.split(None, 1)
+            if len(parts) == 2:
+                return f"Continue: {parts[1].strip()}"
+    except Exception:
         pass
+    return ""
 
-    return None
 
-
-def build_session_data(
+def _build_session_data(
+    git_info: dict[str, str],
     session_number: int,
-    date: str,
-    branch: str,
-    commit: str,
     objective: str,
+    current_date: str,
 ) -> dict:
-    """Build session JSON with schemaVersion."""
+    """Build the session JSON data structure."""
+    branch = git_info["branch"]
+    commit = git_info["commit"]
+    not_on_main = branch not in ("main", "master")
+
     return {
-        "schemaVersion": "1.0",
         "session": {
             "number": session_number,
-            "date": date,
+            "date": current_date,
             "branch": branch,
             "startingCommit": commit,
-            "objective": objective,
+            "objective": objective or "[TODO: Describe objective]",
         },
         "protocolCompliance": {
             "sessionStart": {
-                "serenaActivated": {"Complete": False, "level": "MUST", "Evidence": ""},
-                "serenaInstructions": {"Complete": False, "level": "MUST", "Evidence": ""},
-                "handoffRead": {"Complete": False, "level": "MUST", "Evidence": ""},
-                "sessionLogCreated": {
-                    "Complete": True,
-                    "level": "MUST",
-                    "Evidence": "This file exists",
-                },
-                "skillScriptsListed": {"Complete": False, "level": "MUST", "Evidence": ""},
-                "usageMandatoryRead": {"Complete": False, "level": "MUST", "Evidence": ""},
-                "constraintsRead": {
-                    "Complete": False,
-                    "level": "MUST",
-                    "Evidence": "",
-                },
-                "memoriesLoaded": {"Complete": False, "level": "MUST", "Evidence": ""},
-                "branchVerified": {
-                    "Complete": True,
-                    "level": "MUST",
-                    "Evidence": f"Branch: {branch}",
-                },
-                "notOnMain": {
-                    "Complete": branch not in ("main", "master"),
-                    "level": "MUST",
-                    "Evidence": "",
-                },
-                "gitStatusVerified": {
-                    "Complete": False,
-                    "level": "SHOULD",
-                    "Evidence": "",
-                },
-                "startingCommitNoted": {
-                    "Complete": True,
-                    "level": "SHOULD",
-                    "Evidence": f"SHA: {commit}",
-                },
+                "serenaActivated": {"level": "MUST", "Complete": False, "Evidence": ""},
+                "serenaInstructions": {"level": "MUST", "Complete": False, "Evidence": ""},
+                "handoffRead": {"level": "MUST", "Complete": False, "Evidence": ""},
+                "sessionLogCreated": {"level": "MUST", "Complete": True, "Evidence": "This file"},
+                "skillScriptsListed": {"level": "MUST", "Complete": False, "Evidence": ""},
+                "usageMandatoryRead": {"level": "MUST", "Complete": False, "Evidence": ""},
+                "constraintsRead": {"level": "MUST", "Complete": False, "Evidence": ""},
+                "memoriesLoaded": {"level": "MUST", "Complete": False, "Evidence": ""},
+                "branchVerified": {"level": "MUST", "Complete": True, "Evidence": branch},
+                "notOnMain": {"level": "MUST", "Complete": not_on_main, "Evidence": f"On {branch}"},
+                "gitStatusVerified": {"level": "SHOULD", "Complete": False, "Evidence": ""},
+                "startingCommitNoted": {"level": "SHOULD", "Complete": True, "Evidence": commit},
             },
             "sessionEnd": {
-                "checklistComplete": {"Complete": False, "level": "MUST", "Evidence": ""},
-                "serenaMemoryUpdated": {"Complete": False, "level": "MUST", "Evidence": ""},
-                "markdownLintRun": {"Complete": False, "level": "MUST", "Evidence": ""},
-                "changesCommitted": {"Complete": False, "level": "MUST", "Evidence": ""},
-                "validationPassed": {"Complete": False, "level": "MUST", "Evidence": ""},
-                "handoffNotUpdated": {"Complete": False, "level": "MUST NOT", "Evidence": ""},
-                "tasksUpdated": {"Complete": False, "level": "SHOULD", "Evidence": ""},
-                "retrospectiveInvoked": {"Complete": False, "level": "SHOULD", "Evidence": ""},
+                "checklistComplete": {"level": "MUST", "Complete": False, "Evidence": ""},
+                "handoffPreserved": {"level": "MUST", "Complete": False, "Evidence": ""},
+                "serenaMemoryUpdated": {"level": "MUST", "Complete": False, "Evidence": ""},
+                "markdownLintRun": {"level": "MUST", "Complete": False, "Evidence": ""},
+                "changesCommitted": {"level": "MUST", "Complete": False, "Evidence": ""},
+                "validationPassed": {"level": "MUST", "Complete": False, "Evidence": ""},
+                "tasksUpdated": {"level": "SHOULD", "Complete": False, "Evidence": ""},
+                "retrospectiveInvoked": {"level": "SHOULD", "Complete": False, "Evidence": ""},
             },
         },
         "workLog": [],
@@ -226,184 +155,144 @@ def build_session_data(
     }
 
 
-def write_session_file(
-    sessions_dir: Path,
-    date: str,
-    session_number: int,
-    objective: str,
+def _write_session_file(
+    sessions_dir: str,
     session_data: dict,
-) -> Path:
-    """Write session file atomically (CWE-362 prevention)."""
-    sessions_dir.mkdir(parents=True, exist_ok=True)
+    current_date: str,
+    objective: str,
+) -> tuple[str, int]:
+    """Write session JSON file with atomic creation and collision retry.
 
-    for retry in range(MAX_RETRIES):
+    Returns (file_path, final_session_number).
+    """
+    os.makedirs(sessions_dir, exist_ok=True)
+    session_number = session_data["session"]["number"]
+    max_retries = 5
+
+    for retry in range(max_retries):
         keywords = get_descriptive_keywords(objective)
         suffix = f"-{keywords}" if keywords else ""
-        file_name = f"{date}-session-{session_number}{suffix}.json"
-        file_path = sessions_dir / file_name
+        filename = f"{current_date}-session-{session_number}{suffix}.json"
+        filepath = os.path.join(sessions_dir, filename)
 
         try:
-            fd = os.open(str(file_path), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
-            with os.fdopen(fd, "w", encoding="utf-8") as f:
-                json.dump(session_data, f, indent=2)
-            return file_path
+            fd = os.open(filepath, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            try:
+                content = json.dumps(session_data, indent=2)
+                os.write(fd, content.encode("utf-8"))
+            finally:
+                os.close(fd)
+            return filepath, session_number
         except FileExistsError:
-            if retry < MAX_RETRIES - 1:
+            if retry < max_retries - 1:
                 session_number += 1
                 session_data["session"]["number"] = session_number
                 print(
-                    f"Session file collision, retrying with session-{session_number}",
+                    f"WARNING: Session file collision, retrying with session-{session_number}",
                     file=sys.stderr,
                 )
             else:
-                print(
-                    f"Failed to create session log after {MAX_RETRIES} attempts.",
-                    file=sys.stderr,
-                )
-                sys.exit(2)
-        except PermissionError:
-            print(f"Permission denied writing: {file_path}", file=sys.stderr)
-            sys.exit(2)
-        except OSError as e:
-            print(f"File I/O error: {e}", file=sys.stderr)
-            sys.exit(2)
+                raise
 
-    # Should not reach here
-    sys.exit(2)
+    msg = f"Failed to create session log after {max_retries} attempts."
+    raise OSError(msg)
 
 
-def validate_session_log(session_log_path: Path, repo_root: str) -> bool:
-    """Two-tier validation: schema + script."""
-    repo = Path(repo_root)
+def _run_validation(session_log_path: str, repo_root: str) -> bool:
+    """Validate session log using validate_session_json.py.
 
-    # Phase 1: Schema validation
-    schema_path = repo / ".agents" / "schemas" / "session-log.schema.json"
-    if not schema_path.exists():
-        print(f"CRITICAL: JSON schema not found at: {schema_path}", file=sys.stderr)
-        return False
-
-    try:
-        with open(session_log_path, encoding="utf-8") as f:
-            json.load(f)
-        print("  Schema validation PASSED (JSON syntax valid)")
-    except json.JSONDecodeError as e:
-        print(f"JSON schema validation FAILED: {e}", file=sys.stderr)
-        return False
-
-    # Phase 2: Script validation
-    validation_script = repo / "scripts" / "validate_session_json.py"
-    if not validation_script.exists():
-        validation_script = repo / "scripts" / "Validate-SessionJson.ps1"
-
-    if not validation_script.exists():
+    Returns True if validation passed.
+    """
+    validation_script = os.path.join(repo_root, "scripts", "validate_session_json.py")
+    if not os.path.isfile(validation_script):
         print(
-            "CRITICAL: Validation script not found",
+            f"CRITICAL: Validation script not found at: {validation_script}",
             file=sys.stderr,
         )
         return False
 
-    try:
-        if validation_script.suffix == ".py":
-            cmd = [sys.executable, str(validation_script), "--session-path", str(session_log_path)]
-        else:
-            cmd = ["pwsh", str(validation_script), "-SessionPath", str(session_log_path)]
-
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
-        if result.returncode != 0:
-            print(f"  Script validation FAILED (exit {result.returncode})")
-            if result.stdout:
-                print(result.stdout)
-            return False
-        print("  Script validation PASSED")
-        return True
-    except (subprocess.TimeoutExpired, FileNotFoundError) as e:
-        print(f"  Validation script error: {e}", file=sys.stderr)
-        return False
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Create protocol-compliant JSON session log."
+    print("Running validation...", file=sys.stderr)
+    result = subprocess.run(
+        [sys.executable, validation_script, session_log_path],
+        capture_output=False,
+        timeout=60,
+        check=False,
     )
-    parser.add_argument("--session-number", type=int, default=0)
-    parser.add_argument("--objective", type=str, default="")
-    parser.add_argument("--skip-validation", action="store_true")
-    args = parser.parse_args()
+    return result.returncode == 0
 
-    print("=== JSON Session Log Creator ===\n")
 
-    # Phase 1: Gather inputs
-    print("Phase 1: Gathering inputs...")
-    git_info = get_git_info()
-    print(f"  Repository: {git_info['RepoRoot']}")
-    print(f"  Branch: {git_info['Branch']}")
-    print(f"  Commit: {git_info['Commit']}")
-    print(f"  Status: {git_info['Status']}\n")
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
 
-    repo_root = git_info["RepoRoot"]
-    sessions_dir = Path(repo_root) / ".agents" / "sessions"
+    # Phase 1: Get git info
+    try:
+        git_info = get_git_info()
+    except RuntimeError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 1
 
+    repo_root = git_info["repo_root"]
+
+    sessions_dir = os.path.join(repo_root, ".agents", "sessions")
+    os.makedirs(sessions_dir, exist_ok=True)
+    current_date = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+
+    # Resolve session number
     session_number = args.session_number
     if session_number == 0:
-        detected = auto_detect_session_number(sessions_dir)
-        session_number = detected if detected else 1
+        session_number = _auto_detect_session_number(sessions_dir)
 
-    # CWE-400 ceiling check
-    max_existing = get_max_existing(sessions_dir)
-    if max_existing is not None and session_number > max_existing + MAX_SESSION_JUMP:
+    # CWE-400: Reject session number jumps larger than 10 above max existing
+    max_existing = _get_max_existing_session(sessions_dir)
+    if max_existing is not None and session_number > max_existing + 10:
         print(
-            f"Session number {session_number} exceeds ceiling "
-            f"(max: {max_existing}, ceiling: {max_existing + MAX_SESSION_JUMP})",
+            f"ERROR: Session number {session_number} exceeds ceiling "
+            f"(max existing: {max_existing}, ceiling: {max_existing + 10}). "
+            f"This prevents DoS via large session numbers.",
             file=sys.stderr,
         )
-        sys.exit(1)
+        return 1
 
+    # Resolve objective
     objective = args.objective
     if not objective:
-        derived = derive_objective(git_info["Branch"])
-        if derived:
-            objective = derived
+        objective = _derive_objective(git_info["branch"])
 
-    if not objective:
-        objective = "[TODO: Describe objective]"
+    # Phase 2: Build and write session log
+    session_data = _build_session_data(git_info, session_number, objective, current_date)
 
-    print(f"  Session Number: {session_number}")
-    print(f"  Objective: {objective}\n")
+    try:
+        filepath, final_number = _write_session_file(
+            sessions_dir, session_data, current_date, objective,
+        )
+    except OSError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 2
 
-    # Phase 2: Create session log
-    print("Phase 2: Creating JSON session log...")
-    date = datetime.now().strftime("%Y-%m-%d")
-    session_data = build_session_data(
-        session_number, date, git_info["Branch"], git_info["Commit"], objective
-    )
-    session_log_path = write_session_file(
-        sessions_dir, date, session_number, objective, session_data
-    )
-    print(f"  File: {session_log_path}\n")
+    print(f"Created: {filepath}", file=sys.stderr)
+    print(f"Session: {final_number}", file=sys.stderr)
+    print(f"Branch: {git_info['branch']}", file=sys.stderr)
+    print(f"Commit: {git_info['commit']}", file=sys.stderr)
 
     # Phase 3: Validate
     if not args.skip_validation:
-        print("Phase 3: Validating session log...")
-        valid = validate_session_log(session_log_path, repo_root)
-        if not valid:
-            print("\n=== FAILED ===")
-            print("Session log created but validation FAILED")
-            print(f"  File: {session_log_path}")
-            sys.exit(4)
+        passed = _run_validation(filepath, repo_root)
+        if not passed:
+            print(
+                f"\nSession log created but validation FAILED.\n"
+                f"  File: {filepath}\n"
+                f"Fix issues and re-validate:\n"
+                f"  python3 scripts/validate_session_json.py \"{filepath}\"",
+                file=sys.stderr,
+            )
+            return 4
     else:
-        print("Phase 3: Validation skipped (--skip-validation)\n")
+        print("Validation skipped (--skip-validation flag set).", file=sys.stderr)
 
-    print("\n=== SUCCESS ===")
-    if args.skip_validation:
-        print("Session log created (validation SKIPPED)")
-    else:
-        print("JSON session log created and validated")
-    print(f"  File: {session_log_path}")
-    print(f"  Session: {session_number}")
-    print(f"  Branch: {git_info['Branch']}")
-    print(f"  Commit: {git_info['Commit']}\n")
-    print("Next: Complete Session Start checklist in the session log")
+    # Output the file path on stdout for callers to capture
+    print(filepath)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

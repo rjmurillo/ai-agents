@@ -6,13 +6,13 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -u .claude/hooks/routing_gates.py",
+            "command": "python3 -u .claude/hooks/invoke_routing_gates.py",
             "timeout": 5,
             "statusMessage": "Checking routing-level gates (ADR-033)"
           },
           {
             "type": "command",
-            "command": "python3 -u .claude/hooks/PreToolUse/skill_first_guard.py",
+            "command": "python3 -u .claude/hooks/PreToolUse/invoke_skill_first_guard.py",
             "statusMessage": "Enforcing skills-first policy for GitHub operations (BLOCKING)"
           }
         ]
@@ -22,18 +22,28 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -u .claude/hooks/PreToolUse/session_log_guard.py",
+            "command": "python3 -u .claude/hooks/PreToolUse/invoke_session_log_guard.py",
             "statusMessage": "Verifying session log exists before commit (BLOCKING)"
           },
           {
             "type": "command",
-            "command": "python3 -u .claude/hooks/PreToolUse/adr_review_guard.py",
+            "command": "python3 -u .claude/hooks/PreToolUse/invoke_adr_review_guard.py",
             "statusMessage": "Verifying ADR review completed (MUST requirement)"
           },
           {
             "type": "command",
-            "command": "python3 -u .claude/hooks/PreToolUse/branch_protection_guard.py",
+            "command": "python3 -u .claude/hooks/PreToolUse/invoke_branch_protection_guard.py",
             "statusMessage": "Verifying branch protection"
+          }
+        ]
+      },
+      {
+        "matcher": "^(Write|Edit)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -u .claude/hooks/PreToolUse/invoke_security_gate.py",
+            "statusMessage": "Checking security gate for auth files (ADR-033)"
           }
         ]
       },
@@ -42,8 +52,23 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -u .claude/hooks/PreToolUse/branch_protection_guard.py",
+            "command": "python3 -u .claude/hooks/PreToolUse/invoke_branch_protection_guard.py",
             "statusMessage": "Verifying branch protection"
+          },
+          {
+            "type": "command",
+            "command": "python3 -u .claude/hooks/PreToolUse/invoke_retrospective_gate.py",
+            "statusMessage": "Verifying retrospective evidence (ADR-033)"
+          }
+        ]
+      },
+      {
+        "matcher": "^(Edit|Write)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -u .claude/hooks/PreToolUse/invoke_adr_architect_gate.py",
+            "statusMessage": "Verifying architect review for ADR files (BLOCKING)"
           }
         ]
       }
@@ -53,22 +78,22 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -u .claude/hooks/SessionStart/session_initialization_enforcer.py",
+            "command": "python3 -u .claude/hooks/SessionStart/invoke_session_initialization_enforcer.py",
             "statusMessage": "Enforcing session protocol initialization (BLOCKING)"
           },
           {
             "type": "command",
-            "command": "python3 -u .claude/hooks/SessionStart/memory_first_enforcer.py",
+            "command": "python3 -u .claude/hooks/SessionStart/invoke_memory_first_enforcer.py",
             "statusMessage": "Enforcing ADR-007 memory-first evidence (HYBRID)"
           },
           {
             "type": "command",
-            "command": "python3 -u .claude/hooks/session_start_memory_first.py",
+            "command": "python3 -u .claude/hooks/invoke_session_start_memory_first.py",
             "statusMessage": "Enforcing ADR-007 memory-first requirements"
           },
           {
             "type": "command",
-            "command": "python3 -u .claude/hooks/adr_change_detection.py",
+            "command": "python3 -u .claude/hooks/invoke_adr_change_detection.py",
             "statusMessage": "Checking for ADR changes"
           }
         ]
@@ -79,12 +104,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -u .claude/hooks/UserPromptSubmit/autonomous_execution_detector.py",
+            "command": "python3 -u .claude/hooks/UserPromptSubmit/invoke_autonomous_execution_detector.py",
             "statusMessage": "Detecting autonomous execution patterns"
           },
           {
             "type": "command",
-            "command": "python3 -u .claude/hooks/user_prompt_memory_check.py",
+            "command": "python3 -u .claude/hooks/invoke_user_prompt_memory_check.py",
             "statusMessage": "Checking memory-first compliance"
           }
         ]
@@ -96,8 +121,23 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -u .claude/hooks/PostToolUse/markdown_auto_lint.py",
+            "command": "python3 -u .claude/hooks/PostToolUse/invoke_markdown_auto_lint.py",
             "statusMessage": "Auto-linting markdown files"
+          },
+          {
+            "type": "command",
+            "command": "python3 -u .claude/hooks/PostToolUse/invoke_adr_lifecycle_hook.py",
+            "statusMessage": "Checking for ADR changes"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -u .claude/hooks/PostToolUse/invoke_adr_lifecycle_hook.py",
+            "statusMessage": "Checking for ADR changes"
           }
         ]
       }
@@ -112,7 +152,7 @@
           },
           {
             "type": "command",
-            "command": "python3 -u .claude/hooks/Stop/session_validator.py",
+            "command": "python3 -u .claude/hooks/Stop/invoke_session_validator.py",
             "statusMessage": "Validating session completeness"
           }
         ]
@@ -123,7 +163,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -u .claude/hooks/SubagentStop/qa_agent_validator.py",
+            "command": "python3 -u .claude/hooks/SubagentStop/invoke_qa_agent_validator.py",
             "statusMessage": "Validating QA agent output"
           }
         ]
@@ -131,22 +171,15 @@
     ],
     "PermissionRequest": [
       {
-        "matcher": "Bash(pytest*|python*pytest*|npm test*|npm run test*|pnpm test*|yarn test*|dotnet test*|mvn test*|gradle test*|go test*)",
+        "matcher": "Bash(pwsh*Invoke-Pester*|npm test*|npm run test*|pnpm test*|yarn test*|pytest*|python*pytest*|dotnet test*|mvn test*|gradle test*|go test*)",
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -u .claude/hooks/PermissionRequest/test_auto_approval.py",
+            "command": "python3 -u .claude/hooks/PermissionRequest/invoke_test_auto_approval.py",
             "statusMessage": "Auto-approving test execution"
           }
         ]
       }
     ]
-  },
-  "enabledPlugins": {
-    "claude-mem@thedotmack": true,
-    "forgetful@scottrbk": true,
-    "context7@context7": true,
-    "context-hub@scottrbk": true,
-    "claude-router@claude-router-marketplace": true
   }
 }

@@ -1,177 +1,297 @@
 #!/usr/bin/env python3
-"""Enable or disable auto-merge on a GitHub Pull Request.
+"""Enable or disable auto-merge for a GitHub Pull Request.
 
-Uses GraphQL mutations to toggle auto-merge with configurable merge method,
-commit headline, and commit body.
+Uses GitHub GraphQL API to manage auto-merge settings. Auto-merge
+automatically merges the PR once all required status checks pass
+and required reviews are approved.
 
-Exit codes (ADR-035):
-    0 = Success
-    1 = Invalid parameters
-    2 = PR not found
-    3 = API error
-    4 = Not authenticated
-    6 = Not mergeable (branch protections or status checks prevent auto-merge)
+Requires auto-merge enabled in repository settings and write access.
+
+Exit codes follow ADR-035:
+    0 - Success
+    1 - Operation failed or invalid parameters
+    2 - PR not found
+    3 - External error (API failure)
+    4 - Auth error
 """
+
+from __future__ import annotations
 
 import argparse
 import json
 import os
-import subprocess
 import sys
 
-_lib_dir = os.path.join(
-    os.environ.get("CLAUDE_PLUGIN_ROOT", os.path.join(os.getcwd(), ".claude")),
-    "skills", "github", "lib",
-)
+_plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+_workspace = os.environ.get("GITHUB_WORKSPACE")
+if _plugin_root:
+    _lib_dir = os.path.join(_plugin_root, "lib")
+elif _workspace:
+    _lib_dir = os.path.join(_workspace, ".claude", "lib")
+else:
+    _lib_dir = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "lib")
+    )
 if _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
 
-from github_core.api import (
+from github_core.api import (  # noqa: E402
     assert_gh_authenticated,
+    error_and_exit,
     gh_graphql,
     resolve_repo_params,
-    write_error_and_exit,
 )
 
-ENABLE_MUTATION = """
-mutation(
-  $pullRequestId: ID!,
-  $mergeMethod: PullRequestMergeMethod!,
-  $commitHeadline: String,
-  $commitBody: String
-) {
-    enablePullRequestAutoMerge(input: {
-        pullRequestId: $pullRequestId
-        mergeMethod: $mergeMethod
-        commitHeadline: $commitHeadline
-        commitBody: $commitBody
-    }) {
+# ---------------------------------------------------------------------------
+# GraphQL queries and mutations
+# ---------------------------------------------------------------------------
+
+_PR_QUERY = """\
+query($owner: String!, $repo: String!, $number: Int!) {
+    repository(owner: $owner, name: $repo) {
+        pullRequest(number: $number) {
+            id
+            number
+            state
+            autoMergeRequest {
+                enabledAt
+                mergeMethod
+            }
+        }
+    }
+}"""
+
+_DISABLE_MUTATION = """\
+mutation($pullRequestId: ID!) {
+    disablePullRequestAutoMerge(input: {pullRequestId: $pullRequestId}) {
         pullRequest {
+            id
             number
             autoMergeRequest {
-                mergeMethod
                 enabledAt
             }
         }
     }
-}
-"""
+}"""
 
-DISABLE_MUTATION = """
-mutation($pullRequestId: ID!) {
-    disablePullRequestAutoMerge(input: {
-        pullRequestId: $pullRequestId
+_ENABLE_MUTATION = """\
+mutation($pullRequestId: ID!, $mergeMethod: PullRequestMergeMethod!,\
+ $commitHeadline: String, $commitBody: String) {
+    enablePullRequestAutoMerge(input: {
+        pullRequestId: $pullRequestId,
+        mergeMethod: $mergeMethod,
+        commitHeadline: $commitHeadline,
+        commitBody: $commitBody
     }) {
         pullRequest {
+            id
             number
+            autoMergeRequest {
+                enabledAt
+                mergeMethod
+            }
         }
     }
-}
-"""
+}"""
 
 
-def get_pr_node_id(owner: str, repo: str, pr: int) -> str:
-    """Get the GraphQL node ID for a PR."""
-    result = subprocess.run(
-        ["gh", "pr", "view", str(pr), "--repo", f"{owner}/{repo}", "--json", "id"],
-        capture_output=True, text=True,
+# ---------------------------------------------------------------------------
+# Core logic
+# ---------------------------------------------------------------------------
+
+
+def get_pr_node_id(owner: str, repo: str, pr_number: int) -> tuple[str, dict]:
+    """Get PR node ID and current state. Returns (node_id, pr_data)."""
+    try:
+        data = gh_graphql(
+            _PR_QUERY,
+            {"owner": owner, "repo": repo, "number": pr_number},
+        )
+    except RuntimeError as exc:
+        msg = str(exc)
+        if "Could not resolve" in msg:
+            error_and_exit(f"PR #{pr_number} not found in {owner}/{repo}", 2)
+        error_and_exit(f"Failed to get PR info: {msg}", 3)
+
+    pr = data.get("repository", {}).get("pullRequest")
+    if pr is None:
+        error_and_exit(f"PR #{pr_number} not found", 2)
+
+    return pr["id"], pr
+
+
+def disable_auto_merge(
+    owner: str, repo: str, pr_number: int, pr_id: str, pr_data: dict,
+) -> int:
+    """Disable auto-merge. Returns exit code."""
+    if pr_data.get("autoMergeRequest") is None:
+        print(f"Auto-merge is not enabled on PR #{pr_number}")
+        output = {
+            "Success": True,
+            "Action": "NoChange",
+            "PullRequest": pr_number,
+            "AutoMergeEnabled": False,
+            "Message": "Auto-merge was already disabled",
+        }
+        print(json.dumps(output, indent=2))
+        return 0
+
+    try:
+        data = gh_graphql(_DISABLE_MUTATION, {"pullRequestId": pr_id})
+    except RuntimeError as exc:
+        error_and_exit(f"Failed to disable auto-merge: {exc}", 3)
+
+    disabled = (
+        data.get("disablePullRequestAutoMerge", {})
+        .get("pullRequest", {})
+        .get("autoMergeRequest")
+        is None
     )
-    if result.returncode != 0:
-        if "not found" in result.stderr.lower() or "Could not resolve" in result.stderr:
-            write_error_and_exit(f"PR #{pr} not found in {owner}/{repo}", 2)
-        write_error_and_exit(f"Failed to fetch PR: {result.stderr}", 3)
 
-    data = json.loads(result.stdout)
-    node_id: str | None = data.get("id")
-    if not node_id:
-        write_error_and_exit(f"PR #{pr} has no node ID", 3)
-        # write_error_and_exit calls sys.exit; this line is unreachable
-        raise SystemExit(3)
-    return node_id
+    output = {
+        "Success": disabled,
+        "Action": "Disabled",
+        "PullRequest": pr_number,
+        "AutoMergeEnabled": not disabled,
+    }
+    print(json.dumps(output, indent=2))
+
+    if disabled:
+        print(f"Auto-merge disabled for PR #{pr_number}")
+        return 0
+
+    print(f"Failed to disable auto-merge for PR #{pr_number}", file=sys.stderr)
+    return 1
 
 
 def enable_auto_merge(
-    node_id: str, merge_method: str,
-    commit_headline: str | None, commit_body: str | None,
-) -> dict:
-    """Enable auto-merge on a PR via GraphQL mutation."""
+    owner: str,
+    repo: str,
+    pr_number: int,
+    pr_id: str,
+    merge_method: str,
+    commit_headline: str,
+    commit_body: str,
+) -> int:
+    """Enable auto-merge. Returns exit code."""
     variables: dict = {
-        "pullRequestId": node_id,
+        "pullRequestId": pr_id,
         "mergeMethod": merge_method,
+        "commitHeadline": commit_headline or "",
+        "commitBody": commit_body or "",
     }
-    if commit_headline:
-        variables["commitHeadline"] = commit_headline
-    if commit_body:
-        variables["commitBody"] = commit_body
-
-    return gh_graphql(ENABLE_MUTATION, variables)
-
-
-def disable_auto_merge(node_id: str) -> dict:
-    """Disable auto-merge on a PR via GraphQL mutation."""
-    return gh_graphql(DISABLE_MUTATION, {"pullRequestId": node_id})
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Enable or disable PR auto-merge")
-    parser.add_argument("--owner", help="Repository owner")
-    parser.add_argument("--repo", help="Repository name")
-    parser.add_argument("--pull-request", type=int, required=True, help="PR number")
-
-    action_group = parser.add_mutually_exclusive_group(required=True)
-    action_group.add_argument("--enable", action="store_true", help="Enable auto-merge")
-    action_group.add_argument("--disable", action="store_true", help="Disable auto-merge")
-
-    parser.add_argument(
-        "--merge-method", choices=["MERGE", "SQUASH", "REBASE"],
-        default="SQUASH", help="Merge method (default: SQUASH, only with --enable)",
-    )
-    parser.add_argument("--commit-headline", help="Custom commit headline (only with --enable)")
-    parser.add_argument("--commit-body", help="Custom commit body (only with --enable)")
-    args = parser.parse_args()
-
-    # Validate enable-only options are not used with disable
-    if args.disable:
-        if args.commit_headline or args.commit_body:
-            write_error_and_exit(
-                "--commit-headline and --commit-body can only be used with --enable", 1
-            )
-
-    assert_gh_authenticated()
-    resolved = resolve_repo_params(args.owner, args.repo)
-    owner, repo = resolved["owner"], resolved["repo"]
-
-    node_id = get_pr_node_id(owner, repo, args.pull_request)
 
     try:
-        if args.enable:
-            enable_auto_merge(node_id, args.merge_method, args.commit_headline, args.commit_body)
-            action_label = "enabled"
-        else:
-            disable_auto_merge(node_id)
-            action_label = "disabled"
-    except RuntimeError as e:
-        error_msg = str(e).lower()
-        if "not in a mergeable state" in error_msg or "auto-merge is not allowed" in error_msg:
-            write_error_and_exit(
-                f"PR #{args.pull_request} is not eligible for auto-merge: {e}", 6
+        data = gh_graphql(_ENABLE_MUTATION, variables)
+    except RuntimeError as exc:
+        msg = str(exc)
+        if "Auto-merge is not allowed" in msg:
+            error_and_exit(
+                "Auto-merge is not enabled in repository settings. "
+                "Enable it in Settings -> General -> Pull Requests.",
+                3,
             )
-        write_error_and_exit(f"GraphQL error: {e}", 3)
-    except Exception as e:
-        write_error_and_exit(f"API request failed: {e}", 3)
+        if "not mergeable" in msg:
+            error_and_exit(
+                "PR is not in a mergeable state. "
+                "Check for conflicts or required reviews.",
+                3,
+            )
+        error_and_exit(f"Failed to enable auto-merge: {msg}", 3)
 
-    output = {
-        "Success": True,
-        "PullRequest": args.pull_request,
-        "Owner": owner,
-        "Repo": repo,
-        "AutoMerge": action_label,
-        "MergeMethod": args.merge_method if args.enable else None,
+    auto_merge = (
+        data.get("enablePullRequestAutoMerge", {})
+        .get("pullRequest", {})
+        .get("autoMergeRequest")
+    )
+    enabled = auto_merge is not None
+
+    output: dict = {
+        "Success": enabled,
+        "Action": "Enabled",
+        "PullRequest": pr_number,
+        "AutoMergeEnabled": enabled,
+        "MergeMethod": auto_merge["mergeMethod"] if auto_merge else None,
+        "EnabledAt": auto_merge["enabledAt"] if auto_merge else None,
     }
-
     print(json.dumps(output, indent=2))
-    print(f"PR #{args.pull_request}: auto-merge {action_label}", file=sys.stderr)
+
+    if enabled:
+        print(f"Auto-merge enabled for PR #{pr_number}")
+        print(f"  Method: {auto_merge['mergeMethod']}")
+        print(f"  Enabled at: {auto_merge['enabledAt']}")
+        return 0
+
+    print(f"Failed to enable auto-merge for PR #{pr_number}", file=sys.stderr)
+    return 1
+
+
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Enable or disable auto-merge for a GitHub PR.",
+    )
+    parser.add_argument("--owner", default="", help="Repository owner")
+    parser.add_argument("--repo", default="", help="Repository name")
+    parser.add_argument(
+        "--pull-request", type=int, required=True,
+        help="PR number",
+    )
+
+    action = parser.add_mutually_exclusive_group(required=True)
+    action.add_argument(
+        "--enable", action="store_true",
+        help="Enable auto-merge",
+    )
+    action.add_argument(
+        "--disable", action="store_true",
+        help="Disable auto-merge",
+    )
+
+    parser.add_argument(
+        "--merge-method",
+        choices=["MERGE", "SQUASH", "REBASE"],
+        default="SQUASH",
+        help="Merge method (default: SQUASH)",
+    )
+    parser.add_argument(
+        "--commit-headline", default="",
+        help="Custom commit headline for squash/merge commits",
+    )
+    parser.add_argument(
+        "--commit-body", default="",
+        help="Custom commit body for squash/merge commits",
+    )
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    assert_gh_authenticated()
+
+    resolved = resolve_repo_params(args.owner, args.repo)
+    owner = resolved.owner
+    repo = resolved.repo
+
+    pr_id, pr_data = get_pr_node_id(owner, repo, args.pull_request)
+
+    if args.disable:
+        return disable_auto_merge(owner, repo, args.pull_request, pr_id, pr_data)
+
+    return enable_auto_merge(
+        owner,
+        repo,
+        args.pull_request,
+        pr_id,
+        args.merge_method,
+        args.commit_headline,
+        args.commit_body,
+    )
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

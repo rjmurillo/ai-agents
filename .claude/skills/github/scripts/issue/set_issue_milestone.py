@@ -1,19 +1,18 @@
 #!/usr/bin/env python3
 """Assign a milestone to a GitHub Issue.
 
-Manages milestone assignment:
-- Validates milestone exists before assigning
-- Supports clearing existing milestone
-- Supports force-replacing existing milestone
+Validates milestone exists before assigning, and optionally clears existing milestone.
 
-Exit codes (ADR-035):
-    0 = Success
-    1 = Invalid parameters
-    2 = Milestone not found
-    3 = API error
-    4 = Not authenticated
-    5 = Has milestone (use --force)
+Exit codes follow ADR-035:
+    0 - Success
+    1 - Invalid parameters / logic error
+    2 - Milestone not found
+    3 - External error (API failure)
+    4 - Auth error (not authenticated)
+    5 - Has milestone (use --force)
 """
+
+from __future__ import annotations
 
 import argparse
 import json
@@ -21,26 +20,45 @@ import os
 import subprocess
 import sys
 
-_lib_dir = os.path.join(
-    os.environ.get("CLAUDE_PLUGIN_ROOT", os.path.join(os.getcwd(), ".claude")),
-    "skills", "github", "lib",
-)
+_plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+_workspace = os.environ.get("GITHUB_WORKSPACE")
+if _plugin_root:
+    _lib_dir = os.path.join(_plugin_root, "lib")
+elif _workspace:
+    _lib_dir = os.path.join(_workspace, ".claude", "lib")
+else:
+    _lib_dir = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "lib")
+    )
 if _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
 
-from github_core.api import (
-    _run_gh,
+from github_core.api import (  # noqa: E402
     assert_gh_authenticated,
+    error_and_exit,
     resolve_repo_params,
-    write_error_and_exit,
 )
 
 
+def _write_github_output(outputs: dict[str, str]) -> None:
+    """Write key=value pairs to GITHUB_OUTPUT if available."""
+    output_file = os.environ.get("GITHUB_OUTPUT")
+    if not output_file:
+        return
+    try:
+        with open(output_file, "a", encoding="utf-8") as fh:
+            for key, value in outputs.items():
+                fh.write(f"{key}={value}\n")
+    except OSError:
+        pass
+
+
 def _get_current_milestone(owner: str, repo: str, issue: int) -> str | None:
-    """Get the current milestone title for an issue."""
-    result = _run_gh(
-        "api", f"repos/{owner}/{repo}/issues/{issue}",
-        "--jq", ".milestone.title",
+    """Get the current milestone title for an issue, or None."""
+    result = subprocess.run(
+        ["gh", "api", f"repos/{owner}/{repo}/issues/{issue}", "--jq", ".milestone.title"],
+        capture_output=True,
+        text=True,
         check=False,
     )
     if result.returncode != 0:
@@ -51,163 +69,154 @@ def _get_current_milestone(owner: str, repo: str, issue: int) -> str | None:
     return title
 
 
-def _list_milestone_titles(owner: str, repo: str) -> list[str]:
-    """List all open milestone titles."""
-    result = _run_gh(
-        "api", f"repos/{owner}/{repo}/milestones",
-        "--jq", ".[].title",
+def _get_milestone_titles(owner: str, repo: str) -> list[str]:
+    """Get all milestone titles from the repository."""
+    result = subprocess.run(
+        ["gh", "api", f"repos/{owner}/{repo}/milestones", "--jq", ".[].title"],
+        capture_output=True,
+        text=True,
         check=False,
     )
     if result.returncode != 0:
         return []
-    return [t.strip() for t in result.stdout.strip().split("\n") if t.strip()]
+    return [t.strip() for t in result.stdout.strip().splitlines() if t.strip()]
 
 
-def set_issue_milestone(
-    owner: str,
-    repo: str,
-    issue: int,
-    milestone: str = "",
-    clear: bool = False,
-    force: bool = False,
-) -> dict:
-    """Assign or clear a milestone on a GitHub issue.
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Assign a milestone to a GitHub Issue.",
+    )
+    parser.add_argument("--owner", default="", help="Repository owner")
+    parser.add_argument("--repo", default="", help="Repository name")
+    parser.add_argument("--issue", type=int, required=True, help="Issue number")
+    parser.add_argument("--milestone", default="", help="Milestone title to assign")
+    parser.add_argument(
+        "--clear",
+        action="store_true",
+        help="Remove existing milestone",
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Replace existing milestone",
+    )
+    return parser
 
-    Args:
-        owner: Repository owner.
-        repo: Repository name.
-        issue: Issue number.
-        milestone: Milestone title to assign.
-        clear: Clear existing milestone.
-        force: Replace existing milestone.
 
-    Returns:
-        Dict with operation result.
-    """
-    current = _get_current_milestone(owner, repo, issue)
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+
+    assert_gh_authenticated()
+    resolved = resolve_repo_params(args.owner, args.repo)
+    owner, repo = resolved.owner, resolved.repo
+
+    if not args.clear and not args.milestone:
+        error_and_exit("Must specify --milestone or --clear.", 2)
+
+    current_milestone = _get_current_milestone(owner, repo, args.issue)
 
     output = {
-        "Success": False,
-        "Issue": issue,
-        "Milestone": None,
-        "PreviousMilestone": current,
-        "Action": "none",
+        "success": False,
+        "issue": args.issue,
+        "milestone": None,
+        "previous_milestone": current_milestone,
+        "action": "none",
     }
 
-    if clear:
-        if not current:
-            output["Success"] = True
-            output["Action"] = "no_change"
-            return output
+    if args.clear:
+        if not current_milestone:
+            output["success"] = True
+            output["action"] = "no_change"
+            print(json.dumps(output, indent=2))
+            _write_github_output({
+                "success": "true",
+                "issue": str(args.issue),
+                "action": "no_change",
+            })
+            return 0
 
         result = subprocess.run(
             [
-                "gh", "api", f"repos/{owner}/{repo}/issues/{issue}",
+                "gh", "api",
+                f"repos/{owner}/{repo}/issues/{args.issue}",
                 "-X", "PATCH", "-f", "milestone=",
             ],
             capture_output=True,
             text=True,
+            check=False,
         )
         if result.returncode != 0:
-            write_error_and_exit("Failed to clear milestone", 3)
+            error_and_exit("Failed to clear milestone", 3)
 
-        output["Success"] = True
-        output["Action"] = "cleared"
-        return output
+        output["success"] = True
+        output["action"] = "cleared"
+        print(json.dumps(output, indent=2))
+        _write_github_output({
+            "success": "true",
+            "issue": str(args.issue),
+            "action": "cleared",
+            "previous_milestone": current_milestone,
+        })
+        return 0
 
-    # Check milestone exists
-    titles = _list_milestone_titles(owner, repo)
-    if milestone not in titles:
-        write_error_and_exit(
-            f"Milestone '{milestone}' does not exist in {owner}/{repo}.", 2
+    milestone_titles = _get_milestone_titles(owner, repo)
+    if args.milestone not in milestone_titles:
+        error_and_exit(
+            f"Milestone '{args.milestone}' does not exist in {owner}/{repo}.",
+            2,
         )
 
-    # Already assigned
-    if current == milestone:
-        output["Success"] = True
-        output["Milestone"] = milestone
-        output["Action"] = "no_change"
-        return output
+    if current_milestone == args.milestone:
+        output["success"] = True
+        output["milestone"] = args.milestone
+        output["action"] = "no_change"
+        print(json.dumps(output, indent=2))
+        _write_github_output({
+            "success": "true",
+            "issue": str(args.issue),
+            "milestone": args.milestone,
+            "action": "no_change",
+        })
+        return 0
 
-    # Has different milestone without force
-    if current and not force:
-        write_error_and_exit(
-            f"Issue #{issue} already has milestone '{current}'. "
-            f"Use --force to override.", 5
+    if current_milestone and not args.force:
+        error_and_exit(
+            f"Issue #{args.issue} already has milestone "
+            f"'{current_milestone}'. Use --force to override.",
+            5,
         )
 
-    # Assign
     result = subprocess.run(
         [
-            "gh", "issue", "edit", str(issue),
+            "gh", "issue", "edit", str(args.issue),
             "--repo", f"{owner}/{repo}",
-            "--milestone", milestone,
+            "--milestone", args.milestone,
         ],
         capture_output=True,
         text=True,
+        check=False,
     )
     if result.returncode != 0:
-        write_error_and_exit("Failed to set milestone", 3)
+        error_and_exit("Failed to set milestone", 3)
 
-    action = "replaced" if current else "assigned"
-    output["Success"] = True
-    output["Milestone"] = milestone
-    output["Action"] = action
-    return output
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Assign or clear a milestone on a GitHub issue"
-    )
-    parser.add_argument("--owner", help="Repository owner")
-    parser.add_argument("--repo", help="Repository name")
-    parser.add_argument("--issue", type=int, required=True, help="Issue number")
-    parser.add_argument("--milestone", help="Milestone title to assign")
-    parser.add_argument(
-        "--clear", action="store_true",
-        help="Clear existing milestone",
-    )
-    parser.add_argument(
-        "--force", action="store_true",
-        help="Replace existing milestone",
-    )
-    args = parser.parse_args()
-
-    assert_gh_authenticated()
-    resolved = resolve_repo_params(args.owner, args.repo)
-
-    if not args.clear and not args.milestone:
-        write_error_and_exit(
-            "Either --milestone or --clear is required.", 1
-        )
-
-    output = set_issue_milestone(
-        resolved["owner"], resolved["repo"], args.issue,
-        milestone=args.milestone or "",
-        clear=args.clear,
-        force=args.force,
-    )
-
+    action = "replaced" if current_milestone else "assigned"
+    output["success"] = True
+    output["milestone"] = args.milestone
+    output["action"] = action
     print(json.dumps(output, indent=2))
-    action = output["Action"]
-    ms = output.get("Milestone", "")
-    if action == "assigned":
-        print(
-            f"Set milestone '{ms}' on issue #{args.issue}",
-            file=sys.stderr,
-        )
-    elif action == "replaced":
-        prev = output.get("PreviousMilestone", "")
-        print(
-            f"Replaced milestone '{prev}' with '{ms}' on issue #{args.issue}",
-            file=sys.stderr,
-        )
-    elif action == "cleared":
-        print(f"Cleared milestone from issue #{args.issue}", file=sys.stderr)
-    elif action == "no_change":
-        print(f"Issue #{args.issue} already up to date.", file=sys.stderr)
+
+    gh_outputs: dict[str, str] = {
+        "success": "true",
+        "issue": str(args.issue),
+        "milestone": args.milestone,
+        "action": action,
+    }
+    if current_milestone:
+        gh_outputs["previous_milestone"] = current_milestone
+    _write_github_output(gh_outputs)
+
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

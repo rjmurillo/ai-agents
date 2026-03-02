@@ -11,64 +11,64 @@
 ## Quick Reference by Domain
 
 ### Development Workflow
-- [agent-workflow-observations.md](#agent-workflow) - Agent coordination patterns
-- [git-observations.md](#git) - Git operations and workflows
-- [session-observations.md](#session) - Session management patterns
-- [session-protocol-observations.md](#session-protocol) - Session protocol compliance
+- [agent-workflow/agent-workflow-observations.md](#agent-workflow) - Agent coordination patterns
+- [git/git-observations.md](#git) - Git operations and workflows
+- [session/session-observations.md](#session) - Session management patterns
+- [session/session-protocol-observations.md](#session-protocol) - Session protocol compliance
 
 ### Code Quality & Testing
-- [testing-observations.md](#testing) - Testing strategies and coverage
-- [qa-observations.md](#qa) - QA processes and validation
-- [quality-gates-observations.md](#quality-gates) - Quality gate patterns
-- [validation-observations.md](#validation) - Validation strategies
+- [testing/testing-observations.md](#testing) - Testing strategies and coverage
+- [qa/qa-observations.md](#qa) - QA processes and validation
+- [quality/quality-gates-observations.md](#quality-gates) - Quality gate patterns
+- [validation/validation-observations.md](#validation) - Validation strategies
 
 ### Platform & Infrastructure
-- [ci-infrastructure-observations.md](#ci-infrastructure) - CI/CD patterns
-- [environment-observations.md](#environment) - Environment setup and compatibility
-- [performance-observations.md](#performance) - Performance optimization
-- [cost-optimization-observations.md](#cost-optimization) - Cost management
+- [ci/ci-infrastructure-observations.md](#ci-infrastructure) - CI/CD patterns
+- [ci/environment-observations.md](#environment) - Environment setup and compatibility
+- [quality/performance-observations.md](#performance) - Performance optimization
+- [cost/cost-optimization-observations.md](#cost-optimization) - Cost management
 
 ### Code & Scripting
-- [powershell-observations.md](#powershell) - PowerShell patterns
-- [bash-integration-observations.md](#bash-integration) - Bash scripting patterns
-- [error-handling-observations.md](#error-handling) - Error handling anti-patterns
+- [powershell/powershell-observations.md](#powershell) - PowerShell patterns
+- [bash/bash-integration-observations.md](#bash-integration) - Bash scripting patterns
+- [error-handling/error-handling-observations.md](#error-handling) - Error handling anti-patterns
 
 ### Architecture & Design
-- [architecture-observations.md](#architecture) - Architecture decisions
-- [skills-architecture-observations.md](#skills-architecture) - Skill-level architecture
-- [memory-observations.md](#memory) - Memory system patterns
+- [architecture/architecture-observations.md](#architecture) - Architecture decisions
+- [skills/skills-architecture-observations.md](#skills-architecture) - Skill-level architecture
+- [memory/memory-observations.md](#memory) - Memory system patterns
 
 ### GitHub & PR Workflow
-- [github-observations.md](#github) - GitHub API patterns
-- [pr-review-observations.md](#pr-review) - PR review workflows
-- [pr-comment-responder-observations.md](#pr-comment-responder) - PR comment handling
+- [github/github-observations.md](#github) - GitHub API patterns
+- [pr-review/pr-review-observations.md](#pr-review) - PR review workflows
+- [pr-review/pr-comment-responder-observations.md](#pr-comment-responder) - PR comment handling
 
 ### Documentation & Communication
-- [documentation-observations.md](#documentation) - Documentation standards
-- [prompting-observations.md](#prompting) - Prompt engineering patterns
+- [documentation/documentation-observations.md](#documentation) - Documentation standards
+- [prompting/prompting-observations.md](#prompting) - Prompt engineering patterns
 
 ### Security
-- [security-observations.md](#security) - Security patterns and hardening
+- [security/security-observations.md](#security) - Security patterns and hardening
 
 ### Skills & Meta-Learning
-- [skills-critique-observations.md](#skills-critique) - Skill critique patterns
-- [skills-mcp-observations.md](#skills-mcp) - MCP integration patterns
-- [skills-powershell-observations.md](#skills-powershell) - PowerShell skill patterns
-- [skills-quantitative-observations.md](#skills-quantitative) - Quantitative analysis
-- [skills-retrospective-observations.md](#skills-retrospective) - Retrospective patterns
-- [skills-validation-observations.md](#skills-validation) - Skill validation patterns
-- [reflect-observations.md](#reflect) - Reflection skill patterns
-- [retrospective-observations.md](#retrospective) - Retrospective learnings
-- [SkillForge-observations.md](#skillforge) - SkillForge patterns
-- [tool-usage-observations.md](#tool-usage) - Tool usage patterns
-- [enforcement-patterns-observations.md](#enforcement-patterns) - Enforcement patterns
+- [skills/skills-critique-observations.md](#skills/skills-critique) - Skill critique patterns
+- [skills/skills-mcp-observations.md](#skills-mcp) - MCP integration patterns
+- [skills/skills-powershell-observations.md](#skills-powershell) - PowerShell skill patterns
+- [skills/skills-quantitative-observations.md](#skills-quantitative) - Quantitative analysis
+- [skills/skills-retrospective-observations.md](#skills-retrospective) - Retrospective patterns
+- [skills/skills-validation-observations.md](#skills-validation) - Skill validation patterns
+- [retrospective/reflect-observations.md](#reflect) - Reflection skill patterns
+- [retrospective/retrospective-observations.md](#retrospective) - Retrospective learnings
+- [skills/SkillForge-observations.md](#skillforge) - SkillForge patterns
+- [skills/tool-usage-observations.md](#tool-usage) - Tool usage patterns
+- [patterns/enforcement-patterns-observations.md](#enforcement-patterns) - Enforcement patterns
 
 ---
 
 ## Detailed Catalog
 
 ### Agent Workflow
-**File**: `agent-workflow-observations.md`
+**File**: `agent-workflow/agent-workflow-observations.md`
 **Last Updated**: 2026-01-18
 **Sessions**: 2
 **Focus**: Multi-agent coordination, handoff protocols, review patterns
@@ -80,7 +80,7 @@
 ---
 
 ### Architecture
-**File**: `architecture-observations.md`
+**File**: `architecture/architecture-observations.md`
 **Last Updated**: 2026-01-17
 **Sessions**: 10
 **Focus**: System design, ADR patterns, composite actions
@@ -93,7 +93,7 @@
 ---
 
 ### Bash Integration
-**File**: `bash-integration-observations.md`
+**File**: `bash/bash-integration-observations.md`
 **Last Updated**: 2026-01-18
 **Sessions**: 3
 **Focus**: Bash scripting, shell patterns, glob patterns
@@ -105,7 +105,7 @@
 ---
 
 ### CI Infrastructure
-**File**: `ci-infrastructure-observations.md`
+**File**: `ci/ci-infrastructure-observations.md`
 **Last Updated**: 2026-01-18
 **Sessions**: 5
 **Focus**: CI/CD patterns, workflow automation, infrastructure
@@ -118,7 +118,7 @@
 ---
 
 ### Cost Optimization
-**File**: `cost-optimization-observations.md`
+**File**: `cost/cost-optimization-observations.md`
 **Last Updated**: 2026-01-17
 **Sessions**: 2
 **Focus**: Token efficiency, model selection, cost management
@@ -130,7 +130,7 @@
 ---
 
 ### Documentation
-**File**: `documentation-observations.md`
+**File**: `documentation/documentation-observations.md`
 **Last Updated**: 2026-01-18
 **Sessions**: 6
 **Focus**: Documentation standards, ADR structure, research patterns
@@ -143,7 +143,7 @@
 ---
 
 ### Enforcement Patterns
-**File**: `enforcement-patterns-observations.md`
+**File**: `patterns/enforcement-patterns-observations.md`
 **Last Updated**: 2026-01-16
 **Sessions**: 3
 **Focus**: Validation enforcement, compliance patterns
@@ -155,7 +155,7 @@
 ---
 
 ### Environment
-**File**: `environment-observations.md`
+**File**: `ci/environment-observations.md`
 **Last Updated**: 2026-01-18
 **Sessions**: 3
 **Focus**: Environment setup, compatibility, dependencies
@@ -168,7 +168,7 @@
 ---
 
 ### Error Handling
-**File**: `error-handling-observations.md`
+**File**: `error-handling/error-handling-observations.md`
 **Last Updated**: 2026-01-18
 **Sessions**: 1
 **Focus**: Error handling anti-patterns, suppression issues
@@ -180,7 +180,7 @@
 ---
 
 ### Git
-**File**: `git-observations.md`
+**File**: `git/git-observations.md`
 **Last Updated**: 2026-01-18
 **Sessions**: 7
 **Focus**: Git operations, commit patterns, merge workflows
@@ -193,7 +193,7 @@
 ---
 
 ### GitHub
-**File**: `github-observations.md`
+**File**: `github/github-observations.md`
 **Last Updated**: 2026-01-18
 **Sessions**: 7
 **Focus**: GitHub API, GraphQL, reactions, code scanning
@@ -206,7 +206,7 @@
 ---
 
 ### Memory
-**File**: `memory-observations.md`
+**File**: `memory/memory-observations.md`
 **Last Updated**: 2026-01-17
 **Sessions**: 6
 **Focus**: Memory system patterns, knowledge management
@@ -219,7 +219,7 @@
 ---
 
 ### Performance
-**File**: `performance-observations.md`
+**File**: `quality/performance-observations.md`
 **Last Updated**: 2026-01-16
 **Sessions**: Unknown
 **Focus**: Performance optimization, caching, process management
@@ -232,7 +232,7 @@
 ---
 
 ### PowerShell
-**File**: `powershell-observations.md`
+**File**: `powershell/powershell-observations.md`
 **Last Updated**: 2026-01-18
 **Sessions**: 10
 **Focus**: PowerShell patterns, scripting best practices
@@ -245,7 +245,7 @@
 ---
 
 ### PR Comment Responder
-**File**: `pr-comment-responder-observations.md`
+**File**: `pr-review/pr-comment-responder-observations.md`
 **Last Updated**: Unknown
 **Sessions**: Unknown
 **Focus**: PR comment handling, response patterns
@@ -257,7 +257,7 @@
 ---
 
 ### PR Review
-**File**: `pr-review-observations.md`
+**File**: `pr-review/pr-review-observations.md`
 **Last Updated**: 2026-01-18
 **Sessions**: 13
 **Focus**: PR review workflows, bot comments, thread management
@@ -272,7 +272,7 @@
 ---
 
 ### Prompting
-**File**: `prompting-observations.md`
+**File**: `prompting/prompting-observations.md`
 **Last Updated**: Unknown
 **Sessions**: Unknown
 **Focus**: Prompt engineering, LLM interactions
@@ -284,7 +284,7 @@
 ---
 
 ### QA
-**File**: `qa-observations.md`
+**File**: `qa/qa-observations.md`
 **Last Updated**: Unknown
 **Sessions**: Unknown
 **Focus**: Quality assurance processes, validation
@@ -296,7 +296,7 @@
 ---
 
 ### Quality Gates
-**File**: `quality-gates-observations.md`
+**File**: `quality/quality-gates-observations.md`
 **Last Updated**: Unknown
 **Sessions**: Unknown
 **Focus**: Quality gate implementation, blocking conditions
@@ -308,7 +308,7 @@
 ---
 
 ### Reflect
-**File**: `reflect-observations.md`
+**File**: `retrospective/reflect-observations.md`
 **Last Updated**: Unknown
 **Sessions**: Unknown
 **Focus**: Reflection skill patterns, learning capture
@@ -320,7 +320,7 @@
 ---
 
 ### Retrospective
-**File**: `retrospective-observations.md`
+**File**: `retrospective/retrospective-observations.md`
 **Last Updated**: 2026-01-18
 **Sessions**: 2
 **Focus**: Retrospective patterns, learning extraction
@@ -333,7 +333,7 @@
 ---
 
 ### Security
-**File**: `security-observations.md`
+**File**: `security/security-observations.md`
 **Last Updated**: 2026-01-18
 **Sessions**: 4
 **Focus**: Security patterns, vulnerability prevention, hardening
@@ -347,7 +347,7 @@
 ---
 
 ### Session
-**File**: `session-observations.md`
+**File**: `session/session-observations.md`
 **Last Updated**: 2026-01-18
 **Sessions**: 1
 **Focus**: Session management, protocol compliance
@@ -358,7 +358,7 @@
 ---
 
 ### Session Protocol
-**File**: `session-protocol-observations.md`
+**File**: `session/session-protocol-observations.md`
 **Last Updated**: Unknown
 **Sessions**: Unknown
 **Focus**: Session protocol compliance, checklist patterns
@@ -370,7 +370,7 @@
 ---
 
 ### SkillForge
-**File**: `SkillForge-observations.md`
+**File**: `skills/SkillForge-observations.md`
 **Last Updated**: Unknown
 **Sessions**: Unknown
 **Focus**: SkillForge patterns, skill creation
@@ -382,7 +382,7 @@
 ---
 
 ### Skills - Architecture
-**File**: `skills-architecture-observations.md`
+**File**: `skills/skills-architecture-observations.md`
 **Last Updated**: 2026-01-18
 **Sessions**: Unknown
 **Focus**: Skill-level architecture patterns
@@ -394,7 +394,7 @@
 ---
 
 ### Skills - Critique
-**File**: `skills-critique-observations.md`
+**File**: `skills/skills-critique-observations.md`
 **Last Updated**: 2026-01-18
 **Sessions**: Unknown
 **Focus**: Skill critique patterns
@@ -406,7 +406,7 @@
 ---
 
 ### Skills - MCP
-**File**: `skills-mcp-observations.md`
+**File**: `skills/skills-mcp-observations.md`
 **Last Updated**: 2026-01-18
 **Sessions**: Unknown
 **Focus**: MCP integration patterns
@@ -418,7 +418,7 @@
 ---
 
 ### Skills - PowerShell
-**File**: `skills-powershell-observations.md`
+**File**: `skills/skills-powershell-observations.md`
 **Last Updated**: 2026-01-18
 **Sessions**: Unknown
 **Focus**: PowerShell skill patterns
@@ -430,7 +430,7 @@
 ---
 
 ### Skills - Quantitative
-**File**: `skills-quantitative-observations.md`
+**File**: `skills/skills-quantitative-observations.md`
 **Last Updated**: 2026-01-18
 **Sessions**: Unknown
 **Focus**: Quantitative analysis patterns
@@ -443,7 +443,7 @@
 ---
 
 ### Skills - Retrospective
-**File**: `skills-retrospective-observations.md`
+**File**: `skills/skills-retrospective-observations.md`
 **Last Updated**: 2026-01-18
 **Sessions**: Unknown
 **Focus**: Retrospective skill patterns
@@ -455,7 +455,7 @@
 ---
 
 ### Skills - Validation
-**File**: `skills-validation-observations.md`
+**File**: `skills/skills-validation-observations.md`
 **Last Updated**: 2026-01-18
 **Sessions**: Unknown
 **Focus**: Validation skill patterns
@@ -467,7 +467,7 @@
 ---
 
 ### Testing
-**File**: `testing-observations.md`
+**File**: `testing/testing-observations.md`
 **Last Updated**: 2026-01-18
 **Sessions**: 17
 **Focus**: Testing strategies, Pester patterns, coverage
@@ -485,7 +485,7 @@
 ---
 
 ### Tool Usage
-**File**: `tool-usage-observations.md`
+**File**: `skills/tool-usage-observations.md`
 **Last Updated**: Unknown
 **Sessions**: Unknown
 **Focus**: Tool usage patterns, best practices
@@ -497,7 +497,7 @@
 ---
 
 ### Validation
-**File**: `validation-observations.md`
+**File**: `validation/validation-observations.md`
 **Last Updated**: 2026-01-18
 **Sessions**: 7
 **Focus**: Validation strategies, error messaging, verification
@@ -514,22 +514,22 @@
 ## Usage Patterns
 
 ### By Frequency (Sessions Analyzed)
-1. **testing-observations.md** - 17 sessions
-2. **pr-review-observations.md** - 13 sessions
-3. **architecture-observations.md** - 10 sessions
-4. **powershell-observations.md** - 10 sessions
-5. **git-observations.md** - 7 sessions
-6. **github-observations.md** - 7 sessions
-7. **validation-observations.md** - 7 sessions
+1. **testing/testing-observations.md** - 17 sessions
+2. **pr-review/pr-review-observations.md** - 13 sessions
+3. **architecture/architecture-observations.md** - 10 sessions
+4. **powershell/powershell-observations.md** - 10 sessions
+5. **git/git-observations.md** - 7 sessions
+6. **github/github-observations.md** - 7 sessions
+7. **validation/validation-observations.md** - 7 sessions
 
 ### By Confidence Level
 
 **HIGH Confidence (Constraints - MUST follow)**:
-- testing-observations.md (10+ HIGH learnings)
-- pr-review-observations.md (6+ HIGH learnings)
-- error-handling-observations.md (1 critical anti-pattern)
-- environment-observations.md (2 HIGH learnings)
-- security-observations.md (2+ HIGH learnings)
+- testing/testing-observations.md (10+ HIGH learnings)
+- pr-review/pr-review-observations.md (6+ HIGH learnings)
+- error-handling/error-handling-observations.md (1 critical anti-pattern)
+- ci/environment-observations.md (2 HIGH learnings)
+- security/security-observations.md (2+ HIGH learnings)
 
 **MED Confidence (Preferences - SHOULD follow)**:
 - Most observation files contain MED confidence patterns
@@ -544,24 +544,24 @@
 ## Search Strategies
 
 ### By Problem Domain
-- **Testing issues**: Check testing-observations.md first
-- **PR workflow**: Check pr-review-observations.md
-- **Git operations**: Check git-observations.md
-- **Environment setup**: Check environment-observations.md
-- **Security concerns**: Check security-observations.md
+- **Testing issues**: Check testing/testing-observations.md first
+- **PR workflow**: Check pr-review/pr-review-observations.md
+- **Git operations**: Check git/git-observations.md
+- **Environment setup**: Check ci/environment-observations.md
+- **Security concerns**: Check security/security-observations.md
 
 ### By Technology
-- **PowerShell**: powershell-observations.md, skills-powershell-observations.md
-- **GitHub API**: github-observations.md, pr-review-observations.md
-- **CI/CD**: ci-infrastructure-observations.md
-- **MCP**: skills-mcp-observations.md, memory-observations.md
+- **PowerShell**: powershell/powershell-observations.md, skills/skills-powershell-observations.md
+- **GitHub API**: github/github-observations.md, pr-review/pr-review-observations.md
+- **CI/CD**: ci/ci-infrastructure-observations.md
+- **MCP**: skills/skills-mcp-observations.md, memory/memory-observations.md
 
 ### By Workflow Phase
-- **Session Start**: session-protocol-observations.md, environment-observations.md
-- **Implementation**: architecture-observations.md, powershell-observations.md
-- **Testing**: testing-observations.md, qa-observations.md
-- **PR Review**: pr-review-observations.md, pr-comment-responder-observations.md
-- **Session End**: retrospective-observations.md, validation-observations.md
+- **Session Start**: session/session-protocol-observations.md, ci/environment-observations.md
+- **Implementation**: architecture/architecture-observations.md, powershell/powershell-observations.md
+- **Testing**: testing/testing-observations.md, qa/qa-observations.md
+- **PR Review**: pr-review/pr-review-observations.md, pr-review/pr-comment-responder-observations.md
+- **Session End**: retrospective/retrospective-observations.md, validation/validation-observations.md
 
 ---
 

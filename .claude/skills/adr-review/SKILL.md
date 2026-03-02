@@ -43,7 +43,7 @@ Multi-agent debate pattern for rigorous ADR validation. Orchestrates 6 specializ
 "validate ADR-005"
 ```
 
-**Automatic Detection**: A Claude Code hook (`detect_adr_changes.py`) runs at session start and detects ADR changes, prompting you to invoke this skill. The pre-commit hook also detects staged ADR files and displays a reminder.
+**Automatic Detection**: A Claude Code hook runs at session start and detects ADR changes, prompting you to invoke this skill. The pre-commit hook also detects staged ADR files and displays a reminder.
 
 | Input | Output | Consensus Required |
 |-------|--------|-------------------|
@@ -176,7 +176,10 @@ After structural and technical review, apply strategic lenses:
 python3 .claude/skills/adr-review/scripts/detect_adr_changes.py
 
 # Compare to specific commit
-python3 .claude/skills/adr-review/scripts/detect_adr_changes.py --since-commit "abc123"
+python3 .claude/skills/adr-review/scripts/detect_adr_changes.py --since-commit abc123
+
+# Include untracked ADR files
+python3 .claude/skills/adr-review/scripts/detect_adr_changes.py --include-untracked
 ```
 
 ## Verification Checklist

@@ -25,18 +25,18 @@ Converts markdown session logs to JSON format for deterministic validation.
 
 ## Quick Start
 
-```powershell
+```bash
 # Migrate single file
-pwsh .claude/skills/session-migration/scripts/Convert-SessionToJson.ps1 -Path ".agents/sessions/.agents/sessions/2026-01-09-session-385.json"
+python3 .claude/skills/session-migration/scripts/convert_session_to_json.py ".agents/sessions/2026-01-09-session-385.md"
 
 # Migrate all sessions in directory
-pwsh .claude/skills/session-migration/scripts/Convert-SessionToJson.ps1 -Path ".agents/sessions/"
+python3 .claude/skills/session-migration/scripts/convert_session_to_json.py ".agents/sessions/"
 
 # Dry run to preview changes
-pwsh .claude/skills/session-migration/scripts/Convert-SessionToJson.ps1 -Path ".agents/sessions/" -DryRun
+python3 .claude/skills/session-migration/scripts/convert_session_to_json.py ".agents/sessions/" --dry-run
 
 # Force overwrite existing JSON
-pwsh .claude/skills/session-migration/scripts/Convert-SessionToJson.ps1 -Path ".agents/sessions/" -Force
+python3 .claude/skills/session-migration/scripts/convert_session_to_json.py ".agents/sessions/" --force
 ```
 
 ---
@@ -99,7 +99,7 @@ JSON sessions follow the schema at:
 JSON sessions are validated by:
 
 ```text
-scripts/Validate-SessionJson.ps1
+scripts/validate_session_json.py
 ```
 
 ---
@@ -200,11 +200,7 @@ Failed: 0
 
 ### Return Value
 
-```powershell
-# Returns array of paths to migrated JSON files
-$migratedPaths = & .claude/skills/session-migration/scripts/Convert-SessionToJson.ps1 -Path ".agents/sessions/"
-$migratedPaths | ForEach-Object { Write-Host "Created: $_" }
-```
+The script prints migration summary and returns exit code 0 on success, 1 on failure.
 
 ---
 
@@ -220,16 +216,14 @@ For PRs with in-flight markdown sessions:
 
 2. **Run migration**:
 
-   ```powershell
-   pwsh .claude/skills/session-migration/scripts/Convert-SessionToJson.ps1 -Path ".agents/sessions/"
+   ```bash
+   python3 .claude/skills/session-migration/scripts/convert_session_to_json.py ".agents/sessions/"
    ```
 
 3. **Validate migrated sessions**:
 
-   ```powershell
-   Get-ChildItem .agents/sessions/*.json | ForEach-Object {
-     pwsh scripts/Validate-SessionJson.ps1 -SessionLogPath $_.FullName
-   }
+   ```bash
+   for f in .agents/sessions/*.json; do python3 scripts/validate_session_json.py "$f"; done
    ```
 
 4. **Commit both formats** (for transition period):
@@ -267,7 +261,7 @@ The migration script maps markdown checklist patterns to JSON keys.
 | Regex Pattern | JSON Key | Level |
 |---------------|----------|-------|
 | `Complete.*session.*log\|session.*log.*complete\|all.*section` | `checklistComplete` | MUST |
-| `HANDOFF.*read-only\|Update.*HANDOFF` | `handoffNotUpdated` | MUST NOT |
+| `HANDOFF.*read-only\|Update.*HANDOFF` | `handoffPreserved` | MUST |
 | `Serena.*memory\|Update.*memory\|memory.*updat` | `serenaMemoryUpdated` | MUST |
 | `markdownlint\|markdown.*lint\|Run.*lint` | `markdownLintRun` | MUST |
 | `Commit.*change\|change.*commit` | `changesCommitted` | MUST |
@@ -281,9 +275,9 @@ The migration script maps markdown checklist patterns to JSON keys.
 
 | Avoid | Why | Instead |
 |-------|-----|---------|
-| Manually converting markdown to JSON | Error-prone, misses edge cases | Use Convert-SessionToJson.ps1 script |
+| Manually converting markdown to JSON | Error-prone, misses edge cases | Use convert_session_to_json.py script |
 | Deleting markdown files after migration | May need originals for reference | Keep both during transition period |
-| Skipping validation after migration | Migrated JSON may still be incomplete | Always validate with Validate-SessionJson.ps1 |
+| Skipping validation after migration | Migrated JSON may still be incomplete | Always validate with validate_session_json.py |
 | Migrating without `-DryRun` first | Cannot preview changes | Use `-DryRun` to preview, then run for real |
 
 ## Verification
@@ -291,7 +285,7 @@ The migration script maps markdown checklist patterns to JSON keys.
 After migration:
 
 - [ ] JSON files created alongside markdown originals
-- [ ] All migrated JSON files pass `Validate-SessionJson.ps1`
+- [ ] All migrated JSON files pass `validate_session_json.py`
 - [ ] Session numbers and dates match between markdown and JSON
 - [ ] No migration errors in script output
 - [ ] Both formats committed (for transition period)
@@ -302,8 +296,8 @@ After migration:
 
 Use `-Force` to overwrite:
 
-```powershell
-pwsh .claude/skills/session-migration/scripts/Convert-SessionToJson.ps1 -Path ".agents/sessions/" -Force
+```bash
+python3 .claude/skills/session-migration/scripts/convert_session_to_json.py ".agents/sessions/" --force
 ```
 
 ### Some sessions fail validation after migration
@@ -312,7 +306,19 @@ Expected for genuinely incomplete sessions. The migration preserves the actual s
 
 ### Pattern not detected
 
-If a checklist item isn't detected, the markdown format may be non-standard. The script uses flexible regex but edge cases exist. Update the `Find-ChecklistItem` function patterns if needed.
+If a checklist item isn't detected, the markdown format may be non-standard. The script uses flexible regex but edge cases exist. Update the `_find_checklist_item` function patterns if needed.
+
+---
+
+## Scripts
+
+### convert_session_to_json.py
+
+Converts markdown session logs to JSON format.
+
+```bash
+python3 .claude/skills/session-migration/scripts/convert_session_to_json.py <input-file> [--output <output-file>]
+```
 
 ---
 
@@ -330,8 +336,8 @@ If a checklist item isn't detected, the markdown format may be non-standard. The
 | Resource | Location | Purpose |
 |----------|----------|---------|
 | JSON Schema | `.agents/schemas/session-log.schema.json` | Defines required structure |
-| JSON Validator | `scripts/Validate-SessionJson.ps1` | Validates migrated JSON files |
-| Legacy Validator | `scripts/Validate-SessionJson.ps1` | Validates markdown (deprecated) |
+| JSON Validator | `scripts/validate_session_json.py` | Validates migrated JSON files |
+| Legacy Validator | `scripts/validate_session_json.py` | Validates markdown (deprecated) |
 
 ### Architecture
 

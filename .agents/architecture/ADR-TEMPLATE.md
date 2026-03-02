@@ -16,6 +16,29 @@
 
 [State the decision that was made. Be clear and unambiguous.]
 
+## Prior Art Investigation (Required when changing existing systems)
+
+Complete this section when the ADR proposes changes to existing patterns, constraints, or architecture.
+Use `python3 .claude/skills/chestertons-fence/scripts/investigate.py` to automate research.
+
+### What Currently Exists
+
+- **Structure/pattern being changed**: [Describe what exists today]
+- **When introduced**: [PR/ADR reference, commit, date]
+- **Original author and context**: [Who created it and why]
+
+### Historical Rationale
+
+- **Why was it built this way?** [Original problem it solved]
+- **What alternatives were considered?** [Prior trade-off analysis]
+- **What constraints drove the design?** [Technical or organizational factors]
+
+### Why Change Now
+
+- **Has the original problem changed?** [Yes/No, evidence]
+- **Is there a better solution now?** [Yes/No, what changed]
+- **What are the risks of change?** [Blast radius, migration cost]
+
 ## Rationale
 
 [Explain why this decision was made. Include:]

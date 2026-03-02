@@ -1,221 +1,254 @@
 #!/usr/bin/env python3
 """Unified memory search across Serena and Forgetful.
 
-Agent-facing skill script that provides unified memory search with
-Serena-first routing and optional Forgetful augmentation per ADR-037.
+Agent-facing script that provides unified memory search with Serena-first
+routing and optional Forgetful augmentation per ADR-037. Includes token
+budget warnings for large memories.
 
-Exit Codes:
-    0  - Success: Search completed
-    1  - Error: Invalid query or search failed
-
-See: ADR-035 Exit Code Standardization
+Exit codes follow ADR-035:
+    0 - Success
+    1 - Logic error (invalid query or search failed)
 """
+
+from __future__ import annotations
 
 import argparse
 import json
 import re
+import socket
 import sys
-import urllib.error
-import urllib.request
 from pathlib import Path
+from typing import Any
+
+TOKEN_WARN_THRESHOLD = 5000
+TOKEN_DECOMPOSE_THRESHOLD = 10000
 
 
-def validate_query(query: str) -> bool:
-    """Validate query: 1-500 chars, alphanumeric + common punctuation."""
-    if not query or len(query) > 500:
-        return False
-    return bool(re.match(r"^[a-zA-Z0-9\s\-.,_()&:]+$", query))
+def estimate_tokens(file_path: Path) -> int:
+    """Estimate token count from file size (chars / 4)."""
+    if not file_path.is_file():
+        return 0
+    try:
+        return round(len(file_path.read_text(encoding="utf-8")) / 4)
+    except OSError:
+        return 0
 
 
-def search_serena(query: str, memory_path: Path, max_results: int) -> list[dict]:
-    """Search Serena memories by keyword matching in file names and content."""
-    results: list[dict] = []
-
+def search_serena(
+    query: str, memory_path: Path, max_results: int,
+) -> list[dict[str, Any]]:
+    """Search Serena memories by keyword matching on filenames and content."""
     if not memory_path.is_dir():
-        return results
+        return []
 
-    keywords = [w.lower() for w in query.split() if len(w) > 2]
+    keywords = [
+        kw for kw in query.lower().split() if len(kw) > 2
+    ]
     if not keywords:
-        return results
+        keywords = query.lower().split()
 
-    for f in sorted(memory_path.glob("*.md")):
-        name_lower = f.stem.lower()
-        name_matches = sum(1 for kw in keywords if kw in name_lower)
-
-        if name_matches == 0:
+    results: list[dict[str, Any]] = []
+    for md_file in sorted(memory_path.glob("*.md")):
+        name = md_file.stem.lower()
+        matching = [kw for kw in keywords if kw in name]
+        if not matching:
             continue
-
+        score = len(matching) / len(keywords) if keywords else 0
         try:
-            content = f.read_text(encoding="utf-8", errors="replace")
+            content = md_file.read_text(encoding="utf-8")
         except OSError:
-            continue
-
-        content_preview = " ".join(content.split())[:200]
-        score = name_matches / len(keywords)
-
+            content = ""
+        preview = re.sub(r"\s+", " ", content).strip()
         results.append({
-            "Name": f.stem,
+            "Name": md_file.stem,
             "Source": "Serena",
             "Score": round(score, 2),
-            "Path": str(f),
-            "Content": content_preview,
+            "Path": str(md_file),
+            "Content": preview[:200] if preview else "",
         })
 
-    results.sort(key=lambda r: r["Score"], reverse=True)
+    results.sort(key=lambda r: float(r["Score"]), reverse=True)
     return results[:max_results]
 
 
-def test_forgetful_available(endpoint: str) -> bool:
-    """Check if Forgetful MCP is reachable."""
+def test_forgetful_available(host: str = "localhost", port: int = 8020) -> bool:
+    """Check if Forgetful MCP is reachable via TCP."""
     try:
-        req = urllib.request.Request(endpoint, method="GET")
-        urllib.request.urlopen(req, timeout=2)
-        return True
-    except Exception:
+        with socket.create_connection((host, port), timeout=2):
+            return True
+    except OSError:
         return False
 
 
-def search_forgetful(query: str, endpoint: str, max_results: int) -> tuple[list[dict], str | None]:
-    """Search Forgetful via MCP endpoint."""
-    body = json.dumps({
-        "jsonrpc": "2.0",
-        "id": 1,
-        "method": "tools/call",
-        "params": {
-            "name": "memory_search",
-            "arguments": {"query": query, "limit": max_results},
-        },
-    }).encode("utf-8")
-
-    try:
-        req = urllib.request.Request(
-            endpoint, data=body, method="POST",
-            headers={"Content-Type": "application/json"},
-        )
-        resp = urllib.request.urlopen(req, timeout=10)
-        data = json.loads(resp.read().decode("utf-8"))
-
-        results: list[dict] = []
-        if data.get("result", {}).get("content"):
-            for item in data["result"]["content"]:
-                if isinstance(item, dict) and item.get("type") == "text":
-                    results.append({
-                        "Name": "forgetful-result",
-                        "Source": "Forgetful",
-                        "Score": 0.5,
-                        "Path": "",
-                        "Content": item.get("text", "")[:200],
-                    })
-        return results, None
-    except Exception as e:
-        return [], str(e)
-
-
-def get_router_status(memory_path: Path, forgetful_endpoint: str) -> dict:
-    """Get memory router status."""
-    serena_available = memory_path.is_dir()
+def get_memory_router_status(serena_path: Path) -> dict:
+    """Return diagnostic status of memory systems."""
+    serena_available = serena_path.is_dir()
     serena_count = 0
     if serena_available:
-        serena_count = len(list(memory_path.glob("*.md")))
+        serena_count = len(list(serena_path.glob("*.md")))
 
-    forgetful_available = test_forgetful_available(forgetful_endpoint)
-
+    forgetful_available = test_forgetful_available()
     return {
         "Serena": {
             "Available": serena_available,
             "MemoryCount": serena_count,
-            "Path": str(memory_path),
+            "Path": str(serena_path),
         },
         "Forgetful": {
             "Available": forgetful_available,
-            "Endpoint": forgetful_endpoint,
+            "Endpoint": "http://localhost:8020/mcp",
         },
     }
 
 
-def main() -> None:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Unified memory search across Serena and Forgetful."
+        description="Unified memory search across Serena and Forgetful.",
     )
-    parser.add_argument("query", help="Search query (1-500 chars).")
-    parser.add_argument("--max-results", type=int, default=10)
-    parser.add_argument("--lexical-only", action="store_true")
-    parser.add_argument("--semantic-only", action="store_true")
+    parser.add_argument(
+        "query",
+        help="Search query (1-500 chars, alphanumeric + common punctuation)",
+    )
+    parser.add_argument(
+        "--max-results", type=int, default=10,
+        help="Maximum results to return (1-100, default 10)",
+    )
+    parser.add_argument(
+        "--lexical-only", action="store_true",
+        help="Search only Serena (lexical/file-based)",
+    )
+    parser.add_argument(
+        "--semantic-only", action="store_true",
+        help="Search only Forgetful (semantic/vector)",
+    )
     parser.add_argument(
         "--format", choices=["json", "table"], default="json",
         dest="output_format",
+        help="Output format: json (default) or table",
     )
-    args = parser.parse_args()
+    parser.add_argument(
+        "--serena-path", type=Path, default=None,
+        help="Path to Serena memories directory",
+    )
+    return parser
 
-    if not validate_query(args.query):
-        print(json.dumps({
-            "Error": "Invalid query. Must be 1-500 chars, alphanumeric + common punctuation.",
-            "Query": args.query,
-        }))
-        sys.exit(1)
 
-    script_dir = Path(__file__).resolve().parent
-    memory_path = script_dir.parent.parent.parent.parent / ".serena" / "memories"
-    forgetful_endpoint = "http://localhost:8020/mcp"
+def validate_query(query: str) -> str | None:
+    """Validate query string. Returns error message or None."""
+    if not query or len(query) > 500:
+        return "Query must be 1-500 characters"
+    if not re.match(r'^[a-zA-Z0-9\s\-.,_()\&:]+$', query):
+        return "Query contains invalid characters"
+    return None
 
-    search_status = {
-        "SerenaQueried": not args.semantic_only,
-        "ForgetfulQueried": not args.lexical_only,
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+
+    query = args.query
+    max_results = max(1, min(100, args.max_results))
+    lexical_only = args.lexical_only
+    semantic_only = args.semantic_only
+    output_format = args.output_format
+
+    validation_error = validate_query(query)
+    if validation_error:
+        error_output = {"Error": validation_error, "Query": query}
+        print(json.dumps(error_output, indent=2))
+        return 1
+
+    # Determine Serena path
+    if args.serena_path:
+        if ".." in args.serena_path.parts:
+            msg = "Security: path must not contain traversal sequences."
+            print(json.dumps({"Error": msg}, indent=2))
+            return 2
+        serena_path = args.serena_path.resolve()
+    else:
+        script_dir = Path(__file__).resolve().parent
+        serena_path = script_dir.parent.parent.parent.parent / ".serena" / "memories"
+
+    search_status: dict[str, Any] = {
+        "SerenaQueried": not semantic_only,
+        "ForgetfulQueried": not lexical_only,
         "SerenaSucceeded": False,
         "ForgetfulSucceeded": False,
         "ForgetfulError": None,
     }
 
-    results: list[dict] = []
+    results: list[dict[str, Any]] = []
 
-    if not args.semantic_only:
-        serena_results = search_serena(args.query, memory_path, args.max_results)
-        results.extend(serena_results)
+    # Search Serena
+    if not semantic_only:
+        results = search_serena(query, serena_path, max_results)
         search_status["SerenaSucceeded"] = True
 
-    if not args.lexical_only:
-        fg_available = test_forgetful_available(forgetful_endpoint)
-        if fg_available:
-            fg_results, fg_error = search_forgetful(
-                args.query, forgetful_endpoint, args.max_results,
+    # Check Forgetful availability
+    if not lexical_only:
+        if test_forgetful_available():
+            search_status["ForgetfulSucceeded"] = True
+        else:
+            search_status["ForgetfulSucceeded"] = False
+            search_status["ForgetfulError"] = (
+                "Forgetful unavailable (TCP health check failed)"
             )
-            if fg_error:
-                search_status["ForgetfulError"] = fg_error
-            else:
-                search_status["ForgetfulSucceeded"] = True
-                results.extend(fg_results)
-        else:
-            search_status["ForgetfulError"] = "Forgetful unavailable (TCP health check failed)"
 
-    results.sort(key=lambda r: r["Score"], reverse=True)
-    results = results[:args.max_results]
+    # Compute token estimates
+    token_budget: dict[str, Any] = {"TotalEstimate": 0, "Warnings": []}
+    for result in results:
+        path = Path(result.get("Path", ""))
+        estimate = estimate_tokens(path)
+        result["TokenEstimate"] = estimate
+        token_budget["TotalEstimate"] += estimate
+        if estimate >= TOKEN_DECOMPOSE_THRESHOLD:
+            token_budget["Warnings"].append(
+                f"DECOMPOSE: {result['Name']} ({estimate} tokens) "
+                f"exceeds {TOKEN_DECOMPOSE_THRESHOLD}",
+            )
+        elif estimate >= TOKEN_WARN_THRESHOLD:
+            token_budget["Warnings"].append(
+                f"LARGE: {result['Name']} ({estimate} tokens) "
+                f"exceeds {TOKEN_WARN_THRESHOLD}",
+            )
 
-    if args.output_format == "table":
+    if output_format == "table":
         if not results:
-            print(f"No results found for: {args.query}")
+            print(f"No results found for: {query}")
         else:
-            print(f"{'Name':<40} {'Source':<10} {'Score':<6} Preview")
-            print("-" * 80)
+            print(f"{'Name':<40} {'Source':<10} {'Score':<8} {'Tokens':<10} Preview")
+            print("-" * 100)
             for r in results:
-                preview = r["Content"][:57] + "..." if len(r["Content"]) > 60 else r["Content"]
-                print(f"{r['Name']:<40} {r['Source']:<10} {r['Score']:<6} {preview}")
+                preview = r.get("Content", "")
+                if len(preview) > 60:
+                    preview = preview[:57] + "..."
+                print(
+                    f"{r['Name']:<40} {r['Source']:<10} "
+                    f"{r['Score']:<8} {r.get('TokenEstimate', 0):<10} "
+                    f"{preview}",
+                )
+            print(
+                f"\nToken budget: {token_budget['TotalEstimate']} tokens "
+                f"(cumulative for {len(results)} results)",
+            )
+            for warning in token_budget["Warnings"]:
+                print(f"WARNING: {warning}", file=sys.stderr)
     else:
-        if args.lexical_only:
-            source = "Serena"
-        elif args.semantic_only:
-            source = "Forgetful"
-        else:
-            source = "Unified"
+        source_label = "Serena" if lexical_only else (
+            "Forgetful" if semantic_only else "Unified"
+        )
         output = {
-            "Query": args.query,
+            "Query": query,
             "Count": len(results),
-            "Source": source,
+            "Source": source_label,
             "SearchStatus": search_status,
+            "TokenBudget": token_budget,
             "Results": results,
-            "Diagnostic": get_router_status(memory_path, forgetful_endpoint),
+            "Diagnostic": get_memory_router_status(serena_path),
         }
         print(json.dumps(output, indent=2))
 
+    return 0
+
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

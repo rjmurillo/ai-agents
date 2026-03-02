@@ -27,16 +27,14 @@ jobs:
 
       - name: Collect metrics
         id: collect
-        shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
           SINCE_DAYS: ${{ inputs.since || '30' }}
         run: |
-          $since = [int]$env:SINCE_DAYS
-          .github/scripts/Measure-WorkflowCoalescing.ps1 `
-            -Since $since `
-            -Output Markdown `
-            -OutputPath .agents/metrics/workflow-coalescing.md
+          python3 .github/scripts/measure_workflow_coalescing.py \
+            --since "$SINCE_DAYS" \
+            --output markdown \
+            --output-path .agents/metrics/workflow-coalescing.md
 
       - name: Commit report
         run: |

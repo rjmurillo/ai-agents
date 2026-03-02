@@ -31,9 +31,8 @@ Coordinates PR review responses through context gathering, comment tracking, and
 **ALWAYS extract PR context from prompt first. Never prompt for information already provided.**
 
 ```bash
-SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 # Extract PR number and owner/repo from user prompt
-python3 "$SCRIPTS_DIR/utils/extract_github_context.py" --text "[prompt]" --require-pr
+python3 .claude/skills/github/scripts/utils/extract_github_context.py --text "[prompt]" --require-pr
 ```
 
 Supported patterns:
@@ -79,29 +78,36 @@ Comments are classified into domains for priority-based triage:
 **Domain-First Processing Workflow:**
 
 ```bash
-SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 # Get comments grouped by domain
-comments=$(python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request 908 --group-by-domain --include-issue-comments)
+comments=$(python3 .claude/skills/github/scripts/pr/get_pr_review_comments.py --pull-request 908 --group-by-domain --include-issue-comments)
 
 # Process security FIRST (CWE, vulnerabilities, injection)
-# Parse JSON output: comments.Security array
-# Handle security-critical issues immediately
-# Route to security agent if needed
+echo "$comments" | jq -r '.Security[]' | while read -r comment; do
+    # Handle security-critical issues immediately
+    # Route to security agent if needed
+    echo "Processing security comment"
+done
 
 # Then bugs (errors, crashes, null references)
-# Parse JSON output: comments.Bug array
-# Address functional issues
+echo "$comments" | jq -r '.Bug[]' | while read -r comment; do
+    # Address functional issues
+    echo "Processing bug comment"
+done
 
 # Then style (formatting, naming, conventions)
-# Parse JSON output: comments.Style array
-# Apply style improvements
+echo "$comments" | jq -r '.Style[]' | while read -r comment; do
+    # Apply style improvements
+    echo "Processing style comment"
+done
 
 # Finally general comments (everything else)
-# Parse JSON output: comments.General array
-# Process general feedback
+echo "$comments" | jq -r '.General[]' | while read -r comment; do
+    # Process general feedback
+    echo "Processing general comment"
+done
 
 # Skip summary comments (bot-generated noise)
-# comments.Summary contains informational summaries only
+# .Summary contains informational summaries only
 ```
 
 **Benefits:**

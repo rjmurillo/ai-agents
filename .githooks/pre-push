@@ -161,8 +161,14 @@ while read -r local_ref local_sha remote_ref remote_sha; do
             ref_range="$local_sha"
         fi
     else
-        # Existing branch: compare against remote
-        ref_range="$remote_sha..$local_sha"
+        # Existing branch: use merge-base with main to exclude upstream changes
+        # This prevents merge commits from counting files already on main
+        merge_base=$(git merge-base origin/main "$local_sha" 2>/dev/null || echo "")
+        if [ -n "$merge_base" ]; then
+            ref_range="$merge_base..$local_sha"
+        else
+            ref_range="$remote_sha..$local_sha"
+        fi
     fi
 
     # Keep last ref range for commit count and additions checks
@@ -231,31 +237,68 @@ fi
 
 record_pass "Branch guard ($current_branch)"
 
+# Detect merge commits from main in the push range. Merges from upstream
+# naturally inflate commit/file counts with already-reviewed changes, so
+# limits are relaxed to avoid blocking legitimate merge-and-push workflows.
+MERGE_FROM_MAIN=""
+if [ -n "$PUSH_RANGE" ]; then
+    MERGE_FROM_MAIN=$(git rev-list --merges "$PUSH_RANGE" 2>/dev/null \
+        | while read -r sha; do
+            git log -1 --format='%P' "$sha" 2>/dev/null | tr ' ' '\n' | tail -n +2 \
+                | while read -r parent; do
+                    if git merge-base --is-ancestor "$parent" origin/main 2>/dev/null; then
+                        echo "yes"
+                        break
+                    fi
+                done
+        done | head -1)
+    if [ "$MERGE_FROM_MAIN" = "yes" ]; then
+        echo_info "Merge from main detected, relaxing commit/file limits"
+    fi
+fi
+
 # 2. Commit count - SESSION-PROTOCOL limit of 20
+COMMIT_LIMIT=20
+COMMIT_WARN=15
+if [ "$MERGE_FROM_MAIN" = "yes" ]; then
+    COMMIT_LIMIT=40
+    COMMIT_WARN=30
+fi
 if [ -n "$PUSH_RANGE" ]; then
     COMMIT_COUNT=$(git rev-list --count "$PUSH_RANGE" 2>/dev/null || echo "0")
-    if [ "$COMMIT_COUNT" -gt 20 ]; then
-        record_fail "Commit count ($COMMIT_COUNT) exceeds limit of 20"
+    if [ "$COMMIT_COUNT" -gt "$COMMIT_LIMIT" ]; then
+        record_fail "Commit count ($COMMIT_COUNT) exceeds limit of $COMMIT_LIMIT"
         echo_info "  Consider squashing commits or splitting the PR."
         echo_info "  See: CONTRIBUTING.md#commit-count-thresholds"
-    elif [ "$COMMIT_COUNT" -gt 15 ]; then
-        record_warn "Commit count ($COMMIT_COUNT) approaching limit of 20"
+    elif [ "$COMMIT_COUNT" -gt "$COMMIT_WARN" ]; then
+        record_warn "Commit count ($COMMIT_COUNT) approaching limit of $COMMIT_LIMIT"
     else
-        record_pass "Commit count ($COMMIT_COUNT <= 20)"
+        record_pass "Commit count ($COMMIT_COUNT <= $COMMIT_LIMIT)"
     fi
 else
     record_skip "Commit count (no push range)"
 fi
 
 # 3. Changed files count
-# Allow override via PREPUSH_MAX_FILES env var for large migrations
-MAX_FILES="${PREPUSH_MAX_FILES:-50}"
-if [ "$FILE_COUNT" -gt "$MAX_FILES" ]; then
-    record_fail "Changed files ($FILE_COUNT) exceeds maximum of $MAX_FILES"
+FILE_LIMIT=50
+FILE_WARN=20
+if [ "$MERGE_FROM_MAIN" = "yes" ]; then
+    FILE_LIMIT=150
+    FILE_WARN=80
+fi
+# ALLOW_LARGE_PUSH=1 relaxes file limits for migrations and bulk refactors.
+# All quality checks (lint, mypy, tests) still run; only the file-count gate changes.
+if [ "${ALLOW_LARGE_PUSH:-0}" = "1" ]; then
+    FILE_LIMIT=200
+    FILE_WARN=100
+    echo_info "ALLOW_LARGE_PUSH=1: file limit relaxed to $FILE_LIMIT"
+fi
+
+if [ "$FILE_COUNT" -gt "$FILE_LIMIT" ]; then
+    record_fail "Changed files ($FILE_COUNT) exceeds maximum of $FILE_LIMIT"
     echo_info "  Consider splitting into smaller PRs."
-    echo_info "  Override: PREPUSH_MAX_FILES=N git push"
-elif [ "$FILE_COUNT" -gt 20 ]; then
-    record_warn "Changed files ($FILE_COUNT) exceeds recommended limit of 20"
+elif [ "$FILE_COUNT" -gt "$FILE_WARN" ]; then
+    record_warn "Changed files ($FILE_COUNT) exceeds recommended limit of $FILE_WARN"
 else
     record_pass "Changed files count ($FILE_COUNT)"
 fi
@@ -359,11 +402,7 @@ if [ -n "$CHANGED_PY" ]; then
         while IFS= read -r file; do
             [ -z "$file" ] && continue
             [ -L "$file" ] && continue
-            [ -f "$file" ] || continue
-            # Skip standalone skill scripts (duplicate filenames across dirs
-            # cause mypy "Duplicate module named" errors)
-            [[ "$file" == .claude/skills/*/scripts/*.py ]] && continue
-            PY_FILES+=("$file")
+            [ -f "$file" ] && PY_FILES+=("$file")
         done <<< "$CHANGED_PY"
 
         if [ ${#PY_FILES[@]} -gt 0 ]; then
@@ -580,41 +619,8 @@ fi
 # ============================================================================
     echo_phase "Phase 4: Tests"
 
-    # 13. Pester tests (full suite)
-    PESTER_RUNNER="$REPO_ROOT/build/scripts/Invoke-PesterTests.ps1"
-
-    # Filter to only existing PS files (deleted files should not trigger Pester)
-    EXISTING_PS=""
-    while IFS= read -r file; do
-        [ -z "$file" ] && continue
-        [ -f "$file" ] && EXISTING_PS="${EXISTING_PS:+$EXISTING_PS$'\n'}$file"
-    done <<< "$CHANGED_PS"
-
-    if [ -n "$EXISTING_PS" ]; then
-        if [ -L "$PESTER_RUNNER" ]; then
-            record_fail "Pester test runner is a symlink (security violation)"
-        elif [ -f "$PESTER_RUNNER" ]; then
-            if command -v pwsh &> /dev/null; then
-                TEST_OUTPUT=$(mktemp)
-                if pwsh -NoProfile -File "$PESTER_RUNNER" -CI > "$TEST_OUTPUT" 2>&1; then
-                    rm -f "$TEST_OUTPUT"
-                    record_pass "Pester tests (full suite)"
-                else
-                    echo_info "  Test output (last 30 lines):"
-                    tail -30 "$TEST_OUTPUT"
-                    rm -f "$TEST_OUTPUT"
-                    record_fail "Pester tests failed"
-                    echo_info "  Fix failing tests before pushing."
-                fi
-            else
-                record_skip "Pester tests (pwsh not available)"
-            fi
-        else
-            record_skip "Pester tests (runner not found)"
-        fi
-    else
-        record_skip "Pester tests (no existing PowerShell files changed)"
-    fi
+    # 13. Pester tests - RETIRED per ADR-042 (v0.3.1 Phase 5)
+    record_skip "Pester tests (retired, use pytest)"
 
     # 14. Python tests (pytest)
     if [ -n "$CHANGED_PY" ]; then
@@ -646,7 +652,45 @@ fi
 # ============================================================================
 echo_phase "Phase 5: Security & Governance"
 
-# 15. Security suppression detection
+# 15. Semgrep security scan
+SEMGREP_SCRIPT="$REPO_ROOT/scripts/security/run_semgrep.py"
+
+# Semgrep supports Python, PowerShell, JavaScript, TypeScript, and YAML
+CHANGED_JS=$(echo "$CHANGED_FILES" | grep -E '\.(js|ts)$' || true)
+SEMGREP_TARGETS="$CHANGED_PY$CHANGED_PS$CHANGED_JS$CHANGED_YAML"
+
+if [ -n "$SEMGREP_TARGETS" ]; then
+    if [ -L "$SEMGREP_SCRIPT" ]; then
+        record_warn "Semgrep script is a symlink (skipping)"
+    elif [ -f "$SEMGREP_SCRIPT" ]; then
+        if set_python_cmd; then
+            if command -v semgrep &> /dev/null; then
+                SEMGREP_OUTPUT=$(mktemp)
+                TEMP_FILES+=("$SEMGREP_OUTPUT")
+                if "${PYTHON_CMD[@]}" "$SEMGREP_SCRIPT" --config auto --severity error > "$SEMGREP_OUTPUT" 2>&1; then
+                    record_pass "Semgrep security scan"
+                else
+                    echo_info "  Semgrep findings:"
+                    head -30 "$SEMGREP_OUTPUT"
+                    record_fail "Semgrep security scan"
+                    echo_info "  Fix HIGH/CRITICAL findings before pushing"
+                fi
+                rm -f "$SEMGREP_OUTPUT"
+            else
+                record_skip "Semgrep security scan (semgrep not installed)"
+                echo_info "  Install: pip install semgrep"
+            fi
+        else
+            record_skip "Semgrep security scan (Python 3 not available)"
+        fi
+    else
+        record_skip "Semgrep security scan (script not found)"
+    fi
+else
+    record_skip "Semgrep security scan (no code files changed)"
+fi
+
+# 16. Security suppression detection
 if [ -n "$CHANGED_PY" ] || [ -n "$CHANGED_PS" ]; then
     ALL_CODE_FILES=""
     [ -n "$CHANGED_PY" ] && ALL_CODE_FILES="$CHANGED_PY"
@@ -689,14 +733,42 @@ else
     record_skip "Security suppression check (no code files changed)"
 fi
 
-# 16. Session log validation
-SESSION_VALIDATE_SCRIPT="$REPO_ROOT/scripts/Validate-SessionJson.ps1"
+# 17. Infrastructure security gate (issue #42)
+INFRA_DETECT_SCRIPT="$REPO_ROOT/.claude/skills/security-detection/detect_infrastructure.py"
+
+if [ -L "$INFRA_DETECT_SCRIPT" ]; then
+    record_warn "Infrastructure detection script is a symlink (skipping)"
+elif [ -f "$INFRA_DETECT_SCRIPT" ]; then
+    if set_python_cmd; then
+        # Pass all changed files to infrastructure detection (newline-safe)
+        mapfile -t _infra_files <<< "$CHANGED_FILES"
+        INFRA_OUTPUT=$("${PYTHON_CMD[@]}" "$INFRA_DETECT_SCRIPT" "${_infra_files[@]}" 2>&1)
+        if echo "$INFRA_OUTPUT" | grep -q "CRITICAL"; then
+            echo_info "  Infrastructure detection output:"
+            echo "$INFRA_OUTPUT"
+            record_warn "CRITICAL infrastructure changes detected, ensure security review"
+        elif echo "$INFRA_OUTPUT" | grep -q "HIGH"; then
+            echo_info "  Infrastructure detection output:"
+            echo "$INFRA_OUTPUT"
+            record_warn "HIGH-risk infrastructure changes detected, consider security review"
+        else
+            record_pass "Infrastructure security gate (no high-risk files)"
+        fi
+    else
+        record_skip "Infrastructure detection (Python 3 not available)"
+    fi
+else
+    record_skip "Infrastructure detection (script not found)"
+fi
+
+# 18. Session log validation
+SESSION_VALIDATE_SCRIPT="$REPO_ROOT/scripts/validate_session_json.py"
 
 if [ -n "$CHANGED_SESSIONS" ]; then
     if [ -L "$SESSION_VALIDATE_SCRIPT" ]; then
         record_warn "Session validation script is a symlink (skipping)"
     elif [ -f "$SESSION_VALIDATE_SCRIPT" ]; then
-        if command -v pwsh &> /dev/null; then
+        if command -v python3 &> /dev/null; then
             SESSION_ERRORS=0
             while IFS= read -r session_file; do
                 [ -z "$session_file" ] && continue
@@ -704,7 +776,7 @@ if [ -n "$CHANGED_SESSIONS" ]; then
                 if echo "$session_file" | grep -qE '[0-9]{4}-[0-9]{2}-[0-9]{2}-session-[0-9]+.*\.json$'; then
                     VALIDATE_OUTPUT=$(mktemp)
                     TEMP_FILES+=("$VALIDATE_OUTPUT")
-                    if ! pwsh -NoProfile -ExecutionPolicy Bypass -File "$SESSION_VALIDATE_SCRIPT" -SessionPath "$session_file" > "$VALIDATE_OUTPUT" 2>&1; then
+                    if ! python3 "$SESSION_VALIDATE_SCRIPT" "$session_file" > "$VALIDATE_OUTPUT" 2>&1; then
                         echo_info "  Validation failed for: $session_file"
                         head -10 "$VALIDATE_OUTPUT"
                         SESSION_ERRORS=1
@@ -722,7 +794,7 @@ if [ -n "$CHANGED_SESSIONS" ]; then
                 record_pass "Session log validation"
             fi
         else
-            record_skip "Session log validation (pwsh not available)"
+            record_skip "Session log validation (python3 not available)"
         fi
     else
         record_skip "Session log validation (script not found)"
@@ -731,7 +803,7 @@ else
     record_skip "Session log validation (no session files changed)"
 fi
 
-# 17. Planning artifacts
+# 19. Planning artifacts
 PLANNING_VALIDATE_SCRIPT="$REPO_ROOT/build/scripts/Validate-PlanningArtifacts.ps1"
 
 if [ -n "$CHANGED_PLANNING" ]; then
@@ -759,7 +831,7 @@ else
     record_skip "Planning artifacts (no planning files changed)"
 fi
 
-# 18. ADR review reminder
+# 20. ADR review reminder
 if [ -n "$CHANGED_ADRS" ]; then
     record_warn "ADR files changed - ensure /adr-review skill was run"
     echo_info "  Changed ADRs:"

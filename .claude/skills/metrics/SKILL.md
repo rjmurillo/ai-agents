@@ -83,8 +83,6 @@ After execution:
 
 ## Quick Start
 
-### Python
-
 ```bash
 # Basic usage (30 days, summary output)
 python .claude/skills/metrics/collect_metrics.py
@@ -94,19 +92,6 @@ python .claude/skills/metrics/collect_metrics.py --since 90 --output markdown
 
 # JSON output for automation
 python .claude/skills/metrics/collect_metrics.py --output json
-```
-
-### Alternative (Direct Python Module)
-
-```bash
-# Basic usage (30 days, summary output)
-python3 .claude/skills/metrics/collect_metrics.py
-
-# Last 90 days as markdown
-python3 .claude/skills/metrics/collect_metrics.py --since 90 --output markdown
-
-# JSON output for automation
-python3 .claude/skills/metrics/collect_metrics.py --output json
 ```
 
 ## Metrics Collected

@@ -82,8 +82,8 @@ Check if staged files qualify for investigation-only QA skip per ADR-034.
 
 ### Usage
 
-```powershell
-pwsh .claude/skills/session-qa-eligibility/scripts/Test-InvestigationEligibility.ps1
+```bash
+python3 .claude/skills/session-qa-eligibility/scripts/test_investigation_eligibility.py
 ```
 
 ### Output
@@ -187,7 +187,7 @@ SESSION-PROTOCOL.md (Phase 2.5: QA Validation)
                 │
                 └── Investigation session → MAY skip QA
                         │
-                        └── Test-InvestigationEligibility.ps1
+                        └── test_investigation_eligibility.py
                                 │
                                 ├── Eligible: true → Use "SKIPPED: investigation-only"
                                 │
@@ -203,7 +203,7 @@ SESSION-PROTOCOL.md (Phase 2.5: QA Validation)
 
 2. Run eligibility check
    │
-   └── pwsh .claude/skills/session-qa-eligibility/scripts/Test-InvestigationEligibility.ps1
+   └── python3 .claude/skills/session-qa-eligibility/scripts/test_investigation_eligibility.py
 
 3. Check output
    │
@@ -228,7 +228,7 @@ Use this skill to validate the QA skip condition:
 
 | Req | Step | Status | Evidence |
 |-----|------|--------|----------|
-| MUST | Route to qa agent (feature implementation) | [x] | `SKIPPED: investigation-only` - Verified via Test-InvestigationEligibility.ps1 |
+| MUST | Route to qa agent (feature implementation) | [x] | `SKIPPED: investigation-only` - Verified via test_investigation_eligibility.py |
 ```
 
 ---
@@ -245,7 +245,7 @@ These paths qualify for investigation-only QA exemption:
 | `.serena/memories/` | Cross-session context storage |
 | `.agents/security/` | Security assessments and reviews |
 
-**Important**: This allowlist MUST match exactly with `scripts/Validate-SessionJson.ps1 $InvestigationAllowlist`. The patterns are validated by Pester tests to ensure consistency.
+**Important**: This allowlist MUST match exactly with `scripts/validate_session_json.py $InvestigationAllowlist`. The patterns are validated by Pester tests to ensure consistency.
 
 ---
 
@@ -256,7 +256,7 @@ These paths qualify for investigation-only QA exemption:
 | Skipping eligibility check | May commit ineligible files with investigation-only skip | Always run the skill before using the skip |
 | Ignoring violations | QA exemption won't be valid | Address violations or invoke qa agent |
 | Using for code changes | Investigation-only is for analysis, not implementation | Start a new session for code work |
-| Hardcoding path checks | Patterns may drift from Validate-SessionJson.ps1 | Use this skill which shares the same patterns |
+| Hardcoding path checks | Patterns may drift from validate_session_json.py | Use this skill which shares the same patterns |
 
 ---
 
@@ -271,6 +271,18 @@ After using this skill:
 
 ---
 
+## Scripts
+
+### check_qa_eligibility.py
+
+Checks if staged files qualify for investigation-only QA skip per ADR-034.
+
+```bash
+python3 .claude/skills/session-qa-eligibility/scripts/check_qa_eligibility.py
+```
+
+---
+
 ## Related
 
 | Reference | Description |
@@ -278,5 +290,5 @@ After using this skill:
 | [ADR-034](../../../../.agents/architecture/ADR-034-investigation-session-qa-exemption.md) | Investigation Session QA Exemption architecture decision |
 | [SESSION-PROTOCOL.md](../../../../.agents/SESSION-PROTOCOL.md) | Session start/end requirements (Phase 2.5) |
 | [Issue #662](https://github.com/rjmurillo/ai-agents/issues/662) | Create QA skip eligibility check skill |
-| [Validate-SessionJson.ps1](../../../../scripts/Validate-SessionJson.ps1) | Uses same allowlist for CI validation |
-| [Test-InvestigationEligibility.Tests.ps1](../../../../tests/Test-InvestigationEligibility.Tests.ps1) | Pester tests ensuring pattern consistency |
+| [validate_session_json.py](../../../../scripts/validate_session_json.py) | Uses same allowlist for CI validation |
+| [test_qa_eligibility.py](tests/test_qa_eligibility.py) | Pytest tests ensuring pattern consistency |

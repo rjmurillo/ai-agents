@@ -1,163 +1,274 @@
 #!/usr/bin/env python3
-"""Get full conversation history of a PR review thread with pagination.
+"""Get the full conversation history of a PR review thread.
 
-Fetches all comments in a review thread using cursor-based GraphQL pagination.
-Optionally includes minimized (hidden) comments.
+Retrieves all comments in a review thread with detailed metadata.
+Supports pagination for threads with many comments.
 
-Exit codes (ADR-035):
-    0 = Success
-    1 = Invalid parameters
-    2 = Thread not found
-    3 = API error
-    4 = Not authenticated
+Exit codes follow ADR-035:
+    0 - Success
+    2 - Config/usage error (invalid parameters, thread not found)
+    3 - API error
+    4 - Auth error
 """
+
+from __future__ import annotations
 
 import argparse
 import json
 import os
+import subprocess
 import sys
 
-_lib_dir = os.path.join(
-    os.environ.get("CLAUDE_PLUGIN_ROOT", os.path.join(os.getcwd(), ".claude")),
-    "skills", "github", "lib",
-)
+_plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+_workspace = os.environ.get("GITHUB_WORKSPACE")
+if _plugin_root:
+    _lib_dir = os.path.join(_plugin_root, "lib")
+elif _workspace:
+    _lib_dir = os.path.join(_workspace, ".claude", "lib")
+else:
+    _lib_dir = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "lib")
+    )
 if _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
 
-from github_core.api import (
+from github_core.api import (  # noqa: E402
     assert_gh_authenticated,
-    gh_graphql,
-    write_error_and_exit,
+    error_and_exit,
+    resolve_repo_params,
 )
 
-HISTORY_QUERY = """
+# ---------------------------------------------------------------------------
+# GraphQL query
+# ---------------------------------------------------------------------------
+
+_THREAD_QUERY = """\
 query($threadId: ID!, $first: Int!, $after: String) {
     node(id: $threadId) {
         ... on PullRequestReviewThread {
             id
             isResolved
+            isOutdated
+            path
+            line
+            startLine
+            diffSide
             comments(first: $first, after: $after) {
+                totalCount
                 pageInfo {
                     hasNextPage
                     endCursor
                 }
                 nodes {
                     id
+                    databaseId
                     body
                     author { login }
                     createdAt
+                    updatedAt
                     isMinimized
+                    minimizedReason
+                    replyTo { databaseId }
                 }
             }
         }
     }
-}
-"""
-
-PAGE_SIZE = 100
+}"""
 
 
-def fetch_all_comments(thread_id: str) -> tuple[dict | None, list[dict]]:
-    """Fetch all comments for a thread using cursor-based pagination.
+# ---------------------------------------------------------------------------
+# Core logic
+# ---------------------------------------------------------------------------
 
-    Returns:
-        Tuple of (thread metadata dict or None, list of comment dicts).
+
+def fetch_thread_comments(thread_id: str) -> tuple[dict, list[dict]]:
+    """Fetch all comments for a thread with pagination.
+
+    Returns (thread_info, all_comments).
     """
-    all_comments = []
-    cursor = None
-    thread_meta = None
+    all_comments: list[dict] = []
+    page_size = 100
+    cursor: str | None = None
+    thread_info: dict | None = None
 
     while True:
-        variables = {"threadId": thread_id, "first": PAGE_SIZE}
+        # Build gh api graphql command
+        gh_args = [
+            "gh", "api", "graphql",
+            "-f", f"query={_THREAD_QUERY}",
+            "-f", f"threadId={thread_id}",
+            "-F", f"first={page_size}",
+        ]
         if cursor:
-            variables["after"] = cursor
+            gh_args.extend(["-f", f"after={cursor}"])
+
+        result = subprocess.run(
+            gh_args,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+
+        if result.returncode != 0:
+            error_text = result.stderr.strip() or result.stdout.strip()
+            if "Could not resolve" in error_text or "not found" in error_text:
+                error_and_exit(f"Thread {thread_id} not found.", 2)
+            error_and_exit(f"Failed to query thread: {error_text}", 3)
 
         try:
-            data = gh_graphql(HISTORY_QUERY, variables)
-        except RuntimeError as e:
-            write_error_and_exit(f"GraphQL error: {e}", 3)
-        except Exception as e:
-            write_error_and_exit(f"API request failed: {e}", 3)
+            parsed = json.loads(result.stdout)
+        except json.JSONDecodeError:
+            error_and_exit(f"Failed to parse GraphQL response: {result.stdout}", 3)
 
-        node = data.get("node")
-        if not node or not node.get("id"):
-            return None, []
+        node = parsed.get("data", {}).get("node")
+        if node is None or node.get("id") is None:
+            error_and_exit(
+                f"Thread {thread_id} not found or is not a review thread.", 2,
+            )
 
-        if thread_meta is None:
-            thread_meta = {
-                "id": node["id"],
-                "isResolved": node.get("isResolved", False),
+        # Store thread info from first page
+        if thread_info is None:
+            thread_info = {
+                "ThreadId": node["id"],
+                "IsResolved": node.get("isResolved", False),
+                "IsOutdated": node.get("isOutdated", False),
+                "Path": node.get("path"),
+                "Line": node.get("line"),
+                "StartLine": node.get("startLine"),
+                "DiffSide": node.get("diffSide"),
+                "TotalComments": node.get("comments", {}).get("totalCount", 0),
             }
 
-        comments_data = node.get("comments", {})
-        all_comments.extend(comments_data.get("nodes", []))
+        # Add comments from this page
+        comments = node.get("comments", {})
+        for comment in comments.get("nodes", []):
+            all_comments.append(comment)
 
-        page_info = comments_data.get("pageInfo", {})
-        if not page_info.get("hasNextPage", False):
+        page_info = comments.get("pageInfo", {})
+        if not page_info.get("hasNextPage"):
             break
         cursor = page_info.get("endCursor")
 
-    return thread_meta, all_comments
+    return thread_info or {}, all_comments
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Get thread conversation history")
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Get the full conversation history of a PR review thread.",
+    )
+    parser.add_argument("--owner", default="", help="Repository owner")
+    parser.add_argument("--repo", default="", help="Repository name")
     parser.add_argument(
         "--thread-id", required=True,
-        help="GraphQL thread ID (must start with PRRT_)",
+        help="GraphQL node ID of the review thread (PRRT_... format)",
     )
     parser.add_argument(
         "--include-minimized", action="store_true",
-        help="Include minimized/hidden comments",
+        help="Include minimized (hidden) comments in output",
     )
-    args = parser.parse_args()
+    return parser
 
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+
+    # Validate thread ID format
+    if not args.thread_id or not args.thread_id.strip():
+        error_and_exit("ThreadId parameter is required.", 2)
     if not args.thread_id.startswith("PRRT_"):
-        write_error_and_exit(
-            f"Invalid thread ID '{args.thread_id}': must start with 'PRRT_'", 1
-        )
+        error_and_exit("Invalid ThreadId format. Expected PRRT_... format.", 2)
 
     assert_gh_authenticated()
 
-    thread_meta, raw_comments = fetch_all_comments(args.thread_id)
-    if thread_meta is None:
-        write_error_and_exit(f"Thread '{args.thread_id}' not found", 2)
+    # Resolve repo (for consistency, though not used by the thread query)
+    resolve_repo_params(args.owner, args.repo)
 
-    # Filter minimized unless requested
+    thread_info, all_comments = fetch_thread_comments(args.thread_id)
+
+    # Filter minimized comments
     if not args.include_minimized:
-        raw_comments = [c for c in raw_comments if not c.get("isMinimized", False)]
+        filtered = [c for c in all_comments if not c.get("isMinimized", False)]
+    else:
+        filtered = list(all_comments)
 
-    comments = [
-        {
-            "Id": c["id"],
-            "Author": c.get("author", {}).get("login", "unknown"),
-            "Body": c.get("body", ""),
-            "CreatedAt": c.get("createdAt"),
-            "IsMinimized": c.get("isMinimized", False),
-            "Order": idx + 1,
-        }
-        for idx, c in enumerate(raw_comments)
-    ]
+    # Transform to output format with sequence numbers
+    output_comments: list[dict] = []
+    for seq, comment in enumerate(filtered, 1):
+        output_comments.append({
+            "Sequence": seq,
+            "Id": comment.get("databaseId"),
+            "NodeId": comment.get("id"),
+            "Author": comment.get("author", {}).get("login") if comment.get("author") else None,
+            "Body": comment.get("body", ""),
+            "CreatedAt": comment.get("createdAt"),
+            "UpdatedAt": comment.get("updatedAt"),
+            "IsMinimized": comment.get("isMinimized", False),
+            "MinimizedReason": comment.get("minimizedReason"),
+            "ReplyToId": (
+                comment.get("replyTo", {}).get("databaseId")
+                if comment.get("replyTo") else None
+            ),
+        })
 
-    # thread_meta is guaranteed non-None here; write_error_and_exit
-    # calls sys.exit above when thread_meta is None
-    assert thread_meta is not None
+    # Console summary
+    status = "Resolved" if thread_info.get("IsResolved") else "Unresolved"
+    outdated = " (Outdated)" if thread_info.get("IsOutdated") else ""
+    print(f"Thread Conversation: {args.thread_id}", file=sys.stderr)
+    print(f"  Status: {status}{outdated}", file=sys.stderr)
+    print(f"  Path: {thread_info.get('Path')}", file=sys.stderr)
+    print(f"  Line: {thread_info.get('Line')}", file=sys.stderr)
+    print(f"  Total Comments: {thread_info.get('TotalComments')}", file=sys.stderr)
 
+    if not args.include_minimized:
+        minimized_count = len(all_comments) - len(output_comments)
+        if minimized_count > 0:
+            print(
+                f"  Hidden (minimized): {minimized_count} "
+                f"(use --include-minimized to show)",
+                file=sys.stderr,
+            )
+
+    # Brief conversation preview
+    print("", file=sys.stderr)
+    print("Conversation:", file=sys.stderr)
+    for c in output_comments[:5]:
+        body = c["Body"] or ""
+        preview = body[:60] + "..." if len(body) > 60 else body
+        preview = preview.replace("\n", " ").replace("\r", "")
+        print(f"  [{c['Sequence']}] @{c['Author']}: {preview}", file=sys.stderr)
+    if len(output_comments) > 5:
+        print(
+            f"  ... and {len(output_comments) - 5} more comment(s)",
+            file=sys.stderr,
+        )
+
+    # Structured output
     output = {
         "Success": True,
-        "ThreadId": thread_meta["id"],
-        "IsResolved": thread_meta["isResolved"],
-        "TotalComments": len(comments),
-        "Comments": comments,
+        "ThreadId": thread_info.get("ThreadId"),
+        "IsResolved": thread_info.get("IsResolved", False),
+        "IsOutdated": thread_info.get("IsOutdated", False),
+        "Path": thread_info.get("Path"),
+        "Line": thread_info.get("Line"),
+        "StartLine": thread_info.get("StartLine"),
+        "DiffSide": thread_info.get("DiffSide"),
+        "TotalComments": thread_info.get("TotalComments", 0),
+        "ReturnedComments": len(output_comments),
+        "MinimizedExcluded": (
+            len(all_comments) - len(output_comments)
+            if not args.include_minimized else 0
+        ),
+        "Comments": output_comments,
     }
 
     print(json.dumps(output, indent=2))
-    resolved_label = "resolved" if thread_meta["isResolved"] else "unresolved"
-    print(
-        f"Thread {args.thread_id}: {len(comments)} comments, {resolved_label}",
-        file=sys.stderr,
-    )
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

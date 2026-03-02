@@ -13,10 +13,10 @@ Run all 6 quality gate agents (security, QA, analyst, architect, DevOps, and roa
 
 ## Pre-flight Checks
 
-<!-- NOTE: !` backtick commands run at PREPROCESSING time in an isolated shell.
-     $ARGUMENTS and positional params ($0, $1) are NOT available in this shell.
-     Only $ARGUMENTS substitution in prompt text (outside !` backticks) works.
-     This is why git diff uses hardcoded "main" below. See #1088. -->
+<!-- NOTE: Commands prefixed with an exclamation mark and a backtick run at PREPROCESSING time in an
+     isolated shell. $ARGUMENTS and positional params ($0, $1) are NOT
+     available in that shell. Only $ARGUMENTS substitution in prompt text
+     works. This is why git diff uses hardcoded "main" below. See #1088. -->
 
 - Current branch: !`git branch --show-current`
 - Changed files: !`git diff main --name-only | wc -l`

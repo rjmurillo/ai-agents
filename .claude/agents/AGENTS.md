@@ -1,6 +1,6 @@
 # Claude Code Agents
 
-This document describes the 18 AI agents defined for Claude Code CLI and the critical workflow rules for maintaining them.
+This document describes the 19 AI agents defined for Claude Code CLI and the critical workflow rules for maintaining them.
 
 ## Overview
 
@@ -153,6 +153,7 @@ flowchart TD
 | qa | `qa.md` | Test strategy and verification |
 | devops | `devops.md` | CI/CD pipelines |
 | security | `security.md` | Vulnerability assessment |
+| merge-resolver | `merge-resolver.md` | Git conflict resolution |
 
 ### Strategic Agents
 

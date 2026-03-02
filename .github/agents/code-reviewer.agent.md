@@ -17,6 +17,17 @@ By default, review unstaged changes from `git diff`. The user may specify differ
 
 **Code Quality**: Evaluate significant issues like code duplication, missing critical error handling, accessibility problems, and inadequate test coverage.
 
+## DRY Verification (REQUIRED)
+
+When reviewing new or modified code, verify no duplication exists against the codebase.
+
+1. List all new functions, classes, or helpers being added
+2. Search the codebase for similar functionality using file search and content grep
+3. Check shared modules and utility files for existing implementations
+4. Flag any duplication for resolution before approval
+
+Report DRY violations with confidence 90+ (Critical). Duplicated functionality that already exists in shared modules is a blocking issue.
+
 ## Issue Confidence Scoring
 
 Rate each issue from 0-100:

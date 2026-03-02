@@ -1,149 +1,171 @@
 #!/usr/bin/env python3
 """Get unique reviewers for a GitHub Pull Request.
 
-Collects reviewers from PR reviews, review comments, and issue comments
-to build a deduplicated list with participation counts.
+Enumerates all unique reviewers from review comments, issue comments,
+requested reviewers, and submitted reviews. Critical for avoiding
+"single-bot blindness" per Skill-PR-001.
 
-Exit codes (ADR-035):
-    0 = Success
-    1 = Invalid parameters
-    2 = PR not found
-    3 = API error
-    4 = Not authenticated
+Exit codes follow ADR-035:
+    0 - Success
+    1 - Invalid parameters / logic error
+    2 - Not found
+    3 - External error (API failure)
+    4 - Auth error
 """
+
+from __future__ import annotations
 
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 
-_lib_dir = os.path.join(
-    os.environ.get("CLAUDE_PLUGIN_ROOT", os.path.join(os.getcwd(), ".claude")),
-    "skills", "github", "lib",
-)
+_plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+_workspace = os.environ.get("GITHUB_WORKSPACE")
+if _plugin_root:
+    _lib_dir = os.path.join(_plugin_root, "lib")
+elif _workspace:
+    _lib_dir = os.path.join(_workspace, ".claude", "lib")
+else:
+    _lib_dir = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "lib")
+    )
 if _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
 
-from github_core.api import (
+from github_core.api import (  # noqa: E402
     assert_gh_authenticated,
+    error_and_exit,
     gh_api_paginated,
     resolve_repo_params,
-    write_error_and_exit,
 )
 
-
-def is_bot_user(login: str, user_type: str) -> bool:
-    """Determine if a user is a bot based on type or login suffix."""
-    if user_type == "Bot":
-        return True
-    return login.endswith("[bot]")
+_BOT_SUFFIX = re.compile(r"\[bot\]$")
 
 
-def get_pr_data(owner: str, repo: str, pr: int) -> dict:
-    """Fetch PR metadata including author, review requests, and reviews."""
-    result = subprocess.run(
-        ["gh", "pr", "view", str(pr), "--repo", f"{owner}/{repo}",
-         "--json", "author,reviewRequests,reviews"],
-        capture_output=True, text=True,
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Get unique reviewers for a GitHub PR.",
     )
-    if result.returncode != 0:
-        if "not found" in result.stderr.lower() or "Could not resolve" in result.stderr:
-            write_error_and_exit(f"PR #{pr} not found in {owner}/{repo}", 2)
-        write_error_and_exit(f"Failed to fetch PR data: {result.stderr}", 3)
-    pr_data: dict = json.loads(result.stdout)
-    return pr_data
+    parser.add_argument("--owner", default="", help="Repository owner")
+    parser.add_argument("--repo", default="", help="Repository name")
+    parser.add_argument(
+        "--pull-request", type=int, required=True, help="Pull request number",
+    )
+    parser.add_argument(
+        "--exclude-bots", action="store_true", help="Exclude bot accounts",
+    )
+    parser.add_argument(
+        "--exclude-author", action="store_true", help="Exclude the PR author",
+    )
+    return parser
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Get unique PR reviewers")
-    parser.add_argument("--owner", help="Repository owner")
-    parser.add_argument("--repo", help="Repository name")
-    parser.add_argument("--pull-request", type=int, required=True, help="PR number")
-    parser.add_argument("--exclude-bots", action="store_true", help="Exclude bot accounts")
-    parser.add_argument("--exclude-author", action="store_true", help="Exclude PR author")
-    args = parser.parse_args()
+def _is_bot(login: str, user_type: str) -> bool:
+    return user_type == "Bot" or bool(_BOT_SUFFIX.search(login))
+
+
+def _ensure_reviewer(reviewer_map: dict, login: str, user_type: str) -> None:
+    if login not in reviewer_map:
+        reviewer_map[login] = {
+            "login": login,
+            "type": user_type,
+            "is_bot": _is_bot(login, user_type),
+            "review_comments": 0,
+            "issue_comments": 0,
+        }
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
 
     assert_gh_authenticated()
     resolved = resolve_repo_params(args.owner, args.repo)
-    owner, repo = resolved["owner"], resolved["repo"]
+    owner, repo = resolved.owner, resolved.repo
+    pr = args.pull_request
 
-    pr_data = get_pr_data(owner, repo, args.pull_request)
+    pr_result = subprocess.run(
+        [
+            "gh", "pr", "view", str(pr),
+            "--repo", f"{owner}/{repo}",
+            "--json", "author,reviewRequests,reviews",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+
+    if pr_result.returncode != 0:
+        err_msg = pr_result.stderr or pr_result.stdout
+        if "not found" in err_msg:
+            error_and_exit(f"PR #{pr} not found", 2)
+        error_and_exit(f"Failed to get PR: {err_msg}", 3)
+
+    pr_data = json.loads(pr_result.stdout)
     pr_author = pr_data.get("author", {}).get("login", "")
 
-    # Reviewer map: login -> {type, reviewComments, issueComments}
-    reviewers: dict[str, dict] = {}
+    reviewer_map: dict[str, dict] = {}
 
-    def add_reviewer(login: str, user_type: str) -> None:
-        if login not in reviewers:
-            reviewers[login] = {
-                "login": login,
-                "type": user_type,
-                "isBot": is_bot_user(login, user_type),
-                "reviewComments": 0,
-                "issueComments": 0,
-            }
+    review_comments = gh_api_paginated(f"repos/{owner}/{repo}/pulls/{pr}/comments")
+    for c in review_comments:
+        login = c.get("user", {}).get("login", "")
+        if not login:
+            continue
+        user_type = c.get("user", {}).get("type", "User")
+        _ensure_reviewer(reviewer_map, login, user_type)
+        reviewer_map[login]["review_comments"] += 1
 
-    # From formal reviews
-    for review in pr_data.get("reviews", []):
-        login = review.get("author", {}).get("login")
+    issue_comments = gh_api_paginated(f"repos/{owner}/{repo}/issues/{pr}/comments")
+    for c in issue_comments:
+        login = c.get("user", {}).get("login", "")
+        if not login:
+            continue
+        user_type = c.get("user", {}).get("type", "User")
+        _ensure_reviewer(reviewer_map, login, user_type)
+        reviewer_map[login]["issue_comments"] += 1
+
+    for r in pr_data.get("reviewRequests", []):
+        login = r.get("login", "")
         if login:
-            add_reviewer(login, review.get("author", {}).get("type", "User"))
+            _ensure_reviewer(reviewer_map, login, "User")
 
-    # From review requests
-    for req in pr_data.get("reviewRequests", []):
-        login = req.get("login")
+    for r in pr_data.get("reviews", []):
+        login = r.get("author", {}).get("login", "")
         if login:
-            add_reviewer(login, req.get("type", "User"))
+            is_bot = _is_bot(login, "User")
+            _ensure_reviewer(reviewer_map, login, "User")
+            reviewer_map[login]["is_bot"] = is_bot
 
-    # From review comments (REST API)
-    try:
-        review_comments = gh_api_paginated(
-            f"repos/{owner}/{repo}/pulls/{args.pull_request}/comments"
-        )
-        for c in review_comments:
-            login = c.get("user", {}).get("login")
-            user_type = c.get("user", {}).get("type", "User")
-            if login:
-                add_reviewer(login, user_type)
-                reviewers[login]["reviewComments"] += 1
-    except Exception:
-        pass
+    reviewers = list(reviewer_map.values())
+    for r in reviewers:
+        r["total_comments"] = r["review_comments"] + r["issue_comments"]
 
-    # From issue comments (REST API)
-    try:
-        issue_comments = gh_api_paginated(
-            f"repos/{owner}/{repo}/issues/{args.pull_request}/comments"
-        )
-        for c in issue_comments:
-            login = c.get("user", {}).get("login")
-            user_type = c.get("user", {}).get("type", "User")
-            if login:
-                add_reviewer(login, user_type)
-                reviewers[login]["issueComments"] += 1
-    except Exception:
-        pass
-
-    # Apply filters
-    result_list = list(reviewers.values())
     if args.exclude_bots:
-        result_list = [r for r in result_list if not r["isBot"]]
-    if args.exclude_author and pr_author:
-        result_list = [r for r in result_list if r["login"] != pr_author]
+        reviewers = [r for r in reviewers if not r["is_bot"]]
+    if args.exclude_author:
+        reviewers = [r for r in reviewers if r["login"] != pr_author]
+
+    reviewers.sort(key=lambda r: r["total_comments"], reverse=True)
+
+    bot_count = sum(1 for r in reviewers if r["is_bot"])
+    human_count = len(reviewers) - bot_count
 
     output = {
-        "Success": True,
-        "PullRequest": args.pull_request,
-        "Owner": owner,
-        "Repo": repo,
-        "TotalReviewers": len(result_list),
-        "PRAuthor": pr_author,
-        "Reviewers": result_list,
+        "success": True,
+        "pull_request": pr,
+        "pr_author": pr_author,
+        "total_reviewers": len(reviewers),
+        "bot_count": bot_count,
+        "human_count": human_count,
+        "reviewers": reviewers,
     }
 
     print(json.dumps(output, indent=2))
-    print(f"PR #{args.pull_request}: {len(result_list)} unique reviewers", file=sys.stderr)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

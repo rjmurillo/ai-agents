@@ -1,0 +1,153 @@
+"""Markdown formatting, display helpers, and logging for AI review outputs."""
+
+from __future__ import annotations
+
+import json
+import logging
+import os
+from datetime import UTC, datetime
+
+logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Verdict alert types
+# ---------------------------------------------------------------------------
+
+_ALERT_TYPE_MAP: dict[str, str] = {
+    "PASS": "TIP",
+    "COMPLIANT": "TIP",
+    "WARN": "WARNING",
+    "PARTIAL": "WARNING",
+    "CRITICAL_FAIL": "CAUTION",
+    "REJECTED": "CAUTION",
+    "FAIL": "CAUTION",
+    "NEEDS_REVIEW": "CAUTION",
+}
+
+_FAIL_EXIT_VERDICTS = frozenset({"CRITICAL_FAIL", "REJECTED", "FAIL", "NEEDS_REVIEW"})
+
+_EMOJI_MAP: dict[str, str] = {
+    "PASS": "\u2705",
+    "COMPLIANT": "\u2705",
+    "WARN": "\u26a0\ufe0f",
+    "PARTIAL": "\u26a0\ufe0f",
+    "CRITICAL_FAIL": "\u274c",
+    "REJECTED": "\u274c",
+    "FAIL": "\u274c",
+    "NEEDS_REVIEW": "\u274c",
+}
+
+
+def get_verdict_alert_type(verdict: str) -> str:
+    """Map verdict to GitHub alert type: TIP, WARNING, CAUTION, or NOTE."""
+    return _ALERT_TYPE_MAP.get(verdict, "NOTE")
+
+
+def get_verdict_exit_code(verdict: str) -> int:
+    """Return 1 for failure verdicts, 0 otherwise."""
+    return 1 if verdict in _FAIL_EXIT_VERDICTS else 0
+
+
+def get_verdict_emoji(verdict: str) -> str:
+    """Map verdict to display emoji."""
+    return _EMOJI_MAP.get(verdict, "\u2754")
+
+
+# ---------------------------------------------------------------------------
+# Markdown formatting
+# ---------------------------------------------------------------------------
+
+
+def format_collapsible_section(title: str, content: str) -> str:
+    """Create an HTML details/summary section for GitHub markdown."""
+    return f"<details>\n<summary>{title}</summary>\n\n{content}\n\n</details>"
+
+
+def format_verdict_alert(verdict: str, message: str = "") -> str:
+    """Format a verdict using GitHub's markdown alert syntax."""
+    alert_type = get_verdict_alert_type(verdict)
+    if message:
+        return (
+            f"> [!{alert_type}]\n"
+            f"> **Verdict: {verdict}**\n"
+            f">\n"
+            f"> {message}"
+        )
+    return f"> [!{alert_type}]\n> **Verdict: {verdict}**"
+
+
+def format_markdown_table_row(columns: list[str]) -> str:
+    """Create a pipe-delimited markdown table row."""
+    return "| " + " | ".join(columns) + " |"
+
+
+def convert_to_json_escaped(input_string: str) -> str:
+    """Escape a string for JSON embedding."""
+    if not input_string:
+        return '""'
+    return json.dumps(input_string)
+
+
+# ---------------------------------------------------------------------------
+# Logging
+# ---------------------------------------------------------------------------
+
+
+def write_log(message: str) -> None:
+    """Log a timestamped informational message."""
+    timestamp = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S")
+    logger.info("[%s] %s", timestamp, message)
+
+
+def write_log_error(message: str) -> None:
+    """Log a timestamped error message."""
+    timestamp = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S")
+    logger.error("[%s] ERROR: %s", timestamp, message)
+
+
+# ---------------------------------------------------------------------------
+# GitHub Actions output
+# ---------------------------------------------------------------------------
+
+
+def write_output(key: str, value: str) -> None:
+    """Append a key=value line to the GitHub Actions output file.
+
+    Reads the output file path from the GITHUB_OUTPUT environment variable.
+    Does nothing when GITHUB_OUTPUT is unset or empty.
+    """
+    output_file = os.environ.get("GITHUB_OUTPUT", "")
+    if output_file:
+        with open(output_file, "a", encoding="utf-8") as f:
+            f.write(f"{key}={value}\n")
+
+
+def write_github_output(pairs: dict[str, str]) -> None:
+    """Append multiple key=value pairs to $GITHUB_OUTPUT if set.
+
+    Silently swallows OSError so callers never crash on output failures.
+    """
+    output_path = os.environ.get("GITHUB_OUTPUT")
+    if not output_path:
+        return
+    try:
+        with open(output_path, "a", encoding="utf-8") as fh:
+            for key, value in pairs.items():
+                fh.write(f"{key}={value}\n")
+    except OSError:
+        logger.warning("Failed to write GitHub Actions outputs")
+
+
+def write_step_summary(content: str) -> None:
+    """Append markdown content to $GITHUB_STEP_SUMMARY if set.
+
+    Silently swallows OSError so callers never crash on summary failures.
+    """
+    summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+    if not summary_path:
+        return
+    try:
+        with open(summary_path, "a", encoding="utf-8") as fh:
+            fh.write(content + "\n")
+    except OSError:
+        logger.warning("Failed to write step summary")

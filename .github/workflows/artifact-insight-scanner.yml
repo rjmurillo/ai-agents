@@ -1,0 +1,237 @@
+name: Artifact Insight Scanner
+
+# Scans project artifacts for missed insights, action items, and follow-ups
+# Files issues for untracked work discovered in session logs, retrospectives, etc.
+
+on:
+  schedule:
+    # Weekly on Mondays at 6 AM UTC (after typical sprint planning)
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+    inputs:
+      scan-depth-days:
+        description: 'Days to look back for modified artifacts'
+        type: number
+        default: 7
+      dry-run:
+        description: 'Preview findings without creating issues'
+        type: boolean
+        default: false
+      priority-threshold:
+        description: 'Minimum priority to create issues (P0-P3)'
+        type: choice
+        options:
+          - P0
+          - P1
+          - P2
+          - P3
+        default: P2
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: artifact-insight-scanner
+  cancel-in-progress: true
+
+env:
+  GH_TOKEN: ${{ secrets.BOT_PAT }}
+
+jobs:
+  scan-artifacts:
+    name: Scan Artifacts for Insights
+    # ADR-025: ARM runner for cost optimization
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
+
+      - name: Collect recent artifacts
+        id: collect
+        shell: bash
+        env:
+          SCAN_DEPTH_DAYS: ${{ inputs.scan-depth-days || '7' }}
+        run: |
+          echo "Collecting artifacts modified in last ${SCAN_DEPTH_DAYS} days..."
+
+          # Create artifact list file
+          ARTIFACT_FILE=$(mktemp)
+          echo "artifact_file=$ARTIFACT_FILE" >> "$GITHUB_OUTPUT"
+
+          # Find recently modified markdown files in target directories
+          # Note: -mtime -N finds files modified within last N days
+          {
+            find .agents/sessions -name "*.md" -mtime -"${SCAN_DEPTH_DAYS}" 2>/dev/null || true
+            find .agents/sessions -name "*.json" -mtime -"${SCAN_DEPTH_DAYS}" 2>/dev/null || true
+            find .agents/retrospective -name "*.md" -mtime -"${SCAN_DEPTH_DAYS}" 2>/dev/null || true
+            find .agents/planning -name "*.md" -mtime -"${SCAN_DEPTH_DAYS}" 2>/dev/null || true
+            find .agents/critique -name "*.md" -mtime -"${SCAN_DEPTH_DAYS}" 2>/dev/null || true
+            find .agents/scratch -name "*.md" -mtime -"${SCAN_DEPTH_DAYS}" 2>/dev/null || true
+          } | sort -u > "$ARTIFACT_FILE"
+
+          ARTIFACT_COUNT=$(wc -l < "$ARTIFACT_FILE" | tr -d ' ')
+          echo "artifact_count=$ARTIFACT_COUNT" >> "$GITHUB_OUTPUT"
+          echo "Found $ARTIFACT_COUNT artifacts to scan"
+
+          if [ "$ARTIFACT_COUNT" -eq 0 ]; then
+            echo "::notice::No recent artifacts found within ${SCAN_DEPTH_DAYS} days"
+          fi
+
+      - name: Build artifact context
+        id: context
+        if: steps.collect.outputs.artifact_count > 0
+        shell: bash
+        env:
+          ARTIFACT_FILE: ${{ steps.collect.outputs.artifact_file }}
+        run: |
+          CONTEXT_FILE=$(mktemp)
+          echo "context_file=$CONTEXT_FILE" >> "$GITHUB_OUTPUT"
+
+          echo "## Artifacts to Analyze" > "$CONTEXT_FILE"
+          echo "" >> "$CONTEXT_FILE"
+
+          while IFS= read -r artifact; do
+            if [ -f "$artifact" ]; then
+              echo "### $artifact" >> "$CONTEXT_FILE"
+              echo '```' >> "$CONTEXT_FILE"
+              # Limit each file to 500 lines to prevent context overflow
+              head -500 "$artifact" >> "$CONTEXT_FILE"
+              echo '```' >> "$CONTEXT_FILE"
+              echo "" >> "$CONTEXT_FILE"
+            fi
+          done < "$ARTIFACT_FILE"
+
+          CONTEXT_SIZE=$(wc -c < "$CONTEXT_FILE" | tr -d ' ')
+          echo "context_size=$CONTEXT_SIZE" >> "$GITHUB_OUTPUT"
+          echo "Built context file: $CONTEXT_SIZE bytes"
+
+      - name: Analyze artifacts for insights
+        id: analyze
+        if: steps.collect.outputs.artifact_count > 0
+        uses: ./.github/actions/ai-review
+        with:
+          agent: analyst
+          context-type: spec-file
+          context-path: ${{ steps.context.outputs.context_file }}
+          prompt-file: .github/prompts/artifact-insight-scan.md
+          timeout-minutes: 10
+          bot-pat: ${{ secrets.BOT_PAT }}
+          copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+          copilot-model: claude-sonnet-4.5
+
+      - name: Parse findings
+        id: parse
+        if: steps.collect.outputs.artifact_count > 0
+        env:
+          RAW_OUTPUT: ${{ steps.analyze.outputs.findings }}
+          PRIORITY_THRESHOLD: ${{ inputs.priority-threshold || 'P2' }}
+        run: python3 .github/scripts/parse_artifact_insights.py
+
+      - name: Create issues for findings
+        if: >-
+          steps.collect.outputs.artifact_count > 0 &&
+          steps.parse.outputs.finding_count > 0 &&
+          inputs.dry-run != true
+        shell: pwsh -NoProfile -Command "& '{0}'"
+        env:
+          GH_TOKEN: ${{ secrets.BOT_PAT }}
+          FINDINGS_JSON: ${{ steps.parse.outputs.findings_json }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          SERVER_URL: ${{ github.server_url }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          $findings = $env:FINDINGS_JSON | ConvertFrom-Json
+
+          $createdCount = 0
+          $skippedCount = 0
+
+          foreach ($finding in $findings) {
+            $title = $finding.title
+            $body = $finding.body
+            $labels = $finding.labels -join ','
+            $source = $finding.source
+
+            # Check for duplicate issues using search
+            $searchQuery = "is:issue is:open in:title `"$title`""
+            $existingRaw = gh issue list --search $searchQuery --json number,title --limit 5 2>$null
+            $existing = $existingRaw | ConvertFrom-Json
+
+            # Fuzzy title match (80% similarity threshold)
+            $isDuplicate = $false
+            foreach ($issue in $existing) {
+              $similarity = 0
+              $titleLower = $title.ToLower()
+              $issueTitleLower = $issue.title.ToLower()
+
+              # Simple substring check for now
+              if ($titleLower -eq $issueTitleLower -or
+                  $titleLower.Contains($issueTitleLower) -or
+                  $issueTitleLower.Contains($titleLower)) {
+                $isDuplicate = $true
+                Write-Host "::notice::Skipping duplicate: '$title' (matches #$($issue.number))"
+                break
+              }
+            }
+
+            if ($isDuplicate) {
+              $skippedCount++
+              continue
+            }
+
+            # Add provenance footer (using string concat to avoid YAML doc separator issues)
+            $footer = "`n`n----`n`n"
+            $footer += "<sub>Auto-generated by [Artifact Insight Scanner]($($env:SERVER_URL)/$($env:GITHUB_REPOSITORY)/actions/runs/$($env:RUN_ID))</sub>`n"
+            $footer += "<sub>Source: ``$source``</sub>"
+            $fullBody = $body + $footer
+
+            # Create the issue
+            Write-Host "Creating issue: $title"
+            $result = gh issue create --title $title --body $fullBody --label $labels 2>&1
+
+            if ($LASTEXITCODE -eq 0) {
+              $createdCount++
+              Write-Host "Created: $result"
+            } else {
+              Write-Warning "Failed to create issue: $result"
+            }
+          }
+
+          Write-Host ""
+          Write-Host "=== SUMMARY ==="
+          Write-Host "Issues created: $createdCount"
+          Write-Host "Duplicates skipped: $skippedCount"
+
+      - name: Generate summary
+        if: always()
+        shell: bash
+        env:
+          ARTIFACT_COUNT: ${{ steps.collect.outputs.artifact_count || '0' }}
+          FINDING_COUNT: ${{ steps.parse.outputs.finding_count || '0' }}
+          DRY_RUN: ${{ inputs.dry-run || 'false' }}
+          VERDICT: ${{ steps.analyze.outputs.verdict || 'N/A' }}
+        run: |
+          {
+            echo "## Artifact Insight Scanner Results"
+            echo ""
+            echo "| Metric | Value |"
+            echo "|--------|-------|"
+            echo "| Artifacts Scanned | $ARTIFACT_COUNT |"
+            echo "| Insights Found | $FINDING_COUNT |"
+            echo "| AI Verdict | $VERDICT |"
+            echo "| Dry Run | $DRY_RUN |"
+            echo ""
+            if [ "$DRY_RUN" = "true" ]; then
+              echo "> [!NOTE]"
+              echo "> Dry run mode - no issues were created"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

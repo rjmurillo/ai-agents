@@ -57,7 +57,7 @@ All 11 previously-flagged tasks have been successfully revised. Prompts now incl
 **Previous issues**: Uses real PR numbers without state validation, creates file without absolute path
 
 **Resolution**: [PASS]
-- Absolute path specified: `/home/richard/ai-agents/tests/Integration-PRMaintenance.Tests.ps1` (line 859)
+- Absolute path specified: `tests/Integration-PRMaintenance.Tests.ps1` (line 859)
 - PR state handling: Lines 862-864 warn about live data
 - Dynamic PR discovery: Lines 873-876, 880-881 (BeforeEach block fetches open PRs)
 - Skip conditions: Lines 885, 904 use `-Skip:()` parameter with PR state checks

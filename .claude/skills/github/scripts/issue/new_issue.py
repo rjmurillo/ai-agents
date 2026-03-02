@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 """Create a new GitHub Issue.
 
-Creates issues with title, body, and labels.
 Supports both inline body text and file-based body content.
 
-Exit codes (ADR-035):
-    0 = Success
-    1 = Invalid parameters
-    2 = File not found
-    3 = API error
-    4 = Not authenticated
+Exit codes follow ADR-035:
+    0 - Success
+    1 - Invalid parameters / logic error
+    2 - File not found
+    3 - External error (API failure)
+    4 - Auth error (not authenticated)
 """
+
+from __future__ import annotations
 
 import argparse
 import json
@@ -18,104 +19,115 @@ import os
 import re
 import subprocess
 import sys
+from pathlib import Path
 
-_lib_dir = os.path.join(
-    os.environ.get("CLAUDE_PLUGIN_ROOT", os.path.join(os.getcwd(), ".claude")),
-    "skills", "github", "lib",
-)
+_plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+_workspace = os.environ.get("GITHUB_WORKSPACE")
+if _plugin_root:
+    _lib_dir = os.path.join(_plugin_root, "lib")
+elif _workspace:
+    _lib_dir = os.path.join(_workspace, ".claude", "lib")
+else:
+    _lib_dir = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "lib")
+    )
 if _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
 
-from github_core.api import (
+from github_core.api import (  # noqa: E402
     assert_gh_authenticated,
+    error_and_exit,
     resolve_repo_params,
-    write_error_and_exit,
 )
 
 
-def new_issue(
-    owner: str,
-    repo: str,
-    title: str,
-    body: str = "",
-    labels: str = "",
-) -> dict:
-    """Create a new GitHub issue.
+def _write_github_output(outputs: dict[str, str]) -> None:
+    """Write key=value pairs to GITHUB_OUTPUT if available."""
+    output_file = os.environ.get("GITHUB_OUTPUT")
+    if not output_file:
+        return
+    try:
+        with open(output_file, "a", encoding="utf-8") as fh:
+            for key, value in outputs.items():
+                fh.write(f"{key}={value}\n")
+    except OSError:
+        pass
 
-    Args:
-        owner: Repository owner.
-        repo: Repository name.
-        title: Issue title.
-        body: Issue body text.
-        labels: Comma-separated label names.
 
-    Returns:
-        Dict with issue number and URL.
-    """
-    gh_args = ["gh", "issue", "create", "--repo", f"{owner}/{repo}", "--title", title]
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Create a new GitHub Issue.",
+    )
+    parser.add_argument("--owner", default="", help="Repository owner")
+    parser.add_argument("--repo", default="", help="Repository name")
+    parser.add_argument("--title", required=True, help="Issue title")
 
-    if body.strip():
+    body_group = parser.add_mutually_exclusive_group()
+    body_group.add_argument("--body", default="", help="Issue body text")
+    body_group.add_argument("--body-file", default="", help="Path to file containing issue body")
+
+    parser.add_argument(
+        "--labels",
+        default="",
+        help='Comma-separated list of labels (e.g., "bug,P1,needs-triage")',
+    )
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+
+    assert_gh_authenticated()
+    resolved = resolve_repo_params(args.owner, args.repo)
+    owner, repo = resolved.owner, resolved.repo
+
+    if not args.title or not args.title.strip():
+        error_and_exit("Title cannot be empty.", 2)
+
+    body = args.body
+    if args.body_file:
+        body_path = Path(args.body_file)
+        if not body_path.exists():
+            error_and_exit(f"Body file not found: {args.body_file}", 2)
+        body = body_path.read_text(encoding="utf-8")
+
+    gh_args = ["gh", "issue", "create", "--repo", f"{owner}/{repo}", "--title", args.title]
+
+    if body and body.strip():
         gh_args.extend(["--body", body])
 
-    if labels.strip():
-        gh_args.extend(["--label", labels])
+    if args.labels and args.labels.strip():
+        gh_args.extend(["--label", args.labels])
 
-    result = subprocess.run(gh_args, capture_output=True, text=True)
+    result = subprocess.run(gh_args, capture_output=True, text=True, check=False)
 
     if result.returncode != 0:
-        stderr = result.stderr or result.stdout
-        write_error_and_exit(f"Failed to create issue: {stderr}", 3)
+        error_str = result.stderr.strip() or result.stdout.strip()
+        error_and_exit(f"Failed to create issue: {error_str}", 3)
 
     output_text = result.stdout.strip()
     match = re.search(r"issues/(\d+)", output_text)
     if not match:
-        write_error_and_exit(
-            f"Could not parse issue number from result: {output_text}", 3
-        )
+        error_and_exit(f"Could not parse issue number from result: {output_text}", 3)
 
     issue_number = int(match.group(1))
 
-    return {
-        "Success": True,
-        "IssueNumber": issue_number,
-        "IssueUrl": output_text,
-        "Title": title,
+    output = {
+        "success": True,
+        "issue_number": issue_number,
+        "url": output_text,
+        "title": args.title,
     }
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Create a new GitHub issue")
-    parser.add_argument("--owner", help="Repository owner")
-    parser.add_argument("--repo", help="Repository name")
-    parser.add_argument("--title", required=True, help="Issue title")
-    parser.add_argument("--body", default="", help="Issue body text")
-    parser.add_argument("--body-file", help="Path to file containing issue body")
-    parser.add_argument("--labels", default="", help="Comma-separated labels")
-    args = parser.parse_args()
-
-    assert_gh_authenticated()
-    resolved = resolve_repo_params(args.owner, args.repo)
-
-    if not args.title.strip():
-        write_error_and_exit("Title cannot be empty.", 1)
-
-    body = args.body
-    if args.body_file:
-        if not os.path.isfile(args.body_file):
-            write_error_and_exit(f"Body file not found: {args.body_file}", 2)
-        with open(args.body_file, encoding="utf-8") as f:
-            body = f.read()
-
-    output = new_issue(
-        resolved["owner"], resolved["repo"],
-        args.title, body, args.labels,
-    )
-
     print(json.dumps(output, indent=2))
-    print(f"Created issue #{output['IssueNumber']}", file=sys.stderr)
-    print(f"  Title: {output['Title']}", file=sys.stderr)
-    print(f"  URL: {output['IssueUrl']}", file=sys.stderr)
+
+    _write_github_output({
+        "success": "true",
+        "issue_number": str(issue_number),
+        "issue_url": output_text,
+    })
+
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

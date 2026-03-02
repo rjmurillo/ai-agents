@@ -8,27 +8,153 @@ Validates slash command (.md) files for 5 categories:
 4. Length - Warning if >200 lines (suggest converting to skill)
 5. Lint - Markdown lint via markdownlint-cli2
 
-EXIT CODES (ADR-035):
-    0 - All validations passed (or warnings only)
+Exit codes follow ADR-035:
+    0 - All validations passed
     1 - One or more BLOCKING violations found
 """
 
 from __future__ import annotations
 
+import argparse
 import re
-import shutil
 import subprocess
-import sys
 from pathlib import Path
 
 
-def validate_slash_command(path: str, skip_lint: bool = False) -> int:
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Validate slash command file for quality gates.",
+    )
+    parser.add_argument(
+        "--path", required=True, help="Path to slash command .md file",
+    )
+    parser.add_argument(
+        "--skip-lint",
+        action="store_true",
+        help="Skip markdown lint validation",
+    )
+    return parser
+
+
+def _validate_frontmatter(content: str, violations: list[str]) -> tuple[str | None, bool]:
+    """Validate YAML frontmatter block. Returns (frontmatter_text, has_arg_hint)."""
+    # WHY: Use regex for YAML parsing instead of PyYAML module dependency.
+    # LIMITATION: Won't handle multi-line YAML values or complex nesting.
+    # MITIGATION: pytest tests validate against real-world command files.
+    fm_match = re.match(r"(?s)^---\s*\n(.*?)\n---", content)
+    if not fm_match:
+        violations.append("BLOCKING: Missing YAML frontmatter block")
+        return None, False
+
+    frontmatter = fm_match.group(1)
+
+    # Parse description field
+    desc_match = re.search(r"description:\s*(.+)", frontmatter)
+    if not desc_match:
+        violations.append("BLOCKING: Missing 'description' in frontmatter")
+    else:
+        description = desc_match.group(1).strip()
+        trigger_re = re.compile(
+            r"^(Use when|Generate|Research|Invoke|Create|Analyze|Review|Search)"
+        )
+        if not trigger_re.match(description):
+            violations.append(
+                "WARNING: Description should start with action verb or 'Use when...'"
+            )
+
+    has_arg_hint = bool(re.search(r"argument-hint:\s*(.+)", frontmatter))
+    return frontmatter, has_arg_hint
+
+
+def _validate_arguments(
+    content: str,
+    has_arg_hint: bool,
+    violations: list[str],
+) -> None:
+    """Validate argument consistency."""
+    uses_arguments = bool(re.search(r"\$ARGUMENTS|\$1|\$2|\$3", content))
+
+    if uses_arguments and not has_arg_hint:
+        violations.append(
+            "BLOCKING: Prompt uses arguments but no 'argument-hint' in frontmatter"
+        )
+
+    if has_arg_hint and not uses_arguments:
+        violations.append(
+            "WARNING: Frontmatter has 'argument-hint' but prompt doesn't use arguments"
+        )
+
+
+def _validate_security(
+    content: str,
+    frontmatter: str | None,
+    violations: list[str],
+) -> None:
+    """Validate security constraints for bash execution."""
+    uses_bash = bool(re.search(r"!\s*\w+", content))
+
+    if not uses_bash or frontmatter is None:
+        return
+
+    tools_match = re.search(r"allowed-tools:\s*\[(.+)\]", frontmatter)
+    if not tools_match:
+        violations.append(
+            "BLOCKING: Prompt uses bash execution (!) but no "
+            "'allowed-tools' in frontmatter"
+        )
+        return
+
+    allowed_tools = tools_match.group(1)
+
+    # Check for overly permissive wildcards
+    # WHY: Allow scoped namespaces like mcp__* but reject bare *
+    tool_list = [t.strip() for t in allowed_tools.split(",")]
+    for tool in tool_list:
+        if "*" in tool and not tool.startswith("mcp__"):
+            violations.append(
+                "BLOCKING: 'allowed-tools' has overly permissive wildcard "
+                "(use mcp__* for scoped namespaces)"
+            )
+            break
+
+
+def _validate_length(content: str, violations: list[str]) -> None:
+    """Warn if file exceeds 200 lines."""
+    line_count = len(content.split("\n"))
+    if line_count > 200:
+        violations.append(
+            f"WARNING: File has {line_count} lines (>200). "
+            f"Consider converting to skill."
+        )
+
+
+def _validate_lint(path: str, violations: list[str]) -> None:
+    """Run markdownlint-cli2 on the file."""
+    print("Running markdownlint-cli2...")
+    result = subprocess.run(
+        ["npx", "markdownlint-cli2", "--", path],
+        capture_output=True,
+        text=True,
+    )
+
+    if result.returncode != 0:
+        violations.append("BLOCKING: Markdown lint errors:")
+        lint_output = result.stdout or result.stderr
+        if lint_output:
+            violations.append(lint_output.strip())
+        violations.append(f"  To auto-fix: npx markdownlint-cli2 --fix {path}")
+
+
+def validate_slash_command(
+    path: str,
+    skip_lint: bool = False,
+) -> tuple[list[str], int, int]:
     """Validate a slash command file.
 
-    Returns exit code: 0 on success, 1 on blocking violations.
+    Returns:
+        Tuple of (violations, blocking_count, warning_count).
     """
     file_path = Path(path)
-    violations: list[str] = []
 
     if not file_path.exists():
         print(f"[FAIL] File not found: {path}")
@@ -36,147 +162,59 @@ def validate_slash_command(path: str, skip_lint: bool = False) -> int:
         print("    - Verify file path is correct")
         print("    - Check if file has been moved or deleted")
         print("    - Use absolute path if relative path is ambiguous")
-        return 1
+        return ["BLOCKING: File not found"], 1, 0
 
     content = file_path.read_text(encoding="utf-8")
+    violations: list[str] = []
 
-    # 1. Frontmatter Validation
-    has_arg_hint = False
-    frontmatter = None
+    # 1. Frontmatter validation
+    frontmatter, has_arg_hint = _validate_frontmatter(content, violations)
 
-    fm_match = re.search(r"(?s)^---\s*\n(.*?)\n---", content)
-    if not fm_match:
-        violations.append("BLOCKING: Missing YAML frontmatter block")
-    else:
-        frontmatter = fm_match.group(1)
+    # 2. Argument validation
+    _validate_arguments(content, has_arg_hint, violations)
 
-        desc_match = re.search(r"description:\s*(.+)", frontmatter)
-        if not desc_match:
-            violations.append("BLOCKING: Missing 'description' in frontmatter")
-        else:
-            description = desc_match.group(1).strip()
-            if not re.match(
-                r"^(Use when|Generate|Research|Invoke|Create|Analyze|Review|Search)",
-                description,
-            ):
-                violations.append(
-                    "WARNING: Description should start with"
-                    " action verb or 'Use when...'"
-                )
+    # 3. Security validation
+    _validate_security(content, frontmatter, violations)
 
-        arg_match = re.search(r"argument-hint:\s*(.+)", frontmatter)
-        has_arg_hint = arg_match is not None
+    # 4. Length validation
+    _validate_length(content, violations)
 
-    # 2. Argument Validation
-    uses_arguments = bool(re.search(r"\$ARGUMENTS|\$1|\$2|\$3", content))
-
-    if uses_arguments and not has_arg_hint:
-        violations.append("BLOCKING: Prompt uses arguments but no 'argument-hint' in frontmatter")
-
-    if has_arg_hint and not uses_arguments:
-        violations.append(
-            "WARNING: Frontmatter has 'argument-hint'"
-            " but prompt doesn't use arguments"
-        )
-
-    # 3. Security Validation
-    uses_bash_execution = bool(re.search(r"!\s*\w+", content))
-
-    if uses_bash_execution and frontmatter is not None:
-        allowed_tools_match = re.search(r"allowed-tools:\s*\[(.+)\]", frontmatter)
-
-        if not allowed_tools_match:
-            violations.append(
-                "BLOCKING: Prompt uses bash execution (!)"
-                " but no 'allowed-tools' in frontmatter"
-            )
-        else:
-            allowed_tools = allowed_tools_match.group(1)
-            tool_list = [t.strip() for t in allowed_tools.split(",")]
-            has_overly_permissive = False
-            for tool in tool_list:
-                if "*" in tool and not tool.startswith("mcp__"):
-                    has_overly_permissive = True
-                    break
-            if has_overly_permissive:
-                violations.append(
-                    "BLOCKING: 'allowed-tools' has overly permissive wildcard "
-                    "(use mcp__* for scoped namespaces)"
-                )
-
-        # Verify common bash commands exist (warning only)
-        bash_commands = re.findall(r"!\s*(\w+)", content)
-        for cmd in bash_commands:
-            if cmd in ("git", "gh", "npm", "npx"):
-                if not shutil.which(cmd):
-                    violations.append(
-                        f"WARNING: Bash command '{cmd}'"
-                        " not found in PATH (runtime may fail)"
-                    )
-
-    # 4. Length Validation
-    line_count = len(content.splitlines())
-    if line_count > 200:
-        violations.append(
-            f"WARNING: File has {line_count} lines (>200)."
-            " Consider converting to skill."
-        )
-
-    # 5. Lint Validation
+    # 5. Lint validation
     if not skip_lint:
-        print("Running markdownlint-cli2...", file=sys.stderr)
-        try:
-            lint_result = subprocess.run(
-                ["npx", "markdownlint-cli2", path],
-                capture_output=True,
-                text=True,
-                timeout=60,
-            )
-            if lint_result.returncode != 0:
-                violations.append("BLOCKING: Markdown lint errors:")
-                if lint_result.stdout.strip():
-                    violations.append(lint_result.stdout.strip())
-                if lint_result.stderr.strip():
-                    violations.append(lint_result.stderr.strip())
-                violations.append("")
-                violations.append(f"  To auto-fix: npx markdownlint-cli2 --fix {path}")
-                violations.append("  Configuration: .markdownlint.json (if exists) or defaults")
-        except FileNotFoundError:
-            violations.append("WARNING: npx not found, skipping markdown lint")
-        except subprocess.TimeoutExpired:
-            violations.append("WARNING: markdownlint-cli2 timed out")
+        _validate_lint(path, violations)
 
-    # Determine results
     blocking_count = sum(1 for v in violations if v.startswith("BLOCKING:"))
     warning_count = sum(1 for v in violations if v.startswith("WARNING:"))
 
+    return violations, blocking_count, warning_count
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+
+    violations, blocking_count, warning_count = validate_slash_command(
+        args.path, args.skip_lint,
+    )
+
     if violations:
-        print(f"\n[FAIL] Validation FAILED: {path}")
+        # Check if first violation is file-not-found (already printed)
+        if violations == ["BLOCKING: File not found"]:
+            return 1
+
+        print(f"\n[FAIL] Validation FAILED: {args.path}")
         print(f"\nViolations ({blocking_count} blocking, {warning_count} warnings):")
-        for violation in violations:
-            print(f"  - {violation}")
+        for v in violations:
+            print(f"  - {v}")
 
         if blocking_count > 0:
             return 1
 
-        print(f"\n[PASS] Validation PASSED with warnings: {path}")
+        print(f"\n[PASS] Validation PASSED with warnings: {args.path}")
         return 0
 
-    print(f"\n[PASS] Validation PASSED: {path}")
+    print(f"\n[PASS] Validation PASSED: {args.path}")
     return 0
 
 
-def main() -> int:
-    """Entry point."""
-    import argparse
-
-    parser = argparse.ArgumentParser(description="Validate slash command file for quality gates")
-    parser.add_argument("--path", required=True, help="Path to slash command .md file")
-    parser.add_argument("--skip-lint", action="store_true", help="Skip markdown lint validation")
-    args = parser.parse_args()
-
-    return validate_slash_command(args.path, args.skip_lint)
-
-
 if __name__ == "__main__":
-    sys.exit(main())
+    raise SystemExit(main())

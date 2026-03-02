@@ -333,28 +333,28 @@ These template additions are valuable and should be back-ported to Claude agents
 ## Files Referenced
 
 **Claude Source Files (Source of Truth)**:
-- `D:\src\GitHub\rjmurillo\ai-agents\src\claude\architect.md`
-- `D:\src\GitHub\rjmurillo\ai-agents\src\claude\independent-thinker.md`
-- `D:\src\GitHub\rjmurillo\ai-agents\src\claude\high-level-advisor.md`
-- `D:\src\GitHub\rjmurillo\ai-agents\src\claude\critic.md`
-- `D:\src\GitHub\rjmurillo\ai-agents\src\claude\task-generator.md`
-- `D:\src\GitHub\rjmurillo\ai-agents\src\claude\planner.md`
+- `src\claude\architect.md`
+- `src\claude\independent-thinker.md`
+- `src\claude\high-level-advisor.md`
+- `src\claude\critic.md`
+- `src\claude\task-generator.md`
+- `src\claude\planner.md`
 
 **Template Files (Need Updates)**:
-- `D:\src\GitHub\rjmurillo\ai-agents\templates\agents\architect.shared.md`
-- `D:\src\GitHub\rjmurillo\ai-agents\templates\agents\independent-thinker.shared.md`
-- `D:\src\GitHub\rjmurillo\ai-agents\templates\agents\high-level-advisor.shared.md`
-- `D:\src\GitHub\rjmurillo\ai-agents\templates\agents\critic.shared.md`
-- `D:\src\GitHub\rjmurillo\ai-agents\templates\agents\task-generator.shared.md`
-- `D:\src\GitHub\rjmurillo\ai-agents\templates\agents\planner.shared.md`
+- `templates\agents\architect.shared.md`
+- `templates\agents\independent-thinker.shared.md`
+- `templates\agents\high-level-advisor.shared.md`
+- `templates\agents\critic.shared.md`
+- `templates\agents\task-generator.shared.md`
+- `templates\agents\planner.shared.md`
 
 **Generated VS Code Files (Auto-generated from templates)**:
-- `D:\src\GitHub\rjmurillo\ai-agents\src\vs-code-agents\architect.agent.md`
-- `D:\src\GitHub\rjmurillo\ai-agents\src\vs-code-agents\independent-thinker.agent.md`
-- `D:\src\GitHub\rjmurillo\ai-agents\src\vs-code-agents\high-level-advisor.agent.md`
-- `D:\src\GitHub\rjmurillo\ai-agents\src\vs-code-agents\critic.agent.md`
-- `D:\src\GitHub\rjmurillo\ai-agents\src\vs-code-agents\task-generator.agent.md`
-- `D:\src\GitHub\rjmurillo\ai-agents\src\vs-code-agents\planner.agent.md`
+- `src\vs-code-agents\architect.agent.md`
+- `src\vs-code-agents\independent-thinker.agent.md`
+- `src\vs-code-agents\high-level-advisor.agent.md`
+- `src\vs-code-agents\critic.agent.md`
+- `src\vs-code-agents\task-generator.agent.md`
+- `src\vs-code-agents\planner.agent.md`
 
 ---
 

@@ -2,24 +2,25 @@
 """Benchmark memory search performance across Serena and Forgetful systems.
 
 Implements M-008 from Phase 2A: Create memory search benchmarks.
+Measures Serena lexical search, Forgetful semantic search, and outputs
+performance metrics for comparison against claude-flow baseline (96-164x target).
 
-Measures:
-1. Serena lexical search (file-based, keyword matching)
-2. Forgetful semantic search (vector-based, embeddings)
-
-Exit Codes:
-    0  - Success: Benchmarking completed
-
-See: ADR-035 Exit Code Standardization
+Exit codes follow ADR-035:
+    0 - Success
 """
+
+from __future__ import annotations
 
 import argparse
 import json
 import re
+import socket
+import sys
 import time
-import urllib.error
 import urllib.request
+from datetime import UTC, datetime
 from pathlib import Path
+from urllib.parse import urlparse
 
 DEFAULT_QUERIES = [
     "PowerShell array handling patterns",
@@ -32,18 +33,29 @@ DEFAULT_QUERIES = [
     "memory-first architecture",
 ]
 
-SERENA_MEMORY_PATH = ".serena/memories"
 FORGETFUL_ENDPOINT = "http://localhost:8020/mcp"
+
+
+def test_forgetful_available(endpoint: str = FORGETFUL_ENDPOINT) -> bool:
+    """Check if Forgetful MCP is reachable."""
+    try:
+        parsed = urlparse(endpoint)
+        host = parsed.hostname or "localhost"
+        port = parsed.port or 8020
+        with socket.create_connection((host, port), timeout=2):
+            return True
+    except OSError:
+        return False
 
 
 def measure_serena_search(
     query: str,
-    memory_path: str,
+    memory_path: Path,
     iterations: int,
     warmup_iterations: int,
 ) -> dict:
     """Benchmark Serena's lexical memory search."""
-    result = {
+    result: dict = {
         "Query": query,
         "System": "Serena",
         "ListTimeMs": 0.0,
@@ -55,73 +67,78 @@ def measure_serena_search(
         "IterationTimes": [],
     }
 
-    path = Path(memory_path)
-    if not path.is_dir():
+    if not memory_path.is_dir():
         result["Error"] = f"Memory path not found: {memory_path}"
         return result
 
-    keywords = [w for w in query.lower().split() if len(w) > 2]
+    keywords = [
+        kw for kw in query.lower().split() if len(kw) > 2
+    ]
 
-    # Warmup
+    # Warmup iterations
     for _ in range(warmup_iterations):
-        files = list(path.glob("*.md"))
+        files = list(memory_path.glob("*.md"))
         for f in files:
             name = f.stem.lower()
-            if any(re.search(re.escape(kw), name) for kw in keywords):
-                f.read_text(encoding="utf-8", errors="replace")
+            matching = [kw for kw in keywords if re.search(re.escape(kw), name)]
+            if matching:
+                try:
+                    f.read_text(encoding="utf-8")
+                except OSError:
+                    pass
 
+    # Measured iterations
     list_times = []
     match_times = []
     read_times = []
     total_times = []
-    matched_counts = []
+    matched_file_counts = []
 
     for _ in range(iterations):
         iter_start = time.perf_counter()
 
+        # Phase 1: List files
         list_start = time.perf_counter()
-        files = list(path.glob("*.md"))
+        files = list(memory_path.glob("*.md"))
         list_end = time.perf_counter()
         list_times.append((list_end - list_start) * 1000)
 
+        # Phase 2: Match keywords
         match_start = time.perf_counter()
-        matched = []
+        matched_files = []
         for f in files:
             name = f.stem.lower()
-            if any(re.search(re.escape(kw), name) for kw in keywords):
-                matched.append(f)
+            matching = [kw for kw in keywords if re.search(re.escape(kw), name)]
+            if matching:
+                matched_files.append(f)
         match_end = time.perf_counter()
         match_times.append((match_end - match_start) * 1000)
 
+        # Phase 3: Read matched files
         read_start = time.perf_counter()
-        for f in matched:
-            f.read_text(encoding="utf-8", errors="replace")
+        for f in matched_files:
+            try:
+                f.read_text(encoding="utf-8")
+            except OSError:
+                pass
         read_end = time.perf_counter()
         read_times.append((read_end - read_start) * 1000)
 
         iter_end = time.perf_counter()
         total_times.append((iter_end - iter_start) * 1000)
-        matched_counts.append(len(matched))
+        matched_file_counts.append(len(matched_files))
 
     result["ListTimeMs"] = round(sum(list_times) / len(list_times), 2)
     result["MatchTimeMs"] = round(sum(match_times) / len(match_times), 2)
     result["ReadTimeMs"] = round(sum(read_times) / len(read_times), 2)
     result["TotalTimeMs"] = round(sum(total_times) / len(total_times), 2)
-    result["MatchedFiles"] = round(sum(matched_counts) / len(matched_counts))
+    result["MatchedFiles"] = round(
+        sum(matched_file_counts) / len(matched_file_counts),
+    )
     result["TotalFiles"] = len(files)
     result["IterationTimes"] = total_times
 
     return result
-
-
-def test_forgetful_available(endpoint: str) -> bool:
-    """Check if Forgetful MCP is available."""
-    try:
-        req = urllib.request.Request(endpoint, method="GET")
-        urllib.request.urlopen(req, timeout=2)
-        return True
-    except Exception:
-        return False
 
 
 def measure_forgetful_search(
@@ -131,7 +148,7 @@ def measure_forgetful_search(
     warmup_iterations: int,
 ) -> dict:
     """Benchmark Forgetful's semantic memory search."""
-    result = {
+    result: dict = {
         "Query": query,
         "System": "Forgetful",
         "SearchTimeMs": 0.0,
@@ -144,7 +161,7 @@ def measure_forgetful_search(
         result["Error"] = f"Forgetful MCP not available at {endpoint}"
         return result
 
-    body = json.dumps({
+    search_body = json.dumps({
         "jsonrpc": "2.0",
         "id": 1,
         "method": "tools/call",
@@ -154,16 +171,18 @@ def measure_forgetful_search(
         },
     }).encode("utf-8")
 
+    # Warmup
     for _ in range(warmup_iterations):
         try:
             req = urllib.request.Request(
-                endpoint, data=body, method="POST",
+                endpoint, data=search_body,
                 headers={"Content-Type": "application/json"},
             )
             urllib.request.urlopen(req, timeout=10)
         except Exception:
             pass
 
+    # Measured iterations
     search_times = []
     memory_counts = []
 
@@ -171,13 +190,14 @@ def measure_forgetful_search(
         start = time.perf_counter()
         try:
             req = urllib.request.Request(
-                endpoint, data=body, method="POST",
+                endpoint, data=search_body,
                 headers={"Content-Type": "application/json"},
             )
-            resp = urllib.request.urlopen(req, timeout=30)
+            response = urllib.request.urlopen(req, timeout=30)
             end = time.perf_counter()
             search_times.append((end - start) * 1000)
-            data = json.loads(resp.read().decode("utf-8"))
+
+            data = json.loads(response.read())
             if data.get("result", {}).get("content"):
                 memory_counts.append(1)
             else:
@@ -189,33 +209,41 @@ def measure_forgetful_search(
             result["Error"] = str(e)
 
     if search_times:
-        result["SearchTimeMs"] = round(sum(search_times) / len(search_times), 2)
+        result["SearchTimeMs"] = round(
+            sum(search_times) / len(search_times), 2,
+        )
         result["TotalTimeMs"] = result["SearchTimeMs"]
-        result["MatchedMemories"] = round(sum(memory_counts) / len(memory_counts))
+        result["MatchedMemories"] = round(
+            sum(memory_counts) / len(memory_counts),
+        )
         result["IterationTimes"] = search_times
 
     return result
 
 
-def format_console(benchmark: dict) -> None:
-    """Print benchmark results to console."""
-    print(f"Serena Average: {benchmark['Summary']['SerenaAvgMs']}ms")
+def format_console(benchmark: dict) -> str:
+    """Format benchmark results for console output."""
+    lines = []
+    lines.append(f"Serena Average: {benchmark['Summary']['SerenaAvgMs']}ms")
     if benchmark["Summary"]["ForgetfulAvgMs"] > 0:
-        print(f"Forgetful Average: {benchmark['Summary']['ForgetfulAvgMs']}ms")
-        print(f"Speedup Factor: {benchmark['Summary']['SpeedupFactor']}x")
-        print(f"Target: {benchmark['Summary']['Target']}")
+        lines.append(
+            f"Forgetful Average: {benchmark['Summary']['ForgetfulAvgMs']}ms",
+        )
+        lines.append(
+            f"Speedup Factor: {benchmark['Summary']['SpeedupFactor']}x",
+        )
+        lines.append(f"Target: {benchmark['Summary']['Target']}")
     else:
-        print("Forgetful: Not available")
+        lines.append("Forgetful: Not available")
+    return "\n".join(lines)
 
 
 def format_markdown(benchmark: dict) -> str:
-    """Format benchmark results as markdown."""
-    from datetime import datetime
-
+    """Format benchmark results as markdown report."""
     lines = [
         "# Memory Performance Benchmark Report",
         "",
-        f"**Date**: {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+        f"**Date**: {datetime.now(UTC).strftime('%Y-%m-%d %H:%M')}",
         "**Task**: M-008 (Phase 2A Memory System)",
         "",
         "## Configuration",
@@ -234,40 +262,74 @@ def format_markdown(benchmark: dict) -> str:
     ]
 
     if benchmark["Summary"]["ForgetfulAvgMs"] > 0:
-        status = "Target Met" if benchmark["Summary"]["SpeedupFactor"] >= 10 else "Below Target"
-        lines.append(f"| Forgetful | {benchmark['Summary']['ForgetfulAvgMs']} | {status} |")
+        status = (
+            "Target Met"
+            if benchmark["Summary"]["SpeedupFactor"] >= 10
+            else "Below Target"
+        )
+        lines.append(
+            f"| Forgetful | {benchmark['Summary']['ForgetfulAvgMs']} | {status} |",
+        )
 
     lines.append("")
     if benchmark["Summary"]["SpeedupFactor"] > 0:
-        lines.append(f"**Speedup Factor**: {benchmark['Summary']['SpeedupFactor']}x")
+        lines.append(
+            f"**Speedup Factor**: {benchmark['Summary']['SpeedupFactor']}x",
+        )
         lines.append(f"**Target**: {benchmark['Summary']['Target']}")
 
     return "\n".join(lines)
 
 
-def main() -> None:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Benchmark memory search performance."
+        description="Benchmark memory search performance.",
     )
-    parser.add_argument("--queries", nargs="*", default=None)
-    parser.add_argument("--iterations", type=int, default=5)
-    parser.add_argument("--warmup-iterations", type=int, default=2)
-    parser.add_argument("--serena-only", action="store_true")
     parser.add_argument(
-        "--format", choices=["console", "markdown", "json"], default="console",
-        dest="output_format",
+        "--queries", nargs="*", default=None,
+        help="Test queries to benchmark (default: built-in set)",
     )
-    args = parser.parse_args()
+    parser.add_argument(
+        "--iterations", type=int, default=5,
+        help="Number of iterations per query (default: 5)",
+    )
+    parser.add_argument(
+        "--warmup", type=int, default=2,
+        help="Number of warmup iterations (default: 2)",
+    )
+    parser.add_argument(
+        "--serena-only", action="store_true",
+        help="Only benchmark Serena (skip Forgetful)",
+    )
+    parser.add_argument(
+        "--format", choices=["console", "markdown", "json"],
+        default="console", dest="output_format",
+        help="Output format (default: console)",
+    )
+    parser.add_argument(
+        "--serena-path", type=Path, default=None,
+        help="Path to Serena memories directory",
+    )
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
 
     queries = args.queries if args.queries else DEFAULT_QUERIES
 
-    benchmark = {
-        "Timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
+    if args.serena_path:
+        serena_path = args.serena_path
+    else:
+        serena_path = Path(".serena/memories")
+
+    benchmark: dict = {
+        "Timestamp": datetime.now(UTC).isoformat(),
         "Configuration": {
             "Queries": len(queries),
             "Iterations": args.iterations,
-            "WarmupIterations": args.warmup_iterations,
-            "SerenaPath": SERENA_MEMORY_PATH,
+            "WarmupIterations": args.warmup,
+            "SerenaPath": str(serena_path),
             "ForgetfulEndpoint": FORGETFUL_ENDPOINT,
         },
         "SerenaResults": [],
@@ -283,78 +345,107 @@ def main() -> None:
     if args.output_format == "console":
         print("=== Memory Performance Benchmark (M-008) ===")
         print(
-            f"Queries: {len(queries)}, "
-            f"Iterations: {args.iterations}, "
-            f"Warmup: {args.warmup_iterations}"
+            f"Queries: {len(queries)}, Iterations: {args.iterations}, "
+            f"Warmup: {args.warmup}",
         )
-        print("\nBenchmarking Serena (lexical search)...")
+        print()
+
+    # Benchmark Serena
+    if args.output_format == "console":
+        print("Benchmarking Serena (lexical search)...")
 
     for query in queries:
         if args.output_format == "console":
             print(f"  Query: '{query}'")
 
         serena_result = measure_serena_search(
-            query, SERENA_MEMORY_PATH, args.iterations, args.warmup_iterations,
+            query, serena_path, args.iterations, args.warmup,
         )
         benchmark["SerenaResults"].append(serena_result)
 
         if args.output_format == "console":
-            if "Error" in serena_result:
+            if serena_result.get("Error"):
                 print(f"    Error: {serena_result['Error']}")
             else:
                 print(
                     f"    Total: {serena_result['TotalTimeMs']}ms "
                     f"(List: {serena_result['ListTimeMs']}ms, "
                     f"Match: {serena_result['MatchTimeMs']}ms, "
-                    f"Read: {serena_result['ReadTimeMs']}ms)"
+                    f"Read: {serena_result['ReadTimeMs']}ms)",
+                )
+                print(
+                    f"    Matched: {serena_result['MatchedFiles']} "
+                    f"of {serena_result['TotalFiles']} files",
                 )
 
-    valid_serena = [r for r in benchmark["SerenaResults"] if "Error" not in r]
+    # Calculate Serena average
+    valid_serena = [
+        r for r in benchmark["SerenaResults"] if not r.get("Error")
+    ]
     if valid_serena:
         avg = sum(r["TotalTimeMs"] for r in valid_serena) / len(valid_serena)
         benchmark["Summary"]["SerenaAvgMs"] = round(avg, 2)
 
+    # Benchmark Forgetful
     if not args.serena_only:
         if args.output_format == "console":
-            print("\nBenchmarking Forgetful (semantic search)...")
+            print()
+            print("Benchmarking Forgetful (semantic search)...")
 
-        if test_forgetful_available(FORGETFUL_ENDPOINT):
+        if test_forgetful_available():
             for query in queries:
                 if args.output_format == "console":
                     print(f"  Query: '{query}'")
 
-                fg_result = measure_forgetful_search(
-                    query, FORGETFUL_ENDPOINT, args.iterations, args.warmup_iterations,
+                forgetful_result = measure_forgetful_search(
+                    query, FORGETFUL_ENDPOINT, args.iterations, args.warmup,
                 )
-                benchmark["ForgetfulResults"].append(fg_result)
+                benchmark["ForgetfulResults"].append(forgetful_result)
 
                 if args.output_format == "console":
-                    if "Error" in fg_result:
-                        print(f"    Error: {fg_result['Error']}")
+                    if forgetful_result.get("Error"):
+                        print(f"    Error: {forgetful_result['Error']}")
                     else:
-                        print(f"    Total: {fg_result['TotalTimeMs']}ms")
+                        print(f"    Total: {forgetful_result['TotalTimeMs']}ms")
+                        print(
+                            f"    Matched: "
+                            f"{forgetful_result['MatchedMemories']} memories",
+                        )
 
-            valid_fg = [r for r in benchmark["ForgetfulResults"] if "Error" not in r]
-            if valid_fg:
-                avg = sum(r["TotalTimeMs"] for r in valid_fg) / len(valid_fg)
+            valid_forgetful = [
+                r for r in benchmark["ForgetfulResults"] if not r.get("Error")
+            ]
+            if valid_forgetful:
+                avg = (
+                    sum(r["TotalTimeMs"] for r in valid_forgetful)
+                    / len(valid_forgetful)
+                )
                 benchmark["Summary"]["ForgetfulAvgMs"] = round(avg, 2)
         else:
             if args.output_format == "console":
                 print(f"  Forgetful MCP not available at {FORGETFUL_ENDPOINT}")
+                print("  Skipping Forgetful benchmarks")
 
-    if benchmark["Summary"]["SerenaAvgMs"] > 0 and benchmark["Summary"]["ForgetfulAvgMs"] > 0:
+    # Calculate speedup factor
+    serena_avg = benchmark["Summary"]["SerenaAvgMs"]
+    forgetful_avg = benchmark["Summary"]["ForgetfulAvgMs"]
+    if serena_avg > 0 and forgetful_avg > 0:
         benchmark["Summary"]["SpeedupFactor"] = round(
-            benchmark["Summary"]["SerenaAvgMs"] / benchmark["Summary"]["ForgetfulAvgMs"], 2
+            serena_avg / forgetful_avg, 2,
         )
 
+    # Output results
     if args.output_format == "console":
-        print("\n=== Summary ===")
-        format_console(benchmark)
+        print()
+        print("=== Summary ===")
+        print(format_console(benchmark))
     elif args.output_format == "markdown":
         print(format_markdown(benchmark))
-    else:
+    elif args.output_format == "json":
         print(json.dumps(benchmark, indent=2))
+
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

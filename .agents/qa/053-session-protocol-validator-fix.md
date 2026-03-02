@@ -242,7 +242,7 @@ if ($startingCommit -and $changedFiles.Count -gt 0) {  # Line 208: Uses .Count
 ```powershell
 # Verify syntax
 & pwsh -NoProfile -Command {
-  . 'D:\src\GitHub\rjmurillo\ai-agents\scripts\Validate-SessionEnd.ps1'
+  . 'scripts\Validate-SessionEnd.ps1'
   if ($?) { Write-Host "Syntax valid" }
 }
 ```

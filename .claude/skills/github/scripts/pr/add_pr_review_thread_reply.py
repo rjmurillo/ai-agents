@@ -1,124 +1,161 @@
 #!/usr/bin/env python3
 """Add a reply to a GitHub PR review thread using GraphQL.
 
-Posts a reply to a review thread using the thread ID (PRRT_...).
+Posts a reply to a review thread using the thread ID (PRRT_...) rather than
+comment ID. Required for proper thread management with branch protection rules.
+
 Optionally resolves the thread after posting the reply.
 
-Exit codes (ADR-035):
-    0 = Success
-    1 = Invalid parameters
-    2 = Thread not found / file not found
-    3 = API error
-    4 = Not authenticated
+Exit codes follow ADR-035:
+    0 - Success
+    2 - Config/usage error (invalid parameters, file not found)
+    3 - External error (API failure)
+    4 - Auth error
 """
+
+from __future__ import annotations
 
 import argparse
 import json
 import os
 import sys
+import warnings
+from pathlib import Path
 
-_lib_dir = os.path.join(
-    os.environ.get("CLAUDE_PLUGIN_ROOT", os.path.join(os.getcwd(), ".claude")),
-    "skills", "github", "lib",
-)
+_plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+_workspace = os.environ.get("GITHUB_WORKSPACE")
+if _plugin_root:
+    _lib_dir = os.path.join(_plugin_root, "lib")
+elif _workspace:
+    _lib_dir = os.path.join(_workspace, ".claude", "lib")
+else:
+    _lib_dir = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "lib")
+    )
 if _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
 
-from github_core.api import (
+from github_core.api import (  # noqa: E402
     assert_gh_authenticated,
+    error_and_exit,
     gh_graphql,
-    write_error_and_exit,
 )
-from github_core.validation import test_safe_file_path
 
-REPLY_MUTATION = """
+_REPLY_MUTATION = """\
 mutation($threadId: ID!, $body: String!) {
-  addPullRequestReviewThreadReply(input: {pullRequestReviewThreadId: $threadId, body: $body}) {
-    comment {
-      id
-      databaseId
-      url
-      createdAt
-      author { login }
+    addPullRequestReviewThreadReply(input: {pullRequestReviewThreadId: $threadId, body: $body}) {
+        comment {
+            id
+            databaseId
+            url
+            createdAt
+            author {
+                login
+            }
+        }
     }
-  }
-}
-"""
+}"""
 
-RESOLVE_MUTATION = """
+_RESOLVE_MUTATION = """\
 mutation($threadId: ID!) {
-  resolveReviewThread(input: {threadId: $threadId}) {
-    thread { id isResolved }
-  }
-}
-"""
+    resolveReviewThread(input: {threadId: $threadId}) {
+        thread {
+            id
+            isResolved
+        }
+    }
+}"""
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Add reply to PR review thread")
-    parser.add_argument("--thread-id", required=True, help="GraphQL thread ID (PRRT_...)")
-    group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument("--body", help="Reply text")
-    group.add_argument("--body-file", help="Path to file containing reply")
-    parser.add_argument("--resolve", action="store_true", help="Resolve thread after reply")
-    args = parser.parse_args()
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Add a reply to a PR review thread via GraphQL.",
+    )
+    parser.add_argument(
+        "--thread-id", required=True,
+        help="GraphQL thread ID (e.g., PRRT_kwDOQoWRls5m3L76)",
+    )
+    parser.add_argument(
+        "--resolve", action="store_true",
+        help="Resolve the thread after posting the reply",
+    )
+
+    body_group = parser.add_mutually_exclusive_group(required=True)
+    body_group.add_argument("--body", help="Reply text (inline)")
+    body_group.add_argument("--body-file", help="Path to file containing reply")
+    return parser
+
+
+def _resolve_body(args: argparse.Namespace) -> str:
+    if args.body_file:
+        from github_core.validation import assert_valid_body_file
+
+        assert_valid_body_file(args.body_file)
+        return Path(args.body_file).read_text(encoding="utf-8")
+    return str(args.body)
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
 
     if not args.thread_id.startswith("PRRT_"):
-        write_error_and_exit("Thread ID must start with 'PRRT_'", 1)
+        error_and_exit("Invalid ThreadId format. Expected PRRT_... format.", 2)
+
+    body = _resolve_body(args)
+    if not body or not body.strip():
+        error_and_exit("Body cannot be empty.", 2)
 
     assert_gh_authenticated()
 
-    body = args.body
-    if args.body_file:
-        if not test_safe_file_path(args.body_file):
-            write_error_and_exit(f"Path traversal attempt detected: {args.body_file}", 1)
-        if not os.path.exists(args.body_file):
-            write_error_and_exit(f"Body file not found: {args.body_file}", 2)
-        with open(args.body_file, encoding="utf-8") as f:
-            body = f.read()
-
-    if not body or not body.strip():
-        write_error_and_exit("Body cannot be empty", 1)
-
     try:
-        data = gh_graphql(REPLY_MUTATION, {"threadId": args.thread_id, "body": body})
-    except Exception as e:
-        if "Could not resolve" in str(e):
-            write_error_and_exit(f"Thread {args.thread_id} not found", 2)
-        write_error_and_exit(f"Failed to post thread reply: {e}", 3)
+        reply_data = gh_graphql(
+            _REPLY_MUTATION,
+            {"threadId": args.thread_id, "body": body},
+        )
+    except RuntimeError as exc:
+        msg = str(exc)
+        if "Could not resolve" in msg:
+            error_and_exit(f"Thread {args.thread_id} not found", 2)
+        error_and_exit(f"Failed to post thread reply: {msg}", 3)
 
-    comment = data.get("addPullRequestReviewThreadReply", {}).get("comment")
+    comment = (reply_data.get("addPullRequestReviewThreadReply") or {}).get("comment")
     if not comment:
-        write_error_and_exit("Reply may not have been posted successfully", 3)
+        error_and_exit("Reply may not have been posted successfully", 3)
 
     thread_resolved = False
     if args.resolve:
         try:
-            resolve_data = gh_graphql(RESOLVE_MUTATION, {"threadId": args.thread_id})
-            resolve_thread = resolve_data.get("resolveReviewThread", {})
-            thread_resolved = resolve_thread.get("thread", {}).get("isResolved", False)
-        except Exception as e:
-            print(f"Warning: Thread reply posted but failed to resolve: {e}", file=sys.stderr)
+            resolve_data = gh_graphql(
+                _RESOLVE_MUTATION,
+                {"threadId": args.thread_id},
+            )
+            thread_resolved = (
+                resolve_data
+                .get("resolveReviewThread", {})
+                .get("thread", {})
+                .get("isResolved", False)
+            )
+        except RuntimeError as exc:
+            warnings.warn(
+                f"Thread reply posted but failed to resolve: {exc}",
+                stacklevel=2,
+            )
 
+    author = comment.get("author")
     output = {
-        "Success": True,
-        "ThreadId": args.thread_id,
-        "CommentId": comment.get("databaseId"),
-        "CommentNodeId": comment.get("id"),
-        "HtmlUrl": comment.get("url"),
-        "CreatedAt": comment.get("createdAt"),
-        "Author": comment.get("author", {}).get("login") if comment.get("author") else None,
-        "ThreadResolved": thread_resolved,
+        "success": True,
+        "thread_id": args.thread_id,
+        "comment_id": comment.get("databaseId"),
+        "comment_node_id": comment.get("id"),
+        "html_url": comment.get("url"),
+        "created_at": comment.get("createdAt"),
+        "author": author.get("login") if author else None,
+        "thread_resolved": thread_resolved,
     }
 
     print(json.dumps(output, indent=2))
-    print(f"Posted reply to thread {args.thread_id}", file=sys.stderr)
-    print(f"  Comment ID: {output['CommentId']}", file=sys.stderr)
-    print(f"  URL: {output['HtmlUrl']}", file=sys.stderr)
-    if args.resolve:
-        status = "Yes" if thread_resolved else "Failed"
-        print(f"  Resolved: {status}", file=sys.stderr)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

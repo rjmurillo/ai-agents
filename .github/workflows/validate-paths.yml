@@ -39,10 +39,10 @@ jobs:
       # For workflow_dispatch, always run validation; otherwise use paths-filter result
       should-validate: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.paths }}
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
 
       - name: Check for validatable file changes
-        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36
+        uses: dorny/paths-filter@668c092af3649c4b664c54e4b704aa46782f6f7c
         id: filter
         # Skip paths-filter for workflow_dispatch as it may not have proper context
         if: github.event_name != 'workflow_dispatch'
@@ -50,7 +50,7 @@ jobs:
           filters: |
             paths:
               - '**.md'
-              - 'build/scripts/Validate-PathNormalization.ps1'
+              - 'build/scripts/validate_path_normalization.py'
               - '.github/workflows/validate-paths.yml'
 
       - name: Report path check result
@@ -72,29 +72,27 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
 
       - name: Validate documentation paths
-        shell: pwsh -NoProfile -Command "& '{0}'"
         run: |
-          Write-Host "Validating path normalization in documentation..."
-          ./build/scripts/Validate-PathNormalization.ps1 -FailOnViolation
+          echo "Validating path normalization in documentation..."
+          python3 build/scripts/validate_path_normalization.py --fail-on-violation
 
       - name: Show violations on failure
         if: failure()
-        shell: pwsh -NoProfile -Command "& '{0}'"
         run: |
-          Write-Host ""
-          Write-Host "=== Path Normalization Failed ===" -ForegroundColor Red
-          Write-Host ""
-          Write-Host "Documentation contains absolute paths that must be converted to relative paths." -ForegroundColor Yellow
-          Write-Host ""
-          Write-Host "To fix:" -ForegroundColor Cyan
-          Write-Host "  1. Review the violations reported above" -ForegroundColor White
-          Write-Host "  2. Replace absolute paths with relative paths" -ForegroundColor White
-          Write-Host "  3. Use forward slashes (/) for cross-platform compatibility" -ForegroundColor White
-          Write-Host "  4. See src/claude/explainer.md for path normalization guidelines" -ForegroundColor White
-          Write-Host ""
+          echo ""
+          echo "=== Path Normalization Failed ==="
+          echo ""
+          echo "Documentation contains absolute paths that must be converted to relative paths."
+          echo ""
+          echo "To fix:"
+          echo "  1. Review the violations reported above"
+          echo "  2. Replace absolute paths with relative paths"
+          echo "  3. Use forward slashes (/) for cross-platform compatibility"
+          echo "  4. See src/claude/explainer.md for path normalization guidelines"
+          echo ""
 
   skip-validation:
     name: Validate Path Normalization
@@ -107,9 +105,7 @@ jobs:
     steps:
       - name: Skip validation (no relevant files changed)
         run: |
-          echo "✅ No markdown files changed - skipping path validation"
+          echo "No relevant files changed - skipping path validation"
           echo ""
-          echo "Paths that would trigger validation:"
-          echo "  - **.md"
-          echo "  - build/scripts/Validate-PathNormalization.ps1"
-          echo "  - .github/workflows/validate-paths.yml"
+          echo "See the 'paths' filter in check-paths job for paths that trigger validation."
+          echo "Reference: .github/workflows/validate-paths.yml"

@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 """Get context and metadata for a GitHub Issue.
 
-Retrieves issue information including title, body, labels,
-milestone, state, assignees, and timestamps.
+Retrieves issue information including title, body, labels, milestone, state.
 
-Exit codes (ADR-035):
-    0 = Success
-    1 = Invalid parameters
-    2 = Not found
-    3 = API error
-    4 = Not authenticated
+Exit codes follow ADR-035:
+    0 - Success
+    1 - Invalid parameters / logic error
+    2 - Not found
+    3 - External error (API failure)
+    4 - Auth error (not authenticated)
 """
+
+from __future__ import annotations
 
 import argparse
 import json
@@ -18,111 +19,93 @@ import os
 import subprocess
 import sys
 
-_lib_dir = os.path.join(
-    os.environ.get("CLAUDE_PLUGIN_ROOT", os.path.join(os.getcwd(), ".claude")),
-    "skills", "github", "lib",
-)
+_plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+_workspace = os.environ.get("GITHUB_WORKSPACE")
+if _plugin_root:
+    _lib_dir = os.path.join(_plugin_root, "lib")
+elif _workspace:
+    _lib_dir = os.path.join(_workspace, ".claude", "lib")
+else:
+    _lib_dir = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "lib")
+    )
 if _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
 
-from github_core.api import (
+from github_core.api import (  # noqa: E402
     assert_gh_authenticated,
+    error_and_exit,
     resolve_repo_params,
-    write_error_and_exit,
 )
 
 
-def get_issue_context(owner: str, repo: str, issue_number: int) -> dict:
-    """Fetch issue context from GitHub.
-
-    Args:
-        owner: Repository owner.
-        repo: Repository name.
-        issue_number: The issue number.
-
-    Returns:
-        Dict with issue metadata.
-    """
-    fields = (
-        "number,title,body,state,author,labels,"
-        "milestone,assignees,createdAt,updatedAt"
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Get context and metadata for a GitHub Issue.",
     )
+    parser.add_argument("--owner", default="", help="Repository owner")
+    parser.add_argument("--repo", default="", help="Repository name")
+    parser.add_argument("--issue", type=int, required=True, help="Issue number")
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+
+    assert_gh_authenticated()
+    resolved = resolve_repo_params(args.owner, args.repo)
+    owner, repo = resolved.owner, resolved.repo
+
+    fields = "number,title,body,state,author,labels,milestone,assignees,createdAt,updatedAt"
     result = subprocess.run(
         [
-            "gh", "issue", "view", str(issue_number),
+            "gh", "issue", "view", str(args.issue),
             "--repo", f"{owner}/{repo}",
             "--json", fields,
         ],
         capture_output=True,
         text=True,
+        check=False,
     )
 
     if result.returncode != 0:
-        if "not found" in result.stderr.lower():
-            write_error_and_exit(
-                f"Issue #{issue_number} not found in {owner}/{repo}", 2
-            )
-        write_error_and_exit(
-            f"Issue #{issue_number} not found or API error "
-            f"(exit code {result.returncode})", 2
+        error_and_exit(
+            f"Issue #{args.issue} not found or API error (exit code {result.returncode})",
+            2,
         )
 
-    issue = json.loads(result.stdout)
+    try:
+        issue_data = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        error_and_exit("Failed to parse issue JSON", 3)
 
-    if not issue:
-        write_error_and_exit("Failed to parse issue JSON", 3)
+    if not issue_data:
+        error_and_exit("Failed to parse issue JSON", 3)
 
-    milestone = issue.get("milestone")
-    milestone_title = milestone.get("title") if milestone else None
+    labels = [label["name"] for label in issue_data.get("labels", [])]
+    assignees = [a["login"] for a in issue_data.get("assignees", [])]
+    milestone_obj = issue_data.get("milestone")
+    milestone = milestone_obj["title"] if milestone_obj else None
 
-    return {
-        "Success": True,
-        "Number": issue["number"],
-        "Title": issue["title"],
-        "Body": issue.get("body", ""),
-        "State": issue["state"],
-        "Author": issue.get("author", {}).get("login", ""),
-        "Labels": [label["name"] for label in issue.get("labels", [])],
-        "Milestone": milestone_title,
-        "Assignees": [a["login"] for a in issue.get("assignees", [])],
-        "CreatedAt": issue.get("createdAt", ""),
-        "UpdatedAt": issue.get("updatedAt", ""),
-        "Owner": owner,
-        "Repo": repo,
+    output = {
+        "success": True,
+        "number": issue_data["number"],
+        "title": issue_data["title"],
+        "body": issue_data.get("body", ""),
+        "state": issue_data["state"],
+        "author": issue_data.get("author", {}).get("login", ""),
+        "labels": labels,
+        "milestone": milestone,
+        "assignees": assignees,
+        "created_at": issue_data.get("createdAt", ""),
+        "updated_at": issue_data.get("updatedAt", ""),
+        "owner": owner,
+        "repo": repo,
     }
 
-
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Get issue context and metadata")
-    parser.add_argument("--owner", help="Repository owner")
-    parser.add_argument("--repo", help="Repository name")
-    parser.add_argument(
-        "--issue", type=int, required=True, help="Issue number"
-    )
-    args = parser.parse_args()
-
-    assert_gh_authenticated()
-    resolved = resolve_repo_params(args.owner, args.repo)
-
-    output = get_issue_context(
-        resolved["owner"], resolved["repo"], args.issue
-    )
-
     print(json.dumps(output, indent=2))
-    print(
-        f"Issue #{output['Number']}: {output['Title']}",
-        file=sys.stderr,
-    )
-    state = output["State"]
-    author = output["Author"]
-    print(
-        f"  State: {state} | Author: @{author}",
-        file=sys.stderr,
-    )
-    if output["Labels"]:
-        labels = ", ".join(output["Labels"])
-        print(f"  Labels: {labels}", file=sys.stderr)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

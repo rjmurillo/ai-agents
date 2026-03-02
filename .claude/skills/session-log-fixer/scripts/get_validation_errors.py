@@ -2,16 +2,15 @@
 """Extract validation errors from GitHub Actions Job Summary.
 
 Reads the Job Summary from a failed Session Protocol Validation workflow run
-and extracts specific validation errors to guide fixes.
+and extracts the specific validation errors to guide fixes.
 
-Exit Codes:
-    0  - Success: Errors extracted
-    1  - Error: Run not found or gh command failed
-    2  - Error: No validation errors found in Job Summary
-
-See: ADR-035 Exit Code Standardization
-Requires: gh CLI authenticated
+Exit codes follow ADR-035:
+    0 - Success (errors extracted)
+    1 - Run not found or gh command failed
+    2 - No validation errors found in Job Summary
 """
+
+from __future__ import annotations
 
 import argparse
 import json
@@ -20,187 +19,148 @@ import subprocess
 import sys
 
 
-def run_gh(args: list[str]) -> str:
-    """Run a gh CLI command and return stdout."""
-    result = subprocess.run(
-        ["gh"] + args,
-        capture_output=True,
-        text=True,
-        timeout=30,
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Extract validation errors from GitHub Actions Job Summary.",
     )
-    if result.returncode != 0:
-        raise RuntimeError(
-            f"gh command failed (exit {result.returncode}): {result.stderr}"
-        )
-    return result.stdout
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument(
+        "--run-id", help="GitHub Actions run ID to fetch errors from.",
+    )
+    group.add_argument(
+        "--pull-request", type=int,
+        help="PR number (will find latest failing run for the PR branch).",
+    )
+    return parser
 
 
-def get_run_id_from_pr(pr_number: int) -> str:
+def _get_run_id_from_pr(pr_number: int) -> str:
     """Get the latest failed validation run ID for a PR."""
-    pr_info = json.loads(run_gh(["pr", "view", str(pr_number), "--json", "headRefName"]))
+    pr_result = subprocess.run(
+        ["gh", "pr", "view", str(pr_number), "--json", "headRefName"],
+        capture_output=True, text=True, timeout=30, check=False,
+    )
+    if pr_result.returncode != 0:
+        msg = f"Failed to get PR #{pr_number} info"
+        raise RuntimeError(msg)
+
+    pr_info = json.loads(pr_result.stdout)
     branch = pr_info["headRefName"]
 
-    runs_json = run_gh([
-        "run", "list",
-        "--branch", branch,
-        "--workflow", "session-protocol-validation.yml",
-        "--limit", "5",
-        "--json", "databaseId,conclusion",
-    ])
-    runs = json.loads(runs_json)
+    runs_result = subprocess.run(
+        ["gh", "run", "list", "--branch", branch,
+         "--workflow", "session-protocol-validation.yml",
+         "--limit", "5", "--json", "databaseId,conclusion"],
+        capture_output=True, text=True, timeout=30, check=False,
+    )
+    if runs_result.returncode != 0:
+        msg = "Failed to list workflow runs"
+        raise RuntimeError(msg)
 
+    runs = json.loads(runs_result.stdout)
     for run in runs:
         if run.get("conclusion") == "failure":
             return str(run["databaseId"])
 
-    raise RuntimeError(
-        f"No failed Session Protocol validation runs found for PR #{pr_number}"
-    )
+    msg = f"No failed Session Protocol validation runs found for PR #{pr_number}"
+    raise RuntimeError(msg)
 
 
-def parse_job_summary(summary: str) -> dict:
+def _parse_job_summary(summary: str) -> dict:
     """Parse validation errors from job summary text."""
-    result = {
-        "OverallVerdict": None,
-        "MustFailureCount": 0,
-        "NonCompliantSessions": [],
-        "DetailedErrors": {},
+    result: dict = {
+        "overall_verdict": None,
+        "must_failure_count": 0,
+        "non_compliant_sessions": [],
+        "detailed_errors": {},
     }
 
-    # Extract overall verdict
-    verdict_match = re.search(r"Overall Verdict:\s*\*\*([A-Z_]+)\*\*", summary)
-    if verdict_match:
-        result["OverallVerdict"] = verdict_match.group(1)
+    m = re.search(r"Overall Verdict:\s*\*\*([A-Z_]+)\*\*", summary)
+    if m:
+        result["overall_verdict"] = m.group(1)
 
-    # Extract MUST failure count
-    must_match = re.search(r"(\d+)\s+MUST requirement\(s\) not met", summary)
-    if must_match:
-        result["MustFailureCount"] = int(must_match.group(1))
+    m = re.search(r"(\d+)\s+MUST requirement\(s\) not met", summary)
+    if m:
+        result["must_failure_count"] = int(m.group(1))
 
-    # Extract non-compliant sessions from table
-    lines = summary.split("\n")
-    in_table = False
     current_session = None
-
-    for line in lines:
+    in_table = False
+    for line in summary.splitlines():
         if re.search(r"^\|\s*Session File\s*\|", line):
             in_table = True
             continue
 
         if in_table:
-            session_match = re.search(
-                r"^\|\s*`([^`]+)`\s*\|\s*[^\|]*NON_COMPLIANT\s*\|\s*(\d+)\s*\|",
-                line,
-            )
-            if session_match:
-                result["NonCompliantSessions"].append({
-                    "File": session_match.group(1),
-                    "MustFailures": int(session_match.group(2)),
+            m = re.match(r"\|\s*`([^`]+)`\s*\|\s*.*NON_COMPLIANT\s*\|\s*(\d+)\s*\|", line)
+            if m:
+                result["non_compliant_sessions"].append({
+                    "file": m.group(1),
+                    "must_failures": int(m.group(2)),
                 })
             elif not re.match(r"^\|", line) or re.match(r"^---", line):
                 in_table = False
 
-        # Extract detailed errors from expandable sections
-        summary_match = re.search(r"<summary>[^\s]*\s*([^<]+)</summary>", line)
-        if summary_match:
-            current_session = summary_match.group(1).strip()
-            result["DetailedErrors"][current_session] = []
+        m = re.search(r"<summary>.*?\s*([^<]+)</summary>", line)
+        if m:
+            current_session = m.group(1).strip()
+            result["detailed_errors"][current_session] = []
 
-        detail_match = re.search(
-            r"^\|\s*([^|]+)\s*\|\s*MUST\s*\|\s*FAIL\s*\|\s*([^|]+)\s*\|", line
-        )
-        if detail_match and current_session:
-            result["DetailedErrors"][current_session].append({
-                "Check": detail_match.group(1).strip(),
-                "Issue": detail_match.group(2).strip(),
+        m = re.match(r"\|\s*([^|]+)\s*\|\s*MUST\s*\|\s*FAIL\s*\|\s*([^|]+)\s*\|", line)
+        if m and current_session:
+            result["detailed_errors"][current_session].append({
+                "check": m.group(1).strip(),
+                "issue": m.group(2).strip(),
             })
 
     return result
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Extract validation errors from GitHub Actions Job Summary."
-    )
-    group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument(
-        "--run-id",
-        type=str,
-        help="GitHub Actions run ID to fetch errors from.",
-    )
-    group.add_argument(
-        "--pull-request",
-        type=int,
-        help="PR number (finds latest failing run for the PR branch).",
-    )
-    parser.parse_args()
-    args = parser.parse_args()
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
 
     # Resolve run ID
-    try:
-        if args.pull_request:
-            target_run_id = get_run_id_from_pr(args.pull_request)
-        else:
-            target_run_id = args.run_id
-    except (RuntimeError, subprocess.TimeoutExpired) as e:
-        print(f"Failed to extract validation errors: {e}", file=sys.stderr)
-        sys.exit(1)
+    if args.pull_request:
+        try:
+            target_run_id = _get_run_id_from_pr(args.pull_request)
+        except RuntimeError as exc:
+            print(f"ERROR: {exc}", file=sys.stderr)
+            return 1
+    else:
+        target_run_id = args.run_id
 
     # Fetch job log
     try:
-        jobs_json = run_gh(["run", "view", target_run_id, "--json", "jobs"])
-        jobs = json.loads(jobs_json)
-    except (RuntimeError, subprocess.TimeoutExpired):
+        log_result = subprocess.run(
+            ["gh", "run", "view", target_run_id, "--log-failed"],
+            capture_output=True, text=True, timeout=60, check=False,
+        )
+        if log_result.returncode != 0:
+            print(f"ERROR: Unable to fetch run details for {target_run_id}", file=sys.stderr)
+            return 1
+    except Exception as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 1
+
+    parsed = _parse_job_summary(log_result.stdout)
+
+    if not parsed["non_compliant_sessions"]:
         print(
-            "Failed to extract validation errors: Unable to fetch run details",
+            f"WARNING: No validation errors found in Job Summary for run {target_run_id}",
             file=sys.stderr,
         )
-        sys.exit(1)
+        return 2
 
-    # Find Aggregate Results job
-    aggregate_job = None
-    for job in jobs.get("jobs", []):
-        if "Aggregate Results" in job.get("name", ""):
-            aggregate_job = job
-            break
-
-    if not aggregate_job:
-        print(
-            f"No 'Aggregate Results' job found in run {target_run_id}",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-
-    # Get job log
-    try:
-        job_log = run_gh(["run", "view", target_run_id, "--log-failed"])
-    except (RuntimeError, subprocess.TimeoutExpired):
-        print(
-            "Failed to extract validation errors: Unable to fetch job log",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-
-    # Parse errors
-    parsed_errors = parse_job_summary(job_log)
-
-    if not parsed_errors["NonCompliantSessions"]:
-        print(
-            f"No validation errors found in Job Summary for run {target_run_id}",
-            file=sys.stderr,
-        )
-        sys.exit(2)
-
-    # Output
     output = {
-        "RunId": target_run_id,
-        "OverallVerdict": parsed_errors["OverallVerdict"],
-        "MustFailureCount": parsed_errors["MustFailureCount"],
-        "NonCompliantSessions": parsed_errors["NonCompliantSessions"],
-        "DetailedErrors": parsed_errors["DetailedErrors"],
+        "run_id": target_run_id,
+        "overall_verdict": parsed["overall_verdict"],
+        "must_failure_count": parsed["must_failure_count"],
+        "non_compliant_sessions": parsed["non_compliant_sessions"],
+        "detailed_errors": parsed["detailed_errors"],
     }
+
     print(json.dumps(output, indent=2))
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

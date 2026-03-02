@@ -2,7 +2,7 @@
 
 ## 1. Objective and Scope
 
-**Objective**: Evaluate code quality impact of extracting validation functions from /home/runner/work/ai-agents/ai-agents/scripts/Validate-Session.ps1 into a reusable module /home/runner/work/ai-agents/ai-agents/scripts/modules/SessionValidation.psm1.
+**Objective**: Evaluate code quality impact of extracting validation functions from scripts/Validate-Session.ps1 into a reusable module scripts/modules/SessionValidation.psm1.
 
 **Scope**:
 - Code reusability improvements
@@ -15,7 +15,7 @@
 ## 2. Context
 
 ### Prior State
-Validation functions (`Split-TableRow`, `Parse-ChecklistTable`, `Normalize-Step`, `Test-MemoryEvidence`) were embedded in /home/runner/work/ai-agents/ai-agents/scripts/Validate-Session.ps1. Test file extracted these functions using string manipulation and `Invoke-Expression`.
+Validation functions (`Split-TableRow`, `Parse-ChecklistTable`, `Normalize-Step`, `Test-MemoryEvidence`) were embedded in scripts/Validate-Session.ps1. Test file extracted these functions using string manipulation and `Invoke-Expression`.
 
 ### Refactoring Goals
 - Extract validation functions to reusable module per ADR-006 (logic in modules, not workflows)
@@ -48,7 +48,7 @@ Validation functions (`Split-TableRow`, `Parse-ChecklistTable`, `Normalize-Step`
 
 | Finding | Source | Confidence |
 |---------|--------|------------|
-| Module exports 4 functions correctly | /home/runner/work/ai-agents/ai-agents/scripts/modules/SessionValidation.psm1:266 | High |
+| Module exports 4 functions correctly | scripts/modules/SessionValidation.psm1:266 | High |
 | Test file simplified from 50+ lines to 17 lines (BeforeAll block) | Git diff tests/Parse-ChecklistTable.Tests.ps1 | High |
 | Module follows SlashCommandValidator.psm1 pattern | Pattern comparison | High |
 | All functions have complete .SYNOPSIS, .DESCRIPTION, .PARAMETER, .OUTPUTS | Module lines 22-153 | High |
@@ -60,7 +60,7 @@ Validation functions (`Split-TableRow`, `Parse-ChecklistTable`, `Normalize-Step`
 ### Facts (Verified)
 
 **Code Reusability:**
-- Module created: /home/runner/work/ai-agents/ai-agents/scripts/modules/SessionValidation.psm1 (267 lines)
+- Module created: scripts/modules/SessionValidation.psm1 (267 lines)
 - Functions extracted: 4 (`Split-TableRow`, `Parse-ChecklistTable`, `Normalize-Step`, `Test-MemoryEvidence`)
 - All functions properly exported via `Export-ModuleMember` (line 266)
 - Validate-Session.ps1 reduced from ~586 lines to ~386 lines (200-line reduction)
@@ -249,11 +249,11 @@ This level of documentation exceeds typical inline comments and enables:
 
 ### Sources Consulted
 
-- /home/runner/work/ai-agents/ai-agents/scripts/modules/SessionValidation.psm1 (new module)
-- /home/runner/work/ai-agents/ai-agents/scripts/Validate-Session.ps1 (modified script)
-- /home/runner/work/ai-agents/ai-agents/tests/Parse-ChecklistTable.Tests.ps1 (modified tests)
-- /home/runner/work/ai-agents/ai-agents/scripts/modules/SlashCommandValidator.psm1 (pattern reference)
-- /home/runner/work/ai-agents/ai-agents/scripts/AGENTS.md (PowerShell standards)
+- scripts/modules/SessionValidation.psm1 (new module)
+- scripts/Validate-Session.ps1 (modified script)
+- tests/Parse-ChecklistTable.Tests.ps1 (modified tests)
+- scripts/modules/SlashCommandValidator.psm1 (pattern reference)
+- scripts/AGENTS.md (PowerShell standards)
 - Git diff output (change quantification)
 
 ### Data Transparency

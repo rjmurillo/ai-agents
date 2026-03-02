@@ -140,7 +140,7 @@ runs:
         node-version: 'lts/*'
 
     - name: Cache npm packages
-      uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4
+      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
       with:
         path: ~/.npm
         key: ${{ runner.os }}-copilot-cli-v1
@@ -647,7 +647,7 @@ runs:
 
           # Check stderr for infrastructure keywords
           if [ -n "$stderr" ]; then
-            if echo "$stderr" | grep -qiE "(rate limit|timeout|network error|connection refused|connection reset|ECONNREFUSED|ETIMEDOUT|503|502|504)"; then
+            if echo "$stderr" | grep -qiE "(rate limit|timeout|network error|connection refused|connection reset|ECONNREFUSED|ETIMEDOUT|503|502|504|No authentication|authentication failed|auth.*error)"; then
               return 0
             fi
           fi

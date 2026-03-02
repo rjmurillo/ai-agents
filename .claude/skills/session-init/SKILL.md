@@ -23,7 +23,7 @@ Create protocol-compliant session logs with verification-based enforcement.
 ### Automated (Recommended)
 
 ```bash
-python3 .claude/skills/session-init/scripts/new_session_log_json.py
+python3 .claude/skills/session-init/scripts/new_session_log.py
 ```
 
 The script will:
@@ -171,7 +171,7 @@ User Request: /session-init
     v
 +---------------------------------------------+
 | Phase 5: IMMEDIATE VALIDATION               |
-| - Run validate_session_json.py             |
+| - Run validate_session_json.py         |
 | - Report validation result                 |
 | - If FAIL: show errors, allow retry       |
 | - If PASS: confirm success                 |
@@ -213,10 +213,10 @@ git status --short
 
 ### Step 2: Read Canonical Template
 
-**CRITICAL**: Use the new_session_log_json.py script to read the template from SESSION-PROTOCOL.md.
+**CRITICAL**: Use the new_session_log.py script to read the template from SESSION-PROTOCOL.md.
 
 ```bash
-python3 .claude/skills/session-init/scripts/new_session_log_json.py
+python3 .claude/skills/session-init/scripts/new_session_log.py
 ```
 
 **DO NOT** generate the template from memory or read specific line numbers. The script extracts the canonical template dynamically:
@@ -275,7 +275,7 @@ Write the populated template to this file.
 Run validation script:
 
 ```bash
-python3 scripts/validate_session_json.py --session-path ".agents/sessions/YYYY-MM-DD-session-NN.json"
+python3 scripts/validate_session_json.py ".agents/sessions/YYYY-MM-DD-session-NN.json"
 ```
 
 Check exit code:
@@ -339,7 +339,7 @@ Session log created but validation FAILED
   Errors:
     - Missing Session End checklist header
 
-Run: python3 scripts/validate_session_json.py --session-path ".agents/sessions/.agents/sessions/2026-01-05-session-375.json"
+Run: python3 scripts/validate_session_json.py ".agents/sessions/.agents/sessions/2026-01-05-session-375.json" 
 
 Fix the issues and re-validate.
 ```
@@ -359,18 +359,21 @@ Fix the issues and re-validate.
 
 | Script | Purpose | Exit Codes |
 |--------|---------|------------|
-| [new_session_log_json.py](scripts/new_session_log_json.py) | Automated session log creation with validation | 0=success, 1=git error, 2=template failed, 3=write failed, 4=validation failed |
-| [new_session_log_json.py](scripts/new_session_log_json.py) | Extract canonical template from SESSION-PROTOCOL.md | 0=success, 1=file not found, 2=template not found |
+| [new_session_log.py](scripts/new_session_log.py) | Automated session log creation with validation | 0=success, 1=error |
+| [new_session_log_json.py](scripts/new_session_log_json.py) | Simplified JSON session log creation | 0=success, 1=error |
 
 ### Example Usage
 
 **Automated (Recommended)**:
 
 ```bash
-# Create session log with interactive prompts
-python3 .claude/skills/session-init/scripts/new_session_log_json.py
-
 # Create session log with parameters
+python3 .claude/skills/session-init/scripts/new_session_log.py --session-number 375 --objective "Implement feature X"
+
+# Skip validation
+python3 .claude/skills/session-init/scripts/new_session_log.py --session-number 375 --objective "Implement feature X" --skip-validation
+
+# Simplified JSON-only version
 python3 .claude/skills/session-init/scripts/new_session_log_json.py --session-number 375 --objective "Implement feature X"
 ```
 

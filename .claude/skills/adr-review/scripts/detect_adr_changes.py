@@ -8,54 +8,55 @@ Patterns monitored:
 - .agents/architecture/ADR-*.md
 - docs/architecture/ADR-*.md
 
-EXIT CODES (ADR-035):
-    0 - Success: Changes detected or no changes found
-    1 - Error: Logic or unexpected error
-    2 - Error: Config/user error (invalid commit SHA, missing file)
-    3 - Error: External error (I/O failure, git command failure)
+Exit codes follow ADR-035:
+    0 - Success (changes detected or no changes found)
+    1 - Logic or unexpected error during detection
+    2 - Config/user error (invalid commit SHA, missing file)
+    3 - External error (I/O failure, git command failure)
 """
 
 from __future__ import annotations
 
+import argparse
 import json
+import os
 import re
 import subprocess
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
-ADR_PATTERNS = [
+ADR_PATTERNS = (
     ".agents/architecture/ADR-*.md",
     "docs/architecture/ADR-*.md",
-]
+)
 
-ADR_DIRECTORIES = [
+ADR_DIRECTORIES = (
     ".agents/architecture",
     "docs/architecture",
-]
+)
 
 
-def get_adr_status(file_path: str) -> str:
+def _get_adr_status(file_path: Path) -> str:
     """Extract status from ADR frontmatter."""
-    path = Path(file_path)
-    if not path.exists():
+    if not file_path.exists():
         return "unknown"
     try:
-        content = path.read_text(encoding="utf-8")
+        content = file_path.read_text(encoding="utf-8")
     except OSError:
         return "unknown"
-    match = re.search(r"^status:\s*(.+)$", content, re.MULTILINE)
+    match = re.search(r"(?m)^status:\s*(.+)$", content)
     if match:
         return match.group(1).strip().lower()
     return "proposed"
 
 
-def get_dependent_adrs(adr_name: str, base_path: str) -> list[str]:
+def _get_dependent_adrs(adr_name: str, base_path: Path) -> list[str]:
     """Find ADRs that reference a given ADR."""
     dependents: list[str] = []
     for directory in ADR_DIRECTORIES:
-        dir_path = Path(base_path) / directory
-        if not dir_path.exists():
+        dir_path = base_path / directory
+        if not dir_path.is_dir():
             continue
         for adr_file in dir_path.glob("ADR-*.md"):
             try:
@@ -67,160 +68,149 @@ def get_dependent_adrs(adr_name: str, base_path: str) -> list[str]:
     return dependents
 
 
-def run_git(args: list[str], cwd: str) -> tuple[int, str]:
-    """Run a git command and return (returncode, stdout)."""
+def _run_git(args: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
+    """Run a git command and return the result."""
+    return subprocess.run(
+        ["git", *args],
+        capture_output=True,
+        text=True,
+        cwd=cwd,
+        check=False,
+    )
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Detect ADR file changes for automatic skill triggering.",
+    )
+    parser.add_argument(
+        "--base-path",
+        default=".",
+        help="Repository root path (default: current directory)",
+    )
+    parser.add_argument(
+        "--since-commit",
+        default="HEAD~1",
+        help="Git commit SHA to compare against (default: HEAD~1)",
+    )
+    parser.add_argument(
+        "--include-untracked",
+        action="store_true",
+        help="Include untracked new ADR files in detection",
+    )
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    base_path = Path(args.base_path).resolve()
+
+    if not (base_path / ".git").exists():
+        print(f"Error: Not a git repository: {base_path}", file=sys.stderr)
+        return 1
+
+    (base_path / ".agents").mkdir(exist_ok=True)
+
+    original_dir = os.getcwd()
     try:
-        result = subprocess.run(
-            ["git"] + args,
-            capture_output=True,
-            text=True,
-            cwd=cwd,
-            timeout=30,
-        )
-        return result.returncode, result.stdout.strip()
-    except FileNotFoundError:
-        return -1, "git not found"
-    except subprocess.TimeoutExpired:
-        return -1, "git command timed out"
+        os.chdir(base_path)
 
+        created: list[str] = []
+        modified: list[str] = []
+        deleted: list[str] = []
 
-def detect_adr_changes(
-    base_path: str = ".",
-    since_commit: str = "HEAD~1",
-    include_untracked: bool = False,
-) -> dict:
-    """Detect ADR file changes and return structured result."""
-    base = Path(base_path).resolve()
-
-    if not (base / ".git").exists():
-        print(f"Error: Not a git repository: {base}", file=sys.stderr)
-        sys.exit(2)
-
-    created: list[str] = []
-    modified: list[str] = []
-    deleted: list[str] = []
-
-    for pattern in ADR_PATTERNS:
-        returncode, output = run_git(
-            ["diff", "--name-status", since_commit, "--", pattern],
-            cwd=str(base),
-        )
-        if returncode != 0:
-            if "git not found" in output:
-                print(f"Error: External dependency not found (git): {output}", file=sys.stderr)
-                sys.exit(3)
-            print(
-                f"Error: git diff failed for pattern '{pattern}': {output}",
-                file=sys.stderr,
+        for pattern in ADR_PATTERNS:
+            result = _run_git(
+                ["diff", "--name-status", args.since_commit, "--", pattern],
+                cwd=base_path,
             )
-            sys.exit(3)
-
-        if output:
-            for line in output.splitlines():
-                match = re.match(r"^([AMD])\s+(.+)$", line)
-                if match:
-                    status = match.group(1)
-                    file_path = match.group(2)
-                    if status == "A":
-                        created.append(file_path)
-                    elif status == "M":
-                        modified.append(file_path)
-                    elif status == "D":
-                        deleted.append(file_path)
-
-    if include_untracked:
-        for directory in ADR_DIRECTORIES:
-            dir_path = base / directory
-            if not dir_path.exists():
-                continue
-            returncode, output = run_git(
-                ["ls-files", "--others", "--exclude-standard", "--", f"{directory}/ADR-*.md"],
-                cwd=str(base),
-            )
-            if returncode != 0:
+            if result.returncode != 0:
                 print(
-                    f"Warning: git ls-files failed for directory '{directory}': {output}",
+                    f"Error: git diff failed for pattern '{pattern}': {result.stderr.strip()}",
                     file=sys.stderr,
                 )
-                continue
-            if output:
-                for line in output.splitlines():
-                    if line.strip():
-                        created.append(line.strip())
+                return 3
 
-    created = sorted(set(filter(None, created)))
-    modified = sorted(set(filter(None, modified)))
-    deleted = sorted(set(filter(None, deleted)))
+            for line in result.stdout.strip().splitlines():
+                match = re.match(r"^([AMD])\s+(.+)$", line)
+                if match:
+                    status_char = match.group(1)
+                    file_path = match.group(2)
+                    if status_char == "A":
+                        created.append(file_path)
+                    elif status_char == "M":
+                        modified.append(file_path)
+                    elif status_char == "D":
+                        deleted.append(file_path)
 
-    recommended_action = "none"
-    if created:
-        recommended_action = "review"
-    elif modified:
-        recommended_action = "review"
-    elif deleted:
-        recommended_action = "archive"
+        if args.include_untracked:
+            for directory in ADR_DIRECTORIES:
+                dir_path = base_path / directory
+                if not dir_path.is_dir():
+                    continue
+                result = _run_git(
+                    ["ls-files", "--others", "--exclude-standard", "--", f"{directory}/ADR-*.md"],
+                    cwd=base_path,
+                )
+                if result.returncode != 0:
+                    print(
+                        f"Warning: git ls-files failed for '{directory}': {result.stderr.strip()}",
+                        file=sys.stderr,
+                    )
+                    continue
+                for line in result.stdout.strip().splitlines():
+                    if line:
+                        created.append(line)
 
-    deleted_details = []
-    for file_path in deleted:
-        adr_name = Path(file_path).stem
-        dependents = get_dependent_adrs(adr_name, str(base))
-        deleted_details.append({
-            "Path": file_path,
-            "ADRName": adr_name,
-            "Status": "deleted",
-            "Dependents": dependents,
-        })
+        created = sorted(set(created))
+        modified = sorted(set(modified))
+        deleted = sorted(set(deleted))
 
-    result = {
-        "Created": created,
-        "Modified": modified,
-        "Deleted": deleted,
-        "DeletedDetails": deleted_details,
-        "HasChanges": len(created) + len(modified) + len(deleted) > 0,
-        "RecommendedAction": recommended_action,
-        "Timestamp": datetime.now(UTC).isoformat(),
-        "SinceCommit": since_commit,
-    }
+        recommended_action = "none"
+        if created:
+            recommended_action = "review"
+        elif modified:
+            recommended_action = "review"
+        elif deleted:
+            recommended_action = "archive"
 
-    return result
+        deleted_details = []
+        for file_path in deleted:
+            adr_name = Path(file_path).stem
+            dependents = _get_dependent_adrs(adr_name, base_path)
+            deleted_details.append({
+                "Path": file_path,
+                "ADRName": adr_name,
+                "Status": "deleted",
+                "Dependents": dependents,
+            })
 
+        result_obj = {
+            "Created": created,
+            "Modified": modified,
+            "Deleted": deleted,
+            "DeletedDetails": deleted_details,
+            "HasChanges": len(created) + len(modified) + len(deleted) > 0,
+            "RecommendedAction": recommended_action,
+            "Timestamp": datetime.now(UTC).isoformat(),
+            "SinceCommit": args.since_commit,
+        }
 
-def main() -> int:
-    """Entry point."""
-    import argparse
-
-    parser = argparse.ArgumentParser(description="Detect ADR file changes")
-    parser.add_argument("--base-path", default=".", help="Repository root path")
-    parser.add_argument(
-        "--since-commit", default="HEAD~1",
-        help="Git commit SHA to compare against",
-    )
-    parser.add_argument(
-        "--include-untracked", action="store_true",
-        help="Include untracked new ADR files",
-    )
-    args = parser.parse_args()
-
-    try:
-        result = detect_adr_changes(
-            base_path=args.base_path,
-            since_commit=args.since_commit,
-            include_untracked=args.include_untracked,
-        )
-        print(json.dumps(result, indent=2))
+        print(json.dumps(result_obj, indent=2))
         return 0
-    except SystemExit as e:
-        return e.code if isinstance(e.code, int) else 1
-    except FileNotFoundError as e:
-        print(f"Error: File or directory not found: {e}", file=sys.stderr)
+
+    except FileNotFoundError as exc:
+        print(f"Error: File or directory not found: {exc}", file=sys.stderr)
         return 2
-    except OSError as e:
-        print(f"Error: I/O failure: {e}", file=sys.stderr)
+    except OSError as exc:
+        print(f"Error: I/O failure: {exc}", file=sys.stderr)
         return 3
-    except Exception as e:
-        print(f"Error detecting ADR changes: {e}", file=sys.stderr)
+    except Exception as exc:
+        print(f"Error detecting ADR changes: {exc}", file=sys.stderr)
         return 1
+    finally:
+        os.chdir(original_dir)
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    raise SystemExit(main())

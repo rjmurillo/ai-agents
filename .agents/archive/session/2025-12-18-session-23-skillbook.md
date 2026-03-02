@@ -14,7 +14,7 @@ Persist 5 extracted skills from Session 22 parallel implementation retrospective
 ### Session Start
 
 - [x] Phase 1: Serena Initialization (BLOCKING)
-  - [x] `mcp__serena__activate_project` called with "D:\src\GitHub\rjmurillo-bot\ai-agents"
+  - [x] `mcp__serena__activate_project` called with "<project-root>"
   - [x] `mcp__serena__initial_instructions` called
   - [x] Tool output verified in transcript
 - [x] Phase 2: Context Retrieval (BLOCKING)

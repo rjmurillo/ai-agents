@@ -175,7 +175,7 @@ The detailed results tell you **exactly** which MUST requirements failed.
 Validate locally before pushing:
 
 ```bash
-python3 scripts/validate_session_json.py --session-path ".agents/sessions/<session-file>.json"
+python3 scripts/validate_session_json.py ".agents/sessions/<session-file>.json"
 ```
 
 This uses the **same script** as CI, so results match exactly.
@@ -213,7 +213,7 @@ Common fixes by failure type:
 
 ### Step 6: Commit
 
-```bash
+```powershell
 git add ".agents/sessions/<session-file>.md"
 git commit -m "docs: fix session protocol compliance for <session-name>
 
@@ -223,8 +223,8 @@ git push
 
 ### Step 7: Verify
 
-```bash
-gh run list --branch "$(git branch --show-current)" --limit 3
+```powershell
+gh run list --branch (git branch --show-current) --limit 3
 gh run view <new-run-id> --json conclusion
 ```
 
@@ -286,9 +286,6 @@ python3 .claude/skills/session-log-fixer/scripts/get_validation_errors.py --run-
 
 # Get errors by PR number
 python3 .claude/skills/session-log-fixer/scripts/get_validation_errors.py --pull-request 799
-
-# Parse JSON output
-python3 .claude/skills/session-log-fixer/scripts/get_validation_errors.py --run-id 20548622722 | jq '.NonCompliantSessions'
 ```
 
 ---

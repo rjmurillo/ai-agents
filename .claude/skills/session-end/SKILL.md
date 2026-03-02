@@ -115,7 +115,7 @@ User Request: /session-end
     v
 +---------------------------------------------+
 | Phase 4: VALIDATE                            |
-| - Run validate_session_json.py                |
+| - Run validate_session_json.py               |
 | - Update validationPassed field              |
 | - Report pass/fail with details              |
 +---------------------------------------------+
@@ -184,7 +184,7 @@ Fix the issues and re-run the skill.
 
 After the skill reports PASS, commit the updated session log:
 
-```bash
+```powershell
 git add .agents/sessions/*.json
 git commit -m "docs: complete session log"
 ```

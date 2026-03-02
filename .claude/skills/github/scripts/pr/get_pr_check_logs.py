@@ -1,17 +1,21 @@
 #!/usr/bin/env python3
-"""Fetch logs from failing CI checks on a GitHub Pull Request.
+"""Fetch logs from failing GitHub Actions checks on a Pull Request.
 
-Retrieves required check runs, identifies failures, extracts run IDs from
-detail URLs, and fetches failed job logs. Truncates output to configurable
-line limits.
+Retrieves failure logs from GitHub Actions workflow runs associated with
+failing PR checks. Extracts relevant failure snippets with configurable context.
 
-Exit codes (ADR-035):
-    0 = Success (even if no failures found)
-    1 = Invalid parameters
-    2 = PR not found
-    3 = API error
-    4 = Not authenticated
+Supports standalone mode (provide --pull-request) and pipeline mode
+(provide --checks-input with JSON from get_pr_checks.py).
+
+Exit codes follow ADR-035:
+    0 - Success (logs retrieved, or no failing checks)
+    1 - Invalid parameters
+    2 - PR not found
+    3 - API error
+    4 - Auth error
 """
+
+from __future__ import annotations
 
 import argparse
 import json
@@ -20,159 +24,376 @@ import re
 import subprocess
 import sys
 
-_lib_dir = os.path.join(
-    os.environ.get("CLAUDE_PLUGIN_ROOT", os.path.join(os.getcwd(), ".claude")),
-    "skills", "github", "lib",
-)
+_plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+_workspace = os.environ.get("GITHUB_WORKSPACE")
+if _plugin_root:
+    _lib_dir = os.path.join(_plugin_root, "lib")
+elif _workspace:
+    _lib_dir = os.path.join(_workspace, ".claude", "lib")
+else:
+    _lib_dir = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "lib")
+    )
 if _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
 
-from github_core.api import (
+from github_core.api import (  # noqa: E402
     assert_gh_authenticated,
     resolve_repo_params,
-    write_error_and_exit,
 )
 
+# ---------------------------------------------------------------------------
+# Failure detection patterns
+# ---------------------------------------------------------------------------
 
-def fetch_check_runs(owner: str, repo: str, pr_number: int) -> list[dict]:
-    """Fetch required check runs for a PR."""
-    cmd = [
-        "gh", "pr", "checks", str(pr_number),
-        "--repo", f"{owner}/{repo}",
-        "--json", "name,state,link",
-        "--required",
-    ]
-    result = subprocess.run(cmd, capture_output=True, text=True)
+_FAILURE_PATTERNS = [
+    r"\berror\b",
+    r"\bfail(ed|ure|ing)?\b",
+    r"\btraceback\b",
+    r"\bexception\b",
+    r"\bpanic\b",
+    r"\bfatal\b",
+    r"\btimeout\b",
+    r"ERROR:",
+    r"##\[error\]",
+    r"Process completed with exit code [1-9]",
+    r"\bsegmentation fault\b",
+    r"\bstack trace\b",
+    r"\bassertion failed\b",
+]
 
-    if result.returncode != 0:
-        stderr = result.stderr.strip()
-        if "not found" in stderr.lower() or "no pull request" in stderr.lower():
-            write_error_and_exit(f"PR #{pr_number} not found in {owner}/{repo}", 2)
-        write_error_and_exit(f"Failed to get PR checks: {stderr}", 3)
-
-    try:
-        checks: list[dict] = json.loads(result.stdout)
-        return checks
-    except json.JSONDecodeError:
-        write_error_and_exit("Failed to parse check runs response", 3)
-        # write_error_and_exit calls sys.exit; unreachable
-        raise SystemExit(3) from None
+_COMBINED_PATTERN = re.compile("|".join(_FAILURE_PATTERNS), re.IGNORECASE)
 
 
-def extract_run_id(link: str) -> str | None:
+# ---------------------------------------------------------------------------
+# URL parsing helpers
+# ---------------------------------------------------------------------------
+
+
+def get_run_id_from_url(url: str) -> str | None:
     """Extract workflow run ID from a GitHub Actions URL."""
-    # Format: https://github.com/owner/repo/actions/runs/12345/job/67890
-    match = re.search(r"/actions/runs/(\d+)", link)
-    if match:
-        return match.group(1)
-    return None
+    match = re.search(r"/actions/runs/(\d+)", url)
+    return match.group(1) if match else None
 
 
-def fetch_failed_logs(owner: str, repo: str, run_id: str) -> str:
-    """Fetch failed job logs for a workflow run."""
-    cmd = [
-        "gh", "run", "view", run_id,
-        "--log-failed",
-        "--repo", f"{owner}/{repo}",
-    ]
-    result = subprocess.run(cmd, capture_output=True, text=True)
-
-    if result.returncode != 0:
-        return f"[Could not fetch logs for run {run_id}: {result.stderr.strip()}]"
-
-    return result.stdout
+def get_job_id_from_url(url: str) -> str | None:
+    """Extract job ID from a GitHub Actions URL."""
+    match = re.search(r"/job/(\d+)", url)
+    return match.group(1) if match else None
 
 
-def truncate_log(log: str, max_lines: int, context_lines: int) -> str:
-    """Truncate log output, keeping the most relevant lines.
-
-    Keeps the last max_lines lines. If the log is longer, prepends a
-    truncation notice. The context_lines parameter reserves leading
-    context when the log exceeds max_lines.
-    """
-    lines = log.splitlines()
-    if len(lines) <= max_lines:
-        return log
-
-    # Keep last max_lines to capture the failure output
-    kept = lines[-max_lines:]
-    skipped = len(lines) - max_lines
-    return f"[... {skipped} lines truncated ...]\n" + "\n".join(kept)
+def is_github_actions_url(url: str) -> bool:
+    """Check if URL points to GitHub Actions."""
+    return bool(re.search(r"github\.com/.+/actions/runs/", url or ""))
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Fetch logs from failing CI checks on a PR",
-    )
-    parser.add_argument("--owner", help="Repository owner")
-    parser.add_argument("--repo", help="Repository name")
-    parser.add_argument("--pull-request", type=int, required=True, help="PR number")
-    parser.add_argument(
-        "--max-lines",
-        type=int,
-        default=160,
-        help="Maximum log lines per check (default: 160)",
-    )
-    parser.add_argument(
-        "--context-lines",
-        type=int,
-        default=30,
-        help="Context lines to preserve (default: 30)",
-    )
-    args = parser.parse_args()
+# ---------------------------------------------------------------------------
+# Log fetching and parsing
+# ---------------------------------------------------------------------------
 
-    if args.max_lines < 1:
-        write_error_and_exit("--max-lines must be at least 1", 1)
-    if args.context_lines < 0:
-        write_error_and_exit("--context-lines must be non-negative", 1)
 
-    assert_gh_authenticated()
-    resolved = resolve_repo_params(args.owner, args.repo)
-    owner, repo = resolved["owner"], resolved["repo"]
+def get_failure_snippets(
+    log_lines: list[str], context_lines: int, max_lines: int,
+) -> list[dict]:
+    """Extract failure snippets from log content with context."""
+    snippets: list[dict] = []
+    total_extracted = 0
+    i = 0
 
-    checks = fetch_check_runs(owner, repo, args.pull_request)
+    while i < len(log_lines) and total_extracted < max_lines:
+        line = log_lines[i]
+        if _COMBINED_PATTERN.search(line):
+            start = max(0, i - context_lines)
+            end = min(len(log_lines) - 1, i + context_lines)
 
-    failing_states = {"FAILURE", "CANCELLED", "TIMED_OUT", "ACTION_REQUIRED", "ERROR"}
-    failing_checks = [c for c in checks if c.get("state", "").upper() in failing_states]
+            snippet_lines = log_lines[start : end + 1]
+            lines_available = max_lines - total_extracted
+            if len(snippet_lines) > lines_available:
+                snippet_lines = snippet_lines[:lines_available]
 
-    results = []
-    for check in failing_checks:
-        name = check.get("name", "unknown")
-        link = check.get("link", "")
-        run_id = extract_run_id(link)
-
-        if not run_id:
-            results.append({
-                "Name": name,
-                "RunId": None,
-                "LogSnippet": f"[Could not extract run ID from: {link}]",
+            snippets.append({
+                "LineNumber": i + 1,
+                "MatchedLine": line.strip(),
+                "Context": "\n".join(snippet_lines),
+                "StartLine": start + 1,
+                "EndLine": start + len(snippet_lines),
             })
+
+            total_extracted += len(snippet_lines)
+            i = end + 1
+        else:
+            i += 1
+
+    return snippets
+
+
+def fetch_workflow_run_logs(
+    owner: str, repo: str, run_id: str, job_id: str | None,
+) -> dict:
+    """Fetch logs for a GitHub Actions workflow run."""
+    # Try job-specific logs first
+    if job_id:
+        result = subprocess.run(
+            ["gh", "api", f"repos/{owner}/{repo}/actions/jobs/{job_id}/logs"],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        if result.returncode == 0 and result.stdout:
+            return {"Success": True, "Content": result.stdout, "Source": "job"}
+
+    # Fall back to run view --log-failed
+    result = subprocess.run(
+        ["gh", "run", "view", run_id, "--repo", f"{owner}/{repo}", "--log-failed"],
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    if result.returncode == 0 and result.stdout:
+        return {"Success": True, "Content": result.stdout, "Source": "run-failed"}
+
+    # Try full log
+    result = subprocess.run(
+        ["gh", "run", "view", run_id, "--repo", f"{owner}/{repo}", "--log"],
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    if result.returncode == 0 and result.stdout:
+        return {"Success": True, "Content": result.stdout, "Source": "run-full"}
+
+    return {
+        "Success": False,
+        "Error": f"Failed to fetch logs: {result.stderr}",
+        "Source": "none",
+    }
+
+
+def get_check_logs(
+    owner: str,
+    repo: str,
+    failing_checks: list[dict],
+    max_lines: int,
+    context_lines: int,
+) -> list[dict]:
+    """Fetch logs for all failing checks."""
+    results: list[dict] = []
+
+    for check in failing_checks:
+        check_result: dict = {
+            "Name": check.get("Name", ""),
+            "DetailsUrl": check.get("DetailsUrl", ""),
+            "State": check.get("State", ""),
+            "Conclusion": check.get("Conclusion", ""),
+        }
+
+        details_url = check.get("DetailsUrl", "")
+
+        if not is_github_actions_url(details_url):
+            check_result["LogSource"] = "external"
+            check_result["Note"] = "External CI system, logs not accessible via GitHub API"
+            check_result["Snippets"] = []
+            results.append(check_result)
             continue
 
-        log = fetch_failed_logs(owner, repo, run_id)
-        snippet = truncate_log(log, args.max_lines, args.context_lines)
+        run_id = get_run_id_from_url(details_url)
+        job_id = get_job_id_from_url(details_url)
 
-        results.append({
-            "Name": name,
-            "RunId": run_id,
-            "LogSnippet": snippet,
-        })
+        if not run_id:
+            check_result["LogSource"] = "error"
+            check_result["Error"] = "Could not extract run ID from URL"
+            check_result["Snippets"] = []
+            results.append(check_result)
+            continue
+
+        check_result["RunId"] = run_id
+        if job_id:
+            check_result["JobId"] = job_id
+
+        log_result = fetch_workflow_run_logs(owner, repo, run_id, job_id)
+
+        if not log_result["Success"]:
+            check_result["LogSource"] = "error"
+            check_result["Error"] = log_result.get("Error", "Unknown error")
+            check_result["Snippets"] = []
+            results.append(check_result)
+            continue
+
+        check_result["LogSource"] = log_result["Source"]
+
+        content = log_result["Content"]
+        log_lines = content.splitlines() if isinstance(content, str) else content
+
+        snippets = get_failure_snippets(log_lines, context_lines, max_lines)
+        check_result["Snippets"] = snippets
+        check_result["TotalLogLines"] = len(log_lines)
+
+        results.append(check_result)
+
+    return results
+
+
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Fetch logs from failing GitHub Actions checks on a PR.",
+    )
+    parser.add_argument("--owner", default="", help="Repository owner")
+    parser.add_argument("--repo", default="", help="Repository name")
+    parser.add_argument(
+        "--pull-request", type=int, default=0,
+        help="PR number (standalone mode)",
+    )
+    parser.add_argument(
+        "--checks-input", default="",
+        help="JSON string from get_pr_checks.py output (pipeline mode). Use '-' for stdin.",
+    )
+    parser.add_argument(
+        "--max-lines", type=int, default=160,
+        help="Maximum lines to extract per failure snippet (default: 160)",
+    )
+    parser.add_argument(
+        "--context-lines", type=int, default=30,
+        help="Lines of context before/after failure markers (default: 30)",
+    )
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    assert_gh_authenticated()
+
+    resolved = resolve_repo_params(args.owner, args.repo)
+    owner = resolved.owner
+    repo = resolved.repo
+
+    pr_number = args.pull_request
+    failing_checks: list[dict] = []
+
+    checks_input = args.checks_input
+    if checks_input == "-":
+        checks_input = sys.stdin.read()
+
+    if checks_input:
+        # Pipeline mode
+        try:
+            checks_data = json.loads(checks_input)
+        except json.JSONDecodeError as exc:
+            output = {"Success": False, "Error": f"Failed to parse checks input: {exc}"}
+            print(json.dumps(output, indent=2))
+            return 1
+
+        if not checks_data.get("Success"):
+            output = {
+                "Success": False,
+                "Error": f"Input checks data indicates failure: {checks_data.get('Error', '')}",
+            }
+            print(json.dumps(output, indent=2))
+            return 1
+
+        if checks_data.get("Number") and pr_number == 0:
+            pr_number = checks_data["Number"]
+
+        failing_checks = [
+            c for c in checks_data.get("Checks", [])
+            if c.get("Conclusion") in ("FAILURE", "CANCELLED", "TIMED_OUT", "ACTION_REQUIRED")
+        ]
+
+    elif pr_number > 0:
+        # Standalone mode - fetch checks first
+        checks_script = os.path.join(os.path.dirname(__file__), "get_pr_checks.py")
+        result = subprocess.run(
+            [
+                sys.executable, checks_script,
+                "--owner", owner, "--repo", repo,
+                "--pull-request", str(pr_number),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+
+        # Exit codes 2, 3, 7 are actual errors
+        if result.returncode in (2, 3, 7):
+            print(result.stdout)
+            return result.returncode
+
+        try:
+            checks_data = json.loads(result.stdout)
+        except json.JSONDecodeError as exc:
+            output = {"Success": False, "Error": f"Failed to parse checks response: {exc}"}
+            print(json.dumps(output, indent=2))
+            return 3
+
+        if not checks_data.get("Success"):
+            print(result.stdout)
+            return 2
+
+        failing_checks = [
+            c for c in checks_data.get("Checks", [])
+            if c.get("Conclusion") in ("FAILURE", "CANCELLED", "TIMED_OUT", "ACTION_REQUIRED")
+        ]
+    else:
+        output = {
+            "Success": False,
+            "Error": "Either --pull-request or --checks-input is required",
+        }
+        print(json.dumps(output, indent=2))
+        return 1
+
+    # No failing checks
+    if not failing_checks:
+        output = {
+            "Success": True,
+            "Owner": owner,
+            "Repo": repo,
+            "PullRequest": pr_number,
+            "FailingChecks": 0,
+            "Message": "No failing checks found",
+            "CheckLogs": [],
+        }
+        print(json.dumps(output, indent=2))
+        print("No failing checks to analyze", file=sys.stderr)
+        return 0
+
+    # Fetch logs
+    check_logs = get_check_logs(
+        owner, repo, failing_checks, args.max_lines, args.context_lines,
+    )
 
     output = {
         "Success": True,
-        "PullRequest": args.pull_request,
-        "FailingChecks": results,
-        "TotalFailures": len(results),
+        "Owner": owner,
+        "Repo": repo,
+        "PullRequest": pr_number,
+        "FailingChecks": len(failing_checks),
+        "CheckLogs": check_logs,
     }
     print(json.dumps(output, indent=2))
 
-    if results:
-        print(f"PR #{args.pull_request}: {len(results)} failing check(s)", file=sys.stderr)
-        for r in results:
-            print(f"  - {r['Name']} (run: {r['RunId']})", file=sys.stderr)
+    # Summary
+    logs_found = sum(1 for cl in check_logs if cl.get("Snippets"))
+    external = sum(1 for cl in check_logs if cl.get("LogSource") == "external")
+
+    if external > 0:
+        print(
+            f"Analyzed {len(failing_checks)} failing check(s): "
+            f"{logs_found} with logs, {external} external (logs not accessible)",
+            file=sys.stderr,
+        )
     else:
-        print(f"PR #{args.pull_request}: No failing required checks", file=sys.stderr)
+        print(
+            f"Analyzed {len(failing_checks)} failing check(s) "
+            f"with {logs_found} containing failure snippets",
+            file=sys.stderr,
+        )
+
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

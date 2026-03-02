@@ -412,6 +412,14 @@ Deep-dive documentation in `references/` directory:
 | Forgetting reassessment plan | Decision becomes stale | Set calendar reminders for reviews |
 | Optimizing for single dimension (only cost) | Ignores strategic value | Use full decision matrix |
 
+## Verification
+
+- [ ] All four phases completed with documented outputs
+- [ ] TCO analysis covers 3-year horizon minimum
+- [ ] Decision matrix scored by 2+ stakeholders
+- [ ] Risk assessment includes top 3 risks per option
+- [ ] Final recommendation includes reassessment triggers
+
 ## Related Skills
 
 | Skill | Relationship |

@@ -49,7 +49,7 @@ Autonomous workflow for debugging and fixing failing GitHub Actions CI checks.
 | 4. Analyze | Agent analysis | Categorize and plan fixes |
 | 5. Implement | Edit/Write tools | Apply code changes |
 | 6. Commit | Git operations | Push fixes |
-| 7. Verify | `get_pr_checks.py --wait` | Confirm CI passes |
+| 7. Verify | `get_pr_checks.py` | Confirm CI passes |
 
 ---
 
@@ -78,8 +78,7 @@ gh pr view --json number,state,headRefName 2>/dev/null
 Use the GitHub skill to retrieve CI check status:
 
 ```bash
-SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
-python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request <PR_NUMBER>
+python3 .claude/skills/github/scripts/pr/get_pr_checks.py --pull-request <PR_NUMBER>
 ```
 
 **Parse output to identify:**
@@ -99,8 +98,7 @@ python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request <PR_NUMBER>
 For failing GitHub Actions checks, retrieve logs:
 
 ```bash
-SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
-python3 "$SCRIPTS_DIR/pr/get_pr_check_logs.py" --pull-request <PR_NUMBER> --max-lines 200 --context-lines 40
+python3 .claude/skills/github/scripts/pr/get_pr_check_logs.py --pull-request <PR_NUMBER> --max-lines 200 --context-lines 40
 ```
 
 **Output structure:**
@@ -182,8 +180,7 @@ git push
 Wait for CI to re-run:
 
 ```bash
-SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
-python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request <PR_NUMBER> --wait --timeout-seconds 300
+python3 .claude/skills/github/scripts/pr/get_pr_checks.py --pull-request <PR_NUMBER>
 ```
 
 **Report final status to user.**
@@ -262,7 +259,7 @@ Before claiming completion:
 | `get_pr_checks.py` | Internal | Stable |
 | `get_pr_check_logs.py` | Internal | Stable |
 | GitHub Actions API | External | Stable |
-| Python 3.10+ | External | Stable |
+| Python 3.12+ | External | Stable |
 
 ---
 
@@ -305,6 +302,6 @@ Agent: Checking PR status for current branch...
 
 | Skill | Relationship |
 |-------|--------------|
-| github | Parent skill with get_pr_checks.py, get_pr_check_logs.py |
+| github | Parent skill with get_pr_check_logs.py |
 | pr-comment-responder | Handle CI failure comments on PRs |
 | code-review | Review fixes before committing |

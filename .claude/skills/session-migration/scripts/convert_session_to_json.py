@@ -1,219 +1,248 @@
 #!/usr/bin/env python3
 """Migrate markdown session logs to JSON format.
 
-Parses markdown session logs and converts them to structured JSON.
+Parses markdown session log files and converts them to the JSON schema
+used by validate_session_json.py for deterministic validation.
 
-Exit Codes:
-    0  - Success: Migration completed
-    1  - Error: Invalid path or conversion failed
-
-See: ADR-035 Exit Code Standardization
+Exit codes follow ADR-035:
+    0 - Success
+    1 - Error: Invalid path or conversion failed
 """
+
+from __future__ import annotations
 
 import argparse
 import json
-import math
+import os
 import re
 import sys
-from pathlib import Path
+
+# Allow importing from scripts/utils when run from repo root
+_repo_root = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+)
+if _repo_root not in sys.path:
+    sys.path.insert(0, _repo_root)
+
+from scripts.utils.markdown_parser import find_checklist_item as _ast_find  # noqa: E402
 
 
-def find_checklist_item(content: str, pattern: str) -> dict:
-    """Look for table rows with [x] matching the pattern."""
-    regex = re.compile(
-        r"\|[^|]*\|[^|]*" + pattern + r"[^|]*\|\s*\[x\]\s*\|([^|]*)\|",
-        re.IGNORECASE,
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Migrate markdown session logs to JSON format.",
     )
-    match = regex.search(content)
-    if match:
-        return {"Complete": True, "Evidence": match.group(1).strip()}
-    return {"Complete": False, "Evidence": ""}
+    parser.add_argument(
+        "path", help="Path to markdown session log file or directory of logs.",
+    )
+    parser.add_argument(
+        "--force", action="store_true",
+        help="Overwrite existing JSON files.",
+    )
+    parser.add_argument(
+        "--dry-run", action="store_true",
+        help="Show what would be migrated without writing files.",
+    )
+    return parser
 
 
-def parse_work_log(content: str) -> list[dict]:
-    """Extract work log entries from markdown content."""
+def _find_checklist_item(content: str, pattern: str) -> dict:
+    """Look for table rows with [x] that match the pattern.
+
+    Uses AST-based Markdown parsing via markdown-it-py for reliable
+    table extraction instead of fragile regex patterns.
+    """
+    result = _ast_find(content, pattern)
+    return {"Complete": result.complete, "Evidence": result.evidence}
+
+
+def _parse_work_log(content: str) -> list[dict]:
+    """Parse work log entries from markdown content."""
     entries: list[dict] = []
 
-    # Pattern 1: Work Log section
-    wl_match = re.search(
-        r"##\s*Work\s*Log\s*\n(.+?)(?=\n##\s|\Z)", content, re.DOTALL
-    )
-    if wl_match:
-        wl_content = wl_match.group(1).strip()
-        if not re.match(r"^\s*###\s*\[Task/Topic\]", wl_content) and len(wl_content) >= 50:
-            for section in re.finditer(
-                r"###\s*(.+?)\n((?:(?!###).)+)", wl_content, re.DOTALL
-            ):
-                title = section.group(1).strip()
-                body = section.group(2).strip()
+    # Pattern 1: ## Work Log section
+    m = re.search(r"(?s)##\s*Work\s*Log\s*\n(.+?)(?=\n##\s|\Z)", content)
+    if m:
+        work_content = m.group(1).strip()
+        if not re.match(r"^\s*###\s*\[Task/Topic\]", work_content) and len(work_content) >= 50:
+            for sm in re.finditer(r"###\s*(.+?)\n((?:(?!###).)+)", work_content, re.DOTALL):
+                title = sm.group(1).strip()
+                body = sm.group(2).strip()
                 if re.match(r"\[.+?\]", title) or len(body) < 20:
                     continue
-                result_text = re.sub(r"\n+", " ", body)[:200]
-                entry: dict = {"action": title, "result": result_text}
+                entry: dict = {
+                    "action": title,
+                    "result": re.sub(r"\n+", " ", body)[:200],
+                }
                 files = re.findall(
-                    r"`([^`]+\.(?:ps1|psm1|md|json|yml|yaml|txt))`", body
+                    r"`([^`]+\.(?:ps1|psm1|md|json|yml|yaml|txt|py))`", body,
                 )
                 if files:
                     entry["files"] = files
                 entries.append(entry)
 
-    # Pattern 2: Common work-related headings
+    # Pattern 2: Common work headings
     if not entries:
         headings = [
-            "Changes Made",
-            "Decisions Made",
-            "Files Modified",
-            "Files Changed",
-            "Test Results",
-            "Outcomes",
-            "Deliverables",
+            "Changes Made", "Decisions Made", "Files Modified",
+            "Files Changed", "Test Results", "Outcomes", "Deliverables",
         ]
         for heading in headings:
-            h_match = re.search(
-                rf"##\s*{heading}\s*\n(.+?)(?=\n##\s|\Z)", content, re.DOTALL
+            rx = re.compile(
+                r"(?s)##\s*" + re.escape(heading) + r"\s*\n(.+?)(?=\n##\s|\Z)",
             )
-            if not h_match:
+            hm = rx.search(content)
+            if not hm:
                 continue
-            section_content = h_match.group(1).strip()
-            subsections = list(
-                re.finditer(
-                    r"###\s*(.+?)\n((?:(?!###).)+)", section_content, re.DOTALL
-                )
-            )
-            if subsections:
-                for sub in subsections:
+            section = hm.group(1).strip()
+            subs = list(re.finditer(r"###\s*(.+?)\n((?:(?!###).)+)", section, re.DOTALL))
+            if subs:
+                for sub in subs:
                     title = sub.group(1).strip()
                     body = sub.group(2).strip()
                     if len(body) <= 20:
                         continue
-                    result_text = re.sub(r"\n+", " ", body)[:150]
-                    entry = {"action": f"{heading}: {title}", "result": result_text}
-                    files = list(
-                        dict.fromkeys(
-                            re.findall(
-                                r"`([^`]+\.(?:ps1|psm1|md|json|yml|yaml|txt|csv))`",
-                                body,
-                            )
-                        )
-                    )
+                    entry = {
+                        "action": f"{heading}: {title}",
+                        "result": re.sub(r"\n+", " ", body)[:150],
+                    }
+                    files = list(dict.fromkeys(
+                        re.findall(r"`([^`]+\.(?:ps1|psm1|md|json|yml|yaml|txt|csv|py))`", body),
+                    ))
                     if files:
                         entry["files"] = files
                     entries.append(entry)
-            elif len(section_content) > 30:
-                result_text = re.sub(r"\n+", " ", section_content)[:200]
-                entries.append({"action": heading, "result": result_text})
+            elif len(section) > 30:
+                entries.append({
+                    "action": heading,
+                    "result": re.sub(r"\n+", " ", section)[:200],
+                })
 
     return entries
 
 
-def convert_from_markdown(content: str, file_name: str) -> dict:
-    """Convert markdown session log to JSON structure."""
-    # Session number
+def _convert_markdown_session(content: str, filename: str) -> dict:
+    """Convert a markdown session log to JSON structure."""
+    # Extract session number from filename
     session_num = 0
-    m = re.search(r"session-(\d+)", file_name)
+    m = re.search(r"session-(\d+)", filename)
     if m:
         session_num = int(m.group(1))
 
-    # Date
+    # Extract date from filename
     session_date = ""
-    m = re.match(r"^(\d{4}-\d{2}-\d{2})", file_name)
+    m = re.match(r"^(\d{4}-\d{2}-\d{2})", filename)
     if m:
         session_date = m.group(1)
 
-    # Branch
+    # Extract branch
     branch = ""
     m = re.search(r"\*?\*?Branch\*?\*?:\s*([^\n\r]+)", content)
     if m:
         branch = m.group(1).strip().replace("`", "")
 
-    # Commit
+    # Extract commit
     commit = ""
-    m = re.search(
-        r"\*?\*?(?:Starting\s+)?Commit\*?\*?:\s*`?([a-f0-9]{7,40})`?", content
-    )
+    m = re.search(r"\*?\*?(?:Starting\s+)?Commit\*?\*?:\s*`?([a-f0-9]{7,40})`?", content)
     if m:
         commit = m.group(1)
 
-    # Objective
+    # Extract objective
     objective = ""
     m = re.search(r"##\s*Objective\s*\n+([^\n#]+)", content)
     if m:
         objective = m.group(1).strip()
 
-    # Session start checks
+    # Build session start checks
+    _session_log_pat = (
+        r"Create.*session.*log|session.*log.*exist|this.*file"
+    )
+    _branch_pat = r"verify.*branch|branch.*verif|declare.*branch"
     session_start = {
-        "serenaActivated": find_checklist_item(content, "activate_project"),
-        "serenaInstructions": find_checklist_item(content, "initial_instructions"),
-        "handoffRead": find_checklist_item(content, r"HANDOFF\.md"),
-        "sessionLogCreated": find_checklist_item(
-            content, r"Create.*session.*log|session.*log.*exist|this.*file"
+        "serenaActivated": _find_checklist_item(content, "activate_project"),
+        "serenaInstructions": _find_checklist_item(
+            content, "initial_instructions",
         ),
-        "skillScriptsListed": find_checklist_item(content, r"skill.*script"),
-        "usageMandatoryRead": find_checklist_item(content, "usage-mandatory"),
-        "constraintsRead": find_checklist_item(content, "CONSTRAINTS"),
-        "memoriesLoaded": find_checklist_item(content, "memor"),
-        "branchVerified": find_checklist_item(
-            content, r"verify.*branch|branch.*verif|declare.*branch"
+        "handoffRead": _find_checklist_item(content, r"HANDOFF\.md"),
+        "sessionLogCreated": _find_checklist_item(
+            content, _session_log_pat,
         ),
-        "notOnMain": find_checklist_item(content, r"not.*main|Confirm.*main"),
-        "gitStatusVerified": find_checklist_item(content, r"git.*status"),
-        "startingCommitNoted": find_checklist_item(
-            content, r"starting.*commit|Note.*commit"
+        "skillScriptsListed": _find_checklist_item(
+            content, "skill.*script",
+        ),
+        "usageMandatoryRead": _find_checklist_item(
+            content, "usage-mandatory",
+        ),
+        "constraintsRead": _find_checklist_item(content, "CONSTRAINTS"),
+        "memoriesLoaded": _find_checklist_item(content, "memor"),
+        "branchVerified": _find_checklist_item(content, _branch_pat),
+        "notOnMain": _find_checklist_item(
+            content, r"not.*main|Confirm.*main",
+        ),
+        "gitStatusVerified": _find_checklist_item(
+            content, "git.*status",
+        ),
+        "startingCommitNoted": _find_checklist_item(
+            content, r"starting.*commit|Note.*commit",
         ),
     }
 
-    must_keys = [
+    must_start = [
         "serenaActivated", "serenaInstructions", "handoffRead",
         "sessionLogCreated", "skillScriptsListed", "usageMandatoryRead",
         "constraintsRead", "memoriesLoaded", "branchVerified", "notOnMain",
     ]
-    should_keys = ["gitStatusVerified", "startingCommitNoted"]
-    for k in must_keys:
-        session_start[k]["level"] = "MUST"
-    for k in should_keys:
-        session_start[k]["level"] = "SHOULD"
+    for key in must_start:
+        session_start[key]["level"] = "MUST"
+    for key in ["gitStatusVerified", "startingCommitNoted"]:
+        session_start[key]["level"] = "SHOULD"
 
-    # Session end checks
+    # Build session end checks
+    _checklist_pat = (
+        r"Complete.*session.*log|session.*log.*complete|all.*section"
+    )
+    _handoff_pat = r"HANDOFF.*read-only|Update.*HANDOFF"
+    _memory_pat = r"Serena.*memory|Update.*memory|memory.*updat"
+    _lint_pat = r"markdownlint|markdown.*lint|Run.*lint"
+    _validation_pat = r"Validate.*Session|validation.*pass|Route.*qa"
     session_end = {
-        "checklistComplete": find_checklist_item(
-            content, r"Complete.*session.*log|session.*log.*complete|all.*section"
+        "checklistComplete": _find_checklist_item(
+            content, _checklist_pat,
         ),
-        "handoffNotUpdated": {
-            "level": "MUST NOT",
-            "Complete": False,
-            "Evidence": find_checklist_item(
-                content, r"HANDOFF.*read-only|Update.*HANDOFF"
-            ).get("Evidence", ""),
+        "handoffPreserved": {
+            "level": "MUST",
+            "Complete": True,
+            "Evidence": _find_checklist_item(
+                content, _handoff_pat,
+            ).get("Evidence", "HANDOFF.md not modified"),
         },
-        "serenaMemoryUpdated": find_checklist_item(
-            content, r"Serena.*memory|Update.*memory|memory.*updat"
+        "serenaMemoryUpdated": _find_checklist_item(
+            content, _memory_pat,
         ),
-        "markdownLintRun": find_checklist_item(
-            content, r"markdownlint|markdown.*lint|Run.*lint"
+        "markdownLintRun": _find_checklist_item(
+            content, _lint_pat,
         ),
-        "changesCommitted": find_checklist_item(
-            content, r"Commit.*change|change.*commit"
+        "changesCommitted": _find_checklist_item(
+            content, r"Commit.*change|change.*commit",
         ),
-        "validationPassed": find_checklist_item(
-            content, r"Validate.*Session|validation.*pass|Route.*qa"
+        "validationPassed": _find_checklist_item(
+            content, _validation_pat,
         ),
-        "tasksUpdated": find_checklist_item(
-            content, r"PROJECT-PLAN|task.*checkbox"
+        "tasksUpdated": _find_checklist_item(
+            content, r"PROJECT-PLAN|task.*checkbox",
         ),
-        "retrospectiveInvoked": find_checklist_item(content, "retrospective"),
+        "retrospectiveInvoked": _find_checklist_item(
+            content, "retrospective",
+        ),
     }
 
-    end_must = [
-        "checklistComplete", "serenaMemoryUpdated", "markdownLintRun",
-        "changesCommitted", "validationPassed",
-    ]
-    end_should = ["tasksUpdated", "retrospectiveInvoked"]
-    for k in end_must:
-        session_end[k]["level"] = "MUST"
-    for k in end_should:
-        session_end[k]["level"] = "SHOULD"
+    must_end = ["checklistComplete", "serenaMemoryUpdated", "markdownLintRun",
+                "changesCommitted", "validationPassed"]
+    for key in must_end:
+        session_end[key]["level"] = "MUST"
+    for key in ["tasksUpdated", "retrospectiveInvoked"]:
+        session_end[key]["level"] = "SHOULD"
 
-    work_log = parse_work_log(content)
+    work_log = _parse_work_log(content)
 
     return {
         "session": {
@@ -233,74 +262,63 @@ def convert_from_markdown(content: str, file_name: str) -> dict:
     }
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Migrate markdown session logs to JSON format."
-    )
-    parser.add_argument(
-        "path", help="Path to markdown session log or directory of logs."
-    )
-    parser.add_argument(
-        "--force",
-        action="store_true",
-        help="Overwrite existing JSON files.",
-    )
-    parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="Show what would be migrated without writing.",
-    )
-    args = parser.parse_args()
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    path = args.path
 
-    path = Path(args.path)
-    if not path.exists():
-        print(f"Path not found: {path}", file=sys.stderr)
-        sys.exit(1)
-
-    files: list[Path] = []
-    if path.is_dir():
-        session_pattern = re.compile(r"^\d{4}-\d{2}-\d{2}-session")
-        files = [
-            f for f in sorted(path.glob("*.md")) if session_pattern.match(f.name)
-        ]
-    else:
+    # Get files to migrate
+    files: list[str] = []
+    if os.path.isdir(path):
+        for name in os.listdir(path):
+            if name.endswith(".md") and re.match(r"^\d{4}-\d{2}-\d{2}-session", name):
+                files.append(os.path.join(path, name))
+    elif os.path.isfile(path):
         files = [path]
+    else:
+        print(f"ERROR: Path not found: {path}", file=sys.stderr)
+        return 1
 
     migrated: list[str] = []
     skipped: list[str] = []
     failed: list[str] = []
 
-    for file in files:
-        json_path = file.with_suffix(".json")
-        if json_path.exists() and not args.force:
-            skipped.append(file.name)
+    for filepath in files:
+        filename = os.path.basename(filepath)
+        json_path = re.sub(r"\.md$", ".json", filepath)
+
+        if os.path.exists(json_path) and not args.force:
+            skipped.append(filename)
             continue
 
         try:
-            content = file.read_text(encoding="utf-8")
-            session = convert_from_markdown(content, file.name)
+            with open(filepath, encoding="utf-8") as f:
+                content = f.read()
+
+            session = _convert_markdown_session(content, filename)
 
             if args.dry_run:
-                print(f"[DRY RUN] Would migrate: {file.name} -> {json_path.name}")
+                json_name = os.path.basename(json_path)
+                print(f"[DRY RUN] Would migrate: {filename} -> {json_name}")
+                migrated.append(json_path)
             else:
-                json_path.write_text(
-                    json.dumps(session, indent=2), encoding="utf-8"
-                )
-                print(f"[OK] Migrated: {file.name} -> {json_path.name}")
+                with open(json_path, "w", encoding="utf-8") as f:
+                    json.dump(session, f, indent=2)
+                json_name = os.path.basename(json_path)
+                print(f"[OK] Migrated: {filename} -> {json_name}")
+                migrated.append(json_path)
+        except Exception as exc:
+            print(f"[FAIL] {filename}: {exc}", file=sys.stderr)
+            failed.append(filename)
 
-            migrated.append(str(json_path))
-        except Exception as e:
-            print(f"[FAIL] {file.name}: {e}")
-            failed.append(file.name)
-
-    print(f"\n=== Migration Summary ===")
+    print("\n=== Migration Summary ===")
     print(f"Migrated: {len(migrated)}")
     print(f"Skipped (JSON exists): {len(skipped)}")
     print(f"Failed: {len(failed)}")
 
     if failed:
-        sys.exit(1)
+        return 1
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

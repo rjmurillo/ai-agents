@@ -30,13 +30,11 @@ metadata:
 **When you see a GitHub URL, use these commands immediately:**
 
 ```bash
-SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
-
 # PR URL → Use this
-python3 "$SCRIPTS_DIR/pr/get_pr_context.py" --pull-request {n} --owner {owner} --repo {repo}
+python3 .claude/skills/github/scripts/pr/get_pr_context.py --pull-request {n} --owner {owner} --repo {repo}
 
-# Issue URL → Use this (legacy)
-python3 "$SCRIPTS_DIR/issue/get_issue_context.py" --issue {n} --owner {owner} --repo {repo}
+# Issue URL → Use this
+python3 .claude/skills/github/scripts/issue/get_issue_context.py --issue {n} --owner {owner} --repo {repo}
 
 # File/blob URL → Use this
 gh api repos/{owner}/{repo}/contents/{path}?ref={ref}
@@ -105,7 +103,7 @@ GitHub URL detected in user input
 │
 ├─ Is /pull/{n}?
 │     Yes → get_pr_context.py --pull-request {n} --owner {o} --repo {r}
-│           (or get_pr_review_comments.py (legacy) / get_pr_review_threads.py for comments)
+│           (or get_pr_review_comments.py / get_pr_review_threads.py for comments)
 │
 ├─ Is /issues/{n}?
 │     Yes → get_issue_context.py --issue {n} --owner {o} --repo {r}
@@ -160,7 +158,7 @@ GitHub URL detected in user input
 |-------------|--------|------------|
 | `/pull/{n}` | `get_pr_context.py` | `--pull-request {n} --owner {o} --repo {r}` |
 | `/pull/{n}` (with diff) | `get_pr_context.py` | `--pull-request {n} --include-diff` |
-| `/pull/{n}` (review comments) | `get_pr_review_comments.py` (legacy) | `--pull-request {n}` |
+| `/pull/{n}` (review comments) | `get_pr_review_comments.py` | `--pull-request {n}` |
 | `/pull/{n}` (review threads) | `get_pr_review_threads.py` | `--pull-request {n}` |
 | `/pull/{n}` (CI status) | `get_pr_checks.py` | `--pull-request {n}` |
 | `/issues/{n}` | `get_issue_context.py` | `--issue {n} --owner {o} --repo {r}` |
@@ -241,7 +239,7 @@ Input: "https://github.com/rjmurillo/ai-agents/pull/735/checks?check_run_id=5935
 
 Action:
   1. Parse: owner=rjmurillo, repo=ai-agents, pr=735, type=checks
-  2. Route: python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request 735 --owner rjmurillo --repo ai-agents
+  2. Route: python3 .claude/skills/github/scripts/pr/get_pr_checks.py --pull-request 735 --owner rjmurillo --repo ai-agents
 ```
 
 ### URL with Question After It
@@ -292,7 +290,7 @@ Action:
 Input: "Review this: https://github.com/owner/repo/pull/123"
 
 Action:
-  python3 "$SCRIPTS_DIR/pr/get_pr_context.py" --pull-request 123 --owner owner --repo repo
+  python3 .claude/skills/github/scripts/pr/get_pr_context.py --pull-request 123 --owner owner --repo repo
 ```
 
 ### File URL → API
@@ -325,6 +323,18 @@ Action:
 - "Accessing the GitHub page..."
 
 **These indicate you're about to waste millions of tokens. Use this skill instead.**
+
+---
+
+## Scripts
+
+### test_url_routing.py
+
+Routes GitHub URLs to appropriate API access methods with CWE-78 command injection protection.
+
+```bash
+python3 .claude/skills/github-url-intercept/scripts/test_url_routing.py <github-url>
+```
 
 ---
 

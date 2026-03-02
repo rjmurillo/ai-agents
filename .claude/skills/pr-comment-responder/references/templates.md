@@ -25,16 +25,14 @@
 **CRITICAL**: Never use the issue comments API (`/issues/{number}/comments`) to reply to review comments. This places replies out of context as top-level PR comments instead of in-thread.
 
 ```bash
-SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
-
 # In-thread reply (CORRECT)
-python3 "$SCRIPTS_DIR/pr/post_pr_comment_reply.py" --pull-request [number] --comment-id [id] --body "[response]"
+python3 .claude/skills/github/scripts/pr/post_pr_comment_reply.py --pull-request [number] --comment-id [id] --body "[response]"
 
-# For multi-line responses (use heredoc or file)
-python3 "$SCRIPTS_DIR/pr/post_pr_comment_reply.py" --pull-request [number] --comment-id [id] --body "$(cat reply.md)"
+# For multi-line responses
+python3 .claude/skills/github/scripts/pr/post_pr_comment_reply.py --pull-request [number] --comment-id [id] --body-file reply.md
 
 # Top-level PR comment (no comment-id)
-python3 "$SCRIPTS_DIR/pr/post_pr_comment_reply.py" --pull-request [number] --body "[response]"
+python3 .claude/skills/github/scripts/pr/post_pr_comment_reply.py --pull-request [number] --body "[response]"
 ```
 
 ## Templates

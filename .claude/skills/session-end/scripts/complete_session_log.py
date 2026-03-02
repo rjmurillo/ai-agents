@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-"""Complete a session log by auto-populating session end evidence.
+"""Complete a session log by auto-populating session end evidence and validating.
 
 Finds the current session log, auto-populates session end checklist items
 with evidence gathered from git state and file changes, runs validation,
 and reports status.
 
-Exit Codes:
-    0  - Success: Session log completed and validated
-    1  - Error: Validation failed or missing required items
-
-See: ADR-035 Exit Code Standardization
+Exit codes follow ADR-035:
+    0 - Success
+    1 - Error: Validation failed or missing required items
 """
+
+from __future__ import annotations
 
 import argparse
 import json
@@ -18,251 +18,233 @@ import os
 import re
 import subprocess
 import sys
-from datetime import datetime
-from pathlib import Path
+from datetime import UTC
 
 
-def get_repo_root(script_dir: Path) -> Path:
-    """Walk up from script dir to find project root."""
-    return script_dir.parent.parent.parent.parent
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Complete and validate a session log.",
+    )
+    parser.add_argument(
+        "--session-path", default="",
+        help="Path to session log JSON. Auto-detects most recent if not provided.",
+    )
+    parser.add_argument(
+        "--dry-run", action="store_true",
+        help="Show what would change without writing to the file.",
+    )
+    return parser
 
 
-def find_current_session_log(sessions_dir: Path) -> Path | None:
-    """Find the most recent session log, preferring today's."""
-    if not sessions_dir.is_dir():
+def _get_repo_root() -> str:
+    result = subprocess.run(
+        ["git", "rev-parse", "--show-toplevel"],
+        capture_output=True, text=True, timeout=10, check=False,
+    )
+    if result.returncode != 0:
+        return os.path.abspath(
+            os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", ".."),
+        )
+    return result.stdout.strip()
+
+
+def _find_current_session_log(sessions_dir: str) -> str | None:
+    """Find the most recent session log, preferring today's sessions."""
+    from datetime import datetime
+    today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+
+    if not os.path.isdir(sessions_dir):
         return None
 
-    today = datetime.now().strftime("%Y-%m-%d")
-    pattern = re.compile(r"^\d{4}-\d{2}-\d{2}-session-\d+")
-
-    candidates = sorted(
-        [
-            f
-            for f in sessions_dir.glob("*.json")
-            if pattern.match(f.name)
-        ],
-        key=lambda f: f.stat().st_mtime,
-        reverse=True,
-    )
+    candidates = []
+    for name in os.listdir(sessions_dir):
+        if name.endswith(".json") and re.match(r"\d{4}-\d{2}-\d{2}-session-\d+", name):
+            full = os.path.join(sessions_dir, name)
+            candidates.append((os.path.getmtime(full), full, name))
 
     if not candidates:
         return None
 
+    candidates.sort(key=lambda x: x[0], reverse=True)
+
     # Prefer today's sessions
-    today_sessions = [f for f in candidates if f.name.startswith(today)]
-    if today_sessions:
-        return today_sessions[0]
+    for _, full, name in candidates:
+        if name.startswith(today):
+            return full
 
-    return candidates[0]
+    return candidates[0][1]
 
 
-def get_ending_commit() -> str | None:
-    """Get current short commit SHA."""
-    try:
-        result = subprocess.run(
-            ["git", "rev-parse", "--short", "HEAD"],
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-        if result.returncode != 0:
-            return None
-        return result.stdout.strip() or None
-    except (subprocess.TimeoutExpired, FileNotFoundError):
+def _get_ending_commit() -> str | None:
+    result = subprocess.run(
+        ["git", "rev-parse", "--short", "HEAD"],
+        capture_output=True, text=True, timeout=10, check=False,
+    )
+    if result.returncode != 0:
         return None
+    return result.stdout.strip()
 
 
-def test_handoff_modified() -> bool:
-    """Check if HANDOFF.md was modified (staged or unstaged)."""
-    for cmd in (
-        ["git", "diff", "--cached", "--name-only"],
-        ["git", "diff", "--name-only"],
-    ):
-        try:
-            result = subprocess.run(
-                cmd, capture_output=True, text=True, timeout=10
-            )
-            if result.returncode == 0 and "HANDOFF.md" in result.stdout:
-                return True
-        except (subprocess.TimeoutExpired, FileNotFoundError):
-            pass
+def _test_handoff_modified() -> bool:
+    for cmd in [["git", "diff", "--cached", "--name-only"], ["git", "diff", "--name-only"]]:
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=10, check=False,
+        )
+        if result.returncode == 0 and "HANDOFF.md" in result.stdout:
+            return True
     return False
 
 
-def test_serena_memory_updated() -> bool:
-    """Check for changes in .serena/memories/."""
-    memory_pattern = re.compile(r"\.serena/memories[/\\]")
-    for cmd in (
+def _test_serena_memory_updated() -> bool:
+    for cmd in [
         ["git", "diff", "--cached", "--name-only"],
         ["git", "diff", "--name-only"],
         ["git", "ls-files", "--others", "--exclude-standard"],
-    ):
-        try:
-            result = subprocess.run(
-                cmd, capture_output=True, text=True, timeout=10
-            )
-            if result.returncode == 0:
-                for line in result.stdout.splitlines():
-                    if memory_pattern.search(line):
-                        return True
-        except (subprocess.TimeoutExpired, FileNotFoundError):
-            pass
+    ]:
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=10, check=False,
+        )
+        if result.returncode == 0:
+            for line in result.stdout.splitlines():
+                if line.startswith(".serena/memories"):
+                    return True
     return False
 
 
-def run_markdown_lint() -> dict:
-    """Run markdownlint on changed markdown files."""
-    changed_md: set[str] = set()
-    for cmd in (
+def _run_markdown_lint() -> tuple[bool, str]:
+    """Run markdownlint on changed markdown files. Returns (success, message)."""
+    staged = subprocess.run(
         ["git", "diff", "--cached", "--name-only", "--diff-filter=ACMR"],
+        capture_output=True, text=True, timeout=10, check=False,
+    )
+    unstaged = subprocess.run(
         ["git", "diff", "--name-only", "--diff-filter=ACMR"],
-    ):
-        try:
-            result = subprocess.run(
-                cmd, capture_output=True, text=True, timeout=10
-            )
-            if result.returncode == 0:
-                for line in result.stdout.splitlines():
-                    if line.strip().endswith(".md"):
-                        changed_md.add(line.strip())
-        except (subprocess.TimeoutExpired, FileNotFoundError):
-            pass
+        capture_output=True, text=True, timeout=10, check=False,
+    )
 
-    if not changed_md:
-        return {"Success": True, "Output": "No markdown files changed"}
+    md_files = set()
+    for output in [staged.stdout, unstaged.stdout]:
+        for line in output.splitlines():
+            if line.strip().endswith(".md"):
+                md_files.add(line.strip())
+
+    if not md_files:
+        return True, "No markdown files changed"
 
     all_success = True
-    outputs = []
-    for f in changed_md:
-        try:
-            result = subprocess.run(
-                ["npx", "markdownlint-cli2", "--fix", f],
-                capture_output=True,
-                text=True,
-                timeout=30,
-            )
-            if result.returncode != 0:
-                all_success = False
-                outputs.append(result.stdout.strip())
-        except (subprocess.TimeoutExpired, FileNotFoundError):
-            all_success = False
-            outputs.append(f"Failed to lint {f}")
-
-    output_text = (
-        f"{len(changed_md)} files linted"
-        if all_success
-        else "\n".join(outputs)
-    )
-    return {"Success": all_success, "Output": output_text}
-
-
-def test_uncommitted_changes() -> bool:
-    """Check if there are uncommitted changes."""
-    try:
+    errors = []
+    for f in md_files:
         result = subprocess.run(
-            ["git", "status", "--porcelain"],
-            capture_output=True,
-            text=True,
-            timeout=10,
+            ["npx", "markdownlint-cli2", "--fix", "--", f],
+            capture_output=True, text=True, timeout=30, check=False,
         )
         if result.returncode != 0:
-            return True
-        return bool(result.stdout.strip())
-    except (subprocess.TimeoutExpired, FileNotFoundError):
+            all_success = False
+            errors.append(result.stdout.strip() or result.stderr.strip())
+
+    if all_success:
+        return True, f"{len(md_files)} files linted"
+    return False, "\n".join(errors)
+
+
+def _test_uncommitted_changes() -> bool:
+    result = subprocess.run(
+        ["git", "status", "--porcelain"],
+        capture_output=True, text=True, timeout=10, check=False,
+    )
+    if result.returncode != 0:
         return True
+    return bool(result.stdout.strip())
 
 
-def validate_path_containment(
-    session_path: Path, sessions_dir: Path
-) -> bool:
-    """CWE-22: Ensure session path is inside sessions directory."""
-    resolved = session_path.resolve()
-    base = sessions_dir.resolve()
-    return str(resolved).startswith(str(base) + os.sep)
+def _validate_path_containment(session_path: str, sessions_dir: str) -> str | None:
+    """Validate session path is inside sessions directory. Returns resolved path or None."""
+    try:
+        resolved = os.path.realpath(session_path)
+        base = os.path.realpath(sessions_dir) + os.sep
+        if not resolved.startswith(base):
+            return None
+        return resolved
+    except (OSError, ValueError):
+        return None
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Complete a session log with end-of-session evidence."
-    )
-    parser.add_argument(
-        "--session-path",
-        type=str,
-        default="",
-        help="Path to session log JSON. Auto-detects if not provided.",
-    )
-    parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="Show changes without writing.",
-    )
-    args = parser.parse_args()
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    repo_root = _get_repo_root()
 
-    script_dir = Path(__file__).resolve().parent
-    repo_root = get_repo_root(script_dir)
-    sessions_dir = repo_root / ".agents" / "sessions"
+    sessions_dir = os.path.join(repo_root, ".agents", "sessions")
+    os.makedirs(sessions_dir, exist_ok=True)
 
     # Find session log
-    if args.session_path:
-        session_path = Path(args.session_path)
-        if not session_path.exists():
-            print(f"[FAIL] Session file not found: {session_path}", file=sys.stderr)
-            sys.exit(1)
-        session_path = session_path.resolve()
-        if not validate_path_containment(session_path, sessions_dir):
-            print(
-                f"[FAIL] Session path must be inside '{sessions_dir}'.",
-                file=sys.stderr,
-            )
-            sys.exit(1)
+    session_path = args.session_path
+    if not session_path:
+        session_path = _find_current_session_log(sessions_dir)
+        if not session_path:
+            print("[FAIL] No session log found in .agents/sessions/", file=sys.stderr)
+            return 1
+        print(f"Auto-detected session log: {session_path}", file=sys.stderr)
     else:
-        found = find_current_session_log(sessions_dir)
-        if not found:
-            print(
-                "[FAIL] No session log found in .agents/sessions/",
-                file=sys.stderr,
-            )
-            sys.exit(1)
-        session_path = found
-        print(f"Auto-detected session log: {session_path}")
+        if not os.path.isfile(session_path):
+            print(f"[FAIL] Session file not found: {session_path}", file=sys.stderr)
+            return 1
+        resolved = _validate_path_containment(session_path, sessions_dir)
+        if resolved is None:
+            print(f"[FAIL] Session path must be inside '{sessions_dir}'.", file=sys.stderr)
+            return 1
+        session_path = resolved
 
     # Read session log
     try:
         with open(session_path, encoding="utf-8") as f:
             session = json.load(f)
-    except json.JSONDecodeError as e:
-        print(f"[FAIL] Invalid JSON in session file: {e}", file=sys.stderr)
-        sys.exit(1)
+    except (json.JSONDecodeError, OSError) as exc:
+        print(f"[FAIL] Invalid JSON in session file: {session_path}", file=sys.stderr)
+        print(f"  Error: {exc}", file=sys.stderr)
+        return 1
 
     # Verify structure
     pc = session.get("protocolCompliance", {})
     session_end = pc.get("sessionEnd")
-    if not session_end:
-        print(
-            "[FAIL] Session log missing protocolCompliance.sessionEnd",
-            file=sys.stderr,
-        )
-        sys.exit(1)
+    if session_end is None:
+        print("[FAIL] Session log missing protocolCompliance.sessionEnd section", file=sys.stderr)
+        return 1
 
     changes: list[str] = []
-    print("\n=== Session End Completion ===")
-    print(f"File: {session_path}\n")
+    print("", file=sys.stderr)
+    print("=== Session End Completion ===", file=sys.stderr)
+    print(f"File: {session_path}", file=sys.stderr)
+    print("", file=sys.stderr)
 
     # 1. Ending commit
-    ending_commit = get_ending_commit()
+    ending_commit = _get_ending_commit()
     if ending_commit and not session.get("endingCommit"):
         session["endingCommit"] = ending_commit
         changes.append(f"Set endingCommit: {ending_commit}")
 
-    # 2. handoffNotUpdated
-    handoff_modified = test_handoff_modified()
-    check = session_end.get("handoffNotUpdated")
-    if check is not None:
+    # 2. handoffPreserved (MUST) - replaces legacy handoffNotUpdated (issue #868)
+    handoff_modified = _test_handoff_modified()
+    # Support both new "handoffPreserved" and legacy "handoffNotUpdated" field names
+    handoff_key = (
+        "handoffPreserved" if "handoffPreserved" in session_end
+        else "handoffNotUpdated" if "handoffNotUpdated" in session_end
+        else None
+    )
+    if handoff_key == "handoffPreserved":
+        check = session_end[handoff_key]
+        if handoff_modified:
+            check["Complete"] = False
+            check["Evidence"] = "WARNING: HANDOFF.md was modified (should be read-only)"
+            changes.append("[WARN] HANDOFF.md was modified (violation)")
+        else:
+            check["Complete"] = True
+            check["Evidence"] = "HANDOFF.md not modified (read-only respected)"
+            changes.append("Confirmed HANDOFF.md preserved (not modified)")
+    elif handoff_key == "handoffNotUpdated":
+        check = session_end[handoff_key]
         if handoff_modified:
             check["Complete"] = True
-            check["Evidence"] = (
-                "WARNING: HANDOFF.md was modified - this violates MUST NOT"
-            )
+            check["Evidence"] = "WARNING: HANDOFF.md was modified - this violates MUST NOT"
             changes.append("[WARN] HANDOFF.md was modified (MUST NOT violation)")
         else:
             check["Complete"] = False
@@ -270,132 +252,117 @@ def main() -> None:
             changes.append("Confirmed HANDOFF.md not modified")
 
     # 3. serenaMemoryUpdated
-    memory_updated = test_serena_memory_updated()
-    check = session_end.get("serenaMemoryUpdated")
-    if check is not None:
+    memory_updated = _test_serena_memory_updated()
+    if "serenaMemoryUpdated" in session_end:
+        check = session_end["serenaMemoryUpdated"]
         if memory_updated:
             check["Complete"] = True
             check["Evidence"] = ".serena/memories/ has changes"
             changes.append("Confirmed Serena memory updated")
         elif not check.get("Complete"):
             changes.append(
-                "[TODO] Serena memory not updated - "
-                "update .serena/memories/ before completing"
+                "[TODO] Serena memory not updated"
+                " - update .serena/memories/ before completing"
             )
 
     # 4. markdownLintRun
-    print("Running markdown lint...")
-    lint_result = run_markdown_lint()
-    check = session_end.get("markdownLintRun")
-    if check is not None:
-        check["Complete"] = lint_result["Success"]
-        check["Evidence"] = lint_result["Output"]
-        changes.append(f"Markdown lint: {lint_result['Output']}")
+    print("Running markdown lint...", file=sys.stderr)
+    lint_success, lint_output = _run_markdown_lint()
+    if "markdownLintRun" in session_end:
+        check = session_end["markdownLintRun"]
+        check["Complete"] = lint_success
+        check["Evidence"] = lint_output
+        changes.append(f"Markdown lint: {lint_output}")
 
     # 5. changesCommitted
-    has_uncommitted = test_uncommitted_changes()
-    check = session_end.get("changesCommitted")
-    if check is not None:
+    has_uncommitted = _test_uncommitted_changes()
+    if "changesCommitted" in session_end:
+        check = session_end["changesCommitted"]
         if not has_uncommitted:
             check["Complete"] = True
             check["Evidence"] = f"All changes committed (HEAD: {ending_commit})"
             changes.append("All changes committed")
         else:
-            changes.append(
-                "[TODO] Uncommitted changes exist - commit before completing"
-            )
+            changes.append("[TODO] Uncommitted changes exist - commit before completing")
 
-    # 6. Evaluate checklistComplete
-    must_items = [
-        "handoffNotUpdated",
-        "serenaMemoryUpdated",
-        "markdownLintRun",
-        "changesCommitted",
-        "validationPassed",
-    ]
+    # 6. checklistComplete - evaluate after all others
+    must_items = ["handoffPreserved", "handoffNotUpdated", "serenaMemoryUpdated",
+                  "markdownLintRun", "changesCommitted", "validationPassed"]
     all_must_complete = True
     for item in must_items:
-        check = session_end.get(item)
-        if check is None:
-            continue
-        level = check.get("level", "")
-        is_complete = check.get("Complete", False)
-        if level == "MUST" and not is_complete:
-            all_must_complete = False
-        if level == "MUST NOT" and is_complete:
-            all_must_complete = False
+        if item in session_end:
+            check = session_end[item]
+            level = check.get("level", "")
+            complete = check.get("Complete", False)
+            if level == "MUST" and not complete:
+                all_must_complete = False
+            if level == "MUST NOT" and complete:
+                all_must_complete = False
 
-    checklist_check = session_end.get("checklistComplete")
-    if checklist_check is not None:
-        checklist_check["Complete"] = all_must_complete
-        checklist_check["Evidence"] = (
-            "All MUST items verified"
-            if all_must_complete
-            else "Some MUST items still incomplete"
-        )
+    if "checklistComplete" in session_end:
+        check = session_end["checklistComplete"]
+        check["Complete"] = all_must_complete
+        if all_must_complete:
+            check["Evidence"] = "All MUST items verified"
+        else:
+            check["Evidence"] = "Some MUST items still incomplete"
 
     # Report changes
-    print("\n--- Changes ---")
+    print("", file=sys.stderr)
+    print("--- Changes ---", file=sys.stderr)
     for change in changes:
-        if "TODO" in change:
-            prefix = "[TODO]"
-        elif "WARN" in change:
-            prefix = "[WARN]"
-        else:
-            prefix = "[OK]"
-        print(f"  {prefix} {change}")
+        print(f"  {change}", file=sys.stderr)
 
-    # Write
+    # Write updated session log
     if not args.dry_run:
         with open(session_path, "w", encoding="utf-8") as f:
             json.dump(session, f, indent=2)
-        print(f"\nUpdated: {session_path}")
+        print("", file=sys.stderr)
+        print(f"Updated: {session_path}", file=sys.stderr)
     else:
-        print("\n[DRY RUN] No changes written")
+        print("", file=sys.stderr)
+        print("[DRY RUN] No changes written", file=sys.stderr)
 
     # Run validation
-    print("\nRunning validation...")
-    validate_script = repo_root / "scripts" / "validate_session_json.py"
-    if not validate_script.exists():
-        # Try PowerShell fallback
-        validate_script = repo_root / "scripts" / "Validate-SessionJson.ps1"
+    print("", file=sys.stderr)
+    print("Running validation...", file=sys.stderr)
+    validate_script = os.path.join(repo_root, "scripts", "validate_session_json.py")
 
-    if validate_script.exists():
-        if validate_script.suffix == ".py":
-            cmd = [sys.executable, str(validate_script), "--session-path", str(session_path)]
-        else:
-            cmd = ["pwsh", str(validate_script), "-SessionPath", str(session_path)]
+    if os.path.isfile(validate_script):
+        result = subprocess.run(
+            [sys.executable, validate_script, session_path],
+            capture_output=False, timeout=60, check=False,
+        )
+        validation_exit_code = result.returncode
 
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
-        validation_exit = result.returncode
+        if not args.dry_run and "validationPassed" in session_end:
+            check = session_end["validationPassed"]
+            check["Complete"] = validation_exit_code == 0
+            check["Evidence"] = (
+                "validate_session_json.py passed" if validation_exit_code == 0
+                else "validate_session_json.py failed"
+            )
 
-        if not args.dry_run:
-            val_check = session_end.get("validationPassed")
-            if val_check is not None:
-                val_check["Complete"] = validation_exit == 0
-                val_check["Evidence"] = (
-                    "Validation passed"
-                    if validation_exit == 0
-                    else "Validation failed"
+            if validation_exit_code == 0 and all_must_complete:
+                session_end["checklistComplete"]["Complete"] = True
+                session_end["checklistComplete"]["Evidence"] = (
+                    "All MUST items verified and validation passed"
                 )
-                if validation_exit == 0 and all_must_complete:
-                    checklist_check = session_end.get("checklistComplete")
-                    if checklist_check:
-                        checklist_check["Complete"] = True
-                        checklist_check["Evidence"] = (
-                            "All MUST items verified and validation passed"
-                        )
-                with open(session_path, "w", encoding="utf-8") as f:
-                    json.dump(session, f, indent=2)
 
-        if validation_exit != 0:
-            print("\n[FAIL] Session validation failed. Fix issues and re-run.")
-            sys.exit(1)
+            with open(session_path, "w", encoding="utf-8") as f:
+                json.dump(session, f, indent=2)
+
+        if validation_exit_code != 0:
+            print("", file=sys.stderr)
+            print("[FAIL] Session validation failed. Fix issues above and re-run.", file=sys.stderr)
+            return 1
     else:
-        print(f"Warning: Validation script not found", file=sys.stderr)
+        print(f"WARNING: Validation script not found: {validate_script}", file=sys.stderr)
 
-    print("\n[PASS] Session log completed and validated")
+    print("", file=sys.stderr)
+    print("[PASS] Session log completed and validated", file=sys.stderr)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

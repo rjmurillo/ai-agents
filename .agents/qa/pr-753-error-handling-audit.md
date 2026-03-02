@@ -75,7 +75,7 @@ function Invoke-SqliteQuery {
 
 ### 2. Export-ClaudeMemFullBackup.ps1: npx Exit Code Unchecked
 
-**Location**: `/home/richard/ai-agents/.claude-mem/scripts/Export-ClaudeMemFullBackup.ps1:94`
+**Location**: `.claude-mem/scripts/Export-ClaudeMemFullBackup.ps1:94`
 
 **Severity**: CRITICAL
 
@@ -131,7 +131,7 @@ if (Test-Path $OutputPath) {
 
 ### 3. Export-ClaudeMemMemories.ps1: npx Failure in Try-Catch Without Propagation
 
-**Location**: `/home/richard/ai-agents/.claude-mem/scripts/Export-ClaudeMemMemories.ps1:118-139`
+**Location**: `.claude-mem/scripts/Export-ClaudeMemMemories.ps1:118-139`
 
 **Severity**: CRITICAL
 
@@ -200,7 +200,7 @@ catch {
 
 ### 4. Import-ClaudeMemMemories.ps1: Silently Continues After Import Failures
 
-**Location**: `/home/richard/ai-agents/.claude-mem/scripts/Import-ClaudeMemMemories.ps1:56-62`
+**Location**: `.claude-mem/scripts/Import-ClaudeMemMemories.ps1:56-62`
 
 **Severity**: CRITICAL
 
@@ -288,7 +288,7 @@ if ($FailureCount -eq 0) {
 
 ### 5. Export-ClaudeMemDirect.ps1: ConvertFrom-Json Failures Not Caught
 
-**Location**: `/home/richard/ai-agents/.claude-mem/scripts/Export-ClaudeMemDirect.ps1:156-157, 186-187, 193-194, 200-201`
+**Location**: `.claude-mem/scripts/Export-ClaudeMemDirect.ps1:156-157, 186-187, 193-194, 200-201`
 
 **Severity**: CRITICAL
 
@@ -356,7 +356,7 @@ $Observations = ConvertFrom-SqliteJson -FilePath $ObsTemp -DataType "observation
 
 ### 6. Export-ClaudeMemFullBackup.ps1: Security Review Exit Code Check Uses Wrong Variable Scope
 
-**Location**: `/home/richard/ai-agents/.claude-mem/scripts/Export-ClaudeMemFullBackup.ps1:129-135`
+**Location**: `.claude-mem/scripts/Export-ClaudeMemFullBackup.ps1:129-135`
 
 **Severity**: HIGH
 
@@ -423,7 +423,7 @@ Write-Host "✅ Security review PASSED" -ForegroundColor Green
 
 ### 7. Export-ClaudeMemDirect.ps1: Duplicate Security Review Issue
 
-**Location**: `/home/richard/ai-agents/.claude-mem/scripts/Export-ClaudeMemDirect.ps1:240-246`
+**Location**: `.claude-mem/scripts/Export-ClaudeMemDirect.ps1:240-246`
 
 **Severity**: HIGH
 
@@ -438,7 +438,7 @@ Same `$LASTEXITCODE` scoping issue as #6. The security review on line 240 uses `
 
 ### 8. Export-ClaudeMemMemories.ps1: Path Traversal Check Throws Generic Exception
 
-**Location**: `/home/richard/ai-agents/.claude-mem/scripts/Export-ClaudeMemMemories.ps1:104-111`
+**Location**: `.claude-mem/scripts/Export-ClaudeMemMemories.ps1:104-111`
 
 **Severity**: HIGH
 
@@ -479,7 +479,7 @@ Example valid paths:
 
 ### 9. Import-ClaudeMemMemories.ps1: Silent Success on Empty Directory
 
-**Location**: `/home/richard/ai-agents/.claude-mem/scripts/Import-ClaudeMemMemories.ps1:44-47`
+**Location**: `.claude-mem/scripts/Import-ClaudeMemMemories.ps1:44-47`
 
 **Severity**: MEDIUM
 
@@ -511,7 +511,7 @@ if ($Files.Count -eq 0) {
 
 ### 10. Export-ClaudeMemFullBackup.ps1: Empty Export Warning But Still Exits 0
 
-**Location**: `/home/richard/ai-agents/.claude-mem/scripts/Export-ClaudeMemFullBackup.ps1:111-122`
+**Location**: `.claude-mem/scripts/Export-ClaudeMemFullBackup.ps1:111-122`
 
 **Severity**: MEDIUM
 
@@ -562,7 +562,7 @@ if ($TotalRecords -eq 0) {
 
 ### 11. Review-MemoryExportSecurity.ps1: Select-String Errors Not Caught
 
-**Location**: `/home/richard/ai-agents/scripts/Review-MemoryExportSecurity.ps1:98-112`
+**Location**: `scripts/Review-MemoryExportSecurity.ps1:98-112`
 
 **Severity**: MEDIUM
 

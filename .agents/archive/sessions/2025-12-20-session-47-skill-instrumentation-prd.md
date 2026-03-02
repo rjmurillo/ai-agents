@@ -9,7 +9,7 @@
 ### Phase 1: Serena Initialization
 
 - [PASS] Called `mcp__serena__initial_instructions`
-- [PASS] Project activated: ai-agents at D:\src\GitHub\rjmurillo\ai-agents
+- [PASS] Project activated: ai-agents at <project-root>
 
 ### Phase 2: Context Retrieval
 

@@ -42,15 +42,15 @@ Use manual file reading instead when:
 
 ### Using get_applicable_steering.py Script
 
-The script in `.claude/skills/steering-matcher/get_applicable_steering.py` handles pattern matching.
+The script in `.claude/skills/steering-matcher/scripts/get_applicable_steering.py` handles pattern matching.
 
 ```bash
 # Match files against steering patterns
-python3 .claude/skills/steering-matcher/get_applicable_steering.py \
+python3 .claude/skills/steering-matcher/scripts/get_applicable_steering.py \
     --files "src/claude/analyst.md" ".agents/security/TM-001-auth-flow.md" \
     --steering-path ".agents/steering"
 
-# Output: JSON array with Name, Path, ApplyTo, Priority
+# Output: JSON array of objects with name, path, apply_to, priority
 ```
 
 ## Process
@@ -66,19 +66,17 @@ This skill integrates with the orchestrator workflow:
 
 ```bash
 # 1. Identify files from task
-files_affected=("src/claude/security.md" ".agents/security/SR-001-oauth-review.md")
-
 # 2. Get applicable steering
-python3 .claude/skills/steering-matcher/get_applicable_steering.py \
-    --files "${files_affected[@]}"
+python3 .claude/skills/steering-matcher/scripts/get_applicable_steering.py \
+    --files "src/claude/security.md" ".agents/security/SR-001-oauth-review.md"
 
 # 3. Inject into agent context
-# "Relevant steering: agent-prompts.md (Priority 9), security-practices.md (Priority 10)"
+# Output: JSON with name, path, apply_to, priority sorted by priority descending
 ```
 
 ## Implementation
 
-See `get_applicable_steering.py` for the implementation.
+See `scripts/get_applicable_steering.py` for the Python implementation.
 
 ## Testing
 
@@ -103,6 +101,16 @@ After execution:
 - [ ] Returned steering files match the `applyTo` patterns for the given files
 - [ ] Results are sorted by priority (highest first)
 - [ ] No duplicate steering entries in output
+
+## Scripts
+
+### get_applicable_steering.py
+
+Matches file paths against steering glob patterns and returns applicable guidance.
+
+```bash
+python3 .claude/skills/steering-matcher/scripts/get_applicable_steering.py --files <file1> [<file2> ...]
+```
 
 ## Related
 

@@ -1,168 +1,153 @@
 #!/usr/bin/env python3
-"""Extract GitHub context (PR numbers, issue numbers, owner, repo) from text.
+"""Extract GitHub context (PR numbers, issue numbers, owner, repo) from text and URLs.
 
-Parses user prompts to extract GitHub context without requiring
-explicit parameters. Supports text patterns and GitHub URLs.
+Parses user prompts to extract GitHub context without requiring explicit parameters.
+Supports text patterns ("PR 806", "#806") and GitHub URLs.
 
-Exit codes (ADR-035):
-    0 = Success
-    1 = Required context not found
+Exit codes follow ADR-035:
+    0 - Success
+    1 - Required context not found (when --require-pr or --require-issue specified)
 """
+
+from __future__ import annotations
 
 import argparse
 import json
-import os
 import re
 import sys
 
-_lib_dir = os.path.join(
-    os.environ.get("CLAUDE_PLUGIN_ROOT", os.path.join(os.getcwd(), ".claude")),
-    "skills", "github", "lib",
-)
-if _lib_dir not in sys.path:
-    sys.path.insert(0, _lib_dir)
 
+def _extract_context(text: str) -> dict:
+    """Extract GitHub context from text."""
+    pr_numbers: list[int] = []
+    issue_numbers: list[int] = []
+    owner: str | None = None
+    repo: str | None = None
+    urls: list[dict] = []
+    raw_matches: list[str] = []
 
-def extract_github_context(
-    text: str,
-    require_pr: bool = False,
-    require_issue: bool = False,
-) -> dict:
-    """Extract GitHub context from text.
-
-    Args:
-        text: Text to parse for GitHub context.
-        require_pr: Fail if no PR number found.
-        require_issue: Fail if no issue number found.
-
-    Returns:
-        Dict with PRNumbers, IssueNumbers, Owner, Repo, URLs, RawMatches.
-    """
-    result: dict = {
-        "PRNumbers": [],
-        "IssueNumbers": [],
-        "Owner": None,
-        "Repo": None,
-        "URLs": [],
-        "RawMatches": [],
-    }
-
-    # URL extraction
-    url_pattern = (
-        r"github\.com/"
-        r"([a-zA-Z0-9](?:[a-zA-Z0-9-]{0,37}[a-zA-Z0-9])?)/"
-        r"([a-zA-Z0-9._-]{1,100})/"
-        r"(pull|issues)/(\d+)"
+    # URL extraction: github.com/owner/repo/pull/N or github.com/owner/repo/issues/N
+    url_pattern = re.compile(
+        r"github\.com/([a-zA-Z0-9](?:[a-zA-Z0-9-]{0,37}[a-zA-Z0-9])?)"
+        r"/([a-zA-Z0-9._-]{1,100})/(pull|issues)/(\d+)",
+        re.IGNORECASE,
     )
-    url_matches = list(re.finditer(url_pattern, text, re.IGNORECASE))
+    url_matches = list(url_pattern.finditer(text))
 
     for match in url_matches:
-        owner = match.group(1)
-        repo = match.group(2)
-        item_type = match.group(3).lower()
-        number = int(match.group(4))
+        m_owner = match.group(1)
+        m_repo = match.group(2)
+        m_type = match.group(3).lower()
+        m_number = int(match.group(4))
 
-        if result["Owner"] is None:
-            result["Owner"] = owner
-            result["Repo"] = repo
+        if owner is None:
+            owner = m_owner
+            repo = m_repo
 
         url_obj = {
-            "Type": "PR" if item_type == "pull" else "Issue",
-            "Number": number,
-            "Owner": owner,
-            "Repo": repo,
-            "URL": match.group(0),
+            "type": "PR" if m_type == "pull" else "Issue",
+            "number": m_number,
+            "owner": m_owner,
+            "repo": m_repo,
+            "url": match.group(0),
         }
-        result["URLs"].append(url_obj)
-        result["RawMatches"].append(match.group(0))
+        urls.append(url_obj)
+        raw_matches.append(match.group(0))
 
-        target = "PRNumbers" if item_type == "pull" else "IssueNumbers"
-        if number not in result[target]:
-            result[target].append(number)
+        if m_type == "pull":
+            if m_number not in pr_numbers:
+                pr_numbers.append(m_number)
+        else:
+            if m_number not in issue_numbers:
+                issue_numbers.append(m_number)
 
-    # PR patterns: "PR N", "PR #N", "PR#N"
+    # Pattern 1: "PR N", "PR #N", "PR#N"
     for match in re.finditer(r"\bPR\s*#?(\d+)\b", text, re.IGNORECASE):
         number = int(match.group(1))
-        if number not in result["PRNumbers"]:
-            result["PRNumbers"].append(number)
-            result["RawMatches"].append(match.group(0))
+        if number not in pr_numbers:
+            pr_numbers.append(number)
+            raw_matches.append(match.group(0))
 
-    # "pull request N", "pull request #N"
-    for match in re.finditer(
-        r"\bpull\s+request\s*#?(\d+)\b", text, re.IGNORECASE,
-    ):
+    # Pattern 2: "pull request N", "pull request #N"
+    for match in re.finditer(r"\bpull\s+request\s*#?(\d+)\b", text, re.IGNORECASE):
         number = int(match.group(1))
-        if number not in result["PRNumbers"]:
-            result["PRNumbers"].append(number)
-            result["RawMatches"].append(match.group(0))
+        if number not in pr_numbers:
+            pr_numbers.append(number)
+            raw_matches.append(match.group(0))
 
-    # "issue N", "issue #N", "issues N"
+    # Pattern 3: "issue N", "issue #N", "issues N"
     for match in re.finditer(r"\bissues?\s*#?(\d+)\b", text, re.IGNORECASE):
         number = int(match.group(1))
-        if number not in result["IssueNumbers"]:
-            result["IssueNumbers"].append(number)
-            result["RawMatches"].append(match.group(0))
+        if number not in issue_numbers:
+            issue_numbers.append(number)
+            raw_matches.append(match.group(0))
 
-    # Standalone "#N" (ambiguous, defaults to PR)
-    url_ranges = [(m.start(), m.start() + len(m.group(0))) for m in url_matches]
+    # Pattern 4: Standalone "#N" (ambiguous, defaults to PR)
     for match in re.finditer(r"(?<!/)#(\d+)\b", text):
         number = int(match.group(1))
-        pos = match.start()
+        match_pos = match.start()
 
-        in_url = any(start <= pos < end for start, end in url_ranges)
-        if in_url:
-            continue
+        in_url = False
+        for url_match in url_matches:
+            if url_match.start() <= match_pos < url_match.end():
+                in_url = True
+                break
 
-        if (
-            number not in result["PRNumbers"]
-            and number not in result["IssueNumbers"]
-        ):
-            result["PRNumbers"].append(number)
-            result["RawMatches"].append(match.group(0))
+        if not in_url:
+            if number not in pr_numbers and number not in issue_numbers:
+                pr_numbers.append(number)
+                raw_matches.append(match.group(0))
 
-    # Validation
-    if require_pr and not result["PRNumbers"]:
-        print(
-            "Error: Cannot extract PR number from prompt. "
-            "Provide explicit PR number or URL.",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-
-    if require_issue and not result["IssueNumbers"]:
-        print(
-            "Error: Cannot extract issue number from prompt. "
-            "Provide explicit issue number or URL.",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-
-    return result
+    return {
+        "pr_numbers": pr_numbers,
+        "issue_numbers": issue_numbers,
+        "owner": owner,
+        "repo": repo,
+        "urls": urls,
+        "raw_matches": raw_matches,
+    }
 
 
-def main() -> None:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Extract GitHub context from text and URLs"
+        description="Extract GitHub context from text and URLs.",
+    )
+    parser.add_argument("--text", required=True, help="Text to parse for GitHub context")
+    parser.add_argument(
+        "--require-pr",
+        action="store_true",
+        help="Fail if no PR number can be extracted",
     )
     parser.add_argument(
-        "--text", required=True, help="Text to parse for GitHub context"
+        "--require-issue",
+        action="store_true",
+        help="Fail if no issue number can be extracted",
     )
-    parser.add_argument(
-        "--require-pr", action="store_true",
-        help="Fail if no PR number found",
-    )
-    parser.add_argument(
-        "--require-issue", action="store_true",
-        help="Fail if no issue number found",
-    )
-    args = parser.parse_args()
+    return parser
 
-    output = extract_github_context(
-        args.text, args.require_pr, args.require_issue,
-    )
 
-    print(json.dumps(output, indent=2))
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+
+    result = _extract_context(args.text)
+
+    if args.require_pr and not result["pr_numbers"]:
+        print(
+            "Cannot extract PR number from prompt. Provide explicit PR number or URL.",
+            file=sys.stderr,
+        )
+        return 1
+
+    if args.require_issue and not result["issue_numbers"]:
+        print(
+            "Cannot extract issue number from prompt. Provide explicit issue number or URL.",
+            file=sys.stderr,
+        )
+        return 1
+
+    print(json.dumps(result, indent=2))
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

@@ -28,46 +28,44 @@ jobs:
 
       - name: Assign milestone to merged PR
         if: github.event_name == 'pull_request'
-        shell: pwsh -NoProfile -Command "& '{0}'"
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           OWNER: ${{ github.repository_owner }}
           REPO_NAME: ${{ github.event.repository.name }}
         run: |
-          ./.claude/skills/github/scripts/milestone/Set-ItemMilestone.ps1 `
-            -ItemType pr `
-            -ItemNumber $env:PR_NUMBER `
-            -Owner $env:OWNER `
-            -Repo $env:REPO_NAME
+          exit_code=0
+          python3 .github/scripts/set_item_milestone.py \
+            --item-type pr \
+            --item-number "$PR_NUMBER" \
+            --owner "$OWNER" \
+            --repo "$REPO_NAME" || exit_code=$?
 
-          $exitCode = $LASTEXITCODE
-          if ($exitCode -eq 2) {
-            Write-Host "::warning::No semantic version milestone found. Skipping assignment."
+          if [ "$exit_code" -eq 2 ]; then
+            echo "::warning::No semantic version milestone found. Skipping assignment."
             exit 0
-          } elseif ($exitCode -ne 0) {
-            exit $exitCode
-          }
+          elif [ "$exit_code" -ne 0 ]; then
+            exit "$exit_code"
+          fi
 
       - name: Assign milestone to closed issue
         if: github.event_name == 'issues'
-        shell: pwsh -NoProfile -Command "& '{0}'"
         env:
           GH_TOKEN: ${{ github.token }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           OWNER: ${{ github.repository_owner }}
           REPO_NAME: ${{ github.event.repository.name }}
         run: |
-          ./.claude/skills/github/scripts/milestone/Set-ItemMilestone.ps1 `
-            -ItemType issue `
-            -ItemNumber $env:ISSUE_NUMBER `
-            -Owner $env:OWNER `
-            -Repo $env:REPO_NAME
+          exit_code=0
+          python3 .github/scripts/set_item_milestone.py \
+            --item-type issue \
+            --item-number "$ISSUE_NUMBER" \
+            --owner "$OWNER" \
+            --repo "$REPO_NAME" || exit_code=$?
 
-          $exitCode = $LASTEXITCODE
-          if ($exitCode -eq 2) {
-            Write-Host "::warning::No semantic version milestone found. Skipping assignment."
+          if [ "$exit_code" -eq 2 ]; then
+            echo "::warning::No semantic version milestone found. Skipping assignment."
             exit 0
-          } elseif ($exitCode -ne 0) {
-            exit $exitCode
-          }
+          elif [ "$exit_code" -ne 0 ]; then
+            exit "$exit_code"
+          fi

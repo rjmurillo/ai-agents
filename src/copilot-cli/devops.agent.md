@@ -17,7 +17,7 @@ tools:
   - github/get_file_contents
   - cloudmcp-manager/*
   - serena/*
-model: claude-opus-4.5
+model: claude-opus-4.6
 ---
 # DevOps Agent
 

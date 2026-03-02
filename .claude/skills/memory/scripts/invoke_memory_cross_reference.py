@@ -1,55 +1,89 @@
 #!/usr/bin/env python3
 """Orchestrate memory cross-reference scripts for pre-commit hook integration.
 
-Unified entry point for three memory cross-reference scripts:
+Unified entry point that executes all three memory cross-reference scripts
+in the correct order:
 1. convert_index_table_links (tables first)
 2. convert_memory_references (backticks second)
-3. improve_memory_graph_density (related sections last)
+3. improve_memory_graph_density (related sections last, atomic files only)
 
-IMPORTANT: Always exits with code 0 (success) regardless of errors.
-This is intentional for fail-open git hook behavior. Callers MUST parse
-the JSON output (via --output-json) to determine actual success/failure.
+Index files (*-index.md) are excluded from Related section addition
+per ADR-017 requirement for pure lookup table format (token efficiency).
 
-Exit Codes:
-    0  - Always (fail-open for hooks)
+IMPORTANT: This script always exits with code 0 (success) regardless of errors.
+This is intentional for fail-open git hook behavior. Callers MUST parse the
+JSON output (via --output-json) to determine actual success/failure status.
+The JSON output includes a 'Success' property (true/false) and 'Errors' array.
 
-See: ADR-035 Exit Code Standardization
+NOTE: FilesModified represents total modifications across all scripts, not unique
+files. A file modified by multiple scripts in sequence will be counted once per
+script that modifies it.
+
+Exit codes follow ADR-035:
+    0 - Always (fail-open for git hooks)
 """
+
+from __future__ import annotations
 
 import argparse
 import json
-import subprocess
 import sys
 from pathlib import Path
+from typing import Any
+
+from convert_index_table_links import (
+    _find_project_root,
+    _validate_path_within_project,
+)
+from convert_index_table_links import process_files as process_index_links
+from convert_memory_references import process_files as process_backtick_refs
+from improve_memory_graph_density import process_files as process_graph_density
 
 
-def run_script(script_path: str, common_args: list[str]) -> dict | None:
-    """Run a sub-script with --output-json and parse result."""
-    cmd = [sys.executable, script_path, "--output-json"] + common_args
-    try:
-        result = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=60,
-        )
-        if result.stdout.strip():
-            return json.loads(result.stdout.strip())
-    except (subprocess.TimeoutExpired, FileNotFoundError, json.JSONDecodeError) as e:
-        return {"Error": str(e)}
-    return None
-
-
-def main() -> None:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Orchestrate memory cross-reference scripts."
+        description="Orchestrate all memory cross-reference scripts.",
     )
-    parser.add_argument("--files-to-process", nargs="*", default=None)
-    parser.add_argument("--memories-path", type=str, default="")
-    parser.add_argument("--output-json", action="store_true")
-    parser.add_argument("--skip-path-validation", action="store_true")
-    args = parser.parse_args()
+    parser.add_argument(
+        "--files",
+        nargs="*",
+        help="Specific memory files to process. Defaults to all files.",
+    )
+    parser.add_argument(
+        "--memories-path",
+        help="Path to memories directory. Defaults to .serena/memories.",
+    )
+    parser.add_argument(
+        "--output-json",
+        action="store_true",
+        help="Output machine-parseable JSON statistics.",
+    )
+    parser.add_argument(
+        "--skip-path-validation",
+        action="store_true",
+        help="Skip CWE-22 path validation (for testing only).",
+    )
+    return parser
 
-    script_dir = Path(__file__).resolve().parent
 
-    aggregate = {
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+
+    project_root = _find_project_root()
+
+    if args.memories_path:
+        if args.skip_path_validation:
+            memories_path = Path(args.memories_path).resolve()
+        else:
+            memories_path = _validate_path_within_project(
+                args.memories_path, project_root
+            )
+    else:
+        memories_path = project_root / ".serena" / "memories"
+
+    files_to_process = [Path(f) for f in args.files] if args.files else None
+
+    aggregate: dict[str, Any] = {
         "IndexLinksAdded": 0,
         "BacktickLinksAdded": 0,
         "RelatedSectionsAdded": 0,
@@ -58,60 +92,58 @@ def main() -> None:
         "Success": True,
     }
 
-    common_args: list[str] = []
-    if args.memories_path:
-        common_args.extend(["--memories-path", args.memories_path])
-    if args.files_to_process:
-        common_args.extend(["--files-to-process"] + args.files_to_process)
-    if args.skip_path_validation:
-        common_args.append("--skip-path-validation")
-
-    scripts = [
-        (
-            "Convert-IndexTableLinks",
-            "convert_index_table_links.py",
-            "IndexLinksAdded", "LinksAdded",
-        ),
-        (
-            "Convert-MemoryReferences",
-            "convert_memory_references.py",
-            "BacktickLinksAdded", "LinksAdded",
-        ),
-        (
-            "Improve-MemoryGraphDensity",
-            "improve_memory_graph_density.py",
-            "RelatedSectionsAdded", "RelationshipsAdded",
-        ),
-    ]
-
-    for step_num, (label, script_name, agg_key, result_key) in enumerate(scripts, 1):
+    # Step 1: Convert index table links
+    if not args.output_json:
+        print("=== Step 1/3: Converting index table links ===")
+    try:
+        result = process_index_links(
+            memories_path, files_to_process, output_json=True
+        )
+        aggregate["IndexLinksAdded"] = result.get("LinksAdded", 0)
+        aggregate["FilesModified"] += result.get("FilesModified", 0)
+        if result.get("Errors"):
+            aggregate["Errors"].extend(result["Errors"])
+    except Exception as exc:
+        aggregate["Errors"].append(f"convert_index_table_links: {exc}")
         if not args.output_json:
-            print(f"\n=== Step {step_num}/3: {label} ===")
+            print(f"WARNING: convert_index_table_links failed: {exc}", file=sys.stderr)
 
-        script_path = str(script_dir / script_name)
+    # Step 2: Convert backtick references
+    if not args.output_json:
+        print("\n=== Step 2/3: Converting backtick references ===")
+    try:
+        result = process_backtick_refs(
+            memories_path, files_to_process, output_json=True
+        )
+        aggregate["BacktickLinksAdded"] = result.get("LinksAdded", 0)
+        aggregate["FilesModified"] += result.get("FilesModified", 0)
+        if result.get("Errors"):
+            aggregate["Errors"].extend(result["Errors"])
+    except Exception as exc:
+        aggregate["Errors"].append(f"convert_memory_references: {exc}")
+        if not args.output_json:
+            print(f"WARNING: convert_memory_references failed: {exc}", file=sys.stderr)
 
-        try:
-            result = run_script(script_path, common_args)
-            if result:
-                if "Error" in result and isinstance(result["Error"], str):
-                    aggregate["Errors"].append(f"{label}: {result['Error']}")
-                else:
-                    aggregate[agg_key] = result.get(result_key, 0)
-                    files_mod = result.get("FilesModified", 0)
-                    if files_mod > 0:
-                        aggregate["FilesModified"] += files_mod
-                    errors = result.get("Errors", [])
-                    if errors:
-                        aggregate["Errors"].extend(errors)
-        except Exception as e:
-            aggregate["Errors"].append(f"{label}: {e}")
-            if not args.output_json:
-                print(f"Warning: {label} failed: {e}", file=sys.stderr)
+    # Step 3: Add Related sections
+    if not args.output_json:
+        print("\n=== Step 3/3: Adding Related sections ===")
+    try:
+        result = process_graph_density(
+            memories_path, files_to_process, output_json=True
+        )
+        aggregate["RelatedSectionsAdded"] = result.get("RelationshipsAdded", 0)
+        aggregate["FilesModified"] += result.get("FilesModified", 0)
+        if result.get("Errors"):
+            aggregate["Errors"].extend(result["Errors"])
+    except Exception as exc:
+        aggregate["Errors"].append(f"improve_memory_graph_density: {exc}")
+        if not args.output_json:
+            print(f"WARNING: improve_memory_graph_density failed: {exc}", file=sys.stderr)
 
     aggregate["Success"] = len(aggregate["Errors"]) == 0
 
     if args.output_json:
-        print(json.dumps(aggregate))
+        print(json.dumps(aggregate, separators=(",", ":")))
     else:
         print("\n=== Summary ===")
         print(f"Index table links added: {aggregate['IndexLinksAdded']}")
@@ -123,8 +155,9 @@ def main() -> None:
             for err in aggregate["Errors"]:
                 print(f"  - {err}")
 
-    sys.exit(0)
+    # Always exit 0 (fail-open for hooks)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

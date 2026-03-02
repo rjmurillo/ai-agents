@@ -1,162 +1,149 @@
 #!/usr/bin/env python3
 """Add a reaction to one or more GitHub comments.
 
-Adds emoji reactions to PR review comments or issue comments.
-Supports batch operations. Common use: eyes to acknowledge
-receipt of review comments.
+Supports batch operations for improved performance.
+Common use: eyes to acknowledge receipt of review comments.
 
-Exit codes (ADR-035):
-    0 = All succeeded
-    1 = Invalid parameters
-    3 = Any failed
-    4 = Not authenticated
+Exit codes follow ADR-035:
+    0 - All succeeded
+    1 - Invalid parameters / logic error
+    3 - Any failed
+    4 - Auth error (not authenticated)
 """
+
+from __future__ import annotations
 
 import argparse
 import json
 import os
+import subprocess
 import sys
 
-_lib_dir = os.path.join(
-    os.environ.get("CLAUDE_PLUGIN_ROOT", os.path.join(os.getcwd(), ".claude")),
-    "skills", "github", "lib",
-)
+_plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+_workspace = os.environ.get("GITHUB_WORKSPACE")
+if _plugin_root:
+    _lib_dir = os.path.join(_plugin_root, "lib")
+elif _workspace:
+    _lib_dir = os.path.join(_workspace, ".claude", "lib")
+else:
+    _lib_dir = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "lib")
+    )
 if _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
 
-from github_core.api import (
-    _run_gh,
+from github_core.api import (  # noqa: E402
     assert_gh_authenticated,
     resolve_repo_params,
 )
 
-REACTION_EMOJI = {
-    "+1": "thumbs_up",
-    "-1": "thumbs_down",
-    "laugh": "laughing",
-    "confused": "confused",
-    "heart": "heart",
-    "hooray": "tada",
-    "rocket": "rocket",
-    "eyes": "eyes",
+REACTION_EMOJI: dict[str, str] = {
+    "+1": "\U0001f44d",
+    "-1": "\U0001f44e",
+    "laugh": "\U0001f604",
+    "confused": "\U0001f615",
+    "heart": "\u2764\ufe0f",
+    "hooray": "\U0001f389",
+    "rocket": "\U0001f680",
+    "eyes": "\U0001f440",
 }
 
 VALID_REACTIONS = list(REACTION_EMOJI.keys())
 
 
-def add_comment_reaction(
-    owner: str,
-    repo: str,
-    comment_ids: list[int],
-    comment_type: str = "review",
-    reaction: str = "eyes",
-) -> dict:
-    """Add a reaction to one or more GitHub comments.
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Add a reaction to one or more GitHub comments.",
+    )
+    parser.add_argument("--owner", default="", help="Repository owner")
+    parser.add_argument("--repo", default="", help="Repository name")
+    parser.add_argument(
+        "--comment-id",
+        nargs="+",
+        type=int,
+        required=True,
+        help="One or more comment IDs to react to",
+    )
+    parser.add_argument(
+        "--comment-type",
+        choices=["review", "issue"],
+        default="review",
+        help='Comment type: "review" for PR review comments, "issue" for issue comments',
+    )
+    parser.add_argument(
+        "--reaction",
+        required=True,
+        choices=VALID_REACTIONS,
+        help="Reaction type",
+    )
+    return parser
 
-    Args:
-        owner: Repository owner.
-        repo: Repository name.
-        comment_ids: List of comment IDs to react to.
-        comment_type: "review" for PR review comments, "issue" for issue comments.
-        reaction: Reaction type (e.g., "+1", "eyes", "heart").
 
-    Returns:
-        Dict with batch operation summary.
-    """
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+
+    assert_gh_authenticated()
+    resolved = resolve_repo_params(args.owner, args.repo)
+    owner, repo = resolved.owner, resolved.repo
+
+    emoji = REACTION_EMOJI.get(args.reaction, args.reaction)
     succeeded = 0
     failed = 0
-    results = []
+    results: list[dict] = []
 
-    for cid in comment_ids:
-        if comment_type == "review":
+    for cid in args.comment_id:
+        if args.comment_type == "review":
             endpoint = f"repos/{owner}/{repo}/pulls/comments/{cid}/reactions"
         else:
             endpoint = f"repos/{owner}/{repo}/issues/comments/{cid}/reactions"
 
-        result = _run_gh(
-            "api", endpoint, "-X", "POST", "-f", f"content={reaction}",
-            check=False,
+        result = subprocess.run(
+            ["gh", "api", endpoint, "-X", "POST", "-f", f"content={args.reaction}"],
+            capture_output=True, text=True, check=False,
         )
 
-        success = (
-            result.returncode == 0
-            or "already reacted" in result.stdout
-        )
+        # Duplicate reactions are OK (idempotent)
+        success = result.returncode == 0 or "already reacted" in (result.stderr + result.stdout)
 
         if success:
             succeeded += 1
             results.append({
-                "Success": True,
-                "CommentId": cid,
-                "CommentType": comment_type,
-                "Reaction": reaction,
-                "Error": None,
+                "success": True,
+                "comment_id": cid,
+                "comment_type": args.comment_type,
+                "reaction": args.reaction,
+                "emoji": emoji,
+                "error": None,
             })
         else:
             failed += 1
+            error_str = result.stderr.strip() or result.stdout.strip()
             results.append({
-                "Success": False,
-                "CommentId": cid,
-                "CommentType": comment_type,
-                "Reaction": reaction,
-                "Error": result.stderr or result.stdout,
+                "success": False,
+                "comment_id": cid,
+                "comment_type": args.comment_type,
+                "reaction": args.reaction,
+                "emoji": emoji,
+                "error": error_str,
             })
 
-    return {
-        "TotalCount": len(comment_ids),
-        "Succeeded": succeeded,
-        "Failed": failed,
-        "Reaction": reaction,
-        "CommentType": comment_type,
-        "Results": results,
+    summary = {
+        "total_count": len(args.comment_id),
+        "succeeded": succeeded,
+        "failed": failed,
+        "reaction": args.reaction,
+        "emoji": emoji,
+        "comment_type": args.comment_type,
+        "results": results,
     }
 
+    print(json.dumps(summary, indent=2))
 
-def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Add a reaction to GitHub comments"
-    )
-    parser.add_argument("--owner", help="Repository owner")
-    parser.add_argument("--repo", help="Repository name")
-    parser.add_argument(
-        "--comment-id", type=int, nargs="+", required=True,
-        help="Comment ID(s) to react to",
-    )
-    parser.add_argument(
-        "--comment-type", default="review",
-        choices=["review", "issue"],
-        help="Comment type",
-    )
-    parser.add_argument(
-        "--reaction", required=True, choices=VALID_REACTIONS,
-        help="Reaction type",
-    )
-    args = parser.parse_args()
+    if failed > 0:
+        return 3
 
-    assert_gh_authenticated()
-    resolved = resolve_repo_params(args.owner, args.repo)
-
-    output = add_comment_reaction(
-        resolved["owner"], resolved["repo"],
-        args.comment_id, args.comment_type, args.reaction,
-    )
-
-    print(json.dumps(output, indent=2))
-
-    total = output["TotalCount"]
-    ok = output["Succeeded"]
-    if total > 1:
-        print(f"Batch complete: {ok}/{total} succeeded", file=sys.stderr)
-    elif ok > 0:
-        print(
-            f"Added {args.reaction} to {args.comment_type} comment "
-            f"{args.comment_id[0]}",
-            file=sys.stderr,
-        )
-
-    if output["Failed"] > 0:
-        sys.exit(3)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
