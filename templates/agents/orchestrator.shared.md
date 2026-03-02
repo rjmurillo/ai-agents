@@ -227,8 +227,8 @@ Use Memory Router for search and Serena tools for persistence (ADR-037):
 
 **Before multi-step reasoning (retrieve context):**
 
-```powershell
-pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "orchestration [relevant-pattern]"
+```bash
+python3 .claude/skills/memory/scripts/search_memory.py --query "orchestration [relevant-pattern]"
 ```
 
 **At milestones (or every 5 turns, store learnings):**

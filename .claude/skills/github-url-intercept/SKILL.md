@@ -36,7 +36,7 @@ SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 python3 "$SCRIPTS_DIR/pr/get_pr_context.py" --pull-request {n} --owner {owner} --repo {repo}
 
 # Issue URL → Use this (legacy)
-pwsh .claude/skills/github/scripts/issue/Get-IssueContext.ps1 -Issue {n} -Owner {owner} -Repo {repo}
+python3 "$SCRIPTS_DIR/issue/get_issue_context.py" --issue {n} --owner {owner} --repo {repo}
 
 # File/blob URL → Use this
 gh api repos/{owner}/{repo}/contents/{path}?ref={ref}
@@ -105,10 +105,10 @@ GitHub URL detected in user input
 │
 ├─ Is /pull/{n}?
 │     Yes → get_pr_context.py --pull-request {n} --owner {o} --repo {r}
-│           (or Get-PRReviewComments.ps1 (legacy) / get_pr_review_threads.py for comments)
+│           (or get_pr_review_comments.py (legacy) / get_pr_review_threads.py for comments)
 │
 ├─ Is /issues/{n}?
-│     Yes → Get-IssueContext.ps1 -Issue {n} -Owner {o} -Repo {r}
+│     Yes → get_issue_context.py --issue {n} --owner {o} --repo {r}
 │
 ├─ Is /blob/{ref}/{path} or /tree/{ref}/{path}?
 │     Yes → gh api repos/{o}/{r}/contents/{path}?ref={ref}
@@ -160,10 +160,10 @@ GitHub URL detected in user input
 |-------------|--------|------------|
 | `/pull/{n}` | `get_pr_context.py` | `--pull-request {n} --owner {o} --repo {r}` |
 | `/pull/{n}` (with diff) | `get_pr_context.py` | `--pull-request {n} --include-diff` |
-| `/pull/{n}` (review comments) | `Get-PRReviewComments.ps1` (legacy) | `-PullRequest {n}` |
+| `/pull/{n}` (review comments) | `get_pr_review_comments.py` (legacy) | `--pull-request {n}` |
 | `/pull/{n}` (review threads) | `get_pr_review_threads.py` | `--pull-request {n}` |
 | `/pull/{n}` (CI status) | `get_pr_checks.py` | `--pull-request {n}` |
-| `/issues/{n}` | `Get-IssueContext.ps1` | `-Issue {n} -Owner {o} -Repo {r}` |
+| `/issues/{n}` | `get_issue_context.py` | `--issue {n} --owner {o} --repo {r}` |
 
 **Script location**: `.claude/skills/github/scripts/`
 

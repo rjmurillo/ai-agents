@@ -57,7 +57,7 @@ SlashCommandCreator: create command for [purpose]
 Or manually:
 
 ```bash
-pwsh .claude/skills/slashcommandcreator/scripts/New-SlashCommand.ps1 -Name "my-command"
+python3 .claude/skills/slashcommandcreator/scripts/new_slash_command.py --name "my-command"
 ```
 
 ## Validation
@@ -65,7 +65,7 @@ pwsh .claude/skills/slashcommandcreator/scripts/New-SlashCommand.ps1 -Name "my-c
 All commands pass quality gates:
 
 ```bash
-pwsh .claude/skills/slashcommandcreator/scripts/Validate-SlashCommand.ps1 -Path .claude/commands/[name].md
+python3 .claude/skills/slashcommandcreator/scripts/validate_slash_command.py --path .claude/commands/[name].md
 ```
 
 **Pre-commit hook**: Automatically validates staged commands

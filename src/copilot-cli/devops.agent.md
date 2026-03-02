@@ -179,8 +179,8 @@ Use Memory Router for search and Serena tools for persistence:
 
 **Before pipeline work (retrieve context):**
 
-```powershell
-pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "devops patterns [pipeline/infrastructure]"
+```bash
+python3 .claude/skills/memory/scripts/search_memory.py --query "devops patterns [pipeline/infrastructure]"
 ```
 
 **After pipeline work (store learnings):**

@@ -239,7 +239,7 @@ PR Review:
 Claude agents use MCP tool prefix syntax:
 
 ```text
-pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "topic"  # Memory Router (ADR-037)
+python3 .claude/skills/memory/scripts/search_memory.py --query "topic"  # Memory Router (ADR-037)
 mcp__serena__write_memory  # Serena write tools
 mcp__deepwiki__ask_question
 mcp__serena__find_symbol

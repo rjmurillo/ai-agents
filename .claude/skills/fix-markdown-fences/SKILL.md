@@ -121,53 +121,11 @@ def fix_markdown_files(directory: Path, pattern: str = "**/*.md") -> list[str]:
 grep -rn '```[a-zA-Z]' --include="*.md" | grep -v "^[^:]*:[0-9]*:\s*```[a-zA-Z]*$"
 ```
 
-### PowerShell
+### Script (Batch Fix)
 
-```powershell
-$directories = @('docs', 'src')
-
-foreach ($dir in $directories) {
-    Get-ChildItem -Path $dir -Filter '*.md' -Recurse | ForEach-Object {
-        $file = $_.FullName
-        $content = Get-Content $file -Raw
-        $lines = $content -split "`r?`n"
-        $result = @()
-        $inCodeBlock = $false
-        $codeBlockIndent = ""
-
-        for ($i = 0; $i -lt $lines.Count; $i++) {
-            $line = $lines[$i]
-
-            if ($line -match '^(\s*)```(\w+)') {
-                if ($inCodeBlock) {
-                    $result += $codeBlockIndent + '```'
-                    $result += $line
-                    $codeBlockIndent = $Matches[1]
-                } else {
-                    $result += $line
-                    $codeBlockIndent = $Matches[1]
-                    $inCodeBlock = $true
-                }
-            }
-            elseif ($line -match '^(\s*)```\s*$') {
-                $result += $line
-                $inCodeBlock = $false
-                $codeBlockIndent = ""
-            }
-            else {
-                $result += $line
-            }
-        }
-
-        if ($inCodeBlock) {
-            $result += $codeBlockIndent + '```'
-        }
-
-        $newContent = $result -join "`n"
-        Set-Content -Path $file -Value $newContent -NoNewline
-        Write-Host "Fixed: $file"
-    }
-}
+```bash
+# Fix all markdown files in specified directories
+python3 .claude/skills/fix-markdown-fences/fix_fences.py docs src
 ```
 
 ## Usage
@@ -175,17 +133,8 @@ foreach ($dir in $directories) {
 ### Fix Files in Directory
 
 ```bash
-# Python
-python -c "
-from pathlib import Path
-exec(open('fix_fences.py').read())
-fixed = fix_markdown_files(Path('docs'))
-for f in fixed:
-    print(f'Fixed: {f}')
-"
-
-# PowerShell
-pwsh fix-fences.ps1
+# Using the script directly
+python3 .claude/skills/fix-markdown-fences/fix_fences.py docs
 ```
 
 ### Fix Single String (In-Memory)

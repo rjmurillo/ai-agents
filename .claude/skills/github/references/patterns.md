@@ -6,17 +6,19 @@ Reusable patterns for GitHub CLI operations.
 
 ## Owner/Repo Inference
 
-All scripts auto-infer from `git remote` when `-Owner` and `-Repo` are omitted.
+All scripts auto-infer from `git remote` when `--owner` and `--repo` are omitted.
 
 ---
 
 ## Idempotency with Markers
 
-Use `-Marker` to prevent duplicate comments:
+Use `--marker` to prevent duplicate comments:
 
-```powershell
+```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+
 # First call: posts comment with <!-- AI-TRIAGE --> marker
-pwsh -NoProfile scripts/issue/Post-IssueComment.ps1 -Issue 123 -Body "..." -Marker "AI-TRIAGE"
+python3 "$SCRIPTS_DIR/issue/post_issue_comment.py" --issue 123 --body "..." --marker "AI-TRIAGE"
 
 # Second call: exits with code 5 (already exists)
 ```
@@ -25,7 +27,7 @@ pwsh -NoProfile scripts/issue/Post-IssueComment.ps1 -Issue 123 -Body "..." -Mark
 
 ## Body from File
 
-For multi-line content, use `-BodyFile` to avoid escaping issues.
+For multi-line content, use `--body-file` to avoid escaping issues.
 
 ---
 
@@ -155,12 +157,11 @@ ids=$(echo "$comments" | jq -r '.[].id')
 
 # Batch acknowledge (saves ~1.2s per comment vs. individual calls)
 for id in $ids; do
-    pwsh -NoProfile "$SCRIPTS_DIR/reactions/Add-CommentReaction.ps1" -CommentId "$id" -Reaction "eyes"
+    python3 "$SCRIPTS_DIR/reactions/add_comment_reaction.py" --comment-id "$id" --reaction "eyes"
 done
 
-# Or use batch mode with array
-id_array=$(echo "$comments" | jq -r '[.[].id] | join(",")')
-result=$(pwsh -NoProfile "$SCRIPTS_DIR/reactions/Add-CommentReaction.ps1" -CommentId "$id_array" -Reaction "eyes")
+# Or use batch mode with multiple IDs
+python3 "$SCRIPTS_DIR/reactions/add_comment_reaction.py" --comment-id $ids --reaction "eyes"
 
 # Check results
 echo "$result" | jq '"Acknowledged \(.Succeeded)/\(.TotalCount) comments"'

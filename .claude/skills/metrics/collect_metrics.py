@@ -1,72 +1,34 @@
 #!/usr/bin/env python3
-"""
-Agent Metrics Collection Utility
+"""Agent Metrics Collection Utility.
 
-Collects and reports metrics on agent usage from git history and PR data.
+Collects and reports metrics on agent usage from git history.
 Implements the 8 key metrics defined in docs/agent-metrics.md.
 
-Usage:
-    python collect_metrics.py [--since DAYS] [--output FORMAT]
-
-Options:
-    --since DAYS    Number of days to analyze (default: 30)
-    --output FORMAT Output format: json, markdown, summary (default: summary)
-    --repo PATH     Repository path (default: current directory)
+EXIT CODES (ADR-035):
+    0 - Success: Metrics collected and output successfully
+    1 - Error: Path not found or not a git repository
 """
 
-import argparse
+from __future__ import annotations
+
 import json
+import math
 import re
 import subprocess
 import sys
-from collections import Counter, defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, cast
 
-
-def validate_and_resolve_path(path_str: str, allowed_base: Path) -> Path | None:
-    """
-    Validate that a path string is safe and resolve it against a trusted base directory.
-    This prevents directory traversal by ensuring the final path stays within allowed_base.
-
-    Args:
-        path_str: Path string provided by the user.
-        allowed_base: Base directory that the resolved path must remain within.
-
-    Returns:
-        A resolved Path object if the path is safe, or None otherwise.
-    """
-    # Normalize inputs
-    raw = str(path_str)
-    base = allowed_base.resolve()
-
-    try:
-        # Treat all user input as relative to the trusted base and resolve it.
-        # Using strict=False so that existence of the path is not required for validation.
-        resolved_path = (base / raw).resolve(strict=False)
-
-        # Ensure the resolved path is contained within the allowed base
-        resolved_path.relative_to(base)
-        return resolved_path
-    except (ValueError, OSError):
-        # Any resolution or containment error means the path is unsafe
-        return None
-
-
-# Agent patterns to detect in commit messages and PR descriptions
 AGENT_PATTERNS = [
-    r"(?i)\b(orchestrator|analyst|architect|implementer|security|qa|devops|"
-    r"critic|milestone-planner|planner|explainer|task-decomposer|task-generator|"
-    r"backlog-generator|high-level-advisor|"
-    r"independent-thinker|memory|skillbook|retrospective|roadmap|"
-    r"pr-comment-responder)\b\s*(agent)?",
+    r"(?i)\b(orchestrator|analyst|architect|implementer|security|qa|devops|critic|"
+    r"milestone-planner|planner|explainer|task-decomposer|task-generator|"
+    r"backlog-generator|high-level-advisor|independent-thinker|memory|"
+    r"skillbook|retrospective|roadmap|pr-comment-responder)\b\s*(agent)?",
     r"(?i)reviewed\s+by:?\s*(security|architect|analyst|qa|implementer)",
     r"(?i)agent:\s*(\w+)",
     r"(?i)\[(\w+)-agent\]",
 ]
 
-# Infrastructure file patterns (from Issue #9)
 INFRASTRUCTURE_PATTERNS = [
     r"^\.github/workflows/.*\.(yml|yaml)$",
     r"^\.github/actions/",
@@ -81,7 +43,6 @@ INFRASTRUCTURE_PATTERNS = [
     r"\.agents/",
 ]
 
-# Commit type patterns (conventional commits)
 COMMIT_TYPE_PATTERNS = {
     "feature": r"^feat(\(.+\))?:",
     "fix": r"^fix(\(.+\))?:",
@@ -95,125 +56,112 @@ COMMIT_TYPE_PATTERNS = {
 }
 
 
-def run_git_command(args: list[str], repo_path: str = ".") -> str:
-    """Run a git command and return output."""
+def get_commits_since(days: int, path: str) -> list[dict]:
+    """Get commits from git log since a given number of days ago."""
+    since_date = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+    log_format = "%H|%s|%an|%ae|%ad"
+
     try:
         result = subprocess.run(
-            ["git"] + args,
-            cwd=repo_path,
+            ["git", "-C", path, "log", f"--since={since_date}", f"--format={log_format}", "--date=short"],
             capture_output=True,
             text=True,
-            check=True,
+            timeout=60,
         )
-        return result.stdout.strip()
-    except subprocess.CalledProcessError as e:
-        print(f"Git command failed: {e.stderr}", file=sys.stderr)
-        return ""
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return []
 
-
-def get_commits_since(days: int, repo_path: str = ".") -> list[dict[str, Any]]:
-    """Get commits from the last N days."""
-    since_date = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
-
-    # Get commit data in a parseable format
-    log_format = "%H|%s|%an|%ae|%ad"
-    output = run_git_command(
-        ["log", f"--since={since_date}", f"--format={log_format}", "--date=short"],
-        repo_path,
-    )
-
-    if not output:
+    if not result.stdout.strip():
         return []
 
     commits = []
-    for line in output.split("\n"):
+    for line in result.stdout.strip().splitlines():
         if not line.strip():
             continue
         parts = line.split("|", 4)
         if len(parts) >= 5:
             commits.append({
-                "hash": parts[0],
-                "subject": parts[1],
-                "author": parts[2],
-                "email": parts[3],
-                "date": parts[4],
+                "Hash": parts[0],
+                "Subject": parts[1],
+                "Author": parts[2],
+                "Email": parts[3],
+                "Date": parts[4],
             })
-
     return commits
 
 
-def get_commit_files(commit_hash: str, repo_path: str = ".") -> list[str]:
+def get_commit_files(commit_hash: str, path: str) -> list[str]:
     """Get files changed in a commit."""
-    output = run_git_command(
-        ["diff-tree", "--no-commit-id", "--name-only", "-r", commit_hash],
-        repo_path,
-    )
-    return [f for f in output.split("\n") if f.strip()]
+    try:
+        result = subprocess.run(
+            ["git", "-C", path, "diff-tree", "--no-commit-id", "--name-only", "-r", commit_hash],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return []
+
+    return [f for f in result.stdout.strip().splitlines() if f.strip()]
 
 
-def detect_agents_in_text(text: str) -> list[str]:
-    """Detect agent references in text."""
-    agents = set()
+def find_agents_in_text(text: str) -> list[str]:
+    """Find agent names mentioned in text."""
+    agents: dict[str, bool] = {}
     for pattern in AGENT_PATTERNS:
-        matches = re.findall(pattern, text, re.IGNORECASE)
-        for match in matches:
-            if isinstance(match, tuple):
-                agent = match[0].lower()
-            else:
-                agent = match.lower()
+        for match in re.finditer(pattern, text, re.IGNORECASE):
+            agent = match.group(1).lower()
             if agent and agent != "agent":
-                agents.add(agent)
-    return list(agents)
+                agents[agent] = True
+    return list(agents.keys())
 
 
-def classify_commit_type(subject: str) -> str:
-    """Classify commit by conventional commit type."""
+def get_commit_type(subject: str) -> str:
+    """Determine commit type from conventional commit message."""
     for commit_type, pattern in COMMIT_TYPE_PATTERNS.items():
-        if re.match(pattern, subject, re.IGNORECASE):
+        if re.search(pattern, subject):
             return commit_type
     return "other"
 
 
-def is_infrastructure_file(filepath: str) -> bool:
-    """Check if file matches infrastructure patterns."""
+def is_infrastructure_file(file_path: str) -> bool:
+    """Check if a file matches infrastructure patterns."""
     for pattern in INFRASTRUCTURE_PATTERNS:
-        if re.search(pattern, filepath):
+        if re.search(pattern, file_path):
             return True
     return False
 
 
-def collect_metrics(repo_path: str = ".", days: int = 30) -> dict[str, Any]:
-    """Collect all 8 key metrics."""
-    commits = get_commits_since(days, repo_path)
+def get_metrics(path: str, days: int) -> dict:
+    """Collect all metrics."""
+    commits = get_commits_since(days, path)
+    now = datetime.now()
 
-    # Initialize metric collectors
-    agent_invocations: Counter = Counter()
+    agent_invocations: dict[str, int] = {}
     commits_with_agents = 0
-    commits_by_type: Counter = Counter()
-    commits_with_agent_by_type: defaultdict = defaultdict(int)
+    commits_by_type: dict[str, int] = {}
+    commits_with_agent_by_type: dict[str, int] = {}
     infrastructure_commits = 0
     infrastructure_with_security = 0
 
     for commit in commits:
-        # Get commit details
-        files = get_commit_files(commit["hash"], repo_path)
-        subject = commit["subject"]
-        commit_type = classify_commit_type(subject)
+        files = get_commit_files(commit["Hash"], path)
+        subject = commit["Subject"]
+        commit_type = get_commit_type(subject)
 
-        # Detect agents
-        agents = detect_agents_in_text(subject)
+        agents = find_agents_in_text(subject)
 
-        # Metric 1 & 5: Agent invocation tracking
         for agent in agents:
-            agent_invocations[agent] += 1
+            agent_invocations[agent] = agent_invocations.get(agent, 0) + 1
 
-        # Metric 2: Agent coverage
+        commits_by_type.setdefault(commit_type, 0)
+        commits_with_agent_by_type.setdefault(commit_type, 0)
         commits_by_type[commit_type] += 1
+
         if agents:
             commits_with_agents += 1
             commits_with_agent_by_type[commit_type] += 1
 
-        # Metric 4: Infrastructure review rate
         has_infra = any(is_infrastructure_file(f) for f in files)
         if has_infra:
             infrastructure_commits += 1
@@ -223,91 +171,66 @@ def collect_metrics(repo_path: str = ".", days: int = 30) -> dict[str, Any]:
     total_commits = len(commits)
     total_invocations = sum(agent_invocations.values())
 
-    # Calculate metrics
-    metrics = {
+    coverage_rate = round(commits_with_agents / total_commits * 100, 1) if total_commits > 0 else 0
+    infra_rate = (
+        round(infrastructure_with_security / infrastructure_commits * 100, 1)
+        if infrastructure_commits > 0
+        else 0
+    )
+
+    metrics: dict = {
         "period": {
             "days": days,
-            "start_date": (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d"),
-            "end_date": datetime.now().strftime("%Y-%m-%d"),
+            "start_date": (now - timedelta(days=days)).strftime("%Y-%m-%d"),
+            "end_date": now.strftime("%Y-%m-%d"),
             "total_commits": total_commits,
         },
-
-        # Metric 1: Invocation Rate by Agent
         "metric_1_invocation_rate": {
-            "agents": {
-                agent: {
-                    "count": count,
-                    "rate": (
-                        round(count / total_invocations * 100, 1)
-                        if total_invocations > 0
-                        else 0
-                    ),
-                }
-                for agent, count in agent_invocations.most_common()
-            },
+            "agents": {},
             "total_invocations": total_invocations,
         },
-
-        # Metric 2: Agent Coverage
         "metric_2_coverage": {
             "total_commits": total_commits,
             "commits_with_agent": commits_with_agents,
-            "coverage_rate": (
-                round(commits_with_agents / total_commits * 100, 1)
-                if total_commits > 0
-                else 0
-            ),
+            "coverage_rate": coverage_rate,
             "target": 50,
-            "by_type": {
-                commit_type: {
-                    "total": commits_by_type[commit_type],
-                    "with_agent": commits_with_agent_by_type[commit_type],
-                    "rate": (
-                        round(
-                            commits_with_agent_by_type[commit_type]
-                            / commits_by_type[commit_type]
-                            * 100,
-                            1,
-                        )
-                        if commits_by_type[commit_type] > 0
-                        else 0
-                    ),
-                }
-                for commit_type in commits_by_type
-            },
+            "by_type": {},
+            "status": "on_track" if coverage_rate >= 50 else "behind",
         },
-
-        # Metric 4: Infrastructure Code Review Rate
         "metric_4_infrastructure_review": {
             "infrastructure_commits": infrastructure_commits,
             "with_security_review": infrastructure_with_security,
-            "review_rate": round(
-                infrastructure_with_security / infrastructure_commits * 100, 1
-            ) if infrastructure_commits > 0 else 0,
+            "review_rate": infra_rate,
             "target": 100,
+            "status": (
+                "on_track"
+                if infrastructure_commits == 0
+                or infrastructure_with_security / infrastructure_commits >= 1
+                else "behind"
+            ),
         },
-
-        # Metric 5: Usage Distribution
-        "metric_5_distribution": {
-            agent: round(count / total_invocations * 100, 1) if total_invocations > 0 else 0
-            for agent, count in agent_invocations.most_common()
-        },
+        "metric_5_distribution": {},
     }
 
-    # Add status indicators
-    coverage_metrics = cast(dict[str, Any], metrics["metric_2_coverage"])
-    coverage_rate = cast(float, coverage_metrics["coverage_rate"])
-    coverage_metrics["status"] = "on_track" if coverage_rate >= 50 else "behind"
+    for agent in sorted(agent_invocations, key=lambda a: agent_invocations[a], reverse=True):
+        count = agent_invocations[agent]
+        rate = round(count / total_invocations * 100, 1) if total_invocations > 0 else 0
+        metrics["metric_1_invocation_rate"]["agents"][agent] = {"count": count, "rate": rate}
+        metrics["metric_5_distribution"][agent] = rate
 
-    infra_metrics = cast(dict[str, Any], metrics["metric_4_infrastructure_review"])
-    infra_rate = cast(float, infra_metrics["review_rate"])
-    infra_metrics["status"] = "on_track" if infra_rate >= 100 else "behind"
+    for commit_type, total in commits_by_type.items():
+        with_agent = commits_with_agent_by_type.get(commit_type, 0)
+        metrics["metric_2_coverage"]["by_type"][commit_type] = {
+            "total": total,
+            "with_agent": with_agent,
+            "rate": round(with_agent / total * 100, 1) if total > 0 else 0,
+        }
 
     return metrics
 
 
-def format_summary(metrics: dict[str, Any]) -> str:
-    """Format metrics as human-readable summary."""
+def format_summary(metrics: dict) -> str:
+    """Format metrics as a human-readable summary."""
     lines = [
         "=" * 60,
         "AGENT METRICS SUMMARY",
@@ -321,10 +244,10 @@ def format_summary(metrics: dict[str, Any]) -> str:
         "-" * 40,
     ]
 
-    invocations = metrics["metric_1_invocation_rate"]["agents"]
-    if invocations:
-        for agent, data in invocations.items():
-            lines.append(f"  {agent:20} {data['count']:4} ({data['rate']:5.1f}%)")
+    agents = metrics["metric_1_invocation_rate"]["agents"]
+    if agents:
+        for agent, data in agents.items():
+            lines.append(f"  {agent:<20} {data['count']:>4} ({data['rate']:>5.1f}%)")
     else:
         lines.append("  No agent invocations detected")
 
@@ -336,7 +259,7 @@ def format_summary(metrics: dict[str, Any]) -> str:
     ])
 
     coverage = metrics["metric_2_coverage"]
-    lines.append(f"  Overall: {coverage['coverage_rate']:.1f}% (Target: {coverage['target']}%)")
+    lines.append(f"  Overall: {coverage['coverage_rate']}% (Target: {coverage['target']}%)")
     lines.append(f"  Status: {coverage['status'].upper()}")
 
     lines.extend([
@@ -349,19 +272,22 @@ def format_summary(metrics: dict[str, Any]) -> str:
     infra = metrics["metric_4_infrastructure_review"]
     lines.append(f"  Infrastructure Commits: {infra['infrastructure_commits']}")
     lines.append(f"  With Security Review: {infra['with_security_review']}")
-    lines.append(f"  Review Rate: {infra['review_rate']:.1f}% (Target: {infra['target']}%)")
+    lines.append(f"  Review Rate: {infra['review_rate']}% (Target: {infra['target']}%)")
     lines.append(f"  Status: {infra['status'].upper()}")
 
-    lines.extend([
-        "",
-        "=" * 60,
-    ])
+    lines.extend(["", "=" * 60])
 
     return "\n".join(lines)
 
 
-def format_markdown(metrics: dict[str, Any]) -> str:
+def format_markdown(metrics: dict) -> str:
     """Format metrics as markdown report."""
+    coverage = metrics["metric_2_coverage"]
+    infra = metrics["metric_4_infrastructure_review"]
+
+    coverage_status = "On Track" if coverage["status"] == "on_track" else "Behind"
+    infra_status = "On Track" if infra["status"] == "on_track" else "Behind"
+
     lines = [
         "# Agent Metrics Report",
         "",
@@ -377,21 +303,8 @@ def format_markdown(metrics: dict[str, Any]) -> str:
         "",
         "| Metric | Current | Target | Status |",
         "|--------|---------|--------|--------|",
-    ]
-
-    coverage = metrics["metric_2_coverage"]
-    infra = metrics["metric_4_infrastructure_review"]
-
-    lines.append(
-        f"| Agent Coverage | {coverage['coverage_rate']:.1f}% | {coverage['target']}% | "
-        f"{'On Track' if coverage['status'] == 'on_track' else 'Behind'} |"
-    )
-    lines.append(
-        f"| Infrastructure Review | {infra['review_rate']:.1f}% | {infra['target']}% | "
-        f"{'On Track' if infra['status'] == 'on_track' else 'Behind'} |"
-    )
-
-    lines.extend([
+        f"| Agent Coverage | {coverage['coverage_rate']}% | {coverage['target']}% | {coverage_status} |",
+        f"| Infrastructure Review | {infra['review_rate']}% | {infra['target']}% | {infra_status} |",
         "",
         "---",
         "",
@@ -399,12 +312,13 @@ def format_markdown(metrics: dict[str, Any]) -> str:
         "",
         "| Agent | Invocations | Rate |",
         "|-------|-------------|------|",
-    ])
+    ]
 
-    for agent, data in metrics["metric_1_invocation_rate"]["agents"].items():
-        lines.append(f"| {agent} | {data['count']} | {data['rate']:.1f}% |")
-
-    if not metrics["metric_1_invocation_rate"]["agents"]:
+    agents = metrics["metric_1_invocation_rate"]["agents"]
+    if agents:
+        for agent, data in agents.items():
+            lines.append(f"| {agent} | {data['count']} | {data['rate']}% |")
+    else:
         lines.append("| *No agents detected* | 0 | 0% |")
 
     lines.extend([
@@ -420,9 +334,7 @@ def format_markdown(metrics: dict[str, Any]) -> str:
     ])
 
     for commit_type, data in metrics["metric_2_coverage"]["by_type"].items():
-        lines.append(
-            f"| {commit_type} | {data['total']} | {data['with_agent']} | {data['rate']:.1f}% |"
-        )
+        lines.append(f"| {commit_type} | {data['total']} | {data['with_agent']} | {data['rate']}% |")
 
     lines.extend([
         "",
@@ -432,7 +344,7 @@ def format_markdown(metrics: dict[str, Any]) -> str:
         "",
         f"- **Infrastructure Commits**: {infra['infrastructure_commits']}",
         f"- **With Security Review**: {infra['with_security_review']}",
-        f"- **Review Rate**: {infra['review_rate']:.1f}%",
+        f"- **Review Rate**: {infra['review_rate']}%",
         f"- **Target**: {infra['target']}%",
         "",
         "---",
@@ -443,49 +355,32 @@ def format_markdown(metrics: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def main():
-    parser = argparse.ArgumentParser(
-        description="Collect agent invocation metrics from git history"
-    )
-    parser.add_argument(
-        "--since",
-        type=int,
-        default=30,
-        help="Number of days to analyze (default: 30)",
-    )
+def main() -> int:
+    """Entry point."""
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Agent Metrics Collection Utility")
+    parser.add_argument("--since", type=int, default=30, help="Number of days to analyze")
     parser.add_argument(
         "--output",
         choices=["json", "markdown", "summary"],
         default="summary",
-        help="Output format (default: summary)",
+        help="Output format",
     )
-    parser.add_argument(
-        "--repo",
-        type=str,
-        default=".",
-        help="Repository path (default: current directory)",
-    )
-
+    parser.add_argument("--repo-path", default=".", help="Repository path")
     args = parser.parse_args()
 
-    # SECURITY: Validate path safety and resolve to trusted path (prevents CWE-22)
-    repo_path = validate_and_resolve_path(args.repo, allowed_base=Path.cwd())
-    if repo_path is None:
-        print(
-            f"Error: {args.repo} contains unsafe characters "
-            "or is outside allowed directory",
-            file=sys.stderr,
-        )
-        sys.exit(1)
+    resolved_path = Path(args.repo_path).resolve()
+    if not resolved_path.exists():
+        print(f"Error: Path not found: {args.repo_path}", file=sys.stderr)
+        return 1
 
-    if not (repo_path / ".git").exists():
-        print(f"Error: {repo_path} is not a git repository", file=sys.stderr)
-        sys.exit(1)
+    if not (resolved_path / ".git").exists():
+        print(f"Error: {resolved_path} is not a git repository", file=sys.stderr)
+        return 1
 
-    # Collect metrics
-    metrics = collect_metrics(str(repo_path), args.since)
+    metrics = get_metrics(str(resolved_path), args.since)
 
-    # Output in requested format
     if args.output == "json":
         print(json.dumps(metrics, indent=2))
     elif args.output == "markdown":
@@ -493,6 +388,8 @@ def main():
     else:
         print(format_summary(metrics))
 
+    return 0
+
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

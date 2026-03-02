@@ -1,22 +1,19 @@
 #!/usr/bin/env python3
-"""
-Detects infrastructure and security-critical file changes.
+"""Detect infrastructure and security-critical file changes.
 
 Analyzes changed files to identify those requiring security agent review.
 Returns risk level and matching patterns.
 
-Usage:
-    python detect_infrastructure.py --git-staged
-    python detect_infrastructure.py file1.yml file2.cs
+EXIT CODES (ADR-035):
+    0 - Success: Detection completed (always)
 """
 
-import argparse
+from __future__ import annotations
+
+import json
 import re
 import subprocess
 import sys
-from dataclasses import dataclass
-from typing import List, Tuple
-
 
 # Critical patterns - security review REQUIRED
 CRITICAL_PATTERNS = [
@@ -60,129 +57,120 @@ HIGH_PATTERNS = [
 ]
 
 
-@dataclass
-class Finding:
-    """Represents a file matching security patterns."""
+def matches_pattern(file_path: str, patterns: list[str]) -> bool:
+    """Check if a file path matches any of the given regex patterns."""
+    for pattern in patterns:
+        if re.search(pattern, file_path):
+            return True
+    return False
 
-    file: str
-    risk_level: str
 
-
-def matches_patterns(file_path: str, patterns: List[str]) -> bool:
-    """Check if file path matches any pattern."""
-    # Normalize path separators
+def get_security_risk_level(file_path: str) -> str:
+    """Determine security risk level for a file path."""
     normalized = file_path.replace("\\", "/")
-    return any(re.search(pattern, normalized, re.IGNORECASE) for pattern in patterns)
-
-
-def get_risk_level(file_path: str) -> str:
-    """Determine risk level for a file."""
-    if matches_patterns(file_path, CRITICAL_PATTERNS):
+    if matches_pattern(normalized, CRITICAL_PATTERNS):
         return "critical"
-    elif matches_patterns(file_path, HIGH_PATTERNS):
+    if matches_pattern(normalized, HIGH_PATTERNS):
         return "high"
     return "none"
 
 
-def get_staged_files() -> List[str]:
+def get_staged_files() -> list[str]:
     """Get list of staged files from git."""
     try:
         result = subprocess.run(
             ["git", "diff", "--cached", "--name-only"],
             capture_output=True,
             text=True,
-            check=True,
+            timeout=30,
         )
-        return [f.strip() for f in result.stdout.strip().split("\n") if f.strip()]
-    except subprocess.CalledProcessError:
+        if result.returncode != 0:
+            return []
+        return [f for f in result.stdout.strip().splitlines() if f.strip()]
+    except (FileNotFoundError, subprocess.TimeoutExpired):
         return []
 
 
-def analyze_files(files: List[str]) -> Tuple[str, List[Finding]]:
-    """Analyze files and return highest risk level and findings."""
+def detect_infrastructure(
+    changed_files: list[str] | None = None,
+    use_git_staged: bool = False,
+) -> dict:
+    """Analyze files and return security risk findings."""
+    if use_git_staged:
+        changed_files = get_staged_files()
+
+    if not changed_files:
+        return {
+            "findings": [],
+            "highest_risk": "none",
+            "file_count": 0,
+        }
+
     findings = []
     highest_risk = "none"
 
-    for file_path in files:
-        risk = get_risk_level(file_path)
+    for file_path in changed_files:
+        risk = get_security_risk_level(file_path)
         if risk != "none":
-            findings.append(Finding(file=file_path, risk_level=risk))
+            findings.append({"File": file_path, "RiskLevel": risk})
             if risk == "critical":
                 highest_risk = "critical"
             elif risk == "high" and highest_risk != "critical":
                 highest_risk = "high"
 
-    return highest_risk, findings
+    return {
+        "findings": findings,
+        "highest_risk": highest_risk,
+        "file_count": len(changed_files),
+    }
 
 
-def print_results(highest_risk: str, findings: List[Finding]) -> None:
-    """Print analysis results."""
-    if not findings:
-        print("\033[92mNo infrastructure/security files detected.\033[0m")
-        return
+def main() -> int:
+    """Entry point."""
+    import argparse
 
-    print()
-    print("\033[93m=== Security Review Detection ===\033[0m")
-    print()
-
-    if highest_risk == "critical":
-        print("\033[91mCRITICAL: Security agent review REQUIRED\033[0m")
-    else:
-        print("\033[93mHIGH: Security agent review RECOMMENDED\033[0m")
-
-    print()
-    print("\033[96mMatching files:\033[0m")
-
-    for finding in findings:
-        color = "\033[91m" if finding.risk_level == "critical" else "\033[93m"
-        print(f"  {color}[{finding.risk_level.upper()}] {finding.file}\033[0m")
-
-    print()
-    print("\033[90mRun security agent before implementation:\033[0m")
-    print(
-        '\033[90m  Task(subagent_type="security", prompt="Review infrastructure changes")\033[0m'
-    )
-    print()
-
-
-def main():
-    """Main entry point."""
-    parser = argparse.ArgumentParser(
-        description="Detect infrastructure and security-critical file changes"
-    )
-    parser.add_argument(
-        "--git-staged",
-        action="store_true",
-        help="Analyze staged files from git",
-    )
-    parser.add_argument(
-        "files",
-        nargs="*",
-        help="Files to analyze",
-    )
-
+    parser = argparse.ArgumentParser(description="Detect infrastructure and security-critical file changes")
+    parser.add_argument("--files", nargs="*", help="Changed file paths to analyze")
+    parser.add_argument("--use-git-staged", action="store_true", help="Analyze staged files from git")
+    parser.add_argument("--json", action="store_true", help="Output results as JSON")
     args = parser.parse_args()
 
-    # Get files to analyze
-    if args.git_staged:
-        files = get_staged_files()
-    elif args.files:
-        files = args.files
+    result = detect_infrastructure(
+        changed_files=args.files,
+        use_git_staged=args.use_git_staged,
+    )
+
+    if args.json:
+        print(json.dumps(result, indent=2))
+        return 0
+
+    if not result["findings"]:
+        print("No infrastructure/security files detected.")
+        return 0
+
+    print("")
+    print("=== Security Review Detection ===")
+    print("")
+
+    if result["highest_risk"] == "critical":
+        print("CRITICAL: Security agent review REQUIRED")
     else:
-        print("\033[90mNo files to analyze.\033[0m")
-        sys.exit(0)
+        print("HIGH: Security agent review RECOMMENDED")
 
-    if not files:
-        print("\033[90mNo files to analyze.\033[0m")
-        sys.exit(0)
+    print("")
+    print("Matching files:")
 
-    # Analyze and print results
-    highest_risk, findings = analyze_files(files)
-    print_results(highest_risk, findings)
+    for finding in result["findings"]:
+        level = finding["RiskLevel"].upper()
+        print(f"  [{level}] {finding['File']}")
 
-    # Exit 0 for non-blocking behavior
-    sys.exit(0)
+    print("")
+    print("Run security agent before implementation:")
+    print('  Task(subagent_type="security", prompt="Review infrastructure changes")')
+    print("")
+
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

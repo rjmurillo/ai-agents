@@ -66,6 +66,9 @@ ignore = []
 [tool.ruff.per-file-ignores]
 # sys.path manipulation required before imports for plugin-context path resolution
 ".claude/skills/github/scripts/**/*.py" = ["E402"]
+# Test files use sys.path.insert() before importing modules under test
+"tests/hooks/**/*.py" = ["E402"]
+"tests/skills/**/*.py" = ["E402"]
 
 [tool.mypy]
 python_version = "3.12"

@@ -193,8 +193,8 @@ The agent MUST create a session log early in the session.
 # Using slash command (Claude Code)
 /session-init
 
-# Using PowerShell script
-pwsh .claude/skills/session-init/scripts/New-SessionLog.ps1 -SessionNumber 375 -Objective "Implement feature X"
+# Using Python script
+python3 .claude/skills/session-init/scripts/new_session_log.py --session-number 375 --objective "Implement feature X"
 ```
 
 The script will:
@@ -650,7 +650,7 @@ Session logs must be in JSON format. The JSON schema is at `.agents/schemas/sess
 **Creation**:
 
 ```bash
-pwsh .claude/skills/session-init/scripts/New-SessionLog.ps1
+python3 .claude/skills/session-init/scripts/new_session_log.py
 # Auto-increments session number, derives objective from branch
 ```
 

@@ -29,7 +29,7 @@ threads=$(python3 "$SCRIPTS_DIR/pr/get_unresolved_review_threads.py" --pull-requ
 # Pass context to prompt-builder, which will create an actionable, specific prompt
 
 # Step 3: Post the generated prompt
-pwsh -NoProfile scripts/issue/Post-IssueComment.ps1 -Issue 123 -Body "$generatedPrompt"
+python3 "$SCRIPTS_DIR/issue/post_issue_comment.py" --issue 123 --body "$generatedPrompt"
 # OR for PR comment reply:
 python3 "$SCRIPTS_DIR/pr/post_pr_comment_reply.py" --pull-request 50 --comment-id 123 --body "$generatedPrompt"
 ```

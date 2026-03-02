@@ -2,7 +2,7 @@
 description: Create protocol-compliant session log with verification-based enforcement. Use when starting a new session to initialize session log with canonical template from SESSION-PROTOCOL.md.
 argument-hint: [--session-number N] [--objective "text"]
 allowed-tools:
-  - Bash(pwsh .claude/skills/session-init/scripts/*)
+  - Bash(python3 .claude/skills/session-init/scripts/*)
   - Bash(git:*)
   - Bash(ls:*)
   - Read
@@ -22,7 +22,7 @@ Current sessions: !`ls -1 .agents/sessions/ | tail -5`
 Run the session-init automation script with arguments: $ARGUMENTS
 
 ```bash
-pwsh .claude/skills/session-init/scripts/New-SessionLog.ps1 $ARGUMENTS
+python3 .claude/skills/session-init/scripts/new_session_log.py $ARGUMENTS
 ```
 
 The script will:

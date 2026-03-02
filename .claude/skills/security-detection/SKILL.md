@@ -42,22 +42,9 @@ Use the security agent directly instead when:
 
 | Script | Language | Usage |
 |--------|----------|-------|
-| `detect-infrastructure.ps1` | PowerShell | Windows/Cross-platform |
 | `detect_infrastructure.py` | Python 3 | Cross-platform |
 
 ## Usage
-
-### PowerShell
-
-```powershell
-# Analyze staged files
-.\detect-infrastructure.ps1 -UseGitStaged
-
-# Analyze specific files
-.\detect-infrastructure.ps1 -ChangedFiles @(".github/workflows/ci.yml", "src/auth/login.cs")
-```
-
-### Python
 
 ```bash
 # Analyze staged files
@@ -123,11 +110,7 @@ Add to `.githooks/pre-commit`:
 
 ```bash
 # Security detection (non-blocking warning)
-if command -v python3 &> /dev/null; then
-    python3 .claude/skills/security-detection/detect_infrastructure.py --git-staged
-elif command -v pwsh &> /dev/null; then
-    pwsh -File .claude/skills/security-detection/detect-infrastructure.ps1 -UseGitStaged
-fi
+python3 .claude/skills/security-detection/detect_infrastructure.py --git-staged
 ```
 
 ### CI Integration

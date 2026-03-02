@@ -162,25 +162,25 @@ QA validation required but no report found
 
 ### Get Run Details
 
-```powershell
-& .claude/skills/session-log-fixer/scripts/diagnose.ps1 -RunId <run-id>
+```bash
+python3 .claude/skills/session-log-fixer/scripts/diagnose.py --run-id <run-id>
 ```
 
 ### Find Session Files for Branch
 
-```powershell
-git log --oneline --name-only -- ".agents/sessions/*.md" | Select-Object -First 20
+```bash
+git log --oneline --name-only -- ".agents/sessions/*.md" | head -20
 ```
 
 ### Check Current Session Protocol Structure
 
-```powershell
-Select-String -Path ".agents/sessions/*.md" -Pattern "MUST|SHOULD" | Group-Object Path
+```bash
+grep -rn "MUST\|SHOULD" .agents/sessions/*.md | sort -t: -k1,1
 ```
 
 ### Get Commit SHA for Evidence
 
-```powershell
+```bash
 git log --oneline -1
 # Returns: abc1234 commit message
 ```
@@ -191,13 +191,13 @@ git log --oneline -1
 
 After applying fixes, validate locally:
 
-```powershell
+```bash
 # Quick check for MUST requirements
-Select-String -Path ".agents/sessions/<file>.md" -Pattern "\| MUST.*\[ \]"
+grep -P "\| MUST.*\[ \]" ".agents/sessions/<file>.md"
 # Should return nothing if all MUST are checked
 
 # Check for placeholders
-Select-String -Path ".agents/sessions/<file>.md" -Pattern "pending|TBD|_____"
+grep -P "pending|TBD|_____" ".agents/sessions/<file>.md"
 # Should return nothing if no placeholders
 ```
 

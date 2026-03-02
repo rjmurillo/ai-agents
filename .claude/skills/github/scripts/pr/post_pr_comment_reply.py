@@ -31,6 +31,7 @@ from github_core.api import (
     resolve_repo_params,
     write_error_and_exit,
 )
+from github_core.validation import test_safe_file_path
 
 
 def main() -> None:
@@ -50,6 +51,8 @@ def main() -> None:
 
     body = args.body
     if args.body_file:
+        if not test_safe_file_path(args.body_file):
+            write_error_and_exit(f"Path traversal attempt detected: {args.body_file}", 1)
         if not os.path.exists(args.body_file):
             write_error_and_exit(f"Body file not found: {args.body_file}", 2)
         with open(args.body_file, encoding="utf-8") as f:
@@ -69,7 +72,8 @@ def main() -> None:
         endpoint = f"repos/{owner}/{repo}/issues/{args.pull_request}/comments"
 
     result = subprocess.run(
-        ["gh", "api", endpoint, "-X", "POST", "-f", f"body={body}"],
+        ["gh", "api", endpoint, "-X", "POST", "--input", "-"],
+        input=json.dumps({"body": body}),
         capture_output=True, text=True,
     )
 

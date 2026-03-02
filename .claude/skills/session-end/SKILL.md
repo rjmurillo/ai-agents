@@ -24,8 +24,8 @@ Validate and complete session logs before commit. Complements `session-init` (wh
 
 ### Automated (Recommended)
 
-```powershell
-pwsh .claude/skills/session-end/scripts/Complete-SessionLog.ps1
+```bash
+python3 .claude/skills/session-end/scripts/complete_session_log.py
 ```
 
 The script will:
@@ -33,13 +33,13 @@ The script will:
 1. Find the current session log automatically
 2. Auto-populate session end evidence from git state
 3. Run markdown lint on changed files
-4. Validate with Validate-SessionJson.ps1
+4. Validate with validate_session_json.py
 5. Report pass/fail with actionable next steps
 
 ### Preview Changes First
 
-```powershell
-pwsh .claude/skills/session-end/scripts/Complete-SessionLog.ps1 -DryRun
+```bash
+python3 .claude/skills/session-end/scripts/complete_session_log.py --dry-run
 ```
 
 ---
@@ -115,7 +115,7 @@ User Request: /session-end
     v
 +---------------------------------------------+
 | Phase 4: VALIDATE                            |
-| - Run Validate-SessionJson.ps1               |
+| - Run validate_session_json.py                |
 | - Update validationPassed field              |
 | - Report pass/fail with details              |
 +---------------------------------------------+
@@ -136,7 +136,7 @@ Completed Session Log (or actionable errors)
 | `markdownLintRun` | Run markdownlint on changed .md files | MUST |
 | `changesCommitted` | Check git status for uncommitted changes | MUST |
 | `checklistComplete` | Evaluate all MUST items | MUST |
-| `validationPassed` | Run Validate-SessionJson.ps1 | MUST |
+| `validationPassed` | Run validate_session_json.py | MUST |
 
 ### What You Must Provide Manually
 
@@ -158,15 +158,15 @@ Before running this skill, ensure you have:
 
 ### Step 2: Run Session End
 
-```powershell
+```bash
 # Auto-detect and complete
-pwsh .claude/skills/session-end/scripts/Complete-SessionLog.ps1
+python3 .claude/skills/session-end/scripts/complete_session_log.py
 
 # Or specify session explicitly
-pwsh .claude/skills/session-end/scripts/Complete-SessionLog.ps1 -SessionPath ".agents/sessions/2026-02-07-session-05.json"
+python3 .claude/skills/session-end/scripts/complete_session_log.py --session-path ".agents/sessions/2026-02-07-session-05.json"
 
 # Preview only
-pwsh .claude/skills/session-end/scripts/Complete-SessionLog.ps1 -DryRun
+python3 .claude/skills/session-end/scripts/complete_session_log.py --dry-run
 ```
 
 ### Step 3: Address Any Failures
@@ -184,7 +184,7 @@ Fix the issues and re-run the skill.
 
 After the skill reports PASS, commit the updated session log:
 
-```powershell
+```bash
 git add .agents/sessions/*.json
 git commit -m "docs: complete session log"
 ```
@@ -269,14 +269,14 @@ File: .agents/sessions/2026-02-07-session-05.json
 
 | Script | Purpose | Exit Codes |
 |--------|---------|------------|
-| [Complete-SessionLog.ps1](scripts/Complete-SessionLog.ps1) | Auto-populate and validate session end | 0=success, 1=validation failed |
+| [complete_session_log.py](scripts/complete_session_log.py) | Auto-populate and validate session end | 0=success, 1=validation failed |
 
 ### Parameters
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `-SessionPath` | string | No | Path to session log. Auto-detects if omitted. |
-| `-DryRun` | switch | No | Preview changes without writing to file. |
+| `--session-path` | string | No | Path to session log. Auto-detects if omitted. |
+| `--dry-run` | flag | No | Preview changes without writing to file. |
 
 ---
 
@@ -293,8 +293,8 @@ File: .agents/sessions/2026-02-07-session-05.json
 ## References
 
 - [SESSION-PROTOCOL.md](../../../.agents/SESSION-PROTOCOL.md) - Session end requirements
-- [Validate-SessionJson.ps1](../../../scripts/Validate-SessionJson.ps1) - Validation script
-- [New-SessionLogJson.ps1](../session-init/scripts/New-SessionLogJson.ps1) - Session creation script
+- [validate_session_json.py](../../../scripts/validate_session_json.py) - Validation script
+- [new_session_log_json.py](../session-init/scripts/new_session_log_json.py) - Session creation script
 
 ---
 

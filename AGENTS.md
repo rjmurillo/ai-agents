@@ -171,10 +171,10 @@ Use the session-init skill to create protocol-compliant session logs:
 
 ```bash
 # Automated (recommended)
-pwsh .claude/skills/session-init/scripts/New-SessionLog.ps1
+python3 .claude/skills/session-init/scripts/new_session_log.py
 
 # With parameters
-pwsh .claude/skills/session-init/scripts/New-SessionLog.ps1 -SessionNumber 375 -Objective "Implement feature X"
+python3 .claude/skills/session-init/scripts/new_session_log.py --session-number 375 --objective "Implement feature X"
 
 # Manual trigger via slash command
 /session-init
@@ -210,7 +210,7 @@ if [ -n "$CHANGED_MD" ]; then
 fi
 
 # Session artifacts
-pwsh .claude/skills/memory/scripts/Extract-SessionEpisode.ps1 -SessionLogPath ".agents/sessions/[log].json"
+python3 .claude/skills/memory/scripts/extract_session_episode.py --session-log-path ".agents/sessions/[log].json"
 pwsh scripts/Validate-SessionJson.ps1 -SessionPath ".agents/sessions/[log].json"
 ```
 
@@ -315,7 +315,7 @@ pwsh .codeql/scripts/Get-CodeQLDiagnostics.ps1                # Health check
 
 # Claude Code skill
 /codeql-scan                                                   # Via skill system
-pwsh .claude/skills/codeql-scan/scripts/Invoke-CodeQLScanSkill.ps1 -Operation full
+python3 .claude/skills/codeql-scan/scripts/invoke_codeql_scan_skill.py --operation full
 ```
 
 ### Git & GitHub Operations
@@ -824,10 +824,9 @@ When Copilot receives replies to its PR review comments, it often creates a foll
 
 ### Detection Scripts
 
-Two detection implementations (PowerShell + bash fallback):
+Detection implementation:
 
-- `.claude/skills/github/scripts/pr/Detect-CopilotFollowUpPR.ps1` (PowerShell)
-- `.claude/skills/github/scripts/pr/detect-copilot-followup.sh` (Bash)
+- `.claude/skills/github/scripts/pr/detect_copilot_followup_pr.py` (Python)
 
 Both return structured JSON with:
 
@@ -1967,7 +1966,7 @@ When generating or fixing markdown with code blocks, use the fix-markdown-fences
 **Usage**:
 
 ```bash
-pwsh .claude/skills/fix-markdown-fences/fix_fences.ps1
+python3 .claude/skills/fix-markdown-fences/fix_fences.py
 ```
 
 **Benefits**:

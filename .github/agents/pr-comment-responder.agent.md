@@ -70,7 +70,7 @@ When running in environments with Python support (Python 3), the unified github 
 | Review + Issue comments | `get_pr_review_comments.py --include-issue-comments` | Manual pagination of both endpoints |
 | Reviewer list | `get_pr_reviewers.py` | `gh api ... \| jq` |
 | Reply to comment | `post_pr_comment_reply.py` | `gh api -X POST` |
-| Add reaction (batch) | `add_comment_reaction.py --comment-id @(id1,id2,...)` | Individual `gh api` calls |
+| Add reaction (batch) | `gh api repos/{owner}/{repo}/pulls/comments/{id}/reactions -X POST --input -` | Direct REST API call |
 | CI check status | `get_pr_checks.py` | `gh pr checks` (limited) |
 
 The bash examples below work cross-platform; use Python skill scripts for all operations.
@@ -609,8 +609,13 @@ SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 comments=$(python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request [number] --include-issue-comments)
 ids=$(echo "$comments" | jq -r '.Comments[].id')
 
-# Batch acknowledge - single process, all comments
-echo "$ids" | xargs -I{} python3 "$SCRIPTS_DIR/reactions/add_comment_reaction.py" --comment-id {} --reaction "eyes"
+# Batch acknowledge using gh api directly
+for ID in $ids; do
+  gh api "repos/{owner}/{repo}/pulls/comments/$ID/reactions" \
+    -X POST --input - <<< '{"content":"eyes"}' 2>/dev/null \
+  || gh api "repos/{owner}/{repo}/issues/comments/$ID/reactions" \
+    -X POST --input - <<< '{"content":"eyes"}' 2>/dev/null
+done
 
 # Verify all acknowledged
 echo "Acknowledged comments via reactions"

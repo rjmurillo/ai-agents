@@ -828,8 +828,8 @@ if [ -n "$STAGED_SKILL_FILES" ]; then
                 skill_dir=$(dirname "$skill_md")
 
                 # Run validator on the skill directory and capture output
-                validator_output=$("${PYTHON_CMD[@]}" "$SKILL_VALIDATOR" "$skill_dir" 2>&1)
-                validator_exit=$?
+                # Capture exit code without triggering set -e abort
+                validator_output=$("${PYTHON_CMD[@]}" "$SKILL_VALIDATOR" "$skill_dir" 2>&1) && validator_exit=0 || validator_exit=$?
 
                 # Check if error is a Python system error (not a skill validation error)
                 if echo "$validator_output" | grep -q "failed to join paths"; then

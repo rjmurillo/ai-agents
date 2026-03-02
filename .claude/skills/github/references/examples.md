@@ -116,7 +116,7 @@ python3 "$SCRIPTS_DIR/pr/set_pr_auto_merge.py" --pull-request 50 --disable
 SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 
 # Create new issue
-pwsh -NoProfile scripts/issue/New-Issue.ps1 -Title "Bug: Login fails" -Body "Steps..." -Labels "bug,P1"
+python3 "$SCRIPTS_DIR/issue/new_issue.py" --title "Bug: Login fails" --body "Steps..." --labels "bug,P1"
 
 # Create PR with validation
 python3 "$SCRIPTS_DIR/pr/new_pr.py" --title "feat: Add feature" --body "Description"
@@ -128,7 +128,7 @@ python3 "$SCRIPTS_DIR/pr/close_pr.py" --pull-request 50 --comment "Superseded by
 python3 "$SCRIPTS_DIR/pr/merge_pr.py" --pull-request 50 --strategy squash --delete-branch
 
 # Post idempotent comment (prevents duplicates)
-pwsh -NoProfile scripts/issue/Post-IssueComment.ps1 -Issue 123 -Body "Analysis..." -Marker "AI-TRIAGE"
+python3 "$SCRIPTS_DIR/issue/post_issue_comment.py" --issue 123 --body "Analysis..." --marker "AI-TRIAGE"
 ```
 
 ---
@@ -139,14 +139,14 @@ pwsh -NoProfile scripts/issue/Post-IssueComment.ps1 -Issue 123 -Body "Analysis..
 SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 
 # Add reaction to single comment
-pwsh -NoProfile "$SCRIPTS_DIR/reactions/Add-CommentReaction.ps1" -CommentId 12345678 -Reaction "eyes"
+python3 "$SCRIPTS_DIR/reactions/add_comment_reaction.py" --comment-id 12345678 --reaction "eyes"
 
 # Add reactions to multiple comments (batch - 88% faster)
-pwsh -NoProfile "$SCRIPTS_DIR/reactions/Add-CommentReaction.ps1" -CommentId @(123, 456, 789) -Reaction "eyes"
+python3 "$SCRIPTS_DIR/reactions/add_comment_reaction.py" --comment-id 123 456 789 --reaction "eyes"
 
 # Acknowledge all comments on a PR (batch)
 ids=$(python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request 42 | jq -r '.[].id')
 for id in $ids; do
-    pwsh -NoProfile "$SCRIPTS_DIR/reactions/Add-CommentReaction.ps1" -CommentId "$id" -Reaction "eyes"
+    python3 "$SCRIPTS_DIR/reactions/add_comment_reaction.py" --comment-id "$id" --reaction "eyes"
 done
 ```

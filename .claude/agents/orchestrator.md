@@ -110,7 +110,7 @@ You have direct access to:
 - **TodoWrite**: Track orchestration progress
 - **Bash**: Execute commands
 - **Memory Router** (ADR-037): Unified search across Serena + Forgetful
-  - `pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "topic"`
+  - `python3 .claude/skills/memory/scripts/search_memory.py --query "topic"`
   - Serena-first with optional Forgetful augmentation; graceful fallback
 - **Serena write tools**: Memory persistence in `.serena/memories/`
   - `mcp__serena__write_memory`: Create new memory
@@ -235,8 +235,8 @@ Use Memory Router for search and Serena tools for persistence (ADR-037):
 
 **Before multi-step reasoning (retrieve context):**
 
-```powershell
-pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "orchestration [relevant-pattern]"
+```bash
+python3 .claude/skills/memory/scripts/search_memory.py --query "orchestration [relevant-pattern]"
 ```
 
 **At milestones (or every 5 turns, store learnings):**
@@ -1676,7 +1676,7 @@ For multi-session projects, maintain a handoff document:
 
 ### Next Session Quick Start
 
-```powershell
+```bash
 # Commands to verify state
 ```
 

@@ -58,9 +58,9 @@ Load these memories based on what you are doing:
 
 ### Memory Loading Protocol
 
-```powershell
+```bash
 # REQUIRED: Load before implementation starts
-pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "[memory-from-table-above]" -LexicalOnly
+python3 .claude/skills/memory/scripts/search_memory.py --query "[memory-from-table-above]" --lexical-only
 # Or read directly:
 Read .serena/memories/[memory-name].md
 ```
@@ -230,7 +230,7 @@ You have direct access to:
 - **WebSearch/WebFetch**: Research APIs, best practices
 - **TodoWrite**: Track implementation progress
 - **Memory Router** (ADR-037): Unified search across Serena + Forgetful
-  - `pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "topic"`
+  - `python3 .claude/skills/memory/scripts/search_memory.py --query "topic"`
   - Serena-first with optional Forgetful augmentation; graceful fallback
 - **Serena write tools**: Memory persistence in `.serena/memories/`
   - `mcp__serena__write_memory`: Create new memory
@@ -694,8 +694,8 @@ Use Memory Router for search and Serena tools for persistence (ADR-037):
 
 **Before implementation (retrieve context):**
 
-```powershell
-pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "implementation patterns [component/feature]"
+```bash
+python3 .claude/skills/memory/scripts/search_memory.py --query "implementation patterns [component/feature]"
 ```
 
 **After implementation (store learnings):**

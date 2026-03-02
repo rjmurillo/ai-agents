@@ -77,9 +77,9 @@ def acknowledge_comment(owner: str, repo: str, comment_id: int) -> bool:
         [
             "gh", "api",
             f"repos/{owner}/{repo}/pulls/comments/{comment_id}/reactions",
-            "-X", "POST",
-            "-f", "content=eyes",
+            "-X", "POST", "--input", "-",
         ],
+        input=json.dumps({"content": "eyes"}),
         capture_output=True, text=True,
     )
     return result.returncode == 0
@@ -91,9 +91,9 @@ def reply_to_comment(owner: str, repo: str, pr_number: int, comment_id: int, bod
         [
             "gh", "api",
             f"repos/{owner}/{repo}/pulls/{pr_number}/comments/{comment_id}/replies",
-            "-X", "POST",
-            "-f", f"body={body}",
+            "-X", "POST", "--input", "-",
         ],
+        input=json.dumps({"body": body}),
         capture_output=True, text=True,
     )
     return result.returncode == 0

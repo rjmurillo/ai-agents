@@ -36,7 +36,7 @@ You have direct access to:
 - **Write/Edit**: Create/update `.agents/architecture/` files only
 - **WebSearch**: Research architectural patterns
 - **Memory Router** (ADR-037): Unified search across Serena + Forgetful
-  - `pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "topic"`
+  - `python3 .claude/skills/memory/scripts/search_memory.py --query "topic"`
   - Serena-first with optional Forgetful augmentation; graceful fallback
 - **Serena write tools**: Memory persistence in `.serena/memories/`
   - `mcp__serena__write_memory`: Create new memory
@@ -392,8 +392,8 @@ Use Memory Router for search and Serena tools for persistence (ADR-037):
 
 **Before design (retrieve context):**
 
-```powershell
-pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "architecture decisions [component/topic]"
+```bash
+python3 .claude/skills/memory/scripts/search_memory.py --query "architecture decisions [component/topic]"
 ```
 
 **After design (store learnings):**

@@ -123,8 +123,9 @@ def resolve_repo_params(owner: str | None = None, repo: str | None = None) -> di
 def gh_graphql(query: str, variables: dict | None = None) -> dict:
     """Execute a GitHub GraphQL query or mutation.
 
-    Uses gh api graphql with proper variable passing to prevent injection.
-    String values use -f, numeric/bool values use -F (per gh CLI convention).
+    Passes the full request body as JSON via stdin to prevent LFI attacks.
+    The gh CLI -f flag treats values starting with @ as file paths, so
+    we avoid -f for user-controlled values entirely.
 
     Args:
         query: GraphQL query/mutation string.
@@ -136,15 +137,17 @@ def gh_graphql(query: str, variables: dict | None = None) -> dict:
     Raises:
         subprocess.CalledProcessError on API failure.
     """
-    args = ["api", "graphql", "-f", f"query={query}"]
+    body = {"query": query}
+    if variables:
+        body["variables"] = variables
 
-    for key, value in (variables or {}).items():
-        if isinstance(value, (int, bool)):
-            args.extend(["-F", f"{key}={value}"])
-        else:
-            args.extend(["-f", f"{key}={value}"])
-
-    result = _run_gh(*args)
+    result = subprocess.run(
+        ["gh", "api", "graphql", "--input", "-"],
+        input=json.dumps(body),
+        capture_output=True,
+        text=True,
+        check=True,
+    )
     data = json.loads(result.stdout)
 
     if "errors" in data:

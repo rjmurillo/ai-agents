@@ -99,7 +99,7 @@ GitHub Actions Failure
 │ • Apply fixes based on Job Summary details        │
 │ • Copy template sections exactly                  │
 │ • Add evidence to verification steps              │
-│ • Validate fix locally with Validate-SessionJson.ps1 │
+│ • Validate fix locally with validate_session_json.py │
 ├───────────────────────────────────────────────────┤
 │ Phase 4: VERIFY                                   │
 │ • Commit and push changes                         │
@@ -119,15 +119,12 @@ GitHub Actions Failure
 
 #### Option A: Use the script (recommended)
 
-```powershell
+```bash
 # By run ID
-$errors = & .claude/skills/session-log-fixer/scripts/Get-ValidationErrors.ps1 -RunId 20548622722
+python3 .claude/skills/session-log-fixer/scripts/get_validation_errors.py --run-id 20548622722
 
 # By PR number
-$errors = & .claude/skills/session-log-fixer/scripts/Get-ValidationErrors.ps1 -PullRequest 799
-
-# View errors
-$errors | ConvertFrom-Json
+python3 .claude/skills/session-log-fixer/scripts/get_validation_errors.py --pull-request 799
 ```
 
 #### Option B: Manual (web UI)
@@ -177,8 +174,8 @@ The detailed results tell you **exactly** which MUST requirements failed.
 
 Validate locally before pushing:
 
-```powershell
-pwsh scripts/Validate-SessionJson.ps1 -SessionPath ".agents/sessions/<session-file>.json" 
+```bash
+python3 scripts/validate_session_json.py --session-path ".agents/sessions/<session-file>.json"
 ```
 
 This uses the **same script** as CI, so results match exactly.
@@ -216,7 +213,7 @@ Common fixes by failure type:
 
 ### Step 6: Commit
 
-```powershell
+```bash
 git add ".agents/sessions/<session-file>.md"
 git commit -m "docs: fix session protocol compliance for <session-name>
 
@@ -226,8 +223,8 @@ git push
 
 ### Step 7: Verify
 
-```powershell
-gh run list --branch (git branch --show-current) --limit 3
+```bash
+gh run list --branch "$(git branch --show-current)" --limit 3
 gh run view <new-run-id> --json conclusion
 ```
 
@@ -279,23 +276,19 @@ After applying fixes:
 
 | Script | Purpose | Exit Codes |
 |--------|---------|------------|
-| [Get-ValidationErrors.ps1](scripts/Get-ValidationErrors.ps1) | Extract validation errors from GitHub Actions Job Summary | 0=success, 1=run not found, 2=no errors found |
+| [get_validation_errors.py](scripts/get_validation_errors.py) | Extract validation errors from GitHub Actions Job Summary | 0=success, 1=run not found, 2=no errors found |
 
 ### Example Usage
 
-```powershell
+```bash
 # Get errors by run ID
-$result = & .claude/skills/session-log-fixer/scripts/Get-ValidationErrors.ps1 -RunId 20548622722
-$errors = $result | ConvertFrom-Json
-
-# View non-compliant sessions
-$errors.NonCompliantSessions
-
-# View detailed errors for specific session
-$errors.DetailedErrors.'2025-12-29-session-11'
+python3 .claude/skills/session-log-fixer/scripts/get_validation_errors.py --run-id 20548622722
 
 # Get errors by PR number
-$result = & .claude/skills/session-log-fixer/scripts/Get-ValidationErrors.ps1 -PullRequest 799
+python3 .claude/skills/session-log-fixer/scripts/get_validation_errors.py --pull-request 799
+
+# Parse JSON output
+python3 .claude/skills/session-log-fixer/scripts/get_validation_errors.py --run-id 20548622722 | jq '.NonCompliantSessions'
 ```
 
 ---
@@ -314,4 +307,4 @@ $result = & .claude/skills/session-log-fixer/scripts/Get-ValidationErrors.ps1 -P
 - [Common Fixes](references/common-fixes.md) - Fix patterns for common failures
 - [Template Sections](references/template-sections.md) - Copy-paste ready templates
 - [CI Debugging Patterns](references/ci-debugging-patterns.md) - Advanced job-level diagnostics
-- [`Validate-SessionJson.ps1`](../../../scripts/Validate-SessionJson.ps1) - Deterministic validation script
+- [`validate_session_json.py`](../../../scripts/validate_session_json.py) - Deterministic validation script

@@ -69,7 +69,7 @@ You have direct access to:
 | Review + Issue comments (exclude stale) | `get_pr_review_comments.py --include-issue-comments --detect-stale --exclude-stale` | Manual pagination + stale detection |
 | Reviewer list | `get_pr_reviewers.py` | `gh api ... \| jq unique` |
 | Reply to comment | `post_pr_comment_reply.py` | `gh api ... -X POST` |
-| Add reaction | `add_comment_reaction.py` | `gh api .../reactions` |
+| Add reaction | `gh api repos/{owner}/{repo}/pulls/comments/{id}/reactions -X POST --input -` | Direct REST API call |
 | Issue comment | `post_issue_comment.py` | `gh api .../comments` |
 
 ### Skill Usage Pattern
@@ -688,24 +688,28 @@ SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 comments=$(python3 "$SCRIPTS_DIR/pr/get_unaddressed_comments.py" --pull-request [number])
 ids=$(echo "$comments" | jq -r '.Comments[].id')
 
-# Batch acknowledge - single process, all comments
-# Batch acknowledge - single process, all comments
-echo "$ids" | xargs -I{} python3 "$SCRIPTS_DIR/reactions/add_comment_reaction.py" --comment-id {} --reaction "eyes"
+# Batch acknowledge using gh api directly
+for ID in $ids; do
+  gh api "repos/{owner}/{repo}/pulls/comments/$ID/reactions" \
+    -X POST --input - <<< '{"content":"eyes"}' 2>/dev/null \
+  || gh api "repos/{owner}/{repo}/issues/comments/$ID/reactions" \
+    -X POST --input - <<< '{"content":"eyes"}' 2>/dev/null
+done
 
-# Verify all acknowledged
-echo "$result" | jq '"Acknowledged \(.Succeeded)/\(.TotalCount) comments"'
+echo "Acknowledged all comments via reactions"
 ```
 
 <details>
 <summary>Alternative: Individual reactions (legacy)</summary>
 
 ```bash
-SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 # Individual comment reaction (slower - use batch above instead)
-python3 "$SCRIPTS_DIR/reactions/add_comment_reaction.py" --comment-id [comment_id] --reaction "eyes"
+gh api "repos/{owner}/{repo}/pulls/comments/{comment_id}/reactions" \
+  -X POST --input - <<< '{"content":"eyes"}'
 
 # Issue comment reaction
-python3 "$SCRIPTS_DIR/reactions/add_comment_reaction.py" --comment-id [comment_id] --comment-type "issue" --reaction "eyes"
+gh api "repos/{owner}/{repo}/issues/comments/{comment_id}/reactions" \
+  -X POST --input - <<< '{"content":"eyes"}'
 ```
 
 </details>

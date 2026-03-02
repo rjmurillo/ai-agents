@@ -10,17 +10,15 @@ This guide provides solutions to common issues with the memory system. Issues ar
 
 Run these commands to quickly assess system health:
 
-```powershell
+```bash
 # Memory Router status
-Import-Module .claude/skills/memory/scripts/MemoryRouter.psm1
-Get-MemoryRouterStatus | ConvertTo-Json -Depth 3
+python3 .claude/skills/memory/scripts/search_memory.py --status
 
 # Reflexion Memory status
-Import-Module .claude/skills/memory/scripts/ReflexionMemory.psm1
-Get-ReflexionMemoryStatus | ConvertTo-Json -Depth 3
+python3 .claude/skills/memory/scripts/extract_session_episode.py --status
 
 # Forgetful health check
-pwsh scripts/forgetful/Test-ForgetfulHealth.ps1
+python3 scripts/forgetful/check_memory_health.py
 ```
 
 ### Expected Healthy Output
@@ -81,7 +79,7 @@ Get-ChildItem $status.SerenaPath -Filter "*keyword*"
 
 ```powershell
 # Check if Forgetful is running
-pwsh scripts/forgetful/Test-ForgetfulHealth.ps1
+python3 scripts/forgetful/check_memory_health.py
 
 # Check port
 Test-NetConnection -ComputerName localhost -Port 8020
@@ -217,15 +215,15 @@ Test-Path ".agents/sessions/$sessionId.md"
 
 | Cause | Solution |
 |-------|----------|
-| Episode not extracted | Run Extract-SessionEpisode.ps1 |
+| Episode not extracted | Run extract_session_episode.py |
 | Wrong session ID format | Use format: YYYY-MM-DD-session-NNN |
 | Episode directory missing | Create `.agents/memory/episodes/` |
 
 **Extracting Episode**:
 
-```powershell
-pwsh scripts/Extract-SessionEpisode.ps1 `
-    -SessionLogPath ".agents/sessions/.agents/sessions/2026-01-01-session-130.json"
+```bash
+python3 scripts/extract_session_episode.py \
+    --session-log-path ".agents/sessions/.agents/sessions/2026-01-01-session-130.json"
 ```
 
 ### Issue: Causal Graph Empty
@@ -260,26 +258,26 @@ if (Test-Path $graphPath) {
 | Cause | Solution |
 |-------|----------|
 | No episodes extracted | Extract episodes first |
-| Graph never built | Run Update-CausalGraph.ps1 |
+| Graph never built | Run update_causal_graph.py |
 | Graph file corrupted | Delete and rebuild |
 
 **Rebuilding Causal Graph**:
 
-```powershell
+```bash
 # Remove old graph
-Remove-Item ".agents/memory/causality/causal-graph.json" -ErrorAction SilentlyContinue
+rm -f ".agents/memory/causality/causal-graph.json"
 
 # Rebuild from all episodes
-Get-ChildItem ".agents/memory/episodes/*.json" | ForEach-Object {
-    pwsh scripts/Update-CausalGraph.ps1 -EpisodePath $_.FullName
-}
+for episode in .agents/memory/episodes/*.json; do
+    python3 scripts/update_causal_graph.py --episode-path "$episode"
+done
 ```
 
 ### Issue: Episode Extraction Fails
 
 **Symptoms**:
 
-- Extract-SessionEpisode.ps1 errors
+- extract_session_episode.py errors
 - Incomplete or empty episodes
 
 **Diagnosis**:
@@ -351,7 +349,7 @@ $graph.edges | Where-Object { $_.from -match "decision" }
 | Cause | Solution |
 |-------|----------|
 | Pattern threshold not met | Pattern needs MinOccurrences (default 3) |
-| Episodes not processed | Run Update-CausalGraph.ps1 |
+| Episodes not processed | Run update_causal_graph.py |
 | Decision not recorded | Ensure session logs capture decisions |
 
 ## Skill Issues
@@ -365,12 +363,12 @@ $graph.edges | Where-Object { $_.from -match "decision" }
 
 **Diagnosis**:
 
-```powershell
+```bash
 # Verify skill location
-Test-Path ".claude/skills/memory/scripts/Search-Memory.ps1"
+test -f ".claude/skills/memory/scripts/search_memory.py" && echo "exists" || echo "not found"
 
 # List available skills
-Get-ChildItem ".claude/skills" -Recurse -Filter "*.ps1"
+find .claude/skills -name "*.py" -type f
 ```
 
 **Solutions**:
@@ -385,18 +383,17 @@ Get-ChildItem ".claude/skills" -Recurse -Filter "*.ps1"
 
 **Symptoms**:
 
-- Error: "MemoryRouter module not found"
-- Import-Module fails
+- Error: "memory_router module not found"
+- Python import fails
 
 **Diagnosis**:
 
-```powershell
+```bash
 # Check module path
-$modulePath = ".claude/skills/memory/scripts/MemoryRouter.psm1"
-Test-Path $modulePath
+test -f ".claude/skills/memory/scripts/search_memory.py" && echo "exists" || echo "not found"
 
 # Test import
-Import-Module $modulePath -Force -Verbose
+python3 -c "import importlib.util; spec = importlib.util.spec_from_file_location('memory_router', '.claude/skills/memory/scripts/search_memory.py'); print('OK' if spec else 'FAIL')"
 ```
 
 **Solutions**:
@@ -405,7 +402,7 @@ Import-Module $modulePath -Force -Verbose
 |-------|----------|
 | Wrong working directory | Run from project root |
 | Module file missing | Verify .claude/skills/memory/scripts/ directory |
-| Syntax error in module | Check PowerShell syntax |
+| Syntax error in module | Check Python syntax |
 
 ## Directory Structure Issues
 
@@ -485,7 +482,7 @@ Old Path                    New Path
 
 **Cause**: Episode not extracted from session log.
 
-**Fix**: Run `Extract-SessionEpisode.ps1` on the session log.
+**Fix**: Run `extract_session_episode.py` on the session log.
 
 ### "No causal path found"
 
@@ -526,8 +523,8 @@ Write-Host "`n[Directories]" -ForegroundColor Yellow
 # Check modules
 Write-Host "`n[Modules]" -ForegroundColor Yellow
 @(
-    ".claude/skills/memory/scripts/MemoryRouter.psm1",
-    ".claude/skills/memory/scripts/ReflexionMemory.psm1"
+    ".claude/skills/memory/scripts/search_memory.py",
+    ".claude/skills/memory/scripts/extract_session_episode.py"
 ) | ForEach-Object {
     $exists = Test-Path $_
     $status = if ($exists) { "OK" } else { "MISSING" }
@@ -580,44 +577,45 @@ Write-Host "`n=== Diagnostic Complete ===" -ForegroundColor Cyan
 
 ### Search Performance Test
 
-```powershell
-# Save as Test-SearchPerformance.ps1
-[CmdletBinding()]
-param(
-    [string[]]$Queries = @("PowerShell", "git hooks", "authentication"),
-    [int]$Iterations = 3
-)
+```bash
+# Save as test_search_performance.sh
+QUERIES=("PowerShell" "git hooks" "authentication")
+ITERATIONS=3
 
-Import-Module .claude/skills/memory/scripts/MemoryRouter.psm1
-
-foreach ($query in $Queries) {
-    Write-Host "`nQuery: '$query'" -ForegroundColor Cyan
+for query in "${QUERIES[@]}"; do
+    echo ""
+    echo "Query: '$query'"
 
     # Lexical only
-    $times = @()
-    for ($i = 0; $i -lt $Iterations; $i++) {
-        $sw = [System.Diagnostics.Stopwatch]::StartNew()
-        $null = Search-Memory -Query $query -LexicalOnly
-        $sw.Stop()
-        $times += $sw.ElapsedMilliseconds
-    }
-    $avg = ($times | Measure-Object -Average).Average
-    Write-Host "  Lexical: $([int]$avg)ms avg" -ForegroundColor Yellow
+    total=0
+    for ((i=0; i<ITERATIONS; i++)); do
+        start=$(date +%s%N)
+        python3 .claude/skills/memory/scripts/search_memory.py \
+            --query "$query" --lexical-only > /dev/null
+        end=$(date +%s%N)
+        elapsed=$(( (end - start) / 1000000 ))
+        total=$((total + elapsed))
+    done
+    avg=$((total / ITERATIONS))
+    echo "  Lexical: ${avg}ms avg"
 
     # Combined (if Forgetful available)
-    $status = Get-MemoryRouterStatus
-    if ($status.ForgetfulAvailable) {
-        $times = @()
-        for ($i = 0; $i -lt $Iterations; $i++) {
-            $sw = [System.Diagnostics.Stopwatch]::StartNew()
-            $null = Search-Memory -Query $query
-            $sw.Stop()
-            $times += $sw.ElapsedMilliseconds
-        }
-        $avg = ($times | Measure-Object -Average).Average
-        Write-Host "  Combined: $([int]$avg)ms avg" -ForegroundColor Yellow
-    }
-}
+    python3 .claude/skills/memory/scripts/search_memory.py \
+        --query "$query" --format json > /dev/null 2>&1
+    if [ $? -eq 0 ]; then
+        total=0
+        for ((i=0; i<ITERATIONS; i++)); do
+            start=$(date +%s%N)
+            python3 .claude/skills/memory/scripts/search_memory.py \
+                --query "$query" > /dev/null
+            end=$(date +%s%N)
+            elapsed=$(( (end - start) / 1000000 ))
+            total=$((total + elapsed))
+        done
+        avg=$((total / ITERATIONS))
+        echo "  Combined: ${avg}ms avg"
+    fi
+done
 ```
 
 ## Getting Help

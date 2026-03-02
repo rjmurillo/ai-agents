@@ -31,6 +31,7 @@ from github_core.api import (
     resolve_repo_params,
     write_error_and_exit,
 )
+from github_core.validation import test_safe_file_path
 
 STATE_QUERY = """
 query($owner: String!, $repo: String!, $number: Int!) {
@@ -95,6 +96,8 @@ def main() -> None:
 
     comment = args.comment
     if args.comment_file:
+        if not test_safe_file_path(args.comment_file):
+            write_error_and_exit(f"Path traversal attempt detected: {args.comment_file}", 1)
         if not os.path.exists(args.comment_file):
             write_error_and_exit(f"Comment file not found: {args.comment_file}", 1)
         with open(args.comment_file, encoding="utf-8") as f:
