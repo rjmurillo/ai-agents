@@ -20,7 +20,7 @@ tools:
   - cloudmcp-manager/*
   - serena/*
   - memory
-model: Claude Sonnet 4.5 (copilot)
+model: Claude Sonnet 4.6 (copilot)
 ---
 # Issue Feature Review Agent
 

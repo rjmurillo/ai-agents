@@ -19,7 +19,7 @@ tools:
   - perplexity/*
   - cloudmcp-manager/*
   - serena/*
-model: claude-sonnet-4.5
+model: claude-sonnet-4.6
 ---
 # Issue Feature Review Agent
 
