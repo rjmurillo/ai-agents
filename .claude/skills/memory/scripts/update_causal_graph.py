@@ -16,9 +16,8 @@ import argparse
 import json
 import re
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
 _DEFAULT_EPISODE_PATH = (
@@ -37,7 +36,7 @@ _CAUSAL_GRAPH_FILE = _DEFAULT_CAUSALITY_PATH / "causal-graph.json"
 def _empty_graph() -> dict:
     return {
         "version": "1.0",
-        "updated": datetime.now(timezone.utc).isoformat(),
+        "updated": datetime.now(UTC).isoformat(),
         "nodes": [],
         "edges": [],
         "patterns": [],
@@ -60,7 +59,7 @@ def load_graph() -> dict:
 
 def save_graph(graph: dict) -> None:
     """Persist causal graph to disk."""
-    graph["updated"] = datetime.now(timezone.utc).isoformat()
+    graph["updated"] = datetime.now(UTC).isoformat()
     _CAUSAL_GRAPH_FILE.parent.mkdir(parents=True, exist_ok=True)
     _CAUSAL_GRAPH_FILE.write_text(json.dumps(graph, indent=2), encoding="utf-8")
 
@@ -153,7 +152,7 @@ def add_pattern(
         if pattern.get("name") == name:
             count = pattern.get("occurrences", 1) + 1
             pattern["occurrences"] = count
-            pattern["last_used"] = datetime.now(timezone.utc).isoformat()
+            pattern["last_used"] = datetime.now(UTC).isoformat()
             pattern["success_rate"] = (
                 pattern.get("success_rate", 1.0) * (count - 1) + success_rate
             ) / count
@@ -167,7 +166,7 @@ def add_pattern(
         "action": action,
         "success_rate": success_rate,
         "occurrences": 1,
-        "last_used": datetime.now(timezone.utc).isoformat(),
+        "last_used": datetime.now(UTC).isoformat(),
     }
     graph["patterns"].append(pattern)
     return pattern
@@ -182,7 +181,11 @@ def get_decision_patterns(episode: dict) -> list:
     patterns = []
     for decision in episode.get("decisions", []):
         outcome = decision.get("outcome", "")
-        trigger = decision.get("context") or f"When {decision.get('type', 'unknown')} decision needed"
+        decision_type = decision.get("type", "unknown")
+        trigger = (
+            decision.get("context")
+            or f"When {decision_type} decision needed"
+        )
         action = decision.get("chosen", "")
         success = outcome == "success"
         dtype = decision.get("type", "implementation")
@@ -384,8 +387,14 @@ def main() -> None:
             if not args.dry_run:
                 try:
                     graph = load_graph()
-                    from_node = add_causal_node(graph, chain["from_type"], chain["from_label"], episode_id)
-                    to_node = add_causal_node(graph, chain["to_type"], chain["to_label"], episode_id)
+                    from_node = add_causal_node(
+                        graph, chain["from_type"],
+                        chain["from_label"], episode_id,
+                    )
+                    to_node = add_causal_node(
+                        graph, chain["to_type"],
+                        chain["to_label"], episode_id,
+                    )
                     add_causal_edge(
                         graph,
                         from_node["id"],

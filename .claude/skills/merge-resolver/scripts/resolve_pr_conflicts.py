@@ -172,13 +172,19 @@ def resolve_conflicts_in_checkout(
 
     if not can_auto_resolve:
         run_git(["merge", "--abort"])
-        result["Message"] = f"Conflicts in non-auto-resolvable files: {', '.join(result['FilesBlocked'])}"
+        blocked = ", ".join(result["FilesBlocked"])
+        result["Message"] = (
+            f"Conflicts in non-auto-resolvable files: {blocked}"
+        )
         return result
 
     rc, _ = run_git(["diff", "--cached", "--quiet"])
     if rc != 0:
-        rc, _ = run_git(["commit", "-m",
-                         f"Merge {target_branch} into {branch_name} - auto-resolve HANDOFF.md conflicts"])
+        commit_msg = (
+            f"Merge {target_branch} into {branch_name}"
+            " - auto-resolve HANDOFF.md conflicts"
+        )
+        rc, _ = run_git(["commit", "-m", commit_msg])
         if rc != 0:
             result["Message"] = "Failed to commit merge"
             return result
@@ -210,7 +216,10 @@ def resolve_pr_conflicts(
         return result
 
     if not is_safe_branch_name(target_branch):
-        result["Message"] = f"Rejecting PR #{pr_number} due to unsafe target branch name: {target_branch}"
+        result["Message"] = (
+            f"Rejecting PR #{pr_number} due to"
+            f" unsafe target branch name: {target_branch}"
+        )
         return result
 
     if dry_run:

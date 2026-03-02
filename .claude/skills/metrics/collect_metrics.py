@@ -12,7 +12,6 @@ EXIT CODES (ADR-035):
 from __future__ import annotations
 
 import json
-import math
 import re
 import subprocess
 import sys
@@ -63,7 +62,12 @@ def get_commits_since(days: int, path: str) -> list[dict]:
 
     try:
         result = subprocess.run(
-            ["git", "-C", path, "log", f"--since={since_date}", f"--format={log_format}", "--date=short"],
+            [
+                "git", "-C", path, "log",
+                f"--since={since_date}",
+                f"--format={log_format}",
+                "--date=short",
+            ],
             capture_output=True,
             text=True,
             timeout=60,
@@ -303,8 +307,10 @@ def format_markdown(metrics: dict) -> str:
         "",
         "| Metric | Current | Target | Status |",
         "|--------|---------|--------|--------|",
-        f"| Agent Coverage | {coverage['coverage_rate']}% | {coverage['target']}% | {coverage_status} |",
-        f"| Infrastructure Review | {infra['review_rate']}% | {infra['target']}% | {infra_status} |",
+        f"| Agent Coverage | {coverage['coverage_rate']}% "
+        f"| {coverage['target']}% | {coverage_status} |",
+        f"| Infrastructure Review | {infra['review_rate']}% "
+        f"| {infra['target']}% | {infra_status} |",
         "",
         "---",
         "",
@@ -334,7 +340,10 @@ def format_markdown(metrics: dict) -> str:
     ])
 
     for commit_type, data in metrics["metric_2_coverage"]["by_type"].items():
-        lines.append(f"| {commit_type} | {data['total']} | {data['with_agent']} | {data['rate']}% |")
+        lines.append(
+            f"| {commit_type} | {data['total']} "
+            f"| {data['with_agent']} | {data['rate']}% |"
+        )
 
     lines.extend([
         "",

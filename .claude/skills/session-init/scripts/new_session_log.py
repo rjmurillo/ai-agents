@@ -175,19 +175,39 @@ def build_session_data(
                 "serenaActivated": {"Complete": False, "level": "MUST", "Evidence": ""},
                 "serenaInstructions": {"Complete": False, "level": "MUST", "Evidence": ""},
                 "handoffRead": {"Complete": False, "level": "MUST", "Evidence": ""},
-                "sessionLogCreated": {"Complete": True, "level": "MUST", "Evidence": "This file exists"},
+                "sessionLogCreated": {
+                    "Complete": True,
+                    "level": "MUST",
+                    "Evidence": "This file exists",
+                },
                 "skillScriptsListed": {"Complete": False, "level": "MUST", "Evidence": ""},
                 "usageMandatoryRead": {"Complete": False, "level": "MUST", "Evidence": ""},
-                "constraintsRead": {"Complete": False, "level": "MUST", "Evidence": ""},
+                "constraintsRead": {
+                    "Complete": False,
+                    "level": "MUST",
+                    "Evidence": "",
+                },
                 "memoriesLoaded": {"Complete": False, "level": "MUST", "Evidence": ""},
-                "branchVerified": {"Complete": True, "level": "MUST", "Evidence": f"Branch: {branch}"},
+                "branchVerified": {
+                    "Complete": True,
+                    "level": "MUST",
+                    "Evidence": f"Branch: {branch}",
+                },
                 "notOnMain": {
                     "Complete": branch not in ("main", "master"),
                     "level": "MUST",
                     "Evidence": "",
                 },
-                "gitStatusVerified": {"Complete": False, "level": "SHOULD", "Evidence": ""},
-                "startingCommitNoted": {"Complete": True, "level": "SHOULD", "Evidence": f"SHA: {commit}"},
+                "gitStatusVerified": {
+                    "Complete": False,
+                    "level": "SHOULD",
+                    "Evidence": "",
+                },
+                "startingCommitNoted": {
+                    "Complete": True,
+                    "level": "SHOULD",
+                    "Evidence": f"SHA: {commit}",
+                },
             },
             "sessionEnd": {
                 "checklistComplete": {"Complete": False, "level": "MUST", "Evidence": ""},
@@ -277,7 +297,7 @@ def validate_session_log(session_log_path: Path, repo_root: str) -> bool:
 
     if not validation_script.exists():
         print(
-            f"CRITICAL: Validation script not found",
+            "CRITICAL: Validation script not found",
             file=sys.stderr,
         )
         return False

@@ -200,7 +200,12 @@ def main() -> None:
                 preview = r["Content"][:57] + "..." if len(r["Content"]) > 60 else r["Content"]
                 print(f"{r['Name']:<40} {r['Source']:<10} {r['Score']:<6} {preview}")
     else:
-        source = "Serena" if args.lexical_only else ("Forgetful" if args.semantic_only else "Unified")
+        if args.lexical_only:
+            source = "Serena"
+        elif args.semantic_only:
+            source = "Forgetful"
+        else:
+            source = "Unified"
         output = {
             "Query": args.query,
             "Count": len(results),

@@ -67,9 +67,21 @@ def main() -> None:
         common_args.append("--skip-path-validation")
 
     scripts = [
-        ("Convert-IndexTableLinks", "convert_index_table_links.py", "IndexLinksAdded", "LinksAdded"),
-        ("Convert-MemoryReferences", "convert_memory_references.py", "BacktickLinksAdded", "LinksAdded"),
-        ("Improve-MemoryGraphDensity", "improve_memory_graph_density.py", "RelatedSectionsAdded", "RelationshipsAdded"),
+        (
+            "Convert-IndexTableLinks",
+            "convert_index_table_links.py",
+            "IndexLinksAdded", "LinksAdded",
+        ),
+        (
+            "Convert-MemoryReferences",
+            "convert_memory_references.py",
+            "BacktickLinksAdded", "LinksAdded",
+        ),
+        (
+            "Improve-MemoryGraphDensity",
+            "improve_memory_graph_density.py",
+            "RelatedSectionsAdded", "RelationshipsAdded",
+        ),
     ]
 
     for step_num, (label, script_name, agg_key, result_key) in enumerate(scripts, 1):
@@ -101,7 +113,7 @@ def main() -> None:
     if args.output_json:
         print(json.dumps(aggregate))
     else:
-        print(f"\n=== Summary ===")
+        print("\n=== Summary ===")
         print(f"Index table links added: {aggregate['IndexLinksAdded']}")
         print(f"Backtick references converted: {aggregate['BacktickLinksAdded']}")
         print(f"Related sections added: {aggregate['RelatedSectionsAdded']}")

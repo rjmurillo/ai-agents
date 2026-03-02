@@ -134,9 +134,18 @@ def main() -> int:
     """Entry point."""
     import argparse
 
-    parser = argparse.ArgumentParser(description="Match file paths against steering file glob patterns")
-    parser.add_argument("--files", nargs="+", required=True, help="File paths to analyze")
-    parser.add_argument("--steering-path", default=".agents/steering", help="Path to steering directory")
+    parser = argparse.ArgumentParser(
+        description="Match file paths against steering"
+        " file glob patterns",
+    )
+    parser.add_argument(
+        "--files", nargs="+", required=True,
+        help="File paths to analyze",
+    )
+    parser.add_argument(
+        "--steering-path", default=".agents/steering",
+        help="Path to steering directory",
+    )
     parser.add_argument("--json", action="store_true", help="Output as JSON")
     args = parser.parse_args()
 

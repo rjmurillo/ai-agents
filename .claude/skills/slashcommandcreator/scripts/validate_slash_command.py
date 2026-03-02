@@ -32,10 +32,10 @@ def validate_slash_command(path: str, skip_lint: bool = False) -> int:
 
     if not file_path.exists():
         print(f"[FAIL] File not found: {path}")
-        print(f"  Troubleshooting:")
-        print(f"    - Verify file path is correct")
-        print(f"    - Check if file has been moved or deleted")
-        print(f"    - Use absolute path if relative path is ambiguous")
+        print("  Troubleshooting:")
+        print("    - Verify file path is correct")
+        print("    - Check if file has been moved or deleted")
+        print("    - Use absolute path if relative path is ambiguous")
         return 1
 
     content = file_path.read_text(encoding="utf-8")
@@ -59,7 +59,10 @@ def validate_slash_command(path: str, skip_lint: bool = False) -> int:
                 r"^(Use when|Generate|Research|Invoke|Create|Analyze|Review|Search)",
                 description,
             ):
-                violations.append("WARNING: Description should start with action verb or 'Use when...'")
+                violations.append(
+                    "WARNING: Description should start with"
+                    " action verb or 'Use when...'"
+                )
 
         arg_match = re.search(r"argument-hint:\s*(.+)", frontmatter)
         has_arg_hint = arg_match is not None
@@ -71,7 +74,10 @@ def validate_slash_command(path: str, skip_lint: bool = False) -> int:
         violations.append("BLOCKING: Prompt uses arguments but no 'argument-hint' in frontmatter")
 
     if has_arg_hint and not uses_arguments:
-        violations.append("WARNING: Frontmatter has 'argument-hint' but prompt doesn't use arguments")
+        violations.append(
+            "WARNING: Frontmatter has 'argument-hint'"
+            " but prompt doesn't use arguments"
+        )
 
     # 3. Security Validation
     uses_bash_execution = bool(re.search(r"!\s*\w+", content))
@@ -80,7 +86,10 @@ def validate_slash_command(path: str, skip_lint: bool = False) -> int:
         allowed_tools_match = re.search(r"allowed-tools:\s*\[(.+)\]", frontmatter)
 
         if not allowed_tools_match:
-            violations.append("BLOCKING: Prompt uses bash execution (!) but no 'allowed-tools' in frontmatter")
+            violations.append(
+                "BLOCKING: Prompt uses bash execution (!)"
+                " but no 'allowed-tools' in frontmatter"
+            )
         else:
             allowed_tools = allowed_tools_match.group(1)
             tool_list = [t.strip() for t in allowed_tools.split(",")]
@@ -100,12 +109,18 @@ def validate_slash_command(path: str, skip_lint: bool = False) -> int:
         for cmd in bash_commands:
             if cmd in ("git", "gh", "npm", "npx"):
                 if not shutil.which(cmd):
-                    violations.append(f"WARNING: Bash command '{cmd}' not found in PATH (runtime may fail)")
+                    violations.append(
+                        f"WARNING: Bash command '{cmd}'"
+                        " not found in PATH (runtime may fail)"
+                    )
 
     # 4. Length Validation
     line_count = len(content.splitlines())
     if line_count > 200:
-        violations.append(f"WARNING: File has {line_count} lines (>200). Consider converting to skill.")
+        violations.append(
+            f"WARNING: File has {line_count} lines (>200)."
+            " Consider converting to skill."
+        )
 
     # 5. Lint Validation
     if not skip_lint:
@@ -125,7 +140,7 @@ def validate_slash_command(path: str, skip_lint: bool = False) -> int:
                     violations.append(lint_result.stderr.strip())
                 violations.append("")
                 violations.append(f"  To auto-fix: npx markdownlint-cli2 --fix {path}")
-                violations.append(f"  Configuration: .markdownlint.json (if exists) or defaults")
+                violations.append("  Configuration: .markdownlint.json (if exists) or defaults")
         except FileNotFoundError:
             violations.append("WARNING: npx not found, skipping markdown lint")
         except subprocess.TimeoutExpired:

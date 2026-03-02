@@ -95,10 +95,14 @@ allowed-tools: []
         return 1
 
     print(f"[PASS] Created: {file_path}")
-    print(f"\nNext steps:")
-    print(f"  1. Edit frontmatter (description, argument-hint, allowed-tools)")
-    print(f"  2. Write prompt body")
-    print(f"  3. Run: python3 .claude/skills/slashcommandcreator/scripts/validate_slash_command.py --path {file_path}")
+    print("\nNext steps:")
+    print("  1. Edit frontmatter (description, argument-hint, allowed-tools)")
+    print("  2. Write prompt body")
+    validate_cmd = (
+        "python3 .claude/skills/slashcommandcreator"
+        f"/scripts/validate_slash_command.py --path {file_path}"
+    )
+    print(f"  3. Run: {validate_cmd}")
     print(f"  4. Test: /{name} [arguments]")
 
     return 0
@@ -108,7 +112,10 @@ def main() -> int:
     """Entry point."""
     import argparse
 
-    parser = argparse.ArgumentParser(description="Create new slash command with frontmatter template")
+    parser = argparse.ArgumentParser(
+        description="Create new slash command with"
+        " frontmatter template",
+    )
     parser.add_argument("--name", required=True, help="Command name (e.g., security-audit)")
     parser.add_argument("--namespace", help="Optional namespace (e.g., git, memory)")
     args = parser.parse_args()

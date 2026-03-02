@@ -129,9 +129,18 @@ def main() -> int:
     """Entry point."""
     import argparse
 
-    parser = argparse.ArgumentParser(description="Detect infrastructure and security-critical file changes")
-    parser.add_argument("--files", nargs="*", help="Changed file paths to analyze")
-    parser.add_argument("--use-git-staged", action="store_true", help="Analyze staged files from git")
+    parser = argparse.ArgumentParser(
+        description="Detect infrastructure and security-critical"
+        " file changes",
+    )
+    parser.add_argument(
+        "--files", nargs="*",
+        help="Changed file paths to analyze",
+    )
+    parser.add_argument(
+        "--use-git-staged", action="store_true",
+        help="Analyze staged files from git",
+    )
     parser.add_argument("--json", action="store_true", help="Output results as JSON")
     args = parser.parse_args()
 

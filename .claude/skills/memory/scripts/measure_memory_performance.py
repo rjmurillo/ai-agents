@@ -16,7 +16,6 @@ See: ADR-035 Exit Code Standardization
 import argparse
 import json
 import re
-import sys
 import time
 import urllib.error
 import urllib.request
@@ -283,7 +282,11 @@ def main() -> None:
 
     if args.output_format == "console":
         print("=== Memory Performance Benchmark (M-008) ===")
-        print(f"Queries: {len(queries)}, Iterations: {args.iterations}, Warmup: {args.warmup_iterations}")
+        print(
+            f"Queries: {len(queries)}, "
+            f"Iterations: {args.iterations}, "
+            f"Warmup: {args.warmup_iterations}"
+        )
         print("\nBenchmarking Serena (lexical search)...")
 
     for query in queries:
