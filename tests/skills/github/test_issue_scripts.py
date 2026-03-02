@@ -562,7 +562,7 @@ class TestSetIssueLabels:
             patch("subprocess.run", return_value=make_proc(returncode=0)),
         ):
             result = mod.set_issue_labels("o", "r", 1, [], priority="P1")
-        assert any("priority:P1" in l for l in result["Applied"])
+        assert any("priority:P1" in label for label in result["Applied"])
 
     def test_no_labels_returns_empty(self):
         mod = self._import()

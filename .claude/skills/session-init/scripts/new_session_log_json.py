@@ -252,7 +252,7 @@ def write_session_file(
     """
     sessions_dir.mkdir(parents=True, exist_ok=True)
 
-    for retry in range(MAX_RETRIES):
+    for _retry in range(MAX_RETRIES):
         file_name = f"{date}-session-{session_number}.json"
         file_path = sessions_dir / file_name
         try:
