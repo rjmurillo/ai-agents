@@ -111,7 +111,11 @@ def write_log_error(message: str) -> None:
 
 
 def write_output(key: str, value: str) -> None:
-    """Append a key=value line to the GitHub Actions output file.
+    """Append a key=value entry to the GitHub Actions output file.
+
+    Uses heredoc delimiter format for multiline values to prevent
+    GitHub Actions from misinterpreting subsequent lines as malformed
+    key=value pairs (see issue #1386).
 
     Reads the output file path from the GITHUB_OUTPUT environment variable.
     Does nothing when GITHUB_OUTPUT is unset or empty.
@@ -119,11 +123,18 @@ def write_output(key: str, value: str) -> None:
     output_file = os.environ.get("GITHUB_OUTPUT", "")
     if output_file:
         with open(output_file, "a", encoding="utf-8") as f:
-            f.write(f"{key}={value}\n")
+            if "\n" in value:
+                delimiter = "ghadelimiter_" + key
+                f.write(f"{key}<<{delimiter}\n{value}\n{delimiter}\n")
+            else:
+                f.write(f"{key}={value}\n")
 
 
 def write_github_output(pairs: dict[str, str]) -> None:
     """Append multiple key=value pairs to $GITHUB_OUTPUT if set.
+
+    Uses heredoc delimiter format for multiline values to prevent
+    GitHub Actions from misinterpreting subsequent lines (see issue #1386).
 
     Silently swallows OSError so callers never crash on output failures.
     """
@@ -133,7 +144,11 @@ def write_github_output(pairs: dict[str, str]) -> None:
     try:
         with open(output_path, "a", encoding="utf-8") as fh:
             for key, value in pairs.items():
-                fh.write(f"{key}={value}\n")
+                if "\n" in value:
+                    delimiter = "ghadelimiter_" + key
+                    fh.write(f"{key}<<{delimiter}\n{value}\n{delimiter}\n")
+                else:
+                    fh.write(f"{key}={value}\n")
     except OSError:
         logger.warning("Failed to write GitHub Actions outputs")
 

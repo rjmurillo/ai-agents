@@ -112,11 +112,18 @@ def find_design_reviews(base_dir: str) -> list[str]:
 
 
 def write_output(key: str, value: str) -> None:
-    """Write a key-value pair to GITHUB_OUTPUT if available."""
+    """Write a key-value pair to GITHUB_OUTPUT if available.
+
+    Uses heredoc delimiter format for multiline values (see issue #1386).
+    """
     output_path = os.environ.get("GITHUB_OUTPUT")
     if output_path:
         with open(output_path, "a", encoding="utf-8") as f:
-            f.write(f"{key}={value}\n")
+            if "\n" in value:
+                delimiter = "ghadelimiter_" + key
+                f.write(f"{key}<<{delimiter}\n{value}\n{delimiter}\n")
+            else:
+                f.write(f"{key}={value}\n")
 
 
 def run_gate(
