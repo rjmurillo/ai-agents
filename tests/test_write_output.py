@@ -62,10 +62,10 @@ class TestWriteOutput:
         write_output("details", "  - file1.py\n  - file2.py")
 
         raw = output_file.read_text()
-        assert "details=" not in raw.split("\n")[0] or "<<" in raw.split("\n")[0]
-        assert "details<<ghadelimiter_details" in raw
-        assert "ghadelimiter_details" in raw
+        # Verify heredoc format is used (key<<delimiter, not key=value)
+        assert raw.splitlines()[0].startswith("details<<")
 
+        # Verify content is correctly parsed
         outputs = _read_outputs(output_file)
         assert outputs["details"] == "  - file1.py\n  - file2.py"
 
@@ -102,4 +102,5 @@ class TestWriteGithubOutput:
 
         raw = output_file.read_text()
         assert "simple=value" in raw
-        assert "multi<<ghadelimiter_multi" in raw
+        # Verify heredoc format for multiline value
+        assert any(line.startswith("multi<<") for line in raw.splitlines())

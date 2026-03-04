@@ -124,7 +124,7 @@ def write_output(key: str, value: str) -> None:
     if output_file:
         with open(output_file, "a", encoding="utf-8") as f:
             if "\n" in value:
-                delimiter = "ghadelimiter_" + key
+                delimiter = os.urandom(16).hex()
                 f.write(f"{key}<<{delimiter}\n{value}\n{delimiter}\n")
             else:
                 f.write(f"{key}={value}\n")
@@ -145,7 +145,7 @@ def write_github_output(pairs: dict[str, str]) -> None:
         with open(output_path, "a", encoding="utf-8") as fh:
             for key, value in pairs.items():
                 if "\n" in value:
-                    delimiter = "ghadelimiter_" + key
+                    delimiter = os.urandom(16).hex()
                     fh.write(f"{key}<<{delimiter}\n{value}\n{delimiter}\n")
                 else:
                     fh.write(f"{key}={value}\n")

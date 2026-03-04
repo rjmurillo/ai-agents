@@ -195,8 +195,8 @@ class TestMain:
         raw = output_file.read_text()
         # The multiline value must NOT appear as bare key=value lines
         assert "violation_details=  - " not in raw
-        # It must use heredoc delimiter format
-        assert "violation_details<<ghadelimiter_violation_details" in raw
+        # It must use heredoc delimiter format (key<<delimiter)
+        assert any(line.startswith("violation_details<<") for line in raw.splitlines())
 
         outputs = _read_outputs(output_file)
         assert "src/main.py" in outputs["violation_details"]
