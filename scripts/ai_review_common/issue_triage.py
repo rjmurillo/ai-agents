@@ -121,13 +121,17 @@ def write_output(key: str, value: str) -> None:
     Does nothing when GITHUB_OUTPUT is unset or empty.
     """
     output_file = os.environ.get("GITHUB_OUTPUT", "")
-    if output_file:
+    if not output_file:
+        return
+    try:
         with open(output_file, "a", encoding="utf-8") as f:
             if "\n" in value:
                 delimiter = os.urandom(16).hex()
                 f.write(f"{key}<<{delimiter}\n{value}\n{delimiter}\n")
             else:
                 f.write(f"{key}={value}\n")
+    except OSError:
+        logger.warning("Failed to write GitHub Actions output: %s", key)
 
 
 def write_github_output(pairs: dict[str, str]) -> None:
