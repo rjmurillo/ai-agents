@@ -19,6 +19,14 @@ from dataclasses import dataclass
 from glob import glob
 from typing import TextIO
 
+workspace = os.environ.get(
+    "GITHUB_WORKSPACE",
+    os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")),
+)
+sys.path.insert(0, workspace)
+
+from scripts.ai_review_common import write_output  # noqa: E402
+
 # Verdicts that block merge
 BLOCKING_VERDICTS = frozenset({
     "NEEDS_CHANGES",
@@ -109,21 +117,6 @@ def find_design_reviews(base_dir: str) -> list[str]:
     """Find all DESIGN-REVIEW-*.md files in the architecture directory."""
     pattern = os.path.join(base_dir, ".agents", "architecture", "DESIGN-REVIEW-*.md")
     return sorted(glob(pattern))
-
-
-def write_output(key: str, value: str) -> None:
-    """Write a key-value pair to GITHUB_OUTPUT if available.
-
-    Uses heredoc delimiter format for multiline values (see issue #1386).
-    """
-    output_path = os.environ.get("GITHUB_OUTPUT")
-    if output_path:
-        with open(output_path, "a", encoding="utf-8") as f:
-            if "\n" in value:
-                delimiter = "ghadelimiter_" + key
-                f.write(f"{key}<<{delimiter}\n{value}\n{delimiter}\n")
-            else:
-                f.write(f"{key}={value}\n")
 
 
 def run_gate(
