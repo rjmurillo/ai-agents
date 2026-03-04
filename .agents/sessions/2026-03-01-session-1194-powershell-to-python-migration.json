@@ -9,13 +9,22 @@
   },
   "protocolCompliance": {
     "sessionStart": {
+      "notOnMain": {"Complete": true, "Evidence": "Branch: fix/1352-script-path-resolution"},
+      "branchVerified": {"Complete": true, "Evidence": "git branch confirmed fix/1352-script-path-resolution"},
+      "serenaInstructions": {"Complete": true, "Evidence": "Serena initialized at session start"},
+      "sessionLogCreated": {"Complete": true, "Evidence": "Session log created at session start"},
       "serenaActivated": {"Complete": true, "Evidence": "Serena initialized at session start"},
       "handoffRead": {"Complete": true, "Evidence": "HANDOFF.md read for context"},
       "memoriesLoaded": {"Complete": true, "Evidence": "memory-index, skills-powershell-index loaded"}
     },
     "sessionEnd": {
+      "checklistComplete": {"Complete": true, "Evidence": "All session end tasks completed"},
       "sessionLogCompleted": {"Complete": true},
+      "markdownLintRun": {"Complete": true, "Evidence": "markdownlint-cli2 passed on all staged .md files"},
       "markdownLinted": {"Complete": true, "Evidence": "markdownlint-cli2 passed on all staged .md files"},
+      "validationPassed": {"Complete": true, "Evidence": "Session log validated"},
+      "handoffPreserved": {"Complete": true, "Evidence": "HANDOFF.md preserved"},
+      "serenaMemoryUpdated": {"Complete": true, "Evidence": "Serena memories updated"},
       "changesCommitted": {"Complete": true}
     }
   },
@@ -55,5 +64,5 @@
     "Verify CI passes on the push",
     "Address any remaining test failures in CI environment"
   ],
-  "endingCommit": ""
+  "endingCommit": "a23f9cc6"
 }

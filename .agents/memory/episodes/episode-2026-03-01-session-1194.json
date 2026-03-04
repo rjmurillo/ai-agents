@@ -1,0 +1,27 @@
+{
+  "id": "episode-2026-03-01-session-1194",
+  "session": "2026-03-01-session-1194",
+  "timestamp": "2026-03-04T04:28:10.430509+00:00",
+  "outcome": "partial",
+  "task": "",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e002",
+      "timestamp": "2026-03-04T04:28:10.428870+00:00",
+      "type": "test",
+      "content": "\"Address any remaining test failures in CI environment\"",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 1,
+    "recoveries": 0,
+    "commits": 2,
+    "files_changed": 0
+  },
+  "lessons": []
+}
