@@ -12,13 +12,20 @@ from scripts.ai_review_common import write_github_output, write_output
 
 
 def _read_outputs(output_file: Path) -> dict[str, str]:
-    """Parse GitHub Actions output file supporting both formats."""
+    """Parse GitHub Actions output file supporting both formats.
+
+    Heredoc format: key<<delimiter (no = before <<)
+    Simple format: key=value (may contain << in value)
+    """
     lines = output_file.read_text().splitlines()
     result: dict[str, str] = {}
     i = 0
     while i < len(lines):
         line = lines[i]
-        if "<<" in line:
+        # Heredoc: key<<delimiter (no = before <<)
+        eq_pos = line.find("=")
+        heredoc_pos = line.find("<<")
+        if heredoc_pos != -1 and (eq_pos == -1 or heredoc_pos < eq_pos):
             key, delimiter = line.split("<<", 1)
             value_lines: list[str] = []
             i += 1
@@ -27,7 +34,7 @@ def _read_outputs(output_file: Path) -> dict[str, str]:
                 i += 1
             result[key] = "\n".join(value_lines)
             i += 1
-        elif "=" in line:
+        elif eq_pos != -1:
             k, v = line.split("=", 1)
             result[k] = v
             i += 1

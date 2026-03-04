@@ -45,7 +45,10 @@ def _setup_output(tmp_path: Path, monkeypatch) -> Path:
 def _read_outputs(output_file: Path) -> dict[str, str]:
     """Parse GitHub Actions output file supporting both formats.
 
-    Handles simple ``key=value`` lines and heredoc blocks::
+    Heredoc format: ``key<<delimiter`` (no ``=`` before ``<<``)
+    Simple format: ``key=value`` (may contain ``<<`` in value)
+
+    Example heredoc::
 
         key<<delimiter
         multiline value
@@ -57,7 +60,10 @@ def _read_outputs(output_file: Path) -> dict[str, str]:
     i = 0
     while i < len(lines):
         line = lines[i]
-        if "<<" in line:
+        # Heredoc: key<<delimiter (no = before <<)
+        eq_pos = line.find("=")
+        heredoc_pos = line.find("<<")
+        if heredoc_pos != -1 and (eq_pos == -1 or heredoc_pos < eq_pos):
             key, delimiter = line.split("<<", 1)
             value_lines: list[str] = []
             i += 1
@@ -66,7 +72,7 @@ def _read_outputs(output_file: Path) -> dict[str, str]:
                 i += 1
             result[key] = "\n".join(value_lines)
             i += 1  # skip closing delimiter
-        elif "=" in line:
+        elif eq_pos != -1:
             k, v = line.split("=", 1)
             result[k] = v
             i += 1
