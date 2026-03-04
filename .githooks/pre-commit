@@ -209,7 +209,14 @@ get_markdownlint_cmd() {
 }
 
 set_python_cmd() {
-    # Try python3 first (preferred)
+    # Try uv run python first (handles virtual environments)
+    if command -v uv &> /dev/null; then
+        if uv run python -c 'import sys' &> /dev/null; then
+            PYTHON_CMD=(uv run python)
+            return 0
+        fi
+    fi
+    # Try python3 (preferred system fallback)
     if command -v python3 &> /dev/null; then
         if python3 -c 'import sys' &> /dev/null; then
             PYTHON_CMD=(python3)
