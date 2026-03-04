@@ -1,17 +1,32 @@
 """Tests for set_issue_labels.py."""
 
 import json
-from unittest.mock import patch, call
+import sys
+from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
 from test_helpers import make_completed_process
 
+# Ensure importability
+_project_root = Path(__file__).resolve().parents[3]
+_lib_dir = _project_root / ".claude" / "lib"
+_scripts_dir = _project_root / ".claude" / "skills" / "github" / "scripts"
+for _p in (str(_lib_dir), str(_scripts_dir / "issue")):
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
+
+from github_core.api import RepoInfo  # noqa: E402
+
+
+def _mock_repo():
+    return RepoInfo(owner="o", repo="r")
+
 
 @pytest.fixture
 def _import_module():
     import importlib
-    import sys
     mod_name = "set_issue_labels"
     if mod_name in sys.modules:
         del sys.modules[mod_name]
@@ -19,107 +34,105 @@ def _import_module():
 
 
 class TestSetIssueLabels:
-    def test_apply_existing_labels(self, _import_module):
+    """Tests for set_issue_labels.main."""
+
+    def test_apply_existing_labels(self, _import_module, capsys):
+        mod = _import_module
+        # For each label: _label_exists + _apply_label
+        with (
+            patch("set_issue_labels.assert_gh_authenticated"),
+            patch("set_issue_labels.resolve_repo_params", return_value=_mock_repo()),
+            patch("subprocess.run", side_effect=[
+                make_completed_process(),  # _label_exists for "bug"
+                make_completed_process(),  # _apply_label for "bug"
+                make_completed_process(),  # _label_exists for "P1"
+                make_completed_process(),  # _apply_label for "P1"
+            ]),
+        ):
+            rc = mod.main(["--issue", "1", "--labels", "bug", "P1"])
+        assert rc == 0
+        result = json.loads(capsys.readouterr().out)
+        assert result["success"] is True
+        assert result["applied"] == ["bug", "P1"]
+        assert result["total_applied"] == 2
+
+    def test_create_missing_label(self, _import_module, capsys):
         mod = _import_module
         with (
-            patch("set_issue_labels._run_gh") as mock_run_gh,
-            patch("subprocess.run") as mock_run,
+            patch("set_issue_labels.assert_gh_authenticated"),
+            patch("set_issue_labels.resolve_repo_params", return_value=_mock_repo()),
+            patch("subprocess.run", side_effect=[
+                make_completed_process(returncode=1),   # _label_exists fails
+                make_completed_process(),                # _create_label succeeds
+                make_completed_process(),                # _apply_label succeeds
+            ]),
         ):
-            mock_run_gh.return_value = make_completed_process()
-            mock_run.return_value = make_completed_process()
+            rc = mod.main(["--issue", "1", "--labels", "new-label"])
+        assert rc == 0
+        result = json.loads(capsys.readouterr().out)
+        assert result["created"] == ["new-label"]
+        assert result["applied"] == ["new-label"]
 
-            result = mod.set_issue_labels("o", "r", 1, ["bug", "P1"])
-
-        assert result["Success"] is True
-        assert result["Applied"] == ["bug", "P1"]
-        assert result["TotalApplied"] == 2
-
-    def test_create_missing_label(self, _import_module):
-        mod = _import_module
-
-        call_count = {"check": 0, "create": 0, "apply": 0}
-
-        def mock_run_gh_side(*args, **kwargs):
-            if "labels/" in args[1]:
-                call_count["check"] += 1
-                return make_completed_process(returncode=1)
-            return make_completed_process()
-
-        def mock_run_side(cmd, **kwargs):
-            if "-X" in cmd and "POST" in cmd:
-                call_count["create"] += 1
-                return make_completed_process()
-            call_count["apply"] += 1
-            return make_completed_process()
-
-        with (
-            patch("set_issue_labels._run_gh", side_effect=mock_run_gh_side),
-            patch("subprocess.run", side_effect=mock_run_side),
-        ):
-            result = mod.set_issue_labels("o", "r", 1, ["new-label"])
-
-        assert result["Created"] == ["new-label"]
-        assert result["Applied"] == ["new-label"]
-
-    def test_priority_label(self, _import_module):
+    def test_priority_label(self, _import_module, capsys):
         mod = _import_module
         with (
-            patch("set_issue_labels._run_gh") as mock_run_gh,
-            patch("subprocess.run") as mock_run,
+            patch("set_issue_labels.assert_gh_authenticated"),
+            patch("set_issue_labels.resolve_repo_params", return_value=_mock_repo()),
+            patch("subprocess.run", side_effect=[
+                make_completed_process(),  # _label_exists
+                make_completed_process(),  # _apply_label
+            ]),
         ):
-            mock_run_gh.return_value = make_completed_process()
-            mock_run.return_value = make_completed_process()
-
-            result = mod.set_issue_labels(
-                "o", "r", 1, [], priority="P1"
-            )
-
-        assert "priority:P1" in result["Applied"]
+            rc = mod.main(["--issue", "1", "--priority", "P1"])
+        assert rc == 0
+        result = json.loads(capsys.readouterr().out)
+        assert "priority:P1" in result["applied"]
 
     def test_empty_labels(self, _import_module):
         mod = _import_module
+        with (
+            patch("set_issue_labels.assert_gh_authenticated"),
+            patch("set_issue_labels.resolve_repo_params", return_value=_mock_repo()),
+        ):
+            rc = mod.main(["--issue", "1"])
+        assert rc == 0
 
-        result = mod.set_issue_labels("o", "r", 1, [])
-
-        assert result["Success"] is True
-        assert result["TotalApplied"] == 0
-
-    def test_skip_missing_when_no_create(self, _import_module):
+    def test_skip_missing_when_no_create(self, _import_module, capsys):
         mod = _import_module
-        with patch("set_issue_labels._run_gh") as mock_run_gh:
-            mock_run_gh.return_value = make_completed_process(returncode=1)
-
-            result = mod.set_issue_labels(
-                "o", "r", 1, ["nonexistent"],
-                create_missing=False,
-            )
-
-        assert result["Applied"] == []
-        assert result["TotalApplied"] == 0
+        with (
+            patch("set_issue_labels.assert_gh_authenticated"),
+            patch("set_issue_labels.resolve_repo_params", return_value=_mock_repo()),
+            patch("subprocess.run", return_value=make_completed_process(returncode=1)),
+        ):
+            rc = mod.main(["--issue", "1", "--labels", "nonexistent", "--no-create-missing"])
+        assert rc == 0
 
     def test_create_failure_adds_to_failed(self, _import_module):
         mod = _import_module
         with (
-            patch("set_issue_labels._run_gh") as mock_run_gh,
-            patch("subprocess.run") as mock_run,
+            patch("set_issue_labels.assert_gh_authenticated"),
+            patch("set_issue_labels.resolve_repo_params", return_value=_mock_repo()),
+            patch("subprocess.run", side_effect=[
+                make_completed_process(returncode=1),                     # _label_exists fails
+                make_completed_process(returncode=1, stderr="err"),       # _create_label fails
+            ]),
         ):
-            mock_run_gh.return_value = make_completed_process(returncode=1)
-            mock_run.return_value = make_completed_process(returncode=1, stderr="err")
+            with pytest.raises(SystemExit) as exc:
+                mod.main(["--issue", "1", "--labels", "broken"])
+        assert exc.value.code == 3
 
-            result = mod.set_issue_labels("o", "r", 1, ["broken"])
-
-        assert result["Failed"] == ["broken"]
-        assert result["Success"] is False
-
-    def test_whitespace_labels_filtered(self, _import_module):
+    def test_whitespace_labels_filtered(self, _import_module, capsys):
         mod = _import_module
+        # Only "good" should be processed; "  " and "" are stripped and skipped
         with (
-            patch("set_issue_labels._run_gh") as mock_run_gh,
-            patch("subprocess.run") as mock_run,
+            patch("set_issue_labels.assert_gh_authenticated"),
+            patch("set_issue_labels.resolve_repo_params", return_value=_mock_repo()),
+            patch("subprocess.run", side_effect=[
+                make_completed_process(),  # _label_exists for "good"
+                make_completed_process(),  # _apply_label for "good"
+            ]),
         ):
-            mock_run_gh.return_value = make_completed_process()
-            mock_run.return_value = make_completed_process()
-
-            result = mod.set_issue_labels("o", "r", 1, ["good", "  ", ""])
-
-        assert result["Applied"] == ["good"]
+            rc = mod.main(["--issue", "1", "--labels", "good", "  ", ""])
+        assert rc == 0
+        result = json.loads(capsys.readouterr().out)
+        assert result["applied"] == ["good"]

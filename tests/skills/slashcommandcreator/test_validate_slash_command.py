@@ -21,7 +21,10 @@ main = mod.main
 
 
 class TestValidateSlashCommand:
-    """Tests for validate_slash_command function."""
+    """Tests for validate_slash_command function.
+
+    validate_slash_command returns (violations, blocking_count, warning_count).
+    """
 
     def test_passes_valid_command(self, tmp_path: Path) -> None:
         cmd = tmp_path / "test.md"
@@ -34,28 +37,28 @@ class TestValidateSlashCommand:
             "# Test Command\n\n"
             "Use $ARGUMENTS for input.\n"
         )
-        result = validate_slash_command(str(cmd), skip_lint=True)
-        assert result == 0
+        violations, blocking, warnings = validate_slash_command(str(cmd), skip_lint=True)
+        assert blocking == 0
 
     def test_fails_missing_file(self, tmp_path: Path) -> None:
-        result = validate_slash_command(str(tmp_path / "nonexistent.md"), skip_lint=True)
-        assert result == 1
+        violations, blocking, warnings = validate_slash_command(
+            str(tmp_path / "nonexistent.md"), skip_lint=True
+        )
+        assert blocking == 1
 
     def test_fails_missing_frontmatter(self, tmp_path: Path) -> None:
         cmd = tmp_path / "test.md"
         cmd.write_text("# No frontmatter\nSome content\n")
-        result = validate_slash_command(str(cmd), skip_lint=True)
-        assert result == 1
+        violations, blocking, warnings = validate_slash_command(str(cmd), skip_lint=True)
+        assert blocking >= 1
 
     def test_fails_missing_description(self, tmp_path: Path) -> None:
         cmd = tmp_path / "test.md"
         cmd.write_text("---\nargument-hint: <arg>\n---\n# Test\n")
-        result = validate_slash_command(str(cmd), skip_lint=True)
-        assert result == 1
+        violations, blocking, warnings = validate_slash_command(str(cmd), skip_lint=True)
+        assert blocking >= 1
 
-    def test_warns_bad_description_verb(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture
-    ) -> None:
+    def test_warns_bad_description_verb(self, tmp_path: Path) -> None:
         cmd = tmp_path / "test.md"
         cmd.write_text(
             "---\n"
@@ -63,11 +66,10 @@ class TestValidateSlashCommand:
             "---\n\n"
             "# Test\n"
         )
-        result = validate_slash_command(str(cmd), skip_lint=True)
-        # Should pass with warning (not blocking)
-        assert result == 0
-        captured = capsys.readouterr()
-        assert "WARNING" in captured.out
+        violations, blocking, warnings = validate_slash_command(str(cmd), skip_lint=True)
+        # Should have warning but no blockers
+        assert blocking == 0
+        assert warnings >= 1
 
     def test_fails_arguments_without_hint(self, tmp_path: Path) -> None:
         cmd = tmp_path / "test.md"
@@ -77,12 +79,10 @@ class TestValidateSlashCommand:
             "---\n\n"
             "Use $ARGUMENTS here\n"
         )
-        result = validate_slash_command(str(cmd), skip_lint=True)
-        assert result == 1
+        violations, blocking, warnings = validate_slash_command(str(cmd), skip_lint=True)
+        assert blocking >= 1
 
-    def test_warns_hint_without_arguments(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture
-    ) -> None:
+    def test_warns_hint_without_arguments(self, tmp_path: Path) -> None:
         cmd = tmp_path / "test.md"
         cmd.write_text(
             "---\n"
@@ -91,10 +91,9 @@ class TestValidateSlashCommand:
             "---\n\n"
             "No arguments used.\n"
         )
-        result = validate_slash_command(str(cmd), skip_lint=True)
-        assert result == 0
-        captured = capsys.readouterr()
-        assert "WARNING" in captured.out
+        violations, blocking, warnings = validate_slash_command(str(cmd), skip_lint=True)
+        assert blocking == 0
+        assert warnings >= 1
 
     def test_fails_bash_without_allowed_tools(self, tmp_path: Path) -> None:
         cmd = tmp_path / "test.md"
@@ -104,8 +103,8 @@ class TestValidateSlashCommand:
             "---\n\n"
             "Run ! git status\n"
         )
-        result = validate_slash_command(str(cmd), skip_lint=True)
-        assert result == 1
+        violations, blocking, warnings = validate_slash_command(str(cmd), skip_lint=True)
+        assert blocking >= 1
 
     def test_fails_overly_permissive_wildcard(self, tmp_path: Path) -> None:
         cmd = tmp_path / "test.md"
@@ -116,8 +115,8 @@ class TestValidateSlashCommand:
             "---\n\n"
             "Run ! git status\n"
         )
-        result = validate_slash_command(str(cmd), skip_lint=True)
-        assert result == 1
+        violations, blocking, warnings = validate_slash_command(str(cmd), skip_lint=True)
+        assert blocking >= 1
 
     def test_passes_mcp_scoped_wildcard(self, tmp_path: Path) -> None:
         cmd = tmp_path / "test.md"
@@ -128,19 +127,18 @@ class TestValidateSlashCommand:
             "---\n\n"
             "Run ! git status\n"
         )
-        result = validate_slash_command(str(cmd), skip_lint=True)
-        assert result == 0
+        violations, blocking, warnings = validate_slash_command(str(cmd), skip_lint=True)
+        assert blocking == 0
 
-    def test_warns_long_file(self, tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
+    def test_warns_long_file(self, tmp_path: Path) -> None:
         cmd = tmp_path / "test.md"
         lines = ["---", "description: Use when testing", "---", ""]
         lines.extend(["# Line"] * 200)
         cmd.write_text("\n".join(lines))
-        result = validate_slash_command(str(cmd), skip_lint=True)
-        assert result == 0
-        captured = capsys.readouterr()
-        assert "WARNING" in captured.out
-        assert ">200" in captured.out
+        violations, blocking, warnings = validate_slash_command(str(cmd), skip_lint=True)
+        assert blocking == 0
+        assert warnings >= 1
+        assert any(">200" in v for v in violations)
 
 
 class TestMain:
@@ -154,15 +152,9 @@ class TestMain:
             "---\n\n"
             "# Test\n"
         )
-        with patch("sys.argv", ["validate_slash_command.py", "--path", str(cmd), "--skip-lint"]):
-            result = main()
+        result = main(["--path", str(cmd), "--skip-lint"])
         assert result == 0
 
     def test_fails_invalid_file(self, tmp_path: Path) -> None:
-        argv = [
-            "validate_slash_command.py", "--path",
-            str(tmp_path / "nope.md"), "--skip-lint",
-        ]
-        with patch("sys.argv", argv):
-            result = main()
+        result = main(["--path", str(tmp_path / "nope.md"), "--skip-lint"])
         assert result == 1

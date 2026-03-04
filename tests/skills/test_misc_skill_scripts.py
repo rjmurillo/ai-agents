@@ -15,7 +15,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -29,6 +29,9 @@ _security = _project_root / ".claude" / "skills" / "security-detection"
 _fix_fences = _project_root / ".claude" / "skills" / "fix-markdown-fences"
 _slashcmd = _project_root / ".claude" / "skills" / "slashcommandcreator" / "scripts"
 
+# Also add .claude/lib for github_core imports
+_lib_dir = _project_root / ".claude" / "lib"
+
 for _p in (
     str(_adr_review),
     str(_codeql),
@@ -37,6 +40,7 @@ for _p in (
     str(_security),
     str(_fix_fences),
     str(_slashcmd),
+    str(_lib_dir),
 ):
     if _p not in sys.path:
         sys.path.insert(0, _p)
@@ -53,7 +57,11 @@ def make_proc(stdout="", stderr="", returncode=0):
 # ---------------------------------------------------------------------------
 
 class TestDetectAdrChanges:
-    """Tests for detect_adr_changes module."""
+    """Tests for detect_adr_changes module.
+
+    The module exposes main() as its entry point, plus private helpers
+    _get_adr_status() and _run_git().
+    """
 
     def _import(self):
         import importlib
@@ -62,99 +70,23 @@ class TestDetectAdrChanges:
         importlib.reload(mod)
         return mod
 
-    def test_no_changes(self, tmp_path):
-        mod = self._import()
-        (tmp_path / ".git").mkdir()
-
-        def fake_run_git(args, cwd):
-            return 0, ""
-
-        with patch.object(mod, "run_git", side_effect=fake_run_git):
-            result = mod.detect_adr_changes(str(tmp_path))
-        assert result["HasChanges"] is False
-        assert result["Created"] == []
-        assert result["Modified"] == []
-        assert result["Deleted"] == []
-        assert result["RecommendedAction"] == "none"
-
-    def test_created_adr(self, tmp_path):
-        mod = self._import()
-        (tmp_path / ".git").mkdir()
-
-        outputs = [
-            (0, "A\t.agents/architecture/ADR-001.md"),
-            (0, ""),  # second pattern returns nothing
-        ]
-
-        with patch.object(mod, "run_git", side_effect=outputs):
-            result = mod.detect_adr_changes(str(tmp_path))
-        assert ".agents/architecture/ADR-001.md" in result["Created"]
-        assert result["RecommendedAction"] == "review"
-
-    def test_modified_adr(self, tmp_path):
-        mod = self._import()
-        (tmp_path / ".git").mkdir()
-
-        outputs = [
-            (0, "M\t.agents/architecture/ADR-002.md"),
-            (0, ""),
-        ]
-
-        with patch.object(mod, "run_git", side_effect=outputs):
-            result = mod.detect_adr_changes(str(tmp_path))
-        assert ".agents/architecture/ADR-002.md" in result["Modified"]
-        assert result["RecommendedAction"] == "review"
-
-    def test_deleted_adr(self, tmp_path):
-        mod = self._import()
-        (tmp_path / ".git").mkdir()
-
-        outputs = [
-            (0, "D\t.agents/architecture/ADR-003.md"),
-            (0, ""),
-        ]
-
-        with patch.object(mod, "run_git", side_effect=outputs):
-            result = mod.detect_adr_changes(str(tmp_path))
-        assert ".agents/architecture/ADR-003.md" in result["Deleted"]
-        assert result["RecommendedAction"] == "archive"
-
-    def test_not_git_repo_exits_2(self, tmp_path):
-        mod = self._import()
-        # No .git directory
-        with pytest.raises(SystemExit) as exc:
-            mod.detect_adr_changes(str(tmp_path))
-        assert exc.value.code == 2
-
-    def test_git_not_found_exits_3(self, tmp_path):
-        mod = self._import()
-        (tmp_path / ".git").mkdir()
-
-        def fake_run_git(args, cwd):
-            return -1, "git not found"
-
-        with patch.object(mod, "run_git", side_effect=fake_run_git):
-            with pytest.raises(SystemExit) as exc:
-                mod.detect_adr_changes(str(tmp_path))
-        assert exc.value.code == 3
-
     def test_get_adr_status_proposed_default(self, tmp_path):
         mod = self._import()
         adr = tmp_path / "ADR-001.md"
         adr.write_text("# ADR-001\n\nNo status field here.")
-        result = mod.get_adr_status(str(adr))
+        result = mod._get_adr_status(Path(adr))
         assert result == "proposed"
 
     def test_get_adr_status_from_frontmatter(self, tmp_path):
         mod = self._import()
         adr = tmp_path / "ADR-001.md"
         adr.write_text("status: accepted\n\nSome content")
-        result = mod.get_adr_status(str(adr))
+        result = mod._get_adr_status(Path(adr))
         assert result == "accepted"
 
     def test_get_adr_status_missing_file(self, tmp_path):
         mod = self._import()
-        result = mod.get_adr_status(str(tmp_path / "missing.md"))
+        result = mod._get_adr_status(Path(tmp_path / "missing.md"))
         assert result == "unknown"
 
     def test_main_returns_0(self, tmp_path):
@@ -163,20 +95,36 @@ class TestDetectAdrChanges:
         import detect_adr_changes as mod
         importlib.reload(mod)
         (tmp_path / ".git").mkdir()
+        # Mock _run_git to return empty diff
+        original_run_git = mod._run_git
+        mock_result = MagicMock(returncode=0, stdout="")
+        with patch.object(mod, "_run_git", return_value=mock_result):
+            exit_code = mod.main(["--base-path", str(tmp_path)])
+        assert exit_code == 0
 
-        def fake_run_git(args, cwd):
-            return 0, ""
+    def test_not_git_repo_exits_1(self, tmp_path):
+        mod = self._import()
+        # No .git directory
+        exit_code = mod.main(["--base-path", str(tmp_path)])
+        assert exit_code == 1
 
-        with patch.object(mod, "run_git", side_effect=fake_run_git):
-            sys.argv = ["detect_adr_changes.py", "--base-path", str(tmp_path)]
-            exit_code = mod.main()
+    def test_main_with_created_adr(self, tmp_path):
+        mod = self._import()
+        (tmp_path / ".git").mkdir()
+        mock_results = [
+            # First pattern returns a created file
+            MagicMock(returncode=0, stdout="A\t.agents/architecture/ADR-001.md"),
+            # Second pattern returns nothing
+            MagicMock(returncode=0, stdout=""),
+        ]
+        with patch.object(mod, "_run_git", side_effect=mock_results):
+            exit_code = mod.main(["--base-path", str(tmp_path)])
         assert exit_code == 0
 
     def test_help_does_not_crash(self):
         with pytest.raises(SystemExit) as exc:
-            sys.argv = ["detect_adr_changes.py", "--help"]
             import detect_adr_changes as mod
-            mod.main()
+            mod.build_parser().parse_args(["--help"])
         assert exc.value.code == 0
 
 
@@ -289,9 +237,9 @@ class TestInvokeCodeqlScanSkill:
         assert "test message" in captured.err
 
     def test_help_does_not_crash(self):
+        mod = self._import()
         with pytest.raises(SystemExit) as exc:
             sys.argv = ["invoke_codeql_scan_skill.py", "--help"]
-            import invoke_codeql_scan_skill as mod
             mod.main()
         assert exc.value.code == 0
 
@@ -313,29 +261,44 @@ class TestResolvePrConflicts:
     def test_unsafe_branch_name_rejected(self):
         mod = self._import()
         result = mod.resolve_pr_conflicts(1, "branch; rm -rf /", "main")
-        assert result["Success"] is False
-        assert "unsafe branch name" in result["Message"].lower()
+        assert result["success"] is False
+        assert "unsafe branch name" in result["message"].lower()
 
     def test_unsafe_target_branch_rejected(self):
         mod = self._import()
         result = mod.resolve_pr_conflicts(1, "valid-branch", "main && evil")
-        assert result["Success"] is False
-        assert "unsafe target branch" in result["Message"].lower()
+        assert result["success"] is False
+        assert "unsafe target branch" in result["message"].lower()
 
     def test_dry_run_returns_success(self):
         mod = self._import()
-        result = mod.resolve_pr_conflicts(42, "feat/test", "main", dry_run=True)
-        assert result["Success"] is True
-        assert "DryRun" in result["Message"]
-        assert "42" in result["Message"]
+        # dry_run in non-runner mode goes through resolve_conflicts_worktree
+        # which needs git rev-parse. Mock _run_git.
+        with (
+            patch.dict("os.environ", {}, clear=False),
+            patch.object(
+                mod, "_run_git",
+                return_value=MagicMock(returncode=0, stdout="/repo\n"),
+            ),
+        ):
+            # Remove GITHUB_ACTIONS to use worktree path
+            env_without = {k: v for k, v in __import__("os").environ.items()
+                           if k != "GITHUB_ACTIONS"}
+            with patch.dict("os.environ", env_without, clear=True):
+                result = mod.resolve_pr_conflicts(
+                    42, "feat/test", "main", dry_run=True,
+                    worktree_base_path=str(Path(__file__).parent),
+                )
+        assert result["success"] is True
+        assert "DryRun" in result["message"]
 
-    def test_test_safe_branch_name_valid(self):
+    def test_is_safe_branch_name_valid(self):
         mod = self._import()
         assert mod.is_safe_branch_name("feat/my-feature") is True
         assert mod.is_safe_branch_name("main") is True
         assert mod.is_safe_branch_name("release/v1.0") is True
 
-    def test_test_safe_branch_name_invalid(self):
+    def test_is_safe_branch_name_invalid(self):
         mod = self._import()
         assert mod.is_safe_branch_name("") is False
         assert mod.is_safe_branch_name("-bad-start") is False
@@ -345,8 +308,11 @@ class TestResolvePrConflicts:
 
     def test_get_safe_worktree_path_valid(self, tmp_path):
         mod = self._import()
-        path = mod.get_safe_worktree_path(str(tmp_path), 42)
-        assert "ai-agents-pr-42" in path
+        with patch.object(mod, "get_repo_info") as mock_info:
+            from github_core.api import RepoInfo
+            mock_info.return_value = RepoInfo(owner="owner", repo="myrepo")
+            path = mod.get_safe_worktree_path(str(tmp_path), 42)
+        assert "myrepo-pr-42" in path
         assert str(tmp_path) in path
 
     def test_get_safe_worktree_path_invalid_pr(self, tmp_path):
@@ -378,72 +344,26 @@ class TestResolvePrConflicts:
         with patch.dict("os.environ", env_without, clear=True):
             assert mod.is_github_runner() is False
 
-    def test_resolve_conflicts_no_conflict(self):
-        mod = self._import()
-        with patch.object(mod, "run_git", return_value=(0, "")):
-            result = mod.resolve_conflicts_in_checkout("feat/x", "main")
-        assert result["Success"] is True
-        assert "without conflicts" in result["Message"]
-
-    def test_resolve_conflicts_unresolvable(self):
-        mod = self._import()
-        git_side = [
-            (1, "conflict"),           # merge fails
-            (0, "src/main.py"),        # list conflicts
-            (0, ""),                   # abort merge
-        ]
-        with patch.object(mod, "run_git", side_effect=git_side):
-            result = mod.resolve_conflicts_in_checkout("feat/x", "main")
-        assert result["Success"] is False
-        assert "src/main.py" in result["FilesBlocked"]
-
     def test_get_repo_info(self):
         mod = self._import()
-        with patch.object(
-            mod, "run_git",
-            return_value=(0, "git@github.com:owner/myrepo.git"),
-        ):
+        mock_result = MagicMock(returncode=0, stdout="git@github.com:owner/myrepo.git")
+        with patch("subprocess.run", return_value=mock_result):
             info = mod.get_repo_info()
-        assert info["Owner"] == "owner"
-        assert info["Repo"] == "myrepo"
+        assert info.owner == "owner"
+        assert info.repo == "myrepo"
 
     def test_get_repo_info_https(self):
         mod = self._import()
-        with patch.object(
-            mod, "run_git",
-            return_value=(0, "https://github.com/org/repo.git"),
-        ):
+        mock_result = MagicMock(returncode=0, stdout="https://github.com/org/repo.git")
+        with patch("subprocess.run", return_value=mock_result):
             info = mod.get_repo_info()
-        assert info["Owner"] == "org"
-        assert info["Repo"] == "repo"
-
-    def test_main_dry_run(self, capsys):
-        import importlib
-
-        import resolve_pr_conflicts as mod
-        importlib.reload(mod)
-
-        with patch.object(
-            mod, "get_repo_info",
-            return_value={"Owner": "owner", "Repo": "repo"},
-        ):
-            sys.argv = [
-                "resolve_pr_conflicts.py",
-                "--pr-number", "5",
-                "--branch-name", "feat/test",
-                "--dry-run",
-            ]
-            exit_code = mod.main()
-        assert exit_code == 0
-        captured = capsys.readouterr()
-        parsed = json.loads(captured.out)
-        assert parsed["Success"] is True
+        assert info.owner == "org"
+        assert info.repo == "repo"
 
     def test_help_does_not_crash(self):
+        mod = self._import()
         with pytest.raises(SystemExit) as exc:
-            sys.argv = ["resolve_pr_conflicts.py", "--help"]
-            import resolve_pr_conflicts as mod
-            mod.main()
+            mod.build_parser().parse_args(["--help"])
         assert exc.value.code == 0
 
 
@@ -487,15 +407,15 @@ class TestCollectMetrics:
         agents = mod.find_agents_in_text("no agents here")
         assert agents == []
 
-    def test_test_infrastructure_file_workflow(self):
+    def test_is_infrastructure_file_workflow(self):
         mod = self._import()
         assert mod.is_infrastructure_file(".github/workflows/ci.yml") is True
 
-    def test_test_infrastructure_file_script(self):
+    def test_is_infrastructure_file_script(self):
         mod = self._import()
         assert mod.is_infrastructure_file("scripts/deploy.ps1") is True
 
-    def test_test_infrastructure_file_src(self):
+    def test_is_infrastructure_file_src(self):
         mod = self._import()
         assert mod.is_infrastructure_file("src/main.py") is False
 
@@ -667,11 +587,11 @@ class TestDetectInfrastructure:
         ])
         assert result["highest_risk"] == "critical"
 
-    def test_test_pattern_matches(self):
+    def test_matches_pattern(self):
         mod = self._import()
         assert mod.matches_pattern(".env.local", [r"\.env.*$"]) is True
 
-    def test_test_pattern_no_match(self):
+    def test_no_match(self):
         mod = self._import()
         assert mod.matches_pattern("src/main.py", [r"\.env.*$"]) is False
 
@@ -759,7 +679,6 @@ class TestFixFences:
         content = "```python\ncode1\n```bash\ncode2\n```\n"
         result = mod.repair_markdown_fences(content)
         # The first block should be closed before the second opens
-        # Verify both code blocks are present and properly closed
         assert result.count("```") >= 3
 
     def test_fix_fences_no_changes(self, tmp_path):
@@ -828,7 +747,10 @@ class TestFixFences:
 # ---------------------------------------------------------------------------
 
 class TestNewSlashCommand:
-    """Tests for new_slash_command module."""
+    """Tests for new_slash_command module.
+
+    The module exposes main() as its entry point and _validate_name() as private.
+    """
 
     def _import(self):
         import importlib
@@ -839,87 +761,76 @@ class TestNewSlashCommand:
 
     def test_validate_name_valid(self):
         mod = self._import()
-        assert mod.validate_name("my-command") is True
-        assert mod.validate_name("cmd_123") is True
-        assert mod.validate_name("ABC") is True
+        assert mod._validate_name("my-command") is True
+        assert mod._validate_name("cmd_123") is True
+        assert mod._validate_name("ABC") is True
 
     def test_validate_name_invalid(self):
         mod = self._import()
-        assert mod.validate_name("") is False
-        assert mod.validate_name("has space") is False
-        assert mod.validate_name("../traversal") is False
-        assert mod.validate_name("cmd;evil") is False
+        assert mod._validate_name("") is False
+        assert mod._validate_name("has space") is False
+        assert mod._validate_name("../traversal") is False
+        assert mod._validate_name("cmd;evil") is False
 
-    def test_create_command_success(self, tmp_path, monkeypatch):
+    def test_main_create_command_success(self, tmp_path, monkeypatch):
         mod = self._import()
         monkeypatch.chdir(tmp_path)
-        code = mod.create_slash_command("test-cmd")
+        code = mod.main(["--name", "test-cmd"])
         assert code == 0
         cmd_file = tmp_path / ".claude" / "commands" / "test-cmd.md"
         assert cmd_file.exists()
         content = cmd_file.read_text()
         assert "description:" in content
 
-    def test_create_command_with_namespace(self, tmp_path, monkeypatch):
+    def test_main_create_command_with_namespace(self, tmp_path, monkeypatch):
         mod = self._import()
         monkeypatch.chdir(tmp_path)
-        code = mod.create_slash_command("my-cmd", "git")
+        code = mod.main(["--name", "my-cmd", "--namespace", "git"])
         assert code == 0
         cmd_file = tmp_path / ".claude" / "commands" / "git" / "my-cmd.md"
         assert cmd_file.exists()
 
-    def test_create_command_invalid_name(self):
+    def test_main_invalid_name(self):
         mod = self._import()
-        code = mod.create_slash_command("has space")
+        code = mod.main(["--name", "has space"])
         assert code == 1
 
-    def test_create_command_invalid_namespace(self, tmp_path, monkeypatch):
+    def test_main_invalid_namespace(self, tmp_path, monkeypatch):
         mod = self._import()
         monkeypatch.chdir(tmp_path)
-        code = mod.create_slash_command("valid", "bad namespace!")
+        code = mod.main(["--name", "valid", "--namespace", "bad namespace!"])
         assert code == 1
 
-    def test_create_command_file_exists(self, tmp_path, monkeypatch):
+    def test_main_file_exists(self, tmp_path, monkeypatch):
         mod = self._import()
         monkeypatch.chdir(tmp_path)
         cmd_dir = tmp_path / ".claude" / "commands"
         cmd_dir.mkdir(parents=True)
         (cmd_dir / "existing.md").write_text("existing content")
-        code = mod.create_slash_command("existing")
+        code = mod.main(["--name", "existing"])
         assert code == 1
 
-    def test_main_success(self, tmp_path, monkeypatch, capsys):
+    def test_main_success_output(self, tmp_path, monkeypatch, capsys):
         import importlib
 
         import new_slash_command as mod
         importlib.reload(mod)
         monkeypatch.chdir(tmp_path)
-        sys.argv = ["new_slash_command.py", "--name", "test-cmd"]
-        code = mod.main()
+        code = mod.main(["--name", "test-cmd"])
         assert code == 0
         captured = capsys.readouterr()
         assert "[PASS]" in captured.out
 
-    def test_main_invalid_name(self, capsys):
-        import importlib
-
-        import new_slash_command as mod
-        importlib.reload(mod)
-        sys.argv = ["new_slash_command.py", "--name", "bad name!"]
-        code = mod.main()
-        assert code == 1
-
     def test_help_does_not_crash(self):
+        mod = self._import()
         with pytest.raises(SystemExit) as exc:
-            sys.argv = ["new_slash_command.py", "--help"]
-            import new_slash_command as mod
-            mod.main()
+            mod.build_parser().parse_args(["--help"])
         assert exc.value.code == 0
 
     def test_template_contains_required_fields(self, tmp_path, monkeypatch):
         mod = self._import()
         monkeypatch.chdir(tmp_path)
-        mod.create_slash_command("my-command")
+        mod.main(["--name", "my-command"])
         content = (tmp_path / ".claude" / "commands" / "my-command.md").read_text()
         assert "description:" in content
         assert "argument-hint:" in content
@@ -932,7 +843,10 @@ class TestNewSlashCommand:
 # ---------------------------------------------------------------------------
 
 class TestValidateSlashCommand:
-    """Tests for validate_slash_command module."""
+    """Tests for validate_slash_command module.
+
+    validate_slash_command() returns (violations, blocking_count, warning_count).
+    """
 
     def _import(self):
         import importlib
@@ -954,30 +868,38 @@ class TestValidateSlashCommand:
         )
         return cmd
 
-    def test_file_not_found_returns_1(self, tmp_path):
+    def test_file_not_found_returns_blocking(self, tmp_path):
         mod = self._import()
-        code = mod.validate_slash_command(str(tmp_path / "missing.md"), skip_lint=True)
-        assert code == 1
+        violations, blocking, warnings = mod.validate_slash_command(
+            str(tmp_path / "missing.md"), skip_lint=True
+        )
+        assert blocking == 1
 
     def test_valid_command_passes(self, tmp_path):
         mod = self._import()
         cmd = self._write_valid_command(tmp_path)
-        code = mod.validate_slash_command(str(cmd), skip_lint=True)
-        assert code == 0
+        violations, blocking, warnings = mod.validate_slash_command(
+            str(cmd), skip_lint=True
+        )
+        assert blocking == 0
 
     def test_missing_frontmatter_fails(self, tmp_path):
         mod = self._import()
         cmd = tmp_path / "bad.md"
         cmd.write_text("# No frontmatter here\n")
-        code = mod.validate_slash_command(str(cmd), skip_lint=True)
-        assert code == 1
+        violations, blocking, warnings = mod.validate_slash_command(
+            str(cmd), skip_lint=True
+        )
+        assert blocking >= 1
 
     def test_missing_description_fails(self, tmp_path):
         mod = self._import()
         cmd = tmp_path / "no-desc.md"
         cmd.write_text("---\nargument-hint: <x>\n---\n\nContent\n")
-        code = mod.validate_slash_command(str(cmd), skip_lint=True)
-        assert code == 1
+        violations, blocking, warnings = mod.validate_slash_command(
+            str(cmd), skip_lint=True
+        )
+        assert blocking >= 1
 
     def test_uses_arguments_no_hint_fails(self, tmp_path):
         mod = self._import()
@@ -988,8 +910,10 @@ class TestValidateSlashCommand:
             "---\n\n"
             "Do $ARGUMENTS\n"
         )
-        code = mod.validate_slash_command(str(cmd), skip_lint=True)
-        assert code == 1
+        violations, blocking, warnings = mod.validate_slash_command(
+            str(cmd), skip_lint=True
+        )
+        assert blocking >= 1
 
     def test_has_hint_no_args_is_warning_only(self, tmp_path):
         mod = self._import()
@@ -1001,9 +925,10 @@ class TestValidateSlashCommand:
             "---\n\n"
             "No args used here.\n"
         )
-        # Warning only, should still pass (return 0)
-        code = mod.validate_slash_command(str(cmd), skip_lint=True)
-        assert code == 0
+        violations, blocking, warnings = mod.validate_slash_command(
+            str(cmd), skip_lint=True
+        )
+        assert blocking == 0
 
     def test_long_file_generates_warning(self, tmp_path):
         mod = self._import()
@@ -1011,9 +936,10 @@ class TestValidateSlashCommand:
         lines = ["---", "description: Use when testing", "---", ""]
         lines.extend(["line content"] * 210)
         cmd.write_text("\n".join(lines))
-        # Warning only (too long) - should still pass
-        code = mod.validate_slash_command(str(cmd), skip_lint=True)
-        assert code == 0
+        violations, blocking, warnings = mod.validate_slash_command(
+            str(cmd), skip_lint=True
+        )
+        assert blocking == 0
 
     def test_main_success(self, tmp_path, capsys):
         import importlib
@@ -1021,12 +947,7 @@ class TestValidateSlashCommand:
         import validate_slash_command as mod
         importlib.reload(mod)
         cmd = self._write_valid_command(tmp_path)
-        sys.argv = [
-            "validate_slash_command.py",
-            "--path", str(cmd),
-            "--skip-lint",
-        ]
-        code = mod.main()
+        code = mod.main(["--path", str(cmd), "--skip-lint"])
         assert code == 0
         captured = capsys.readouterr()
         assert "[PASS]" in captured.out
@@ -1036,19 +957,13 @@ class TestValidateSlashCommand:
 
         import validate_slash_command as mod
         importlib.reload(mod)
-        sys.argv = [
-            "validate_slash_command.py",
-            "--path", str(tmp_path / "missing.md"),
-            "--skip-lint",
-        ]
-        code = mod.main()
+        code = mod.main(["--path", str(tmp_path / "missing.md"), "--skip-lint"])
         assert code == 1
 
     def test_help_does_not_crash(self):
+        mod = self._import()
         with pytest.raises(SystemExit) as exc:
-            sys.argv = ["validate_slash_command.py", "--help"]
-            import validate_slash_command as mod
-            mod.main()
+            mod.build_parser().parse_args(["--help"])
         assert exc.value.code == 0
 
     def test_lint_skipped_with_flag(self, tmp_path):

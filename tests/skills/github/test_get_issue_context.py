@@ -2,18 +2,33 @@
 
 import json
 import subprocess
+import sys
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
 from test_helpers import make_completed_process
 
+# Ensure importability
+_project_root = Path(__file__).resolve().parents[3]
+_lib_dir = _project_root / ".claude" / "lib"
+_scripts_dir = _project_root / ".claude" / "skills" / "github" / "scripts"
+for _p in (str(_lib_dir), str(_scripts_dir / "issue")):
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
+
+from github_core.api import RepoInfo  # noqa: E402
+
+
+def _mock_repo():
+    return RepoInfo(owner="owner", repo="repo")
+
 
 @pytest.fixture
 def _import_module():
     """Import the module under test."""
     import importlib
-    import sys
     mod_name = "get_issue_context"
     if mod_name in sys.modules:
         del sys.modules[mod_name]
@@ -21,9 +36,9 @@ def _import_module():
 
 
 class TestGetIssueContext:
-    """Tests for the get_issue_context function."""
+    """Tests for get_issue_context.main."""
 
-    def test_success(self, _import_module, mock_subprocess_run):
+    def test_success(self, _import_module, capsys):
         mod = _import_module
         issue_data = {
             "number": 42,
@@ -37,25 +52,30 @@ class TestGetIssueContext:
             "createdAt": "2026-01-01T00:00:00Z",
             "updatedAt": "2026-01-02T00:00:00Z",
         }
-        mock_subprocess_run.return_value = make_completed_process(
-            stdout=json.dumps(issue_data)
-        )
+        with (
+            patch("get_issue_context.assert_gh_authenticated"),
+            patch("get_issue_context.resolve_repo_params", return_value=_mock_repo()),
+            patch("subprocess.run", return_value=make_completed_process(
+                stdout=json.dumps(issue_data)
+            )),
+        ):
+            rc = mod.main(["--issue", "42"])
 
-        result = mod.get_issue_context("owner", "repo", 42)
+        assert rc == 0
+        result = json.loads(capsys.readouterr().out)
+        assert result["success"] is True
+        assert result["number"] == 42
+        assert result["title"] == "Test Issue"
+        assert result["body"] == "Some description"
+        assert result["state"] == "OPEN"
+        assert result["author"] == "testuser"
+        assert result["labels"] == ["bug", "P1"]
+        assert result["milestone"] == "v1.0.0"
+        assert result["assignees"] == ["dev1"]
+        assert result["owner"] == "owner"
+        assert result["repo"] == "repo"
 
-        assert result["Success"] is True
-        assert result["Number"] == 42
-        assert result["Title"] == "Test Issue"
-        assert result["Body"] == "Some description"
-        assert result["State"] == "OPEN"
-        assert result["Author"] == "testuser"
-        assert result["Labels"] == ["bug", "P1"]
-        assert result["Milestone"] == "v1.0.0"
-        assert result["Assignees"] == ["dev1"]
-        assert result["Owner"] == "owner"
-        assert result["Repo"] == "repo"
-
-    def test_no_milestone(self, _import_module, mock_subprocess_run):
+    def test_no_milestone(self, _import_module, capsys):
         mod = _import_module
         issue_data = {
             "number": 10,
@@ -69,56 +89,68 @@ class TestGetIssueContext:
             "createdAt": "2026-01-01T00:00:00Z",
             "updatedAt": "2026-01-01T00:00:00Z",
         }
-        mock_subprocess_run.return_value = make_completed_process(
-            stdout=json.dumps(issue_data)
-        )
+        with (
+            patch("get_issue_context.assert_gh_authenticated"),
+            patch("get_issue_context.resolve_repo_params", return_value=_mock_repo()),
+            patch("subprocess.run", return_value=make_completed_process(
+                stdout=json.dumps(issue_data)
+            )),
+        ):
+            rc = mod.main(["--issue", "10"])
+        assert rc == 0
+        result = json.loads(capsys.readouterr().out)
+        assert result["milestone"] is None
 
-        result = mod.get_issue_context("owner", "repo", 10)
-
-        assert result["Milestone"] is None
-
-    def test_not_found_exits_2(self, _import_module, mock_subprocess_run):
+    def test_not_found_exits_2(self, _import_module):
         mod = _import_module
-        mock_subprocess_run.return_value = make_completed_process(
-            stderr="not found", returncode=1,
-        )
-
-        with pytest.raises(SystemExit) as exc:
-            mod.get_issue_context("owner", "repo", 999)
-
+        with (
+            patch("get_issue_context.assert_gh_authenticated"),
+            patch("get_issue_context.resolve_repo_params", return_value=_mock_repo()),
+            patch("subprocess.run", return_value=make_completed_process(
+                stderr="not found", returncode=1,
+            )),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                mod.main(["--issue", "999"])
         assert exc.value.code == 2
 
-    def test_api_error_exits_2(self, _import_module, mock_subprocess_run):
+    def test_api_error_exits_2(self, _import_module):
         mod = _import_module
-        mock_subprocess_run.return_value = make_completed_process(
-            stderr="some error", returncode=1,
-        )
-
-        with pytest.raises(SystemExit) as exc:
-            mod.get_issue_context("owner", "repo", 999)
-
+        with (
+            patch("get_issue_context.assert_gh_authenticated"),
+            patch("get_issue_context.resolve_repo_params", return_value=_mock_repo()),
+            patch("subprocess.run", return_value=make_completed_process(
+                stderr="some error", returncode=1,
+            )),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                mod.main(["--issue", "999"])
         assert exc.value.code == 2
 
-    def test_empty_labels_and_assignees(
-        self, _import_module, mock_subprocess_run,
-    ):
+    def test_empty_labels_and_assignees(self, _import_module, capsys):
         mod = _import_module
         issue_data = {
             "number": 5,
             "title": "Minimal",
+            "body": "",
             "state": "CLOSED",
             "author": {"login": "u"},
             "labels": [],
+            "milestone": None,
             "assignees": [],
             "createdAt": "",
             "updatedAt": "",
         }
-        mock_subprocess_run.return_value = make_completed_process(
-            stdout=json.dumps(issue_data)
-        )
-
-        result = mod.get_issue_context("o", "r", 5)
-
-        assert result["Labels"] == []
-        assert result["Assignees"] == []
-        assert result["Body"] == ""
+        with (
+            patch("get_issue_context.assert_gh_authenticated"),
+            patch("get_issue_context.resolve_repo_params", return_value=RepoInfo(owner="o", repo="r")),
+            patch("subprocess.run", return_value=make_completed_process(
+                stdout=json.dumps(issue_data)
+            )),
+        ):
+            rc = mod.main(["--issue", "5"])
+        assert rc == 0
+        result = json.loads(capsys.readouterr().out)
+        assert result["labels"] == []
+        assert result["assignees"] == []
+        assert result["body"] == ""

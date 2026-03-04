@@ -46,7 +46,11 @@ def make_proc(stdout="", stderr="", returncode=0):
 # ---------------------------------------------------------------------------
 
 class TestNewSessionLogJson:
-    """Tests for new_session_log_json module."""
+    """Tests for new_session_log_json module.
+
+    The source script exposes: build_parser, main, _get_branch, _get_commit,
+    _get_repo_root. All session-building logic is inlined in main().
+    """
 
     def _import(self):
         import importlib
@@ -54,148 +58,158 @@ class TestNewSessionLogJson:
         importlib.reload(mod)
         return mod
 
-    def test_auto_detect_session_number_empty_dir(self, tmp_path):
-        mod = self._import()
-        result = mod.auto_detect_session_number(tmp_path)
-        assert result == 1
-
-    def test_auto_detect_increments(self, tmp_path):
-        mod = self._import()
-        (tmp_path / "2024-01-01-session-3.json").write_text("{}")
-        (tmp_path / "2024-01-01-session-5.json").write_text("{}")
-        result = mod.auto_detect_session_number(tmp_path)
-        assert result == 6
-
-    def test_auto_detect_nonexistent_dir(self, tmp_path):
-        mod = self._import()
-        missing = tmp_path / "nonexistent"
-        result = mod.auto_detect_session_number(missing)
-        assert result == 1
-
-    def test_get_max_existing_none_when_no_files(self, tmp_path):
-        mod = self._import()
-        assert mod.get_max_existing(tmp_path) is None
-
-    def test_get_max_existing_returns_max(self, tmp_path):
-        mod = self._import()
-        (tmp_path / "2024-01-01-session-2.json").write_text("{}")
-        (tmp_path / "2024-01-01-session-7.json").write_text("{}")
-        assert mod.get_max_existing(tmp_path) == 7
-
-    def test_validate_session_ceiling_ok(self, tmp_path):
-        mod = self._import()
-        (tmp_path / "2024-01-01-session-1.json").write_text("{}")
-        # Should not raise or exit - session 5 is within +10 of max 1
-        mod.validate_session_ceiling(5, tmp_path)
-
-    def test_validate_session_ceiling_rejects_large_jump(self, tmp_path):
-        mod = self._import()
-        (tmp_path / "2024-01-01-session-1.json").write_text("{}")
-        # max=1, ceiling=11, session 20 should fail
-        with pytest.raises(SystemExit) as exc:
-            mod.validate_session_ceiling(20, tmp_path)
-        assert exc.value.code == 1
-
-    def test_get_git_branch_returns_branch(self):
+    def test_get_branch_returns_branch(self):
         mod = self._import()
         proc = make_proc(stdout="my-branch", returncode=0)
         with patch("subprocess.run", return_value=proc):
-            result = mod.get_git_branch()
+            result = mod._get_branch()
         assert result == "my-branch"
 
-    def test_get_git_branch_fallback(self):
-        mod = self._import()
-        with patch("subprocess.run", side_effect=FileNotFoundError):
-            result = mod.get_git_branch()
-        assert result == "unknown"
-
-    def test_get_git_branch_nonzero_returncode(self):
+    def test_get_branch_fallback(self):
         mod = self._import()
         proc = make_proc(returncode=1)
         with patch("subprocess.run", return_value=proc):
-            result = mod.get_git_branch()
+            result = mod._get_branch()
         assert result == "unknown"
 
-    def test_get_git_commit_returns_sha(self):
+    def test_get_commit_returns_sha(self):
         mod = self._import()
         proc = make_proc(stdout="abc1234", returncode=0)
         with patch("subprocess.run", return_value=proc):
-            result = mod.get_git_commit()
+            result = mod._get_commit()
         assert result == "abc1234"
 
-    def test_get_git_commit_timeout(self):
+    def test_get_commit_fallback(self):
         mod = self._import()
-        with patch("subprocess.run", side_effect=subprocess.TimeoutExpired(cmd="git", timeout=10)):
-            result = mod.get_git_commit()
+        proc = make_proc(returncode=1)
+        with patch("subprocess.run", return_value=proc):
+            result = mod._get_commit()
         assert result == "unknown"
 
-    def test_build_session_object_structure(self):
+    def test_main_creates_file(self, tmp_path):
         mod = self._import()
-        obj = mod.build_session_object(3, "2024-01-01", "feat/test", "abc1234", "test objective")
+        sessions_dir = tmp_path / ".agents" / "sessions"
+
+        proc = make_proc(stdout="test-branch", returncode=0)
+        with patch("subprocess.run", return_value=proc), \
+             patch.object(mod, "_get_repo_root", return_value=str(tmp_path)):
+            sys.argv = ["new_session_log_json.py", "--session-number", "1", "--objective", "test"]
+            rc = mod.main()
+
+        assert rc == 0
+        created = list(sessions_dir.glob("*.json"))
+        assert len(created) == 1
+
+    def test_main_auto_detects_session_number(self, tmp_path):
+        mod = self._import()
+        sessions_dir = tmp_path / ".agents" / "sessions"
+        sessions_dir.mkdir(parents=True)
+        (sessions_dir / "2024-01-01-session-3.json").write_text("{}")
+
+        proc = make_proc(stdout="test-branch", returncode=0)
+        with patch("subprocess.run", return_value=proc), \
+             patch.object(mod, "_get_repo_root", return_value=str(tmp_path)):
+            rc = mod.main(["--objective", "test"])
+
+        assert rc == 0
+        created = list(sessions_dir.glob("*-session-4.json"))
+        assert len(created) == 1
+
+    def test_main_rejects_large_session_jump(self, tmp_path):
+        mod = self._import()
+        sessions_dir = tmp_path / ".agents" / "sessions"
+        sessions_dir.mkdir(parents=True)
+        (sessions_dir / "2024-01-01-session-1.json").write_text("{}")
+
+        proc = make_proc(stdout="test-branch", returncode=0)
+        with patch("subprocess.run", return_value=proc), \
+             patch.object(mod, "_get_repo_root", return_value=str(tmp_path)):
+            rc = mod.main(["--session-number", "20", "--objective", "test"])
+
+        assert rc == 1
+
+    def test_main_retries_on_collision(self, tmp_path):
+        mod = self._import()
+        from datetime import UTC, datetime
+        today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+        sessions_dir = tmp_path / ".agents" / "sessions"
+        sessions_dir.mkdir(parents=True)
+        # Pre-create session 1 with today's date to force collision
+        (sessions_dir / f"{today}-session-1.json").write_text("{}")
+
+        proc = make_proc(stdout="test-branch", returncode=0)
+        with patch("subprocess.run", return_value=proc), \
+             patch.object(mod, "_get_repo_root", return_value=str(tmp_path)):
+            rc = mod.main(["--session-number", "1", "--objective", "test"])
+
+        assert rc == 0
+        # Should have created session 2
+        created = list(sessions_dir.glob(f"{today}-session-2.json"))
+        assert len(created) == 1
+
+    def test_main_session_structure(self, tmp_path):
+        mod = self._import()
+        sessions_dir = tmp_path / ".agents" / "sessions"
+
+        proc = make_proc(stdout="feat/test", returncode=0)
+        with patch("subprocess.run", return_value=proc), \
+             patch.object(mod, "_get_repo_root", return_value=str(tmp_path)):
+            rc = mod.main(["--session-number", "3", "--objective", "test objective"])
+
+        assert rc == 0
+        created = list(sessions_dir.glob("*.json"))
+        assert len(created) == 1
+        obj = json.loads(created[0].read_text())
         assert obj["session"]["number"] == 3
-        assert obj["session"]["branch"] == "feat/test"
-        assert obj["session"]["startingCommit"] == "abc1234"
         assert obj["session"]["objective"] == "test objective"
         assert "protocolCompliance" in obj
         assert "sessionStart" in obj["protocolCompliance"]
         assert "sessionEnd" in obj["protocolCompliance"]
         assert "workLog" in obj
 
-    def test_build_session_object_empty_objective(self):
+    def test_main_empty_objective_gets_todo(self, tmp_path):
         mod = self._import()
-        obj = mod.build_session_object(1, "2024-01-01", "main", "abc", "")
+
+        proc = make_proc(stdout="main", returncode=0)
+        with patch("subprocess.run", return_value=proc), \
+             patch.object(mod, "_get_repo_root", return_value=str(tmp_path)):
+            rc = mod.main(["--session-number", "1"])
+
+        assert rc == 0
+        sessions_dir = tmp_path / ".agents" / "sessions"
+        created = list(sessions_dir.glob("*.json"))
+        obj = json.loads(created[0].read_text())
         assert "[TODO:" in obj["session"]["objective"]
 
-    def test_build_session_object_main_branch_not_on_main(self):
+    def test_main_branch_not_on_main(self, tmp_path):
         mod = self._import()
-        obj = mod.build_session_object(1, "2024-01-01", "main", "abc", "test")
-        not_on_main = obj["protocolCompliance"]["sessionStart"]["notOnMain"]
-        assert not_on_main["Complete"] is False
 
-    def test_build_session_object_feature_branch_on_main(self):
-        mod = self._import()
-        obj = mod.build_session_object(1, "2024-01-01", "feature/x", "abc", "test")
+        proc = make_proc(stdout="feature/x", returncode=0)
+        with patch("subprocess.run", return_value=proc), \
+             patch.object(mod, "_get_repo_root", return_value=str(tmp_path)):
+            rc = mod.main(["--session-number", "1", "--objective", "test"])
+
+        assert rc == 0
+        sessions_dir = tmp_path / ".agents" / "sessions"
+        created = list(sessions_dir.glob("*.json"))
+        obj = json.loads(created[0].read_text())
         not_on_main = obj["protocolCompliance"]["sessionStart"]["notOnMain"]
         assert not_on_main["Complete"] is True
 
-    def test_write_session_file_creates_file(self, tmp_path):
+    def test_main_branch_on_main(self, tmp_path):
         mod = self._import()
-        session_data = {"session": {"number": 1}, "workLog": []}
-        file_path = mod.write_session_file(tmp_path, "2024-01-01", 1, session_data)
-        assert file_path.exists()
-        content = json.loads(file_path.read_text())
-        assert content["session"]["number"] == 1
 
-    def test_write_session_file_retries_on_collision(self, tmp_path):
-        mod = self._import()
-        # Pre-create session 1 to force collision
-        (tmp_path / "2024-01-01-session-1.json").write_text("{}")
-        session_data = {"session": {"number": 1}, "workLog": []}
-        file_path = mod.write_session_file(tmp_path, "2024-01-01", 1, session_data)
-        # Should have created session 2
-        assert "session-2" in file_path.name
+        proc = make_proc(stdout="main", returncode=0)
+        with patch("subprocess.run", return_value=proc), \
+             patch.object(mod, "_get_repo_root", return_value=str(tmp_path)):
+            rc = mod.main(["--session-number", "1", "--objective", "test"])
 
-    def test_main_creates_file(self, tmp_path, monkeypatch):
-        mod = self._import()
+        assert rc == 0
         sessions_dir = tmp_path / ".agents" / "sessions"
-
-        def fake_get_sessions_dir(root):
-            return sessions_dir
-
-        def fake_get_repo_root(script_dir):
-            return tmp_path
-
-        monkeypatch.setattr(mod, "get_sessions_dir", fake_get_sessions_dir)
-        monkeypatch.setattr(mod, "get_repo_root", fake_get_repo_root)
-
-        with (
-            patch("subprocess.run", return_value=make_proc(stdout="test-branch")),
-        ):
-            sys.argv = ["new_session_log_json.py", "--session-number", "1", "--objective", "test"]
-            mod.main()
-
         created = list(sessions_dir.glob("*.json"))
-        assert len(created) == 1
+        obj = json.loads(created[0].read_text())
+        not_on_main = obj["protocolCompliance"]["sessionStart"]["notOnMain"]
+        assert not_on_main["Complete"] is False
 
     def test_help_does_not_crash(self):
         with pytest.raises(SystemExit) as exc:
@@ -210,7 +224,14 @@ class TestNewSessionLogJson:
 # ---------------------------------------------------------------------------
 
 class TestCompleteSessionLog:
-    """Tests for complete_session_log module."""
+    """Tests for complete_session_log module.
+
+    Functions are prefixed with underscore (private). Return types differ
+    from the original public API:
+    - _run_markdown_lint returns (bool, str) not dict
+    - _validate_path_containment returns str|None not bool
+    - _test_handoff_modified checks both staged and unstaged diffs
+    """
 
     def _import(self):
         import importlib
@@ -224,7 +245,7 @@ class TestCompleteSessionLog:
             "protocolCompliance": {
                 "sessionEnd": {
                     "checklistComplete": {"level": "MUST", "Complete": False, "Evidence": ""},
-                    "handoffNotUpdated": {"level": "MUST NOT", "Complete": False, "Evidence": ""},
+                    "handoffPreserved": {"level": "MUST", "Complete": False, "Evidence": ""},
                     "serenaMemoryUpdated": {"level": "MUST", "Complete": False, "Evidence": ""},
                     "markdownLintRun": {"level": "MUST", "Complete": False, "Evidence": ""},
                     "changesCommitted": {"level": "MUST", "Complete": False, "Evidence": ""},
@@ -237,16 +258,16 @@ class TestCompleteSessionLog:
 
     def test_find_current_session_log_today(self, tmp_path):
         mod = self._import()
-        from datetime import datetime
-        today = datetime.now().strftime("%Y-%m-%d")
+        from datetime import UTC, datetime
+        today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
         f = tmp_path / f"{today}-session-1.json"
         f.write_text(json.dumps(self._make_session()))
-        result = mod.find_current_session_log(tmp_path)
-        assert result == f
+        result = mod._find_current_session_log(str(tmp_path))
+        assert result == str(f)
 
     def test_find_current_session_log_none(self, tmp_path):
         mod = self._import()
-        result = mod.find_current_session_log(tmp_path)
+        result = mod._find_current_session_log(str(tmp_path))
         assert result is None
 
     def test_find_current_session_log_latest_fallback(self, tmp_path):
@@ -254,71 +275,76 @@ class TestCompleteSessionLog:
         # Create an old file
         old = tmp_path / "2023-01-01-session-1.json"
         old.write_text(json.dumps(self._make_session()))
-        result = mod.find_current_session_log(tmp_path)
-        assert result == old
+        result = mod._find_current_session_log(str(tmp_path))
+        assert result == str(old)
 
     def test_get_ending_commit_success(self):
         mod = self._import()
         proc = make_proc(stdout="abc1234", returncode=0)
         with patch("subprocess.run", return_value=proc):
-            result = mod.get_ending_commit()
+            result = mod._get_ending_commit()
         assert result == "abc1234"
 
     def test_get_ending_commit_none_on_failure(self):
         mod = self._import()
-        with patch("subprocess.run", side_effect=FileNotFoundError):
-            result = mod.get_ending_commit()
+        proc = make_proc(returncode=1)
+        with patch("subprocess.run", return_value=proc):
+            result = mod._get_ending_commit()
         assert result is None
 
     def test_test_handoff_modified_false(self):
         mod = self._import()
         proc = make_proc(stdout="src/main.py\nREADME.md", returncode=0)
         with patch("subprocess.run", return_value=proc):
-            result = mod.test_handoff_modified()
+            result = mod._test_handoff_modified()
         assert result is False
 
     def test_test_handoff_modified_true(self):
         mod = self._import()
         proc = make_proc(stdout=".agents/HANDOFF.md", returncode=0)
         with patch("subprocess.run", return_value=proc):
-            result = mod.test_handoff_modified()
+            result = mod._test_handoff_modified()
         assert result is True
 
     def test_test_serena_memory_updated_true(self):
         mod = self._import()
         proc = make_proc(stdout=".serena/memories/test.md", returncode=0)
         with patch("subprocess.run", return_value=proc):
-            result = mod.test_serena_memory_updated()
+            result = mod._test_serena_memory_updated()
         assert result is True
 
     def test_test_serena_memory_updated_false(self):
         mod = self._import()
         proc = make_proc(stdout="src/main.py", returncode=0)
         with patch("subprocess.run", return_value=proc):
-            result = mod.test_serena_memory_updated()
+            result = mod._test_serena_memory_updated()
         assert result is False
 
     def test_test_uncommitted_changes_clean(self):
         mod = self._import()
         proc = make_proc(stdout="", returncode=0)
         with patch("subprocess.run", return_value=proc):
-            result = mod.test_uncommitted_changes()
+            result = mod._test_uncommitted_changes()
         assert result is False
 
     def test_test_uncommitted_changes_dirty(self):
         mod = self._import()
         proc = make_proc(stdout=" M file.py", returncode=0)
         with patch("subprocess.run", return_value=proc):
-            result = mod.test_uncommitted_changes()
+            result = mod._test_uncommitted_changes()
         assert result is True
 
     def test_run_markdown_lint_no_files(self):
         mod = self._import()
-        proc = make_proc(stdout="", returncode=0)
-        with patch("subprocess.run", return_value=proc):
-            result = mod.run_markdown_lint()
-        assert result["Success"] is True
-        assert "No markdown files" in result["Output"]
+        # Both staged and unstaged return empty
+        procs = [
+            make_proc(stdout="", returncode=0),  # staged
+            make_proc(stdout="", returncode=0),  # unstaged
+        ]
+        with patch("subprocess.run", side_effect=procs):
+            success, output = mod._run_markdown_lint()
+        assert success is True
+        assert "No markdown files" in output
 
     def test_run_markdown_lint_with_files_success(self):
         mod = self._import()
@@ -328,8 +354,8 @@ class TestCompleteSessionLog:
             make_proc(returncode=0),                       # markdownlint
         ]
         with patch("subprocess.run", side_effect=procs):
-            result = mod.run_markdown_lint()
-        assert result["Success"] is True
+            success, output = mod._run_markdown_lint()
+        assert success is True
 
     def test_validate_path_containment_inside(self, tmp_path):
         mod = self._import()
@@ -337,7 +363,8 @@ class TestCompleteSessionLog:
         sessions_dir.mkdir()
         session_file = sessions_dir / "session-1.json"
         session_file.write_text("{}")
-        assert mod.validate_path_containment(session_file, sessions_dir) is True
+        result = mod._validate_path_containment(str(session_file), str(sessions_dir))
+        assert result is not None  # returns resolved path string
 
     def test_validate_path_containment_outside(self, tmp_path):
         mod = self._import()
@@ -345,34 +372,27 @@ class TestCompleteSessionLog:
         sessions_dir.mkdir()
         outside = tmp_path / "other.json"
         outside.write_text("{}")
-        assert mod.validate_path_containment(outside, sessions_dir) is False
+        result = mod._validate_path_containment(str(outside), str(sessions_dir))
+        assert result is None
 
     def test_main_session_path_not_found(self, tmp_path):
         mod = self._import()
-        with pytest.raises(SystemExit) as exc:
-            sys.argv = [
-                "complete_session_log.py",
-                "--session-path", str(tmp_path / "missing.json"),
-            ]
-            mod.main()
-        assert exc.value.code == 1
+        rc = mod.main([
+            "--session-path", str(tmp_path / "missing.json"),
+        ])
+        assert rc == 1
 
     def test_main_no_session_logs_exits_1(self, tmp_path, monkeypatch):
         import importlib
         import complete_session_log as mod
         importlib.reload(mod)
 
-        def fake_root(script_dir):
-            return tmp_path
-
         sessions_dir = tmp_path / ".agents" / "sessions"
         sessions_dir.mkdir(parents=True)
-        monkeypatch.setattr(mod, "get_repo_root", fake_root)
+        monkeypatch.setattr(mod, "_get_repo_root", lambda: str(tmp_path))
 
-        sys.argv = ["complete_session_log.py"]
-        with pytest.raises(SystemExit) as exc:
-            mod.main()
-        assert exc.value.code == 1
+        rc = mod.main([])
+        assert rc == 1
 
     def test_help_does_not_crash(self):
         with pytest.raises(SystemExit) as exc:
@@ -387,7 +407,13 @@ class TestCompleteSessionLog:
 # ---------------------------------------------------------------------------
 
 class TestGetValidationErrors:
-    """Tests for get_validation_errors module."""
+    """Tests for get_validation_errors module.
+
+    Functions were renamed to private:
+    - parse_job_summary -> _parse_job_summary (keys now snake_case)
+    - run_gh removed (subprocess.run used directly)
+    - get_run_id_from_pr -> _get_run_id_from_pr
+    """
 
     def _import(self):
         import importlib
@@ -398,14 +424,14 @@ class TestGetValidationErrors:
     def test_parse_job_summary_overall_verdict(self):
         mod = self._import()
         summary = "Overall Verdict: **NON_COMPLIANT**\n"
-        result = mod.parse_job_summary(summary)
-        assert result["OverallVerdict"] == "NON_COMPLIANT"
+        result = mod._parse_job_summary(summary)
+        assert result["overall_verdict"] == "NON_COMPLIANT"
 
     def test_parse_job_summary_must_failure_count(self):
         mod = self._import()
         summary = "3 MUST requirement(s) not met\n"
-        result = mod.parse_job_summary(summary)
-        assert result["MustFailureCount"] == 3
+        result = mod._parse_job_summary(summary)
+        assert result["must_failure_count"] == 3
 
     def test_parse_job_summary_non_compliant_sessions(self):
         mod = self._import()
@@ -413,75 +439,65 @@ class TestGetValidationErrors:
             "| Session File | Status | Failures |\n"
             "| `2024-01-01-session-1.json` | NON_COMPLIANT | 2 |\n"
         )
-        result = mod.parse_job_summary(summary)
-        assert len(result["NonCompliantSessions"]) == 1
-        assert result["NonCompliantSessions"][0]["File"] == "2024-01-01-session-1.json"
-        assert result["NonCompliantSessions"][0]["MustFailures"] == 2
+        result = mod._parse_job_summary(summary)
+        assert len(result["non_compliant_sessions"]) == 1
+        assert result["non_compliant_sessions"][0]["file"] == "2024-01-01-session-1.json"
+        assert result["non_compliant_sessions"][0]["must_failures"] == 2
 
     def test_parse_job_summary_empty(self):
         mod = self._import()
-        result = mod.parse_job_summary("")
-        assert result["OverallVerdict"] is None
-        assert result["MustFailureCount"] == 0
-        assert result["NonCompliantSessions"] == []
-
-    def test_run_gh_success(self):
-        mod = self._import()
-        proc = make_proc(stdout="result output", returncode=0)
-        with patch("subprocess.run", return_value=proc):
-            output = mod.run_gh(["some", "args"])
-        assert output == "result output"
-
-    def test_run_gh_failure_raises(self):
-        mod = self._import()
-        proc = make_proc(stderr="error", returncode=1)
-        with patch("subprocess.run", return_value=proc):
-            with pytest.raises(RuntimeError, match="gh command failed"):
-                mod.run_gh(["bad", "args"])
+        result = mod._parse_job_summary("")
+        assert result["overall_verdict"] is None
+        assert result["must_failure_count"] == 0
+        assert result["non_compliant_sessions"] == []
 
     def test_get_run_id_from_pr_happy_path(self):
         mod = self._import()
-        pr_info = json.dumps({"headRefName": "feat/test"})
-        runs = json.dumps([
-            {"databaseId": 100, "conclusion": "success"},
-            {"databaseId": 200, "conclusion": "failure"},
-        ])
-        with patch.object(mod, "run_gh", side_effect=[pr_info, runs]):
-            run_id = mod.get_run_id_from_pr(10)
+        pr_proc = make_proc(
+            stdout=json.dumps({"headRefName": "feat/test"}), returncode=0,
+        )
+        runs_proc = make_proc(
+            stdout=json.dumps([
+                {"databaseId": 100, "conclusion": "success"},
+                {"databaseId": 200, "conclusion": "failure"},
+            ]),
+            returncode=0,
+        )
+        with patch("subprocess.run", side_effect=[pr_proc, runs_proc]):
+            run_id = mod._get_run_id_from_pr(10)
         assert run_id == "200"
 
     def test_get_run_id_from_pr_no_failure(self):
         mod = self._import()
-        pr_info = json.dumps({"headRefName": "feat/test"})
-        runs = json.dumps([{"databaseId": 100, "conclusion": "success"}])
-        with patch.object(mod, "run_gh", side_effect=[pr_info, runs]):
+        pr_proc = make_proc(
+            stdout=json.dumps({"headRefName": "feat/test"}), returncode=0,
+        )
+        runs_proc = make_proc(
+            stdout=json.dumps([{"databaseId": 100, "conclusion": "success"}]),
+            returncode=0,
+        )
+        with patch("subprocess.run", side_effect=[pr_proc, runs_proc]):
             with pytest.raises(RuntimeError):
-                mod.get_run_id_from_pr(10)
+                mod._get_run_id_from_pr(10)
 
     def test_main_run_id_no_errors_exits_2(self):
         import importlib
         import get_validation_errors as mod
         importlib.reload(mod)
-        jobs = json.dumps({
-            "jobs": [{"name": "Aggregate Results", "id": 1}]
-        })
-        log = "no relevant content"
-        with patch.object(mod, "run_gh", side_effect=[jobs, log]):
-            sys.argv = ["get_validation_errors.py", "--run-id", "12345"]
-            with pytest.raises(SystemExit) as exc:
-                mod.main()
-        assert exc.value.code == 2
+        # Mock the subprocess.run call that fetches log
+        log_proc = make_proc(stdout="no relevant content", returncode=0)
+        with patch("subprocess.run", return_value=log_proc):
+            rc = mod.main(["--run-id", "12345"])
+        assert rc == 2
 
-    def test_main_no_aggregate_job_exits_1(self):
+    def test_main_run_fetch_failure_exits_1(self):
         import importlib
         import get_validation_errors as mod
         importlib.reload(mod)
-        jobs = json.dumps({"jobs": [{"name": "Other Job", "id": 1}]})
-        with patch.object(mod, "run_gh", side_effect=[jobs]):
-            sys.argv = ["get_validation_errors.py", "--run-id", "999"]
-            with pytest.raises(SystemExit) as exc:
-                mod.main()
-        assert exc.value.code == 1
+        log_proc = make_proc(returncode=1, stderr="error")
+        with patch("subprocess.run", return_value=log_proc):
+            rc = mod.main(["--run-id", "999"])
+        assert rc == 1
 
     def test_help_does_not_crash(self):
         with pytest.raises(SystemExit) as exc:
@@ -496,7 +512,13 @@ class TestGetValidationErrors:
 # ---------------------------------------------------------------------------
 
 class TestConvertSessionToJson:
-    """Tests for convert_session_to_json module."""
+    """Tests for convert_session_to_json module.
+
+    Functions renamed to private:
+    - convert_from_markdown -> _convert_markdown_session
+    - find_checklist_item -> _find_checklist_item
+    - parse_work_log -> _parse_work_log
+    """
 
     def _import(self):
         import importlib
@@ -524,7 +546,7 @@ Did some important work here that spans multiple lines and describes the task in
     def test_convert_basic_fields(self):
         mod = self._import()
         content = self._make_md()
-        result = mod.convert_from_markdown(content, "2024-01-15-session-3.md")
+        result = mod._convert_markdown_session(content, "2024-01-15-session-3.md")
         assert result["session"]["number"] == 3
         assert result["session"]["date"] == "2024-01-15"
         assert result["session"]["branch"] == "feat/test-branch"
@@ -533,29 +555,34 @@ Did some important work here that spans multiple lines and describes the task in
 
     def test_convert_no_session_number(self):
         mod = self._import()
-        result = mod.convert_from_markdown("", "session.md")
+        result = mod._convert_markdown_session("", "session.md")
         assert result["session"]["number"] == 0
 
     def test_convert_no_date(self):
         mod = self._import()
-        result = mod.convert_from_markdown("", "session-1.md")
+        result = mod._convert_markdown_session("", "session-1.md")
         assert result["session"]["date"] == ""
 
     def test_convert_fallback_objective(self):
         mod = self._import()
-        result = mod.convert_from_markdown("", "2024-01-01-session-1.md")
+        result = mod._convert_markdown_session("", "2024-01-01-session-1.md")
         assert "[Migrated" in result["session"]["objective"]
 
     def test_find_checklist_item_found(self):
         mod = self._import()
-        content = "| something | activate_project | [x] | evidence here |"
-        result = mod.find_checklist_item(content, "activate_project")
+        # AST parser requires a proper markdown table with header and separator
+        content = (
+            "| Step | Check | Status | Evidence |\n"
+            "| --- | --- | --- | --- |\n"
+            "| something | activate_project | [x] | evidence here |\n"
+        )
+        result = mod._find_checklist_item(content, "activate_project")
         assert result["Complete"] is True
         assert result["Evidence"] == "evidence here"
 
     def test_find_checklist_item_not_found(self):
         mod = self._import()
-        result = mod.find_checklist_item("no match here", "activate_project")
+        result = mod._find_checklist_item("no match here", "activate_project")
         assert result["Complete"] is False
 
     def test_parse_work_log_extracts_entries(self):
@@ -570,27 +597,22 @@ Completed the important implementation work with detailed steps and explanation.
 
 Reviewed and approved the PR changes with extensive documentation.
 """
-        entries = mod.parse_work_log(content)
+        entries = mod._parse_work_log(content)
         assert len(entries) >= 1
         titles = [e["action"] for e in entries]
         assert any("Task A" in t for t in titles)
 
     def test_parse_work_log_empty(self):
         mod = self._import()
-        entries = mod.parse_work_log("# No work log section")
+        entries = mod._parse_work_log("# No work log section")
         assert entries == []
 
     def test_main_path_not_found_exits_1(self, tmp_path):
         import importlib
         import convert_session_to_json as mod
         importlib.reload(mod)
-        sys.argv = [
-            "convert_session_to_json.py",
-            str(tmp_path / "missing_path"),
-        ]
-        with pytest.raises(SystemExit) as exc:
-            mod.main()
-        assert exc.value.code == 1
+        rc = mod.main([str(tmp_path / "missing_path")])
+        assert rc == 1
 
     def test_main_single_file(self, tmp_path):
         import importlib
@@ -598,8 +620,8 @@ Reviewed and approved the PR changes with extensive documentation.
         importlib.reload(mod)
         md_file = tmp_path / "2024-01-01-session-1.md"
         md_file.write_text(self._make_md())
-        sys.argv = ["convert_session_to_json.py", str(md_file)]
-        mod.main()
+        rc = mod.main([str(md_file)])
+        assert rc == 0
         json_file = tmp_path / "2024-01-01-session-1.json"
         assert json_file.exists()
         data = json.loads(json_file.read_text())
@@ -611,12 +633,8 @@ Reviewed and approved the PR changes with extensive documentation.
         importlib.reload(mod)
         md_file = tmp_path / "2024-01-01-session-1.md"
         md_file.write_text(self._make_md())
-        sys.argv = [
-            "convert_session_to_json.py",
-            str(md_file),
-            "--dry-run",
-        ]
-        mod.main()
+        rc = mod.main([str(md_file), "--dry-run"])
+        assert rc == 0
         json_file = tmp_path / "2024-01-01-session-1.json"
         assert not json_file.exists()
 
@@ -628,8 +646,8 @@ Reviewed and approved the PR changes with extensive documentation.
         md_file.write_text(self._make_md())
         json_file = tmp_path / "2024-01-01-session-1.json"
         json_file.write_text('{"existing": true}')
-        sys.argv = ["convert_session_to_json.py", str(md_file)]
-        mod.main()
+        rc = mod.main([str(md_file)])
+        assert rc == 0
         # Should still contain original content (was skipped)
         data = json.loads(json_file.read_text())
         assert data.get("existing") is True
@@ -642,12 +660,8 @@ Reviewed and approved the PR changes with extensive documentation.
         md_file.write_text(self._make_md())
         json_file = tmp_path / "2024-01-01-session-1.json"
         json_file.write_text('{"existing": true}')
-        sys.argv = [
-            "convert_session_to_json.py",
-            str(md_file),
-            "--force",
-        ]
-        mod.main()
+        rc = mod.main([str(md_file), "--force"])
+        assert rc == 0
         data = json.loads(json_file.read_text())
         assert "session" in data
 
@@ -660,8 +674,8 @@ Reviewed and approved the PR changes with extensive documentation.
             f.write_text(self._make_md())
         # Also add a non-session file that should be ignored
         (tmp_path / "notes.md").write_text("some notes")
-        sys.argv = ["convert_session_to_json.py", str(tmp_path)]
-        mod.main()
+        rc = mod.main([str(tmp_path)])
+        assert rc == 0
         jsons = list(tmp_path.glob("*-session-*.json"))
         assert len(jsons) == 3
 

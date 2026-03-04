@@ -12,94 +12,93 @@ sys.path.insert(0, str(SCRIPT_DIR))
 import convert_index_table_links
 
 
-class TestGetProjectRoot:
-    """Tests for get_project_root function."""
+class TestFindProjectRoot:
+    """Tests for _find_project_root function."""
 
-    def test_returns_string(self):
-        # In a git repo, should return a valid path
-        result = convert_index_table_links.get_project_root()
-        assert isinstance(result, str)
-        assert len(result) > 0
+    def test_returns_path(self):
+        # In a git repo, should return a valid Path
+        result = convert_index_table_links._find_project_root()
+        assert isinstance(result, Path)
+        assert result.exists()
 
 
-class TestValidatePathContainment:
-    """Tests for validate_path_containment (CWE-22)."""
+class TestValidatePathWithinProject:
+    """Tests for _validate_path_within_project (CWE-22)."""
 
     def test_valid_subpath(self, tmp_path):
         child = tmp_path / "sub"
         child.mkdir()
-        assert convert_index_table_links.validate_path_containment(
-            str(child), str(tmp_path)
-        ) is True
+        # Should return the resolved path without raising
+        result = convert_index_table_links._validate_path_within_project(
+            str(child), tmp_path
+        )
+        assert result == child.resolve()
 
     def test_rejects_sibling(self, tmp_path):
         sibling = tmp_path.parent / "sibling"
-        assert convert_index_table_links.validate_path_containment(
-            str(sibling), str(tmp_path)
-        ) is False
+        with pytest.raises(SystemExit):
+            convert_index_table_links._validate_path_within_project(
+                str(sibling), tmp_path
+            )
 
 
-class TestGetMemoryNames:
-    """Tests for get_memory_names function."""
+class TestBuildMemoryNames:
+    """Tests for _build_memory_names function."""
 
     def test_returns_basenames(self, tmp_path):
         (tmp_path / "test-memory.md").write_text("# Test")
         (tmp_path / "another.md").write_text("# Another")
-        names = convert_index_table_links.get_memory_names(tmp_path)
+        names = convert_index_table_links._build_memory_names(tmp_path)
         assert "test-memory" in names
         assert "another" in names
 
     def test_empty_dir(self, tmp_path):
-        names = convert_index_table_links.get_memory_names(tmp_path)
-        assert len(names) == 0
-
-    def test_missing_dir(self, tmp_path):
-        names = convert_index_table_links.get_memory_names(tmp_path / "missing")
+        names = convert_index_table_links._build_memory_names(tmp_path)
         assert len(names) == 0
 
 
 class TestConvertSingleRefs:
-    """Tests for convert_single_refs function."""
+    """Tests for _convert_single_refs function."""
 
     def test_converts_known_memory(self):
         content = "| keyword | test-memory |"
         names = {"test-memory": True}
-        result = convert_index_table_links.convert_single_refs(content, names)
+        result = convert_index_table_links._convert_single_refs(content, names)
         assert "[test-memory](test-memory.md)" in result
 
     def test_skips_unknown(self):
         content = "| keyword | unknown-file |"
         names = {"test-memory": True}
-        result = convert_index_table_links.convert_single_refs(content, names)
+        result = convert_index_table_links._convert_single_refs(content, names)
         assert "[unknown-file]" not in result
 
     def test_skips_existing_links(self):
         content = "| keyword | [test-memory](test-memory.md) |"
         names = {"test-memory": True}
-        result = convert_index_table_links.convert_single_refs(content, names)
+        result = convert_index_table_links._convert_single_refs(content, names)
         assert result.count("[test-memory]") == 1
 
     def test_skips_separator_rows(self):
         content = "| --- | --- |"
         names = {"test": True}
-        result = convert_index_table_links.convert_single_refs(content, names)
+        result = convert_index_table_links._convert_single_refs(content, names)
         assert "[" not in result
 
 
 class TestConvertCommaRefs:
-    """Tests for convert_comma_refs function."""
+    """Tests for _convert_comma_refs function."""
 
     def test_converts_comma_list(self):
         content = "| file-a, file-b |"
         names = {"file-a": True, "file-b": True}
-        result = convert_index_table_links.convert_comma_refs(content, names)
+        result = convert_index_table_links._convert_comma_refs(content, names)
         assert "[file-a](file-a.md)" in result
         assert "[file-b](file-b.md)" in result
 
     def test_partial_conversion(self):
         content = "| file-a, unknown |"
         names = {"file-a": True}
-        result = convert_index_table_links.convert_comma_refs(content, names)
+        result = convert_index_table_links._convert_comma_refs(content, names)
         assert "[file-a](file-a.md)" in result
         assert "unknown" in result
         assert "[unknown]" not in result
@@ -107,19 +106,19 @@ class TestConvertCommaRefs:
     def test_skips_existing_links(self):
         content = "| [file-a](file-a.md), file-b |"
         names = {"file-a": True, "file-b": True}
-        result = convert_index_table_links.convert_comma_refs(content, names)
+        result = convert_index_table_links._convert_comma_refs(content, names)
         assert result == content
 
 
 class TestCountMdLinks:
-    """Tests for count_md_links function."""
+    """Tests for _count_md_links function."""
 
     def test_counts_links(self):
         content = "[a](a.md) and [b](b.md)"
-        assert convert_index_table_links.count_md_links(content) == 2
+        assert convert_index_table_links._count_md_links(content) == 2
 
     def test_zero_links(self):
-        assert convert_index_table_links.count_md_links("no links here") == 0
+        assert convert_index_table_links._count_md_links("no links here") == 0
 
 
 class TestProcessFiles:

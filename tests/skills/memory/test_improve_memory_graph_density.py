@@ -28,7 +28,7 @@ class TestDomainPatterns:
 
 
 class TestFindRelatedFiles:
-    """Tests for find_related_files function."""
+    """Tests for _find_related_files function."""
 
     def test_finds_same_domain(self, tmp_path):
         (tmp_path / "security-scan.md").write_text("# Scan")
@@ -37,7 +37,7 @@ class TestFindRelatedFiles:
         all_files = sorted(tmp_path.glob("*.md"))
         names = {f.stem: str(f) for f in all_files}
 
-        related = improve_memory_graph_density.find_related_files(
+        related = improve_memory_graph_density._find_related_files(
             "security-scan", all_files, names
         )
         assert "security-audit" in related
@@ -49,7 +49,7 @@ class TestFindRelatedFiles:
         all_files = sorted(tmp_path.glob("*.md"))
         names = {f.stem: str(f) for f in all_files}
 
-        related = improve_memory_graph_density.find_related_files(
+        related = improve_memory_graph_density._find_related_files(
             "security-scan", all_files, names
         )
         assert "securitys-index" in related
@@ -60,7 +60,7 @@ class TestFindRelatedFiles:
         all_files = sorted(tmp_path.glob("*.md"))
         names = {f.stem: str(f) for f in all_files}
 
-        related = improve_memory_graph_density.find_related_files(
+        related = improve_memory_graph_density._find_related_files(
             "git-topic-0", all_files, names
         )
         assert len(related) <= 5
@@ -70,7 +70,7 @@ class TestFindRelatedFiles:
         all_files = sorted(tmp_path.glob("*.md"))
         names = {f.stem: str(f) for f in all_files}
 
-        related = improve_memory_graph_density.find_related_files(
+        related = improve_memory_graph_density._find_related_files(
             "unique-standalone", all_files, names
         )
         assert len(related) == 0
@@ -81,8 +81,9 @@ class TestProcessFiles:
 
     def test_skips_index_files(self, tmp_path):
         (tmp_path / "test-index.md").write_text("| key | val |")
+        # process_files signature: (memories_path, files, dry_run, output_json)
         stats = improve_memory_graph_density.process_files(
-            tmp_path, None, True, False
+            tmp_path, None, False, True
         )
         assert stats["FilesModified"] == 0
 
@@ -103,7 +104,7 @@ class TestProcessFiles:
         (tmp_path / "git-config.md").write_text("# Git Config")
 
         stats = improve_memory_graph_density.process_files(
-            tmp_path, None, False, True
+            tmp_path, None, True, False
         )
         assert stats["FilesModified"] >= 1
 

@@ -2,17 +2,27 @@
 
 import json
 import os
+import subprocess
+import sys
+from pathlib import Path
 from unittest.mock import patch, MagicMock
 
 import pytest
 
 from test_helpers import make_completed_process
 
+# Ensure importability
+_project_root = Path(__file__).resolve().parents[3]
+_lib_dir = _project_root / ".claude" / "lib"
+_scripts_dir = _project_root / ".claude" / "skills" / "github" / "scripts"
+for _p in (str(_lib_dir), str(_scripts_dir)):
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
+
 
 @pytest.fixture
 def _import_module():
     import importlib
-    import sys
     mod_name = "test_workflow_locally"
     if mod_name in sys.modules:
         del sys.modules[mod_name]
@@ -20,33 +30,39 @@ def _import_module():
 
 
 class TestCheckPrerequisites:
-    def test_all_present(self, _import_module):
+    """Tests for prerequisite checking in main()."""
+
+    def test_all_present(self, _import_module, tmp_path):
         mod = _import_module
-        with (
-            patch("shutil.which", return_value="/usr/bin/act"),
-            patch("subprocess.run") as mock_run,
-        ):
-            mock_run.return_value = make_completed_process()
-            errors = mod._check_prerequisites()
+        wf_dir = tmp_path / ".github" / "workflows"
+        wf_dir.mkdir(parents=True)
+        (wf_dir / "pester-tests.yml").write_text("on: push")
 
-        assert errors == []
+        def which_side(cmd):
+            return f"/usr/bin/{cmd}"
 
-    def test_act_missing(self, _import_module):
-        mod = _import_module
-
-        def which_side(name):
-            if name == "act":
-                return None
-            return f"/usr/bin/{name}"
+        def fake_run(cmd, **kwargs):
+            if cmd[0] == "act" and cmd[1] == "--version":
+                return make_completed_process(stdout="act 0.2.0")
+            if cmd[0] == "docker":
+                return make_completed_process()
+            if cmd[0] == "gh":
+                return make_completed_process(stdout="token")
+            return make_completed_process()
 
         with (
             patch("shutil.which", side_effect=which_side),
-            patch("subprocess.run") as mock_run,
+            patch("subprocess.run", side_effect=fake_run),
+            patch("test_workflow_locally._get_repo_root", return_value=str(tmp_path)),
         ):
-            mock_run.return_value = make_completed_process()
-            errors = mod._check_prerequisites()
+            rc = mod.main(["--workflow", "pester-tests"])
+        assert rc == 0
 
-        assert any("act" in e for e in errors)
+    def test_act_missing(self, _import_module):
+        mod = _import_module
+        with patch("shutil.which", return_value=None):
+            rc = mod.main(["--workflow", "pester-tests"])
+        assert rc == 2
 
     def test_docker_missing(self, _import_module):
         mod = _import_module
@@ -56,40 +72,75 @@ class TestCheckPrerequisites:
                 return None
             return f"/usr/bin/{name}"
 
-        with patch("shutil.which", side_effect=which_side):
-            errors = mod._check_prerequisites()
-
-        assert any("Docker" in e for e in errors)
+        with (
+            patch("shutil.which", side_effect=which_side),
+            patch("subprocess.run", return_value=make_completed_process(stdout="act 0.2.0")),
+        ):
+            rc = mod.main(["--workflow", "pester-tests"])
+        assert rc == 2
 
     def test_docker_not_running(self, _import_module):
         mod = _import_module
-        with (
-            patch("shutil.which", return_value="/usr/bin/tool"),
-            patch("subprocess.run") as mock_run,
-        ):
-            mock_run.return_value = make_completed_process(
-                returncode=1, stderr="Cannot connect"
-            )
-            errors = mod._check_prerequisites()
 
-        assert any("running" in e.lower() for e in errors)
+        def which_side(cmd):
+            return f"/usr/bin/{cmd}"
+
+        with (
+            patch("shutil.which", side_effect=which_side),
+            patch("subprocess.run", side_effect=[
+                make_completed_process(stdout="act 0.2.0"),  # act --version
+                make_completed_process(returncode=1, stderr="Cannot connect"),  # docker info
+            ]),
+        ):
+            rc = mod.main(["--workflow", "pester-tests"])
+        assert rc == 2
 
 
 class TestResolveWorkflowPath:
+    """Tests for workflow path resolution in main()."""
+
     def test_short_name(self, _import_module, tmp_path):
         mod = _import_module
         wf_dir = tmp_path / ".github" / "workflows"
         wf_dir.mkdir(parents=True)
         (wf_dir / "pester-tests.yml").write_text("on: push")
 
-        result = mod._resolve_workflow_path("pester-tests", str(tmp_path))
-        assert result is not None
-        assert result.endswith("pester-tests.yml")
+        def which_side(cmd):
+            return f"/usr/bin/{cmd}"
+
+        def fake_run(cmd, **kwargs):
+            if cmd[0] == "act" and cmd[1] == "--version":
+                return make_completed_process(stdout="act 0.2.0")
+            if cmd[0] == "docker":
+                return make_completed_process()
+            if cmd[0] == "gh":
+                return make_completed_process(stdout="token")
+            return make_completed_process()
+
+        with (
+            patch("shutil.which", side_effect=which_side),
+            patch("subprocess.run", side_effect=fake_run),
+            patch("test_workflow_locally._get_repo_root", return_value=str(tmp_path)),
+        ):
+            rc = mod.main(["--workflow", "pester-tests"])
+        assert rc == 0
 
     def test_unknown_name(self, _import_module, tmp_path):
         mod = _import_module
-        result = mod._resolve_workflow_path("nonexistent", str(tmp_path))
-        assert result is None
+
+        def which_side(cmd):
+            return f"/usr/bin/{cmd}"
+
+        with (
+            patch("shutil.which", side_effect=which_side),
+            patch("subprocess.run", side_effect=[
+                make_completed_process(stdout="act 0.2.0"),
+                make_completed_process(),
+            ]),
+            patch("test_workflow_locally._get_repo_root", return_value=str(tmp_path)),
+        ):
+            rc = mod.main(["--workflow", "nonexistent"])
+        assert rc == 1
 
     def test_yml_extension(self, _import_module, tmp_path):
         mod = _import_module
@@ -97,35 +148,50 @@ class TestResolveWorkflowPath:
         wf_dir.mkdir(parents=True)
         (wf_dir / "custom.yml").write_text("on: push")
 
-        result = mod._resolve_workflow_path("custom.yml", str(tmp_path))
-        assert result is not None
+        def which_side(cmd):
+            return f"/usr/bin/{cmd}"
+
+        def fake_run(cmd, **kwargs):
+            if cmd[0] == "act" and cmd[1] == "--version":
+                return make_completed_process(stdout="act 0.2.0")
+            if cmd[0] == "docker":
+                return make_completed_process()
+            if cmd[0] == "gh":
+                return make_completed_process(stdout="token")
+            return make_completed_process()
+
+        with (
+            patch("shutil.which", side_effect=which_side),
+            patch("subprocess.run", side_effect=fake_run),
+            patch("test_workflow_locally._get_repo_root", return_value=str(tmp_path)),
+        ):
+            rc = mod.main(["--workflow", "custom.yml"])
+        assert rc == 0
 
 
 class TestTestWorkflowLocally:
     def test_prerequisites_fail(self, _import_module):
         mod = _import_module
-        with patch.object(
-            mod, "_check_prerequisites",
-            return_value=["act not found"],
-        ):
-            result = mod.test_workflow_locally("pester-tests")
+        with patch("shutil.which", return_value=None):
+            rc = mod.main(["--workflow", "pester-tests"])
+        assert rc == 2
 
-        assert result["Success"] is False
-        assert result["ExitCode"] == 2
-
-    def test_workflow_not_found(self, _import_module):
+    def test_workflow_not_found(self, _import_module, tmp_path):
         mod = _import_module
-        with (
-            patch.object(mod, "_check_prerequisites", return_value=[]),
-            patch("subprocess.run") as mock_run,
-        ):
-            mock_run.return_value = make_completed_process(
-                stdout="/tmp/repo"
-            )
-            result = mod.test_workflow_locally("nonexistent-workflow")
 
-        assert result["Success"] is False
-        assert result["ExitCode"] == 1
+        def which_side(cmd):
+            return f"/usr/bin/{cmd}"
+
+        with (
+            patch("shutil.which", side_effect=which_side),
+            patch("subprocess.run", side_effect=[
+                make_completed_process(stdout="act 0.2.0"),
+                make_completed_process(),
+            ]),
+            patch("test_workflow_locally._get_repo_root", return_value=str(tmp_path)),
+        ):
+            rc = mod.main(["--workflow", "nonexistent-workflow"])
+        assert rc == 1
 
     def test_success_execution(self, _import_module, tmp_path):
         mod = _import_module
@@ -133,19 +199,22 @@ class TestTestWorkflowLocally:
         wf_dir.mkdir(parents=True)
         (wf_dir / "pester-tests.yml").write_text("on: push")
 
-        call_count = [0]
+        def which_side(cmd):
+            return f"/usr/bin/{cmd}"
 
-        def run_side(cmd, **kwargs):
-            call_count[0] += 1
-            if call_count[0] == 1:
-                return make_completed_process(stdout=str(tmp_path))
+        def fake_run(cmd, **kwargs):
+            if cmd[0] == "act" and cmd[1] == "--version":
+                return make_completed_process(stdout="act 0.2.0")
+            if cmd[0] == "docker":
+                return make_completed_process()
+            if cmd[0] == "gh":
+                return make_completed_process(stdout="token")
             return make_completed_process()
 
         with (
-            patch.object(mod, "_check_prerequisites", return_value=[]),
-            patch("subprocess.run", side_effect=run_side),
+            patch("shutil.which", side_effect=which_side),
+            patch("subprocess.run", side_effect=fake_run),
+            patch("test_workflow_locally._get_repo_root", return_value=str(tmp_path)),
         ):
-            result = mod.test_workflow_locally("pester-tests")
-
-        assert result["Success"] is True
-        assert result["ExitCode"] == 0
+            rc = mod.main(["--workflow", "pester-tests"])
+        assert rc == 0

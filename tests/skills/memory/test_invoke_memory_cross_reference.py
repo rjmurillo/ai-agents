@@ -13,51 +13,75 @@ sys.path.insert(0, str(SCRIPT_DIR))
 import invoke_memory_cross_reference
 
 
-class TestRunScript:
-    """Tests for run_script function."""
+class TestBuildParser:
+    """Tests for build_parser function."""
 
-    @patch("invoke_memory_cross_reference.subprocess.run")
-    def test_parses_json_output(self, mock_run):
-        mock_run.return_value = type("R", (), {
-            "stdout": '{"LinksAdded": 5, "FilesModified": 2}',
-            "returncode": 0,
-        })()
-        result = invoke_memory_cross_reference.run_script("/fake/script.py", [])
-        assert result is not None
-        assert result["LinksAdded"] == 5
+    def test_parser_has_expected_args(self):
+        parser = invoke_memory_cross_reference.build_parser()
+        args = parser.parse_args([])
+        assert hasattr(args, "output_json")
+        assert hasattr(args, "memories_path")
 
-    @patch("invoke_memory_cross_reference.subprocess.run")
-    def test_returns_none_on_empty_output(self, mock_run):
-        mock_run.return_value = type("R", (), {"stdout": "", "returncode": 0})()
-        result = invoke_memory_cross_reference.run_script("/fake/script.py", [])
-        assert result is None
-
-    @patch("invoke_memory_cross_reference.subprocess.run")
-    def test_handles_timeout(self, mock_run):
-        from subprocess import TimeoutExpired
-        mock_run.side_effect = TimeoutExpired(cmd="python", timeout=60)
-        result = invoke_memory_cross_reference.run_script("/fake/script.py", [])
-        assert result is not None
-        assert "Error" in result
+    def test_output_json_flag(self):
+        parser = invoke_memory_cross_reference.build_parser()
+        args = parser.parse_args(["--output-json"])
+        assert args.output_json is True
 
 
 class TestMainAlwaysExitsZero:
-    """Test that script always exits 0 (fail-open for hooks)."""
+    """Test that main always returns 0 (fail-open for hooks)."""
 
-    @patch("invoke_memory_cross_reference.run_script")
-    def test_exits_zero_on_success(self, mock_run):
-        mock_run.return_value = {
-            "LinksAdded": 0, "FilesModified": 0, "Errors": [],
-        }
-        with patch("sys.argv", ["invoke_memory_cross_reference.py"]):
-            with pytest.raises(SystemExit) as exc:
-                invoke_memory_cross_reference.main()
-            assert exc.value.code == 0
+    def test_returns_zero_on_success(self, tmp_path):
+        # Create a memories directory with files for processing
+        (tmp_path / "test-memory.md").write_text("# Test")
+        result = invoke_memory_cross_reference.main([
+            "--memories-path", str(tmp_path),
+            "--output-json",
+            "--skip-path-validation",
+        ])
+        assert result == 0
 
-    @patch("invoke_memory_cross_reference.run_script")
-    def test_exits_zero_on_error(self, mock_run):
-        mock_run.return_value = {"Error": "something broke"}
-        with patch("sys.argv", ["invoke_memory_cross_reference.py"]):
-            with pytest.raises(SystemExit) as exc:
-                invoke_memory_cross_reference.main()
-            assert exc.value.code == 0
+    def test_returns_zero_on_empty_dir(self, tmp_path):
+        result = invoke_memory_cross_reference.main([
+            "--memories-path", str(tmp_path),
+            "--output-json",
+            "--skip-path-validation",
+        ])
+        assert result == 0
+
+    def test_returns_zero_with_files_flag(self, tmp_path):
+        test_file = tmp_path / "test-index.md"
+        test_file.write_text("| key | val |")
+        result = invoke_memory_cross_reference.main([
+            "--memories-path", str(tmp_path),
+            "--files", str(test_file),
+            "--output-json",
+            "--skip-path-validation",
+        ])
+        assert result == 0
+
+
+class TestMainOutputJson:
+    """Tests for JSON output from main."""
+
+    def test_json_output_has_success_field(self, tmp_path, capsys):
+        (tmp_path / "test.md").write_text("# Test")
+        invoke_memory_cross_reference.main([
+            "--memories-path", str(tmp_path),
+            "--output-json",
+            "--skip-path-validation",
+        ])
+        captured = capsys.readouterr()
+        data = json.loads(captured.out)
+        assert "Success" in data
+
+    def test_json_output_has_error_list(self, tmp_path, capsys):
+        invoke_memory_cross_reference.main([
+            "--memories-path", str(tmp_path),
+            "--output-json",
+            "--skip-path-validation",
+        ])
+        captured = capsys.readouterr()
+        data = json.loads(captured.out)
+        assert "Errors" in data
+        assert isinstance(data["Errors"], list)

@@ -18,20 +18,8 @@ from unittest.mock import patch
 
 import pytest
 
-# Ensure the shared lib and script directories are importable.
-_project_root = Path(__file__).resolve().parents[3]
-_lib_dir = _project_root / ".claude" / "skills" / "github" / "lib"
-_scripts_dir = _project_root / ".claude" / "skills" / "github" / "scripts"
-for _p in (
-    str(_lib_dir),
-    str(_scripts_dir / "issue"),
-    str(_scripts_dir / "milestone"),
-    str(_scripts_dir / "reactions"),
-    str(_scripts_dir / "utils"),
-    str(_scripts_dir),
-):
-    if _p not in sys.path:
-        sys.path.insert(0, _p)
+from test_helpers import import_skill_script
+from github_core.api import RepoInfo
 
 
 def make_proc(stdout="", stderr="", returncode=0):
@@ -41,21 +29,31 @@ def make_proc(stdout="", stderr="", returncode=0):
     )
 
 
+def _extract_json(text: str) -> dict:
+    """Extract the last JSON object from output that may contain text before it."""
+    # Find the last '{' that starts a JSON object
+    idx = text.rfind("{")
+    if idx == -1:
+        raise ValueError(f"No JSON found in output: {text!r}")
+    return json.loads(text[idx:])
+
+
+def _mock_repo():
+    """Return a RepoInfo for test owner/repo."""
+    return RepoInfo(owner="o", repo="r")
+
+
 # ---------------------------------------------------------------------------
 # get_issue_context
 # ---------------------------------------------------------------------------
 
 class TestGetIssueContext:
-    """Tests for get_issue_context.get_issue_context."""
+    """Tests for get_issue_context.main."""
 
     def _import(self):
-        import importlib
+        return import_skill_script("get_issue_context", "issue")
 
-        import get_issue_context as mod
-        importlib.reload(mod)
-        return mod
-
-    def test_happy_path(self):
+    def test_happy_path(self, capsys):
         mod = self._import()
         issue_data = {
             "number": 42,
@@ -70,21 +68,28 @@ class TestGetIssueContext:
             "updatedAt": "2024-01-02",
         }
         proc = make_proc(stdout=json.dumps(issue_data))
-        with patch("subprocess.run", return_value=proc):
-            result = mod.get_issue_context("owner", "repo", 42)
+        with (
+            patch("get_issue_context.assert_gh_authenticated"),
+            patch("get_issue_context.resolve_repo_params", return_value=RepoInfo(owner="owner", repo="repo")),
+            patch("subprocess.run", return_value=proc),
+        ):
+            rc = mod.main(["--issue", "42"])
 
-        assert result["Success"] is True
-        assert result["Number"] == 42
-        assert result["Title"] == "Test Issue"
-        assert result["State"] == "OPEN"
-        assert result["Author"] == "alice"
-        assert result["Labels"] == ["bug"]
-        assert result["Milestone"] == "v1.0"
-        assert result["Assignees"] == ["bob"]
-        assert result["Owner"] == "owner"
-        assert result["Repo"] == "repo"
+        assert rc == 0
+        captured = capsys.readouterr()
+        result = json.loads(captured.out)
+        assert result["success"] is True
+        assert result["number"] == 42
+        assert result["title"] == "Test Issue"
+        assert result["state"] == "OPEN"
+        assert result["author"] == "alice"
+        assert result["labels"] == ["bug"]
+        assert result["milestone"] == "v1.0"
+        assert result["assignees"] == ["bob"]
+        assert result["owner"] == "owner"
+        assert result["repo"] == "repo"
 
-    def test_no_milestone(self):
+    def test_no_milestone(self, capsys):
         mod = self._import()
         issue_data = {
             "number": 1,
@@ -99,32 +104,50 @@ class TestGetIssueContext:
             "updatedAt": "",
         }
         proc = make_proc(stdout=json.dumps(issue_data))
-        with patch("subprocess.run", return_value=proc):
-            result = mod.get_issue_context("o", "r", 1)
-        assert result["Milestone"] is None
+        with (
+            patch("get_issue_context.assert_gh_authenticated"),
+            patch("get_issue_context.resolve_repo_params", return_value=_mock_repo()),
+            patch("subprocess.run", return_value=proc),
+        ):
+            rc = mod.main(["--issue", "1"])
+        assert rc == 0
+        result = json.loads(capsys.readouterr().out)
+        assert result["milestone"] is None
 
     def test_api_not_found_exits_2(self):
         mod = self._import()
         proc = make_proc(stderr="not found", returncode=1)
-        with patch("subprocess.run", return_value=proc):
+        with (
+            patch("get_issue_context.assert_gh_authenticated"),
+            patch("get_issue_context.resolve_repo_params", return_value=_mock_repo()),
+            patch("subprocess.run", return_value=proc),
+        ):
             with pytest.raises(SystemExit) as exc:
-                mod.get_issue_context("o", "r", 99)
+                mod.main(["--issue", "99"])
         assert exc.value.code == 2
 
     def test_api_other_error_exits_2(self):
         mod = self._import()
         proc = make_proc(stderr="connection refused", returncode=1)
-        with patch("subprocess.run", return_value=proc):
+        with (
+            patch("get_issue_context.assert_gh_authenticated"),
+            patch("get_issue_context.resolve_repo_params", return_value=_mock_repo()),
+            patch("subprocess.run", return_value=proc),
+        ):
             with pytest.raises(SystemExit) as exc:
-                mod.get_issue_context("o", "r", 99)
+                mod.main(["--issue", "99"])
         assert exc.value.code == 2
 
     def test_empty_json_exits_3(self):
         mod = self._import()
         proc = make_proc(stdout="{}", returncode=0)
-        with patch("subprocess.run", return_value=proc):
+        with (
+            patch("get_issue_context.assert_gh_authenticated"),
+            patch("get_issue_context.resolve_repo_params", return_value=_mock_repo()),
+            patch("subprocess.run", return_value=proc),
+        ):
             with pytest.raises(SystemExit) as exc:
-                mod.get_issue_context("o", "r", 1)
+                mod.main(["--issue", "1"])
         assert exc.value.code == 3
 
 
@@ -133,13 +156,12 @@ class TestGetIssueContextMain:
 
     def test_help_does_not_crash(self):
         with pytest.raises(SystemExit) as exc:
-            sys.argv = ["get_issue_context.py", "--help"]
-            import get_issue_context as mod
-            mod.main()
+            mod = import_skill_script("get_issue_context", "issue")
+            mod.main(["--help"])
         assert exc.value.code == 0
 
     def test_main_happy_path(self, capsys):
-        import get_issue_context as mod
+        mod = import_skill_script("get_issue_context", "issue")
 
         issue_data = {
             "number": 7,
@@ -159,17 +181,16 @@ class TestGetIssueContextMain:
             patch("get_issue_context.assert_gh_authenticated"),
             patch(
                 "get_issue_context.resolve_repo_params",
-                return_value={"owner": "o", "repo": "r"},
+                return_value=_mock_repo(),
             ),
             patch("subprocess.run", return_value=proc),
         ):
-            sys.argv = ["get_issue_context.py", "--issue", "7"]
-            mod.main()
+            mod.main(["--issue", "7"])
 
         captured = capsys.readouterr()
         parsed = json.loads(captured.out)
-        assert parsed["Success"] is True
-        assert parsed["Number"] == 7
+        assert parsed["success"] is True
+        assert parsed["number"] == 7
 
 
 # ---------------------------------------------------------------------------
@@ -177,29 +198,35 @@ class TestGetIssueContextMain:
 # ---------------------------------------------------------------------------
 
 class TestNewIssue:
-    """Tests for new_issue.new_issue."""
+    """Tests for new_issue.main."""
 
     def _import(self):
-        import importlib
+        return import_skill_script("new_issue", "issue")
 
-        import new_issue as mod
-        importlib.reload(mod)
-        return mod
-
-    def test_happy_path(self):
+    def test_happy_path(self, capsys):
         mod = self._import()
         proc = make_proc(stdout="https://github.com/o/r/issues/123")
-        with patch("subprocess.run", return_value=proc):
-            result = mod.new_issue("o", "r", "My Title", "body text", "bug")
-        assert result["Success"] is True
-        assert result["IssueNumber"] == 123
-        assert result["Title"] == "My Title"
+        with (
+            patch("new_issue.assert_gh_authenticated"),
+            patch("new_issue.resolve_repo_params", return_value=_mock_repo()),
+            patch("subprocess.run", return_value=proc),
+        ):
+            rc = mod.main(["--title", "My Title", "--body", "body text", "--labels", "bug"])
+        assert rc == 0
+        result = json.loads(capsys.readouterr().out)
+        assert result["success"] is True
+        assert result["issue_number"] == 123
+        assert result["title"] == "My Title"
 
     def test_empty_body_and_labels_omitted(self):
         mod = self._import()
         proc = make_proc(stdout="https://github.com/o/r/issues/5")
-        with patch("subprocess.run", return_value=proc) as mock_run:
-            mod.new_issue("o", "r", "No Body", "", "")
+        with (
+            patch("new_issue.assert_gh_authenticated"),
+            patch("new_issue.resolve_repo_params", return_value=_mock_repo()),
+            patch("subprocess.run", return_value=proc) as mock_run,
+        ):
+            mod.main(["--title", "No Body"])
         cmd = mock_run.call_args[0][0]
         assert "--body" not in cmd
         assert "--label" not in cmd
@@ -207,83 +234,70 @@ class TestNewIssue:
     def test_api_error_exits_3(self):
         mod = self._import()
         proc = make_proc(stderr="server error", returncode=1)
-        with patch("subprocess.run", return_value=proc):
+        with (
+            patch("new_issue.assert_gh_authenticated"),
+            patch("new_issue.resolve_repo_params", return_value=_mock_repo()),
+            patch("subprocess.run", return_value=proc),
+        ):
             with pytest.raises(SystemExit) as exc:
-                mod.new_issue("o", "r", "title")
+                mod.main(["--title", "title"])
         assert exc.value.code == 3
 
     def test_unparseable_output_exits_3(self):
         mod = self._import()
         proc = make_proc(stdout="no url here", returncode=0)
-        with patch("subprocess.run", return_value=proc):
+        with (
+            patch("new_issue.assert_gh_authenticated"),
+            patch("new_issue.resolve_repo_params", return_value=_mock_repo()),
+            patch("subprocess.run", return_value=proc),
+        ):
             with pytest.raises(SystemExit) as exc:
-                mod.new_issue("o", "r", "title")
+                mod.main(["--title", "title"])
         assert exc.value.code == 3
 
-    def test_main_empty_title_exits_1(self, tmp_path):
-        import importlib
-
-        import new_issue as mod
-        importlib.reload(mod)
+    def test_main_empty_title_exits_2(self):
+        mod = self._import()
         with (
-            patch("github_core.api.assert_gh_authenticated"),
-            patch(
-                "github_core.api.resolve_repo_params",
-                return_value={"owner": "o", "repo": "r"},
-            ),
+            patch("new_issue.assert_gh_authenticated"),
+            patch("new_issue.resolve_repo_params", return_value=_mock_repo()),
         ):
-            sys.argv = ["new_issue.py", "--title", "   "]
             with pytest.raises(SystemExit) as exc:
-                mod.main()
-        assert exc.value.code == 1
-
-    def test_main_body_file_not_found_exits_2(self, tmp_path):
-        import importlib
-
-        import new_issue as mod
-        importlib.reload(mod)
-        with (
-            patch("github_core.api.assert_gh_authenticated"),
-            patch(
-                "github_core.api.resolve_repo_params",
-                return_value={"owner": "o", "repo": "r"},
-            ),
-        ):
-            sys.argv = [
-                "new_issue.py", "--title", "T",
-                "--body-file", str(tmp_path / "missing.txt"),
-            ]
-            with pytest.raises(SystemExit) as exc:
-                mod.main()
+                mod.main(["--title", "   "])
         assert exc.value.code == 2
 
-    def test_main_body_file_used(self, tmp_path):
-        import importlib
+    def test_main_body_file_not_found_exits_2(self, tmp_path):
+        mod = self._import()
+        with (
+            patch("new_issue.assert_gh_authenticated"),
+            patch("new_issue.resolve_repo_params", return_value=_mock_repo()),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                mod.main([
+                    "--title", "T",
+                    "--body-file", str(tmp_path / "missing.txt"),
+                ])
+        assert exc.value.code == 2
 
-        import new_issue as mod
-        importlib.reload(mod)
+    def test_main_body_file_used(self, tmp_path, capsys):
+        mod = self._import()
         body_file = tmp_path / "body.txt"
         body_file.write_text("file body content")
         proc = make_proc(stdout="https://github.com/o/r/issues/10")
         with (
-            patch("github_core.api.assert_gh_authenticated"),
-            patch(
-                "github_core.api.resolve_repo_params",
-                return_value={"owner": "o", "repo": "r"},
-            ),
+            patch("new_issue.assert_gh_authenticated"),
+            patch("new_issue.resolve_repo_params", return_value=_mock_repo()),
             patch("subprocess.run", return_value=proc),
         ):
-            sys.argv = [
-                "new_issue.py", "--title", "Title",
+            rc = mod.main([
+                "--title", "Title",
                 "--body-file", str(body_file),
-            ]
-            mod.main()
+            ])
+        assert rc == 0
 
     def test_help_does_not_crash(self):
+        mod = import_skill_script("new_issue", "issue")
         with pytest.raises(SystemExit) as exc:
-            sys.argv = ["new_issue.py", "--help"]
-            import new_issue as mod
-            mod.main()
+            mod.main(["--help"])
         assert exc.value.code == 0
 
 
@@ -292,146 +306,151 @@ class TestNewIssue:
 # ---------------------------------------------------------------------------
 
 class TestPostIssueComment:
-    """Tests for post_issue_comment.post_issue_comment."""
+    """Tests for post_issue_comment.main."""
 
     def _import(self):
-        import importlib
-
-        import post_issue_comment as mod
-        importlib.reload(mod)
-        return mod
+        return import_skill_script("post_issue_comment", "issue")
 
     def _make_post_proc(self, comment_id=99, html_url="https://gh/c/99"):
         data = {"id": comment_id, "html_url": html_url}
         return make_proc(stdout=json.dumps(data))
 
-    def test_happy_path_no_marker(self):
+    def test_happy_path_no_marker(self, capsys):
         mod = self._import()
         proc = self._make_post_proc()
-        with patch("subprocess.run", return_value=proc):
-            result = mod.post_issue_comment("o", "r", 1, "body text")
-        assert result["Success"] is True
-        assert result["CommentId"] == 99
-        assert result["Skipped"] is False
-        assert result["Marker"] is None
+        with (
+            patch("post_issue_comment.assert_gh_authenticated"),
+            patch("post_issue_comment.resolve_repo_params", return_value=_mock_repo()),
+            patch("subprocess.run", return_value=proc),
+        ):
+            rc = mod.main(["--issue", "1", "--body", "body text"])
+        assert rc == 0
+        result = json.loads(capsys.readouterr().out)
+        assert result["success"] is True
+        assert result["comment_id"] == 99
+        assert result["skipped"] is False
 
-    def test_marker_already_exists_skips(self):
+    def test_marker_already_exists_skips(self, capsys):
         mod = self._import()
         marker = "my-marker"
         marker_html = f"<!-- {marker} -->"
         comments = [{"id": 55, "body": f"{marker_html}\nold body"}]
-        api_proc = make_proc(stdout=json.dumps(comments))
-        with patch("post_issue_comment._run_gh", return_value=api_proc):
-            result = mod.post_issue_comment("o", "r", 1, "new body", marker)
-        assert result["Skipped"] is True
-        assert result["CommentId"] == 55
+        # First call: fetch comments; Second call would be post (not reached)
+        comments_proc = make_proc(stdout=json.dumps(comments))
+        with (
+            patch("post_issue_comment.assert_gh_authenticated"),
+            patch("post_issue_comment.resolve_repo_params", return_value=_mock_repo()),
+            patch("subprocess.run", return_value=comments_proc),
+        ):
+            rc = mod.main(["--issue", "1", "--body", "new body", "--marker", marker])
+        assert rc == 0
+        result = _extract_json(capsys.readouterr().out)
+        assert result["skipped"] is True
 
-    def test_marker_exists_update_if_exists(self):
+    def test_marker_exists_update_if_exists(self, capsys):
         mod = self._import()
         marker = "my-marker"
         marker_html = f"<!-- {marker} -->"
         comments = [{"id": 55, "body": f"{marker_html}\nold body"}]
-        api_proc = make_proc(stdout=json.dumps(comments))
-        updated = {"id": 55, "html_url": "https://gh/c/55"}
-        patch_proc = make_proc(stdout=json.dumps(updated))
+        comments_proc = make_proc(stdout=json.dumps(comments))
+        updated = {"id": 55, "html_url": "https://gh/c/55", "updated_at": "2024-01-01"}
 
         with (
-            patch("post_issue_comment._run_gh", return_value=api_proc),
-            patch("subprocess.run", return_value=patch_proc),
+            patch("post_issue_comment.assert_gh_authenticated"),
+            patch("post_issue_comment.resolve_repo_params", return_value=_mock_repo()),
+            patch("subprocess.run", return_value=comments_proc),
+            patch("post_issue_comment.update_issue_comment", return_value=updated),
         ):
-            result = mod.post_issue_comment(
-                "o", "r", 1, "new body", marker, update_if_exists=True
-            )
-        assert result["Updated"] is True
-        assert result["Skipped"] is False
+            rc = mod.main([
+                "--issue", "1", "--body", "new body",
+                "--marker", marker, "--update-if-exists",
+            ])
+        assert rc == 0
+        result = _extract_json(capsys.readouterr().out)
+        assert result["updated"] is True
+        assert result["success"] is True
 
-    def test_marker_new_post(self):
+    def test_marker_new_post(self, capsys):
         mod = self._import()
         marker = "unique-marker"
-        api_proc = make_proc(stdout=json.dumps([]))
+        comments_proc = make_proc(stdout=json.dumps([]))
         post_proc = self._make_post_proc(comment_id=77)
 
         with (
-            patch("post_issue_comment._run_gh", return_value=api_proc),
-            patch("subprocess.run", return_value=post_proc),
+            patch("post_issue_comment.assert_gh_authenticated"),
+            patch("post_issue_comment.resolve_repo_params", return_value=_mock_repo()),
+            patch("subprocess.run", side_effect=[comments_proc, post_proc]),
         ):
-            result = mod.post_issue_comment("o", "r", 1, "body", marker)
-        assert result["Success"] is True
-        assert result["Skipped"] is False
-        assert result["Marker"] == marker
+            rc = mod.main(["--issue", "1", "--body", "body", "--marker", marker])
+        assert rc == 0
+        result = json.loads(capsys.readouterr().out)
+        assert result["success"] is True
+        assert result["skipped"] is False
 
     def test_permission_error_exits_4(self):
         mod = self._import()
         err_proc = make_proc(stderr="HTTP 403 forbidden", returncode=1)
-        api_proc = make_proc(stdout=json.dumps([]))
         with (
-            patch("github_core.api._run_gh", return_value=api_proc),
+            patch("post_issue_comment.assert_gh_authenticated"),
+            patch("post_issue_comment.resolve_repo_params", return_value=_mock_repo()),
             patch("subprocess.run", return_value=err_proc),
+            patch("post_issue_comment._save_failed_comment_artifact", return_value=None),
         ):
             with pytest.raises(SystemExit) as exc:
-                mod.post_issue_comment("o", "r", 1, "body")
+                mod.main(["--issue", "1", "--body", "body"])
         assert exc.value.code == 4
 
     def test_api_error_exits_3(self):
         mod = self._import()
         err_proc = make_proc(stderr="server error", returncode=1)
-        api_proc = make_proc(stdout=json.dumps([]))
         with (
-            patch("github_core.api._run_gh", return_value=api_proc),
+            patch("post_issue_comment.assert_gh_authenticated"),
+            patch("post_issue_comment.resolve_repo_params", return_value=_mock_repo()),
             patch("subprocess.run", return_value=err_proc),
         ):
             with pytest.raises(SystemExit) as exc:
-                mod.post_issue_comment("o", "r", 1, "body")
+                mod.main(["--issue", "1", "--body", "body"])
         assert exc.value.code == 3
 
-    def test_parse_error_returns_gracefully(self):
+    def test_parse_error_returns_gracefully(self, capsys):
         mod = self._import()
-        api_proc = make_proc(stdout=json.dumps([]))
         bad_json_proc = make_proc(stdout="not-json", returncode=0)
         with (
-            patch("github_core.api._run_gh", return_value=api_proc),
+            patch("post_issue_comment.assert_gh_authenticated"),
+            patch("post_issue_comment.resolve_repo_params", return_value=_mock_repo()),
             patch("subprocess.run", return_value=bad_json_proc),
         ):
-            result = mod.post_issue_comment("o", "r", 1, "body")
-        assert result["Success"] is True
-        assert result.get("ParseError") is True
+            rc = mod.main(["--issue", "1", "--body", "body"])
+        assert rc == 0
 
-    def test_ensure_marker_in_body_prepends(self):
+    def test_prepend_marker_prepends(self):
         mod = self._import()
         marker = "<!-- x -->"
-        result = mod._ensure_marker_in_body("text", marker)
+        result = mod._prepend_marker("text", marker)
         assert result.startswith(marker)
         assert "text" in result
 
-    def test_ensure_marker_in_body_noop_when_present(self):
+    def test_prepend_marker_noop_when_present(self):
         mod = self._import()
         marker = "<!-- x -->"
         body = f"{marker}\n\ntext"
-        result = mod._ensure_marker_in_body(body, marker)
+        result = mod._prepend_marker(body, marker)
         assert result == body
 
-    def test_main_empty_body_exits_1(self):
-        import importlib
-
-        import post_issue_comment as mod
-        importlib.reload(mod)
+    def test_main_empty_body_exits_2(self):
+        mod = self._import()
         with (
-            patch("github_core.api.assert_gh_authenticated"),
-            patch(
-                "github_core.api.resolve_repo_params",
-                return_value={"owner": "o", "repo": "r"},
-            ),
+            patch("post_issue_comment.assert_gh_authenticated"),
+            patch("post_issue_comment.resolve_repo_params", return_value=_mock_repo()),
         ):
-            sys.argv = ["post_issue_comment.py", "--issue", "1"]
             with pytest.raises(SystemExit) as exc:
-                mod.main()
-        assert exc.value.code == 1
+                mod.main(["--issue", "1"])
+        assert exc.value.code == 2
 
     def test_help_does_not_crash(self):
+        mod = import_skill_script("post_issue_comment", "issue")
         with pytest.raises(SystemExit) as exc:
-            sys.argv = ["post_issue_comment.py", "--help"]
-            import post_issue_comment as mod
-            mod.main()
+            mod.main(["--help"])
         assert exc.value.code == 0
 
 
@@ -440,71 +459,67 @@ class TestPostIssueComment:
 # ---------------------------------------------------------------------------
 
 class TestSetIssueAssignee:
-    """Tests for set_issue_assignee.set_issue_assignee."""
+    """Tests for set_issue_assignee.main."""
 
     def _import(self):
-        import importlib
+        return import_skill_script("set_issue_assignee", "issue")
 
-        import set_issue_assignee as mod
-        importlib.reload(mod)
-        return mod
-
-    def test_happy_path_single(self):
+    def test_happy_path_single(self, capsys):
         mod = self._import()
         proc = make_proc(returncode=0)
-        with patch("subprocess.run", return_value=proc):
-            result = mod.set_issue_assignee("o", "r", 1, ["alice"])
-        assert result["Success"] is True
-        assert result["Applied"] == ["alice"]
-        assert result["Failed"] == []
+        with (
+            patch("set_issue_assignee.assert_gh_authenticated"),
+            patch("set_issue_assignee.resolve_repo_params", return_value=_mock_repo()),
+            patch("subprocess.run", return_value=proc),
+        ):
+            rc = mod.main(["--issue", "1", "--assignees", "alice"])
+        assert rc == 0
+        result = json.loads(capsys.readouterr().out)
+        assert result["success"] is True
+        assert result["applied"] == ["alice"]
+        assert result["failed"] == []
 
-    def test_multiple_assignees(self):
+    def test_multiple_assignees(self, capsys):
         mod = self._import()
         proc = make_proc(returncode=0)
-        with patch("subprocess.run", return_value=proc):
-            result = mod.set_issue_assignee("o", "r", 1, ["alice", "bob"])
-        assert result["TotalApplied"] == 2
-        assert result["Success"] is True
+        with (
+            patch("set_issue_assignee.assert_gh_authenticated"),
+            patch("set_issue_assignee.resolve_repo_params", return_value=_mock_repo()),
+            patch("subprocess.run", return_value=proc),
+        ):
+            rc = mod.main(["--issue", "1", "--assignees", "alice", "bob"])
+        result = json.loads(capsys.readouterr().out)
+        assert result["total_applied"] == 2
+        assert result["success"] is True
 
-    def test_partial_failure(self):
+    def test_partial_failure(self, capsys):
         mod = self._import()
         procs = [make_proc(returncode=0), make_proc(returncode=1)]
-        with patch("subprocess.run", side_effect=procs):
-            result = mod.set_issue_assignee("o", "r", 1, ["alice", "bob"])
-        assert result["Success"] is False
-        assert "alice" in result["Applied"]
-        assert "bob" in result["Failed"]
-
-    def test_empty_assignees_returns_empty(self):
-        mod = self._import()
-        result = mod.set_issue_assignee("o", "r", 1, [])
-        assert result["Success"] is True
-        assert result["TotalApplied"] == 0
+        with (
+            patch("set_issue_assignee.assert_gh_authenticated"),
+            patch("set_issue_assignee.resolve_repo_params", return_value=_mock_repo()),
+            patch("subprocess.run", side_effect=procs),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                mod.main(["--issue", "1", "--assignees", "alice", "bob"])
+        assert exc.value.code == 3
 
     def test_main_exits_3_on_failure(self):
-        import importlib
-
-        import set_issue_assignee as mod
-        importlib.reload(mod)
+        mod = self._import()
         proc = make_proc(returncode=1)
         with (
             patch("set_issue_assignee.assert_gh_authenticated"),
-            patch(
-                "set_issue_assignee.resolve_repo_params",
-                return_value={"owner": "o", "repo": "r"},
-            ),
+            patch("set_issue_assignee.resolve_repo_params", return_value=_mock_repo()),
             patch("subprocess.run", return_value=proc),
         ):
-            sys.argv = ["set_issue_assignee.py", "--issue", "1", "--assignees", "bad"]
             with pytest.raises(SystemExit) as exc:
-                mod.main()
+                mod.main(["--issue", "1", "--assignees", "bad"])
         assert exc.value.code == 3
 
     def test_help_does_not_crash(self):
+        mod = import_skill_script("set_issue_assignee", "issue")
         with pytest.raises(SystemExit) as exc:
-            sys.argv = ["set_issue_assignee.py", "--help"]
-            import set_issue_assignee as mod
-            mod.main()
+            mod.main(["--help"])
         assert exc.value.code == 0
 
 
@@ -513,97 +528,112 @@ class TestSetIssueAssignee:
 # ---------------------------------------------------------------------------
 
 class TestSetIssueLabels:
-    """Tests for set_issue_labels.set_issue_labels."""
+    """Tests for set_issue_labels.main."""
 
     def _import(self):
-        import importlib
+        return import_skill_script("set_issue_labels", "issue")
 
-        import set_issue_labels as mod
-        importlib.reload(mod)
-        return mod
+    def test_happy_path_label_exists(self, capsys):
+        mod = self._import()
+        # _label_exists returns True, _apply_label returns True
+        label_check_proc = make_proc(returncode=0, stdout='{"name":"bug"}')
+        apply_proc = make_proc(returncode=0)
+        with (
+            patch("set_issue_labels.assert_gh_authenticated"),
+            patch("set_issue_labels.resolve_repo_params", return_value=_mock_repo()),
+            patch("subprocess.run", side_effect=[label_check_proc, apply_proc]),
+        ):
+            rc = mod.main(["--issue", "1", "--labels", "bug"])
+        assert rc == 0
+        result = json.loads(capsys.readouterr().out)
+        assert result["success"] is True
+        assert "bug" in result["applied"]
 
-    def _run_gh_exists(self, *args, **kwargs):
-        return make_proc(returncode=0, stdout='{"name":"existing"}')
+    def test_label_missing_auto_created(self, capsys):
+        mod = self._import()
+        # _label_exists -> fail, _create_label -> success, _apply_label -> success
+        with (
+            patch("set_issue_labels.assert_gh_authenticated"),
+            patch("set_issue_labels.resolve_repo_params", return_value=_mock_repo()),
+            patch("subprocess.run", side_effect=[
+                make_proc(returncode=1),   # _label_exists fails
+                make_proc(returncode=0),   # _create_label succeeds
+                make_proc(returncode=0),   # _apply_label succeeds
+            ]),
+        ):
+            rc = mod.main(["--issue", "1", "--labels", "new-label"])
+        assert rc == 0
+        result = json.loads(capsys.readouterr().out)
+        assert result["success"] is True
 
-    def _run_gh_missing(self, *args, **kwargs):
-        return make_proc(returncode=1)
-
-    def test_happy_path_label_exists(self):
+    def test_label_missing_no_create(self, capsys):
         mod = self._import()
         with (
-            patch("github_core.api._run_gh", side_effect=self._run_gh_exists),
-            patch("subprocess.run", return_value=make_proc(returncode=0)),
+            patch("set_issue_labels.assert_gh_authenticated"),
+            patch("set_issue_labels.resolve_repo_params", return_value=_mock_repo()),
+            patch("subprocess.run", return_value=make_proc(returncode=1)),
         ):
-            result = mod.set_issue_labels("o", "r", 1, ["bug"])
-        assert result["Success"] is True
-        assert "bug" in result["Applied"]
+            rc = mod.main(["--issue", "1", "--labels", "missing", "--no-create-missing"])
+        # No labels applied, but no failure either since it just skips
+        assert rc == 0
 
-    def test_label_missing_auto_created(self):
+    def test_priority_label_added(self, capsys):
         mod = self._import()
-        # Stub procs used via side_effect below
+        # _label_exists -> success, _apply_label -> success
         with (
-            patch("github_core.api._run_gh", return_value=make_proc(returncode=1)),
-            patch("subprocess.run", side_effect=[make_proc(returncode=0), make_proc(returncode=0)]),
+            patch("set_issue_labels.assert_gh_authenticated"),
+            patch("set_issue_labels.resolve_repo_params", return_value=_mock_repo()),
+            patch("subprocess.run", side_effect=[
+                make_proc(returncode=0),   # _label_exists
+                make_proc(returncode=0),   # _apply_label
+            ]),
         ):
-            result = mod.set_issue_labels("o", "r", 1, ["new-label"])
-        assert result["Success"] is True
+            rc = mod.main(["--issue", "1", "--priority", "P1"])
+        assert rc == 0
+        result = json.loads(capsys.readouterr().out)
+        assert any("priority:P1" in label for label in result["applied"])
 
-    def test_label_missing_no_create(self):
-        mod = self._import()
-        with patch("github_core.api._run_gh", return_value=make_proc(returncode=1)):
-            result = mod.set_issue_labels("o", "r", 1, ["missing"], create_missing=False)
-        assert result["Applied"] == []
-        assert result["Created"] == []
-
-    def test_priority_label_added(self):
+    def test_no_labels_prints_message(self, capsys):
         mod = self._import()
         with (
-            patch("github_core.api._run_gh", side_effect=self._run_gh_exists),
-            patch("subprocess.run", return_value=make_proc(returncode=0)),
+            patch("set_issue_labels.assert_gh_authenticated"),
+            patch("set_issue_labels.resolve_repo_params", return_value=_mock_repo()),
         ):
-            result = mod.set_issue_labels("o", "r", 1, [], priority="P1")
-        assert any("priority:P1" in label for label in result["Applied"])
-
-    def test_no_labels_returns_empty(self):
-        mod = self._import()
-        result = mod.set_issue_labels("o", "r", 1, [])
-        assert result["TotalApplied"] == 0
-        assert result["Success"] is True
+            rc = mod.main(["--issue", "1"])
+        assert rc == 0
 
     def test_add_label_fails(self):
         mod = self._import()
         with (
-            patch("github_core.api._run_gh", side_effect=self._run_gh_exists),
-            patch("subprocess.run", return_value=make_proc(returncode=1)),
+            patch("set_issue_labels.assert_gh_authenticated"),
+            patch("set_issue_labels.resolve_repo_params", return_value=_mock_repo()),
+            patch("subprocess.run", side_effect=[
+                make_proc(returncode=0),   # _label_exists
+                make_proc(returncode=1),   # _apply_label fails
+            ]),
         ):
-            result = mod.set_issue_labels("o", "r", 1, ["bug"])
-        assert "bug" in result["Failed"]
-        assert result["Success"] is False
+            with pytest.raises(SystemExit) as exc:
+                mod.main(["--issue", "1", "--labels", "bug"])
+        assert exc.value.code == 3
 
     def test_main_exits_3_on_label_failure(self):
-        import importlib
-
-        import set_issue_labels as mod
-        importlib.reload(mod)
+        mod = self._import()
         with (
             patch("set_issue_labels.assert_gh_authenticated"),
-            patch(
-                "set_issue_labels.resolve_repo_params",
-                return_value={"owner": "o", "repo": "r"},
-            ),
-            patch("set_issue_labels._run_gh", return_value=make_proc(returncode=0)),
-            patch("subprocess.run", return_value=make_proc(returncode=1)),
+            patch("set_issue_labels.resolve_repo_params", return_value=_mock_repo()),
+            patch("subprocess.run", side_effect=[
+                make_proc(returncode=0),   # _label_exists
+                make_proc(returncode=1),   # _apply_label fails
+            ]),
         ):
-            sys.argv = ["set_issue_labels.py", "--issue", "1", "--labels", "bug"]
             with pytest.raises(SystemExit) as exc:
-                mod.main()
+                mod.main(["--issue", "1", "--labels", "bug"])
         assert exc.value.code == 3
 
     def test_help_does_not_crash(self):
+        mod = import_skill_script("set_issue_labels", "issue")
         with pytest.raises(SystemExit) as exc:
-            sys.argv = ["set_issue_labels.py", "--help"]
-            import set_issue_labels as mod
-            mod.main()
+            mod.main(["--help"])
         assert exc.value.code == 0
 
 
@@ -612,109 +642,128 @@ class TestSetIssueLabels:
 # ---------------------------------------------------------------------------
 
 class TestSetIssueMilestone:
-    """Tests for set_issue_milestone.set_issue_milestone."""
+    """Tests for set_issue_milestone.main."""
 
     def _import(self):
-        import importlib
+        return import_skill_script("set_issue_milestone", "issue")
 
-        import set_issue_milestone as mod
-        importlib.reload(mod)
-        return mod
-
-    def _gh(self, stdout="", returncode=0):
-        return make_proc(stdout=stdout, returncode=returncode)
-
-    def test_assign_new_milestone(self):
+    def test_assign_new_milestone(self, capsys):
         mod = self._import()
         with (
-            patch("set_issue_milestone._run_gh", side_effect=[
-                self._gh("null"),   # _get_current_milestone
-                self._gh("v1.0\nv2.0"),  # _list_milestone_titles
+            patch("set_issue_milestone.assert_gh_authenticated"),
+            patch("set_issue_milestone.resolve_repo_params", return_value=_mock_repo()),
+            patch("subprocess.run", side_effect=[
+                make_proc(stdout="null"),                 # _get_current_milestone
+                make_proc(stdout="v1.0\nv2.0"),           # _get_milestone_titles
+                make_proc(returncode=0),                   # gh issue edit
             ]),
-            patch("subprocess.run", return_value=self._gh()),
         ):
-            result = mod.set_issue_milestone("o", "r", 1, milestone="v1.0")
-        assert result["Success"] is True
-        assert result["Action"] == "assigned"
+            rc = mod.main(["--issue", "1", "--milestone", "v1.0"])
+        assert rc == 0
+        result = json.loads(capsys.readouterr().out)
+        assert result["success"] is True
+        assert result["action"] == "assigned"
 
-    def test_already_same_milestone_no_change(self):
+    def test_already_same_milestone_no_change(self, capsys):
         mod = self._import()
-        with patch("set_issue_milestone._run_gh", side_effect=[
-            self._gh("v1.0"),     # current milestone
-            self._gh("v1.0"),     # list titles
-        ]):
-            result = mod.set_issue_milestone("o", "r", 1, milestone="v1.0")
-        assert result["Action"] == "no_change"
+        with (
+            patch("set_issue_milestone.assert_gh_authenticated"),
+            patch("set_issue_milestone.resolve_repo_params", return_value=_mock_repo()),
+            patch("subprocess.run", side_effect=[
+                make_proc(stdout="v1.0"),     # current milestone
+                make_proc(stdout="v1.0"),     # list titles
+            ]),
+        ):
+            rc = mod.main(["--issue", "1", "--milestone", "v1.0"])
+        assert rc == 0
+        result = json.loads(capsys.readouterr().out)
+        assert result["action"] == "no_change"
 
     def test_different_milestone_no_force_exits_5(self):
         mod = self._import()
-        with patch("set_issue_milestone._run_gh", side_effect=[
-            self._gh("old-ms"),   # current milestone
-            self._gh("old-ms\nnew-ms"),  # list titles
-        ]):
+        with (
+            patch("set_issue_milestone.assert_gh_authenticated"),
+            patch("set_issue_milestone.resolve_repo_params", return_value=_mock_repo()),
+            patch("subprocess.run", side_effect=[
+                make_proc(stdout="old-ms"),            # current milestone
+                make_proc(stdout="old-ms\nnew-ms"),    # list titles
+            ]),
+        ):
             with pytest.raises(SystemExit) as exc:
-                mod.set_issue_milestone("o", "r", 1, milestone="new-ms")
+                mod.main(["--issue", "1", "--milestone", "new-ms"])
         assert exc.value.code == 5
 
-    def test_force_replaces_milestone(self):
+    def test_force_replaces_milestone(self, capsys):
         mod = self._import()
         with (
-            patch("set_issue_milestone._run_gh", side_effect=[
-                self._gh("old-ms"),
-                self._gh("old-ms\nnew-ms"),
+            patch("set_issue_milestone.assert_gh_authenticated"),
+            patch("set_issue_milestone.resolve_repo_params", return_value=_mock_repo()),
+            patch("subprocess.run", side_effect=[
+                make_proc(stdout="old-ms"),
+                make_proc(stdout="old-ms\nnew-ms"),
+                make_proc(returncode=0),               # gh issue edit
             ]),
-            patch("subprocess.run", return_value=self._gh()),
         ):
-            result = mod.set_issue_milestone("o", "r", 1, milestone="new-ms", force=True)
-        assert result["Action"] == "replaced"
+            rc = mod.main(["--issue", "1", "--milestone", "new-ms", "--force"])
+        assert rc == 0
+        result = json.loads(capsys.readouterr().out)
+        assert result["action"] == "replaced"
 
-    def test_clear_with_existing(self):
+    def test_clear_with_existing(self, capsys):
         mod = self._import()
         with (
-            patch("set_issue_milestone._run_gh", return_value=self._gh("old-ms")),
-            patch("subprocess.run", return_value=self._gh()),
+            patch("set_issue_milestone.assert_gh_authenticated"),
+            patch("set_issue_milestone.resolve_repo_params", return_value=_mock_repo()),
+            patch("subprocess.run", side_effect=[
+                make_proc(stdout="old-ms"),   # _get_current_milestone
+                make_proc(returncode=0),       # PATCH to clear
+            ]),
         ):
-            result = mod.set_issue_milestone("o", "r", 1, clear=True)
-        assert result["Action"] == "cleared"
+            rc = mod.main(["--issue", "1", "--clear"])
+        assert rc == 0
+        result = json.loads(capsys.readouterr().out)
+        assert result["action"] == "cleared"
 
-    def test_clear_without_existing(self):
+    def test_clear_without_existing(self, capsys):
         mod = self._import()
-        with patch("set_issue_milestone._run_gh", return_value=self._gh("null")):
-            result = mod.set_issue_milestone("o", "r", 1, clear=True)
-        assert result["Action"] == "no_change"
+        with (
+            patch("set_issue_milestone.assert_gh_authenticated"),
+            patch("set_issue_milestone.resolve_repo_params", return_value=_mock_repo()),
+            patch("subprocess.run", return_value=make_proc(stdout="null")),
+        ):
+            rc = mod.main(["--issue", "1", "--clear"])
+        assert rc == 0
+        result = json.loads(capsys.readouterr().out)
+        assert result["action"] == "no_change"
 
     def test_milestone_not_found_exits_2(self):
         mod = self._import()
-        with patch("set_issue_milestone._run_gh", side_effect=[
-            self._gh("null"),        # no current milestone
-            self._gh("other-ms"),    # list has different milestone
-        ]):
+        with (
+            patch("set_issue_milestone.assert_gh_authenticated"),
+            patch("set_issue_milestone.resolve_repo_params", return_value=_mock_repo()),
+            patch("subprocess.run", side_effect=[
+                make_proc(stdout="null"),         # no current milestone
+                make_proc(stdout="other-ms"),     # list has different milestone
+            ]),
+        ):
             with pytest.raises(SystemExit) as exc:
-                mod.set_issue_milestone("o", "r", 1, milestone="missing-ms")
+                mod.main(["--issue", "1", "--milestone", "missing-ms"])
         assert exc.value.code == 2
 
-    def test_main_no_milestone_no_clear_exits_1(self):
-        import importlib
-
-        import set_issue_milestone as mod
-        importlib.reload(mod)
+    def test_main_no_milestone_no_clear_exits_2(self):
+        mod = self._import()
         with (
-            patch("github_core.api.assert_gh_authenticated"),
-            patch(
-                "github_core.api.resolve_repo_params",
-                return_value={"owner": "o", "repo": "r"},
-            ),
+            patch("set_issue_milestone.assert_gh_authenticated"),
+            patch("set_issue_milestone.resolve_repo_params", return_value=_mock_repo()),
         ):
-            sys.argv = ["set_issue_milestone.py", "--issue", "1"]
             with pytest.raises(SystemExit) as exc:
-                mod.main()
-        assert exc.value.code == 1
+                mod.main(["--issue", "1"])
+        assert exc.value.code == 2
 
     def test_help_does_not_crash(self):
+        mod = import_skill_script("set_issue_milestone", "issue")
         with pytest.raises(SystemExit) as exc:
-            sys.argv = ["set_issue_milestone.py", "--help"]
-            import set_issue_milestone as mod
-            mod.main()
+            mod.main(["--help"])
         assert exc.value.code == 0
 
 
@@ -723,74 +772,10 @@ class TestSetIssueMilestone:
 # ---------------------------------------------------------------------------
 
 class TestInvokeCopilotAssignment:
-    """Tests for invoke_copilot_assignment.invoke_copilot_assignment."""
+    """Tests for invoke_copilot_assignment helper functions and main."""
 
     def _import(self):
-        import importlib
-
-        import invoke_copilot_assignment as mod
-        importlib.reload(mod)
-        return mod
-
-    def _make_issue(self):
-        return {
-            "number": 10,
-            "title": "Test",
-            "body": "desc",
-            "labels": [],
-            "assignees": [],
-        }
-
-    def test_dry_run(self):
-        mod = self._import()
-        issue_proc = make_proc(stdout=json.dumps(self._make_issue()))
-        comments_proc = make_proc(stdout=json.dumps([]))
-        with (
-            patch("invoke_copilot_assignment._run_gh", side_effect=[issue_proc, comments_proc]),
-        ):
-            result = mod.invoke_copilot_assignment("o", "r", 10, dry_run=True)
-        assert result["Action"] == "DryRun"
-        assert result["Success"] is True
-
-    def test_prepare_context_only(self, tmp_path):
-        mod = self._import()
-        issue_proc = make_proc(stdout=json.dumps(self._make_issue()))
-        comments_proc = make_proc(stdout=json.dumps([]))
-        with (
-            patch("invoke_copilot_assignment._run_gh", side_effect=[issue_proc, comments_proc]),
-            patch("tempfile.gettempdir", return_value=str(tmp_path)),
-        ):
-            result = mod.invoke_copilot_assignment("o", "r", 10, prepare_context_only=True)
-        assert result["Success"] is True
-        assert "ContextFile" in result
-
-    def test_issue_not_found_exits_2(self):
-        mod = self._import()
-        err_proc = make_proc(stdout="Not Found", returncode=1)
-        with patch("invoke_copilot_assignment._run_gh", return_value=err_proc):
-            with pytest.raises(SystemExit) as exc:
-                mod.invoke_copilot_assignment("o", "r", 999)
-        assert exc.value.code == 2
-
-    def test_api_error_exits_3(self):
-        mod = self._import()
-        err_proc = make_proc(stderr="connection error", returncode=1)
-        with patch("invoke_copilot_assignment._run_gh", return_value=err_proc):
-            with pytest.raises(SystemExit) as exc:
-                mod.invoke_copilot_assignment("o", "r", 1)
-        assert exc.value.code == 3
-
-    def test_skip_assignment(self):
-        mod = self._import()
-        issue_proc = make_proc(stdout=json.dumps(self._make_issue()))
-        comments_proc = make_proc(stdout=json.dumps([]))
-        with (
-            patch("invoke_copilot_assignment._run_gh", side_effect=[issue_proc, comments_proc]),
-        ):
-            result = mod.invoke_copilot_assignment(
-                "o", "r", 10, skip_assignment=True, dry_run=True
-            )
-        assert result["Action"] == "DryRun"
+        return import_skill_script("invoke_copilot_assignment", "issue")
 
     def test_get_maintainer_guidance_extracts_bullets(self):
         mod = self._import()
@@ -798,7 +783,7 @@ class TestInvokeCopilotAssignment:
             "user": {"login": "rjmurillo"},
             "body": "Some text.\n- Do this important thing\n- Another requirement",
         }]
-        guidance = mod.get_maintainer_guidance(comments, ["rjmurillo"])
+        guidance = mod._get_maintainer_guidance(comments, ["rjmurillo"])
         assert len(guidance) >= 1
         assert any("Do this important thing" in g for g in guidance)
 
@@ -808,7 +793,7 @@ class TestInvokeCopilotAssignment:
             "user": {"login": "rjmurillo"},
             "body": "You MUST implement the feature. This SHOULD be done carefully.",
         }]
-        guidance = mod.get_maintainer_guidance(comments, ["rjmurillo"])
+        guidance = mod._get_maintainer_guidance(comments, ["rjmurillo"])
         assert any("MUST" in g for g in guidance)
 
     def test_get_coderabbit_plan_extracts_impl(self):
@@ -820,12 +805,12 @@ class TestInvokeCopilotAssignment:
         config_patterns = {
             "username": "coderabbitai[bot]",
             "implementation_plan": "## Implementation",
-            "related_issues": "Related Issues",
+            "related_issues": "Similar Issues",
             "related_prs": "Related PRs",
         }
-        plan = mod.get_coderabbit_plan(comments, config_patterns)
+        plan = mod._get_coderabbit_plan(comments, config_patterns)
         assert plan is not None
-        assert plan["Implementation"] is not None
+        assert plan["implementation"] is not None
 
     def test_get_ai_triage_info_extracts_priority(self):
         mod = self._import()
@@ -834,25 +819,25 @@ class TestInvokeCopilotAssignment:
             "user": {"login": "bot"},
             "body": f"{marker}\n| **Priority** | `P1` |\n| **Category** | `bug` |",
         }]
-        triage = mod.get_ai_triage_info(comments, marker)
+        triage = mod._get_ai_triage_info(comments, marker)
         assert triage is not None
-        assert triage["Priority"] == "P1"
+        assert triage["priority"] == "P1"
 
     def test_has_synthesizable_content_with_guidance(self):
         mod = self._import()
-        assert mod.has_synthesizable_content(["some guidance"], None, None) is True
+        assert mod._has_synthesizable_content(["some guidance"], None, None) is True
 
     def test_has_synthesizable_content_empty(self):
         mod = self._import()
-        assert mod.has_synthesizable_content([], None, None) is False
+        assert mod._has_synthesizable_content([], None, None) is False
 
     def test_build_synthesis_comment(self):
         mod = self._import()
-        body = mod.build_synthesis_comment(
+        body = mod._build_synthesis_comment(
             "<!-- marker -->",
             ["Do X"],
-            {"Implementation": "impl text", "RelatedIssues": ["#1"], "RelatedPRs": []},
-            {"Priority": "P1", "Category": "bug"},
+            {"implementation": "impl text", "related_issues": ["#1"], "related_prs": []},
+            {"priority": "P1", "category": "bug"},
         )
         assert "@copilot" in body
         assert "Do X" in body
@@ -861,18 +846,17 @@ class TestInvokeCopilotAssignment:
     def test_find_existing_synthesis(self):
         mod = self._import()
         comments = [{"id": 1, "body": "<!-- MARKER -->\ntext"}]
-        result = mod.find_existing_synthesis(comments, "<!-- MARKER -->")
+        result = mod._find_existing_synthesis(comments, "<!-- MARKER -->")
         assert result is not None
         assert result["id"] == 1
 
     def test_find_existing_synthesis_none(self):
         mod = self._import()
-        result = mod.find_existing_synthesis([], "<!-- MARKER -->")
+        result = mod._find_existing_synthesis([], "<!-- MARKER -->")
         assert result is None
 
     def test_help_does_not_crash(self):
+        mod = import_skill_script("invoke_copilot_assignment", "issue")
         with pytest.raises(SystemExit) as exc:
-            sys.argv = ["invoke_copilot_assignment.py", "--help"]
-            import invoke_copilot_assignment as mod
-            mod.main()
+            mod.main(["--help"])
         assert exc.value.code == 0

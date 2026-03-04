@@ -17,19 +17,20 @@ class TestValidateQuery:
     """Tests for validate_query function."""
 
     def test_valid_query(self):
-        assert search_memory.validate_query("git hooks") is True
+        # validate_query returns None on success (no error)
+        assert search_memory.validate_query("git hooks") is None
 
     def test_empty_query(self):
-        assert search_memory.validate_query("") is False
+        assert search_memory.validate_query("") is not None
 
     def test_too_long(self):
-        assert search_memory.validate_query("x" * 501) is False
+        assert search_memory.validate_query("x" * 501) is not None
 
     def test_special_chars_rejected(self):
-        assert search_memory.validate_query("query; rm -rf /") is False
+        assert search_memory.validate_query("query; rm -rf /") is not None
 
     def test_allowed_punctuation(self):
-        assert search_memory.validate_query("test-query, another (one)") is True
+        assert search_memory.validate_query("test-query, another (one)") is None
 
 
 class TestSearchSerena:
@@ -67,23 +68,19 @@ class TestSearchSerena:
         assert results == []
 
 
-class TestGetRouterStatus:
-    """Tests for get_router_status function."""
+class TestGetMemoryRouterStatus:
+    """Tests for get_memory_router_status function."""
 
     def test_serena_available(self, tmp_path):
         (tmp_path / "test.md").write_text("# Test")
-        status = search_memory.get_router_status(tmp_path, "http://localhost:99999")
+        status = search_memory.get_memory_router_status(tmp_path)
         assert status["Serena"]["Available"] is True
         assert status["Serena"]["MemoryCount"] >= 1
 
     def test_serena_unavailable(self, tmp_path):
-        status = search_memory.get_router_status(
-            tmp_path / "missing", "http://localhost:99999"
-        )
+        status = search_memory.get_memory_router_status(tmp_path / "missing")
         assert status["Serena"]["Available"] is False
 
     def test_forgetful_unavailable(self, tmp_path):
-        status = search_memory.get_router_status(
-            tmp_path, "http://localhost:99999"
-        )
+        status = search_memory.get_memory_router_status(tmp_path)
         assert status["Forgetful"]["Available"] is False

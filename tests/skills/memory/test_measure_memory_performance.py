@@ -15,16 +15,16 @@ import measure_memory_performance
 class TestMeasureSerenaSearch:
     """Tests for measure_serena_search function."""
 
-    def test_returns_error_for_missing_path(self):
+    def test_returns_error_for_missing_path(self, tmp_path):
         result = measure_memory_performance.measure_serena_search(
-            "test query", "/nonexistent/path", 1, 0
+            "test query", tmp_path / "nonexistent", 1, 0
         )
         assert "Error" in result
 
     def test_measures_existing_path(self, tmp_path):
         (tmp_path / "test-memory.md").write_text("# Test content here")
         result = measure_memory_performance.measure_serena_search(
-            "test", str(tmp_path), 2, 1
+            "test", tmp_path, 2, 1
         )
         assert "Error" not in result
         assert result["TotalTimeMs"] >= 0
@@ -34,7 +34,7 @@ class TestMeasureSerenaSearch:
         (tmp_path / "security-scan.md").write_text("# Security")
         (tmp_path / "other-topic.md").write_text("# Other")
         result = measure_memory_performance.measure_serena_search(
-            "security", str(tmp_path), 2, 0
+            "security", tmp_path, 2, 0
         )
         assert result["MatchedFiles"] >= 1
 
@@ -44,7 +44,7 @@ class TestTestForgetfulAvailable:
 
     def test_unavailable_endpoint(self):
         result = measure_memory_performance.test_forgetful_available(
-            "http://localhost:99999/fake"
+            "http://localhost:59999/fake"
         )
         assert result is False
 
@@ -54,7 +54,7 @@ class TestMeasureForgetfulSearch:
 
     def test_returns_error_when_unavailable(self):
         result = measure_memory_performance.measure_forgetful_search(
-            "test", "http://localhost:99999/fake", 1, 0
+            "test", "http://localhost:59999/fake", 1, 0
         )
         assert "Error" in result
 
@@ -62,7 +62,7 @@ class TestMeasureForgetfulSearch:
 class TestFormatConsole:
     """Tests for format_console function."""
 
-    def test_prints_serena_avg(self, capsys):
+    def test_returns_serena_avg(self):
         benchmark = {
             "Summary": {
                 "SerenaAvgMs": 5.0,
@@ -71,9 +71,9 @@ class TestFormatConsole:
                 "Target": "96-164x",
             }
         }
-        measure_memory_performance.format_console(benchmark)
-        captured = capsys.readouterr()
-        assert "5.0ms" in captured.out
+        # format_console returns a string, does not print
+        result = measure_memory_performance.format_console(benchmark)
+        assert "5.0ms" in result
 
 
 class TestFormatMarkdown:

@@ -17,39 +17,39 @@ class TestGetSessionIdFromPath:
 
     def test_full_date_pattern(self):
         result = extract_session_episode.get_session_id_from_path(
-            "/path/to/2026-01-15-session-42-desc.md"
+            Path("/path/to/2026-01-15-session-42-desc.md")
         )
         assert result == "2026-01-15-session-42"
 
     def test_session_only_pattern(self):
         result = extract_session_episode.get_session_id_from_path(
-            "/path/to/session-7.md"
+            Path("/path/to/session-7.md")
         )
         assert result == "session-7"
 
     def test_fallback_to_filename(self):
         result = extract_session_episode.get_session_id_from_path(
-            "/path/to/custom-name.md"
+            Path("/path/to/custom-name.md")
         )
         assert result == "custom-name"
 
 
-class TestParseMetadata:
-    """Tests for parse_metadata function."""
+class TestParseSessionMetadata:
+    """Tests for parse_session_metadata function."""
 
     def test_extracts_title(self):
         lines = ["# Session 42 Log", "Some content"]
-        result = extract_session_episode.parse_metadata(lines)
+        result = extract_session_episode.parse_session_metadata(lines)
         assert result["title"] == "Session 42 Log"
 
     def test_extracts_date(self):
         lines = ["# Title", "**Date**: 2026-01-15"]
-        result = extract_session_episode.parse_metadata(lines)
+        result = extract_session_episode.parse_session_metadata(lines)
         assert result["date"] == "2026-01-15"
 
     def test_extracts_status(self):
         lines = ["# Title", "**Status**: Complete"]
-        result = extract_session_episode.parse_metadata(lines)
+        result = extract_session_episode.parse_session_metadata(lines)
         assert result["status"] == "Complete"
 
     def test_extracts_objectives(self):
@@ -59,12 +59,12 @@ class TestParseMetadata:
             "- Test feature X",
             "## Next",
         ]
-        result = extract_session_episode.parse_metadata(lines)
+        result = extract_session_episode.parse_session_metadata(lines)
         assert len(result["objectives"]) == 2
         assert "Implement feature X" in result["objectives"]
 
     def test_empty_content(self):
-        result = extract_session_episode.parse_metadata([])
+        result = extract_session_episode.parse_session_metadata([])
         assert result["title"] == ""
         assert result["objectives"] == []
 
@@ -112,7 +112,9 @@ class TestParseEvents:
     """Tests for parse_events function."""
 
     def test_commit_events(self):
-        lines = ["committed abc1234 with changes"]
+        # Source regex: r'commit[ted]?\s+(?:as\s+)?([a-f0-9]{7,40})'
+        # Or: r'([a-f0-9]{7,40})\s+\w+\(.+\):'
+        lines = ["commit abc1234def with changes"]
         result = extract_session_episode.parse_events(lines)
         commits = [e for e in result if e["type"] == "commit"]
         assert len(commits) >= 1
@@ -154,9 +156,6 @@ class TestParseLessons:
         assert len(result) >= 1
 
     def test_deduplication(self):
-        # Bullet items get stripped to content by section parser,
-        # but also match inline "lesson" keyword with dash prefix.
-        # dict.fromkeys preserves insertion order and deduplicates exact matches.
         lines = [
             "## Lessons Learned",
             "- Use guard clauses",
