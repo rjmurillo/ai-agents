@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
-"""Tests for the QA agent validator hook.
+"""Tests for the invoke_qa_agent_validator hook.
 
 Covers: non-QA agent skip, missing transcript, valid transcript with
 all sections, missing sections, file errors, invalid JSON.
 """
 
 import json
-import os
 import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -18,7 +17,7 @@ HOOK_DIR = str(
 )
 sys.path.insert(0, HOOK_DIR)
 
-import qa_agent_validator  # noqa: E402
+import invoke_qa_agent_validator  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -30,15 +29,15 @@ class TestIsQAAgent:
     """Tests for is_qa_agent function."""
 
     def test_returns_true_for_qa(self):
-        assert qa_agent_validator.is_qa_agent({"subagent_type": "qa"})
+        assert invoke_qa_agent_validator.is_qa_agent({"subagent_type": "qa"})
 
     def test_returns_false_for_other(self):
-        assert not qa_agent_validator.is_qa_agent(
+        assert not invoke_qa_agent_validator.is_qa_agent(
             {"subagent_type": "implementer"}
         )
 
     def test_returns_false_when_missing(self):
-        assert not qa_agent_validator.is_qa_agent({})
+        assert not invoke_qa_agent_validator.is_qa_agent({})
 
 
 # ---------------------------------------------------------------------------
@@ -52,29 +51,29 @@ class TestGetTranscriptPath:
     def test_returns_path_when_file_exists(self, tmp_path):
         transcript = tmp_path / "transcript.md"
         transcript.write_text("content")
-        result = qa_agent_validator.get_transcript_path(
+        result = invoke_qa_agent_validator.get_transcript_path(
             {"transcript_path": str(transcript)}
         )
         assert result == str(transcript)
 
     def test_returns_none_when_file_missing(self):
-        result = qa_agent_validator.get_transcript_path(
+        result = invoke_qa_agent_validator.get_transcript_path(
             {"transcript_path": "/nonexistent/file.md"}
         )
         assert result is None
 
     def test_returns_none_when_key_missing(self):
-        result = qa_agent_validator.get_transcript_path({})
+        result = invoke_qa_agent_validator.get_transcript_path({})
         assert result is None
 
     def test_returns_none_when_empty_string(self):
-        result = qa_agent_validator.get_transcript_path(
+        result = invoke_qa_agent_validator.get_transcript_path(
             {"transcript_path": ""}
         )
         assert result is None
 
     def test_returns_none_when_whitespace(self):
-        result = qa_agent_validator.get_transcript_path(
+        result = invoke_qa_agent_validator.get_transcript_path(
             {"transcript_path": "   "}
         )
         assert result is None
@@ -94,7 +93,7 @@ class TestGetMissingQASections:
             "## Test Results\n\nContent\n\n"
             "### Coverage\n\nContent\n"
         )
-        assert qa_agent_validator.get_missing_qa_sections(transcript) == []
+        assert invoke_qa_agent_validator.get_missing_qa_sections(transcript) == []
 
     def test_alternative_names_accepted(self):
         transcript = (
@@ -102,11 +101,11 @@ class TestGetMissingQASections:
             "## Validation Results\n\nContent\n\n"
             "### Acceptance Criteria\n\nContent\n"
         )
-        assert qa_agent_validator.get_missing_qa_sections(transcript) == []
+        assert invoke_qa_agent_validator.get_missing_qa_sections(transcript) == []
 
     def test_all_sections_missing(self):
         transcript = "# Introduction\n\nSome content\n"
-        missing = qa_agent_validator.get_missing_qa_sections(transcript)
+        missing = invoke_qa_agent_validator.get_missing_qa_sections(transcript)
         assert len(missing) == 3
 
     def test_partial_sections_missing(self):
@@ -114,7 +113,7 @@ class TestGetMissingQASections:
             "# Test Strategy\n\nContent\n\n"
             "## Other Section\n\nContent\n"
         )
-        missing = qa_agent_validator.get_missing_qa_sections(transcript)
+        missing = invoke_qa_agent_validator.get_missing_qa_sections(transcript)
         assert len(missing) == 2
 
     def test_keyword_in_body_not_matched(self):
@@ -124,7 +123,7 @@ class TestGetMissingQASections:
             "Here are test results.\n"
             "Coverage is 80%.\n"
         )
-        missing = qa_agent_validator.get_missing_qa_sections(transcript)
+        missing = invoke_qa_agent_validator.get_missing_qa_sections(transcript)
         assert len(missing) == 3
 
     def test_h3_headers_accepted(self):
@@ -133,37 +132,11 @@ class TestGetMissingQASections:
             "### Test Execution\n\nContent\n\n"
             "### Test Coverage\n\nContent\n"
         )
-        assert qa_agent_validator.get_missing_qa_sections(transcript) == []
+        assert invoke_qa_agent_validator.get_missing_qa_sections(transcript) == []
 
     def test_empty_transcript(self):
-        missing = qa_agent_validator.get_missing_qa_sections("")
+        missing = invoke_qa_agent_validator.get_missing_qa_sections("")
         assert len(missing) == 3
-
-
-# ---------------------------------------------------------------------------
-# Unit tests for log_transcript_issue
-# ---------------------------------------------------------------------------
-
-
-class TestLogTranscriptIssue:
-    """Tests for log_transcript_issue function."""
-
-    def test_logs_missing_key(self, capsys):
-        qa_agent_validator.log_transcript_issue({})
-        captured = capsys.readouterr()
-        assert "No transcript_path property" in captured.err
-
-    def test_logs_empty_value(self, capsys):
-        qa_agent_validator.log_transcript_issue({"transcript_path": ""})
-        captured = capsys.readouterr()
-        assert "empty/whitespace" in captured.err
-
-    def test_logs_nonexistent_file(self, capsys):
-        qa_agent_validator.log_transcript_issue(
-            {"transcript_path": "/nonexistent.md"}
-        )
-        captured = capsys.readouterr()
-        assert "does not exist" in captured.err
 
 
 # ---------------------------------------------------------------------------
@@ -174,42 +147,43 @@ class TestLogTranscriptIssue:
 class TestMain:
     """Tests for the main entry point."""
 
-    def test_exits_0_on_tty(self, monkeypatch):
+    @patch("invoke_qa_agent_validator.skip_if_consumer_repo", return_value=False)
+    def test_exits_0_on_tty(self, mock_skip, monkeypatch):
         monkeypatch.setattr("sys.stdin", MagicMock(isatty=lambda: True))
-        with pytest.raises(SystemExit) as exc_info:
-            qa_agent_validator.main()
-        assert exc_info.value.code == 0
+        result = invoke_qa_agent_validator.main()
+        assert result == 0
 
-    def test_exits_0_on_empty_input(self, monkeypatch):
+    @patch("invoke_qa_agent_validator.skip_if_consumer_repo", return_value=False)
+    def test_exits_0_on_empty_input(self, mock_skip, monkeypatch):
         monkeypatch.setattr(
             "sys.stdin",
             MagicMock(isatty=lambda: False, read=lambda: ""),
         )
-        with pytest.raises(SystemExit) as exc_info:
-            qa_agent_validator.main()
-        assert exc_info.value.code == 0
+        result = invoke_qa_agent_validator.main()
+        assert result == 0
 
-    def test_exits_0_for_non_qa_agent(self, monkeypatch):
+    @patch("invoke_qa_agent_validator.skip_if_consumer_repo", return_value=False)
+    def test_exits_0_for_non_qa_agent(self, mock_skip, monkeypatch):
         hook_input = json.dumps({"subagent_type": "implementer"})
         monkeypatch.setattr(
             "sys.stdin",
             MagicMock(isatty=lambda: False, read=lambda: hook_input),
         )
-        with pytest.raises(SystemExit) as exc_info:
-            qa_agent_validator.main()
-        assert exc_info.value.code == 0
+        result = invoke_qa_agent_validator.main()
+        assert result == 0
 
-    def test_exits_0_for_missing_transcript(self, monkeypatch):
+    @patch("invoke_qa_agent_validator.skip_if_consumer_repo", return_value=False)
+    def test_exits_0_for_missing_transcript(self, mock_skip, monkeypatch):
         hook_input = json.dumps({"subagent_type": "qa"})
         monkeypatch.setattr(
             "sys.stdin",
             MagicMock(isatty=lambda: False, read=lambda: hook_input),
         )
-        with pytest.raises(SystemExit) as exc_info:
-            qa_agent_validator.main()
-        assert exc_info.value.code == 0
+        result = invoke_qa_agent_validator.main()
+        assert result == 0
 
-    def test_reports_passed_when_complete(self, monkeypatch, tmp_path, capsys):
+    @patch("invoke_qa_agent_validator.skip_if_consumer_repo", return_value=False)
+    def test_reports_passed_when_complete(self, mock_skip, monkeypatch, tmp_path, capsys):
         transcript = tmp_path / "transcript.md"
         transcript.write_text(
             "# Test Strategy\n\n## Test Results\n\n### Coverage\n"
@@ -222,9 +196,8 @@ class TestMain:
             "sys.stdin",
             MagicMock(isatty=lambda: False, read=lambda: hook_input),
         )
-        with pytest.raises(SystemExit) as exc_info:
-            qa_agent_validator.main()
-        assert exc_info.value.code == 0
+        result = invoke_qa_agent_validator.main()
+        assert result == 0
         captured = capsys.readouterr()
         assert "PASSED" in captured.out
 
@@ -235,8 +208,9 @@ class TestMain:
         assert data["validation_passed"] is True
         assert data["missing_sections"] == []
 
+    @patch("invoke_qa_agent_validator.skip_if_consumer_repo", return_value=False)
     def test_reports_failure_when_incomplete(
-        self, monkeypatch, tmp_path, capsys
+        self, mock_skip, monkeypatch, tmp_path, capsys
     ):
         transcript = tmp_path / "transcript.md"
         transcript.write_text("# Some Other Section\n\nContent\n")
@@ -248,9 +222,8 @@ class TestMain:
             "sys.stdin",
             MagicMock(isatty=lambda: False, read=lambda: hook_input),
         )
-        with pytest.raises(SystemExit) as exc_info:
-            qa_agent_validator.main()
-        assert exc_info.value.code == 0
+        result = invoke_qa_agent_validator.main()
+        assert result == 0
         captured = capsys.readouterr()
         assert "FAILURE" in captured.out
 
@@ -261,35 +234,33 @@ class TestMain:
         assert data["validation_passed"] is False
         assert len(data["missing_sections"]) == 3
 
-    def test_handles_file_read_error(self, monkeypatch, tmp_path, capsys):
+    @patch("invoke_qa_agent_validator.skip_if_consumer_repo", return_value=False)
+    def test_handles_file_read_error(self, mock_skip, monkeypatch, tmp_path, capsys):
         """Handles OSError when reading transcript."""
         transcript_path = str(tmp_path / "unreadable.md")
         hook_input = json.dumps({
             "subagent_type": "qa",
             "transcript_path": transcript_path,
         })
-        # File does not exist, so get_transcript_path returns None
-        # We need to simulate a file that exists but is unreadable
-        # Use mock to bypass get_transcript_path
         monkeypatch.setattr(
             "sys.stdin",
             MagicMock(isatty=lambda: False, read=lambda: hook_input),
         )
         with patch(
-            "qa_agent_validator.get_transcript_path",
+            "invoke_qa_agent_validator.get_transcript_path",
             return_value=transcript_path,
         ):
             with patch(
                 "builtins.open",
                 side_effect=PermissionError("Permission denied"),
             ):
-                with pytest.raises(SystemExit) as exc_info:
-                    qa_agent_validator.main()
-                assert exc_info.value.code == 0
+                result = invoke_qa_agent_validator.main()
+                assert result == 0
                 captured = capsys.readouterr()
                 assert "ERROR" in captured.out
 
-    def test_handles_unexpected_error(self, monkeypatch, capsys):
+    @patch("invoke_qa_agent_validator.skip_if_consumer_repo", return_value=False)
+    def test_handles_unexpected_error(self, mock_skip, monkeypatch, capsys):
         """Handles unexpected exceptions gracefully."""
         def raise_error():
             raise RuntimeError("unexpected")
@@ -298,8 +269,7 @@ class TestMain:
             "sys.stdin",
             MagicMock(isatty=lambda: False, read=raise_error),
         )
-        with pytest.raises(SystemExit) as exc_info:
-            qa_agent_validator.main()
-        assert exc_info.value.code == 0
+        result = invoke_qa_agent_validator.main()
+        assert result == 0
         captured = capsys.readouterr()
         assert "ERROR" in captured.out

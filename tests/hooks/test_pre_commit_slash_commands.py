@@ -54,16 +54,16 @@ class TestGetStagedSlashCommands:
         assert result == []
 
     @patch("pre_commit_slash_commands.subprocess.run")
-    def test_returns_empty_on_file_not_found(self, mock_run):
+    def test_raises_on_file_not_found(self, mock_run):
         mock_run.side_effect = FileNotFoundError("git not found")
-        result = pre_commit_slash_commands.get_staged_slash_commands()
-        assert result == []
+        with pytest.raises(FileNotFoundError):
+            pre_commit_slash_commands.get_staged_slash_commands()
 
     @patch("pre_commit_slash_commands.subprocess.run")
-    def test_returns_empty_on_timeout(self, mock_run):
+    def test_raises_on_timeout(self, mock_run):
         mock_run.side_effect = subprocess.TimeoutExpired(cmd="git", timeout=10)
-        result = pre_commit_slash_commands.get_staged_slash_commands()
-        assert result == []
+        with pytest.raises(subprocess.TimeoutExpired):
+            pre_commit_slash_commands.get_staged_slash_commands()
 
     @patch("pre_commit_slash_commands.subprocess.run")
     def test_excludes_non_md_files(self, mock_run):
@@ -95,32 +95,26 @@ class TestValidateFile:
     @patch("pre_commit_slash_commands.subprocess.run")
     def test_returns_true_on_pass(self, mock_run):
         mock_run.return_value = MagicMock(returncode=0)
-        assert pre_commit_slash_commands.validate_file(
-            "/path/to/validate.ps1", "test.md"
-        )
+        assert pre_commit_slash_commands.validate_file("test.md")
 
     @patch("pre_commit_slash_commands.subprocess.run")
     def test_returns_false_on_fail(self, mock_run):
         mock_run.return_value = MagicMock(returncode=1)
-        assert not pre_commit_slash_commands.validate_file(
-            "/path/to/validate.ps1", "test.md"
-        )
+        assert not pre_commit_slash_commands.validate_file("test.md")
 
     @patch("pre_commit_slash_commands.subprocess.run")
-    def test_returns_false_on_file_not_found(self, mock_run):
-        mock_run.side_effect = FileNotFoundError("pwsh not found")
-        assert not pre_commit_slash_commands.validate_file(
-            "/path/to/validate.ps1", "test.md"
-        )
+    def test_raises_on_file_not_found(self, mock_run):
+        mock_run.side_effect = FileNotFoundError("python not found")
+        with pytest.raises(FileNotFoundError):
+            pre_commit_slash_commands.validate_file("test.md")
 
     @patch("pre_commit_slash_commands.subprocess.run")
-    def test_returns_false_on_timeout(self, mock_run):
+    def test_raises_on_timeout(self, mock_run):
         mock_run.side_effect = subprocess.TimeoutExpired(
-            cmd="pwsh", timeout=30
+            cmd="python", timeout=30
         )
-        assert not pre_commit_slash_commands.validate_file(
-            "/path/to/validate.ps1", "test.md"
-        )
+        with pytest.raises(subprocess.TimeoutExpired):
+            pre_commit_slash_commands.validate_file("test.md")
 
 
 # ---------------------------------------------------------------------------
@@ -132,36 +126,33 @@ class TestMain:
     """Tests for the main entry point."""
 
     @patch("pre_commit_slash_commands.get_staged_slash_commands")
-    def test_exits_0_when_no_staged_files(self, mock_staged, capsys):
+    def test_returns_0_when_no_staged_files(self, mock_staged, capsys):
         mock_staged.return_value = []
-        with pytest.raises(SystemExit) as exc_info:
-            pre_commit_slash_commands.main()
-        assert exc_info.value.code == 0
+        result = pre_commit_slash_commands.main()
+        assert result == 0
         captured = capsys.readouterr()
         assert "[SKIP]" in captured.out
 
     @patch("pre_commit_slash_commands.validate_file")
     @patch("pre_commit_slash_commands.get_staged_slash_commands")
-    def test_exits_0_when_all_pass(self, mock_staged, mock_validate, capsys):
+    def test_returns_0_when_all_pass(self, mock_staged, mock_validate, capsys):
         mock_staged.return_value = [".claude/commands/foo.md"]
         mock_validate.return_value = True
-        with pytest.raises(SystemExit) as exc_info:
-            pre_commit_slash_commands.main()
-        assert exc_info.value.code == 0
+        result = pre_commit_slash_commands.main()
+        assert result == 0
         captured = capsys.readouterr()
         assert "[PASS]" in captured.out
 
     @patch("pre_commit_slash_commands.validate_file")
     @patch("pre_commit_slash_commands.get_staged_slash_commands")
-    def test_exits_1_when_any_fail(self, mock_staged, mock_validate, capsys):
+    def test_returns_1_when_any_fail(self, mock_staged, mock_validate, capsys):
         mock_staged.return_value = [
             ".claude/commands/foo.md",
             ".claude/commands/bar.md",
         ]
         mock_validate.side_effect = [True, False]
-        with pytest.raises(SystemExit) as exc_info:
-            pre_commit_slash_commands.main()
-        assert exc_info.value.code == 1
+        result = pre_commit_slash_commands.main()
+        assert result == 1
         captured = capsys.readouterr()
         assert "[FAIL]" in captured.out
         assert "bar.md" in captured.out
@@ -176,7 +167,6 @@ class TestMain:
             ".claude/commands/b.md",
         ]
         mock_validate.return_value = True
-        with pytest.raises(SystemExit):
-            pre_commit_slash_commands.main()
+        pre_commit_slash_commands.main()
         captured = capsys.readouterr()
         assert "Found 2 staged slash command(s)" in captured.out

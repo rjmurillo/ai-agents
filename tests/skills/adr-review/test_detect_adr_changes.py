@@ -22,56 +22,55 @@ from claude_skills_import import import_skill_script
 
 mod = import_skill_script(".claude/skills/adr-review/scripts/detect_adr_changes.py")
 
-get_adr_status = mod.get_adr_status
-get_dependent_adrs = mod.get_dependent_adrs
-run_git = mod.run_git
-detect_adr_changes = mod.detect_adr_changes
+_get_adr_status = mod._get_adr_status
+_get_dependent_adrs = mod._get_dependent_adrs
+_run_git = mod._run_git
 main = mod.main
 
 
 class TestGetAdrStatus:
-    """Tests for get_adr_status function."""
+    """Tests for _get_adr_status function."""
 
     def test_returns_unknown_for_missing_file(self, tmp_path: Path) -> None:
-        result = get_adr_status(str(tmp_path / "nonexistent.md"))
+        result = _get_adr_status(tmp_path / "nonexistent.md")
         assert result == "unknown"
 
     def test_extracts_status_from_frontmatter(self, tmp_path: Path) -> None:
         adr = tmp_path / "ADR-001.md"
         adr.write_text("---\nstatus: accepted\n---\n# Title\n")
-        result = get_adr_status(str(adr))
+        result = _get_adr_status(adr)
         assert result == "accepted"
 
     def test_returns_proposed_when_no_status(self, tmp_path: Path) -> None:
         adr = tmp_path / "ADR-001.md"
         adr.write_text("# ADR-001\nSome content\n")
-        result = get_adr_status(str(adr))
+        result = _get_adr_status(adr)
         assert result == "proposed"
 
     def test_normalizes_status_to_lowercase(self, tmp_path: Path) -> None:
         adr = tmp_path / "ADR-001.md"
         adr.write_text("---\nstatus: DEPRECATED\n---\n")
-        result = get_adr_status(str(adr))
+        result = _get_adr_status(adr)
         assert result == "deprecated"
 
     def test_strips_whitespace(self, tmp_path: Path) -> None:
         adr = tmp_path / "ADR-001.md"
         adr.write_text("---\nstatus:   accepted  \n---\n")
-        result = get_adr_status(str(adr))
+        result = _get_adr_status(adr)
         assert result == "accepted"
 
 
 class TestGetDependentAdrs:
-    """Tests for get_dependent_adrs function."""
+    """Tests for _get_dependent_adrs function."""
 
     def test_finds_references(self, tmp_path: Path) -> None:
         arch_dir = tmp_path / ".agents" / "architecture"
         arch_dir.mkdir(parents=True)
         (arch_dir / "ADR-001.md").write_text("# ADR-001\nReferences ADR-002")
         (arch_dir / "ADR-002.md").write_text("# ADR-002\nNo references")
-        result = get_dependent_adrs("ADR-002", str(tmp_path))
-        # Note: get_dependent_adrs returns all files containing the search string,
-        # including the ADR's own file (ADR-002.md contains "ADR-002" in its title).
+        # _get_dependent_adrs returns all ADR files containing the search
+        # string, including the target ADR itself (ADR-002.md matches "ADR-002").
+        result = _get_dependent_adrs("ADR-002", tmp_path)
         assert len(result) == 2
         names = [Path(r).name for r in result]
         assert "ADR-001.md" in names
@@ -81,150 +80,113 @@ class TestGetDependentAdrs:
         arch_dir = tmp_path / ".agents" / "architecture"
         arch_dir.mkdir(parents=True)
         (arch_dir / "ADR-001.md").write_text("# ADR-001\nNo references")
-        result = get_dependent_adrs("ADR-999", str(tmp_path))
+        result = _get_dependent_adrs("ADR-999", tmp_path)
         assert result == []
 
     def test_handles_missing_directory(self, tmp_path: Path) -> None:
-        result = get_dependent_adrs("ADR-001", str(tmp_path))
+        result = _get_dependent_adrs("ADR-001", tmp_path)
         assert result == []
 
 
 class TestRunGit:
-    """Tests for run_git function."""
+    """Tests for _run_git function."""
 
-    def test_returns_output_on_success(self, tmp_path: Path) -> None:
+    def test_returns_completed_process(self, tmp_path: Path) -> None:
         subprocess.run(["git", "init"], cwd=str(tmp_path), capture_output=True, check=True)
-        returncode, output = run_git(["status"], cwd=str(tmp_path))
-        assert returncode == 0
+        result = _run_git(["status"], cwd=tmp_path)
+        assert result.returncode == 0
+        assert isinstance(result, subprocess.CompletedProcess)
 
     def test_returns_error_code_on_failure(self, tmp_path: Path) -> None:
-        returncode, output = run_git(
-            ["log", "--oneline", "-1"],
-            cwd=str(tmp_path),
-        )
-        assert returncode != 0
+        result = _run_git(["log", "--oneline", "-1"], cwd=tmp_path)
+        assert result.returncode != 0
 
     @patch("subprocess.run", side_effect=FileNotFoundError())
     def test_handles_missing_git(self, mock_run: MagicMock) -> None:
-        returncode, output = run_git(["status"], cwd="/tmp")
-        assert returncode == -1
-        assert "git not found" in output
+        with pytest.raises(FileNotFoundError):
+            _run_git(["status"], cwd=Path("/tmp"))
 
 
-class TestDetectAdrChanges:
-    """Tests for detect_adr_changes function."""
+class TestMain:
+    """Tests for main entry point via argparse."""
 
     @pytest.fixture
     def git_repo(self, tmp_path: Path) -> Path:
         subprocess.run(["git", "init"], cwd=str(tmp_path), capture_output=True, check=True)
         subprocess.run(
             ["git", "config", "user.email", "test@test.com"],
-            cwd=str(tmp_path),
-            capture_output=True,
-            check=True,
+            cwd=str(tmp_path), capture_output=True, check=True,
         )
         subprocess.run(
             ["git", "config", "user.name", "Test"],
-            cwd=str(tmp_path),
-            capture_output=True,
-            check=True,
+            cwd=str(tmp_path), capture_output=True, check=True,
         )
         (tmp_path / "README.md").write_text("init")
         subprocess.run(["git", "add", "."], cwd=str(tmp_path), capture_output=True, check=True)
         subprocess.run(
             ["git", "commit", "-m", "init"],
-            cwd=str(tmp_path),
-            capture_output=True,
-            check=True,
+            cwd=str(tmp_path), capture_output=True, check=True,
         )
-        # Add a second commit so HEAD~1 is valid
         (tmp_path / "README.md").write_text("updated")
         subprocess.run(["git", "add", "."], cwd=str(tmp_path), capture_output=True, check=True)
         subprocess.run(
             ["git", "commit", "-m", "update readme"],
-            cwd=str(tmp_path),
-            capture_output=True,
-            check=True,
+            cwd=str(tmp_path), capture_output=True, check=True,
         )
         return tmp_path
 
-    def test_no_changes(self, git_repo: Path) -> None:
-        result = detect_adr_changes(str(git_repo), since_commit="HEAD~1")
-        assert result["HasChanges"] is False
-        assert result["RecommendedAction"] == "none"
-        assert result["Created"] == []
-        assert result["Modified"] == []
-        assert result["Deleted"] == []
+    def test_no_changes(self, git_repo: Path, capsys: pytest.CaptureFixture) -> None:
+        exit_code = main(["--base-path", str(git_repo)])
+        assert exit_code == 0
+        captured = capsys.readouterr()
+        data = json.loads(captured.out)
+        assert data["HasChanges"] is False
+        assert data["RecommendedAction"] == "none"
 
-    def test_detects_created_adr(self, git_repo: Path) -> None:
+    def test_detects_created_adr(self, git_repo: Path, capsys: pytest.CaptureFixture) -> None:
         arch_dir = git_repo / ".agents" / "architecture"
         arch_dir.mkdir(parents=True)
         (arch_dir / "ADR-001.md").write_text("# ADR-001")
         subprocess.run(["git", "add", "."], cwd=str(git_repo), capture_output=True, check=True)
         subprocess.run(
             ["git", "commit", "-m", "add ADR"],
-            cwd=str(git_repo),
-            capture_output=True,
-            check=True,
+            cwd=str(git_repo), capture_output=True, check=True,
         )
-        result = detect_adr_changes(str(git_repo), since_commit="HEAD~1")
-        assert result["HasChanges"] is True
-        assert len(result["Created"]) == 1
-        assert result["RecommendedAction"] == "review"
+        exit_code = main(["--base-path", str(git_repo)])
+        assert exit_code == 0
+        captured = capsys.readouterr()
+        data = json.loads(captured.out)
+        assert data["HasChanges"] is True
+        assert len(data["Created"]) == 1
+        assert data["RecommendedAction"] == "review"
 
-    def test_result_has_timestamp(self, git_repo: Path) -> None:
-        result = detect_adr_changes(str(git_repo), since_commit="HEAD~1")
-        assert "Timestamp" in result
-        assert "SinceCommit" in result
+    def test_result_has_timestamp(self, git_repo: Path, capsys: pytest.CaptureFixture) -> None:
+        exit_code = main(["--base-path", str(git_repo)])
+        assert exit_code == 0
+        captured = capsys.readouterr()
+        data = json.loads(captured.out)
+        assert "Timestamp" in data
+        assert "SinceCommit" in data
 
     def test_exits_for_non_git_repo(self, tmp_path: Path) -> None:
-        with pytest.raises(SystemExit) as exc_info:
-            detect_adr_changes(str(tmp_path))
-        assert exc_info.value.code == 2
+        exit_code = main(["--base-path", str(tmp_path)])
+        assert exit_code == 1
 
-    def test_result_structure(self, git_repo: Path) -> None:
-        result = detect_adr_changes(str(git_repo), since_commit="HEAD~1")
+    def test_result_structure(self, git_repo: Path, capsys: pytest.CaptureFixture) -> None:
+        exit_code = main(["--base-path", str(git_repo)])
+        assert exit_code == 0
+        captured = capsys.readouterr()
+        data = json.loads(captured.out)
         required_keys = [
             "Created", "Modified", "Deleted", "DeletedDetails",
             "HasChanges", "RecommendedAction", "Timestamp", "SinceCommit",
         ]
         for key in required_keys:
-            assert key in result
+            assert key in data
 
-
-class TestMain:
-    """Tests for main entry point."""
-
-    def test_outputs_json(self, tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
-        subprocess.run(["git", "init"], cwd=str(tmp_path), capture_output=True, check=True)
-        subprocess.run(
-            ["git", "config", "user.email", "test@test.com"],
-            cwd=str(tmp_path), capture_output=True, check=True,
-        )
-        subprocess.run(
-            ["git", "config", "user.name", "Test"],
-            cwd=str(tmp_path), capture_output=True, check=True,
-        )
-        (tmp_path / "README.md").write_text("init")
-        subprocess.run(["git", "add", "."], cwd=str(tmp_path), capture_output=True, check=True)
-        subprocess.run(
-            ["git", "commit", "-m", "init"],
-            cwd=str(tmp_path), capture_output=True, check=True,
-        )
-        # Add a second commit so HEAD~1 is valid
-        (tmp_path / "README.md").write_text("updated")
-        subprocess.run(["git", "add", "."], cwd=str(tmp_path), capture_output=True, check=True)
-        subprocess.run(
-            ["git", "commit", "-m", "update"],
-            cwd=str(tmp_path), capture_output=True, check=True,
-        )
-
-        with patch("sys.argv", ["detect_adr_changes.py", "--base-path", str(tmp_path)]):
-            exit_code = main()
-
+    def test_outputs_json(self, git_repo: Path, capsys: pytest.CaptureFixture) -> None:
+        exit_code = main(["--base-path", str(git_repo)])
         assert exit_code == 0
         captured = capsys.readouterr()
         data = json.loads(captured.out)
         assert "HasChanges" in data
-
-

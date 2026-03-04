@@ -133,5 +133,5 @@ The marker enables update-in-place behavior:
 ## Related
 
 - Script: `.claude/skills/github/scripts/issue/invoke_copilot_assignment.py`
-- Library: `.claude/skills/github/lib/github_core/api.py`
+- Library: `.claude/lib/github_core/api.py`
 - Issue: <https://github.com/rjmurillo/ai-agents/issues/92>

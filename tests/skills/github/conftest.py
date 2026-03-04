@@ -14,7 +14,7 @@ if _test_dir not in sys.path:
 
 # Add the github_core lib to sys.path for imports
 _project_root = Path(__file__).resolve().parents[3]
-_lib_dir = _project_root / ".claude" / "skills" / "github" / "lib"
+_lib_dir = _project_root / ".claude" / "lib"
 if str(_lib_dir) not in sys.path:
     sys.path.insert(0, str(_lib_dir))
 

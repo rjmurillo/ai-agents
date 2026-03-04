@@ -1,4 +1,4 @@
-"""Tests for Stop session_validator hook.
+"""Tests for Stop invoke_session_validator hook.
 
 Verifies that session log completeness is validated before Claude stops,
 and missing/incomplete sections trigger continue responses.
@@ -18,12 +18,12 @@ import pytest
 HOOK_DIR = Path(__file__).resolve().parents[2] / ".claude" / "hooks" / "Stop"
 sys.path.insert(0, str(HOOK_DIR))
 
-from session_validator import (
+from invoke_session_validator import (  # noqa: E402
     PLACEHOLDER_PATTERNS,
-    REQUIRED_SECTIONS,
-    find_today_session_log,
-    get_missing_sections,
+    REQUIRED_JSON_KEYS,
+    get_missing_keys,
     get_project_directory,
+    get_today_session_logs,
     main,
     write_continue_response,
 )
@@ -34,7 +34,7 @@ class TestGetProjectDirectory:
 
     def test_env_var(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("CLAUDE_PROJECT_DIR", "/project")
-        assert get_project_directory({}) == "/project"
+        assert get_project_directory({"cwd": "/other"}) == "/project"
 
     def test_cwd_from_input(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
@@ -57,114 +57,102 @@ class TestWriteContinueResponse:
         assert data["reason"] == "test reason"
 
 
-class TestFindTodaySessionLog:
+class TestGetTodaySessionLogs:
     """Tests for session log discovery."""
 
     def test_directory_missing(self, tmp_path: Path) -> None:
-        result = find_today_session_log(str(tmp_path / "nonexistent"))
-        assert result["directory_missing"] is True
+        result = get_today_session_logs(str(tmp_path / "nonexistent"))
+        assert isinstance(result, dict)
+        assert result.get("directory_missing") is True
 
     def test_log_missing(self, tmp_path: Path) -> None:
-        with patch("session_validator.date") as mock_date:
-            mock_date.today.return_value.isoformat.return_value = "2026-03-01"
-            result = find_today_session_log(str(tmp_path))
-        assert result["log_missing"] is True
-        assert result["today"] == "2026-03-01"
+        result = get_today_session_logs(str(tmp_path))
+        assert isinstance(result, dict)
+        assert result.get("log_missing") is True
 
     def test_finds_log(self, tmp_path: Path) -> None:
-        log = tmp_path / "2026-03-01-session-01.md"
-        log.write_text("# Session Log")
+        log = tmp_path / "2026-03-01-session-01.json"
+        log.write_text('{"test": true}')
 
-        with patch("session_validator.date") as mock_date:
-            mock_date.today.return_value.isoformat.return_value = "2026-03-01"
-            result = find_today_session_log(str(tmp_path))
+        with patch("invoke_session_validator.datetime") as mock_dt:
+            mock_dt.now.return_value.strftime.return_value = "2026-03-01"
+            result = get_today_session_logs(str(tmp_path))
 
-        assert "path" in result
-        assert result["name"] == "2026-03-01-session-01.md"
+        assert isinstance(result, Path)
+        assert "session-01" in result.name
 
     def test_returns_most_recent(self, tmp_path: Path) -> None:
-        log1 = tmp_path / "2026-03-01-session-01.md"
+        log1 = tmp_path / "2026-03-01-session-01.json"
         log1.write_text("session 1")
-        log2 = tmp_path / "2026-03-01-session-02.md"
+        log2 = tmp_path / "2026-03-01-session-02.json"
         log2.write_text("session 2")
         log2.touch()
 
-        with patch("session_validator.date") as mock_date:
-            mock_date.today.return_value.isoformat.return_value = "2026-03-01"
-            result = find_today_session_log(str(tmp_path))
+        with patch("invoke_session_validator.datetime") as mock_dt:
+            mock_dt.now.return_value.strftime.return_value = "2026-03-01"
+            result = get_today_session_logs(str(tmp_path))
 
-        assert "session-02" in result["name"]
+        assert isinstance(result, Path)
+        assert "session-02" in result.name
 
 
-class TestGetMissingSections:
-    """Tests for section validation."""
+class TestGetMissingKeys:
+    """Tests for JSON key validation."""
 
-    def test_all_sections_present(self) -> None:
-        # Build content with all required sections, each with substantial text
-        content = ""
-        for section in REQUIRED_SECTIONS:
-            content += f"{section}\n"
-            if section == "## Outcomes":
-                content += "Completed the implementation of all features. " * 5 + "\n"
-            else:
-                content += "Content for this section here.\n"
-        assert get_missing_sections(content) == []
+    def test_all_keys_present(self) -> None:
+        content = json.dumps({
+            "session": {"id": "test"},
+            "protocolCompliance": {"test": True},
+            "work": {"items": ["task1"]},
+            "outcomes": {"result": "completed"},
+        })
+        assert get_missing_keys(content) == []
 
-    def test_all_sections_missing(self) -> None:
-        missing = get_missing_sections("# Empty Log\nNothing here")
-        assert len(missing) >= len(REQUIRED_SECTIONS)
+    def test_all_keys_missing(self) -> None:
+        content = json.dumps({"unrelated": "data"})
+        missing = get_missing_keys(content)
+        assert len(missing) >= len(REQUIRED_JSON_KEYS)
 
-    def test_some_sections_missing(self) -> None:
-        content = "## Session Context\n## Work Log\n## Outcomes\n" + "x" * 60
-        missing = get_missing_sections(content)
-        assert "## Implementation Plan" in missing
-        assert "## Decisions" in missing
-        assert "## Session Context" not in missing
+    def test_some_keys_missing(self) -> None:
+        content = json.dumps({
+            "session": {"id": "test"},
+            "work": {"items": ["task1"]},
+        })
+        missing = get_missing_keys(content)
+        assert "protocolCompliance" in missing
+        assert "outcomes" in missing
 
     def test_outcomes_with_placeholder_tbd(self) -> None:
-        content = "\n".join(REQUIRED_SECTIONS) + "\n## Outcomes\nTBD\n## Other"
-        missing = get_missing_sections(content)
-        assert any("Outcomes" in m and "incomplete" in m for m in missing)
+        content = json.dumps({
+            "session": {"id": "test"},
+            "protocolCompliance": {"test": True},
+            "work": {"items": ["task1"]},
+            "outcomes": {"result": "TBD"},
+        })
+        missing = get_missing_keys(content)
+        assert any("placeholder" in m for m in missing)
 
     def test_outcomes_with_placeholder_todo(self) -> None:
-        content = "\n".join(REQUIRED_SECTIONS) + "\n## Outcomes\nTODO\n## Other"
-        missing = get_missing_sections(content)
-        assert any("Outcomes" in m and "incomplete" in m for m in missing)
+        content = json.dumps({
+            "session": {"id": "test"},
+            "protocolCompliance": {"test": True},
+            "work": {"items": ["task1"]},
+            "outcomes": {"result": "TODO"},
+        })
+        missing = get_missing_keys(content)
+        assert any("placeholder" in m for m in missing)
 
-    def test_outcomes_too_short(self) -> None:
-        content = "\n".join(REQUIRED_SECTIONS) + "\n## Outcomes\nShort."
-        missing = get_missing_sections(content)
-        assert any("Outcomes" in m and "incomplete" in m for m in missing)
-
-    def test_outcomes_with_pending(self) -> None:
-        content = "\n".join(REQUIRED_SECTIONS) + "\n## Outcomes\n(pending)\n## Other"
-        missing = get_missing_sections(content)
-        assert any("Outcomes" in m for m in missing)
-
-    def test_outcomes_sufficient(self) -> None:
-        outcomes = "Completed implementation of feature X with tests. " * 3
-        # Build content with all sections, giving Outcomes substantial text
-        content = ""
-        for section in REQUIRED_SECTIONS:
-            content += f"{section}\n"
-            if section == "## Outcomes":
-                content += outcomes + "\n"
-            else:
-                content += "Content here.\n"
-        missing = get_missing_sections(content)
-        # Should not have outcomes incomplete flag
-        assert not any("incomplete" in m for m in missing)
+    def test_invalid_json(self) -> None:
+        missing = get_missing_keys("not valid json")
+        assert len(missing) > 0
+        assert any("JSON" in m for m in missing)
 
 
-class TestRequiredSections:
-    """Tests for section constants."""
+class TestRequiredJsonKeys:
+    """Tests for key constants."""
 
-    def test_sections_not_empty(self) -> None:
-        assert len(REQUIRED_SECTIONS) >= 5
-
-    def test_all_start_with_heading(self) -> None:
-        for section in REQUIRED_SECTIONS:
-            assert section.startswith("## ")
+    def test_keys_not_empty(self) -> None:
+        assert len(REQUIRED_JSON_KEYS) >= 4
 
 
 class TestPlaceholderPatterns:
@@ -176,59 +164,63 @@ class TestPlaceholderPatterns:
     def test_all_patterns_valid_regex(self) -> None:
         import re
         for pattern in PLACEHOLDER_PATTERNS:
-            re.compile(pattern)
+            assert isinstance(pattern, re.Pattern)
 
 
 class TestMainAllow:
     """Tests for main() allowing stop."""
 
-    def test_tty_stdin(self) -> None:
-        with patch("session_validator.sys.stdin") as mock_stdin:
+    @patch("invoke_session_validator.skip_if_consumer_repo", return_value=False)
+    def test_tty_stdin(self, mock_skip) -> None:
+        with patch("invoke_session_validator.sys.stdin") as mock_stdin:
             mock_stdin.isatty.return_value = True
             assert main() == 0
 
-    def test_empty_stdin(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    @patch("invoke_session_validator.skip_if_consumer_repo", return_value=False)
+    def test_empty_stdin(self, mock_skip, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr("sys.stdin", io.StringIO(""))
         assert main() == 0
 
-    def test_directory_missing(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    @patch("invoke_session_validator.skip_if_consumer_repo", return_value=False)
+    def test_directory_missing(
+        self, mock_skip, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(tmp_path / "nonexistent"))
         data = json.dumps({"cwd": str(tmp_path)})
         monkeypatch.setattr("sys.stdin", io.StringIO(data))
         assert main() == 0
 
+    @patch("invoke_session_validator.skip_if_consumer_repo", return_value=False)
     def test_complete_log(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+        self, mock_skip, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture
     ) -> None:
         sessions_dir = tmp_path / ".agents" / "sessions"
         sessions_dir.mkdir(parents=True)
 
-        outcomes = "Completed feature implementation with full test coverage. " * 3
-        # Build content with all sections, giving Outcomes substantial text
-        content = ""
-        for section in REQUIRED_SECTIONS:
-            content += f"{section}\n"
-            if section == "## Outcomes":
-                content += outcomes + "\n"
-            else:
-                content += "Content here.\n"
+        content = json.dumps({
+            "session": {"id": "test", "date": "2026-03-01"},
+            "protocolCompliance": {"sessionStart": {"complete": True}},
+            "work": {"items": ["implemented feature X"]},
+            "outcomes": {"result": "All tests passing, feature deployed"},
+        })
 
-        log = sessions_dir / "2026-03-01-session-01.md"
+        log = sessions_dir / "2026-03-01-session-01.json"
         log.write_text(content)
 
         monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(tmp_path))
         data = json.dumps({"cwd": str(tmp_path)})
         monkeypatch.setattr("sys.stdin", io.StringIO(data))
 
-        with patch("session_validator.date") as mock_date:
-            mock_date.today.return_value.isoformat.return_value = "2026-03-01"
+        with patch("invoke_session_validator.get_today_session_logs", return_value=log):
             assert main() == 0
 
         captured = capsys.readouterr()
         # No continue response should be printed for a complete log
         assert not captured.out.strip()
 
-    def test_invalid_json_fails_open(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    @patch("invoke_session_validator.skip_if_consumer_repo", return_value=False)
+    def test_invalid_json_fails_open(self, mock_skip, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr("sys.stdin", io.StringIO("{bad"))
         assert main() == 0
 
@@ -236,8 +228,10 @@ class TestMainAllow:
 class TestMainContinue:
     """Tests for main() requesting continuation."""
 
+    @patch("invoke_session_validator.skip_if_consumer_repo", return_value=False)
     def test_log_missing(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+        self, mock_skip, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture
     ) -> None:
         sessions_dir = tmp_path / ".agents" / "sessions"
         sessions_dir.mkdir(parents=True)
@@ -246,8 +240,10 @@ class TestMainContinue:
         data = json.dumps({"cwd": str(tmp_path)})
         monkeypatch.setattr("sys.stdin", io.StringIO(data))
 
-        with patch("session_validator.date") as mock_date:
-            mock_date.today.return_value.isoformat.return_value = "2026-03-01"
+        with patch(
+            "invoke_session_validator.get_today_session_logs",
+            return_value={"log_missing": True, "today": "2026-03-01"},
+        ):
             assert main() == 0
 
         captured = capsys.readouterr()
@@ -255,36 +251,39 @@ class TestMainContinue:
         assert resp["continue"] is True
         assert "Session log missing" in resp["reason"]
 
+    @patch("invoke_session_validator.skip_if_consumer_repo", return_value=False)
     def test_incomplete_log(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+        self, mock_skip, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture
     ) -> None:
         sessions_dir = tmp_path / ".agents" / "sessions"
         sessions_dir.mkdir(parents=True)
-        log = sessions_dir / "2026-03-01-session-01.md"
-        log.write_text("## Session Context\nSome work")
+        log = sessions_dir / "2026-03-01-session-01.json"
+        log.write_text(json.dumps({"session": {"id": "test"}}))
 
         monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(tmp_path))
         data = json.dumps({"cwd": str(tmp_path)})
         monkeypatch.setattr("sys.stdin", io.StringIO(data))
 
-        with patch("session_validator.date") as mock_date:
-            mock_date.today.return_value.isoformat.return_value = "2026-03-01"
+        with patch("invoke_session_validator.get_today_session_logs", return_value=log):
             assert main() == 0
 
         captured = capsys.readouterr()
         resp = json.loads(captured.out.strip())
         assert resp["continue"] is True
-        assert "incomplete" in resp["reason"].lower() or "Missing" in resp["reason"]
+        assert "Session log incomplete" in resp["reason"]
 
+    @patch("invoke_session_validator.skip_if_consumer_repo", return_value=False)
     def test_file_error_produces_continue(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+        self, mock_skip, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture
     ) -> None:
         """OS errors should produce continue response, not crash."""
         monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(tmp_path))
         data = json.dumps({"cwd": str(tmp_path)})
         monkeypatch.setattr("sys.stdin", io.StringIO(data))
 
-        with patch("session_validator.find_today_session_log") as mock_find:
+        with patch("invoke_session_validator.get_today_session_logs") as mock_find:
             mock_find.side_effect = OSError("disk error")
             assert main() == 0
 
@@ -299,7 +298,7 @@ class TestModuleAsScript:
     def test_session_validator_as_script(self) -> None:
         import subprocess
 
-        hook_path = str(HOOK_DIR / "session_validator.py")
+        hook_path = str(HOOK_DIR / "invoke_session_validator.py")
         result = subprocess.run(
             ["python3", hook_path],
             input="",
@@ -312,7 +311,7 @@ class TestModuleAsScript:
         """Cover the sys.exit(main()) line via runpy in-process execution."""
         import runpy
 
-        hook_path = str(HOOK_DIR / "session_validator.py")
+        hook_path = str(HOOK_DIR / "invoke_session_validator.py")
         monkeypatch.setattr("sys.stdin", io.StringIO(""))
         with pytest.raises(SystemExit) as exc_info:
             runpy.run_path(hook_path, run_name="__main__")

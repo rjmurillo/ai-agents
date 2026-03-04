@@ -1,102 +1,92 @@
 """Tests for new_issue.py."""
 
 import json
-import os
-from unittest.mock import patch
+import sys
+from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
 
-from test_helpers import make_completed_process
+TESTS_SKILLS_DIR = str(Path(__file__).resolve().parents[1])
+if TESTS_SKILLS_DIR not in sys.path:
+    sys.path.insert(0, TESTS_SKILLS_DIR)
+
+from claude_skills_import import import_skill_script
+
+mod = import_skill_script(".claude/skills/github/scripts/issue/new_issue.py")
+main = mod.main
 
 
-@pytest.fixture
-def _import_module():
-    import importlib
-    import sys
-    mod_name = "new_issue"
-    if mod_name in sys.modules:
-        del sys.modules[mod_name]
-    return importlib.import_module(mod_name)
+def _make_proc(returncode: int = 0, stdout: str = "", stderr: str = "") -> MagicMock:
+    proc = MagicMock()
+    proc.returncode = returncode
+    proc.stdout = stdout
+    proc.stderr = stderr
+    return proc
 
 
 class TestNewIssue:
-    """Tests for the new_issue function."""
+    """Tests for new_issue via main entry point."""
 
-    def test_create_basic_issue(self, _import_module, mock_subprocess_run):
-        mod = _import_module
-        mock_subprocess_run.return_value = make_completed_process(
+    @pytest.fixture(autouse=True)
+    def _mock_auth(self):
+        with patch.object(mod, "assert_gh_authenticated"), \
+             patch.object(mod, "resolve_repo_params") as mock_resolve:
+            info = MagicMock()
+            info.owner = "owner"
+            info.repo = "repo"
+            mock_resolve.return_value = info
+            yield
+
+    def test_create_basic_issue(self, capsys):
+        with patch("subprocess.run", return_value=_make_proc(
             stdout="https://github.com/owner/repo/issues/42\n"
-        )
+        )):
+            result = main(["--title", "Test Title"])
+        assert result == 0
+        data = json.loads(capsys.readouterr().out)
+        assert data["success"] is True
+        assert data["issue_number"] == 42
+        assert data["title"] == "Test Title"
 
-        result = mod.new_issue("owner", "repo", "Test Title")
-
-        assert result["Success"] is True
-        assert result["IssueNumber"] == 42
-        assert result["Title"] == "Test Title"
-
-    def test_create_with_body_and_labels(
-        self, _import_module, mock_subprocess_run,
-    ):
-        mod = _import_module
-        mock_subprocess_run.return_value = make_completed_process(
+    def test_create_with_body_and_labels(self, capsys):
+        with patch("subprocess.run", return_value=_make_proc(
             stdout="https://github.com/o/r/issues/7\n"
-        )
-
-        result = mod.new_issue(
-            "o", "r", "Title", body="Body text", labels="bug,P1"
-        )
-
-        assert result["IssueNumber"] == 7
-        call_args = mock_subprocess_run.call_args[0][0]
+        )) as mock_run:
+            result = main(["--title", "Title", "--body", "Body text", "--labels", "bug,P1"])
+        assert result == 0
+        call_args = mock_run.call_args[0][0]
         assert "--body" in call_args
         assert "--label" in call_args
 
-    def test_api_error_exits_3(self, _import_module, mock_subprocess_run):
-        mod = _import_module
-        mock_subprocess_run.return_value = make_completed_process(
-            stderr="API error", returncode=1,
-        )
-
-        with pytest.raises(SystemExit) as exc:
-            mod.new_issue("o", "r", "Title")
-
+    def test_api_error_exits_3(self):
+        with patch("subprocess.run", return_value=_make_proc(
+            returncode=1, stderr="API error"
+        )):
+            with pytest.raises(SystemExit) as exc:
+                main(["--title", "Title"])
         assert exc.value.code == 3
 
-    def test_unparseable_result_exits_3(
-        self, _import_module, mock_subprocess_run,
-    ):
-        mod = _import_module
-        mock_subprocess_run.return_value = make_completed_process(
+    def test_unparseable_result_exits_3(self):
+        with patch("subprocess.run", return_value=_make_proc(
             stdout="no url here"
-        )
-
-        with pytest.raises(SystemExit) as exc:
-            mod.new_issue("o", "r", "Title")
-
+        )):
+            with pytest.raises(SystemExit) as exc:
+                main(["--title", "Title"])
         assert exc.value.code == 3
 
-    def test_empty_body_not_passed(
-        self, _import_module, mock_subprocess_run,
-    ):
-        mod = _import_module
-        mock_subprocess_run.return_value = make_completed_process(
+    def test_empty_body_not_passed(self):
+        with patch("subprocess.run", return_value=_make_proc(
             stdout="https://github.com/o/r/issues/1\n"
-        )
-
-        mod.new_issue("o", "r", "Title", body="")
-
-        call_args = mock_subprocess_run.call_args[0][0]
+        )) as mock_run:
+            main(["--title", "Title", "--body", ""])
+        call_args = mock_run.call_args[0][0]
         assert "--body" not in call_args
 
-    def test_empty_labels_not_passed(
-        self, _import_module, mock_subprocess_run,
-    ):
-        mod = _import_module
-        mock_subprocess_run.return_value = make_completed_process(
+    def test_empty_labels_not_passed(self):
+        with patch("subprocess.run", return_value=_make_proc(
             stdout="https://github.com/o/r/issues/1\n"
-        )
-
-        mod.new_issue("o", "r", "Title", labels="")
-
-        call_args = mock_subprocess_run.call_args[0][0]
+        )) as mock_run:
+            main(["--title", "Title", "--labels", ""])
+        call_args = mock_run.call_args[0][0]
         assert "--label" not in call_args

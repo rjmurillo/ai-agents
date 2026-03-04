@@ -23,8 +23,7 @@ is_auto_resolvable = mod.is_auto_resolvable
 is_github_runner = mod.is_github_runner
 get_repo_info = mod.get_repo_info
 resolve_pr_conflicts = mod.resolve_pr_conflicts
-run_git = mod.run_git
-AUTO_RESOLVABLE_FILES = mod.AUTO_RESOLVABLE_FILES
+AUTO_RESOLVABLE_PATTERNS = mod.AUTO_RESOLVABLE_PATTERNS
 
 
 class TestIsSafeBranchName:
@@ -128,8 +127,8 @@ class TestResolvePrConflicts:
             branch_name="-evil-branch",
             target_branch="main",
         )
-        assert result["Success"] is False
-        assert "unsafe branch name" in result["Message"]
+        assert result["success"] is False
+        assert "unsafe branch name" in result["message"].lower()
 
     def test_rejects_unsafe_target_branch(self) -> None:
         result = resolve_pr_conflicts(
@@ -137,53 +136,49 @@ class TestResolvePrConflicts:
             branch_name="good-branch",
             target_branch="main;rm -rf /",
         )
-        assert result["Success"] is False
-        assert "unsafe target branch" in result["Message"]
-
-    def test_dry_run_returns_success(self) -> None:
-        result = resolve_pr_conflicts(
-            pr_number=1,
-            branch_name="feature/test",
-            target_branch="main",
-            dry_run=True,
-        )
-        assert result["Success"] is True
-        assert "DryRun" in result["Message"]
+        assert result["success"] is False
+        assert "unsafe target branch" in result["message"].lower()
 
     def test_result_structure(self) -> None:
         result = resolve_pr_conflicts(
             pr_number=1,
-            branch_name="feature/test",
+            branch_name="-evil-branch",
             target_branch="main",
-            dry_run=True,
         )
-        assert "Success" in result
-        assert "Message" in result
-        assert "FilesResolved" in result
-        assert "FilesBlocked" in result
+        assert "success" in result
+        assert "message" in result
+        assert "files_resolved" in result
+        assert "files_blocked" in result
 
 
 class TestGetRepoInfo:
     """Tests for get_repo_info function."""
 
+    def _make_proc(self, stdout: str = "", returncode: int = 0) -> MagicMock:
+        proc = MagicMock()
+        proc.returncode = returncode
+        proc.stdout = stdout
+        proc.stderr = ""
+        return proc
+
     def test_parses_https_remote(self) -> None:
-        with patch.object(mod, "run_git", return_value=(0, "https://github.com/owner/repo.git")):
+        with patch("subprocess.run", return_value=self._make_proc("https://github.com/owner/repo.git")):
             result = get_repo_info()
-        assert result["Owner"] == "owner"
-        assert result["Repo"] == "repo"
+        assert result.owner == "owner"
+        assert result.repo == "repo"
 
     def test_parses_ssh_remote(self) -> None:
-        with patch.object(mod, "run_git", return_value=(0, "git@github.com:owner/repo.git")):
+        with patch("subprocess.run", return_value=self._make_proc("git@github.com:owner/repo.git")):
             result = get_repo_info()
-        assert result["Owner"] == "owner"
-        assert result["Repo"] == "repo"
+        assert result.owner == "owner"
+        assert result.repo == "repo"
 
     def test_raises_for_non_github(self) -> None:
-        with patch.object(mod, "run_git", return_value=(0, "https://gitlab.com/owner/repo.git")):
+        with patch("subprocess.run", return_value=self._make_proc("https://gitlab.com/owner/repo.git")):
             with pytest.raises(RuntimeError, match="Could not parse"):
                 get_repo_info()
 
     def test_raises_for_no_remote(self) -> None:
-        with patch.object(mod, "run_git", return_value=(1, "")):
+        with patch("subprocess.run", return_value=self._make_proc(returncode=1)):
             with pytest.raises(RuntimeError, match="Not in a git repository"):
                 get_repo_info()
