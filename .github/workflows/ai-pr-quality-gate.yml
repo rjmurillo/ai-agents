@@ -83,8 +83,7 @@ jobs:
     needs: debounce
     if: |-
       always() &&
-      (needs.debounce.result == 'success' || needs.debounce.result == 'skipped') &&
-      github.actor != 'dependabot[bot]' && github.actor != 'github-actions[bot]'
+      (needs.debounce.result == 'success' || needs.debounce.result == 'skipped')
 
     outputs:
       # For workflow_dispatch, always run review (manual trigger assumes user intent regardless of files changed); otherwise use paths-filter result
@@ -113,13 +112,19 @@ jobs:
 
       - name: Determine if review should run
         id: determine
+        env:
+          GH_ACTOR: ${{ github.actor }}
+          GH_EVENT_NAME: ${{ github.event_name }}
+          RELEVANT: ${{ steps.filter.outputs.relevant }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          # Skip AI review for bot actors but still emit status checks
+          if [ "$GH_ACTOR" = "dependabot[bot]" ] || [ "$GH_ACTOR" = "github-actions[bot]" ]; then
+            echo "should-run=false" >> $GITHUB_OUTPUT
+            echo "Decision: Skip review (bot actor: $GH_ACTOR)"
+          elif [ "$GH_EVENT_NAME" = "workflow_dispatch" ]; then
             echo "should-run=true" >> $GITHUB_OUTPUT
             echo "Decision: Run review (manual trigger)"
           else
-            RELEVANT="${{ steps.filter.outputs.relevant }}"
-
             echo "Relevant files changed: $RELEVANT"
 
             # Run review if relevant files changed, skip otherwise
