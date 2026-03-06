@@ -154,7 +154,7 @@ jobs:
 
       - name: Upload SARIF artifact
         if: always() && needs.check-paths.outputs.should-run-analysis == 'true'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
         with:
           name: codeql-results-${{ matrix.language }}
           path: .codeql/results/${{ matrix.language }}.sarif
@@ -228,7 +228,7 @@ jobs:
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Download all SARIF artifacts
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8
         with:
           pattern: codeql-results-*
           path: ./sarif-results
