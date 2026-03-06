@@ -164,7 +164,7 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901 - faithful port of
         body = body_path.read_text(encoding="utf-8")
 
     if not body or not body.strip():
-        error_and_exit("Body cannot be empty.", 1)
+        error_and_exit("Body cannot be empty.", 2)
 
     # Marker / idempotency check
     if args.marker:

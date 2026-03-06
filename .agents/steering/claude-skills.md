@@ -1,7 +1,7 @@
 ---
 name: Claude Skills
-applyTo: ".claude/skills/**/*"
-excludeFrom: ".claude/skills/**/node_modules/**"
+applyTo: ".claude/skills/**"
+excludeFrom: ".claude/skills/**/*.Tests.ps1"
 priority: 8
 version: 1.0.0
 status: active
@@ -9,149 +9,176 @@ status: active
 
 # Claude Skills Steering
 
-Domain-specific guidance for creating and modifying Claude Code skills in `.claude/skills/`.
-
 ## Scope
 
-**Applies to**: `.claude/skills/**/*` (all skill directories, scripts, and configuration)
+**Applies to**:
+
+- `.claude/skills/**` - All files in the Claude skills directory
+
+**Excludes**:
+
+- `.claude/skills/**/*.Tests.ps1` - Pester test files (see testing-approach.md)
 
 ## Pre-Flight Checks
 
-Before starting skill work, answer these questions:
+Before creating or modifying a skill, verify:
 
-1. **New skill or update?** New skills require duplicate functionality check.
-2. **Does a similar skill exist?** Search `.claude/skills/*/SKILL.md` descriptions.
-3. **Is this skill-only?** Memory changes, hook changes, and ADR changes belong in separate PRs.
+1. **New or update?** Check `.claude/skills/` for an existing skill with overlapping purpose.
+2. **Duplicate check**: Search skill SKILL.md files for similar `description` or `triggers`.
+3. **Memory context**: Load the skill's Serena memory if it exists (e.g., `skills-<name>-index`).
 
 ## Guidelines
 
-### Language Selection (ADR-042)
+### Skill Structure
 
-New scripts use Python 3.10+ per ADR-042. Existing PowerShell scripts may be maintained in PowerShell.
+Every skill MUST have this directory layout:
 
-| Scenario | Language | Reference |
-|----------|----------|-----------|
-| New skill script | Python (.py) | ADR-042 |
-| Existing PowerShell maintenance | PowerShell (.ps1) | ADR-042 migration path |
-| Hooks with LLM integration | Python (.py) | ADR-042 exception |
+```text
+.claude/skills/<skill-name>/
+├── SKILL.md              # Frontmatter + prompt (REQUIRED)
+├── scripts/              # Implementation scripts
+│   └── <script>.py       # Python for new scripts (ADR-042)
+└── references/           # Optional supporting docs
+```
 
 ### SKILL.md Frontmatter
 
-Every skill directory MUST contain a `SKILL.md` with valid frontmatter:
+Every SKILL.md MUST include valid YAML frontmatter:
 
 ```yaml
 ---
 name: skill-name
-description: One-line description of what the skill does
+version: 1.0.0
+model: claude-sonnet-4-5
+description: >-
+  One-paragraph description of what the skill does.
+  Starts with a verb. Under 200 characters.
+license: MIT
 ---
 ```
 
-Validate frontmatter before committing. The `name` field must match the directory name.
+Required fields: `name`, `version`, `description`.
+Optional fields: `model`, `license`.
+
+### Language Policy
+
+| Scenario | Language | Authority |
+|----------|----------|-----------|
+| New scripts | Python (.py) | ADR-042 |
+| Existing PowerShell scripts | PowerShell (.ps1/.psm1) | ADR-042 |
+| Hooks (pre-commit, etc.) | Python (.py) | ADR-042 |
+| Bash scripts | Prohibited | ADR-005, ADR-042 |
+
+**Rationale**: ADR-042 establishes Python-first development. Existing PowerShell scripts are grandfathered.
 
 ### Testing Requirements
 
-- Python skills: pytest tests required
-- PowerShell skills: Pester tests required (see `testing-approach.md` steering)
-- Test files live alongside their scripts or in a `tests/` subdirectory
+- Every script MUST have corresponding tests.
+- Python scripts: pytest tests in `tests/` directory.
+- PowerShell scripts: Pester tests co-located with scripts.
+- Target: 80% code coverage minimum.
+- See `testing-approach.md` steering for Pester conventions.
 
-### Skill Structure
+### Scope Control
+
+A skill has one purpose. Signs of scope explosion:
+
+| Signal | Threshold | Action |
+|--------|-----------|--------|
+| File count in PR | > 10 files | Split into separate PRs |
+| Commit count | > 20 commits | Squash or split |
+| Memory file changes | > 0 memory files | Move to separate PR |
+| Multiple unrelated features | > 1 feature | One skill, one PR |
+
+Memory changes (`.serena/memories/`) belong in a **separate PR** from skill implementation.
+
+### Naming Conventions
+
+| Item | Convention | Example |
+|------|-----------|---------|
+| Skill directory | kebab-case | `code-qualities-assessment` |
+| SKILL.md `name` | kebab-case, matches directory | `code-qualities-assessment` |
+| Python scripts | snake_case | `analyze_code.py` |
+| PowerShell scripts | PascalCase with verb-noun | `Get-ApplicableSteering.ps1` |
+| Serena memories | kebab-case with prefix | `skills-github-cli-index` |
+
+## Patterns
+
+### Minimal Skill (Python)
 
 ```text
-.claude/skills/<skill-name>/
-  SKILL.md          # Required: frontmatter + usage docs
-  scripts/          # Implementation scripts
-  tests/            # Tests (if not alongside scripts)
+.claude/skills/my-skill/
+├── SKILL.md
+└── scripts/
+    └── my_skill.py
 ```
 
-## Scope Control
+SKILL.md delegates to the script:
 
-PR #908 demonstrated scope explosion when skill work expanded into unrelated areas. Apply these constraints:
+```markdown
+When this skill activates, IMMEDIATELY invoke the script. The script IS the workflow.
+```
 
-### One Skill, One Purpose
+### Skill with References
 
-Each PR should modify one skill. If a skill change requires memory updates, hook changes, or ADR additions, split into separate PRs.
+```text
+.claude/skills/prompt-engineer/
+├── SKILL.md
+├── scripts/
+│   └── optimize_prompt.py
+└── references/
+    └── prompt-engineering-patterns.md
+```
 
-### File Count Limits
-
-| Metric | Limit | Rationale |
-|--------|-------|-----------|
-| Files per PR | 10 or fewer | Reviewability |
-| Commits per PR | 20 or fewer | Atomic changes |
-| Skills per PR | 1 | Focused review |
-
-### Scope Expansion Signals
-
-Stop and reassess if you encounter any of these:
-
-- Modifying files outside `.claude/skills/<target-skill>/`
-- Creating new memory files (separate PR)
-- Changing session protocol files (separate PR)
-- Adding or modifying ADRs (separate PR with adr-review)
+Reference files provide domain knowledge. They do not contain executable logic.
 
 ## Before PR Checklist
 
-- [ ] SKILL.md frontmatter validates (name matches directory)
-- [ ] Tests pass (pytest or Pester depending on language)
-- [ ] No files outside the target skill directory modified (unless justified)
+Before submitting a skill PR, verify:
+
+- [ ] SKILL.md has valid frontmatter (name, version, description)
+- [ ] No duplicate skill exists with overlapping purpose
+- [ ] Scripts use Python for new code (ADR-042)
+- [ ] Tests exist and pass
+- [ ] File count in PR is 10 or fewer
 - [ ] Commit count is 20 or fewer
-- [ ] File count is 10 or fewer
+- [ ] No memory file changes included (separate PR)
+- [ ] Skill directory uses kebab-case naming
 
 ## Anti-Patterns
 
 ### Scope Explosion
 
-```text
-# BAD: Skill PR that also adds memories and modifies hooks
-feat(skills): add new-skill
-  .claude/skills/new-skill/SKILL.md
-  .claude/skills/new-skill/scripts/run.py
-  .serena/memories/new-memory-1.md       # Unrelated scope
-  .serena/memories/new-memory-2.md       # Unrelated scope
-  .claude/hooks/PreToolUse/new_hook.py   # Unrelated scope
-```
+| Anti-Pattern | Problem | Fix |
+|--------------|---------|-----|
+| Skill + hook + memory in one PR | Unbounded scope, hard to review | Separate PRs per concern |
+| Renaming memory conventions mid-PR | Creates cascading changes | Plan naming upfront, use separate PR |
+| Adding "bonus" features | Delays review, introduces risk | One skill, one purpose |
 
-```text
-# GOOD: Focused skill PR
-feat(skills): add new-skill
-  .claude/skills/new-skill/SKILL.md
-  .claude/skills/new-skill/scripts/run.py
-  .claude/skills/new-skill/tests/test_run.py
-```
+### Missing Validation
 
-### Missing Duplicate Check
+| Anti-Pattern | Problem | Fix |
+|--------------|---------|-----|
+| No SKILL.md frontmatter | Tooling cannot discover the skill | Add required YAML fields |
+| No tests | Regressions go undetected | Write tests before or with implementation |
+| Hardcoded paths | Breaks in different environments | Use relative paths from `$PSScriptRoot` or `__file__` |
 
-Creating a skill without verifying no existing skill covers the same functionality. Search SKILL.md descriptions first.
+### Language Violations
 
-### Ignoring Synthesis Panel
-
-If architect, critic, or QA agents raise blocking issues during review, resolve them before creating the PR. Do not proceed with unresolved blocking findings.
-
-## Examples
-
-### Good: Focused Skill Update
-
-```text
-Task: Update the github skill to add issue labeling
-Files changed:
-  .claude/skills/github/scripts/issue/label_issue.py  (new)
-  .claude/skills/github/tests/test_label_issue.py     (new)
-  .claude/skills/github/SKILL.md                       (updated description)
-```
-
-### Bad: Unfocused Skill Work
-
-```text
-Task: Update the github skill to add issue labeling
-Files changed:
-  .claude/skills/github/scripts/issue/label_issue.py  (new)
-  .agents/architecture/ADR-099-label-strategy.md       (scope creep)
-  .serena/memories/github-labeling-patterns.md         (separate PR)
-  .claude/hooks/PostToolUse/verify_labels.py           (separate PR)
-  scripts/validate_labels.py                           (separate PR)
-```
+| Anti-Pattern | Problem | Fix |
+|--------------|---------|-----|
+| New bash scripts in skills | Violates ADR-005 and ADR-042 | Use Python |
+| New PowerShell for greenfield work | Misses ADR-042 guidance | Use Python for new scripts |
 
 ## References
 
-- [ADR-042: Python Migration Strategy](../../.agents/architecture/ADR-042-python-migration-strategy.md)
-- [PR #908 Retrospective](../../.agents/retrospective/2026-01-15-pr-908-comprehensive-retrospective.md)
-- [Testing Approach Steering](./testing-approach.md)
+- [ADR-005](../../.agents/architecture/ADR-005-powershell-only-scripting.md): Original PowerShell-only decision (superseded for new development)
+- [ADR-042](../../.agents/architecture/ADR-042-python-migration-strategy.md): Python migration strategy (current)
+- [SKILL-AUTHORING.md](../../docs/SKILL-AUTHORING.md): Skill authoring guide
+- [Steering README](.agents/steering/README.md): Steering system overview
+- Memory: `skills-index`
+
+---
+
+*Created: 2026-02-22*
+*GitHub Issue: #951*

@@ -165,6 +165,29 @@ class TestMain:
         output = json.loads(capsys.readouterr().out)
         assert output == []
 
+    def test_search_filter(self, capsys):
+        prs = [_pr(5, "Fix auth bug")]
+        with patch(
+            "get_pull_requests.assert_gh_authenticated",
+        ), patch(
+            "get_pull_requests.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "subprocess.run",
+            return_value=_completed(stdout=_prs_json(prs), rc=0),
+        ) as mock_run:
+            rc = main(["--search", "fix auth"])
+        assert rc == 0
+        cmd = mock_run.call_args[0][0]
+        assert "--search" in cmd
+        assert "fix auth" in cmd
+        # --search makes gh ignore other filter flags, so we must not pass them
+        assert "--state" not in cmd
+        assert "--label" not in cmd
+        assert "--author" not in cmd
+        output = json.loads(capsys.readouterr().out)
+        assert len(output) == 1
+
     def test_invalid_limit_exits_1(self):
         with patch(
             "get_pull_requests.assert_gh_authenticated",
@@ -174,4 +197,4 @@ class TestMain:
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--limit", "0"])
-            assert exc.value.code == 1
+            assert exc.value.code == 2

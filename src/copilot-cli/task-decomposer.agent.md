@@ -8,7 +8,7 @@ tools:
   - search
   - cloudmcp-manager/*
   - serena/*
-model: claude-opus-4.5
+model: claude-opus-4.6
 ---
 # Task Decomposer Agent
 
@@ -68,8 +68,8 @@ Use Memory Router for search and Serena tools for persistence (ADR-037):
 
 **Before breakdown (retrieve context):**
 
-```powershell
-pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "task estimation patterns [feature type]"
+```bash
+python3 .claude/skills/memory/scripts/search_memory.py --query "task estimation patterns [feature type]"
 ```
 
 **After breakdown (store learnings):**

@@ -57,7 +57,7 @@ jobs:
     runs-on: ubuntu-24.04-arm
     steps:
       - name: Checkout repository
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
       
       - name: Apply debouncing delay
         uses: ./.github/actions/workflow-debounce
@@ -75,11 +75,11 @@ jobs:
       has-code-changes: ${{ steps.filter.outputs.code }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
 
       - name: Check for code changes
         id: filter
-        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36
+        uses: dorny/paths-filter@668c092af3649c4b664c54e4b704aa46782f6f7c
         with:
           filters: |
             code:
@@ -114,7 +114,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
         with:
           fetch-depth: 0
 
@@ -320,4 +320,6 @@ jobs:
           COMPLETENESS_VERDICT: ${{ steps.completeness.outputs.verdict }}
           TRACE_INFRA_FAILURE: ${{ steps.trace.outputs['infrastructure-failure'] }}
           COMPLETENESS_INFRA_FAILURE: ${{ steps.completeness.outputs['infrastructure-failure'] }}
+          TRACE_FINDINGS: ${{ steps.trace.outputs.findings }}
+          COMPLETENESS_FINDINGS: ${{ steps.completeness.outputs.findings }}
         run: python3 .github/scripts/check_spec_failures.py

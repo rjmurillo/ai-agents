@@ -6,11 +6,11 @@ Use this before starting PR review work to prevent wasted effort on merged PRs.
 Per Skill-PR-Review-007: gh pr view may return stale data.
 
 Exit codes follow ADR-035:
-    0 - PR is NOT merged (safe to proceed with review)
-    1 - PR IS merged (skip review work)
-    2 - Error occurred (config/parse error)
-    3 - External error (API failure)
-    4 - Auth error
+    0   - PR is NOT merged (safe to proceed with review)
+    2   - Error occurred (config/parse error)
+    3   - External error (API failure)
+    4   - Auth error
+    100 - PR IS merged (script-specific: skip review work)
 """
 
 from __future__ import annotations
@@ -105,7 +105,7 @@ def main(argv: list[str] | None = None) -> int:
     print(json.dumps(output, indent=2))
 
     if pr.get("merged"):
-        return 1
+        return 100
 
     return 0
 

@@ -496,7 +496,7 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901 - faithful port of
             "No trusted sources configured. "
             "Create a copilot-synthesis.yml with maintainers and ai_agents lists. "
             "See .claude/skills/github/copilot-synthesis.yml for the expected format.",
-            1,
+            2,
         )
 
     # Fetch issue details

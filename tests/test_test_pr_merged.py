@@ -90,7 +90,7 @@ class TestMain:
         output = json.loads(capsys.readouterr().out)
         assert output["merged"] is False
 
-    def test_pr_merged_returns_1(self, capsys):
+    def test_pr_merged_returns_100(self, capsys):
         graphql_data = {
             "repository": {
                 "pullRequest": {
@@ -111,7 +111,7 @@ class TestMain:
             return_value=graphql_data,
         ):
             rc = main(["--pull-request", "315"])
-        assert rc == 1
+        assert rc == 100
         output = json.loads(capsys.readouterr().out)
         assert output["merged"] is True
         assert output["merged_by"] == "admin"

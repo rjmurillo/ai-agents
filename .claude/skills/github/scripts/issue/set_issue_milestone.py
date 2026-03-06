@@ -111,7 +111,7 @@ def main(argv: list[str] | None = None) -> int:
     owner, repo = resolved.owner, resolved.repo
 
     if not args.clear and not args.milestone:
-        error_and_exit("Must specify --milestone or --clear.", 1)
+        error_and_exit("Must specify --milestone or --clear.", 2)
 
     current_milestone = _get_current_milestone(owner, repo, args.issue)
 

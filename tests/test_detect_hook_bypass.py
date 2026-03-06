@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import asdict
+from unittest.mock import patch
 
 from scripts.detect_hook_bypass import (
     AuditReport,
@@ -16,6 +17,7 @@ from scripts.detect_hook_bypass import (
     check_bash_scripts_added,
     check_handoff_modified,
     format_report,
+    is_merge_commit,
 )
 
 
@@ -215,3 +217,19 @@ class TestFormatReport:
         assert "Bypass indicators: 1" in output
         assert "abc12345" in output
         assert "handoff-modified" in output
+
+
+class TestIsMergeCommit:
+    """Tests for is_merge_commit."""
+
+    def test_returns_true_for_merge_commit(self) -> None:
+        """Merge commits have a second parent, so rev-parse succeeds."""
+        with patch("scripts.detect_hook_bypass.subprocess.run") as mock_run:
+            mock_run.return_value.returncode = 0
+            assert is_merge_commit("abc123") is True
+
+    def test_returns_false_for_regular_commit(self) -> None:
+        """Regular commits have only one parent, rev-parse fails."""
+        with patch("scripts.detect_hook_bypass.subprocess.run") as mock_run:
+            mock_run.return_value.returncode = 128
+            assert is_merge_commit("abc123") is False

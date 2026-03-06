@@ -128,3 +128,35 @@ class TestMain:
             "--trace-infra-failure", "true",
         ])
         assert rc == 1
+
+    def test_infra_detected_from_findings_text(self, capsys):
+        """Findings text fallback detects infrastructure failures."""
+        rc = main([
+            "--trace-verdict", "CRITICAL_FAIL",
+            "--completeness-verdict", "CRITICAL_FAIL",
+            "--trace-findings",
+            "Copilot CLI infrastructure failure after 3 attempts",
+            "--completeness-findings",
+            "Copilot CLI infrastructure failure after 3 attempts",
+        ])
+        assert rc == 0
+        assert "infrastructure failure" in capsys.readouterr().out.lower()
+
+    def test_infra_detected_from_one_finding(self):
+        """One finding with infra text, other PASS, returns 0."""
+        rc = main([
+            "--trace-verdict", "CRITICAL_FAIL",
+            "--completeness-verdict", "PASS",
+            "--trace-findings",
+            "Copilot CLI infrastructure failure after 3 attempts",
+        ])
+        assert rc == 0
+
+    def test_findings_without_infra_keyword_still_fails(self):
+        """Findings without infrastructure keyword do not suppress failure."""
+        rc = main([
+            "--trace-verdict", "CRITICAL_FAIL",
+            "--completeness-verdict", "PASS",
+            "--trace-findings", "Some other error message",
+        ])
+        assert rc == 1

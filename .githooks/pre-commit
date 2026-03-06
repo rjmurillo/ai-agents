@@ -209,7 +209,14 @@ get_markdownlint_cmd() {
 }
 
 set_python_cmd() {
-    # Try python3 first (preferred)
+    # Try uv run python first (handles virtual environments)
+    if command -v uv &> /dev/null; then
+        if uv run python -c 'import sys' &> /dev/null; then
+            PYTHON_CMD=(uv run python)
+            return 0
+        fi
+    fi
+    # Try python3 (preferred system fallback)
     if command -v python3 &> /dev/null; then
         if python3 -c 'import sys' &> /dev/null; then
             PYTHON_CMD=(python3)
@@ -833,6 +840,44 @@ if [ -n "$STAGED_SKILL_FILES" ]; then
     echo_info "Skill frontmatter validation: covered by SkillForge validator above."
 else
     echo_info "No SKILL.md files staged. Skipping frontmatter validation."
+fi
+
+#
+# Skill Size Validation (BLOCKING)
+#
+# Validates SKILL.md files do not exceed size limits.
+# Prevents prompt bloat and token waste.
+#
+# Limits: 500 lines (error), 300 lines (warning)
+# Exception: size-exception: true in frontmatter
+#
+# Related: Issue #676 (Skill Prompt Size Limits)
+#
+SKILL_SIZE_SCRIPT="$REPO_ROOT/scripts/validation/skill_size.py"
+
+if [ -n "$STAGED_SKILL_FILES" ]; then
+    # MEDIUM-002: Reject symlinks for security
+    if [ -L "$SKILL_SIZE_SCRIPT" ]; then
+        echo_error "Skill size validator path is a symlink (security violation)"
+        EXIT_STATUS=1
+    elif [ -f "$SKILL_SIZE_SCRIPT" ]; then
+        if set_python_cmd; then
+            echo_info "Checking skill prompt sizes..."
+            if ! "${PYTHON_CMD[@]}" "$SKILL_SIZE_SCRIPT" --staged-only --ci; then
+                echo_error "One or more skills exceed size limits."
+                echo_info "  Refactor using progressive disclosure or add size-exception."
+                EXIT_STATUS=1
+            else
+                echo_success "All skill files within size limits."
+            fi
+        else
+            echo_warning "Python 3 not available. Skipping skill size validation."
+        fi
+    else
+        echo_warning "Skill size validator not found: $SKILL_SIZE_SCRIPT"
+    fi
+else
+    echo_info "No SKILL.md files staged. Skipping skill size validation."
 fi
 
 #
@@ -1506,6 +1551,44 @@ else
 fi
 
 #
+# Memory Tier Validation (BLOCKING)
+#
+# Validates tiered memory hierarchy per ADR-017:
+# - Broken reference detection (memory-index and domain indexes)
+# - Pure lookup table format enforcement for domain indexes
+# - Deprecated skill- prefix detection
+# - Orphan detection (domain indexes not in memory-index, atomic files not in any index)
+#
+# Related: ADR-017, Issue #943
+#
+MEMORY_TIER_SCRIPT="$REPO_ROOT/scripts/validate_memory_tier.py"
+
+if [ -n "$STAGED_MEMORY_FILES" ]; then
+    echo_info "Checking memory tier hierarchy (ADR-017)..."
+
+    # MEDIUM-002: Reject symlinks for security
+    if [ -L "$MEMORY_TIER_SCRIPT" ]; then
+        echo_warning "Skipping memory tier validation: script path is a symlink"
+    elif [ -f "$MEMORY_TIER_SCRIPT" ]; then
+        if set_python_cmd; then
+            if ! "${PYTHON_CMD[@]}" "$MEMORY_TIER_SCRIPT" --path "$REPO_ROOT/.serena/memories" 2>&1; then
+                echo_error "Memory tier validation FAILED."
+                echo_info "  Run manually: python3 scripts/validate_memory_tier.py"
+                EXIT_STATUS=1
+            else
+                echo_success "Memory tier validation: PASS"
+            fi
+        else
+            echo_warning "Python 3 not available. Skipping memory tier validation."
+        fi
+    else
+        echo_info "Memory tier validation script not found. Skipping."
+    fi
+else
+    echo_info "No memory files staged. Skipping memory tier validation."
+fi
+
+#
 # Memory Cross-Reference (Non-blocking, auto-fix)
 #
 # Automatically adds cross-references to memory files:
@@ -1682,6 +1765,42 @@ if [ -n "$STAGED_MEMORY_FILES" ]; then
         fi
     else
         echo_info "Skill format validation script not found. Skipping."
+    fi
+fi
+
+#
+# Scope Explosion Detection (BLOCKING at 50 files, WARNING at 10/20)
+#
+# Tracks cumulative PR size since branch diverged from main.
+# Prevents scope creep that leads to unreviewable PRs.
+#
+# Bypass: SKIP_SCOPE_CHECK=1 git commit ...
+#
+# Related: Issue #944, PR #908 (95 files)
+#
+SCOPE_DETECT_SCRIPT="$REPO_ROOT/scripts/detect_scope_explosion.py"
+
+if [ "$SKIP_SCOPE_CHECK" != "1" ]; then
+    # MEDIUM-002: Reject symlinks for security
+    if [ -L "$SCOPE_DETECT_SCRIPT" ]; then
+        echo_warning "Skipping scope detection: script path is a symlink"
+    elif [ -f "$SCOPE_DETECT_SCRIPT" ]; then
+        if set_python_cmd; then
+            SCOPE_OUTPUT=$("${PYTHON_CMD[@]}" "$SCOPE_DETECT_SCRIPT" 2>&1)
+            SCOPE_EXIT=$?
+            if [ $SCOPE_EXIT -eq 1 ]; then
+                echo ""
+                echo "$SCOPE_OUTPUT"
+                echo_error "Scope explosion detected. See remediation above."
+                EXIT_STATUS=1
+            elif [ $SCOPE_EXIT -eq 0 ] && [ -n "$SCOPE_OUTPUT" ]; then
+                echo "$SCOPE_OUTPUT"
+            fi
+            # Exit code 2 (error) is non-blocking: log and continue
+            if [ $SCOPE_EXIT -eq 2 ]; then
+                echo_warning "Scope detection encountered an error (non-blocking)"
+            fi
+        fi
     fi
 fi
 

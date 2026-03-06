@@ -65,7 +65,7 @@ def test_empty_body_fails(mock_run):
 
     with pytest.raises(SystemExit) as exc_info:
         main(["--issue", "1", "--body", ""])
-    assert exc_info.value.code == 1
+    assert exc_info.value.code == 2
 
 
 def _extract_json(text: str) -> dict:

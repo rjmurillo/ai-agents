@@ -222,10 +222,26 @@ def main(argv: list[str] | None = None) -> int:
         session["endingCommit"] = ending_commit
         changes.append(f"Set endingCommit: {ending_commit}")
 
-    # 2. handoffNotUpdated (MUST NOT)
+    # 2. handoffPreserved (MUST) - replaces legacy handoffNotUpdated (issue #868)
     handoff_modified = _test_handoff_modified()
-    if "handoffNotUpdated" in session_end:
-        check = session_end["handoffNotUpdated"]
+    # Support both new "handoffPreserved" and legacy "handoffNotUpdated" field names
+    handoff_key = (
+        "handoffPreserved" if "handoffPreserved" in session_end
+        else "handoffNotUpdated" if "handoffNotUpdated" in session_end
+        else None
+    )
+    if handoff_key == "handoffPreserved":
+        check = session_end[handoff_key]
+        if handoff_modified:
+            check["Complete"] = False
+            check["Evidence"] = "WARNING: HANDOFF.md was modified (should be read-only)"
+            changes.append("[WARN] HANDOFF.md was modified (violation)")
+        else:
+            check["Complete"] = True
+            check["Evidence"] = "HANDOFF.md not modified (read-only respected)"
+            changes.append("Confirmed HANDOFF.md preserved (not modified)")
+    elif handoff_key == "handoffNotUpdated":
+        check = session_end[handoff_key]
         if handoff_modified:
             check["Complete"] = True
             check["Evidence"] = "WARNING: HANDOFF.md was modified - this violates MUST NOT"
@@ -270,8 +286,8 @@ def main(argv: list[str] | None = None) -> int:
             changes.append("[TODO] Uncommitted changes exist - commit before completing")
 
     # 6. checklistComplete - evaluate after all others
-    must_items = ["handoffNotUpdated", "serenaMemoryUpdated", "markdownLintRun",
-                  "changesCommitted", "validationPassed"]
+    must_items = ["handoffPreserved", "handoffNotUpdated", "serenaMemoryUpdated",
+                  "markdownLintRun", "changesCommitted", "validationPassed"]
     all_must_complete = True
     for item in must_items:
         if item in session_end:

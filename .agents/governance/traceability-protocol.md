@@ -2,7 +2,7 @@
 type: governance
 id: traceability-protocol
 status: active
-version: 1.0.0
+version: 1.1.0
 created: 2025-12-31
 phase: 2
 related:
@@ -30,6 +30,55 @@ Applies to all files in:
 | [traceability-schema.md](traceability-schema.md) | Graph structure, node/edge types, validation rules |
 | [orphan-report-format.md](orphan-report-format.md) | Report format, remediation actions |
 | [spec-schemas.md](spec-schemas.md) | YAML front matter schemas |
+
+## GitHub Issue Intake
+
+GitHub Issues are the entry point for work requests. This section defines how
+issues translate into the REQ, DESIGN, TASK spec layer.
+
+### Workflow
+
+```text
+GitHub Issue --> REQ-NNN --> DESIGN-NNN --> TASK-NNN
+    |               |
+    |               +-- source: GH-<issue>
+    +-- Spec link added as issue comment
+```
+
+1. **Triage**: Assign priority label (P0/P1/P2) and area label on the issue.
+2. **Translate**: Run the spec-generator agent with the issue as input.
+   The agent creates a REQ with `source: GH-<number>` in front matter.
+3. **Link back**: Post a comment on the GitHub issue referencing the created
+   REQ ID (e.g., "Tracked as REQ-005").
+4. **Decompose**: The spec-generator produces DESIGN and TASK specs that trace
+   back to the REQ. Standard traceability rules apply from this point.
+
+### Bidirectional Links
+
+| Direction | Mechanism | Example |
+|-----------|-----------|---------|
+| Issue to Spec | Comment on GitHub issue | "Tracked as REQ-005" |
+| Spec to Issue | `source` field in YAML front matter | `source: GH-720` |
+
+The `source` field uses the pattern `GH-<number>` where `<number>` is the
+GitHub issue number. See [spec-schemas.md](spec-schemas.md) for field details.
+
+### When to Skip Spec Generation
+
+Not every issue needs a full spec chain. Skip spec generation when:
+
+- The issue is a single-file fix with no design decisions.
+- The issue is a documentation-only change.
+- The change is under 20 lines and self-contained.
+
+For these cases, reference the issue directly in the commit message
+(`Fixes #<number>`) without creating spec artifacts.
+
+### Migration
+
+Existing GitHub issues do not require retroactive spec generation. Apply this
+workflow to new work going forward. For in-progress epics, create specs when
+the next implementation session begins.
 
 ## The Traceability Chain
 
@@ -244,13 +293,26 @@ pwsh scripts/Validate-Traceability.ps1 -Format markdown > .agents/reports/tracea
 
 ### Feature Development Flow
 
+```text
+1. Triage GitHub Issue (assign priority and area labels)
+2. Run spec-generator to create REQ-NNN (source: GH-<issue>)
+3. Post REQ link as comment on GitHub issue
+4. Create DESIGN-NNN referencing REQ-NNN
+5. Create TASK-NNN referencing DESIGN-NNN
+6. Pre-commit validates traceability
+7. Critic validates during plan review
+8. Retrospective captures metrics
+```
+
 ```mermaid
 graph TD
-    A[Create REQ-NNN] --> B[Create DESIGN-NNN referencing REQ-NNN]
-    B --> C[Create TASK-NNN referencing DESIGN-NNN]
-    C --> D[Pre-commit validates traceability]
-    D --> E[Critic validates during plan review]
-    E --> F[Retrospective captures metrics]
+    A[Triage GitHub Issue] --> B[Run spec-generator to create REQ-NNN]
+    B --> C[Post REQ link as comment on GitHub issue]
+    C --> D[Create DESIGN-NNN referencing REQ-NNN]
+    D --> E[Create TASK-NNN referencing DESIGN-NNN]
+    E --> F[Pre-commit validates traceability]
+    F --> G[Critic validates during plan review]
+    G --> H[Retrospective captures metrics]
 ```
 
 ### Spec Modification Flow

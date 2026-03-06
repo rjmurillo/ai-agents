@@ -1,4 +1,7 @@
-"""Workflow execution and chaining for agent pipelines."""
+"""Workflow execution and chaining for agent pipelines.
+
+Supports sequential chaining, parallel execution, and refinement loops.
+"""
 
 from scripts.workflow.coordinator import (
     CentralizedStrategy,
@@ -9,6 +12,15 @@ from scripts.workflow.coordinator import (
     build_execution_plan,
     find_ready_steps,
     get_strategy,
+)
+from scripts.workflow.executor import WorkflowExecutor
+from scripts.workflow.parallel import (
+    AggregationStrategy,
+    ParallelGroup,
+    ParallelStepExecutor,
+    can_parallelize,
+    identify_parallel_groups,
+    mark_parallel_steps,
 )
 from scripts.workflow.schema import (
     CoordinationMode,
@@ -22,20 +34,27 @@ from scripts.workflow.schema import (
 )
 
 __all__ = [
+    "AggregationStrategy",
+    "CentralizedStrategy",
     "CoordinationMode",
     "CoordinationStrategy",
-    "CentralizedStrategy",
     "HierarchicalStrategy",
     "MeshStrategy",
+    "ParallelGroup",
+    "ParallelStepExecutor",
     "StepKind",
     "StepRef",
     "StepResult",
     "WorkflowDefinition",
+    "WorkflowExecutor",
     "WorkflowResult",
     "WorkflowStatus",
     "WorkflowStep",
     "aggregate_subordinate_outputs",
     "build_execution_plan",
+    "can_parallelize",
     "find_ready_steps",
     "get_strategy",
+    "identify_parallel_groups",
+    "mark_parallel_steps",
 ]

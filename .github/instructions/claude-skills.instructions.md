@@ -1,25 +1,29 @@
 ---
-applyTo: ".claude/skills/**/*"
+applyTo: ".claude/skills/**"
 ---
 
 # Claude Skills Standards
 
-For comprehensive skill development guidance, see [.agents/steering/claude-skills.md](../../.agents/steering/claude-skills.md).
+For comprehensive skill development standards, see [.agents/steering/claude-skills.md](../../.agents/steering/claude-skills.md).
 
-## Quick Reference
+## Quick Reference - Skills
 
-**Language:** Python 3.10+ for new scripts (ADR-042). PowerShell for existing script maintenance.
+**Structure:**
 
-**Required files:** Every skill directory needs `SKILL.md` with frontmatter (name, description).
+```text
+.claude/skills/<skill-name>/
+├── SKILL.md              # Frontmatter + prompt (REQUIRED)
+├── scripts/              # Implementation scripts
+└── references/           # Optional supporting docs
+```
 
-**Scope control:**
+**Key Principles:**
 
-- One skill per PR
-- 10 or fewer files per PR
-- No memory, hook, or ADR changes in skill PRs (use separate PRs)
+- One skill, one purpose
+- SKILL.md frontmatter required (name, version, description)
+- Python for new scripts (ADR-042)
+- Tests required for all scripts
+- File count per PR: 10 or fewer
+- Memory changes in separate PR
 
-**Before PR:**
-
-- SKILL.md frontmatter validates
-- Tests pass (pytest or Pester)
-- No unrelated file changes
+*This file serves as a Copilot-specific entry point. The authoritative steering content is maintained in `.agents/steering/claude-skills.md`.*

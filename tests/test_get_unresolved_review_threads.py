@@ -81,7 +81,7 @@ class TestMain:
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "-1"])
-            assert exc.value.code == 1
+            assert exc.value.code == 2
 
     def test_success_outputs_json(self, capsys):
         threads = [{"id": "t1", "isResolved": False}]

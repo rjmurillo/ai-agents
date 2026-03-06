@@ -108,13 +108,13 @@ class TestMain:
                 main(["--thread-id", "PRRT_abc"])
             assert exc.value.code == 4
 
-    def test_invalid_thread_id_exits_1(self):
+    def test_invalid_thread_id_exits_2(self):
         with patch(
             "unresolve_pr_review_thread.assert_gh_authenticated",
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--thread-id", "INVALID"])
-            assert exc.value.code == 1
+            assert exc.value.code == 2
 
     def test_single_thread_success(self, capsys):
         with patch(
