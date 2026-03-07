@@ -51,10 +51,13 @@ Use `.agents/plans/TEMPLATE.md` as the starting point for new plans.
 
 ### Creating a Plan
 
-1. Copy TEMPLATE.md to `.agents/plans/active/{slug}.md`
-2. Fill metadata (status: In Progress, created: today, owner: agent name)
-3. Define objectives as checkboxes
-4. Link to related issue/PR
+1. Sanitize the plan `{slug}` to a valid filename (alphanumeric with hyphens only)
+2. Construct the target path as `.agents/plans/active/{sanitized-slug}.md`
+3. **Security**: Verify the resolved target path is within `.agents/plans/active/` (CWE-22)
+4. Copy TEMPLATE.md to the validated path
+5. Fill metadata (status: In Progress, created: today, owner: agent name)
+6. Define objectives as checkboxes
+7. Link to related issue/PR
 
 ### Updating Progress
 
@@ -74,8 +77,10 @@ Add row to Decision Log table:
 
 1. Verify all objectives checked
 2. Update status to Completed
-3. Move file from `active/` to `completed/`
-4. Add final progress entry
+3. **Security**: Verify the source path resolves within `.agents/plans/active/` (CWE-22)
+4. **Security**: Verify the destination path resolves within `.agents/plans/completed/` (CWE-22)
+5. Move the file to the validated destination
+6. Add final progress entry
 
 ### Blocking a Plan
 
@@ -87,7 +92,9 @@ Add row to Decision Log table:
 
 1. Update status to Abandoned
 2. Document rationale in blockers or final progress entry
-3. Move file from `active/` to `abandoned/`
+3. **Security**: Verify the source path resolves within `.agents/plans/active/` (CWE-22)
+4. **Security**: Verify the destination path resolves within `.agents/plans/abandoned/` (CWE-22)
+5. Move the file to the validated destination
 
 ## Integration
 
