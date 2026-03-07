@@ -8,7 +8,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import scripts.validation.skill_modularity_audit as skill_modularity_audit_mod
 from scripts.validation.frontmatter import has_size_exception
 from scripts.validation.skill_modularity_audit import (
     IDEAL_MAX_LINES,
@@ -219,23 +218,20 @@ class TestAuditAllSkills:
 class TestMain:
     """Tests for CLI entry point."""
 
-    def test_main_success(self, tmp_path: Path, monkeypatch: object) -> None:
-        monkeypatch.setattr(skill_modularity_audit_mod, "_PROJECT_ROOT", tmp_path)
+    def test_main_success(self, tmp_path: Path) -> None:
         skill_dir = tmp_path / "ok-skill"
         skill_dir.mkdir()
         (skill_dir / "SKILL.md").write_text("---\nname: ok\n---\n## P\nOK.\n")
         assert main(["--path", str(tmp_path)]) == 0
 
-    def test_main_ci_fails_on_oversized(self, tmp_path: Path, monkeypatch: object) -> None:
-        monkeypatch.setattr(skill_modularity_audit_mod, "_PROJECT_ROOT", tmp_path)
+    def test_main_ci_fails_on_oversized(self, tmp_path: Path) -> None:
         skill_dir = tmp_path / "huge"
         skill_dir.mkdir()
         lines = ["---", "name: huge", "---"] + ["line"] * 600
         (skill_dir / "SKILL.md").write_text("\n".join(lines))
         assert main(["--path", str(tmp_path), "--ci"]) == 1
 
-    def test_main_json_output(self, tmp_path: Path, monkeypatch: object, capsys: object) -> None:
-        monkeypatch.setattr(skill_modularity_audit_mod, "_PROJECT_ROOT", tmp_path)
+    def test_main_json_output(self, tmp_path: Path, capsys: object) -> None:
         skill_dir = tmp_path / "json-test"
         skill_dir.mkdir()
         (skill_dir / "SKILL.md").write_text("---\nname: json-test\n---\n## P\nOK.\n")
@@ -243,3 +239,12 @@ class TestMain:
 
     def test_main_missing_path(self) -> None:
         assert main(["--path", "/nonexistent/path"]) == 2
+
+    def test_main_rejects_relative_path_traversal(self) -> None:
+        assert main(["--path", "../../../etc"]) == 2
+
+    def test_main_allows_absolute_path(self, tmp_path: Path) -> None:
+        skill_dir = tmp_path / "abs-test"
+        skill_dir.mkdir()
+        (skill_dir / "SKILL.md").write_text("---\nname: abs\n---\n## P\nOK.\n")
+        assert main(["--path", str(tmp_path)]) == 0
