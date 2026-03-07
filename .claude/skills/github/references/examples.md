@@ -68,6 +68,9 @@ python3 scripts/pr/get_pull_requests.py --label "bug,priority:P1" --state open
 # Filter PRs by author and base branch
 python3 scripts/pr/get_pull_requests.py --author rjmurillo --base main
 
+# Search PRs by keyword or GitHub search syntax
+python3 scripts/pr/get_pull_requests.py --search "fix auth is:open"
+
 # Get PR with changed files
 python3 scripts/pr/get_pr_context.py --pull-request 50 --include-changed-files
 
@@ -84,7 +87,7 @@ python3 scripts/pr/get_pr_checks.py --pull-request 50 --wait --timeout-seconds 6
 python3 scripts/pr/get_pr_checks.py --pull-request 50 --required-only
 
 # Detect Copilot follow-up PRs
-python3 scripts/pr/detect_copilot_follow_up_pr.py --pr-number 50
+python3 scripts/pr/detect_copilot_followup_pr.py --pr-number 50
 ```
 
 ---

@@ -222,10 +222,10 @@ def generate_agents(
             transformed_body = convert_handoff_syntax(body, handoff_syntax)
             transformed_body = convert_memory_prefix(transformed_body, memory_prefix)
 
-            # Build output content with CRLF line endings
+            # Build output content with LF line endings (per .gitattributes eol=lf)
             fm_yaml = format_frontmatter_yaml(transformed_fm)
             output_content = f"---\n{fm_yaml}\n---\n{transformed_body}"
-            output_content = output_content.replace("\r\n", "\n").replace("\n", "\r\n")
+            output_content = output_content.replace("\r\n", "\n")
 
             if validate:
                 _handle_validate(output_file, output_content, platform_name, differences)

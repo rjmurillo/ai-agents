@@ -42,7 +42,7 @@ runs:
   steps:
     - name: Setup Node.js
       id: node-setup
-      uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+      uses: actions/setup-node@54045abd5dcd3b0fee9ca02fa24c57545834c9cc
       with:
         node-version: "lts/*"
 
@@ -102,7 +102,7 @@ runs:
 
     - name: Setup Python
       if: inputs.enable-python == 'true'
-      uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+      uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
       with:
         python-version: ${{ inputs.python-version }}
 

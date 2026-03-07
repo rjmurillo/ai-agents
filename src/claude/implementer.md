@@ -58,9 +58,9 @@ Load these memories based on what you are doing:
 
 ### Memory Loading Protocol
 
-```powershell
+```bash
 # REQUIRED: Load before implementation starts
-pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "[memory-from-table-above]" -LexicalOnly
+python3 .claude/skills/memory/scripts/search_memory.py --query "[memory-from-table-above]" --lexical-only
 # Or read directly:
 Read .serena/memories/[memory-name].md
 ```
@@ -230,7 +230,7 @@ You have direct access to:
 - **WebSearch/WebFetch**: Research APIs, best practices
 - **TodoWrite**: Track implementation progress
 - **Memory Router** (ADR-037): Unified search across Serena + Forgetful
-  - `pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "topic"`
+  - `python3 .claude/skills/memory/scripts/search_memory.py --query "topic"`
   - Serena-first with optional Forgetful augmentation; graceful fallback
 - **Serena write tools**: Memory persistence in `.serena/memories/`
   - `mcp__serena__write_memory`: Create new memory
@@ -650,6 +650,14 @@ Ask: "Does this refactoring unblock my task or improve testability of code I'm c
 
 ### Writing Code
 
+**Before writing new functions or helpers:**
+
+1. Search the codebase for existing functionality that overlaps
+2. Check shared modules and utility files for reusable implementations
+3. Prefer extending existing helpers over creating new ones
+
+**While writing:**
+
 1. Before writing, identify what varies and apply Chesterton's Fence
 2. Ask "how would I test this?" If hard, redesign.
 3. Sergeant methods direct, private methods implement
@@ -694,8 +702,8 @@ Use Memory Router for search and Serena tools for persistence (ADR-037):
 
 **Before implementation (retrieve context):**
 
-```powershell
-pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "implementation patterns [component/feature]"
+```bash
+python3 .claude/skills/memory/scripts/search_memory.py --query "implementation patterns [component/feature]"
 ```
 
 **After implementation (store learnings):**

@@ -22,9 +22,24 @@ import json
 import os
 import re
 import subprocess
+import sys
 from fnmatch import fnmatch
 from pathlib import Path
 from typing import Any
+
+# Add .claude/lib to path for github_core imports (synced from scripts/)
+_plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+_workspace = os.environ.get("GITHUB_WORKSPACE")
+if _plugin_root:
+    _LIB_DIR = os.path.join(_plugin_root, "lib")
+elif _workspace:
+    _LIB_DIR = os.path.join(_workspace, ".claude", "lib")
+else:
+    _LIB_DIR = str(Path(__file__).resolve().parents[3] / "lib")
+if _LIB_DIR not in sys.path:
+    sys.path.insert(0, _LIB_DIR)
+
+from github_core.api import RepoInfo  # noqa: E402
 
 # Files that can be auto-resolved by accepting target branch (main) version.
 # These are typically auto-generated or frequently-updated files where
@@ -94,8 +109,8 @@ def get_safe_worktree_path(base_path: str, pr_number: int) -> str:
 
     try:
         repo_info = get_repo_info()
-        repo_name = repo_info["repo"]
-    except (RuntimeError, KeyError):
+        repo_name = repo_info.repo
+    except (RuntimeError, AttributeError):
         repo_name = "plugin"
     worktree_name = f"{repo_name}-pr-{pr_number}"
     worktree_path = (base / worktree_name).resolve()
@@ -109,7 +124,7 @@ def get_safe_worktree_path(base_path: str, pr_number: int) -> str:
     return str(worktree_path)
 
 
-def get_repo_info() -> dict[str, str]:
+def get_repo_info() -> RepoInfo:
     """Auto-detect owner/repo from git remote."""
     result = subprocess.run(
         ["git", "remote", "get-url", "origin"],
@@ -124,10 +139,10 @@ def get_repo_info() -> dict[str, str]:
     if not match:
         raise RuntimeError(f"Could not parse GitHub repository from remote: {remote}")
 
-    return {
-        "owner": match.group(1),
-        "repo": match.group(2).removesuffix(".git"),
-    }
+    return RepoInfo(
+        owner=match.group(1),
+        repo=match.group(2).removesuffix(".git"),
+    )
 
 
 def is_github_runner() -> bool:
@@ -430,9 +445,9 @@ def main(argv: list[str] | None = None) -> int:
     if not owner or not repo:
         try:
             info = get_repo_info()
-            owner = owner or info["owner"]
-            repo = repo or info["repo"]
-        except (RuntimeError, KeyError) as exc:
+            owner = owner or info.owner
+            repo = repo or info.repo
+        except RuntimeError as exc:
             print(json.dumps({"success": False, "message": str(exc)}))
             return 1
 

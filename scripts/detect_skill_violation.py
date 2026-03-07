@@ -45,7 +45,7 @@ GH_PATTERNS = (
 )
 
 # File extensions to check
-VALID_EXTENSIONS = frozenset({".md", ".ps1", ".psm1"})
+VALID_EXTENSIONS = frozenset({".md", ".py", ".ps1", ".psm1"})
 
 
 @dataclass
@@ -247,7 +247,7 @@ def report_violations(violations: list[Violation]) -> None:
     print()
     print("REMINDER: Use GitHub skills for better error handling, consistency, and auditability.")
     print("  Before using raw 'gh' commands, check:")
-    print("    Get-ChildItem .claude/skills/github/scripts -Recurse")
+    print("    find .claude/skills/github/scripts -name '*.py'")
     print("  If the capability you need doesn't exist, create a skill script or file an issue.")
     print()
     print("See: .serena/memories/skill-usage-mandatory.md")

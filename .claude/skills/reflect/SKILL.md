@@ -275,12 +275,11 @@ After user approval:
 
 2. **If Serena unavailable** (contingency):
 
-   ```powershell
-   $path = ".serena/memories/{name}-observations.md"
-   $existingContent = Get-Content $path -ErrorAction SilentlyContinue
-   $newContent = $existingContent + "`n" + $newLearnings
-   Set-Content $path -Value $newContent
-   git add $path
+   ```bash
+   path=".serena/memories/{name}-observations.md"
+   # Append new learnings to existing file (create if missing)
+   echo "$newLearnings" >> "$path"
+   git add "$path"
    git commit -m "chore(memory): update {name} skill sidecar learnings"
    ```
 
@@ -531,9 +530,9 @@ Run reflection at session end as part of retrospective:
 
 Skill memories integrate with the memory system:
 
-```powershell
+```bash
 # Search skill sidecar learnings
-pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "github-observations constraints"
+python3 .claude/skills/memory/scripts/search_memory.py --query "github-observations constraints"
 
 # Read specific skill sidecar
 Read .serena/memories/github-observations.md

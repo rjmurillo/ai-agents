@@ -41,7 +41,7 @@ You have direct access to:
 - **Bash**: `dotnet test`, `dotnet test --collect:"XPlat Code Coverage"`
 - **Write/Edit**: Create test files
 - **Memory Router** (ADR-037): Unified search across Serena + Forgetful
-  - `pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "topic"`
+  - `python3 .claude/skills/memory/scripts/search_memory.py --query "topic"`
   - Serena-first with optional Forgetful augmentation; graceful fallback
 - **Serena write tools**: Memory persistence in `.serena/memories/`
   - `mcp__serena__write_memory`: Create new memory
@@ -86,6 +86,22 @@ Report violations in test strategy document with specific file:line references.
 - **Speed**: Unit tests run fast
 - **Clarity**: Test name describes what's tested
 - **Coverage**: New code ≥80% covered
+
+## Test Quality Criteria
+
+### Insufficient Test Patterns (CRITICAL_FAIL)
+
+- Tests that use `Should -Match` on script content instead of executing functions
+- Tests that verify code structure via regex without testing behavior
+- Tests claiming AAA pattern but only verifying existence of code blocks
+- Unit tests without Mock blocks for external dependencies (gh CLI, APIs)
+
+### Required Test Patterns (PASS)
+
+- Tests that execute the function under test
+- Unit tests with Mock blocks for all external dependencies
+- Edge case coverage: null inputs, empty arrays, error conditions
+- Integration tests that verify end-to-end behavior
 
 ## Quality Metrics
 
@@ -569,8 +585,8 @@ Use Memory Router for search and Serena tools for persistence (ADR-037):
 
 **Before testing (retrieve context):**
 
-```powershell
-pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "test strategies [feature/component]"
+```bash
+python3 .claude/skills/memory/scripts/search_memory.py --query "test strategies [feature/component]"
 ```
 
 **After testing (store learnings):**

@@ -49,12 +49,15 @@ config:
   MD033:
     allowed_elements:
       - br
+      - code
       - kbd
       - sup
       - sub
       - details
       - summary
+      - code
       - strong
+      - code
       - example
 
   # Multiple H1 - allow in agent templates (frontmatter can create implicit H1)
@@ -102,7 +105,7 @@ ignores:
   # User instruction files - these are APPENDED to existing user files during installation
   # and cannot start with H1 (MD041). They are simple, controlled content that we manually
   # verify. No inline suppression is used because it would propagate to user files
-  - "src/claude/CLAUDE.md"
+  - "src/claude/claude-instructions.template.md"
   - "src/vs-code-agents/copilot-instructions.md"
   - "src/copilot-cli/copilot-instructions.md"
 

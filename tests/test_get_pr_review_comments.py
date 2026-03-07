@@ -10,6 +10,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from scripts.github_core.api import RepoInfo
 
 # ---------------------------------------------------------------------------
 # Import the script via importlib (not a package)
@@ -98,7 +99,7 @@ class TestMain:
             "get_pr_review_comments.assert_gh_authenticated",
         ), patch(
             "get_pr_review_comments.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "get_pr_review_comments.gh_api_paginated",
             return_value=[],
@@ -135,7 +136,7 @@ class TestMain:
             "get_pr_review_comments.assert_gh_authenticated",
         ), patch(
             "get_pr_review_comments.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "get_pr_review_comments.gh_api_paginated",
             return_value=raw_comments,
@@ -169,7 +170,7 @@ class TestMain:
             "get_pr_review_comments.assert_gh_authenticated",
         ), patch(
             "get_pr_review_comments.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "get_pr_review_comments.gh_api_paginated",
             return_value=raw_comments,

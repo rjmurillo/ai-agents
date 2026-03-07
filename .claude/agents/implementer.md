@@ -53,15 +53,16 @@ Load these memories based on what you are doing:
 | Legacy system work | `distinguished-engineer-knowledge-index` | Lindy effect, second-system effect |
 | Architecture decisions | `engineering-knowledge-index` | Cross-tier pattern lookup |
 | Test design | `tdd-approach`, `design-by-contract` | Red-green-refactor, invariants |
+| .NET BCL-grade code | `DOTNET-BCL-STANDARDS`, `BCL-REVIEW-METHODOLOGY` | Thread safety, disposal, performance |
 | Agent/MCP code | `owasp-agentic-security-integration` | ASI01-10 threat patterns |
 | Prompt engineering | `owasp-agentic-security-integration` | Goal hijack, injection prevention |
 | Code review | `code-smells-catalog` | Smell taxonomy and severity classification |
 
 ### Memory Loading Protocol
 
-```powershell
+```bash
 # REQUIRED: Load before implementation starts
-pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "[memory-from-table-above]" -LexicalOnly
+python3 .claude/skills/memory/scripts/search_memory.py --query "[memory-from-table-above]" --lexical-only
 # Or read directly:
 Read .serena/memories/[memory-name].md
 ```
@@ -243,7 +244,7 @@ You have direct access to:
 - **WebSearch/WebFetch**: Research APIs, best practices
 - **TodoWrite**: Track implementation progress
 - **Memory Router** (ADR-037): Unified search across Serena + Forgetful
-  - `pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "topic"`
+  - `python3 .claude/skills/memory/scripts/search_memory.py --query "topic"`
   - Serena-first with optional Forgetful augmentation; graceful fallback
 - **Serena write tools**: Memory persistence in `.serena/memories/`
   - `mcp__serena__write_memory`: Create new memory
@@ -663,6 +664,14 @@ Ask: "Does this refactoring unblock my task or improve testability of code I'm c
 
 ### Writing Code
 
+**Before writing new functions or helpers:**
+
+1. Search the codebase for existing functionality that overlaps
+2. Check shared modules and utility files for reusable implementations
+3. Prefer extending existing helpers over creating new ones
+
+**While writing:**
+
 1. Before writing, identify what varies and apply Chesterton's Fence
 2. Ask "how would I test this?" If hard, redesign.
 3. Sergeant methods direct, private methods implement
@@ -747,8 +756,8 @@ Use Memory Router for search and Serena tools for persistence (ADR-037):
 
 **Before implementation (retrieve context):**
 
-```powershell
-pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "implementation patterns [component/feature]"
+```bash
+python3 .claude/skills/memory/scripts/search_memory.py --query "implementation patterns [component/feature]"
 ```
 
 **After implementation (store learnings):**
@@ -810,6 +819,45 @@ a premature abstraction, but identical blocks are not.
    context become named constants.
 8. **Match existing patterns**: Before writing new code, read 2-3 similar functions in the same
    file or module. Follow their error handling, logging, and naming patterns.
+
+## .NET BCL-Grade Code
+
+When implementing .NET code for production or BCL integration, MUST read:
+
+- `.agents/governance/DOTNET-BCL-STANDARDS.md`: Thread safety, disposal, performance requirements
+- `.agents/governance/BCL-REVIEW-METHODOLOGY.md`: Review process and findings format
+
+### Quick Reference (Thread Safety)
+
+```csharp
+// Atomic counter operations
+private long _counter;
+Interlocked.Increment(ref _counter);
+
+// Volatile reads for state checks
+private int _disposed;
+if (Volatile.Read(ref _disposed) != 0) return;
+
+// Idempotent disposal pattern
+public void Dispose()
+{
+    if (Interlocked.Exchange(ref _disposed, 1) != 0)
+        return;
+    GC.SuppressFinalize(this);
+    // cleanup...
+}
+```
+
+### BCL Checklist Before Commit
+
+- [ ] All counters use Interlocked operations
+- [ ] Disposed checks use Volatile.Read
+- [ ] Disposal is idempotent (Interlocked.Exchange pattern)
+- [ ] All exceptions documented
+- [ ] Thread safety tests included
+- [ ] No allocations in hot paths
+
+**Full standards**: Read `.agents/governance/DOTNET-BCL-STANDARDS.md` before implementing .NET code.
 
 ## Qwiq-Specific Patterns
 

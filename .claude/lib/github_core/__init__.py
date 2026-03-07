@@ -1,6 +1,7 @@
-"""GitHub Core module: shared helpers for GitHub CLI operations.
+"""Canonical: scripts/github_core/__init__.py. Sync via scripts/sync_plugin_lib.py.
 
-Canonical copy lives at scripts/github_core/; keep in sync.
+NOTE: Plugin-distributed copy at .claude/lib/github_core/.
+Run ``python3 scripts/sync_plugin_lib.py`` to sync changes.
 """
 
 from __future__ import annotations
@@ -8,6 +9,7 @@ from __future__ import annotations
 from .api import (  # noqa: F401
     DEFAULT_RATE_THRESHOLDS,
     RateLimitResult,
+    RepoInfo,
     assert_gh_authenticated,
     check_workflow_rate_limit,
     create_issue_comment,
@@ -44,6 +46,7 @@ __all__ = [
     "GhCliClient",
     "GitHubClient",
     "RateLimitResult",
+    "RepoInfo",
     "assert_gh_authenticated",
     "assert_valid_body_file",
     "check_workflow_rate_limit",

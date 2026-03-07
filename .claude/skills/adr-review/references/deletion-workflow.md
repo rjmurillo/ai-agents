@@ -4,9 +4,9 @@ When an ADR file is deleted, this skill triggers a special workflow.
 
 ## Phase D1: Deletion Detection
 
-```powershell
+```bash
 # Script detects deleted ADR files
-& .claude/skills/adr-review/scripts/Detect-ADRChanges.ps1
+python3 .claude/skills/adr-review/scripts/detect_adr_changes.py
 
 # Output includes:
 # - Deleted file path

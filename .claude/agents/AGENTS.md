@@ -1,6 +1,6 @@
 # Claude Code Agents
 
-This document describes the 18 AI agents defined for Claude Code CLI and the critical workflow rules for maintaining them.
+This document describes the 19 AI agents defined for Claude Code CLI and the critical workflow rules for maintaining them.
 
 ## Overview
 
@@ -153,6 +153,7 @@ flowchart TD
 | qa | `qa.md` | Test strategy and verification |
 | devops | `devops.md` | CI/CD pipelines |
 | security | `security.md` | Vulnerability assessment |
+| merge-resolver | `merge-resolver.md` | Git conflict resolution |
 
 ### Strategic Agents
 
@@ -240,7 +241,7 @@ PR Review:
 Claude agents use MCP tool prefix syntax:
 
 ```text
-pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "topic"  # Memory Router (ADR-037)
+python3 .claude/skills/memory/scripts/search_memory.py --query "topic"  # Memory Router (ADR-037)
 mcp__serena__write_memory  # Serena write tools
 mcp__deepwiki__ask_question
 mcp__serena__find_symbol
@@ -249,7 +250,7 @@ mcp__serena__find_symbol
 VS Code/Copilot use path notation:
 
 ```text
-Search-Memory.ps1  # Memory Router (ADR-037)
+search_memory.py  # Memory Router (ADR-037)
 serena/write_memory
 cognitionai/deepwiki/ask_question
 serena/find_symbol
@@ -259,9 +260,11 @@ serena/find_symbol
 
 Claude agents reference `.claude/skills/github/`:
 
-```powershell
+```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+
 # CORRECT - Use skill scripts
-pwsh .claude/skills/github/scripts/pr/Get-PRContext.ps1 -PullRequest 50
+python3 "$SCRIPTS_DIR/pr/get_pr_context.py" --pull-request 50
 
 # WRONG - Raw gh commands (see usage-mandatory memory)
 gh pr view 50 --json ...

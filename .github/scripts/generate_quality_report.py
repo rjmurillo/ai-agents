@@ -25,6 +25,7 @@ workspace = os.environ.get(
 sys.path.insert(0, workspace)
 
 from scripts.ai_review_common import (  # noqa: E402
+    FAIL_VERDICTS,
     get_verdict_alert_type,
     get_verdict_emoji,
     initialize_ai_review,
@@ -95,7 +96,49 @@ def build_parser() -> argparse.ArgumentParser:
             default=os.environ.get(f"{upper}_CATEGORY", ""),
             help=f"{agent.capitalize()} failure category",
         )
+    parser.add_argument(
+        "--pr-author",
+        default=os.environ.get("PR_AUTHOR", ""),
+        help="PR author login for @mention notifications on actionable verdicts",
+    )
     return parser
+
+
+def _build_action_required_section(
+    pr_author: str,
+    final_verdict: str,
+    verdicts: dict[str, str],
+) -> str:
+    """Build an action-required section that @mentions the PR author.
+
+    Only emits content when actionable verdicts (CRITICAL_FAIL, FAIL, etc.) exist.
+    """
+    if not pr_author:
+        return ""
+
+    actionable_agents = [
+        _AGENT_DISPLAY_NAMES[agent]
+        for agent in _AGENTS
+        if verdicts.get(agent, "") in FAIL_VERDICTS
+    ]
+    if not actionable_agents:
+        return ""
+
+    lines = [
+        "",
+        "### Action Required",
+        "",
+        f"@{pr_author}, this PR has findings that need your attention:",
+        "",
+    ]
+    for agent_name in actionable_agents:
+        lines.append(f"- **{agent_name}** review flagged issues")
+    lines.append("")
+    lines.append(
+        "Please review the agent findings above and push fixes or reply with justification."
+    )
+    lines.append("")
+    return "\n".join(lines)
 
 
 def _build_findings_sections() -> str:
@@ -152,6 +195,8 @@ def main(argv: list[str] | None = None) -> int:
     ref_name: str = args.ref_name
     sha: str = args.sha
     final_verdict: str = args.final_verdict
+
+    pr_author: str = args.pr_author
 
     verdicts: dict[str, str] = {}
     categories: dict[str, str] = {}
@@ -212,6 +257,7 @@ def main(argv: list[str] | None = None) -> int:
     lines.append("")
 
     report = "\n".join(lines)
+    report += _build_action_required_section(pr_author, final_verdict, verdicts)
     report += _build_findings_sections()
 
     footer_lines = [

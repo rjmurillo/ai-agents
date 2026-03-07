@@ -1,0 +1,48 @@
+# Recovery hints for error classification (Issue #1330).
+#
+# Structure: top-level keys are sections. Each section is a list of
+# {pattern, hint} entries. Patterns are case-insensitive regex.
+#
+# Naming convention:
+#   tool_<name>  - hints scoped to a specific tool
+#   general      - hints applied to all failures
+
+tool_gh:
+  - pattern: "GraphQL: Could not resolve"
+    hint: "Issue or PR number may not exist. Verify with gh issue list or gh pr list."
+  - pattern: "HTTP 403"
+    hint: "Rate limited or insufficient permissions. Wait 60s or use gh api --cache."
+  - pattern: "HTTP 404"
+    hint: "Resource not found. Verify the owner/repo/number are correct."
+  - pattern: "HTTP 422"
+    hint: "Validation failed. Check required fields and value constraints."
+
+tool_git:
+  - pattern: "not a git repository"
+    hint: "Current directory is not a git repo. Verify working directory."
+  - pattern: "CONFLICT"
+    hint: "Merge conflict detected. Resolve conflicts before continuing."
+  - pattern: "Permission denied"
+    hint: "File permission error. Check file ownership and access rights."
+
+tool_python3:
+  - pattern: "ModuleNotFoundError"
+    hint: "Missing Python dependency. Run uv pip install or check pyproject.toml."
+  - pattern: "SyntaxError"
+    hint: "Python syntax error. Check the file for typos or version incompatibilities."
+
+tool_npm:
+  - pattern: "ENOENT.*package\\.json"
+    hint: "No package.json found. Verify you are in the correct directory."
+  - pattern: "ERESOLVE"
+    hint: "Dependency resolution conflict. Try npm install --legacy-peer-deps."
+
+general:
+  - pattern: "rate limit"
+    hint: "API rate limit hit. Wait before retrying or use cached data."
+  - pattern: "ETIMEDOUT|ECONNRESET|ECONNREFUSED"
+    hint: "Network error. Check connectivity and retry."
+  - pattern: "token.*expired|unauthorized|HTTP 401"
+    hint: "Authentication failure. Refresh credentials or tokens."
+  - pattern: "disk.*(full|space)|No space left"
+    hint: "Disk space exhausted. Free space before retrying."

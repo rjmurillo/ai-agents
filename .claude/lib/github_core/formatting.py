@@ -1,7 +1,4 @@
-"""Formatting utilities: emoji mappings for priorities and reactions.
-
-Canonical copy lives at scripts/github_core/formatting.py; keep in sync.
-"""
+"""Canonical: scripts/github_core/formatting.py. Sync via scripts/sync_plugin_lib.py."""
 
 from __future__ import annotations
 

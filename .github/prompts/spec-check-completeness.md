@@ -56,12 +56,35 @@ Output your analysis in this format:
 
 - **Completeness**: X% of acceptance criteria satisfied
 - **Quality**: [assessment of implementation quality]
-
-VERDICT: PASS
-MESSAGE: [Brief explanation]
 ```
 
-**IMPORTANT**: Output exactly `VERDICT: PASS`, `VERDICT: PARTIAL`, or `VERDICT: FAIL` (no brackets).
+End your analysis with a GitHub Alert block matching the verdict:
+
+For PASS:
+
+```markdown
+> [!TIP]
+> **VERDICT: PASS**
+> Implementation aligns with specification requirements. [Brief explanation]
+```
+
+For PARTIAL:
+
+```markdown
+> [!WARNING]
+> **VERDICT: PARTIAL**
+> Most criteria satisfied but minor gaps exist. [Brief explanation]
+```
+
+For FAIL:
+
+```markdown
+> [!CAUTION]
+> **VERDICT: FAIL**
+> Critical acceptance criteria not satisfied. [Brief explanation]
+```
+
+**IMPORTANT**: The alert block must contain exactly `VERDICT: PASS`, `VERDICT: PARTIAL`, or `VERDICT: FAIL` (no brackets around the token).
 
 ## Verdict Guidelines
 

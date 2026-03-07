@@ -138,3 +138,47 @@ def test_milestone_not_found(mock_run):
     with pytest.raises(SystemExit) as exc_info:
         main(["--issue", "1", "--milestone", "nonexistent"])
     assert exc_info.value.code == 2
+
+
+@patch("subprocess.run")
+def test_neither_milestone_nor_clear(mock_run):
+    """Must specify --milestone or --clear, otherwise exit 2 (config/usage error per ADR-035)."""
+    mock_run.side_effect = [
+        _completed(rc=0),  # auth
+        _completed(stdout="https://github.com/o/r\n"),  # remote
+    ]
+
+    with pytest.raises(SystemExit) as exc_info:
+        main(["--issue", "1"])
+    assert exc_info.value.code == 2
+
+
+@patch("subprocess.run")
+def test_clear_api_failure(mock_run):
+    """When the PATCH to clear milestone fails, exit 3."""
+    mock_run.side_effect = [
+        _completed(rc=0),  # auth
+        _completed(stdout="https://github.com/o/r\n"),  # remote
+        _completed(stdout="v1.0.0\n"),  # current milestone
+        _completed(rc=1),  # PATCH clear fails
+    ]
+
+    with pytest.raises(SystemExit) as exc_info:
+        main(["--issue", "1", "--clear"])
+    assert exc_info.value.code == 3
+
+
+@patch("subprocess.run")
+def test_set_milestone_api_failure(mock_run):
+    """When gh issue edit fails to set milestone, exit 3."""
+    mock_run.side_effect = [
+        _completed(rc=0),  # auth
+        _completed(stdout="https://github.com/o/r\n"),  # remote
+        _completed(stdout="null\n"),  # no current milestone
+        _completed(stdout="v1.0.0\n"),  # list milestones
+        _completed(rc=1),  # gh issue edit fails
+    ]
+
+    with pytest.raises(SystemExit) as exc_info:
+        main(["--issue", "1", "--milestone", "v1.0.0"])
+    assert exc_info.value.code == 3

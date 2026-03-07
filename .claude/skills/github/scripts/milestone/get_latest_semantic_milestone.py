@@ -86,7 +86,7 @@ def main(argv: list[str] | None = None) -> int:
 
     assert_gh_authenticated()
     resolved = resolve_repo_params(args.owner, args.repo)
-    owner, repo = resolved["Owner"], resolved["Repo"]
+    owner, repo = resolved.owner, resolved.repo
 
     endpoint = f"repos/{owner}/{repo}/milestones?state=open"
     milestones = gh_api_paginated(endpoint)

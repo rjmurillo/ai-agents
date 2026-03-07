@@ -8,8 +8,7 @@ Uses GraphQL variables for security (prevents injection via ThreadId).
 
 Exit codes follow ADR-035:
     0 - Success
-    1 - Invalid parameters / logic error
-    2 - Thread not found
+    2 - Config/usage error (invalid parameters, thread not found)
     3 - External error (API failure)
     4 - Auth error
 """
@@ -87,10 +86,10 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
 
     if not args.thread_id.strip():
-        error_and_exit("ThreadId parameter is required.", 1)
+        error_and_exit("ThreadId parameter is required.", 2)
 
     if not args.thread_id.startswith("PRRT_"):
-        error_and_exit("Invalid ThreadId format. Expected PRRT_... format.", 1)
+        error_and_exit("Invalid ThreadId format. Expected PRRT_... format.", 2)
 
     assert_gh_authenticated()
     resolve_repo_params(args.owner, args.repo)

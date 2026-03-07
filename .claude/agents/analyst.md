@@ -45,8 +45,8 @@ Query these Serena memories when relevant:
 
 Access via Memory Router or direct file read:
 
-```powershell
-pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "[memory-name]" -LexicalOnly
+```bash
+python3 .claude/skills/memory/scripts/search_memory.py --query "[memory-name]" --lexical-only
 # Or read directly:
 Read .serena/memories/[memory-name].md
 ```
@@ -62,7 +62,7 @@ You have direct access to:
 - **mcp__cognitionai-deepwiki__***: Repository documentation lookup
 - **mcp__context7__***: Library documentation lookup
 - **Memory Router** (ADR-037): Unified search across Serena + Forgetful
-  - `pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "topic"`
+  - `python3 .claude/skills/memory/scripts/search_memory.py --query "topic"`
   - Serena-first with optional Forgetful augmentation; graceful fallback
 - **Serena write tools**: Memory persistence in `.serena/memories/`
   - `mcp__serena__write_memory`: Create new memory
@@ -107,9 +107,9 @@ mcp__context7__get-library-docs with context7CompatibleLibraryID="/lib/id"
 
 ### GitHub Integration
 
-```powershell
+```bash
 # View issue details (using github skill - PREFERRED for detailed context)
-pwsh .claude/skills/github/scripts/issue/Get-IssueContext.ps1 -Issue [number]
+python3 .claude/skills/github/scripts/issue/get_issue_context.py --issue [number]
 ```
 
 ```bash
@@ -380,8 +380,8 @@ Use Memory Router for search and Serena tools for persistence (ADR-037):
 
 **Before analysis (retrieve context):**
 
-```powershell
-pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "[research topic] analysis patterns"
+```bash
+python3 .claude/skills/memory/scripts/search_memory.py --query "[research topic] analysis patterns"
 ```
 
 **After analysis (store learnings):**

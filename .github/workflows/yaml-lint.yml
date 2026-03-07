@@ -1,0 +1,79 @@
+# YAML Lint
+#
+# Validates YAML syntax and style across the repository using yamllint.
+# Uses dorny/paths-filter to skip when no YAML files change.
+#
+# Configuration: .yamllint.yml
+#
+# Local developers and AI agents can run the same check using:
+#   pip install yamllint && yamllint .
+
+name: YAML Lint
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check-paths:
+    name: Check Changed Paths
+    # ADR-025: ARM runner for cost optimization
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+    outputs:
+      yaml-changed: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.yaml }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+
+      - name: Check for YAML file changes
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36  # v3.0.2
+        id: filter
+        if: github.event_name != 'workflow_dispatch'
+        with:
+          filters: |
+            yaml:
+              - '**/*.yml'
+              - '**/*.yaml'
+              - '.yamllint.yml'
+              - '.github/workflows/yaml-lint.yml'
+
+  lint:
+    name: YAML Lint
+    needs: check-paths
+    if: needs.check-paths.outputs.yaml-changed == 'true'
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+
+      - name: Run yamllint
+        uses: ibiqlik/action-yamllint@2576378a8e339169678f9939646ee3ee325e845c  # v3.1.1
+        with:
+          config_file: .yamllint.yml
+
+  skip-lint:
+    name: YAML Lint
+    needs: check-paths
+    if: needs.check-paths.outputs.yaml-changed != 'true'
+    # ADR-025: ARM runner for cost optimization
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+    steps:
+      - name: Skip lint (no YAML files changed)
+        run: |
+          echo "No YAML files changed - skipping lint"
+          echo ""
+          echo "See the 'yaml' filter in check-paths job for paths that trigger linting."
+          echo "Reference: .github/workflows/yaml-lint.yml"

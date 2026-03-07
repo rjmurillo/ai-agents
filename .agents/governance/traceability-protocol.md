@@ -2,7 +2,7 @@
 type: governance
 id: traceability-protocol
 status: active
-version: 1.0.0
+version: 1.1.0
 created: 2025-12-31
 phase: 2
 related:
@@ -31,12 +31,60 @@ Applies to all files in:
 | [orphan-report-format.md](orphan-report-format.md) | Report format, remediation actions |
 | [spec-schemas.md](spec-schemas.md) | YAML front matter schemas |
 
-## The Traceability Chain
+## GitHub Issue Intake
+
+GitHub Issues are the entry point for work requests. This section defines how
+issues translate into the REQ, DESIGN, TASK spec layer.
+
+### Workflow
 
 ```text
-REQ-NNN ──traces_to──> DESIGN-NNN ──traces_to──> TASK-NNN
-   │                      │                         │
-   └─── Requirement ──────┴─── Design ─────────────┴─── Task
+GitHub Issue --> REQ-NNN --> DESIGN-NNN --> TASK-NNN
+    |               |
+    |               +-- source: GH-<issue>
+    +-- Spec link added as issue comment
+```
+
+1. **Triage**: Assign priority label (P0/P1/P2) and area label on the issue.
+2. **Translate**: Run the spec-generator agent with the issue as input.
+   The agent creates a REQ with `source: GH-<number>` in front matter.
+3. **Link back**: Post a comment on the GitHub issue referencing the created
+   REQ ID (e.g., "Tracked as REQ-005").
+4. **Decompose**: The spec-generator produces DESIGN and TASK specs that trace
+   back to the REQ. Standard traceability rules apply from this point.
+
+### Bidirectional Links
+
+| Direction | Mechanism | Example |
+|-----------|-----------|---------|
+| Issue to Spec | Comment on GitHub issue | "Tracked as REQ-005" |
+| Spec to Issue | `source` field in YAML front matter | `source: GH-720` |
+
+The `source` field uses the pattern `GH-<number>` where `<number>` is the
+GitHub issue number. See [spec-schemas.md](spec-schemas.md) for field details.
+
+### When to Skip Spec Generation
+
+Not every issue needs a full spec chain. Skip spec generation when:
+
+- The issue is a single-file fix with no design decisions.
+- The issue is a documentation-only change.
+- The change is under 20 lines and self-contained.
+
+For these cases, reference the issue directly in the commit message
+(`Fixes #<number>`) without creating spec artifacts.
+
+### Migration
+
+Existing GitHub issues do not require retroactive spec generation. Apply this
+workflow to new work going forward. For in-progress epics, create specs when
+the next implementation session begins.
+
+## The Traceability Chain
+
+```mermaid
+graph LR
+    REQ-NNN -->|traces_to| DESIGN-NNN -->|traces_to| TASK-NNN
 ```
 
 **Rule**: Every DESIGN must have at least one REQ reference (backward) and at least one TASK reference (forward).
@@ -246,22 +294,35 @@ pwsh scripts/Validate-Traceability.ps1 -Format markdown > .agents/reports/tracea
 ### Feature Development Flow
 
 ```text
-1. Create REQ-NNN (requirement)
-2. Create DESIGN-NNN referencing REQ-NNN
-3. Create TASK-NNN referencing DESIGN-NNN
-4. Pre-commit validates traceability
-5. Critic validates during plan review
-6. Retrospective captures metrics
+1. Triage GitHub Issue (assign priority and area labels)
+2. Run spec-generator to create REQ-NNN (source: GH-<issue>)
+3. Post REQ link as comment on GitHub issue
+4. Create DESIGN-NNN referencing REQ-NNN
+5. Create TASK-NNN referencing DESIGN-NNN
+6. Pre-commit validates traceability
+7. Critic validates during plan review
+8. Retrospective captures metrics
+```
+
+```mermaid
+graph TD
+    A[Triage GitHub Issue] --> B[Run spec-generator to create REQ-NNN]
+    B --> C[Post REQ link as comment on GitHub issue]
+    C --> D[Create DESIGN-NNN referencing REQ-NNN]
+    D --> E[Create TASK-NNN referencing DESIGN-NNN]
+    E --> F[Pre-commit validates traceability]
+    F --> G[Critic validates during plan review]
+    G --> H[Retrospective captures metrics]
 ```
 
 ### Spec Modification Flow
 
-```text
-1. Modify spec file
-2. Update related field if references change
-3. Run validation: pwsh scripts/Validate-Traceability.ps1
-4. Fix any errors before committing
-5. Pre-commit hook validates on commit
+```mermaid
+graph TD
+    A[Modify spec file] --> B[Update related field if references change]
+    B --> C[Run validation: Validate-Traceability.ps1]
+    C --> D[Fix any errors before committing]
+    D --> E[Pre-commit hook validates on commit]
 ```
 
 ## Troubleshooting
