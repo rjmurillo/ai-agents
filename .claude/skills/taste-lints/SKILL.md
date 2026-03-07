@@ -98,3 +98,13 @@ python3 .claude/skills/taste-lints/scripts/taste_lints.py --rules file-size,nami
 | 0 | No violations found |
 | 1 | Script error (bad arguments, file not found) |
 | 10 | Violations detected |
+
+## Suppression
+
+Add a comment to suppress a specific rule on a file:
+
+```python
+# taste-lint: ignore file-size
+```
+
+Valid rules: `file-size`, `naming`, `complexity`, `skill-size`
