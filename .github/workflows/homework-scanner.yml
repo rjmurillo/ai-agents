@@ -33,7 +33,7 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
-          python scripts/homework_scanner.py \
+          python -m scripts.homework_scanner \
             --pr "$PR_NUMBER" \
             --repo "$GITHUB_REPOSITORY" \
             --output homework-results.json
