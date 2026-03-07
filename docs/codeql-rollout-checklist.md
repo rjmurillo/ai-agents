@@ -395,7 +395,7 @@ gh workflow disable codeql-analysis.yml
 
 ```bash
 # Temporarily disable hook
-mv .claude/hooks/PostToolUse/invoke_codeql_quick_scan.py .claude/hooks/PostToolUse/invoke_codeql_quick_scan.py.disabled
+mv ".claude/hooks/PostToolUse/invoke_codeql_quick_scan.py" ".claude/hooks/PostToolUse/invoke_codeql_quick_scan.py.disabled"
 ```
 
 ### Partial Rollback
@@ -429,7 +429,7 @@ rm -r .codeql/cli
 
 # Remove Claude integration
 rm -r .claude/skills/codeql-scan
-rm .claude/hooks/PostToolUse/invoke_codeql_quick_scan.py
+rm ".claude/hooks/PostToolUse/invoke_codeql_quick_scan.py"
 
 # Commit rollback
 git add .
