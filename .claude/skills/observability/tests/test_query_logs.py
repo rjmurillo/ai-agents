@@ -205,41 +205,62 @@ class TestMatchesFiltersRegexSafety:
         entry = {"message": "error code 42"}
         assert mod.matches_filters(entry, pattern=r"code\s+\d+")
 
+    def test_regex_timeout_returns_false(self, monkeypatch):
+        """Verify that _RegexTimeoutError in search is caught and returns False."""
+        mod = _load_module()
+        import signal as sig
+        if not hasattr(sig, "SIGALRM"):
+            return  # Skip on non-Unix platforms
+
+        # Patch _search_with_timeout to always raise the timeout error
+        def _fake_search(compiled, text):
+            raise mod._RegexTimeoutError("simulated timeout")
+
+        monkeypatch.setattr(mod, "_search_with_timeout", _fake_search)
+        entry = {"message": "hello world"}
+        assert not mod.matches_filters(entry, pattern="hello")
+
 
 class TestValidateFilePath:
-    def test_valid_path_within_workspace(self, tmp_path, monkeypatch):
+    def test_valid_file_resolves(self, tmp_path):
         mod = _load_module()
         log_file = tmp_path / "test.jsonl"
         log_file.write_text("{}\n", encoding="utf-8")
-        monkeypatch.setattr(mod, "_get_workspace_root", lambda: tmp_path)
         result = mod.validate_file_path(log_file)
         assert result == log_file.resolve()
 
-    def test_path_traversal_rejected(self, tmp_path, monkeypatch):
+    def test_nonexistent_path_rejected(self, tmp_path):
         mod = _load_module()
-        monkeypatch.setattr(mod, "_get_workspace_root", lambda: tmp_path)
         import pytest
-        with pytest.raises(ValueError, match="outside workspace root"):
-            mod.validate_file_path(Path("/etc/passwd"))
+        with pytest.raises(FileNotFoundError):
+            mod.validate_file_path(tmp_path / "does_not_exist.jsonl")
 
-    def test_dotdot_traversal_rejected(self, tmp_path, monkeypatch):
+    def test_directory_path_rejected(self, tmp_path):
         mod = _load_module()
-        monkeypatch.setattr(mod, "_get_workspace_root", lambda: tmp_path)
         import pytest
-        with pytest.raises(ValueError, match="outside workspace root"):
-            mod.validate_file_path(tmp_path / ".." / ".." / "etc" / "passwd")
+        with pytest.raises(ValueError, match="not a file"):
+            mod.validate_file_path(tmp_path)
+
+    def test_dotdot_resolves_canonically(self, tmp_path):
+        mod = _load_module()
+        # Create a valid file, reference it via .. traversal
+        sub = tmp_path / "sub"
+        sub.mkdir()
+        log_file = tmp_path / "test.jsonl"
+        log_file.write_text("{}\n", encoding="utf-8")
+        traversal_path = sub / ".." / "test.jsonl"
+        result = mod.validate_file_path(traversal_path)
+        assert result == log_file.resolve()
 
 
 class TestMainCLI:
-    def test_file_not_found(self, tmp_path, monkeypatch):
+    def test_file_not_found(self, tmp_path):
         mod = _load_module()
-        monkeypatch.setattr(mod, "_get_workspace_root", lambda: tmp_path)
         rc = mod.main([str(tmp_path / "nonexistent.jsonl")])
         assert rc == 1
 
-    def test_query_logs(self, tmp_path, capsys, monkeypatch):
+    def test_query_logs(self, tmp_path, capsys):
         mod = _load_module()
-        monkeypatch.setattr(mod, "_get_workspace_root", lambda: tmp_path)
         log_file = _write_log_file(tmp_path, [
             json.dumps({"level": "ERROR", "message": "fail"}),
         ])
@@ -248,9 +269,8 @@ class TestMainCLI:
         output = json.loads(capsys.readouterr().out)
         assert len(output) == 1
 
-    def test_summary_mode(self, tmp_path, capsys, monkeypatch):
+    def test_summary_mode(self, tmp_path, capsys):
         mod = _load_module()
-        monkeypatch.setattr(mod, "_get_workspace_root", lambda: tmp_path)
         log_file = _write_log_file(tmp_path, [
             json.dumps({"level": "INFO", "message": "a"}),
             json.dumps({"level": "ERROR", "message": "b"}),
@@ -260,9 +280,8 @@ class TestMainCLI:
         output = json.loads(capsys.readouterr().out)
         assert output["total"] == 2
 
-    def test_metrics_mode(self, tmp_path, capsys, monkeypatch):
+    def test_metrics_mode(self, tmp_path, capsys):
         mod = _load_module()
-        monkeypatch.setattr(mod, "_get_workspace_root", lambda: tmp_path)
         metrics_file = tmp_path / "m.json"
         metrics_file.write_text(json.dumps({"cpu": 42}), encoding="utf-8")
         rc = mod.main([str(metrics_file), "--metrics"])
@@ -270,17 +289,22 @@ class TestMainCLI:
         output = json.loads(capsys.readouterr().out)
         assert output["cpu"] == 42
 
-    def test_path_traversal_rejected(self, tmp_path, capsys, monkeypatch):
+    def test_nonexistent_file_rejected(self, tmp_path, capsys):
         mod = _load_module()
-        monkeypatch.setattr(mod, "_get_workspace_root", lambda: tmp_path)
-        rc = mod.main(["/etc/passwd"])
+        rc = mod.main([str(tmp_path / "nonexistent.jsonl")])
         assert rc == 1
         output = json.loads(capsys.readouterr().out)
-        assert "outside workspace root" in output["error"]
+        assert "File not found" in output["error"]
 
-    def test_pattern_too_long_rejected(self, tmp_path, capsys, monkeypatch):
+    def test_directory_path_rejected(self, tmp_path, capsys):
         mod = _load_module()
-        monkeypatch.setattr(mod, "_get_workspace_root", lambda: tmp_path)
+        rc = mod.main([str(tmp_path)])
+        assert rc == 1
+        output = json.loads(capsys.readouterr().out)
+        assert "not a file" in output["error"]
+
+    def test_pattern_too_long_rejected(self, tmp_path, capsys):
+        mod = _load_module()
         log_file = _write_log_file(tmp_path, [
             json.dumps({"level": "INFO", "message": "ok"}),
         ])
@@ -290,9 +314,8 @@ class TestMainCLI:
         output = json.loads(capsys.readouterr().out)
         assert "Pattern too long" in output["error"]
 
-    def test_invalid_regex_rejected(self, tmp_path, capsys, monkeypatch):
+    def test_invalid_regex_rejected(self, tmp_path, capsys):
         mod = _load_module()
-        monkeypatch.setattr(mod, "_get_workspace_root", lambda: tmp_path)
         log_file = _write_log_file(tmp_path, [
             json.dumps({"level": "INFO", "message": "ok"}),
         ])

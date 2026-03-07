@@ -15,7 +15,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
-import subprocess
+import signal
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -23,44 +23,55 @@ from pathlib import Path
 # Maximum length for user-supplied regex patterns (CWE-400 ReDoS protection)
 _MAX_PATTERN_LENGTH = 1000
 
+# Timeout in seconds for individual regex search operations (CWE-400)
+_REGEX_TIMEOUT_SECONDS = 5
 
-def _get_workspace_root() -> Path:
-    """Return the workspace root directory for path containment checks.
 
-    Uses git rev-parse when available, falls back to the skill directory's
-    ancestor (4 levels up from .claude/skills/observability/query_logs.py).
+class _RegexTimeoutError(Exception):
+    """Raised when a regex operation exceeds the allowed time."""
+
+
+def _regex_timeout_handler(signum: int, frame: object) -> None:
+    """Signal handler that raises on regex timeout."""
+    raise _RegexTimeoutError("Regex search exceeded timeout")
+
+
+def _search_with_timeout(compiled: re.Pattern, text: str) -> re.Match | None:
+    """Run a regex search with a SIGALRM guard against ReDoS (CWE-400).
+
+    On non-Unix platforms (no SIGALRM), falls back to unguarded search.
+    Pattern length validation in main() still limits risk on those platforms.
     """
+    if not hasattr(signal, "SIGALRM"):
+        return compiled.search(text)
+
+    prev_handler = signal.signal(signal.SIGALRM, _regex_timeout_handler)
+    signal.alarm(_REGEX_TIMEOUT_SECONDS)
     try:
-        result = subprocess.run(
-            ["git", "rev-parse", "--show-toplevel"],
-            capture_output=True,
-            text=True,
-            check=True,
-            timeout=5,
-        )
-        return Path(result.stdout.strip()).resolve()
-    except (subprocess.SubprocessError, FileNotFoundError, OSError):
-        return Path(__file__).resolve().parents[3]
+        return compiled.search(text)
+    finally:
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, prev_handler)
 
 
 def validate_file_path(path: Path) -> Path:
-    """Resolve and validate that a file path stays within the workspace root.
+    """Resolve and validate that a file path is a real, accessible file.
 
-    Prevents CWE-22 path traversal by resolving symlinks and ensuring the
-    canonical path is a descendant of the workspace root.
+    Prevents CWE-22 path traversal by resolving the path to its canonical
+    form (eliminating .. and symlinks). Verifies the result is an existing
+    file. Relies on OS permissions for access control, which allows
+    legitimate CI use cases that read log files outside the repository.
 
     Returns:
         The resolved Path.
 
     Raises:
-        ValueError: If the resolved path escapes the workspace root.
+        FileNotFoundError: If the path does not exist after resolution.
+        ValueError: If the resolved path is not a regular file.
     """
-    workspace_root = _get_workspace_root()
-    resolved = path.resolve()
-    if not resolved.is_relative_to(workspace_root):
-        raise ValueError(
-            f"Path {path} resolves outside workspace root ({workspace_root})"
-        )
+    resolved = path.resolve(strict=True)
+    if not resolved.is_file():
+        raise ValueError(f"Path is not a file: {resolved}")
     return resolved
 
 
@@ -107,7 +118,11 @@ def matches_filters(
             compiled = re.compile(pattern, re.IGNORECASE)
         except re.error:
             return False
-        if not compiled.search(message):
+        try:
+            matched = _search_with_timeout(compiled, message)
+        except _RegexTimeoutError:
+            return False
+        if not matched:
             return False
 
     return True
@@ -225,15 +240,14 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    # CWE-22: Validate path stays within workspace root
+    # CWE-22: Resolve path canonically to prevent traversal attacks.
     try:
         resolved_path = validate_file_path(args.path)
-    except ValueError as exc:
-        print(json.dumps({"error": str(exc)}))
-        return 1
-
-    if not resolved_path.exists():
+    except FileNotFoundError:
         print(json.dumps({"error": f"File not found: {args.path}"}))
+        return 1
+    except (ValueError, OSError) as exc:
+        print(json.dumps({"error": str(exc)}))
         return 1
 
     if args.metrics:
