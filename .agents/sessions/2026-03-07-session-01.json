@@ -1,0 +1,33 @@
+{
+  "session": {
+    "id": "2026-03-07-session-01",
+    "timestamp": "2026-03-07T12:54:00-08:00",
+    "role": "developer",
+    "issueId": 946,
+    "issueName": "[ADR] Synthesis Panel Frontmatter Standard",
+    "objective": "Create ADR-044 defining YAML frontmatter schema for DESIGN-REVIEW documents to enable automated enforcement of blocking architect reviews"
+  },
+  "work": {
+    "type": "documentation",
+    "phase": "implementation",
+    "status": "in_progress"
+  },
+  "artifacts": {
+    "created": [
+      ".agents/architecture/ADR-044-synthesis-panel-frontmatter-standard.md",
+      ".agents/architecture/DESIGN-REVIEW-template.md"
+    ],
+    "modified": [],
+    "deleted": []
+  },
+  "decisions": [
+    "ADR-044 defines YAML frontmatter schema with: status, priority, blocking, reviewer, date, pr-branch (opt), scope (opt)",
+    "CI gate will block merges when blocking: true and status is not APPROVED",
+    "Template created for architect agent to use as reference",
+    "Frontmatter pattern follows ADR-040 (skill frontmatter) precedent"
+  ],
+  "blockers": [
+    "Session log required before commit per SESSION-PROTOCOL.md",
+    "ADR review required for architectural decisions (design review consensus)"
+  ]
+}
