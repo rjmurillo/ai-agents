@@ -627,6 +627,7 @@ try {
     }
 
     $MemoriesDirFull = [System.IO.Path]::GetFullPath($MemoriesDir)
+    $MemoriesDirFull = $MemoriesDirFull.TrimEnd([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar)
 
     if (-not (Test-Path $MemoriesDirFull -PathType Container)) {
         throw "Base directory does not exist: $MemoriesDirFull"
