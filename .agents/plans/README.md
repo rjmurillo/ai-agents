@@ -19,4 +19,5 @@ Execution plans are first-class versioned artifacts for complex, multi-step work
 ## Related
 
 - Skill: `.claude/skills/execution-plans/SKILL.md`
+- Tech Debt Registry: `.agents/debt/tech-debt-registry.md`
 - Source: [OpenAI Harness Engineering](https://openai.com/index/harness-engineering/)

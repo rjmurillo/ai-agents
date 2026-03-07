@@ -4,7 +4,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Status** | In Progress |
+| **Status** | In Progress / Completed / Blocked / Abandoned |
 | **Created** | YYYY-MM-DD |
 | **Owner** | {agent-name} |
 | **Complexity** | Low / Medium / High |

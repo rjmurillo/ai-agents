@@ -13,10 +13,13 @@ Treat execution plans as first-class artifacts, versioned in the repository.
 ## Directory Structure
 
 ```text
-.agents/plans/
-├── active/        # Plans currently in progress
-├── completed/     # Successfully finished plans
-└── abandoned/     # Plans that were stopped (with rationale)
+.agents/
+├── plans/
+│   ├── active/        # Plans currently in progress
+│   ├── completed/     # Successfully finished plans
+│   └── abandoned/     # Plans that were stopped (with rationale)
+└── debt/
+    └── tech-debt-registry.md  # Known technical debt items
 ```
 
 ## Triggers
@@ -73,6 +76,12 @@ Add row to Decision Log table:
 2. Update status to Completed
 3. Move file from `active/` to `completed/`
 4. Add final progress entry
+
+### Blocking a Plan
+
+1. Update status to Blocked
+2. Document impediment in Blockers section
+3. Add progress entry noting the block
 
 ### Abandoning a Plan
 
