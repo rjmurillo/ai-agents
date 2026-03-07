@@ -72,8 +72,8 @@ jobs:
           base_branch: "main"
           branch_prefix: "rjmurillo-bot/"
 
-          # Progress tracking (not supported for labeled action)
-          track_progress: true
+          # Progress tracking (not supported for review_requested action)
+          track_progress: ${{ github.event.action != 'review_requested' }}
 
           # Commit signing for security
           use_commit_signing: true
