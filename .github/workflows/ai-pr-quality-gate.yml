@@ -593,8 +593,9 @@ jobs:
             # Read verdict (file existence already validated)
             $verdict = (Get-Content $verdictFile -Raw).Trim()
 
-            # Read infrastructure flag
-            $infra = if (Test-Path $infraFile) { (Get-Content $infraFile -Raw).Trim() } else { "false" }
+            # Read infrastructure flag (null-safe: empty files return $null from Get-Content -Raw)
+            $infraRaw = if (Test-Path $infraFile) { Get-Content $infraFile -Raw } else { $null }
+            $infra = if ([string]::IsNullOrWhiteSpace($infraRaw)) { "false" } else { $infraRaw.Trim() }
 
             Write-Output "  ${agent}: $verdict (infra: $infra)"
 
@@ -665,7 +666,8 @@ jobs:
             $retryFile = "ai-review-results/$agent-retry-count.txt"
 
             if (Test-Path $infraFile) {
-              $infraFlag = (Get-Content $infraFile -Raw).Trim()
+              $infraRaw = Get-Content $infraFile -Raw
+              $infraFlag = if ([string]::IsNullOrWhiteSpace($infraRaw)) { "false" } else { $infraRaw.Trim() }
               if ($infraFlag -eq "true") {
                 $infrastructureFailureDetected = $true
                 $retryCount = 0

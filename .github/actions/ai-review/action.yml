@@ -181,6 +181,20 @@ runs:
           echo "::warning::See ADR-044 for auto-update bypass details."
         fi
 
+    - name: Deploy agents for Copilot CLI
+      shell: bash
+      run: |
+        # Copilot CLI expects agent definitions in .github/agents/
+        # Source files live in src/copilot-cli/ (ADR-036 two-source architecture)
+        if [ ! -d ".github/agents" ] && [ -d "src/copilot-cli" ]; then
+          echo "Deploying agents from src/copilot-cli/ to .github/agents/"
+          mkdir -p .github/agents
+          cp src/copilot-cli/*.agent.md .github/agents/
+          echo "Deployed $(ls .github/agents/*.agent.md | wc -l) agent files"
+        else
+          echo "Agent files already present in .github/agents/"
+        fi
+
     - name: Verify GitHub authentication
       if: inputs.enable-diagnostics == 'true'
       shell: bash
