@@ -3,6 +3,7 @@ name: context-retrieval
 description: Context retrieval specialist for gathering relevant memories, code patterns, and framework documentation before planning or implementation. Use PROACTIVELY when about to plan or implement code - searches Forgetful Memory across ALL projects, reads linked artifacts/documents, and queries Context7 for framework-specific guidance.
 tools: mcp__forgetful__discover_forgetful_tools, mcp__forgetful__how_to_use_forgetful_tool, mcp__forgetful__execute_forgetful_tool, mcp__context7__resolve-library-id, mcp__context7__get-library-docs, mcp__serena__*, mcp__plugin_claude-mem_mcp-search__*, mcp__deepwiki__*, WebSearch, WebFetch, Read, Glob, Grep
 model: haiku
+tier: integration
 ---
 
 # Context Retrieval Agent

@@ -784,6 +784,155 @@ Triage by priority and implement fixes.
 
 ---
 
+## 2.5 Agent Tier Hierarchy
+
+### Overview
+
+The agent system implements a 4-tier hierarchy enabling clear escalation paths and delegation patterns per ADR-009 (Parallel-Safe Multi-Agent Design).
+
+```mermaid
+graph TD
+    I[Integration Tier] -->|Supports| B[Builder Tier]
+    I -->|Supports| M[Manager Tier]
+    I -->|Supports| E[Expert Tier]
+    B -->|Escalates Conflicts| M
+    M -->|Escalates Conflicts| E
+    M -->|Delegates Work| B
+    E -->|Delegates Work| M
+    E -->|Delegates Work| B
+```
+
+### Tier 1: Expert (Strategic Depth)
+
+**Purpose**: Strategic decisions, priority arbitration, conflict resolution
+**Escalation Point**: Final authority for conflicts between lower tiers
+
+| Agent | Model | Primary Responsibility |
+|-------|-------|----------------------|
+| high-level-advisor | opus | Strategic decisions, priority arbitration |
+| independent-thinker | sonnet | Challenge assumptions, alternative viewpoints |
+| architect | sonnet | Design governance, ADR creation |
+| roadmap | sonnet | Epic definition, business value prioritization |
+
+**Delegation Rules**:
+- Can delegate to any lower tier
+- Cannot be overridden by lower tiers
+- Resolves conflicts escalated from Manager tier
+
+### Tier 2: Manager (Coordination)
+
+**Purpose**: Task routing, workflow coordination, plan validation
+**Aggregation Point**: Combines results from parallel Builder execution per ADR-009
+
+| Agent | Model | Primary Responsibility |
+|-------|-------|----------------------|
+| orchestrator | opus | Task routing, workflow coordination |
+| milestone-planner | sonnet | Milestone breakdown, dependency sequencing |
+| critic | sonnet | Plan validation, blocker identification |
+| issue-feature-review | sonnet | Issue triage and feature review |
+| pr-comment-responder | sonnet | PR feedback coordination |
+
+**Delegation Rules**:
+- Delegates to Builder and Integration tiers
+- Escalates conflicts to Expert tier
+- Aggregates parallel execution results
+
+### Tier 3: Builder (Execution)
+
+**Purpose**: Production implementation, testing, deployment
+**Parallelizable**: Can execute concurrently with conflict detection
+
+| Agent | Model | Primary Responsibility |
+|-------|-------|----------------------|
+| implementer | opus | Production code, .NET patterns |
+| qa | sonnet | Test strategy, verification |
+| devops | sonnet | CI/CD, deployment |
+| security | sonnet | Vulnerability assessment, OWASP |
+| debug | sonnet | Debugging and root cause analysis |
+
+**Delegation Rules**:
+- Cannot delegate to other Builders (parallel peers)
+- Can request Integration tier support
+- Escalates conflicts to Manager tier
+
+### Tier 4: Integration (Support)
+
+**Purpose**: Research, documentation, context management
+**Support Functions**: Available to all tiers
+
+| Agent | Model | Primary Responsibility |
+|-------|-------|----------------------|
+| analyst | sonnet | Research, root cause analysis |
+| explainer | sonnet | PRDs, documentation |
+| task-decomposer | sonnet | Atomic task breakdown |
+| retrospective | sonnet | Learning extraction |
+| spec-generator | sonnet | Specification generation |
+| adr-generator | sonnet | ADR creation |
+| backlog-generator | sonnet | Backlog item generation |
+| memory | haiku | Context retrieval/storage |
+| skillbook | haiku | Skill management |
+| context-retrieval | haiku | Memory search, docs fetch |
+
+**Delegation Rules**:
+- Cannot delegate (leaf tier)
+- Returns results to requesting tier
+- No escalation authority
+
+### Escalation Triggers
+
+| Path | Trigger |
+|------|---------|
+| **Builder → Manager** | Conflicting recommendations between parallel Builders |
+| **Manager → Expert** | Strategic decision required, priority conflicts, architectural disputes |
+| **Any → Expert** | Critical security decisions, major architectural changes |
+
+### Tier Compatibility Rules
+
+**Valid Delegation Patterns**:
+- Expert → Manager, Builder, Integration
+- Manager → Builder, Integration
+- Builder → Integration
+- Integration → None (leaf tier)
+
+**Invalid Patterns** (use escalation instead):
+- Builder → Builder (use parallel execution)
+- Integration → Any (cannot delegate)
+- Lower tier → Higher tier (escalate, don't delegate)
+
+### Escalation Examples
+
+#### Example 1: Builder Conflict → Manager Escalation
+
+**Scenario**: Security agent recommends rejecting PR due to vulnerability; QA agent approves based on test coverage.
+
+1. Orchestrator detects conflict between Builder-tier agents
+2. Escalates to Critic (Manager tier) for validation
+3. Critic reviews both positions and makes coordination decision
+
+**Resolution**: Manager tier has authority to prioritize security over test coverage.
+
+#### Example 2: Manager Conflict → Expert Escalation
+
+**Scenario**: Planner proposes 3-sprint timeline; Critic identifies architectural blockers requiring 5 sprints.
+
+1. Orchestrator detects Manager-tier disagreement
+2. Escalates to Architect (Expert tier) for design decision
+3. Architect evaluates technical feasibility and provides verdict
+
+**Resolution**: Expert tier makes final architectural decision.
+
+#### Example 3: Strategic Priority → Expert Direct
+
+**Scenario**: Feature request conflicts with roadmap priorities.
+
+1. Orchestrator recognizes strategic decision required
+2. Routes directly to Roadmap agent (Expert tier)
+3. Roadmap agent evaluates business value and provides priority verdict
+
+**Resolution**: Expert tier sets strategic direction without lower-tier involvement.
+
+---
+
 ## 3. Workflow Patterns
 
 **Reference**: These workflows are the canonical patterns defined in `../../src/claude/orchestrator.md`. The orchestrator coordinates all agent delegation using a one-level-deep pattern (orchestrator → subagent → back to orchestrator).
