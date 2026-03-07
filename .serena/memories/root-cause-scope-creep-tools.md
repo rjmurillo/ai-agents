@@ -41,8 +41,6 @@ not intentional scope expansion.
 - **Similar to**: RootCause-Context-Loss-004 (losing track of original objective)
 - **Related to**: RootCause-Process-001 (Governance Without Enforcement)
 - **Related to**: RootCause-Process-002 (Late Feedback Loop)
-- **Case Study**: [case-study-pr-908](case-study-pr-908.md)
-
 ## References
 
 - `.agents/retrospective/2026-01-15-pr-908-comprehensive-retrospective.md` (lines 1080-1120)

@@ -41,8 +41,6 @@ instead of 10-30 seconds.
 - **Similar to**: RootCause-Fail-Safe-003 (bypassing hooks with --no-verify)
 - **Related to**: RootCause-Process-001 (Governance Without Enforcement)
 - **Related to**: RootCause-Process-003 (Scope Creep via Tool Side Effects)
-- **Case Study**: [case-study-pr-908](case-study-pr-908.md)
-
 ## References
 
 - `.agents/retrospective/2026-01-15-pr-908-comprehensive-retrospective.md` (lines 1038-1078)

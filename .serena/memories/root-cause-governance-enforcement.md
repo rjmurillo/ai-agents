@@ -7,9 +7,11 @@
 
 ## Description
 
-Governance limits exist (ADR-008: 20 commits, best practice: 5-10 files) but are not enforced
-programmatically. Agents rely on memory/discipline to follow limits. When limits are invisible
-(no counter) or advisory (BLOCKING without halt), violations accumulate.
+Governance limits exist (ADR-008: 20 commits, best practice: 5-10 files) and are now enforced
+via pre-push hooks that block violations and CI checks that require labels to override.
+Previously, agents relied on memory/discipline to follow limits. When limits were invisible
+(no counter) or advisory (BLOCKING without halt), violations accumulated. The enforcement
+gap has been closed.
 
 ## Detection Signals
 
@@ -43,8 +45,6 @@ programmatically. Agents rely on memory/discipline to follow limits. When limits
 - **Similar to**: RootCause-Context-Loss-002 (session continuation without loading prior context)
 - **Related to**: RootCause-Process-002 (Late Feedback Loop)
 - **Related to**: RootCause-Process-003 (Scope Creep via Tool Side Effects)
-- **Case Study**: [case-study-pr-908](case-study-pr-908.md)
-
 ## References
 
 - `.agents/retrospective/2026-01-15-pr-908-comprehensive-retrospective.md` (lines 997-1036)
