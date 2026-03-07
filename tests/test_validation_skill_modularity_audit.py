@@ -8,13 +8,14 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import scripts.validation.skill_modularity_audit as skill_modularity_audit_mod
+from scripts.validation.frontmatter import has_size_exception
 from scripts.validation.skill_modularity_audit import (
     IDEAL_MAX_LINES,
     MAX_H2_SECTIONS,
     SkillAuditResult,
     _count_headings,
     _generate_recommendations,
-    _parse_frontmatter_exception,
     _score_modularity,
     audit_all_skills,
     audit_skill,
@@ -22,23 +23,23 @@ from scripts.validation.skill_modularity_audit import (
 )
 
 
-class TestParseFrontmatterException:
+class TestHasSizeException:
     """Tests for size exception detection in frontmatter."""
 
     def test_exception_declared(self) -> None:
         content = "---\nname: big-skill\nsize-exception: true\n---\nBody"
-        assert _parse_frontmatter_exception(content) is True
+        assert has_size_exception(content) is True
 
     def test_no_exception(self) -> None:
         content = "---\nname: small-skill\n---\nBody"
-        assert _parse_frontmatter_exception(content) is False
+        assert has_size_exception(content) is False
 
     def test_no_frontmatter(self) -> None:
-        assert _parse_frontmatter_exception("No frontmatter") is False
+        assert has_size_exception("No frontmatter") is False
 
     def test_unclosed_frontmatter(self) -> None:
         content = "---\nsize-exception: true\nNo closing"
-        assert _parse_frontmatter_exception(content) is False
+        assert has_size_exception(content) is False
 
 
 class TestCountHeadings:
@@ -218,20 +219,23 @@ class TestAuditAllSkills:
 class TestMain:
     """Tests for CLI entry point."""
 
-    def test_main_success(self, tmp_path: Path) -> None:
+    def test_main_success(self, tmp_path: Path, monkeypatch: object) -> None:
+        monkeypatch.setattr(skill_modularity_audit_mod, "_PROJECT_ROOT", tmp_path)
         skill_dir = tmp_path / "ok-skill"
         skill_dir.mkdir()
         (skill_dir / "SKILL.md").write_text("---\nname: ok\n---\n## P\nOK.\n")
         assert main(["--path", str(tmp_path)]) == 0
 
-    def test_main_ci_fails_on_oversized(self, tmp_path: Path) -> None:
+    def test_main_ci_fails_on_oversized(self, tmp_path: Path, monkeypatch: object) -> None:
+        monkeypatch.setattr(skill_modularity_audit_mod, "_PROJECT_ROOT", tmp_path)
         skill_dir = tmp_path / "huge"
         skill_dir.mkdir()
         lines = ["---", "name: huge", "---"] + ["line"] * 600
         (skill_dir / "SKILL.md").write_text("\n".join(lines))
         assert main(["--path", str(tmp_path), "--ci"]) == 1
 
-    def test_main_json_output(self, tmp_path: Path, capsys: object) -> None:
+    def test_main_json_output(self, tmp_path: Path, monkeypatch: object, capsys: object) -> None:
+        monkeypatch.setattr(skill_modularity_audit_mod, "_PROJECT_ROOT", tmp_path)
         skill_dir = tmp_path / "json-test"
         skill_dir.mkdir()
         (skill_dir / "SKILL.md").write_text("---\nname: json-test\n---\n## P\nOK.\n")
