@@ -51,6 +51,26 @@ model: claude-sonnet-4-5   # Standard workflows (<5s, standard cost)
 model: claude-opus-4-5     # Orchestration, reasoning (<30s, premium justified)
 ```
 
+## Modularity Guidelines (SkillsBench)
+
+SkillsBench (Feb 2026) found that smaller, modular skills outperform large data dumps.
+Human-curated skills boost task completion by +16.2%. Self-generated skills hurt by -1.3%.
+
+| Guideline | Target | Why |
+|-----------|--------|-----|
+| SKILL.md lines | <=300 ideal, 500 max | Smaller skills outperform large dumps |
+| Top-level sections (h2) | <=10 | Signals single responsibility |
+| Progressive disclosure | Use scripts/, references/, templates/ | Keeps prompt focused, details accessible |
+| Modularity score | >=80 | Run `python3 scripts/validation/skill_modularity_audit.py` |
+
+When a skill exceeds these targets, refactor by:
+1. Extract reference tables and examples to `references/`
+2. Move procedural logic to `scripts/`
+3. Split skills with >10 h2 sections into focused sub-skills
+4. Use `templates/` for structured output formats
+
+Audit command: `python3 scripts/validation/skill_modularity_audit.py [--json] [--ci]`
+
 ## Validation Rules
 
 - Frontmatter MUST start with `---` on line 1 (no blank lines)
