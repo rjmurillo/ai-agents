@@ -243,7 +243,7 @@ def main() -> int:
         # Fail-closed: git errors block to prevent bypass.
         try:
             adr_changes = get_staged_adr_changes()
-        except RuntimeError as exc:
+        except (RuntimeError, FileNotFoundError, subprocess.TimeoutExpired, OSError) as exc:
             error_msg = f"Staged ADR check failed (fail-closed): {exc}"
             print(error_msg, file=sys.stderr)
             write_audit_log(error_msg)

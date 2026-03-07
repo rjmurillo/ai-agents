@@ -209,7 +209,14 @@ get_markdownlint_cmd() {
 }
 
 set_python_cmd() {
-    # Try python3 first (preferred)
+    # Try uv run python first (handles virtual environments)
+    if command -v uv &> /dev/null; then
+        if uv run python -c 'import sys' &> /dev/null; then
+            PYTHON_CMD=(uv run python)
+            return 0
+        fi
+    fi
+    # Try python3 (preferred system fallback)
     if command -v python3 &> /dev/null; then
         if python3 -c 'import sys' &> /dev/null; then
             PYTHON_CMD=(python3)
@@ -1403,8 +1410,11 @@ if [ -n "$STAGED_MEMORY_FILES" ]; then
         elif [ -f "$MEMORY_TOKEN_UPDATER" ]; then
             if set_python_cmd; then
                 echo_info "Updating memory-index.md token counts..."
-                token_update_output=$("${PYTHON_CMD[@]}" "$MEMORY_TOKEN_UPDATER" 2>&1)
-                token_update_exit=$?
+                if token_update_output=$("${PYTHON_CMD[@]}" "$MEMORY_TOKEN_UPDATER" 2>&1); then
+                    token_update_exit=0
+                else
+                    token_update_exit=$?
+                fi
 
                 if [ $token_update_exit -eq 0 ]; then
                     echo_info "  $token_update_output"
@@ -1541,6 +1551,44 @@ if [ -n "$STAGED_MEMORY_FILES" ]; then
     fi
 else
     echo_info "No memory files staged. Skipping memory index validation."
+fi
+
+#
+# Memory Tier Validation (BLOCKING)
+#
+# Validates tiered memory hierarchy per ADR-017:
+# - Broken reference detection (memory-index and domain indexes)
+# - Pure lookup table format enforcement for domain indexes
+# - Deprecated skill- prefix detection
+# - Orphan detection (domain indexes not in memory-index, atomic files not in any index)
+#
+# Related: ADR-017, Issue #943
+#
+MEMORY_TIER_SCRIPT="$REPO_ROOT/scripts/validate_memory_tier.py"
+
+if [ -n "$STAGED_MEMORY_FILES" ]; then
+    echo_info "Checking memory tier hierarchy (ADR-017)..."
+
+    # MEDIUM-002: Reject symlinks for security
+    if [ -L "$MEMORY_TIER_SCRIPT" ]; then
+        echo_warning "Skipping memory tier validation: script path is a symlink"
+    elif [ -f "$MEMORY_TIER_SCRIPT" ]; then
+        if set_python_cmd; then
+            if ! "${PYTHON_CMD[@]}" "$MEMORY_TIER_SCRIPT" --path "$REPO_ROOT/.serena/memories" 2>&1; then
+                echo_error "Memory tier validation FAILED."
+                echo_info "  Run manually: python3 scripts/validate_memory_tier.py"
+                EXIT_STATUS=1
+            else
+                echo_success "Memory tier validation: PASS"
+            fi
+        else
+            echo_warning "Python 3 not available. Skipping memory tier validation."
+        fi
+    else
+        echo_info "Memory tier validation script not found. Skipping."
+    fi
+else
+    echo_info "No memory files staged. Skipping memory tier validation."
 fi
 
 #
@@ -1721,6 +1769,88 @@ if [ -n "$STAGED_MEMORY_FILES" ]; then
     else
         echo_info "Skill format validation script not found. Skipping."
     fi
+fi
+
+#
+# Scope Explosion Detection (BLOCKING at 50 files, WARNING at 10/20)
+#
+# Tracks cumulative PR size since branch diverged from main.
+# Prevents scope creep that leads to unreviewable PRs.
+#
+# Bypass: SKIP_SCOPE_CHECK=1 git commit ...
+#
+# Related: Issue #944, PR #908 (95 files)
+#
+SCOPE_DETECT_SCRIPT="$REPO_ROOT/scripts/detect_scope_explosion.py"
+
+if [ "$SKIP_SCOPE_CHECK" != "1" ]; then
+    # MEDIUM-002: Reject symlinks for security
+    if [ -L "$SCOPE_DETECT_SCRIPT" ]; then
+        echo_warning "Skipping scope detection: script path is a symlink"
+    elif [ -f "$SCOPE_DETECT_SCRIPT" ]; then
+        if set_python_cmd; then
+            SCOPE_OUTPUT=$("${PYTHON_CMD[@]}" "$SCOPE_DETECT_SCRIPT" 2>&1)
+            SCOPE_EXIT=$?
+            if [ $SCOPE_EXIT -eq 1 ]; then
+                echo ""
+                echo "$SCOPE_OUTPUT"
+                echo_error "Scope explosion detected. See remediation above."
+                EXIT_STATUS=1
+            elif [ $SCOPE_EXIT -eq 0 ] && [ -n "$SCOPE_OUTPUT" ]; then
+                echo "$SCOPE_OUTPUT"
+            fi
+            # Exit code 2 (error) is non-blocking: log and continue
+            if [ $SCOPE_EXIT -eq 2 ]; then
+                echo_warning "Scope detection encountered an error (non-blocking)"
+            fi
+        fi
+    fi
+fi
+
+#
+# Taste Invariant Linting (Non-blocking warning)
+#
+# Runs custom taste lints with agent-readable AGENT_REMEDIATION instructions.
+# Checks: file size limits, naming conventions, function complexity, skill prompt size.
+#
+# Security: Checks for symlinks to prevent TOCTOU attacks (MEDIUM-002)
+# Related: Issue #1298, Skill taste-lints
+#
+TASTE_LINTS_SCRIPT="$REPO_ROOT/.claude/skills/taste-lints/scripts/taste_lints.py"
+
+# Check if any scannable files are staged (Python, PowerShell, YAML, Markdown, etc.)
+STAGED_LINT_FILES=$(echo "$STAGED_FILES" | grep -E '\.(py|ps1|psm1|sh|bash|yml|yaml|md|json)$' || true)
+
+if [ -n "$STAGED_LINT_FILES" ]; then
+    # MEDIUM-002: Reject symlinks for security
+    if [ -L "$TASTE_LINTS_SCRIPT" ]; then
+        echo_warning "Skipping taste lints: script path is a symlink"
+    elif [ -f "$TASTE_LINTS_SCRIPT" ]; then
+        if set_python_cmd; then
+            echo_info "Running taste invariant lints..."
+            # Run in git-staged mode, non-blocking (warnings only)
+            TASTE_OUTPUT=$("${PYTHON_CMD[@]}" "$TASTE_LINTS_SCRIPT" --git-staged 2>&1)
+            TASTE_EXIT=$?
+            if [ $TASTE_EXIT -eq 10 ]; then
+                # Exit code 10 = violations detected
+                echo_warning "Taste lint violations detected (non-blocking):"
+                echo "$TASTE_OUTPUT"
+                echo_info "  Consider fixing these issues for cleaner code."
+                # Non-blocking: just warn, don't fail the commit
+            elif [ $TASTE_EXIT -eq 0 ]; then
+                echo_success "Taste lints passed."
+            else
+                # Exit code 1 = script error
+                echo_warning "Taste lints encountered an error (non-blocking)"
+            fi
+        else
+            echo_warning "Python 3 not available. Skipping taste lints."
+        fi
+    else
+        echo_info "Taste lints script not found. Skipping."
+    fi
+else
+    echo_info "No lintable files staged. Skipping taste lints."
 fi
 
 #

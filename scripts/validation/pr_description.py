@@ -35,7 +35,9 @@ SIGNIFICANT_EXTENSIONS: frozenset[str] = frozenset(
 )
 
 # Directories whose files are flagged when changed but not mentioned
-SIGNIFICANT_DIRS_PATTERN: re.Pattern[str] = re.compile(r"^(\.github|scripts|src|\.agents)")
+SIGNIFICANT_DIRS_PATTERN: re.Pattern[str] = re.compile(
+    r"^(\.github|scripts|src|\.agents)"
+)
 
 # File extension pattern for extracting file references from description
 _EXT_GROUP = r"ps1|md|yml|yaml|json|cs|ts|js|py|sh|bash"
@@ -81,12 +83,16 @@ def get_repo_info() -> RepoInfo:
     remote_url = result.stdout.strip()
     match = re.search(r"github\.com[:/]([^/]+)/([^/.]+)", remote_url)
     if not match:
-        raise RuntimeError(f"Could not parse GitHub owner/repo from remote URL: {remote_url}")
+        raise RuntimeError(
+            f"Could not parse GitHub owner/repo from remote URL: {remote_url}"
+        )
 
     return RepoInfo(owner=match.group(1), repo=match.group(2))
 
 
-def fetch_pr_data(pr_number: int, owner: str, repo: str) -> dict[str, Any]:
+def fetch_pr_data(
+    pr_number: int, owner: str, repo: str
+) -> dict[str, Any]:
     """Fetch PR data (title, body, files) via gh CLI.
 
     Returns parsed JSON dict. Raises RuntimeError on failure.
@@ -94,21 +100,18 @@ def fetch_pr_data(pr_number: int, owner: str, repo: str) -> dict[str, Any]:
     try:
         result = subprocess.run(
             [
-                "gh",
-                "pr",
-                "view",
-                str(pr_number),
-                "--json",
-                "title,body,files",
-                "--repo",
-                f"{owner}/{repo}",
+                "gh", "pr", "view", str(pr_number),
+                "--json", "title,body,files",
+                "--repo", f"{owner}/{repo}",
             ],
             capture_output=True,
             text=True,
             timeout=30,
         )
     except FileNotFoundError as exc:
-        raise RuntimeError("gh CLI not found. Install: https://cli.github.com/") from exc
+        raise RuntimeError(
+            "gh CLI not found. Install: https://cli.github.com/"
+        ) from exc
     except subprocess.TimeoutExpired as exc:
         raise RuntimeError(f"Timed out fetching PR #{pr_number}") from exc
 
@@ -134,14 +137,43 @@ def normalize_path(path: str) -> str:
     return path
 
 
+def _strip_informational_sections(description: str) -> str:
+    """Remove bot-generated informational sections before file extraction.
+
+    Strips <details> blocks and "Detected Package Files" sections that list
+    files for informational purposes (e.g. Renovate onboarding PRs) rather
+    than claiming those files were changed.
+    """
+    # Strip <details>...</details> blocks (used by Renovate, Dependabot, etc.)
+    text = re.sub(r"<details>.*?</details>", "", description, flags=re.DOTALL)
+    # Strip "Detected Package Files" section up to the next heading or <hr>
+    text = re.sub(
+        r"###\s*Detected Package Files.*?(?=^###|\n---|\Z)",
+        "",
+        text,
+        flags=re.DOTALL | re.MULTILINE,
+    )
+    # Strip GitHub admonition blockquote blocks (> [!WARNING], > [!NOTE], etc.)
+    # These contain informational file references, not change claims.
+    text = re.sub(
+        r"^>\s*\[!(WARNING|NOTE|CAUTION|IMPORTANT|TIP)\].*?(?=\n(?!>)|\Z)",
+        "",
+        text,
+        flags=re.DOTALL | re.MULTILINE,
+    )
+    return text
+
+
 def extract_mentioned_files(description: str) -> list[str]:
     """Extract unique file paths mentioned in PR description text."""
     if not description:
         return []
 
+    cleaned = _strip_informational_sections(description)
+
     mentioned: list[str] = []
     for pattern in FILE_MENTION_PATTERNS:
-        for match in pattern.finditer(description):
+        for match in pattern.finditer(cleaned):
             raw = match.group(1)
             # Skip command-like strings (file paths never contain spaces)
             if " " in raw.strip():
@@ -191,7 +223,8 @@ def validate_pr_description(
                     issue_type="File mentioned but not in diff",
                     file=mentioned,
                     message=(
-                        "Description claims this file was changed, but it's not in the PR diff"
+                        "Description claims this file was changed, "
+                        "but it's not in the PR diff"
                     ),
                 )
             )
@@ -204,7 +237,9 @@ def validate_pr_description(
         if not SIGNIFICANT_DIRS_PATTERN.match(changed):
             continue
 
-        is_mentioned = any(file_matches(changed, mentioned) for mentioned in mentioned_files)
+        is_mentioned = any(
+            file_matches(changed, mentioned) for mentioned in mentioned_files
+        )
         if not is_mentioned:
             issues.append(
                 Issue(
@@ -243,7 +278,9 @@ def print_results(issues: list[Issue], ci: bool) -> int:
         if ci:
             return 1
     elif warning_count > 0:
-        print("Warnings found. Consider mentioning significant files in PR description.")
+        print(
+            "Warnings found. Consider mentioning significant files in PR description."
+        )
 
     return 0
 

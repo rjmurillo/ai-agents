@@ -16,8 +16,8 @@ PostToolUse hooks must never fail the primary operation. All errors should be lo
 
 | Hook | Purpose | File Types | Performance |
 |------|---------|------------|-------------|
-| `Invoke-MarkdownAutoLint.ps1` | Auto-format markdown files | `*.md` | <2s |
-| `Invoke-CodeQLQuickScan.ps1` | Security scan for code files | `*.py`, `*.yml` (workflows) | 5-30s |
+| `invoke_markdown_auto_lint.py` | Auto-format markdown files | `*.md` | <2s |
+| `invoke_codeql_quick_scan.py` | Security scan for code files | `*.py`, `*.yml` (workflows) | 5-30s |
 
 ## Hook Input Format
 
@@ -37,128 +37,106 @@ Hooks receive JSON via stdin:
 **Key Fields:**
 
 - `tool_input.file_path`: Absolute path to the file that was written/edited
-- `cwd`: Project directory (fallback: use `$env:CLAUDE_PROJECT_DIR`)
+- `cwd`: Project directory (fallback: use `os.environ.get("CLAUDE_PROJECT_DIR")`)
 - `tool_name`: Tool that triggered the hook (`Write` or `Edit`)
 
 ## Writing a New Hook
 
 ### Template
 
-```powershell
-<#
-.SYNOPSIS
-    Brief description of what the hook does.
+```python
+#!/usr/bin/env python3
+"""
+Brief description of what the hook does.
 
-.DESCRIPTION
-    Detailed description including:
-    - What file types trigger this hook
-    - What operation it performs
-    - Performance characteristics
+Hook Type: PostToolUse
+Matcher: Write|Edit
+Filter: File type criteria (e.g., *.py, *.md)
+Exit Codes:
+    0 = Always (non-blocking hook, all errors are warnings)
 
-.NOTES
-    Hook Type: PostToolUse
-    Matcher: Write|Edit
-    Filter: File type criteria (e.g., *.py, *.md)
-    Exit Codes:
-        0 = Always (non-blocking hook, all errors are warnings)
+Related documentation or planning documents.
+"""
 
-.LINK
-    Related documentation or planning documents
-#>
+import json
+import logging
+import os
+import sys
 
-[CmdletBinding()]
-param()
+# Non-blocking hook: verbose output only, never raise to caller
+logging.basicConfig(level=logging.WARNING, format="%(levelname)s: %(message)s")
+logger = logging.getLogger(__name__)
 
-Set-StrictMode -Version Latest
-$ErrorActionPreference = 'Continue'  # Non-blocking hook
+if "--verbose" in sys.argv:
+    logger.setLevel(logging.DEBUG)
 
-function Get-FilePathFromInput {
-    param($HookInput)
-    if ($HookInput.PSObject.Properties['tool_input'] -and
-        $HookInput.tool_input.PSObject.Properties['file_path']) {
-        return $HookInput.tool_input.file_path
-    }
-    return $null
-}
 
-function Get-ProjectDirectory {
-    param($HookInput)
-    if (-not [string]::IsNullOrWhiteSpace($env:CLAUDE_PROJECT_DIR)) {
-        return $env:CLAUDE_PROJECT_DIR
-    }
-    return $HookInput.cwd
-}
+def get_file_path(hook_input: dict) -> str | None:
+    """Extract file_path from hook input."""
+    return hook_input.get("tool_input", {}).get("file_path")
 
-function Test-ShouldProcessFile {
-    <#
-    .SYNOPSIS
-        Determines if file should trigger hook logic.
-    #>
-    param([string]$FilePath)
 
-    if ([string]::IsNullOrWhiteSpace($FilePath)) {
-        return $false
-    }
+def get_project_dir(hook_input: dict) -> str | None:
+    """Return project directory, preferring the environment variable."""
+    return os.environ.get("CLAUDE_PROJECT_DIR") or hook_input.get("cwd")
 
-    if (-not (Test-Path $FilePath)) {
-        Write-Verbose "File does not exist: $FilePath"
-        return $false
-    }
 
-    # Add file type filtering logic here
-    # Example: $FilePath.EndsWith('.ext', [StringComparison]::OrdinalIgnoreCase)
+def should_process_file(file_path: str | None) -> bool:
+    """Determine if the file should trigger hook logic."""
+    if not file_path:
+        return False
 
-    return $true
-}
+    if not os.path.exists(file_path):
+        logger.debug("File does not exist: %s", file_path)
+        return False
 
-try {
-    # Check if stdin is available
-    if (-not [Console]::IsInputRedirected) {
-        exit 0
-    }
+    # Add file type filtering logic here.
+    # Example: return file_path.lower().endswith(".ext")
 
-    $inputJson = [Console]::In.ReadToEnd()
-    if ([string]::IsNullOrWhiteSpace($inputJson)) {
-        exit 0
-    }
+    return True
 
-    $hookInput = $inputJson | ConvertFrom-Json -ErrorAction Stop
-    $filePath = Get-FilePathFromInput -HookInput $hookInput
 
-    # Filter: Only process relevant file types
-    if (-not (Test-ShouldProcessFile -FilePath $filePath)) {
-        exit 0
-    }
+def main() -> None:
+    if sys.stdin.isatty():
+        sys.exit(0)
 
-    $projectDir = Get-ProjectDirectory -HookInput $hookInput
-    $previousLocation = Get-Location
+    raw = sys.stdin.read()
+    if not raw.strip():
+        sys.exit(0)
 
-    try {
-        if (-not [string]::IsNullOrWhiteSpace($projectDir)) {
-            Set-Location $projectDir
-        }
+    hook_input = json.loads(raw)
+    file_path = get_file_path(hook_input)
 
-        # TODO: Implement hook logic here
-        # Example: Run linter, formatter, scanner, etc.
+    # Filter: only process relevant file types.
+    if not should_process_file(file_path):
+        sys.exit(0)
 
-        Write-Output "`n**Hook Name**: Processed ``$filePath```n"
-    }
-    finally {
-        Set-Location $previousLocation
-    }
-}
-catch [System.ArgumentException], [System.InvalidOperationException] {
-    Write-Verbose "Hook: Failed to parse input JSON - $($_.Exception.Message)"
-}
-catch [System.IO.IOException], [System.UnauthorizedAccessException] {
-    Write-Verbose "Hook: File system error for $filePath - $($_.Exception.Message)"
-}
-catch {
-    Write-Verbose "Hook unexpected error: $($_.Exception.GetType().FullName) - $($_.Exception.Message)"
-}
+    project_dir = get_project_dir(hook_input)
+    original_dir = os.getcwd()
 
-# Always exit 0 (non-blocking hook)
-exit 0
+    try:
+        if project_dir:
+            os.chdir(project_dir)
+
+        # TODO: Implement hook logic here.
+        # Example: run linter, formatter, scanner, etc.
+
+        print(f"\n**Hook Name**: Processed `{file_path}`\n")
+    finally:
+        os.chdir(original_dir)
+
+
+try:
+    main()
+except (json.JSONDecodeError, ValueError) as exc:
+    logger.debug("Hook: Failed to parse input JSON - %s", exc)
+except OSError as exc:
+    logger.debug("Hook: File system error - %s", exc)
+except Exception as exc:  # noqa: BLE001
+    logger.debug("Hook unexpected error: %s - %s", type(exc).__name__, exc)
+
+# Always exit 0 (non-blocking hook).
+sys.exit(0)
 ```
 
 ### Best Practices
@@ -166,32 +144,32 @@ exit 0
 1. **Always Exit 0**: Hooks must never block the user's primary operation
 2. **Fast Execution**: Target <5 seconds; use timeouts for longer operations
 3. **Graceful Degradation**: If dependencies missing, exit silently
-4. **Verbose Logging**: Use `Write-Verbose` for debugging (not `Write-Host`)
-5. **User-Facing Messages**: Use `Write-Output` for status messages shown to user
+4. **Verbose Logging**: Use `logger.debug()` for debugging (not `print` to stderr)
+5. **User-Facing Messages**: Use `print()` for status messages shown to user
 6. **File Type Filtering**: Only process files relevant to the hook
-7. **Error Handling**: Catch all exceptions, log as warnings, never throw
+7. **Error Handling**: Catch all exceptions, log as warnings, never raise
 
 ### File Type Filtering Examples
 
-```powershell
+```python
+from pathlib import Path
+
 # Markdown files only
-if (-not $FilePath.EndsWith('.md', [StringComparison]::OrdinalIgnoreCase)) {
-    exit 0
-}
+if Path(file_path).suffix.lower() != ".md":
+    sys.exit(0)
 
 # Python files only
-if (-not $FilePath.EndsWith('.py', [StringComparison]::OrdinalIgnoreCase)) {
-    exit 0
-}
+if Path(file_path).suffix.lower() != ".py":
+    sys.exit(0)
 
 # GitHub Actions workflows only
-if ($FilePath.EndsWith('.yml', [StringComparison]::OrdinalIgnoreCase) -or
-    $FilePath.EndsWith('.yaml', [StringComparison]::OrdinalIgnoreCase)) {
-    $normalizedPath = $FilePath -replace '\\', '/'
-    if ($normalizedPath -match '\.github/workflows/') {
-        # Process workflow file
-    }
-}
+p = Path(file_path)
+if p.suffix.lower() in (".yml", ".yaml"):
+    # Normalize to forward slashes for cross-platform matching.
+    normalized = p.as_posix()
+    if ".github/workflows/" in normalized:
+        # Process workflow file.
+        pass
 ```
 
 ### Performance Guidelines
@@ -204,77 +182,76 @@ if ($FilePath.EndsWith('.yml', [StringComparison]::OrdinalIgnoreCase) -or
 
 Use timeouts for operations that may exceed target time:
 
-```powershell
-$job = Start-Job -ScriptBlock {
-    # Long-running operation
-}
+```python
+import subprocess
 
-$completed = Wait-Job -Job $job -Timeout 30
-if ($null -eq $completed) {
-    Stop-Job -Job $job -ErrorAction SilentlyContinue
-    Remove-Job -Job $job -Force -ErrorAction SilentlyContinue
-    Write-Warning "Operation timed out after 30 seconds"
-    Write-Output "`n**Hook WARNING**: Operation timed out`n"
-}
-else {
-    $result = Receive-Job -Job $job
-    Remove-Job -Job $job -Force -ErrorAction SilentlyContinue
-    # Process result
-}
+try:
+    result = subprocess.run(
+        ["your-tool", "--flag", file_path],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    # Process result.stdout / result.returncode here.
+except subprocess.TimeoutExpired:
+    print("\n**Hook WARNING**: Operation timed out\n")
+except FileNotFoundError:
+    logger.debug("Tool not found; skipping hook.")
 ```
 
 ## Testing Hooks
 
 ### Manual Testing
 
-```powershell
-# Create test input
-$testInput = @{
-    tool_input = @{
-        file_path = "/path/to/test/file.py"
-    }
-    cwd = "/path/to/project"
-    tool_name = "Write"
-} | ConvertTo-Json
-
-# Pipe to hook
-$testInput | pwsh .claude/hooks/PostToolUse/YourHook.ps1
+```bash
+# Create test input and pipe to hook
+test_input='{"tool_input": {"file_path": "/path/to/test/file.py"}, "cwd": "/path/to/project", "tool_name": "Write"}'
+echo "$test_input" | python3 .claude/hooks/PostToolUse/your_hook.py
 ```
 
 ### Automated Testing
 
-Use Pester for automated testing:
+Use pytest for automated testing:
 
-```powershell
-Describe "PostToolUse Hook Tests" {
-    It "Exits with code 0 (non-blocking)" {
-        $testInput = @{
-            tool_input = @{ file_path = "test.py" }
-            cwd = $PSScriptRoot
-        } | ConvertTo-Json
+```python
+import json
+import subprocess
+import sys
+from pathlib import Path
 
-        $testInput | pwsh ./YourHook.ps1
-        $LASTEXITCODE | Should -Be 0
-    }
+HOOK = Path(__file__).parent / "your_hook.py"
 
-    It "Gracefully handles missing file" {
-        $testInput = @{
-            tool_input = @{ file_path = "nonexistent.py" }
-            cwd = $PSScriptRoot
-        } | ConvertTo-Json
 
-        { $testInput | pwsh ./YourHook.ps1 } | Should -Not -Throw
-    }
-}
+def run_hook(tool_input: dict) -> subprocess.CompletedProcess:
+    payload = json.dumps(tool_input)
+    return subprocess.run(
+        [sys.executable, str(HOOK)],
+        input=payload,
+        capture_output=True,
+        text=True,
+    )
+
+
+def test_exits_zero_nonblocking(tmp_path):
+    """Hook must always exit 0 (non-blocking)."""
+    target = tmp_path / "test.py"
+    target.write_text("x = 1\n")
+    result = run_hook({"tool_input": {"file_path": str(target)}, "cwd": str(tmp_path)})
+    assert result.returncode == 0
+
+
+def test_gracefully_handles_missing_file(tmp_path):
+    """Hook must not raise when the target file does not exist."""
+    result = run_hook({"tool_input": {"file_path": "/nonexistent.py"}, "cwd": str(tmp_path)})
+    assert result.returncode == 0
 ```
 
 ## Debugging
 
 ### Enable Verbose Output
 
-```powershell
-$VerbosePreference = 'Continue'
-pwsh .claude/hooks/PostToolUse/YourHook.ps1 -Verbose
+```bash
+python3 .claude/hooks/PostToolUse/your_hook.py --verbose
 ```
 
 ### Common Issues
@@ -282,13 +259,13 @@ pwsh .claude/hooks/PostToolUse/YourHook.ps1 -Verbose
 | Issue | Cause | Solution |
 |-------|-------|----------|
 | Hook not running | File type not matched | Check file extension filter |
-| Hook running slow | No timeout on long operation | Add timeout with `Start-Job` |
-| User sees errors | Using `throw` instead of `Write-Warning` | Catch all exceptions, exit 0 |
-| Hook blocks user | Not exiting with 0 | Ensure all code paths exit 0 |
+| Hook running slow | No timeout on long operation | Add `timeout=` to `subprocess.run()` |
+| User sees errors | Unhandled exception raised to caller | Wrap in `try/except`, always `sys.exit(0)` |
+| Hook blocks user | Not exiting with 0 | Ensure all code paths call `sys.exit(0)` |
 
 ## References
 
-- **Invoke-MarkdownAutoLint.ps1**: Reference implementation for simple hooks
-- **Invoke-CodeQLQuickScan.ps1**: Reference implementation for complex hooks with timeouts
+- **invoke_markdown_auto_lint.py**: Reference implementation for simple hooks
+- **invoke_codeql_quick_scan.py**: Reference implementation for complex hooks with timeouts
 - **ADR-035**: Exit code standardization
 - **Claude Code Hooks Documentation**: <https://code.claude.com/docs/en/hooks>

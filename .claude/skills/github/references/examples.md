@@ -87,7 +87,7 @@ python3 scripts/pr/get_pr_checks.py --pull-request 50 --wait --timeout-seconds 6
 python3 scripts/pr/get_pr_checks.py --pull-request 50 --required-only
 
 # Detect Copilot follow-up PRs
-python3 scripts/pr/detect_copilot_follow_up_pr.py --pr-number 50
+python3 scripts/pr/detect_copilot_followup_pr.py --pr-number 50
 ```
 
 ---

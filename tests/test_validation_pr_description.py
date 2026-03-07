@@ -11,6 +11,7 @@ import pytest
 from scripts.github_core.api import RepoInfo
 from scripts.validation.pr_description import (
     Issue,
+    _strip_informational_sections,
     extract_mentioned_files,
     fetch_pr_data,
     file_matches,
@@ -41,6 +42,12 @@ class TestNormalizePath:
 
     def test_combined_normalization(self) -> None:
         assert normalize_path(" .\\src\\bar.py ") == "src/bar.py"
+
+    def test_strips_markdown_bold_markers(self) -> None:
+        assert normalize_path("**foo.yml") == "foo.yml"
+
+    def test_strips_surrounding_bold_markers(self) -> None:
+        assert normalize_path("**foo.yml**") == "foo.yml"
 
     def test_strips_backticks(self) -> None:
         assert normalize_path("`foo.yml") == "foo.yml"
@@ -141,10 +148,103 @@ class TestExtractMentionedFiles:
         result = extract_mentioned_files(desc)
         assert len(result) == 3
 
+    def test_bold_in_list_item_deduplicates(self) -> None:
+        """Bold filenames in list items should not produce duplicates with bold markers."""
+        desc = "- **workflow.yml**: Added skip job"
+        result = extract_mentioned_files(desc)
+        assert result == ["workflow.yml"]
+
     def test_command_in_backticks_not_treated_as_file(self) -> None:
         desc = "- [x] `uv run mypy scripts/homework_scanner.py` (clean)"
         result = extract_mentioned_files(desc)
         assert "uv run mypy scripts/homework_scanner.py" not in result
+
+    def test_renovate_detected_package_files_ignored(self) -> None:
+        desc = (
+            "### Detected Package Files\n\n"
+            " * `.github/workflows/pytest.yml` (github-actions)\n"
+            " * `pyproject.toml` (pep621)\n\n"
+            "---\n\n"
+            "Changed `renovate.json` configuration."
+        )
+        result = extract_mentioned_files(desc)
+        assert "renovate.json" in result
+        assert ".github/workflows/pytest.yml" not in result
+        assert "pyproject.toml" not in result
+
+    def test_github_admonition_blockquotes_ignored(self) -> None:
+        desc = (
+            "Welcome to Renovate!\n\n"
+            "> [!WARNING]\n"
+            "> Please correct these dependency lookup failures.\n"
+            ">\n"
+            "> Files affected: `.github/workflows/codeql-analysis.yml`\n\n"
+            "Updated `renovate.json`."
+        )
+        result = extract_mentioned_files(desc)
+        assert "renovate.json" in result
+        assert ".github/workflows/codeql-analysis.yml" not in result
+
+    def test_details_blocks_ignored(self) -> None:
+        desc = (
+            "<details>\n"
+            "<summary>chore(deps): update actions/cache</summary>\n\n"
+            "  - Upgrade `actions/cache` to `abc123`\n"
+            "  - Branch: `renovate/actions-cache-digest`\n\n"
+            "</details>\n\n"
+            "Updated `renovate.json`."
+        )
+        result = extract_mentioned_files(desc)
+        assert "renovate.json" in result
+        assert not any("actions/cache" in f for f in result)
+
+
+# ---------------------------------------------------------------------------
+# _strip_informational_sections
+# ---------------------------------------------------------------------------
+
+
+class TestStripInformationalSections:
+    def test_strips_details_blocks(self) -> None:
+        text = "before\n<details>\nhidden\n</details>\nafter"
+        result = _strip_informational_sections(text)
+        assert "hidden" not in result
+        assert "before" in result
+        assert "after" in result
+
+    def test_strips_detected_package_files_section(self) -> None:
+        text = (
+            "Intro\n\n"
+            "### Detected Package Files\n\n"
+            " * `foo.yml`\n"
+            " * `bar.yml`\n\n"
+            "---\n\n"
+            "Footer"
+        )
+        result = _strip_informational_sections(text)
+        assert "foo.yml" not in result
+        assert "Footer" in result
+
+    def test_strips_github_admonition_blockquotes(self) -> None:
+        text = (
+            "Some intro text.\n\n"
+            "> [!WARNING]\n"
+            "> Please correct these dependency lookup failures.\n"
+            ">\n"
+            "> -   `Could not determine new digest`\n"
+            ">\n"
+            "> Files affected: `.github/workflows/codeql-analysis.yml`\n\n"
+            "Footer text."
+        )
+        result = _strip_informational_sections(text)
+        assert "codeql-analysis.yml" not in result
+        assert "Some intro text" in result
+        assert "Footer text" in result
+
+    def test_preserves_non_informational_content(self) -> None:
+        text = "Changed `scripts/foo.py` and **bar.yml**"
+        result = _strip_informational_sections(text)
+        assert result == text
 
 
 # ---------------------------------------------------------------------------
@@ -291,7 +391,9 @@ class TestGetRepoInfo:
 
     @patch("scripts.validation.pr_description.subprocess.run")
     def test_unparseable_url_raises(self, mock_run: MagicMock) -> None:
-        mock_run.return_value = MagicMock(returncode=0, stdout="https://gitlab.com/foo/bar\n")
+        mock_run.return_value = MagicMock(
+            returncode=0, stdout="https://gitlab.com/foo/bar\n"
+        )
         with pytest.raises(RuntimeError, match="Could not parse"):
             get_repo_info()
 
@@ -312,7 +414,9 @@ class TestGetRepoInfo:
 class TestFetchPRData:
     @patch("scripts.validation.pr_description.subprocess.run")
     def test_success(self, mock_run: MagicMock) -> None:
-        pr_json = json.dumps({"title": "Test", "body": "desc", "files": [{"path": "a.py"}]})
+        pr_json = json.dumps(
+            {"title": "Test", "body": "desc", "files": [{"path": "a.py"}]}
+        )
         mock_run.return_value = MagicMock(returncode=0, stdout=pr_json)
         data = fetch_pr_data(1, "owner", "repo")
         assert data["title"] == "Test"
@@ -382,9 +486,7 @@ class TestMain:
 
     @patch("scripts.validation.pr_description.fetch_pr_data")
     def test_owner_repo_from_args(
-        self,
-        mock_fetch: MagicMock,
-        monkeypatch: pytest.MonkeyPatch,
+        self, mock_fetch: MagicMock, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.delenv("CI", raising=False)
         mock_fetch.return_value = {

@@ -6,7 +6,6 @@ import importlib.util
 import sys
 from pathlib import Path
 from unittest.mock import patch
-from scripts.github_core.api import RepoInfo
 
 from scripts.github_core.api import RepoInfo
 

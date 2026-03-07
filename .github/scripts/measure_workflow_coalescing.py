@@ -29,7 +29,7 @@ workspace = os.environ.get(
 )
 sys.path.insert(0, workspace)
 
-from scripts.github_core.api import RepoInfo, resolve_repo_params  # noqa: E402
+from scripts.github_core.api import resolve_repo_params  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -166,14 +166,14 @@ def test_prerequisites() -> None:
 # ---------------------------------------------------------------------------
 
 
-def get_repository_context(repository: str) -> RepoInfo:
+def get_repository_context(repository: str) -> dict[str, str]:
     """Get repository owner and name from parameter or git remote.
 
     Args:
         repository: Repository in owner/repo format, or empty string for auto-detect.
 
     Returns:
-        RepoInfo with owner and repo attributes.
+        Dict with 'Owner' and 'Repo' keys.
 
     Raises:
         RuntimeError: If repository format is invalid.

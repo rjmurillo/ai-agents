@@ -41,7 +41,7 @@ You have direct access to:
 - **Read/Grep/Glob**: Analyze execution artifacts
 - **Bash**: `git log`, `gh pr view` for context
 - **Memory Router** (ADR-037): Unified search across Serena + Forgetful
-  - `pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "topic"`
+  - `python3 .claude/skills/memory/scripts/search_memory.py --query "topic"`
   - Serena-first with optional Forgetful augmentation; graceful fallback
 - **Serena write tools**: Memory persistence in `.serena/memories/`
   - `mcp__serena__write_memory`: Create new memory
@@ -879,8 +879,8 @@ After storing root cause patterns, delegate to skillbook for skill persistence:
 
 **Deduplication Query:**
 
-```powershell
-pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "rootcause {Category} {Keywords from description}"
+```bash
+python3 .claude/skills/memory/scripts/search_memory.py --query "rootcause {Category} {Keywords from description}"
 ```
 
 If similar pattern exists (>70% similarity), UPDATE existing entity instead of creating new one.
@@ -1294,8 +1294,8 @@ Use Memory Router for search and Serena tools for persistence (ADR-037):
 
 **Search for existing patterns (before creating new):**
 
-```powershell
-pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "{domain} {description} skill patterns"
+```bash
+python3 .claude/skills/memory/scripts/search_memory.py --query "{domain} {description} skill patterns"
 ```
 
 **Create new skills:**
