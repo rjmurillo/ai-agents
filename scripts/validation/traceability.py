@@ -114,14 +114,10 @@ def parse_yaml_front_matter(file_path: Path) -> SpecInfo | None:
         spec.status = status_match.group(1).strip()
 
     # Parse related (array)
-    related_match = re.search(
-        r"(?s)related:\s*\r?\n((?:\s+-\s+.+\r?\n?)+)", yaml_text
-    )
+    related_match = re.search(r"(?s)related:\s*\r?\n((?:\s+-\s+.+\r?\n?)+)", yaml_text)
     if related_match:
         related_block = related_match.group(1)
-        spec.related = [
-            m.group(1) for m in re.finditer(r"-\s+([A-Z]+-[A-Z0-9]+)", related_block)
-        ]
+        spec.related = [m.group(1) for m in re.finditer(r"-\s+([A-Z]+-[A-Z0-9]+)", related_block)]
 
     return spec
 
@@ -170,92 +166,106 @@ def load_all_specs(base_path: Path) -> AllSpecs:
 # ---------------------------------------------------------------------------
 
 
-def validate_traceability(specs: AllSpecs) -> TraceResults:
-    """Validate traceability rules and detect orphans."""
-    results = TraceResults(
-        requirements_count=len(specs.requirements),
-        designs_count=len(specs.designs),
-        tasks_count=len(specs.tasks),
+@dataclass
+class _RefIndex:
+    """Reference indices built from spec relationships."""
+
+    req_refs: dict[str, list[str]] = field(default_factory=dict)
+    design_refs: dict[str, list[str]] = field(default_factory=dict)
+
+
+def _build_ref_index(specs: AllSpecs) -> _RefIndex:
+    """Build empty reference indices keyed by spec ID."""
+    return _RefIndex(
+        req_refs={req_id: [] for req_id in specs.requirements},
+        design_refs={design_id: [] for design_id in specs.designs},
     )
 
-    # Build reference indices
-    req_refs: dict[str, list[str]] = {req_id: [] for req_id in specs.requirements}
-    design_refs: dict[str, list[str]] = {
-        design_id: [] for design_id in specs.designs
-    }
 
-    # Build forward references from tasks to designs
+def _check_task_traceability(
+    specs: AllSpecs,
+    results: TraceResults,
+    index: _RefIndex,
+) -> None:
+    """Rule 2 and Rule 4: validate task-to-design references."""
     for task_id, task in specs.tasks.items():
-        design_refs_for_task = [r for r in task.related if r.startswith("DESIGN-")]
-
+        has_design_ref = False
         for related_id in task.related:
-            if related_id.startswith("DESIGN-"):
-                if related_id in specs.designs:
-                    design_refs[related_id].append(task_id)
-                else:
-                    results.errors.append(
-                        TraceIssue(
-                            rule="Rule 4: Reference Validity",
-                            source=task_id,
-                            target=related_id,
-                            message=(
-                                f"TASK '{task_id}' references "
-                                f"non-existent DESIGN '{related_id}'"
-                            ),
-                        )
+            if not related_id.startswith("DESIGN-"):
+                continue
+            has_design_ref = True
+            if related_id in specs.designs:
+                index.design_refs[related_id].append(task_id)
+            else:
+                results.errors.append(
+                    TraceIssue(
+                        rule="Rule 4: Reference Validity",
+                        source=task_id,
+                        target=related_id,
+                        message=f"TASK '{task_id}' references non-existent DESIGN '{related_id}'",
                     )
+                )
 
-        # Rule 2: Backward Traceability
-        if not design_refs_for_task:
+        if not has_design_ref:
             results.errors.append(
                 TraceIssue(
                     rule="Rule 2: Backward Traceability",
                     source=task_id,
                     target=None,
-                    message=(
-                        f"TASK '{task_id}' has no DESIGN reference (untraced task)"
-                    ),
+                    message=f"TASK '{task_id}' has no DESIGN reference (untraced task)",
                 )
             )
 
-    # Build forward references from designs to requirements
+
+def _check_design_traceability(
+    specs: AllSpecs,
+    results: TraceResults,
+    index: _RefIndex,
+) -> None:
+    """Rule 1, Rule 3, and Rule 4: validate design-to-requirement references."""
     for design_id, design in specs.designs.items():
         for related_id in design.related:
-            if related_id.startswith("REQ-"):
-                if related_id in specs.requirements:
-                    req_refs[related_id].append(design_id)
-                else:
-                    results.errors.append(
-                        TraceIssue(
-                            rule="Rule 4: Reference Validity",
-                            source=design_id,
-                            target=related_id,
-                            message=(
-                                f"DESIGN '{design_id}' references "
-                                f"non-existent REQ '{related_id}'"
-                            ),
-                        )
+            if not related_id.startswith("REQ-"):
+                continue
+            if related_id in specs.requirements:
+                index.req_refs[related_id].append(design_id)
+            else:
+                results.errors.append(
+                    TraceIssue(
+                        rule="Rule 4: Reference Validity",
+                        source=design_id,
+                        target=related_id,
+                        message=f"DESIGN '{design_id}' references non-existent REQ '{related_id}'",
                     )
+                )
 
-    # Rule 1: Forward Traceability
-    for req_id, refs in req_refs.items():
+    _check_orphaned_requirements(results, index)
+    _check_complete_chains(specs, results, index)
+
+
+def _check_orphaned_requirements(results: TraceResults, index: _RefIndex) -> None:
+    """Rule 1: detect requirements with no design referencing them."""
+    for req_id, refs in index.req_refs.items():
         if not refs:
             results.warnings.append(
                 TraceIssue(
                     rule="Rule 1: Forward Traceability",
                     source=req_id,
                     target=None,
-                    message=(
-                        f"REQ '{req_id}' has no DESIGN referencing it "
-                        f"(orphaned requirement)"
-                    ),
+                    message=f"REQ '{req_id}' has no DESIGN referencing it (orphaned requirement)",
                 )
             )
 
-    # Rule 3: Complete Chain
+
+def _check_complete_chains(
+    specs: AllSpecs,
+    results: TraceResults,
+    index: _RefIndex,
+) -> None:
+    """Rule 3: verify each design has both REQ and TASK references."""
     for design_id, design in specs.designs.items():
         has_req_ref = any(r.startswith("REQ-") for r in design.related)
-        has_task_ref = len(design_refs[design_id]) > 0
+        has_task_ref = len(index.design_refs[design_id]) > 0
 
         if not has_req_ref:
             results.warnings.append(
@@ -263,48 +273,63 @@ def validate_traceability(specs: AllSpecs) -> TraceResults:
                     rule="Rule 3: Complete Chain",
                     source=design_id,
                     target=None,
-                    message=(
-                        f"DESIGN '{design_id}' has no REQ reference "
-                        f"(missing backward trace)"
-                    ),
+                    message=f"DESIGN '{design_id}' has no REQ reference (missing backward trace)",
                 )
             )
-
         if not has_task_ref:
             results.warnings.append(
                 TraceIssue(
                     rule="Rule 3: Complete Chain",
                     source=design_id,
                     target=None,
-                    message=(
-                        f"DESIGN '{design_id}' has no TASK referencing it "
-                        f"(orphaned design)"
-                    ),
+                    message=f"DESIGN '{design_id}' has no TASK referencing it (orphaned design)",
                 )
             )
-
         if has_req_ref and has_task_ref:
             results.valid_chains += 1
 
-    # Rule 5: Status Consistency
+
+def _check_status_consistency(specs: AllSpecs, results: TraceResults) -> None:
+    """Rule 5: detect completed tasks whose designs are not complete."""
     complete_statuses = {"complete", "done", "implemented"}
     for task_id, task in specs.tasks.items():
-        if task.status in complete_statuses:
-            for related_id in task.related:
-                if related_id.startswith("DESIGN-") and related_id in specs.designs:
-                    design = specs.designs[related_id]
-                    if design.status not in complete_statuses:
-                        results.info.append(
-                            TraceIssue(
-                                rule="Rule 5: Status Consistency",
-                                source=task_id,
-                                target=related_id,
-                                message=(
-                                    f"TASK '{task_id}' is complete but "
-                                    f"DESIGN '{related_id}' is '{design.status}'"
-                                ),
-                            )
-                        )
+        if task.status not in complete_statuses:
+            continue
+        for related_id in task.related:
+            if not related_id.startswith("DESIGN-"):
+                continue
+            if related_id not in specs.designs:
+                continue
+            design = specs.designs[related_id]
+            if design.status not in complete_statuses:
+                results.info.append(
+                    TraceIssue(
+                        rule="Rule 5: Status Consistency",
+                        source=task_id,
+                        target=related_id,
+                        message=(
+                            f"TASK '{task_id}' is complete but "
+                            f"DESIGN '{related_id}' is '{design.status}'"
+                        ),
+                    )
+                )
+
+
+def validate_traceability(specs: AllSpecs) -> TraceResults:
+    """Validate traceability rules and detect orphans.
+
+    Delegates to focused validators for each rule group.
+    """
+    results = TraceResults(
+        requirements_count=len(specs.requirements),
+        designs_count=len(specs.designs),
+        tasks_count=len(specs.tasks),
+    )
+    index = _build_ref_index(specs)
+
+    _check_task_traceability(specs, results, index)
+    _check_design_traceability(specs, results, index)
+    _check_status_consistency(specs, results)
 
     return results
 

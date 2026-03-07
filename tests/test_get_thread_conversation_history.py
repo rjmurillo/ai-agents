@@ -10,6 +10,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from scripts.github_core.api import RepoInfo
 
 # ---------------------------------------------------------------------------
 # Import the script via importlib (not a package)
@@ -72,27 +73,27 @@ class TestBuildParser:
 
 
 class TestMain:
-    def test_invalid_thread_id_format_exits_1(self):
+    def test_invalid_thread_id_format_exits_2(self):
         with patch(
             "get_thread_conversation_history.assert_gh_authenticated",
         ), patch(
             "get_thread_conversation_history.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--thread-id", "INVALID"])
-            assert exc.value.code == 1
+            assert exc.value.code == 2
 
-    def test_empty_thread_id_exits_1(self):
+    def test_empty_thread_id_exits_2(self):
         with patch(
             "get_thread_conversation_history.assert_gh_authenticated",
         ), patch(
             "get_thread_conversation_history.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--thread-id", "  "])
-            assert exc.value.code == 1
+            assert exc.value.code == 2
 
     def test_successful_thread_fetch(self, capsys):
         gql_response = json.dumps({
@@ -129,7 +130,7 @@ class TestMain:
             "get_thread_conversation_history.assert_gh_authenticated",
         ), patch(
             "get_thread_conversation_history.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "subprocess.run",
             return_value=_completed(stdout=gql_response, rc=0),
@@ -186,7 +187,7 @@ class TestMain:
             "get_thread_conversation_history.assert_gh_authenticated",
         ), patch(
             "get_thread_conversation_history.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "subprocess.run",
             return_value=_completed(stdout=gql_response, rc=0),
@@ -203,7 +204,7 @@ class TestMain:
             "get_thread_conversation_history.assert_gh_authenticated",
         ), patch(
             "get_thread_conversation_history.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "subprocess.run",
             return_value=_completed(stdout=gql_response, rc=0),

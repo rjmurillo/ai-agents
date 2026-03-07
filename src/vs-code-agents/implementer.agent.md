@@ -18,7 +18,7 @@ tools:
   - cloudmcp-manager/*
   - serena/*
   - memory
-model: Claude Opus 4.5 (copilot)
+model: Claude Opus 4.6 (copilot)
 ---
 # Implementer Agent
 
@@ -659,6 +659,14 @@ Ask: "Does this refactoring unblock my task or improve testability of code I'm c
 ## Task Behaviors
 
 ### Writing Code
+
+**Before writing new functions or helpers:**
+
+1. Search the codebase for existing functionality that overlaps
+2. Check shared modules and utility files for reusable implementations
+3. Prefer extending existing helpers over creating new ones
+
+**While writing:**
 
 1. Before writing, identify what varies and apply Chesterton's Fence
 2. Ask "how would I test this?" If hard, redesign.

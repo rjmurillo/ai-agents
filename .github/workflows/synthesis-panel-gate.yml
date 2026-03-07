@@ -1,0 +1,34 @@
+name: Synthesis Panel Gate
+
+# Enforces blocking design review verdicts before merge.
+# Parses DESIGN-REVIEW-*.md files for NEEDS_CHANGES/FAIL/REJECTED status.
+# ADR-006: Logic in .github/scripts/check_design_review_gate.py, not inline YAML.
+# Issue #942: Synthesis panel as quality gate.
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, ready_for_review]
+    paths:
+      - '.agents/architecture/DESIGN-REVIEW-*.md'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: synthesis-gate-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  check-design-reviews:
+    name: Synthesis Panel Gate
+    # ADR-025: ARM runner for cost optimization
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Check design review verdicts
+        run: python3 .github/scripts/check_design_review_gate.py

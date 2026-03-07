@@ -16,6 +16,12 @@ from scripts.ai_review_common.issue_triage import (
     write_output,
     write_step_summary,
 )
+from scripts.ai_review_common.feature_review import (
+    VALID_RECOMMENDATIONS,
+    get_feature_review_assignees,
+    get_feature_review_labels,
+    get_feature_review_recommendation,
+)
 from scripts.ai_review_common.quality_gate import (
     FAIL_VERDICTS,
     SAFE_NAME_PATTERN,
@@ -39,6 +45,10 @@ from scripts.ai_review_common.quality_gate import (
 __all__ = [
     "FAIL_VERDICTS",
     "SAFE_NAME_PATTERN",
+    "VALID_RECOMMENDATIONS",
+    "get_feature_review_assignees",
+    "get_feature_review_labels",
+    "get_feature_review_recommendation",
     "assert_environment_variables",
     "convert_to_json_escaped",
     "format_collapsible_section",

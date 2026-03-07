@@ -59,6 +59,32 @@ model: claude-opus-4-5     # Orchestration, reasoning (<30s, premium justified)
 - Description: non-empty, max 1024 chars, include trigger keywords
 - SKILL.md under 500 lines (use progressive disclosure)
 
+### Prompt Size Limits
+
+| Threshold | Lines | Behavior |
+|-----------|-------|----------|
+| Normal | 0-300 | No action |
+| Warning | 301-500 | Warning in pre-commit output |
+| Error | 501+ | Blocks commit (CI mode) |
+
+When a skill exceeds 500 lines, refactor using progressive disclosure:
+
+- Move reference documentation to `references/`
+- Extract reusable logic to `modules/` or `scripts/`
+- Use templates in `templates/` for structured output
+
+To declare a justified exception, add `size-exception: true` to frontmatter:
+
+```yaml
+---
+name: complex-skill
+size-exception: true
+description: Justified overage due to embedded decision trees
+---
+```
+
+Validated by: `scripts/validation/skill_size.py`
+
 ## SkillForge Validator Gotchas
 
 - `version` and `model` MUST be top-level YAML keys, not nested under `metadata:`

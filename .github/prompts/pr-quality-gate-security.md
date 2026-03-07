@@ -142,3 +142,25 @@ Use `PASS` if:
 - All security checks pass
 - Example/placeholder credentials only
 - Proper secret handling via `${{ secrets.X }}`
+
+## Structured JSON Output
+
+After your human-readable analysis, emit a fenced JSON block conforming to `.agents/schemas/pr-quality-gate-output.schema.json`:
+
+```json
+{
+  "verdict": "PASS|WARN|CRITICAL_FAIL",
+  "message": "One sentence summary",
+  "agent": "security",
+  "timestamp": "ISO 8601",
+  "findings": [
+    {
+      "severity": "critical|high|medium|low",
+      "category": "injection|authentication|secrets|misconfiguration|dependency|infrastructure",
+      "description": "What was found",
+      "location": "file:line",
+      "cwe": "CWE-NNN",
+      "recommendation": "Suggested fix"
+    }
+  ]
+}

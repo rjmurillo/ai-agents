@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=https://json.schemastore.org/github-labeler.json
 
-# Label configuration for actions/labeler@v5
+# Label configuration for actions/labeler@v6
 # Automatically applies labels to PRs based on file paths and branch names
 # Labels aligned with existing repository label configuration
 

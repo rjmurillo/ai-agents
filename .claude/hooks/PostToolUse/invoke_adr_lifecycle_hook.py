@@ -22,8 +22,23 @@ Exit Codes:
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
+from pathlib import Path
+
+_plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+if _plugin_root:
+    _lib_dir = str(Path(_plugin_root).resolve() / "lib")
+else:
+    _lib_dir = str(Path(__file__).resolve().parents[2] / "lib")
+if not os.path.isdir(_lib_dir):
+    print(f"Plugin lib directory not found: {_lib_dir}", file=sys.stderr)
+    sys.exit(2)  # Config error per ADR-035
+if _lib_dir not in sys.path:
+    sys.path.insert(0, _lib_dir)
+
+from hook_utilities.guards import skip_if_consumer_repo  # noqa: E402
 
 _ADR_PATH_PATTERN = re.compile(r"ADR-\d+.*\.md$", re.IGNORECASE)
 
@@ -86,6 +101,9 @@ def _detect_write_or_edit(tool_input: dict[str, object]) -> str | None:
 
 def main() -> int:
     """Main hook entry point."""
+    if skip_if_consumer_repo("adr-lifecycle-hook"):
+        return 0
+
     raw = ""
     try:
         if sys.stdin.isatty():

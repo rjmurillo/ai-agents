@@ -36,7 +36,7 @@ You have direct access to:
 - **Write/Edit**: Create/update `.agents/architecture/` files only
 - **WebSearch**: Research architectural patterns
 - **Memory Router** (ADR-037): Unified search across Serena + Forgetful
-  - `pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "topic"`
+  - `python3 .claude/skills/memory/scripts/search_memory.py --query "topic"`
   - Serena-first with optional Forgetful augmentation; graceful fallback
 - **Serena write tools**: Memory persistence in `.serena/memories/`
   - `mcp__serena__write_memory`: Create new memory
@@ -287,6 +287,27 @@ Chosen option: "{title of option 1}", because {justification: meets criterion X 
 | **Stale ADRs** | No review schedule | Set expiration or review date |
 | **Cargo culting** | Choosing based on popularity alone | Evaluate against actual requirements |
 
+### ADR Exception Evaluation (BLOCKING)
+
+When reviewing an ADR exception request, apply Chesterton's Fence analysis:
+
+**MUST verify before approval:**
+
+1. **Rule understanding**: Author articulates why the rule exists (quote from original ADR)
+2. **Alternatives exhausted**: At least two alternatives attempted with failure evidence
+3. **Scope bounded**: Explicit paths/files/conditions where exception applies
+4. **Reversibility defined**: Plan to undo exception if circumstances change
+5. **Amendment format**: Exception added to original ADR, not a standalone document
+
+**MUST reject if:**
+
+- Author cannot explain original rationale
+- Alternatives are convenience-based ("faster to write")
+- Scope is vague or expandable
+- No reversibility consideration
+
+**Reference**: [ADR-EXCEPTION-CRITERIA.md](../../.agents/governance/ADR-EXCEPTION-CRITERIA.md)
+
 ### ADR Review Checklist
 
 When reviewing an ADR:
@@ -386,14 +407,34 @@ Add this section to all ADRs that introduce external dependencies:
 - [ ] Record lessons learned
 ```
 
+### Code Organization Review
+
+When reviewing PRs that add new directories or relocate files, assess structural cohesion.
+
+#### Questions to Ask
+
+1. Does this directory nesting serve a clear purpose?
+2. Could these files live one level up without loss of clarity?
+3. Is there an existing directory where this code belongs?
+4. Does the structure follow established patterns in the codebase?
+
+#### Anti-Patterns to Flag
+
+| Anti-Pattern | Signal | Recommendation |
+|--------------|--------|----------------|
+| Single-file directories | Directory contains only one file | Place file in parent directory |
+| Deep nesting without domain separation | 3+ levels with no clear boundary | Flatten to minimum necessary depth |
+| Parallel structures that could consolidate | Two directories with overlapping purpose | Merge into single directory |
+| Inconsistent naming | New directory breaks existing conventions | Rename to match established patterns |
+
 ## Memory Protocol
 
 Use Memory Router for search and Serena tools for persistence (ADR-037):
 
 **Before design (retrieve context):**
 
-```powershell
-pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "architecture decisions [component/topic]"
+```bash
+python3 .claude/skills/memory/scripts/search_memory.py --query "architecture decisions [component/topic]"
 ```
 
 **After design (store learnings):**

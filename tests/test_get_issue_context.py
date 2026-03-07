@@ -11,6 +11,8 @@ from unittest.mock import patch
 
 import pytest
 
+from tests.mock_fidelity import assert_mock_keys_match
+
 _SCRIPTS_DIR = (
     Path(__file__).resolve().parents[1]
     / ".claude" / "skills" / "github" / "scripts" / "issue"
@@ -35,8 +37,9 @@ def _completed(stdout: str = "", stderr: str = "", rc: int = 0):
     return subprocess.CompletedProcess(args=[], returncode=rc, stdout=stdout, stderr=stderr)
 
 
-def _issue_json():
-    return json.dumps({
+def _issue_data(**overrides):
+    """Build a mock issue dict matching the canonical fixture shape."""
+    data = {
         "number": 42,
         "title": "Test Issue",
         "body": "Issue body text",
@@ -47,7 +50,18 @@ def _issue_json():
         "assignees": [{"login": "dev1"}],
         "createdAt": "2025-01-01T00:00:00Z",
         "updatedAt": "2025-01-02T00:00:00Z",
-    })
+    }
+    data.update(overrides)
+    return data
+
+
+def _issue_json(**overrides):
+    return json.dumps(_issue_data(**overrides))
+
+
+def test_mock_shape_matches_fixture():
+    """Validate that the test mock shape matches the canonical API fixture."""
+    assert_mock_keys_match(_issue_data(), "issue")
 
 
 @patch("subprocess.run")
@@ -62,11 +76,16 @@ def test_happy_path(mock_run, capsys):
     assert rc == 0
 
     output = json.loads(capsys.readouterr().out)
+    assert isinstance(output, dict)
     assert output["success"] is True
+    assert isinstance(output["number"], int)
     assert output["number"] == 42
+    assert isinstance(output["title"], str)
     assert output["title"] == "Test Issue"
+    assert isinstance(output["labels"], list)
     assert output["labels"] == ["bug", "P1"]
     assert output["milestone"] == "v1.0.0"
+    assert isinstance(output["assignees"], list)
     assert output["assignees"] == ["dev1"]
 
 

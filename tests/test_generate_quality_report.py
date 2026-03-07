@@ -28,6 +28,7 @@ main = _mod.main
 build_parser = _mod.build_parser
 _AGENTS = _mod._AGENTS
 _AGENT_DISPLAY_NAMES = _mod._AGENT_DISPLAY_NAMES
+_build_action_required_section = _mod._build_action_required_section
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -44,6 +45,7 @@ def _make_argv(
     event_name: str = "pull_request",
     ref_name: str = "main",
     sha: str = "abc123",
+    pr_author: str = "",
 ) -> list[str]:
     argv = [
         "--run-id", run_id,
@@ -54,6 +56,8 @@ def _make_argv(
         "--sha", sha,
         "--final-verdict", final_verdict,
     ]
+    if pr_author:
+        argv.extend(["--pr-author", pr_author])
     verdicts = verdicts or {}
     categories = categories or {}
     for agent in _AGENTS:
@@ -200,3 +204,89 @@ class TestMain:
         assert rc == 0
         report = (report_dir / "pr-quality-report.md").read_text()
         assert "Findings file not found" in report
+
+    def test_action_required_section_with_failures(self, tmp_path, monkeypatch):
+        _setup_output(tmp_path, monkeypatch)
+        report_dir = tmp_path / "ai-review-results"
+        report_dir.mkdir(parents=True)
+        monkeypatch.chdir(tmp_path)
+        verdicts = {"security": "CRITICAL_FAIL", "qa": "PASS"}
+        with patch(
+            "generate_quality_report.initialize_ai_review",
+            return_value=str(report_dir),
+        ):
+            rc = main(_make_argv(
+                final_verdict="CRITICAL_FAIL",
+                verdicts=verdicts,
+                pr_author="copilot-swe-agent",
+            ))
+        assert rc == 0
+        report = (report_dir / "pr-quality-report.md").read_text()
+        assert "@copilot-swe-agent" in report
+        assert "Action Required" in report
+        assert "**Security** review flagged issues" in report
+
+    def test_no_action_required_when_all_pass(self, tmp_path, monkeypatch):
+        _setup_output(tmp_path, monkeypatch)
+        report_dir = tmp_path / "ai-review-results"
+        report_dir.mkdir(parents=True)
+        monkeypatch.chdir(tmp_path)
+        with patch(
+            "generate_quality_report.initialize_ai_review",
+            return_value=str(report_dir),
+        ):
+            rc = main(_make_argv(pr_author="some-user"))
+        assert rc == 0
+        report = (report_dir / "pr-quality-report.md").read_text()
+        assert "Action Required" not in report
+
+    def test_no_action_required_when_no_author(self, tmp_path, monkeypatch):
+        _setup_output(tmp_path, monkeypatch)
+        report_dir = tmp_path / "ai-review-results"
+        report_dir.mkdir(parents=True)
+        monkeypatch.chdir(tmp_path)
+        verdicts = {"security": "CRITICAL_FAIL"}
+        with patch(
+            "generate_quality_report.initialize_ai_review",
+            return_value=str(report_dir),
+        ):
+            rc = main(_make_argv(
+                final_verdict="CRITICAL_FAIL",
+                verdicts=verdicts,
+            ))
+        assert rc == 0
+        report = (report_dir / "pr-quality-report.md").read_text()
+        assert "Action Required" not in report
+
+
+# ---------------------------------------------------------------------------
+# Tests: _build_action_required_section (unit)
+# ---------------------------------------------------------------------------
+
+
+class TestBuildActionRequiredSection:
+    def test_returns_empty_when_no_author(self):
+        result = _build_action_required_section("", "FAIL", {"security": "FAIL"})
+        assert result == ""
+
+    def test_returns_empty_when_no_failures(self):
+        result = _build_action_required_section(
+            "user", "PASS", {a: "PASS" for a in _AGENTS}
+        )
+        assert result == ""
+
+    def test_mentions_author_on_critical_fail(self):
+        verdicts = {a: "PASS" for a in _AGENTS}
+        verdicts["security"] = "CRITICAL_FAIL"
+        result = _build_action_required_section("bot-user", "CRITICAL_FAIL", verdicts)
+        assert "@bot-user" in result
+        assert "**Security** review flagged issues" in result
+
+    def test_lists_multiple_failed_agents(self):
+        verdicts = {a: "PASS" for a in _AGENTS}
+        verdicts["security"] = "FAIL"
+        verdicts["qa"] = "NEEDS_REVIEW"
+        result = _build_action_required_section("author", "FAIL", verdicts)
+        assert "**Security**" in result
+        assert "**QA**" in result
+        assert "**Analyst**" not in result

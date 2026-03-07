@@ -253,8 +253,8 @@ def main(argv: list[str] | None = None) -> int:
 
     # Resolve owner/repo
     resolved = resolve_repo_params(args.owner, args.repo)
-    owner = resolved["Owner"]
-    repo = resolved["Repo"]
+    owner = resolved.owner
+    repo = resolved.repo
 
     # Check current milestone
     existing = get_item_milestone(owner, repo, item_number)

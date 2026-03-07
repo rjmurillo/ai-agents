@@ -1,0 +1,17 @@
+{
+  "_description": "Canonical GitHub GraphQL review thread shape (from pullRequest.reviewThreads.nodes). Used for mock fidelity validation.",
+  "id": "RT_001",
+  "isResolved": false,
+  "comments": {
+    "nodes": [
+      {
+        "databaseId": 9001,
+        "body": "Please fix this.",
+        "author": {
+          "login": "reviewer"
+        },
+        "createdAt": "2025-01-01T14:00:00Z"
+      }
+    ]
+  }
+}

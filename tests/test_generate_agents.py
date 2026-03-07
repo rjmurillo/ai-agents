@@ -159,13 +159,13 @@ class TestGenerateAgents:
         assert "model:" in content
         assert "description:" in content
 
-    def test_generated_content_has_crlf(self, tmp_path: Path) -> None:
+    def test_generated_content_has_lf_not_crlf(self, tmp_path: Path) -> None:
         repo_root, templates_path, output_root = _create_test_structure(tmp_path)
         generate_agents(templates_path, output_root, repo_root)
 
         output_file = output_root / "vs-code-agents" / "test-agent.agent.md"
         raw_content = output_file.read_bytes()
-        assert b"\r\n" in raw_content
+        assert b"\r\n" not in raw_content
 
     def test_what_if_mode_no_files(self, tmp_path: Path) -> None:
         repo_root, templates_path, output_root = _create_test_structure(tmp_path)

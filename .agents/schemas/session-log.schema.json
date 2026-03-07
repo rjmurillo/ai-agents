@@ -155,6 +155,9 @@
       "items": {
         "type": "string"
       }
+    },
+    "developmentPhase": {
+      "$ref": "#/definitions/developmentPhase"
     }
   },
   "definitions": {
@@ -242,6 +245,40 @@
         "impact": {
           "type": "string",
           "description": "Expected consequences or effects"
+        }
+      }
+    },
+    "developmentPhase": {
+      "type": "object",
+      "description": "SPARC development phase tracking. See .agents/governance/sparc-methodology.md",
+      "required": ["current"],
+      "properties": {
+        "current": {
+          "type": "string",
+          "description": "Current development phase",
+          "enum": ["specification", "pseudocode", "architecture", "refinement", "completion"]
+        },
+        "history": {
+          "type": "array",
+          "description": "Phase transition history",
+          "items": {
+            "type": "object",
+            "required": ["phase"],
+            "properties": {
+              "phase": {
+                "type": "string",
+                "enum": ["specification", "pseudocode", "architecture", "refinement", "completion"]
+              },
+              "gate": {
+                "type": "string",
+                "enum": ["passed", "failed", "in_progress", "skipped"]
+              },
+              "timestamp": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
+          }
         }
       }
     }
