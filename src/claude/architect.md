@@ -299,6 +299,30 @@ When reviewing an ADR:
 - [ ] Reversibility assessment completed (see below)
 ```
 
+### Exception Request Validation
+
+When reviewing an ADR **exception request**, apply this checklist **before** approving.
+Reference: `.agents/governance/ADR-EXCEPTION-CRITERIA.md`
+
+```markdown
+- [ ] Original ADR rationale is QUOTED (not paraphrased)
+- [ ] "Impact if removed" lists specific consequences (not generic)
+- [ ] At least two compliance alternatives documented with outcomes
+- [ ] Scope is narrowly bounded (exact path pattern or context)
+- [ ] Conditions include enforceable MUST requirements
+- [ ] Exception explicitly states what it MUST NOT be used as precedent for
+```
+
+**Rejection criteria** — reject the exception if ANY of the following are true:
+
+- ADR rationale is paraphrased rather than quoted
+- Fewer than two alternatives are documented
+- Scope is unbounded ("all Python files", "any hook")
+- Conditions are aspirational rather than enforceable
+- Requestor has not attempted compliance
+
+**On rejection**: Return the request with the specific gaps identified. Do not approve a partial exception and note gaps — reject and require a complete resubmission.
+
 ## Reversibility Assessment
 
 Every architectural decision MUST include a reversibility assessment. This addresses agency/legacy risk by ensuring decisions can be unwound if needed.
