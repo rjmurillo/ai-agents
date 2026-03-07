@@ -2,11 +2,17 @@
 
 ## Status
 
-Proposed
+Proposed. Supersedes ADR-036.
 
 ## Date
 
 2026-03-01
+
+## Prior Art
+
+ADR-036 (Two-Source Agent Template Architecture, 2026-01-01) established the current three-layer system: shared templates as the canonical source, with Claude Code and platform variants generated from them. The intent was a single source of truth with automated synchronization.
+
+That model failed. The 2025-12-15 drift analysis measured 2-13% similarity between templates and Claude agents. Contributors iterated directly on Claude agents, bypassing templates entirely. The template layer became dead code that no process enforced or maintained. ADR-051 replaces the template-first model with a Claude-first model that formalizes existing contributor behavior.
 
 ## Context
 
@@ -27,9 +33,9 @@ A 2025-12-15 analysis (`.agents/analysis/drift-analysis-claude-vs-templates.md`)
 | independent-thinker | 2.4% | 97.6% |
 | high-level-advisor | 3.8% | 96.2% |
 | critic | 9.7% | 90.3% |
-| task-generator | 11.9% | 88.1% |
+| task-decomposer | 11.9% | 88.1% |
 | architect | 12.6% | 87.4% |
-| planner | 12.8% | 87.2% |
+| milestone-planner | 12.8% | 87.2% |
 
 Templates and Claude agents share between 2-13% content. The template layer adds maintenance cost without delivering synchronization value.
 
@@ -113,11 +119,21 @@ Create `build/scripts/generate_platform_agents.py` that:
 3. Update `build/scripts/detect_agent_drift.py` to compare against Claude source directly
 4. Update CI workflows that reference template paths
 
+**Rollback**: If Phase 2 verification fails, restore templates from git history (`git checkout HEAD~1 -- templates/agents/`) and revert CI workflow changes. Template files remain recoverable from version control indefinitely.
+
 ### Phase 3: Override Mechanism
 
 1. Create `platform-overrides/` for per-agent, per-platform customizations
 2. Document override format in contributing guide
 3. Add CI validation that overrides do not diverge from Claude base beyond tool/frontmatter sections
+
+## Confirmation
+
+Compliance is verified through CI:
+
+1. `build/scripts/detect_agent_drift.py` compares generated VS Code and Copilot CLI agents against Claude source. Drift beyond frontmatter and tool declarations fails the build.
+2. The generation script (`generate_platform_agents.py`) runs in CI on every push to ensure derived agents stay current.
+3. Any manual edit to `src/vs-code-agents/` or `src/copilot-cli/` triggers a drift warning because those directories contain generated output.
 
 ## References
 
@@ -125,4 +141,5 @@ Create `build/scripts/generate_platform_agents.py` that:
 - `.agents/analysis/drift-analysis-claude-vs-templates.md`
 - `.agents/retrospective/2025-12-15-accountability-analysis.md`
 - `build/scripts/detect_agent_drift.py`
+- ADR-042: Python for new scripts (applies to `generate_platform_agents.py`)
 - ADR-044: Copilot CLI frontmatter compatibility
