@@ -6,6 +6,7 @@ import subprocess
 from unittest.mock import MagicMock, patch
 
 import pytest
+from scripts.github_core.api import RepoInfo
 
 from scripts.github_core.api import RepoInfo
 from scripts.invoke_pr_maintenance import (
