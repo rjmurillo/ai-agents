@@ -144,7 +144,7 @@ graph LR
 
 **Purpose**: Provide just-in-time security feedback during development
 
-**Implementation**: `.claude/hooks/PostToolUse/codeql_quick_scan.py`
+**Implementation**: `.claude/hooks/PostToolUse/invoke_codeql_quick_scan.py`
 
 **Characteristics**:
 
@@ -708,7 +708,7 @@ catch {
 4. Update PostToolUse hook file patterns:
 
    ```python
-   # .claude/hooks/PostToolUse/codeql_quick_scan.py
+   # .claude/hooks/PostToolUse/invoke_codeql_quick_scan.py
    if re.search(r'\.(js|ts)$', file_path):
        should_scan = True
    ```
@@ -779,7 +779,7 @@ queries:
 **Add New File Types**:
 
 ```python
-# .claude/hooks/PostToolUse/codeql_quick_scan.py
+# .claude/hooks/PostToolUse/invoke_codeql_quick_scan.py
 
 # Current: Python and Actions
 if re.search(r'\.(py|yml)$', file_path):

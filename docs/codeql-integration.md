@@ -255,7 +255,7 @@ flowchart TD
 
 ### Tier 3: Automatic Scanning
 
-**PostToolUse Hook** (`.claude/hooks/PostToolUse/codeql_quick_scan.py`):
+**PostToolUse Hook** (`.claude/hooks/PostToolUse/invoke_codeql_quick_scan.py`):
 
 **Triggers**:
 
@@ -454,13 +454,13 @@ Remove-Item -Recurse -Force .codeql/db
 
 ```bash
 # Check hook exists
-test -f .claude/hooks/PostToolUse/codeql_quick_scan.py
+test -f .claude/hooks/PostToolUse/invoke_codeql_quick_scan.py
 
 # Check hook permissions
-ls -la .claude/hooks/PostToolUse/codeql_quick_scan.py
+ls -la .claude/hooks/PostToolUse/invoke_codeql_quick_scan.py
 
 # Manual test
-python3 .claude/hooks/PostToolUse/codeql_quick_scan.py --file-path "example.py" --tool-name "Edit"
+python3 .claude/hooks/PostToolUse/invoke_codeql_quick_scan.py --file-path "example.py" --tool-name "Edit"
 ```
 
 **Common Issues**:
