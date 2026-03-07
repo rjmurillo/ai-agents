@@ -34,7 +34,24 @@ $ErrorActionPreference = 'Stop'
 $ModulePath = Join-Path $PSScriptRoot '../modules/WorkflowHelpers.psm1'
 Import-Module $ModulePath -Force
 
-if (-not (Test-Path $SessionLogPath)) {
+# Path validation per style guide (CWE-22)
+try {
+    $repoRoot = git rev-parse --show-toplevel
+    $allowedDir = [IO.Path]::GetFullPath((Join-Path $repoRoot '.agents/sessions'))
+    $resolvedPath = [IO.Path]::GetFullPath((Join-Path (Get-Location) $SessionLogPath))
+
+    if (-not $resolvedPath.StartsWith($allowedDir + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
+        Write-Error "Path traversal attempt detected. Path must be within the '.agents/sessions' directory." -ErrorAction Continue
+        exit 3
+    }
+    $SessionLogPath = $resolvedPath
+}
+catch {
+    Write-Error "Invalid path specified for -SessionLogPath: $_" -ErrorAction Continue
+    exit 3
+}
+
+if (-not (Test-Path -LiteralPath $SessionLogPath)) {
     Write-Error "Session log not found: $SessionLogPath" -ErrorAction Continue
     exit 3
 }
