@@ -73,6 +73,15 @@
 | No bash/Python scripts | [user-preferences/user-preference-no-bash-python](user-preferences/user-preference-no-bash-python.md) (268) |
 | No auto-generated headers | [user-preferences/user-preference-no-auto-headers](user-preferences/user-preference-no-auto-headers.md) (375) |
 
+## Root Cause Patterns (PR #908 Retrospective)
+
+| Keywords | Memory |
+|----------|--------|
+| governance enforcement ADR limits commits files programmatic gate | [root-cause-governance-enforcement](root-cause-governance-enforcement.md) |
+| late feedback loop CI shift-left CodeQL security pre-push local validation | [root-cause-late-feedback](root-cause-late-feedback.md) |
+| scope creep tool side effects markdownlint glob unrelated files | [root-cause-scope-creep-tools](root-cause-scope-creep-tools.md) |
+| PR 908 case study 228 comments 59 commits 95 files failure retrospective | [case-study-pr-908](case-study-pr-908.md) |
+
 ## Related
 
 - [memory/memory-001-feedback-retrieval](memory/memory-001-feedback-retrieval.md) (577)
