@@ -125,14 +125,22 @@ def get_safe_worktree_path(base_path: str, pr_number: int) -> str:
 
 
 def get_repo_info() -> RepoInfo:
-    """Auto-detect owner/repo from git remote."""
-    result = subprocess.run(
-        ["git", "remote", "get-url", "origin"],
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode != 0:
-        raise RuntimeError("Not in a git repository or no origin remote")
+    """Auto-detect owner/repo from git remote.
+
+    Raises:
+        RuntimeError: If git is not available, times out, or the remote
+            URL cannot be parsed as a GitHub repository.
+    """
+    try:
+        result = subprocess.run(
+            ["git", "remote", "get-url", "origin"],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=10,
+        )
+    except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired) as exc:
+        raise RuntimeError("Could not determine git remote origin") from exc
 
     remote = result.stdout.strip()
     match = re.search(r"github\.com[:/]([^/]+)/([^/.]+)", remote)
