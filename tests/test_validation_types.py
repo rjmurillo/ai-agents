@@ -1,4 +1,4 @@
-"""Tests for scripts.validation.types and the assert_validation_result helper.
+"""Tests for scripts.validation.models and the assert_validation_result helper.
 
 Verifies the shared ValidationResult dataclass and the test helper
 introduced by issue #839.
@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from scripts.validation.types import ValidationResult
+from scripts.validation.models import ValidationResult
 from tests.conftest import assert_validation_result
 
 
