@@ -28,7 +28,7 @@ on:
   pull_request:
     branches:
       - main
-    # NO paths filter here — handled internally via dorny/paths-filter so that
+    # NO paths filter here. Handled internally via dorny/paths-filter so that
     # required status checks still pass on PRs that don't touch agent files.
   workflow_dispatch: # Allow manual triggering for debugging
 
@@ -98,7 +98,7 @@ jobs:
             echo "Decision: Skip validation (no agent files changed)"
           fi
 
-  # ─── Phase 2: Validate — only when relevant files changed ───────────────────
+  # ─── Phase 2: Validate, only when relevant files changed ────────────────────
   validate:
     name: Agent Drift Detection
     runs-on: ubuntu-24.04-arm
@@ -208,7 +208,7 @@ jobs:
             echo "- \`src/copilot-cli/\` - generated Copilot CLI agents"
           } >> "$GITHUB_STEP_SUMMARY"
 
-  # ─── Bypass warning — runs instead of validate when bypass is active ─────────
+  # ─── Bypass warning, runs instead of validate when bypass is active ──────────
   bypass-warning:
     name: Agent Drift Detection
     runs-on: ubuntu-24.04-arm
@@ -220,7 +220,7 @@ jobs:
       contents: read
 
     steps:
-      - name: Bypass acknowledged — drift check skipped
+      - name: Bypass acknowledged, drift check skipped
         run: |
           echo "⚠️  Agent drift detection bypassed via [skip-drift-check] commit marker."
           echo ""
@@ -232,11 +232,11 @@ jobs:
           echo "  ☐  templates/README.md updated with intentional difference"
           echo "  ☐  Explicit code-owner approval obtained"
           echo ""
-          echo "Status: PASS (bypassed — manual approval required)"
+          echo "Status: PASS (bypassed, manual approval required)"
 
       - name: Write bypass summary
         run: |
-          echo "## ⚠️ Agent Drift Detection — Bypassed" >> "$GITHUB_STEP_SUMMARY"
+          echo "## Agent Drift Detection - Bypassed" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "Drift detection was skipped because a \`[skip-drift-check]\` marker was found in a commit message." >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
@@ -245,7 +245,7 @@ jobs:
           echo "- [ ] \`templates/README.md\` updated with intentional difference" >> "$GITHUB_STEP_SUMMARY"
           echo "- [ ] Explicit code-owner approval obtained" >> "$GITHUB_STEP_SUMMARY"
 
-  # ─── Skip job — provides passing status when no agent files changed ──────────
+  # ─── Skip job, provides passing status when no agent files changed ───────────
   # Uses the SAME NAME as the real validation job so required status checks pass.
   # (Dual-job same-name pattern from Issue #335)
   skip:
@@ -260,7 +260,7 @@ jobs:
     steps:
       - name: Skip validation (no agent files changed)
         run: |
-          echo "✅ Agent drift detection skipped — no relevant file changes detected"
+          echo "Agent drift detection skipped. No relevant file changes detected."
           echo ""
           echo "This PR only contains changes to files that don't affect generated agents."
           echo ""
@@ -271,4 +271,4 @@ jobs:
           echo "  - build/generate_agents.py"
           echo "  - .github/workflows/agent-drift-detection.yml"
           echo ""
-          echo "Status: PASS (skipped — no relevant changes)"
+          echo "Status: PASS (skipped, no relevant changes)"

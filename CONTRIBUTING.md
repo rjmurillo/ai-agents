@@ -397,10 +397,10 @@ The `agent-drift-detection.yml` workflow runs on every PR that touches agent-rel
 
 ### What counts as drift?
 
-Drift is detected when any generated file (`src/vs-code-agents/*.agent.md`, `src/copilot-cli/*.agent.md`) differs from what `Generate-Agents.ps1` would produce from the current templates. This includes both:
+Drift is detected when any generated file (`src/vs-code-agents/*.agent.md`, `src/copilot-cli/*.agent.md`) differs from what `generate_agents.py` would produce from the current templates. This includes both:
 
-- **Content drift** — body text changed directly in a generated file
-- **Frontmatter drift** — YAML frontmatter edited outside the generation pipeline
+- **Content drift**, body text changed directly in a generated file
+- **Frontmatter drift**, YAML frontmatter edited outside the generation pipeline
 
 Whitespace-only differences (line endings, trailing spaces) are ignored during comparison.
 
@@ -411,7 +411,7 @@ Whitespace-only differences (line endings, trailing spaces) are ignored during c
 code templates/agents/<agent-name>.shared.md
 
 # 2. Regenerate
-pwsh -NoProfile build/Generate-Agents.ps1
+python3 build/generate_agents.py
 
 # 3. Commit the regenerated files
 git add src/vs-code-agents/ src/copilot-cli/
@@ -427,7 +427,7 @@ In rare cases (e.g., emergency hotfix), you may need to skip drift detection:
 3. Update `templates/README.md` to record the intentional difference
 4. Obtain explicit code-owner approval for the bypass
 
-> **Note:** Bypasses are auditable — they appear in the workflow summary and require reviewer acknowledgement.
+> **Note:** Bypasses are auditable. They appear in the workflow summary and require reviewer acknowledgement.
 
 ## Pre-Commit Hooks
 
