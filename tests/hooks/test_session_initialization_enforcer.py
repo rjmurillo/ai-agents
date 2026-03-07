@@ -149,8 +149,7 @@ class TestMainErrorHandling:
                     assert main() == 0
 
         captured = capsys.readouterr()
-        # Non-protected branch path, None branch displayed
-        assert captured.out  # Some output produced
+        assert "Branch: `None`" in captured.out
 
 
 class TestModuleAsScript:

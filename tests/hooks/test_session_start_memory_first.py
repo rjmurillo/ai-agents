@@ -114,4 +114,4 @@ class TestMain:
         result = invoke_session_start_memory_first.main()
         assert result == 0
         captured = capsys.readouterr()
-        assert "ADR-007" in captured.out
+        assert "ADR-007 active" in captured.out
