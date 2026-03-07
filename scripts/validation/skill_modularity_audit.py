@@ -28,6 +28,13 @@ import sys
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
+# Add project root to path for imports
+_SCRIPT_DIR = Path(__file__).resolve().parent
+_PROJECT_ROOT = _SCRIPT_DIR.parents[1]
+sys.path.insert(0, str(_PROJECT_ROOT))
+
+from scripts.validation.frontmatter import has_size_exception  # noqa: E402
+
 # Thresholds aligned with skill_size.py
 LINE_LIMIT: int = 500
 LINE_WARNING: int = 300
@@ -54,18 +61,6 @@ class SkillAuditResult:
     modularity_score: int  # 0-100, higher is better
     rating: str  # "good", "warning", "oversized"
     recommendations: list[str] = field(default_factory=list)
-
-
-def _parse_frontmatter_exception(content: str) -> bool:
-    """Check if frontmatter declares a size exception."""
-    if not content.startswith("---"):
-        return False
-    lines = content.split("\n")
-    for i in range(1, len(lines)):
-        if lines[i].strip() == "---":
-            frontmatter = "\n".join(lines[1:i])
-            return bool(re.search(r"^size-exception:\s*true", frontmatter, re.MULTILINE))
-    return False
 
 
 def _count_headings(content: str) -> tuple[int, int]:
@@ -150,7 +145,7 @@ def audit_skill(skill_dir: Path) -> SkillAuditResult | None:
     content = skill_file.read_text(encoding="utf-8")
     line_count = len(content.splitlines())
     h2_count, h3_count = _count_headings(content)
-    has_exception = _parse_frontmatter_exception(content)
+    has_exception = has_size_exception(content)
 
     has_scripts = (skill_dir / "scripts").is_dir()
     has_references = (skill_dir / "references").is_dir()

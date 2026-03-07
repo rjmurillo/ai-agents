@@ -23,8 +23,16 @@ import argparse
 import os
 import re
 import subprocess
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
+
+# Add project root to path for imports
+_SCRIPT_DIR = Path(__file__).resolve().parent
+_PROJECT_ROOT = _SCRIPT_DIR.parents[1]
+sys.path.insert(0, str(_PROJECT_ROOT))
+
+from scripts.validation.frontmatter import has_size_exception  # noqa: E402
 
 # Size thresholds (lines)
 SKILL_SIZE_LIMIT: int = 500
@@ -41,19 +49,6 @@ class SizeCheckResult:
     passed: bool = True
     warning: bool = False
     errors: list[str] = field(default_factory=list)
-
-
-def has_size_exception(content: str) -> bool:
-    """Check if frontmatter declares a size exception."""
-    if not content.startswith("---"):
-        return False
-
-    lines = content.split("\n")
-    for i in range(1, len(lines)):
-        if lines[i].strip() == "---":
-            frontmatter = "\n".join(lines[1:i])
-            return bool(re.search(r"^size-exception:\s*true", frontmatter, re.MULTILINE))
-    return False
 
 
 def check_skill_size(
