@@ -20,7 +20,7 @@
 #   4. Ensure the PR has explicit code-owner approval
 #
 # Running locally:
-#   pwsh -NoProfile ./build/Generate-Agents.ps1 -Validate
+#   python3 build/generate_agents.py --validate
 
 name: Agent Drift Detection (CI)
 
@@ -81,8 +81,7 @@ jobs:
               - 'templates/**'
               - 'src/vs-code-agents/**'
               - 'src/copilot-cli/**'
-              - 'build/Generate-Agents.ps1'
-              - 'build/Generate-Agents.Common.psm1'
+              - 'build/generate_agents.py'
               - '.github/workflows/agent-drift-detection.yml'
 
       - name: Determine if validation should run
@@ -117,124 +116,97 @@ jobs:
 
       - name: Regenerate and validate agent files
         id: validate
-        shell: pwsh -NoProfile -Command "& '{0}'"
+        shell: bash
         run: |
-          Write-Host "Running agent generation in validation mode..."
-          Write-Host "This regenerates all platform-specific files from source templates"
-          Write-Host "and compares them against committed files."
-          Write-Host ""
+          echo "Running agent generation in validation mode..."
+          echo "This regenerates all platform-specific files from source templates"
+          echo "and compares them against committed files."
+          echo ""
 
-          ./build/Generate-Agents.ps1 -Validate
+          python3 build/generate_agents.py --validate
 
       - name: Show diff on failure
         if: failure() && steps.validate.conclusion == 'failure'
-        shell: pwsh -NoProfile -Command "& '{0}'"
+        shell: bash
         run: |
-          Write-Host ""
-          Write-Host "═══════════════════════════════════════════════════════════" -ForegroundColor Red
-          Write-Host "  AGENT DRIFT DETECTED" -ForegroundColor Red
-          Write-Host "═══════════════════════════════════════════════════════════" -ForegroundColor Red
-          Write-Host ""
-          Write-Host "Generated agent files do not match the committed files." -ForegroundColor Yellow
-          Write-Host "This means someone edited a generated file directly, bypassing"
-          Write-Host "the source template."
-          Write-Host ""
+          echo ""
+          echo "==========================================================="
+          echo "  AGENT DRIFT DETECTED"
+          echo "==========================================================="
+          echo ""
+          echo "Generated agent files do not match the committed files."
+          echo "This means someone edited a generated file directly, bypassing"
+          echo "the source template."
+          echo ""
 
           # Regenerate without validation mode to get the expected content in working tree
-          ./build/Generate-Agents.ps1
+          python3 build/generate_agents.py
 
           # Show which files drifted
-          $changedFiles = git diff --name-only
-          if ($changedFiles) {
-            Write-Host "─── Files with semantic drift ───────────────────────────" -ForegroundColor Red
-            foreach ($file in $changedFiles) {
-              Write-Host "  ✗  $file" -ForegroundColor Yellow
-            }
-            Write-Host ""
+          changed_files=$(git diff --name-only)
+          if [ -n "$changed_files" ]; then
+            echo "--- Files with semantic drift ---"
+            echo "$changed_files" | while read -r file; do
+              echo "  x  $file"
+            done
+            echo ""
 
-            # Separate frontmatter drift from content drift
-            $frontmatterDrift = @()
-            $contentDrift = @()
-            foreach ($file in $changedFiles) {
-              $diff = git diff -- $file
-              # Frontmatter is within the first --- block
-              if ($diff -match "^[+-]---" -or $diff -match "^[+-][a-z_]+:") {
-                $frontmatterDrift += $file
-              } else {
-                $contentDrift += $file
-              }
-            }
-
-            if ($frontmatterDrift.Count -gt 0) {
-              Write-Host "─── Frontmatter drift ───────────────────────────────────" -ForegroundColor Magenta
-              foreach ($file in $frontmatterDrift) {
-                Write-Host "  $file" -ForegroundColor White
-              }
-              Write-Host ""
-            }
-
-            if ($contentDrift.Count -gt 0) {
-              Write-Host "─── Content drift ───────────────────────────────────────" -ForegroundColor Magenta
-              foreach ($file in $contentDrift) {
-                Write-Host "  $file" -ForegroundColor White
-              }
-              Write-Host ""
-            }
-
-            Write-Host "─── How to fix ──────────────────────────────────────────" -ForegroundColor Cyan
-            Write-Host ""
-            Write-Host "  1. Edit the source template (NOT the generated file):" -ForegroundColor White
-            Write-Host "       templates/agents/<agent-name>.shared.md" -ForegroundColor Gray
-            Write-Host ""
-            Write-Host "  2. Regenerate platform-specific files:" -ForegroundColor White
-            Write-Host "       pwsh -NoProfile build/Generate-Agents.ps1" -ForegroundColor Gray
-            Write-Host ""
-            Write-Host "  3. Commit the regenerated files:" -ForegroundColor White
-            Write-Host "       git add src/vs-code-agents/ src/copilot-cli/" -ForegroundColor Gray
-            Write-Host "       git commit -m 'fix(agents): regenerate from updated template'" -ForegroundColor Gray
-            Write-Host ""
-            Write-Host "─── Bypass procedure (intentional divergence) ───────────" -ForegroundColor Cyan
-            Write-Host ""
-            Write-Host "  If this divergence is intentional:" -ForegroundColor White
-            Write-Host "  1. Add [skip-drift-check] to a commit message in this PR" -ForegroundColor Gray
-            Write-Host "  2. Document the reason in your PR description" -ForegroundColor Gray
-            Write-Host "  3. Update templates/README.md with the intentional difference" -ForegroundColor Gray
-            Write-Host "  4. Ensure explicit code-owner approval on this PR" -ForegroundColor Gray
-            Write-Host ""
-            Write-Host "─── Detailed diff ───────────────────────────────────────" -ForegroundColor Red
-            Write-Host ""
+            echo "--- How to fix ---"
+            echo ""
+            echo "  1. Edit the source template (NOT the generated file):"
+            echo "       templates/agents/<agent-name>.shared.md"
+            echo ""
+            echo "  2. Regenerate platform-specific files:"
+            echo "       python3 build/generate_agents.py"
+            echo ""
+            echo "  3. Commit the regenerated files:"
+            echo "       git add src/vs-code-agents/ src/copilot-cli/"
+            echo "       git commit -m 'fix(agents): regenerate from updated template'"
+            echo ""
+            echo "--- Bypass procedure (intentional divergence) ---"
+            echo ""
+            echo "  If this divergence is intentional:"
+            echo "  1. Add [skip-drift-check] to a commit message in this PR"
+            echo "  2. Document the reason in your PR description"
+            echo "  3. Update templates/README.md with the intentional difference"
+            echo "  4. Ensure explicit code-owner approval on this PR"
+            echo ""
+            echo "--- Detailed diff ---"
+            echo ""
             git diff
-          }
+          fi
 
       - name: Write job summary
         if: always()
-        shell: pwsh -NoProfile -Command "& '{0}'"
+        shell: bash
+        env:
+          VALIDATE_CONCLUSION: ${{ steps.validate.conclusion }}
         run: |
-          $outcome = "${{ steps.validate.conclusion }}"
-          $summary = @()
-
-          if ($outcome -eq "success") {
-            $summary += "## ✅ Agent Drift Detection Passed"
-            $summary += ""
-            $summary += "All generated agent files match their source templates."
-          } else {
-            $summary += "## ❌ Agent Drift Detection Failed"
-            $summary += ""
-            $summary += "Generated agent files have drifted from their source templates."
-            $summary += ""
-            $summary += "### Fix"
-            $summary += "1. Edit the source template in ``templates/agents/*.shared.md``"
-            $summary += "2. Run: ``pwsh -NoProfile build/Generate-Agents.ps1``"
-            $summary += "3. Commit the regenerated files"
-          }
-
-          $summary += ""
-          $summary += "### Monitored Paths"
-          $summary += "- ``templates/``  — source templates"
-          $summary += "- ``src/vs-code-agents/``  — generated VS Code agents"
-          $summary += "- ``src/copilot-cli/``  — generated Copilot CLI agents"
-
-          $summary | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          if [ "$VALIDATE_CONCLUSION" = "success" ]; then
+            {
+              echo "## Agent Drift Detection Passed"
+              echo ""
+              echo "All generated agent files match their source templates."
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            {
+              echo "## Agent Drift Detection Failed"
+              echo ""
+              echo "Generated agent files have drifted from their source templates."
+              echo ""
+              echo "### Fix"
+              echo "1. Edit the source template in \`templates/agents/*.shared.md\`"
+              echo "2. Run: \`python3 build/generate_agents.py\`"
+              echo "3. Commit the regenerated files"
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+          {
+            echo ""
+            echo "### Monitored Paths"
+            echo "- \`templates/\` - source templates"
+            echo "- \`src/vs-code-agents/\` - generated VS Code agents"
+            echo "- \`src/copilot-cli/\` - generated Copilot CLI agents"
+          } >> "$GITHUB_STEP_SUMMARY"
 
   # ─── Bypass warning — runs instead of validate when bypass is active ─────────
   bypass-warning:
@@ -296,8 +268,7 @@ jobs:
           echo "  - templates/**"
           echo "  - src/vs-code-agents/**"
           echo "  - src/copilot-cli/**"
-          echo "  - build/Generate-Agents.ps1"
-          echo "  - build/Generate-Agents.Common.psm1"
+          echo "  - build/generate_agents.py"
           echo "  - .github/workflows/agent-drift-detection.yml"
           echo ""
           echo "Status: PASS (skipped — no relevant changes)"
