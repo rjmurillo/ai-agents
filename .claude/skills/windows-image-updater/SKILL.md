@@ -84,7 +84,7 @@ After completing all phases, create a draft PR with this structure:
 
 - [ ] `nuget restore` completes without warnings
 - [ ] ConfigGen exits with code 0
-- [ ] `grep -r "ltsc2019" --include="*.yml"` returns 0 results
+- [ ] `grep -r --include="*.yml" -- "ltsc2019" .` returns 0 results
 ```
 
 ## Composability

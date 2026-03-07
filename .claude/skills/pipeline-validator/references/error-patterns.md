@@ -108,9 +108,9 @@
 
 **Cause**: Malformed YAML in pipeline definition files, often from merge conflicts or manual edits.
 
-**Auto-fix**: Run a YAML linter on the file, fix syntax errors, and commit.
+**Auto-fix**: None. Report syntax errors with line numbers for human review. Automated fixing of YAML syntax is high-risk and can alter logic unintentionally.
 
-**Severity**: Auto-fixable
+**Severity**: Investigation required
 
 ## Category 12: OneBranch-Specific Errors
 
