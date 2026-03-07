@@ -334,22 +334,22 @@ class TestMainSubprocessErrorPaths:
         return json.dumps({"tool_input": {"command": "git commit -m 'test'"}})
 
     @patch("invoke_adr_review_guard.get_staged_adr_changes")
-    def test_fails_open_on_file_not_found(self, mock_changes, monkeypatch, capsys):
-        """FileNotFoundError (git missing) caught by outer handler, returns 0."""
+    def test_fails_closed_on_file_not_found(self, mock_changes, monkeypatch, capsys):
+        """FileNotFoundError (git missing) triggers fail-closed (exit 2)."""
         mock_changes.side_effect = FileNotFoundError("git not found")
         monkeypatch.setattr("sys.stdin", io.StringIO(self._make_commit_input()))
-        assert invoke_adr_review_guard.main() == 0
+        assert invoke_adr_review_guard.main() == 2
         captured = capsys.readouterr()
-        assert "FileNotFoundError" in captured.err
+        assert "fail-closed" in captured.err
 
     @patch("invoke_adr_review_guard.get_staged_adr_changes")
-    def test_fails_open_on_timeout(self, mock_changes, monkeypatch, capsys):
-        """TimeoutExpired caught by outer handler, returns 0."""
+    def test_fails_closed_on_timeout(self, mock_changes, monkeypatch, capsys):
+        """TimeoutExpired triggers fail-closed (exit 2)."""
         mock_changes.side_effect = subprocess.TimeoutExpired(cmd="git", timeout=30)
         monkeypatch.setattr("sys.stdin", io.StringIO(self._make_commit_input()))
-        assert invoke_adr_review_guard.main() == 0
+        assert invoke_adr_review_guard.main() == 2
         captured = capsys.readouterr()
-        assert "TimeoutExpired" in captured.err
+        assert "fail-closed" in captured.err
 
 
 class TestModuleAsScript:
