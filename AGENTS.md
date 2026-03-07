@@ -148,6 +148,24 @@ pwsh .claude/skills/session-init/scripts/New-SessionLog.ps1 -SessionNumber 375 -
 
 See: [.claude/skills/session-init/SKILL.md](.claude/skills/session-init/SKILL.md) and [.claude/commands/session-init.md](.claude/commands/session-init.md)
 
+#### Workflow Commands (Numbered Pipeline)
+
+Numbered workflow commands provide a structured agent orchestration pipeline:
+
+```bash
+/0-init           # Session initialization (ADR-007 memory-first)
+/1-plan <task>    # Planning: planner agent
+/1-plan --arch    # Planning: architect agent (design decisions)
+/1-plan --strategic  # Planning: roadmap → high-level-advisor chain
+/2-impl <task>    # Implementation: implementer agent
+/2-impl --full    # Implementation + QA + security (sequential)
+/2-impl --parallel   # Implementation + QA + security (parallel)
+/3-qa             # Quality assurance
+/4-security       # Security review (OWASP + secrets + deps)
+```
+
+See: [docs/workflow-commands.md](docs/workflow-commands.md) and [.claude/skills/workflow/SKILL.md](.claude/skills/workflow/SKILL.md)
+
 #### Session Start
 
 ```bash

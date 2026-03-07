@@ -23,6 +23,20 @@ Custom slash commands for Claude Code. All commands follow quality gates (frontm
 
 **Extended Thinking**: `research`
 
+## Workflow Commands
+
+Numbered pipeline commands for structured agent orchestration (`/0-init → /1-plan → /2-impl → /3-qa → /4-security`).
+
+| Command | Description | Arguments |
+|---------|-------------|-----------|
+| `/workflow/0-init` | Session initialization (ADR-007 memory-first) | `[--session-number N] [--objective "text"]` |
+| `/workflow/1-plan` | Planning phase — routes to planner/architect/roadmap | `[--arch] [--strategic] <task>` |
+| `/workflow/2-impl` | Implementation — default/full/parallel modes | `[--full] [--parallel] <task>` |
+| `/workflow/3-qa` | Quality assurance — coverage + acceptance criteria | `[--coverage-threshold N] <scope>` |
+| `/workflow/4-security` | Security review (opus) — OWASP + secrets + deps | `[--owasp-only] [--secrets-only] <scope>` |
+
+See [docs/workflow-commands.md](../../docs/workflow-commands.md) for complete documentation.
+
 ## Development Commands
 
 | Command | Description | Arguments |
