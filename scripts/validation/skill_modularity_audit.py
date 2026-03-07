@@ -33,6 +33,7 @@ _SCRIPT_DIR = Path(__file__).resolve().parent
 _PROJECT_ROOT = _SCRIPT_DIR.parents[1]
 sys.path.insert(0, str(_PROJECT_ROOT))
 
+from scripts.utils.path_validation import validate_safe_path  # noqa: E402
 from scripts.validation.frontmatter import has_size_exception  # noqa: E402
 
 # Thresholds aligned with skill_size.py
@@ -284,7 +285,13 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    skills_path = Path(args.path)
+    # CWE-22: Validate path stays within repository root
+    try:
+        skills_path = validate_safe_path(args.path, _PROJECT_ROOT)
+    except (ValueError, FileNotFoundError) as exc:
+        print(f"Path validation failed: {exc}", file=sys.stderr)
+        return 2
+
     if not skills_path.is_dir():
         print(f"Skills directory not found: {skills_path}", file=sys.stderr)
         return 2
