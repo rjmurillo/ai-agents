@@ -609,7 +609,7 @@ issue: 0
 
 ### Status Definitions
 
-| Status | Meaning | blocking Value |
+| Status | Meaning | `blocking` Value |
 |--------|---------|----------------|
 | **APPROVED** | Design meets all criteria | `false` |
 | **NEEDS_CHANGES** | Minor issues, can proceed with fixes | `false` |
