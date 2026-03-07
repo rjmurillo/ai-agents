@@ -139,7 +139,7 @@ Describe "Get-AllPRsWithComments" {
                 return $mockData
             }
 
-            $result = Get-AllPRsWithComments -Owner "testowner" -Repo "testrepo" -Since ([datetime]"2025-01-01")
+            $result = Get-AllPRsWithComments -Owner "testowner" -Repo "testrepo" -Since ([datetimeoffset]"2025-01-01")
 
             $result | Should -HaveCount 2
             $result[0].number | Should -Be 1
@@ -155,7 +155,7 @@ Describe "Get-AllPRsWithComments" {
                 return $mockData
             }
 
-            $result = Get-AllPRsWithComments -Owner "testowner" -Repo "testrepo" -Since ([datetime]"2025-01-01")
+            $result = Get-AllPRsWithComments -Owner "testowner" -Repo "testrepo" -Since ([datetimeoffset]"2025-01-01")
 
             $result | Should -HaveCount 1
             $result[0].number | Should -Be 1
@@ -173,7 +173,7 @@ Describe "Get-AllPRsWithComments" {
                 return $mockData
             }
 
-            $result = Get-AllPRsWithComments -Owner "testowner" -Repo "testrepo" -Since ([datetime]"2025-06-01")
+            $result = Get-AllPRsWithComments -Owner "testowner" -Repo "testrepo" -Since ([datetimeoffset]"2025-06-01")
 
             # Should only include the recent PR (old one triggers early stop)
             $result | Should -HaveCount 1
@@ -188,7 +188,7 @@ Describe "Get-AllPRsWithComments" {
                 return $mockData
             }
 
-            $result = Get-AllPRsWithComments -Owner "testowner" -Repo "testrepo" -Since ([datetime]"2025-06-01")
+            $result = Get-AllPRsWithComments -Owner "testowner" -Repo "testrepo" -Since ([datetimeoffset]"2025-06-01")
 
             $result | Should -HaveCount 0
         }
@@ -212,7 +212,7 @@ Describe "Get-AllPRsWithComments" {
                 }
             }
 
-            $result = Get-AllPRsWithComments -Owner "testowner" -Repo "testrepo" -Since ([datetime]"2025-01-01")
+            $result = Get-AllPRsWithComments -Owner "testowner" -Repo "testrepo" -Since ([datetimeoffset]"2025-01-01")
 
             $result | Should -HaveCount 2
         }
@@ -223,7 +223,7 @@ Describe "Get-AllPRsWithComments" {
                 return (New-MockGraphQLData -Nodes @($pr) -HasNextPage $true -EndCursor "cursor_next")
             }
 
-            $result = Get-AllPRsWithComments -Owner "testowner" -Repo "testrepo" -Since ([datetime]"2025-01-01") -MaxPages 2
+            $result = Get-AllPRsWithComments -Owner "testowner" -Repo "testrepo" -Since ([datetimeoffset]"2025-01-01") -MaxPages 2
 
             # Should have called Invoke-GhGraphQL twice (MaxPages = 2), each returning 1 PR
             Should -Invoke -ModuleName GitHubCore -CommandName 'Invoke-GhGraphQL' -Times 2
@@ -238,7 +238,7 @@ Describe "Get-AllPRsWithComments" {
                 return $mockData
             }
 
-            Get-AllPRsWithComments -Owner 'injection"attempt' -Repo 'mal}icious' -Since ([datetime]"2025-01-01")
+            Get-AllPRsWithComments -Owner 'injection"attempt' -Repo 'mal}icious' -Since ([datetimeoffset]"2025-01-01")
 
             # Verify variables were passed via the -Variables parameter
             Should -Invoke -ModuleName GitHubCore -CommandName 'Invoke-GhGraphQL' -Times 1 -ParameterFilter {
@@ -253,7 +253,7 @@ Describe "Get-AllPRsWithComments" {
                 return $mockData
             }
 
-            Get-AllPRsWithComments -Owner "testowner" -Repo "testrepo" -Since ([datetime]"2025-01-01")
+            Get-AllPRsWithComments -Owner "testowner" -Repo "testrepo" -Since ([datetimeoffset]"2025-01-01")
 
             # Verify the query uses variable declarations, not string interpolation
             Should -Invoke -ModuleName GitHubCore -CommandName 'Invoke-GhGraphQL' -Times 1 -ParameterFilter {
@@ -279,7 +279,7 @@ Describe "Get-AllPRsWithComments" {
                 }
             }
 
-            Get-AllPRsWithComments -Owner "testowner" -Repo "testrepo" -Since ([datetime]"2025-01-01")
+            Get-AllPRsWithComments -Owner "testowner" -Repo "testrepo" -Since ([datetimeoffset]"2025-01-01")
 
             # Second call should include cursor variable
             Should -Invoke -ModuleName GitHubCore -CommandName 'Invoke-GhGraphQL' -Times 1 -ParameterFilter {
@@ -295,7 +295,7 @@ Describe "Get-AllPRsWithComments" {
                 throw "GraphQL request failed: API rate limit exceeded"
             }
 
-            { Get-AllPRsWithComments -Owner "testowner" -Repo "testrepo" -Since ([datetime]"2025-01-01") } |
+            { Get-AllPRsWithComments -Owner "testowner" -Repo "testrepo" -Since ([datetimeoffset]"2025-01-01") } |
                 Should -Throw "*GraphQL request failed*"
         }
     }

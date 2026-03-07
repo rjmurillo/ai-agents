@@ -557,7 +557,7 @@ function Get-AllPRsWithComments {
         [string]$Repo,
 
         [Parameter(Mandatory)]
-        [datetime]$Since,
+        [datetimeoffset]$Since,
 
         [Parameter()]
         [ValidateRange(1, [int]::MaxValue)]
@@ -625,7 +625,7 @@ query($owner: String!, $repo: String!, $cursor: String) {
 
         foreach ($pr in $prData.nodes) {
             # Check if PR was updated within our time range
-            $updatedAt = [datetime]::Parse($pr.updatedAt)
+            $updatedAt = [datetimeoffset]::Parse($pr.updatedAt)
             if ($updatedAt -lt $Since) {
                 # PRs are ordered by updatedAt DESC, so we can stop here
                 $hasNextPage = $false
