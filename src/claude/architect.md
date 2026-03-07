@@ -289,24 +289,32 @@ Chosen option: "{title of option 1}", because {justification: meets criterion X 
 
 ### ADR Exception Evaluation (BLOCKING)
 
-When reviewing an ADR exception request, apply Chesterton's Fence analysis:
+When reviewing an ADR exception request, apply Chesterton's Fence analysis.
+Reference: [ADR-EXCEPTION-CRITERIA.md](../../.agents/governance/ADR-EXCEPTION-CRITERIA.md)
 
 **MUST verify before approval:**
 
-1. **Rule understanding**: Author articulates why the rule exists (quote from original ADR)
-2. **Alternatives exhausted**: At least two alternatives attempted with failure evidence
-3. **Scope bounded**: Explicit paths/files/conditions where exception applies
-4. **Reversibility defined**: Plan to undo exception if circumstances change
-5. **Amendment format**: Exception added to original ADR, not a standalone document
+```markdown
+- [ ] Original ADR rationale is QUOTED (not paraphrased)
+- [ ] "Impact if removed" lists specific consequences (not generic)
+- [ ] At least two compliance alternatives documented with outcomes
+- [ ] Scope is narrowly bounded (exact path pattern or context)
+- [ ] Conditions include enforceable MUST requirements
+- [ ] Exception explicitly states what it MUST NOT be used as precedent for
+- [ ] Reversibility defined: plan to undo exception if circumstances change
+- [ ] Amendment format: exception added to original ADR, not a standalone document
+```
 
-**MUST reject if:**
+**MUST reject if ANY of the following are true:**
 
-- Author cannot explain original rationale
-- Alternatives are convenience-based ("faster to write")
-- Scope is vague or expandable
+- ADR rationale is paraphrased rather than quoted
+- Fewer than two alternatives are documented
+- Scope is unbounded ("all Python files", "any hook")
+- Conditions are aspirational rather than enforceable
+- Requestor has not attempted compliance
 - No reversibility consideration
 
-**Reference**: [ADR-EXCEPTION-CRITERIA.md](../../.agents/governance/ADR-EXCEPTION-CRITERIA.md)
+**On rejection**: Return the request with the specific gaps identified. Do not approve a partial exception and note gaps. Reject and require a complete resubmission.
 
 ### ADR Review Checklist
 
@@ -324,30 +332,6 @@ When reviewing an ADR:
 - [ ] Related ADRs are linked
 - [ ] Reversibility assessment completed (see below)
 ```
-
-### Exception Request Validation
-
-When reviewing an ADR **exception request**, apply this checklist **before** approving.
-Reference: `.agents/governance/ADR-EXCEPTION-CRITERIA.md`
-
-```markdown
-- [ ] Original ADR rationale is QUOTED (not paraphrased)
-- [ ] "Impact if removed" lists specific consequences (not generic)
-- [ ] At least two compliance alternatives documented with outcomes
-- [ ] Scope is narrowly bounded (exact path pattern or context)
-- [ ] Conditions include enforceable MUST requirements
-- [ ] Exception explicitly states what it MUST NOT be used as precedent for
-```
-
-**Rejection criteria** — reject the exception if ANY of the following are true:
-
-- ADR rationale is paraphrased rather than quoted
-- Fewer than two alternatives are documented
-- Scope is unbounded ("all Python files", "any hook")
-- Conditions are aspirational rather than enforceable
-- Requestor has not attempted compliance
-
-**On rejection**: Return the request with the specific gaps identified. Do not approve a partial exception and note gaps — reject and require a complete resubmission.
 
 ## Reversibility Assessment
 
