@@ -1410,8 +1410,11 @@ if [ -n "$STAGED_MEMORY_FILES" ]; then
         elif [ -f "$MEMORY_TOKEN_UPDATER" ]; then
             if set_python_cmd; then
                 echo_info "Updating memory-index.md token counts..."
-                token_update_output=$("${PYTHON_CMD[@]}" "$MEMORY_TOKEN_UPDATER" 2>&1)
-                token_update_exit=$?
+                if token_update_output=$("${PYTHON_CMD[@]}" "$MEMORY_TOKEN_UPDATER" 2>&1); then
+                    token_update_exit=0
+                else
+                    token_update_exit=$?
+                fi
 
                 if [ $token_update_exit -eq 0 ]; then
                     echo_info "  $token_update_output"
