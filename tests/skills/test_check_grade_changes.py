@@ -11,13 +11,7 @@ import pytest
 
 sys.path.insert(
     0,
-    str(
-        Path(__file__).resolve().parents[2]
-        / ".claude"
-        / "skills"
-        / "quality-grades"
-        / "scripts"
-    ),
+    str(Path(__file__).resolve().parents[2] / ".claude" / "skills" / "quality-grades" / "scripts"),
 )
 
 from check_grade_changes import (
@@ -28,7 +22,8 @@ from check_grade_changes import (
 
 
 @pytest.fixture()
-def sample_grades():
+def sample_grades() -> dict:
+    """Build a sample grades payload with stable, degrading, and improving domains."""
     return {
         "generated_at": "2026-03-07T00:00:00+00:00",
         "grading_agent": "quality-auditor",
@@ -73,31 +68,39 @@ def sample_grades():
 
 
 class TestFindDegradedDomains:
-    def test_finds_degrading_trend(self, sample_grades):
+    """Tests for identifying domains that are degrading or below threshold."""
+
+    def test_finds_degrading_trend(self, sample_grades: dict) -> None:
+        """Flag domains with a degrading trend."""
         flagged = find_degraded_domains(sample_grades, threshold=60)
         domains = [d["domain"] for d in flagged]
         assert "memory" in domains
 
-    def test_finds_below_threshold(self, sample_grades):
+    def test_finds_below_threshold(self, sample_grades: dict) -> None:
+        """Flag domains with scores below the threshold."""
         flagged = find_degraded_domains(sample_grades, threshold=60)
         assert any(d["domain"] == "memory" for d in flagged)
 
-    def test_skips_healthy_domains(self, sample_grades):
+    def test_skips_healthy_domains(self, sample_grades: dict) -> None:
+        """Exclude healthy domains from flagged results."""
         flagged = find_degraded_domains(sample_grades, threshold=60)
         domains = [d["domain"] for d in flagged]
         assert "security" not in domains
         assert "qa" not in domains
 
-    def test_counts_critical_gaps(self, sample_grades):
+    def test_counts_critical_gaps(self, sample_grades: dict) -> None:
+        """Count critical gaps across layers for flagged domains."""
         flagged = find_degraded_domains(sample_grades, threshold=60)
         memory = next(d for d in flagged if d["domain"] == "memory")
         assert memory["critical_gaps"] == 1
 
-    def test_empty_domains(self):
+    def test_empty_domains(self) -> None:
+        """Return empty list when no domains exist in the data."""
         flagged = find_degraded_domains({"domains": []}, threshold=60)
         assert flagged == []
 
-    def test_all_healthy(self):
+    def test_all_healthy(self) -> None:
+        """Return empty list when all domains are above threshold and stable."""
         data = {
             "domains": [
                 {
@@ -114,7 +117,10 @@ class TestFindDegradedDomains:
 
 
 class TestLoadGrades:
-    def test_loads_valid_json(self, tmp_path, sample_grades):
+    """Tests for loading grade data from JSON files."""
+
+    def test_loads_valid_json(self, tmp_path: Path, sample_grades: dict) -> None:
+        """Parse a valid JSON grades file and return all domains."""
         p = tmp_path / "grades.json"
         p.write_text(json.dumps(sample_grades), encoding="utf-8")
         data = load_grades(p)
@@ -122,7 +128,10 @@ class TestLoadGrades:
 
 
 class TestMain:
-    def test_no_degradation_returns_zero(self, tmp_path):
+    """Tests for the main CLI entry point."""
+
+    def test_no_degradation_returns_zero(self, tmp_path: Path) -> None:
+        """Return exit code 0 when all domains are healthy."""
         data = {
             "domains": [
                 {
@@ -139,16 +148,16 @@ class TestMain:
         result = main(["--grades-file", str(p)])
         assert result == 0
 
-    def test_missing_file_returns_one(self, tmp_path):
+    def test_missing_file_returns_one(self, tmp_path: Path) -> None:
+        """Return exit code 1 when grades file does not exist."""
         result = main(["--grades-file", str(tmp_path / "missing.json")])
         assert result == 1
 
-    def test_degradation_creates_issue(self, tmp_path, sample_grades):
+    def test_degradation_creates_issue(self, tmp_path: Path, sample_grades: dict) -> None:
+        """Create notification issue when degraded domains are found."""
         p = tmp_path / "grades.json"
         p.write_text(json.dumps(sample_grades), encoding="utf-8")
-        with patch(
-            "check_grade_changes.create_notification_issue"
-        ) as mock_notify:
+        with patch("check_grade_changes.create_notification_issue") as mock_notify:
             result = main(["--grades-file", str(p)])
         assert result == 0
         mock_notify.assert_called_once()

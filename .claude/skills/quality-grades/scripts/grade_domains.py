@@ -58,6 +58,7 @@ class DomainGrade:
 
     @property
     def overall_grade(self) -> str:
+        """Compute the aggregate letter grade across all layers."""
         if not self.layers:
             return "F"
         avg = sum(lg.score for lg in self.layers) / len(self.layers)
@@ -65,6 +66,7 @@ class DomainGrade:
 
     @property
     def overall_score(self) -> float:
+        """Compute the average numeric score across all layers."""
         if not self.layers:
             return 0
         return sum(lg.score for lg in self.layers) / len(self.layers)
