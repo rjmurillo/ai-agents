@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import io
 import json
-import subprocess
 import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -134,3 +133,71 @@ class TestMainAllow:
         """Invalid JSON input returns 0 (fail-open)."""
         monkeypatch.setattr("sys.stdin", io.StringIO("{bad json"))
         assert main() == 0
+
+
+class TestSubprocessErrorPaths:
+    """Tests for subprocess error handling in main()."""
+
+    @pytest.fixture
+    def _lint_input(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        """Set up valid lint input with an existing .md file."""
+        md = tmp_path / "test.md"
+        md.write_text("# Hello")
+        data = json.dumps({"tool_input": {"file_path": str(md)}, "cwd": str(tmp_path)})
+        monkeypatch.setattr("sys.stdin", io.StringIO(data))
+        monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(tmp_path))
+
+    @pytest.fixture(autouse=True)
+    def _npx_available(self, monkeypatch: pytest.MonkeyPatch):
+        """Ensure shutil.which('npx') returns a path so we reach subprocess.run."""
+        monkeypatch.setattr("invoke_markdown_auto_lint.shutil.which", lambda _: "/usr/bin/npx")
+
+    def test_file_not_found_returns_zero(
+        self, _lint_input, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """FileNotFoundError from subprocess.run returns 0 (fail-open)."""
+        with patch(
+            "invoke_markdown_auto_lint.subprocess.run",
+            side_effect=FileNotFoundError("npx not found"),
+        ):
+            assert main() == 0
+        captured = capsys.readouterr()
+        assert "npx not found" in captured.err.lower() or "npx not found" in captured.out.lower()
+
+    def test_oserror_returns_zero(
+        self, _lint_input, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """OSError from subprocess.run returns 0 (fail-open)."""
+        with patch(
+            "invoke_markdown_auto_lint.subprocess.run",
+            side_effect=OSError("permission denied"),
+        ):
+            assert main() == 0
+        captured = capsys.readouterr()
+        assert "error" in captured.err.lower() or "error" in captured.out.lower()
+
+    def test_lint_failure_nonzero_exit_with_output(
+        self, _lint_input, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Non-zero exit with stderr output reports the error."""
+        mock_result = MagicMock()
+        mock_result.returncode = 1
+        mock_result.stderr = "MD001: heading levels"
+        mock_result.stdout = ""
+        with patch("invoke_markdown_auto_lint.subprocess.run", return_value=mock_result):
+            assert main() == 0
+        captured = capsys.readouterr()
+        assert "heading levels" in captured.err or "failed" in captured.out.lower()
+
+    def test_lint_failure_nonzero_exit_no_output(
+        self, _lint_input, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Non-zero exit with no output warns about missing linter."""
+        mock_result = MagicMock()
+        mock_result.returncode = 1
+        mock_result.stderr = ""
+        mock_result.stdout = ""
+        with patch("invoke_markdown_auto_lint.subprocess.run", return_value=mock_result):
+            assert main() == 0
+        captured = capsys.readouterr()
+        assert "no output" in captured.err.lower() or "not installed" in captured.err.lower()

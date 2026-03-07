@@ -6,7 +6,6 @@ change detection via subprocess, git repo validation.
 """
 
 import json
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -18,7 +17,6 @@ HOOK_DIR = str(Path(__file__).resolve().parents[2] / ".claude" / "hooks")
 sys.path.insert(0, HOOK_DIR)
 
 import invoke_adr_change_detection  # noqa: E402
-
 
 # ---------------------------------------------------------------------------
 # Unit tests for get_project_root
@@ -172,6 +170,42 @@ class TestMain:
         mock_run.return_value = MagicMock(returncode=0, stdout="not json", stderr="")
         result = invoke_adr_change_detection.main()
         assert result == 0
+
+    @patch("invoke_adr_change_detection.subprocess.run")
+    @patch("invoke_adr_change_detection.get_project_root")
+    def test_exits_0_on_subprocess_timeout(
+        self, mock_root, mock_run, project_with_detect_script, capsys
+    ):
+        mock_root.return_value = str(project_with_detect_script)
+        mock_run.side_effect = subprocess.TimeoutExpired(cmd="detect", timeout=10)
+        result = invoke_adr_change_detection.main()
+        assert result == 0
+        captured = capsys.readouterr()
+        assert "failed" in captured.err.lower() or "skipped" in captured.err.lower()
+
+    @patch("invoke_adr_change_detection.subprocess.run")
+    @patch("invoke_adr_change_detection.get_project_root")
+    def test_exits_0_on_file_not_found(
+        self, mock_root, mock_run, project_with_detect_script, capsys
+    ):
+        mock_root.return_value = str(project_with_detect_script)
+        mock_run.side_effect = FileNotFoundError("python3 not found")
+        result = invoke_adr_change_detection.main()
+        assert result == 0
+        captured = capsys.readouterr()
+        assert "failed" in captured.err.lower() or "skipped" in captured.err.lower()
+
+    @patch("invoke_adr_change_detection.subprocess.run")
+    @patch("invoke_adr_change_detection.get_project_root")
+    def test_exits_0_on_oserror(
+        self, mock_root, mock_run, project_with_detect_script, capsys
+    ):
+        mock_root.return_value = str(project_with_detect_script)
+        mock_run.side_effect = OSError("permission denied")
+        result = invoke_adr_change_detection.main()
+        assert result == 0
+        captured = capsys.readouterr()
+        assert "failed" in captured.err.lower() or "skipped" in captured.err.lower()
 
 
 class TestModuleAsScript:

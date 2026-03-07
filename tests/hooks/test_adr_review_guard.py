@@ -303,6 +303,55 @@ class TestMain:
         assert invoke_adr_review_guard.main() == 0
 
 
+class TestGetStagedADRChangesSubprocessErrors:
+    """Tests for subprocess error paths in get_staged_adr_changes."""
+
+    def test_file_not_found_bubbles_up(self):
+        """FileNotFoundError when git is not installed."""
+        with patch("subprocess.run", side_effect=FileNotFoundError("git not found")):
+            with pytest.raises(FileNotFoundError, match="git not found"):
+                invoke_adr_review_guard.get_staged_adr_changes()
+
+    def test_timeout_expired_bubbles_up(self):
+        """TimeoutExpired propagates to caller."""
+        with patch(
+            "subprocess.run",
+            side_effect=subprocess.TimeoutExpired(cmd="git", timeout=30),
+        ):
+            with pytest.raises(subprocess.TimeoutExpired):
+                invoke_adr_review_guard.get_staged_adr_changes()
+
+
+class TestMainSubprocessErrorPaths:
+    """Tests for subprocess error handling through main() entry point."""
+
+    @pytest.fixture(autouse=True)
+    def _no_consumer_repo_skip(self):
+        with patch("invoke_adr_review_guard.skip_if_consumer_repo", return_value=False):
+            yield
+
+    def _make_commit_input(self):
+        return json.dumps({"tool_input": {"command": "git commit -m 'test'"}})
+
+    @patch("invoke_adr_review_guard.get_staged_adr_changes")
+    def test_fails_open_on_file_not_found(self, mock_changes, monkeypatch, capsys):
+        """FileNotFoundError (git missing) caught by outer handler, returns 0."""
+        mock_changes.side_effect = FileNotFoundError("git not found")
+        monkeypatch.setattr("sys.stdin", io.StringIO(self._make_commit_input()))
+        assert invoke_adr_review_guard.main() == 0
+        captured = capsys.readouterr()
+        assert "FileNotFoundError" in captured.err
+
+    @patch("invoke_adr_review_guard.get_staged_adr_changes")
+    def test_fails_open_on_timeout(self, mock_changes, monkeypatch, capsys):
+        """TimeoutExpired caught by outer handler, returns 0."""
+        mock_changes.side_effect = subprocess.TimeoutExpired(cmd="git", timeout=30)
+        monkeypatch.setattr("sys.stdin", io.StringIO(self._make_commit_input()))
+        assert invoke_adr_review_guard.main() == 0
+        captured = capsys.readouterr()
+        assert "TimeoutExpired" in captured.err
+
+
 class TestModuleAsScript:
     """Test that the hook can be executed as a script via __main__."""
 
