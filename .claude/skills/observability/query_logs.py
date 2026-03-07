@@ -20,6 +20,9 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+# Maximum length for user-supplied regex patterns (CWE-400 ReDoS protection)
+_MAX_PATTERN_LENGTH = 1000
+
 
 def _get_workspace_root() -> Path:
     """Return the workspace root directory for path containment checks.
@@ -100,7 +103,11 @@ def matches_filters(
 
     if pattern:
         message = entry.get("message") or entry.get("msg") or ""
-        if not re.search(pattern, message, re.IGNORECASE):
+        try:
+            compiled = re.compile(pattern, re.IGNORECASE)
+        except re.error:
+            return False
+        if not compiled.search(message):
             return False
 
     return True
@@ -233,6 +240,20 @@ def main(argv: list[str] | None = None) -> int:
         result = query_metrics_file(resolved_path)
         print(json.dumps(result, indent=2, default=str))
         return 0
+
+    # CWE-400: Validate pattern length and syntax before use
+    if args.pattern:
+        if len(args.pattern) > _MAX_PATTERN_LENGTH:
+            print(json.dumps({
+                "error": f"Pattern too long ({len(args.pattern)} chars, "
+                         f"max {_MAX_PATTERN_LENGTH})",
+            }))
+            return 1
+        try:
+            re.compile(args.pattern)
+        except re.error as exc:
+            print(json.dumps({"error": f"Invalid regex pattern: {exc}"}))
+            return 1
 
     since = parse_timestamp(args.since) if args.since else None
     until = parse_timestamp(args.until) if args.until else None

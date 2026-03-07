@@ -194,6 +194,18 @@ class TestSummarize:
         assert summary["by_level"]["WARN"] == 1
 
 
+class TestMatchesFiltersRegexSafety:
+    def test_invalid_regex_returns_false(self):
+        mod = _load_module()
+        entry = {"message": "hello world"}
+        assert not mod.matches_filters(entry, pattern="[invalid")
+
+    def test_valid_regex_still_matches(self):
+        mod = _load_module()
+        entry = {"message": "error code 42"}
+        assert mod.matches_filters(entry, pattern=r"code\s+\d+")
+
+
 class TestValidateFilePath:
     def test_valid_path_within_workspace(self, tmp_path, monkeypatch):
         mod = _load_module()
@@ -265,3 +277,26 @@ class TestMainCLI:
         assert rc == 1
         output = json.loads(capsys.readouterr().out)
         assert "outside workspace root" in output["error"]
+
+    def test_pattern_too_long_rejected(self, tmp_path, capsys, monkeypatch):
+        mod = _load_module()
+        monkeypatch.setattr(mod, "_get_workspace_root", lambda: tmp_path)
+        log_file = _write_log_file(tmp_path, [
+            json.dumps({"level": "INFO", "message": "ok"}),
+        ])
+        long_pattern = "a" * 1001
+        rc = mod.main([str(log_file), "--pattern", long_pattern])
+        assert rc == 1
+        output = json.loads(capsys.readouterr().out)
+        assert "Pattern too long" in output["error"]
+
+    def test_invalid_regex_rejected(self, tmp_path, capsys, monkeypatch):
+        mod = _load_module()
+        monkeypatch.setattr(mod, "_get_workspace_root", lambda: tmp_path)
+        log_file = _write_log_file(tmp_path, [
+            json.dumps({"level": "INFO", "message": "ok"}),
+        ])
+        rc = mod.main([str(log_file), "--pattern", "[invalid"])
+        assert rc == 1
+        output = json.loads(capsys.readouterr().out)
+        assert "Invalid regex pattern" in output["error"]
