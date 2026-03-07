@@ -15,9 +15,50 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
+
+
+def _get_workspace_root() -> Path:
+    """Return the workspace root directory for path containment checks.
+
+    Uses git rev-parse when available, falls back to the skill directory's
+    ancestor (4 levels up from .claude/skills/observability/query_logs.py).
+    """
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=5,
+        )
+        return Path(result.stdout.strip()).resolve()
+    except (subprocess.SubprocessError, FileNotFoundError, OSError):
+        return Path(__file__).resolve().parents[3]
+
+
+def validate_file_path(path: Path) -> Path:
+    """Resolve and validate that a file path stays within the workspace root.
+
+    Prevents CWE-22 path traversal by resolving symlinks and ensuring the
+    canonical path is a descendant of the workspace root.
+
+    Returns:
+        The resolved Path.
+
+    Raises:
+        ValueError: If the resolved path escapes the workspace root.
+    """
+    workspace_root = _get_workspace_root()
+    resolved = path.resolve()
+    if not resolved.is_relative_to(workspace_root):
+        raise ValueError(
+            f"Path {path} resolves outside workspace root ({workspace_root})"
+        )
+    return resolved
 
 
 def parse_timestamp(value: str) -> datetime:
@@ -177,12 +218,19 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    if not args.path.exists():
+    # CWE-22: Validate path stays within workspace root
+    try:
+        resolved_path = validate_file_path(args.path)
+    except ValueError as exc:
+        print(json.dumps({"error": str(exc)}))
+        return 1
+
+    if not resolved_path.exists():
         print(json.dumps({"error": f"File not found: {args.path}"}))
         return 1
 
     if args.metrics:
-        result = query_metrics_file(args.path)
+        result = query_metrics_file(resolved_path)
         print(json.dumps(result, indent=2, default=str))
         return 0
 
@@ -190,7 +238,7 @@ def main(argv: list[str] | None = None) -> int:
     until = parse_timestamp(args.until) if args.until else None
 
     entries = query_log_file(
-        args.path,
+        resolved_path,
         level=args.level,
         service=args.service,
         pattern=args.pattern,
