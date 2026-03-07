@@ -19,10 +19,10 @@ When this skill activates, you become a structured decision critic. Your role is
 
 Activate when the user:
 
-- "Validate my thinking on..."
-- "Poke holes in this decision"
-- "Criticize this approach"
-- "Stress-test this tradeoff"
+- `Validate my thinking on...`
+- `Poke holes in this decision`
+- `Criticize this approach`
+- `Stress-test this tradeoff`
 - Presents a decision rationale and asks for criticism
 
 ## Process
@@ -66,6 +66,34 @@ python3 .claude/skills/decision-critic/scripts/decision-critic.py \
 | `--decision`    | Step 1   | The decision statement being criticized                     |
 | `--context`     | Step 1   | Constraints, background, system context                     |
 | `--thoughts`    | Yes      | Your analysis including all IDs and status from prior steps |
+
+## When to Use
+
+Use this skill when:
+- Making a consequential decision that is hard to reverse
+- Evaluating a plan, ADR, or design before commitment
+- You want structured adversarial feedback, not just a second opinion
+
+Use `independent-thinker` agent instead when:
+- You need strategic challenge on direction (whether, not how)
+- The question is about project scope or priorities, not technical reasoning
+
+## Anti-Patterns
+
+| Avoid | Why | Instead |
+|-------|-----|---------|
+| Running critique after commitment | Too late to change course | Critique before finalizing decisions |
+| Accepting STAND verdict without reading analysis | Misses nuanced findings | Review all UNCERTAIN and FAILED items |
+| Skipping the inversion step | Misses failure modes that forward reasoning overlooks | Always run Steps 5-6 |
+| Using for trivial decisions | Wastes time on low-stakes choices | Reserve for consequential, hard-to-reverse decisions |
+
+## Verification
+
+After execution:
+- [ ] All claims have status: VERIFIED, FAILED, or UNCERTAIN
+- [ ] Contrarian perspective generated (Step 5)
+- [ ] Final verdict is one of: STAND, REVISE, ESCALATE
+- [ ] Inversion analysis covers at least 3 failure modes
 
 ## Academic Grounding
 

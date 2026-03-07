@@ -41,7 +41,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
         with:
           fetch-depth: 0
 
@@ -49,7 +49,6 @@ jobs:
         uses: ./.github/actions/setup-code-env
         with:
           gh-token: ${{ github.token }}
-          enable-pester: true
           enable-git-hooks: true
           enable-python: true
           python-version: '3.12'

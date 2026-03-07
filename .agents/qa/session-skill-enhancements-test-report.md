@@ -210,7 +210,7 @@ Starting discovery in 2 files.
 Discovery found 27 tests in 329ms.
 Running tests.
 
-Running tests from '/home/richard/ai-agents-pr-765/tests/Extract-SessionTemplate.Tests.ps1'
+Running tests from '<project-root>-pr-765/tests/Extract-SessionTemplate.Tests.ps1'
 Describing Extract-SessionTemplate
  Context When protocol file exists with valid template
    [+] Should extract template successfully 187ms (138ms|49ms)
@@ -231,7 +231,7 @@ Describing Extract-SessionTemplate
    [+] Should preserve comments 18ms (16ms|2ms)
    [+] Should preserve table structure 19ms (17ms|2ms)
 
-Running tests from '/home/richard/ai-agents-pr-765/tests/Get-ValidationErrors.Tests.ps1'
+Running tests from '<project-root>-pr-765/tests/Get-ValidationErrors.Tests.ps1'
 Describing Get-ValidationErrors
  Context Script structure and parameters
    [+] Should have RunId parameter 18ms (15ms|3ms)

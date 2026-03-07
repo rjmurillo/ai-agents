@@ -55,25 +55,25 @@ This agent delegates to orchestrator, which uses these canonical workflow paths:
 | Path | Agents | Triage Signal |
 |------|--------|---------------|
 | **Quick Fix** | `implementer → qa` | Can explain fix in one sentence |
-| **Standard** | `analyst → planner → implementer → qa` | Need to investigate first |
-| **Strategic** | `independent-thinker → high-level-advisor → task-generator` | Question is *whether*, not *how* |
+| **Standard** | `analyst → milestone-planner → implementer → qa` | Need to investigate first |
+| **Strategic** | `independent-thinker → high-level-advisor → task-decomposer` | Question is *whether*, not *how* |
 
 See `orchestrator.md` for full routing logic. This agent passes context to orchestrator; orchestrator determines the path.
 
 ## GitHub Skill (Cross-Platform Note)
 
-When running in environments with PowerShell support (Windows, PowerShell Core on Linux/macOS), the unified github skill at `.claude/skills/github/` provides tested scripts with pagination, error handling, and security validation. See `.claude/skills/github/SKILL.md` for details.
+When running in environments with Python support (Python 3), the unified github skill at `.claude/skills/github/` provides tested scripts with pagination, error handling, and security validation. See `.claude/skills/github/SKILL.md` for details.
 
 | Operation | Skill Script | Bash Fallback |
 |-----------|--------------|---------------|
-| PR metadata | `Get-PRContext.ps1` | `gh pr view` |
-| Review + Issue comments | `Get-PRReviewComments.ps1 -IncludeIssueComments` | Manual pagination of both endpoints |
-| Reviewer list | `Get-PRReviewers.ps1` | `gh api ... \| jq` |
-| Reply to comment | `Post-PRCommentReply.ps1` | `gh api -X POST` |
-| Add reaction (batch) | `Add-CommentReaction.ps1 -CommentId @(id1,id2,...)` | Individual `gh api` calls |
-| CI check status | `Get-PRChecks.ps1` | `gh pr checks` (limited) |
+| PR metadata | `get_pr_context.py` | `gh pr view` |
+| Review + Issue comments | `get_pr_review_comments.py --include-issue-comments` | Manual pagination of both endpoints |
+| Reviewer list | `get_pr_reviewers.py` | `gh api ... \| jq` |
+| Reply to comment | `post_pr_comment_reply.py` | `gh api -X POST` |
+| Add reaction (batch) | `add_comment_reaction.py --comment-id @(id1,id2,...)` | Individual `gh api` calls |
+| CI check status | `get_pr_checks.py` | `gh pr checks` (limited) |
 
-The bash examples below work cross-platform; use skill scripts when PowerShell is available.
+The bash examples below work cross-platform; use Python skill scripts for all operations.
 
 ## Triage Heuristics
 
@@ -381,6 +381,7 @@ Reviewer-specific memories (e.g., `cursor-bot-review-patterns`) are loaded in **
 Before fetching new data, check if this is a continuation of a previous session:
 
 ```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 SESSION_DIR=".agents/pr-comments/PR-[number]"
 
 if [ -d "$SESSION_DIR" ]; then
@@ -390,7 +391,7 @@ if [ -d "$SESSION_DIR" ]; then
   echo "Previous session had $PREVIOUS_COMMENTS comments"
 
   # Check for NEW comments only (include issue comments to catch AI Quality Gate, etc.)
-  CURRENT_COMMENTS=$(pwsh .claude/skills/github/scripts/pr/Get-PRReviewComments.ps1 -PullRequest [number] -IncludeIssueComments | jq '.TotalComments')
+  CURRENT_COMMENTS=$(python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request [number] --include-issue-comments | jq '.TotalComments')
 
   if [ "$CURRENT_COMMENTS" -gt "$PREVIOUS_COMMENTS" ]; then
     echo "[NEW COMMENTS] $((CURRENT_COMMENTS - PREVIOUS_COMMENTS)) new comments since last session"
@@ -506,10 +507,11 @@ for reviewer in ALL_REVIEWERS:
 
 #### Step 1.3: Retrieve ALL Comments (with pagination)
 
-```powershell
+```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 # Using github skill (PREFERRED) - handles pagination automatically
-# IMPORTANT: Use -IncludeIssueComments to capture AI Quality Gate, CodeRabbit summaries, etc.
-pwsh .claude/skills/github/scripts/pr/Get-PRReviewComments.ps1 -PullRequest [number] -IncludeIssueComments
+# IMPORTANT: Use --include-issue-comments to capture AI Quality Gate, CodeRabbit summaries, etc.
+python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request [number] --include-issue-comments
 
 # Returns all comments with: id, CommentType (Review/Issue), author, path, line, body, diff_hunk, created_at, in_reply_to_id
 ```
@@ -551,7 +553,7 @@ echo "Total comments: $TOTAL_COMMENTS (Review: $REVIEW_COMMENT_COUNT, Issue: $IS
 
 #### Step 1.4: Extract Comment Details
 
-The `Get-PRReviewComments.ps1` script returns full comment details including:
+The `get_pr_review_comments.py` script returns full comment details including:
 
 - `id`: Comment ID for reactions and replies
 - `CommentType`: "Review" (code-level) or "Issue" (top-level PR comments)
@@ -600,20 +602,18 @@ Create a persistent map of all comments. Save to `.agents/pr-comments/PR-[number
 
 React with eyes emoji to acknowledge all comments. Use batch mode for 88% faster acknowledgment:
 
-```powershell
+```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 # PREFERRED: Batch acknowledge all comments (88% faster than individual calls)
 # Get all comment IDs from the comments retrieved in Phase 1
-$comments = pwsh -NoProfile .claude/skills/github/scripts/pr/Get-PRReviewComments.ps1 -PullRequest [number] -IncludeIssueComments | ConvertFrom-Json
-$ids = $comments.Comments | ForEach-Object { $_.id }
+comments=$(python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request [number] --include-issue-comments)
+ids=$(echo "$comments" | jq -r '.Comments[].id')
 
 # Batch acknowledge - single process, all comments
-$result = pwsh -NoProfile .claude/skills/github/scripts/reactions/Add-CommentReaction.ps1 -CommentId $ids -Reaction "eyes" | ConvertFrom-Json
+echo "$ids" | xargs -I{} python3 "$SCRIPTS_DIR/reactions/add_comment_reaction.py" --comment-id {} --reaction "eyes"
 
 # Verify all acknowledged
-Write-Host "Acknowledged $($result.Succeeded)/$($result.TotalCount) comments"
-if ($result.Failed -gt 0) {
-    Write-Host "Failed: $($result.Results | Where-Object { -not $_.Success } | ForEach-Object { $_.CommentId })"
-}
+echo "Acknowledged comments via reactions"
 ```
 
 <details>
@@ -1028,12 +1028,13 @@ After replying with resolution, mark the thread as resolved. This is required fo
 1. The reviewer is human (let them resolve after verifying)
 2. You need a response from the reviewer (human or bot)
 
-```powershell
+```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 # Resolve all unresolved threads on the PR (PREFERRED for bulk resolution)
-pwsh .claude/skills/github/scripts/pr/Resolve-PRReviewThread.ps1 -PullRequest [number] -All
+python3 "$SCRIPTS_DIR/pr/resolve_pr_review_thread.py" --pull-request [number] --all
 
 # Or resolve a single thread by ID
-pwsh .claude/skills/github/scripts/pr/Resolve-PRReviewThread.ps1 -ThreadId "PRRT_kwDOQoWRls5m7ln8"
+python3 "$SCRIPTS_DIR/pr/resolve_pr_review_thread.py" --thread-id "PRRT_kwDOQoWRls5m7ln8"
 ```
 
 **Complete Workflow**: Code fix → Reply → **Resolve** (all three steps required)
@@ -1100,9 +1101,10 @@ fi
 
 **Exception**: Do NOT auto-resolve threads from human reviewers. Let them verify and resolve.
 
-```powershell
+```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 # Run bulk resolution to ensure all threads are resolved
-pwsh .claude/skills/github/scripts/pr/Resolve-PRReviewThread.ps1 -PullRequest [number] -All
+python3 "$SCRIPTS_DIR/pr/resolve_pr_review_thread.py" --pull-request [number] --all
 ```
 
 The script will:
@@ -1124,11 +1126,12 @@ If any threads fail to resolve, investigate and retry before claiming completion
 After pushing commits, bots may post new comments. Wait and re-check:
 
 ```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 # Wait for bot responses (30-60 seconds)
 sleep 45
 
 # Re-fetch comments (include issue comments to catch AI Quality Gate, CodeRabbit summaries, etc.)
-NEW_COMMENTS=$(pwsh .claude/skills/github/scripts/pr/Get-PRReviewComments.ps1 -PullRequest [number] -IncludeIssueComments | jq '.TotalComments')
+NEW_COMMENTS=$(python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request [number] --include-issue-comments | jq '.TotalComments')
 
 # Compare to original count
 if [ "$NEW_COMMENTS" -gt "$TOTAL_COMMENTS" ]; then
@@ -1154,38 +1157,40 @@ It does NOT mean:
 - ❌ CI checks passing
 - ❌ Required status checks satisfied
 
-**Always verify CI explicitly** using the Get-PRChecks.ps1 skill:
+**Always verify CI explicitly** using the get_pr_checks.py skill:
 
-```powershell
+```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 # Check ALL CI checks status with wait for completion
-$checks = pwsh -NoProfile .claude/skills/github/scripts/pr/Get-PRChecks.ps1 -PullRequest [number] -Wait -TimeoutSeconds 300 | ConvertFrom-Json
-$exitCode = $LASTEXITCODE
+checks=$(python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request [number] --wait --timeout-seconds 300)
+exit_code=$?
 
 # Handle timeout (exit code 7)
-if ($exitCode -eq 7) {
-    Write-Host "[BLOCKED] Timeout waiting for CI checks to complete"
-    Write-Host "  Pending: $($checks.PendingCount) check(s) still running"
+if [ "$exit_code" -eq 7 ]; then
+    echo "[BLOCKED] Timeout waiting for CI checks to complete"
+    pending=$(echo "$checks" | jq -r '.PendingCount')
+    echo "  Pending: $pending check(s) still running"
     exit 1
-}
+fi
 
 # Handle API errors
-if (-not $checks.Success) {
-    Write-Host "[ERROR] Failed to get CI check status: $($checks.Error)"
+error=$(echo "$checks" | jq -r '.Error // empty')
+if [ -n "$error" ]; then
+    echo "[ERROR] Failed to get CI check status: $error"
     exit 1
-}
+fi
 
 # Check for failures
-if ($checks.FailedCount -gt 0) {
-    Write-Host "[BLOCKED] $($checks.FailedCount) CI check(s) not passing:"
-    $checks.Checks | Where-Object { $_.Conclusion -notin @('SUCCESS', 'NEUTRAL', 'SKIPPED') } | ForEach-Object {
-        Write-Host "  - $($_.Name): $($_.Conclusion)"
-        Write-Host "    Details: $($_.DetailsUrl)"
-    }
+failed=$(echo "$checks" | jq -r '.FailedCount')
+if [ "$failed" -gt 0 ]; then
+    echo "[BLOCKED] $failed CI check(s) not passing:"
+    echo "$checks" | jq -r '.Checks[] | select(.Conclusion != "SUCCESS" and .Conclusion != "NEUTRAL" and .Conclusion != "SKIPPED") | "  - \(.Name): \(.Conclusion)\n    Details: \(.DetailsUrl)"'
     # Do NOT claim completion - return to Phase 6 for fixes
     exit 1
-}
+fi
 
-Write-Host "[PASS] All CI checks passing ($($checks.PassedCount) checks)"
+passed=$(echo "$checks" | jq -r '.PassedCount')
+echo "[PASS] All CI checks passing ($passed checks)"
 ```
 
 **Exit codes**:
@@ -1196,7 +1201,7 @@ Write-Host "[PASS] All CI checks passing ($($checks.PassedCount) checks)"
 
 **If CI fails**: Parse failure messages, add new tasks to task list, return to Phase 6 for implementation.
 
-**Skill Reference**: Get-PRChecks.ps1 (uses GraphQL statusCheckRollup for reliable check status)
+**Skill Reference**: get_pr_checks.py (uses GraphQL statusCheckRollup for reliable check status)
 
 #### Phase 8.5: Completion Criteria Checklist
 
@@ -1206,22 +1211,24 @@ Write-Host "[PASS] All CI checks passing ($($checks.PassedCount) checks)"
 |-----------|-------|--------|
 | All comments resolved | `grep -c "Status: \[COMPLETE\]\|\[WONTFIX\]"` equals total | [ ] |
 | No new comments | Re-check returned 0 new | [ ] |
-| CI checks pass | `Get-PRChecks.ps1 -PullRequest [number]` AllPassing = true | [ ] |
+| CI checks pass | `get_pr_checks.py --pull-request [number]` AllPassing = true | [ ] |
 | No unresolved threads | `gh pr view --json reviewThreads` all resolved | [ ] |
 | Commits pushed | `git status` shows "up to date with origin" | [ ] |
 
-```powershell
+```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 # Final verification
-Write-Host "=== Completion Criteria ==="
-Write-Host "[ ] Comments: $($ADDRESSED + $WONTFIX)/$TOTAL resolved"
-Write-Host "[ ] New comments: None after 45s wait"
+echo "=== Completion Criteria ==="
+echo "[ ] Comments: $((ADDRESSED + WONTFIX))/$TOTAL resolved"
+echo "[ ] New comments: None after 45s wait"
 
 # CI check verification using skill
-$checks = pwsh -NoProfile .claude/skills/github/scripts/pr/Get-PRChecks.ps1 -PullRequest [number] | ConvertFrom-Json
-$ciStatus = if ($checks.AllPassing) { "PASS" } else { "$($checks.FailedCount) failures, $($checks.PendingCount) pending" }
-Write-Host "[ ] CI checks: $ciStatus"
+checks=$(python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request [number])
+all_passing=$(echo "$checks" | jq -r '.AllPassing')
+ci_status=$([ "$all_passing" = "true" ] && echo "PASS" || echo "BLOCKED")
+echo "[ ] CI checks: $ci_status"
 
-Write-Host "[ ] Pushed: $(git status -sb | Select-Object -First 1)"
+echo "[ ] Pushed: $(git status -sb | head -1)"
 ```
 
 **If ANY criterion fails**: Do NOT claim completion. Return to appropriate phase.

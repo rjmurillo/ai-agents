@@ -163,7 +163,7 @@ The template system defines 18 specialized AI agents:
 | **orchestrator** | Task coordination | Complex multi-step task routing |
 | **analyst** | Research specialist | Root cause analysis, requirements discovery |
 | **architect** | Design governance | ADRs, technical decisions, system boundaries |
-| **planner** | Work package creation | Epic breakdown, milestones, dependencies |
+| **milestone-planner** | Work package creation | Epic breakdown, milestones, dependencies |
 | **implementer** | Code execution | Production code, tests, implementation |
 | **critic** | Plan validation | Pre-implementation review, quality gates |
 | **qa** | Test verification | Test strategy, coverage, validation |
@@ -174,7 +174,8 @@ The template system defines 18 specialized AI agents:
 | **skillbook** | Skill management | Learned strategy updates, deduplication |
 | **retrospective** | Learning extraction | Outcome analysis, skill extraction |
 | **explainer** | Documentation | PRDs, technical specs, feature docs |
-| **task-generator** | Task decomposition | Breaking epics into atomic tasks |
+| **task-decomposer** | Task decomposition | Breaking epics into atomic tasks |
+| **backlog-generator** | Backlog generation | Proactive task discovery from project state |
 | **high-level-advisor** | Strategic decisions | Prioritization, unblocking, direction |
 | **independent-thinker** | Assumption challenging | Alternative viewpoints, devil's advocate |
 | **pr-comment-responder** | PR review handler | Addressing bot/human review comments |

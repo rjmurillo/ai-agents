@@ -26,6 +26,18 @@ Optimization is complete when:
 - The prompt matches its operating context (tool-use vs. conversational, token constraints)
 - Human has approved both section-level changes and full integration
 
+## Triggers
+
+| Trigger Phrase | Operation |
+|----------------|-----------|
+| `optimize this prompt` | Full Phase 0-4 optimization workflow |
+| `improve this system prompt` | Analyze and propose changes with visual cards |
+| `review my agent prompt` | Pattern-based review against reference |
+| `refine this prompt for better results` | Targeted improvement with BEFORE/AFTER |
+| `make this prompt more effective` | Technique selection and application |
+
+---
+
 ## When to Use This Skill
 
 Use when the user provides a prompt and wants it improved, refined, or reviewed for best practices.
@@ -72,7 +84,7 @@ Read references/workflow.md
 
 Contains: Detailed Phase 0-4 workflows, visual card template, completion checkpoint.
 
-## Quick Process
+## Process
 
 ```text
 ┌─────────────────────────────────────────────────────────────────┐
@@ -133,6 +145,29 @@ Before presenting the final prompt, verify:
 - [ ] Stacking compatibility checked; no conflicts
 - [ ] Anti-patterns section consulted; none introduced
 - [ ] Emphasis markers used sparingly (≤3 highest-level)
+
+## Anti-Patterns
+
+| Avoid | Why | Instead |
+|-------|-----|---------|
+| Applying techniques without reading reference first | Missing trigger conditions and constraints | Always read reference documents before analysis |
+| Rewriting entire prompt | Destroys what already works | Preserve working sections, improve problems only |
+| Skipping user approval before changes | May misidentify improvement priorities | Present visual cards in Phase 2, wait for approval |
+| Stacking conflicting techniques | Produces contradictory instructions | Check stacking compatibility per reference |
+| Using more than 3 emphasis markers | Dilutes signal when everything is emphasized | Reserve emphasis for highest-priority instructions |
+
+---
+
+## Verification
+
+After optimization:
+- [ ] Every change has pattern attribution from reference document
+- [ ] No section contradicts another section
+- [ ] User approved Phase 2 plan before Phase 3 execution
+- [ ] Anti-patterns section consulted, none introduced
+- [ ] Emphasis markers used sparingly (3 or fewer)
+
+---
 
 ## References
 

@@ -1,526 +1,642 @@
-"""Tests for memory_enhancement.graph module.
+"""Tests for memory_enhancement.graph module."""
 
-Tests BFS/DFS traversal, cycle detection, root finding,
-and adjacency list construction.
-"""
+from __future__ import annotations
 
-import pytest
+import time
 from pathlib import Path
 
-from scripts.memory_enhancement.graph import (
+import pytest
+
+from memory_enhancement.graph import (
+    LINK_WEIGHTS,
     MemoryGraph,
+    RelationshipScore,
     TraversalNode,
-    TraversalResult,
-    TraversalStrategy,
 )
-from scripts.memory_enhancement.models import LinkType, Memory
+from memory_enhancement.models import Link, LinkType, Memory
 
 
-@pytest.fixture
-def memories_dir_simple(tmp_path):
-    """Create a simple memory graph: A -> B -> C.
+def _make_memory(
+    memory_id: str,
+    links: list[tuple[LinkType, str]] | None = None,
+) -> Memory:
+    """Create a Memory with the given id and links.
 
-    Returns:
-        Path to memories directory
-    """
-    memories_dir = tmp_path / "memories"
-    memories_dir.mkdir()
-
-    # Memory A (root)
-    (memories_dir / "memory-a.md").write_text("""---
-id: memory-a
-subject: Memory A
-links:
-  - link_type: RELATED
-    target_id: memory-b
----
-
-# Memory A
-Root memory.
-""")
-
-    # Memory B (middle)
-    (memories_dir / "memory-b.md").write_text("""---
-id: memory-b
-subject: Memory B
-links:
-  - link_type: RELATED
-    target_id: memory-c
----
-
-# Memory B
-Middle memory.
-""")
-
-    # Memory C (leaf)
-    (memories_dir / "memory-c.md").write_text("""---
-id: memory-c
-subject: Memory C
----
-
-# Memory C
-Leaf memory.
-""")
-
-    return memories_dir
-
-
-@pytest.fixture
-def memories_dir_cycle(tmp_path):
-    """Create a memory graph with a cycle: A -> B -> C -> A.
+    Args:
+        memory_id: Unique identifier for the memory.
+        links: List of (LinkType, target_id) pairs.
 
     Returns:
-        Path to memories directory
+        Memory instance with the specified links.
     """
-    memories_dir = tmp_path / "memories"
-    memories_dir.mkdir()
-
-    # Memory A
-    (memories_dir / "memory-a.md").write_text("""---
-id: memory-a
-subject: Memory A
-links:
-  - link_type: RELATED
-    target_id: memory-b
----
-
-# Memory A
-""")
-
-    # Memory B
-    (memories_dir / "memory-b.md").write_text("""---
-id: memory-b
-subject: Memory B
-links:
-  - link_type: RELATED
-    target_id: memory-c
----
-
-# Memory B
-""")
-
-    # Memory C (creates cycle back to A)
-    (memories_dir / "memory-c.md").write_text("""---
-id: memory-c
-subject: Memory C
-links:
-  - link_type: RELATED
-    target_id: memory-a
----
-
-# Memory C
-""")
-
-    return memories_dir
+    return Memory(
+        id=memory_id,
+        subject=f"Subject for {memory_id}",
+        path=Path(f"{memory_id}.md"),
+        content=f"Content for {memory_id}.",
+        links=[
+            Link(link_type=lt, target_id=tid)
+            for lt, tid in (links or [])
+        ],
+    )
 
 
-@pytest.fixture
-def memories_dir_multi_type(tmp_path):
-    """Create a memory graph with multiple link types.
+def _build_graph(specs: dict[str, list[tuple[LinkType, str]]]) -> MemoryGraph:
+    """Build a MemoryGraph from a specification dict.
+
+    Args:
+        specs: Mapping of memory_id to list of (LinkType, target_id) pairs.
 
     Returns:
-        Path to memories directory
+        MemoryGraph constructed from the specifications.
     """
-    memories_dir = tmp_path / "memories"
-    memories_dir.mkdir()
-
-    # Memory A with multiple link types
-    (memories_dir / "memory-a.md").write_text("""---
-id: memory-a
-subject: Memory A
-links:
-  - link_type: RELATED
-    target_id: memory-b
-  - link_type: SUPERSEDES
-    target_id: memory-c
-  - link_type: IMPLEMENTS
-    target_id: memory-d
----
-
-# Memory A
-""")
-
-    # Create target memories
-    for mem_id in ["memory-b", "memory-c", "memory-d"]:
-        (memories_dir / f"{mem_id}.md").write_text(f"""---
-id: {mem_id}
-subject: {mem_id.title().replace('-', ' ')}
----
-
-# {mem_id.title().replace('-', ' ')}
-""")
-
-    return memories_dir
-
-
-@pytest.mark.unit
-def test_memory_graph_init(memories_dir_simple):
-    """Test MemoryGraph initialization."""
-    graph = MemoryGraph(memories_dir_simple)
-
-    assert len(graph.memories) == 3
-    assert "memory-a" in graph.memories
-    assert "memory-b" in graph.memories
-    assert "memory-c" in graph.memories
-
-
-@pytest.mark.unit
-def test_memory_graph_init_nonexistent_dir(tmp_path):
-    """Test MemoryGraph initialization with nonexistent directory."""
-    with pytest.raises(FileNotFoundError):
-        MemoryGraph(tmp_path / "nonexistent")
-
-
-@pytest.mark.unit
-def test_memory_graph_get_memory(memories_dir_simple):
-    """Test retrieving a memory by ID."""
-    graph = MemoryGraph(memories_dir_simple)
-
-    memory_a = graph.get_memory("memory-a")
-    assert memory_a is not None
-    assert memory_a.id == "memory-a"
-    assert memory_a.subject == "Memory A"
-
-    nonexistent = graph.get_memory("nonexistent")
-    assert nonexistent is None
-
-
-@pytest.mark.unit
-def test_get_related_memories(memories_dir_simple):
-    """Test getting related memories."""
-    graph = MemoryGraph(memories_dir_simple)
-
-    # Memory A should have 1 related memory (B)
-    related = graph.get_related_memories("memory-a")
-    assert len(related) == 1
-    assert related[0].id == "memory-b"
-
-    # Memory C should have no related memories (leaf)
-    related = graph.get_related_memories("memory-c")
-    assert len(related) == 0
-
-
-@pytest.mark.unit
-def test_get_related_memories_by_type(memories_dir_multi_type):
-    """Test filtering related memories by link type."""
-    graph = MemoryGraph(memories_dir_multi_type)
-
-    # Get only RELATED links
-    related = graph.get_related_memories("memory-a", link_type=LinkType.RELATED)
-    assert len(related) == 1
-    assert related[0].id == "memory-b"
-
-    # Get only SUPERSEDES links
-    related = graph.get_related_memories("memory-a", link_type=LinkType.SUPERSEDES)
-    assert len(related) == 1
-    assert related[0].id == "memory-c"
-
-    # Get only IMPLEMENTS links
-    related = graph.get_related_memories("memory-a", link_type=LinkType.IMPLEMENTS)
-    assert len(related) == 1
-    assert related[0].id == "memory-d"
-
-
-@pytest.mark.unit
-def test_traverse_bfs_simple(memories_dir_simple):
-    """Test BFS traversal of simple graph."""
-    graph = MemoryGraph(memories_dir_simple)
-
-    result = graph.traverse("memory-a", strategy=TraversalStrategy.BFS)
-
-    assert result.root_id == "memory-a"
-    assert result.strategy == TraversalStrategy.BFS
-    assert len(result.nodes) == 3
-    assert result.max_depth == 2
-    assert len(result.cycles) == 0
-
-    # BFS should visit in level order: A, B, C
-    assert result.nodes[0].memory.id == "memory-a"
-    assert result.nodes[0].depth == 0
-    assert result.nodes[1].memory.id == "memory-b"
-    assert result.nodes[1].depth == 1
-    assert result.nodes[2].memory.id == "memory-c"
-    assert result.nodes[2].depth == 2
-
-
-@pytest.mark.unit
-def test_traverse_dfs_simple(memories_dir_simple):
-    """Test DFS traversal of simple graph."""
-    graph = MemoryGraph(memories_dir_simple)
-
-    result = graph.traverse("memory-a", strategy=TraversalStrategy.DFS)
-
-    assert result.root_id == "memory-a"
-    assert result.strategy == TraversalStrategy.DFS
-    assert len(result.nodes) == 3
-    assert result.max_depth == 2
-    assert len(result.cycles) == 0
-
-    # DFS visits: A, B, C (depth-first path)
-    assert result.nodes[0].memory.id == "memory-a"
-    assert result.nodes[1].memory.id == "memory-b"
-    assert result.nodes[2].memory.id == "memory-c"
-
-
-@pytest.mark.unit
-def test_traverse_max_depth(memories_dir_simple):
-    """Test traversal with max depth limit."""
-    graph = MemoryGraph(memories_dir_simple)
-
-    # Limit to depth 1 (should visit A and B only)
-    result = graph.traverse("memory-a", max_depth=1)
-
-    assert len(result.nodes) == 2
-    assert result.nodes[0].memory.id == "memory-a"
-    assert result.nodes[1].memory.id == "memory-b"
-    assert result.max_depth == 1
-
-
-@pytest.mark.unit
-def test_traverse_cycle_detection(memories_dir_cycle):
-    """Test cycle detection during traversal."""
-    graph = MemoryGraph(memories_dir_cycle)
-
-    result = graph.traverse("memory-a")
-
-    assert len(result.nodes) == 3
-    assert len(result.cycles) == 1
-
-    # Should detect cycle: C -> A
-    cycle_from, cycle_to = result.cycles[0]
-    assert cycle_from == "memory-c"
-    assert cycle_to == "memory-a"
-
-
-@pytest.mark.unit
-def test_traverse_nonexistent_root(memories_dir_simple):
-    """Test traversal with nonexistent root memory."""
-    graph = MemoryGraph(memories_dir_simple)
-
-    with pytest.raises(ValueError, match="Root memory not found"):
-        graph.traverse("nonexistent-root")
-
-
-@pytest.mark.unit
-def test_traverse_filter_link_types(memories_dir_multi_type):
-    """Test traversal filtering by link types."""
-    graph = MemoryGraph(memories_dir_multi_type)
-
-    # Only traverse RELATED links
-    result = graph.traverse("memory-a", link_types=[LinkType.RELATED])
-    assert len(result.nodes) == 2  # A and B only
-    assert result.nodes[1].memory.id == "memory-b"
-
-    # Only traverse SUPERSEDES links
-    result = graph.traverse("memory-a", link_types=[LinkType.SUPERSEDES])
-    assert len(result.nodes) == 2  # A and C only
-    assert result.nodes[1].memory.id == "memory-c"
-
-    # Traverse multiple link types
-    result = graph.traverse(
-        "memory-a", link_types=[LinkType.RELATED, LinkType.IMPLEMENTS]
-    )
-    assert len(result.nodes) == 3  # A, B, and D
-    visited_ids = {node.memory.id for node in result.nodes}
-    assert "memory-b" in visited_ids
-    assert "memory-d" in visited_ids
-    assert "memory-c" not in visited_ids
-
-
-@pytest.mark.unit
-def test_find_roots_simple(memories_dir_simple):
-    """Test finding root memories (no incoming links)."""
-    graph = MemoryGraph(memories_dir_simple)
-
-    roots = graph.find_roots()
-
-    # Only memory-a should be a root
-    assert len(roots) == 1
-    assert "memory-a" in roots
-
-
-@pytest.mark.unit
-def test_find_roots_cycle(memories_dir_cycle):
-    """Test finding roots in graph with cycle."""
-    graph = MemoryGraph(memories_dir_cycle)
-
-    roots = graph.find_roots()
-
-    # In a cycle, no memory is a root
-    assert len(roots) == 0
-
-
-@pytest.mark.unit
-def test_find_roots_multiple(tmp_path):
-    """Test finding multiple root memories."""
-    memories_dir = tmp_path / "memories"
-    memories_dir.mkdir()
-
-    # Create two independent trees
-    (memories_dir / "root-a.md").write_text("""---
-id: root-a
-subject: Root A
-links:
-  - link_type: RELATED
-    target_id: child-a
----
-
-# Root A
-""")
-
-    (memories_dir / "child-a.md").write_text("""---
-id: child-a
-subject: Child A
----
-
-# Child A
-""")
-
-    (memories_dir / "root-b.md").write_text("""---
-id: root-b
-subject: Root B
----
-
-# Root B
-""")
-
-    graph = MemoryGraph(memories_dir)
-    roots = graph.find_roots()
-
-    assert len(roots) == 2
-    assert "root-a" in roots
-    assert "root-b" in roots
-
-
-@pytest.mark.unit
-def test_get_adjacency_list(memories_dir_simple):
-    """Test building adjacency list representation."""
-    graph = MemoryGraph(memories_dir_simple)
-
-    adjacency = graph.get_adjacency_list()
-
-    assert len(adjacency) == 3
-
-    # Memory A links to B
-    assert len(adjacency["memory-a"]) == 1
-    assert adjacency["memory-a"][0][0] == "memory-b"
-    assert adjacency["memory-a"][0][1] == LinkType.RELATED
-
-    # Memory B links to C
-    assert len(adjacency["memory-b"]) == 1
-    assert adjacency["memory-b"][0][0] == "memory-c"
-
-    # Memory C has no outgoing links
-    assert len(adjacency["memory-c"]) == 0
-
-
-@pytest.mark.unit
-def test_traversal_node_dataclass(tmp_path):
-    """Test TraversalNode dataclass."""
-    test_path = tmp_path / "test-memory.md"
-    memory = Memory(
-        id="test-memory",
-        subject="Test",
-        path=test_path,
-        content="# Test content",
-        tags=[],
-        citations=[],
-        links=[],
-        confidence=1.0,
-    )
-
-    node = TraversalNode(
-        memory=memory, depth=2, parent="parent-id", link_type=LinkType.RELATED
-    )
-
-    assert node.memory.id == "test-memory"
-    assert node.depth == 2
-    assert node.parent == "parent-id"
-    assert node.link_type == LinkType.RELATED
-
-
-@pytest.mark.unit
-def test_traversal_result_dataclass():
-    """Test TraversalResult dataclass."""
-    result = TraversalResult(
-        root_id="root",
-        nodes=[],
-        cycles=[("a", "b")],
-        strategy=TraversalStrategy.BFS,
-        max_depth=3,
-    )
-
-    assert result.root_id == "root"
-    assert len(result.nodes) == 0
-    assert len(result.cycles) == 1
-    assert result.cycles[0] == ("a", "b")
-    assert result.strategy == TraversalStrategy.BFS
-    assert result.max_depth == 3
-
-
-@pytest.mark.unit
-def test_invalid_memory_file_skipped(tmp_path):
-    """Test that invalid memory files are skipped during loading."""
-    memories_dir = tmp_path / "memories"
-    memories_dir.mkdir()
-
-    # Valid memory
-    (memories_dir / "valid.md").write_text("""---
-id: valid
-subject: Valid Memory
----
-
-# Valid
-""")
-
-    # Invalid memory (corrupted YAML)
-    (memories_dir / "invalid.md").write_text("""---
-id: invalid
-subject: [unclosed list
----
-
-# Invalid
-""")
-
-    # Should load only the valid memory
-    graph = MemoryGraph(memories_dir)
-    assert len(graph.memories) == 1
-    assert "valid" in graph.memories
-    assert "invalid" not in graph.memories
-
-
-@pytest.mark.unit
-def test_traverse_with_invalid_target(tmp_path):
-    """Test traversal with link to nonexistent memory."""
-    memories_dir = tmp_path / "memories"
-    memories_dir.mkdir()
-
-    # Memory with link to nonexistent target
-    (memories_dir / "memory-a.md").write_text("""---
-id: memory-a
-subject: Memory A
-links:
-  - link_type: RELATED
-    target_id: nonexistent
-  - link_type: RELATED
-    target_id: memory-b
----
-
-# Memory A
-""")
-
-    (memories_dir / "memory-b.md").write_text("""---
-id: memory-b
-subject: Memory B
----
-
-# Memory B
-""")
-
-    graph = MemoryGraph(memories_dir)
-    result = graph.traverse("memory-a")
-
-    # Should skip invalid link and continue with valid one
-    assert len(result.nodes) == 2
-    assert result.nodes[0].memory.id == "memory-a"
-    assert result.nodes[1].memory.id == "memory-b"
+    memories = {
+        mid: _make_memory(mid, link_list)
+        for mid, link_list in specs.items()
+    }
+    return MemoryGraph(memories)
+
+
+class TestMemoryGraph:
+    """Tests for MemoryGraph construction."""
+
+    @pytest.mark.unit
+    def test_from_directory_loads_memories(self, graph_memories_dir: Path) -> None:
+        graph = MemoryGraph.from_directory(graph_memories_dir)
+        assert graph.node_count == 5
+
+    @pytest.mark.unit
+    def test_from_directory_empty_dir(self, memories_dir: Path) -> None:
+        graph = MemoryGraph.from_directory(memories_dir)
+        assert graph.node_count == 0
+        assert graph.edge_count == 0
+
+    @pytest.mark.unit
+    def test_from_directory_skips_invalid_files(self, memories_dir: Path) -> None:
+        (memories_dir / "valid.md").write_text(
+            "---\nid: valid\nsubject: Valid\n---\nOK.\n",
+            encoding="utf-8",
+        )
+        (memories_dir / "broken.md").write_text(
+            "This is not valid YAML frontmatter at all {{{",
+            encoding="utf-8",
+        )
+        graph = MemoryGraph.from_directory(memories_dir)
+        assert graph.node_count >= 1
+
+    @pytest.mark.unit
+    def test_node_count(self) -> None:
+        graph = _build_graph({
+            "a": [(LinkType.RELATED, "b")],
+            "b": [],
+            "c": [],
+        })
+        assert graph.node_count == 3
+
+    @pytest.mark.unit
+    def test_edge_count(self) -> None:
+        graph = _build_graph({
+            "a": [(LinkType.RELATED, "b"), (LinkType.EXTENDS, "c")],
+            "b": [(LinkType.BLOCKS, "c")],
+            "c": [],
+        })
+        assert graph.edge_count == 3
+
+    @pytest.mark.unit
+    def test_construction_from_dict(self) -> None:
+        memories = {
+            "x": _make_memory("x", [(LinkType.IMPLEMENTS, "y")]),
+            "y": _make_memory("y"),
+        }
+        graph = MemoryGraph(memories)
+        assert graph.node_count == 2
+        assert graph.edge_count == 1
+
+
+class TestBFS:
+    """Tests for breadth-first traversal."""
+
+    @pytest.mark.unit
+    def test_simple_chain(self) -> None:
+        graph = _build_graph({
+            "a": [(LinkType.RELATED, "b")],
+            "b": [(LinkType.RELATED, "c")],
+            "c": [],
+        })
+        result = graph.bfs("a")
+        ids_depths = [(n.memory_id, n.depth) for n in result]
+        assert ids_depths == [("a", 0), ("b", 1), ("c", 2)]
+
+    @pytest.mark.unit
+    def test_branching(self) -> None:
+        graph = _build_graph({
+            "a": [(LinkType.RELATED, "b"), (LinkType.RELATED, "c")],
+            "b": [],
+            "c": [],
+        })
+        result = graph.bfs("a")
+        assert result[0].memory_id == "a"
+        assert result[0].depth == 0
+        depth_1_ids = {n.memory_id for n in result if n.depth == 1}
+        assert depth_1_ids == {"b", "c"}
+
+    @pytest.mark.unit
+    def test_max_depth_limits(self) -> None:
+        graph = _build_graph({
+            "a": [(LinkType.RELATED, "b")],
+            "b": [(LinkType.RELATED, "c")],
+            "c": [(LinkType.RELATED, "d")],
+            "d": [],
+        })
+        result = graph.bfs("a", max_depth=1)
+        ids = [n.memory_id for n in result]
+        assert "a" in ids
+        assert "b" in ids
+        assert "c" not in ids
+        assert "d" not in ids
+
+    @pytest.mark.unit
+    def test_max_depth_zero(self) -> None:
+        graph = _build_graph({
+            "a": [(LinkType.RELATED, "b")],
+            "b": [],
+        })
+        result = graph.bfs("a", max_depth=0)
+        assert len(result) == 1
+        assert result[0].memory_id == "a"
+        assert result[0].depth == 0
+
+    @pytest.mark.unit
+    def test_start_not_found_raises_keyerror(self) -> None:
+        graph = _build_graph({"a": []})
+        with pytest.raises(KeyError, match="nonexistent"):
+            graph.bfs("nonexistent")
+
+    @pytest.mark.unit
+    def test_handles_links_to_nonexistent(self) -> None:
+        graph = _build_graph({
+            "a": [(LinkType.RELATED, "ghost")],
+        })
+        result = graph.bfs("a")
+        ids = [n.memory_id for n in result]
+        assert ids == ["a"]
+
+    @pytest.mark.unit
+    def test_single_node_no_links(self) -> None:
+        graph = _build_graph({"solo": []})
+        result = graph.bfs("solo")
+        assert len(result) == 1
+        assert result[0].memory_id == "solo"
+        assert result[0].depth == 0
+        assert result[0].parent_id is None
+        assert result[0].link_type is None
+
+    @pytest.mark.unit
+    def test_parent_and_link_type_populated(self) -> None:
+        graph = _build_graph({
+            "a": [(LinkType.IMPLEMENTS, "b")],
+            "b": [],
+        })
+        result = graph.bfs("a")
+        child = result[1]
+        assert child.memory_id == "b"
+        assert child.parent_id == "a"
+        assert child.link_type == "implements"
+
+    @pytest.mark.unit
+    def test_cycle_does_not_loop(self) -> None:
+        graph = _build_graph({
+            "a": [(LinkType.RELATED, "b")],
+            "b": [(LinkType.RELATED, "a")],
+        })
+        result = graph.bfs("a")
+        ids = [n.memory_id for n in result]
+        assert ids == ["a", "b"]
+
+
+class TestDFS:
+    """Tests for depth-first traversal."""
+
+    @pytest.mark.unit
+    def test_simple_chain(self) -> None:
+        graph = _build_graph({
+            "a": [(LinkType.RELATED, "b")],
+            "b": [(LinkType.RELATED, "c")],
+            "c": [],
+        })
+        result = graph.dfs("a")
+        ids_depths = [(n.memory_id, n.depth) for n in result]
+        assert ids_depths == [("a", 0), ("b", 1), ("c", 2)]
+
+    @pytest.mark.unit
+    def test_branching_differs_from_bfs(self) -> None:
+        graph = _build_graph({
+            "a": [(LinkType.RELATED, "b"), (LinkType.RELATED, "c")],
+            "b": [(LinkType.RELATED, "d")],
+            "c": [],
+            "d": [],
+        })
+        bfs_result = graph.bfs("a")
+        dfs_result = graph.dfs("a")
+        bfs_ids = [n.memory_id for n in bfs_result]
+        dfs_ids = [n.memory_id for n in dfs_result]
+        assert set(bfs_ids) == set(dfs_ids)
+        # DFS goes deep first: a -> b -> d, then c
+        # BFS goes wide first: a -> b, c, then d
+        assert dfs_ids == ["a", "b", "d", "c"]
+        assert bfs_ids == ["a", "b", "c", "d"]
+
+    @pytest.mark.unit
+    def test_max_depth_limits(self) -> None:
+        graph = _build_graph({
+            "a": [(LinkType.RELATED, "b")],
+            "b": [(LinkType.RELATED, "c")],
+            "c": [(LinkType.RELATED, "d")],
+            "d": [],
+        })
+        result = graph.dfs("a", max_depth=1)
+        ids = [n.memory_id for n in result]
+        assert "a" in ids
+        assert "b" in ids
+        assert "c" not in ids
+
+    @pytest.mark.unit
+    def test_max_depth_zero(self) -> None:
+        graph = _build_graph({
+            "a": [(LinkType.RELATED, "b")],
+            "b": [],
+        })
+        result = graph.dfs("a", max_depth=0)
+        assert len(result) == 1
+        assert result[0].memory_id == "a"
+
+    @pytest.mark.unit
+    def test_start_not_found_raises_keyerror(self) -> None:
+        graph = _build_graph({"a": []})
+        with pytest.raises(KeyError, match="nonexistent"):
+            graph.dfs("nonexistent")
+
+    @pytest.mark.unit
+    def test_cycle_does_not_loop(self) -> None:
+        graph = _build_graph({
+            "a": [(LinkType.RELATED, "b")],
+            "b": [(LinkType.RELATED, "a")],
+        })
+        result = graph.dfs("a")
+        ids = [n.memory_id for n in result]
+        assert ids == ["a", "b"]
+
+    @pytest.mark.unit
+    def test_parent_and_link_type_populated(self) -> None:
+        graph = _build_graph({
+            "a": [(LinkType.EXTENDS, "b")],
+            "b": [],
+        })
+        result = graph.dfs("a")
+        child = result[1]
+        assert child.parent_id == "a"
+        assert child.link_type == "extends"
+
+    @pytest.mark.unit
+    def test_handles_links_to_nonexistent(self) -> None:
+        graph = _build_graph({
+            "a": [(LinkType.RELATED, "ghost")],
+        })
+        result = graph.dfs("a")
+        ids = [n.memory_id for n in result]
+        assert ids == ["a"]
+
+
+class TestCycleDetection:
+    """Tests for find_cycles."""
+
+    @pytest.mark.unit
+    def test_no_cycles(self) -> None:
+        graph = _build_graph({
+            "a": [(LinkType.RELATED, "b")],
+            "b": [(LinkType.RELATED, "c")],
+            "c": [],
+        })
+        cycles = graph.find_cycles()
+        assert cycles == []
+
+    @pytest.mark.unit
+    def test_simple_cycle(self) -> None:
+        graph = _build_graph({
+            "a": [(LinkType.RELATED, "b")],
+            "b": [(LinkType.RELATED, "a")],
+        })
+        cycles = graph.find_cycles()
+        assert len(cycles) >= 1
+        flat = [node for cycle in cycles for node in cycle]
+        assert "a" in flat
+        assert "b" in flat
+
+    @pytest.mark.unit
+    def test_triangle_cycle(self) -> None:
+        graph = _build_graph({
+            "a": [(LinkType.RELATED, "b")],
+            "b": [(LinkType.EXTENDS, "c")],
+            "c": [(LinkType.BLOCKS, "a")],
+        })
+        cycles = graph.find_cycles()
+        assert len(cycles) >= 1
+        cycle_nodes = set()
+        for cycle in cycles:
+            cycle_nodes.update(cycle)
+        assert {"a", "b", "c"}.issubset(cycle_nodes)
+
+    @pytest.mark.unit
+    def test_self_cycle(self) -> None:
+        graph = _build_graph({
+            "a": [(LinkType.RELATED, "a")],
+        })
+        cycles = graph.find_cycles()
+        assert len(cycles) >= 1
+        flat = [node for cycle in cycles for node in cycle]
+        assert "a" in flat
+
+    @pytest.mark.unit
+    def test_multiple_cycles(self) -> None:
+        graph = _build_graph({
+            "a": [(LinkType.RELATED, "b")],
+            "b": [(LinkType.RELATED, "a")],
+            "c": [(LinkType.RELATED, "d")],
+            "d": [(LinkType.RELATED, "c")],
+        })
+        cycles = graph.find_cycles()
+        assert len(cycles) >= 2
+
+    @pytest.mark.unit
+    def test_empty_graph(self) -> None:
+        graph = _build_graph({})
+        cycles = graph.find_cycles()
+        assert cycles == []
+
+    @pytest.mark.unit
+    def test_links_to_nonexistent_skipped(self) -> None:
+        graph = _build_graph({
+            "a": [(LinkType.RELATED, "ghost")],
+        })
+        cycles = graph.find_cycles()
+        assert cycles == []
+
+    @pytest.mark.unit
+    def test_from_directory_with_cycles(self, cyclic_memories_dir: Path) -> None:
+        graph = MemoryGraph.from_directory(cyclic_memories_dir)
+        cycles = graph.find_cycles()
+        assert len(cycles) >= 1
+
+
+class TestRelationshipScoring:
+    """Tests for score_relationships."""
+
+    @pytest.mark.unit
+    def test_implements_highest_score(self) -> None:
+        graph = _build_graph({
+            "a": [
+                (LinkType.IMPLEMENTS, "b"),
+                (LinkType.RELATED, "c"),
+            ],
+            "b": [],
+            "c": [],
+        })
+        scores = graph.score_relationships("a")
+        score_map = {s.target_id: s for s in scores}
+        assert score_map["b"].score > score_map["c"].score
+        # implements weight 1.0, distance 1: score = 1.0 / (1+1) = 0.5
+        assert score_map["b"].score == pytest.approx(LINK_WEIGHTS["implements"] / 2)
+        # related weight 0.3, distance 1: score = 0.3 / (1+1) = 0.15
+        assert score_map["c"].score == pytest.approx(LINK_WEIGHTS["related"] / 2)
+
+    @pytest.mark.unit
+    def test_distance_decay(self) -> None:
+        graph = _build_graph({
+            "a": [(LinkType.RELATED, "b")],
+            "b": [(LinkType.RELATED, "c")],
+            "c": [],
+        })
+        scores = graph.score_relationships("a")
+        score_map = {s.target_id: s for s in scores}
+        # b at distance 1: 0.3 / 2 = 0.15
+        # c at distance 2: 0.3 / 3 = 0.1
+        assert score_map["b"].distance == 1
+        assert score_map["c"].distance == 2
+        assert score_map["b"].score > score_map["c"].score
+        assert score_map["b"].score == pytest.approx(0.3 / 2)
+        assert score_map["c"].score == pytest.approx(0.3 / 3)
+
+    @pytest.mark.unit
+    def test_sorted_descending(self) -> None:
+        graph = _build_graph({
+            "a": [
+                (LinkType.RELATED, "b"),
+                (LinkType.IMPLEMENTS, "c"),
+                (LinkType.EXTENDS, "d"),
+            ],
+            "b": [],
+            "c": [],
+            "d": [],
+        })
+        scores = graph.score_relationships("a")
+        for i in range(len(scores) - 1):
+            assert scores[i].score >= scores[i + 1].score
+
+    @pytest.mark.unit
+    def test_start_not_found_raises_keyerror(self) -> None:
+        graph = _build_graph({"a": []})
+        with pytest.raises(KeyError, match="missing"):
+            graph.score_relationships("missing")
+
+    @pytest.mark.unit
+    def test_no_reachable_nodes(self) -> None:
+        graph = _build_graph({"isolated": []})
+        scores = graph.score_relationships("isolated")
+        assert scores == []
+
+    @pytest.mark.unit
+    def test_excludes_start_node(self) -> None:
+        graph = _build_graph({
+            "a": [(LinkType.RELATED, "b")],
+            "b": [],
+        })
+        scores = graph.score_relationships("a")
+        target_ids = [s.target_id for s in scores]
+        assert "a" not in target_ids
+
+    @pytest.mark.unit
+    def test_score_uses_link_type_from_traversal(self) -> None:
+        graph = _build_graph({
+            "a": [(LinkType.EXTENDS, "b")],
+            "b": [],
+        })
+        scores = graph.score_relationships("a")
+        assert len(scores) == 1
+        assert scores[0].link_type == "extends"
+        assert scores[0].score == pytest.approx(LINK_WEIGHTS["extends"] / 2)
+
+    @pytest.mark.unit
+    def test_all_link_weights_covered(self) -> None:
+        expected_types = {"implements", "extends", "blocks", "supersedes", "related"}
+        assert set(LINK_WEIGHTS.keys()) == expected_types
+
+    @pytest.mark.unit
+    def test_relationship_score_fields(self) -> None:
+        graph = _build_graph({
+            "a": [(LinkType.BLOCKS, "b")],
+            "b": [],
+        })
+        scores = graph.score_relationships("a")
+        rs = scores[0]
+        assert isinstance(rs, RelationshipScore)
+        assert rs.target_id == "b"
+        assert rs.link_type == "blocks"
+        assert rs.distance == 1
+        assert rs.score == pytest.approx(LINK_WEIGHTS["blocks"] / 2)
+
+
+class TestTraversalNode:
+    """Tests for TraversalNode dataclass."""
+
+    @pytest.mark.unit
+    def test_defaults(self) -> None:
+        node = TraversalNode(memory_id="x", depth=0)
+        assert node.memory_id == "x"
+        assert node.depth == 0
+        assert node.link_type is None
+        assert node.parent_id is None
+
+    @pytest.mark.unit
+    def test_all_fields(self) -> None:
+        node = TraversalNode(
+            memory_id="y",
+            depth=3,
+            link_type="implements",
+            parent_id="x",
+        )
+        assert node.memory_id == "y"
+        assert node.depth == 3
+        assert node.link_type == "implements"
+        assert node.parent_id == "x"
+
+
+class TestFromDirectory:
+    """Tests for MemoryGraph.from_directory edge cases."""
+
+    @pytest.mark.unit
+    def test_traversal_after_directory_load(self, graph_memories_dir: Path) -> None:
+        graph = MemoryGraph.from_directory(graph_memories_dir)
+        result = graph.bfs("memory-a")
+        ids = {n.memory_id for n in result}
+        assert "memory-a" in ids
+        assert "memory-b" in ids
+        assert "memory-d" in ids
+
+    @pytest.mark.unit
+    def test_edge_count_from_directory(self, graph_memories_dir: Path) -> None:
+        graph = MemoryGraph.from_directory(graph_memories_dir)
+        # A has 2 links, B has 1, D has 1 = 4 total edges
+        assert graph.edge_count == 4
+
+    @pytest.mark.unit
+    def test_nonexistent_directory_returns_empty_graph(self) -> None:
+        graph = MemoryGraph.from_directory(Path("/nonexistent/dir"))
+        assert graph.node_count == 0
+        assert graph.edge_count == 0
+
+    @pytest.mark.unit
+    def test_unicode_decode_error_skipped(self, memories_dir: Path) -> None:
+        (memories_dir / "valid.md").write_text(
+            "---\nid: valid\nsubject: V\n---\nOK.\n",
+            encoding="utf-8",
+        )
+        (memories_dir / "binary.md").write_bytes(b"\x80\x81\x82\x83")
+        graph = MemoryGraph.from_directory(memories_dir)
+        assert graph.node_count == 1
+
+    @pytest.mark.unit
+    def test_non_md_files_ignored(self, memories_dir: Path) -> None:
+        (memories_dir / "readme.txt").write_text("not a memory", encoding="utf-8")
+        (memories_dir / "valid.md").write_text(
+            "---\nid: valid\nsubject: V\n---\nOK.\n",
+            encoding="utf-8",
+        )
+        graph = MemoryGraph.from_directory(memories_dir)
+        assert graph.node_count == 1
+
+
+class TestPerformance:
+    """Performance benchmarks for graph traversal."""
+
+    @pytest.mark.integration
+    def test_bfs_1000_nodes_under_500ms(self, large_graph_dir: Path) -> None:
+        """Test BFS performance on large graph.
+
+        Performance threshold adjusts via CI_PERFORMANCE_MULTIPLIER env var
+        (default 1.0) to account for slower CI runners.
+        """
+        import os
+
+        multiplier = float(os.getenv("CI_PERFORMANCE_MULTIPLIER", "1.0"))
+        threshold_ms = 500 * multiplier
+
+        graph = MemoryGraph.from_directory(large_graph_dir)
+        assert graph.node_count >= 1000
+
+        start = time.perf_counter()
+        result = graph.bfs("node-0")
+        elapsed_ms = (time.perf_counter() - start) * 1000
+
+        assert len(result) > 0
+        assert elapsed_ms < threshold_ms, (
+            f"BFS took {elapsed_ms:.1f}ms, expected <{threshold_ms:.1f}ms "
+            f"(base 500ms × {multiplier} multiplier)"
+        )
+
+    @pytest.mark.integration
+    def test_dfs_1000_nodes_under_500ms(self, large_graph_dir: Path) -> None:
+        """Test DFS performance on large graph.
+
+        Performance threshold adjusts via CI_PERFORMANCE_MULTIPLIER env var
+        (default 1.0) to account for slower CI runners.
+        """
+        import os
+
+        multiplier = float(os.getenv("CI_PERFORMANCE_MULTIPLIER", "1.0"))
+        threshold_ms = 500 * multiplier
+
+        graph = MemoryGraph.from_directory(large_graph_dir)
+        assert graph.node_count >= 1000
+
+        start = time.perf_counter()
+        result = graph.dfs("node-0")
+        elapsed_ms = (time.perf_counter() - start) * 1000
+
+        assert len(result) > 0
+        assert elapsed_ms < threshold_ms, (
+            f"DFS took {elapsed_ms:.1f}ms, expected <{threshold_ms:.1f}ms "
+            f"(base 500ms × {multiplier} multiplier)"
+        )
+
+    @pytest.mark.integration
+    def test_cycle_detection_1000_nodes(self, large_graph_dir: Path) -> None:
+        graph = MemoryGraph.from_directory(large_graph_dir)
+        start = time.perf_counter()
+        graph.find_cycles()
+        elapsed_ms = (time.perf_counter() - start) * 1000
+
+        assert elapsed_ms < 5000, (
+            f"Cycle detection took {elapsed_ms:.1f}ms, expected <5000ms"
+        )
+
+    @pytest.mark.integration
+    def test_score_relationships_1000_nodes(self, large_graph_dir: Path) -> None:
+        graph = MemoryGraph.from_directory(large_graph_dir)
+        start = time.perf_counter()
+        scores = graph.score_relationships("node-0")
+        elapsed_ms = (time.perf_counter() - start) * 1000
+
+        assert len(scores) > 0
+        assert elapsed_ms < 1000, (
+            f"score_relationships took {elapsed_ms:.1f}ms, expected <1000ms"
+        )

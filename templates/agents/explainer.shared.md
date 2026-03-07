@@ -5,14 +5,11 @@ tools_vscode:
   - vscode
   - read
   - edit
-  - cloudmcp-manager/*
-  - serena/*
-  - memory
+  - $toolset:knowledge
 tools_copilot:
   - read
   - edit
-  - cloudmcp-manager/*
-  - serena/*
+  - $toolset:knowledge
 ---
 # Explainer Agent
 
@@ -245,7 +242,7 @@ When documentation is complete:
 
 | Target | When | Purpose |
 |--------|------|---------|
-| **planner** | PRD complete | Create work packages |
+| **milestone-planner** | PRD complete | Create work packages |
 | **critic** | Document needs review | Validate completeness |
 | **implementer** | Spec ready | Ready for coding |
 

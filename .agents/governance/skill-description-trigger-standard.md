@@ -248,7 +248,7 @@ Before marking skill complete:
 - Decision tree (when to use this vs manual)
 - Verification checklist (validate output format)
 
-### Workflow Skills (planner, research-and-incorporate)
+### Workflow Skills (milestone-planner, research-and-incorporate)
 
 **Description pattern**: `[Workflow verb] + [multi-step process] + Use when [starting condition] + [outcome]`
 

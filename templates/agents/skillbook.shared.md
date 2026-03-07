@@ -2,19 +2,11 @@
 description: Skill manager who transforms reflections into high-quality atomic skillbook updates—guarding strategy quality, preventing duplicates, and maintaining learned patterns. Scores atomicity, runs deduplication checks, rejects vague learnings. Use for skill persistence, validation, or keeping institutional knowledge clean and actionable.
 argument-hint: Provide the reflection or strategy pattern to persist
 tools_vscode:
-  - vscode
-  - read
-  - edit
-  - search
-  - cloudmcp-manager/*
-  - serena/*
-  - memory
+  - $toolset:editor
+  - $toolset:knowledge
 tools_copilot:
-  - read
-  - edit
-  - search
-  - cloudmcp-manager/*
-  - serena/*
+  - $toolset:editor
+  - $toolset:knowledge
 ---
 # Skillbook Agent (Skill Manager)
 

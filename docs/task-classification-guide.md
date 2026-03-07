@@ -25,7 +25,7 @@ Every task is classified across three dimensions:
 - New API endpoints or UI components
 - "Add", "Create", "Implement" in request
 
-**Agent Sequence**: `analyst -> architect -> planner -> critic -> implementer -> qa`
+**Agent Sequence**: `analyst -> architect -> milestone-planner -> critic -> implementer -> qa`
 
 ### Bug Fix
 
@@ -71,7 +71,7 @@ Every task is classified across three dimensions:
 - Long-term direction
 - Epic or milestone planning
 
-**Agent Sequence**: `roadmap -> architect -> planner -> critic`
+**Agent Sequence**: `roadmap -> architect -> milestone-planner -> critic`
 
 ### Research/Investigation
 
@@ -117,7 +117,7 @@ Every task is classified across three dimensions:
 - Incomplete feature descriptions lacking acceptance criteria
 - "Shower thoughts" or early-stage ideas
 
-**Agent Sequence**: `analyst -> high-level-advisor -> independent-thinker -> critic -> roadmap -> explainer -> task-generator -> architect -> devops -> security -> qa`
+**Agent Sequence**: `analyst -> high-level-advisor -> independent-thinker -> critic -> roadmap -> explainer -> task-decomposer -> architect -> devops -> security -> qa`
 
 **Note**: This is the most comprehensive sequence, designed to transform vague ideas into actionable implementation plans through research, validation, planning, and review phases.
 
@@ -309,7 +309,7 @@ Every task is classified across three dimensions:
 - Complexity: **Multi-Domain** (security + architecture + auth + testing)
 - Risk: **Critical** (authentication)
 
-**Routing**: `analyst -> security -> architect -> planner -> critic -> implementer -> qa`
+**Routing**: `analyst -> security -> architect -> milestone-planner -> critic -> implementer -> qa`
 
 ### Example 5: CI Pipeline Optimization
 

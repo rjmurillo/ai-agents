@@ -128,6 +128,20 @@ uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 uses: actions/checkout@v4
 ```
 
+### Local Workflow Testing (MANDATORY)
+
+Before pushing any workflow YAML changes, run `gh act` locally to validate:
+
+```bash
+# Test a specific workflow job
+gh act workflow_dispatch -W .github/workflows/<workflow>.yml -j <job-name>
+
+# Test all jobs in a workflow
+gh act workflow_dispatch -W .github/workflows/<workflow>.yml
+```
+
+The CI feedback loop (edit, push, wait, check) is too slow. Local testing catches syntax errors, missing steps, and incorrect script invocations before they reach CI.
+
 ---
 
 ## Quick Reference

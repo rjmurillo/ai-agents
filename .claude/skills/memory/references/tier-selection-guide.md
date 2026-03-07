@@ -17,8 +17,8 @@ Deep guidance for selecting the correct memory tier.
 
 Factual questions about concepts, patterns, or rules.
 
-```powershell
-Search-Memory.ps1 -Query "PowerShell array handling"
+```bash
+python3 .claude/skills/memory/scripts/search_memory.py --query "PowerShell array handling"
 ```
 
 ### "What happened when...?" → Tier 2
@@ -105,9 +105,9 @@ Primary tier unavailable?
 
 When answering "How should I handle authentication errors?":
 
-```powershell
+```bash
 # Tier 1: Get documented patterns
-$facts = Search-Memory.ps1 -Query "authentication error handling"
+facts=$(python3 .claude/skills/memory/scripts/search_memory.py --query "authentication error handling")
 
 # Tier 2: Find relevant past sessions
 $episodes = Get-Episodes -Task "authentication" -MaxResults 10

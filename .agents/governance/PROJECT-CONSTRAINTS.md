@@ -12,6 +12,26 @@ Single source of truth for project constraints. Index-style document pointing to
 
 ---
 
+## RETRIEVAL-LED REASONING
+
+**IMPORTANT**: This document is the SINGLE SOURCE OF TRUTH for constraints.
+
+When making decisions about:
+- Language choice (Python vs PowerShell) → Read "Language Constraints" section, NOT pre-training
+- Skill usage → Read "Skill Usage Constraints" section, NOT pre-training
+- Workflow patterns → Read "Workflow Constraints" section, NOT pre-training
+- Commit structure → Read "Commit Constraints" section, NOT pre-training
+
+**Do NOT rely on pre-training for these constraints.** Pre-training may reflect outdated patterns.
+
+**Process**:
+1. Identify decision type (language, workflow, etc.)
+2. Read corresponding section in THIS document
+3. Follow "Source" link for full rationale if needed
+4. Apply constraint, not pre-training assumption
+
+---
+
 ## Language Constraints
 
 | Constraint | Source | Verification |
@@ -35,7 +55,7 @@ Single source of truth for project constraints. Index-style document pointing to
 
 | Constraint | Source | Verification |
 |------------|--------|--------------|
-| MUST NOT use raw `gh` commands when skill exists | usage-mandatory | Check-SkillExists.ps1 |
+| MUST NOT use raw `gh` commands when skill exists | usage-mandatory | check_skill_exists.py |
 | MUST check `.claude/skills/` before GitHub operations | usage-mandatory | Phase 1.5 gate |
 | MUST extend skills if capability missing, not write inline | usage-mandatory | Code review |
 
@@ -62,6 +82,7 @@ Single source of truth for project constraints. Index-style document pointing to
 | MUST put complex logic in .psm1 modules | ADR-006 | Code review |
 | MUST have Pester tests for modules (80%+ coverage) | ADR-006 | CI coverage check |
 | MUST add new AI-powered workflows to monitoring list | workflow-coalescing | Code review, manual validation |
+| MUST run `gh act` locally before pushing workflow changes | AGENTS.md | `gh act` output in transcript |
 **Reference**: [ADR-006-thin-workflows-testable-modules.md](../architecture/ADR-006-thin-workflows-testable-modules.md)
 
 **Rationale Summary**: GitHub Actions workflows cannot be tested locally. The feedback loop (edit -> push -> wait -> check) is slow. Extracting logic to modules enables fast local testing with Pester.
@@ -92,6 +113,18 @@ When creating a new AI-powered workflow with concurrency control:
 | MUST use conventional commit format | code-style-conventions | commit-msg hook |
 
 **Reference**: Use `mcp__serena__read_memory` with `memory_file_name="code-style-conventions"`
+
+### PR Scope Constraints
+
+| Constraint | Source | Verification |
+|------------|--------|--------------|
+| SHOULD limit PRs to <=20 commits | PR #908 retrospective, Issue #934 | `git rev-list --count HEAD ^origin/main` |
+| SHOULD limit PRs to <=10 changed files | PR #908 retrospective, Issue #934 | `git diff --stat origin/main` |
+| SHOULD limit PRs to <=500 added lines | PR #908 retrospective, Issue #934 | `git diff --stat origin/main` |
+
+**Rationale Summary**: PR #908 had 59 commits, making review slow and merge risky. Smaller PRs get faster reviews, fewer conflicts, and easier rollbacks.
+
+**Remediation**: If limits are exceeded, squash related commits (`git rebase -i origin/main`) or split into multiple PRs.
 
 **Format**:
 
@@ -198,8 +231,9 @@ Use this checklist during session start:
 
 - [ ] Read this document (PROJECT-CONSTRAINTS.md)
 - [ ] For GitHub operations: Verify skill exists before writing code
-- [ ] For new scripts: Verify PowerShell-only (no .sh or .py files)
+- [ ] For new scripts: Verify Python or PowerShell (no .sh files per ADR-042)
 - [ ] For workflow changes: Verify logic in modules, not YAML; actions are SHA-pinned, not version tags
+- [ ] For workflow changes: Run `gh act` locally before pushing (MUST)
 - [ ] For agent/skill/prompt frontmatter: Verify block-style arrays (not inline `['tool1', 'tool2']`)
 - [ ] Before commit: Verify atomic commit rule (single logical change)
 

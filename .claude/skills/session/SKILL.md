@@ -24,11 +24,31 @@ Skills for session management and protocol compliance.
 
 | Phrase | Action |
 |--------|--------|
-| "Check if I can skip QA" | Run Test-InvestigationEligibility.ps1 |
-| "Am I eligible for investigation-only?" | Verify staged files against ADR-034 allowlist |
-| "Verify investigation session eligibility" | Check QA skip eligibility before commit |
-| "Can I use SKIPPED: investigation-only?" | Validate investigation-only exemption |
-| "Test eligibility for QA skip" | Execute eligibility check script |
+| `Check if I can skip QA` | Run test_investigation_eligibility.py |
+| `Am I eligible for investigation-only?` | Verify staged files against ADR-034 allowlist |
+| `Verify investigation session eligibility` | Check QA skip eligibility before commit |
+| `Can I use SKIPPED: investigation-only?` | Validate investigation-only exemption |
+| `Test eligibility for QA skip` | Execute eligibility check script |
+
+## When to Use
+
+Use this skill when:
+
+- About to commit investigation-only work and need to verify QA skip eligibility
+- Session log uses "SKIPPED: investigation-only" verdict
+- Staged files should be checked against ADR-034 allowlist
+
+Use [session-init](../session-init/SKILL.md) instead when:
+
+- Starting a new session and creating the session log
+- Need protocol-compliant session initialization
+
+Use the qa agent instead when:
+
+- Feature implementation work was done (not investigation-only)
+- Eligibility check returns Eligible: false
+
+---
 
 ## Process
 
@@ -37,7 +57,7 @@ Skills for session management and protocol compliance.
 | Step | Action | Tool | Output |
 |------|--------|------|--------|
 | 1.1 | Stage files for commit | `git add` | Files added to staging area |
-| 1.2 | Run eligibility check | `Test-InvestigationEligibility.ps1` | JSON with Eligible, StagedFiles, Violations |
+| 1.2 | Run eligibility check | `test_investigation_eligibility.py` | JSON with Eligible, StagedFiles, Violations |
 | 1.3 | Verify Eligible=true | Parse JSON output | Boolean result |
 
 ### Phase 2: Commit Decision
@@ -70,8 +90,8 @@ Check if staged files qualify for investigation-only QA skip per ADR-034.
 
 ### Usage
 
-```powershell
-pwsh .claude/skills/session/scripts/Test-InvestigationEligibility.ps1
+```bash
+python3 .claude/skills/session/scripts/test_investigation_eligibility.py
 ```
 
 ### Output
@@ -175,7 +195,7 @@ SESSION-PROTOCOL.md (Phase 2.5: QA Validation)
                 │
                 └── Investigation session → MAY skip QA
                         │
-                        └── Test-InvestigationEligibility.ps1
+                        └── test_investigation_eligibility.py
                                 │
                                 ├── Eligible: true → Use "SKIPPED: investigation-only"
                                 │
@@ -191,7 +211,7 @@ SESSION-PROTOCOL.md (Phase 2.5: QA Validation)
 
 2. Run eligibility check
    │
-   └── pwsh .claude/skills/session/scripts/Test-InvestigationEligibility.ps1
+   └── python3 .claude/skills/session/scripts/test_investigation_eligibility.py
 
 3. Check output
    │
@@ -216,7 +236,7 @@ Use this skill to validate the QA skip condition:
 
 | Req | Step | Status | Evidence |
 |-----|------|--------|----------|
-| MUST | Route to qa agent (feature implementation) | [x] | `SKIPPED: investigation-only` - Verified via Test-InvestigationEligibility.ps1 |
+| MUST | Route to qa agent (feature implementation) | [x] | `SKIPPED: investigation-only` - Verified via test_investigation_eligibility.py |
 ```
 
 ---
@@ -233,7 +253,7 @@ These paths qualify for investigation-only QA exemption:
 | `.serena/memories/` | Cross-session context storage |
 | `.agents/security/` | Security assessments and reviews |
 
-**Important**: This allowlist is defined by ADR-034 (Investigation Session QA Exemption). The patterns in `Test-InvestigationEligibility.ps1` are validated by Pester tests to ensure they match the ADR specification.
+**Important**: This allowlist is defined by ADR-034 (Investigation Session QA Exemption). The patterns in `test_investigation_eligibility.py` are validated by Pester tests to ensure they match the ADR specification.
 
 ---
 
@@ -259,6 +279,18 @@ After using this skill:
 
 ---
 
+## Scripts
+
+### test_investigation_eligibility.py
+
+Checks if staged files qualify for investigation-only QA skip per ADR-034.
+
+```bash
+python3 .claude/skills/session/scripts/test_investigation_eligibility.py
+```
+
+---
+
 ## Related
 
 | Reference | Description |
@@ -266,5 +298,5 @@ After using this skill:
 | [ADR-034](../../../.agents/architecture/decisions/adr-034-investigation-session-qa-exemption.md) | Investigation Session QA Exemption architecture decision |
 | [SESSION-PROTOCOL.md](../../../.agents/SESSION-PROTOCOL.md) | Session start/end requirements (Phase 2.5) |
 | [Issue #662](https://github.com/rjmurillo/ai-agents/issues/662) | Create QA skip eligibility check skill |
-| [Validate-SessionJson.ps1](../../../scripts/Validate-SessionJson.ps1) | Validates session JSON format (separate from eligibility) |
-| [Test-InvestigationEligibility.Tests.ps1](../../../tests/Test-InvestigationEligibility.Tests.ps1) | Pester tests ensuring pattern consistency |
+| [validate_session_json.py](../../../scripts/validate_session_json.py) | Validates session JSON format (separate from eligibility) |
+| [test_investigation_eligibility.py](tests/test_investigation_eligibility.py) | Pytest tests ensuring pattern consistency |

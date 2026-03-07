@@ -11,7 +11,7 @@
 
 - [x] `mcp__serena__initial_instructions` called
 - [x] Tool output received
-- [x] Project activated: ai-agents at D:\src\GitHub\rjmurillo\ai-agents
+- [x] Project activated: ai-agents at <project-root>
 
 ### Phase 2: Context Retrieval
 

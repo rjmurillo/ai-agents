@@ -31,10 +31,23 @@ URLs: https://fs.blog/chestertons-fence/, https://en.wikipedia.org/wiki/G._K._Ch
 ## Triggers
 
 - `/research-and-incorporate` - Main invocation
-- "research and incorporate {topic}" - Natural language
-- "study {topic} and add to memory" - Alternative phrasing
-- "deep dive on {topic}" - Research focus
-- "learn about {topic} for the project" - Project integration focus
+- `research and incorporate {topic}` - Natural language
+- `study {topic} and add to memory` - Alternative phrasing
+- `deep dive on {topic}` - Research focus
+- `learn about {topic} for the project` - Project integration focus
+
+## When to Use
+
+Use this skill when:
+
+- Researching an external concept, framework, or principle for project integration
+- You need structured analysis with memory persistence (not just a web search)
+- Building actionable knowledge from external sources
+
+Use `memory-documentary` instead when:
+
+- Investigating patterns already in existing memory systems
+- You need cross-system evidence synthesis, not new external research
 
 ## Parameters
 
@@ -44,7 +57,7 @@ URLs: https://fs.blog/chestertons-fence/, https://en.wikipedia.org/wiki/G._K._Ch
 | `CONTEXT` | Yes | Why this matters to the project |
 | `URLS` | No | Comma-separated source URLs |
 
-## Workflow Overview
+## Process
 
 ```text
 ┌─────────────────────────────────────────────────────────────────┐

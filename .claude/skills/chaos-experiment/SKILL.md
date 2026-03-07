@@ -1,10 +1,9 @@
 ---
 name: chaos-experiment
+version: 1.0.0
+model: claude-sonnet-4-5
 description: Design and document chaos engineering experiments. Guide steady state baseline, hypothesis formation, failure injection plans, and results analysis. Use for resilience testing, game days, failure injection experiments, and building confidence in system stability.
 license: MIT
-metadata:
-  version: 1.0.0
-  model: claude-sonnet-4-5
 ---
 
 # Chaos Experiment Designer
@@ -13,12 +12,11 @@ Design rigorous chaos engineering experiments that build confidence in system re
 
 ## Triggers
 
-- "chaos experiment"
-- "test resilience"
-- "failure injection"
-- "resilience testing"
-- "game day"
-- "chaos engineering"
+- `chaos experiment`
+- `test resilience`
+- `failure injection`
+- `game day`
+- `chaos engineering`
 
 ## Quick Reference
 
@@ -30,6 +28,25 @@ Design rigorous chaos engineering experiments that build confidence in system re
 | 4. Injection | Design failure scenarios | Injection plan with blast radius |
 | 5. Execute | Run controlled experiment | Observation log |
 | 6. Analyze | Compare actual vs expected | Findings and action items |
+
+## When to Use
+
+Use this skill when:
+
+- Planning a game day or failure injection exercise
+- Building confidence in system resilience before production launch
+- Investigating whether auto-scaling, circuit breakers, or failover mechanisms work as designed
+- After a real incident, to validate that fixes prevent recurrence
+
+Use [threat-modeling](../threat-modeling/SKILL.md) instead when:
+
+- Identifying security threats (not resilience)
+- Evaluating attack surfaces rather than failure modes
+
+Use [pre-mortem](../pre-mortem/SKILL.md) instead when:
+
+- Identifying project risks (not infrastructure failures)
+- Working at planning stage before any system exists
 
 ## Core Principles
 

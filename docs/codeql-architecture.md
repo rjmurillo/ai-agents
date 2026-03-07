@@ -144,7 +144,7 @@ graph LR
 
 **Purpose**: Provide just-in-time security feedback during development
 
-**Implementation**: `.claude/hooks/PostToolUse/Invoke-CodeQLQuickScan.ps1`
+**Implementation**: `.claude/hooks/PostToolUse/invoke_codeql_quick_scan.py`
 
 **Characteristics**:
 
@@ -707,9 +707,10 @@ catch {
 
 4. Update PostToolUse hook file patterns:
 
-   ```powershell
-   # .claude/hooks/PostToolUse/Invoke-CodeQLQuickScan.ps1
-   if ($FilePath -match '\.(js|ts)$') { $shouldScan = $true }
+   ```python
+   # .claude/hooks/PostToolUse/invoke_codeql_quick_scan.py
+   if re.search(r'\.(js|ts)$', file_path):
+       should_scan = True
    ```
 
 ### Custom Query Packs
@@ -777,11 +778,12 @@ queries:
 
 **Add New File Types**:
 
-```powershell
-# .claude/hooks/PostToolUse/Invoke-CodeQLQuickScan.ps1
+```python
+# .claude/hooks/PostToolUse/invoke_codeql_quick_scan.py
 
 # Current: Python and Actions
-if ($FilePath -match '\.(py|yml)$') { $shouldScan = $true }
+if re.search(r'\.(py|yml)$', file_path):
+    should_scan = True
 
 # Add JavaScript/TypeScript
 if ($FilePath -match '\.(py|yml|js|ts)$') { $shouldScan = $true }

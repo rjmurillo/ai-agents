@@ -52,7 +52,7 @@ The document comprehensively addresses all 5 acceptance criteria with strong str
 
 **Evidence**:
 ```bash
-$ ls /home/richard/ai-agents/.claude/skills/github/scripts/reactions/
+$ ls .claude/skills/github/scripts/reactions/
 Add-CommentReaction.ps1
 ```
 

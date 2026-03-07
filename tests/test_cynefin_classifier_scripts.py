@@ -18,9 +18,10 @@ from typing import TYPE_CHECKING
 import pytest
 
 # Import the module under test
-sys.path.insert(0, str(Path(__file__).parents[1] / ".claude" / "skills" / "cynefin-classifier" / "scripts"))
+_scripts = Path(__file__).parents[1] / ".claude" / "skills" / "cynefin-classifier" / "scripts"
+sys.path.insert(0, str(_scripts))
 
-from classify import (
+from classify import (  # noqa: E402
     DOMAIN_KEYWORDS,
     PITFALLS,
     STRATEGIES,
@@ -395,7 +396,10 @@ class TestMainFunction:
     @pytest.fixture
     def script_path(self, project_root: Path) -> Path:
         """Return path to the classify.py script."""
-        return project_root / ".claude" / "skills" / "cynefin-classifier" / "scripts" / "classify.py"
+        return (
+            project_root / ".claude" / "skills"
+            / "cynefin-classifier" / "scripts" / "classify.py"
+        )
 
     def test_requires_problem_argument(self, script_path: Path) -> None:
         """Exit code 1 when --problem argument missing."""
@@ -681,7 +685,7 @@ class TestEdgeCases:
     def test_keyword_substring_matching(self) -> None:
         """Keywords match as substrings."""
         # "documented" contains "document" but we use "documented" keyword
-        result = classify_problem("This is a documented issue")
+        classify_problem("This is a documented issue")
 
         # Should match "documented" keyword
         assert count_keyword_matches("documented issue", Domain.CLEAR) >= 1
@@ -718,6 +722,7 @@ class TestTemporalNotes:
         result = classify_problem("Simple typo fix, obvious solution")
 
         if result.domain == Domain.CLEAR:
+            assert result.temporal_note is not None
             assert "Complex" in result.temporal_note or "Chaotic" in result.temporal_note
 
     def test_chaotic_domain_temporal_note(self) -> None:
@@ -725,6 +730,7 @@ class TestTemporalNotes:
         result = classify_problem("Urgent outage! System down! Emergency!")
 
         if result.domain == Domain.CHAOTIC:
+            assert result.temporal_note is not None
             assert "Complex" in result.temporal_note
 
     def test_confusion_domain_temporal_note(self) -> None:
@@ -732,6 +738,7 @@ class TestTemporalNotes:
         result = classify_problem("Something might be wrong")
 
         if result.domain == Domain.CONFUSION:
+            assert result.temporal_note is not None
             assert "Temporary" in result.temporal_note
 
 
@@ -741,7 +748,10 @@ class TestJsonOutputFormat:
     @pytest.fixture
     def script_path(self, project_root: Path) -> Path:
         """Return path to the classify.py script."""
-        return project_root / ".claude" / "skills" / "cynefin-classifier" / "scripts" / "classify.py"
+        return (
+            project_root / ".claude" / "skills"
+            / "cynefin-classifier" / "scripts" / "classify.py"
+        )
 
     def test_json_has_required_fields(self, script_path: Path) -> None:
         """JSON output contains all required fields."""
@@ -821,7 +831,10 @@ class TestMarkdownOutputFormat:
     @pytest.fixture
     def script_path(self, project_root: Path) -> Path:
         """Return path to the classify.py script."""
-        return project_root / ".claude" / "skills" / "cynefin-classifier" / "scripts" / "classify.py"
+        return (
+            project_root / ".claude" / "skills"
+            / "cynefin-classifier" / "scripts" / "classify.py"
+        )
 
     def test_markdown_has_valid_headers(self, script_path: Path) -> None:
         """Markdown output has valid header structure."""

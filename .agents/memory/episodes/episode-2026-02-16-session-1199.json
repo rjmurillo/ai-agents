@@ -1,0 +1,35 @@
+{
+  "id": "episode-2026-02-16-session-1199",
+  "session": "2026-02-16-session-1199",
+  "timestamp": "2026-02-16T19:12:38.869793+00:00",
+  "outcome": "failure",
+  "task": "",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-02-16T19:12:38.863714+00:00",
+      "type": "error",
+      "content": "\"Evidence\": \"markdownlint-cli2 ran on 5 files, 0 errors\"",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-02-16T19:12:38.863714+00:00",
+      "type": "error",
+      "content": "\"task\": \"Fix #1152: Remove commands/README.md causing skill load failure\",",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 2,
+    "recoveries": 0,
+    "commits": 2,
+    "files_changed": 0
+  },
+  "lessons": []
+}

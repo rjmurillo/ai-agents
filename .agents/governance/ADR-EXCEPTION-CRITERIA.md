@@ -1,134 +1,207 @@
 # ADR Exception Criteria
 
-**Status**: Active  
-**Date**: 2026-03-07  
-**Related ADR**: ADR-044 (this document implements that decision)  
-**GitHub Issue**: #947
-
----
+> **Status**: Active
+> **Version**: 1.0
+> **Last Updated**: 2026-02-19
+> **Related**: ADR-005, ADR-042, PR #908 Retrospective
 
 ## Purpose
 
-ADR exceptions permit narrow deviations from accepted decisions. However, creating an exception without understanding *why the rule exists* risks eroding architectural governance over time.
+Define criteria and process for evaluating ADR exceptions. Exceptions should be rare and justified. This framework prevents tactical violations disguised as strategic exceptions.
 
-**All ADR exception requests MUST include a Chesterton's Fence analysis before approval.**
+## Chesterton's Fence Principle
 
----
+Before removing or bypassing a rule, understand why it exists.
 
-## Chesterton's Fence Requirement
+> "Do not remove a fence until you know why it was put up." - G.K. Chesterton
 
-> "Before you remove a fence, understand why it was built."
+This principle requires understanding the original rationale before proposing exceptions. Rules exist for reasons that may not be immediately obvious.
 
-Before requesting an ADR exception, you MUST answer the following three questions. Incomplete submissions are rejected without review.
+## Required Analysis Before Exception
+
+An exception request MUST document:
 
 ### 1. Why Does the Rule Exist?
 
-Quote the original ADR rationale — do not paraphrase. If you cannot find the rationale, escalate to the architect before proceeding.
+- [ ] Original rationale identified (read the ADR)
+- [ ] Problem the ADR solved documented
+- [ ] Historical context understood
 
-### 2. Impact If Removed
+Example:
 
-Document what breaks, degrades, or becomes inconsistent if the rule is removed or permanently excepted:
-- Technical debt introduced
-- Testing and tooling fragmentation
-- Precedent risk for future violations
-- Enforcement complexity
+```markdown
+**Rule**: ADR-005 requires PowerShell-only scripting.
+**Original Rationale**: Agents wasted 830+ lines generating bash code that was
+later deleted. Standardizing on PowerShell eliminates this waste and keeps
+testing consolidated on Pester.
+```
+
+### 2. Impact If Exception Is Granted
+
+- [ ] Technical debt created by exception documented
+- [ ] Downstream effects on testing, CI, maintenance identified
+- [ ] Precedent risk assessed (will others request similar exceptions?)
+- [ ] Reversibility plan defined
+
+Example:
+
+```markdown
+**Debt Created**: Python hooks require pip dependencies separate from PowerShell ecosystem.
+**Testing Impact**: Tests must run in both Pester and pytest.
+**Precedent Risk**: Low - narrow scope (hooks directory only).
+**Reversibility**: Port to PowerShell if Anthropic releases PowerShell SDK.
+```
 
 ### 3. Alternatives Tried
 
-List at least two compliance attempts made before requesting the exception. For each:
-- What was attempted
-- Why it did not satisfy the requirement
+- [ ] At least two alternatives documented
+- [ ] Why each alternative failed explained
+- [ ] Evidence provided (not just assertions)
 
-If you have not attempted compliance, you cannot request an exception.
-
----
-
-## Exception Request Template
-
-Use this template when adding an exception to an ADR. The exception block is added directly to the ADR's `## Exceptions` section.
+Example:
 
 ```markdown
-### Exception to ADR-NNN: [ADR Title]
+**Alternative 1**: Use PowerShell with HTTP calls to Anthropic API.
+**Result**: Failed. 200+ lines of code for one API call. No retry logic. No
+streaming support. Fragile.
 
-**Requestor**: [Agent or person]
-**Date**: [YYYY-MM-DD]
-**PR/Issue**: [Reference link]
+**Alternative 2**: Wait for official PowerShell SDK.
+**Result**: Failed. No roadmap for PowerShell SDK from Anthropic.
 
-#### Chesterton's Fence Analysis
-
-**Why does the rule exist?**
-> [Direct quote from the ADR's Context, Decision, or Rationale section]
-
-**Impact if removed?**
-- [Consequence 1: be specific — what breaks or degrades?]
-- [Consequence 2]
-- [Precedent risk: what future violations does this enable?]
-
-**Alternatives tried:**
-1. **[Attempt 1]**: [What was tried] → [Why it failed or was insufficient]
-2. **[Attempt 2]**: [What was tried] → [Why it failed or was insufficient]
-
-#### Exception Details
-
-**Scope**: [Exact path pattern or bounded context — be as narrow as possible]
-
-**Purpose**: [What this exception enables — one sentence]
-
-**Justification**:
-- [Reason 1: ties back to alternatives tried]
-- [Reason 2: explains why exception is narrower than removing the rule]
-
-**Conditions**:
-1. [MUST requirement 1 — enforceable constraint]
-2. [MUST requirement 2]
-3. This exception MUST NOT be used as precedent for [scope boundaries]
-
-**Approved By**: [Authority] via [PR/Issue reference]
+**Alternative 3**: Use Python with Anthropic SDK (proposed exception).
+**Result**: 15 lines of code. Full SDK support. Production-ready.
 ```
 
----
+## Decision Criteria
 
-## Rejection Criteria
+| Criterion | Threshold | Evidence |
+|-----------|-----------|----------|
+| Rule understanding | Must articulate original rationale | Quote from ADR |
+| Alternatives exhausted | Minimum 2 alternatives tried | Failure evidence |
+| Scope limitation | Narrowest possible exception | Explicit boundary |
+| Reversibility | Path to undo exception | Documented plan |
+| Precedent control | No open-ended language | Explicit exclusions |
 
-An exception request is rejected if:
+## Exception Classification
 
-- The original ADR rationale is not quoted (paraphrase is insufficient)
-- Fewer than two alternatives are documented
-- The impact assessment is missing or generic
-- The scope is not bounded (e.g., "all Python files" is not a valid scope)
-- The conditions do not include enforceable MUST requirements
-- The request was submitted without attempting compliance
+### Strategic Exception (Justified)
 
----
+- Root cause is permanent (external constraint)
+- Exception has narrow, documented scope
+- Reversibility plan exists
+- No reasonable alternative
 
-## Example: PR #908 (Claude Code Hooks)
+**Example**: Using Python for Anthropic SDK because no PowerShell SDK exists and HTTP calls are inadequate.
 
-This exception was approved in PR #908 but lacked Chesterton's Fence documentation at the time. It is retroactively documented here as an exemplar.
+### Tactical Violation (Not Justified)
 
-**ADR-005 rationale (quoted)**:
-> "This resulted in: Token waste: Generating bash/Python code that was later replaced with PowerShell; Inconsistent tooling: Mix of bash, Python, and PowerShell across codebase; Testing fragmentation: Pester tests for PowerShell, bats/pytest for bash/Python"
+- Root cause is convenience or time pressure
+- Scope is vague or expanding
+- No reversibility consideration
+- Alternatives not seriously attempted
 
-**Impact if ADR-005 removed**:
-- Testing fragmentation (Pester + pytest in same repo)
-- Agent token waste re-generating scripts in wrong language
-- Loss of enforcement signal for new contributors and agents
+**Example**: Using Python "because it's faster to write" without attempting PowerShell implementation.
 
-**Alternatives tried**:
-1. **PowerShell HTTP calls to Anthropic API**: Verbose, no official SDK, error-prone SSL handling → insufficient for production hook use
-2. **PowerShell wrapper calling Python subprocess**: Introduced dependency on Python availability without gaining SDK benefits → added complexity without solving the core problem
+## Exception Template
 
-**Result**: Exception approved with narrow scope (`.claude/hooks/**/*.py` only), documented in ADR-005 §Exceptions.
+Use this template when proposing ADR exceptions:
 
----
+```markdown
+## ADR Exception Request
 
-## Architect Agent Enforcement
+**ADR**: [ADR-NNN]
+**Scope**: [Specific paths/files affected]
+**Requested By**: [Agent/Author]
+**Date**: [YYYY-MM-DD]
 
-The architect agent validates exception requests against this document. See `src/claude/architect.md` §Exception Request Validation for the checklist.
+### Chesterton's Fence Analysis
 
----
+#### Why Does the Rule Exist?
 
-## Governance
+[Document original rationale from ADR]
 
-- This document is enforced by the architect agent during ADR review.
-- Exceptions that bypass this process are subject to retroactive revocation.
-- The bar for exceptions is intentionally high. That is by design.
+#### What Breaks Without the Rule?
+
+[Document what the rule prevents]
+
+### Alternatives Attempted
+
+| Alternative | Attempt | Outcome | Evidence |
+|-------------|---------|---------|----------|
+| [Option 1] | [What tried] | [Failed/Partial] | [Link/commit] |
+| [Option 2] | [What tried] | [Failed/Partial] | [Link/commit] |
+
+### Exception Details
+
+**Scope Boundary**: [Exact files/paths where exception applies]
+**What This Exception Does NOT Permit**: [Explicit exclusions]
+**Reversibility Plan**: [How to undo if circumstances change]
+**Expiration**: [Review date or trigger condition]
+
+### Impact Assessment
+
+**Technical Debt Created**: [Quantified impact]
+**Testing Impact**: [How testing changes]
+**Maintenance Impact**: [Who maintains, how]
+**Precedent Control**: [Why this won't open floodgates]
+
+### Approval
+
+- [ ] Architect review complete
+- [ ] Scope is narrowest possible
+- [ ] Alternatives documented with evidence
+- [ ] Reversibility plan defined
+- [ ] Added to ADR as amendment (not new exception ADR)
+```
+
+## Process
+
+1. **Author** completes exception template
+2. **Architect** validates Chesterton's Fence analysis
+3. **Architect** verifies alternatives were genuinely attempted
+4. If approved, **Architect** adds exception to original ADR as amendment
+5. **Retrospective agent** captures pattern for future reference
+
+## Anti-Patterns
+
+| Anti-Pattern | Problem | Fix |
+|--------------|---------|-----|
+| **Vague scope** | "Python may be used when needed" | Define exact paths/conditions |
+| **Missing rationale** | "It's easier this way" | Document why the rule exists |
+| **Single alternative** | "PowerShell doesn't work" | Try at least two approaches |
+| **No reversibility** | Permanent exception by default | Define exit conditions |
+| **Expanding scope** | Exception creeps to new areas | Review and reauthorize |
+
+## Example: PR #908 Python Exception (Good)
+
+This exception followed the framework correctly:
+
+1. **Rule Understanding**: ADR-005 exists because bash/Python generation wasted tokens.
+
+2. **Impact Assessment**: Python in hooks directory only. Separate from CI/CD. No precedent for scripts directory.
+
+3. **Alternatives**:
+   - PowerShell HTTP calls: 200+ lines, no retry, no streaming
+   - Wait for SDK: No roadmap exists
+   - Python SDK: 15 lines, full support
+
+4. **Scope**: `.claude/hooks/**/*.py` only
+
+5. **Reversibility**: Port to PowerShell if SDK becomes available
+
+## References
+
+- [ADR-005: PowerShell-Only Scripting](../architecture/ADR-005-powershell-only-scripting.md)
+- [ADR-042: Python Migration Strategy](../architecture/ADR-042-python-migration-strategy.md)
+- [PR #908 Retrospective](../retrospective/2026-01-15-pr-908-comprehensive-retrospective.md) (lines 1280-1285)
+- Chesterton's Fence: G.K. Chesterton, "The Thing" (1929), Chapter 4
+
+## Validation
+
+Architect agent MUST verify before approving exception:
+
+- [ ] Author articulated original rule rationale
+- [ ] At least two alternatives documented with failure evidence
+- [ ] Scope is explicitly bounded (paths, files, conditions)
+- [ ] Reversibility plan exists
+- [ ] Exception added as ADR amendment (not standalone document)

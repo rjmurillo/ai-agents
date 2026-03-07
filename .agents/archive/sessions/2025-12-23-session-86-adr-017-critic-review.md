@@ -9,7 +9,7 @@
 
 ### Phase 1: Serena Initialization ✅
 - `mcp__serena__initial_instructions`: COMPLETED
-- Project: ai-agents (D:\src\GitHub\rjmurillo-bot\ai-agents)
+- Project: ai-agents (<project-root>)
 
 ### Phase 2: Context Retrieval ✅
 - `.agents/HANDOFF.md`: READ (read-only reference, session 85+ architecture)

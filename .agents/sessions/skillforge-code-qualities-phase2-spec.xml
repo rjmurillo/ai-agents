@@ -1,0 +1,542 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<skill-specification>
+  <metadata>
+    <name>code-qualities-assessment</name>
+    <version>1.0.0</version>
+    <tier>1</tier>
+    <timelessness-score>9</timelessness-score>
+    <description>
+      Assess code maintainability through 5 foundational qualities: cohesion, coupling,
+      encapsulation, testability, and non-redundancy. Produces quantifiable scores with
+      remediation guidance. Works at method/class/module levels across multiple languages.
+    </description>
+    <license>MIT</license>
+    <model>claude-sonnet-4-5</model>
+  </metadata>
+
+  <triggers>
+    <trigger>assess code quality</trigger>
+    <trigger>evaluate maintainability</trigger>
+    <trigger>check code qualities</trigger>
+    <trigger>testability review</trigger>
+    <trigger>run quality assessment</trigger>
+  </triggers>
+
+  <design-decisions>
+    <decision id="scoring-scale">
+      <what>Use 1-10 scoring scale for each quality</what>
+      <why>
+        More intuitive than percentages, allows nuance (10 levels), aligns with
+        common rating systems. Avoids false precision of percentage scores.
+      </why>
+      <alternatives-considered>
+        - Percentage (0-100): Too granular, implies false precision
+        - Letter grades (A-F): Too coarse, loses nuance
+        - Pass/Fail: Insufficient for trend tracking
+      </alternatives-considered>
+    </decision>
+
+    <decision id="granularity">
+      <what>Assess at symbol level, aggregate to file/module</what>
+      <why>
+        Symbol-level provides actionable feedback (fix this method). File-level shows
+        hot spots. Module-level tracks architectural quality. Multi-level view balances
+        detail vs overview.
+      </why>
+      <serena-integration>
+        When available, use Serena for precise symbol extraction. When not available,
+        use regex-based heuristics with lower confidence scores.
+      </serena-integration>
+    </decision>
+
+    <decision id="language-agnostic">
+      <what>Language-agnostic assessment using structural patterns</what>
+      <why>
+        Language-specific tools (pylint, eslint) already exist. Gap is unified assessment
+        across codebases. Structural patterns (coupling, cohesion) transcend syntax.
+      </why>
+      <implementation>
+        Detect language from file extension, adapt rubrics (classes vs modules), but
+        keep core quality definitions constant.
+      </implementation>
+    </decision>
+
+    <decision id="context-awareness">
+      <what>Support --context flag: production|test|generated</what>
+      <why>
+        Test code doesn't need high testability (tests are the tests). Generated code
+        should be excluded. Production code held to highest standards.
+      </why>
+      <thresholds>
+        - production: strict thresholds
+        - test: relaxed testability, strict cohesion
+        - generated: excluded from scoring (informational only)
+      </thresholds>
+    </decision>
+
+    <decision id="incremental-mode">
+      <what>--changed-only flag for CI performance</what>
+      <why>
+        Analyzing entire codebase on every commit is slow and noisy. Focus on deltas
+        (what changed). Prevents alert fatigue.
+      </why>
+      <implementation>
+        Use git diff to identify changed files, analyze only those, compare scores
+        against previous run (stored in .quality-cache/).
+      </implementation>
+    </decision>
+
+    <decision id="output-formats">
+      <what>Multiple output formats: markdown, JSON, HTML</what>
+      <why>
+        - Markdown: Human-readable, PR comments, documentation
+        - JSON: CI/CD integration, tooling, trend tracking
+        - HTML: Dashboard view, stakeholder reports
+      </why>
+      <default>Markdown (most versatile)</default>
+    </decision>
+
+    <decision id="quality-gates">
+      <what>Configurable thresholds via .qualityrc.json</what>
+      <why>
+        Teams have different standards. Startup vs enterprise. Legacy vs greenfield.
+        Allow customization while providing sane defaults.
+      </why>
+      <configuration>
+        <example>
+{
+  "thresholds": {
+    "cohesion": { "min": 7, "warn": 5 },
+    "coupling": { "max": 3, "warn": 5 },
+    "encapsulation": { "min": 7, "warn": 5 },
+    "testability": { "min": 6, "warn": 4 },
+    "nonRedundancy": { "min": 8, "warn": 6 }
+  },
+  "context": {
+    "test": { "testability": { "min": 3 } }
+  },
+  "ignore": ["**/generated/**", "**/*.pb.py"]
+}
+        </example>
+      </configuration>
+    </decision>
+
+    <decision id="trend-tracking">
+      <what>Store historical scores with git SHA + timestamp</what>
+      <why>
+        Quality is a trend, not a snapshot. Show improvement/regression over time.
+        Motivates continuous improvement.
+      </why>
+      <storage>
+        .quality-cache/history.jsonl (append-only log)
+      </storage>
+    </decision>
+
+    <decision id="remediation-guidance">
+      <what>Auto-link to refactoring patterns + ADRs</what>
+      <why>
+        Assessment without guidance frustrates engineers. Provide concrete next steps.
+        Link to internal knowledge (ADRs) and external resources (Refactoring catalog).
+      </why>
+      <references>
+        - Low cohesion → references/patterns/extract-class.md
+        - High coupling → references/patterns/dependency-injection.md
+        - Poor encapsulation → references/patterns/facade.md
+        - Low testability → references/patterns/dependency-inversion.md
+        - Duplication → references/patterns/dry-refactoring.md
+      </references>
+    </decision>
+
+    <decision id="education-first">
+      <what>Embed "why this matters" in reports</what>
+      <why>
+        Junior engineers learn by understanding rationale. Senior engineers refresh
+        first principles. Self-documenting reports reduce training burden.
+      </why>
+      <approach>
+        Each quality score includes one-line explanation + link to deep dive.
+      </approach>
+    </decision>
+  </design-decisions>
+
+  <scoring-rubrics>
+    <quality name="cohesion">
+      <definition>
+        How strongly related are the responsibilities within a boundary (method, class, module)?
+      </definition>
+      <why-it-matters>
+        High cohesion = focused, understandable, maintainable code. Low cohesion =
+        "god objects" that do too much, hard to test, brittle to change.
+      </why-it-matters>
+      <scale>
+        <level score="10">
+          Single, well-defined responsibility. All members directly support one purpose.
+          Name perfectly describes what it does.
+        </level>
+        <level score="7-9">
+          Primary responsibility clear, 1-2 minor supporting concerns. Name is accurate.
+          Easy to describe in one sentence.
+        </level>
+        <level score="4-6">
+          Multiple loosely related responsibilities. Name is vague ("Manager", "Helper").
+          Takes 2-3 sentences to describe.
+        </level>
+        <level score="1-3">
+          Unrelated responsibilities jammed together. God object. Impossible to describe
+          concisely. Name is meaningless.
+        </level>
+      </scale>
+      <indicators>
+        <positive>
+          - Class name is a noun describing one thing
+          - All methods operate on same data
+          - Easy to write focused tests
+          - Changes cluster (fix one thing → touch one place)
+        </positive>
+        <negative>
+          - "And" in class/method names (UserAndOrderManager)
+          - Methods that don't use instance data
+          - Mixed levels of abstraction
+          - Changes scatter (fix one thing → touch many places)
+        </negative>
+      </indicators>
+      <measurement>
+        LCOM (Lack of Cohesion of Methods): Measure overlap in instance variable usage
+        across methods. Low LCOM = high cohesion.
+
+        Heuristic: Count methods that share no instance variables. High count = low cohesion.
+      </measurement>
+    </quality>
+
+    <quality name="coupling">
+      <definition>
+        How dependent is this code on other code? How many other modules must change if this changes?
+      </definition>
+      <why-it-matters>
+        Loose coupling = independent evolution, easy testing, parallel development.
+        Tight coupling = fragile, hard to test, change amplification.
+      </why-it-matters>
+      <scale>
+        <level score="10">
+          Zero or minimal dependencies. Depends only on stable abstractions. Uses
+          dependency injection. Easy to swap implementations.
+        </level>
+        <level score="7-9">
+          Few dependencies, all explicit and justified. Depends on interfaces, not
+          implementations. Testable with mocks.
+        </level>
+        <level score="4-6">
+          Moderate dependencies. Some direct class instantiation. Some global state.
+          Requires test doubles in multiple places.
+        </level>
+        <level score="1-3">
+          Tightly coupled. Depends on concrete implementations. Global state. Hard-coded
+          dependencies. Untestable without full integration.
+        </level>
+      </scale>
+      <indicators>
+        <positive>
+          - Constructor injection of dependencies
+          - Depends on interfaces/protocols
+          - No global state usage
+          - Easily mockable in tests
+        </positive>
+        <negative>
+          - Direct instantiation ("new" keyword inside methods)
+          - Static method calls
+          - Global variable access
+          - Singletons
+          - Hard-coded file paths, URLs
+        </negative>
+      </indicators>
+      <measurement>
+        Afferent Coupling (Ca): Number of classes that depend on this class.
+        Efferent Coupling (Ce): Number of classes this class depends on.
+
+        Instability (I) = Ce / (Ca + Ce). Range: 0 (stable) to 1 (unstable).
+
+        Score = 10 - (I * 10). Prefer stable (low I) over unstable (high I).
+      </measurement>
+    </quality>
+
+    <quality name="encapsulation">
+      <definition>
+        How well are implementation details hidden? How much internal state is exposed?
+      </definition>
+      <why-it-matters>
+        Good encapsulation = freedom to change internals without breaking clients.
+        Poor encapsulation = brittle API, widespread breakage on internal changes.
+      </why-it-matters>
+      <scale>
+        <level score="10">
+          All internals private. Public API is minimal and stable. No public fields.
+          Immutable where possible.
+        </level>
+        <level score="7-9">
+          Mostly private internals. Public API is well-defined. Few public fields
+          (with good reason). Controlled mutability.
+        </level>
+        <level score="4-6">
+          Some internals exposed. Public fields without justification. Getters/setters
+          that leak implementation. Mutable state.
+        </level>
+        <level score="1-3">
+          Everything public. No information hiding. Direct field access everywhere.
+          Internal data structures leaked via API.
+        </level>
+      </scale>
+      <indicators>
+        <positive>
+          - Private fields, public methods
+          - Minimal public API surface
+          - Returns copies, not references
+          - Immutable objects
+          - Encapsulated collections
+        </positive>
+        <negative>
+          - Public fields
+          - Getters/setters for everything (Java bean antipattern)
+          - Returning internal mutable collections
+          - Protected where private would work
+        </negative>
+      </indicators>
+      <measurement>
+        Public API Ratio: Count public methods / total methods. Lower is better (10 - ratio*10).
+
+        Public Field Count: Each public field -1 point. Each public getter/setter pair
+        for same field -0.5 point.
+      </measurement>
+    </quality>
+
+    <quality name="testability">
+      <definition>
+        How easily can this code's behavior be verified in isolation?
+      </definition>
+      <why-it-matters>
+        Testable code = fast feedback, confidence to refactor, regression protection.
+        Untestable code = fear of change, manual testing burden, bugs in production.
+      </why-it-matters>
+      <scale>
+        <level score="10">
+          Pure functions or isolated objects. No side effects. Dependencies injected.
+          Deterministic. Trivial to write unit tests.
+        </level>
+        <level score="7-9">
+          Mostly testable. Few dependencies. Side effects are explicit and controllable.
+          Straightforward to mock.
+        </level>
+        <level score="4-6">
+          Moderately testable. Some dependencies hard to inject. Some side effects.
+          Requires setup code for tests.
+        </level>
+        <level score="1-3">
+          Hard to test. Tight coupling. Hidden dependencies. Global state. Non-deterministic.
+          Requires full integration test.
+        </level>
+      </scale>
+      <indicators>
+        <positive>
+          - Pure functions (input → output, no side effects)
+          - Dependency injection
+          - No global state
+          - Deterministic (no random, no current time)
+          - Small methods (easy to reason about)
+        </positive>
+        <negative>
+          - Global variables
+          - Singletons
+          - Direct database/network calls
+          - Hard-coded timestamps
+          - Large methods (>60 LOC)
+        </negative>
+      </indicators>
+      <measurement>
+        Testability Score = 10 - penalty_sum
+
+        Penalties:
+        - Global state access: -2 per occurrence
+        - Hard-coded dependencies: -2 per occurrence
+        - Non-deterministic calls (random, time): -1 per occurrence
+        - Method length >60 LOC: -1
+        - Cyclomatic complexity >10: -1
+      </measurement>
+    </quality>
+
+    <quality name="nonRedundancy">
+      <definition>
+        How unique is each piece of knowledge? Is there copy-paste duplication?
+      </definition>
+      <why-it-matters>
+        DRY code = fix once, update once, single source of truth. Duplication =
+        fix N times, inconsistent behavior, maintenance burden.
+      </why-it-matters>
+      <scale>
+        <level score="10">
+          Zero duplication. Every piece of knowledge exists once. Abstractions used
+          appropriately. No copy-paste detected.
+        </level>
+        <level score="7-9">
+          Minimal duplication. Any duplication is intentional (performance, clarity).
+          Well-factored common code.
+        </level>
+        <level score="4-6">
+          Moderate duplication. Some copy-paste. Missed abstraction opportunities.
+          Similar code in multiple places.
+        </level>
+        <level score="1-3">
+          Pervasive duplication. Copy-paste everywhere. Same logic in many files.
+          Fixing bugs requires hunting down all copies.
+        </level>
+      </scale>
+      <indicators>
+        <positive>
+          - Shared utilities for common operations
+          - Parameterized functions instead of similar copies
+          - Single source of truth for business rules
+          - Constants defined once
+        </positive>
+        <negative>
+          - Copy-pasted functions with minor variations
+          - Duplicated business logic
+          - Magic numbers repeated
+          - Similar data structures redefined
+        </negative>
+      </indicators>
+      <measurement>
+        Use token-based clone detection. Find code blocks with >80% similarity.
+
+        Score = 10 - (duplicate_blocks * 0.5)
+
+        Cap at 1 (worst score). Ignore intentional duplication (tests, data structures).
+      </measurement>
+    </quality>
+  </scoring-rubrics>
+
+  <scripts>
+    <script name="assess.py">
+      <purpose>Main orchestrator - runs all quality assessments and generates report</purpose>
+      <parameters>
+        <param name="--target" required="true">File, directory, or glob pattern to assess</param>
+        <param name="--context" default="production">production|test|generated</param>
+        <param name="--changed-only" default="false">Only assess changed files (git diff)</param>
+        <param name="--format" default="markdown">markdown|json|html</param>
+        <param name="--config" default=".qualityrc.json">Path to config file</param>
+        <param name="--output" required="false">Output file path (default: stdout)</param>
+        <param name="--use-serena" default="auto">auto|yes|no (Serena integration)</param>
+      </parameters>
+      <exit-codes>
+        <code value="0">Assessment complete, all thresholds met</code>
+        <code value="10">Quality degraded vs previous run</code>
+        <code value="11">Quality below configured thresholds</code>
+        <code value="1">Script error (invalid args, file not found, etc.)</code>
+      </exit-codes>
+    </script>
+
+    <script name="score_cohesion.py">
+      <purpose>Calculate cohesion score for a symbol/file</purpose>
+      <algorithm>LCOM-based measurement + heuristic indicators</algorithm>
+    </script>
+
+    <script name="score_coupling.py">
+      <purpose>Calculate coupling score for a symbol/file</purpose>
+      <algorithm>Afferent/efferent coupling + dependency analysis</algorithm>
+    </script>
+
+    <script name="score_encapsulation.py">
+      <purpose>Calculate encapsulation score for a symbol/file</purpose>
+      <algorithm>Public API ratio + field visibility analysis</algorithm>
+    </script>
+
+    <script name="score_testability.py">
+      <purpose>Calculate testability score for a symbol/file</purpose>
+      <algorithm>Penalty-based scoring for anti-testability patterns</algorithm>
+    </script>
+
+    <script name="score_nonredundancy.py">
+      <purpose>Calculate non-redundancy score for a file/module</purpose>
+      <algorithm>Token-based clone detection</algorithm>
+    </script>
+
+    <script name="generate_report.py">
+      <purpose>Generate markdown/JSON/HTML report from scores</purpose>
+      <inputs>Raw scores JSON from individual scoring scripts</inputs>
+      <outputs>Formatted report with remediation guidance</outputs>
+    </script>
+
+    <script name="ci_check.py">
+      <purpose>CI integration - check quality gates, post PR comments</purpose>
+      <integration>Reads scores, compares to thresholds, exits with appropriate code</integration>
+    </script>
+  </scripts>
+
+  <workflow>
+    <phase name="Initialization">
+      <step>Parse arguments and load configuration</step>
+      <step>Detect language from file extensions</step>
+      <step>Determine Serena availability</step>
+      <step>Load previous scores (if --changed-only)</step>
+    </phase>
+
+    <phase name="Symbol Extraction">
+      <step>If Serena available: use find_symbol for precise extraction</step>
+      <step>If Serena unavailable: use regex heuristics</step>
+      <step>Build symbol map: file → classes → methods</step>
+    </phase>
+
+    <phase name="Quality Assessment">
+      <step>For each symbol: run 5 quality scoring scripts</step>
+      <step>Aggregate symbol scores to file level</step>
+      <step>Aggregate file scores to module level</step>
+      <step>Apply context-specific adjustments (test vs production)</step>
+    </phase>
+
+    <phase name="Comparison">
+      <step>If historical data exists: compare to previous run</step>
+      <step>Flag regressions (score decreased by >1 point)</step>
+      <step>Flag improvements (score increased by >1 point)</step>
+    </phase>
+
+    <phase name="Reporting">
+      <step>Generate report in requested format</step>
+      <step>Include remediation links for low scores</step>
+      <step>Save scores to .quality-cache/history.jsonl</step>
+      <step>Output report (stdout or file)</step>
+    </phase>
+
+    <phase name="Gate Enforcement">
+      <step>Check scores against configured thresholds</step>
+      <step>Exit with appropriate code (0=pass, 10=degraded, 11=threshold)</step>
+    </phase>
+  </workflow>
+
+  <integration-points>
+    <integration skill="analyze">
+      Complement broad codebase analysis with focused quality metrics
+    </integration>
+    <integration skill="adr-review">
+      Quality impact analysis when reviewing architecture decisions
+    </integration>
+    <integration skill="planner">
+      Feed low-scoring files into refactoring plans
+    </integration>
+    <integration skill="decision-critic">
+      Trigger review when quality degrades significantly
+    </integration>
+    <integration skill="qa">
+      Quality assessment as part of QA validation
+    </integration>
+  </integration-points>
+
+  <verification>
+    <criterion>Frontmatter valid (allowed properties only)</criterion>
+    <criterion>Name is hyphen-case, ≤64 chars</criterion>
+    <criterion>Description ≤1024 chars, includes triggers</criterion>
+    <criterion>5 trigger phrases defined</criterion>
+    <criterion>Timelessness score ≥ 7 (achieved: 9)</criterion>
+    <criterion>All scripts have documented exit codes</criterion>
+    <criterion>Scoring rubrics are quantifiable</criterion>
+    <criterion>Language-agnostic implementation</criterion>
+    <criterion>Serena integration is optional, not required</criterion>
+    <criterion>CI integration supported</criterion>
+  </verification>
+</skill-specification>

@@ -90,7 +90,7 @@ mcp__plugin_serena_serena__search_for_pattern({
 })
 ```
 
-## Standard Workflow
+## Process
 
 ### Exploring a New Codebase
 
@@ -209,6 +209,64 @@ mcp__plugin_serena_serena__find_symbol({
 2. **Start with `include_body: false`** - get structure first, read code only when needed
 3. **Use `depth: 0`** initially - expand to children only when exploring specific classes
 4. **Combine with Forgetful** - create memories for important architectural findings
+
+## Triggers
+
+| Trigger Phrase | Operation |
+|----------------|-----------|
+| `how do I find a symbol` | find_symbol with name_path_pattern |
+| `how do I explore a file's structure` | get_symbols_overview with depth |
+| `how do I trace references` | find_referencing_symbols |
+| `how do I search code patterns` | search_for_pattern with regex |
+| `what methods does this class have` | find_symbol with depth=1 |
+
+---
+
+## When to Use
+
+Use this skill when:
+
+- Exploring class/function definitions with structural accuracy
+- Tracing method call hierarchies across files
+- Analyzing imports and dependencies
+- Need code intelligence beyond text matching
+
+Use Grep/text search instead when:
+
+- Searching for string literals or comments
+- Finding patterns in config files or YAML
+- Looking for TODO/FIXME markers
+- Simple keyword search across non-code files
+
+Use [serena-code-architecture](../serena-code-architecture/SKILL.md) instead when:
+
+- Performing full architectural analysis with memory persistence
+- Building entity graphs from code structure
+
+---
+
+## Anti-Patterns
+
+| Avoid | Why | Instead |
+|-------|-----|---------|
+| Searching entire codebase without relative_path | Slow, noisy results | Scope with relative_path parameter |
+| Starting with include_body=true | Wastes tokens on code you may not need | Start with include_body=false, read selectively |
+| Using depth > 1 on large modules | Returns excessive nested symbols | Use depth=0 or depth=1, expand as needed |
+| Using text grep for symbol definitions | Matches comments, strings, false positives | Use find_symbol for structural accuracy |
+| Skipping get_symbols_overview | Jumping to find_symbol without context | Start with overview to understand file structure |
+
+---
+
+## Verification
+
+After symbol analysis:
+
+- [ ] Correct symbol found (not a similarly named one)
+- [ ] References traced to all call sites
+- [ ] Scope was narrowed with relative_path where possible
+- [ ] Results were token-efficient (include_body only when needed)
+
+---
 
 ## Language Support
 

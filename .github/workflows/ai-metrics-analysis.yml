@@ -1,0 +1,162 @@
+name: AI Metrics Analysis
+
+# Automated weekly PR metrics analysis using gh-metrics and AI review.
+# Creates an issue with actionable insights when metrics need attention.
+
+on:
+  schedule:
+    # Run every Monday at 9:00 AM UTC
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+    inputs:
+      weeks:
+        description: 'Number of weeks to analyze'
+        default: '4'
+        type: string
+
+concurrency:
+  group: metrics-analysis
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  analyze-metrics:
+    name: Analyze PR Metrics
+    # ADR-025: ARM runner for cost optimization
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Install gh-metrics extension
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.BOT_PAT }}
+        run: |
+          set -e
+          echo "Installing gh-metrics extension..."
+          gh extension install hectcastro/gh-metrics
+          echo "gh-metrics installed successfully"
+
+      - name: Collect metrics
+        id: metrics
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.BOT_PAT }}
+          WEEKS: ${{ inputs.weeks || '4' }}
+          GH_REPOSITORY: ${{ github.repository }}
+        run: |
+          set -e
+
+          END_DATE=$(date +%Y-%m-%d)
+          START_DATE=$(date -d "$WEEKS weeks ago" +%Y-%m-%d)
+
+          echo "Collecting metrics from $START_DATE to $END_DATE"
+
+          METRICS_CSV=$(gh metrics -R "$GH_REPOSITORY" \
+            -s "$START_DATE" -e "$END_DATE" --csv) || {
+            echo "::warning::gh metrics CSV export failed"
+            METRICS_CSV="No CSV data available"
+          }
+
+          echo "$METRICS_CSV" > /tmp/metrics.csv
+
+          METRICS_TABLE=$(gh metrics -R "$GH_REPOSITORY" \
+            -s "$START_DATE" -e "$END_DATE") || {
+            echo "::warning::gh metrics table export failed"
+            METRICS_TABLE="No table data available"
+          }
+
+          {
+            echo "metrics_table<<EOF_METRICS"
+            echo "$METRICS_TABLE"
+            echo "EOF_METRICS"
+          } >> "$GITHUB_OUTPUT"
+
+          echo "start_date=$START_DATE" >> "$GITHUB_OUTPUT"
+          echo "end_date=$END_DATE" >> "$GITHUB_OUTPUT"
+
+      - name: Analyze metrics with AI
+        id: ai-analysis
+        uses: ./.github/actions/ai-review
+        with:
+          agent: analyst
+          context-type: spec-file
+          context-path: /tmp/metrics.csv
+          prompt-file: .github/prompts/metrics-analysis.prompt.md
+          additional-context: |
+            Analysis Period: ${{ steps.metrics.outputs.start_date }} to ${{ steps.metrics.outputs.end_date }}
+            Repository: ${{ github.repository }}
+          bot-pat: ${{ secrets.BOT_PAT }}
+          copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+
+      - name: Build issue body
+        id: issue-body
+        if: steps.ai-analysis.outputs.verdict != 'PASS'
+        shell: python3 {0}
+        env:
+          START_DATE: ${{ steps.metrics.outputs.start_date }}
+          END_DATE: ${{ steps.metrics.outputs.end_date }}
+          METRICS_TABLE: ${{ steps.metrics.outputs.metrics_table }}
+          AI_FINDINGS: ${{ steps.ai-analysis.outputs.findings }}
+          AI_VERDICT: ${{ steps.ai-analysis.outputs.verdict }}
+          RUN_ID: ${{ github.run_id }}
+          SERVER_URL: ${{ github.server_url }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          import os
+
+          start = os.environ["START_DATE"]
+          end = os.environ["END_DATE"]
+          table = os.environ.get("METRICS_TABLE", "No table data")
+          findings = os.environ.get("AI_FINDINGS", "No findings")
+          verdict = os.environ.get("AI_VERDICT", "UNKNOWN")
+          run_url = f"{os.environ['SERVER_URL']}/{os.environ['REPOSITORY']}/actions/runs/{os.environ['RUN_ID']}"
+
+          body = f"""## Weekly PR Metrics Analysis
+
+          **Period:** {start} to {end}
+          **Verdict:** {verdict}
+          **Workflow Run:** {run_url}
+
+          ### AI Analysis
+
+          {findings}
+
+          <details>
+          <summary>Raw Metrics</summary>
+
+          ```
+          {table}
+          ```
+
+          </details>
+          """
+
+          # Remove leading whitespace from heredoc-style indentation
+          import textwrap
+          body = textwrap.dedent(body)
+
+          with open("/tmp/issue-body.md", "w") as f:
+              f.write(body)
+
+          print("Issue body written to /tmp/issue-body.md")
+
+      - name: Create insights issue
+        if: steps.ai-analysis.outputs.verdict != 'PASS'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.BOT_PAT }}
+          START_DATE: ${{ steps.metrics.outputs.start_date }}
+          END_DATE: ${{ steps.metrics.outputs.end_date }}
+        run: |
+          set -e
+          gh issue create \
+            --title "Weekly PR Metrics: $START_DATE to $END_DATE" \
+            --body-file /tmp/issue-body.md \
+            --label "metrics,automation,analysis"

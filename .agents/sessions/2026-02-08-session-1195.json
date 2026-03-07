@@ -1,0 +1,91 @@
+{
+  "session": {
+    "number": 1195,
+    "date": "2026-02-08",
+    "objective": "Push and create PR for slim AGENTS.md changes, update PLAN.md summary table",
+    "branch": "feat/slim-agents-md-consolidate-context",
+    "startingCommit": "7fac6ef7"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "Complete": false,
+        "Evidence": "Serena not available in session context",
+        "level": "SHOULD"
+      },
+      "serenaInstructions": {
+        "Complete": false,
+        "Evidence": "Serena not available in session context",
+        "level": "SHOULD"
+      },
+      "handoffRead": {
+        "Complete": false,
+        "Evidence": "Context-constrained session, handoff read in continuation",
+        "level": "SHOULD"
+      },
+      "sessionLogCreated": {
+        "Complete": true,
+        "Evidence": "Created .agents/sessions/2026-02-08-session-1195.json",
+        "level": "MUST"
+      },
+      "branchVerified": {
+        "Complete": true,
+        "Evidence": "Verified on feat/slim-agents-md-consolidate-context",
+        "level": "MUST"
+      },
+      "notOnMain": {
+        "Complete": true,
+        "Evidence": "Branch is feat/slim-agents-md-consolidate-context",
+        "level": "MUST"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "Complete": true,
+        "Evidence": "All session end steps completed",
+        "level": "MUST"
+      },
+      "handoffNotUpdated": {
+        "Complete": false,
+        "Evidence": "HANDOFF.md not modified (read-only respected)",
+        "level": "MUST NOT"
+      },
+      "serenaMemoryUpdated": {
+        "Complete": false,
+        "Evidence": "Serena not available in session context",
+        "level": "SHOULD"
+      },
+      "markdownLintRun": {
+        "Complete": true,
+        "Evidence": "Scoped markdownlint passed on changed files",
+        "level": "MUST"
+      },
+      "changesCommitted": {
+        "Complete": true,
+        "Evidence": "Commit 55f00244: update PLAN.md summary table with PR #1117 status",
+        "level": "MUST"
+      },
+      "validationPassed": {
+        "Complete": true,
+        "Evidence": "Session log validated",
+        "level": "MUST"
+      }
+    }
+  },
+  "work": {
+    "tasks": [
+      "Push branch and create PR #1120",
+      "Update PLAN.md summary table to reflect PARTIAL status with PR link"
+    ],
+    "filesChanged": [
+      ".agents/planning/v0.3.0/PLAN.md"
+    ]
+  },
+  "outcomes": [
+    "PR #1120 created for slim AGENTS.md consolidation",
+    "PLAN.md summary table updated from TBD/NEW to PR #1120/PARTIAL"
+  ],
+  "decisions": [
+    "Summary table updated to show Item 1 implemented via PR #1120, Items 3-8 remain open"
+  ]
+}

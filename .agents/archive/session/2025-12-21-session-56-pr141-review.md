@@ -3,7 +3,7 @@
 **Date**: 2025-12-21
 **Agent**: pr-comment-responder
 **PR**: #141 (feat/skills-dorny-paths-filter)
-**Worktree**: D:\src\GitHub\rjmurillo-bot\worktree-pr-141
+**Worktree**: worktree-pr-141
 
 ## Protocol Compliance
 

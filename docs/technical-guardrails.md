@@ -28,7 +28,7 @@ Pre-commit hooks run automatically before every commit to enforce protocol compl
 
 - HANDOFF.md must be staged
 - Session log must be staged
-- Session log must pass `Validate-SessionJson.ps1`
+- Session log must pass `validate_session_json.py`
 
 **Bypass**: `git commit --no-verify` (use sparingly, logged)
 
@@ -36,7 +36,7 @@ Pre-commit hooks run automatically before every commit to enforce protocol compl
 
 **Location**: `.githooks/pre-commit` (lines 493-511)
 
-**Script**: `scripts/Detect-SkillViolation.ps1`
+**Script**: `scripts/detect_skill_violation.py`
 
 **When**: Any files are staged
 
@@ -62,6 +62,45 @@ Pre-commit hooks run automatically before every commit to enforce protocol compl
 - `.ps1` files without corresponding `.Tests.ps1` files
 
 **Action**: WARNING (non-blocking), reminds to add tests
+
+#### Memory Tier Validation (BLOCKING)
+
+**Script**: `scripts/validate_memory_tier.py`
+
+**When**: `.serena/memories/` files are staged
+
+**Checks**:
+
+1. **Broken references**: All markdown links in `memory-index.md` and domain indexes point to existing files
+2. **Domain index format**: Domain indexes are pure lookup tables (header, separator, data rows only) per ADR-017
+3. **Deprecated prefixes**: References and files using the old `skill-` prefix are flagged
+4. **Orphan detection**: Domain indexes not in `memory-index.md` and atomic files not in any domain index
+
+**Exit Codes** (ADR-035):
+
+- `0` = All validations pass
+- `1` = One or more validation failures
+
+**Modes**:
+
+- Default: orphan warnings are non-blocking
+- `--ci`: promotes all warnings to errors (used in CI workflow)
+- `--path <dir>`: override the memories directory (default: `.serena/memories`)
+
+**Usage**:
+
+```bash
+# Local run (default path)
+python3 scripts/validate_memory_tier.py
+
+# CI mode (strict)
+python3 scripts/validate_memory_tier.py --ci
+
+# Custom path
+python3 scripts/validate_memory_tier.py --path /path/to/memories
+```
+
+**Related**: ADR-017 (tiered memory index architecture), Issue #943
 
 ### Phase 2: Validation Scripts
 
@@ -253,6 +292,7 @@ Invoke-Pester -Path scripts/tests/Detect-SkillViolation.Tests.ps1 -Output Detail
 - `Detect-TestCoverageGaps.Tests.ps1` - Test coverage detection
 - `New-ValidatedPR.Tests.ps1` - Validated PR creation
 - `Validate-PRDescription.ps1` - (Manual testing with live PRs)
+- `tests/test_validate_memory_tier.py` - Memory tier validation (16 tests)
 
 ## Known Limitations
 
@@ -312,13 +352,12 @@ winget install Microsoft.PowerShell
 
 **Debug**:
 
-```powershell
-# Run script directly with verbose output
-pwsh -NoProfile -File scripts/Detect-SkillViolation.ps1 -Verbose
+```bash
+# Run script directly
+python3 scripts/detect_skill_violation.py
 
-# Check script syntax
-Get-Content scripts/Detect-SkillViolation.ps1 -Raw | 
-  Invoke-Expression -ErrorAction Continue
+# Run memory tier validation directly
+python3 scripts/validate_memory_tier.py --path .serena/memories
 ```
 
 ## Related Documents

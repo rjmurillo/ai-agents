@@ -56,7 +56,7 @@ Read(".agents/architecture/ADR-NNN-title.md")
 
 ## Related Memories
 
-- [adr-014-review-findings](adr-014-review-findings.md) (analysis of ADR-014)
-- [adr-019-quantitative-analysis](adr-019-quantitative-analysis.md) (metrics for ADR-017)
-- [adr-artifact-count-verification](adr-artifact-count-verification.md) (verify artifact counts before committing ADRs)
-- [adr-retroactive-amendment-criteria](adr-retroactive-amendment-criteria.md) (when to write ADRs during implementation)
+- [adr/adr-014-review-findings](adr/adr-014-review-findings.md) (analysis of ADR-014)
+- [adr/adr-019-quantitative-analysis](adr/adr-019-quantitative-analysis.md) (metrics for ADR-017)
+- [adr/adr-artifact-count-verification](adr/adr-artifact-count-verification.md) (verify artifact counts before committing ADRs)
+- [adr/adr-retroactive-amendment-criteria](adr/adr-retroactive-amendment-criteria.md) (when to write ADRs during implementation)

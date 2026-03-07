@@ -1,0 +1,122 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 1182,
+    "date": "2026-02-07",
+    "branch": "feat/840-test-coverage-quality",
+    "startingCommit": "d291f2c9",
+    "objective": "Complete PR #840 follow-up: consolidate allowlists, extract shared types, add security tests"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaInit": {
+        "completed": true,
+        "evidence": "Session continuation from context compaction; Serena initialized in prior session"
+      },
+      "handoffRead": {
+        "completed": true,
+        "evidence": "HANDOFF.md read in prior session; context carried via compaction summary"
+      },
+      "sessionLogCreated": {
+        "completed": true,
+        "evidence": "Created 2026-02-07-session-1182.json (renumbered from 1181, which was taken on main)"
+      },
+      "relevantMemoriesSearched": {
+        "completed": true,
+        "evidence": "Read test-failure-ci-blocking-analysis.md, plan file immutable-coalescing-moth.md"
+      },
+      "gitStatusVerified": {
+        "completed": true,
+        "evidence": "Branch: feat/840-test-coverage-quality verified via git status"
+      }
+    },
+    "sessionEnd": {
+      "sessionEndChecklistComplete": {
+        "completed": true,
+        "evidence": "All 7 plan steps completed; PR created"
+      },
+      "serenaMemoryUpdated": {
+        "completed": false,
+        "evidence": "Deferred: continuation session, memories updated in prior session"
+      },
+      "scopedMarkdownlintRun": {
+        "completed": true,
+        "evidence": "Pre-commit hook runs markdownlint on staged .md files"
+      },
+      "allChangesCommitted": {
+        "completed": true,
+        "evidence": "All changes committed including session log"
+      },
+      "sessionJsonValidated": {
+        "completed": true,
+        "evidence": "Validated via pre-commit hook"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "phase": "continuation",
+      "description": "Resumed from compacted context; all 7 plan steps already complete",
+      "outcome": "Verified implementation complete: shared InvestigationAllowlist module, CommonTypes extraction, security tests, consumer updates"
+    },
+    {
+      "phase": "verification",
+      "description": "Collected results from 14 background test tasks",
+      "outcome": "Zero regressions confirmed. Baseline: main 2041 passed/94 failed. Branch: 2115 passed/45 failed. Net: +74 passing, -50 failures"
+    },
+    {
+      "phase": "analysis",
+      "description": "Retrieved CI workflow gap analysis from analyst subagent",
+      "outcome": "Root cause: dorny/paths-filter skips tests on docs-only commits, skip job reports SUCCESS unconditionally"
+    },
+    {
+      "phase": "delivery",
+      "description": "Created commit and PR for all changes",
+      "outcome": "PR created targeting main for issue #840"
+    }
+  ],
+  "outcomes": {
+    "filesCreated": [
+      "scripts/modules/InvestigationAllowlist.psm1",
+      ".claude/skills/session-init/modules/CommonTypes.psm1",
+      "tests/InvestigationAllowlist.Tests.ps1",
+      ".agents/analysis/test-failure-ci-blocking-analysis.md"
+    ],
+    "filesModified": [
+      "scripts/Validate-SessionJson.ps1",
+      ".claude/skills/session/scripts/Test-InvestigationEligibility.ps1",
+      ".claude/skills/session-qa-eligibility/scripts/Test-InvestigationEligibility.ps1",
+      ".claude/skills/session-init/modules/GitHelpers.psm1",
+      ".claude/skills/session-init/modules/TemplateHelpers.psm1",
+      ".claude/skills/memory/modules/SchemaValidation.psm1",
+      ".github/scripts/Measure-WorkflowCoalescing.ps1",
+      "tests/GitHelpers.Tests.ps1",
+      "tests/TemplateHelpers.Tests.ps1",
+      "tests/Test-InvestigationEligibility.Tests.ps1",
+      "tests/Validate-SessionJson.InvestigationOnly.Tests.ps1",
+      "tests/Detect-ADRChanges.Tests.ps1",
+      "tests/Invoke-SkillFirstGuard.Tests.ps1",
+      "tests/Measure-MemoryPerformance.Tests.ps1"
+    ],
+    "testsAdded": 42,
+    "testResults": "2115 passed, 45 failed (all pre-existing), 0 regressions"
+  },
+  "decisions": [
+    "Used 9-pattern superset from Validate-SessionJson.ps1 as canonical allowlist (includes all patterns from both skill copies)",
+    "Extracted ApplicationFailedException to CommonTypes.psm1 shared by GitHelpers and TemplateHelpers",
+    "Accepted DateTime as valid string type in SchemaValidation to handle ConvertFrom-Json auto-conversion",
+    "Added dot-source guard to Measure-WorkflowCoalescing.ps1 for test isolation"
+  ],
+  "learnings": [
+    {
+      "category": "testing",
+      "insight": "ConvertFrom-Json silently converts ISO 8601 strings to DateTime objects during hashtable round-trips, breaking string-type schema validation.",
+      "application": "Schema validators must accept DateTime as equivalent to string for JSON-sourced data."
+    },
+    {
+      "category": "ci",
+      "insight": "dorny/paths-filter combined with skip jobs reporting SUCCESS creates blind spot where broken tests on main are invisible after docs-only commits.",
+      "application": "Consider periodic full test runs or making skip jobs check last real test result."
+    }
+  ]
+}

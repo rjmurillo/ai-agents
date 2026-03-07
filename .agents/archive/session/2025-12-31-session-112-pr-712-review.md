@@ -2,7 +2,7 @@
 
 **Date**: 2025-12-31
 **Branch**: feat/701-update-issue-comment-403-handling (via worktree)
-**Worktree**: /home/richard/ai-agents-worktrees/issue-701
+**Worktree**: worktrees/issue-701
 **Status**: COMPLETE
 
 ## Session Goal

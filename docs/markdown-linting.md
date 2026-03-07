@@ -159,7 +159,7 @@ mcp__cloudmcp-manager__memory-open_nodes for specific entities
 
 ```markdown
 ` ` `text
-analyst -> architect -> planner -> critic -> implementer -> qa
+analyst -> architect -> milestone-planner -> critic -> implementer -> qa
 ` ` `
 ```
 

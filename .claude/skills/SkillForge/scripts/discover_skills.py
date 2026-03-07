@@ -27,8 +27,7 @@ import sys
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import List, Dict, Optional, Any
-
+from typing import Any
 
 # ===========================================================================
 # RESULT TYPES
@@ -40,8 +39,8 @@ class Result:
     success: bool
     message: str
     data: dict = field(default_factory=dict)
-    errors: List[str] = field(default_factory=list)
-    warnings: List[str] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         return {
@@ -60,9 +59,15 @@ class Result:
 
 SKILL_SOURCES = [
     {
+        "name": "repo",
+        "path": Path.cwd() / ".claude" / "skills",
+        "pattern": "*/SKILL.md",
+        "priority": 0
+    },
+    {
         "name": "custom",
         "path": Path.home() / ".claude" / "skills",
-        "pattern": "*/skill.md",
+        "pattern": "*/SKILL.md",
         "priority": 1
     },
     {
@@ -132,7 +137,7 @@ DOMAIN_KEYWORDS = {
 # PARSING FUNCTIONS
 # ===========================================================================
 
-def extract_frontmatter(content: str) -> Dict[str, Any]:
+def extract_frontmatter(content: str) -> dict[str, Any]:
     """Extract YAML frontmatter from markdown content."""
     frontmatter = {}
 
@@ -148,7 +153,7 @@ def extract_frontmatter(content: str) -> Dict[str, Any]:
     return frontmatter
 
 
-def extract_triggers(content: str) -> List[str]:
+def extract_triggers(content: str) -> list[str]:
     """Extract trigger phrases from skill content."""
     triggers = []
 
@@ -174,7 +179,7 @@ def extract_triggers(content: str) -> List[str]:
     return list(set(triggers))
 
 
-def extract_keywords(content: str, name: str) -> List[str]:
+def extract_keywords(content: str, name: str) -> list[str]:
     """Extract keywords from skill content."""
     keywords = []
 
@@ -198,7 +203,7 @@ def extract_keywords(content: str, name: str) -> List[str]:
     return list(set(keywords))
 
 
-def classify_domain(keywords: List[str], content: str) -> List[str]:
+def classify_domain(keywords: list[str], content: str) -> list[str]:
     """Classify skill into domains based on keywords."""
     domains = []
     content_lower = content.lower()
@@ -217,11 +222,11 @@ def classify_domain(keywords: List[str], content: str) -> List[str]:
     return domains
 
 
-def parse_skill_file(path: Path, source_name: str, priority: int) -> Optional[Dict]:
+def parse_skill_file(path: Path, source_name: str, priority: int) -> dict | None:
     """Parse a skill file and extract metadata."""
     try:
         content = path.read_text(encoding="utf-8")
-    except Exception as e:
+    except Exception:
         return None
 
     # Extract skill name from path or frontmatter
@@ -276,12 +281,17 @@ def discover_skills(verbose: bool = False) -> Result:
         if verbose:
             print(f"Scanning {source['name']}: {source_path}", file=sys.stderr)
 
-        # Find skill files
+        # Find skill files (case-insensitive: try both SKILL.md and skill.md)
         pattern_parts = source["pattern"].split("/")
 
         if len(pattern_parts) == 2:
-            # Simple pattern like */skill.md
+            # Simple pattern like */SKILL.md - try both cases for Linux
             skill_files = list(source_path.glob(source["pattern"]))
+            alt_pattern = source["pattern"].replace("SKILL.md", "skill.md")
+            if alt_pattern != source["pattern"]:
+                skill_files.extend(source_path.glob(alt_pattern))
+            # Deduplicate (same file may match on case-insensitive FS)
+            skill_files = list({f.resolve(): f for f in skill_files}.values())
         else:
             # Complex pattern - use recursive glob
             skill_files = list(source_path.glob("**/*.md"))
@@ -332,7 +342,7 @@ def get_index_path() -> Path:
     return cache_dir / "skill_index.json"
 
 
-def save_index(result: Result, output_path: Optional[Path] = None) -> None:
+def save_index(result: Result, output_path: Path | None = None) -> None:
     """Save skill index to disk."""
     path = output_path or get_index_path()
     path.parent.mkdir(parents=True, exist_ok=True)

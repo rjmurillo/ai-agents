@@ -6,7 +6,7 @@
 - **Session ID**: 113
 - **Type**: PR Review
 - **Branch**: feat/662-investigation-eligibility-skill
-- **Worktree**: /home/richard/ai-agents-worktrees/issue-662
+- **Worktree**: worktrees/issue-662
 - **Starting Commit**: ecbdd5d
 - **Objective**: Address review comments and CI failures on PR #713 implementing Test-InvestigationEligibility.ps1 skill
 

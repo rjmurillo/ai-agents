@@ -138,17 +138,17 @@ def calculate_burn_rates(error_budget: ErrorBudget) -> dict:
 def format_text_output(budget: ErrorBudget, burn_rates: dict) -> str:
     """Format output as plain text."""
     lines = [
-        f"SLO Error Budget Calculator",
+        "SLO Error Budget Calculator",
         f"{'=' * 40}",
-        f"",
+        "",
         f"Target: {budget.target_percent}%",
         f"Period: {budget.period}",
-        f"",
+        "",
         f"Error Budget: {budget.error_budget_percent}%",
         f"Allowed Downtime: {budget.format_downtime()}",
         f"  ({budget.downtime_minutes:.2f} minutes)",
-        f"",
-        f"Burn Rate Analysis:",
+        "",
+        "Burn Rate Analysis:",
         f"{'-' * 40}",
     ]
 
@@ -193,18 +193,18 @@ def format_markdown_output(budget: ErrorBudget, burn_rates: dict) -> str:
     """Format output as Markdown."""
     lines = [
         f"## Error Budget: {budget.target_percent}% SLO ({budget.period})",
-        f"",
-        f"| Metric | Value |",
-        f"|--------|-------|",
+        "",
+        "| Metric | Value |",
+        "|--------|-------|",
         f"| SLO Target | {budget.target_percent}% |",
         f"| Error Budget | {budget.error_budget_percent}% |",
         f"| Allowed Downtime | {budget.format_downtime()} |",
         f"| Period | {budget.period} ({budget.period_minutes} minutes) |",
-        f"",
-        f"### Burn Rate Analysis",
-        f"",
-        f"| Burn Rate | Time to Exhaust | Alert Severity |",
-        f"|-----------|-----------------|----------------|",
+        "",
+        "### Burn Rate Analysis",
+        "",
+        "| Burn Rate | Time to Exhaust | Alert Severity |",
+        "|-----------|-----------------|----------------|",
     ]
 
     for rate, data in burn_rates.items():

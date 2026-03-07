@@ -2,7 +2,7 @@
 
 **Status**: ACTIVE
 **Date**: 2026-01-04
-**Related**: PR #789, `tests/workflows/Test-ClaudeAuthorization.ps1`
+**Related**: PR #789, `tests/workflows/test_claude_authorization.py`
 
 ## Context
 
@@ -10,7 +10,7 @@ The Claude Code workflow (`.github/workflows/claude.yml`) needs to restrict who 
 
 ## Decision
 
-Authorization is handled by a dedicated PowerShell script (`tests/workflows/Test-ClaudeAuthorization.ps1`) that validates:
+Authorization is handled by a dedicated Python script (`tests/workflows/test_claude_authorization.py`) that validates:
 
 1. **@claude mention required**: All events must contain "@claude" (case-sensitive, exact match with negative lookahead)
 2. **Author association OR bot allowlist**: User must be MEMBER/OWNER/COLLABORATOR, OR be an allowed bot
@@ -42,7 +42,7 @@ The workflow responds to four event types:
 
 ## Rationale
 
-### Why PowerShell Script (not inline YAML)?
+### Why Dedicated Script (not inline YAML)?
 
 Per ADR-006, complex logic must not live in workflow YAML because:
 
@@ -51,10 +51,10 @@ Per ADR-006, complex logic must not live in workflow YAML because:
 - **Error-prone**: fromJson() failures are silent, property access errors are opaque
 - **Unmaintainable**: Changes require full workflow runs to validate
 
-The PowerShell script provides:
+The Python script provides:
 
-- **27 Pester tests** covering all scenarios
-- **Try-catch error handling** with proper exit codes
+- **109 pytest tests** covering all scenarios
+- **Try-except error handling** with proper exit codes
 - **Audit logging** to GitHub Actions summary
 - **Clear error messages** for debugging
 
@@ -62,7 +62,7 @@ The PowerShell script provides:
 
 ```yaml
 jobs:
-  check-authorization:  # Runs PowerShell script
+  check-authorization:  # Runs Python script
     outputs:
       authorized: true/false
 
@@ -86,7 +86,7 @@ All GitHub event data (comments, titles, bodies) is passed via environment varia
 env:
   COMMENT_BODY: ${{ github.event.comment.body }}
 run: |
-  $authorized = & ./script.ps1 -CommentBody $env:COMMENT_BODY
+  authorized=$(python3 ./tests/workflows/test_claude_authorization.py --comment-body "$COMMENT_BODY")
 ```
 
 This prevents command injection attacks where malicious users craft issue titles/bodies with shell metacharacters.
@@ -130,20 +130,20 @@ The script includes a deprecation warning in audit logs.
 
 ## Testing
 
-Comprehensive Pester test suite: `tests/workflows/Test-ClaudeAuthorization.Tests.ps1`
+Comprehensive pytest suite: `tests/test_claude_authorization.py`
 
 Coverage:
 
-- ✅ All 4 event types
-- ✅ All 3 allowed associations (MEMBER, OWNER, COLLABORATOR)
-- ✅ All 10 allowed bots (including 7 AI coding assistants)
-- ✅ Denial scenarios (wrong association, no mention)
-- ✅ Edge cases (empty bodies, case sensitivity, partial matches, word boundaries)
-- ✅ Input size validation (>1MB bodies)
-- ✅ Audit logging verification
-- ✅ Error handling
+- All 6 event types (issue_comment, pull_request_review_comment, pull_request_review, issues, pull_request, workflow_dispatch)
+- All 3 allowed associations (MEMBER, OWNER, COLLABORATOR)
+- All 10 allowed bots (including AI coding assistants)
+- Denial scenarios (wrong association, no mention)
+- Edge cases (empty bodies, case sensitivity, partial matches, word boundaries)
+- Input size validation (>1MB bodies)
+- Audit logging verification
+- Error handling (exit codes 0, 1, 2)
 
-**46 tests passing** (2 unreliable edge case tests removed in Round 2)
+**109 tests passing** at 99% line coverage
 
 ## Sources
 
@@ -154,6 +154,7 @@ Coverage:
 ## See Also
 
 - ADR-006: No logic in workflow YAML
-- `tests/workflows/Test-ClaudeAuthorization.ps1`: Implementation
+- `tests/workflows/test_claude_authorization.py`: Implementation
+- `tests/test_claude_authorization.py`: pytest test suite (109 tests)
 - `.github/workflows/claude.yml`: Workflow using this pattern
 - `.serena/memories/security-012-workflow-author-association.md`: Previous pattern
