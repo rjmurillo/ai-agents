@@ -1,4 +1,4 @@
-# ADR-044: ADR Exception Criteria (Chesterton's Fence)
+# ADR-051: ADR Exception Criteria (Chesterton's Fence)
 
 ## Status
 
@@ -79,6 +79,10 @@ The analysis template and rejection criteria are documented in `.agents/governan
 
 - [ADR-005](./ADR-005-powershell-only-scripting.md) — Motivating case (PR #908 exception)
 - [ADR-022](./ADR-022-architecture-governance-split-criteria.md) — Governance split criteria
+
+## Confirmation
+
+Compliance is verified through the architect agent review gate in CI. The gate checks that any PR containing an ADR exception includes the three required Chesterton's Fence questions answered. PRs missing the analysis receive a CRITICAL_FAIL verdict and cannot merge.
 
 ## References
 

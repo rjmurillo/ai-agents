@@ -118,7 +118,7 @@
       "action": "Created ADR exception criteria governance document with Chesterton's Fence analysis template",
       "files": [
         ".agents/governance/ADR-EXCEPTION-CRITERIA.md",
-        ".agents/architecture/ADR-044-adr-exception-criteria.md"
+        ".agents/architecture/ADR-051-adr-exception-criteria.md"
       ],
       "result": "Defined exception request format, rejection criteria, and approval checklist"
     },
