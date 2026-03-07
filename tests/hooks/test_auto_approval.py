@@ -8,9 +8,13 @@ tty input, empty input, invalid JSON, all test framework patterns.
 import json
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
 import pytest
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 HOOK_DIR = str(
     Path(__file__).resolve().parents[2] / ".claude" / "hooks" / "PermissionRequest"
@@ -18,7 +22,6 @@ HOOK_DIR = str(
 sys.path.insert(0, HOOK_DIR)
 
 import invoke_test_auto_approval  # noqa: E402
-
 
 # ---------------------------------------------------------------------------
 # Unit tests for get_command_from_input
@@ -130,49 +133,31 @@ class TestMain:
         monkeypatch.setattr("sys.stdin", MagicMock(isatty=lambda: True))
         assert invoke_test_auto_approval.main() == 0
 
-    def test_returns_0_on_empty_input(self, monkeypatch):
-        monkeypatch.setattr(
-            "sys.stdin",
-            MagicMock(isatty=lambda: False, read=lambda: ""),
-        )
+    def test_returns_0_on_empty_input(self, mock_stdin: "Callable[[str], None]"):
+        mock_stdin("")
         assert invoke_test_auto_approval.main() == 0
 
-    def test_returns_0_on_invalid_json(self, monkeypatch):
-        monkeypatch.setattr(
-            "sys.stdin",
-            MagicMock(isatty=lambda: False, read=lambda: "not json"),
-        )
+    def test_returns_0_on_invalid_json(self, mock_stdin: "Callable[[str], None]"):
+        mock_stdin("not json")
         assert invoke_test_auto_approval.main() == 0
 
-    def test_returns_0_when_no_command(self, monkeypatch):
-        hook_input = json.dumps({"tool_input": {}})
-        monkeypatch.setattr(
-            "sys.stdin",
-            MagicMock(isatty=lambda: False, read=lambda: hook_input),
-        )
+    def test_returns_0_when_no_command(self, mock_stdin: "Callable[[str], None]"):
+        mock_stdin(json.dumps({"tool_input": {}}))
         assert invoke_test_auto_approval.main() == 0
 
-    def test_approves_safe_command(self, monkeypatch, capsys):
-        hook_input = json.dumps(
-            {"tool_input": {"command": "pytest tests/"}}
-        )
-        monkeypatch.setattr(
-            "sys.stdin",
-            MagicMock(isatty=lambda: False, read=lambda: hook_input),
-        )
+    def test_approves_safe_command(
+        self, mock_stdin: "Callable[[str], None]", capsys
+    ):
+        mock_stdin(json.dumps({"tool_input": {"command": "pytest tests/"}}))
         assert invoke_test_auto_approval.main() == 0
         captured = capsys.readouterr()
         data = json.loads(captured.out.strip())
         assert data["decision"] == "approve"
 
-    def test_does_not_approve_unsafe_command(self, monkeypatch, capsys):
-        hook_input = json.dumps(
-            {"tool_input": {"command": "rm -rf /"}}
-        )
-        monkeypatch.setattr(
-            "sys.stdin",
-            MagicMock(isatty=lambda: False, read=lambda: hook_input),
-        )
+    def test_does_not_approve_unsafe_command(
+        self, mock_stdin: "Callable[[str], None]", capsys
+    ):
+        mock_stdin(json.dumps({"tool_input": {"command": "rm -rf /"}}))
         assert invoke_test_auto_approval.main() == 0
         captured = capsys.readouterr()
         # Should not output an approval

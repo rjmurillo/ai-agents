@@ -8,9 +8,11 @@ all sections, missing sections, file errors, invalid JSON.
 import json
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
-import pytest
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 HOOK_DIR = str(
     Path(__file__).resolve().parents[2] / ".claude" / "hooks" / "SubagentStop"
@@ -18,7 +20,6 @@ HOOK_DIR = str(
 sys.path.insert(0, HOOK_DIR)
 
 import invoke_qa_agent_validator  # noqa: E402
-
 
 # ---------------------------------------------------------------------------
 # Unit tests for is_qa_agent
@@ -154,48 +155,41 @@ class TestMain:
         assert result == 0
 
     @patch("invoke_qa_agent_validator.skip_if_consumer_repo", return_value=False)
-    def test_exits_0_on_empty_input(self, mock_skip, monkeypatch):
-        monkeypatch.setattr(
-            "sys.stdin",
-            MagicMock(isatty=lambda: False, read=lambda: ""),
-        )
+    def test_exits_0_on_empty_input(
+        self, mock_skip, mock_stdin: "Callable[[str], None]"
+    ):
+        mock_stdin("")
         result = invoke_qa_agent_validator.main()
         assert result == 0
 
     @patch("invoke_qa_agent_validator.skip_if_consumer_repo", return_value=False)
-    def test_exits_0_for_non_qa_agent(self, mock_skip, monkeypatch):
-        hook_input = json.dumps({"subagent_type": "implementer"})
-        monkeypatch.setattr(
-            "sys.stdin",
-            MagicMock(isatty=lambda: False, read=lambda: hook_input),
-        )
+    def test_exits_0_for_non_qa_agent(
+        self, mock_skip, mock_stdin: "Callable[[str], None]"
+    ):
+        mock_stdin(json.dumps({"subagent_type": "implementer"}))
         result = invoke_qa_agent_validator.main()
         assert result == 0
 
     @patch("invoke_qa_agent_validator.skip_if_consumer_repo", return_value=False)
-    def test_exits_0_for_missing_transcript(self, mock_skip, monkeypatch):
-        hook_input = json.dumps({"subagent_type": "qa"})
-        monkeypatch.setattr(
-            "sys.stdin",
-            MagicMock(isatty=lambda: False, read=lambda: hook_input),
-        )
+    def test_exits_0_for_missing_transcript(
+        self, mock_skip, mock_stdin: "Callable[[str], None]"
+    ):
+        mock_stdin(json.dumps({"subagent_type": "qa"}))
         result = invoke_qa_agent_validator.main()
         assert result == 0
 
     @patch("invoke_qa_agent_validator.skip_if_consumer_repo", return_value=False)
-    def test_reports_passed_when_complete(self, mock_skip, monkeypatch, tmp_path, capsys):
+    def test_reports_passed_when_complete(
+        self, mock_skip, mock_stdin: "Callable[[str], None]", tmp_path, capsys
+    ):
         transcript = tmp_path / "transcript.md"
         transcript.write_text(
             "# Test Strategy\n\n## Test Results\n\n### Coverage\n"
         )
-        hook_input = json.dumps({
+        mock_stdin(json.dumps({
             "subagent_type": "qa",
             "transcript_path": str(transcript),
-        })
-        monkeypatch.setattr(
-            "sys.stdin",
-            MagicMock(isatty=lambda: False, read=lambda: hook_input),
-        )
+        }))
         result = invoke_qa_agent_validator.main()
         assert result == 0
         captured = capsys.readouterr()
@@ -210,18 +204,14 @@ class TestMain:
 
     @patch("invoke_qa_agent_validator.skip_if_consumer_repo", return_value=False)
     def test_reports_failure_when_incomplete(
-        self, mock_skip, monkeypatch, tmp_path, capsys
+        self, mock_skip, mock_stdin: "Callable[[str], None]", tmp_path, capsys
     ):
         transcript = tmp_path / "transcript.md"
         transcript.write_text("# Some Other Section\n\nContent\n")
-        hook_input = json.dumps({
+        mock_stdin(json.dumps({
             "subagent_type": "qa",
             "transcript_path": str(transcript),
-        })
-        monkeypatch.setattr(
-            "sys.stdin",
-            MagicMock(isatty=lambda: False, read=lambda: hook_input),
-        )
+        }))
         result = invoke_qa_agent_validator.main()
         assert result == 0
         captured = capsys.readouterr()
@@ -235,17 +225,15 @@ class TestMain:
         assert len(data["missing_sections"]) == 3
 
     @patch("invoke_qa_agent_validator.skip_if_consumer_repo", return_value=False)
-    def test_handles_file_read_error(self, mock_skip, monkeypatch, tmp_path, capsys):
+    def test_handles_file_read_error(
+        self, mock_skip, mock_stdin: "Callable[[str], None]", tmp_path, capsys
+    ):
         """Handles OSError when reading transcript."""
         transcript_path = str(tmp_path / "unreadable.md")
-        hook_input = json.dumps({
+        mock_stdin(json.dumps({
             "subagent_type": "qa",
             "transcript_path": transcript_path,
-        })
-        monkeypatch.setattr(
-            "sys.stdin",
-            MagicMock(isatty=lambda: False, read=lambda: hook_input),
-        )
+        }))
         with patch(
             "invoke_qa_agent_validator.get_transcript_path",
             return_value=transcript_path,
