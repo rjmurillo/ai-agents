@@ -256,6 +256,65 @@ This ADR does NOT resolve Issue #124. Both documents serve distinct purposes.
 - PR #715: Phase 2 Traceability Implementation (identified this architecture as source of synchronization toil)
 - PR #235: DevOps review discussing agent generation patterns
 
+## Amendment 1: Cleanup of Stale `.github/agents/` Directory
+
+**Date**: 2026-03-07  
+**Status**: Implemented  
+**Issue**: #972
+
+### Background
+
+During Phase 4 (Epic Cleanup), investigation revealed an orphaned `.github/agents/` directory containing 26 stale files with outdated model field values:
+
+```yaml
+# .github/agents/analyst.agent.md (STALE)
+model: Claude Opus 4.5 (anthropic)  ❌ Incorrect platform indicator
+
+# src/vs-code-agents/analyst.agent.md (CURRENT)
+model: Claude Opus 4.5 (copilot)    ✓ Correct platform indicator
+```
+
+### Root Cause
+
+The `.github/agents/` directory was created in early 2025 before ADR-036 was finalized. ADR-036 correctly designated `src/vs-code-agents/` as the authoritative VS Code platform agents directory. However, `.github/agents/` was never cleaned up and became stale.
+
+### Changes Made
+
+1. **Removed `.github/agents/` directory** (26 files deleted)
+   - `analyst.agent.md` through `type-design-analyzer.agent.md`
+   - Also removed `pr-comment-responder.prompt.md`
+   - Cleanup verified to not impact CI/CD (no workflows referenced it)
+
+2. **Verified authoritative sources remain correct**:
+   - ✓ `src/vs-code-agents/` - VS Code/Copilot platform (auto-generated, current)
+   - ✓ `templates/agents/` - Shared templates (manual source)
+   - ✓ `src/claude/` - Claude Code platform (manual source)
+
+3. **Updated directory structure in this ADR** (section: Directory Structure)
+
+### Rationale
+
+- Eliminates source of confusion about which directory contains current agents
+- Removes stale files with incorrect model field values that could mislead users
+- Pre-commit hooks and CI workflows continue to target `src/vs-code-agents/` correctly
+- No platform-specific agents lost (7 "extra" agents in `.github/agents/` remain in `src/claude/` as Claude-only agents)
+
+### Note on "Extra" Agents
+
+The `.github/agents/` directory contained 7 agents not in shared templates:
+
+- code-reviewer.agent.md
+- code-simplifier.agent.md
+- comment-analyzer.agent.md
+- pr-test-analyzer.agent.md
+- silent-failure-hunter.agent.md
+- type-design-analyzer.agent.md
+- backlog-generator.agent.md
+- milestone-planner.agent.md
+- task-decomposer.agent.md
+
+These are intentionally Claude-only agents (exist in `src/claude/` but not in `templates/agents/`), which is correct per this ADR's two-source architecture. Removing them from `.github/agents/` does NOT lose functionality.
+
 ---
 
-*Created from learnings in PR #715 Phase 2 Traceability Implementation*
+*Created from learnings in Epic #972 Phase 4 Cleanup*
