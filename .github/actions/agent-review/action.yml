@@ -84,7 +84,7 @@ runs:
     - name: Restore cached review
       if: inputs.should-run == 'true' && inputs.commit-sha != '' && inputs.bypass-cache != 'true'
       id: cache
-      uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4
+      uses: actions/cache/restore@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
       with:
         path: ai-review-cache/${{ inputs.agent }}
         key: ai-review-${{ inputs.agent }}-${{ inputs.commit-sha }}-${{ hashFiles(inputs.prompt-file) }}
@@ -105,10 +105,12 @@ runs:
         echo "verdict=$(cat "$CACHE_DIR/verdict.txt")" >> $GITHUB_OUTPUT
         echo "infrastructure_failure=$(cat "$CACHE_DIR/infrastructure-failure.txt" 2>/dev/null || echo false)" >> $GITHUB_OUTPUT
         echo "retry_count=0" >> $GITHUB_OUTPUT
+        # Use a cryptographically random delimiter to prevent collision with findings content (CWE-78)
+        DELIMITER="EOF_CACHED_FINDINGS_$(openssl rand -hex 16)"
         {
-          echo "findings<<EOF_CACHED_FINDINGS"
+          echo "findings<<${DELIMITER}"
           cat "$CACHE_DIR/findings.txt"
-          echo "EOF_CACHED_FINDINGS"
+          echo "${DELIMITER}"
         } >> $GITHUB_OUTPUT
 
     - name: ${{ inputs.emoji }} ${{ inputs.agent }} Review
@@ -153,7 +155,7 @@ runs:
 
     - name: Save cache
       if: always() && inputs.should-run == 'true' && steps.cache.outputs.cache-hit != 'true' && inputs.commit-sha != ''
-      uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4
+      uses: actions/cache/save@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
       with:
         path: ai-review-cache/${{ inputs.agent }}
         key: ai-review-${{ inputs.agent }}-${{ inputs.commit-sha }}-${{ hashFiles(inputs.prompt-file) }}
@@ -203,7 +205,7 @@ runs:
 
     - name: Upload review results
       if: always() && inputs.should-run == 'true'
-      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
       with:
         name: review-${{ inputs.agent }}
         path: ai-review-results/

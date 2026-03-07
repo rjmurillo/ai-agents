@@ -18,13 +18,17 @@ concurrency:
 jobs:
   main:
     name: Validate PR title
-    if: |
-      github.actor != 'dependabot[bot]' &&
-      github.actor != 'github-actions[bot]'
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 5
     steps:
+      - name: Skip for bot actors
+        if: github.actor == 'dependabot[bot]' || github.actor == 'github-actions[bot]'
+        env:
+          GH_ACTOR: ${{ github.actor }}
+        run: echo "Skipped - bot actor ($GH_ACTOR)"
+
       - uses: amannn/action-semantic-pull-request@48f256284bd46cdaab1048c3721360e808335d50 # v6
+        if: github.actor != 'dependabot[bot]' && github.actor != 'github-actions[bot]'
         with:
           types: |
             feat

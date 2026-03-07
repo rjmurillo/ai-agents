@@ -20,17 +20,20 @@ from scripts.github_core.api import RepoInfo
 _SCRIPTS_DIR = Path(__file__).resolve().parents[1] / ".github" / "scripts"
 
 
-def _import_script(name: str):
-    spec = importlib.util.spec_from_file_location(name, _SCRIPTS_DIR / f"{name}.py")
+_MODULE_NAME = "consumer_set_item_milestone"
+
+
+def _import_script(name: str, alias: str):
+    spec = importlib.util.spec_from_file_location(alias, _SCRIPTS_DIR / f"{name}.py")
     assert spec is not None, f"Could not load spec for {name}"
     assert spec.loader is not None, f"Spec for {name} has no loader"
     mod = importlib.util.module_from_spec(spec)
-    sys.modules[name] = mod
+    sys.modules[alias] = mod
     spec.loader.exec_module(mod)
     return mod
 
 
-_mod = _import_script("set_item_milestone")
+_mod = _import_script("set_item_milestone", _MODULE_NAME)
 main = _mod.main
 build_parser = _mod.build_parser
 get_latest_semantic_milestone = _mod.get_latest_semantic_milestone
@@ -229,10 +232,10 @@ class TestMain:
         output_file = _setup_output(tmp_path, monkeypatch)
         _setup_summary(tmp_path, monkeypatch)
         with patch("subprocess.run", return_value=_completed(rc=0)), patch(
-            "set_item_milestone.resolve_repo_params",
+            f"{_MODULE_NAME}.resolve_repo_params",
             return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
-            "set_item_milestone.get_item_milestone",
+            f"{_MODULE_NAME}.get_item_milestone",
             return_value="0.2.0",
         ):
             rc = main(["--item-type", "pr", "--item-number", "1"])
@@ -245,16 +248,16 @@ class TestMain:
         output_file = _setup_output(tmp_path, monkeypatch)
         _setup_summary(tmp_path, monkeypatch)
         with patch("subprocess.run", return_value=_completed(rc=0)), patch(
-            "set_item_milestone.resolve_repo_params",
+            f"{_MODULE_NAME}.resolve_repo_params",
             return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
-            "set_item_milestone.get_item_milestone",
+            f"{_MODULE_NAME}.get_item_milestone",
             return_value=None,
         ), patch(
-            "set_item_milestone.get_latest_semantic_milestone",
+            f"{_MODULE_NAME}.get_latest_semantic_milestone",
             return_value={"title": "0.3.0", "number": 5, "found": True},
         ), patch(
-            "set_item_milestone.assign_milestone",
+            f"{_MODULE_NAME}.assign_milestone",
         ) as mock_assign:
             rc = main(["--item-type", "pr", "--item-number", "42"])
         assert rc == 0
@@ -267,13 +270,13 @@ class TestMain:
         output_file = _setup_output(tmp_path, monkeypatch)
         _setup_summary(tmp_path, monkeypatch)
         with patch("subprocess.run", return_value=_completed(rc=0)), patch(
-            "set_item_milestone.resolve_repo_params",
+            f"{_MODULE_NAME}.resolve_repo_params",
             return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
-            "set_item_milestone.get_item_milestone",
+            f"{_MODULE_NAME}.get_item_milestone",
             return_value=None,
         ), patch(
-            "set_item_milestone.get_latest_semantic_milestone",
+            f"{_MODULE_NAME}.get_latest_semantic_milestone",
             return_value={"title": "", "number": 0, "found": False},
         ):
             rc = main(["--item-type", "issue", "--item-number", "1"])
@@ -285,13 +288,13 @@ class TestMain:
         _setup_output(tmp_path, monkeypatch)
         _setup_summary(tmp_path, monkeypatch)
         with patch("subprocess.run", return_value=_completed(rc=0)), patch(
-            "set_item_milestone.resolve_repo_params",
+            f"{_MODULE_NAME}.resolve_repo_params",
             return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
-            "set_item_milestone.get_item_milestone",
+            f"{_MODULE_NAME}.get_item_milestone",
             return_value=None,
         ), patch(
-            "set_item_milestone.assign_milestone",
+            f"{_MODULE_NAME}.assign_milestone",
         ) as mock_assign:
             rc = main([
                 "--item-type", "pr",

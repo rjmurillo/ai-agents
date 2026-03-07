@@ -26,7 +26,7 @@ _PROJECT_ROOT = _SCRIPT_DIR.parent
 sys.path.insert(0, str(_PROJECT_ROOT))
 
 from scripts.utils.path_validation import validate_safe_path  # noqa: E402
-from scripts.validation.types import ValidationResult  # noqa: E402
+from scripts.validation.models import ValidationResult  # noqa: E402
 
 VALID_PHASES = frozenset({
     "specification",

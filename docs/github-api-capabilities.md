@@ -194,17 +194,17 @@ gh api graphql -f query='
 
 | Skill | Location | Purpose |
 |-------|----------|---------|
-| `Get-PRContext.ps1` | `.claude/skills/github/scripts/pr/` | Get PR metadata |
-| `Set-IssueLabels.ps1` | `.claude/skills/github/scripts/issue/` | Manage issue labels |
-| `Add-CommentReaction.ps1` | `.claude/skills/github/scripts/reactions/` | Add emoji reactions |
+| `get_pr_context.py` | `.claude/skills/github/scripts/pr/` | Get PR metadata |
+| `set_issue_labels.py` | `.claude/skills/github/scripts/issue/` | Manage issue labels |
+| `add_comment_reaction.py` | `.claude/skills/github/scripts/reactions/` | Add emoji reactions |
 
 ### GraphQL API Skills
 
 | Skill | Location | Purpose |
 |-------|----------|---------|
-| `Resolve-PRReviewThread.ps1` | `.claude/skills/github/scripts/pr/` | Resolve review threads |
-| `Get-PRReviewThreads.ps1` | `.claude/skills/github/scripts/pr/` | Get thread details |
-| `Get-UnresolvedReviewThreads.ps1` | `.claude/skills/github/scripts/pr/` | Find unresolved threads |
+| `resolve_pr_review_thread.py` | `.claude/skills/github/scripts/pr/` | Resolve review threads |
+| `get_pr_review_threads.py` | `.claude/skills/github/scripts/pr/` | Get thread details |
+| `get_unresolved_review_threads.py` | `.claude/skills/github/scripts/pr/` | Find unresolved threads |
 
 ## Common Patterns
 

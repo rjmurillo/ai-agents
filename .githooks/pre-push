@@ -106,8 +106,16 @@ if [ ! -d "$REPO_ROOT" ]; then
 fi
 cd "$REPO_ROOT"
 
-# Python detection (reused from pre-commit pattern)
+# Python detection (shared pattern with pre-commit)
 set_python_cmd() {
+    # Try uv run python first (handles virtual environments and project dependencies)
+    if command -v uv &> /dev/null; then
+        if uv run python -c 'import sys' &> /dev/null; then
+            PYTHON_CMD=(uv run python)
+            return 0
+        fi
+    fi
+    # Try python3 (preferred system fallback)
     if command -v python3 &> /dev/null; then
         if python3 -c 'import sys' &> /dev/null; then
             PYTHON_CMD=(python3)

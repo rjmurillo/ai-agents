@@ -166,14 +166,23 @@ def convert_frontmatter_for_platform(
         else:
             result.pop("name", None)
 
-        model = fm.get("model")
-        if model:
-            result["model"] = str(model)
+        # Resolve model: use model_tier mapping if template specifies a tier
+        model_tier = frontmatter.get("model_tier")
+        model_tiers = platform_config.get("model_tiers")
+        if model_tier and isinstance(model_tiers, dict) and model_tier in model_tiers:
+            result["model"] = str(model_tiers[model_tier])
         else:
-            result.pop("model", None)
+            model = fm.get("model")
+            if model:
+                result["model"] = str(model)
+            else:
+                result.pop("model", None)
     else:
         result.pop("name", None)
         result.pop("model", None)
+
+    # Remove model_tier from output (generator directive only)
+    result.pop("model_tier", None)
 
     # Handle platform-specific tools array
     clean_name = platform_name.replace("-", "")
@@ -265,7 +274,12 @@ def convert_handoff_syntax(body: str, target_syntax: str) -> str:
         # Transform backticked `/agent` alone to `#runSubagent`
         result = re.sub(r"`/agent`", r"`#runSubagent`", result)
         # Transform line-start /agent name (no backticks) to #runSubagent with subagentType=name
-        result = re.sub(r"^/agent\s+([\w-]+)", r"#runSubagent with subagentType=\1", result, flags=re.MULTILINE)
+        result = re.sub(
+            r"^/agent\s+([\w-]+)",
+            r"#runSubagent with subagentType=\1",
+            result,
+            flags=re.MULTILINE,
+        )
         # Transform placeholder text
         result = result.replace(
             "/agent [agent_name]", "#runSubagent with subagentType={agent_name}"

@@ -17,7 +17,7 @@ tools:
   - github/get_file_contents
   - cloudmcp-manager/*
   - serena/*
-model: claude-opus-4.5
+model: claude-opus-4.6
 ---
 # DevOps Agent
 
@@ -179,8 +179,8 @@ Use Memory Router for search and Serena tools for persistence:
 
 **Before pipeline work (retrieve context):**
 
-```powershell
-pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "devops patterns [pipeline/infrastructure]"
+```bash
+python3 .claude/skills/memory/scripts/search_memory.py --query "devops patterns [pipeline/infrastructure]"
 ```
 
 **After pipeline work (store learnings):**

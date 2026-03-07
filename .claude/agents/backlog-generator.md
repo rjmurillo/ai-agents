@@ -34,7 +34,7 @@ You have direct access to:
 - **Read/Grep/Glob**: Analyze codebase and project state
 - **Bash**: Run gh commands to query issues, PRs, and project health
 - **Memory Router** (ADR-037): Unified search across Serena + Forgetful
-  - `pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "topic"`
+  - `python3 .claude/skills/memory/scripts/search_memory.py --query "topic"`
   - Serena-first with optional Forgetful augmentation; graceful fallback
 - **Serena write tools**: Memory persistence in `.serena/memories/`
   - `mcp__serena__write_memory`: Create new memory
@@ -85,8 +85,8 @@ Use Memory Router for search and Serena tools for persistence (ADR-037):
 
 **Before task planning (retrieve context):**
 
-```powershell
-pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "task planning patterns [project area]"
+```bash
+python3 .claude/skills/memory/scripts/search_memory.py --query "task planning patterns [project area]"
 ```
 
 **After planning (store learnings):**

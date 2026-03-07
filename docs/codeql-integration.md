@@ -178,8 +178,8 @@ pwsh .codeql/scripts/Get-CodeQLDiagnostics.ps1
 /codeql-scan
 
 # Direct invocation
-pwsh .claude/skills/codeql-scan/scripts/Invoke-CodeQLScanSkill.ps1 -Operation full
-pwsh .claude/skills/codeql-scan/scripts/Invoke-CodeQLScanSkill.ps1 -Operation quick
+python3 .claude/skills/codeql-scan/scripts/invoke_codeql_scan_skill.py --operation full
+python3 .claude/skills/codeql-scan/scripts/invoke_codeql_scan_skill.py --operation quick
 ```
 
 ---
@@ -255,7 +255,7 @@ flowchart TD
 
 ### Tier 3: Automatic Scanning
 
-**PostToolUse Hook** (`.claude/hooks/PostToolUse/Invoke-CodeQLQuickScan.ps1`):
+**PostToolUse Hook** (`.claude/hooks/PostToolUse/invoke_codeql_quick_scan.py`):
 
 **Triggers**:
 
@@ -452,15 +452,15 @@ Remove-Item -Recurse -Force .codeql/db
 
 **Verification**:
 
-```powershell
+```bash
 # Check hook exists
-Test-Path .claude/hooks/PostToolUse/Invoke-CodeQLQuickScan.ps1
+test -f ".claude/hooks/PostToolUse/invoke_codeql_quick_scan.py"
 
 # Check hook permissions
-Get-Item .claude/hooks/PostToolUse/Invoke-CodeQLQuickScan.ps1 | Select-Object -ExpandProperty Mode
+ls -la ".claude/hooks/PostToolUse/invoke_codeql_quick_scan.py"
 
 # Manual test
-pwsh .claude/hooks/PostToolUse/Invoke-CodeQLQuickScan.ps1 -FilePath "example.py" -ToolName "Edit"
+python3 .claude/hooks/PostToolUse/invoke_codeql_quick_scan.py --file-path "example.py" --tool-name "Edit"
 ```
 
 **Common Issues**:

@@ -11,7 +11,7 @@ import pytest
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from scripts.validation.types import ValidationResult  # noqa: E402
+from scripts.validation.models import ValidationResult  # noqa: E402
 
 
 def assert_validation_result(
