@@ -28,8 +28,8 @@ jobs:
             commands:
               - '.claude/commands/**/*.md'
             validator:
-              - '.claude/skills/slashcommandcreator/scripts/Validate-SlashCommand.ps1'
-              - 'scripts/modules/SlashCommandValidator.psm1'
+              - '.claude/skills/slashcommandcreator/scripts/validate_slash_command.py'
+              - 'scripts/modules/slash_command_validator.py'
 
   validate-slash-commands:
     runs-on: ubuntu-24.04-arm
@@ -43,19 +43,20 @@ jobs:
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
         with:
-          node-version: '20'
+          node-version: '24'
 
       - name: Install markdownlint-cli2
         run: npm install -g markdownlint-cli2
 
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: '3.12'
+
       - name: Validate slash commands
-        shell: pwsh
-        run: |
-          Import-Module ./scripts/modules/SlashCommandValidator.psm1
-          $exitCode = Invoke-SlashCommandValidation
-          exit $exitCode
+        run: python3 -c "from scripts.modules.slash_command_validator import invoke_slash_command_validation; raise SystemExit(invoke_slash_command_validation())"
 
   skip-validation:
     runs-on: ubuntu-24.04-arm

@@ -1,6 +1,6 @@
 ---
 description: Use when performing local architecture review before pushing PR changes. Reviews design patterns, system boundaries, coupling/cohesion, and ADR compliance.
-argument-hint: [--base BRANCH]
+argument-hint: [BASE_BRANCH]
 allowed-tools:
   - Bash(git:*)
   - Read
@@ -20,7 +20,7 @@ Run the architect quality gate locally on your current changes before pushing.
 ### Branch Information
 
 - Current branch: !`git branch --show-current`
-- Base branch: ${1:-main}
+- Base branch: $ARGUMENTS or main
 
 ### Review Criteria
 
@@ -28,11 +28,13 @@ Apply the criteria from: @.github/prompts/pr-quality-gate-architect.md
 
 ### Changed Files
 
-!`git diff "${1:-main}" --name-only`
+<!-- NOTE: Commands prefixed with an exclamation mark and a backtick run at PREPROCESSING time in an
+     isolated shell. $ARGUMENTS is NOT available here. See #1088. -->
+!`git diff main --name-only`
 
 ### Full Diff
 
-!`git diff "${1:-main}"`
+!`git diff main`
 
 ## Output Format
 
@@ -44,3 +46,5 @@ MESSAGE: [One sentence summary]
 
 [Detailed findings following prompt structure]
 ```
+
+Then emit a fenced JSON block conforming to `.agents/schemas/pr-quality-gate-output.schema.json` with `"agent": "architect"`.

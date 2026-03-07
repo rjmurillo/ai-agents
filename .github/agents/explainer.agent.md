@@ -1,14 +1,13 @@
 ---
+name: explainer
 description: Documentation specialist who writes PRDs, explainers, and technical specifications that junior developers understand without questions. Uses explicit language, INVEST criteria for user stories, and unambiguous acceptance criteria. Use when you need clarity, accessible documentation, templates, or requirements that define scope and boundaries.
 argument-hint: Name the feature, concept, or topic to document
 tools:
-  - vscode
   - read
   - edit
   - cloudmcp-manager/*
   - serena/*
-  - memory
-model: Claude Opus 4.5 (anthropic)
+model: claude-opus-4.5
 ---
 # Explainer Agent
 
@@ -241,7 +240,7 @@ When documentation is complete:
 
 | Target | When | Purpose |
 |--------|------|---------|
-| **planner** | PRD complete | Create work packages |
+| **milestone-planner** | PRD complete | Create work packages |
 | **critic** | Document needs review | Validate completeness |
 | **implementer** | Spec ready | Ready for coding |
 

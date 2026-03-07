@@ -116,7 +116,7 @@
 
 The user's concern likely stems from **misunderstanding repository scope**:
 
-1. **Directory Confusion**: Working directory is under `D:\src\GitHub\rjmurillo-bot\ai-agents` but the repository is `rjmurillo/ai-agents` (not `rjmurillo-bot/ai-agents`)
+1. **Directory Confusion**: Working directory is under `<project-root>` but the repository is `rjmurillo/ai-agents` (not `rjmurillo-bot/ai-agents`)
 2. **Expected Repository**: User may have expected issues/PRs to exist in a `rjmurillo-bot/ai-agents` repository that does not exist
 3. **Visibility Filter**: User may have accidentally applied filters (assignee, label, state) that reduced visible count
 

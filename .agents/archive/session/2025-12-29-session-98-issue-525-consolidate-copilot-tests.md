@@ -24,7 +24,7 @@ Consolidate redundant multi-file diff test cases in `Detect-CopilotFollowUpPR.Te
 
 ### Test File Review
 
-Location: `/home/richard/ai-agents/tests/Detect-CopilotFollowUpPR.Tests.ps1`
+Location: `tests/Detect-CopilotFollowUpPR.Tests.ps1`
 
 **Identified Redundant Patterns:**
 

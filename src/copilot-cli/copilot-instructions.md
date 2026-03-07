@@ -22,8 +22,8 @@ Implement the login form per the plan in .agents/planning/
 | Path | Agents | When |
 |------|--------|------|
 | Quick Fix | implementer → qa | One-sentence fix, single file |
-| Standard | analyst → planner → implementer → qa | Investigation needed, 2-5 files |
-| Strategic | independent-thinker → high-level-advisor → task-generator | WHETHER questions, scope/priority |
+| Standard | analyst → milestone-planner → implementer → qa | Investigation needed, 2-5 files |
+| Strategic | independent-thinker → high-level-advisor → task-decomposer | WHETHER questions, scope/priority |
 
 ### Handoff Protocol
 

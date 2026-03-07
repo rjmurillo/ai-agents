@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Reflexion Memory module (`.claude/skills/memory/scripts/ReflexionMemory.psm1`) provides episodic replay and causal reasoning capabilities. This implements Tiers 2 and 3 of the memory architecture.
+The Reflexion Memory module (`.claude/skills/memory/scripts/extract_session_episode.py`, `update_causal_graph.py`) provides episodic replay and causal reasoning capabilities. This implements Tiers 2 and 3 of the memory architecture.
 
 **ADR**: ADR-038 Reflexion Memory Schema
 
@@ -83,7 +83,7 @@ Causal graphs track cause-effect relationships across episodes.
       "id": "e001",
       "timestamp": "2026-01-01T17:10:00Z",
       "type": "commit",
-      "content": "Created MemoryRouter.psm1",
+      "content": "Created memory_router module (search_memory.py)",
       "caused_by": ["d001"],
       "leads_to": ["e002"]
     }
@@ -150,8 +150,8 @@ Causal graphs track cause-effect relationships across episodes.
 ### Episode Queries
 
 ```powershell
-# Import module
-Import-Module .claude/skills/memory/scripts/ReflexionMemory.psm1
+# Import reflexion_memory module functions
+# (Python equivalent: python3 .claude/skills/memory/scripts/extract_session_episode.py)
 
 # Get specific episode
 $episode = Get-Episode -SessionId "2026-01-01-session-126"
@@ -636,26 +636,26 @@ Write-Host "  Updated: $($status.CausalGraph.Updated)"
 
 ## Scripts
 
-### Extract-SessionEpisode.ps1
+### extract_session_episode.py
 
 Extracts episode data from session logs.
 
 **Syntax**:
 
-```powershell
-pwsh scripts/Extract-SessionEpisode.ps1
-    -SessionLogPath <String>
-    [-OutputPath <String>]
-    [-Force]
+```bash
+python3 scripts/extract_session_episode.py
+    --session-log-path <String>
+    [--output-path <String>]
+    [--force]
 ```
 
 **Parameters**:
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| SessionLogPath | String | Yes | - | Path to session log file |
-| OutputPath | String | No | .agents/memory/episodes/ | Output directory for episode JSON |
-| Force | Switch | No | - | Overwrite existing episode file |
+| --session-log-path | String | Yes | - | Path to session log file |
+| --output-path | String | No | .agents/memory/episodes/ | Output directory for episode JSON |
+| --force | Switch | No | - | Overwrite existing episode file |
 
 **Extraction Targets**:
 
@@ -668,8 +668,8 @@ pwsh scripts/Extract-SessionEpisode.ps1
 **Example**:
 
 ```bash
-pwsh scripts/Extract-SessionEpisode.ps1 \
-    -SessionLogPath ".agents/sessions/.agents/sessions/2026-01-01-session-126.json"
+python3 scripts/extract_session_episode.py \
+    --session-log-path ".agents/sessions/.agents/sessions/2026-01-01-session-126.json"
 
 # Output:
 # Episode extracted:
@@ -682,26 +682,26 @@ pwsh scripts/Extract-SessionEpisode.ps1 \
 #   Output:    .agents/memory/episodes/episode-2026-01-01-session-126.json
 ```
 
-### Update-CausalGraph.ps1
+### update_causal_graph.py
 
 Updates the causal graph from episode data.
 
 **Syntax**:
 
-```powershell
-pwsh scripts/Update-CausalGraph.ps1
-    [-EpisodePath <String>]
-    [-Since <DateTime>]
-    [-DryRun]
+```bash
+python3 scripts/update_causal_graph.py
+    [--episode-path <String>]
+    [--since <String>]
+    [--dry-run]
 ```
 
 **Parameters**:
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| EpisodePath | String | No | .agents/memory/episodes/ | Path to episode file or directory |
-| Since | DateTime | No | - | Only process episodes since this date |
-| DryRun | Switch | No | - | Show what would be updated without making changes |
+| --episode-path | String | No | .agents/memory/episodes/ | Path to episode file or directory |
+| --since | String | No | - | Only process episodes since this date |
+| --dry-run | Switch | No | - | Show what would be updated without making changes |
 
 **Processing**:
 
@@ -715,13 +715,13 @@ pwsh scripts/Update-CausalGraph.ps1
 
 ```bash
 # Update from all episodes
-pwsh scripts/Update-CausalGraph.ps1
+python3 scripts/update_causal_graph.py
 
 # Update from last week only
-pwsh scripts/Update-CausalGraph.ps1 -Since (Get-Date).AddDays(-7)
+python3 scripts/update_causal_graph.py --since "7 days ago"
 
 # Dry run to preview changes
-pwsh scripts/Update-CausalGraph.ps1 -DryRun
+python3 scripts/update_causal_graph.py --dry-run
 
 # Output:
 # ═══════════════════════════════════════════════════
@@ -739,18 +739,18 @@ pwsh scripts/Update-CausalGraph.ps1 -DryRun
 
 The retrospective agent auto-extracts episodes at session end:
 
-```powershell
+```bash
 # In retrospective agent workflow
-$sessionLog = ".agents/sessions/$sessionId.md"
+SESSION_LOG=".agents/sessions/${SESSION_ID}.md"
 
 # Extract episode
-& scripts/Extract-SessionEpisode.ps1 -SessionLogPath $sessionLog
+python3 scripts/extract_session_episode.py --session-log-path "$SESSION_LOG"
 
 # Update causal graph
-& scripts/Update-CausalGraph.ps1 -EpisodePath ".agents/memory/episodes/episode-$sessionId.json"
+python3 scripts/update_causal_graph.py --episode-path ".agents/memory/episodes/episode-${SESSION_ID}.json"
 
 # Store in Serena/Forgetful
-$episodeSummary = "Episode $sessionId: $task outcome=$outcome"
+EPISODE_SUMMARY="Episode ${SESSION_ID}: ${TASK} outcome=${OUTCOME}"
 # ... save to memory systems
 ```
 
@@ -762,8 +762,8 @@ Episode extraction is part of session end checklist:
 ## Session End (BLOCKING)
 
 - [ ] Complete session log
-- [ ] Extract episode: `scripts/Extract-SessionEpisode.ps1`
-- [ ] Update causal graph: `scripts/Update-CausalGraph.ps1`
+- [ ] Extract episode: `scripts/extract_session_episode.py`
+- [ ] Update causal graph: `scripts/update_causal_graph.py`
 - [ ] Update Serena memory
 - [ ] Commit all changes (including .agents/memory/episodes/ and .agents/memory/causality/)
 ```
@@ -892,7 +892,7 @@ foreach ($group in $outcomes) {
 
 ### For Causal Graph Maintenance
 
-1. **Regular updates**: Run `Update-CausalGraph.ps1` periodically
+1. **Regular updates**: Run `update_causal_graph.py` periodically
 2. **Prune stale nodes**: Remove nodes with frequency=1 and old timestamps (future enhancement)
 3. **Review patterns**: Manually verify high-occurrence patterns
 4. **Monitor graph size**: Watch for performance degradation as graph grows
@@ -907,11 +907,11 @@ foreach ($group in $outcomes) {
 
 1. Verify episode file exists: `Test-Path ".agents/memory/episodes/episode-$sessionId.json"`
 2. Check session ID format: Must match file naming convention
-3. Re-extract from session log: `scripts/Extract-SessionEpisode.ps1`
+3. Re-extract from session log: `scripts/extract_session_episode.py`
 
 ### Causal Graph Not Updating
 
-**Symptoms**: `Update-CausalGraph.ps1` runs but graph unchanged
+**Symptoms**: `update_causal_graph.py` runs but graph unchanged
 
 **Solutions**:
 
@@ -933,7 +933,7 @@ foreach ($group in $outcomes) {
 
 ### Pattern Extraction Issues
 
-**Symptoms**: `Update-CausalGraph.ps1` creates no patterns
+**Symptoms**: `update_causal_graph.py` creates no patterns
 
 **Solutions**:
 

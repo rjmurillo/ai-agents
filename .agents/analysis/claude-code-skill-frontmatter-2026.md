@@ -674,7 +674,11 @@ grep -h "^model:" .claude/skills/*/SKILL.md | sort | uniq -c
 1. ✅ **COMPLETE**: Standardize all 27 skills to alias format
 2. **TODO**: Add model selection rationale to skill documentation
 3. **TODO**: Create `docs/SKILL-AUTHORING.md` guide based on this analysis
-4. **TODO**: Implement pre-commit validation for skill frontmatter
+4. ✅ **COMPLETE**: Implement pre-commit validation for skill frontmatter
+   - Script: `scripts/Validate-SkillFrontmatter.ps1`
+   - Tests: `scripts/tests/Validate-SkillFrontmatter.Tests.ps1`
+   - Integration: `.githooks/pre-commit` (BLOCKING validation)
+   - Validates: YAML syntax, name format, description, model identifiers, allowed-tools
 5. **TODO**: Add skill model distribution metrics to `/metrics` skill
 
 ### 10.2 For Skill Authors

@@ -37,21 +37,18 @@ The repository includes validation scripts for enforcing protocol compliance and
 
 ### Session Protocol Validation
 
-#### Validate-SessionJson.ps1
+#### validate_session_json.py
 
 Validates session protocol compliance for session logs.
 
 **Usage**:
 
-```powershell
+```bash
 # Validate specific session
-.\scripts\Validate-SessionJson.ps1 -SessionPath ".agents/sessions/2025-12-17-session-01.json"
+python3 scripts/validate_session_json.py .agents/sessions/2025-12-17-session-01.json
 
-# Validate all recent sessions
-.\scripts\Validate-SessionJson.ps1 -All
-
-# CI mode
-.\scripts\Validate-SessionJson.ps1 -All -CI
+# Validate with pre-commit mode
+python3 scripts/validate_session_json.py .agents/sessions/2025-12-17-session-01.json --pre-commit
 ```
 
 **Called By**: Pre-commit hook, orchestrator, CI
@@ -70,21 +67,18 @@ Validates PR description matches actual code changes (prevents Analyst CRITICAL_
 
 **Called By**: CI workflow (`.github/workflows/pr-validation.yml`)
 
-#### Detect-SkillViolation.ps1
+#### detect_skill_violation.py
 
 Detects raw `gh` command usage when GitHub skills exist (WARNING, non-blocking).
 
 **Usage**:
 
-```powershell
-# Check staged files
-.\scripts\Detect-SkillViolation.ps1 -StagedOnly
-
-# Check entire repo
-.\scripts\Detect-SkillViolation.ps1
+```bash
+# Run skill violation detection
+python3 scripts/detect_skill_violation.py
 ```
 
-**Called By**: Pre-commit hook
+**Called By**: Pre-commit hook (via New-PR.ps1)
 
 #### Detect-TestCoverageGaps.ps1
 
@@ -124,11 +118,48 @@ Creates a PR with all guardrails enforced.
 .\scripts\New-ValidatedPR.ps1 -Web
 ```
 
+#### validate_workflows.py
+
+Validates GitHub Actions workflows locally before pushing (ADR-006 compliance).
+
+**Usage**:
+
+```bash
+# Validate all workflows
+python3 scripts/validate_workflows.py
+
+# Validate only changed files
+python3 scripts/validate_workflows.py --changed
+
+# Validate specific file
+python3 scripts/validate_workflows.py .github/workflows/pytest.yml
+
+# Run with act (if installed)
+python3 scripts/validate_workflows.py --act
+```
+
+**Validates**:
+
+- YAML syntax correctness
+- Workflow structure (name, on, jobs)
+- Action SHA pinning (security requirement)
+- Workflow size (ADR-006: warns if >100 lines)
+- Concurrency configuration
+- Explicit permissions (security best practice)
+
+**Exit Codes**:
+
+- `0`: All validations passed (warnings are OK)
+- `1`: Validation errors found (must fix)
+- `2`: Script error (missing dependencies)
+
+See [docs/WORKFLOW-VALIDATION.md](../docs/WORKFLOW-VALIDATION.md) for complete documentation.
+
 ### Other Validation Scripts
 
 - `Validate-Consistency.ps1` - Cross-document consistency
 - `Sync-McpConfig.ps1` - MCP configuration sync
-- `Check-SkillExists.ps1` - Skill availability check
+- `check_skill_exists.py` - Skill availability check
 - `Invoke-BatchPRReview.ps1` - Batch PR review automation
 
 #### Sync-McpConfig.ps1

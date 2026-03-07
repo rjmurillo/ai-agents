@@ -1,6 +1,9 @@
 ---
 name: incoherence
-description: Detect and resolve incoherence in documentation, code, specs vs implementation. Includes reconciliation phase for applying user-provided resolutions.
+description: Detect contradictions between documentation and code, ambiguous specs,
+  and policy violations across a codebase. Use when documentation seems stale,
+  specs conflict with implementation, or a pre-release consistency audit is needed.
+  Produces an actionable incoherence report with resolution workflow.
 license: MIT
 metadata:
 version: 1.0.0
@@ -13,9 +16,71 @@ model: claude-sonnet-4-5
 
 Detect and resolve incoherence: contradictions between docs and code, ambiguous specifications, missing documentation, or policy violations.
 
+## Triggers
+
+| Trigger Phrase | Operation |
+|----------------|-----------|
+| `find contradictions in the docs` | Detection phase (steps 1-13) |
+| `audit docs vs code consistency` | Detection phase with Dimension A focus |
+| `check for stale documentation` | Detection phase with Dimension D focus |
+| `run incoherence detector` | Full detection phase |
+| `reconcile incoherence report` | Reconciliation phase (steps 14-22) |
+
+---
+
+## When to Use
+
+Use this skill when:
+
+- Documentation may contradict actual code behavior
+- Preparing for a release and need a consistency audit
+- Specs have changed but implementation status is unclear
+- Multiple authors edited docs and code independently
+
+Use direct code review instead when:
+
+- Investigating a single known bug
+- The inconsistency is already identified and just needs a fix
+
+---
+
+## Anti-Patterns
+
+| Avoid | Why | Instead |
+|-------|-----|---------|
+| Skipping the report filename specification | Script requires output path upfront | Specify filename before starting detection |
+| Running reconciliation without user edits | Nothing to apply, wasted steps | Wait for user to fill Resolution sections |
+| Editing the report format manually | Breaks reconciliation parsing | Let the script manage report structure |
+| Selecting all 11 dimensions | Excessive scope, diminishing returns | Let step 2 select the most relevant 3-5 |
+| Ignoring low-severity issues | They accumulate into real drift | Triage all issues, defer explicitly if needed |
+
+---
+
+## Verification
+
+After detection:
+
+- [ ] Report file created at user-specified path
+- [ ] Each issue has Type, Severity, Source A/B, Suggestions, and Resolution section
+- [ ] Dimension coverage matches selection from step 2
+
+After reconciliation:
+
+- [ ] Resolved issues show status marker in report
+- [ ] Code changes match user-provided resolutions
+- [ ] No unresolved critical or high severity issues remain
+
+---
+
 ## Prerequisites
 
 **Before starting**: User must specify the report filename (e.g., "output to incoherence-report.md").
+
+## Scripts
+
+| Script | Purpose |
+|--------|---------|
+| `scripts/incoherence.py` | 22-step detection and reconciliation workflow for doc-code contradictions |
 
 ## Invocation
 
@@ -27,7 +92,7 @@ python3 scripts/incoherence.py --step-number 1 --total-steps 22 --thoughts "<con
 python3 scripts/incoherence.py --step-number 14 --total-steps 22 --thoughts "Reconciling..."
 ```
 
-## Workflow (22 Steps)
+## Process
 
 ```
 DETECTION PHASE (Steps 1-13):

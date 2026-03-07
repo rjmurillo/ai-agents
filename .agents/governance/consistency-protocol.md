@@ -12,12 +12,12 @@ Consistency validation occurs at specific points in the workflow.
 
 ### Checkpoint 1: Post-Task-Generator (Pre-Critic)
 
-**Trigger**: task-generator completes work breakdown
+**Trigger**: task-decomposer completes work breakdown
 
 **Location in workflow**:
 
 ```text
-roadmap -> explainer -> task-generator -> [CHECKPOINT 1] -> critic -> implementer
+roadmap -> explainer -> task-decomposer -> [CHECKPOINT 1] -> critic -> implementer
 ```
 
 **What to validate**:
@@ -88,7 +88,7 @@ When validation finds inconsistencies, follow this escalation path.
 | Severity | Action | Who Handles |
 |----------|--------|-------------|
 | **Minor** | Fix inline, proceed | Orchestrator |
-| **Major** | Return to planner | Planner with specific issues |
+| **Major** | Return to milestone-planner | Planner with specific issues |
 | **Critical** | Escalate to architect | May require epic revision |
 
 ### Inconsistency Report Format
@@ -119,7 +119,7 @@ When returning work for revision, use this format:
 
 ### Routing Decision
 
-**Return to**: [planner | architect | roadmap]
+**Return to**: [milestone-planner | architect | roadmap]
 **Reason**: [explanation]
 **Expected Deliverable**: [what the receiving agent should produce]
 ```

@@ -11,6 +11,18 @@ model: claude-sonnet-4-5
 
 Forgetful stores knowledge as an interconnected graph: memories link to other memories, entities link to memories, and entities relate to each other. Deep exploration reveals context that simple queries miss.
 
+## Triggers
+
+| Trigger Phrase | Operation |
+|----------------|-----------|
+| `what do you know about X` | Full knowledge graph traversal |
+| `how do I explore the knowledge graph` | Graph exploration workflow |
+| `how are these concepts connected` | Entity relationship traversal |
+| `give me comprehensive context on X` | Deep multi-phase exploration |
+| `map out related knowledge for X` | Entity discovery and memory linking |
+
+---
+
 ## When to Explore
 
 Explore the knowledge graph when:
@@ -103,6 +115,51 @@ Group findings by type:
 - **Deep** (all phases): Full graph traversal, comprehensive context
 
 Match depth to task complexity. Start shallow, go deeper if context insufficient.
+
+## When to Use
+
+Use this skill when:
+
+- Starting complex work spanning multiple topics
+- User asks "what do you know about X"
+- Planning requires understanding existing decisions and patterns
+- Investigating how concepts connect across projects
+
+Use [using-forgetful-memory](../using-forgetful-memory/SKILL.md) instead when:
+
+- Creating or querying individual memories
+- Simple semantic search is sufficient
+
+Use [curating-memories](../curating-memories/SKILL.md) instead when:
+
+- Updating, obsoleting, or linking specific memories
+- Cleaning up duplicate or stale content
+
+---
+
+## Anti-Patterns
+
+| Avoid | Why | Instead |
+|-------|-----|---------|
+| Running all 5 phases for simple queries | Wastes tokens on unnecessary traversal | Start shallow (phases 1-2), go deeper only if needed |
+| Not tracking visited IDs | Causes infinite cycles in graph traversal | Maintain a visited set, skip already-seen nodes |
+| Expanding every linked memory | Exponential blowup on dense graphs | Focus on high-importance memories (7+) |
+| Skipping entity phases when entities exist | Misses cross-project connections | Check for entities in Phase 3 before skipping |
+| Presenting raw results without grouping | Overwhelming and unstructured | Group by type: memories, entities, artifacts |
+
+---
+
+## Verification
+
+After graph exploration:
+
+- [ ] Entry point query returned relevant results
+- [ ] No cycles encountered (visited IDs tracked)
+- [ ] Depth matched task complexity (shallow/medium/deep)
+- [ ] Results grouped by type for readability
+- [ ] Follow-up queries identified if context was insufficient
+
+---
 
 ## Efficiency Tips
 

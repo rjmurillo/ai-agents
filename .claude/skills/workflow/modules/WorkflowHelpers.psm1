@@ -111,7 +111,12 @@ function Set-WorkflowContext {
         [string]$WorkflowContextPath = '.agents/workflow-context.json'
     )
 
-    $Context.Timestamp = (Get-Date -Format 'o')
+    $ts = Get-Date -Format 'o'
+    if ($Context.PSObject.Properties['Timestamp']) {
+        $Context.Timestamp = $ts
+    } else {
+        $Context | Add-Member -NotePropertyName 'Timestamp' -NotePropertyValue $ts
+    }
 
     $dir = Split-Path $WorkflowContextPath -Parent
     if ($dir -and -not (Test-Path $dir)) {

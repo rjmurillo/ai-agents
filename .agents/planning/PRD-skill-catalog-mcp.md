@@ -784,7 +784,7 @@ param(
   "category": "github",
   "name": "Get PR Context",
   "statement": "Get PR metadata, diff, and changed files",
-  "location": "/home/richard/ai-agents/.claude/skills/github/scripts/pr/Get-PRContext.ps1",
+  "location": ".claude/skills/github/scripts/pr/Get-PRContext.ps1",
   "script_path": "scripts/pr/Get-PRContext.ps1",
   "parameters": [
     { "name": "PullRequest", "type": "int", "required": true },
@@ -819,7 +819,7 @@ param(
   "category": "linting",
   "name": "Autofix Before Manual Edits",
   "statement": "Run markdownlint --fix before manual edits to auto-resolve spacing violations",
-  "location": "/home/richard/ai-agents/.agents/skills/linting.md",
+  "location": ".agents/skills/linting.md",
   "atomicity": 95,
   "evidence": "2025-12-13 markdown linting - auto-fixed 800+ MD031/MD032/MD022 spacing errors instantly",
   "impact": "Reduced manual edit effort by 60%",

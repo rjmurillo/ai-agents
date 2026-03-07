@@ -61,5 +61,6 @@ ignore: |
   node_modules/
   .cache/
   .artifacts/
+  .serena/
   build/
   artifacts/

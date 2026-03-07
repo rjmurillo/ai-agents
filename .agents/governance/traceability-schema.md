@@ -1,9 +1,14 @@
-# Traceability Graph Schema
+---
+type: governance
+id: traceability-schema
+status: active
+version: 1.0.0
+created: 2025-12-31
+related:
+  - enhancement-PROJECT-PLAN.md
+---
 
-> **Version**: 1.0.0
-> **Created**: 2025-12-31
-> **Status**: Active
-> **Related**: [enhancement-PROJECT-PLAN.md](../planning/enhancement-PROJECT-PLAN.md) Phase 2
+# Traceability Graph Schema
 
 ## Overview
 
@@ -145,26 +150,28 @@ FUNCTION DetectOrphans(specs):
 
 ## Graph Visualization
 
-```text
-                    REQUIREMENTS LAYER
-                    ┌─────────────┐
-                    │   REQ-001   │
-                    │   REQ-002   │
-                    └──────┬──────┘
-                           │ traces_to
-                           ▼
-                    DESIGN LAYER
-                    ┌─────────────┐
-                    │  DESIGN-001 │
-                    └──────┬──────┘
-                           │ traces_to
-                           ▼
-                    TASK LAYER
-          ┌────────┬────────┬────────┐
-          ▼        ▼        ▼        ▼
-     ┌────────┐┌────────┐┌────────┐
-     │TASK-001││TASK-002││TASK-003│
-     └────────┘└────────┘└────────┘
+```mermaid
+graph TD
+    subgraph Requirements Layer
+        REQ-001
+        REQ-002
+    end
+
+    subgraph Design Layer
+        DESIGN-001
+    end
+
+    subgraph Task Layer
+        TASK-001
+        TASK-002
+        TASK-003
+    end
+
+    REQ-001 -->|traces_to| DESIGN-001
+    REQ-002 -->|traces_to| DESIGN-001
+    DESIGN-001 -->|traces_to| TASK-001
+    DESIGN-001 -->|traces_to| TASK-002
+    DESIGN-001 -->|traces_to| TASK-003
 ```
 
 ## Validation Levels

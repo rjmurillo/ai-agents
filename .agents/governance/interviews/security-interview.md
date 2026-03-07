@@ -234,7 +234,7 @@ Check if the code is secure.
 | Missing Prerequisite | Required First |
 |---------------------|----------------|
 | No code to review | Wait for implementation |
-| No feature spec | Get explainer/planner output first |
+| No feature spec | Get explainer/milestone-planner output first |
 | No architecture docs | Get architect output first |
 
 ### Common Misuse Patterns

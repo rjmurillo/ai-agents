@@ -2,8 +2,11 @@
 # See references/copilot-synthesis-guide.md for documentation
 
 trusted_sources:
+  # Default maintainer for this repository. Consumers MUST replace "rjmurillo"
+  # with their own GitHub username(s) when using this plugin in other repos.
+  # This value is loaded by invoke_copilot_assignment.py:_load_synthesis_config().
   maintainers:
-    - rjmurillo
+    - rjmurillo  # REPLACE THIS with your GitHub username
 
   ai_agents:
     - rjmurillo-bot

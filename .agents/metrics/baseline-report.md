@@ -99,7 +99,7 @@ This baseline is established at the start of Phase 2 implementation. Phase 1 com
 | analyst | 20% | Research/investigation |
 | orchestrator | 10% | Multi-step tasks |
 | architect | 10% | Design decisions |
-| planner | 10% | Task breakdown |
+| milestone-planner | 10% | Task breakdown |
 | security | 5% | Security review |
 | qa | 5% | Test strategy |
 | Other | 5% | Various |

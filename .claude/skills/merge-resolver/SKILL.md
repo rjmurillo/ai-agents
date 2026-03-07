@@ -20,13 +20,12 @@ Resolve merge conflicts by analyzing git history and commit intent.
 
 ## Triggers
 
-Use this skill when you encounter:
-
-- `resolve merge conflicts for PR #123`
-- `PR has conflicts with main`
-- `can't merge - conflicts detected`
-- `fix the merge conflicts in this branch`
-- `help me resolve conflicts for this pull request`
+| Trigger Phrase | Operation |
+|----------------|-----------|
+| `resolve merge conflicts` | Auto-detect branch/PR and resolve |
+| `fix conflicts on this branch` | Context-aware conflict resolution |
+| `PR has conflicts with main` | Merge-based conflict resolution |
+| `can't merge due to conflicts` | Analyze and fix blocking conflicts |
 
 ## Process
 
@@ -193,7 +192,7 @@ if [ -z "$SESSION_LOG" ]; then
 fi
 
 # 2. Run session protocol validator
-pwsh scripts/Validate-SessionJson.ps1 -SessionLogPath "$SESSION_LOG"
+python3 scripts/validate_session_json.py "$SESSION_LOG"
 
 # 3. If validation fails, fix issues before proceeding
 if [ $? -ne 0 ]; then
@@ -248,16 +247,64 @@ See `references/strategies.md` for detailed patterns:
 - Template-generated files - resolve in template, regenerate outputs
 - Rebase add/add conflicts - per-commit resolution during rebase
 
+### Session Files (.agents/sessions/*.json)
+
+**CRITICAL RULE:** Session files from main are immutable audit records. NEVER alter them.
+
+**Conflict Scenario:**
+
+```bash
+# Both branches have .agents/sessions/2026-02-08-session-1188.json
+# Git shows: both modified
+UU .agents/sessions/2026-02-08-session-1188.json
+```
+
+**Resolution (CORRECT):**
+
+```bash
+# Step 1: Preserve main's session file (immutable audit record)
+git checkout --theirs .agents/sessions/2026-02-08-session-1188.json
+
+# Step 2: Rename our session file to next available number
+# Determine next number (e.g., if main has 1188, ours becomes 1189)
+mv .agents/sessions/2026-02-08-session-1188-our-branch.json \
+   .agents/sessions/2026-02-08-session-1189.json
+
+# Step 3: Stage both files
+git add .agents/sessions/2026-02-08-session-1188.json
+git add .agents/sessions/2026-02-08-session-1189.json
+```
+
+**WRONG Approaches:**
+
+```bash
+# ❌ NEVER do this - alters main's historical record
+git checkout --ours .agents/sessions/2026-02-08-session-1188.json
+
+# ❌ NEVER do this - loses one session's data
+git checkout --theirs .agents/sessions/2026-02-08-session-1188.json
+# (without renaming ours)
+```
+
+**Rationale:**
+
+- Session logs are audit records for CI/CD compliance
+- Altering historical session files breaks traceability
+- Each session must have unique, immutable record
+- Main branch is authoritative source of session history
+
+**Evidence:** Session 1187 incident - Used `--ours` and altered main's session 1188, required user intervention to correct.
+
 ## Auto-Resolution Script
 
-For automated conflict resolution in CI/CD, use `scripts/Resolve-PRConflicts.ps1`:
+For automated conflict resolution in CI/CD, use `scripts/resolve_pr_conflicts.py`:
 
-```powershell
+```bash
 # Resolve conflicts for a PR
-pwsh .claude/skills/merge-resolver/scripts/Resolve-PRConflicts.ps1 \
-    -PRNumber 123 \
-    -BranchName "fix/my-feature" \
-    -TargetBranch "main"
+python3 .claude/skills/merge-resolver/scripts/resolve_pr_conflicts.py \
+    --pr-number 123 \
+    --branch-name "fix/my-feature" \
+    --target-branch "main"
 ```
 
 ### Auto-Resolvable Files
@@ -266,6 +313,7 @@ The following files are automatically resolved by accepting the target branch ve
 
 | Pattern | Rationale |
 |---------|-----------|
+| `.agents/sessions/*.json` | **CRITICAL**: Session files from main are NEVER altered. Always accept theirs, rename ours to next available number |
 | `.agents/*` | Session artifacts, constantly changing |
 | `.serena/*` | Serena memories, auto-generated |
 | `.claude/skills/*/*.md` | Skill definitions, main is authoritative |
@@ -307,6 +355,16 @@ ADR-015 compliance:
 - Worktree path validation (prevents path traversal)
 - Handles both GitHub Actions runner and local environments
 
+## Scripts
+
+### resolve_pr_conflicts.py
+
+Resolves PR merge conflicts with auto-resolution for known file patterns.
+
+```bash
+python3 .claude/skills/merge-resolver/scripts/resolve_pr_conflicts.py --pr-number <number> [--worktree-path <path>]
+```
+
 ## Verification
 
 ### Success Criteria
@@ -315,7 +373,7 @@ ADR-015 compliance:
 |-----------|----------|
 | All conflicts resolved | `git diff --check` returns empty |
 | No merge markers remain | `grep -r "<<<<<<" .` returns nothing |
-| Session protocol valid | `Validate-SessionJson.ps1` exits 0 |
+| Session protocol valid | `validate_session_json.py` exits 0 |
 | Markdown lint passes | `npx markdownlint-cli2` exits 0 |
 | Push successful | Remote ref updated |
 
@@ -333,7 +391,8 @@ ADR-015 compliance:
 
 | Anti-Pattern | Why It Fails | Instead |
 |--------------|--------------|---------|
-| Push without session validation | CI blocks with MUST violations | Run `Validate-SessionJson.ps1` first |
+| **Alter session files from main** | **CRITICAL**: Session files are historical records; altering breaks audit trail | **Always accept --theirs, rename --ours to next number** |
+| Push without session validation | CI blocks with MUST violations | Run `validate_session_json.py` first |
 | Manual edit of generated files | Changes lost on regeneration | Edit template, run generator |
 | Accept --ours for HANDOFF.md | Branch version often stale | Accept --theirs (main is canonical) |
 | Merge lock files manually | JSON corruption, broken deps | Accept base, regenerate with npm/yarn |
@@ -345,13 +404,13 @@ ADR-015 compliance:
 
 ### Custom Auto-Resolvable Patterns
 
-Add patterns to `$script:AutoResolvableFiles` in `Resolve-PRConflicts.ps1`:
+Add patterns to `AUTO_RESOLVABLE_PATTERNS` in `resolve_pr_conflicts.py`:
 
-```powershell
-$script:AutoResolvableFiles += @(
-    'your/custom/path/*',
-    'another/pattern/**'
-)
+```python
+AUTO_RESOLVABLE_PATTERNS.extend([
+    "your/custom/path/*",
+    "another/pattern/**",
+])
 ```
 
 ### Custom Resolution Strategies
@@ -375,18 +434,19 @@ The script supports GitHub Actions via environment detection:
     HEAD_REF: ${{ github.head_ref }}
     BASE_REF: ${{ github.base_ref }}
   run: |
-    pwsh .claude/skills/merge-resolver/scripts/Resolve-PRConflicts.ps1 \
-      -PRNumber "$env:PR_NUMBER" \
-      -BranchName "$env:HEAD_REF" \
-      -TargetBranch "$env:BASE_REF"
+    python3 .claude/skills/merge-resolver/scripts/resolve_pr_conflicts.py \
+      --pr-number "$PR_NUMBER" \
+      --branch-name "$HEAD_REF" \
+      --target-branch "$BASE_REF"
 ```
 
 ### Dry-Run Mode
 
-Use `-WhatIf` for testing without side effects:
+Use `--dry-run` for testing without side effects:
 
-```powershell
-pwsh scripts/Resolve-PRConflicts.ps1 -PRNumber 123 -BranchName "fix/test" -WhatIf
+```bash
+python3 .claude/skills/merge-resolver/scripts/resolve_pr_conflicts.py \
+    --pr-number 123 --branch-name "fix/test" --dry-run
 ```
 
 ## Related

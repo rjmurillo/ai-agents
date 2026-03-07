@@ -39,6 +39,23 @@ These patterns are normal and should not trigger warnings:
 
 **Principle**: Infrastructure and generated artifacts follow different quality rules than authored application code.
 
+## Pre-executed Test Results
+
+Test execution results (Pester and pytest) are provided as additional context when available. These results were produced by running the test suites in the workflow before your review. Use them as empirical evidence in your verdict.
+
+**When test results are provided:**
+
+- Reference specific pass/fail counts in your evidence
+- If tests FAIL, evaluate whether failures relate to the PR changes
+- If tests PASS, confirm test coverage aligns with changed code
+- Include test result status in your verdict evidence
+
+**When test results are NOT provided (skipped or unavailable):**
+
+- Perform static analysis of test files only
+- Note in your verdict that empirical test results were not available
+- Do NOT claim you cannot run tests; focus on what evidence you have
+
 ## Analysis Focus Areas
 
 ### 1. Test Coverage (For CODE and WORKFLOW PRs)
@@ -209,6 +226,7 @@ PR TYPE: [CODE|WORKFLOW|CONFIG|DOCS|MIXED]
 
 EVIDENCE:
 - Tests found: [count] for [count] new functions (or "N/A - DOCS only")
+- Test execution: [PASS/FAIL/SKIPPED with counts from pre-executed results] (or "N/A")
 - Edge cases: [list categories covered/missing] (or "N/A")
 - Error handling: [tested/untested] for [list operations] (or "N/A")
 - Blocking issues: [count] (list if any)
@@ -224,3 +242,24 @@ EVIDENCE:
 
 These standards apply to CODE and WORKFLOW PRs only.
 DOCS and CONFIG PRs have different criteria (see PR Type Detection).
+
+## Structured JSON Output
+
+After your human-readable analysis, emit a fenced JSON block conforming to `.agents/schemas/pr-quality-gate-output.schema.json`:
+
+```json
+{
+  "verdict": "PASS|WARN|CRITICAL_FAIL",
+  "message": "One sentence summary",
+  "agent": "qa",
+  "timestamp": "ISO 8601",
+  "findings": [
+    {
+      "severity": "critical|high|medium|low",
+      "category": "test-coverage|code-quality|error-handling|regression-risk|edge-cases",
+      "description": "What was found",
+      "location": "file:line",
+      "recommendation": "Suggested fix"
+    }
+  ]
+}

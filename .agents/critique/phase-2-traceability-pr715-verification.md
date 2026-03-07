@@ -46,7 +46,7 @@ if (-not $normalizedPath.StartsWith($allowedBase, [System.StringComparison]::Ord
 **Evidence**:
 ```
 WriteErrorException: Path traversal attempt detected: '/tmp/validate-traceability-tests-5bb54672/specs-1d91dffb' is outside the repository root.
-    at <ScriptBlock>, /home/richard/ai-agents/scripts/Validate-Traceability.ps1:445
+    at <ScriptBlock>, scripts/Validate-Traceability.ps1:445
 ```
 
 ### 2. ErrorActionPreference (HIGH FIX) - [PASS]

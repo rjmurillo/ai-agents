@@ -66,7 +66,7 @@ flowchart TD
 |-----------|---------------|--------------|
 | `analysis/` | analyst | Research findings, CVAs, impact assessments |
 | `architecture/` | architect | ADRs only (no review documents) |
-| `planning/` | planner | PRDs, milestones, task breakdowns |
+| `planning/` | milestone-planner | PRDs, milestones, task breakdowns |
 | `critique/` | critic | Plan reviews, ADR reviews, approval/rejection |
 | `qa/` | qa | Test strategies, test reports |
 | `retrospective/` | retrospective | Session retrospectives, skill extractions |
@@ -92,7 +92,7 @@ flowchart TD
 
 | Attribute | Value |
 |-----------|-------|
-| **Script** | `scripts/Validate-SessionJson.ps1` |
+| **Script** | `scripts/validate_session_json.py` |
 | **Trigger** | CI on `.agents/**` changes, manual |
 | **Input** | Session logs, HANDOFF.md |
 | **Output** | Compliance report |

@@ -13,7 +13,7 @@
 
 | Req | Step | Status | Evidence |
 |-----|------|--------|----------|
-| MUST | Initialize Serena: `mcp__serena__activate_project` | [x] | Tool output present (activated at /home/richard/ai-agents-claude-workflow) |
+| MUST | Initialize Serena: `mcp__serena__activate_project` | [x] | Tool output present (activated at <project-root>) |
 | MUST | Initialize Serena: `mcp__serena__initial_instructions` | [x] | Tool output present |
 | MUST | Read `.agents/HANDOFF.md` | [x] | Content in context |
 | MUST | Create this session log | [x] | This file exists |

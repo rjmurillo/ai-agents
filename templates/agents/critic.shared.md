@@ -2,19 +2,11 @@
 description: Constructive reviewer who stress-tests plans before implementation—validates completeness, identifies gaps, catches ambiguity. Challenges assumptions, checks alignment, and blocks approval when risks aren't mitigated. Use when you need a clear verdict on whether a plan is ready or needs revision.
 argument-hint: Provide the plan file path or planning artifact to review
 tools_vscode:
-  - vscode
-  - read
-  - edit
-  - search
-  - cloudmcp-manager/*
-  - serena/*
-  - memory
+  - $toolset:editor
+  - $toolset:knowledge
 tools_copilot:
-  - read
-  - edit
-  - search
-  - cloudmcp-manager/*
-  - serena/*
+  - $toolset:editor
+  - $toolset:knowledge
 ---
 # Critic Agent
 
@@ -353,7 +345,7 @@ Save to: `.agents/critique/NNN-[document-name]-critique.md`
 
 | Target | When | Purpose |
 |--------|------|---------|
-| **planner** | Plan needs revision | Revise plan |
+| **milestone-planner** | Plan needs revision | Revise plan |
 | **analyst** | Research required | Request analysis |
 | **implementer** | Plan approved | Ready for execution |
 | **architect** | Architecture concerns | Technical decision |
@@ -375,7 +367,7 @@ Before handing off, validate ALL items in the applicable checklist:
 - [ ] Implementation-ready context included in handoff message
 ```
 
-### Revision Handoff (to planner)
+### Revision Handoff (to milestone-planner)
 
 ```markdown
 - [ ] Critique document saved to `.agents/critique/`
@@ -416,7 +408,7 @@ When critique is complete:
 > Implement [plan name] per approved plan at `.agents/planning/[plan-file].md`.
 > Critique approved at `.agents/critique/[critique-file].md`.
 
-**NEEDS REVISION** → Route to **planner**:
+**NEEDS REVISION** → Route to **milestone-planner**:
 
 > Revise [plan name] to address critique findings at `.agents/critique/[critique-file].md`.
 > Key issues: [list critical issues from critique].
@@ -455,7 +447,7 @@ When critique is complete:
 - Missing acceptance criteria
 - Scope unclear
 
-**Key distinction**: The approach is fundamentally sound but needs refinement. Planner can fix with clear guidance.
+**Key distinction**: The approach is fundamentally sound but needs refinement. Milestone-planner can fix with clear guidance.
 
 ### REJECTED
 
@@ -465,7 +457,7 @@ When critique is complete:
 - Missing critical context that prevents meaningful revision
 - Plan solves the wrong problem entirely
 
-**Key distinction**: Revision won't help—analyst must investigate before planning can resume. Use when sending back to planner would waste cycles because the foundational understanding is flawed.
+**Key distinction**: Revision won't help—analyst must investigate before planning can resume. Use when sending back to milestone-planner would waste cycles because the foundational understanding is flawed.
 
 ## Output Location
 

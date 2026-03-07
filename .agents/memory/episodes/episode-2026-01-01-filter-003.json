@@ -1,11 +1,11 @@
 {
-  "events": [],
-  "outcome": "partial",
-  "session": "2026-01-01-filter-003",
-  "task": "Task 3",
-  "timestamp": "2026-01-23T14:23:52.4256757-08:00",
-  "id": "episode-2026-01-01-filter-003",
   "metrics": {},
-  "decisions": [],
-  "lessons": []
+  "outcome": "partial",
+  "events": [],
+  "lessons": [],
+  "task": "Task 3",
+  "timestamp": "2026-02-10T17:55:44.2441099-08:00",
+  "session": "2026-01-01-filter-003",
+  "id": "episode-2026-01-01-filter-003",
+  "decisions": []
 }

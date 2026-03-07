@@ -1,9 +1,15 @@
-# Specification YAML Schema Definitions
+---
+type: governance
+id: spec-schemas
+status: active
+version: 1.0.0
+created: 2025-12-30
+related:
+  - ears-format.md
+  - enhancement-PROJECT-PLAN.md
+---
 
-> **Version**: 1.0.0
-> **Created**: 2025-12-30
-> **Status**: Active
-> **References**: [ears-format.md](./ears-format.md), [enhancement-PROJECT-PLAN.md](../planning/enhancement-PROJECT-PLAN.md)
+# Specification YAML Schema Definitions
 
 ## Overview
 
@@ -22,6 +28,7 @@ All spec types share these common fields:
 | `created` | date | Yes | Creation date (YYYY-MM-DD) |
 | `updated` | date | Yes | Last update date (YYYY-MM-DD) |
 | `related` | array | No | Links to related artifacts |
+| `source` | string | No | Origin reference (e.g., `GH-720` for GitHub issue #720) |
 | `author` | string | No | Creator (agent name or human) |
 | `tags` | array | No | Categorization tags |
 
@@ -80,6 +87,7 @@ status: draft | review | approved | implemented | rejected
 priority: P0 | P1 | P2
 category: functional | non-functional | constraint
 epic: EPIC-NNN           # Optional: parent epic
+source: GH-720           # Optional: originating GitHub issue
 related:
   - REQ-000              # Parent requirements
   - DESIGN-001           # Forward traces (added when design created)
@@ -103,6 +111,7 @@ tags:
 | `priority` | enum | Yes | `P0`, `P1`, `P2` |
 | `category` | enum | Yes | `functional`, `non-functional`, `constraint` |
 | `epic` | string | No | Pattern: `EPIC-\d{3}` |
+| `source` | string | No | Pattern: `GH-\d+` (GitHub issue number) |
 | `related` | array | No | Valid artifact IDs |
 | `created` | date | Yes | ISO 8601 date |
 | `updated` | date | Yes | ISO 8601 date, >= created |
@@ -283,7 +292,7 @@ blocks:                  # Optional: tasks this blocks
 assignee: implementer    # Optional: assigned agent/person
 created: 2025-12-30
 updated: 2025-12-30
-author: task-generator
+author: task-decomposer
 tags:
   - mcp
   - typescript
@@ -358,7 +367,7 @@ blocks:
 assignee: implementer
 created: 2025-12-30
 updated: 2025-12-30
-author: task-generator
+author: task-decomposer
 tags:
   - mcp
   - typescript
@@ -415,6 +424,9 @@ related:
   - TASK-001       # Task
   - ADR-011        # Architecture Decision Record
   - EPIC-001       # Epic (from roadmap)
+
+# In source field (not related):
+source: GH-720       # GitHub issue that originated this spec
 ```
 
 ---

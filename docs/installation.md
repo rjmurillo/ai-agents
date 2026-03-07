@@ -101,7 +101,7 @@ skill-installer install vscode-agents --platform vscode
 |----------|--------|--------|
 | Claude Code | `~/.claude/agents/` | `~/.claude/skills/` |
 | Copilot CLI | `~/.copilot/agents/` | N/A |
-| VS Code | `~/.vscode/prompts/` | N/A |
+| VS Code | `~/.copilot/agents/` | N/A |
 
 ### Repository Installation Paths
 
@@ -110,6 +110,68 @@ skill-installer install vscode-agents --platform vscode
 | Claude Code | `.claude/agents/` | `CLAUDE.md` |
 | Copilot CLI | `.github/agents/` | `.github/copilot-instructions.md` |
 | VS Code | `.github/agents/` | `.github/copilot-instructions.md` |
+
+## Skills Installation
+
+Skills are reusable prompt modules that extend agent capabilities. They install as part of the `project-toolkit` plugin.
+
+### Installing Skills
+
+Skills are included in the `project-toolkit` plugin:
+
+```bash
+# Via CLI marketplace (recommended)
+skill-installer install project-toolkit --platform claude
+
+# Via TUI
+skill-installer interactive
+# Navigate to Discover > project-toolkit > Install
+```
+
+Skills install to `~/.claude/skills/` for global access, or remain in `.claude/skills/` for repository-scoped use.
+
+### Skill Structure
+
+Each skill follows a standard directory layout:
+
+```text
+.claude/skills/{skill-name}/
+  SKILL.md       # Required: YAML frontmatter + prompt content
+  scripts/       # Optional: Python or PowerShell automation
+  tests/         # Optional: Unit and integration tests
+  modules/       # Optional: PowerShell modules
+```
+
+The `SKILL.md` file requires YAML frontmatter with `name` and `description` fields.
+
+### Validating Skill Installation
+
+Run the validation script to confirm skills are structured correctly:
+
+```bash
+# Validate repository skills
+python3 scripts/validate_skill_installation.py
+
+# Validate with details per skill
+python3 scripts/validate_skill_installation.py --verbose
+
+# Also check global installation paths
+python3 scripts/validate_skill_installation.py --check-global
+```
+
+Exit code 0 means all skills pass validation.
+
+### Skills Troubleshooting
+
+**Skills not discovered by Claude Code:**
+
+1. Confirm the skill directory contains a `SKILL.md` file
+2. Verify the frontmatter `name` matches the directory name
+3. Restart Claude Code after installation
+
+**Frontmatter validation errors:**
+
+Run `python3 scripts/validate_skill_installation.py --verbose` to identify which skills have issues.
 
 ## Uninstallation
 
@@ -144,6 +206,28 @@ python --version
 
 If downloads fail, check internet connectivity and try again. The tool downloads from GitHub.
 
+### Security Scanning (Recommended)
+
+For local security scanning before push, install semgrep:
+
+```bash
+python3 scripts/install_semgrep.py
+```
+
+Or install manually:
+
+```bash
+pip install semgrep
+```
+
+Semgrep runs automatically in the pre-push hook and scans Python, PowerShell, JavaScript, and YAML files for security issues. Blocks push on HIGH/CRITICAL findings.
+
+**Benefits:**
+
+- Fast feedback (<1 minute vs 10-30 minutes for CI)
+- Catches OWASP Top 10 vulnerabilities locally
+- Reduces PR review cycles
+
 ### Worktrunk Setup (Optional)
 
 For parallel agent workflows using git worktrees, install Worktrunk:
@@ -175,7 +259,7 @@ The repository includes `.config/wt.toml` with lifecycle hooks that:
 - Copy dependencies (node_modules, .cache) from main worktree
 - Run markdown linting before merge
 
-**See**: [AGENTS.md Worktrunk Setup](../AGENTS.md#worktrunk-setup) for complete workflow documentation.
+**See**: [Worktrunk Documentation](https://worktrunk.dev/) and `.config/wt.toml` for complete workflow configuration.
 
 ## Post-Installation
 
@@ -188,6 +272,12 @@ After installation, restart your editor/CLI to load new agents:
 - **Copilot CLI**: No restart needed
 
 ### Verify Installation
+
+**Validate skills:**
+
+```bash
+python3 scripts/validate_skill_installation.py --check-global --verbose
+```
 
 **Claude Code:**
 

@@ -219,11 +219,11 @@ name: merge-resolver
 
 - Multiple agents/tools coordinated
 - Review gates
-- Example: `planner`
+- Example: `milestone-planner`
 
 ```markdown
 ---
-name: planner
+name: milestone-planner
 ---
 
 # Planner

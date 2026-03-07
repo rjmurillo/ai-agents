@@ -84,8 +84,8 @@ No memory updates required for this session (zero comments = no new signal quali
 
 ## Files Created
 
-1. `D:\src\GitHub\rjmurillo-bot\worktree-pr-199\.agents\pr-comments\PR-199\summary.md`
-2. `D:\src\GitHub\rjmurillo-bot\ai-agents\.agents\sessions\2025-12-21-session-56-pr199-review.md` (this file)
+1. `worktree-pr-199\.agents/pr-comments\PR-199\summary.md`
+2. `.agents/sessions\2025-12-21-session-56-pr199-review.md` (this file)
 
 ## Next Actions
 

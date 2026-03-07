@@ -1,10 +1,10 @@
 # v0.3.0 Milestone: Memory Enhancement and Quality
 
-**Status**: 🟢 ACTIVE (Revised 2026-01-23)
+**Status**: 🟢 ACTIVE (Revised 2026-02-07)
 **Created**: 2026-01-23
-**Last Updated**: 2026-01-23 (Cross-references reconciled)
+**Last Updated**: 2026-02-08 (Added context window optimization work)
 **Milestone**: [0.3.0](https://github.com/rjmurillo/ai-agents/milestone/6)
-**Current Scope**: 23 issues (2 P0, 19 P1, 2 P2)
+**Current Scope**: 29 issues + 1 proposal (6 P0, 21 P1, 2 P2, 1 P1 proposal)
 
 ---
 
@@ -113,12 +113,28 @@ pwsh .claude/skills/github/scripts/issue/Get-IssueContext.ps1 -Issue <ISSUE_NUMB
 
 ### P0 Blockers (Start Here)
 
-| Issue | Title | Traycer Summary |
-|-------|-------|-----------------|
-| [#997](https://github.com/rjmurillo/ai-agents/issues/997) | Citation Schema & Verification | `models.py` + `citations.py`. YAML frontmatter citations. Verify file:line exists. Exit: `python -m memory_enhancement verify <memory>` works. |
-| [#751](https://github.com/rjmurillo/ai-agents/issues/751) | Memory System Fragmentation | 4 interfaces → 1 unified. Decision Matrix Option A. Blocks [#734](https://github.com/rjmurillo/ai-agents/issues/734), [#747](https://github.com/rjmurillo/ai-agents/issues/747), [#731](https://github.com/rjmurillo/ai-agents/issues/731). |
+**Added 2026-02-07**: 4 new P0 issues from triage analysis (marked with NEW below)
+
+| Issue | Title | Traycer Summary | Status |
+|-------|-------|-----------------|--------|
+| [#997](https://github.com/rjmurillo/ai-agents/issues/997) | Citation Schema & Verification | `models.py` + `citations.py`. YAML frontmatter citations. Verify file:line exists. Exit: `python -m memory_enhancement verify <memory>` works. | Existing |
+| [#992](https://github.com/rjmurillo/ai-agents/issues/992) | Phase 1 Citation Schema & Verification | Continuation of #990 epic. Python CLI for citation validation. | **NEW** |
+| [#751](https://github.com/rjmurillo/ai-agents/issues/751) | Memory System Fragmentation | 4 interfaces → 1 unified. Decision Matrix Option A. Blocks [#734](https://github.com/rjmurillo/ai-agents/issues/734), [#747](https://github.com/rjmurillo/ai-agents/issues/747), [#731](https://github.com/rjmurillo/ai-agents/issues/731). | Existing |
+| [#934](https://github.com/rjmurillo/ai-agents/issues/934) | Pre-PR Validation Script | Quality gate. Prevents PR #908 recurrence. PowerShell script. | **NEW** |
+| [#935](https://github.com/rjmurillo/ai-agents/issues/935) | SESSION-PROTOCOL Validation Gates | Quality gate. Documentation enforcement. Markdown updates. | **NEW** |
+| [#936](https://github.com/rjmurillo/ai-agents/issues/936) | Commit Counter in Orchestrator | Quality gate. Real-time visibility. Prevents scope creep. Prompt update. | **NEW** |
+
+### P1 Proposals (Pending Issue Creation)
+
+**Added 2026-02-08**: Context window optimization from token audit
+
+| Proposal | Title | Summary | Status |
+|----------|-------|---------|--------|
+| PR [#1120](https://github.com/rjmurillo/ai-agents/pull/1120) | Context Window Token Optimization | Item 1 (Slim AGENTS.md) implemented: -3,428 tokens. Items 3-8 remain open. | **PARTIAL** |
 
 ### Epic Chain ([#990](https://github.com/rjmurillo/ai-agents/issues/990))
+
+**Added 2026-02-07**: Memory Enhancement continuation (#992->#993->#994, sequential dependency) and Quality Gates (#934, #935, #936, independent/parallel)
 
 ```mermaid
 flowchart LR
@@ -128,18 +144,29 @@ flowchart LR
         C --> D[#1001<br/>Confidence<br/>P2]
     end
 
+    subgraph New: Memory Enhancement Continuation
+        E[#992<br/>Citation Schema<br/>P0 ⭐] --> F[#993<br/>Graph Traversal<br/>P1]
+        F --> G[#994<br/>CI Health<br/>P1]
+    end
+
+    subgraph New: Quality Gates
+        H[#934<br/>Pre-PR Validation<br/>P0 ⭐]
+        I[#935<br/>Protocol Gates<br/>P0 ⭐]
+        J[#936<br/>Commit Counter<br/>P0 ⭐]
+    end
+
     subgraph Unlocked by #751
-        E[#751<br/>Fragmentation<br/>P0 ⭐] --> F[#734<br/>Router Perf]
-        E --> G[#747<br/>Sync]
-        E --> H[#731<br/>Prompts]
+        K[#751<br/>Fragmentation<br/>P0 ⭐] --> L[#734<br/>Router Perf]
+        K --> M[#747<br/>Sync]
+        K --> N[#731<br/>Prompts]
     end
 
     classDef p0 fill:#ff6b6b,stroke:#c92a2a,color:#fff
     classDef p1 fill:#4dabf7,stroke:#1971c2,color:#fff
     classDef p2 fill:#51cf66,stroke:#2f9e44,color:#fff
 
-    class A,E p0
-    class B,C,F,G,H p1
+    class A,K,E,H,I,J p0
+    class B,C,L,M,N,F,G p1
     class D p2
 ```
 
@@ -193,6 +220,7 @@ gantt
 | Memory search | 260ms | <20ms | [#734](https://github.com/rjmurillo/ai-agents/issues/734) |
 | Graph traversal | N/A | <500ms depth 3 | [#998](https://github.com/rjmurillo/ai-agents/issues/998) |
 | Skill v2.0 compliance | 11% | 100% | [#761](https://github.com/rjmurillo/ai-agents/issues/761) |
+| Session start tokens | 41k (21%) | <35k (<18%) | TBD (Token Optimization) |
 
 ### Parallel Tracks (Week 2+)
 
@@ -1233,6 +1261,70 @@ Add automatic context-retrieval invocation to orchestrator workflow with these t
 
 ---
 
+#### 🟢 IMPLEMENTED: Slim AGENTS.md + Consolidate Auto-Loaded Context
+
+> **Status**: Implemented. AGENTS.md rewritten from 2,192 lines to ~211 lines. CRITICAL-CONTEXT.md and SKILL-QUICK-REF.md deleted. Content consolidated into lean AGENTS.md as single cross-platform reference.
+
+**Problem Statement**:
+
+Session start consumed 41k/200k tokens (21%) before the user typed anything. Auto-loaded memory files had heavy redundancy (6.3k tokens across 4 files), and AGENTS.md (2,192 lines, ~48k tokens) was referenced but never imported.
+
+**Architecture Decision**: AGENTS.md is the cross-platform reference for Claude, Copilot, Cortex, and Factory Droid.
+
+Cross-platform instruction hierarchy:
+
+| Concept | Claude Code | Copilot CLI | Gemini |
+|---------|------------|-------------|--------|
+| Global personal | `~/.claude/CLAUDE.md` | `~/.copilot/copilot-instructions.md` | N/A |
+| Repo-wide | `CLAUDE.md` (root) | `.github/copilot-instructions.md` | `.gemini/styleguide.md` |
+| Cross-platform | `AGENTS.md` (root) | `AGENTS.md` (root) | `AGENTS.md` (root) |
+| Path-scoped rules | `.claude/rules/*.md` | `.github/instructions/*.instructions.md` | N/A |
+
+**Implementation Summary**:
+
+| Step | Action | Result |
+|------|--------|--------|
+| 1 | Rewrite AGENTS.md (2,192 -> ~211 lines) | ~1,318 words, hard-capped for token budget |
+| 2 | Create `.agents/governance/IMPACT-ANALYSIS.md` | Relocated impact analysis framework |
+| 3 | Create `.agents/governance/CONSENSUS.md` | Relocated consensus mechanisms + disagree-and-commit |
+| 4 | Rewrite CLAUDE.md (81 -> ~23 lines) | Thin wrapper: @AGENTS.md + Claude-specific |
+| 5 | Delete CRITICAL-CONTEXT.md and SKILL-QUICK-REF.md | Content consolidated into lean AGENTS.md |
+| 6 | Edit `~/.claude/CLAUDE.md` (remove AI Agent System block) | -1,200 tokens |
+| 7 | Verify `.github/copilot-instructions.md` anchors | No broken references |
+
+**Token Impact**:
+
+| Component | Before | After | Change |
+|-----------|--------|-------|--------|
+| CLAUDE.md (auto-loaded) | 858 | ~250 | -608 |
+| @CRITICAL-CONTEXT.md (auto-loaded) | 1,500 | 0 (deleted) | -1,500 |
+| @SKILL-QUICK-REF.md (auto-loaded) | 1,900 | 0 (deleted) | -1,900 |
+| @AGENTS.md (newly auto-loaded) | 0 | ~1,780 | +1,780 |
+| ~/.claude/CLAUDE.md | 2,000 | ~800 | -1,200 |
+| **Net auto-loaded** | **~6,258** | **~2,830** | **-3,428** |
+
+**Remaining items** (from original proposal, not yet implemented):
+
+| # | Work Item | Status |
+|---|-----------|--------|
+| 3 | Compress SessionStart hook output to single-line confirmations | Open |
+| 4 | Remove duplicate skills (pr-comment-responder, github, session-init) | Open |
+| 5 | Remove unused agents (debug, prompt-builder, janitor, technical-writer) | Open |
+| 6 | Evaluate plugin agent overhead (python-development, claude-router) | Open |
+| 7 | Archive rarely-used skills (chaos-experiment, slo-designer, cynefin-classifier) | Open |
+| 8 | Disable/reconfigure claude-router plugin (~100 tokens/message) | Open |
+
+**Acceptance Criteria**:
+- [x] AGENTS.md rewritten as lean cross-platform reference (~211 lines)
+- [x] CRITICAL-CONTEXT.md and SKILL-QUICK-REF.md deleted
+- [x] CLAUDE.md is thin wrapper with @AGENTS.md import
+- [x] Orphaned content relocated to governance/ docs
+- [x] `~/.claude/CLAUDE.md` AI Agent System block removed
+- [x] Copilot instructions heading anchors verified
+- [x] Net token reduction achieved (~3,428 tokens)
+
+---
+
 #### Epic [#990](https://github.com/rjmurillo/ai-agents/issues/990): Memory Enhancement Layer (4 issues)
 
 | Issue | Title | Phase | Duration | Priority |
@@ -2023,6 +2115,13 @@ graph TD
     - **Dependencies**: Issues [#88](https://github.com/rjmurillo/ai-agents/issues/88), [#81](https://github.com/rjmurillo/ai-agents/issues/81)
     - **Impact**: Core workflow functionality broken
     - **Fix**: BOT_PAT lacks GraphQL permissions for label mutations
+
+20. **[#1112](https://github.com/rjmurillo/ai-agents/issues/1112)** - CI: Add skill/passive context compliance workflow
+    - **Priority**: P2
+    - **Labels**: enhancement, area-workflows, area-skills
+    - **Dependencies**: PR #1111 (context-optimizer tooling suite)
+    - **Deliverables**: `.github/workflows/skill-passive-compliance.yml`, required status check
+    - **Reference**: Comment on PR #1111
 
 **Session Validation**:
 20. **[#836](https://github.com/rjmurillo/ai-agents/issues/836)** - Improve E_PATH_ESCAPE error diagnostics in session validation

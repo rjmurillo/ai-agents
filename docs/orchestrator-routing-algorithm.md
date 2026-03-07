@@ -131,11 +131,11 @@ AGENT_SEQUENCES = {
         "devops", "security", "qa"
     ],
     ("feature", "multi_domain", "*"): [
-        "analyst", "architect", "planner", "critic",
+        "analyst", "architect", "milestone-planner", "critic",
         "implementer", "qa"
     ],
     ("feature", "multi_step", "*"): [
-        "analyst", "planner", "implementer", "qa"
+        "analyst", "milestone-planner", "implementer", "qa"
     ],
     ("bug_fix", "multi_step", "*"): [
         "analyst", "implementer", "qa"
@@ -150,7 +150,7 @@ AGENT_SEQUENCES = {
         "explainer", "critic"
     ],
     ("strategic", "*", "*"): [
-        "roadmap", "architect", "planner", "critic"
+        "roadmap", "architect", "milestone-planner", "critic"
     ]
 }
 
@@ -300,7 +300,7 @@ CONFLICT_RESOLUTION = {
     ("security", "implementer"): "security",  # Security concerns win
     ("architect", "implementer"): "architect",  # Design wins
     ("security", "devops"): "security",  # Security wins
-    ("critic", "planner"): "critic",  # Validation wins
+    ("critic", "milestone-planner"): "critic",  # Validation wins
 }
 
 def resolve_conflicts(conflicts):
@@ -331,7 +331,7 @@ def resolve_conflicts(conflicts):
 |-----------------|----------------|--------|
 | security | * | Security concerns are non-negotiable |
 | architect | implementer | Design decisions guide implementation |
-| critic | planner | Validation catches planning errors |
+| critic | milestone-planner | Validation catches planning errors |
 | qa | implementer | Quality gates must be met |
 
 ---
@@ -451,7 +451,7 @@ sequence = [
 
 | Scenario | Action |
 |----------|--------|
-| Production incident | Skip planner, direct to implementer with security |
+| Production incident | Skip milestone-planner, direct to implementer with security |
 | Security breach | Security agent first, regardless of task type |
 | Revert needed | DevOps direct, no validation chain |
 

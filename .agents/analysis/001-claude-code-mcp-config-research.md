@@ -224,7 +224,7 @@ claude mcp remove server-name
 
 Delete `mcp.json` (no leading dot, invalid root key) to prevent confusion:
 ```bash
-rm D:\src\GitHub\rjmurillo-bot\ai-agents\mcp.json
+rm mcp.json
 ```
 
 ### 2. Canonical Configuration Standard

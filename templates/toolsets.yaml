@@ -1,0 +1,119 @@
+# Toolset Definitions for Agent Generation
+#
+# Named groups of tools that can be referenced in shared agent templates
+# using the $toolset:name syntax. The build system (Generate-Agents.ps1)
+# expands these references into individual tools when generating
+# platform-specific agent files.
+#
+# Toolsets reduce duplication across agent templates and align with the
+# GitHub MCP Server toolset concept (repos, issues, pull_requests, etc.).
+#
+# Platform-specific variants:
+#   tools         - Used when both platforms share the same tools
+#   tools_vscode  - VS Code-specific tools (overrides tools if present)
+#   tools_copilot - Copilot CLI-specific tools (overrides tools if present)
+
+# --- Core editor toolsets ---
+
+editor:
+  description: Core reading and editing with search
+  tools_vscode:
+    - vscode
+    - read
+    - edit
+    - search
+  tools_copilot:
+    - read
+    - edit
+    - search
+
+executor:
+  description: Editor with shell execution capabilities
+  tools_vscode:
+    - vscode
+    - execute
+    - read
+    - edit
+    - search
+  tools_copilot:
+    - shell
+    - read
+    - edit
+    - search
+
+# --- Knowledge and memory ---
+
+knowledge:
+  description: Cross-session memory and knowledge persistence
+  tools_vscode:
+    - cloudmcp-manager/*
+    - serena/*
+    - memory
+  tools_copilot:
+    - cloudmcp-manager/*
+    - serena/*
+
+# --- GitHub toolsets (aligned with GitHub MCP Server toolsets) ---
+
+github-research:
+  description: GitHub search and context gathering
+  tools:
+    - github/search_code
+    - github/search_issues
+    - github/search_pull_requests
+    - github/issue_read
+    - github/pull_request_read
+    - github/get_file_contents
+    - github/list_commits
+
+github-oversight:
+  description: Issue and PR monitoring with CI/CD status
+  tools:
+    - github/list_issues
+    - github/list_pull_requests
+    - github/issue_read
+    - github/pull_request_read
+    - github/list_workflow_runs
+    - github/get_workflow_run
+
+github-code:
+  description: Repository code management
+  tools:
+    - github/create_branch
+    - github/push_files
+    - github/create_or_update_file
+    - github/create_pull_request
+    - github/update_pull_request
+    - github/pull_request_read
+    - github/issue_read
+    - github/add_issue_comment
+
+github-cicd:
+  description: CI/CD workflow management
+  tools:
+    - github/list_workflows
+    - github/list_workflow_runs
+    - github/get_workflow_run
+    - github/get_job_logs
+    - github/run_workflow
+    - github/rerun_failed_jobs
+    - github/list_releases
+    - github/get_file_contents
+
+github-security:
+  description: Security scanning alerts
+  tools:
+    - github/list_code_scanning_alerts
+    - github/get_code_scanning_alert
+    - github/list_secret_scanning_alerts
+    - github/list_dependabot_alerts
+
+# --- External research ---
+
+research:
+  description: External research and documentation tools
+  tools:
+    - web
+    - cognitionai/deepwiki/*
+    - context7/*
+    - perplexity/*

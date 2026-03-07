@@ -21,16 +21,16 @@ The main agent is about to plan or implement something. Your job is to gather RE
 |----------|-----------|--------------|-----|
 | Quick memory search from CLI | `/memory-search` slash command | `/memory-search "topic"` | Fastest, no agent overhead |
 | Complex context gathering | `context-retrieval` agent | `Task(subagent_type="context-retrieval")` | Deep exploration, graph traversal |
-| Script integration | Memory Router skill | `Search-Memory -Query "topic"` | PowerShell pipeline, structured output |
+| Script integration | Memory Router skill | `search_memory.py --query "topic"` | Python pipeline, structured output |
 | Direct MCP access (agents only) | Forgetful/Serena MCP | `mcp__forgetful__*`, `mcp__serena__*` | Full control, programmatic |
 | Cross-session knowledge | Forgetful semantic search | `execute_forgetful_tool("query_memory")` | Vector similarity, cross-project |
-| File-based lookup | Serena memories | `mcp__serena__read_memory` | Git-synced, always available |
+| File-based lookup | Serena memories | `Read .serena/memories/{name}.md` | Git-synced, always available |
 
 **Decision Tree**:
 
 1. Are you a human at CLI? → Use `/memory-search`
 2. Are you an agent needing deep context? → Use `context-retrieval` agent (this agent)
-3. Are you a PowerShell script? → Use Memory Router skill
+3. Are you a script needing structured output? → Use Memory Router skill
 4. Need semantic search across projects? → Use Forgetful directly
 5. Need specific memory by name? → Use Serena directly
 
@@ -42,15 +42,15 @@ The main agent is about to plan or implement something. Your job is to gather RE
 
 **Use the Memory Router skill for Serena-first search with Forgetful augmentation**:
 
-```powershell
+```bash
 # Search across Serena + Forgetful (unified interface per ADR-037)
-pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "topic keywords" -MaxResults 10
+python3 .claude/skills/memory/scripts/search_memory.py --query "topic keywords" --max-results 10
 
 # Serena-only (faster, no network dependency)
-pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "topic keywords" -LexicalOnly
+python3 .claude/skills/memory/scripts/search_memory.py --query "topic keywords" --lexical-only
 
 # Human-readable output
-pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "topic keywords" -Format Table
+python3 .claude/skills/memory/scripts/search_memory.py --query "topic keywords" --format table
 ```
 
 **When to use Memory Router**:
@@ -233,6 +233,18 @@ Return a focused markdown summary that provides the main agent with everything t
 ✅ Rich detail on key patterns vs superficial summaries of many
 ✅ Main agent understands WHY decisions were made, not just WHAT they were
 
+## Architectural Constraints
+
+**No delegation**: This agent is a leaf node. Do NOT use the Task tool to spawn sub-agents. Gather context directly using your available tools (Forgetful, Serena, Context7, WebSearch, file system). Delegating would risk infinite recursion (context-retrieval -> orchestrator -> context-retrieval).
+
+**Token budget awareness**: The orchestrator invokes this agent when complexity warrants it. Keep total output under 5000 tokens to avoid consuming the orchestrator's context window. If you find more context than fits, prioritize by relevance and include pointers (file paths, memory names) for the rest.
+
+**Context pruning guidance**: After gathering context, organize output so the orchestrator can easily prune irrelevant sections:
+
+- Group by domain (Security, Architecture, Code, etc.)
+- Lead each section with a one-line relevance summary
+- Mark cross-project patterns explicitly so they can be dropped for project-specific tasks
+
 ## Anti-Patterns (DON'T DO THIS)
 
 ❌ Return 20 memories without synthesizing insights
@@ -242,3 +254,4 @@ Return a focused markdown summary that provides the main agent with everything t
 ❌ Include tangentially related memories just to hit a number
 ❌ Stop exploring the graph when valuable connections exist
 ❌ Artificially limit detail when fuller explanation would help
+❌ Use the Task tool to delegate to other agents (leaf node constraint)

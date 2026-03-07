@@ -11,6 +11,48 @@ model: claude-sonnet-4-5
 
 Maintains the CLAUDE.md navigation hierarchy and optional README.md architecture docs across a repository. This skill is self-contained and performs all documentation work directly.
 
+## Triggers
+
+| Trigger Phrase | Operation |
+|----------------|-----------|
+| `sync docs` | Repository-wide CLAUDE.md audit and update |
+| `update CLAUDE.md files` | Repository-wide index refresh |
+| `sync docs in src/parser/` | Directory-scoped index update |
+| `audit documentation` | Full discovery, audit, and drift report |
+| `update CLAUDE.md for config.py` | Single-file parent directory update |
+
+---
+
+## When to Use
+
+Use this skill when:
+
+- CLAUDE.md files may be out of sync with actual directory contents
+- New files or directories were added without index updates
+- Architecture content is mixed into CLAUDE.md index files
+- A doc audit is needed after significant code changes
+
+Use direct editing instead when:
+
+- Adding inline code comments or docstrings
+- Writing function-level documentation
+- Updating a single README.md with no index impact
+
+---
+
+## Verification
+
+After execution:
+
+- [ ] Every directory in scope has a CLAUDE.md file
+- [ ] All CLAUDE.md files use table-based index format (What/When columns)
+- [ ] No drift remains between file system and index entries
+- [ ] No architecture prose in subdirectory CLAUDE.md files (moved to README.md)
+- [ ] README.md files are indexed in their parent CLAUDE.md
+- [ ] Doc Sync Report generated with change summary
+
+---
+
 ## Scope Resolution
 
 Determine scope FIRST:
@@ -280,7 +322,15 @@ DO index:
 
 ## Anti-Patterns
 
-### Index Anti-Patterns
+| Avoid | Why | Instead |
+|-------|-----|---------|
+| Vague "When to read" triggers | Matches everything, helps nothing | Use specific action verbs: "implementing", "debugging" |
+| Putting architecture prose in subdirectory CLAUDE.md | CLAUDE.md is pure index | Move to README.md, index the README |
+| Recreating CLAUDE.md from memory | Misses files, wrong format | Run discovery phase, use template |
+| Syncing a single file without checking parent index | Creates partial drift | Always verify parent directory index too |
+| Creating README.md for simple directories | Token waste, redundant with code | Apply invisible knowledge test first |
+
+### Index Anti-Patterns (Detailed)
 
 **Too vague (matches everything):**
 

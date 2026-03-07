@@ -84,11 +84,18 @@ Available GitHub skills:
 
 - Add-CommentReaction.ps1
 - Get-IssueContext.ps1
-- Get-PRContext.ps1
-- Get-PRReviewComments.ps1
-- Get-PRReviewers.ps1
+- get_pr_context.py
+- get_pr_checks.py
+- get_pr_review_threads.py
+- get_unaddressed_comments.py
+- get_unresolved_review_threads.py
+- test_pr_merged.py
+- post_pr_comment_reply.py
+- add_pr_review_thread_reply.py
+- resolve_pr_review_thread.py
+- get_pr_review_comments.py
+- get_pr_reviewers.py
 - Post-IssueComment.ps1
-- Post-PRCommentReply.ps1
 - Set-IssueLabels.ps1
 - Set-IssueMilestone.ps1
 ```

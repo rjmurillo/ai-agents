@@ -7,15 +7,15 @@ tools:
   - edit
   - search
   - web
-  - cloudmcp-manager/*
   - github/list_code_scanning_alerts
   - github/get_code_scanning_alert
   - github/list_secret_scanning_alerts
   - github/list_dependabot_alerts
-  - serena/*
   - perplexity/*
+  - cloudmcp-manager/*
+  - serena/*
   - memory
-model: Claude Opus 4.5 (copilot)
+model: Claude Opus 4.6 (copilot)
 ---
 # Security Agent
 
@@ -190,7 +190,7 @@ Identify security vulnerabilities, recommend mitigations, and ensure secure deve
 
 ### Capability 6: Impact Analysis (Planning Phase)
 
-When planner requests security impact analysis (during planning phase):
+When milestone-planner requests security impact analysis (during planning phase):
 
 #### Analyze Security Impact
 
@@ -210,24 +210,22 @@ When planner requests security impact analysis (during planning phase):
 
 When any changed file matches security trigger patterns, orchestrator MUST route to security agent AFTER implementation completes:
 
-```python
+```text
 # Mandatory routing for security-relevant changes
-SECURITY_TRIGGERS = [
-    "**/Auth/**", "**/Security/**", "*.env*",
-    ".githooks/*", "**/secrets/**", "*password*",
-    "**/token*", "**/oauth/**", "**/jwt/**"
-]
+# Trigger patterns:
+#   **/Auth/**, **/Security/**, *.env*
+#   .githooks/*, **/secrets/**, *password*
+#   **/token*, **/oauth/**, **/jwt/**
 
-if any(trigger_matches(changed_path, pattern) for pattern in SECURITY_TRIGGERS):
-    Task(subagent_type="security", prompt="""
-    Run Post-Implementation Verification for [feature].
+# When security-relevant files change:
+#runSubagent with subagentType=security
+Run Post-Implementation Verification for [feature].
 
-    Implementation completed by implementer.
-    Changed files: [list]
+Implementation completed by implementer.
+Changed files: [list]
 
-    Verify all security controls from pre-implementation plan.
-    This is a BLOCKING gate - no PR until PIV approved.
-    """)
+Verify all security controls from pre-implementation plan.
+This is a BLOCKING gate. No PR until PIV approved.
 ```
 
 **No PR Until PIV Approved**: Orchestrator MUST NOT proceed to PR creation until security agent returns APPROVED status.

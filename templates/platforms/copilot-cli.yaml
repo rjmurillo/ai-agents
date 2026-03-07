@@ -7,10 +7,16 @@ fileExtension: .agent.md
 
 # Frontmatter settings
 frontmatter:
-  # Copilot CLI does not use model field
-  model: null
+  # Copilot CLI model: use CLI model identifiers (not VS Code display names)
+  model: "claude-opus-4.6"
   # Copilot CLI requires name field
   includeNameField: true
+
+# Per-agent model tier mappings (used when template specifies model_tier)
+model_tiers:
+  opus: "claude-opus-4.6"
+  sonnet: "claude-sonnet-4.6"
+  haiku: "claude-haiku-4.5"
 
 # Agent handoff syntax
 handoffSyntax: "/agent"

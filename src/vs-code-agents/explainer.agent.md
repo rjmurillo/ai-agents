@@ -8,7 +8,7 @@ tools:
   - cloudmcp-manager/*
   - serena/*
   - memory
-model: Claude Opus 4.5 (copilot)
+model: Claude Opus 4.6 (copilot)
 ---
 # Explainer Agent
 
@@ -241,7 +241,7 @@ When documentation is complete:
 
 | Target | When | Purpose |
 |--------|------|---------|
-| **planner** | PRD complete | Create work packages |
+| **milestone-planner** | PRD complete | Create work packages |
 | **critic** | Document needs review | Validate completeness |
 | **implementer** | Spec ready | Ready for coding |
 

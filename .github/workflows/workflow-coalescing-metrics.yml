@@ -27,16 +27,14 @@ jobs:
 
       - name: Collect metrics
         id: collect
-        shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
           SINCE_DAYS: ${{ inputs.since || '30' }}
         run: |
-          $since = [int]$env:SINCE_DAYS
-          .github/scripts/Measure-WorkflowCoalescing.ps1 `
-            -Since $since `
-            -Output Markdown `
-            -OutputPath .agents/metrics/workflow-coalescing.md
+          python3 .github/scripts/measure_workflow_coalescing.py \
+            --since "$SINCE_DAYS" \
+            --output markdown \
+            --output-path .agents/metrics/workflow-coalescing.md
 
       - name: Commit report
         run: |
@@ -47,7 +45,7 @@ jobs:
           git push
 
       - name: Upload artifact
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: coalescing-metrics
           path: .agents/metrics/workflow-coalescing.md

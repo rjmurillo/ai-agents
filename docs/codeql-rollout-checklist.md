@@ -13,7 +13,7 @@ Verify all prerequisites are met before beginning rollout:
   - [ ] CI/CD workflows (`.github/workflows/codeql-analysis.yml`, `test-codeql-integration.yml`)
   - [ ] VSCode integration (`.vscode/tasks.json`, `.vscode/extensions.json`, `.vscode/settings.json`)
   - [ ] Claude Code skill (`.claude/skills/codeql-scan/`)
-  - [ ] PostToolUse hook (`.claude/hooks/PostToolUse/Invoke-CodeQLQuickScan.ps1`)
+  - [ ] PostToolUse hook (`.claude/hooks/PostToolUse/invoke_codeql_quick_scan.py`)
 
 - [ ] **All Pester Tests Passing**: Unit and integration tests verified
   - [ ] `tests/Install-CodeQL.Tests.ps1` passing
@@ -176,7 +176,7 @@ In Claude Code session:
 **Or direct invocation**:
 
 ```bash
-pwsh .claude/skills/codeql-scan/scripts/Invoke-CodeQLScanSkill.ps1 -Operation full
+python3 .claude/skills/codeql-scan/scripts/invoke_codeql_scan_skill.py --operation full
 ```
 
 **Expected Results**:
@@ -395,7 +395,7 @@ gh workflow disable codeql-analysis.yml
 
 ```bash
 # Temporarily disable hook
-mv .claude/hooks/PostToolUse/Invoke-CodeQLQuickScan.ps1 .claude/hooks/PostToolUse/Invoke-CodeQLQuickScan.ps1.disabled
+mv ".claude/hooks/PostToolUse/invoke_codeql_quick_scan.py" ".claude/hooks/PostToolUse/invoke_codeql_quick_scan.py.disabled"
 ```
 
 ### Partial Rollback
@@ -429,7 +429,7 @@ rm -r .codeql/cli
 
 # Remove Claude integration
 rm -r .claude/skills/codeql-scan
-rm .claude/hooks/PostToolUse/Invoke-CodeQLQuickScan.ps1
+rm ".claude/hooks/PostToolUse/invoke_codeql_quick_scan.py"
 
 # Commit rollback
 git add .

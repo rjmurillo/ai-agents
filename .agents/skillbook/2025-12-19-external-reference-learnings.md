@@ -154,7 +154,7 @@
 
 1. **Deduplication**: Search memory for similar skills using queries above
 2. **Storage**: Execute `mcp__cloudmcp-manager__memory-create_entities` for approved skills
-3. **Notification**: Inform implementer, architect, and planner agents of new skills
+3. **Notification**: Inform implementer, architect, and milestone-planner agents of new skills
 
 ---
 

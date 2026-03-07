@@ -1,7 +1,8 @@
 # Session Protocol
 
 > **Status**: Canonical Source of Truth
-> **Last Updated**: 2026-01-03
+> **Last Updated**: 2026-02-07
+> **Protocol Version**: 2.1
 > **RFC 2119**: This document uses RFC 2119 key words to indicate requirement levels.
 
 This document is the **single canonical source** for session protocol requirements. All other documents (CLAUDE.md, AGENTS.md, AGENT-INSTRUCTIONS.md) MUST reference this document rather than duplicate its content.
@@ -87,6 +88,26 @@ The agent MUST read context documents before starting work. This is a **blocking
 3. The agent MUST read memories from `memory-index` that match the task keywords before modifying code or files
 4. The agent SHOULD read `.agents/planning/enhancement-PROJECT-PLAN.md` if working on enhancement project
 5. The agent MAY read additional context files based on task requirements
+6. **PR Review Comments**: If responding to PR comments, the agent MUST classify by type (CWE/style/docs) and route to appropriate skill BEFORE manual fixes
+
+### Retrieval-Led Reasoning (CRITICAL)
+
+**Before proceeding with task, internalize this principle**:
+
+You have two information sources:
+1. **Pre-training**: Static, potentially outdated, no project context
+2. **Retrieval**: Current, accurate, project-specific
+
+**Always prefer retrieval.** Specifically:
+
+- Session protocol → THIS DOCUMENT (SESSION-PROTOCOL.md)
+- Project constraints → PROJECT-CONSTRAINTS.md
+- Learned patterns → Serena memories via memory-index
+- Architecture → ADRs in .agents/architecture/
+- Framework/library APIs → Context7, DeepWiki, official docs
+
+**Common failure**: Using outdated framework knowledge from pre-training when current docs are available.
+**Correct approach**: Read memory-index, identify relevant memories, load them BEFORE reasoning.
 
 **Memory Loading Protocol:**
 
@@ -99,7 +120,7 @@ The `memory-index` maps task keywords to essential memories. Example workflow:
 4. Apply learned patterns from memories before proceeding
 ```
 
-**Evidence**: 30% session efficiency loss observed when memories not loaded first (skill-init-003-memory-first-monitoring-gate).
+**Evidence**: 30% session efficiency loss observed when memories not loaded first (init-003-memory-first-monitoring-gate).
 
 **Verification:**
 
@@ -172,8 +193,8 @@ The agent MUST create a session log early in the session.
 # Using slash command (Claude Code)
 /session-init
 
-# Using PowerShell script
-pwsh .claude/skills/session-init/scripts/New-SessionLog.ps1 -SessionNumber 375 -Objective "Implement feature X"
+# Using Python script
+python3 .claude/skills/session-init/scripts/new_session_log.py --session-number 375 --objective "Implement feature X"
 ```
 
 The script will:
@@ -183,7 +204,7 @@ The script will:
 3. Load JSON schema from `.agents/schemas/session-log.schema.json`
 4. Replace placeholders with actual values
 5. Write session log with EXACT template format
-6. Validate immediately with Validate-SessionJson.ps1
+6. Validate immediately with validate_session_json.py
 7. Exit nonzero on validation failure
 
 See: `.claude/skills/session-init/SKILL.md`
@@ -274,6 +295,45 @@ Available GitHub skills:
 
 All MUST requirements above are marked complete.
 ```
+
+---
+
+## Session Mid Protocol
+
+### Commit Count Monitoring (RECOMMENDED)
+
+The agent SHOULD monitor commit count during extended sessions to avoid oversized PRs.
+
+**Requirements:**
+
+1. The agent SHOULD run the following command periodically during the session:
+
+   ```bash
+   git rev-list --count HEAD ^origin/main
+   ```
+
+2. The agent SHOULD warn when commit count reaches 15 or more
+3. The agent MUST NOT exceed 20 commits without splitting into a new PR
+4. When the limit is reached, the agent MUST:
+   - Stop new work
+   - Complete the current unit of work
+   - Prepare for PR creation (proceed to Session End Protocol)
+   - Create a follow-up issue or session for remaining work
+
+**Thresholds:**
+
+| Commit Count | Action |
+|-------------|--------|
+| < 15 | Continue working |
+| 15-19 | WARNING: Plan to wrap up soon. Finish current task, avoid starting new tasks. |
+| >= 20 | BLOCKED: Stop work. Complete current unit and proceed to Session End Protocol. |
+
+**Verification:**
+
+- Session log notes commit count checks during session
+- No PR exceeds 20 commits without documented exception
+
+**Rationale:** PR #908 retrospective identified that large PRs (20+ commits) are harder to review, more likely to contain co-mingled changes, and have higher revert risk. See `.agents/governance/PROJECT-CONSTRAINTS.md` for the canonical commit limit policy.
 
 ---
 
@@ -381,7 +441,17 @@ The agent MUST run quality checks before ending.
    - Creating a dedicated formatting cleanup PR
 
 2. The agent SHOULD run validation scripts if available (e.g., `Validate-Consistency.ps1`)
-3. The agent MUST NOT end session with known failing lints
+3. The agent SHOULD check memory sizes if `.serena/memories/` files were created or modified:
+
+   ```bash
+   python3 scripts/memory/validate_memory_sizes.py .serena/memories --pattern "*.md"
+   ```
+
+   - New memories over 10,000 characters (~2,500 tokens) need decomposition before commit
+   - Modified memories over 8,000 characters should be flagged for future decomposition
+   - See `.serena/memories/README.md` for decomposition guidelines
+
+4. The agent MUST NOT end session with known failing lints
 
 **Verification:**
 
@@ -410,20 +480,28 @@ The agent MUST route to the qa agent after feature implementation. This is a **b
 
 Session logs (`.agents/sessions/`), analysis artifacts (`.agents/analysis/`), and memory updates (`.serena/memories/`) are **audit trail, not implementation**. They are automatically filtered out when determining if QA validation is required. This allows session logs to be committed alongside implementation files without requiring separate commits or investigation-only skips.
 
+**Testing Quality Checklist** (evidence-based, per `.agents/governance/TESTING-ANTI-PATTERNS.md`):
+
+- [ ] Security-critical paths have 100% coverage (secret handling, input validation, command execution, path sanitization, auth checks)
+- [ ] Tests verify behavior, not just execution (meaningful assertions)
+- [ ] Coverage gaps exist only in low-risk code (read-only, documentation generation)
+- [ ] No coverage theater (tests exist for evidence, not metrics)
+
 **Verification:**
 
 - QA report exists in `.agents/qa/`
 - QA agent confirms validation passed
 - No critical issues remain unaddressed
+- Testing quality checklist items satisfied
 
-**Rationale:** Untested code may contain bugs or security vulnerabilities. QA validation catches issues before they are committed to the repository.
+**Rationale:** Untested code may contain bugs or security vulnerabilities. QA validation catches issues before they are committed to the repository. Testing should increase stakeholder confidence through evidence (Dan North), with 100% coverage required for security-critical code (Rico Mariani).
 
 #### Investigation Session Examples
 
 **Valid investigation sessions** (may use `SKIPPED: investigation-only`):
 
 1. **Pure analysis** - Reading code, documenting findings in `.agents/analysis/`
-2. **Memory updates** - Cross-session context updates in `.serena/memories/`
+2. **Memory updates** - Cross-session context updates in `.serena/memories/`. This includes sessions where the agent reads code, reviews patterns, or audits memories and writes updated context to `.serena/memories/`. Memory-update sessions are investigation work because they produce no code or configuration changes, only cross-session context artifacts.
 3. **CI debugging** - Investigating CI failures, documenting in session log
 4. **Security assessments** - Writing security analysis to `.agents/security/`
 5. **Retrospectives** - Extracting learnings to `.agents/retrospective/`
@@ -453,6 +531,42 @@ When an investigation session discovers code changes are needed:
 
 - Session 106: Investigation that discovered the issue
 ```
+
+### Phase 2.7: Pre-PR Validation (REQUIRED)
+
+The agent MUST run pre-PR validation before creating a pull request. This is a **blocking gate** for PR creation.
+
+**Requirements:**
+
+1. The agent MUST run the PR readiness validation script:
+
+   ```bash
+   pwsh .agents/scripts/Validate-PRReadiness.ps1
+   ```
+
+2. The script validates:
+   - Commit count is within limit (< 20)
+   - No BLOCKING synthesis issues detected
+   - Session log exists and is valid
+   - All required quality checks have passed
+3. The agent MUST NOT create a PR if the validation script exits with a non-zero code
+4. The agent MUST resolve all BLOCKING issues before proceeding
+5. The agent SHOULD document validation results in the session log
+
+**Verification Checklist:**
+
+- [ ] `Validate-PRReadiness.ps1` executed and passed (exit code 0)
+- [ ] No BLOCKING issues in validation output
+- [ ] Commit count within limits
+- [ ] Session log complete and valid
+
+**Verification:**
+
+- Validation script output appears in session transcript
+- Exit code 0 confirms readiness
+- Session log records validation pass
+
+**Rationale:** PR #908 post-mortem revealed that PRs created without pre-validation contained co-mingled changes, missing QA reports, and exceeded commit limits. Automated validation catches these issues before PR creation, reducing review burden and revert risk.
 
 ### Phase 3: Git Operations (REQUIRED)
 
@@ -524,10 +638,12 @@ Copy this checklist to each session log and verify completion:
 | MUST | Update Serena memory (cross-session context) | [ ] | Memory write confirmed |
 | MUST | Run markdown lint | [ ] | Lint output clean |
 | MUST | Route to qa agent (feature implementation) | [ ] | QA report: `.agents/qa/[report].md` OR `SKIPPED: investigation-only` |
+| MUST | Run pre-PR validation: `pwsh .agents/scripts/Validate-PRReadiness.ps1` | [ ] | Exit code 0 |
 | MUST | Commit all changes (including .serena/memories) | [ ] | Commit SHA: _______ |
-| MUST NOT | Update `.agents/HANDOFF.md` directly | [ ] | HANDOFF.md unchanged |
+| MUST | Preserve `.agents/HANDOFF.md` (read-only) | [ ] | HANDOFF.md unchanged |
 | SHOULD | Update PROJECT-PLAN.md | [ ] | Tasks checked off |
 | SHOULD | Invoke retrospective (significant sessions) | [ ] | Doc: _______ |
+| SHOULD | Check memory sizes (if memories modified) | [ ] | `python3 .claude/skills/memory/scripts/test_memory_size.py` |
 | SHOULD | Verify clean git status | [ ] | `git status` output |
 
 <!-- Investigation sessions may skip QA with evidence "SKIPPED: investigation-only"
@@ -545,7 +661,7 @@ Session logs must be in JSON format. The JSON schema is at `.agents/schemas/sess
 **Creation**:
 
 ```bash
-pwsh .claude/skills/session-init/scripts/New-SessionLog.ps1
+python3 .claude/skills/session-init/scripts/new_session_log.py
 # Auto-increments session number, derives objective from branch
 ```
 
@@ -565,10 +681,70 @@ pwsh .claude/skills/session-init/scripts/New-SessionLog.ps1
 pwsh -Command "Test-Json -Json (Get-Content [session].json -Raw) -Schema (Get-Content .agents/schemas/session-log.schema.json -Raw)"
 
 # Script validation (business rules)
-pwsh scripts/Validate-SessionJson.ps1 -SessionPath [session].json
+python3 scripts/validate_session_json.py [session].json
 ```
 
 For detailed schema structure, load `.agents/schemas/session-log.schema.json` when needed.
+
+### Investigation-Only Session Log Example
+
+Investigation sessions that skip QA validation use `SKIPPED: investigation-only` as evidence. The following example shows a memory-update session where the agent reads code patterns and updates cross-session context. No code or configuration files are changed.
+
+```json
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 200,
+    "date": "2026-01-15",
+    "branch": "feat/my-feature",
+    "startingCommit": "abc1234",
+    "objective": "Investigate error handling patterns and update memory context"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": { "level": "MUST", "Complete": true, "Evidence": "Tool output present" },
+      "serenaInstructions": { "level": "MUST", "Complete": true, "Evidence": "Tool output present" },
+      "handoffRead": { "level": "MUST", "Complete": true, "Evidence": "Content in context" },
+      "sessionLogCreated": { "level": "MUST", "Complete": true, "Evidence": "This file" },
+      "skillScriptsListed": { "level": "MUST", "Complete": true, "Evidence": "Listed in transcript" },
+      "usageMandatoryRead": { "level": "MUST", "Complete": true, "Evidence": "Content in context" },
+      "constraintsRead": { "level": "MUST", "Complete": true, "Evidence": "Content in context" },
+      "memoriesLoaded": { "level": "MUST", "Complete": true, "Evidence": "memory-index loaded" },
+      "branchVerified": { "level": "MUST", "Complete": true, "Evidence": "feat/my-feature" },
+      "notOnMain": { "level": "MUST", "Complete": true, "Evidence": "On feat/my-feature" }
+    },
+    "sessionEnd": {
+      "checklistComplete": { "level": "MUST", "Complete": true, "Evidence": "All MUST items complete" },
+      "handoffNotUpdated": { "level": "MUST NOT", "Complete": false, "Evidence": "HANDOFF.md not modified" },
+      "serenaMemoryUpdated": { "level": "MUST", "Complete": true, "Evidence": "Memory write confirmed" },
+      "markdownLintRun": { "level": "MUST", "Complete": true, "Evidence": "Lint output clean" },
+      "qaValidation": { "level": "MUST", "Complete": true, "Evidence": "SKIPPED: investigation-only" },
+      "changesCommitted": { "level": "MUST", "Complete": true, "Evidence": "Commit SHA: def5678" },
+      "validationPassed": { "level": "MUST", "Complete": true, "Evidence": "validate_session_json.py exit 0" }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Analyzed error handling patterns across src/",
+      "outcome": "Documented 3 patterns in .agents/analysis/error-handling-patterns.md"
+    },
+    {
+      "action": "Updated Serena memory with error handling conventions",
+      "outcome": "Memory write confirmed for cross-session reference"
+    }
+  ],
+  "endingCommit": "def5678",
+  "nextSteps": [
+    "Implement standardized error handling in session 201 (requires QA validation)"
+  ]
+}
+```
+
+Key points in this example:
+
+- The `qaValidation` evidence field uses `SKIPPED: investigation-only` (see ADR-034)
+- Only investigation artifacts are staged: session logs, analysis docs, and memory files
+- Follow-up implementation work references this session and requires its own QA validation
 
 ---
 
@@ -651,11 +827,11 @@ Example:
 
 ### Automated Protocol Validation
 
-The `Validate-SessionJson.ps1` script checks session protocol compliance:
+The `validate_session_json.py` script checks session protocol compliance:
 
-```powershell
+```bash
 # Validate current session
-pwsh scripts/Validate-SessionJson.ps1 -SessionPath ".agents/sessions/2025-12-17-session-01.json"
+python3 scripts/validate_session_json.py .agents/sessions/2025-12-17-session-01.json
 ```
 
 ### What Validation Checks
@@ -705,6 +881,27 @@ These documents reference this protocol but MUST NOT duplicate it:
 
 ---
 
+## ADR Cross-Reference
+
+ADRs define governance decisions that may introduce enforceable requirements
+(MUST, SHOULD, MAY per RFC 2119). This section lists ADRs with requirements
+that affect session protocol. Run `python3 scripts/sync_adr_protocol.py` to
+audit sync coverage.
+
+| ADR | Requirement Summary | Protocol Section |
+|-----|---------------------|------------------|
+| ADR-001 | Markdown linting configuration | Phase 2: Quality Checks |
+| ADR-034 | Investigation session QA exemption | Phase 2.5: QA Validation |
+| ADR-035 | Exit codes: 0=success, 1=logic, 2=config (per script headers) | Phase 3: Git Operations |
+| ADR-042 | Python for new scripts (not bash) | Phase 2: Quality Checks |
+| ADR-043 | Scoped tool execution (changed files only) | Phase 2: Quality Checks |
+| ADR-050 | ADR-to-Protocol sync process | This section |
+
+**When creating or updating an ADR with MUST requirements**, update this table
+and the relevant protocol section. See ADR-050 for the full sync process.
+
+---
+
 ## Related Documents
 
 - [AGENTS.md](../AGENTS.md) - Full agent catalog and workflows
@@ -712,3 +909,4 @@ These documents reference this protocol but MUST NOT duplicate it:
 - [AGENT-INSTRUCTIONS.md](./AGENT-INSTRUCTIONS.md) - Task execution protocol
 - [HANDOFF.md](./HANDOFF.md) - Session context
 - [PROTOCOL-ANTIPATTERNS.md](./governance/PROTOCOL-ANTIPATTERNS.md) - Protocol design antipatterns and replacement patterns
+- [Search, Don't Load](../docs/search-dont-load.md) - Memory-first evidence protocol (Phase 2 reference)

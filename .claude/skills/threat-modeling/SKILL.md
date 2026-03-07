@@ -1,10 +1,9 @@
 ---
 name: threat-modeling
+version: 1.0.0
+model: claude-sonnet-4-5
 description: Structured security analysis using OWASP Four-Question Framework and STRIDE methodology. Generates threat matrices with risk ratings, mitigations, and prioritization. Use for attack surface analysis, security architecture review, or when asking what can go wrong.
 license: MIT
-metadata:
-  version: 1.0.0
-  model: claude-sonnet-4-5
 ---
 
 # Threat Modeling
@@ -53,6 +52,25 @@ Systematic identification, documentation, and mitigation of security threats.
         Data Flows             Kill Chains           Mitigations         Document
         Assets                 Attack Trees          Risk Ratings
 ```
+
+---
+
+## When to Use
+
+Use this skill when:
+
+- Designing new features that handle sensitive data or authentication
+- Reviewing architecture for security vulnerabilities
+- After a security incident to identify additional attack vectors
+- Before a security audit to prepare documentation
+
+Use [security-detection](../security-detection/SKILL.md) instead when:
+
+- Detecting security-critical file changes in a PR (automated scanning)
+
+Use [pre-mortem](../pre-mortem/SKILL.md) instead when:
+
+- Identifying general project risks, not specifically security threats
 
 ---
 
@@ -183,35 +201,9 @@ python .claude/skills/threat-modeling/scripts/generate_threat_matrix.py \
 | T003 | Audit Log | R | Log tampering | Low | Medium | Medium |
 ```
 
-### 2.3 Apply Attack Trees (Optional)
+### 2.3 Advanced Analysis (Optional)
 
-For complex threats, decompose with attack trees:
-
-```text
-              [Steal User Data]
-                    |
-        +-----------+-----------+
-        |                       |
-   [SQL Injection]      [Compromised API Key]
-        |                       |
-   +----+----+             +----+----+
-   |         |             |         |
-[Error]  [Blind]      [Phishing]  [Git Leak]
-```
-
-### 2.4 Apply Kill Chains (Optional)
-
-Map attacker progression for sophisticated threats:
-
-| Phase | Attacker Action | Detection Opportunity |
-|-------|-----------------|----------------------|
-| Recon | Port scanning | Network monitoring |
-| Weaponize | Craft exploit | Threat intelligence |
-| Deliver | Send phishing email | Email filtering |
-| Exploit | Execute payload | Endpoint detection |
-| Install | Persist access | File integrity monitoring |
-| Command | Establish C2 | Network anomaly detection |
-| Action | Exfiltrate data | DLP, egress monitoring |
+For complex threats, use advanced techniques like attack trees and kill chains. See [references/advanced-analysis.md](references/advanced-analysis.md).
 
 ---
 

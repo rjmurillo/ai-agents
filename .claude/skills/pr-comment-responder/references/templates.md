@@ -24,15 +24,15 @@
 
 **CRITICAL**: Never use the issue comments API (`/issues/{number}/comments`) to reply to review comments. This places replies out of context as top-level PR comments instead of in-thread.
 
-```powershell
+```bash
 # In-thread reply (CORRECT)
-pwsh .claude/skills/github/scripts/pr/Post-PRCommentReply.ps1 -PullRequest [number] -CommentId [id] -Body "[response]"
+python3 .claude/skills/github/scripts/pr/post_pr_comment_reply.py --pull-request [number] --comment-id [id] --body "[response]"
 
 # For multi-line responses
-pwsh .claude/skills/github/scripts/pr/Post-PRCommentReply.ps1 -PullRequest [number] -CommentId [id] -BodyFile reply.md
+python3 .claude/skills/github/scripts/pr/post_pr_comment_reply.py --pull-request [number] --comment-id [id] --body-file reply.md
 
-# Top-level PR comment (no CommentId)
-pwsh .claude/skills/github/scripts/pr/Post-PRCommentReply.ps1 -PullRequest [number] -Body "[response]"
+# Top-level PR comment (no comment-id)
+python3 .claude/skills/github/scripts/pr/post_pr_comment_reply.py --pull-request [number] --body "[response]"
 ```
 
 ## Templates

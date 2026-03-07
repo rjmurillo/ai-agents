@@ -35,7 +35,7 @@ $ModulePath = Join-Path $PSScriptRoot '../modules/WorkflowHelpers.psm1'
 Import-Module $ModulePath -Force
 
 if (-not (Test-Path $SessionLogPath)) {
-    Write-Error "Session log not found: $SessionLogPath"
+    Write-Error "Session log not found: $SessionLogPath" -ErrorAction Continue
     exit 3
 }
 
@@ -50,7 +50,7 @@ if ($historyResult.Fallback) {
 
 # Step 2: Generate Mermaid sequence diagram
 Write-Host "  [2/5] Generating workflow sequence diagram" -ForegroundColor Yellow
-$mermaid = @"
+$mermaid = @'
 ```mermaid
 sequenceDiagram
     participant U as User
@@ -71,7 +71,7 @@ sequenceDiagram
     U->>Sec: Security review
     Sec-->>U: Security report
 ```
-"@
+'@
 
 # Step 3: Extract decisions
 Write-Host "  [3/5] Extracting decisions and artifacts" -ForegroundColor Yellow

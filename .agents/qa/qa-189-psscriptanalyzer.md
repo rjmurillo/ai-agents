@@ -44,7 +44,7 @@
 ## Local Validation
 
 ```text
-Scanning for PowerShell files in: /home/richard/ai-agents
+Scanning for PowerShell files in: <project-root>
 Found 76 PowerShell files to analyze (excluded 0 files)
 
 Files analyzed: 76

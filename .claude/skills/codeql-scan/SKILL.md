@@ -25,32 +25,32 @@ Execute CodeQL security scans with automated language detection, database cachin
 /codeql-scan
 
 # Direct script invocation
-pwsh .claude/skills/codeql-scan/scripts/Invoke-CodeQLScanSkill.ps1 -Operation full
+python3 .claude/skills/codeql-scan/scripts/invoke_codeql_scan.py --operation full
 
 # Quick scan with cached databases
-pwsh .claude/skills/codeql-scan/scripts/Invoke-CodeQLScanSkill.ps1 -Operation quick
+python3 .claude/skills/codeql-scan/scripts/invoke_codeql_scan.py --operation quick
 
 # Validate configuration only
-pwsh .claude/skills/codeql-scan/scripts/Invoke-CodeQLScanSkill.ps1 -Operation validate
+python3 .claude/skills/codeql-scan/scripts/invoke_codeql_scan.py --operation validate
 ```
 
 ## Triggers
 
-- "Run CodeQL scan"
-- "Check for vulnerabilities"
-- "Validate CodeQL configuration"
-- "Quick security scan"
+- `Run CodeQL scan`
+- `Check for vulnerabilities`
+- `Validate CodeQL configuration`
+- `Quick security scan`
 
 ## Decision Tree
 
 ```text
 Need CodeQL analysis?
 ├─ First time setup → Install-CodeQL.ps1
-├─ Validate config → Test-CodeQLConfig.ps1
-├─ Full repository scan → Invoke-CodeQLScan.ps1
-├─ Quick scan (cached) → Invoke-CodeQLScan.ps1 -UseCache
-├─ Specific language → Invoke-CodeQLScan.ps1 -Languages "python"
-└─ CI mode → Invoke-CodeQLScan.ps1 -CI -Format json
+├─ Validate config → invoke_codeql_scan.py --operation validate
+├─ Full repository scan → invoke_codeql_scan.py --operation full
+├─ Quick scan (cached) → invoke_codeql_scan.py --operation quick
+├─ Specific language → invoke_codeql_scan.py --operation full --languages python
+└─ CI mode → invoke_codeql_scan.py --operation full --ci
 ```
 
 ### When to Use Each Operation
@@ -99,18 +99,15 @@ flowchart TD
 
 1. **Check Prerequisites:**
 
-   ```powershell
+   ```bash
    # Verify CodeQL CLI is installed
-   if (-not (Test-Path .codeql/cli/codeql)) {
-       Write-Error "CodeQL CLI not found. Run: pwsh .codeql/scripts/Install-CodeQL.ps1"
-       exit 3
-   }
+   test -f .codeql/cli/codeql || echo "CodeQL CLI not found. Run: pwsh .codeql/scripts/Install-CodeQL.ps1"
    ```
 
 2. **Run Scan:**
 
-   ```powershell
-   pwsh .claude/skills/codeql-scan/scripts/Invoke-CodeQLScanSkill.ps1 -Operation full
+   ```bash
+   python3 .claude/skills/codeql-scan/scripts/invoke_codeql_scan.py --operation full
    ```
 
 3. **Review Results:**
@@ -151,8 +148,8 @@ Total findings: 1 (0 high, 0 medium, 1 low)
 
 1. **Run Quick Scan:**
 
-   ```powershell
-   pwsh .claude/skills/codeql-scan/scripts/Invoke-CodeQLScanSkill.ps1 -Operation quick
+   ```bash
+   python3 .claude/skills/codeql-scan/scripts/invoke_codeql_scan.py --operation quick
    ```
 
 2. **Review Changes:**
@@ -214,8 +211,8 @@ The PostToolUse hook automatically triggers targeted CodeQL scans after you writ
 
 1. **Validate Config:**
 
-   ```powershell
-   pwsh .claude/skills/codeql-scan/scripts/Invoke-CodeQLScanSkill.ps1 -Operation validate
+   ```bash
+   python3 .claude/skills/codeql-scan/scripts/invoke_codeql_scan.py --operation validate
    ```
 
 2. **Review Output:**
@@ -246,10 +243,8 @@ Configuration is valid
 
 1. **Specify Languages:**
 
-   ```powershell
-   pwsh .claude/skills/codeql-scan/scripts/Invoke-CodeQLScanSkill.ps1 `
-       -Operation full `
-       -Languages "python"
+   ```bash
+   python3 .claude/skills/codeql-scan/scripts/invoke_codeql_scan.py --operation full --languages python
    ```
 
 2. **Use Cases:**
@@ -265,10 +260,8 @@ Configuration is valid
 
 1. **Run in CI Mode:**
 
-   ```powershell
-   pwsh .claude/skills/codeql-scan/scripts/Invoke-CodeQLScanSkill.ps1 `
-       -Operation full `
-       -CI
+   ```bash
+   python3 .claude/skills/codeql-scan/scripts/invoke_codeql_scan.py --operation full --ci
    ```
 
 2. **Exit Behavior:**
@@ -276,9 +269,9 @@ Configuration is valid
    - Exit 1: Findings detected (fails CI)
    - Exit 3: Scan execution failed
 
-## Script Reference
+## Scripts
 
-### Invoke-CodeQLScanSkill.ps1
+### invoke_codeql_scan.py
 
 Wrapper script providing skill-specific functionality.
 
@@ -286,9 +279,9 @@ Wrapper script providing skill-specific functionality.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `-Operation` | ValidateSet | `"full"` | Operation type: `full`, `quick`, `validate` |
-| `-Languages` | String[] | (auto-detect) | Languages to scan: `python`, `actions` |
-| `-CI` | Switch | `$false` | Enable CI mode (exit 1 on findings) |
+| `--operation` | choice | `full` | Operation type: `full`, `quick`, `validate` |
+| `--languages` | list | (auto-detect) | Languages to scan: `python`, `actions` |
+| `--ci` | flag | `false` | Enable CI mode (exit 1 on findings) |
 
 **Exit Codes (ADR-035):**
 
@@ -301,24 +294,24 @@ Wrapper script providing skill-specific functionality.
 
 **Examples:**
 
-```powershell
+```bash
 # Full scan with auto-detected languages
-.\Invoke-CodeQLScanSkill.ps1 -Operation full
+python3 .claude/skills/codeql-scan/scripts/invoke_codeql_scan.py --operation full
 
 # Quick scan (cached databases)
-.\Invoke-CodeQLScanSkill.ps1 -Operation quick
+python3 .claude/skills/codeql-scan/scripts/invoke_codeql_scan.py --operation quick
 
 # Validate configuration only
-.\Invoke-CodeQLScanSkill.ps1 -Operation validate
+python3 .claude/skills/codeql-scan/scripts/invoke_codeql_scan.py --operation validate
 
 # CI mode (exit 1 on findings)
-.\Invoke-CodeQLScanSkill.ps1 -Operation full -CI
+python3 .claude/skills/codeql-scan/scripts/invoke_codeql_scan.py --operation full --ci
 
 # Scan specific language
-.\Invoke-CodeQLScanSkill.ps1 -Operation full -Languages "python"
+python3 .claude/skills/codeql-scan/scripts/invoke_codeql_scan.py --operation full --languages python
 
 # Scan multiple languages
-.\Invoke-CodeQLScanSkill.ps1 -Operation full -Languages "python", "actions"
+python3 .claude/skills/codeql-scan/scripts/invoke_codeql_scan.py --operation full --languages python actions
 ```
 
 ### Underlying Scripts
@@ -496,39 +489,41 @@ Machine-readable format for CI integration:
 
 **Wrong:**
 
-```powershell
+```bash
 # Running scan without verifying config
 pwsh .codeql/scripts/Invoke-CodeQLScan.ps1
 ```
 
 **Correct:**
 
-```powershell
+```bash
 # Always validate config first
-pwsh .claude/skills/codeql-scan/scripts/Invoke-CodeQLScanSkill.ps1 -Operation validate
+python3 .claude/skills/codeql-scan/scripts/invoke_codeql_scan.py --operation validate
 
 # Then run scan
-pwsh .claude/skills/codeql-scan/scripts/Invoke-CodeQLScanSkill.ps1 -Operation full
+python3 .claude/skills/codeql-scan/scripts/invoke_codeql_scan.py --operation full
 ```
 
 ### ❌ Don't: Ignore Exit Codes
 
 **Wrong:**
 
-```powershell
+```bash
 # Ignoring exit code
-pwsh .claude/skills/codeql-scan/scripts/Invoke-CodeQLScanSkill.ps1 -Operation full
+python3 .claude/skills/codeql-scan/scripts/invoke_codeql_scan.py --operation full
 # Continue even if scan failed
 ```
 
 **Correct:**
 
-```powershell
+```bash
 # Check exit code
-pwsh .claude/skills/codeql-scan/scripts/Invoke-CodeQLScanSkill.ps1 -Operation full
-if ($LASTEXITCODE -ne 0) {
-    throw "CodeQL scan failed with exit code $LASTEXITCODE"
-}
+python3 .claude/skills/codeql-scan/scripts/invoke_codeql_scan.py --operation full
+exit_code=$?
+if [ "$exit_code" -ne 0 ]; then
+    echo "CodeQL scan failed with exit code $exit_code" >&2
+    exit "$exit_code"
+fi
 ```
 
 ### ❌ Don't: Suppress Errors Before Checking Exit Code
@@ -560,16 +555,16 @@ if ($LASTEXITCODE -ne 0) {
 
 **Wrong:**
 
-```powershell
+```bash
 # Full scan on every minor change
-pwsh .claude/skills/codeql-scan/scripts/Invoke-CodeQLScanSkill.ps1 -Operation full
+python3 .claude/skills/codeql-scan/scripts/invoke_codeql_scan.py --operation full
 ```
 
 **Correct:**
 
-```powershell
+```bash
 # Use quick scan for iterative development
-pwsh .claude/skills/codeql-scan/scripts/Invoke-CodeQLScanSkill.ps1 -Operation quick
+python3 .claude/skills/codeql-scan/scripts/invoke_codeql_scan.py --operation quick
 
 # Reserve full scans for:
 # - First run
@@ -581,18 +576,18 @@ pwsh .claude/skills/codeql-scan/scripts/Invoke-CodeQLScanSkill.ps1 -Operation qu
 
 **Wrong:**
 
-```powershell
+```bash
 # Mixing interfaces
-pwsh .claude/skills/codeql-scan/scripts/Invoke-CodeQLScanSkill.ps1 -Operation full
+python3 .claude/skills/codeql-scan/scripts/invoke_codeql_scan.py --operation full
 pwsh .codeql/scripts/Invoke-CodeQLScan.ps1 -Languages "python"
 ```
 
 **Correct:**
 
-```powershell
+```bash
 # Consistent interface via skill wrapper
-pwsh .claude/skills/codeql-scan/scripts/Invoke-CodeQLScanSkill.ps1 -Operation full
-pwsh .claude/skills/codeql-scan/scripts/Invoke-CodeQLScanSkill.ps1 -Operation full -Languages "python"
+python3 .claude/skills/codeql-scan/scripts/invoke_codeql_scan.py --operation full
+python3 .claude/skills/codeql-scan/scripts/invoke_codeql_scan.py --operation full --languages python
 ```
 
 ## Verification Checklist
@@ -672,9 +667,7 @@ Error: Query execution timed out after 300s
 # "codeQL.runningQueries.timeout": 600
 
 # Or scan specific language to reduce scope
-pwsh .claude/skills/codeql-scan/scripts/Invoke-CodeQLScanSkill.ps1 `
-    -Operation full `
-    -Languages "python"
+python3 .claude/skills/codeql-scan/scripts/invoke_codeql_scan.py --operation full --languages python
 ```
 
 ### Cache Invalidation Issues
@@ -692,7 +685,7 @@ Warning: Using cached database, but source files changed
 pwsh .codeql/scripts/Invoke-CodeQLScan.ps1 -UseCache:$false
 
 # Or use full operation (always rebuilds)
-pwsh .claude/skills/codeql-scan/scripts/Invoke-CodeQLScanSkill.ps1 -Operation full
+python3 .claude/skills/codeql-scan/scripts/invoke_codeql_scan.py --operation full
 ```
 
 ### Hook Not Triggering

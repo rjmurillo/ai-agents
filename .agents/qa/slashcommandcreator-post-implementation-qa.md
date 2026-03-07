@@ -73,7 +73,7 @@ $ScriptPath = Join-Path $PSScriptRoot 'Validate-SlashCommand.ps1'
 **Test Output**:
 ```
 Tests Passed: 0, Failed: 38, Skipped: 0
-The file could not be read: Could not find file '/home/richard/ai-agents/.claude/skills/slashcommandcreator/Validate-SlashCommand.ps1'
+The file could not be read: Could not find file '.claude/skills/slashcommandcreator/Validate-SlashCommand.ps1'
 ```
 
 **Recommendation**:
@@ -332,7 +332,7 @@ For detailed usage guidelines, see [CLAUDE.md](../../CLAUDE.md#custom-slash-comm
 
 - README.md location: `.claude/commands/README.md`
 - Relative path: `../../CLAUDE.md` → resolves to `/home/richard/CLAUDE.md`
-- Expected: `/home/richard/ai-agents/CLAUDE.md`
+- Expected: `CLAUDE.md`
 
 **Impact**:
 

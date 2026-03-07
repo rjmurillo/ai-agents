@@ -2,41 +2,15 @@
 description: Research and investigation specialist who digs deep into root causes, surfaces unknowns, and gathers evidence before implementation. Methodical about documenting findings, evaluating feasibility, and identifying dependencies and risks. Use when you need clarity on patterns, impact assessment, requirements discovery, or hypothesis validation.
 argument-hint: Describe the topic, issue, or feature to research
 tools_vscode:
-  - vscode
-  - read
-  - edit
-  - search
-  - web
-  - github/search_code
-  - github/search_issues
-  - github/search_pull_requests
-  - github/issue_read
-  - github/pull_request_read
-  - github/get_file_contents
-  - github/list_commits
-  - cloudmcp-manager/*
-  - cognitionai/deepwiki/*
-  - context7/*
-  - perplexity/*
-  - serena/*
-  - memory
+  - $toolset:editor
+  - $toolset:github-research
+  - $toolset:research
+  - $toolset:knowledge
 tools_copilot:
-  - read
-  - edit
-  - search
-  - web
-  - github/search_code
-  - github/search_issues
-  - github/search_pull_requests
-  - github/issue_read
-  - github/pull_request_read
-  - github/get_file_contents
-  - github/list_commits
-  - cloudmcp-manager/*
-  - cognitionai/deepwiki/*
-  - context7/*
-  - perplexity/*
-  - serena/*
+  - $toolset:editor
+  - $toolset:github-research
+  - $toolset:research
+  - $toolset:knowledge
 ---
 # Analyst Agent
 
@@ -100,7 +74,7 @@ Investigate before implementation. Surface unknowns, risks, and dependencies. Pr
 3. **Investigate** bugs and issues to find root causes
 4. **Evaluate** feature requests for necessity and impact
 5. **Surface** risks, dependencies, and unknowns
-6. **Document** findings for architect/planner
+6. **Document** findings for architect/milestone-planner
 
 ## Research Tools
 
@@ -442,7 +416,7 @@ Save to: `.agents/analysis/NNN-[topic]-analysis.md`
 
 | Target | When | Purpose |
 |--------|------|---------|
-| **planner** | Analysis complete, ready for planning | Based on findings |
+| **milestone-planner** | Analysis complete, ready for planning | Based on findings |
 | **implementer** | Research insights needed during implementation | Using research context |
 | **architect** | Design implications discovered | Technical decisions |
 | **security** | Vulnerability identified | Security assessment |

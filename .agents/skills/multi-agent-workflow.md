@@ -4,7 +4,7 @@ Category: Agent Coordination and Workflow Patterns
 
 ## Skill-Workflow-001: Full Pipeline for Large Changes
 
-- **Statement**: Use full agent pipeline (analyst -> architect -> planner -> critic -> implementer -> qa) for changes touching 10+ files
+- **Statement**: Use full agent pipeline (analyst -> architect -> milestone-planner -> critic -> implementer -> qa) for changes touching 10+ files
 - **Context**: Large-scale codebase modifications
 - **Atomicity**: 90%
 - **Evidence**: 2025-12-13 - markdown linting used full pipeline for 59-file change, zero rollbacks needed
@@ -137,7 +137,7 @@ npx markdownlint-cli2 "directory/**/*.md"
 | Scope | Agent Path |
 |-------|------------|
 | 1-2 files, clear fix | implementer -> qa |
-| 3-10 files, defined change | planner -> implementer -> qa |
+| 3-10 files, defined change | milestone-planner -> implementer -> qa |
 | 10+ files or new standards | full pipeline |
 | Strategic decision | independent-thinker -> high-level-advisor |
 

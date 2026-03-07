@@ -2,31 +2,18 @@
 description: Security specialist with defense-first mindset, fluent in threat modeling, vulnerability assessment, and OWASP Top 10. Scans for CWE patterns, detects secrets, audits dependencies, maps attack surfaces. Use when you need hardening, penetration analysis, compliance review, or mitigation recommendations before shipping.
 argument-hint: Specify the code, feature, or changes to security review
 tools_vscode:
-  - vscode
-  - read
-  - edit
-  - search
+  - $toolset:editor
   - web
-  - cloudmcp-manager/*
-  - github/list_code_scanning_alerts
-  - github/get_code_scanning_alert
-  - github/list_secret_scanning_alerts
-  - github/list_dependabot_alerts
-  - serena/*
+  - $toolset:github-security
   - perplexity/*
-  - memory
+  - $toolset:knowledge
 tools_copilot:
-  - read
-  - edit
-  - search
+  - $toolset:editor
   - web
-  - cloudmcp-manager/*
-  - github/list_code_scanning_alerts
-  - github/get_code_scanning_alert
-  - github/list_secret_scanning_alerts
-  - github/list_dependabot_alerts
-  - serena/*
+  - $toolset:github-security
   - perplexity/*
+  - cloudmcp-manager/*
+  - serena/*
 ---
 # Security Agent
 
@@ -201,7 +188,7 @@ Identify security vulnerabilities, recommend mitigations, and ensure secure deve
 
 ### Capability 6: Impact Analysis (Planning Phase)
 
-When planner requests security impact analysis (during planning phase):
+When milestone-planner requests security impact analysis (during planning phase):
 
 #### Analyze Security Impact
 
@@ -221,24 +208,22 @@ When planner requests security impact analysis (during planning phase):
 
 When any changed file matches security trigger patterns, orchestrator MUST route to security agent AFTER implementation completes:
 
-```python
+```text
 # Mandatory routing for security-relevant changes
-SECURITY_TRIGGERS = [
-    "**/Auth/**", "**/Security/**", "*.env*",
-    ".githooks/*", "**/secrets/**", "*password*",
-    "**/token*", "**/oauth/**", "**/jwt/**"
-]
+# Trigger patterns:
+#   **/Auth/**, **/Security/**, *.env*
+#   .githooks/*, **/secrets/**, *password*
+#   **/token*, **/oauth/**, **/jwt/**
 
-if any(trigger_matches(changed_path, pattern) for pattern in SECURITY_TRIGGERS):
-    Task(subagent_type="security", prompt="""
-    Run Post-Implementation Verification for [feature].
+# When security-relevant files change:
+/agent security
+Run Post-Implementation Verification for [feature].
 
-    Implementation completed by implementer.
-    Changed files: [list]
+Implementation completed by implementer.
+Changed files: [list]
 
-    Verify all security controls from pre-implementation plan.
-    This is a BLOCKING gate - no PR until PIV approved.
-    """)
+Verify all security controls from pre-implementation plan.
+This is a BLOCKING gate. No PR until PIV approved.
 ```
 
 **No PR Until PIV Approved**: Orchestrator MUST NOT proceed to PR creation until security agent returns APPROVED status.
