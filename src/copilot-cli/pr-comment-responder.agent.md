@@ -11,7 +11,6 @@ tools:
   - github.vscode-pull-request-github/*
   - serena/*
 model: claude-opus-4.6
-tier: manager
 ---
 # PR Comment Responder Agent
 

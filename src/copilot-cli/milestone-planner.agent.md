@@ -9,7 +9,6 @@ tools:
   - cloudmcp-manager/*
   - serena/*
 model: claude-opus-4.6
-tier: manager
 ---
 # Milestone Planner Agent
 
