@@ -11,6 +11,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 if TYPE_CHECKING:
     from collections.abc import Callable
 
@@ -148,39 +150,39 @@ class TestGetMissingQASections:
 class TestMain:
     """Tests for the main entry point."""
 
-    @patch("invoke_qa_agent_validator.skip_if_consumer_repo", return_value=False)
-    def test_exits_0_on_tty(self, mock_skip, monkeypatch):
+    @pytest.fixture(autouse=True)
+    def _no_consumer_repo_skip(self):
+        with patch("invoke_qa_agent_validator.skip_if_consumer_repo", return_value=False):
+            yield
+
+    def test_exits_0_on_tty(self, monkeypatch):
         monkeypatch.setattr("sys.stdin", MagicMock(isatty=lambda: True))
         result = invoke_qa_agent_validator.main()
         assert result == 0
 
-    @patch("invoke_qa_agent_validator.skip_if_consumer_repo", return_value=False)
     def test_exits_0_on_empty_input(
-        self, mock_skip, mock_stdin: "Callable[[str], None]"
+        self, mock_stdin: "Callable[[str], None]"
     ):
         mock_stdin("")
         result = invoke_qa_agent_validator.main()
         assert result == 0
 
-    @patch("invoke_qa_agent_validator.skip_if_consumer_repo", return_value=False)
     def test_exits_0_for_non_qa_agent(
-        self, mock_skip, mock_stdin: "Callable[[str], None]"
+        self, mock_stdin: "Callable[[str], None]"
     ):
         mock_stdin(json.dumps({"subagent_type": "implementer"}))
         result = invoke_qa_agent_validator.main()
         assert result == 0
 
-    @patch("invoke_qa_agent_validator.skip_if_consumer_repo", return_value=False)
     def test_exits_0_for_missing_transcript(
-        self, mock_skip, mock_stdin: "Callable[[str], None]"
+        self, mock_stdin: "Callable[[str], None]"
     ):
         mock_stdin(json.dumps({"subagent_type": "qa"}))
         result = invoke_qa_agent_validator.main()
         assert result == 0
 
-    @patch("invoke_qa_agent_validator.skip_if_consumer_repo", return_value=False)
     def test_reports_passed_when_complete(
-        self, mock_skip, mock_stdin: "Callable[[str], None]", tmp_path, capsys
+        self, mock_stdin: "Callable[[str], None]", tmp_path, capsys
     ):
         transcript = tmp_path / "transcript.md"
         transcript.write_text(
@@ -202,9 +204,8 @@ class TestMain:
         assert data["validation_passed"] is True
         assert data["missing_sections"] == []
 
-    @patch("invoke_qa_agent_validator.skip_if_consumer_repo", return_value=False)
     def test_reports_failure_when_incomplete(
-        self, mock_skip, mock_stdin: "Callable[[str], None]", tmp_path, capsys
+        self, mock_stdin: "Callable[[str], None]", tmp_path, capsys
     ):
         transcript = tmp_path / "transcript.md"
         transcript.write_text("# Some Other Section\n\nContent\n")
@@ -224,9 +225,8 @@ class TestMain:
         assert data["validation_passed"] is False
         assert len(data["missing_sections"]) == 3
 
-    @patch("invoke_qa_agent_validator.skip_if_consumer_repo", return_value=False)
     def test_handles_file_read_error(
-        self, mock_skip, mock_stdin: "Callable[[str], None]", tmp_path, capsys
+        self, mock_stdin: "Callable[[str], None]", tmp_path, capsys
     ):
         """Handles OSError when reading transcript."""
         transcript_path = str(tmp_path / "unreadable.md")
@@ -247,8 +247,7 @@ class TestMain:
                 captured = capsys.readouterr()
                 assert "ERROR" in captured.out
 
-    @patch("invoke_qa_agent_validator.skip_if_consumer_repo", return_value=False)
-    def test_handles_unexpected_error(self, mock_skip, monkeypatch, capsys):
+    def test_handles_unexpected_error(self, monkeypatch, capsys):
         """Handles unexpected exceptions gracefully."""
         def raise_error():
             raise RuntimeError("unexpected")

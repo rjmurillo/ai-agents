@@ -71,27 +71,29 @@ class TestGetProjectRoot:
 class TestMain:
     """Tests for the main entry point."""
 
+    @pytest.fixture(autouse=True)
+    def _no_consumer_repo_skip(self):
+        with patch("invoke_adr_change_detection.skip_if_consumer_repo", return_value=False):
+            yield
+
     @patch("invoke_adr_change_detection.skip_if_consumer_repo", return_value=True)
     def test_exits_0_when_consumer_repo(self, mock_skip):
         result = invoke_adr_change_detection.main()
         assert result == 0
 
     @patch("invoke_adr_change_detection.get_project_root", return_value=None)
-    @patch("invoke_adr_change_detection.skip_if_consumer_repo", return_value=False)
-    def test_exits_0_when_project_root_none(self, mock_skip, mock_root):
+    def test_exits_0_when_project_root_none(self, mock_root):
         result = invoke_adr_change_detection.main()
         assert result == 0
 
     @patch("invoke_adr_change_detection.get_project_root")
-    @patch("invoke_adr_change_detection.skip_if_consumer_repo", return_value=False)
-    def test_exits_0_when_not_git_repo(self, mock_skip, mock_root, tmp_path):
+    def test_exits_0_when_not_git_repo(self, mock_root, tmp_path):
         mock_root.return_value = str(tmp_path)
         result = invoke_adr_change_detection.main()
         assert result == 0
 
     @patch("invoke_adr_change_detection.get_project_root")
-    @patch("invoke_adr_change_detection.skip_if_consumer_repo", return_value=False)
-    def test_exits_0_when_detect_script_missing(self, mock_skip, mock_root, tmp_path):
+    def test_exits_0_when_detect_script_missing(self, mock_root, tmp_path):
         (tmp_path / ".git").mkdir()
         mock_root.return_value = str(tmp_path)
         result = invoke_adr_change_detection.main()
@@ -110,9 +112,8 @@ class TestMain:
 
     @patch("invoke_adr_change_detection.subprocess.run")
     @patch("invoke_adr_change_detection.get_project_root")
-    @patch("invoke_adr_change_detection.skip_if_consumer_repo", return_value=False)
     def test_outputs_message_on_changes(
-        self, mock_skip, mock_root, mock_run, project_with_detect_script, capsys
+        self, mock_root, mock_run, project_with_detect_script, capsys
     ):
         mock_root.return_value = str(project_with_detect_script)
         mock_run.return_value = MagicMock(
@@ -133,9 +134,8 @@ class TestMain:
 
     @patch("invoke_adr_change_detection.subprocess.run")
     @patch("invoke_adr_change_detection.get_project_root")
-    @patch("invoke_adr_change_detection.skip_if_consumer_repo", return_value=False)
     def test_no_output_when_no_changes(
-        self, mock_skip, mock_root, mock_run, project_with_detect_script, capsys
+        self, mock_root, mock_run, project_with_detect_script, capsys
     ):
         mock_root.return_value = str(project_with_detect_script)
         mock_run.return_value = MagicMock(
@@ -155,9 +155,8 @@ class TestMain:
 
     @patch("invoke_adr_change_detection.subprocess.run")
     @patch("invoke_adr_change_detection.get_project_root")
-    @patch("invoke_adr_change_detection.skip_if_consumer_repo", return_value=False)
     def test_exits_0_on_detection_failure(
-        self, mock_skip, mock_root, mock_run, project_with_detect_script
+        self, mock_root, mock_run, project_with_detect_script
     ):
         mock_root.return_value = str(project_with_detect_script)
         mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="error")
@@ -166,9 +165,8 @@ class TestMain:
 
     @patch("invoke_adr_change_detection.subprocess.run")
     @patch("invoke_adr_change_detection.get_project_root")
-    @patch("invoke_adr_change_detection.skip_if_consumer_repo", return_value=False)
     def test_exits_0_on_invalid_json(
-        self, mock_skip, mock_root, mock_run, project_with_detect_script
+        self, mock_root, mock_run, project_with_detect_script
     ):
         mock_root.return_value = str(project_with_detect_script)
         mock_run.return_value = MagicMock(returncode=0, stdout="not json", stderr="")

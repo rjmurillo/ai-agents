@@ -35,8 +35,12 @@ class TestIsValidProjectRoot:
 class TestPlanningKeywords:
     """Tests for planning keyword detection."""
 
-    @patch("invoke_user_prompt_memory_check.skip_if_consumer_repo", return_value=False)
-    def test_detects_plan_keyword(self, mock_skip, monkeypatch, tmp_path, capsys):
+    @pytest.fixture(autouse=True)
+    def _no_consumer_repo_skip(self):
+        with patch("invoke_user_prompt_memory_check.skip_if_consumer_repo", return_value=False):
+            yield
+
+    def test_detects_plan_keyword(self, monkeypatch, tmp_path, capsys):
         (tmp_path / ".git").mkdir()
         monkeypatch.setattr("os.getcwd", lambda: str(tmp_path))
         input_data = json.dumps({"prompt": "Please plan the new feature"})
@@ -45,8 +49,7 @@ class TestPlanningKeywords:
         captured = capsys.readouterr()
         assert "ADR-007" in captured.out
 
-    @patch("invoke_user_prompt_memory_check.skip_if_consumer_repo", return_value=False)
-    def test_detects_implement_keyword(self, mock_skip, monkeypatch, tmp_path, capsys):
+    def test_detects_implement_keyword(self, monkeypatch, tmp_path, capsys):
         (tmp_path / ".git").mkdir()
         monkeypatch.setattr("os.getcwd", lambda: str(tmp_path))
         input_data = json.dumps({"prompt": "implement the auth module"})
@@ -55,8 +58,7 @@ class TestPlanningKeywords:
         captured = capsys.readouterr()
         assert "ADR-007" in captured.out
 
-    @patch("invoke_user_prompt_memory_check.skip_if_consumer_repo", return_value=False)
-    def test_no_keyword_no_output(self, mock_skip, monkeypatch, tmp_path, capsys):
+    def test_no_keyword_no_output(self, monkeypatch, tmp_path, capsys):
         (tmp_path / ".git").mkdir()
         monkeypatch.setattr("os.getcwd", lambda: str(tmp_path))
         input_data = json.dumps({"prompt": "hello world"})
@@ -65,8 +67,7 @@ class TestPlanningKeywords:
         captured = capsys.readouterr()
         assert "ADR-007" not in captured.out
 
-    @patch("invoke_user_prompt_memory_check.skip_if_consumer_repo", return_value=False)
-    def test_case_insensitive(self, mock_skip, monkeypatch, tmp_path, capsys):
+    def test_case_insensitive(self, monkeypatch, tmp_path, capsys):
         (tmp_path / ".git").mkdir()
         monkeypatch.setattr("os.getcwd", lambda: str(tmp_path))
         input_data = json.dumps({"prompt": "REFACTOR the module"})
@@ -79,8 +80,12 @@ class TestPlanningKeywords:
 class TestPRKeywords:
     """Tests for PR creation keyword detection."""
 
-    @patch("invoke_user_prompt_memory_check.skip_if_consumer_repo", return_value=False)
-    def test_detects_create_pr(self, mock_skip, monkeypatch, tmp_path, capsys):
+    @pytest.fixture(autouse=True)
+    def _no_consumer_repo_skip(self):
+        with patch("invoke_user_prompt_memory_check.skip_if_consumer_repo", return_value=False):
+            yield
+
+    def test_detects_create_pr(self, monkeypatch, tmp_path, capsys):
         (tmp_path / ".git").mkdir()
         monkeypatch.setattr("os.getcwd", lambda: str(tmp_path))
         input_data = json.dumps({"prompt": "create pr for the changes"})
@@ -89,8 +94,7 @@ class TestPRKeywords:
         captured = capsys.readouterr()
         assert "Pre-PR" in captured.out or "pre-PR" in captured.out.lower()
 
-    @patch("invoke_user_prompt_memory_check.skip_if_consumer_repo", return_value=False)
-    def test_detects_open_pull_request(self, mock_skip, monkeypatch, tmp_path, capsys):
+    def test_detects_open_pull_request(self, monkeypatch, tmp_path, capsys):
         (tmp_path / ".git").mkdir()
         monkeypatch.setattr("os.getcwd", lambda: str(tmp_path))
         input_data = json.dumps({"prompt": "open pull request"})
@@ -103,8 +107,12 @@ class TestPRKeywords:
 class TestGHCLIPatterns:
     """Tests for GitHub CLI skill suggestion."""
 
-    @patch("invoke_user_prompt_memory_check.skip_if_consumer_repo", return_value=False)
-    def test_detects_gh_issue_view(self, mock_skip, monkeypatch, tmp_path, capsys):
+    @pytest.fixture(autouse=True)
+    def _no_consumer_repo_skip(self):
+        with patch("invoke_user_prompt_memory_check.skip_if_consumer_repo", return_value=False):
+            yield
+
+    def test_detects_gh_issue_view(self, monkeypatch, tmp_path, capsys):
         (tmp_path / ".git").mkdir()
         monkeypatch.setattr("os.getcwd", lambda: str(tmp_path))
         input_data = json.dumps({"prompt": "use gh issue view 123"})
@@ -113,8 +121,7 @@ class TestGHCLIPatterns:
         captured = capsys.readouterr()
         assert "Skill" in captured.out or "skill" in captured.out.lower()
 
-    @patch("invoke_user_prompt_memory_check.skip_if_consumer_repo", return_value=False)
-    def test_detects_gh_api(self, mock_skip, monkeypatch, tmp_path, capsys):
+    def test_detects_gh_api(self, monkeypatch, tmp_path, capsys):
         (tmp_path / ".git").mkdir()
         monkeypatch.setattr("os.getcwd", lambda: str(tmp_path))
         input_data = json.dumps({"prompt": "run gh api repos/..."})
@@ -127,29 +134,30 @@ class TestGHCLIPatterns:
 class TestMain:
     """Tests for main() entry point."""
 
-    @patch("invoke_user_prompt_memory_check.skip_if_consumer_repo", return_value=False)
-    def test_invalid_project_root_fails_open(self, mock_skip, monkeypatch, tmp_path):
+    @pytest.fixture(autouse=True)
+    def _no_consumer_repo_skip(self):
+        with patch("invoke_user_prompt_memory_check.skip_if_consumer_repo", return_value=False):
+            yield
+
+    def test_invalid_project_root_fails_open(self, monkeypatch, tmp_path):
         monkeypatch.setattr("os.getcwd", lambda: str(tmp_path))
         monkeypatch.setattr("sys.stdin", io.StringIO("{}"))
         assert invoke_user_prompt_memory_check.main() == 0
 
-    @patch("invoke_user_prompt_memory_check.skip_if_consumer_repo", return_value=False)
-    def test_always_returns_zero(self, mock_skip, monkeypatch, tmp_path):
+    def test_always_returns_zero(self, monkeypatch, tmp_path):
         (tmp_path / ".git").mkdir()
         monkeypatch.setattr("os.getcwd", lambda: str(tmp_path))
         input_data = json.dumps({"prompt": "plan something"})
         monkeypatch.setattr("sys.stdin", io.StringIO(input_data))
         assert invoke_user_prompt_memory_check.main() == 0
 
-    @patch("invoke_user_prompt_memory_check.skip_if_consumer_repo", return_value=False)
-    def test_handles_invalid_json_input(self, mock_skip, monkeypatch, tmp_path):
+    def test_handles_invalid_json_input(self, monkeypatch, tmp_path):
         (tmp_path / ".git").mkdir()
         monkeypatch.setattr("os.getcwd", lambda: str(tmp_path))
         monkeypatch.setattr("sys.stdin", io.StringIO("not valid json"))
         assert invoke_user_prompt_memory_check.main() == 0
 
-    @patch("invoke_user_prompt_memory_check.skip_if_consumer_repo", return_value=False)
-    def test_handles_json_without_prompt(self, mock_skip, monkeypatch, tmp_path, capsys):
+    def test_handles_json_without_prompt(self, monkeypatch, tmp_path, capsys):
         (tmp_path / ".git").mkdir()
         monkeypatch.setattr("os.getcwd", lambda: str(tmp_path))
         input_data = json.dumps({"other_field": "value"})

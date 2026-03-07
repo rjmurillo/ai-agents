@@ -141,44 +141,42 @@ class TestSkillMappings:
 class TestMainAllow:
     """Tests for main() allowing commands."""
 
-    @patch("invoke_skill_first_guard.skip_if_consumer_repo", return_value=False)
-    def test_tty_stdin(self, mock_skip) -> None:
+    @pytest.fixture(autouse=True)
+    def _no_consumer_repo_skip(self):
+        with patch("invoke_skill_first_guard.skip_if_consumer_repo", return_value=False):
+            yield
+
+    def test_tty_stdin(self) -> None:
         with patch("invoke_skill_first_guard.sys.stdin") as mock_stdin:
             mock_stdin.isatty.return_value = True
             assert main() == 0
 
-    @patch("invoke_skill_first_guard.skip_if_consumer_repo", return_value=False)
-    def test_empty_stdin(self, mock_skip, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_empty_stdin(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr("sys.stdin", io.StringIO(""))
         assert main() == 0
 
-    @patch("invoke_skill_first_guard.skip_if_consumer_repo", return_value=False)
-    def test_non_gh_command(self, mock_skip, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_non_gh_command(self, monkeypatch: pytest.MonkeyPatch) -> None:
         data = json.dumps({"tool_input": {"command": "ls -la"}})
         monkeypatch.setattr("sys.stdin", io.StringIO(data))
         assert main() == 0
 
-    @patch("invoke_skill_first_guard.skip_if_consumer_repo", return_value=False)
-    def test_no_tool_input(self, mock_skip, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_no_tool_input(self, monkeypatch: pytest.MonkeyPatch) -> None:
         data = json.dumps({"tool_name": "Bash"})
         monkeypatch.setattr("sys.stdin", io.StringIO(data))
         assert main() == 0
 
-    @patch("invoke_skill_first_guard.skip_if_consumer_repo", return_value=False)
-    def test_no_command_key(self, mock_skip, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_no_command_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
         data = json.dumps({"tool_input": {"file_path": "/some/file"}})
         monkeypatch.setattr("sys.stdin", io.StringIO(data))
         assert main() == 0
 
-    @patch("invoke_skill_first_guard.skip_if_consumer_repo", return_value=False)
-    def test_gh_command_no_skill(self, mock_skip, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    def test_gh_command_no_skill(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
         monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(tmp_path))
         data = json.dumps({"tool_input": {"command": "gh release create v1.0"}})
         monkeypatch.setattr("sys.stdin", io.StringIO(data))
         assert main() == 0
 
-    @patch("invoke_skill_first_guard.skip_if_consumer_repo", return_value=False)
-    def test_invalid_json_fails_open(self, mock_skip, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_invalid_json_fails_open(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr("sys.stdin", io.StringIO("not json"))
         assert main() == 0
 
@@ -186,9 +184,13 @@ class TestMainAllow:
 class TestMainBlock:
     """Tests for main() blocking commands."""
 
-    @patch("invoke_skill_first_guard.skip_if_consumer_repo", return_value=False)
+    @pytest.fixture(autouse=True)
+    def _no_consumer_repo_skip(self):
+        with patch("invoke_skill_first_guard.skip_if_consumer_repo", return_value=False):
+            yield
+
     def test_blocks_gh_pr_view_with_skill(
-        self, mock_skip, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture
     ) -> None:
         script_dir = tmp_path / ".claude" / "skills" / "github" / "scripts" / "pr"
@@ -205,9 +207,8 @@ class TestMainBlock:
         assert "BLOCKED" in captured.out
         assert "Raw GitHub Command" in captured.out
 
-    @patch("invoke_skill_first_guard.skip_if_consumer_repo", return_value=False)
     def test_blocks_gh_pr_create_with_skill(
-        self, mock_skip, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         script_dir = tmp_path / ".claude" / "skills" / "github" / "scripts" / "pr"
         script_dir.mkdir(parents=True)
@@ -219,9 +220,8 @@ class TestMainBlock:
 
         assert main() == 2
 
-    @patch("invoke_skill_first_guard.skip_if_consumer_repo", return_value=False)
     def test_blocks_gh_issue_view_with_skill(
-        self, mock_skip, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         script_dir = tmp_path / ".claude" / "skills" / "github" / "scripts" / "issue"
         script_dir.mkdir(parents=True)

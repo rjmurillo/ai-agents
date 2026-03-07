@@ -105,8 +105,12 @@ class TestReadForgetfulConfig:
 class TestMain:
     """Tests for the main entry point."""
 
-    @patch("invoke_session_start_memory_first.skip_if_consumer_repo", return_value=False)
-    def test_returns_0_and_produces_output(self, mock_skip, capsys):
+    @pytest.fixture(autouse=True)
+    def _no_consumer_repo_skip(self):
+        with patch("invoke_session_start_memory_first.skip_if_consumer_repo", return_value=False):
+            yield
+
+    def test_returns_0_and_produces_output(self, capsys):
         result = invoke_session_start_memory_first.main()
         assert result == 0
         captured = capsys.readouterr()

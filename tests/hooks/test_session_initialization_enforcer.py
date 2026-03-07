@@ -87,8 +87,13 @@ class TestProtectedBranches:
 class TestMainProtectedBranch:
     """Tests for main() on protected branch."""
 
-    @patch("invoke_session_initialization_enforcer.skip_if_consumer_repo", return_value=False)
-    def test_main_branch_warning(self, mock_skip, capsys: pytest.CaptureFixture) -> None:
+    @pytest.fixture(autouse=True)
+    def _no_consumer_repo_skip(self):
+        target = "invoke_session_initialization_enforcer.skip_if_consumer_repo"
+        with patch(target, return_value=False):
+            yield
+
+    def test_main_branch_warning(self, capsys: pytest.CaptureFixture) -> None:
         mod = "invoke_session_initialization_enforcer"
         with patch(f"{mod}.get_project_directory", return_value="/project"):
             with patch(f"{mod}.get_current_branch", return_value="main"):
@@ -102,8 +107,13 @@ class TestMainProtectedBranch:
 class TestMainFeatureBranch:
     """Tests for main() on feature branch."""
 
-    @patch("invoke_session_initialization_enforcer.skip_if_consumer_repo", return_value=False)
-    def test_feature_branch_status(self, mock_skip, capsys: pytest.CaptureFixture) -> None:
+    @pytest.fixture(autouse=True)
+    def _no_consumer_repo_skip(self):
+        target = "invoke_session_initialization_enforcer.skip_if_consumer_repo"
+        with patch(target, return_value=False):
+            yield
+
+    def test_feature_branch_status(self, capsys: pytest.CaptureFixture) -> None:
         mod = "invoke_session_initialization_enforcer"
         with patch(f"{mod}.get_project_directory", return_value="/project"):
             with patch(f"{mod}.get_current_branch", return_value="feat/test"):
@@ -113,8 +123,7 @@ class TestMainFeatureBranch:
         captured = capsys.readouterr()
         assert "feat/test" in captured.out
 
-    @patch("invoke_session_initialization_enforcer.skip_if_consumer_repo", return_value=False)
-    def test_with_session_log(self, mock_skip, capsys: pytest.CaptureFixture, tmp_path) -> None:
+    def test_with_session_log(self, capsys: pytest.CaptureFixture, tmp_path) -> None:
         mod = "invoke_session_initialization_enforcer"
         session_log = MagicMock()
         session_log.name = "2026-03-01-session-01.json"
@@ -130,16 +139,20 @@ class TestMainFeatureBranch:
 class TestMainErrorHandling:
     """Tests for main() error handling."""
 
-    @patch("invoke_session_initialization_enforcer.skip_if_consumer_repo", return_value=False)
-    def test_exception_fails_open(self, mock_skip) -> None:
+    @pytest.fixture(autouse=True)
+    def _no_consumer_repo_skip(self):
+        target = "invoke_session_initialization_enforcer.skip_if_consumer_repo"
+        with patch(target, return_value=False):
+            yield
+
+    def test_exception_fails_open(self) -> None:
         with patch(
             "invoke_session_initialization_enforcer.get_project_directory",
             side_effect=RuntimeError("boom"),
         ):
             assert main() == 0
 
-    @patch("invoke_session_initialization_enforcer.skip_if_consumer_repo", return_value=False)
-    def test_none_branch(self, mock_skip, capsys: pytest.CaptureFixture) -> None:
+    def test_none_branch(self, capsys: pytest.CaptureFixture) -> None:
         mod = "invoke_session_initialization_enforcer"
         with patch(f"{mod}.get_project_directory", return_value="/p"):
             with patch(f"{mod}.get_current_branch", return_value=None):

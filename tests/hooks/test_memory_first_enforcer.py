@@ -222,11 +222,15 @@ class TestInvocationCount:
 class TestMain:
     """Tests for main() entry point."""
 
-    @patch("invoke_memory_first_enforcer.skip_if_consumer_repo", return_value=False)
+    @pytest.fixture(autouse=True)
+    def _no_consumer_repo_skip(self):
+        with patch("invoke_memory_first_enforcer.skip_if_consumer_repo", return_value=False):
+            yield
+
     @patch("invoke_memory_first_enforcer.get_today_session_logs", return_value=[])
     @patch("invoke_memory_first_enforcer.get_project_directory")
     def test_no_session_logs_outputs_guidance(
-        self, mock_proj, mock_logs, mock_skip, tmp_path, capsys
+        self, mock_proj, mock_logs, tmp_path, capsys
     ):
         mock_proj.return_value = str(tmp_path)
         result = invoke_memory_first_enforcer.main()
@@ -234,10 +238,9 @@ class TestMain:
         captured = capsys.readouterr()
         assert "ADR-007" in captured.out
 
-    @patch("invoke_memory_first_enforcer.skip_if_consumer_repo", return_value=False)
     @patch("invoke_memory_first_enforcer.get_project_directory")
     def test_complete_evidence_outputs_verified(
-        self, mock_proj, mock_skip, tmp_path, capsys
+        self, mock_proj, tmp_path, capsys
     ):
         mock_proj.return_value = str(tmp_path)
         sessions_dir = tmp_path / ".agents" / "sessions"
@@ -261,9 +264,8 @@ class TestMain:
         captured = capsys.readouterr()
         assert "Evidence verified" in captured.out
 
-    @patch("invoke_memory_first_enforcer.skip_if_consumer_repo", return_value=False)
     @patch("invoke_memory_first_enforcer.get_project_directory")
-    def test_fails_open_on_exception(self, mock_proj, mock_skip, capsys):
+    def test_fails_open_on_exception(self, mock_proj, capsys):
         mock_proj.return_value = "/nonexistent/path"
         with patch.object(
             invoke_memory_first_enforcer, "get_today_session_logs",
