@@ -61,16 +61,33 @@ class LintResult:
         return sum(1 for v in self.violations if v.severity == "warning")
 
 
+def is_safe_path(filepath: str) -> bool:
+    """Check if a path is safe from path traversal attacks (CWE-22).
+
+    For relative paths: rejects any path containing '..' in components.
+    For absolute paths: allows them (relies on OS permissions for access control).
+    """
+    # Allow absolute paths (rely on OS permissions)
+    if os.path.isabs(filepath):
+        return True
+    # Reject relative paths with '..' traversal
+    parts = Path(filepath).parts
+    return ".." not in parts
+
+
 def get_staged_files() -> list[str]:
     """Get list of staged files from git."""
     try:
         result = subprocess.run(
             ["git", "diff", "--cached", "--name-only", "--diff-filter=ACM"],
             capture_output=True,
-            text=True,
             check=True,
+            encoding="utf-8",
+            errors="ignore",
         )
-        return [f for f in result.stdout.strip().split("\n") if f]
+        files = [f for f in result.stdout.strip().split("\n") if f]
+        # Filter out any paths with traversal attempts (CWE-22)
+        return [f for f in files if is_safe_path(f)]
     except (subprocess.CalledProcessError, FileNotFoundError):
         return []
 
@@ -369,6 +386,9 @@ def run_lint(files: list[str], rules: tuple[str, ...]) -> LintResult:
     result = LintResult()
 
     for filepath in files:
+        # CWE-22: Validate path before processing
+        if not is_safe_path(filepath):
+            continue
         if not os.path.isfile(filepath):
             continue
         if Path(filepath).suffix not in SCANNABLE_EXTENSIONS:

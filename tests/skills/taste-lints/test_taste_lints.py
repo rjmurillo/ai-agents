@@ -27,6 +27,7 @@ format_text = mod.format_text
 format_json = mod.format_json
 parse_rules = mod.parse_rules
 main = mod.main
+is_safe_path = mod.is_safe_path
 LintResult = mod.LintResult
 Violation = mod.Violation
 EXIT_SUCCESS = mod.EXIT_SUCCESS
@@ -295,3 +296,32 @@ class TestMain:
         with patch("sys.argv", ["taste_lints.py", str(test_file)]):
             result = main()
         assert result == EXIT_VIOLATIONS
+
+
+class TestIsSafePath:
+    """Tests for path traversal prevention (CWE-22)."""
+
+    def test_absolute_path_allowed(self) -> None:
+        assert is_safe_path("/usr/local/bin/script.py") is True
+
+    def test_relative_path_without_traversal_allowed(self) -> None:
+        assert is_safe_path("src/module.py") is True
+        assert is_safe_path("./src/module.py") is True
+
+    def test_relative_path_with_traversal_rejected(self) -> None:
+        assert is_safe_path("../secrets.py") is False
+        assert is_safe_path("foo/../bar.py") is False
+        assert is_safe_path("foo/bar/../baz.py") is False
+
+    def test_simple_filename_allowed(self) -> None:
+        assert is_safe_path("script.py") is True
+
+    def test_run_lint_skips_unsafe_paths(self, tmp_path: Path) -> None:
+        # Create a real file
+        safe_file = tmp_path / "safe.py"
+        safe_file.write_text("x = 1\n")
+        # Run lint with both safe and unsafe paths
+        files = [str(safe_file), "../unsafe.py", "foo/../bar.py"]
+        result = run_lint(files, ("file-size",))
+        # Only the safe file should be scanned
+        assert result.files_scanned == 1
