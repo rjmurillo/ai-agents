@@ -73,10 +73,10 @@
 | No bash/Python scripts | [user-preferences/user-preference-no-bash-python](user-preferences/user-preference-no-bash-python.md) (268) |
 | No auto-generated headers | [user-preferences/user-preference-no-auto-headers](user-preferences/user-preference-no-auto-headers.md) (375) |
 
-## Root Cause Patterns (PR #908 Retrospective)
+## Root Cause Patterns
 
-| Keywords | Memory |
-|----------|--------|
+| Task Keywords | Essential Memories |
+|---------------|-------------------|
 | governance enforcement ADR limits commits files programmatic gate | [root-cause-governance-enforcement](root-cause-governance-enforcement.md) (280) |
 | late feedback loop CI shift-left CodeQL security pre-push local validation | [root-cause-late-feedback](root-cause-late-feedback.md) (246) |
 | scope creep tool side effects markdownlint glob unrelated files | [root-cause-scope-creep-tools](root-cause-scope-creep-tools.md) (256) |

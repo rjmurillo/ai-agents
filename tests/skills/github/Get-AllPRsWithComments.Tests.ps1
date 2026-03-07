@@ -23,7 +23,7 @@
 #>
 
 BeforeAll {
-    $Script:ModulePath = Join-Path $PSScriptRoot ".." "modules" "GitHubCore.psm1"
+    $Script:ModulePath = Join-Path $PSScriptRoot ".." ".." ".." ".claude" "skills" "github" "modules" "GitHubCore.psm1"
 
     if (-not (Test-Path $Script:ModulePath)) {
         throw "Module not found at: $Script:ModulePath"
