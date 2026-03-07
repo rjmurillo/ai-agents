@@ -131,14 +131,15 @@ class TestAutonomyPatterns:
             assert isinstance(pattern, re.Pattern)
 
 
+@pytest.fixture(autouse=True)
+def _no_consumer_repo_skip():
+    target = "invoke_autonomous_execution_detector.skip_if_consumer_repo"
+    with patch(target, return_value=False):
+        yield
+
+
 class TestMainAllow:
     """Tests for main() passing through."""
-
-    @pytest.fixture(autouse=True)
-    def _no_consumer_repo_skip(self):
-        target = "invoke_autonomous_execution_detector.skip_if_consumer_repo"
-        with patch(target, return_value=False):
-            yield
 
     def test_tty_stdin(self) -> None:
         with patch("invoke_autonomous_execution_detector.sys.stdin") as mock_stdin:
@@ -166,12 +167,6 @@ class TestMainAllow:
 
 class TestMainDetect:
     """Tests for main() detecting autonomy keywords."""
-
-    @pytest.fixture(autouse=True)
-    def _no_consumer_repo_skip(self):
-        target = "invoke_autonomous_execution_detector.skip_if_consumer_repo"
-        with patch(target, return_value=False):
-            yield
 
     def test_autonomous_keyword_injects_warning(
         self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture

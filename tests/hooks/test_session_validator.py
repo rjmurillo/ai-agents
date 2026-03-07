@@ -167,13 +167,14 @@ class TestPlaceholderPatterns:
             assert isinstance(pattern, re.Pattern)
 
 
+@pytest.fixture(autouse=True)
+def _no_consumer_repo_skip():
+    with patch("invoke_session_validator.skip_if_consumer_repo", return_value=False):
+        yield
+
+
 class TestMainAllow:
     """Tests for main() allowing stop."""
-
-    @pytest.fixture(autouse=True)
-    def _no_consumer_repo_skip(self):
-        with patch("invoke_session_validator.skip_if_consumer_repo", return_value=False):
-            yield
 
     def test_tty_stdin(self) -> None:
         with patch("invoke_session_validator.sys.stdin") as mock_stdin:
@@ -227,11 +228,6 @@ class TestMainAllow:
 
 class TestMainContinue:
     """Tests for main() requesting continuation."""
-
-    @pytest.fixture(autouse=True)
-    def _no_consumer_repo_skip(self):
-        with patch("invoke_session_validator.skip_if_consumer_repo", return_value=False):
-            yield
 
     def test_log_missing(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,

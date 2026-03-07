@@ -32,13 +32,14 @@ class TestIsValidProjectRoot:
         assert invoke_user_prompt_memory_check.is_valid_project_root(str(tmp_path)) is False
 
 
+@pytest.fixture(autouse=True)
+def _no_consumer_repo_skip():
+    with patch("invoke_user_prompt_memory_check.skip_if_consumer_repo", return_value=False):
+        yield
+
+
 class TestPlanningKeywords:
     """Tests for planning keyword detection."""
-
-    @pytest.fixture(autouse=True)
-    def _no_consumer_repo_skip(self):
-        with patch("invoke_user_prompt_memory_check.skip_if_consumer_repo", return_value=False):
-            yield
 
     def test_detects_plan_keyword(self, monkeypatch, tmp_path, capsys):
         (tmp_path / ".git").mkdir()
@@ -80,11 +81,6 @@ class TestPlanningKeywords:
 class TestPRKeywords:
     """Tests for PR creation keyword detection."""
 
-    @pytest.fixture(autouse=True)
-    def _no_consumer_repo_skip(self):
-        with patch("invoke_user_prompt_memory_check.skip_if_consumer_repo", return_value=False):
-            yield
-
     def test_detects_create_pr(self, monkeypatch, tmp_path, capsys):
         (tmp_path / ".git").mkdir()
         monkeypatch.setattr("os.getcwd", lambda: str(tmp_path))
@@ -107,11 +103,6 @@ class TestPRKeywords:
 class TestGHCLIPatterns:
     """Tests for GitHub CLI skill suggestion."""
 
-    @pytest.fixture(autouse=True)
-    def _no_consumer_repo_skip(self):
-        with patch("invoke_user_prompt_memory_check.skip_if_consumer_repo", return_value=False):
-            yield
-
     def test_detects_gh_issue_view(self, monkeypatch, tmp_path, capsys):
         (tmp_path / ".git").mkdir()
         monkeypatch.setattr("os.getcwd", lambda: str(tmp_path))
@@ -133,11 +124,6 @@ class TestGHCLIPatterns:
 
 class TestMain:
     """Tests for main() entry point."""
-
-    @pytest.fixture(autouse=True)
-    def _no_consumer_repo_skip(self):
-        with patch("invoke_user_prompt_memory_check.skip_if_consumer_repo", return_value=False):
-            yield
 
     def test_invalid_project_root_fails_open(self, monkeypatch, tmp_path):
         monkeypatch.setattr("os.getcwd", lambda: str(tmp_path))

@@ -84,14 +84,15 @@ class TestProtectedBranches:
         assert "master" in PROTECTED_BRANCHES
 
 
+@pytest.fixture(autouse=True)
+def _no_consumer_repo_skip():
+    target = "invoke_session_initialization_enforcer.skip_if_consumer_repo"
+    with patch(target, return_value=False):
+        yield
+
+
 class TestMainProtectedBranch:
     """Tests for main() on protected branch."""
-
-    @pytest.fixture(autouse=True)
-    def _no_consumer_repo_skip(self):
-        target = "invoke_session_initialization_enforcer.skip_if_consumer_repo"
-        with patch(target, return_value=False):
-            yield
 
     def test_main_branch_warning(self, capsys: pytest.CaptureFixture) -> None:
         mod = "invoke_session_initialization_enforcer"
@@ -106,12 +107,6 @@ class TestMainProtectedBranch:
 
 class TestMainFeatureBranch:
     """Tests for main() on feature branch."""
-
-    @pytest.fixture(autouse=True)
-    def _no_consumer_repo_skip(self):
-        target = "invoke_session_initialization_enforcer.skip_if_consumer_repo"
-        with patch(target, return_value=False):
-            yield
 
     def test_feature_branch_status(self, capsys: pytest.CaptureFixture) -> None:
         mod = "invoke_session_initialization_enforcer"
@@ -138,12 +133,6 @@ class TestMainFeatureBranch:
 
 class TestMainErrorHandling:
     """Tests for main() error handling."""
-
-    @pytest.fixture(autouse=True)
-    def _no_consumer_repo_skip(self):
-        target = "invoke_session_initialization_enforcer.skip_if_consumer_repo"
-        with patch(target, return_value=False):
-            yield
 
     def test_exception_fails_open(self) -> None:
         with patch(

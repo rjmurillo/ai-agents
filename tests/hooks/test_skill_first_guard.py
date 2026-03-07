@@ -138,13 +138,14 @@ class TestSkillMappings:
         assert len(SKILL_MAPPINGS["issue"]) >= 3
 
 
+@pytest.fixture(autouse=True)
+def _no_consumer_repo_skip():
+    with patch("invoke_skill_first_guard.skip_if_consumer_repo", return_value=False):
+        yield
+
+
 class TestMainAllow:
     """Tests for main() allowing commands."""
-
-    @pytest.fixture(autouse=True)
-    def _no_consumer_repo_skip(self):
-        with patch("invoke_skill_first_guard.skip_if_consumer_repo", return_value=False):
-            yield
 
     def test_tty_stdin(self) -> None:
         with patch("invoke_skill_first_guard.sys.stdin") as mock_stdin:
@@ -183,11 +184,6 @@ class TestMainAllow:
 
 class TestMainBlock:
     """Tests for main() blocking commands."""
-
-    @pytest.fixture(autouse=True)
-    def _no_consumer_repo_skip(self):
-        with patch("invoke_skill_first_guard.skip_if_consumer_repo", return_value=False):
-            yield
 
     def test_blocks_gh_pr_view_with_skill(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,

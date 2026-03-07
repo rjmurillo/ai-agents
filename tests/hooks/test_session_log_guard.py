@@ -82,13 +82,14 @@ class TestCheckSessionLogEvidence:
         assert len(result["content"]) <= 200
 
 
+@pytest.fixture(autouse=True)
+def _no_consumer_repo_skip():
+    with patch("invoke_session_log_guard.skip_if_consumer_repo", return_value=False):
+        yield
+
+
 class TestMainAllow:
     """Tests for main() allowing commits."""
-
-    @pytest.fixture(autouse=True)
-    def _no_consumer_repo_skip(self):
-        with patch("invoke_session_log_guard.skip_if_consumer_repo", return_value=False):
-            yield
 
     def test_stdin_is_tty(self, monkeypatch: pytest.MonkeyPatch) -> None:
         with patch("invoke_session_log_guard.sys.stdin") as mock_stdin:
@@ -141,11 +142,6 @@ class TestMainAllow:
 
 class TestMainBlock:
     """Tests for main() blocking commits."""
-
-    @pytest.fixture(autouse=True)
-    def _no_consumer_repo_skip(self):
-        with patch("invoke_session_log_guard.skip_if_consumer_repo", return_value=False):
-            yield
 
     def test_commit_without_session_log(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
