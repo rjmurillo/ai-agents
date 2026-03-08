@@ -21,7 +21,8 @@ def run_validator(*args: str) -> dict[str, object]:
         timeout=30,
     )
     # JSON is on stdout, human-readable on stderr
-    return json.loads(result.stdout)
+    parsed: dict[str, object] = json.loads(result.stdout)
+    return parsed
 
 
 class TestConventionalCommit:
