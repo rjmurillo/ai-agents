@@ -20,6 +20,7 @@ Related: Issue #676 (Skill Prompt Size Limits)
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import os
 import re
 import subprocess
@@ -27,13 +28,17 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
-# Add SkillForge scripts to path for shared frontmatter utilities
+# Load local frontmatter module by file path to avoid collision with
+# the PyPI ``python-frontmatter`` package which also installs as ``frontmatter``.
 _SCRIPT_DIR = Path(__file__).resolve().parent
 _PROJECT_ROOT = _SCRIPT_DIR.parents[1]
-_SKILLFORGE_SCRIPTS = _PROJECT_ROOT / ".claude" / "skills" / "SkillForge" / "scripts"
-sys.path.insert(0, str(_SKILLFORGE_SCRIPTS))
-
-from frontmatter import has_size_exception  # noqa: E402
+_FRONTMATTER_PATH = (
+    _PROJECT_ROOT / ".claude" / "skills" / "SkillForge" / "scripts" / "frontmatter.py"
+)
+_spec = importlib.util.spec_from_file_location("skill_frontmatter_utils", _FRONTMATTER_PATH)
+_mod = importlib.util.module_from_spec(_spec)  # type: ignore[arg-type]
+_spec.loader.exec_module(_mod)  # type: ignore[union-attr]
+has_size_exception = _mod.has_size_exception
 
 # Size thresholds (lines)
 SKILL_SIZE_LIMIT: int = 500
