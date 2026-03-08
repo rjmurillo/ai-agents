@@ -1,5 +1,5 @@
 ---
-description: Session initialization - enforce ADR-007 memory-first architecture at session start. Activates Serena project, loads memories, creates session log, and declares current branch.
+description: Session initialization - enforce ADR-007 memory-first architecture at session start. Loads project context, creates session log, and declares current branch via Invoke-Init.ps1.
 argument-hint: [--session-number N] [--objective "text"]
 allowed-tools:
   - Bash(pwsh .claude/skills/workflow/scripts/*)
