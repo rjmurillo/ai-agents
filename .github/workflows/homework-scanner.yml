@@ -27,6 +27,13 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Install uv and dependencies
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+          export PATH="$HOME/.cargo/bin:$PATH"
+          uv pip install --system -e ".[dev]"
+
       - name: Scan PR for homework items
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
