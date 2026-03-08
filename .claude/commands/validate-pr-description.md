@@ -1,5 +1,5 @@
 ---
-description: Validate PR description against GitHub standards
+description: Use when checking a PR description for conventional commit format, issue keywords, and template compliance before submission
 allowed-tools:
   - Bash(python3 .claude/skills/github/scripts/pr/test_pr_description.py:*)
 ---

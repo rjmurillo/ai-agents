@@ -49,10 +49,8 @@ def validate_conventional_commit(title: str) -> dict:
 
 def validate_issue_keywords(text: str) -> dict:
     """Check for GitHub issue linking keywords."""
-    matches = _ISSUE_KEYWORD_PATTERN.findall(text)
-    if matches:
-        # Reconstruct matched strings for reporting
-        keywords = [m.group() for m in _ISSUE_KEYWORD_PATTERN.finditer(text)]
+    keywords = [m.group() for m in _ISSUE_KEYWORD_PATTERN.finditer(text)]
+    if keywords:
         return {
             "Status": "PASS",
             "Message": f"Found {len(keywords)} issue linking keyword(s)",

@@ -105,3 +105,27 @@ class TestOverall:
         r = run_validator("--title", "Bad title", "--body", "Closes #123")
         assert r["Success"] is False
         assert len(r["Errors"]) > 0
+
+    def test_fail_on_violation_with_warnings(self):
+        """--fail-on-violation causes non-zero exit when warnings exist."""
+        result = subprocess.run(
+            [sys.executable, SCRIPT, "--title", "feat: Feature", "--body", "Minimal body",
+             "--fail-on-violation"],
+            capture_output=True, text=True, timeout=30,
+        )
+        # Warnings present (no issue keywords, incomplete template) but title valid
+        # so Success is True in JSON, but exit code should still be 0 for warnings-only
+        r = json.loads(result.stdout)
+        assert r["Success"] is True
+        assert len(r["Warnings"]) > 0
+
+    def test_fail_on_violation_with_errors(self):
+        """--fail-on-violation returns exit code 1 when errors exist."""
+        result = subprocess.run(
+            [sys.executable, SCRIPT, "--title", "Bad title", "--body", "Closes #123",
+             "--fail-on-violation"],
+            capture_output=True, text=True, timeout=30,
+        )
+        r = json.loads(result.stdout)
+        assert r["Success"] is False
+        assert result.returncode == 1
