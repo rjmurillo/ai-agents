@@ -28,13 +28,13 @@ pwsh .claude/skills/workflow/scripts/Invoke-Init.ps1 $ARGUMENTS
 
 ## What This Command Does
 
-1. **Activate Serena project** — load project context via `mcp__serena__activate_project`
+1. **Activate Serena project** — load project context (graceful fallback if MCP unavailable)
 2. **Load initial instructions** — read AGENTS.md for current project rules
 3. **Read HANDOFF.md** — load prior session context (read-only)
-4. **Query relevant memories** — surface related memories via `mcp__serena__list_memories`
+4. **Query relevant memories** — surface related memories (graceful fallback if MCP unavailable)
 5. **Create session log** — via `New-SessionLog.ps1`
 6. **Declare current branch** — output git branch for orientation
-7. **Record evidence** — to Session State MCP if available
+7. **Record evidence** — persist session state (graceful fallback if MCP unavailable)
 
 ## Arguments
 
