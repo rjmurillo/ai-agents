@@ -88,7 +88,7 @@ class TestPRKeywords:
         monkeypatch.setattr("sys.stdin", io.StringIO(input_data))
         invoke_user_prompt_memory_check.main()
         captured = capsys.readouterr()
-        assert "Pre-PR" in captured.out or "pre-PR" in captured.out.lower()
+        assert "Pre-PR gate" in captured.out
 
     def test_detects_open_pull_request(self, monkeypatch, tmp_path, capsys):
         (tmp_path / ".git").mkdir()
@@ -97,7 +97,7 @@ class TestPRKeywords:
         monkeypatch.setattr("sys.stdin", io.StringIO(input_data))
         invoke_user_prompt_memory_check.main()
         captured = capsys.readouterr()
-        assert "Pre-PR" in captured.out or "pre-PR" in captured.out.lower()
+        assert "Pre-PR gate" in captured.out
 
 
 class TestGHCLIPatterns:
@@ -110,7 +110,7 @@ class TestGHCLIPatterns:
         monkeypatch.setattr("sys.stdin", io.StringIO(input_data))
         invoke_user_prompt_memory_check.main()
         captured = capsys.readouterr()
-        assert "Skill" in captured.out or "skill" in captured.out.lower()
+        assert "Skill-first" in captured.out
 
     def test_detects_gh_api(self, monkeypatch, tmp_path, capsys):
         (tmp_path / ".git").mkdir()
@@ -119,7 +119,7 @@ class TestGHCLIPatterns:
         monkeypatch.setattr("sys.stdin", io.StringIO(input_data))
         invoke_user_prompt_memory_check.main()
         captured = capsys.readouterr()
-        assert "Skill" in captured.out or "skill" in captured.out.lower()
+        assert "Skill-first" in captured.out
 
 
 class TestMain:

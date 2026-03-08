@@ -128,7 +128,7 @@ class TestResolvePrConflicts:
             target_branch="main",
         )
         assert result["success"] is False
-        assert "unsafe branch name" in result["message"].lower()
+        assert "unsafe branch name" in result["message"]
 
     def test_rejects_unsafe_target_branch(self) -> None:
         result = resolve_pr_conflicts(
@@ -137,7 +137,7 @@ class TestResolvePrConflicts:
             target_branch="main;rm -rf /",
         )
         assert result["success"] is False
-        assert "unsafe target branch" in result["message"].lower()
+        assert "unsafe target branch" in result["message"]
 
     def test_result_structure(self) -> None:
         result = resolve_pr_conflicts(
