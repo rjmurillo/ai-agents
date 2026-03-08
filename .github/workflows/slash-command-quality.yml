@@ -42,18 +42,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
+      - name: Setup code environment
+        uses: ./.github/actions/setup-code-env
         with:
-          node-version: '24'
-
-      - name: Install markdownlint-cli2
-        run: npm install -g markdownlint-cli2
-
-      - name: Set up Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
-        with:
-          python-version: '3.12'
+          gh-token: ${{ secrets.GITHUB_TOKEN }}
+          enable-pester: false
+          enable-git-hooks: false
 
       - name: Validate slash commands
         run: python3 -c "from scripts.modules.slash_command_validator import invoke_slash_command_validation; raise SystemExit(invoke_slash_command_validation())"
