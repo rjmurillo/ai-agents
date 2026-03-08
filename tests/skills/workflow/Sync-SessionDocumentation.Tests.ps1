@@ -2,7 +2,7 @@
 #Requires -Module Pester
 
 BeforeAll {
-    $ScriptPath = Join-Path $PSScriptRoot 'Sync-SessionDocumentation.ps1'
+    $ScriptPath = Join-Path $PSScriptRoot '../../../.claude/skills/workflow/scripts/Sync-SessionDocumentation.ps1'
 }
 
 Describe 'Sync-SessionDocumentation.ps1' {
@@ -140,10 +140,10 @@ Describe 'Sync-SessionDocumentation.ps1' {
 
         It 'includes timestamp, type, mermaidDiagram, and decisions in workLog entry' {
             $content = Get-Content $ScriptPath -Raw
-            $content | Should -Match "'timestamp'"
-            $content | Should -Match "'type'"
-            $content | Should -Match "'mermaidDiagram'"
-            $content | Should -Match "'decisions'"
+            $content | Should -Match 'timestamp\s*='
+            $content | Should -Match 'type\s*='
+            $content | Should -Match 'mermaidDiagram\s*='
+            $content | Should -Match 'decisions\s*='
         }
     }
 

@@ -2,8 +2,8 @@
 #Requires -Module Pester
 
 BeforeAll {
-    $ScriptPath = Join-Path $PSScriptRoot 'Invoke-Impl.ps1'
-    $ModulePath = Join-Path $PSScriptRoot '../modules/WorkflowHelpers.psm1'
+    $ScriptPath = Join-Path $PSScriptRoot '../../../.claude/skills/workflow/scripts/Invoke-Impl.ps1'
+    $ModulePath = Join-Path $PSScriptRoot '../../../.claude/skills/workflow/modules/WorkflowHelpers.psm1'
     Import-Module $ModulePath -Force
 }
 
@@ -110,7 +110,7 @@ Describe 'Invoke-Impl.ps1' {
     Context 'Full sequential mode (--full)' {
         It 'chains implementer → qa → security' {
             $content = Get-Content $ScriptPath -Raw
-            $content | Should -Match "if\s*\(\`\$Full\)"
+            $content | Should -Match 'if\s*\(\$Full\)'
             $content | Should -Match "'qa',\s*'security'"
         }
 

@@ -2,8 +2,8 @@
 #Requires -Module Pester
 
 BeforeAll {
-    $ScriptPath = Join-Path $PSScriptRoot 'Invoke-Plan.ps1'
-    $ModulePath = Join-Path $PSScriptRoot '../modules/WorkflowHelpers.psm1'
+    $ScriptPath = Join-Path $PSScriptRoot '../../../.claude/skills/workflow/scripts/Invoke-Plan.ps1'
+    $ModulePath = Join-Path $PSScriptRoot '../../../.claude/skills/workflow/modules/WorkflowHelpers.psm1'
     Import-Module $ModulePath -Force
 }
 
@@ -66,7 +66,7 @@ Describe 'Invoke-Plan.ps1' {
     Context 'Agent routing: default (planner)' {
         It 'routes to planner agent by default' {
             $content = Get-Content $ScriptPath -Raw
-            $content | Should -Match "\`\$agentChain\s*=\s*@\('planner'\)"
+            $content | Should -Match '\$agentChain\s*=\s*@\(''planner''\)'
         }
 
         It 'displays Default route description' {
@@ -92,7 +92,7 @@ Describe 'Invoke-Plan.ps1' {
     Context 'Agent routing: --arch (architect)' {
         It 'routes to architect agent when --arch flag is set' {
             $content = Get-Content $ScriptPath -Raw
-            $content | Should -Match "\`\$agentChain\s*=\s*@\('architect'\)"
+            $content | Should -Match '\$agentChain\s*=\s*@\(''architect''\)'
         }
 
         It 'displays Architecture route description' {

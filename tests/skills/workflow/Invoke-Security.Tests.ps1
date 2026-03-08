@@ -2,8 +2,8 @@
 #Requires -Module Pester
 
 BeforeAll {
-    $ScriptPath = Join-Path $PSScriptRoot 'Invoke-Security.ps1'
-    $ModulePath = Join-Path $PSScriptRoot '../modules/WorkflowHelpers.psm1'
+    $ScriptPath = Join-Path $PSScriptRoot '../../../.claude/skills/workflow/scripts/Invoke-Security.ps1'
+    $ModulePath = Join-Path $PSScriptRoot '../../../.claude/skills/workflow/modules/WorkflowHelpers.psm1'
     Import-Module $ModulePath -Force
 }
 
