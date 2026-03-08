@@ -1,5 +1,6 @@
 BeforeAll {
-    Import-Module (Join-Path $PSScriptRoot '..' '.claude' 'skills' 'github' 'modules' 'SkillOutput.psm1') -Force
+    $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
+    Import-Module (Join-Path $repoRoot '.claude' 'skills' 'github' 'modules' 'SkillOutput.psm1') -Force
 }
 
 Describe 'Get-OutputFormat' {
