@@ -33,13 +33,13 @@ Describe 'Invoke-Impl.ps1' {
             $tempDir = Join-Path ([IO.Path]::GetTempPath()) "impl-test-$(Get-Random)"
             New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
             try {
-                $exitCode = & pwsh -NonInteractive -NoProfile -Command "
+                $output = & pwsh -NonInteractive -NoProfile -Command "
                     Set-Location '$tempDir'
                     `$env:AGENT_ORCHESTRATION_MCP_URL = `$null
-                    & '$ScriptPath' 2>&1 | Out-Null
-                    [int][Environment]::ExitCode
-                "
-                $exitCode | Should -Be 3
+                    & '$ScriptPath' 2>&1
+                    exit `$LASTEXITCODE
+                " -ErrorAction SilentlyContinue
+                $LASTEXITCODE | Should -Be 3
             }
             finally {
                 Remove-Item -Recurse -Force $tempDir -ErrorAction SilentlyContinue

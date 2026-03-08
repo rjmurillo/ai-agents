@@ -68,7 +68,7 @@ Describe 'Invoke-WorkflowCommand.ps1' {
 
         It 'exits 3 for empty string command' {
             & pwsh -NonInteractive -Command "
-                & '$ScriptPath' -Command '' 2>&1 | Out-Null
+                & '$ScriptPath' -Command [string]::Empty 2>&1 | Out-Null
                 exit `$LASTEXITCODE
             "
             $LASTEXITCODE | Should -Be 3

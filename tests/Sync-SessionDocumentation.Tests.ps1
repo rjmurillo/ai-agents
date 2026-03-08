@@ -184,16 +184,18 @@ Describe 'Sync-SessionDocumentation.ps1' {
             New-Item -ItemType Directory -Path $sessDir -Force | Out-Null
 
             & git -C $tempDir init -q 2>&1 | Out-Null
+            & git -C $tempDir config user.email "test@test.com" 2>&1 | Out-Null
+            & git -C $tempDir config user.name "Test" 2>&1 | Out-Null
             & git -C $tempDir commit --allow-empty -m 'init' -q 2>&1 | Out-Null
 
             $logFile = Join-Path $sessDir 'session-test.json'
             @{ sessionNumber = 1; workLog = @() } | ConvertTo-Json | Set-Content $logFile -Encoding UTF8
 
             try {
-                & pwsh -NonInteractive -Command "
+                $output = & pwsh -NonInteractive -NoProfile -Command "
                     Set-Location '$tempDir'
                     `$env:AGENT_ORCHESTRATION_MCP_URL = `$null
-                    & '$ScriptPath' -SessionLogPath '$logFile' 2>&1 | Out-Null
+                    & '$ScriptPath' -SessionLogPath '.agents/sessions/session-test.json' 2>&1
                     exit `$LASTEXITCODE
                 "
                 $LASTEXITCODE | Should -Be 0
@@ -217,16 +219,18 @@ Describe 'Sync-SessionDocumentation.ps1' {
             New-Item -ItemType Directory -Path $sessDir -Force | Out-Null
 
             & git -C $tempDir init -q 2>&1 | Out-Null
+            & git -C $tempDir config user.email "test@test.com" 2>&1 | Out-Null
+            & git -C $tempDir config user.name "Test" 2>&1 | Out-Null
             & git -C $tempDir commit --allow-empty -m 'init' -q 2>&1 | Out-Null
 
             $logFile = Join-Path $sessDir 'session-nolog.json'
             @{ sessionNumber = 2 } | ConvertTo-Json | Set-Content $logFile -Encoding UTF8
 
             try {
-                & pwsh -NonInteractive -Command "
+                $output = & pwsh -NonInteractive -NoProfile -Command "
                     Set-Location '$tempDir'
                     `$env:AGENT_ORCHESTRATION_MCP_URL = `$null
-                    & '$ScriptPath' -SessionLogPath '$logFile' 2>&1 | Out-Null
+                    & '$ScriptPath' -SessionLogPath '.agents/sessions/session-nolog.json' 2>&1
                     exit `$LASTEXITCODE
                 "
                 $LASTEXITCODE | Should -Be 0
@@ -247,16 +251,18 @@ Describe 'Sync-SessionDocumentation.ps1' {
             New-Item -ItemType Directory -Path $sessDir -Force | Out-Null
 
             & git -C $tempDir init -q 2>&1 | Out-Null
+            & git -C $tempDir config user.email "test@test.com" 2>&1 | Out-Null
+            & git -C $tempDir config user.name "Test" 2>&1 | Out-Null
             & git -C $tempDir commit --allow-empty -m 'init' -q 2>&1 | Out-Null
 
             $logFile = Join-Path $sessDir 'session-mcp.json'
             @{ sessionNumber = 3 } | ConvertTo-Json | Set-Content $logFile -Encoding UTF8
 
             try {
-                $output = & pwsh -NonInteractive -Command "
+                $output = & pwsh -NonInteractive -NoProfile -Command "
                     Set-Location '$tempDir'
                     `$env:AGENT_ORCHESTRATION_MCP_URL = `$null
-                    & '$ScriptPath' -SessionLogPath '$logFile' 2>&1
+                    & '$ScriptPath' -SessionLogPath '.agents/sessions/session-mcp.json' 2>&1
                     exit `$LASTEXITCODE
                 "
                 $LASTEXITCODE | Should -Be 0
