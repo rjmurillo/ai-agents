@@ -10,6 +10,7 @@ Usage:
     python validate-skill.py ~/.claude/skills/my-skill/
 """
 
+import os
 import sys
 import re
 from pathlib import Path
@@ -20,6 +21,11 @@ class SkillValidator:
     """Validates skill files against SkillForge 4.1 standards."""
 
     def __init__(self, skill_path: str):
+        # SECURITY: Validate path stays within allowed base directory (CWE-22)
+        cwd_real = os.path.realpath(os.getcwd())
+        resolved = os.path.realpath(str(skill_path))
+        if not resolved.startswith(cwd_real + os.sep) and resolved != cwd_real:
+            raise ValueError(f"Path traversal detected: {skill_path}")
         self.skill_path = Path(skill_path)
         self.skill_md_path = self._find_skill_md()
         self.content = ""

@@ -13,6 +13,7 @@ Example:
     python package_skill.py ~/.claude/skills/my-skill ./dist
 """
 
+import os
 import sys
 import zipfile
 import fnmatch
@@ -81,6 +82,12 @@ def package_skill(skill_path, output_dir=None) -> PackageResult:
     """
     skill_path = Path(skill_path).resolve()
 
+    # SECURITY: Validate path stays within allowed base directory (CWE-22)
+    skills_root = os.path.realpath(str(Path.home() / ".claude" / "skills"))
+    resolved = os.path.realpath(str(skill_path))
+    if not resolved.startswith(skills_root + os.sep) and resolved != skills_root:
+        return PackageResult(False, f"Path traversal detected: {skill_path}")
+
     # Validate skill folder exists
     if not skill_path.exists():
         return PackageResult(False, f"Skill folder not found: {skill_path}")
@@ -104,6 +111,11 @@ def package_skill(skill_path, output_dir=None) -> PackageResult:
     skill_name = skill_path.name
     if output_dir:
         output_path = Path(output_dir).resolve()
+        # SECURITY: Validate output path stays within cwd (CWE-22)
+        cwd_real = os.path.realpath(os.getcwd())
+        output_real = os.path.realpath(str(output_path))
+        if not output_real.startswith(cwd_real + os.sep) and output_real != cwd_real:
+            return PackageResult(False, f"Path traversal detected: {output_dir}")
         output_path.mkdir(parents=True, exist_ok=True)
     else:
         output_path = Path.cwd()

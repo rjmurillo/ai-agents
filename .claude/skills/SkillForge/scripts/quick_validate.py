@@ -10,6 +10,7 @@ Usage:
     python quick_validate.py ~/.claude/skills/my-skill/
 """
 
+import os
 import sys
 import re
 from pathlib import Path
@@ -195,6 +196,13 @@ def main():
         sys.exit(1)
 
     skill_path = sys.argv[1]
+
+    # SECURITY: Validate path stays within allowed base directory (CWE-22)
+    skills_root = os.path.realpath(str(Path.home() / ".claude" / "skills"))
+    resolved = os.path.realpath(skill_path)
+    if not resolved.startswith(skills_root + os.sep) and resolved != skills_root:
+        print(f"Error: Path traversal detected: {skill_path}")
+        sys.exit(1)
 
     if not Path(skill_path).exists():
         print(f"Error: Path not found: {skill_path}")
