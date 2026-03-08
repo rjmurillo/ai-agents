@@ -49,7 +49,11 @@ jobs:
         run: |
           TOP_N_FLAG=""
           if [ "$TOP_N" != "0" ] && [ -n "$TOP_N" ]; then
-            TOP_N_FLAG="--top-n $TOP_N"
+            if ! [[ "$TOP_N" =~ ^[0-9]+$ ]]; then
+              echo "Error: top_n must be numeric" >&2
+              exit 2
+            fi
+            TOP_N_FLAG="--top-n ${TOP_N}"
           fi
 
           python3 .claude/skills/quality-grades/scripts/grade_domains.py \
