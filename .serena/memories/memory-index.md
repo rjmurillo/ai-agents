@@ -80,7 +80,6 @@
 | governance enforcement ADR limits commits files programmatic gate | [root-cause-governance-enforcement](root-cause-governance-enforcement.md) (603) |
 | late feedback loop CI shift-left CodeQL security pre-push local validation | [root-cause-late-feedback](root-cause-late-feedback.md) (497) |
 | scope creep tool side effects markdownlint glob unrelated files | [root-cause-scope-creep-tools](root-cause-scope-creep-tools.md) (492) |
-| case study PR #908 228 comments failure retrospective critical 59 commits 95 files | [case-study-pr-908](case-study-pr-908.md) (869) |
 
 ## Related
 
