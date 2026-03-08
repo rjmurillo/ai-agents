@@ -77,6 +77,39 @@ KNOWN_LICENSES: dict[str, str] = {
     "urllib3": "MIT",
 }
 
+# Forked/vendored components with their upstream licenses
+FORKED_COMPONENTS: dict[str, dict[str, str]] = {
+    "SkillForge": {
+        "license": "MIT",
+        "url": "https://github.com/tripleyak/SkillForge",
+        "author": "tripleyak",
+        "local_path": ".claude/skills/SkillForge",
+        "license_text": (
+            "MIT License\n"
+            "\n"
+            "Copyright (c) 2025\n"
+            "\n"
+            "Permission is hereby granted, free of charge, to any person obtaining a copy\n"
+            "of this software and associated documentation files (the \"Software\"), to deal\n"
+            "in the Software without restriction, including without limitation the rights\n"
+            "to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\n"
+            "copies of the Software, and to permit persons to whom the Software is\n"
+            "furnished to do so, subject to the following conditions:\n"
+            "\n"
+            "The above copyright notice and this permission notice shall be included in all\n"
+            "copies or substantial portions of the Software.\n"
+            "\n"
+            "THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\n"
+            "IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\n"
+            "FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\n"
+            "AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\n"
+            "LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\n"
+            "OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\n"
+            "SOFTWARE.\n"
+        ),
+    },
+}
+
 # GitHub Actions with their known licenses
 ACTIONS_LICENSES: dict[str, dict[str, str]] = {
     "actions/cache": {
@@ -315,10 +348,29 @@ def get_docker_images(project_root: Path) -> list[DependencyInfo]:
     return deps
 
 
+def get_forked_components() -> list[DependencyInfo]:
+    """Return license info for forked or vendored upstream components."""
+    deps: list[DependencyInfo] = []
+    for name, info in sorted(FORKED_COMPONENTS.items()):
+        deps.append(
+            DependencyInfo(
+                name=name,
+                version="(fork)",
+                license_type=info["license"],
+                author=info["author"],
+                url=info["url"],
+                license_text=info.get("license_text", ""),
+                category="forked",
+            )
+        )
+    return deps
+
+
 def format_notices(
     python_deps: list[DependencyInfo],
     action_deps: list[DependencyInfo],
     docker_deps: list[DependencyInfo],
+    forked_deps: list[DependencyInfo] | None = None,
 ) -> str:
     """Format all dependencies into THIRD-PARTY-NOTICES.TXT content."""
     lines: list[str] = []
@@ -379,6 +431,15 @@ def format_notices(
         lines.append("-" * 40)
         lines.append("")
         for dep in docker_deps:
+            section_num += 1
+            lines.extend(_format_dep(section_num, dep))
+
+    # Forked/vendored components
+    if forked_deps:
+        lines.append("FORKED/VENDORED COMPONENTS")
+        lines.append("-" * 40)
+        lines.append("")
+        for dep in forked_deps:
             section_num += 1
             lines.extend(_format_dep(section_num, dep))
 
@@ -444,8 +505,9 @@ def main() -> int:
     python_deps = get_python_dependencies(project_root)
     action_deps = get_github_actions(project_root)
     docker_deps = get_docker_images(project_root)
+    forked_deps = get_forked_components()
 
-    content = format_notices(python_deps, action_deps, docker_deps)
+    content = format_notices(python_deps, action_deps, docker_deps, forked_deps)
 
     output_path = project_root / args.output
 
@@ -467,17 +529,19 @@ def main() -> int:
     transitive_count = len([d for d in python_deps if d.category == "python-transitive"])
     action_count = len(action_deps)
     docker_count = len(docker_deps)
-    total = direct_count + transitive_count + action_count + docker_count
+    forked_count = len(forked_deps)
+    total = direct_count + transitive_count + action_count + docker_count + forked_count
 
     print(f"Generated {args.output} with {total} components:")
     print(f"  Python direct:     {direct_count}")
     print(f"  Python transitive: {transitive_count}")
     print(f"  GitHub Actions:    {action_count}")
     print(f"  Docker images:     {docker_count}")
+    print(f"  Forked components: {forked_count}")
 
     # Flag unknown licenses
     unknown = [
-        d for d in python_deps + action_deps + docker_deps
+        d for d in python_deps + action_deps + docker_deps + forked_deps
         if d.license_type in ("Unknown", "?", "UNKNOWN")
     ]
     if unknown:
