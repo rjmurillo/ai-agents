@@ -58,12 +58,12 @@ function Write-StepResult {
 
 # Step 1: Activate Serena project
 Write-Step '1/7' 'Activating Serena project'
-$mcpResult = Invoke-AgentOrchestrationMCP -ToolName 'mcp__serena__activate_project' -Arguments @{}
+$mcpResult = Invoke-AgentOrchestrationMCP -ToolName 'activate_project' -Arguments @{}
 if ($mcpResult.Fallback) {
-    Write-StepResult 'WARN' 'Serena MCP unavailable — skipping project activation'
+    Write-StepResult 'WARN' 'Agent Orchestration MCP unavailable — skipping project activation'
 }
 else {
-    Write-StepResult 'OK' 'Serena project activated'
+    Write-StepResult 'OK' 'Project context activated'
 }
 
 # Step 2: Load initial instructions
@@ -89,9 +89,9 @@ else {
 
 # Step 4: Query relevant memories
 Write-Step '4/7' 'Querying relevant memories'
-$memResult = Invoke-AgentOrchestrationMCP -ToolName 'mcp__serena__list_memories' -Arguments @{}
+$memResult = Invoke-AgentOrchestrationMCP -ToolName 'query_memories' -Arguments @{}
 if ($memResult.Fallback) {
-    Write-StepResult 'WARN' 'Memory query skipped — Serena MCP unavailable'
+    Write-StepResult 'WARN' 'Memory query skipped — Agent Orchestration MCP unavailable'
 }
 else {
     Write-StepResult 'OK' 'Memory query issued'
@@ -135,13 +135,13 @@ catch {
 
 # Step 7: Record evidence to Session State MCP
 Write-Step '7/7' 'Recording session evidence'
-$evidenceResult = Invoke-AgentOrchestrationMCP -ToolName 'mcp__session_state__record_evidence' -Arguments @{
+$evidenceResult = Invoke-AgentOrchestrationMCP -ToolName 'record_evidence' -Arguments @{
     command   = '0-init'
     branch    = $branch
     timestamp = (Get-Date -Format 'o')
 }
 if ($evidenceResult.Fallback) {
-    Write-StepResult 'WARN' 'Session State MCP unavailable — evidence not recorded'
+    Write-StepResult 'WARN' 'Agent Orchestration MCP unavailable — evidence not recorded'
 }
 else {
     Write-StepResult 'OK' 'Evidence recorded'

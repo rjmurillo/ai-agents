@@ -33,8 +33,9 @@ Describe 'Invoke-Init.ps1' {
             $content = Get-Content $ScriptPath -Raw
         }
 
-        It 'Step 1: activates Serena project via MCP' {
-            $content | Should -Match 'mcp__serena__activate_project'
+        It 'Step 1: activates project via MCP (graceful fallback)' {
+            $content | Should -Match 'activate_project'
+            $content | Should -Match 'Fallback'
         }
 
         It 'Step 2: loads AGENTS.md' {
@@ -45,8 +46,9 @@ Describe 'Invoke-Init.ps1' {
             $content | Should -Match 'HANDOFF\.md'
         }
 
-        It 'Step 4: queries relevant memories' {
-            $content | Should -Match 'mcp__serena__list_memories'
+        It 'Step 4: queries relevant memories via MCP (graceful fallback)' {
+            $content | Should -Match 'query_memories'
+            $content | Should -Match 'Fallback'
         }
 
         It 'Step 5: creates session log' {
@@ -57,25 +59,26 @@ Describe 'Invoke-Init.ps1' {
             $content | Should -Match 'git\s+branch\s+--show-current'
         }
 
-        It 'Step 7: records evidence to Session State MCP' {
-            $content | Should -Match 'mcp__session_state__record_evidence'
+        It 'Step 7: records evidence to MCP (graceful fallback)' {
+            $content | Should -Match 'record_evidence'
+            $content | Should -Match 'Fallback'
         }
     }
 
     Context 'MCP fallback behavior' {
-        It 'handles Serena MCP unavailability with WARN status' {
+        It 'handles MCP unavailability with WARN status for project activation' {
             $content = Get-Content $ScriptPath -Raw
-            $content | Should -Match "WARN.*Serena MCP unavailable"
+            $content | Should -Match "WARN.*Agent Orchestration MCP unavailable.*project activation"
         }
 
-        It 'handles Session State MCP unavailability with WARN status' {
+        It 'handles MCP unavailability with WARN status for memory query' {
             $content = Get-Content $ScriptPath -Raw
-            $content | Should -Match "WARN.*Session State MCP unavailable"
+            $content | Should -Match "WARN.*Memory query skipped.*Agent Orchestration MCP unavailable"
         }
 
-        It 'handles memory query failure gracefully' {
+        It 'handles MCP unavailability with WARN status for evidence recording' {
             $content = Get-Content $ScriptPath -Raw
-            $content | Should -Match "WARN.*Memory query skipped"
+            $content | Should -Match "WARN.*Agent Orchestration MCP unavailable.*evidence"
         }
     }
 
