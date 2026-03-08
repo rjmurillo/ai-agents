@@ -18,9 +18,9 @@ inputs:
     required: false
     default: 'true'
   python-version:
-    description: 'Python version to install (default: 3.12)'
+    description: 'Python version to install (default: 3.14)'
     required: false
-    default: '3.12'
+    default: '3.14'
   skip-autofix:
     description: 'Set SKIP_AUTOFIX environment variable (0=enabled, 1=disabled, default: 0)'
     required: false
