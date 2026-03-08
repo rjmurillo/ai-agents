@@ -1065,6 +1065,73 @@ Continue to: critic
 
 See also: `.agents/governance/consistency-protocol.md` for the complete validation procedure.
 
+## Tier-Based Routing Validation
+
+Before dispatching any agent sequence, validate tier compatibility:
+
+### Agent Tier Reference
+
+| Agent | Tier |
+|-------|------|
+| high-level-advisor | expert |
+| independent-thinker | expert |
+| architect | expert |
+| roadmap | expert |
+| orchestrator | manager |
+| milestone-planner | manager |
+| critic | manager |
+| pr-comment-responder | manager |
+| issue-feature-review | manager |
+| implementer | builder |
+| qa | builder |
+| devops | builder |
+| security | builder |
+| debug | builder |
+| merge-resolver | builder |
+| analyst | integration |
+| explainer | integration |
+| task-decomposer | integration |
+| retrospective | integration |
+| memory | integration |
+| skillbook | integration |
+| spec-generator | integration |
+| janitor | integration |
+
+### Validation Rules
+
+**Valid delegation patterns** (higher tier delegates to lower or same tier):
+
+- expert → manager, builder, integration
+- manager → builder, integration
+- builder → integration
+- integration → none (leaf tier)
+
+**Invalid patterns** — apply these checks before dispatch:
+
+1. **Builder → Builder conflict**: Use parallel execution, not sequential delegation. If builder agents conflict, escalate to manager tier.
+2. **Integration → Any delegation**: Integration agents do not delegate. They return results to their caller.
+3. **Lower → Higher escalation**: A lower tier cannot delegate to a higher tier. It must return results and let the manager/expert decide.
+
+### Conflict Escalation Protocol
+
+When two agents at the same tier produce conflicting outputs:
+
+```text
+Builder conflict (e.g., qa vs security):
+  → Escalate to manager tier (critic or orchestrator)
+  → Manager reviews both positions and decides
+
+Manager conflict (e.g., milestone-planner vs critic):
+  → Escalate to expert tier (architect or roadmap)
+  → Expert makes final decision
+
+Expert conflict (e.g., architect vs roadmap):
+  → Escalate to high-level-advisor
+  → high-level-advisor delivers verdict
+```
+
+Apply this protocol automatically — do not leave conflicts unresolved in workflow output.
+
 ## Routing Heuristics
 
 | Task Type | Primary Agent | Fallback |
