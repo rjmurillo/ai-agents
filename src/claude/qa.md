@@ -24,13 +24,12 @@ Key requirements:
 - Active voice, direct address (you/your)
 - Replace adjectives with data (quantify impact)
 - No em dashes, no emojis
-- Text status indicators: [PASS], [FAIL], [WARNING], [COMPLETE], [BLOCKED]
+- Text status indicators: [PASS], [FAIL], [SKIP], [FLAKY]
 - Short sentences (15-20 words), Grade 9 reading level
 
 QA-specific requirements:
 
 - Quantified coverage metrics (not "good coverage" but "87% line coverage")
-- Text status indicators: [PASS], [FAIL], [SKIP], [FLAKY]
 - Evidence-based test recommendations with risk rationale
 
 ## Claude Code Tools
