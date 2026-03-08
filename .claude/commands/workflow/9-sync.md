@@ -49,6 +49,7 @@ pwsh .claude/skills/workflow/scripts/Sync-SessionDocumentation.ps1
 ```
 
 This script will:
+
 - Scan git history for session commits
 - Identify agents referenced in commit messages
 - Generate a Mermaid sequence diagram
@@ -118,21 +119,26 @@ sequenceDiagram
 ```
 
 ### Agents Invoked
+
 1. orchestrator (routing)
 2. implementer (code changes)
 3. qa (validation)
 
 ### Decisions Made
+
 - Decision 1: rationale
 
 ### Artifacts Created
+
 - file1.ps1 (new)
 - file2.md (modified)
 
 ### Retrospective Learnings
+
 - Learning 1
 - Learning 2
-```
+
+```text
 
 ## Dependencies
 
