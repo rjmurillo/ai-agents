@@ -95,6 +95,7 @@ jobs:
   validate-spec-skip:
     name: Validate Spec Coverage
     needs: check-paths
+    timeout-minutes: 1
     if: always() && needs.check-paths.result == 'success' && needs.check-paths.outputs.has-code-changes != 'true'
     runs-on: ubuntu-24.04-arm
     steps:

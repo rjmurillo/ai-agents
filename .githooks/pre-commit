@@ -1808,6 +1808,52 @@ if [ "$SKIP_SCOPE_CHECK" != "1" ]; then
 fi
 
 #
+# Taste Invariant Linting (Non-blocking warning)
+#
+# Runs custom taste lints with agent-readable AGENT_REMEDIATION instructions.
+# Checks: file size limits, naming conventions, function complexity, skill prompt size.
+#
+# Security: Checks for symlinks to prevent TOCTOU attacks (MEDIUM-002)
+# Related: Issue #1298, Skill taste-lints
+#
+TASTE_LINTS_SCRIPT="$REPO_ROOT/.claude/skills/taste-lints/scripts/taste_lints.py"
+
+# Check if any scannable files are staged (Python, PowerShell, YAML, Markdown, etc.)
+STAGED_LINT_FILES=$(echo "$STAGED_FILES" | grep -E '\.(py|ps1|psm1|sh|bash|yml|yaml|md|json)$' || true)
+
+if [ -n "$STAGED_LINT_FILES" ]; then
+    # MEDIUM-002: Reject symlinks for security
+    if [ -L "$TASTE_LINTS_SCRIPT" ]; then
+        echo_warning "Skipping taste lints: script path is a symlink"
+    elif [ -f "$TASTE_LINTS_SCRIPT" ]; then
+        if set_python_cmd; then
+            echo_info "Running taste invariant lints..."
+            # Run in git-staged mode, non-blocking (warnings only)
+            TASTE_OUTPUT=$("${PYTHON_CMD[@]}" "$TASTE_LINTS_SCRIPT" --git-staged 2>&1)
+            TASTE_EXIT=$?
+            if [ $TASTE_EXIT -eq 10 ]; then
+                # Exit code 10 = violations detected
+                echo_warning "Taste lint violations detected (non-blocking):"
+                echo "$TASTE_OUTPUT"
+                echo_info "  Consider fixing these issues for cleaner code."
+                # Non-blocking: just warn, don't fail the commit
+            elif [ $TASTE_EXIT -eq 0 ]; then
+                echo_success "Taste lints passed."
+            else
+                # Exit code 1 = script error
+                echo_warning "Taste lints encountered an error (non-blocking)"
+            fi
+        else
+            echo_warning "Python 3 not available. Skipping taste lints."
+        fi
+    else
+        echo_info "Taste lints script not found. Skipping."
+    fi
+else
+    echo_info "No lintable files staged. Skipping taste lints."
+fi
+
+#
 # Final Summary
 #
 echo ""

@@ -478,6 +478,7 @@ jobs:
   aggregate-skip:
     name: Aggregate Results
     runs-on: ubuntu-24.04-arm
+    timeout-minutes: 1
     needs: [check-changes]
     if: always() && needs.check-changes.result == 'success' && needs.check-changes.outputs.should-run != 'true'
     steps:
