@@ -1,3 +1,14 @@
+---
+description: Initialize a new workflow session with memory-first architecture (ADR-007). Always the first command in any workflow sequence.
+allowed-tools:
+  - Bash(git:*)
+  - Read
+  - Glob
+  - Grep
+  - mcp__serena__*
+model: sonnet
+---
+
 # /0-init — Session Initialization
 
 Initialize a new workflow session following the memory-first architecture (ADR-007).
