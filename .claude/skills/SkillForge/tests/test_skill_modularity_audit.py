@@ -204,7 +204,7 @@ class TestAuditSkill:
         assert result is not None
         assert result.has_scripts is True
         assert result.has_references is True
-        assert result.modularity_score > 100 - 1  # bonus applied
+        assert result.modularity_score >= 100  # bonus applied
 
 
 class TestAuditAllSkills:
