@@ -2,8 +2,8 @@
 #Requires -Module Pester
 
 BeforeAll {
-    $ScriptPath = Join-Path $PSScriptRoot '../../../.claude/skills/workflow/scripts/Invoke-WorkflowCommand.ps1'
-    $ScriptsDir = Join-Path $PSScriptRoot '../../../.claude/skills/workflow/scripts'
+    $ScriptPath = Join-Path $PSScriptRoot '../.claude/skills/workflow/scripts/Invoke-WorkflowCommand.ps1'
+    $ScriptsDir = Join-Path $PSScriptRoot '../.claude/skills/workflow/scripts'
 }
 
 Describe 'Invoke-WorkflowCommand.ps1' {

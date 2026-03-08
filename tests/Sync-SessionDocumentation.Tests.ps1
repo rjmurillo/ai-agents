@@ -2,7 +2,7 @@
 #Requires -Module Pester
 
 BeforeAll {
-    $ScriptPath = Join-Path $PSScriptRoot '../../../.claude/skills/workflow/scripts/Sync-SessionDocumentation.ps1'
+    $ScriptPath = Join-Path $PSScriptRoot '../.claude/skills/workflow/scripts/Sync-SessionDocumentation.ps1'
 }
 
 Describe 'Sync-SessionDocumentation.ps1' {

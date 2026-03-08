@@ -7,7 +7,7 @@
 #>
 
 BeforeAll {
-    $ModulePath = Join-Path $PSScriptRoot '../../../.claude/skills/workflow/modules/WorkflowHelpers.psm1'
+    $ModulePath = Join-Path $PSScriptRoot '../.claude/skills/workflow/modules/WorkflowHelpers.psm1'
     Import-Module $ModulePath -Force
 }
 
