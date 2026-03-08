@@ -1,13 +1,12 @@
 ---
 name: buy-vs-build-framework
-version: 1.0.0
+version: 1.0.1
 model: claude-opus-4-5
-description: Strategic framework for evaluating build buy partner or defer decisions with four-phase process tiered TCO analysis and integration with decision quality tools
+description: Strategic framework for evaluating build, buy, partner, or defer decisions with four-phase process, tiered TCO analysis, and integration with decision quality tools
 license: MIT
 metadata:
-  tier: 4
-  timelessness: 9
   author: SkillForge
+  domains: [strategy, sourcing, decision-making, tco-analysis]
 ---
 
 # Buy vs Build Framework
@@ -20,9 +19,9 @@ Activate when the user:
 
 - `evaluate build vs buy for {capability}`
 - `should we build or buy {system}`
-- `core vs context analysis`
+- `core vs context analysis for {capability}`
 - `strategic sourcing decision for {feature}`
-- `make or buy decision`
+- `make or buy decision for {system}`
 
 ## When to Use
 
@@ -62,8 +61,6 @@ Use [planner](../planner/SKILL.md) instead if:
 
 Select appropriate analysis depth to prevent over-engineering.
 
-#### Decision Matrix
-
 | Tier | Budget | Impact | Reversibility | Duration | Output |
 |------|--------|--------|---------------|----------|--------|
 | **Quick** | <$50K | Low | Easy | 1-2 hours | Core vs Context + Simple TCO + Go/No-go |
@@ -72,18 +69,14 @@ Select appropriate analysis depth to prevent over-engineering.
 
 **Why:** Time-box effort proportional to decision magnitude. Prevents analysis paralysis on small decisions while ensuring rigor for strategic decisions.
 
-#### Script
-
-```text
+```bash
 python3 scripts/select_depth.py --budget 100000 --impact medium --reversibility moderate
 # Output: STANDARD tier (1-2 days, full 4 phases)
-```text
+```
 
 ### Phase 1: Classify (Core vs Context)
 
 **Purpose:** Determine if capability is Core (competitive differentiator) or Context (table stakes).
-
-#### Framework:
 
 ```text
 CORE                                    CONTEXT
@@ -98,23 +91,17 @@ Uber's matching system                  Email delivery
 
 Default: BUILD                          Default: BUY
 (unless constraints prevent)            (unless no viable vendors)
-```text
+```
 
-#### Integration Points:
+**Integration:** Run [cynefin-classifier](../cynefin-classifier/SKILL.md) first if problem domain unclear. Complex domains favor Buy/Partner to reduce risk.
 
-1. **Optional pre-step:** Run [cynefin-classifier](../cynefin-classifier/SKILL.md) if problem domain unclear
-   - Complex → favor Buy/Partner (reduce risk through experimentation)
-   - Complicated → proceed with analysis
-
-#### Outputs:
+**Outputs:**
 
 1. Core or Context classification with 3+ supporting reasons
 2. Strategic importance score (1-10)
-3. Red line criteria:
-   - **Never Build:** Commodity, undifferentiated, no strategic value, team lacks skills, time-critical
-   - **Never Buy:** Core IP, competitive secret sauce, 100% control required, no viable vendors, regulatory restrictions
+3. Red line criteria (Never Build / Never Buy boundaries)
 
-#### Exit Criteria:
+**Exit Criteria:**
 
 - [ ] Classification documented with justification
 - [ ] Stakeholder consensus (or disagreement documented)
@@ -126,9 +113,7 @@ Default: BUILD                          Default: BUY
 
 **Purpose:** Quantify total cost of ownership and assess team capacity.
 
-#### TCO Script:
-
-```text
+```bash
 python3 scripts/calculate_tco.py \
   --build-initial 500000 \
   --build-ongoing 100000 \
@@ -138,16 +123,7 @@ python3 scripts/calculate_tco.py \
   --partner-ongoing 150000 \
   --discount-rate 0.12 \
   --years 5
-
-# Output:
-# NPV (Build): $1.2M
-# NPV (Buy): $1.5M
-# NPV (Partner): $1.3M
-# Break-even: Year 3.2
-# Sensitivity: Discount rate (±20% → ±$300K)
-```text
-
-#### Cost Categories:
+```
 
 | Category | Build | Buy | Partner |
 |----------|-------|-----|---------|
@@ -155,16 +131,14 @@ python3 scripts/calculate_tco.py \
 | **Ongoing** | Maintenance, bug fixes, features, infrastructure, support | Subscription fees, support contracts, upgrades | Revenue share, relationship management, co-dev coordination |
 | **Hidden** | Opportunity cost, onboarding, tech debt | Vendor lock-in, integration debt, workflow constraints | Roadmap misalignment, partner dependency, revenue complexity |
 
-#### Capacity Assessment:
-
-Answer these questions:
+**Capacity Assessment Questions:**
 
 1. Does team have required skills? (If no, add training/hiring costs)
 2. Does team have capacity without delaying strategic projects?
 3. Can team maintain long-term? (Avoid orphaned code)
 4. Does build option develop strategic capabilities for future?
 
-#### Exit Criteria:
+**Exit Criteria:**
 
 - [ ] TCO calculated for 3, 5, 10 year horizons
 - [ ] Sensitivity analysis identifies top 3 cost drivers
@@ -176,21 +150,11 @@ Answer these questions:
 
 **Purpose:** Score options across strategic, operational, and risk dimensions.
 
-#### Decision Criteria:
-
-```text
+```bash
 python3 scripts/score_decision.py \
   --criteria-file decision-criteria.json \
   --options build,buy,partner
-
-# Output:
-# Build: 7.8 (Strategic: 9.0, Operational: 6.5, Risk: 8.0)
-# Buy: 6.2 (Strategic: 4.0, Operational: 8.5, Risk: 6.0)
-# Partner: 7.1 (Strategic: 7.5, Operational: 6.0, Risk: 7.5)
-# Winner: BUILD (confidence: MEDIUM, 9% gap)
-```text
-
-#### Criteria Weights:
+```
 
 | Dimension | Weight | Criteria |
 |-----------|--------|----------|
@@ -198,13 +162,9 @@ python3 scripts/score_decision.py \
 | **Operational** | 30% | Time to value, Team fit, Integration complexity, Maintenance burden |
 | **Risk** | 30% | Vendor risk, Execution risk, Regulatory risk, Lock-in risk |
 
-#### Integration Points:
+**Integration:** Run [pre-mortem](../pre-mortem/SKILL.md) on leading option. If >5 severe risks surface, reconsider decision.
 
-1. **Required:** Run [pre-mortem](../pre-mortem/SKILL.md) on leading option
-   - If >5 severe risks surface → reconsider decision
-   - Document mitigations for top 3 risks
-
-#### Exit Criteria:
+**Exit Criteria:**
 
 - [ ] All criteria scored for all options (with justifications)
 - [ ] Pre-mortem completed for leading option
@@ -216,94 +176,19 @@ python3 scripts/score_decision.py \
 
 **Purpose:** Make final decision, document rationale, plan reassessment.
 
-#### Decision Matrix:
-
 | Option | When to Choose |
 |--------|----------------|
-| **Build** | Core capability + team capacity + favorable TCO<br>No viable vendors OR vendor lock-in unacceptable<br>Strategic capability development desired |
-| **Buy** | Context capability + viable vendors + faster time to value<br>Team lacks capacity OR skills<br>Commodity capability with mature market |
-| **Partner** | Shared value creation (rev share, co-development)<br>Strategic alliance benefits beyond technology<br>Neither build nor buy individually compelling |
-| **Defer** | Unclear requirements OR high uncertainty<br>Market immature (wait for consolidation)<br>Problem may not need solving (validate demand first) |
+| **Build** | Core capability + team capacity + favorable TCO. No viable vendors OR vendor lock-in unacceptable. Strategic capability development desired. |
+| **Buy** | Context capability + viable vendors + faster time to value. Team lacks capacity OR skills. Commodity capability with mature market. |
+| **Partner** | Shared value creation (rev share, co-development). Strategic alliance benefits beyond technology. Neither build nor buy individually compelling. |
+| **Defer** | Unclear requirements OR high uncertainty. Market immature (wait for consolidation). Problem may not need solving (validate demand first). |
 
-#### Integration Points:
+**Integration:**
 
-1. **Required:** Feed final rationale to [decision-critic](../decision-critic/SKILL.md)
-   - Validate assumptions, challenge claims
-   - Address any blocking concerns
+1. Feed final rationale to [decision-critic](../decision-critic/SKILL.md) for validation
+2. Trigger [adr-review](../adr-review/SKILL.md) for multi-agent consensus (Standard/Deep tier)
 
-2. **Automatic (Standard/Deep tier):** Trigger [adr-review](../adr-review/SKILL.md)
-   - Multi-agent consensus on strategic decisions
-   - Create ADR with template below
-
-#### ADR Template:
-
-```python
-# ADR-NNN: [Build/Buy/Partner/Defer] {Capability Name}
-
-## Decision
-
-We will [BUILD/BUY/PARTNER/DEFER] {capability}.
-
-## Context
-
-{Problem being solved, strategic importance, business drivers}
-
-## Considered Options
-
-1. **Build**: {Summary, pros/cons, TCO}
-2. **Buy**: {Summary, pros/cons, TCO, vendor options}
-3. **Partner**: {Summary, pros/cons, TCO, partnership models}
-4. **Defer**: {Summary, validation approach}
-
-## Decision Drivers
-
-1. {Top factor that determined outcome}
-2. {Second most important factor}
-3. {Third most important factor}
-
-## Consequences
-
-#### Expected Outcomes:
-- {Positive outcome 1}
-- {Positive outcome 2}
-
-#### Risks:
-- {Risk 1 + Mitigation}
-- {Risk 2 + Mitigation}
-
-## Reassessment Triggers
-
-- Cost assumption changes >20%
-- Time horizon shifts materially
-- Strategic priority shifts (context to core or vice versa)
-- Vendor viability concerns (M&A, financials, EOL)
-- Team capacity changes (key departures, hiring surge)
-- Competitive dynamics shift (urgency increases)
-- Regulatory changes
-- Technology disruption
-- Customer demand signal
-- **Annual review:** {Date}
-
-## Decision-Maker
-
-{Name, Title} on {Date}
-```text
-
-#### Reassessment Plan:
-
-```python
-# Run quarterly to detect assumption drift
-python3 scripts/check_reassessment_triggers.py \
-  --adr-file architecture/ADR-123-build-payments.md \
-  --current-state current-state.json
-
-# Output:
-# Status: REASSESSMENT_REQUIRED
-# Drift: Vendor pricing changed 25% (trigger: >20%)
-# Recommendation: Run Phase 2 (TCO) analysis with updated costs
-```text
-
-#### Exit Criteria:
+**Exit Criteria:**
 
 - [ ] Decision documented in ADR (Standard/Deep tier)
 - [ ] Decision-critic validation passed (no blocking issues)
@@ -316,7 +201,7 @@ python3 scripts/check_reassessment_triggers.py \
 
 Calculate NPV, IRR, break-even timeline for build/buy/partner options.
 
-```text
+```bash
 python3 scripts/calculate_tco.py --help
 
 # Required flags:
@@ -333,13 +218,13 @@ python3 scripts/calculate_tco.py --help
 #   0: Success
 #   10: Warning (negative NPV detected)
 #   11: Error (missing cost categories)
-```text
+```
 
 ### score_decision.py
 
 Calculate weighted decision scores with sensitivity analysis.
 
-```text
+```bash
 python3 scripts/score_decision.py --help
 
 # Required flags:
@@ -348,13 +233,13 @@ python3 scripts/score_decision.py --help
 # Exit codes:
 #   0: Clear winner (>20% score gap)
 #   1: Tie requires human judgment (scores within 10%)
-```text
+```
 
 ### check_reassessment_triggers.py
 
 Detect assumption drift, recommend re-evaluation.
 
-```text
+```bash
 python3 scripts/check_reassessment_triggers.py --help
 
 # Required flags:
@@ -365,13 +250,13 @@ python3 scripts/check_reassessment_triggers.py --help
 #   0: Assumptions hold, stay course
 #   10: Minor drift (<20%), monitor closely
 #   11: Major drift (>20%), re-evaluation required
-```text
+```
 
 ### score_vendor.py
 
 Score vendor stability, pricing, feature fit.
 
-```text
+```bash
 python3 scripts/score_vendor.py --help
 
 # Required flags:
@@ -381,7 +266,7 @@ python3 scripts/score_vendor.py --help
 #   0: Pass (score >70)
 #   10: Yellow flag (score 50-70)
 #   11: Red flag (score <50)
-```text
+```
 
 ## Templates
 
@@ -391,16 +276,6 @@ All templates available in `templates/` directory:
 - `tco-analysis.md` - Phase 2 TCO calculation worksheet
 - `decision-matrix.md` - Phase 3 multi-criteria scoring
 - `adr-buy-vs-build.md` - Phase 4 ADR template
-
-## References
-
-Deep-dive documentation in `references/` directory:
-
-- `core-vs-context.md` - Core vs Context framework from Wardley Mapping
-- `tco-methodology.md` - TCO calculation best practices
-- `partnership-models.md` - Partnership structures (co-dev, revenue share, alliance)
-- `vendor-evaluation.md` - Vendor assessment framework
-- `reassessment-playbook.md` - How to re-evaluate when assumptions change
 
 ## Anti-Patterns
 
@@ -430,22 +305,125 @@ Deep-dive documentation in `references/` directory:
 | [adr-review](../adr-review/SKILL.md) | Phase 4 multi-agent consensus |
 | [planner](../planner/SKILL.md) | Post-decision execution planning |
 
-## Timelessness
+<details>
+<summary><strong>Deep Dive: ADR Template</strong></summary>
 
-#### Score: 9/10
+```markdown
+# ADR-NNN: [Build/Buy/Partner/Defer] {Capability Name}
 
-#### Why timeless:
+## Decision
 
-- Economic fundamentals of make-vs-buy unchanged for 100+ years (industrial revolution → present)
+We will [BUILD/BUY/PARTNER/DEFER] {capability}.
+
+## Context
+
+{Problem being solved, strategic importance, business drivers}
+
+## Considered Options
+
+1. **Build**: {Summary, pros/cons, TCO}
+2. **Buy**: {Summary, pros/cons, TCO, vendor options}
+3. **Partner**: {Summary, pros/cons, TCO, partnership models}
+4. **Defer**: {Summary, validation approach}
+
+## Decision Drivers
+
+1. {Top factor that determined outcome}
+2. {Second most important factor}
+3. {Third most important factor}
+
+## Consequences
+
+### Expected Outcomes:
+- {Positive outcome 1}
+- {Positive outcome 2}
+
+### Risks:
+- {Risk 1 + Mitigation}
+- {Risk 2 + Mitigation}
+
+## Reassessment Triggers
+
+- Cost assumption changes >20%
+- Time horizon shifts materially
+- Strategic priority shifts (context to core or vice versa)
+- Vendor viability concerns (M&A, financials, EOL)
+- Team capacity changes (key departures, hiring surge)
+- Competitive dynamics shift (urgency increases)
+- Regulatory changes
+- Technology disruption
+- Customer demand signal
+- **Annual review:** {Date}
+
+## Decision-Maker
+
+{Name, Title} on {Date}
+```
+
+</details>
+
+<details>
+<summary><strong>Deep Dive: Reassessment Plan</strong></summary>
+
+```bash
+# Run quarterly to detect assumption drift
+python3 scripts/check_reassessment_triggers.py \
+  --adr-file architecture/ADR-123-build-payments.md \
+  --current-state current-state.json
+
+# Output:
+# Status: REASSESSMENT_REQUIRED
+# Drift: Vendor pricing changed 25% (trigger: >20%)
+# Recommendation: Run Phase 2 (TCO) analysis with updated costs
+```
+
+</details>
+
+<details>
+<summary><strong>Deep Dive: Red Line Criteria</strong></summary>
+
+**Never Build:**
+
+- Commodity, undifferentiated, no strategic value
+- Team lacks skills
+- Time-critical delivery
+
+**Never Buy:**
+
+- Core IP, competitive secret sauce
+- 100% control required
+- No viable vendors
+- Regulatory restrictions
+
+</details>
+
+<details>
+<summary><strong>Deep Dive: Timelessness (9/10)</strong></summary>
+
+**Why timeless:**
+
+- Economic fundamentals of make-vs-buy unchanged for 100+ years (industrial revolution to present)
 - Strategic concepts (core vs context) from Wardley Mapping remain relevant 20+ years later
 - Decision structures universal across software, hardware, services
-- Human cognitive biases (sunk cost, confirmation bias) don't change
+- Human cognitive biases (sunk cost, confirmation bias) do not change
 - Principal/VP decision-making authority stable across decades
 
-#### What could change (-1 point):
+**What could change (-1 point):**
 
 - AI code generation could shift build costs radically downward
 - Vendor consolidation (only 1-2 vendors) changes buy calculus
 - Open source maturity creates "free" middle ground
 
 **Mitigation:** Framework includes "Defer" option and reassessment triggers to adapt to these shifts.
+
+</details>
+
+## References
+
+Deep-dive documentation in `references/` directory:
+
+- `core-vs-context.md` - Core vs Context framework from Wardley Mapping
+- `tco-methodology.md` - TCO calculation best practices
+- `partnership-models.md` - Partnership structures (co-dev, revenue share, alliance)
+- `vendor-evaluation.md` - Vendor assessment framework
+- `reassessment-playbook.md` - How to re-evaluate when assumptions change
