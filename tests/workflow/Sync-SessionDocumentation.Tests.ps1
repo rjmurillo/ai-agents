@@ -70,4 +70,21 @@ Describe 'Sync-SessionDocumentation' {
             $text | Should -Match 'Lookback: 1 hours'
         }
     }
+
+    Context 'Security: path traversal prevention (CWE-22)' {
+        It 'throws when OutputPath is outside repository root' {
+            $traversalPath = [System.IO.Path]::Combine([System.IO.Path]::GetTempPath(), 'pwned.md')
+            $result = pwsh -NoProfile -c "
+                try {
+                    & '$script:ScriptPath' -OutputPath '$traversalPath'
+                    exit 0
+                } catch {
+                    Write-Output 'TRAVERSAL_BLOCKED'
+                    exit 1
+                }
+            " 2>&1
+            $text = $result -join "`n"
+            $text | Should -Match 'TRAVERSAL_BLOCKED|Path traversal attempt detected|outside the repository root'
+        }
+    }
 }

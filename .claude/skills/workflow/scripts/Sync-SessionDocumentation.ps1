@@ -452,6 +452,13 @@ if ($DryRun) {
         $OutputPath = Join-Path $sessionsDir "$date-$sessionSlug-sync.md"
     }
 
+    # Security: Validate OutputPath to prevent path traversal (CWE-22)
+    $allowedDir = [System.IO.Path]::GetFullPath($repoRoot)
+    $resolvedPath = [System.IO.Path]::GetFullPath($OutputPath)
+    if (-not $resolvedPath.StartsWith($allowedDir + [System.IO.Path]::DirectorySeparatorChar, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "Path traversal attempt detected. Output path '$OutputPath' is outside the repository root."
+    }
+
     $report | Out-File -FilePath $OutputPath -Encoding utf8 -Force
     Write-Host "`n✅ Session sync report written to: $OutputPath" -ForegroundColor Green
     Write-Host "  Commits: $($commits.Count)" -ForegroundColor Gray
