@@ -1,27 +1,38 @@
 ---
 name: analyze
-version: 1.0.0
+version: 1.1.0
 model: claude-sonnet-4-5
-description: Analyze codebase architecture, security posture, or code quality through
-  guided multi-step investigation. Use when performing architecture reviews, security
-  assessments, quality evaluations, or deep technical investigations. Produces
-  prioritized findings with evidence.
+description: Systematic multi-step codebase analysis producing prioritized findings with file-line evidence. Covers architecture reviews, security assessments, and code quality evaluations through guided exploration, investigation planning, and synthesis.
 license: MIT
+user-invocable: true
+allowed-tools:
+  - Read
+  - Grep
+  - Glob
+  - Bash
+  - Task
 ---
 
 # Analyze Skill
 
-When this skill activates, IMMEDIATELY invoke the script. The script IS the workflow.
+When this skill activates, IMMEDIATELY invoke the script. The script IS the workflow. Do NOT explore the codebase first.
 
 ## Triggers
 
-| Trigger Phrase | Operation |
-|----------------|-----------|
-| `analyze this codebase` | analyze.py with architecture + quality focus |
-| `review code quality` | analyze.py with quality focus |
-| `run security assessment` | analyze.py with security focus |
-| `architecture review of this system` | analyze.py with architecture focus |
-| `find code smells` | analyze.py with quality focus |
+- `analyze this codebase` - architecture and quality focus
+- `review code quality` - quality focus
+- `run security assessment` - security focus
+- `architecture review of this system` - architecture focus
+- `find code smells` - quality focus
+
+## Quick Reference
+
+| Input | Focus | Minimum Steps |
+|-------|-------|---------------|
+| Architecture review | Structure, dependencies, layering | 6 |
+| Security assessment | Input validation, auth, data handling | 7-9 |
+| Code quality | Duplication, complexity, test gaps | 6-7 |
+| Broad investigation | All dimensions | 9-12 |
 
 ---
 
@@ -29,15 +40,88 @@ When this skill activates, IMMEDIATELY invoke the script. The script IS the work
 
 Use this skill when:
 
-- A broad investigation is needed across multiple files or components
-- The analysis requires structured multi-step exploration
-- Findings need prioritization by severity and evidence
+- Investigation spans multiple files or components
+- Analysis requires structured multi-step exploration
+- Findings need prioritization by severity with file:line evidence
 
 Use direct code reading instead when:
 
 - Checking a single file or function
 - The question has a known, specific location
 - A quick grep or symbol search answers the question
+
+---
+
+## Scripts
+
+| Script | Purpose | Exit Codes |
+|--------|---------|------------|
+| `scripts/analyze.py` | Multi-step guided analysis with exploration, investigation, and synthesis | 0=success, 1=invalid input |
+
+### Invocation
+
+```bash
+python3 scripts/analyze.py \
+  --step-number 1 \
+  --total-steps 6 \
+  --thoughts "Starting analysis. User request: <describe what user asked to analyze>"
+```
+
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `--step-number` | Yes | Current step (starts at 1) |
+| `--total-steps` | Yes | Minimum 6; adjust as script instructs |
+| `--thoughts` | Yes | Accumulated state from all previous steps |
+
+---
+
+## Process
+
+The script outputs REQUIRED ACTIONS at each step. Follow them exactly.
+
+### Phase 1: Exploration (Step 1)
+
+Delegate to Explore agent(s). The script determines scope and parallelism. Wait for all agents before re-invoking step 1 with results.
+
+### Phase 2: Focus Selection (Step 2)
+
+Classify investigation areas by dimension (architecture, performance, security, quality). Assign priorities P1-P3. Estimate total steps.
+
+### Phase 3: Investigation Planning (Step 3)
+
+Commit to specific files, questions, and hypotheses per focus area. This creates a contract verified in the verification phase.
+
+### Phase 4: Deep Analysis (Steps 4 to N-2)
+
+Execute the investigation plan. Read files, collect evidence with file:line references and quoted code. Trace root causes across files.
+
+### Phase 5: Verification (Step N-1)
+
+Audit completeness against step 3 commitments. Identify gaps. If gaps exist, increase total-steps and return to deep analysis.
+
+### Phase 6: Synthesis (Step N)
+
+Consolidate verified findings by severity (critical, high, medium, low). Identify systemic patterns. Produce prioritized action plan.
+
+---
+
+## Example Sequence
+
+```bash
+# Step 1: Start, script instructs you to explore first
+python3 scripts/analyze.py --step-number 1 --total-steps 6 \
+  --thoughts "Starting analysis of auth system"
+
+# [Follow REQUIRED ACTIONS: delegate to Explore agent, wait for results]
+
+# Step 1 again with explore results
+python3 scripts/analyze.py --step-number 1 --total-steps 6 \
+  --thoughts "Explore found: Flask app, SQLAlchemy, auth/ dir..."
+
+# Step 2+: Continue following script output
+python3 scripts/analyze.py --step-number 2 --total-steps 7 \
+  --thoughts "[accumulated state from step 1] Focus: security P1, quality P2"
+```
 
 ---
 
@@ -62,59 +146,3 @@ After execution:
 - [ ] Each finding has specific file:line references
 - [ ] Synthesis step completed with prioritized recommendations
 - [ ] No investigation areas left unexplored from the plan
-
----
-
-## Scripts
-
-| Script | Purpose |
-|--------|---------|
-| `scripts/analyze.py` | Multi-step guided analysis with exploration, investigation, and synthesis |
-
-## Invocation
-
-```bash
-python3 scripts/analyze.py \
-  --step-number 1 \
-  --total-steps 6 \
-  --thoughts "Starting analysis. User request: <describe what user asked to analyze>"
-```
-
-| Argument        | Required | Description                               |
-| --------------- | -------- | ----------------------------------------- |
-| `--step-number` | Yes      | Current step (starts at 1)                |
-| `--total-steps` | Yes      | Minimum 6; adjust as script instructs     |
-| `--thoughts`    | Yes      | Accumulated state from all previous steps |
-
-## Process
-
-The script outputs REQUIRED ACTIONS at each step. Follow them exactly.
-
-```text
-Step 1: EXPLORATION         - Script tells you to delegate to Explore agent
-Step 2: FOCUS SELECTION     - Classify areas, assign priorities
-Step 3: INVESTIGATION PLAN  - Commit to specific files and questions
-Step 4+: DEEP ANALYSIS      - Progressive investigation with evidence
-Step N-1: VERIFICATION      - Validate completeness
-Step N: SYNTHESIS           - Consolidate findings
-```
-
-Do NOT try to follow this workflow manually. Run the script and follow its output.
-
-## Example Sequence
-
-```bash
-# Step 1: Start - script will instruct you to explore first
-python3 scripts/analyze.py --step-number 1 --total-steps 6 \
-  --thoughts "Starting analysis of auth system"
-
-# [Follow REQUIRED ACTIONS from output - delegate to Explore agent]
-
-# Step 1 again with explore results
-python3 scripts/analyze.py --step-number 1 --total-steps 6 \
-  --thoughts "Explore found: Flask app, SQLAlchemy, auth/ dir..."
-
-# Step 2+: Continue following script output
-python3 scripts/analyze.py --step-number 2 --total-steps 7 \
-  --thoughts "[accumulated state from step 1] Focus: security P1, quality P2"
-```
