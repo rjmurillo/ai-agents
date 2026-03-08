@@ -103,12 +103,12 @@ Describe "Get-AllPRsWithComments" {
     Context "Parameter validation" {
 
         It "Requires Owner parameter" {
-            { Get-AllPRsWithComments -Repo "testrepo" -Since (Get-Date) } |
+            { Get-AllPRsWithComments -Repo "testrepo" -Since ([datetimeoffset]::Now) } |
                 Should -Throw
         }
 
         It "Requires Repo parameter" {
-            { Get-AllPRsWithComments -Owner "testowner" -Since (Get-Date) } |
+            { Get-AllPRsWithComments -Owner "testowner" -Since ([datetimeoffset]::Now) } |
                 Should -Throw
         }
 
@@ -118,12 +118,12 @@ Describe "Get-AllPRsWithComments" {
         }
 
         It "Rejects MaxPages value of 0" {
-            { Get-AllPRsWithComments -Owner "testowner" -Repo "testrepo" -Since (Get-Date) -MaxPages 0 } |
+            { Get-AllPRsWithComments -Owner "testowner" -Repo "testrepo" -Since ([datetimeoffset]::Now) -MaxPages 0 } |
                 Should -Throw
         }
 
         It "Rejects negative MaxPages value" {
-            { Get-AllPRsWithComments -Owner "testowner" -Repo "testrepo" -Since (Get-Date) -MaxPages -1 } |
+            { Get-AllPRsWithComments -Owner "testowner" -Repo "testrepo" -Since ([datetimeoffset]::Now) -MaxPages -1 } |
                 Should -Throw
         }
     }
