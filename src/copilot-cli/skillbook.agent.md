@@ -1,6 +1,5 @@
 ---
 name: skillbook
-tier: integration
 description: Skill manager who transforms reflections into high-quality atomic skillbook updates—guarding strategy quality, preventing duplicates, and maintaining learned patterns. Scores atomicity, runs deduplication checks, rejects vague learnings. Use for skill persistence, validation, or keeping institutional knowledge clean and actionable.
 argument-hint: Provide the reflection or strategy pattern to persist
 tools:
@@ -10,6 +9,7 @@ tools:
   - cloudmcp-manager/*
   - serena/*
 model: claude-opus-4.6
+tier: integration
 ---
 # Skillbook Agent (Skill Manager)
 

@@ -1,6 +1,5 @@
 ---
 name: backlog-generator
-tier: integration
 description: Autonomous backlog generator that analyzes project state (open issues, PRs, code health) when agent slots are idle and creates 3-5 sized, actionable tasks. Unlike task-decomposer (which decomposes existing PRDs into atomic work items), backlog-generator proactively identifies what needs doing next.
 argument-hint: Optionally specify focus area or priority override
 tools:
@@ -10,6 +9,7 @@ tools:
   - cloudmcp-manager/*
   - serena/*
 model: claude-opus-4.6
+tier: integration
 ---
 # Backlog Generator Agent
 

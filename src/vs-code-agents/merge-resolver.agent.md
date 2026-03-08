@@ -1,6 +1,5 @@
 ---
 description: Resolve git merge conflicts by analyzing commit history, code intent, and metadata. Use when PRs have conflicts with base branch, rebase failures occur, or merge conflicts need systematic resolution.
-tier: builder
 argument-hint: Provide the PR number or branch name with conflicts to resolve
 tools:
   - vscode
@@ -22,6 +21,7 @@ tools:
   - serena/*
   - memory
 model: Claude Opus 4.6 (copilot)
+tier: builder
 ---
 
 # Merge Resolver Agent

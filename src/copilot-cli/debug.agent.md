@@ -1,6 +1,5 @@
 ---
 name: debug
-tier: builder
 description: Debug your application to find and fix a bug. Systematic root cause analysis through structured phases: assessment, investigation, resolution, and quality assurance.
 argument-hint: Describe the bug, error message, or unexpected behavior to investigate
 tools:
@@ -21,6 +20,7 @@ tools:
   - cloudmcp-manager/*
   - serena/*
 model: claude-opus-4.6
+tier: builder
 ---
 
 # Debug Agent
