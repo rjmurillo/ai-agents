@@ -117,4 +117,24 @@ Describe 'Validate-SkillOutput integration' {
         $LASTEXITCODE | Should -Be 1
         $result | Should -Match 'Path traversal attempt detected'
     }
+
+    It 'rejects symlink traversal attempts' -Skip:($IsWindows) {
+        $tempDir = Join-Path ([IO.Path]::GetTempPath()) "skilloutput-test-$(Get-Random)"
+        $null = New-Item -ItemType Directory -Path $tempDir -Force
+        $externalFile = Join-Path $tempDir 'external.json'
+        '{"Success": true}' | Set-Content -Path $externalFile
+
+        $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
+        $symlinkPath = Join-Path $repoRoot "test-symlink-$(Get-Random).json"
+        try {
+            $null = New-Item -ItemType SymbolicLink -Path $symlinkPath -Target $externalFile -ErrorAction Stop
+            $result = pwsh (Join-Path $PSScriptRoot '..' 'scripts' 'Validate-SkillOutput.ps1') -InputFile $symlinkPath 2>&1
+            $LASTEXITCODE | Should -Be 1
+            $result | Should -Match 'Path traversal attempt detected'
+        }
+        finally {
+            Remove-Item -Path $symlinkPath -Force -ErrorAction SilentlyContinue
+            Remove-Item -Path $tempDir -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
 }

@@ -49,6 +49,17 @@ else {
         Write-Host "[FAIL] File not found: $resolvedPath" -ForegroundColor Red
         exit 1
     }
+
+    # Resolve symlinks to prevent bypass via symlink pointing outside the repo (CWE-22)
+    $fileItem = Get-Item -Path $resolvedPath -Force
+    if ($fileItem.LinkTarget) {
+        $realPath = [IO.Path]::GetFullPath($fileItem.LinkTarget)
+        if (-not $realPath.StartsWith($allowedDir, [StringComparison]::OrdinalIgnoreCase)) {
+            Write-Host "[FAIL] Path traversal attempt detected. Input file must be within the repository." -ForegroundColor Red
+            exit 1
+        }
+    }
+
     $jsonText = Get-Content -Path $resolvedPath -Raw
 }
 
