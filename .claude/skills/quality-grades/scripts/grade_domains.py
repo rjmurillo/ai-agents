@@ -101,208 +101,264 @@ def detect_domains(repo_root: Path) -> list[str]:
     return sorted(domains)
 
 
+def _grade_agents_layer(
+    repo_root: Path, domain: str,
+) -> tuple[int, int, list[Gap]]:
+    """Grade the agents layer for a domain.
+
+    Returns:
+        Tuple of (score, file_count, gaps).
+    """
+    gaps: list[Gap] = []
+    agent_file = repo_root / ".claude" / "agents" / f"{domain}.md"
+    if not agent_file.exists():
+        gaps.append(
+            Gap(
+                layer="agents",
+                description=f"No agent definition found for domain '{domain}'",
+                severity="significant",
+            )
+        )
+        return 0, 0, gaps
+
+    content = agent_file.read_text(encoding="utf-8")
+    score = 60  # Base score for existence
+    if "## Core" in content or "## Core Identity" in content:
+        score += 10
+    if "## Style Guide" in content or "## Style" in content:
+        score += 10
+    if "## Tools" in content or "## Claude Code Tools" in content:
+        score += 10
+    if "## Activation" in content:
+        score += 10
+    if score < 90:
+        gaps.append(
+            Gap(
+                layer="agents",
+                description=f"Agent definition missing sections (score: {score}/100)",
+                severity="minor",
+            )
+        )
+    return score, 1, gaps
+
+
+def _grade_skills_layer(
+    repo_root: Path, domain: str,
+) -> tuple[int, int, list[Gap]]:
+    """Grade the skills layer for a domain.
+
+    Returns:
+        Tuple of (score, file_count, gaps).
+    """
+    gaps: list[Gap] = []
+    skill_dir = repo_root / ".claude" / "skills" / domain
+    if not skill_dir.is_dir():
+        gaps.append(
+            Gap(
+                layer="skills",
+                description=f"No skill directory for domain '{domain}'",
+                severity="minor",
+            )
+        )
+        return 50, 0, gaps
+
+    skill_file = skill_dir / "SKILL.md"
+    if not skill_file.exists():
+        gaps.append(
+            Gap(
+                layer="skills",
+                description="Skill directory exists but SKILL.md missing",
+                severity="critical",
+            )
+        )
+        return 20, 0, gaps
+
+    content = skill_file.read_text(encoding="utf-8")
+    score = 60
+    if content.startswith("---"):
+        score += 15  # Has frontmatter
+    if "## Triggers" in content or "## When to Use" in content:
+        score += 10
+    if "## Verification" in content:
+        score += 10
+    if score < 90:
+        gaps.append(
+            Gap(
+                layer="skills",
+                description=f"Skill definition incomplete (score: {score}/100)",
+                severity="minor",
+            )
+        )
+    return score, 1, gaps
+
+
+def _grade_scripts_layer(
+    repo_root: Path, domain: str,
+) -> tuple[int, int, list[Gap]]:
+    """Grade the scripts layer for a domain.
+
+    Returns:
+        Tuple of (score, file_count, gaps).
+    """
+    gaps: list[Gap] = []
+    skill_scripts = repo_root / ".claude" / "skills" / domain / "scripts"
+    repo_scripts = repo_root / "scripts"
+    found_scripts: list[Path] = []
+    if skill_scripts.is_dir():
+        found_scripts.extend(skill_scripts.glob("*.py"))
+    if repo_scripts.is_dir():
+        found_scripts.extend(f for f in repo_scripts.glob("*.py") if domain in f.stem)
+    file_count = len(found_scripts)
+    if file_count == 0:
+        gaps.append(
+            Gap(layer="scripts", description="No automation scripts found", severity="minor")
+        )
+        return 50, 0, gaps
+
+    score = 70
+    has_docs = sum(
+        1
+        for script in found_scripts
+        if '"""' in script.read_text(encoding="utf-8")[:500]
+        or "'''" in script.read_text(encoding="utf-8")[:500]
+    )
+    doc_ratio = has_docs / file_count
+    score += int(doc_ratio * 30)
+    if doc_ratio < 1.0:
+        gaps.append(
+            Gap(
+                layer="scripts",
+                description=f"{file_count - has_docs}/{file_count} scripts lack docstrings",
+                severity="minor",
+            )
+        )
+    return score, file_count, gaps
+
+
+def _grade_tests_layer(
+    repo_root: Path, domain: str,
+) -> tuple[int, int, list[Gap]]:
+    """Grade the tests layer for a domain.
+
+    Returns:
+        Tuple of (score, file_count, gaps).
+    """
+    gaps: list[Gap] = []
+    test_dirs = [
+        repo_root / ".claude" / "skills" / domain / "tests",
+        repo_root / "tests",
+    ]
+    test_files: list[Path] = []
+    for td in test_dirs:
+        if td.is_dir():
+            test_files.extend(
+                f for f in td.rglob("*test*") if f.is_file() and f.suffix in (".py", ".ps1")
+            )
+            test_files.extend(
+                f
+                for f in td.rglob("*Test*")
+                if f.is_file() and f.suffix in (".py", ".ps1") and f not in test_files
+            )
+    domain_tests = [
+        f
+        for f in test_files
+        if domain.replace("-", "_") in f.stem.lower()
+        or domain.replace("-", "") in f.stem.lower()
+    ]
+    file_count = len(domain_tests)
+    if file_count > 0:
+        score = 80 + min(file_count * 5, 20)
+        return score, file_count, gaps
+
+    gaps.append(
+        Gap(
+            layer="tests",
+            description=f"No test files found for domain '{domain}'",
+            severity="significant",
+        )
+    )
+    return 30, 0, gaps
+
+
+def _grade_docs_layer(
+    repo_root: Path, domain: str,
+) -> tuple[int, int, list[Gap]]:
+    """Grade the docs layer for a domain.
+
+    Returns:
+        Tuple of (score, file_count, gaps).
+    """
+    gaps: list[Gap] = []
+    doc_locations = [repo_root / "docs", repo_root / ".agents"]
+    doc_files: list[Path] = []
+    for dl in doc_locations:
+        if dl.is_dir():
+            doc_files.extend(
+                f
+                for f in dl.rglob("*.md")
+                if domain in f.stem.lower() or domain.replace("-", "") in f.stem.lower()
+            )
+    file_count = len(doc_files)
+    if file_count > 0:
+        score = 75 + min(file_count * 5, 25)
+        return score, file_count, gaps
+
+    gaps.append(
+        Gap(
+            layer="docs",
+            description=f"No documentation found for domain '{domain}'",
+            severity="significant",
+        )
+    )
+    return 40, 0, gaps
+
+
+def _grade_workflows_layer(
+    repo_root: Path, domain: str,
+) -> tuple[int, int, list[Gap]]:
+    """Grade the workflows layer for a domain.
+
+    Returns:
+        Tuple of (score, file_count, gaps).
+    """
+    wf_dir = repo_root / ".github" / "workflows"
+    if not wf_dir.is_dir():
+        return 50, 0, []
+
+    wf_files = [
+        f
+        for f in wf_dir.glob("*.yml")
+        if domain in f.stem.lower() or domain.replace("-", "") in f.stem.lower()
+    ]
+    file_count = len(wf_files)
+    if file_count > 0:
+        score = 80 + min(file_count * 10, 20)
+        return score, file_count, []
+
+    return 50, 0, []
+
+
+_LAYER_GRADERS: dict[str, object] = {
+    "agents": _grade_agents_layer,
+    "skills": _grade_skills_layer,
+    "scripts": _grade_scripts_layer,
+    "tests": _grade_tests_layer,
+    "docs": _grade_docs_layer,
+    "workflows": _grade_workflows_layer,
+}
+
+
 def grade_layer(
     repo_root: Path,
     domain: str,
     layer: str,
 ) -> LayerGrade:
     """Grade a single architectural layer for a domain."""
-    gaps: list[Gap] = []
-    score = 0
-    file_count = 0
+    grader = _LAYER_GRADERS.get(layer)
+    if grader is None:
+        return LayerGrade(layer=layer, grade="F", score=0, gaps=[], file_count=0)
 
-    if layer == "agents":
-        agent_file = repo_root / ".claude" / "agents" / f"{domain}.md"
-        if agent_file.exists():
-            content = agent_file.read_text(encoding="utf-8")
-            file_count = 1
-            score = 60  # Base score for existence
-            if "## Core" in content or "## Core Identity" in content:
-                score += 10
-            if "## Style Guide" in content or "## Style" in content:
-                score += 10
-            if "## Tools" in content or "## Claude Code Tools" in content:
-                score += 10
-            if "## Activation" in content:
-                score += 10
-            if score < 90:
-                gaps.append(
-                    Gap(
-                        layer=layer,
-                        description=f"Agent definition missing sections (score: {score}/100)",
-                        severity="minor",
-                    )
-                )
-        else:
-            gaps.append(
-                Gap(
-                    layer=layer,
-                    description=f"No agent definition found for domain '{domain}'",
-                    severity="significant",
-                )
-            )
-
-    elif layer == "skills":
-        skill_dir = repo_root / ".claude" / "skills" / domain
-        if skill_dir.is_dir():
-            skill_file = skill_dir / "SKILL.md"
-            if skill_file.exists():
-                content = skill_file.read_text(encoding="utf-8")
-                file_count = 1
-                score = 60
-                if content.startswith("---"):
-                    score += 15  # Has frontmatter
-                if "## Triggers" in content or "## When to Use" in content:
-                    score += 10
-                if "## Verification" in content:
-                    score += 10
-                if score < 90:
-                    gaps.append(
-                        Gap(
-                            layer=layer,
-                            description=f"Skill definition incomplete (score: {score}/100)",
-                            severity="minor",
-                        )
-                    )
-            else:
-                score = 20
-                gaps.append(
-                    Gap(
-                        layer=layer,
-                        description="Skill directory exists but SKILL.md missing",
-                        severity="critical",
-                    )
-                )
-        else:
-            # Not all domains need skills
-            score = 50
-            gaps.append(
-                Gap(
-                    layer=layer,
-                    description=f"No skill directory for domain '{domain}'",
-                    severity="minor",
-                )
-            )
-
-    elif layer == "scripts":
-        skill_scripts = repo_root / ".claude" / "skills" / domain / "scripts"
-        repo_scripts = repo_root / "scripts"
-        found_scripts: list[Path] = []
-        if skill_scripts.is_dir():
-            found_scripts.extend(skill_scripts.glob("*.py"))
-        if repo_scripts.is_dir():
-            found_scripts.extend(f for f in repo_scripts.glob("*.py") if domain in f.stem)
-        file_count = len(found_scripts)
-        if file_count > 0:
-            score = 70
-            # Check for docstrings
-            has_docs = 0
-            for script in found_scripts:
-                content = script.read_text(encoding="utf-8")
-                if '"""' in content[:500] or "'''" in content[:500]:
-                    has_docs += 1
-            doc_ratio = has_docs / file_count if file_count else 0
-            score += int(doc_ratio * 30)
-            if doc_ratio < 1.0:
-                gaps.append(
-                    Gap(
-                        layer=layer,
-                        description=f"{file_count - has_docs}/{file_count} scripts lack docstrings",
-                        severity="minor",
-                    )
-                )
-        else:
-            score = 50  # Scripts are optional
-            gaps.append(
-                Gap(
-                    layer=layer,
-                    description="No automation scripts found",
-                    severity="minor",
-                )
-            )
-
-    elif layer == "tests":
-        test_dirs = [
-            repo_root / ".claude" / "skills" / domain / "tests",
-            repo_root / "tests",
-        ]
-        test_files: list[Path] = []
-        for td in test_dirs:
-            if td.is_dir():
-                test_files.extend(
-                    f for f in td.rglob("*test*") if f.is_file() and f.suffix in (".py", ".ps1")
-                )
-                test_files.extend(
-                    f
-                    for f in td.rglob("*Test*")
-                    if f.is_file() and f.suffix in (".py", ".ps1") and f not in test_files
-                )
-        # Filter to domain-relevant tests
-        domain_tests = [
-            f
-            for f in test_files
-            if domain.replace("-", "_") in f.stem.lower()
-            or domain.replace("-", "") in f.stem.lower()
-        ]
-        file_count = len(domain_tests)
-        if file_count > 0:
-            score = 80
-            score += min(file_count * 5, 20)  # Bonus for more tests, cap at 20
-        else:
-            score = 30
-            gaps.append(
-                Gap(
-                    layer=layer,
-                    description=f"No test files found for domain '{domain}'",
-                    severity="significant",
-                )
-            )
-
-    elif layer == "docs":
-        doc_locations = [
-            repo_root / "docs",
-            repo_root / ".agents",
-        ]
-        doc_files: list[Path] = []
-        for dl in doc_locations:
-            if dl.is_dir():
-                doc_files.extend(
-                    f
-                    for f in dl.rglob("*.md")
-                    if domain in f.stem.lower() or domain.replace("-", "") in f.stem.lower()
-                )
-        file_count = len(doc_files)
-        if file_count > 0:
-            score = 75
-            score += min(file_count * 5, 25)
-        else:
-            score = 40
-            gaps.append(
-                Gap(
-                    layer=layer,
-                    description=f"No documentation found for domain '{domain}'",
-                    severity="significant",
-                )
-            )
-
-    elif layer == "workflows":
-        wf_dir = repo_root / ".github" / "workflows"
-        if wf_dir.is_dir():
-            wf_files = [
-                f
-                for f in wf_dir.glob("*.yml")
-                if domain in f.stem.lower() or domain.replace("-", "") in f.stem.lower()
-            ]
-            file_count = len(wf_files)
-            if file_count > 0:
-                score = 80
-                score += min(file_count * 10, 20)
-            else:
-                score = 50  # Workflows are optional for many domains
-        else:
-            score = 50
-
-    # Cap score at 100
+    score, file_count, gaps = grader(repo_root, domain)
     score = min(score, 100)
 
     return LayerGrade(
