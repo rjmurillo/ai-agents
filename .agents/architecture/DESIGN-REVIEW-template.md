@@ -1,18 +1,18 @@
 ---
-status: APPROVED | NEEDS_CHANGES | NEEDS_ADR
-priority: P0 | P1 | P2
-blocking: true | false
-reviewer: architect
-date: YYYY-MM-DD
-pr: null
-issue: null
+status: NEEDS_CHANGES              # APPROVED | NEEDS_CHANGES | BLOCKED
+priority: P1                       # P0 | P1 | P2 (severity if not approved)
+blocking: true                     # true = CI blocks merge, false = advisory
+reviewer: architect                # agent performing review
+date: YYYY-MM-DD                   # review date (ISO 8601)
+pr-branch: feature/example         # (optional) git branch being reviewed
+scope: "[Review scope]"            # (optional) brief description of review scope
 ---
 
 # Design Review: [Title]
 
 ## Executive Summary
 
-**Verdict**: [APPROVED | NEEDS_CHANGES | NEEDS_ADR]
+**Verdict**: [APPROVED | NEEDS_CHANGES | BLOCKED]
 
 [1-3 sentence summary of the review outcome.]
 

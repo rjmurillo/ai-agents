@@ -1,4 +1,4 @@
-# ADR-048: Synthesis Panel Frontmatter Standard
+# ADR-051: Synthesis Panel Frontmatter Standard
 
 ## Status
 
