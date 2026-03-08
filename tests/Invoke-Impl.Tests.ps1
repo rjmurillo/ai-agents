@@ -33,13 +33,13 @@ Describe 'Invoke-Impl.ps1' {
             $tempDir = Join-Path ([IO.Path]::GetTempPath()) "impl-test-$(Get-Random)"
             New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
             try {
-                & pwsh -NonInteractive -Command "
+                $exitCode = & pwsh -NonInteractive -NoProfile -Command "
                     Set-Location '$tempDir'
                     `$env:AGENT_ORCHESTRATION_MCP_URL = `$null
                     & '$ScriptPath' 2>&1 | Out-Null
-                    exit `$LASTEXITCODE
+                    [int][Environment]::ExitCode
                 "
-                $LASTEXITCODE | Should -Be 3
+                $exitCode | Should -Be 3
             }
             finally {
                 Remove-Item -Recurse -Force $tempDir -ErrorAction SilentlyContinue
@@ -50,7 +50,7 @@ Describe 'Invoke-Impl.ps1' {
             $tempDir = Join-Path ([IO.Path]::GetTempPath()) "impl-test-$(Get-Random)"
             New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
             try {
-                $output = & pwsh -NonInteractive -Command "
+                $output = & pwsh -NonInteractive -NoProfile -Command "
                     Set-Location '$tempDir'
                     `$env:AGENT_ORCHESTRATION_MCP_URL = `$null
                     & '$ScriptPath' 2>&1

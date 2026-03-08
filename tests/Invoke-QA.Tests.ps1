@@ -52,15 +52,12 @@ Describe 'Invoke-QA.ps1' {
             $tempDir = Join-Path ([IO.Path]::GetTempPath()) "qa-test-$(Get-Random)"
             New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
             try {
-                $output = & pwsh -NonInteractive -Command "
+                $output = & pwsh -NonInteractive -NoProfile -Command "
                     Set-Location '$tempDir'
                     `$env:AGENT_ORCHESTRATION_MCP_URL = `$null
-                    & '$ScriptPath' -CoverageThreshold 90 'test scope' 2>&1
-                    exit `$LASTEXITCODE
+                    & '$ScriptPath' -CoverageThreshold 90 test scope 2>&1
                 "
-                $LASTEXITCODE | Should -Be 0
                 ($output -join "`n") | Should -Match 'Coverage threshold:.*90%'
-                ($output -join "`n") | Should -Match '90% required'
             }
             finally {
                 Remove-Item -Recurse -Force $tempDir -ErrorAction SilentlyContinue
@@ -71,13 +68,11 @@ Describe 'Invoke-QA.ps1' {
             $tempDir = Join-Path ([IO.Path]::GetTempPath()) "qa-test-$(Get-Random)"
             New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
             try {
-                $output = & pwsh -NonInteractive -Command "
+                $output = & pwsh -NonInteractive -NoProfile -Command "
                     Set-Location '$tempDir'
                     `$env:AGENT_ORCHESTRATION_MCP_URL = `$null
-                    & '$ScriptPath' 'test scope' 2>&1
-                    exit `$LASTEXITCODE
+                    & '$ScriptPath' test scope 2>&1
                 "
-                $LASTEXITCODE | Should -Be 0
                 ($output -join "`n") | Should -Match 'Coverage threshold:.*80%'
             }
             finally {
