@@ -1,4 +1,4 @@
-"""Tests for scripts.validation.skill_modularity_audit module.
+"""Tests for SkillForge skill_modularity_audit module.
 
 Validates skill modularity audit logic per Issue #1267.
 Covers scoring, recommendations, frontmatter parsing, and CLI modes.
@@ -6,10 +6,18 @@ Covers scoring, recommendations, frontmatter parsing, and CLI modes.
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
-from scripts.validation.frontmatter import has_size_exception
-from scripts.validation.skill_modularity_audit import (
+# Add SkillForge scripts to path for imports
+_TEST_DIR = Path(__file__).resolve().parent
+_SKILLFORGE_ROOT = _TEST_DIR.parent
+_PROJECT_ROOT = _TEST_DIR.parents[4]
+sys.path.insert(0, str(_SKILLFORGE_ROOT))
+sys.path.insert(0, str(_PROJECT_ROOT))
+
+from scripts.frontmatter import has_size_exception  # noqa: E402
+from scripts.skill_modularity_audit import (  # noqa: E402
     IDEAL_MAX_LINES,
     MAX_H2_SECTIONS,
     SkillAuditResult,

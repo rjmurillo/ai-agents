@@ -27,12 +27,13 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
-# Add project root to path for imports
+# Add SkillForge scripts to path for shared frontmatter utilities
 _SCRIPT_DIR = Path(__file__).resolve().parent
 _PROJECT_ROOT = _SCRIPT_DIR.parents[1]
-sys.path.insert(0, str(_PROJECT_ROOT))
+_SKILLFORGE_SCRIPTS = _PROJECT_ROOT / ".claude" / "skills" / "SkillForge" / "scripts"
+sys.path.insert(0, str(_SKILLFORGE_SCRIPTS))
 
-from scripts.validation.frontmatter import has_size_exception  # noqa: E402
+from frontmatter import has_size_exception  # noqa: E402
 
 # Size thresholds (lines)
 SKILL_SIZE_LIMIT: int = 500

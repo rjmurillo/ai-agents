@@ -30,10 +30,12 @@ from pathlib import Path
 
 # Add project root to path for imports
 _SCRIPT_DIR = Path(__file__).resolve().parent
-_PROJECT_ROOT = _SCRIPT_DIR.parents[1]
+_SKILLFORGE_ROOT = _SCRIPT_DIR.parent
+_PROJECT_ROOT = _SCRIPT_DIR.parents[3]
+sys.path.insert(0, str(_SKILLFORGE_ROOT))
 sys.path.insert(0, str(_PROJECT_ROOT))
 
-from scripts.validation.frontmatter import has_size_exception  # noqa: E402
+from scripts.frontmatter import has_size_exception  # noqa: E402
 
 # Thresholds aligned with skill_size.py
 LINE_LIMIT: int = 500

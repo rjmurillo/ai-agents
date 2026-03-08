@@ -1,7 +1,8 @@
-"""Shared frontmatter parsing utilities for validation scripts.
+"""Shared frontmatter parsing utilities for skill validation.
 
-Provides common YAML frontmatter parsing logic used by multiple
-skill validation scripts (skill_size.py, skill_modularity_audit.py).
+Provides common YAML frontmatter parsing logic used by SkillForge
+validation scripts (skill_modularity_audit.py) and the project-level
+skill_size.py validator.
 """
 
 from __future__ import annotations
