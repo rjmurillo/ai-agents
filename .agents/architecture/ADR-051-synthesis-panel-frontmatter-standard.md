@@ -1,4 +1,4 @@
-# ADR-044: Synthesis Panel Frontmatter Standard
+# ADR-051: Synthesis Panel Frontmatter Standard
 
 ## Status
 
@@ -121,7 +121,7 @@ scope: Brief scope description  # optional
 ### Phase 1: Schema & Template Definition
 
 1. Create `.agents/architecture/DESIGN-REVIEW-template.md` with frontmatter and body sections
-2. Document ADR-044 with full specification
+2. Document ADR-051 with full specification
 3. Update architect agent prompt to reference template
 
 ### Phase 2: Validation Script
@@ -164,7 +164,7 @@ scope: Brief scope description  # optional
 ## Implementation Roadmap
 
 ```
-1. Create schema + template + ADR-044 (Issue #944) → 2 hours
+1. Create schema + template + ADR-051 (Issue #944) → 2 hours
 2. Create validation script + tests (Issue #945) → 6 hours
 3. Create CI gate workflow (Issue #946) → 4 hours
 4. Update architect agent prompt (Issue #947) → 1 hour

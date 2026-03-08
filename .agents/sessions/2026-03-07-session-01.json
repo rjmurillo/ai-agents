@@ -65,7 +65,7 @@
     "sessionEnd": {
       "serenaMemoryUpdated": {
         "level": "MUST",
-        "Evidence": "Updated Serena memory with ADR-044 decisions",
+        "Evidence": "Updated Serena memory with ADR-051 decisions",
         "Complete": true
       },
       "checklistComplete": {
@@ -100,7 +100,7 @@
       },
       "tasksUpdated": {
         "level": "SHOULD",
-        "Evidence": "Follow-up issues referenced in ADR-044",
+        "Evidence": "Follow-up issues referenced in ADR-051",
         "Complete": true
       }
     }
@@ -114,7 +114,7 @@
     "role": "developer",
     "issueId": 946,
     "issueName": "[ADR] Synthesis Panel Frontmatter Standard",
-    "objective": "Create ADR-044 defining YAML frontmatter schema for DESIGN-REVIEW documents to enable automated enforcement of blocking architect reviews",
+    "objective": "Create ADR-051 defining YAML frontmatter schema for DESIGN-REVIEW documents to enable automated enforcement of blocking architect reviews",
     "startingCommit": "a01c2d91"
   },
   "work": {
@@ -124,14 +124,14 @@
   },
   "artifacts": {
     "created": [
-      ".agents/architecture/ADR-044-synthesis-panel-frontmatter-standard.md",
+      ".agents/architecture/ADR-051-synthesis-panel-frontmatter-standard.md",
       ".agents/architecture/DESIGN-REVIEW-template.md"
     ],
     "modified": [],
     "deleted": []
   },
   "decisions": [
-    "ADR-044 defines YAML frontmatter schema with: status, priority, blocking, reviewer, date, pr-branch (opt), scope (opt)",
+    "ADR-051 defines YAML frontmatter schema with: status, priority, blocking, reviewer, date, pr-branch (opt), scope (opt)",
     "CI gate will block merges when blocking: true and status is not APPROVED",
     "Template created for architect agent to use as reference",
     "Frontmatter pattern follows ADR-040 (skill frontmatter) precedent"
@@ -140,9 +140,9 @@
   "workLog": [
     {
       "files": [
-        ".agents/architecture/ADR-044-synthesis-panel-frontmatter-standard.md"
+        ".agents/architecture/ADR-051-synthesis-panel-frontmatter-standard.md"
       ],
-      "action": "Created ADR-044 defining YAML frontmatter schema for DESIGN-REVIEW documents",
+      "action": "Created ADR-051 defining YAML frontmatter schema for DESIGN-REVIEW documents",
       "result": "ADR specifies status, priority, blocking, reviewer, date fields with CI gate logic"
     },
     {
