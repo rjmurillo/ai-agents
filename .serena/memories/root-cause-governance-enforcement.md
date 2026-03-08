@@ -7,11 +7,11 @@
 
 ## Description
 
-Governance limits exist (ADR-008: 20 commits, best practice: 5-10 files) and are now enforced
-via pre-push hooks that block violations and CI checks that require labels to override.
-Previously, agents relied on memory/discipline to follow limits. When limits were invisible
-(no counter) or advisory (BLOCKING without halt), violations accumulated. The enforcement
-gap has been closed.
+Governance limits exist (ADR-008: 20 commits, best practice: 5-10 files) and are enforced via
+pre-push hooks and CI checks. However, enforcement gaps emerge when: agents lack visible counters,
+BLOCKING synthesis results are ignored, or the session protocol does not surface limits at the
+right moment. When limits are invisible (no running counter) or feedback arrives too late, violations
+accumulate despite gates existing.
 
 ## Detection Signals
 
@@ -37,7 +37,7 @@ gap has been closed.
   - Q2: Why no counter? → Not in protocol
   - Q3: Why not in protocol? → ADR-008 not integrated
   - Q4: Why not integrated? → No process to sync ADRs to protocol
-  - Q5: Why no process? → Governance is advisory, not enforced
+  - Q5: Why no process? → Governance gates exist but weren't surfaced at the right moment
 - **Resolution**: Created pre-PR validation script that checks all governance limits
 
 ## Related Patterns
@@ -45,6 +45,8 @@ gap has been closed.
 - **Similar to**: RootCause-Context-Loss-002 (session continuation without loading prior context)
 - **Related to**: RootCause-Process-002 (Late Feedback Loop)
 - **Related to**: RootCause-Process-003 (Scope Creep via Tool Side Effects)
+- **Case Study**: PR #908 (https://github.com/rjmurillo/ai-agents/pull/908)
+
 ## References
 
 - `.agents/retrospective/2026-01-15-pr-908-comprehensive-retrospective.md` (lines 997-1036)
