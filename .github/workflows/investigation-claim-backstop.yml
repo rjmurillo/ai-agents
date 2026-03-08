@@ -9,7 +9,14 @@ on:
   pull_request:
     branches: [main]
     paths:
-      - '.agents/sessions/*.json'
+      - '.agents/sessions/**'
+      - '.agents/analysis/**'
+      - '.agents/retrospective/**'
+      - '.serena/memories/**'
+      - '.agents/security/**'
+      - '.agents/memory/**'
+      - '.agents/architecture/REVIEW-*'
+      - '.agents/critique/**'
 
 permissions:
   contents: read
@@ -67,6 +74,8 @@ jobs:
           - `.serena/memories/` (cross-session context)
           - `.agents/security/` (security assessments)
           - `.agents/memory/` (memory infrastructure)
+          - `.agents/architecture/REVIEW-*` (review documents)
+          - `.agents/critique/` (critic debate logs)
 
           **Action Required**: Either:
           1. Remove non-investigation files from the commit, or
