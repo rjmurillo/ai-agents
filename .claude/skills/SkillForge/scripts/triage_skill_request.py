@@ -159,8 +159,7 @@ def classify_input(query: str) -> Tuple[str, Dict[str, Any]]:
     for pattern in EXPLICIT_CREATE_PATTERNS:
         if re.search(pattern, query_lower):
             # Extract the purpose/goal
-            # Use character class with explicit length limit to prevent polynomial regex (ReDoS)
-            purpose_match = re.search(r'skill\s+(?:for|to)\s+([a-zA-Z0-9 \-,\'\"]{1,200})', query_lower)
+            purpose_match = re.search(r'skill\s+(?:for|to)\s+(.+?)(?:\.|$)', query_lower)
             if purpose_match:
                 signals["extracted_purpose"] = purpose_match.group(1).strip()
             return InputCategory.EXPLICIT_CREATE, signals
@@ -314,6 +313,7 @@ def calculate_match_score(query: str, skill: Dict) -> Tuple[float, List[str]]:
     query_domains = detect_query_domains(query)
 
     # Step 2: Check if skill's domains match detected query domains (STRONG signal)
+    domain_matched = False
     for domain, matched_terms in query_domains:
         # Direct domain match (skill has this domain in its domains list)
         if domain in skill_domains:
@@ -321,45 +321,46 @@ def calculate_match_score(query: str, skill: Dict) -> Tuple[float, List[str]]:
             domain_score = min(50, 35 + len(matched_terms) * 5)
             score += domain_score
             reasons.append(f"domain: {domain} ({', '.join(matched_terms[:2])})")
+            domain_matched = True
             break  # Only count best domain match
 
     # Step 3: Check if query domain terms appear in skill keywords/description
-    keyword_found = False
+    keyword_matched = False
     for domain, matched_terms in query_domains:
         # Check if domain synonyms appear in skill's keywords
         for term in matched_terms:
             if term in skill_keywords:
                 score += 15
                 reasons.append(f"keyword: {term}")
-                keyword_found = True
+                keyword_matched = True
                 break
-        if keyword_found:
+        if keyword_matched:
             break
 
         # Also check if the DOMAIN NAME itself is in keywords (e.g., "spreadsheet" domain, skill has "spreadsheet" keyword)
         if domain in skill_keywords or domain.replace("_", " ") in skill_keywords:
             score += 15
             reasons.append(f"keyword: {domain}")
-            keyword_found = True
+            keyword_matched = True
             break
 
     # Check if domain terms appear in skill's description
-    desc_found = False
+    desc_matched = False
     for domain, matched_terms in query_domains:
         for term in matched_terms:
             if term in skill_description:
                 score += 10
                 reasons.append(f"description: {term}")
-                desc_found = True
+                desc_matched = True
                 break
-        if desc_found:
+        if desc_matched:
             break
 
         # Also check domain name in description
         if domain in skill_description:
             score += 10
             reasons.append(f"description: {domain}")
-            desc_found = True
+            desc_matched = True
             break
 
     # Step 4: Direct skill name match (works for any skill name)
@@ -711,7 +712,7 @@ def format_output(result: Result) -> str:
     if action == Action.USE_EXISTING:
         skills = details.get("recommended_skills", [])
         lines.append(f"  Invoke existing skill: {skills[0] if skills else 'unknown'}")
-        lines.append(f"  Example: /{skills[0] if skills else 'skill-name'}")
+        lines.append(f"  Example: use skill '{skills[0] if skills else 'skill-name'}' in your host")
 
     elif action == Action.IMPROVE_EXISTING:
         target = details.get("target_skill", "unknown")
@@ -726,7 +727,7 @@ def format_output(result: Result) -> str:
     elif action == Action.COMPOSE:
         chain = details.get("recommended_chain", [])
         lines.append(f"  Compose skill chain: {' → '.join(chain)}")
-        lines.append(f"  Use SkillComposer to orchestrate")
+        lines.append(f"  Run the chain in order and keep the scope minimal")
 
     elif action == Action.CLARIFY:
         suggestion = details.get("suggested_action", "Clarify your intent")
