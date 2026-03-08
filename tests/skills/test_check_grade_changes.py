@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 from pathlib import Path
 from unittest.mock import patch
@@ -15,6 +16,7 @@ sys.path.insert(
 )
 
 from check_grade_changes import (
+    create_notification_issue,
     find_degraded_domains,
     load_grades,
     main,
@@ -163,3 +165,49 @@ class TestMain:
         mock_notify.assert_called_once()
         flagged = mock_notify.call_args[0][0]
         assert any(d["domain"] == "memory" for d in flagged)
+
+    def test_gh_not_installed_returns_one(self, tmp_path: Path, sample_grades: dict) -> None:
+        """Return exit code 1 when gh CLI is not installed."""
+        p = tmp_path / "grades.json"
+        p.write_text(json.dumps(sample_grades), encoding="utf-8")
+        with patch(
+            "check_grade_changes.subprocess.run",
+            side_effect=FileNotFoundError("gh not found"),
+        ):
+            result = main(["--grades-file", str(p)])
+        assert result == 1
+
+    def test_gh_failure_returns_one(self, tmp_path: Path, sample_grades: dict) -> None:
+        """Return exit code 1 when gh issue create fails."""
+        p = tmp_path / "grades.json"
+        p.write_text(json.dumps(sample_grades), encoding="utf-8")
+        with patch(
+            "check_grade_changes.subprocess.run",
+            side_effect=subprocess.CalledProcessError(1, "gh"),
+        ):
+            result = main(["--grades-file", str(p)])
+        assert result == 1
+
+
+class TestCreateNotificationIssue:
+    """Tests for error handling in create_notification_issue."""
+
+    def test_raises_on_missing_gh(self) -> None:
+        """Re-raise FileNotFoundError when gh is not installed."""
+        flagged = [{"domain": "x", "grade": "F", "score": 10, "trend": "degrading", "critical_gaps": 0}]
+        with patch(
+            "check_grade_changes.subprocess.run",
+            side_effect=FileNotFoundError("gh"),
+        ):
+            with pytest.raises(FileNotFoundError):
+                create_notification_issue(flagged)
+
+    def test_raises_on_gh_failure(self) -> None:
+        """Re-raise CalledProcessError when gh command fails."""
+        flagged = [{"domain": "x", "grade": "F", "score": 10, "trend": "degrading", "critical_gaps": 0}]
+        with patch(
+            "check_grade_changes.subprocess.run",
+            side_effect=subprocess.CalledProcessError(1, "gh"),
+        ):
+            with pytest.raises(subprocess.CalledProcessError):
+                create_notification_issue(flagged)

@@ -96,20 +96,27 @@ def create_notification_issue(flagged: list[dict]) -> None:
     )
     body = "\n".join(lines)
 
-    subprocess.run(
-        [
-            "gh",
-            "issue",
-            "create",
-            "--title",
-            title,
-            "--body",
-            body,
-            "--label",
-            "quality",
-        ],
-        check=True,
-    )
+    try:
+        subprocess.run(
+            [
+                "gh",
+                "issue",
+                "create",
+                "--title",
+                title,
+                "--body",
+                body,
+                "--label",
+                "quality",
+            ],
+            check=True,
+        )
+    except FileNotFoundError:
+        print("Error: 'gh' CLI not found. Install GitHub CLI to create issues.", file=sys.stderr)
+        raise
+    except subprocess.CalledProcessError as exc:
+        print(f"Error: 'gh issue create' failed with exit code {exc.returncode}", file=sys.stderr)
+        raise
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -131,7 +138,10 @@ def main(argv: list[str] | None = None) -> int:
     for d in flagged:
         print(f"  {d['domain']}: {d['grade']} ({d['score']:.0f}/100) [{d['trend']}]")
 
-    create_notification_issue(flagged)
+    try:
+        create_notification_issue(flagged)
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        return 1
     print("Notification issue created.")
     return 0
 
