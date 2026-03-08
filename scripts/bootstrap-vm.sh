@@ -194,6 +194,11 @@ if ! command -v actionlint &>/dev/null; then
 fi
 if ! command -v yamllint &>/dev/null; then
     uv pip install --system yamllint --quiet
+
+    if ! command -v yamllint &>/dev/null; then
+        echo "yamllint installation failed: binary not found on PATH" >&2
+        exit 1
+    fi
 fi
 
 echo "=== Environment ==="
