@@ -1,12 +1,5 @@
 ---
 description: Auto-generate session documentation and sync workflow artifacts. Always the last command in a workflow sequence.
-allowed-tools:
-  - Read
-  - Write
-  - Edit
-  - Bash(git:*)
-  - Glob
-  - mcp__serena__*
 model: sonnet
 ---
 

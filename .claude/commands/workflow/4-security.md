@@ -1,13 +1,6 @@
 ---
 description: Run security assessment on implementation results. Mandatory for security-tagged issues. Covers OWASP, secrets, and dependencies.
 argument-hint: <review scope>
-allowed-tools:
-  - Read
-  - Grep
-  - Glob
-  - Bash
-  - Agent
-  - mcp__serena__*
 model: sonnet
 ---
 

@@ -1,12 +1,6 @@
 ---
 description: Route to planning agents based on task complexity. Supports --arch for architecture and --strategic for roadmap planning.
 argument-hint: <task description> [--arch | --strategic]
-allowed-tools:
-  - Read
-  - Grep
-  - Glob
-  - Agent
-  - mcp__serena__*
 model: sonnet
 ---
 

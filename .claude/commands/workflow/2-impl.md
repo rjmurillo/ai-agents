@@ -1,15 +1,6 @@
 ---
 description: Execute implementation with optional multi-agent coordination. Supports --full (sequential) and --parallel modes.
 argument-hint: <task description> [--full | --parallel]
-allowed-tools:
-  - Edit
-  - Write
-  - Read
-  - Grep
-  - Glob
-  - Bash
-  - Agent
-  - mcp__serena__*
 model: opus
 ---
 

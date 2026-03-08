@@ -1,13 +1,6 @@
 ---
 description: Run QA verification on implementation results. Validates acceptance criteria, test coverage, and quality standards.
 argument-hint: <verification scope>
-allowed-tools:
-  - Bash
-  - Read
-  - Grep
-  - Glob
-  - Agent
-  - mcp__serena__*
 model: sonnet
 ---
 
