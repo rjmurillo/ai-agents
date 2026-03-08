@@ -24,6 +24,11 @@ import textwrap
 from dataclasses import dataclass, field
 from pathlib import Path
 
+try:
+    import tomllib
+except ModuleNotFoundError:
+    import tomli as tomllib
+
 
 @dataclass
 class DependencyInfo:
@@ -163,26 +168,19 @@ def get_python_dependencies(project_root: Path) -> list[DependencyInfo]:
     if not pyproject.exists():
         return []
 
-    # Read direct dependency names from pyproject.toml
-    content = pyproject.read_text()
+    # Read direct dependency names from pyproject.toml using proper TOML parsing
+    with open(pyproject, "rb") as f:
+        pyproject_data = tomllib.load(f)
+
     direct_deps: set[str] = set()
-    in_deps = False
-    in_dev_deps = False
-    for line in content.splitlines():
-        if line.strip() == "dependencies = [":
-            in_deps = True
-            continue
-        if line.strip().startswith("dev = ["):
-            in_dev_deps = True
-            continue
-        if in_deps or in_dev_deps:
-            if line.strip() == "]":
-                in_deps = False
-                in_dev_deps = False
-                continue
-            match = re.match(r'\s*"([a-zA-Z0-9_-]+)', line)
-            if match:
-                direct_deps.add(match.group(1).lower())
+    project = pyproject_data.get("project", {})
+    for dep_spec in project.get("dependencies", []):
+        dep_name = re.split(r"[>=<!\[;@ ]", dep_spec, maxsplit=1)[0]
+        direct_deps.add(dep_name.lower())
+    optional_deps = project.get("optional-dependencies", {})
+    for dep_spec in optional_deps.get("dev", []):
+        dep_name = re.split(r"[>=<!\[;@ ]", dep_spec, maxsplit=1)[0]
+        direct_deps.add(dep_name.lower())
 
     deps: list[DependencyInfo] = []
     for dist in importlib.metadata.distributions():
@@ -230,8 +228,11 @@ def get_python_dependencies(project_root: Path) -> list[DependencyInfo]:
                 if fname in ("LICENSE", "LICENSE.TXT", "LICENSE.MD", "COPYING"):
                     license_text = f.read_text("utf-8")
                     break
-        except Exception:
-            pass
+        except (FileNotFoundError, PermissionError, UnicodeDecodeError) as exc:
+            print(
+                f"WARNING: Failed to read license file for {name}: {exc}",
+                file=sys.stderr,
+            )
 
         is_direct = name.lower() in direct_deps
         category = "python-direct" if is_direct else "python-transitive"
@@ -407,9 +408,16 @@ def _format_dep(num: int, dep: DependencyInfo) -> list[str]:
         lines.append("   " + "-" * 60)
         lines.append("")
     else:
-        lines.append(
-            f"   License text available at: {dep.url}/blob/main/LICENSE"
-        )
+        if dep.url:
+            lines.append(
+                "   License text not embedded in package distribution."
+                f" See project URL for license details: {dep.url}"
+            )
+        else:
+            lines.append(
+                "   License text not embedded in package distribution."
+                " See project documentation for license details."
+            )
         lines.append("")
 
     return lines
