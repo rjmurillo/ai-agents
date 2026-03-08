@@ -159,6 +159,14 @@ class TestSessionProtocolDetection:
         assert "ADR Change Detected" in result.stdout
         assert "Removed" in result.stdout
 
+    def test_bash_mv_session_protocol_injects_guidance(self) -> None:
+        result = _run_hook(
+            "Bash",
+            {"command": "mv .agents/SESSION-PROTOCOL.md .agents/SESSION-PROTOCOL.md.bak"},
+        )
+        assert result.returncode == 0
+        assert "ADR Change Detected" in result.stdout
+
     def test_bash_git_rm_session_protocol_injects_guidance(self) -> None:
         result = _run_hook(
             "Bash", {"command": "git rm .agents/SESSION-PROTOCOL.md"}
