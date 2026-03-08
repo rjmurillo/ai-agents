@@ -161,11 +161,35 @@ Need GitHub data?
 
 ## Output Format
 
-All scripts output structured JSON:
+All scripts output structured JSON wrapped in a standard envelope per [ADR-044](../../../.agents/architecture/ADR-044-skill-output-format-standardization.md). See [Skill Output Standard](../../../docs/skill-output-standard.md) for full details.
+
+**Success envelope:**
+
+```json
+{
+  "Success": true,
+  "Data": { "Number": 42, "Title": "..." },
+  "Error": null,
+  "Metadata": { "Script": "get_pr_checks.py", "Version": "1.0.0", "Timestamp": "..." }
+}
+```
+
+**Error envelope:**
+
+```json
+{
+  "Success": false,
+  "Data": null,
+  "Error": { "Message": "PR not found", "Code": 2, "Type": "NotFound" },
+  "Metadata": { "Script": "get_pr_checks.py", "Version": "1.0.0", "Timestamp": "..." }
+}
+```
+
+**Usage:**
 
 ```bash
 result=$(python3 .claude/skills/github/scripts/pr/get_pr_context.py --pull-request 50)
-echo "$result" | jq '.Title'
+echo "$result" | jq '.Data'
 ```
 
 Exit codes follow ADR-035: 0=success, 1=logic error, 2=config error, 3=external failure, 4=auth error.
