@@ -18,6 +18,7 @@ Thank you for your interest in contributing to this project. This guide explains
 - [ADR-to-Protocol Sync Process](#adr-to-protocol-sync-process)
 - [Pull Request Guidelines](#pull-request-guidelines)
   - [Commit Count Thresholds](#commit-count-thresholds)
+- [Third-Party License Attribution](#third-party-license-attribution)
 
 ## Getting Started
 
@@ -819,6 +820,37 @@ Displays routing history and cost savings metrics.
 - LLM fallback only triggers for uncertain cases
 - Token overhead optimized to ~3.4k tokens per interaction
 - Slash commands (`/route`, `/router-stats`) and router questions are handled directly, not routed
+
+## Third-Party License Attribution
+
+This project ships plugins via `.claude-plugin/marketplace.json`. Any
+third-party component redistributed in a shipped plugin path requires
+license attribution in `THIRD-PARTY-NOTICES.TXT`.
+
+### What Requires Attribution
+
+| Component Type | Example | Requires Attribution |
+|----------------|---------|---------------------|
+| Forked/vendored source code | SkillForge | Yes |
+| Runtime dependencies in shipped `requirements.txt` | anthropic SDK | Yes |
+| Dev-only tools | pytest, ruff | No |
+| CI infrastructure | GitHub Actions | No |
+| Transitive pip packages | pydantic, httpx | No |
+| Test frameworks | Pester, pytest-cov | No |
+
+### Adding a New Third-Party Component
+
+1. Verify the license is compatible with MIT (see `docs/third-party-license-attribution.md`)
+2. Add the component to `FORKED_COMPONENTS` or `RUNTIME_DEPENDENCIES` in
+   `scripts/generate_third_party_notices.py`
+3. Run `uv run python3 scripts/generate_third_party_notices.py` to regenerate
+4. Commit both the script and `THIRD-PARTY-NOTICES.TXT` together
+5. Run `--check` mode to verify: `uv run python3 scripts/generate_third_party_notices.py --check`
+
+### Full Policy
+
+See `docs/third-party-license-attribution.md` for the complete policy,
+license compatibility matrix, and compliance checklist.
 
 ## Questions?
 

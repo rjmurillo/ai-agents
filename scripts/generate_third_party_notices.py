@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-"""Generate THIRD-PARTY-NOTICES.TXT from project dependencies.
+"""Generate THIRD-PARTY-NOTICES.TXT from shipped plugin components.
 
-Scans Python package metadata and GitHub Actions references to produce
-a notices file following the dotnet/runtime THIRD-PARTY-NOTICES.TXT format.
+Scans the plugin source paths defined in .claude-plugin/marketplace.json
+to identify third-party components that are redistributed. Only shipped
+components require license attribution. Dev-only tools, test frameworks,
+and CI infrastructure are excluded.
 
 Usage:
     python3 scripts/generate_third_party_notices.py [--output THIRD-PARTY-NOTICES.TXT]
@@ -16,68 +18,26 @@ Exit codes per ADR-035:
 from __future__ import annotations
 
 import argparse
-import importlib.metadata
+import json
 import re
-import subprocess
 import sys
-import textwrap
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-
-try:
-    import tomllib
-except ModuleNotFoundError:
-    import tomli as tomllib
 
 
 @dataclass
-class DependencyInfo:
+class ShippedComponent:
     name: str
     version: str
     license_type: str
     author: str
     url: str
     license_text: str = ""
-    category: str = "python"
+    category: str = "forked"
 
 
-# Known licenses for packages where metadata is incomplete
-KNOWN_LICENSES: dict[str, str] = {
-    "markdown-it-py": "MIT",
-    "mdurl": "MIT",
-    "anyio": "MIT",
-    "annotated-types": "MIT",
-    "filelock": "Unlicense",
-    "idna": "BSD-3-Clause",
-    "iniconfig": "MIT",
-    "jiter": "MIT",
-    "msgpack": "Apache-2.0",
-    "mypy_extensions": "MIT",
-    "packaging": "Apache-2.0",
-    "pathspec": "MPL-2.0",
-    "pip": "MIT",
-    "pip-api": "Apache-2.0",
-    "pip_audit": "Apache-2.0",
-    "platformdirs": "MIT",
-    "pydantic": "MIT",
-    "pydantic-core": "MIT",
-    "pydantic_core": "MIT",
-    "httpcore": "BSD-3-Clause",
-    "CacheControl": "Apache-2.0",
-    "sniffio": "MIT",
-    "pytest": "MIT",
-    "pytest-cov": "MIT",
-    "ruff": "MIT",
-    "pyparsing": "MIT",
-    "regex": "Apache-2.0",
-    "tomli": "MIT",
-    "tomli_w": "MIT",
-    "typing-inspection": "MIT",
-    "typing_extensions": "PSF",
-    "urllib3": "MIT",
-}
-
-# Forked/vendored components with their upstream licenses
+# Forked or vendored components shipped in plugin source paths.
+# Each entry must include the license text or a path to a LICENSE file.
 FORKED_COMPONENTS: dict[str, dict[str, str]] = {
     "SkillForge": {
         "license": "MIT",
@@ -110,269 +70,181 @@ FORKED_COMPONENTS: dict[str, dict[str, str]] = {
     },
 }
 
-# GitHub Actions with their known licenses
-ACTIONS_LICENSES: dict[str, dict[str, str]] = {
-    "actions/cache": {
+# Runtime dependencies declared in requirements.txt files within shipped paths.
+# These are packages users must install to use the shipped hooks/scripts.
+# Attribution is required because the dependency declaration ships with the plugin.
+RUNTIME_DEPENDENCIES: dict[str, dict[str, str]] = {
+    "anthropic": {
         "license": "MIT",
-        "url": "https://github.com/actions/cache",
-        "author": "GitHub",
-    },
-    "actions/checkout": {
-        "license": "MIT",
-        "url": "https://github.com/actions/checkout",
-        "author": "GitHub",
-    },
-    "actions/download-artifact": {
-        "license": "MIT",
-        "url": "https://github.com/actions/download-artifact",
-        "author": "GitHub",
-    },
-    "actions/github-script": {
-        "license": "MIT",
-        "url": "https://github.com/actions/github-script",
-        "author": "GitHub",
-    },
-    "actions/labeler": {
-        "license": "MIT",
-        "url": "https://github.com/actions/labeler",
-        "author": "GitHub",
-    },
-    "actions/setup-node": {
-        "license": "MIT",
-        "url": "https://github.com/actions/setup-node",
-        "author": "GitHub",
-    },
-    "actions/setup-python": {
-        "license": "MIT",
-        "url": "https://github.com/actions/setup-python",
-        "author": "GitHub",
-    },
-    "actions/upload-artifact": {
-        "license": "MIT",
-        "url": "https://github.com/actions/upload-artifact",
-        "author": "GitHub",
-    },
-    "amannn/action-semantic-pull-request": {
-        "license": "MIT",
-        "url": "https://github.com/amannn/action-semantic-pull-request",
-        "author": "Tobias Ammann",
-    },
-    "anthropics/claude-code-action": {
-        "license": "MIT",
-        "url": "https://github.com/anthropics/claude-code-action",
+        "url": "https://github.com/anthropics/anthropic-sdk-python",
         "author": "Anthropic",
-    },
-    "dorny/paths-filter": {
-        "license": "MIT",
-        "url": "https://github.com/dorny/paths-filter",
-        "author": "Michal Dorner",
-    },
-    "dorny/test-reporter": {
-        "license": "MIT",
-        "url": "https://github.com/dorny/test-reporter",
-        "author": "Michal Dorner",
-    },
-    "github/codeql-action": {
-        "license": "MIT",
-        "url": "https://github.com/github/codeql-action",
-        "author": "GitHub",
-    },
-    "ibiqlik/action-yamllint": {
-        "license": "MIT",
-        "url": "https://github.com/ibiqlik/action-yamllint",
-        "author": "Ibrahim Biqlik",
-    },
-    "step-security/harden-runner": {
-        "license": "Apache-2.0",
-        "url": "https://github.com/step-security/harden-runner",
-        "author": "StepSecurity",
-    },
-    "Factory-AI/droid-action": {
-        "license": "MIT",
-        "url": "https://github.com/Factory-AI/droid-action",
-        "author": "Factory AI",
+        "declared_in": ".claude/hooks/requirements.txt",
+        "license_text": (
+            "MIT License\n"
+            "\n"
+            "Copyright (c) 2023 Anthropic, PBC\n"
+            "\n"
+            "Permission is hereby granted, free of charge, to any person obtaining a copy\n"
+            "of this software and associated documentation files (the \"Software\"), to deal\n"
+            "in the Software without restriction, including without limitation the rights\n"
+            "to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\n"
+            "copies of the Software, and to permit persons to whom the Software is\n"
+            "furnished to do so, subject to the following conditions:\n"
+            "\n"
+            "The above copyright notice and this permission notice shall be included in all\n"
+            "copies or substantial portions of the Software.\n"
+            "\n"
+            "THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\n"
+            "IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\n"
+            "FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\n"
+            "AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\n"
+            "LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\n"
+            "OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\n"
+            "SOFTWARE.\n"
+        ),
     },
 }
 
 
-def get_python_dependencies(project_root: Path) -> list[DependencyInfo]:
-    """Extract license info from installed Python packages."""
-    pyproject = project_root / "pyproject.toml"
-    if not pyproject.exists():
-        return []
+def load_marketplace_config(project_root: Path) -> list[dict[str, str]]:
+    """Load plugin definitions from .claude-plugin/marketplace.json."""
+    marketplace_path = project_root / ".claude-plugin" / "marketplace.json"
+    if not marketplace_path.exists():
+        print(
+            f"ERROR: {marketplace_path} not found. Cannot determine shipped components.",
+            file=sys.stderr,
+        )
+        sys.exit(2)
 
-    # Read direct dependency names from pyproject.toml using proper TOML parsing
-    with open(pyproject, "rb") as f:
-        pyproject_data = tomllib.load(f)
+    with open(marketplace_path) as f:
+        data = json.load(f)
 
-    direct_deps: set[str] = set()
-    project = pyproject_data.get("project", {})
-    for dep_spec in project.get("dependencies", []):
-        dep_name = re.split(r"[>=<!\[;@ ]", dep_spec, maxsplit=1)[0]
-        direct_deps.add(dep_name.lower())
-    optional_deps = project.get("optional-dependencies", {})
-    for dep_spec in optional_deps.get("dev", []):
-        dep_name = re.split(r"[>=<!\[;@ ]", dep_spec, maxsplit=1)[0]
-        direct_deps.add(dep_name.lower())
+    return data.get("plugins", [])
 
-    deps: list[DependencyInfo] = []
-    for dist in importlib.metadata.distributions():
-        name = dist.metadata["Name"]
-        if name.lower() == "ai-agents":
+
+def get_shipped_source_paths(
+    project_root: Path, plugins: list[dict[str, str]]
+) -> list[Path]:
+    """Resolve plugin source paths to absolute paths."""
+    paths: list[Path] = []
+    for plugin in plugins:
+        source = plugin.get("source", "")
+        if source:
+            resolved = (project_root / source).resolve()
+            if resolved.exists():
+                paths.append(resolved)
+            else:
+                print(
+                    f"WARNING: Plugin source path does not exist: {source}",
+                    file=sys.stderr,
+                )
+    return paths
+
+
+def find_forked_components(
+    project_root: Path, shipped_paths: list[Path]
+) -> list[ShippedComponent]:
+    """Identify forked/vendored components within shipped paths."""
+    components: list[ShippedComponent] = []
+
+    for name, info in sorted(FORKED_COMPONENTS.items()):
+        local_path = info.get("local_path", "")
+        if not local_path:
             continue
 
-        version = dist.metadata["Version"]
-        license_type = dist.metadata.get("License", "")
-        author = dist.metadata.get("Author", "")
-        if not author:
-            author = dist.metadata.get("Author-email", "Unknown")
+        component_path = (project_root / local_path).resolve()
+        is_shipped = any(
+            str(component_path).startswith(str(sp)) for sp in shipped_paths
+        )
 
-        # Extract URL
-        url = dist.metadata.get("Home-page", "")
-        if not url:
-            project_urls = dist.metadata.get_all("Project-URL") or []
-            for pu in project_urls:
-                if "homepage" in pu.lower() or "repository" in pu.lower():
-                    url = pu.split(",", 1)[-1].strip()
-                    break
-
-        # Clean up license - some packages embed full text
-        if license_type and len(license_type) > 50:
-            license_type = license_type.split("\n")[0].strip()
-
-        # Use classifiers as fallback
-        if not license_type or license_type == "?":
-            classifiers = dist.metadata.get_all("Classifier") or []
-            for c in classifiers:
-                if "License" in c and "OSI" not in c:
-                    license_type = c.split(" :: ")[-1]
-                    break
-
-        # Use known licenses as final fallback
-        if not license_type or license_type in ("?", "UNKNOWN"):
-            license_type = KNOWN_LICENSES.get(name, "Unknown")
-
-        # Try to read license file from package
-        license_text = ""
-        try:
-            files = dist.files or []
-            for f in files:
-                fname = str(f).split("/")[-1].upper()
-                if fname in ("LICENSE", "LICENSE.TXT", "LICENSE.MD", "COPYING"):
-                    license_text = f.read_text("utf-8")
-                    break
-        except (FileNotFoundError, PermissionError, UnicodeDecodeError) as exc:
+        if is_shipped:
+            components.append(
+                ShippedComponent(
+                    name=name,
+                    version="(fork)",
+                    license_type=info["license"],
+                    author=info["author"],
+                    url=info["url"],
+                    license_text=info.get("license_text", ""),
+                    category="forked",
+                )
+            )
+        else:
             print(
-                f"WARNING: Failed to read license file for {name}: {exc}",
+                f"NOTE: {name} at {local_path} is not in a shipped plugin path. Skipping.",
                 file=sys.stderr,
             )
 
-        is_direct = name.lower() in direct_deps
-        category = "python-direct" if is_direct else "python-transitive"
-
-        deps.append(
-            DependencyInfo(
-                name=name,
-                version=version,
-                license_type=license_type,
-                author=author,
-                url=url,
-                license_text=license_text,
-                category=category,
-            )
-        )
-
-    return sorted(deps, key=lambda d: (d.category, d.name.lower()))
+    return components
 
 
-def get_github_actions(project_root: Path) -> list[DependencyInfo]:
-    """Extract GitHub Actions references from workflow files."""
-    actions: dict[str, str] = {}
-    workflow_dirs = [
-        project_root / ".github" / "workflows",
-        project_root / ".github" / "actions",
-    ]
+def find_runtime_dependencies(
+    project_root: Path, shipped_paths: list[Path]
+) -> list[ShippedComponent]:
+    """Find requirements.txt files in shipped paths and resolve dependencies."""
+    components: list[ShippedComponent] = []
 
-    for wdir in workflow_dirs:
-        if not wdir.exists():
-            continue
-        for yml_file in wdir.rglob("*.yml"):
-            content = yml_file.read_text()
-            for match in re.finditer(r"uses:\s*([^@\s]+)@", content):
-                action = match.group(1).strip()
-                if not action.startswith("./"):
-                    actions[action] = action
-
-    deps: list[DependencyInfo] = []
-    for action_name in sorted(actions):
-        # Try exact match first, then parent action (e.g., actions/cache/restore -> actions/cache)
-        info = ACTIONS_LICENSES.get(action_name, {})
-        if not info:
-            parts = action_name.split("/")
-            if len(parts) > 2:
-                parent = "/".join(parts[:2])
-                info = ACTIONS_LICENSES.get(parent, {})
-        deps.append(
-            DependencyInfo(
-                name=action_name,
-                version="(SHA-pinned)",
-                license_type=info.get("license", "Unknown"),
-                author=info.get("author", "Unknown"),
-                url=info.get("url", f"https://github.com/{action_name}"),
-                category="github-action",
-            )
-        )
-
-    return deps
-
-
-def get_docker_images(project_root: Path) -> list[DependencyInfo]:
-    """Extract Docker base image references."""
-    deps: list[DependencyInfo] = []
-    for dockerfile in project_root.rglob("Dockerfile*"):
-        content = dockerfile.read_text()
-        for match in re.finditer(r"FROM\s+([^\s]+)", content):
-            image = match.group(1)
-            if image.startswith("$"):
-                continue
-            deps.append(
-                DependencyInfo(
-                    name=image.split(":")[0],
-                    version=image.split(":")[-1] if ":" in image else "latest",
-                    license_type="Various",
-                    author="See image documentation",
-                    url=f"https://hub.docker.com/_/{image.split(':')[0]}",
-                    category="docker",
+    for shipped_path in shipped_paths:
+        for req_file in shipped_path.rglob("requirements.txt"):
+            deps = _parse_requirements(req_file)
+            for dep_name in deps:
+                normalized = dep_name.lower().replace("-", "_")
+                info = RUNTIME_DEPENDENCIES.get(dep_name) or RUNTIME_DEPENDENCIES.get(
+                    normalized
                 )
-            )
-    return deps
+                if info:
+                    components.append(
+                        ShippedComponent(
+                            name=dep_name,
+                            version="(declared dependency)",
+                            license_type=info["license"],
+                            author=info["author"],
+                            url=info["url"],
+                            license_text=info.get("license_text", ""),
+                            category="runtime-dependency",
+                        )
+                    )
+                else:
+                    components.append(
+                        ShippedComponent(
+                            name=dep_name,
+                            version="(declared dependency)",
+                            license_type="Unknown",
+                            author="Unknown",
+                            url="",
+                            category="runtime-dependency",
+                        )
+                    )
+
+    # Deduplicate by name
+    seen: set[str] = set()
+    unique: list[ShippedComponent] = []
+    for c in components:
+        if c.name not in seen:
+            seen.add(c.name)
+            unique.append(c)
+
+    return sorted(unique, key=lambda c: c.name.lower())
 
 
-def get_forked_components() -> list[DependencyInfo]:
-    """Return license info for forked or vendored upstream components."""
-    deps: list[DependencyInfo] = []
-    for name, info in sorted(FORKED_COMPONENTS.items()):
-        deps.append(
-            DependencyInfo(
-                name=name,
-                version="(fork)",
-                license_type=info["license"],
-                author=info["author"],
-                url=info["url"],
-                license_text=info.get("license_text", ""),
-                category="forked",
-            )
-        )
-    return deps
+def _parse_requirements(req_file: Path) -> list[str]:
+    """Extract package names from a requirements.txt file."""
+    names: list[str] = []
+    for line in req_file.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or line.startswith("-"):
+            continue
+        name = re.split(r"[>=<!\[;@ ]", line, maxsplit=1)[0]
+        if name:
+            names.append(name)
+    return names
 
 
 def format_notices(
-    python_deps: list[DependencyInfo],
-    action_deps: list[DependencyInfo],
-    docker_deps: list[DependencyInfo],
-    forked_deps: list[DependencyInfo] | None = None,
+    forked: list[ShippedComponent],
+    runtime: list[ShippedComponent],
 ) -> str:
-    """Format all dependencies into THIRD-PARTY-NOTICES.TXT content."""
+    """Format shipped components into THIRD-PARTY-NOTICES.TXT content."""
     lines: list[str] = []
 
     lines.append("THIRD-PARTY SOFTWARE NOTICES AND INFORMATION")
@@ -391,57 +263,36 @@ def format_notices(
     )
     lines.append("rights, express or implied.")
     lines.append("")
+    lines.append(
+        "Scope: This file covers components shipped as part of the plugins"
+    )
+    lines.append(
+        "defined in .claude-plugin/marketplace.json. Dev-only tools, test"
+    )
+    lines.append(
+        "frameworks, CI infrastructure, and build dependencies are excluded."
+    )
+    lines.append("")
     lines.append("=" * 72)
     lines.append("")
 
     section_num = 0
 
-    # Direct Python dependencies
-    direct = [d for d in python_deps if d.category == "python-direct"]
-    if direct:
-        lines.append("DIRECT PYTHON DEPENDENCIES")
-        lines.append("-" * 40)
-        lines.append("")
-        for dep in direct:
-            section_num += 1
-            lines.extend(_format_dep(section_num, dep))
-
-    # Transitive Python dependencies
-    transitive = [d for d in python_deps if d.category == "python-transitive"]
-    if transitive:
-        lines.append("TRANSITIVE PYTHON DEPENDENCIES")
-        lines.append("-" * 40)
-        lines.append("")
-        for dep in transitive:
-            section_num += 1
-            lines.extend(_format_dep(section_num, dep))
-
-    # GitHub Actions
-    if action_deps:
-        lines.append("GITHUB ACTIONS")
-        lines.append("-" * 40)
-        lines.append("")
-        for dep in action_deps:
-            section_num += 1
-            lines.extend(_format_dep(section_num, dep))
-
-    # Docker images
-    if docker_deps:
-        lines.append("DOCKER BASE IMAGES")
-        lines.append("-" * 40)
-        lines.append("")
-        for dep in docker_deps:
-            section_num += 1
-            lines.extend(_format_dep(section_num, dep))
-
-    # Forked/vendored components
-    if forked_deps:
+    if forked:
         lines.append("FORKED/VENDORED COMPONENTS")
         lines.append("-" * 40)
         lines.append("")
-        for dep in forked_deps:
+        for dep in forked:
             section_num += 1
-            lines.extend(_format_dep(section_num, dep))
+            lines.extend(_format_entry(section_num, dep))
+
+    if runtime:
+        lines.append("RUNTIME DEPENDENCIES")
+        lines.append("-" * 40)
+        lines.append("")
+        for dep in runtime:
+            section_num += 1
+            lines.extend(_format_entry(section_num, dep))
 
     lines.append("=" * 72)
     lines.append("")
@@ -451,8 +302,8 @@ def format_notices(
     return "\n".join(lines)
 
 
-def _format_dep(num: int, dep: DependencyInfo) -> list[str]:
-    """Format a single dependency entry."""
+def _format_entry(num: int, dep: ShippedComponent) -> list[str]:
+    """Format a single component entry."""
     lines: list[str] = []
     lines.append(f"{num}. {dep.name} ({dep.version})")
     lines.append("")
@@ -468,17 +319,17 @@ def _format_dep(num: int, dep: DependencyInfo) -> list[str]:
             lines.append(f"   {text_line}")
         lines.append("   " + "-" * 60)
         lines.append("")
+    elif dep.url:
+        lines.append(
+            "   License text not embedded. See project URL for license"
+            f" details: {dep.url}"
+        )
+        lines.append("")
     else:
-        if dep.url:
-            lines.append(
-                "   License text not embedded in package distribution."
-                f" See project URL for license details: {dep.url}"
-            )
-        else:
-            lines.append(
-                "   License text not embedded in package distribution."
-                " See project documentation for license details."
-            )
+        lines.append(
+            "   License text not available."
+            " See project documentation for license details."
+        )
         lines.append("")
 
     return lines
@@ -486,7 +337,7 @@ def _format_dep(num: int, dep: DependencyInfo) -> list[str]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Generate THIRD-PARTY-NOTICES.TXT"
+        description="Generate THIRD-PARTY-NOTICES.TXT for shipped plugin components"
     )
     parser.add_argument(
         "--output",
@@ -502,52 +353,52 @@ def main() -> int:
 
     project_root = Path(__file__).resolve().parent.parent
 
-    python_deps = get_python_dependencies(project_root)
-    action_deps = get_github_actions(project_root)
-    docker_deps = get_docker_images(project_root)
-    forked_deps = get_forked_components()
+    plugins = load_marketplace_config(project_root)
+    shipped_paths = get_shipped_source_paths(project_root, plugins)
 
-    content = format_notices(python_deps, action_deps, docker_deps, forked_deps)
+    forked = find_forked_components(project_root, shipped_paths)
+    runtime = find_runtime_dependencies(project_root, shipped_paths)
+
+    content = format_notices(forked, runtime)
 
     output_path = project_root / args.output
 
     if args.check:
         if not output_path.exists():
-            print(f"ERROR: {args.output} does not exist. Run without --check to generate.")
+            print(
+                f"ERROR: {args.output} does not exist."
+                " Run without --check to generate."
+            )
             return 1
         existing = output_path.read_text()
         if existing != content:
-            print(f"ERROR: {args.output} is out of date. Run without --check to regenerate.")
+            print(
+                f"ERROR: {args.output} is out of date."
+                " Run without --check to regenerate."
+            )
             return 1
         print(f"OK: {args.output} is up to date.")
         return 0
 
     output_path.write_text(content)
 
-    # Summary
-    direct_count = len([d for d in python_deps if d.category == "python-direct"])
-    transitive_count = len([d for d in python_deps if d.category == "python-transitive"])
-    action_count = len(action_deps)
-    docker_count = len(docker_deps)
-    forked_count = len(forked_deps)
-    total = direct_count + transitive_count + action_count + docker_count + forked_count
+    forked_count = len(forked)
+    runtime_count = len(runtime)
+    total = forked_count + runtime_count
 
-    print(f"Generated {args.output} with {total} components:")
-    print(f"  Python direct:     {direct_count}")
-    print(f"  Python transitive: {transitive_count}")
-    print(f"  GitHub Actions:    {action_count}")
-    print(f"  Docker images:     {docker_count}")
-    print(f"  Forked components: {forked_count}")
+    print(f"Generated {args.output} with {total} shipped components:")
+    print(f"  Forked/vendored:      {forked_count}")
+    print(f"  Runtime dependencies: {runtime_count}")
 
     # Flag unknown licenses
+    all_components = forked + runtime
     unknown = [
-        d for d in python_deps + action_deps + docker_deps + forked_deps
-        if d.license_type in ("Unknown", "?", "UNKNOWN")
+        c for c in all_components if c.license_type in ("Unknown", "?", "UNKNOWN")
     ]
     if unknown:
         print(f"\nWARNING: {len(unknown)} components have unknown licenses:")
-        for d in unknown:
-            print(f"  - {d.name} ({d.version})")
+        for c in unknown:
+            print(f"  - {c.name} ({c.version})")
         return 1
 
     return 0
