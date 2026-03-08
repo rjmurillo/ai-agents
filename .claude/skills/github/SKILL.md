@@ -58,6 +58,7 @@ Need GitHub data?
 ├─ Unaddressed bot comments → get_unaddressed_comments.py
 ├─ PR merged check → test_pr_merged.py
 ├─ Copilot follow-up PRs → detect_copilot_followup_pr.py
+├─ Validate PR description → test_pr_description.py
 ├─ Issue info → get_issue_context.py
 ├─ Merge readiness check → test_pr_merge_ready.py
 ├─ Latest milestone → get_latest_semantic_milestone.py
@@ -111,6 +112,7 @@ Need GitHub data?
 | `set_pr_auto_merge.py` | Enable/disable auto-merge | `--pull-request`, `--enable`/`--disable`, `--merge-method` |
 | `invoke_pr_comment_processing.py` | Process AI triage output | `--pr-number`, `--verdict`, `--findings-json` |
 | `new_pr.py` | Create PR with validation | `--title`, `--body`, `--base` |
+| `test_pr_description.py` | Validate PR description | `--title`, `--body`, `--body-file`, `--fail-on-violation` |
 | `close_pr.py` | Close PR with comment | `--pull-request`, `--comment` |
 | `merge_pr.py` | Merge with strategy | `--pull-request`, `--strategy`, `--delete-branch`, `--auto` |
 
@@ -195,6 +197,49 @@ python3 .claude/skills/github/scripts/pr/get_pr_checks.py --pull-request 123
 # Add comment if needed
 python3 .claude/skills/github/scripts/pr/post_pr_comment_reply.py --pull-request 123 --body "CI failures detected"
 ```
+
+---
+
+## GitHub Keywords for Issue Linking
+
+GitHub automatically links and closes issues when PRs use specific keywords in PR descriptions, commit messages, or PR comments.
+
+### Supported Keywords
+
+| Keyword | Variations | Example |
+|---------|-----------|---------|
+| Closes | close, closed | `Closes #123` |
+| Fixes | fix, fixed | `Fixes #456` |
+| Resolves | resolve, resolved | `Resolves #789` |
+
+### Usage Patterns
+
+**In PR Descriptions:**
+
+```markdown
+## Summary
+This PR adds feature X.
+
+Closes #123
+Fixes #456
+```
+
+**In Commit Messages:**
+
+```text
+feat: Add feature X
+
+Implements the new feature as specified.
+
+Closes #123
+```
+
+**Best Practices:**
+
+- Use keywords in PR description for primary issue
+- Use keywords in commit bodies for related issues
+- One keyword per line for clarity
+- Place keywords in dedicated section or at end of description
 
 ---
 

@@ -369,6 +369,34 @@ Verify code coverage meets minimum thresholds:
 | New code coverage | [X]% | 80% | [PASS]/[FAIL] |
 ```
 
+#### Step 5: PR Description Validation
+
+Verify PR description meets GitHub standards and template compliance:
+
+```bash
+python3 .claude/skills/github/scripts/pr/test_pr_description.py \
+  --title "[PR title]" \
+  --body-file "[path-to-pr-body.md]"
+```
+
+**Pass criteria:**
+
+- Title follows conventional commit format
+- At least one GitHub keyword present (Closes/Fixes/Resolves)
+- PR template sections completed (Summary, Spec References, Type of Change, Changes)
+
+**Evidence generation:**
+
+```markdown
+## PR Description Validation
+
+| Check | Status | Details |
+|-------|--------|---------|
+| Conventional Commit Title | [PASS]/[FAIL] | [Title format] |
+| Issue Keywords Present | [PASS]/[WARN] | [Keywords found] |
+| Template Compliance | [PASS]/[WARN] | [Sections: X/4 complete] |
+```
+
 ### Pre-PR Validation Report
 
 Generate validation report at `.agents/qa/pre-pr-validation-[feature].md`:
@@ -388,6 +416,7 @@ Generate validation report at `.agents/qa/pre-pr-validation-[feature].md`:
 | Fail-Safe Patterns | [PASS]/[FAIL] | Yes |
 | Test-Implementation Alignment | [PASS]/[FAIL] | Yes |
 | Coverage Threshold | [PASS]/[FAIL] | Yes |
+| PR Description | [PASS]/[FAIL] | Yes |
 
 ## Evidence
 
@@ -421,7 +450,7 @@ Specific fixes required:
 
 | Condition | Verdict |
 |-----------|---------|
-| All 4 gates PASS | APPROVED |
+| All 5 gates PASS | APPROVED |
 | Any gate FAIL | BLOCKED |
 | Coverage < minimum but > 60% AND no other failures | CONDITIONAL (document gap, proceed with warning) |
 

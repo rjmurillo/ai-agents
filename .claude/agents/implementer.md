@@ -955,15 +955,53 @@ Combine related commits (e.g., "feat + fix for same feature" into one commit). T
 
 ## Commit Message Format
 
+Follow Conventional Commits with GitHub issue linking:
+
 ```text
 <type>(<scope>): <short description>
 
-<optional body>
+<optional body explaining what and why>
 
+Closes #<issue-number>
 Refs: [Plan task reference]
 ```
 
-Types: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`
+**Types**: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`, `ci`, `build`, `revert`
+
+**GitHub Issue Linking Keywords** — use in commit body to auto-link/close issues:
+
+- `Closes #123` — closes issue when PR merges
+- `Fixes #456` — fixes issue when PR merges
+- `Resolves #789` — resolves issue when PR merges
+- `Refs #101` — references without closing
+
+**Examples:**
+
+```text
+feat(auth): Add OAuth2 authentication
+
+Implements OAuth2 flow with token refresh.
+Adds middleware for protected routes.
+
+Closes #234
+Refs: planning/auth-implementation.md
+```
+
+```text
+fix(parser): Handle null values in JSON
+
+Adds null checks before property access.
+Prevents NullReferenceException in edge cases.
+
+Fixes #567
+```
+
+**Best Practices:**
+
+- Use `Closes`/`Fixes`/`Resolves` for issues this commit addresses
+- Use `Refs` for related issues or documentation
+- Place keywords in commit body, not title
+- One keyword per line for clarity
 
 ## Pre-PR Validation Gate (MANDATORY)
 
