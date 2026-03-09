@@ -130,8 +130,8 @@ sequenceDiagram
 
 ### Artifacts Created
 
-- file1.ps1 (new)
-- file2.md (modified)
+- feature_module.py (new)
+- README.md (modified)
 
 ### Retrospective Learnings
 
