@@ -12,7 +12,6 @@ metadata:
   - pr-maintenance
   type: workflow
   complexity: advanced
-  adr: ADR-015
 ---
 # Merge Resolver
 
@@ -46,7 +45,7 @@ python3 .claude/skills/merge-resolver/scripts/resolve_pr_conflicts.py \
 
 | Step | Action | Verification |
 |------|--------|--------------|
-| 1.1 | Fetch PR metadata via `gh pr view` | JSON response received |
+| 1.1 | Fetch PR metadata via `gh pr view` | PR metadata displayed |
 | 1.2 | Checkout PR branch | `git branch --show-current` matches |
 | 1.3 | Attempt merge with base (`--no-commit`) | Conflict markers created |
 | 1.4 | List conflicted files | `git diff --name-only --diff-filter=U` output |
@@ -65,7 +64,7 @@ python3 .claude/skills/merge-resolver/scripts/resolve_pr_conflicts.py \
 
 | Step | Action | Verification |
 |------|--------|--------------|
-| 3.1 | Verify no remaining conflict markers | `grep -r "<<<<<<" .` returns nothing |
+| 3.1 | Verify no remaining conflict markers | `git grep -n '<<<<<<<' --` returns no matches |
 | 3.2 | Run session protocol validator | `validate_session_json.py` exits 0 |
 | 3.3 | Run markdown lint | `npx markdownlint-cli2` exits 0 |
 | 3.4 | Commit merge resolution | Commit SHA recorded |
@@ -110,7 +109,7 @@ The script auto-resolves these by accepting the target branch version.
 
 | Pattern | Rationale |
 |---------|-----------|
-| `.agents/sessions/*.json` | Session files from main are immutable audit records |
+| `.agents/sessions/*.md` | Session files from main are immutable audit records |
 | `.agents/*` | Session artifacts, constantly changing |
 | `.serena/*` | Serena memories, auto-generated |
 | `.claude/skills/*/*.md` | Skill definitions, main is authoritative |
@@ -140,8 +139,10 @@ python3 .claude/skills/merge-resolver/scripts/resolve_pr_conflicts.py \
 
 | Code | Meaning |
 |------|---------|
-| 0 | Conflicts resolved and pushed |
+| 0 | Conflicts resolved successfully (and, if not `--dry-run`, pushed) |
 | 1 | Non-auto-resolvable conflicts remain |
+
+When running with `--dry-run`, exit code `0` indicates that conflicts were fully auto-resolvable and the changes would have been pushed, but no changes were made because of dry-run mode.
 
 **Output format** (JSON):
 
@@ -154,13 +155,13 @@ python3 .claude/skills/merge-resolver/scripts/resolve_pr_conflicts.py \
 }
 ```
 
-**Security** (ADR-015): Branch name validation prevents command injection. Worktree path validation prevents path traversal.
+**Security**: Branch name validation prevents command injection. Worktree path validation prevents path traversal.
 
 ## Anti-Patterns
 
 | Anti-Pattern | Why It Fails | Instead |
 |--------------|--------------|---------|
-| Alter session files from main | Breaks audit trail (immutable records) | Accept `--theirs`, rename `--ours` to next number |
+| Alter session files from main | Breaks audit trail (immutable records) | Accept `--theirs`, then rename our session file to the next available number |
 | Push without session validation | CI blocks with MUST violations | Run `validate_session_json.py` first |
 | Manual edit of generated files | Lost on regeneration | Edit template, run generator |
 | Accept `--ours` for HANDOFF.md | Branch version often stale | Accept `--theirs` (main is canonical) |
@@ -176,7 +177,7 @@ python3 .claude/skills/merge-resolver/scripts/resolve_pr_conflicts.py \
 | Criterion | Evidence |
 |-----------|----------|
 | All conflicts resolved | `git diff --check` returns empty |
-| No merge markers remain | `grep -r "<<<<<<" .` returns nothing |
+| No merge markers remain | `git grep -n '<<<<<<<' --` returns no matches |
 | Session protocol valid | `validate_session_json.py` exits 0 |
 | Markdown lint passes | `npx markdownlint-cli2` exits 0 |
 | Push successful | Remote ref updated |
@@ -218,7 +219,7 @@ Add entries in `references/strategies.md` for domain-specific conflicts.
 
 ## Related
 
-- **ADR-015**: Security validation for branch names and paths
+- **Security**: Branch name and path validation prevent injection and traversal
 - **SESSION-PROTOCOL.md**: Session end requirements (blocking gate)
 - **strategies.md**: Detailed resolution patterns for edge cases
 - **merge-resolver-session-protocol-gap**: Memory documenting root cause analysis
@@ -234,7 +235,7 @@ Session protocol validation is a CI blocking gate. Pushing without completing se
 
 ```bash
 # 1. Ensure session log exists
-SESSION_LOG=$(ls -t .agents/sessions/*.md 2>/dev/null | head -1)
+SESSION_LOG=$(ls -t -- .agents/sessions/*.md 2>/dev/null | head -1)
 if [ -z "$SESSION_LOG" ]; then
     echo "ERROR: No session log found."
     exit 1
