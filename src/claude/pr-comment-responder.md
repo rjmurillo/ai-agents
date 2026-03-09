@@ -693,7 +693,8 @@ ids=$(echo "$comments" | jq -r '.Comments[].id')
 echo "$ids" | xargs -I{} python3 "$SCRIPTS_DIR/reactions/add_comment_reaction.py" --comment-id {} --reaction "eyes"
 
 # Verify all acknowledged
-echo "$result" | jq '"Acknowledged \(.Succeeded)/\(.TotalCount) comments"'
+total_ids=$(echo "$ids" | wc -l)
+echo "Acknowledged $total_ids comments with eyes reaction"
 ```
 
 <details>
