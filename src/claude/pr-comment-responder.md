@@ -690,10 +690,17 @@ comments=$(python3 "$SCRIPTS_DIR/pr/get_unaddressed_comments.py" --pull-request 
 ids=$(echo "$comments" | jq -r '.Comments[].id')
 
 # Batch acknowledge - single process, all comments
-echo "$ids" | xargs -I{} python3 "$SCRIPTS_DIR/reactions/add_comment_reaction.py" --comment-id {} --reaction "eyes"
+total_ids=$(echo "$comments" | jq '.Comments | length')
+
+if [ "$total_ids" -gt 0 ]; then
+  echo "$ids" | xargs -r -I{} python3 "$SCRIPTS_DIR/reactions/add_comment_reaction.py" --comment-id {} --reaction "eyes"
+  if [ $? -ne 0 ]; then
+    echo "[BLOCKED] One or more comment acknowledgments failed"
+    exit 1
+  fi
+fi
 
 # Verify all acknowledged
-total_ids=$(echo "$ids" | wc -l)
 echo "Acknowledged $total_ids comments with eyes reaction"
 ```
 

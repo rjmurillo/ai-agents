@@ -33,11 +33,14 @@ _CONVENTIONAL_COMMIT_PATTERN = re.compile(
 
 def get_repo_root() -> str:
     """Get the git repository root directory."""
+    # Strip GIT_DIR/GIT_WORK_TREE to avoid hook environment interference
+    env = {k: v for k, v in os.environ.items() if k not in ("GIT_DIR", "GIT_WORK_TREE")}
     result = subprocess.run(
         ["git", "rev-parse", "--show-toplevel"],
         capture_output=True,
         text=True,
         timeout=10,
+        env=env,
     )
     if result.returncode != 0:
         print("Not in a git repository", file=sys.stderr)
