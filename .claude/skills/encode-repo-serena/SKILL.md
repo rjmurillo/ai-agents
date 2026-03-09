@@ -41,7 +41,7 @@ Use `research-and-incorporate` instead when:
 /encode-repo-serena
 /encode-repo-serena ./my-project
 "encode this repository"
-"build knowledge base for this project"
+"populate forgetful with this codebase"
 ```
 
 | Input | Output | Duration |
