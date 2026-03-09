@@ -26,16 +26,11 @@ import sys
 from datetime import date
 from pathlib import Path
 
+from scripts.github_core.repo import get_repo_root
+
 
 def run_git(*args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(["git", *args], capture_output=True, text=True)
-
-
-def get_repo_root() -> Path | None:
-    result = run_git("rev-parse", "--show-toplevel")
-    if result.returncode != 0:
-        return None
-    return Path(result.stdout.strip())
 
 
 def check_memory_gate(repo_root: Path) -> bool:
