@@ -29,16 +29,19 @@ class TestGetStagedFiles:
         with patch("invoke_security_commit_gate.subprocess.run", return_value=mock_result):
             assert get_staged_files() == ["src/Auth/login.py", "README.md"]
 
-    def test_returns_empty_on_failure(self) -> None:
-        mock_result = MagicMock()
-        mock_result.returncode = 1
-        mock_result.stdout = ""
-        with patch("invoke_security_commit_gate.subprocess.run", return_value=mock_result):
-            assert get_staged_files() == []
+    def test_raises_on_nonzero_exit(self) -> None:
+        import subprocess
+        with patch(
+            "invoke_security_commit_gate.subprocess.run",
+            side_effect=subprocess.CalledProcessError(1, "git"),
+        ):
+            with pytest.raises(subprocess.CalledProcessError):
+                get_staged_files()
 
-    def test_returns_empty_on_os_error(self) -> None:
+    def test_raises_on_os_error(self) -> None:
         with patch("invoke_security_commit_gate.subprocess.run", side_effect=OSError):
-            assert get_staged_files() == []
+            with pytest.raises(OSError):
+                get_staged_files()
 
 
 class TestMatchSecurityPaths:
@@ -178,3 +181,23 @@ class TestMain:
                             return_value="/fake",
                         ):
                             assert main() == 0
+
+    def test_denies_commit_on_infrastructure_error(
+        self,
+        capsys: pytest.CaptureFixture[str],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Fail-closed: infrastructure errors block the commit."""
+        monkeypatch.delenv("SKIP_SECURITY_GATE", raising=False)
+        mock_stdin = StringIO(json.dumps({"tool_input": {"command": "git commit -m 'add auth'"}}))
+        with patch("invoke_security_commit_gate.sys.stdin", mock_stdin):
+            with patch.object(mock_stdin, "isatty", return_value=False):
+                with patch(
+                    "invoke_security_commit_gate.get_staged_files",
+                    side_effect=OSError("git not found"),
+                ):
+                    assert main() == 0
+                    captured = capsys.readouterr()
+                    output = json.loads(captured.out.strip())
+                    assert output["decision"] == "deny"
+                    assert "SECURITY COMMIT GATE FAILED" in output["reason"]

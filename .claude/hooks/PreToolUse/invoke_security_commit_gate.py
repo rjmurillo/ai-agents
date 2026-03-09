@@ -60,18 +60,22 @@ _SECURITY_REVIEW_PATTERNS = [
 
 
 def get_staged_files() -> list[str]:
-    """Get list of staged file paths."""
-    try:
-        result = subprocess.run(
-            ["git", "diff", "--cached", "--name-only"],
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-        if result.returncode == 0 and result.stdout.strip():
-            return result.stdout.strip().splitlines()
-    except (OSError, subprocess.TimeoutExpired):
-        pass
+    """Get list of staged file paths.
+
+    Raises:
+        OSError: If git is not found or cannot be executed.
+        subprocess.TimeoutExpired: If the command times out.
+        subprocess.CalledProcessError: If git returns a non-zero exit code.
+    """
+    result = subprocess.run(
+        ["git", "diff", "--cached", "--name-only"],
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=True,
+    )
+    if result.stdout.strip():
+        return result.stdout.strip().splitlines()
     return []
 
 
@@ -177,8 +181,16 @@ def main() -> int:
         return 0
 
     except Exception as exc:
-        # Fail-open on infrastructure errors
+        # Fail-closed on infrastructure errors
         print(f"Security commit gate error: {type(exc).__name__} - {exc}", file=sys.stderr)
+        output = {
+            "decision": "deny",
+            "reason": (
+                f"SECURITY COMMIT GATE FAILED due to an internal error: "
+                f"{type(exc).__name__}. Commit blocked as a security precaution."
+            ),
+        }
+        print(json.dumps(output, separators=(",", ":")))
         return 0
 
 

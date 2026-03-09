@@ -198,23 +198,30 @@ def check_critic_evidence() -> bool:
     return False
 
 
-def get_current_branch() -> str | None:
-    """Get the current git branch name."""
-    try:
-        result = subprocess.run(
-            ["git", "branch", "--show-current"],
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
-        if result.returncode == 0:
-            return result.stdout.strip()
-    except (OSError, subprocess.TimeoutExpired):
-        pass
-    return None
+def get_current_branch() -> str:
+    """Get the current git branch name.
+
+    Raises:
+        OSError: If git is not found or cannot be executed.
+        subprocess.TimeoutExpired: If the command times out.
+        subprocess.CalledProcessError: If git returns a non-zero exit code.
+        ValueError: If the branch name cannot be determined (e.g., detached HEAD).
+    """
+    result = subprocess.run(
+        ["git", "branch", "--show-current"],
+        capture_output=True,
+        text=True,
+        timeout=5,
+        check=True,
+    )
+    branch = result.stdout.strip()
+    if not branch:
+        # This can happen in detached HEAD state. Treat as an error for the gate.
+        raise ValueError("Failed to get current branch name (e.g., detached HEAD).")
+    return branch
 
 
-def is_feature_branch(branch: str | None) -> bool:
+def is_feature_branch(branch: str) -> bool:
     """Check if the branch is a feature branch requiring ADR evidence."""
     if not branch:
         return False
@@ -364,20 +371,21 @@ def main() -> int:
 
     # Gate 2: QA Validation (for PR creation)
     if "gh pr create" in command:
+        qa_bypassed = False
         # Bypass 1: Environment variable override
         if os.environ.get("SKIP_QA_GATE") == "true":
             write_audit_log(
                 "RoutingGates",
                 "QA gate bypassed via SKIP_QA_GATE environment variable",
             )
-            return 0
+            qa_bypassed = True
 
         # Bypass 2: Documentation-only changes
-        if check_documentation_only():
-            return 0
+        if not qa_bypassed and check_documentation_only():
+            qa_bypassed = True
 
         # Main check: QA evidence required
-        if not check_qa_evidence():
+        if not qa_bypassed and not check_qa_evidence():
             output = {
                 "decision": "deny",
                 "reason": (
@@ -436,8 +444,23 @@ def main() -> int:
             )
             return 0
 
-        # Bypass 2: Non-feature branches
-        branch = get_current_branch()
+        try:
+            # Bypass 2: Non-feature branches
+            branch = get_current_branch()
+        except Exception as exc:
+            # Fail-closed: if we can't determine the branch, block the action
+            msg = f"get_current_branch failed: {type(exc).__name__} - {exc}"
+            print(f"routing_gates: {msg}", file=sys.stderr)
+            output = {
+                "decision": "deny",
+                "reason": (
+                    f"ADR EXISTENCE GATE FAILED due to an internal error: "
+                    f"{type(exc).__name__}. PR creation blocked as a precaution."
+                ),
+            }
+            print(json.dumps(output, separators=(",", ":")))
+            return 0
+
         if not is_feature_branch(branch):
             return 0
 
@@ -453,7 +476,7 @@ def main() -> int:
                     "ADR EXISTENCE GATE: Architecture decision record required "
                     "before creating a feature PR.\n\n"
                     "Feature branch detected: "
-                    + (branch or "unknown")
+                    + branch
                     + "\n\n"
                     "Invoke the architect agent to create an ADR:\n"
                     "  Task(subagent_type='architect', prompt='Create ADR for "
