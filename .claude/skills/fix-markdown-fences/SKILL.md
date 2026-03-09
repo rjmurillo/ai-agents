@@ -45,14 +45,17 @@ Scan and repair malformed closing fences in markdown files. Closing fences must 
 
 Track fence state while scanning line by line:
 
-1. **Detect opening fence**: Line matches `^\s*` ``` `\w+` outside a block. Record indent level. Enter "inside block" state.
-2. **Detect malformed closing fence**: Line matches `^\s*` ``` `\w+` inside a block. Insert proper closing fence before this line.
-3. **Detect valid closing fence**: Line matches `^\s*` ``` `\s*$`. Exit "inside block" state.
-4. **Handle end of file**: If still inside a block, append closing fence.
+1. **Detect opening fence**: Line matches the opening pattern below outside a block. Record indent level and enter "inside block" state.
+2. **Detect malformed closing fence**: While inside a block, line matches the malformed closing pattern below. Insert a proper closing fence before this line.
+3. **Detect valid closing fence**: Line matches the valid closing pattern below. Exit "inside block" state.
 
-## Verification
+Regex patterns:
 
-After execution:
+````regex
+^\s*```[\w+-]+
+^\s*```[\w+-]+\s*$
+^\s*```\s*$
+````
 
 - [ ] No closing fences contain language identifiers
 - [ ] Markdown renders correctly in preview
@@ -70,7 +73,7 @@ After execution:
 
 When generating markdown with code blocks:
 
-1. Always use plain ``` for closing fences
+1. Always use plain \`\`\` for closing fences
 2. Never copy the opening fence line to close
 3. Track block state when programmatically generating markdown
 
@@ -133,7 +136,7 @@ def fix_markdown_files(directory: Path, pattern: str = "**/*.md") -> list[str]:
 
 ```bash
 # Find files with potential issues
-grep -rn '```[a-zA-Z]' --include="*.md" | grep -v "^[^:]*:[0-9]*:\s*```[a-zA-Z]*$"
+grep -rEn -- '```\w+' --include="*.md" . | grep -vE "^[^:]*:[0-9]*:[[:space:]]*```\w+[[:space:]]*$"
 ```
 
 </details>
@@ -196,6 +199,6 @@ foreach ($dir in $directories) {
 1. **Nested indentation**: Preserves indent level from opening fence
 2. **Multiple consecutive blocks**: Each block tracked independently
 3. **File ending inside block**: Automatically closes unclosed blocks
-4. **Mixed line endings**: Handles both `\n` and `\r\n`
+4. **Mixed line endings**: Accepts both `\n` and `\r\n` as input (normalizes output to `\n`)
 
 </details>
