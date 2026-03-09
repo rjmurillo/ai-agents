@@ -109,7 +109,7 @@ mcp__context7__get-library-docs with context7CompatibleLibraryID="/lib/id"
 
 ```bash
 # View issue details (using github skill - PREFERRED for detailed context)
-python3 .claude/skills/github/scripts/issue/get_issue_context.py --issue [number]
+python3 "$SCRIPTS_DIR/issue/get_issue_context.py" --issue [number]
 ```
 
 ```bash

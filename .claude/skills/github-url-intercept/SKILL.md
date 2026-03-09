@@ -31,10 +31,10 @@ metadata:
 
 ```bash
 # PR URL → Use this
-python3 .claude/skills/github/scripts/pr/get_pr_context.py --pull-request {n} --owner {owner} --repo {repo}
+python3 "$SCRIPTS_DIR/pr/get_pr_context.py" --pull-request {n} --owner {owner} --repo {repo}
 
 # Issue URL → Use this
-python3 .claude/skills/github/scripts/issue/get_issue_context.py --issue {n} --owner {owner} --repo {repo}
+python3 "$SCRIPTS_DIR/issue/get_issue_context.py" --issue {n} --owner {owner} --repo {repo}
 
 # File/blob URL → Use this
 gh api repos/{owner}/{repo}/contents/{path}?ref={ref}
@@ -239,7 +239,7 @@ Input: "https://github.com/rjmurillo/ai-agents/pull/735/checks?check_run_id=5935
 
 Action:
   1. Parse: owner=rjmurillo, repo=ai-agents, pr=735, type=checks
-  2. Route: python3 .claude/skills/github/scripts/pr/get_pr_checks.py --pull-request 735 --owner rjmurillo --repo ai-agents
+  2. Route: python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request 735 --owner rjmurillo --repo ai-agents
 ```
 
 ### URL with Question After It
@@ -290,7 +290,7 @@ Action:
 Input: "Review this: https://github.com/owner/repo/pull/123"
 
 Action:
-  python3 .claude/skills/github/scripts/pr/get_pr_context.py --pull-request 123 --owner owner --repo repo
+  python3 "$SCRIPTS_DIR/pr/get_pr_context.py" --pull-request 123 --owner owner --repo repo
 ```
 
 ### File URL → API

@@ -26,13 +26,13 @@
 
 ```bash
 # In-thread reply (CORRECT)
-python3 .claude/skills/github/scripts/pr/post_pr_comment_reply.py --pull-request [number] --comment-id [id] --body "[response]"
+python3 "$SCRIPTS_DIR/pr/post_pr_comment_reply.py" --pull-request [number] --comment-id [id] --body "[response]"
 
 # For multi-line responses
-python3 .claude/skills/github/scripts/pr/post_pr_comment_reply.py --pull-request [number] --comment-id [id] --body-file reply.md
+python3 "$SCRIPTS_DIR/pr/post_pr_comment_reply.py" --pull-request [number] --comment-id [id] --body-file reply.md
 
 # Top-level PR comment (no comment-id)
-python3 .claude/skills/github/scripts/pr/post_pr_comment_reply.py --pull-request [number] --body "[response]"
+python3 "$SCRIPTS_DIR/pr/post_pr_comment_reply.py" --pull-request [number] --body "[response]"
 ```
 
 ## Templates
