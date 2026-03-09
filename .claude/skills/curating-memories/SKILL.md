@@ -193,7 +193,7 @@ execute_forgetful_tool("link_memories", {
 })
 ```
 
-Links are bidirectional (A to B created automatically).
+Links are bidirectional (A<->B created automatically).
 
 ### Auto-Linking
 

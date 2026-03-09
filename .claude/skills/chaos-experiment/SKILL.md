@@ -4,8 +4,8 @@ model: claude-sonnet-4-5
 description: Design and document chaos engineering experiments. Guide steady state baseline, hypothesis formation, failure injection plans, and results analysis. Use for resilience testing, game days, failure injection experiments, and building confidence in system stability.
 license: MIT
 user-invocable: true
+version: 1.1.0
 metadata:
-  version: 1.1.0
   domains: [chaos-engineering, resilience, reliability, testing]
 ---
 

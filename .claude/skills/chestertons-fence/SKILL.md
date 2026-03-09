@@ -76,7 +76,7 @@ Use this skill BEFORE proposing changes to existing:
 
 **Step 3: PR/ADR Search.** Search for the originating PR using `gh pr list --search`. Check `.agents/architecture/` for related ADRs. Look for comments explaining intent.
 
-**Step 4: Dependency Analysis.** Use `grep` or `Grep` tool to find all references. Map upstream and downstream dependencies. Identify what breaks if the structure is removed.
+**Step 4: Dependency Analysis.** Use `Grep` tool to find all references. Map upstream and downstream dependencies. Identify what breaks if the structure is removed.
 
 **Step 5: Generate Report.** Use the template at `.agents/templates/chestertons-fence-investigation.md`. Fill all sections with evidence from steps 1 through 4.
 
