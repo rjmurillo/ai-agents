@@ -1024,6 +1024,47 @@ flowchart TD
 
 **Validation**: Every TASK traces to DESIGN, every DESIGN traces to REQ
 
+### 3.7.1 Usage Examples
+
+**Example 1 — Route a new feature request through the Specification path**
+
+When a user submits a request like "we need formal requirements for the traceability graph feature":
+
+1. Orchestrator detects signal: "requirements", "spec", or "EARS" → routes to `spec-generator`
+2. `spec-generator` creates `REQ-NNN-feature-name.md` in `.agents/specs/requirements/`
+3. `critic` validates EARS format and completeness
+4. `architect` creates `DESIGN-NNN-feature-name.md` in `.agents/specs/design/`
+5. `task-decomposer` creates `TASK-NNN-*.md` files in `.agents/specs/tasks/`
+6. Traceability chain is complete: REQ → DESIGN → TASK
+
+**Example 2 — Invoke spec-generator directly for a known feature**
+
+```text
+User: "Generate EARS requirements for the caching module"
+Orchestrator: Routes to spec-generator with context
+spec-generator: Creates REQ-NNN-caching-module.md using EARS format
+Output: .agents/specs/requirements/REQ-NNN-caching-module.md
+```
+
+**Example 3 — Validate an existing spec chain with the critic**
+
+```text
+User: "Validate the PR comment handling spec chain"
+Orchestrator: Routes to critic with spec chain context
+critic: Checks REQ-001 → DESIGN-001 → TASK-001/002/003 traceability
+Output: Validation report with any broken links identified
+```
+
+### 3.7.2 Troubleshooting Guide
+
+| Symptom | Cause | Resolution |
+|---------|-------|------------|
+| Duplicate REQ/DESIGN/TASK IDs | Manual spec creation bypassing spec-generator | Rename file to next available ID; update YAML `id` field; fix `related:` cross-references |
+| Orphan requirement (no DESIGN) | spec-generator not completing full 3-tier output | Re-invoke spec-generator with existing REQ as input context |
+| Status inconsistency (TASK `done`, REQ `draft`) | Out-of-order status updates | Update parent status to `approved` before marking child `done` |
+| Non-EARS requirement body | Spec created without spec-generator | Rewrite body using WHEN/THE SYSTEM SHALL/SO THAT pattern per `.agents/governance/ears-format.md` |
+| Missing `related:` links | Manual editing without updating cross-references | Add bidirectional `related:` entries: REQ↔DESIGN, DESIGN↔TASK |
+
 ---
 
 ## 4. Routing Heuristics

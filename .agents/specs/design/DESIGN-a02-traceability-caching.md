@@ -1,9 +1,9 @@
 ---
 type: design
-id: DESIGN-001
+id: DESIGN-a02
 status: implemented
 related:
-  - REQ-001
+  - REQ-a02
 ---
 # DESIGN-001: Two-Tier Caching System
 
