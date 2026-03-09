@@ -1,13 +1,14 @@
 ---
 name: fix-markdown-fences
-description: "Repair malformed markdown code fence closings. Use when markdown files have closing fences with language identifiers (```text instead of ```) or when generating markdown with code blocks to ensure proper fence closure."
-license: MIT
-metadata:
-version: 1.0.0
+version: 1.1.0
 model: claude-haiku-4-5
+description: "Repair malformed markdown code fence closings. Use when markdown files have closing fences with language identifiers or when generating markdown with code blocks to ensure proper fence closure."
+license: MIT
 ---
 
 # Fix Markdown Code Fence Closings
+
+Scan and repair malformed closing fences in markdown files. Closing fences must never contain language identifiers.
 
 ## Triggers
 
@@ -17,30 +18,25 @@ model: claude-haiku-4-5
 | `repair code block closings` | Fix closing fences with language identifiers |
 | `markdown rendering broken` | Diagnose and fix fence issues |
 | `code blocks bleeding into content` | Fix unclosed or malformed fences |
+| `validate markdown code blocks` | Check all fences for correctness |
 
-## Problem
+## Quick Reference
 
-When generating markdown with code blocks, closing fences sometimes include language identifiers:
-
-```markdown
-<!-- Wrong -->
-```python
-def hello():
-    print("world")
-```python  <!-- Should be just ``` -->
-```
-
-The closing fence should never have a language identifier. This breaks markdown parsers and causes rendering issues.
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| Code block bleeds into text | Closing fence has language identifier | Remove identifier from closing fence |
+| Nested blocks render wrong | Missing closing fence before new opening | Insert closing fence |
+| Content cut off at end of file | Unclosed code block | Append closing fence |
 
 ## When to Use
 
-Use this skill when:
+**Use this skill when:**
 
 - Markdown code blocks render incorrectly or bleed into surrounding content
 - Closing fences have language identifiers (e.g., ` ```python ` instead of ` ``` `)
 - Validating markdown documentation before committing
 
-Use manual editing instead when:
+**Use manual editing instead when:**
 
 - The issue is indentation or content inside the code block (not the fences)
 - You need to change the language identifier on opening fences
@@ -49,17 +45,37 @@ Use manual editing instead when:
 
 Track fence state while scanning line by line:
 
-1. **Opening fence**: Line matches `^\s*```\w+` and not inside a block. Record indent level. Enter "inside block" state.
+1. **Detect opening fence**: Line matches `^\s*` ``` `\w+` outside a block. Record indent level. Enter "inside block" state.
+2. **Detect malformed closing fence**: Line matches `^\s*` ``` `\w+` inside a block. Insert proper closing fence before this line.
+3. **Detect valid closing fence**: Line matches `^\s*` ``` `\s*$`. Exit "inside block" state.
+4. **Handle end of file**: If still inside a block, append closing fence.
 
-2. **Malformed closing fence**: Line matches `^\s*```\w+` while inside a block. This is a closing fence with a language identifier. Fix by inserting proper closing fence before this line.
+## Verification
 
-3. **Valid closing fence**: Line matches `^\s*```\s*$`. Exit "inside block" state.
+After execution:
 
-4. **End of file**: If still inside a block, append closing fence.
+- [ ] No closing fences contain language identifiers
+- [ ] Markdown renders correctly in preview
+- [ ] `git diff` shows only fence-closing changes, no content modifications
 
-## Implementation
+## Anti-Patterns
 
-### Python (Recommended)
+| Avoid | Why | Instead |
+|-------|-----|---------|
+| Manually searching for bad fences | Error-prone in large files | Use the algorithm or grep pattern |
+| Copying opening fence line to close a block | Creates the exact bug this skill fixes | Always use plain ` ``` ` for closing |
+| Fixing fences without tracking block state | Misidentifies nested vs sequential blocks | Use the stateful line-by-line algorithm |
+
+## Prevention
+
+When generating markdown with code blocks:
+
+1. Always use plain ``` for closing fences
+2. Never copy the opening fence line to close
+3. Track block state when programmatically generating markdown
+
+<details>
+<summary><strong>Implementation: Python (Recommended)</strong></summary>
 
 ```python
 import re
@@ -71,20 +87,17 @@ def fix_markdown_fences(content: str) -> str:
     result = []
     in_code_block = False
     block_indent = ""
-    
+
     opening_pattern = re.compile(r'^(\s*)```(\w+)')
     closing_pattern = re.compile(r'^(\s*)```\s*$')
-    
+
     for line in lines:
         opening_match = opening_pattern.match(line)
         closing_match = closing_pattern.match(line)
-        
+
         if opening_match:
             if in_code_block:
-                # Malformed closing fence with language identifier
-                # Insert proper closing fence before this line
                 result.append(f"{block_indent}```")
-            # Start new block
             result.append(line)
             block_indent = opening_match.group(1)
             in_code_block = True
@@ -94,11 +107,10 @@ def fix_markdown_fences(content: str) -> str:
             block_indent = ""
         else:
             result.append(line)
-    
-    # Handle file ending inside code block
+
     if in_code_block:
         result.append(f"{block_indent}```")
-    
+
     return '\n'.join(result)
 
 
@@ -114,14 +126,20 @@ def fix_markdown_files(directory: Path, pattern: str = "**/*.md") -> list[str]:
     return fixed
 ```
 
-### Bash (Quick Check)
+</details>
+
+<details>
+<summary><strong>Implementation: Bash (Quick Check)</strong></summary>
 
 ```bash
-# Find files with potential issues (opening fence pattern at end of block)
+# Find files with potential issues
 grep -rn '```[a-zA-Z]' --include="*.md" | grep -v "^[^:]*:[0-9]*:\s*```[a-zA-Z]*$"
 ```
 
-### PowerShell
+</details>
+
+<details>
+<summary><strong>Implementation: PowerShell</strong></summary>
 
 ```powershell
 $directories = @('docs', 'src')
@@ -170,61 +188,14 @@ foreach ($dir in $directories) {
 }
 ```
 
-## Usage
+</details>
 
-### Fix Files in Directory
-
-```bash
-python -c "
-from pathlib import Path
-exec(open('fix_fences.py').read())
-fixed = fix_markdown_files(Path('docs'))
-for f in fixed:
-    print(f'Fixed: {f}')
-"
-```
-
-### Fix Single String (In-Memory)
-
-```python
-content = """
-```python
-def example():
-    pass
-```python
-"""
-
-fixed = fix_markdown_fences(content)
-print(fixed)
-```
-
-## Verification
-
-After execution:
-
-- [ ] No closing fences contain language identifiers
-- [ ] Markdown renders correctly in preview
-- [ ] `git diff` shows only fence-closing changes, no content modifications
-
-## Edge Cases Handled
+<details>
+<summary><strong>Edge Cases Handled</strong></summary>
 
 1. **Nested indentation**: Preserves indent level from opening fence
 2. **Multiple consecutive blocks**: Each block tracked independently
 3. **File ending inside block**: Automatically closes unclosed blocks
 4. **Mixed line endings**: Handles both `\n` and `\r\n`
 
-## Anti-Patterns
-
-| Avoid | Why | Instead |
-|-------|-----|---------|
-| Manually searching for bad fences | Error-prone in large files | Use the algorithm or grep pattern |
-| Copying opening fence line to close a block | Creates the exact bug this skill fixes | Always use plain ` ``` ` for closing |
-| Fixing fences without tracking block state | Misidentifies nested vs sequential blocks | Use the stateful line-by-line algorithm |
-
-## Prevention
-
-When generating markdown with code blocks:
-
-1. Always use plain ``` for closing fences
-2. Never copy the opening fence line to close
-3. Track block state when programmatically generating markdown
+</details>
