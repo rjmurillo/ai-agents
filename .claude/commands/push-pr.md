@@ -32,6 +32,7 @@ Based on the above changes:
 5. Create a pull request using the new_pr skill script:
 
    ```bash
+   SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
    python3 "$SCRIPTS_DIR/pr/new_pr.py" --title "<conventional commit title>" --body-file /tmp/PR-123-BODY.md
    ```
 

@@ -16,6 +16,8 @@ The synthesis comment is idempotent - if one already exists (detected by marker)
 ## Usage
 
 ```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+
 # Basic usage
 python3 "$SCRIPTS_DIR/issue/invoke_copilot_assignment.py" --issue-number 123
 

@@ -11,6 +11,8 @@ Extract PR number and repository context from the user prompt before any API cal
 ### Step -1.1: Extract GitHub Context
 
 ```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+
 # Extract PR numbers, issue numbers, owner/repo from user prompt
 python3 "$SCRIPTS_DIR/utils/extract_github_context.py" --text "[user_prompt]" --require-pr
 
@@ -26,6 +28,7 @@ python3 "$SCRIPTS_DIR/utils/extract_github_context.py" --text "[user_prompt]" --
 ### Step -1.2: Validate Context
 
 ```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 context=$(python3 "$SCRIPTS_DIR/utils/extract_github_context.py" --text "[user_prompt]" --require-pr)
 # Exit code 1 if no PR found (fail fast, no user prompt)
 
@@ -61,6 +64,8 @@ When running autonomously (no user interaction possible):
 - Error message must be actionable: include what patterns are supported
 
 ```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+
 # Autonomous execution - fail if context missing
 python3 "$SCRIPTS_DIR/utils/extract_github_context.py" --text "[prompt]" --require-pr
 
@@ -88,6 +93,7 @@ Verify core memory loaded:
 ### Step 1.0: Session State Check
 
 ```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 SESSION_DIR=".agents/pr-comments/PR-[number]"
 
 if [ -d "$SESSION_DIR" ]; then
@@ -104,12 +110,14 @@ fi
 ### Step 1.1: Fetch PR Metadata
 
 ```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 python3 "$SCRIPTS_DIR/pr/get_pr_context.py" --pull-request [number]
 ```
 
 ### Step 1.2: Enumerate All Reviewers
 
 ```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 python3 "$SCRIPTS_DIR/pr/get_pr_reviewers.py" --pull-request [number]
 ```
 
@@ -126,6 +134,8 @@ for reviewer in ALL_REVIEWERS:
 ### Step 1.3: Retrieve ALL Comments
 
 ```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+
 # IMPORTANT: Use --include-issue-comments to capture AI Quality Gate, CodeRabbit summaries
 python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request [number] --include-issue-comments
 ```
@@ -135,6 +145,8 @@ python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request [number] --in
 ### Step 2.1: Acknowledge All Comments (Batch)
 
 ```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+
 # Get all comment IDs
 comments=$(python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request [number] --include-issue-comments)
 ids=$(echo "$comments" | jq -r '.Comments[].id')
@@ -201,6 +213,8 @@ Categories:
 Reply to Won't Fix, Questions, Clarification Needed before implementation.
 
 ```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+
 # In-thread reply
 python3 "$SCRIPTS_DIR/pr/post_pr_comment_reply.py" --pull-request [number] --comment-id [id] --body "[response]"
 ```

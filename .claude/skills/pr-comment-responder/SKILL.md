@@ -31,6 +31,8 @@ Coordinates PR review responses through context gathering, comment tracking, and
 **ALWAYS extract PR context from prompt first. Never prompt for information already provided.**
 
 ```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+
 # Extract PR number and owner/repo from user prompt
 python3 "$SCRIPTS_DIR/utils/extract_github_context.py" --text "[prompt]" --require-pr
 ```
@@ -78,6 +80,8 @@ Comments are classified into domains for priority-based triage:
 **Domain-First Processing Workflow:**
 
 ```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+
 # Get comments grouped by domain
 comments=$(python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request 908 --group-by-domain --include-issue-comments)
 

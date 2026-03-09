@@ -100,6 +100,8 @@ fi
 ### Phase 8.2: Conversation Resolution
 
 ```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+
 # Resolve all threads for a PR
 python3 "$SCRIPTS_DIR/pr/get_pr_review_threads.py" --pull-request [number] --unresolved-only | \
   jq -r '.threads[].thread_id' | while read tid; do
@@ -110,6 +112,7 @@ python3 "$SCRIPTS_DIR/pr/get_pr_review_threads.py" --pull-request [number] --unr
 ### Phase 8.3: Re-check for New Comments
 
 ```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 sleep 45
 NEW_COMMENTS=$(python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request [number] --include-issue-comments | jq '.TotalComments')
 
@@ -121,6 +124,7 @@ fi
 ### Phase 8.4: CI Check Verification
 
 ```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 checks=$(python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request [number])
 failed_count=$(echo "$checks" | jq '.FailedCount')
 

@@ -164,6 +164,7 @@ Need GitHub data?
 All scripts output structured JSON:
 
 ```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 result=$(python3 "$SCRIPTS_DIR/pr/get_pr_context.py" --pull-request 50)
 echo "$result" | jq '.Title'
 ```
@@ -186,6 +187,8 @@ This skill provides a toolkit of Python scripts for GitHub operations. Use scrip
 **Example Flow:**
 
 ```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+
 # Get PR context
 python3 "$SCRIPTS_DIR/pr/get_pr_context.py" --pull-request 123
 
