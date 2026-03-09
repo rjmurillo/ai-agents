@@ -690,7 +690,6 @@ comments=$(python3 "$SCRIPTS_DIR/pr/get_unaddressed_comments.py" --pull-request 
 ids=$(echo "$comments" | jq -r '.Comments[].id')
 
 # Batch acknowledge - single process, all comments
-# Batch acknowledge - single process, all comments
 echo "$ids" | xargs -I{} python3 "$SCRIPTS_DIR/reactions/add_comment_reaction.py" --comment-id {} --reaction "eyes"
 
 # Verify all acknowledged
