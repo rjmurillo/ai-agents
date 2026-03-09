@@ -56,7 +56,7 @@ uv pip install -e ".[dev]"   # includes tiktoken
 pip install tiktoken           # or install directly
 ```
 
-`tiktoken` is an offline tokenizer (cl100k_base encoding). No API key required. For exact Claude token counts, set `ANTHROPIC_API_KEY`.
+`tiktoken` is an offline tokenizer (cl100k_base encoding) that approximates Claude tokenization. No API key is required for these scripts.
 
 ## Decision Framework
 

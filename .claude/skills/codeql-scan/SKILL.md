@@ -38,7 +38,7 @@ python3 .claude/skills/codeql-scan/scripts/invoke_codeql_scan.py --operation val
 
 ```text
 Need CodeQL analysis?
-+-- First time setup       --> Install-CodeQL.ps1
++-- First time setup       --> python3 .codeql/scripts/install_codeql.py
 +-- Validate config        --> invoke_codeql_scan.py --operation validate
 +-- Full repository scan   --> invoke_codeql_scan.py --operation full
 +-- Quick scan (cached)    --> invoke_codeql_scan.py --operation quick
@@ -61,23 +61,25 @@ flowchart TD
     A[Start CodeQL Scan] --> B{Operation Type}
     B -->|full| C[Check CLI Installed]
     B -->|quick| C
-    B -->|validate| D[Run Test-CodeQLConfig.ps1]
+    B -->|validate| D[Run test_codeql_config.py]
 
     C --> E{CLI Available?}
     E -->|No| F[Error: Install CLI]
     E -->|Yes| G[Detect Languages]
 
-    G --> H[Run Invoke-CodeQLScan.ps1]
+    G --> H[Run invoke_codeql_scan.py]
     H --> I{Scan Successful?}
 
     I -->|Yes| J[Generate SARIF]
     I -->|No| K[Error: Scan Failed]
 
     J --> L[Display Summary]
-    D --> M[Display Config Status]
+    D --> M{Config Valid?}
+    M -->|Yes| N2[Display Config Status]
+    M -->|No| O2[Exit 2: Config Invalid]
 
     L --> N[Exit 0]
-    M --> N
+    N2 --> N
     F --> O[Exit 3]
     K --> P[Exit 3]
 ```
@@ -90,7 +92,7 @@ Run a comprehensive security analysis of the entire codebase.
 
    ```bash
    # Verify CodeQL CLI is installed
-   test -f .codeql/cli/codeql || echo "CodeQL CLI not found. Run: pwsh .codeql/scripts/Install-CodeQL.ps1"
+   test -f .codeql/cli/codeql || echo "CodeQL CLI not found. Run: python3 .codeql/scripts/install_codeql.py"
    ```
 
 2. **Run Scan:**
@@ -153,10 +155,10 @@ This skill wraps these core CodeQL scripts:
 
 | Script | Purpose | Location |
 |--------|---------|----------|
-| `Install-CodeQL.ps1` | Download and install CodeQL CLI | `.codeql/scripts/` |
-| `Invoke-CodeQLScan.ps1` | Execute security scans | `.codeql/scripts/` |
-| `Test-CodeQLConfig.ps1` | Validate configuration | `.codeql/scripts/` |
-| `Get-CodeQLDiagnostics.ps1` | Comprehensive health check | `.codeql/scripts/` |
+| `install_codeql.py` | Download and install CodeQL CLI | `.codeql/scripts/` |
+| `invoke_codeql_scan.py` | Execute security scans | `.codeql/scripts/` |
+| `test_codeql_config.py` | Validate configuration | `.codeql/scripts/` |
+| `get_codeql_diagnostics.py` | Comprehensive health check | `.codeql/scripts/` |
 
 ## Anti-Patterns
 
@@ -296,7 +298,7 @@ The PostToolUse hook automatically triggers targeted CodeQL scans after you writ
 
 **Configuration:**
 
-- Hook location: `.claude/hooks/PostToolUse/Invoke-CodeQLQuickScan.ps1`
+- Hook location: `.claude/hooks/PostToolUse/invoke_codeql_quick_scan.py`
 - Quick config: `.github/codeql/codeql-config-quick.yml`
 - Targeted queries: CWE-078 (command injection), CWE-089 (SQL injection), CWE-079 (XSS), CWE-022 (path traversal), CWE-798 (hardcoded credentials)
 
@@ -320,15 +322,15 @@ The PostToolUse hook automatically triggers targeted CodeQL scans after you writ
 
 ### Running Diagnostics
 
-```powershell
+```bash
 # Console output (default)
-pwsh .codeql/scripts/Get-CodeQLDiagnostics.ps1
+python3 .codeql/scripts/get_codeql_diagnostics.py
 
 # JSON output (programmatic parsing)
-pwsh .codeql/scripts/Get-CodeQLDiagnostics.ps1 -OutputFormat json
+python3 .codeql/scripts/get_codeql_diagnostics.py --output-format json
 
 # Markdown report
-pwsh .codeql/scripts/Get-CodeQLDiagnostics.ps1 -OutputFormat markdown > diagnostics.md
+python3 .codeql/scripts/get_codeql_diagnostics.py --output-format markdown > diagnostics.md
 ```
 
 ### Checks Performed
@@ -340,7 +342,7 @@ pwsh .codeql/scripts/Get-CodeQLDiagnostics.ps1 -OutputFormat markdown > diagnost
 | **Database** | Existence, cache validity, size, creation timestamp |
 | **Results** | SARIF files, findings count, last scan timestamp |
 
-### Get-CodeQLDiagnostics.ps1 Exit Codes
+### get_codeql_diagnostics.py Exit Codes
 
 | Code | Meaning |
 |------|---------|
@@ -361,8 +363,8 @@ Error: CodeQL CLI not found at .codeql/cli/codeql
 
 **Solution:**
 
-```powershell
-pwsh .codeql/scripts/Install-CodeQL.ps1 -AddToPath
+```bash
+python3 .codeql/scripts/install_codeql.py --add-to-path
 codeql version
 ```
 
@@ -374,8 +376,8 @@ Error: Invalid query pack: codeql/unknown-queries
 
 **Solution:**
 
-```powershell
-pwsh .codeql/scripts/Test-CodeQLConfig.ps1
+```bash
+python3 .codeql/scripts/test_codeql_config.py
 codeql resolve qlpacks
 ```
 
@@ -413,9 +415,9 @@ PostToolUse hook not running after file writes. Common causes:
 
 **Verify:**
 
-```powershell
-pwsh .codeql/scripts/Get-CodeQLDiagnostics.ps1
-Test-Path .claude/hooks/PostToolUse/Invoke-CodeQLQuickScan.ps1
+```bash
+python3 .codeql/scripts/get_codeql_diagnostics.py
+test -f .claude/hooks/PostToolUse/invoke_codeql_quick_scan.py && echo "Hook exists"
 ```
 
 </details>
