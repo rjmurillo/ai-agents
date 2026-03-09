@@ -636,16 +636,12 @@ When formal requirements are needed, route through the spec workflow.
 ```text
 1. Orchestrator routes to spec-generator with feature description
 2. spec-generator asks clarifying questions (returns to user if needed)
-3. spec-generator produces:
-   - REQ-NNN documents in .agents/specs/requirements/
-   - DESIGN-NNN documents in .agents/specs/design/
-   - TASK-NNN documents in .agents/specs/tasks/
-4. Orchestrator routes to critic for EARS compliance validation
-5. Orchestrator routes to architect for design review
-6. Spec-generator's TASK documents are implementation-ready (no task-decomposer needed)
-7. After approval, Orchestrator routes to implementer for TASK execution
-
-Note: task-decomposer is only needed if spec-generator's tasks are too coarse and require further breakdown into smaller work items.
+3. spec-generator produces REQ-NNN and DESIGN-NNN documents.
+4. Orchestrator routes to critic for EARS compliance validation.
+5. Orchestrator routes to architect for design review.
+6. Orchestrator routes to task-decomposer to create TASK-NNN documents.
+7. After approval, Orchestrator routes to implementer for TASK execution.
+8. Orchestrator routes to qa for quality assurance.
 ```
 
 **Traceability Chain**:
