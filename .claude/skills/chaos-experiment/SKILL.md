@@ -29,7 +29,6 @@ The skill guides you through 6 phases: Scope, Baseline, Hypothesis, Injection, E
 - `chaos experiment`
 - `failure injection`
 - `game day`
-- `game day planning`
 - `test resilience`
 - `chaos engineering`
 
