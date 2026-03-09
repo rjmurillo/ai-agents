@@ -52,7 +52,7 @@ git rebase -i --autosquash main  # Auto-marks fixup commits
 
 ```bash
 git rebase -i HEAD~3          # Mark commit with 'edit'
-git reset HEAD^               # Reset commit, keep changes staged
+git reset HEAD^               # Reset commit, keep changes in working tree (unstaged)
 git add file1.py && git commit -m "feat: add validation"
 git add file2.py && git commit -m "feat: add error handling"
 git rebase --continue
@@ -76,7 +76,7 @@ git cherry-pick abc123
 
 ```bash
 git show --name-only abc123
-git checkout abc123 -- path/to/file1.py path/to/file2.py
+git restore --source=abc123 -- path/to/file1.py path/to/file2.py
 git commit -m "cherry-pick: apply specific changes from abc123"
 ```
 
@@ -130,7 +130,7 @@ git bisect reset
 ```bash
 git restore --source=abc123 path/to/file  # Restore file from commit
 git reset --soft HEAD^                     # Undo commit, keep changes staged
-git reflog && git branch recovered abc123  # Recover deleted branch (90-day window)
+git reflog && git branch recovered abc123  # Recover deleted branch (within reflog retention; ~90 days by default, configurable)
 ```
 
 ### Phase 3: Verify and Clean Up
