@@ -28,4 +28,4 @@ CORRECT: `Plan referenced test file [`.github/workflows/tests/ai-issue-triage.Te
 
 ## Canonical Reference
 
-See `.gemini/styleguide.md` → "Documentation Link Requirements" section.
+See [`.gemini/styleguide.md`](../../.gemini/styleguide.md) → "Documentation Link Requirements" section.
