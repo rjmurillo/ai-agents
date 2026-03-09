@@ -37,7 +37,7 @@ Agent invokes script -> Script emits REQUIRED ACTIONS -> Agent executes actions
 | Code | Meaning |
 |------|---------|
 | 0 | Success |
-| 1 | Invalid input (bad step-number, total-steps < 6) |
+| 1 | Invalid arguments (e.g., missing required flags, bad step-number, total-steps < 6) |
 
 ## Extending
 

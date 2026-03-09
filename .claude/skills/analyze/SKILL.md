@@ -36,6 +36,15 @@ When this skill activates, IMMEDIATELY invoke the script. The script IS the work
 
 ---
 
+## Security
+
+When using the `Bash` tool, all arguments containing variable or user-provided input **MUST** be quoted to prevent command injection vulnerabilities. Refer to the repository style guide on Command Injection Prevention (CWE-78).
+
+**WRONG**: `grep $PATTERN /some/path`
+**CORRECT**: `grep -- "$PATTERN" /some/path`
+
+---
+
 ## When to Use
 
 Use this skill when:
@@ -81,7 +90,7 @@ The script outputs REQUIRED ACTIONS at each step. Follow them exactly.
 
 ### Phase 1: Exploration (Step 1)
 
-Delegate to Explore agent(s). The script determines scope and parallelism. Wait for all agents before re-invoking step 1 with results.
+Delegate to Explore agent(s). The script determines scope and parallelism. Wait for all agents, then re-invoke `scripts/analyze.py` with `--step-number 1`, including the Explore results in `--thoughts`.
 
 ### Phase 2: Focus Selection (Step 2)
 
