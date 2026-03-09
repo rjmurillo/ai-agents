@@ -673,20 +673,25 @@ Create a persistent map of all comments. Save to `.agents/pr-comments/PR-[number
 
 React with eyes emoji to acknowledge all comments. Use batch mode for 88% faster acknowledgment:
 
-```powershell
+```bash
 # PREFERRED: Batch acknowledge all comments (88% faster than individual calls)
 # Get all comment IDs from the comments retrieved in Phase 1
-$comments = pwsh -NoProfile .claude/skills/github/scripts/pr/Get-PRReviewComments.ps1 -PullRequest [number] -IncludeIssueComments | ConvertFrom-Json
-$ids = $comments.Comments | ForEach-Object { $_.id }
+comments=$(python3 .claude/skills/github/scripts/pr/get_pr_review_comments.py --pull-request [number] --include-issue-comments)
+ids=$(echo "$comments" | jq -r '.comments[].id')
+total_ids=$(echo "$comments" | jq '.comments | length')
 
 # Batch acknowledge - single process, all comments
-$result = pwsh -NoProfile .claude/skills/github/scripts/reactions/Add-CommentReaction.ps1 -CommentId $ids -Reaction "eyes" | ConvertFrom-Json
+if [ "$total_ids" -gt 0 ]; then
+  echo "$ids" | xargs -r -I {} python3 .claude/skills/github/scripts/reactions/add_comment_reaction.py --comment-id {} --reaction "eyes"
+  xargs_status=$?
+  if [ "$xargs_status" -ne 0 ]; then
+    echo "[BLOCKED] One or more comment acknowledgments failed"
+    exit "$xargs_status"
+  fi
+fi
 
 # Verify all acknowledged
-Write-Host "Acknowledged $($result.Succeeded)/$($result.TotalCount) comments"
-if ($result.Failed -gt 0) {
-    Write-Host "Failed: $($result.Results | Where-Object { -not $_.Success } | ForEach-Object { $_.CommentId })"
-}
+echo "Acknowledged $total_ids comments with eyes reaction"
 ```
 
 <details>
@@ -1343,18 +1348,31 @@ Write-Host "[PASS] All CI checks passing ($($checks.PassedCount) checks)"
 | No unresolved threads | `gh pr view --json reviewThreads` all resolved | [ ] |
 | Commits pushed | `git status` shows "up to date with origin" | [ ] |
 
-```powershell
+```bash
 # Final verification
-Write-Host "=== Completion Criteria ==="
-Write-Host "[ ] Comments: $($ADDRESSED + $WONTFIX)/$TOTAL resolved"
-Write-Host "[ ] New comments: None after 45s wait"
+echo "=== Completion Criteria ==="
+echo "[ ] Comments: $((ADDRESSED + WONTFIX))/$TOTAL resolved"
+echo "[ ] New comments: None after 45s wait"
 
 # CI check verification using skill
-$checks = pwsh -NoProfile .claude/skills/github/scripts/pr/Get-PRChecks.ps1 -PullRequest [number] | ConvertFrom-Json
-$ciStatus = if ($checks.AllPassing) { "PASS" } else { "$($checks.FailedCount) failures, $($checks.PendingCount) pending" }
-Write-Host "[ ] CI checks: $ciStatus"
+checks=$(python3 .claude/skills/github/scripts/pr/get_pr_checks.py --pull-request [number] 2>&1)
+checks_status=$?
 
-Write-Host "[ ] Pushed: $(git status -sb | Select-Object -First 1)"
+if [ "$checks_status" -eq 0 ]; then
+  all_passing=$(echo "$checks" | jq -r '.all_passing')
+  if [ "$all_passing" = "true" ]; then
+    ci_status="PASS"
+  else
+    failed_count=$(echo "$checks" | jq -r '.failed_count')
+    pending_count=$(echo "$checks" | jq -r '.pending_count')
+    ci_status="$failed_count failures, $pending_count pending"
+  fi
+else
+  ci_status="ERROR"
+fi
+
+echo "[ ] CI checks: $ci_status"
+echo "[ ] Pushed: $(git status -sb | head -n 1)"
 ```
 
 **If ANY criterion fails**: Do NOT claim completion. Return to appropriate phase.
