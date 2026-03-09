@@ -49,7 +49,7 @@ Tooling suite for optimizing Claude Code context placement. Passive context (AGE
 
 ## Prerequisites
 
-Python 3.10+ with `tiktoken` for local token counting:
+Python 3.12+ with `tiktoken` for local token counting:
 
 ```bash
 uv pip install -e ".[dev]"   # includes tiktoken
@@ -98,7 +98,7 @@ Skills create decision points where agents must choose whether to retrieve docum
 - [Vercel: AGENTS.md outperforms skills](https://vercel.com/blog/agents-md-outperforms-skills-in-our-agent-evals)
 - Analysis: `.agents/analysis/vercel-passive-context-vs-skills-research.md`
 - Memory: `passive-context-vs-skills-vercel-research`
-- Decision framework: `SKILL-QUICK-REF.md` lines 152-203
+- Decision framework: `SKILL-QUICK-REF.md` (see the decision framework section)
 
 ## Related
 
@@ -192,16 +192,20 @@ python3 scripts/compress_markdown_content.py -i input.md -l medium -v
 | Medium | 50-60% | + redundant words, tighter whitespace |
 | Aggressive | 60-80% | + H3 compression, lists, abbreviations |
 
-**Example** (52 tokens -> 30 tokens, 42% reduction):
+**Example** (26 tokens -> 18 tokens, 31% reduction):
 
 Before:
-```markdown
+
+```text
 ## Session Protocol
+
 The session protocol has multiple phases:
+
 1. Serena Activation - You must activate Serena
 ```
 
 After:
+
 ```text
 [Session Protocol]
 session protocol has multiple phases:
@@ -290,20 +294,24 @@ python3 scripts/test_skill_passive_compliance.py --path .claude/skills/github --
 ### Clear Skill Classification
 
 **Input**: GitHub skill with gh pr create, gh issue close commands
-```json
+
 {"classification": "Skill", "confidence": 85, "reasoning": "High tool execution (8 calls); Many action verbs (12)"}
+
 ```
 
 ### Clear Passive Classification
 
 **Input**: Memory hierarchy reference with tables and always-needed patterns
+
 ```json
+
 {"classification": "PassiveContext", "confidence": 90, "reasoning": "High reference content ratio (0.85); Always-needed information (5 indicators)"}
 ```
 
 ### Hybrid Classification
 
 **Input**: PR comment responder with routing rules + script execution
+
 ```json
 {
   "classification": "Hybrid",

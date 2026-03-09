@@ -163,7 +163,7 @@ This skill wraps these core CodeQL scripts:
 | Avoid | Why | Instead |
 |-------|-----|---------|
 | Skip config validation before scan | Wastes time on invalid config | Run `--operation validate` first |
-| Ignore exit codes | Silent failures hide security issues | Check `$?` after every invocation |
+| Ignore exit codes | Silent failures hide security issues | In Bash/Zsh, check `$?`; in PowerShell, check `$LASTEXITCODE` after every invocation |
 | Suppress stderr before checking exit code | Loses diagnostic information | Capture output, check exit code, then filter |
 | Full scan on every minor change | 3-5x slower than needed | Use `--operation quick` for iteration |
 | Mix skill wrapper with direct script calls | Inconsistent behavior | Always use `invoke_codeql_scan.py` |
@@ -174,7 +174,7 @@ Before completing a security scan task:
 
 - [ ] CodeQL CLI installed and accessible
 - [ ] Configuration validated (`--operation validate`)
-- [ ] Scan completed successfully (exit code 0)
+- [ ] `invoke_codeql_scan.py` completed successfully (exit code 0)
 - [ ] SARIF files generated in `.codeql/results/`
 - [ ] Findings reviewed (if any)
 - [ ] High/medium severity findings addressed
@@ -340,7 +340,7 @@ pwsh .codeql/scripts/Get-CodeQLDiagnostics.ps1 -OutputFormat markdown > diagnost
 | **Database** | Existence, cache validity, size, creation timestamp |
 | **Results** | SARIF files, findings count, last scan timestamp |
 
-### Exit Codes
+### Get-CodeQLDiagnostics.ps1 Exit Codes
 
 | Code | Meaning |
 |------|---------|
