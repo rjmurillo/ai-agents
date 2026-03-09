@@ -25,13 +25,13 @@ Identify code ownership before modifying validators, linters, or tool configurat
 
 ```bash
 # Check provenance of a single file
-python3 scripts/check_provenance.py --target .config/markdownlint.json
+python3 .claude/skills/analysis-provenance/scripts/check_provenance.py --target .config/markdownlint.json
 
 # Check provenance of a directory
-python3 scripts/check_provenance.py --target .config/
+python3 .claude/skills/analysis-provenance/scripts/check_provenance.py --target .config/
 
 # JSON output for automation
-python3 scripts/check_provenance.py --target PSScriptAnalyzerSettings.psd1 --format json
+python3 .claude/skills/analysis-provenance/scripts/check_provenance.py --target PSScriptAnalyzerSettings.psd1 --format json
 ```
 
 ---
@@ -77,7 +77,7 @@ graph TD
 ```
 Need to modify a validator/linter?
 │
-├─ Run: python3 scripts/check_provenance.py --target <file>
+├─ Run: python3 .claude/skills/analysis-provenance/scripts/check_provenance.py --target <file>
 │
 ├─ Result: UPSTREAM
 │  ├─ Do NOT modify the tool/file directly
@@ -95,10 +95,10 @@ Need to modify a validator/linter?
 
 ## Command Reference
 
-From the repository root (where the `scripts/` directory lives), run:
+From the repository root, run:
 
 ```bash
-python3 scripts/check_provenance.py --target <path> [options]
+python3 .claude/skills/analysis-provenance/scripts/check_provenance.py --target <path> [options]
 ```
 
 | Parameter | Required | Default | Description |
@@ -185,7 +185,7 @@ After running provenance check:
 ### Check Validator Config (LOCAL)
 
 ```bash
-python3 scripts/check_provenance.py --target .markdownlint.json
+python3 .claude/skills/analysis-provenance/scripts/check_provenance.py --target .markdownlint.json
 ```
 
 ```
@@ -203,7 +203,7 @@ Recommendation: Safe to modify as needed.
 ### Check External Tool (UPSTREAM)
 
 ```bash
-python3 scripts/check_provenance.py --target node_modules/markdownlint-cli2/lib/main.js
+python3 .claude/skills/analysis-provenance/scripts/check_provenance.py --target node_modules/markdownlint-cli2/lib/main.js
 ```
 
 ```
@@ -221,7 +221,7 @@ Recommendation: Do NOT modify. Configure via .markdownlint.json instead.
 ### JSON Output
 
 ```bash
-python3 scripts/check_provenance.py --target PSScriptAnalyzerSettings.psd1 --format json
+python3 .claude/skills/analysis-provenance/scripts/check_provenance.py --target PSScriptAnalyzerSettings.psd1 --format json
 ```
 
 ```json
