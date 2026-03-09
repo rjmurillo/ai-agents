@@ -161,7 +161,7 @@ class SkillValidator:
         except ImportError:
             ALLOWED_PROPERTIES = {
                 'name', 'description', 'license', 'allowed-tools', 'metadata',
-                'model', 'context', 'agent', 'hooks', 'user-invocable'
+                'model', 'context', 'agent', 'hooks', 'user-invocable', 'version'
             }
             REQUIRED_PROPERTIES = {'name', 'description'}
             RECOMMENDED_PROPERTIES = {'license'}
