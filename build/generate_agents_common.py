@@ -190,10 +190,16 @@ def convert_frontmatter_for_platform(
     alt_name = re.sub(r"-cli$", "", platform_name)
     tools_key_alt = f"tools_{alt_name}"
 
+    # toolsFrom allows a platform to reuse another platform's tools key
+    tools_from = platform_config.get("toolsFrom")
+    tools_key_alias = f"tools_{tools_from}" if isinstance(tools_from, str) else None
+
     if tools_key in frontmatter:
         result["tools"] = frontmatter[tools_key]
     elif tools_key_alt in frontmatter:
         result["tools"] = frontmatter[tools_key_alt]
+    elif tools_key_alias and tools_key_alias in frontmatter:
+        result["tools"] = frontmatter[tools_key_alias]
     elif "tools" in frontmatter:
         tools_value = frontmatter["tools"]
         if isinstance(tools_value, str) and not tools_value.startswith("{{PLATFORM_"):
