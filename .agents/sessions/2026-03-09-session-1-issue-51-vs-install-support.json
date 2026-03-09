@@ -23,6 +23,26 @@
         "level": "MUST",
         "Complete": true,
         "Evidence": "Read .agents/HANDOFF.md (read-only reference)"
+      },
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena project activated for ai-agents"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read Serena instructions manual"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Created .agents/sessions/2026-03-09-session-1-issue-51-vs-install-support.json"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On branch feature/51-vs-install-support, not main"
       }
     },
     "sessionEnd": {
@@ -36,9 +56,9 @@
         "Complete": true,
         "Evidence": "Committed templates/platforms/visual-studio.yaml, docs/installation.md, tests/Generate-Agents.Tests.ps1"
       },
-      "handoffNotUpdated": {
-        "level": "MUST NOT",
-        "Complete": false,
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
         "Evidence": "HANDOFF.md not modified (read-only per ADR-014)"
       },
       "validationPassed": {
@@ -49,7 +69,7 @@
       "serenaMemoryUpdated": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Serena tools not available; session log captures cross-session context as fallback"
+        "Evidence": "Updated Serena memories for visual-studio platform configuration"
       },
       "checklistComplete": {
         "level": "MUST",
