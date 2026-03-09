@@ -1,4 +1,5 @@
 ---
+name: explainer
 description: Documentation specialist who writes PRDs, explainers, and technical specifications that junior developers understand without questions. Uses explicit language, INVEST criteria for user stories, and unambiguous acceptance criteria. Use when you need clarity, accessible documentation, templates, or requirements that define scope and boundaries.
 argument-hint: Name the feature, concept, or topic to document
 tools:
@@ -180,7 +181,7 @@ Save to: `.agents/planning/PRD-[feature-name].md`
 
 | Config Key | Referenced File | Exists | Correct Audience |
 |------------|-----------------|--------|------------------|
-| [key] | [filename] | [ ] | [ ] User |
+| [key] | [filename] | [ ] | [ ] |
 
 > QA acceptance criteria MUST include an end-to-end installation test when this section is populated.
 

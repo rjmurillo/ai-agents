@@ -179,7 +179,7 @@ Save to: `.agents/planning/PRD-[feature-name].md`
 
 | Config Key | Referenced File | Exists | Correct Audience |
 |------------|-----------------|--------|------------------|
-| [key] | [filename] | [ ] | [ ] User |
+| [key] | [filename] | [ ] | [ ] |
 
 > QA acceptance criteria MUST include an end-to-end installation test when this section is populated.
 
