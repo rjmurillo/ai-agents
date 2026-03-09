@@ -1,11 +1,11 @@
 ---
 name: chaos-experiment
+version: 1.1.0
 model: claude-sonnet-4-5
 description: Design and document chaos engineering experiments. Guide steady state baseline, hypothesis formation, failure injection plans, and results analysis. Use for resilience testing, game days, failure injection experiments, and building confidence in system stability.
 license: MIT
 user-invocable: true
 metadata:
-  version: 1.1.0
   domains: [chaos-engineering, resilience, reliability, testing]
 ---
 
@@ -28,6 +28,7 @@ The skill guides you through 6 phases: Scope, Baseline, Hypothesis, Injection, E
 
 - `chaos experiment`
 - `failure injection`
+- `game day`
 - `game day planning`
 - `test resilience`
 - `chaos engineering`
@@ -67,12 +68,12 @@ Use [pre-mortem](../pre-mortem/SKILL.md) instead when:
 ```text
 Scope → Baseline → Hypothesis → Injection Plan → Execute → Analyze
   │         │           │             │              │          │
-  │         │           │             │              │          └─ Verdict + action items
-  │         │           │             │              └─ Observation log
-  │         │           │             └─ Rollback-ready plan
-  │         │           └─ Falsifiable prediction
-  │         └─ 7-30 day metric collection
   └─ Stakeholder sign-off
+              └─ 7-30 day metric collection
+                          └─ Falsifiable prediction
+                                        └─ Rollback-ready plan
+                                                       └─ Observation log
+                                                                  └─ Verdict + action items
 ```
 
 ## Process
@@ -203,8 +204,6 @@ Run the controlled experiment.
 4. If abort criteria met, execute rollback immediately
 5. Record experiment end timestamp
 
-**Output**: Timestamped observation log
-
 <details>
 <summary><strong>Observation Log Format</strong></summary>
 
@@ -221,6 +220,8 @@ Run the controlled experiment.
 ```
 
 </details>
+
+**Output**: Timestamped observation log
 
 ### Phase 6: Analyze Results
 
