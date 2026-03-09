@@ -2,7 +2,7 @@
 name: analysis-provenance
 version: 1.0.0
 model: claude-sonnet-4-5
-description: Identify code ownership before modifying validators or linters. Checks file headers for provenance indicators, reviews documentation, and determines if code is upstream or local. Prevents accidental modification of upstream tools.
+description: Identify code ownership before modifying validators or linters. Checks file headers for provenance indicators, reviews documentation, and determines provenance as UPSTREAM, LOCAL, VENDOR, or UNKNOWN. Prevents accidental modification of upstream tools.
 license: MIT
 user-invocable: true
 ---
@@ -25,13 +25,13 @@ Identify code ownership before modifying validators, linters, or tool configurat
 
 ```bash
 # Check provenance of a single file
-python3 scripts/check_provenance.py --target .config/markdownlint.json
+python3 .claude/skills/analysis-provenance/scripts/check_provenance.py --target .config/markdownlint.json
 
 # Check provenance of a directory
-python3 scripts/check_provenance.py --target .config/
+python3 .claude/skills/analysis-provenance/scripts/check_provenance.py --target .config/
 
 # JSON output for automation
-python3 scripts/check_provenance.py --target PSScriptAnalyzerSettings.psd1 --format json
+python3 .claude/skills/analysis-provenance/scripts/check_provenance.py --target PSScriptAnalyzerSettings.psd1 --format json
 ```
 
 ---
@@ -60,36 +60,14 @@ Use this skill **before**:
 
 ## Process
 
-```
-Target file or directory
-    │
-    ▼
-┌──────────────────────────────────┐
-│ 1. Target Resolution             │
-│    Resolve paths, check exists   │
-├──────────────────────────────────┤
-│ 2. Directory Analysis            │
-│    node_modules, .venv, vendor,  │
-│    .gitmodules                   │
-├──────────────────────────────────┤
-│ 3. Package Manifest Analysis     │
-│    package.json, requirements,   │
-│    lockfiles                     │
-├──────────────────────────────────┤
-│ 4. File Header Analysis          │
-│    First 20 lines: generated     │
-│    markers, copyright notices    │
-├──────────────────────────────────┤
-│ 5. Provenance Determination      │
-│    Weight signals, return        │
-│    category + evidence           │
-└──────────────────────────────────┘
-    │
-    ▼
-Decision: UPSTREAM → configure only
-          LOCAL    → safe to modify
-          VENDOR   → track upstream
-          UNKNOWN  → investigate first
+```mermaid
+graph TD
+    A[Target file or directory] --> B["1. Target Resolution<br/>Resolve paths, check exists"]
+    B --> C["2. Directory Analysis<br/>node_modules, .venv, vendor,<br/>.gitmodules"]
+    C --> D["3. Package Manifest Analysis<br/>package.json, requirements,<br/>lockfiles"]
+    D --> E["4. File Header Analysis<br/>First 20 lines: generated<br/>markers, copyright notices"]
+    E --> F["5. Provenance Determination<br/>Weight signals, return<br/>category + evidence"]
+    F --> G["Decision:<br/>UPSTREAM - configure only<br/>LOCAL - safe to modify<br/>VENDOR - track upstream<br/>UNKNOWN - investigate first"]
 ```
 
 ---
@@ -99,7 +77,7 @@ Decision: UPSTREAM → configure only
 ```
 Need to modify a validator/linter?
 │
-├─ Run: python3 scripts/check_provenance.py --target <file>
+├─ Run: python3 .claude/skills/analysis-provenance/scripts/check_provenance.py --target <file>
 │
 ├─ Result: UPSTREAM
 │  ├─ Do NOT modify the tool/file directly
@@ -117,8 +95,10 @@ Need to modify a validator/linter?
 
 ## Command Reference
 
+From the repository root, run:
+
 ```bash
-python3 scripts/check_provenance.py --target <path> [options]
+python3 .claude/skills/analysis-provenance/scripts/check_provenance.py --target <path> [options]
 ```
 
 | Parameter | Required | Default | Description |
@@ -205,7 +185,7 @@ After running provenance check:
 ### Check Validator Config (LOCAL)
 
 ```bash
-python3 scripts/check_provenance.py --target .markdownlint.json
+python3 .claude/skills/analysis-provenance/scripts/check_provenance.py --target .markdownlint.json
 ```
 
 ```
@@ -223,7 +203,7 @@ Recommendation: Safe to modify as needed.
 ### Check External Tool (UPSTREAM)
 
 ```bash
-python3 scripts/check_provenance.py --target node_modules/markdownlint-cli2/lib/main.js
+python3 .claude/skills/analysis-provenance/scripts/check_provenance.py --target node_modules/markdownlint-cli2/lib/main.js
 ```
 
 ```
@@ -241,7 +221,7 @@ Recommendation: Do NOT modify. Configure via .markdownlint.json instead.
 ### JSON Output
 
 ```bash
-python3 scripts/check_provenance.py --target PSScriptAnalyzerSettings.psd1 --format json
+python3 .claude/skills/analysis-provenance/scripts/check_provenance.py --target PSScriptAnalyzerSettings.psd1 --format json
 ```
 
 ```json

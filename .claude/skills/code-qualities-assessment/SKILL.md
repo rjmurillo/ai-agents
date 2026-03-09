@@ -2,8 +2,8 @@
 name: code-qualities-assessment
 model: claude-sonnet-4-5
 description: Assess code maintainability through 5 foundational qualities (cohesion, coupling, encapsulation, testability, non-redundancy) with quantifiable scoring rubrics. Works at method/class/module levels across multiple languages. Produces markdown reports with remediation guidance.
-license: MIT
 version: 1.1.0
+license: MIT
 ---
 
 # Code Qualities Assessment
@@ -70,30 +70,28 @@ Use [analyze](../analyze/SKILL.md) instead when:
 
 The skill runs automated assessment via `scripts/assess.py`:
 
-```
-1. Symbol Extraction
+1. **Symbol Extraction**
    - Detect language
    - Use Serena (if available)
    - Extract classes/methods
 
-2. Quality Scoring
+2. **Quality Scoring**
    - Run 5 quality assessments
    - Apply context rules (test vs prod)
    - Aggregate symbol -> file -> module
 
-3. Comparison (if historical data)
+3. **Comparison (if historical data)**
    - Load previous scores
    - Identify regressions/improvements
 
-4. Report Generation
+4. **Report Generation**
    - Format: markdown, JSON, or HTML
    - Include remediation guidance
    - Link to refactoring patterns
 
-5. Gate Enforcement (CI mode)
+5. **Gate Enforcement (CI mode)**
    - Check thresholds
    - Exit code: 0=pass, 10=degraded
-```
 
 ---
 
@@ -280,7 +278,7 @@ Output:
 **Impact**: Hard to test, tightly coupled to database layer
 
 **Remediation**: Use dependency injection
-- See: [Dependency Injection](/references/patterns/dependency-injection.md)
+- See: [Dependency Injection](references/patterns/dependency-injection.md)
 - Related ADR: ADR-023 (Dependency Management)
 ```
 
