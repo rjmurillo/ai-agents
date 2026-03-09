@@ -2,7 +2,7 @@
 name: analysis-provenance
 version: 1.0.0
 model: claude-sonnet-4-5
-description: Identify code ownership before modifying validators or linters. Checks file headers for provenance indicators, reviews documentation, and determines if code is upstream or local. Prevents accidental modification of upstream tools.
+description: Identify code ownership before modifying validators or linters. Checks file headers for provenance indicators, reviews documentation, and determines provenance as UPSTREAM, LOCAL, VENDOR, or UNKNOWN. Prevents accidental modification of upstream tools.
 license: MIT
 user-invocable: true
 ---
@@ -60,36 +60,14 @@ Use this skill **before**:
 
 ## Process
 
-```
-Target file or directory
-    │
-    ▼
-┌──────────────────────────────────┐
-│ 1. Target Resolution             │
-│    Resolve paths, check exists   │
-├──────────────────────────────────┤
-│ 2. Directory Analysis            │
-│    node_modules, .venv, vendor,  │
-│    .gitmodules                   │
-├──────────────────────────────────┤
-│ 3. Package Manifest Analysis     │
-│    package.json, requirements,   │
-│    lockfiles                     │
-├──────────────────────────────────┤
-│ 4. File Header Analysis          │
-│    First 20 lines: generated     │
-│    markers, copyright notices    │
-├──────────────────────────────────┤
-│ 5. Provenance Determination      │
-│    Weight signals, return        │
-│    category + evidence           │
-└──────────────────────────────────┘
-    │
-    ▼
-Decision: UPSTREAM → configure only
-          LOCAL    → safe to modify
-          VENDOR   → track upstream
-          UNKNOWN  → investigate first
+```mermaid
+graph TD
+    A[Target file or directory] --> B["1. Target Resolution<br/>Resolve paths, check exists"]
+    B --> C["2. Directory Analysis<br/>node_modules, .venv, vendor,<br/>.gitmodules"]
+    C --> D["3. Package Manifest Analysis<br/>package.json, requirements,<br/>lockfiles"]
+    D --> E["4. File Header Analysis<br/>First 20 lines: generated<br/>markers, copyright notices"]
+    E --> F["5. Provenance Determination<br/>Weight signals, return<br/>category + evidence"]
+    F --> G["Decision:<br/>UPSTREAM - configure only<br/>LOCAL - safe to modify<br/>VENDOR - track upstream<br/>UNKNOWN - investigate first"]
 ```
 
 ---
@@ -116,6 +94,8 @@ Need to modify a validator/linter?
 ---
 
 ## Command Reference
+
+From the repository root (where the `scripts/` directory lives), run:
 
 ```bash
 python3 scripts/check_provenance.py --target <path> [options]
