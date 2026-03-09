@@ -26,7 +26,9 @@ Advanced Git techniques for clean history, effective collaboration, and confiden
 
 1. Identify which workflow applies (rebase, cherry-pick, bisect, worktree, recovery)
 2. Check current branch state: `git status`, `git log --oneline -10`
-3. Create a safety branch before any destructive operation: `git branch backup-$(date +%s)`
+3. Create a safety branch before any destructive operation: `git branch backup-<timestamp>`
+   - macOS/Linux (bash/zsh): `git branch backup-$(date +%s)`
+   - Windows PowerShell: `git branch backup-$(Get-Date -UFormat %s)`
 
 ### Phase 2: Execute the Workflow
 
@@ -95,7 +97,7 @@ git bisect reset  # When done
 ```bash
 git bisect start HEAD v2.1.0
 git bisect run ./test.sh
-# test.sh exits 0 for good, 1-127 (except 125) for bad
+# test.sh: exit 0 = good, 125 = skip, any other non-zero = bad
 ```
 
 #### Worktree: Multi-Branch Development
