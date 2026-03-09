@@ -136,7 +136,7 @@ def fix_markdown_files(directory: Path, pattern: str = "**/*.md") -> list[str]:
 
 ```bash
 # Find files with potential issues
-grep -rEn -- '```\w+' --include="*.md" . | grep -vE "^[^:]*:[0-9]*:[[:space:]]*```\w+[[:space:]]*$"
+grep -rEn --include="*.md" -- '```\w+' . | grep -vE "^[^:]*:[0-9]*:[[:space:]]*```\w+[[:space:]]*$"
 ```
 
 </details>
