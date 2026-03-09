@@ -98,10 +98,12 @@ if ($prs.Count -gt 0) {
 ```
 
 **Decision:**
+
 - **PR found:** Proceed to Step 2 (Validate PR).
 - **No PR found:** Report to user — a PR must exist before pipeline validation. The calling skill should have created one.
 
 **Verification:**
+
 - [ ] Repo name detected
 - [ ] Branch name detected
 - [ ] PR ID detected (or user notified)
@@ -134,6 +136,7 @@ Check that the PR description contains these required sections:
 **Note:** Missing description sections are a warning, not a blocker. The skill will proceed but report the gap.
 
 **Verification:**
+
 - [ ] PR exists and is accessible
 - [ ] PR description has Summary section (warning if missing)
 - [ ] PR description has Changes section (warning if missing)
@@ -146,7 +149,7 @@ Check that the PR description contains these required sections:
 **Purpose:** Find all pipelines associated with this repository and classify them by type.
 
 ```powershell
-$allPipelines = az pipelines list --organization <org-url> --project "<project>" --query "[?contains(name, '$repoName')]" --output json | ConvertFrom-Json
+$allPipelines = (az pipelines list --organization <org-url> --project "<project>" --output json | ConvertFrom-Json) | Where-Object { $_.name.Contains($repoName) }
 $allPipelines | ForEach-Object { Write-Host "  [$($_.id)] $($_.name)" }
 ```
 
@@ -161,10 +164,12 @@ Match each pipeline to its type by name pattern (case-insensitive):
 | **Buddy release** | Name contains `Buddy` AND `Release` | 3 (run third) |
 
 **Decision:**
+
 - **No pipelines found at all:** Report and stop — the repo may not have CI pipelines configured.
 - **Some found, some missing:** Proceed with the ones available in order: PR → Buddy Build → Buddy Release, skipping missing ones.
 
 **Verification:**
+
 - [ ] At least one pipeline discovered
 - [ ] Pipeline types correctly classified
 
@@ -228,6 +233,7 @@ do {
 | `failed` | Enter **Step 5: Diagnose and Fix Loop** |
 
 **Verification (per pipeline):**
+
 - [ ] Pipeline triggered (or skipped if already succeeded)
 - [ ] Pipeline completed within timeout
 - [ ] Pipeline result is `succeeded`
@@ -276,6 +282,7 @@ Analyze error messages against known patterns. See [references/error-patterns.md
 2. **Read** the file(s) to understand current state.
 3. **Edit** the file(s) to fix the issue.
 4. **Verify locally** if possible:
+
    ```powershell
    dotnet build 2>&1 | Select-Object -Last 20
    ```
@@ -289,6 +296,7 @@ git push
 ```
 
 **Commit message conventions for auto-fixes:**
+
 - `fix: set TreatWarningsAsErrors to false in pipeline YAML`
 - `fix: correct RolloutSpec path reference in buddy.release.yml`
 - `fix: rename subscription key from PrimarySub to <ServiceName>Sub`
@@ -347,6 +355,7 @@ Report these items:
 | **Final Status** | ✅ All passed / ⚠️ Partial failure / ❌ Stopped |
 
 If all pipelines passed:
+
 ```
 Consider marking the PR as ready for review.
 ```
