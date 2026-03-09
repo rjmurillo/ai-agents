@@ -2,7 +2,7 @@
 description: Auto-generate session documentation. Queries session history, generates workflow diagrams, updates session logs, and syncs memory. Use at the end of any workflow to capture what happened.
 argument-hint: [--verbose] [--dry-run]
 allowed-tools:
-  - Bash(pwsh .claude/skills/workflow/scripts/*)
+  - Bash(python .claude/skills/workflow/scripts/*)
   - Bash(git:*)
   - mcp__serena__*
   - mcp__forgetful__*
@@ -45,7 +45,7 @@ ls -t .agents/sessions/*.json 2>/dev/null | head -1
 Run the sync script to produce the session documentation:
 
 ```bash
-pwsh .claude/skills/workflow/scripts/Sync-SessionDocumentation.ps1
+python .claude/skills/workflow/scripts/sync_session_documentation.py
 ```
 
 This script will:
