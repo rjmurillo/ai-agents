@@ -215,6 +215,33 @@ Task(
 | retrospective | Extract learnings | "What did we learn from this?" |
 | skillbook | Store/retrieve patterns | "Store this successful pattern" |
 
+## Trace Correlation
+
+Generate a `trace_id` (UUID v4) at the start of each orchestration session. Include it in every sub-agent delegation prompt so the full call graph is reconstructable from session logs.
+
+**At session start:**
+
+```python
+import uuid
+trace_id = str(uuid.uuid4())  # e.g. "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+```
+
+**In every Task delegation, include trace context:**
+
+```python
+Task(
+    subagent_type="implementer",
+    prompt="""...[task details]...
+
+    Trace Context (include in your session log under session.traceId and session.parentSessionId):
+    - trace_id: {trace_id}
+    - parent_session_id: {current_session_id}
+    """
+)
+```
+
+Sub-agents record `traceId` and `parentSessionId` in their session log's `session` object. This enables file-based trace reconstruction without a central collector.
+
 ## Expected Orchestration Scenarios
 
 These scenarios are normal and require continuation, not apology:

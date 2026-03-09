@@ -1,21 +1,35 @@
 ---
 name: chaos-experiment
-version: 1.0.0
+version: 1.1.0
 model: claude-sonnet-4-5
 description: Design and document chaos engineering experiments. Guide steady state baseline, hypothesis formation, failure injection plans, and results analysis. Use for resilience testing, game days, failure injection experiments, and building confidence in system stability.
 license: MIT
+user-invocable: true
+metadata:
+  domains: [chaos-engineering, resilience, reliability, testing]
 ---
 
 # Chaos Experiment Designer
 
 Design rigorous chaos engineering experiments that build confidence in system resilience.
 
+## Quick Start
+
+```text
+# Describe what you want to test:
+"Design a chaos experiment for our API gateway failover"
+"Plan a game day for database resilience"
+"Test whether our circuit breakers work under load"
+```
+
+The skill guides you through 6 phases: Scope, Baseline, Hypothesis, Injection, Execute, Analyze.
+
 ## Triggers
 
 - `chaos experiment`
-- `test resilience`
 - `failure injection`
 - `game day`
+- `test resilience`
 - `chaos engineering`
 
 ## Quick Reference
@@ -48,17 +62,18 @@ Use [pre-mortem](../pre-mortem/SKILL.md) instead when:
 - Identifying project risks (not infrastructure failures)
 - Working at planning stage before any system exists
 
-## Core Principles
+## Process Overview
 
-Chaos engineering is the discipline of experimenting on a system to build confidence in its capability to withstand turbulent conditions in production.
-
-### The Five Principles
-
-1. **Steady State Focus**: Measure observable outputs (throughput, error rates, latency percentiles), not internal metrics
-2. **Real-World Variables**: Introduce disruptions that simulate actual failure modes
-3. **Production Testing**: Experiment on live systems with real traffic patterns
-4. **Continuous Automation**: Build experiments into CI/CD pipelines
-5. **Blast Radius Containment**: Minimize customer impact through careful scoping
+```text
+Scope → Baseline → Hypothesis → Injection Plan → Execute → Analyze
+  │         │           │             │              │          │
+  └─ Stakeholder sign-off
+              └─ 7-30 day metric collection
+                          └─ Falsifiable prediction
+                                        └─ Rollback-ready plan
+                                                       └─ Observation log
+                                                                  └─ Verdict + action items
+```
 
 ## Process
 
@@ -68,7 +83,7 @@ Define the experiment boundaries.
 
 **Inputs**: System architecture, historical incidents, monitoring data
 
-**Questions to Answer**:
+**Questions to answer**:
 
 1. What system or subsystem will we test?
 2. What is our business justification for this experiment?
@@ -113,11 +128,6 @@ Then [system behavior remains within tolerance]
 Because [specific resilience mechanism exists].
 ```
 
-**Example Hypotheses**:
-
-- "Given our API gateway in steady state, when we terminate 50% of backend instances, then P99 latency remains under 500ms because auto-scaling will provision replacements within 60 seconds."
-- "Given our payment service in steady state, when we introduce 500ms network latency to the database, then order completion rate remains above 99% because connection pooling and retry logic handle transient delays."
-
 **Hypothesis Quality Checklist**:
 
 - [ ] Specific failure mode identified
@@ -127,20 +137,17 @@ Because [specific resilience mechanism exists].
 
 **Output**: Documented hypothesis with measurable predictions
 
+<details>
+<summary><strong>Example Hypotheses</strong></summary>
+
+- "Given our API gateway in steady state, when we terminate 50% of backend instances, then P99 latency remains under 500ms because auto-scaling will provision replacements within 60 seconds."
+- "Given our payment service in steady state, when we introduce 500ms network latency to the database, then order completion rate remains above 99% because connection pooling and retry logic handle transient delays."
+
+</details>
+
 ### Phase 4: Design Injection Plan
 
 Plan the controlled failure injection.
-
-**Common Failure Categories**:
-
-| Category | Examples | Tools |
-|----------|----------|-------|
-| Instance Failure | Kill process, terminate VM, evict pod | chaos-monkey, kill, kubectl delete |
-| Network | Partition, latency, packet loss, DNS failure | tc, iptables, toxiproxy, chaos-mesh |
-| Resource Exhaustion | CPU spike, memory pressure, disk fill | stress-ng, dd, memory hogs |
-| Dependency | External service unavailable, slow response | fault injection proxy, mock services |
-| Time | Clock skew, NTP failure | faketime, chrony manipulation |
-| State | Data corruption, cache invalidation | Custom scripts |
 
 **Injection Plan Elements**:
 
@@ -160,6 +167,20 @@ Plan the controlled failure injection.
 - Notify on-call before and after
 
 **Output**: Detailed injection plan with rollback procedures
+
+<details>
+<summary><strong>Common Failure Categories</strong></summary>
+
+| Category | Examples | Tools |
+|----------|----------|-------|
+| Instance Failure | Kill process, terminate VM, evict pod | chaos-monkey, kill, kubectl delete |
+| Network | Partition, latency, packet loss, DNS failure | tc, iptables, toxiproxy, chaos-mesh |
+| Resource Exhaustion | CPU spike, memory pressure, disk fill | stress-ng, dd, memory hogs |
+| Dependency | External service unavailable, slow response | fault injection proxy, mock services |
+| Time | Clock skew, NTP failure | faketime, chrony manipulation |
+| State | Data corruption, cache invalidation | Custom scripts |
+
+</details>
 
 ### Phase 5: Execute Experiment
 
@@ -182,7 +203,8 @@ Run the controlled experiment.
 4. If abort criteria met, execute rollback immediately
 5. Record experiment end timestamp
 
-**Observation Log Format**:
+<details>
+<summary><strong>Observation Log Format</strong></summary>
 
 ```text
 [HH:MM:SS] - [Metric/Event]: [Value/Description]
@@ -195,6 +217,8 @@ Run the controlled experiment.
 [00:02:30] - Circuit breaker: CLOSED
 [00:03:00] - Experiment ended: Removed latency injection
 ```
+
+</details>
 
 **Output**: Timestamped observation log
 
@@ -227,6 +251,14 @@ Compare actual behavior against hypothesis.
 - **Unexpected Behaviors**: System responses not predicted
 
 **Output**: Analysis document with prioritized action items
+
+## Core Principles
+
+1. **Steady State Focus**: Measure observable outputs (throughput, error rates, latency percentiles), not internal metrics
+2. **Real-World Variables**: Introduce disruptions that simulate actual failure modes
+3. **Production Testing**: Experiment on live systems with real traffic patterns
+4. **Continuous Automation**: Build experiments into CI/CD pipelines
+5. **Blast Radius Containment**: Minimize customer impact through careful scoping
 
 ## Scripts
 
@@ -267,8 +299,6 @@ Experiments are saved to: `.agents/chaos/`
 | Skipping stakeholder buy-in | Creates political problems | Get approval before execution |
 
 ## Templates
-
-### Experiment Document Template
 
 Use `templates/experiment-template.md` or generate with:
 
@@ -315,7 +345,7 @@ Before executing any chaos experiment:
 
 | Skill | Relationship |
 |-------|--------------|
-| security | Security review for production experiments |
-| devops | CI/CD integration for automated chaos |
-| qa | Test strategy alignment |
-| analyst | Root cause analysis of findings |
+| [security-scan](../security-scan/SKILL.md) | Security review for production experiments |
+| [threat-modeling](../threat-modeling/SKILL.md) | Complements with security threat analysis |
+| [pre-mortem](../pre-mortem/SKILL.md) | Risk identification at planning stage |
+| [slo-designer](../slo-designer/SKILL.md) | SLO targets inform tolerance thresholds |
