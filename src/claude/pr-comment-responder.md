@@ -690,11 +690,11 @@ comments=$(python3 "$SCRIPTS_DIR/pr/get_unaddressed_comments.py" --pull-request 
 ids=$(echo "$comments" | jq -r '.Comments[].id')
 
 # Batch acknowledge - single process, all comments
-# Batch acknowledge - single process, all comments
 echo "$ids" | xargs -I{} python3 "$SCRIPTS_DIR/reactions/add_comment_reaction.py" --comment-id {} --reaction "eyes"
 
 # Verify all acknowledged
-echo "$result" | jq '"Acknowledged \(.Succeeded)/\(.TotalCount) comments"'
+total_ids=$(echo "$ids" | wc -l)
+echo "Acknowledged $total_ids comments with eyes reaction"
 ```
 
 <details>
