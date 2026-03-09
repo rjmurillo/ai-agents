@@ -15,10 +15,10 @@ Enforce epistemic humility before changing existing systems. Understand original
 
 ```text
 # Investigate why code exists before changing it
-/chestertons-fence path/to/file.py "remove unused validation"
+/chestertons-fence "path/to/file.py" "remove unused validation"
 
 # Investigate an ADR before deprecating it
-/chestertons-fence .agents/architecture/ADR-005.md "allow bash scripts"
+/chestertons-fence ".agents/architecture/ADR-005.md" "allow bash scripts"
 ```
 
 ## Triggers
