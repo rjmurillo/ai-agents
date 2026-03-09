@@ -7,8 +7,9 @@ import subprocess
 import sys
 from pathlib import Path
 
+_REPO_ROOT = Path(__file__).resolve().parent.parent
 SCRIPT = str(
-    Path(__file__).resolve().parent.parent / "scripts" / "pr" / "test_pr_description.py"
+    _REPO_ROOT / ".claude" / "skills" / "github" / "scripts" / "pr" / "test_pr_description.py"
 )
 
 
