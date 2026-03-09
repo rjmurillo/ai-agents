@@ -98,7 +98,7 @@ Skills create decision points where agents must choose whether to retrieve docum
 - [Vercel: AGENTS.md outperforms skills](https://vercel.com/blog/agents-md-outperforms-skills-in-our-agent-evals)
 - Analysis: `.agents/analysis/vercel-passive-context-vs-skills-research.md`
 - Memory: `passive-context-vs-skills-vercel-research`
-- Decision framework: `SKILL-QUICK-REF.md` (see the decision framework section)
+- Decision framework: `SKILL-QUICK-REF.md` (see the "Decision Framework" section)
 
 ## Related
 
