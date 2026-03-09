@@ -90,6 +90,130 @@ class TestLookbackHours:
         assert "Lookback: 1 hours" in result.stdout
 
 
+class TestQueryAgentsHistory:
+    """Tests for MCP agents://history integration."""
+
+    def test_returns_none_when_no_mcp(self, monkeypatch):
+        """Without MCP env or cache, should return None."""
+        monkeypatch.delenv("AGENTS_HISTORY_JSON", raising=False)
+        sys.path.insert(
+            0,
+            str(
+                Path(__file__).resolve().parents[2]
+                / ".claude"
+                / "skills"
+                / "workflow"
+                / "scripts"
+            ),
+        )
+        from sync_session_documentation import query_agents_history
+
+        result = query_agents_history(8)
+        assert result is None
+
+    def test_returns_list_from_env(self, monkeypatch):
+        """When AGENTS_HISTORY_JSON is set with valid JSON list, returns it."""
+        monkeypatch.setenv(
+            "AGENTS_HISTORY_JSON",
+            json.dumps([{"agent": "implementer", "ts": "2026-01-01T00:00:00Z"}]),
+        )
+        sys.path.insert(
+            0,
+            str(
+                Path(__file__).resolve().parents[2]
+                / ".claude"
+                / "skills"
+                / "workflow"
+                / "scripts"
+            ),
+        )
+        from sync_session_documentation import query_agents_history
+
+        result = query_agents_history(8)
+        assert isinstance(result, list)
+        assert len(result) == 1
+        assert result[0]["agent"] == "implementer"
+
+    def test_returns_none_on_invalid_json(self, monkeypatch):
+        """Invalid JSON in env var should fall through gracefully."""
+        monkeypatch.setenv("AGENTS_HISTORY_JSON", "not-json{{{")
+        sys.path.insert(
+            0,
+            str(
+                Path(__file__).resolve().parents[2]
+                / ".claude"
+                / "skills"
+                / "workflow"
+                / "scripts"
+            ),
+        )
+        from sync_session_documentation import query_agents_history
+
+        result = query_agents_history(8)
+        assert result is None
+
+
+class TestSyncSerenaMemory:
+    """Tests for Serena memory synchronization."""
+
+    def test_writes_memory_file(self, tmp_path):
+        """Should write memory markdown to .serena/memories/."""
+        memory_dir = tmp_path / ".serena" / "memories"
+        memory_dir.mkdir(parents=True)
+
+        sys.path.insert(
+            0,
+            str(
+                Path(__file__).resolve().parents[2]
+                / ".claude"
+                / "skills"
+                / "workflow"
+                / "scripts"
+            ),
+        )
+        from sync_session_documentation import sync_serena_memory
+
+        result = sync_serena_memory(
+            str(tmp_path),
+            agents=["implementer", "qa"],
+            decisions=["Used Python per ADR-042"],
+            learnings=["Test early"],
+            branch="feature/test",
+            date="2026-03-09",
+        )
+        assert result is True
+        mem_file = memory_dir / "session-sync-2026-03-09.md"
+        assert mem_file.exists()
+        content = mem_file.read_text()
+        assert "implementer" in content
+        assert "Used Python per ADR-042" in content
+        assert "Test early" in content
+
+    def test_returns_false_when_no_serena(self, tmp_path):
+        """Without .serena/memories/ dir, should return False gracefully."""
+        sys.path.insert(
+            0,
+            str(
+                Path(__file__).resolve().parents[2]
+                / ".claude"
+                / "skills"
+                / "workflow"
+                / "scripts"
+            ),
+        )
+        from sync_session_documentation import sync_serena_memory
+
+        result = sync_serena_memory(
+            str(tmp_path),
+            agents=[],
+            decisions=[],
+            learnings=[],
+            branch="main",
+            date="2026-03-09",
+        )
+        assert result is False
+
+
 class TestPathTraversalPrevention:
     """CWE-22: Verify path traversal is blocked."""
 

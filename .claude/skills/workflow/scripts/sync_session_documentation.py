@@ -23,6 +23,10 @@ import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+MCP_HISTORY_ENV = "AGENTS_HISTORY_JSON"
+SERENA_MEMORY_DIR = ".serena/memories"
+
+
 KNOWN_AGENTS = [
     "orchestrator", "planner", "implementer", "qa", "security",
     "architect", "critic", "devops", "analyst", "explainer",
@@ -278,6 +282,86 @@ def validate_output_path(output_path: str, repo_root: str) -> str:
     return resolved_path
 
 
+def query_agents_history(lookback_hours: int) -> list[dict] | None:
+    """Query agents://history MCP resource for session invocations.
+
+    Returns list of history entries, or None if MCP is unavailable.
+    Falls back gracefully to allow git-based history collection.
+    """
+    # Check for MCP-provided history via environment variable
+    env_json = os.environ.get(MCP_HISTORY_ENV)
+    if env_json:
+        try:
+            data = json.loads(env_json)
+            if isinstance(data, list):
+                return data
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    # Try reading from MCP cache file if available
+    mcp_cache = os.path.join(".agents", "mcp-cache", "history.json")
+    if os.path.isfile(mcp_cache):
+        try:
+            with open(mcp_cache, encoding="utf-8") as f:
+                data = json.loads(f.read())
+            if isinstance(data, list):
+                return data
+        except (json.JSONDecodeError, OSError):
+            pass
+
+    # MCP not available — caller should fall back to git history
+    return None
+
+
+def sync_serena_memory(
+    repo_root: str,
+    *,
+    agents: list[str],
+    decisions: list[str],
+    learnings: list[str],
+    branch: str,
+    date: str,
+) -> bool:
+    """Sync session context to Serena memory for cross-session persistence.
+
+    Writes a memory file to .serena/memories/ so future sessions can recall
+    what happened. Returns True if memory was written successfully.
+    """
+    memory_dir = os.path.join(repo_root, SERENA_MEMORY_DIR)
+    if not os.path.isdir(memory_dir):
+        # Serena not configured — skip gracefully
+        return False
+
+    memory_name = f"session-sync-{date}"
+    memory_path = os.path.join(memory_dir, f"{memory_name}.md")
+
+    content_parts = [
+        f"# Session Sync Memory — {date}",
+        f"\n**Branch**: `{branch}`",
+        f"**Agents**: {', '.join(agents) if agents else 'none detected'}",
+        "\n## Decisions",
+    ]
+    if decisions:
+        for d in decisions:
+            content_parts.append(f"- {d}")
+    else:
+        content_parts.append("_No explicit decisions._")
+
+    content_parts.append("\n## Learnings")
+    for learning in learnings:
+        content_parts.append(f"- {learning}")
+
+    content_parts.append(
+        f"\n---\n_Auto-synced by /9-sync on {date}_\n"
+    )
+
+    try:
+        Path(memory_path).write_text("\n".join(content_parts), encoding="utf-8")
+        return True
+    except OSError:
+        return False
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Generate session sync documentation"
@@ -298,6 +382,13 @@ def main() -> None:
     print("\u001b[36m🔄 /9-sync: Generating session documentation...\u001b[0m")
     print(f"  Branch: {current_branch}")
     print(f"  Lookback: {args.lookback_hours} hours")
+
+    # Query agents://history MCP resource first, fall back to git
+    mcp_history = query_agents_history(args.lookback_hours)
+    if mcp_history is not None:
+        print("  Source: agents://history (MCP)")
+    else:
+        print("  Source: git history (MCP unavailable)")
 
     commits = get_recent_commits(args.lookback_hours)
     agents = get_agents_from_commits(commits)
