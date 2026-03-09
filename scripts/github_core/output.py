@@ -10,11 +10,30 @@ Related: ADR-035 (Exit Code Standardization)
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
+
+
+def add_output_format_arg(parser: argparse.ArgumentParser) -> None:
+    """Add the standard --output-format argument to an argparse parser.
+
+    Args:
+        parser: The ArgumentParser to add the argument to.
+    """
+    parser.add_argument(
+        "--output-format",
+        choices=["json", "human", "auto"],
+        default="json",
+        help=(
+            "Output format. 'json' emits only JSON on stdout. "
+            "'human' emits colored text summaries. "
+            "'auto' detects context (default: json)."
+        ),
+    )
 
 
 def get_output_format(requested: str = "auto") -> str:
@@ -75,7 +94,7 @@ def write_skill_output(
         "Metadata": {
             "Script": script_name,
             "Version": version,
-            "Timestamp": datetime.now(timezone.utc).isoformat(),
+            "Timestamp": datetime.now(UTC).isoformat(),
         },
     }
 
@@ -134,7 +153,7 @@ def write_skill_error(
         "Metadata": {
             "Script": script_name,
             "Version": version,
-            "Timestamp": datetime.now(timezone.utc).isoformat(),
+            "Timestamp": datetime.now(UTC).isoformat(),
         },
     }
 
@@ -154,7 +173,7 @@ def _detect_script_name() -> str:
     frame = inspect.currentframe()
     if frame and frame.f_back and frame.f_back.f_back:
         caller_file = frame.f_back.f_back.f_globals.get("__file__", "")
-        if caller_file:
+        if caller_file and isinstance(caller_file, str):
             return os.path.basename(caller_file)
     return "unknown"
 

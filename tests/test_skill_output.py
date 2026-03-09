@@ -23,8 +23,9 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 SCRIPTS_DIR = REPO_ROOT / "scripts"
 sys.path.insert(0, str(REPO_ROOT))
 
-from scripts.skill_output import get_output_format, write_skill_error, write_skill_output
-from scripts.validate_skill_output import validate_envelope
+# isort: skip_file
+from scripts.github_core.output import get_output_format, write_skill_error, write_skill_output  # noqa: E402
+from scripts.validate_skill_output import validate_envelope  # noqa: E402
 
 
 class TestGetOutputFormat:
@@ -59,6 +60,7 @@ class TestWriteSkillOutput:
         result = write_skill_output(
             data, output_format="json", human_summary="Test", script_name="test.py"
         )
+        assert result is not None
         envelope = json.loads(result)
         assert envelope["Success"] is True
         assert envelope["Data"]["Number"] == 42
@@ -68,12 +70,14 @@ class TestWriteSkillOutput:
 
     def test_handles_null_data(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = write_skill_output(None, output_format="json", script_name="test.py")
+        assert result is not None
         envelope = json.loads(result)
         assert envelope["Success"] is True
         assert envelope["Data"] is None
 
     def test_handles_empty_dict_data(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = write_skill_output({}, output_format="json", script_name="test.py")
+        assert result is not None
         envelope = json.loads(result)
         assert envelope["Success"] is True
         assert envelope["Data"] == {}
@@ -90,6 +94,7 @@ class TestWriteSkillError:
             output_format="json",
             script_name="test.py",
         )
+        assert result is not None
         envelope = json.loads(result)
         assert envelope["Success"] is False
         assert envelope["Error"]["Message"] == "Not found"
@@ -106,6 +111,7 @@ class TestWriteSkillError:
             script_name="test.py",
             extra={"Number": 99},
         )
+        assert result is not None
         envelope = json.loads(result)
         assert envelope["Success"] is False
         assert envelope["Data"]["Number"] == 99
@@ -120,6 +126,7 @@ class TestWriteSkillError:
         result = write_skill_error(
             "test", 1, error_type=error_type, output_format="json", script_name="test.py"
         )
+        assert result is not None
         envelope = json.loads(result)
         assert envelope["Error"]["Type"] == error_type
 
