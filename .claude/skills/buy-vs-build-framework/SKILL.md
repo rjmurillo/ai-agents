@@ -99,7 +99,7 @@ Default: BUILD                          Default: BUY
 
 1. Core or Context classification with 3+ supporting reasons
 2. Strategic importance score (1-10)
-3. Red line criteria (Never Build / Never Buy boundaries)
+3. Red line criteria (Never Build / Never Buy boundaries; see detailed Red Line Criteria section below)
 
 **Exit Criteria:**
 
@@ -152,8 +152,14 @@ python3 scripts/calculate_tco.py \
 
 ```bash
 python3 scripts/score_decision.py \
-  --criteria-file decision-criteria.json \
-  --options build,buy,partner
+  --criteria-file "decision-criteria.json" \
+  --options "build,buy,partner"
+
+# Output:
+# Strategic: BUILD=7.2  BUY=5.8  PARTNER=6.1
+# Operational: BUILD=5.5  BUY=7.8  PARTNER=6.0
+# Risk: BUILD=6.0  BUY=6.5  PARTNER=5.5
+# Winner: BUILD (confidence: MEDIUM, 9% gap)
 ```
 
 | Dimension | Weight | Criteria |
@@ -368,8 +374,8 @@ We will [BUILD/BUY/PARTNER/DEFER] {capability}.
 ```bash
 # Run quarterly to detect assumption drift
 python3 scripts/check_reassessment_triggers.py \
-  --adr-file architecture/ADR-123-build-payments.md \
-  --current-state current-state.json
+  --adr-file "architecture/ADR-123-build-payments.md" \
+  --current-state "current-state.json"
 
 # Output:
 # Status: REASSESSMENT_REQUIRED
