@@ -102,8 +102,8 @@ git bisect run ./test.sh
 
 ```bash
 git worktree add ~/worktrees/myapp-hotfix hotfix/critical-bug
-cd ~/worktrees/myapp-hotfix
-# Work, commit, push
+# Work in the new worktree using the -C flag to avoid changing the current directory.
+# e.g., git -C ~/worktrees/myapp-hotfix commit -a -m "fix: critical bug"
 git worktree remove ~/worktrees/myapp-hotfix  # Clean up when done
 git worktree prune  # Remove stale entries
 ```
@@ -130,7 +130,8 @@ git bisect reset
 ```bash
 git restore --source=abc123 path/to/file  # Restore file from commit
 git reset --soft HEAD^                     # Undo commit, keep changes staged
-git reflog && git branch recovered abc123  # Recover deleted branch (within reflog retention; ~90 days by default, configurable)
+git reflog                                 # 1. Find the hash of the desired commit
+git branch recovered abc123                # 2. Create a branch from that hash (within reflog retention; ~90 days by default, configurable)
 ```
 
 ### Phase 3: Verify and Clean Up
