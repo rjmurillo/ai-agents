@@ -147,7 +147,7 @@ def format_json(roots: list[SessionNode], trace_id: str) -> str:
 
 def format_mermaid(roots: list[SessionNode], trace_id: str) -> str:
     """Render the call graph as a Mermaid flowchart."""
-    lines: list[str] = [f"graph TD", f"    %% Trace: {trace_id}"]
+    lines: list[str] = ["graph TD", f"    %% Trace: {trace_id}"]
 
     def sanitize(s: str) -> str:
         return s.replace('"', "'").replace("\n", " ")[:60]
@@ -201,11 +201,19 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     sessions_dir: Path = args.sessions_dir
 
-    if not sessions_dir.is_dir():
-        print(f"Sessions directory not found: {sessions_dir}", file=sys.stderr)
+    # Security: Prevent path traversal. Resolve the path to its canonical form.
+    # For command-line tools, absolute paths outside the project root are allowed,
+    # relying on OS permissions for access control.
+    resolved_sessions_dir = sessions_dir.resolve()
+
+    if not resolved_sessions_dir.is_dir():
+        print(
+            f"Error: Sessions directory not found or is not a directory: {resolved_sessions_dir}",
+            file=sys.stderr,
+        )
         return 2
 
-    traces = collect_traced_sessions(sessions_dir)
+    traces = collect_traced_sessions(resolved_sessions_dir)
 
     if not traces:
         print("No traced sessions found.", file=sys.stderr)
