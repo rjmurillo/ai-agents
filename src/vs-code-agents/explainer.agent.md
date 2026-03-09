@@ -168,6 +168,22 @@ Save to: `.agents/planning/PRD-[feature-name].md`
 ## Technical Considerations (Optional)
 [Technical constraints, dependencies]
 
+## Installation Artifacts (Required when feature involves installation or distribution)
+
+### Required Files for User Installation
+
+| File | Location | Purpose | Audience | Verified |
+|------|----------|---------|----------|----------|
+| [filename] | [src/env/path] | [purpose] | [User/Contributor] | [ ] |
+
+### Configuration References Audit
+
+| Config Key | Referenced File | Exists | Correct Audience |
+|------------|-----------------|--------|------------------|
+| [key] | [filename] | [ ] | [ ] User |
+
+> QA acceptance criteria MUST include an end-to-end installation test when this section is populated.
+
 ## Success Metrics
 [How success will be measured]
 
