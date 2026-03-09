@@ -1024,46 +1024,45 @@ flowchart TD
 
 **Validation**: Every TASK traces to DESIGN, every DESIGN traces to REQ
 
-### 3.7.1 Usage Examples
+#### Usage Examples
 
-**Example 1 — Route a new feature request through the Specification path**
-
-When a user submits a request like "we need formal requirements for the traceability graph feature":
-
-1. Orchestrator detects signal: "requirements", "spec", or "EARS" → routes to `spec-generator`
-2. `spec-generator` creates `REQ-NNN-feature-name.md` in `.agents/specs/requirements/`
-3. `critic` validates EARS format and completeness
-4. `architect` creates `DESIGN-NNN-feature-name.md` in `.agents/specs/design/`
-5. `task-decomposer` creates `TASK-NNN-*.md` files in `.agents/specs/tasks/`
-6. Traceability chain is complete: REQ → DESIGN → TASK
-
-**Example 2 — Invoke spec-generator directly for a known feature**
+**Example 1: Route a new feature through the Specification path**
 
 ```text
-User: "Generate EARS requirements for the caching module"
-Orchestrator: Routes to spec-generator with context
-spec-generator: Creates REQ-NNN-caching-module.md using EARS format
-Output: .agents/specs/requirements/REQ-NNN-caching-module.md
+User: "We need a new authentication system with audit logging"
+Orchestrator: Detects complexity + traceability need → routes to spec-generator
+spec-generator: Produces REQ-010-authentication-system.md, DESIGN-010-auth-design.md, TASK-010-*.md
+Orchestrator: Routes to critic for EARS compliance validation
+Orchestrator: Routes to architect for design review
+After approval: Routes to implementer for TASK execution
 ```
 
-**Example 3 — Validate an existing spec chain with the critic**
+**Example 2: Invoke spec-generator directly for a known feature**
 
 ```text
-User: "Validate the PR comment handling spec chain"
-Orchestrator: Routes to critic with spec chain context
-critic: Checks REQ-001 → DESIGN-001 → TASK-001/002/003 traceability
-Output: Validation report with any broken links identified
+User: "@spec-generator Create EARS requirements for rate limiting on the GraphQL API"
+spec-generator: Asks clarifying questions about scope
+spec-generator: Produces REQ-NNN, DESIGN-NNN, TASK-NNN documents
+User or orchestrator: Validates traceability chain manually or via critic
 ```
 
-### 3.7.2 Troubleshooting Guide
+**Example 3: Validate an existing spec chain with the critic**
+
+```text
+User: "@critic Validate the traceability chain for REQ-001-pr-comment-handling"
+critic: Checks REQ → DESIGN → TASK links
+critic: Verifies EARS format compliance in requirement bodies
+critic: Reports any orphan requirements, broken references, or status inconsistencies
+```
+
+#### Troubleshooting Guide
 
 | Symptom | Cause | Resolution |
 |---------|-------|------------|
-| Duplicate REQ/DESIGN/TASK IDs | Manual spec creation bypassing spec-generator | Rename file to next available ID; update YAML `id` field; fix `related:` cross-references |
-| Orphan requirement (no DESIGN) | spec-generator not completing full 3-tier output | Re-invoke spec-generator with existing REQ as input context |
+| Duplicate REQ/DESIGN/TASK IDs | Manual spec creation bypassing spec-generator | Rename file; update YAML `id` field; fix cross-references in `related:` arrays |
+| Orphan requirement (REQ with no DESIGN) | spec-generator interrupted before completing full 3-tier output | Re-invoke spec-generator with existing REQ as input using `--continue` mode |
 | Status inconsistency (TASK `done`, REQ `draft`) | Out-of-order status updates | Update parent status to `approved` before marking child `done` |
 | Non-EARS requirement body | Spec created without spec-generator | Rewrite body using WHEN/THE SYSTEM SHALL/SO THAT pattern per `.agents/governance/ears-format.md` |
-| Missing `related:` links | Manual editing without updating cross-references | Add bidirectional `related:` entries: REQ↔DESIGN, DESIGN↔TASK |
 
 ---
 

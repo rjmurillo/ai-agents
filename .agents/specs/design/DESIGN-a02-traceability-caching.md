@@ -5,7 +5,7 @@ status: implemented
 related:
   - REQ-a02
 ---
-# DESIGN-001: Two-Tier Caching System
+# DESIGN-a02: Two-Tier Caching System
 
 Implements caching for traceability graph operations.
 

@@ -126,7 +126,7 @@ Automated validation checks:
 | Phase | Status | Notes |
 |-------|--------|-------|
 | Phase 0: Foundation | ✅ Complete | Directory structure created |
-| Phase 1: Spec Layer | ✅ Complete | EARS templates, schemas, spec-generator agent, sample specs, orchestrator integration, documentation (PRs #603, #604, #605, #690) |
+| Phase 1: Spec Layer | ✅ Complete | EARS templates, schemas, spec-generator agent, sample specs, orchestrator integration |
 | Phase 2: Traceability | 📋 Planned | Validation automation |
 
 ## Related Documents

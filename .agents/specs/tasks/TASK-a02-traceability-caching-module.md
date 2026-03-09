@@ -5,7 +5,7 @@ status: done
 related:
   - DESIGN-a02
 ---
-# TASK-001: Implement Caching Module
+# TASK-a02: Implement Caching Module
 
 Created `scripts/traceability/TraceabilityCache.psm1` with:
 
