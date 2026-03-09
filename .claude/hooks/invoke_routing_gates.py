@@ -6,6 +6,7 @@ Blocks high-stakes actions until validation prerequisites are met.
 Gates:
 - Gate 2: QA Validation Gate - blocks PR creation without QA evidence
 - Gate 3: Critic Review Gate - blocks PR merge without critic validation
+- Gate 4: ADR Existence Gate - blocks feature PR creation without ADR evidence
 
 QA Evidence is satisfied by:
 1. QA report exists in .agents/qa/ from the last 24 hours
@@ -22,6 +23,15 @@ Bypass conditions (QA):
 Bypass conditions (Critic):
 - Documentation-only PRs (no code changes)
 - SKIP_CRITIC_GATE environment variable set
+
+ADR Evidence is satisfied by:
+1. ADR file in .agents/architecture/ modified within the last 7 days
+2. Architect agent section in today's session log
+
+Bypass conditions (ADR):
+- Non-feature branches (fix/*, docs/*, chore/*, etc.)
+- Documentation-only PRs (no code changes)
+- SKIP_ADR_GATE environment variable set
 
 Hook Type: PreToolUse
 Exit Codes (Claude Hook Semantics, exempt from ADR-035):
@@ -56,6 +66,19 @@ _QA_EVIDENCE_PATTERN = re.compile(r"(?i)## QA|qa agent|Test Results|QA Validatio
 _CRITIC_EVIDENCE_PATTERN = re.compile(
     r"(?i)critic agent|critic review|APPROVED|REJECTED|NEEDS.?WORK"
 )
+_ADR_EVIDENCE_PATTERN = re.compile(
+    r"(?i)architect agent|architecture review|ADR-\d+|architectural decision"
+)
+
+# Feature branch patterns (require ADR)
+_FEATURE_BRANCH_PATTERN = re.compile(r"^(feat|feature)/")
+
+# Non-feature branch patterns (bypass ADR gate)
+_NON_FEATURE_BRANCH_PATTERNS = [
+    re.compile(r"^(fix|bugfix|hotfix)/"),
+    re.compile(r"^(docs|doc)/"),
+    re.compile(r"^(chore|ci|build|style|refactor|perf|test)/"),
+]
 
 # Documentation-only file patterns (anchored to prevent substring matches)
 _DOC_PATTERNS = [
@@ -170,6 +193,59 @@ def check_critic_evidence() -> bool:
             return False
 
         if content and _CRITIC_EVIDENCE_PATTERN.search(content):
+            return True
+
+    return False
+
+
+def get_current_branch() -> str | None:
+    """Get the current git branch name."""
+    try:
+        result = subprocess.run(
+            ["git", "branch", "--show-current"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if result.returncode == 0:
+            return result.stdout.strip()
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+    return None
+
+
+def is_feature_branch(branch: str | None) -> bool:
+    """Check if the branch is a feature branch requiring ADR evidence."""
+    if not branch:
+        return False
+    return bool(_FEATURE_BRANCH_PATTERN.match(branch))
+
+
+def check_adr_evidence() -> bool:
+    """Check for ADR evidence in architecture files or session log."""
+    # Option 1: ADR file in .agents/architecture/ modified within last 7 days
+    adr_dir = Path(".agents/architecture")
+    if adr_dir.is_dir():
+        cutoff_time = time.time() - (7 * 24 * 3600)
+        for adr_file in adr_dir.glob("ADR-*.md"):
+            try:
+                if adr_file.stat().st_mtime > cutoff_time:
+                    return True
+            except OSError:
+                continue
+
+    # Option 2: Architect agent section in session log
+    session_log = get_today_session_log_local()
+    if session_log is not None:
+        try:
+            content = session_log.read_text(encoding="utf-8")
+        except OSError as exc:
+            msg = f"Session log exists but cannot be read: {exc}"
+            print(f"routing_gates: {msg}", file=sys.stderr)
+            write_audit_log("RoutingGates", f"Session log read failed: {exc}")
+            return False
+
+        if content and _ADR_EVIDENCE_PATTERN.search(content):
             return True
 
     return False
@@ -344,6 +420,49 @@ def main() -> int:
                     "Bypass conditions:\n"
                     "- Documentation-only PRs (auto-detected based on file extensions)\n"
                     "- Set SKIP_CRITIC_GATE=true environment variable "
+                    "(requires justification)"
+                ),
+            }
+            print(json.dumps(output, separators=(",", ":")))
+            return 0  # JSON output with deny decision
+
+    # Gate 4: ADR Existence (for feature PR creation)
+    if "gh pr create" in command:
+        # Bypass 1: Environment variable override
+        if os.environ.get("SKIP_ADR_GATE") == "true":
+            write_audit_log(
+                "RoutingGates",
+                "ADR gate bypassed via SKIP_ADR_GATE environment variable",
+            )
+            return 0
+
+        # Bypass 2: Non-feature branches
+        branch = get_current_branch()
+        if not is_feature_branch(branch):
+            return 0
+
+        # Bypass 3: Documentation-only changes
+        if check_documentation_only():
+            return 0
+
+        # Main check: ADR evidence required for feature branches
+        if not check_adr_evidence():
+            output = {
+                "decision": "deny",
+                "reason": (
+                    "ADR EXISTENCE GATE: Architecture decision record required "
+                    "before creating a feature PR.\n\n"
+                    "Feature branch detected: "
+                    + (branch or "unknown")
+                    + "\n\n"
+                    "Invoke the architect agent to create an ADR:\n"
+                    "  Task(subagent_type='architect', prompt='Create ADR for "
+                    "this feature')\n\n"
+                    "Or create an ADR file in .agents/architecture/ADR-NNN-*.md\n\n"
+                    "Bypass conditions:\n"
+                    "- Non-feature branches (fix/*, docs/*, chore/*, etc.)\n"
+                    "- Documentation-only PRs (auto-detected)\n"
+                    "- Set SKIP_ADR_GATE=true environment variable "
                     "(requires justification)"
                 ),
             }
