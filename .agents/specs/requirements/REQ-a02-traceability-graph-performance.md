@@ -1,10 +1,10 @@
 ---
 type: requirement
-id: REQ-001
+id: REQ-a02
 status: implemented
 related:
-  - DESIGN-001
-  - TASK-001
+  - DESIGN-a02
+  - TASK-a02
 ---
 # REQ-001: Traceability Graph Performance
 
