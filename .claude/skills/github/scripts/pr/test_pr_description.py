@@ -191,7 +191,8 @@ def main(argv: list[str] | None = None) -> int:
     if success:
         print("\n✓ Validation passed", file=sys.stderr)
 
-    if not success and args.fail_on_violation:
+    has_issues = not success or (args.fail_on_violation and warnings)
+    if has_issues and args.fail_on_violation:
         return 1
 
     return 0
