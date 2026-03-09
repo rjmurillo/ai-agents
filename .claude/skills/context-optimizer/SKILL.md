@@ -6,9 +6,9 @@ description: Analyze skill content for optimal placement (Skill vs Passive Conte
 license: MIT
 user-invocable: true
 allowed-tools:
-  - Read
-  - Bash
-  - Glob
+  - view
+  - bash
+  - glob
 ---
 
 # Context Optimizer
