@@ -80,17 +80,22 @@ REPO_FLAG="$OWNER/$REPO"
 # Prepare body
 ACTUAL_BODY="$BODY"
 if [[ -n "$BODY_FILE" ]]; then
-    if [[ ! -f "$BODY_FILE" ]]; then
+    # Resolve to absolute path and block path traversal
+    RESOLVED_FILE=$(realpath -- "$BODY_FILE" 2>/dev/null) || {
+        echo "Error: Cannot resolve path: $BODY_FILE" >&2
+        exit 1
+    }
+    if [[ ! -f "$RESOLVED_FILE" ]]; then
         echo "Error: File not found: $BODY_FILE" >&2
         exit 1
     fi
-    ACTUAL_BODY=$(cat "$BODY_FILE")
+    ACTUAL_BODY=$(cat -- "$RESOLVED_FILE")
 fi
 
 # Check for marker if provided
 if [[ -n "$MARKER" ]]; then
     # Query existing comments to check for marker
-    if gh api "repos/$OWNER/$REPO/issues/$ISSUE_NUMBER/comments" --jq '.[].body' 2>/dev/null | grep -q "$MARKER"; then
+    if gh api "repos/$OWNER/$REPO/issues/$ISSUE_NUMBER/comments" --jq '.[].body' 2>/dev/null | grep -qF -- "$MARKER"; then
         # Marker found, skip posting
         jq -n \
           --arg owner "$OWNER" \
@@ -109,8 +114,8 @@ if [[ -n "$MARKER" ]]; then
     fi
 fi
 
-# Post comment
-if ! gh issue comment "$ISSUE_NUMBER" --repo "$REPO_FLAG" --body "$ACTUAL_BODY" >/dev/null 2>&1; then
+# Post comment and capture the URL to extract comment ID
+COMMENT_URL=$(gh issue comment "$ISSUE_NUMBER" --repo "$REPO_FLAG" --body "$ACTUAL_BODY" 2>&1) || {
     jq -n \
       --arg owner "$OWNER" \
       --arg repo "$REPO" \
@@ -125,10 +130,10 @@ if ! gh issue comment "$ISSUE_NUMBER" --repo "$REPO_FLAG" --body "$ACTUAL_BODY" 
         repo: $repo
       }'
     exit 3
-fi
+}
 
-# Get the comment ID from the most recent comment
-COMMENT_ID=$(gh api "repos/$OWNER/$REPO/issues/$ISSUE_NUMBER/comments" --jq '.[0].id' 2>/dev/null || echo "")
+# Extract comment ID from the returned URL (format: .../comments/<id>)
+COMMENT_ID=$(echo "$COMMENT_URL" | grep -oE '[0-9]+$' || echo "")
 
 jq -n \
   --arg owner "$OWNER" \
