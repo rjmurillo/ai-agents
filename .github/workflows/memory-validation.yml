@@ -51,19 +51,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
-      - name: Setup Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+      - name: Setup code environment
+        uses: ./.github/actions/setup-code-env
         with:
-          python-version: '3.12'
-
-      - name: Install UV package manager
-        run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-
-      - name: Install dependencies
-        run: |
-          uv pip install --system -e ".[dev]"
+          gh-token: ${{ secrets.GITHUB_TOKEN }}
+          enable-pester: false
+          enable-git-hooks: false
 
       - name: Validate memory tier hierarchy (ADR-017)
         id: tier-validation
