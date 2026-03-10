@@ -109,7 +109,7 @@ The script auto-resolves these by accepting the target branch version.
 
 | Pattern | Rationale |
 |---------|-----------|
-| `.agents/sessions/*.md` | Session files from main are immutable audit records |
+| `.agents/sessions/*.json` | Session files from main are immutable audit records |
 | `.agents/*` | Session artifacts, constantly changing |
 | `.serena/*` | Serena memories, auto-generated |
 | `.claude/skills/*/*.md` | Skill definitions, main is authoritative |
@@ -131,8 +131,8 @@ Resolves PR merge conflicts with auto-resolution for known file patterns.
 
 ```bash
 python3 .claude/skills/merge-resolver/scripts/resolve_pr_conflicts.py \
-    --pr-number <number> [--branch-name <name>] [--target-branch <branch>] \
-    [--worktree-path <path>] [--dry-run]
+    --pr-number <number> --branch-name <name> [--target-branch <branch>] \
+    [--worktree-base-path <path>] [--dry-run]
 ```
 
 **Exit codes:**
@@ -148,10 +148,10 @@ When running with `--dry-run`, exit code `0` indicates that conflicts were fully
 
 ```json
 {
-  "Success": true,
-  "Message": "Successfully resolved conflicts for PR #123",
-  "FilesResolved": [".agents/HANDOFF.md"],
-  "FilesBlocked": []
+  "success": true,
+  "message": "Successfully resolved conflicts for PR #123",
+  "files_resolved": [".agents/HANDOFF.md"],
+  "files_blocked": []
 }
 ```
 
@@ -235,7 +235,7 @@ Session protocol validation is a CI blocking gate. Pushing without completing se
 
 ```bash
 # 1. Ensure session log exists
-SESSION_LOG=$(ls -t -- .agents/sessions/*.md 2>/dev/null | head -1)
+SESSION_LOG=$(ls -t -- .agents/sessions/*.json 2>/dev/null | head -1)
 if [ -z "$SESSION_LOG" ]; then
     echo "ERROR: No session log found."
     exit 1

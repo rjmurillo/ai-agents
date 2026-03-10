@@ -16,45 +16,46 @@ import { featureB } from './b';
 >>>>>>> main
 ```
 
-**Resolution:**
+**Resolution:** Keep both additions in the correct order.
+
+## Moved or Renamed Code
 
 One side moves code, other modifies it.
 
 **Pattern:**
 
-
 ```bash
 git log --follow --diff-filter=R -- <file>
+```
+
 Common in JavaScript/TypeScript, C#, Python.
 
 **Patterns:**
 
 - **Renamed imports** - Check usage in file, keep the one being used
-
 - **Conflicting aliases** - Pick one, update all usages
 
-
-grep -n "<import-name>" <file>
-
+```bash
+grep -n -- "<import-name>" <file>
 ```
+
 ## Deleted Code
 
 **Investigation:**
 
 1. Why was it deleted? Check commit message
-
-
 2. Is the modification still relevant?
+
 ```bash
 # Find deletion commit
 git log --diff-filter=D -- <file>
 
 # Check if code exists elsewhere
-
-
 git grep "<distinctive-code-fragment>"
+```
 
 **Resolution:**
+
 - If deleted intentionally (deprecated, unused) - Accept deletion
 - If deleted for refactor - Apply modification to new location
 - If accidentally deleted - Restore with modifications
@@ -70,43 +71,43 @@ Both sides change the same logic differently.
 **Resolution Priority:**
 
 1. Bugfix over feature
-3. More recent over older (if both are features)
-4. Better tested over untested
+2. More recent over older (if both are features)
+3. Better tested over untested
 
 ```bash
 # Check test coverage for each version
 git show <commit>:tests/<test-file>
+```
+
+## Style/Formatting Conflicts
 
 Whitespace, line endings, indentation.
 
 **Pattern:** Accept the version matching project conventions.
 
+```bash
 cat .prettierrc
 ```
 
-**Resolution:**
+**Resolution:** Verify no functional changes mixed with style changes.
 
-3. Verify no functional changes
+## Lock File Conflicts
 
 ```bash
-
 # Accept base, regenerate
 git checkout --theirs package-lock.json
 npm install
-
-
-
 ```
 
 ## Configuration File Conflicts
 
+1. Identify which keys changed on each side
 2. Merge at the semantic level (not line level)
 3. Validate JSON/YAML syntax
 
 ```bash
 # Validate JSON
 cat <file> | jq .
-
 
 # Validate YAML
 python -c "import yaml; yaml.safe_load(open('<file>'))"
@@ -118,6 +119,8 @@ python -c "import yaml; yaml.safe_load(open('<file>'))"
 
 **Resolution:**
 
+1. Accept one version
+2. Create a new migration for the other change
 3. Update migration dependencies if needed
 
 ## Numbered Documentation Conflicts (ADR, RFC)
@@ -135,7 +138,6 @@ git show main:".agents/architecture/" | grep "^ADR-" | sort -t'-' -k2 -n
 git show HEAD:".agents/architecture/" | grep "^ADR-" | sort -t'-' -k2 -n
 
 # Find next available number
-
 ```
 
 1. Keep the version from `main` (canonical, already merged)
@@ -157,7 +159,6 @@ git grep -l "ADR-021" -- "*.md" | xargs sed -i 's/ADR-021/ADR-023/g'
 **Validation:**
 
 - All cross-references updated (session logs, PRDs, HANDOFF.md)
-
 - Debate logs and critique files renamed consistently
 
 **Related Files to Update:**
@@ -165,8 +166,7 @@ git grep -l "ADR-021" -- "*.md" | xargs sed -i 's/ADR-021/ADR-023/g'
 - `.agents/critique/ADR-NNN-debate-log.md`
 - `.agents/critique/ADR-NNN-*-critique.md`
 - `.agents/planning/PRD-*.md` (References section)
-
-- `.agents/sessions/*.md` (if ADR mentioned)
+- `.agents/sessions/*.json` (if ADR mentioned)
 
 ## Template-Generated File Conflicts
 
@@ -177,12 +177,12 @@ git grep -l "ADR-021" -- "*.md" | xargs sed -i 's/ADR-021/ADR-023/g'
 
 **Investigation:**
 
-
+```bash
 # Check if file is generated
 head -5 src/claude/architect.md  # Look for "Generated from" comment
 
 # Find the source template
-grep -r "architect" templates/agents/*.shared.md
+grep -r -- "architect" templates/agents/*.shared.md
 
 # Check template modification dates
 ```
@@ -199,7 +199,6 @@ grep -r "architect" templates/agents/*.shared.md
 
 # Regenerate all platform files
 pwsh build/Generate-Agents.ps1
-
 
 git add src/claude/*.md src/copilot-cli/*.md src/vs-code-agents/*.md
 ```
@@ -226,7 +225,6 @@ git add src/claude/*.md src/copilot-cli/*.md src/vs-code-agents/*.md
 **Investigation:**
 
 ```bash
-
 git log --oneline -1 REBASE_HEAD
 
 # Compare the two versions
@@ -234,6 +232,8 @@ git show REBASE_HEAD:<file> # Version being rebased
 ```
 
 **Resolution Options:**
+
+1. **Accept main's version** (most common for generated/session files):
 
    ```bash
    git checkout --theirs <file>
@@ -243,10 +243,11 @@ git show REBASE_HEAD:<file> # Version being rebased
 
 2. **Keep branch's version** (if branch has needed changes):
 
+   ```bash
    git checkout --ours <file>
-
    git add <file>
-
+   git rebase --continue
+   ```
 
 3. **Merge content** (if both versions needed):
    - Manually combine content
@@ -256,11 +257,8 @@ git show REBASE_HEAD:<file> # Version being rebased
    git checkout --theirs <file>
    # Extract branch's content to new name
    git show REBASE_HEAD:<file> > <new-file-path>
-
-
+   git add <file> <new-file-path>
    git rebase --continue
-
-
    ```
 
 **Common Add/Add Scenarios:**
