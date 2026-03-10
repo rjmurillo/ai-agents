@@ -161,7 +161,7 @@ class SkillValidator:
         except ImportError:
             ALLOWED_PROPERTIES = {
                 'name', 'description', 'license', 'allowed-tools', 'metadata',
-                'model', 'context', 'agent', 'hooks', 'user-invocable'
+                'model', 'context', 'agent', 'hooks', 'user-invocable', 'version'
             }
             REQUIRED_PROPERTIES = {'name', 'description'}
             RECOMMENDED_PROPERTIES = {'license'}
@@ -227,18 +227,16 @@ class SkillValidator:
                 warning=True
             )
 
-        # Check version location (should be in metadata, not root)
+        # Validate version format (top-level or in metadata)
         if "version" in self.frontmatter:
+            version = self.frontmatter["version"]
             self.check(
-                "frontmatter.version.location",
-                False,
-                "'version' should be under 'metadata', not at root level. "
-                "Move to metadata.version for better organization.",
+                "frontmatter.version.format",
+                re.match(SEMVER_REGEX, str(version)),
+                f"Version should be semver format (e.g., 1.0.0 or 1.0.0-beta.1): {version}",
                 warning=True
             )
-
-        # Validate version format if in metadata
-        if "metadata" in self.frontmatter and isinstance(self.frontmatter["metadata"], dict):
+        elif "metadata" in self.frontmatter and isinstance(self.frontmatter["metadata"], dict):
             version = self.frontmatter["metadata"].get("version")
             if version:
                 self.check(

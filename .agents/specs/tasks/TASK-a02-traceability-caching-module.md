@@ -1,11 +1,11 @@
 ---
 type: task
-id: TASK-001
+id: TASK-a02
 status: done
 related:
-  - DESIGN-001
+  - DESIGN-a02
 ---
-# TASK-001: Implement Caching Module
+# TASK-a02: Implement Caching Module
 
 Created `scripts/traceability/TraceabilityCache.psm1` with:
 
