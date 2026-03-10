@@ -173,7 +173,7 @@ class TestMain:
             rc = main(["--checks-input", checks_json])
         assert rc == 0
         output = json.loads(capsys.readouterr().out)
-        assert output["FailingChecks"] == 0
+        assert output["Data"]["FailingChecks"] == 0
 
     def test_pipeline_mode_external_ci(self, capsys):
         checks_json = json.dumps({
@@ -194,4 +194,4 @@ class TestMain:
             rc = main(["--checks-input", checks_json])
         assert rc == 0
         output = json.loads(capsys.readouterr().out)
-        assert output["CheckLogs"][0]["LogSource"] == "external"
+        assert output["Data"]["CheckLogs"][0]["LogSource"] == "external"
