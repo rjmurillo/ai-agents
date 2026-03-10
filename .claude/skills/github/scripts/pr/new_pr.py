@@ -31,16 +31,19 @@ _CONVENTIONAL_COMMIT_PATTERN = re.compile(
 )
 
 
+def _git_env() -> dict[str, str]:
+    """Return environment with GIT_DIR/GIT_WORK_TREE stripped to avoid hook interference."""
+    return {k: v for k, v in os.environ.items() if k not in ("GIT_DIR", "GIT_WORK_TREE")}
+
+
 def get_repo_root() -> str:
     """Get the git repository root directory."""
-    # Strip GIT_DIR/GIT_WORK_TREE to avoid hook environment interference
-    env = {k: v for k, v in os.environ.items() if k not in ("GIT_DIR", "GIT_WORK_TREE")}
     result = subprocess.run(
         ["git", "rev-parse", "--show-toplevel"],
         capture_output=True,
         text=True,
         timeout=10,
-        env=env,
+        env=_git_env(),
     )
     if result.returncode != 0:
         print("Not in a git repository", file=sys.stderr)
@@ -80,6 +83,7 @@ def run_validations(repo_root: str, base: str, head: str) -> None:
         capture_output=True,
         text=True,
         timeout=30,
+        env=_git_env(),
     )
     changed_files = result.stdout.strip().splitlines() if result.returncode == 0 else []
     agents_changed = any(f.startswith(".agents/") for f in changed_files)
@@ -208,6 +212,7 @@ def main(argv: list[str] | None = None) -> int:
             capture_output=True,
             text=True,
             timeout=10,
+            env=_git_env(),
         )
         head = result.stdout.strip()
         if not head:

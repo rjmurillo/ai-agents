@@ -303,7 +303,7 @@ class TestRunValidations:
 
     def test_agents_changed_with_session_log_runs_validator(self, tmp_path):
         changed = ".agents/sessions/2025-01-01-session-01.md\n"
-        validate_script = tmp_path / "scripts" / "Validate-Session.ps1"
+        validate_script = tmp_path / "scripts" / "validate_session_json.py"
         validate_script.parent.mkdir(parents=True)
         validate_script.write_text("# mock")
 
@@ -311,14 +311,14 @@ class TestRunValidations:
             "subprocess.run",
             side_effect=[
                 _completed(stdout=changed, rc=0),  # git diff
-                _completed(rc=0),  # pwsh validation
+                _completed(rc=0),  # python validation
             ],
         ):
             run_validations(str(tmp_path), "main", "feat/branch")
 
     def test_agents_changed_session_validation_fails_exits_1(self, tmp_path):
         changed = ".agents/sessions/2025-01-01-session-01.md\n"
-        validate_script = tmp_path / "scripts" / "Validate-Session.ps1"
+        validate_script = tmp_path / "scripts" / "validate_session_json.py"
         validate_script.parent.mkdir(parents=True)
         validate_script.write_text("# mock")
 
@@ -326,7 +326,7 @@ class TestRunValidations:
             "subprocess.run",
             side_effect=[
                 _completed(stdout=changed, rc=0),  # git diff
-                _completed(rc=1, stderr="validation failed"),  # pwsh validation
+                _completed(rc=1, stderr="validation failed"),  # python validation
             ],
         ):
             with pytest.raises(SystemExit) as exc:
