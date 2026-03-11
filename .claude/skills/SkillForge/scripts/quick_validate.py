@@ -31,7 +31,7 @@ except ImportError:
     # Fallback if _constants.py not available
     ALLOWED_PROPERTIES = {
         'name', 'description', 'license', 'allowed-tools', 'metadata',
-        'model', 'context', 'agent', 'hooks', 'user-invocable'
+        'model', 'context', 'agent', 'hooks', 'user-invocable', 'version'
     }
     REQUIRED_PROPERTIES = {'name', 'description'}
     NAME_MAX_LENGTH = 64

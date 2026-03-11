@@ -19,18 +19,8 @@ import os
 import shutil
 import subprocess
 import sys
-from pathlib import Path
 
-
-def get_repo_root() -> Path | None:
-    result = subprocess.run(
-        ["git", "rev-parse", "--show-toplevel"],
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode != 0:
-        return None
-    return Path(result.stdout.strip())
+from scripts.github_core.repo import get_repo_root
 
 
 def main(argv: list[str] | None = None) -> int:

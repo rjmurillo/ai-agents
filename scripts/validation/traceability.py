@@ -21,10 +21,11 @@ import argparse
 import json
 import os
 import re
-import subprocess
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
+
+from scripts.github_core.repo import get_repo_root
 
 # ---------------------------------------------------------------------------
 # Data classes
@@ -459,19 +460,10 @@ def validate_specs_path(specs_path_str: str) -> Path:
 
     if not is_absolute:
         # Relative path: enforce traversal protection
-        try:
-            result = subprocess.run(
-                ["git", "rev-parse", "--show-toplevel"],
-                capture_output=True,
-                text=True,
-                timeout=10,
-            )
-            repo_root = result.stdout.strip() if result.returncode == 0 else None
-        except (subprocess.TimeoutExpired, FileNotFoundError):
-            repo_root = None
+        repo_root = get_repo_root()
 
         if repo_root:
-            allowed_base = Path(repo_root).resolve()
+            allowed_base = repo_root.resolve()
             if not resolved.is_relative_to(allowed_base):
                 print(
                     f"Path traversal attempt detected: '{specs_path_str}' "

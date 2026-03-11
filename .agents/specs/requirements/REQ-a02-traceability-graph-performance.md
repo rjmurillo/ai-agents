@@ -1,12 +1,12 @@
 ---
 type: requirement
-id: REQ-001
+id: REQ-a02
 status: implemented
 related:
-  - DESIGN-001
-  - TASK-001
+  - DESIGN-a02
+  - TASK-a02
 ---
-# REQ-001: Traceability Graph Performance
+# REQ-a02: Traceability Graph Performance
 
 Optimize the markdown-based traceability graph for performance, robustness, and durability.
 
