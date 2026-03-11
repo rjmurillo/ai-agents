@@ -19,6 +19,7 @@ import re
 import subprocess
 import sys
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 _WORKSPACE = os.environ.get(
@@ -72,12 +73,20 @@ def _get_commit() -> str:
 
 def _get_repo_root() -> str:
     result = subprocess.run(
-        ["git", "rev-parse", "--show-toplevel"],
+        ["git", "rev-parse", "--git-common-dir"],
         capture_output=True, text=True, timeout=10, check=False,
     )
     if result.returncode != 0:
         return _WORKSPACE
-    return result.stdout.strip() or _WORKSPACE
+    raw = result.stdout.strip()
+    if not raw:
+        return _WORKSPACE
+    git_common = Path(raw)
+    if not git_common.is_absolute():
+        git_common = (Path.cwd() / git_common).resolve()
+    else:
+        git_common = git_common.resolve()
+    return str(git_common.parent)
 
 
 def main(argv: list[str] | None = None) -> int:

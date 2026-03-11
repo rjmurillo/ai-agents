@@ -48,14 +48,19 @@ def _color_print(message: str, msg_type: str = "info") -> None:
 def _get_repo_root() -> Path | None:
     """Get the git repository root."""
     result = subprocess.run(
-        ["git", "rev-parse", "--show-toplevel"],
+        ["git", "rev-parse", "--git-common-dir"],
         capture_output=True,
         text=True,
         check=False,
     )
     if result.returncode != 0:
         return None
-    return Path(result.stdout.strip())
+    git_common = Path(result.stdout.strip())
+    if not git_common.is_absolute():
+        git_common = (Path.cwd() / git_common).resolve()
+    else:
+        git_common = git_common.resolve()
+    return git_common.parent
 
 
 def build_parser() -> argparse.ArgumentParser:

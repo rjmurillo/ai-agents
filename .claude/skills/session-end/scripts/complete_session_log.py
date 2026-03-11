@@ -19,6 +19,7 @@ import re
 import subprocess
 import sys
 from datetime import UTC
+from pathlib import Path
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -38,14 +39,19 @@ def build_parser() -> argparse.ArgumentParser:
 
 def _get_repo_root() -> str:
     result = subprocess.run(
-        ["git", "rev-parse", "--show-toplevel"],
+        ["git", "rev-parse", "--git-common-dir"],
         capture_output=True, text=True, timeout=10, check=False,
     )
     if result.returncode != 0:
         return os.path.abspath(
             os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", ".."),
         )
-    return result.stdout.strip()
+    git_common = Path(result.stdout.strip())
+    if not git_common.is_absolute():
+        git_common = (Path.cwd() / git_common).resolve()
+    else:
+        git_common = git_common.resolve()
+    return str(git_common.parent)
 
 
 def _find_current_session_log(sessions_dir: str) -> str | None:

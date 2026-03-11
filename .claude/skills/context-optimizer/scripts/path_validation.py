@@ -26,13 +26,18 @@ def get_repo_root() -> Path:
     """
     try:
         result = subprocess.run(
-            ["git", "rev-parse", "--show-toplevel"],
+            ["git", "rev-parse", "--git-common-dir"],
             capture_output=True,
             text=True,
             check=True,
             timeout=5,
         )
-        return Path(result.stdout.strip()).resolve()
+        git_common = Path(result.stdout.strip())
+        if not git_common.is_absolute():
+            git_common = (Path.cwd() / git_common).resolve()
+        else:
+            git_common = git_common.resolve()
+        return git_common.parent
     except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired) as exc:
         raise RuntimeError("Unable to determine repository root") from exc
 
