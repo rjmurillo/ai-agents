@@ -19,6 +19,8 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+from scripts.github_core.repo import get_repo_root
+
 
 def run_git(*args: str, cwd: str | Path | None = None) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
@@ -205,11 +207,11 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if not args.worktree_root:
-        result = run_git("rev-parse", "--show-toplevel")
-        if result.returncode != 0:
+        repo_root = get_repo_root()
+        if repo_root is None:
             print("ERROR: Not in a git repository", file=sys.stderr)
             return 1
-        args.worktree_root = Path(result.stdout.strip()).parent
+        args.worktree_root = repo_root.parent
 
     op = args.operation
 
