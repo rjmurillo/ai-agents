@@ -82,46 +82,45 @@ class TestCheckSessionLogEvidence:
         assert len(result["content"]) <= 200
 
 
+@pytest.fixture(autouse=True)
+def _no_consumer_repo_skip():
+    with patch("invoke_session_log_guard.skip_if_consumer_repo", return_value=False):
+        yield
+
+
 class TestMainAllow:
     """Tests for main() allowing commits."""
 
-    @patch("invoke_session_log_guard.skip_if_consumer_repo", return_value=False)
-    def test_stdin_is_tty(self, mock_skip, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_stdin_is_tty(self, monkeypatch: pytest.MonkeyPatch) -> None:
         with patch("invoke_session_log_guard.sys.stdin") as mock_stdin:
             mock_stdin.isatty.return_value = True
             assert main() == 0
 
-    @patch("invoke_session_log_guard.skip_if_consumer_repo", return_value=False)
-    def test_empty_stdin(self, mock_skip, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_empty_stdin(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr("sys.stdin", io.StringIO(""))
         assert main() == 0
 
-    @patch("invoke_session_log_guard.skip_if_consumer_repo", return_value=False)
-    def test_whitespace_stdin(self, mock_skip, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_whitespace_stdin(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr("sys.stdin", io.StringIO("   "))
         assert main() == 0
 
-    @patch("invoke_session_log_guard.skip_if_consumer_repo", return_value=False)
-    def test_no_tool_input(self, mock_skip, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_no_tool_input(self, monkeypatch: pytest.MonkeyPatch) -> None:
         data = json.dumps({"tool_name": "Bash"})
         monkeypatch.setattr("sys.stdin", io.StringIO(data))
         assert main() == 0
 
-    @patch("invoke_session_log_guard.skip_if_consumer_repo", return_value=False)
-    def test_no_command(self, mock_skip, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_no_command(self, monkeypatch: pytest.MonkeyPatch) -> None:
         data = json.dumps({"tool_input": {"file_path": "/some/file"}})
         monkeypatch.setattr("sys.stdin", io.StringIO(data))
         assert main() == 0
 
-    @patch("invoke_session_log_guard.skip_if_consumer_repo", return_value=False)
-    def test_non_commit_command(self, mock_skip, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_non_commit_command(self, monkeypatch: pytest.MonkeyPatch) -> None:
         data = json.dumps({"tool_input": {"command": "git status"}})
         monkeypatch.setattr("sys.stdin", io.StringIO(data))
         assert main() == 0
 
-    @patch("invoke_session_log_guard.skip_if_consumer_repo", return_value=False)
     def test_commit_with_valid_session_log(
-        self, mock_skip, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         sessions_dir = tmp_path / ".agents" / "sessions"
         sessions_dir.mkdir(parents=True)
@@ -136,8 +135,7 @@ class TestMainAllow:
         with patch("invoke_session_log_guard.get_today_session_log", return_value=log_file):
             assert main() == 0
 
-    @patch("invoke_session_log_guard.skip_if_consumer_repo", return_value=False)
-    def test_invalid_json_fails_open(self, mock_skip, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_invalid_json_fails_open(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr("sys.stdin", io.StringIO("{invalid json"))
         assert main() == 0
 
@@ -145,9 +143,8 @@ class TestMainAllow:
 class TestMainBlock:
     """Tests for main() blocking commits."""
 
-    @patch("invoke_session_log_guard.skip_if_consumer_repo", return_value=False)
     def test_commit_without_session_log(
-        self, mock_skip, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture
     ) -> None:
         sessions_dir = tmp_path / ".agents" / "sessions"
@@ -165,9 +162,8 @@ class TestMainBlock:
         assert "BLOCKED" in captured.out
         assert "No Session Log Found" in captured.out
 
-    @patch("invoke_session_log_guard.skip_if_consumer_repo", return_value=False)
     def test_commit_with_empty_session_log(
-        self, mock_skip, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture
     ) -> None:
         sessions_dir = tmp_path / ".agents" / "sessions"
@@ -187,9 +183,8 @@ class TestMainBlock:
         assert "BLOCKED" in captured.out
         assert "Empty or Invalid" in captured.out
 
-    @patch("invoke_session_log_guard.skip_if_consumer_repo", return_value=False)
     def test_commit_with_ci_alias_blocked(
-        self, mock_skip, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         sessions_dir = tmp_path / ".agents" / "sessions"
         sessions_dir.mkdir(parents=True)

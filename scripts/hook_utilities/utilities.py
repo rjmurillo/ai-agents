@@ -12,6 +12,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 _GIT_COMMIT_PATTERN = re.compile(r"(?:^|\s)git\s+(commit|ci)")
+_GIT_PUSH_PATTERN = re.compile(r"(?:^|\s)git\s+push(?:\s|$)")
 _DATE_FORMAT = re.compile(r"\d{4}-\d{2}-\d{2}")
 
 
@@ -50,6 +51,18 @@ def is_git_commit_command(command: str | None) -> bool:
     if not command:
         return False
     return _GIT_COMMIT_PATTERN.search(command) is not None
+
+
+def is_git_push_command(command: str | None) -> bool:
+    """Check if a command string is a git push command."""
+    if not command:
+        return False
+    return _GIT_PUSH_PATTERN.search(command) is not None
+
+
+def is_git_commit_or_push_command(command: str | None) -> bool:
+    """Check if a command string is a git commit, ci, or push command."""
+    return is_git_commit_command(command) or is_git_push_command(command)
 
 
 def get_today_session_log(sessions_dir: str, date: str | None = None) -> Path | None:

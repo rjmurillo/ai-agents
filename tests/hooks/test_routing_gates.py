@@ -155,9 +155,13 @@ class TestIsValidProjectRoot:
 class TestMain:
     """Tests for main() entry point."""
 
-    @patch("invoke_routing_gates.skip_if_consumer_repo", return_value=False)
+    @pytest.fixture(autouse=True)
+    def _no_consumer_repo_skip(self):
+        with patch("invoke_routing_gates.skip_if_consumer_repo", return_value=False):
+            yield
+
     @patch("invoke_routing_gates.is_valid_project_root", return_value=True)
-    def test_allows_non_pr_commands(self, mock_valid, mock_skip, monkeypatch, tmp_path):
+    def test_allows_non_pr_commands(self, mock_valid, monkeypatch, tmp_path):
         (tmp_path / ".agents" / "sessions").mkdir(parents=True)
         monkeypatch.chdir(tmp_path)
         input_data = json.dumps({
@@ -166,9 +170,8 @@ class TestMain:
         monkeypatch.setattr("sys.stdin", io.StringIO(input_data))
         assert invoke_routing_gates.main() == 0
 
-    @patch("invoke_routing_gates.skip_if_consumer_repo", return_value=False)
     @patch("invoke_routing_gates.is_valid_project_root", return_value=True)
-    def test_allows_pr_with_skip_qa_gate(self, mock_valid, mock_skip, monkeypatch, tmp_path):
+    def test_allows_pr_with_skip_qa_gate(self, mock_valid, monkeypatch, tmp_path):
         (tmp_path / ".agents" / "sessions").mkdir(parents=True)
         monkeypatch.chdir(tmp_path)
         monkeypatch.setenv("SKIP_QA_GATE", "true")
@@ -178,12 +181,11 @@ class TestMain:
         monkeypatch.setattr("sys.stdin", io.StringIO(input_data))
         assert invoke_routing_gates.main() == 0
 
-    @patch("invoke_routing_gates.skip_if_consumer_repo", return_value=False)
     @patch("invoke_routing_gates.is_valid_project_root", return_value=True)
     @patch("invoke_routing_gates.check_qa_evidence", return_value=False)
     @patch("invoke_routing_gates.check_documentation_only", return_value=False)
     def test_blocks_pr_without_qa_evidence(
-        self, mock_doc, mock_qa, mock_valid, mock_skip, monkeypatch, tmp_path, capsys
+        self, mock_doc, mock_qa, mock_valid, monkeypatch, tmp_path, capsys
     ):
         (tmp_path / ".agents" / "sessions").mkdir(parents=True)
         monkeypatch.chdir(tmp_path)
@@ -198,10 +200,9 @@ class TestMain:
         output = json.loads(captured.out)
         assert output["decision"] == "deny"
 
-    @patch("invoke_routing_gates.skip_if_consumer_repo", return_value=False)
     @patch("invoke_routing_gates.is_valid_project_root", return_value=True)
     @patch("invoke_routing_gates.check_documentation_only", return_value=True)
-    def test_allows_pr_with_docs_only(self, mock_doc, mock_valid, mock_skip, monkeypatch, tmp_path):
+    def test_allows_pr_with_docs_only(self, mock_doc, mock_valid, monkeypatch, tmp_path):
         (tmp_path / ".agents" / "sessions").mkdir(parents=True)
         monkeypatch.chdir(tmp_path)
         monkeypatch.delenv("SKIP_QA_GATE", raising=False)
@@ -211,12 +212,11 @@ class TestMain:
         monkeypatch.setattr("sys.stdin", io.StringIO(input_data))
         assert invoke_routing_gates.main() == 0
 
-    @patch("invoke_routing_gates.skip_if_consumer_repo", return_value=False)
     @patch("invoke_routing_gates.is_valid_project_root", return_value=True)
     @patch("invoke_routing_gates.check_qa_evidence", return_value=True)
     @patch("invoke_routing_gates.check_documentation_only", return_value=False)
     def test_allows_pr_with_qa_evidence(
-        self, mock_doc, mock_qa, mock_valid, mock_skip, monkeypatch, tmp_path
+        self, mock_doc, mock_qa, mock_valid, monkeypatch, tmp_path
     ):
         (tmp_path / ".agents" / "sessions").mkdir(parents=True)
         monkeypatch.chdir(tmp_path)
@@ -227,17 +227,15 @@ class TestMain:
         monkeypatch.setattr("sys.stdin", io.StringIO(input_data))
         assert invoke_routing_gates.main() == 0
 
-    @patch("invoke_routing_gates.skip_if_consumer_repo", return_value=False)
     @patch("invoke_routing_gates.is_valid_project_root", return_value=True)
-    def test_handles_invalid_json(self, mock_valid, mock_skip, monkeypatch, tmp_path):
+    def test_handles_invalid_json(self, mock_valid, monkeypatch, tmp_path):
         (tmp_path / ".agents" / "sessions").mkdir(parents=True)
         monkeypatch.chdir(tmp_path)
         monkeypatch.setattr("sys.stdin", io.StringIO("not json"))
         assert invoke_routing_gates.main() == 0
 
-    @patch("invoke_routing_gates.skip_if_consumer_repo", return_value=False)
     @patch("invoke_routing_gates.is_valid_project_root", return_value=False)
-    def test_invalid_project_root_fails_open(self, mock_valid, mock_skip, monkeypatch, tmp_path):
+    def test_invalid_project_root_fails_open(self, mock_valid, monkeypatch, tmp_path):
         monkeypatch.chdir(tmp_path)
         input_data = json.dumps({
             "tool_input": {"command": "gh pr create"},

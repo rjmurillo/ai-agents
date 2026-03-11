@@ -173,6 +173,19 @@ To add project-specific knowledge:
 2. Reference it from the memory index
 3. Agents discover and read it automatically
 
+### User docs vs. contributor docs
+
+Files distributed to end-users and files used by contributors serve different audiences and must not be mixed.
+
+| Type | Location | Audience | Content focus |
+|------|----------|----------|---------------|
+| **User docs** | `src/claude/`, `src/copilot-cli/`, `src/vs-code-agents/` | Consumers who install the agents | How to *use* the agents, available commands, workflows |
+| **Contributor docs** | Repo root (`CLAUDE.md`, `CONTRIBUTING.md`, `AGENTS.md`) | Developers working on this repository | Development setup, testing, repo conventions |
+
+**Rule**: Any file referenced by `InstructionsFile` in installer configuration must be user-focused. Never mix audiences in the same document. If a file lives in `src/` it is user-facing; if it lives at the repo root it is contributor-facing.
+
+When adding new installation artifacts, use the **Installation Artifacts** section in the PRD template to verify each referenced file exists and targets the correct audience.
+
 ## Platform-Specific Customization
 
 ### Claude Code only

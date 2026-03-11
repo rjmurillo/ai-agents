@@ -195,34 +195,35 @@ class TestWriteAuditLog:
 class TestMain:
     """Tests for main() entry point."""
 
-    @patch("invoke_adr_review_guard.skip_if_consumer_repo", return_value=False)
-    def test_allows_non_commit_command(self, mock_skip, monkeypatch):
+    @pytest.fixture(autouse=True)
+    def _no_consumer_repo_skip(self):
+        with patch("invoke_adr_review_guard.skip_if_consumer_repo", return_value=False):
+            yield
+
+    def test_allows_non_commit_command(self, monkeypatch):
         input_data = json.dumps({
             "tool_input": {"command": "git push"},
         })
         monkeypatch.setattr("sys.stdin", io.StringIO(input_data))
         assert invoke_adr_review_guard.main() == 0
 
-    @patch("invoke_adr_review_guard.skip_if_consumer_repo", return_value=False)
-    def test_allows_empty_input(self, mock_skip, monkeypatch):
+    def test_allows_empty_input(self, monkeypatch):
         monkeypatch.setattr("sys.stdin", io.StringIO(""))
         assert invoke_adr_review_guard.main() == 0
 
-    @patch("invoke_adr_review_guard.skip_if_consumer_repo", return_value=False)
     @patch("invoke_adr_review_guard.get_staged_adr_changes", return_value=[])
-    def test_allows_commit_without_adr_changes(self, mock_changes, mock_skip, monkeypatch):
+    def test_allows_commit_without_adr_changes(self, mock_changes, monkeypatch):
         input_data = json.dumps({
             "tool_input": {"command": "git commit -m 'fix'"},
         })
         monkeypatch.setattr("sys.stdin", io.StringIO(input_data))
         assert invoke_adr_review_guard.main() == 0
 
-    @patch("invoke_adr_review_guard.skip_if_consumer_repo", return_value=False)
     @patch("invoke_adr_review_guard.get_today_session_log", return_value=None)
     @patch("invoke_adr_review_guard.get_project_directory", return_value="/project")
     @patch("invoke_adr_review_guard.get_staged_adr_changes", return_value=["ADR-001.md"])
     def test_blocks_adr_commit_without_session_log(
-        self, mock_changes, mock_proj, mock_session, mock_skip,
+        self, mock_changes, mock_proj, mock_session,
         monkeypatch, capsys
     ):
         input_data = json.dumps({
@@ -234,13 +235,12 @@ class TestMain:
         captured = capsys.readouterr()
         assert "BLOCKED" in captured.out
 
-    @patch("invoke_adr_review_guard.skip_if_consumer_repo", return_value=False)
     @patch("invoke_adr_review_guard.check_adr_review_evidence")
     @patch("invoke_adr_review_guard.get_today_session_log")
     @patch("invoke_adr_review_guard.get_project_directory", return_value="/project")
     @patch("invoke_adr_review_guard.get_staged_adr_changes", return_value=["ADR-001.md"])
     def test_blocks_adr_commit_without_evidence(
-        self, mock_changes, mock_proj, mock_session, mock_evidence, mock_skip,
+        self, mock_changes, mock_proj, mock_session, mock_evidence,
         monkeypatch, tmp_path
     ):
         session_log = tmp_path / "session.json"
@@ -254,13 +254,12 @@ class TestMain:
         result = invoke_adr_review_guard.main()
         assert result == 2
 
-    @patch("invoke_adr_review_guard.skip_if_consumer_repo", return_value=False)
     @patch("invoke_adr_review_guard.check_adr_review_evidence")
     @patch("invoke_adr_review_guard.get_today_session_log")
     @patch("invoke_adr_review_guard.get_project_directory", return_value="/project")
     @patch("invoke_adr_review_guard.get_staged_adr_changes", return_value=["ADR-001.md"])
     def test_allows_adr_commit_with_evidence(
-        self, mock_changes, mock_proj, mock_session, mock_evidence, mock_skip,
+        self, mock_changes, mock_proj, mock_session, mock_evidence,
         monkeypatch, tmp_path
     ):
         session_log = tmp_path / "session.json"
@@ -273,40 +272,84 @@ class TestMain:
         monkeypatch.setattr("sys.stdin", io.StringIO(input_data))
         assert invoke_adr_review_guard.main() == 0
 
-    @patch("invoke_adr_review_guard.skip_if_consumer_repo", return_value=False)
     @patch("invoke_adr_review_guard.get_staged_adr_changes", side_effect=RuntimeError("git failed"))
-    def test_blocks_on_git_error_fail_closed(self, mock_changes, mock_skip, monkeypatch):
+    def test_blocks_on_git_error_fail_closed(self, mock_changes, monkeypatch):
         input_data = json.dumps({
             "tool_input": {"command": "git commit -m 'update'"},
         })
         monkeypatch.setattr("sys.stdin", io.StringIO(input_data))
         assert invoke_adr_review_guard.main() == 2
 
-    @patch("invoke_adr_review_guard.skip_if_consumer_repo", return_value=False)
-    def test_fails_open_on_unexpected_error(self, mock_skip, monkeypatch):
+    def test_fails_open_on_unexpected_error(self, monkeypatch):
         monkeypatch.setattr("sys.stdin", io.StringIO("not valid json at all {{{"))
         # Should fail-open (exit 0) on JSON parse error in outer try
         assert invoke_adr_review_guard.main() == 0
 
-    @patch("invoke_adr_review_guard.skip_if_consumer_repo", return_value=False)
-    def test_allows_missing_tool_input(self, mock_skip, monkeypatch):
+    def test_allows_missing_tool_input(self, monkeypatch):
         input_data = json.dumps({"cwd": "/tmp"})
         monkeypatch.setattr("sys.stdin", io.StringIO(input_data))
         assert invoke_adr_review_guard.main() == 0
 
-    @patch("invoke_adr_review_guard.skip_if_consumer_repo", return_value=False)
-    def test_allows_non_dict_tool_input(self, mock_skip, monkeypatch):
+    def test_allows_non_dict_tool_input(self, monkeypatch):
         input_data = json.dumps({"tool_input": "string"})
         monkeypatch.setattr("sys.stdin", io.StringIO(input_data))
         assert invoke_adr_review_guard.main() == 0
 
-    @patch("invoke_adr_review_guard.skip_if_consumer_repo", return_value=False)
-    def test_stdin_tty_returns_zero(self, mock_skip, monkeypatch):
+    def test_stdin_tty_returns_zero(self, monkeypatch):
         """When stdin is tty, main returns 0 (fail-open)."""
         mock_stdin = io.StringIO("")
         mock_stdin.isatty = lambda: True
         monkeypatch.setattr("sys.stdin", mock_stdin)
         assert invoke_adr_review_guard.main() == 0
+
+
+class TestGetStagedADRChangesSubprocessErrors:
+    """Tests for subprocess error paths in get_staged_adr_changes."""
+
+    def test_file_not_found_bubbles_up(self):
+        """FileNotFoundError when git is not installed."""
+        with patch("subprocess.run", side_effect=FileNotFoundError("git not found")):
+            with pytest.raises(FileNotFoundError, match="git not found"):
+                invoke_adr_review_guard.get_staged_adr_changes()
+
+    def test_timeout_expired_bubbles_up(self):
+        """TimeoutExpired propagates to caller."""
+        with patch(
+            "subprocess.run",
+            side_effect=subprocess.TimeoutExpired(cmd="git", timeout=30),
+        ):
+            with pytest.raises(subprocess.TimeoutExpired):
+                invoke_adr_review_guard.get_staged_adr_changes()
+
+
+class TestMainSubprocessErrorPaths:
+    """Tests for subprocess error handling through main() entry point."""
+
+    @pytest.fixture(autouse=True)
+    def _no_consumer_repo_skip(self):
+        with patch("invoke_adr_review_guard.skip_if_consumer_repo", return_value=False):
+            yield
+
+    def _make_commit_input(self):
+        return json.dumps({"tool_input": {"command": "git commit -m 'test'"}})
+
+    @patch("invoke_adr_review_guard.get_staged_adr_changes")
+    def test_fails_closed_on_file_not_found(self, mock_changes, monkeypatch, capsys):
+        """FileNotFoundError (git missing) triggers fail-closed (exit 2)."""
+        mock_changes.side_effect = FileNotFoundError("git not found")
+        monkeypatch.setattr("sys.stdin", io.StringIO(self._make_commit_input()))
+        assert invoke_adr_review_guard.main() == 2
+        captured = capsys.readouterr()
+        assert "fail-closed" in captured.err
+
+    @patch("invoke_adr_review_guard.get_staged_adr_changes")
+    def test_fails_closed_on_timeout(self, mock_changes, monkeypatch, capsys):
+        """TimeoutExpired triggers fail-closed (exit 2)."""
+        mock_changes.side_effect = subprocess.TimeoutExpired(cmd="git", timeout=30)
+        monkeypatch.setattr("sys.stdin", io.StringIO(self._make_commit_input()))
+        assert invoke_adr_review_guard.main() == 2
+        captured = capsys.readouterr()
+        assert "fail-closed" in captured.err
 
 
 class TestModuleAsScript:

@@ -156,7 +156,7 @@ See `resources/diff-format.md` for specification.
    more_existing_code()
 ````
 
-### Milestone N: ...
+### Milestone N
 
 ### Milestone [Last]: Documentation
 

@@ -167,32 +167,34 @@ class TestPlaceholderPatterns:
             assert isinstance(pattern, re.Pattern)
 
 
+@pytest.fixture(autouse=True)
+def _no_consumer_repo_skip():
+    with patch("invoke_session_validator.skip_if_consumer_repo", return_value=False):
+        yield
+
+
 class TestMainAllow:
     """Tests for main() allowing stop."""
 
-    @patch("invoke_session_validator.skip_if_consumer_repo", return_value=False)
-    def test_tty_stdin(self, mock_skip) -> None:
+    def test_tty_stdin(self) -> None:
         with patch("invoke_session_validator.sys.stdin") as mock_stdin:
             mock_stdin.isatty.return_value = True
             assert main() == 0
 
-    @patch("invoke_session_validator.skip_if_consumer_repo", return_value=False)
-    def test_empty_stdin(self, mock_skip, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_empty_stdin(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr("sys.stdin", io.StringIO(""))
         assert main() == 0
 
-    @patch("invoke_session_validator.skip_if_consumer_repo", return_value=False)
     def test_directory_missing(
-        self, mock_skip, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(tmp_path / "nonexistent"))
         data = json.dumps({"cwd": str(tmp_path)})
         monkeypatch.setattr("sys.stdin", io.StringIO(data))
         assert main() == 0
 
-    @patch("invoke_session_validator.skip_if_consumer_repo", return_value=False)
     def test_complete_log(
-        self, mock_skip, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture
     ) -> None:
         sessions_dir = tmp_path / ".agents" / "sessions"
@@ -219,8 +221,7 @@ class TestMainAllow:
         # No continue response should be printed for a complete log
         assert not captured.out.strip()
 
-    @patch("invoke_session_validator.skip_if_consumer_repo", return_value=False)
-    def test_invalid_json_fails_open(self, mock_skip, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_invalid_json_fails_open(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr("sys.stdin", io.StringIO("{bad"))
         assert main() == 0
 
@@ -228,9 +229,8 @@ class TestMainAllow:
 class TestMainContinue:
     """Tests for main() requesting continuation."""
 
-    @patch("invoke_session_validator.skip_if_consumer_repo", return_value=False)
     def test_log_missing(
-        self, mock_skip, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture
     ) -> None:
         sessions_dir = tmp_path / ".agents" / "sessions"
@@ -251,9 +251,8 @@ class TestMainContinue:
         assert resp["continue"] is True
         assert "Session log missing" in resp["reason"]
 
-    @patch("invoke_session_validator.skip_if_consumer_repo", return_value=False)
     def test_incomplete_log(
-        self, mock_skip, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture
     ) -> None:
         sessions_dir = tmp_path / ".agents" / "sessions"
@@ -273,9 +272,8 @@ class TestMainContinue:
         assert resp["continue"] is True
         assert "Session log incomplete" in resp["reason"]
 
-    @patch("invoke_session_validator.skip_if_consumer_repo", return_value=False)
     def test_file_error_produces_continue(
-        self, mock_skip, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture
     ) -> None:
         """OS errors should produce continue response, not crash."""

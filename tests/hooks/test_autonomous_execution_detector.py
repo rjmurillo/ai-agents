@@ -131,34 +131,36 @@ class TestAutonomyPatterns:
             assert isinstance(pattern, re.Pattern)
 
 
+@pytest.fixture(autouse=True)
+def _no_consumer_repo_skip():
+    target = "invoke_autonomous_execution_detector.skip_if_consumer_repo"
+    with patch(target, return_value=False):
+        yield
+
+
 class TestMainAllow:
     """Tests for main() passing through."""
 
-    @patch("invoke_autonomous_execution_detector.skip_if_consumer_repo", return_value=False)
-    def test_tty_stdin(self, mock_skip) -> None:
+    def test_tty_stdin(self) -> None:
         with patch("invoke_autonomous_execution_detector.sys.stdin") as mock_stdin:
             mock_stdin.isatty.return_value = True
             assert main() == 0
 
-    @patch("invoke_autonomous_execution_detector.skip_if_consumer_repo", return_value=False)
-    def test_empty_stdin(self, mock_skip, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_empty_stdin(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr("sys.stdin", io.StringIO(""))
         assert main() == 0
 
-    @patch("invoke_autonomous_execution_detector.skip_if_consumer_repo", return_value=False)
-    def test_no_prompt(self, mock_skip, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_no_prompt(self, monkeypatch: pytest.MonkeyPatch) -> None:
         data = json.dumps({"other": "data"})
         monkeypatch.setattr("sys.stdin", io.StringIO(data))
         assert main() == 0
 
-    @patch("invoke_autonomous_execution_detector.skip_if_consumer_repo", return_value=False)
-    def test_normal_prompt(self, mock_skip, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_normal_prompt(self, monkeypatch: pytest.MonkeyPatch) -> None:
         data = json.dumps({"prompt": "Fix the auth bug"})
         monkeypatch.setattr("sys.stdin", io.StringIO(data))
         assert main() == 0
 
-    @patch("invoke_autonomous_execution_detector.skip_if_consumer_repo", return_value=False)
-    def test_invalid_json_fails_open(self, mock_skip, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_invalid_json_fails_open(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr("sys.stdin", io.StringIO("{bad json"))
         assert main() == 0
 
@@ -166,9 +168,8 @@ class TestMainAllow:
 class TestMainDetect:
     """Tests for main() detecting autonomy keywords."""
 
-    @patch("invoke_autonomous_execution_detector.skip_if_consumer_repo", return_value=False)
     def test_autonomous_keyword_injects_warning(
-        self, mock_skip, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
     ) -> None:
         data = json.dumps({"prompt": "Run this autonomous"})
         monkeypatch.setattr("sys.stdin", io.StringIO(data))
@@ -177,9 +178,8 @@ class TestMainDetect:
         captured = capsys.readouterr()
         assert "Stricter protocol active" in captured.out
 
-    @patch("invoke_autonomous_execution_detector.skip_if_consumer_repo", return_value=False)
     def test_hands_off_keyword(
-        self, mock_skip, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
     ) -> None:
         data = json.dumps({"prompt": "Do this hands-off please"})
         monkeypatch.setattr("sys.stdin", io.StringIO(data))
@@ -187,9 +187,8 @@ class TestMainDetect:
         captured = capsys.readouterr()
         assert "Stricter protocol active" in captured.out
 
-    @patch("invoke_autonomous_execution_detector.skip_if_consumer_repo", return_value=False)
     def test_user_message_text_schema(
-        self, mock_skip, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
     ) -> None:
         data = json.dumps({"user_message_text": "Use full autonomy"})
         monkeypatch.setattr("sys.stdin", io.StringIO(data))
@@ -197,9 +196,8 @@ class TestMainDetect:
         captured = capsys.readouterr()
         assert "Stricter protocol active" in captured.out
 
-    @patch("invoke_autonomous_execution_detector.skip_if_consumer_repo", return_value=False)
     def test_message_schema(
-        self, mock_skip, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
     ) -> None:
         data = json.dumps({"message": "Do it blindly"})
         monkeypatch.setattr("sys.stdin", io.StringIO(data))

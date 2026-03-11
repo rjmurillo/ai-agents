@@ -39,6 +39,14 @@ def build_parser() -> argparse.ArgumentParser:
         "--objective", default="",
         help="Session objective description.",
     )
+    parser.add_argument(
+        "--trace-id", default="",
+        help="Trace correlation ID (UUID) for multi-agent execution graphs.",
+    )
+    parser.add_argument(
+        "--parent-session-id", default="",
+        help="Parent session identifier (YYYY-MM-DD-session-N) for call graph reconstruction.",
+    )
     return parser
 
 
@@ -111,16 +119,24 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     objective = args.objective
+    trace_id = args.trace_id
+    parent_session_id = args.parent_session_id
     not_on_main = branch not in ("main", "master")
 
+    session_metadata: dict[str, Any] = {
+        "number": session_number,
+        "date": current_date,
+        "branch": branch,
+        "startingCommit": commit,
+        "objective": objective if objective else "[TODO: Describe objective]",
+    }
+    if trace_id:
+        session_metadata["traceId"] = trace_id
+    if parent_session_id:
+        session_metadata["parentSessionId"] = parent_session_id
+
     session: dict[str, Any] = {
-        "session": {
-            "number": session_number,
-            "date": current_date,
-            "branch": branch,
-            "startingCommit": commit,
-            "objective": objective if objective else "[TODO: Describe objective]",
-        },
+        "session": session_metadata,
         "protocolCompliance": {
             "sessionStart": {
                 "serenaActivated": {"level": "MUST", "Complete": False, "Evidence": ""},
