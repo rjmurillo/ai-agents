@@ -412,6 +412,12 @@ SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 for pr in "${pr_numbers[@]}"; do
     echo "=== PR #$pr Completion Check ==="
 
+    # Verify PR is not already merged
+    if ! python3 "$SCRIPTS_DIR/pr/test_pr_merged.py" --pull-request "$pr"; then
+        echo "  MERGED: PR #$pr was merged during session. Skipping."
+        continue
+    fi
+
     # Get CI check status
     checks=$(python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request "$pr")
     all_passing=$(echo "$checks" | jq -r '.AllPassing')
