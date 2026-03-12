@@ -6,6 +6,7 @@ import importlib.util
 import os
 import sys
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 _mod_name = "import_observations_to_forgetful"
 _spec = importlib.util.spec_from_file_location(
@@ -28,6 +29,8 @@ get_domain_from_filename = _mod.get_domain_from_filename
 get_project_info = _mod.get_project_info
 safe_title = _mod.safe_title
 parse_observation_file = _mod.parse_observation_file
+build_memory_payload = _mod.build_memory_payload
+main = _mod.main
 DOMAIN_MAP = _mod.DOMAIN_MAP
 CONFIDENCE_MAPPING = _mod.CONFIDENCE_MAPPING
 
@@ -153,3 +156,110 @@ class TestConfidenceMapping:
 
     def test_low_has_lowest_confidence(self) -> None:
         assert CONFIDENCE_MAPPING["LOW"]["confidence"] < CONFIDENCE_MAPPING["HIGH"]["confidence"]
+
+
+class TestBuildMemoryPayload:
+    def test_builds_payload_with_required_fields(self) -> None:
+        learning = _mod.Learning(
+            domain="testing",
+            project_name="testing",
+            base_keywords=["testing", "validation"],
+            confidence_level="HIGH",
+            learning_type="constraint",
+            text="Always run tests before committing.",
+            source_file=".serena/memories/testing-observations.md",
+        )
+        payload = build_memory_payload(learning, project_id=0)
+        assert payload["title"] == "Always run tests before committing."
+        assert "testing" in payload["keywords"]
+        assert payload["confidence"] == 1.0
+        assert payload["source_repo"] == "rjmurillo/ai-agents"
+
+    def test_includes_evidence_in_content(self) -> None:
+        learning = _mod.Learning(
+            domain="security",
+            project_name="security",
+            base_keywords=["security"],
+            confidence_level="MED",
+            learning_type="edge-case",
+            text="Check for CWE-20.",
+            evidence=["Found in PR #200"],
+            source_file=".serena/memories/security-observations.md",
+        )
+        payload = build_memory_payload(learning, project_id=0)
+        assert "Found in PR #200" in payload["content"]
+
+
+class TestMainMcpIntegration:
+    """Verify non-dry-run path calls McpClient.call_tool('create_memory', ...)."""
+
+    @staticmethod
+    def _observation_file(tmp_path: Path) -> Path:
+        content = (
+            "## Constraints\n\n"
+            "- Always validate input before processing\n"
+        )
+        f = tmp_path / "testing-observations.md"
+        f.write_text(content, encoding="utf-8")
+        return f
+
+    def test_non_dry_run_calls_create_memory(self, tmp_path: Path) -> None:
+        obs_file = self._observation_file(tmp_path)
+        mock_client = MagicMock()
+        mock_client.call_tool.return_value = {"content": [{"text": "ok"}]}
+
+        mock_cls = MagicMock()
+        mock_cls.create.return_value = mock_client
+        mock_cls.is_available.return_value = True
+
+        with patch.object(_mod, "_get_mcp_client_class", return_value=mock_cls):
+            result = main([
+                "--observation-file", str(obs_file),
+                "--confidence-levels", "HIGH",
+                "--output-path", str(tmp_path / "results.json"),
+            ])
+
+        assert result == 0
+        mock_client.call_tool.assert_called_once()
+        call_args = mock_client.call_tool.call_args
+        assert call_args[0][0] == "create_memory"
+        assert "title" in call_args[0][1]
+        mock_client.close.assert_called_once()
+
+    def test_dry_run_does_not_create_client(self, tmp_path: Path) -> None:
+        obs_file = self._observation_file(tmp_path)
+
+        with patch.object(_mod, "_get_mcp_client_class") as mock_get_cls:
+            result = main([
+                "--observation-file", str(obs_file),
+                "--confidence-levels", "HIGH",
+                "--dry-run",
+                "--output-path", str(tmp_path / "results.json"),
+            ])
+
+        assert result == 0
+        mock_get_cls.assert_not_called()
+
+    def test_mcp_error_tracked_in_results(self, tmp_path: Path) -> None:
+        obs_file = self._observation_file(tmp_path)
+        mock_client = MagicMock()
+        mock_client.call_tool.side_effect = Exception("Connection refused")
+
+        mock_cls = MagicMock()
+        mock_cls.create.return_value = mock_client
+        mock_cls.is_available.return_value = True
+
+        output_path = tmp_path / "results.json"
+        with patch.object(_mod, "_get_mcp_client_class", return_value=mock_cls):
+            result = main([
+                "--observation-file", str(obs_file),
+                "--confidence-levels", "HIGH",
+                "--output-path", str(output_path),
+            ])
+
+        assert result == 1
+        import json
+        results = json.loads(output_path.read_text())
+        assert len(results["errors"]) == 1
+        assert "Connection refused" in results["errors"][0]["error"]
+        mock_client.close.assert_called_once()
