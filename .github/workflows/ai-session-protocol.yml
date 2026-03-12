@@ -327,7 +327,7 @@ jobs:
         uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
 
       - name: Download all validation artifacts
-        uses: actions/download-artifact@e6d03f67377d4412c7aa56a8e2e4988e6ec479dd
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           pattern: validation-*
           path: validation-results
