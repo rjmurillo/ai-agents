@@ -125,6 +125,7 @@ When `--dry-run` is specified, the command gathers all planned actions without e
 **Dry-run workflow:**
 
 ```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 # Step 1: Parse PR numbers (same as normal)
 # Step 2: For each PR, gather read-only context
 
@@ -170,6 +171,7 @@ For `all-open`, query: `gh pr list --state open --json number,reviewDecision`
 For each PR number, validate using:
 
 ```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 python3 "$SCRIPTS_DIR/pr/get_pr_context.py" --pull-request {number}
 ```
 
@@ -180,6 +182,7 @@ Verify: PR exists, is open (state != MERGED, CLOSED), targets current repo.
 Before proceeding with review work, verify PR has not been merged via GraphQL (source of truth):
 
 ```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 # Check merge state via test_pr_merged.py
 python3 "$SCRIPTS_DIR/pr/test_pr_merged.py" --pull-request {number}
 # Exit code 0 = not merged (safe to proceed), 1 = merged (skip)
@@ -199,6 +202,7 @@ Before addressing comments, gather full PR context:
 **1. Review ALL Comments** (review comments + PR comments):
 
 ```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 # Get review threads with resolution status
 python3 "$SCRIPTS_DIR/pr/get_pr_review_threads.py" --pull-request {number}
 
@@ -215,6 +219,7 @@ python3 "$SCRIPTS_DIR/pr/get_pr_context.py" --pull-request {number}
 **2. Check Merge Eligibility with Base Branch**:
 
 ```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 # Get PR context including merge state
 python3 "$SCRIPTS_DIR/pr/get_pr_context.py" --pull-request {number}
 # Check: "mergeable" should be "MERGEABLE"
@@ -228,6 +233,7 @@ python3 "$SCRIPTS_DIR/pr/test_pr_merged.py" --pull-request {number}
 **3. Review ALL Failing Checks**:
 
 ```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 # Get all checks with conclusions using get_pr_checks.py
 python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request {number}
 # Output is JSON with FailedCount, AllPassing, and Checks array
@@ -401,6 +407,7 @@ When using `--parallel` with worktrees:
 ### Verification Command
 
 ```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 # Run after each PR to verify completion
 for pr in "${pr_numbers[@]}"; do
     echo "=== PR #$pr Completion Check ==="
@@ -428,6 +435,7 @@ done
 After replying to a review comment, resolve the thread:
 
 ```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 # Step 1: Reply to thread and resolve in one call
 python3 "$SCRIPTS_DIR/pr/add_pr_review_thread_reply.py" \
   --thread-id "PRRT_xxx" --body "Response text" --resolve
@@ -448,6 +456,7 @@ python3 "$SCRIPTS_DIR/pr/resolve_pr_review_thread.py" --thread-id "PRRT_xxx"
 For 2+ threads, use the script with multiple thread IDs:
 
 ```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 # Resolve multiple threads efficiently with reply + resolve
 for thread_id in "PRRT_xxx" "PRRT_yyy" "PRRT_zzz"; do
     python3 "$SCRIPTS_DIR/pr/add_pr_review_thread_reply.py" \

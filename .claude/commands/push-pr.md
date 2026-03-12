@@ -1,6 +1,6 @@
 ---
 description: Commit, push, and open a PR
-allowed-tools: Bash(git checkout -b:*), Bash(git switch -c:*), Bash(git add:*), Bash(git status:*), Bash(git push:*), Bash(git commit:*), Bash(python3:*new_pr.py*), Bash(git diff:*), Bash(git branch:*)
+allowed-tools: Bash(git checkout -b:*), Bash(git switch -c:*), Bash(git add:*), Bash(git status:*), Bash(git push:*), Bash(git commit:*), Bash(python3:*/pr/new_pr.py*), Bash(git diff:*), Bash(git branch:*)
 # Security Note: Wildcards are Claude Code tool patterns, not shell globs.
 # The Bash tool executor must sanitize arguments to prevent command injection (CWE-78).
 # Shell metacharacters (; && | $() etc.) should be escaped/rejected before execution.
