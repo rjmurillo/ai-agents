@@ -1,3 +1,13 @@
+---
+version: 1.0.0
+created: 2026-03-09
+status: Active
+related:
+  - Issue #64
+  - PR #60 (2025-12-19)
+  - .serena/memories/documentation-link-requirement.md
+---
+
 # Documentation Link Requirements (MANDATORY)
 
 When referencing an existing file in any documentation artifact, the reference MUST be a clickable relative link. Plain text file paths without links are prohibited.
@@ -22,7 +32,7 @@ Plan referenced test file [`.github/workflows/tests/ai-issue-triage.Tests.ps1`](
 | Session protocol | [`.agents/SESSION-PROTOCOL.md`](.agents/SESSION-PROTOCOL.md) |
 
 <!-- Linking in prose -->
-See the [naming conventions](`.agents/governance/naming-conventions.md`) for details.
+See the [`.agents/governance/naming-conventions.md`](.agents/governance/naming-conventions.md) for details.
 ```
 
 **Exceptions**:
@@ -32,4 +42,4 @@ See the [naming conventions](`.agents/governance/naming-conventions.md`) for det
 - Paths referencing files that do not exist in the repository (hypothetical examples) are exempt
 - Informational tables listing file path patterns (not specific files) are exempt
 
-**Rationale**: Clickable links allow readers to navigate directly to referenced files and verify their existence. Plain text paths create friction and prevent discovery. ([PR #60 review](https://github.com/rjmurillo/ai-agents/pull/60#discussion_r2633132093))
+**Rationale**: Clickable links allow readers to navigate directly to referenced files and verify their existence. Plain text paths create friction and prevent discovery. ([PR #60 (2025-12-19)](https://github.com/rjmurillo/ai-agents/pull/60#discussion_r2633132093))

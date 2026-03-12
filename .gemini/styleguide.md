@@ -18,7 +18,7 @@
 | Communication style | [`src/STYLE-GUIDE.md`](../src/STYLE-GUIDE.md) |
 | Naming conventions | [`.agents/governance/naming-conventions.md`](../.agents/governance/naming-conventions.md) |
 | PR template | [`.github/PULL_REQUEST_TEMPLATE.md`](../.github/PULL_REQUEST_TEMPLATE.md) |
-| Documentation links | [`.agents/governance/documentation-link-requirements.md`](../.agents/governance/documentation-link-requirements.md) |
+| Documentation links | [`.agents/governance/DOCUMENTATION-LINK-REQUIREMENTS.md`](../.agents/governance/DOCUMENTATION-LINK-REQUIREMENTS.md) |
 
 ---
 

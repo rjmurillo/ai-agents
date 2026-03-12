@@ -28,4 +28,4 @@ CORRECT: `Plan referenced test file [`.github/workflows/tests/ai-issue-triage.Te
 
 ## Canonical Reference
 
-See [`.agents/governance/documentation-link-requirements.md`](../../.agents/governance/documentation-link-requirements.md).
+See [`.agents/governance/DOCUMENTATION-LINK-REQUIREMENTS.md`](../../.agents/governance/DOCUMENTATION-LINK-REQUIREMENTS.md).
