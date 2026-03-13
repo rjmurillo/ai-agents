@@ -59,9 +59,9 @@ class TestBuildParser:
         assert args.wait is True
         assert args.timeout_seconds == 60
 
-    def test_output_format_default_is_text(self):
+    def test_output_format_default_is_auto(self):
         args = build_parser().parse_args(["--pull-request", "1"])
-        assert args.output_format == "text"
+        assert args.output_format == "auto"
 
     def test_output_format_json(self):
         args = build_parser().parse_args([
@@ -277,7 +277,7 @@ class TestMain:
             rc = main(["--pull-request", "42"])
         assert rc == 0
         output = json.loads(capsys.readouterr().out)
-        assert output["AllPassing"] is True
+        assert output["Data"]["AllPassing"] is True
 
     def test_output_format_json_suppresses_stderr(self, capsys):
         gql_data = {
@@ -324,9 +324,9 @@ class TestMain:
         captured = capsys.readouterr()
         assert captured.err == ""
         output = json.loads(captured.out)
-        assert output["AllPassing"] is True
+        assert output["Data"]["AllPassing"] is True
 
-    def test_output_format_text_includes_stderr(self, capsys):
+    def test_output_format_human_includes_summary(self, capsys):
         gql_data = {
             "repository": {
                 "pullRequest": {
@@ -366,10 +366,10 @@ class TestMain:
             "get_pr_checks.gh_graphql",
             return_value=gql_data,
         ):
-            rc = main(["--pull-request", "42", "--output-format", "text"])
+            rc = main(["--pull-request", "42", "--output-format", "human"])
         assert rc == 0
         captured = capsys.readouterr()
-        assert "All 1 check(s) passing" in captured.err
+        assert "All 1 check(s) passing" in captured.out
 
     def test_output_format_json_suppresses_stderr_on_failure(self, capsys):
         gql_data = {
@@ -416,7 +416,7 @@ class TestMain:
         captured = capsys.readouterr()
         assert captured.err == ""
         output = json.loads(captured.out)
-        assert output["FailedCount"] == 1
+        assert output["Data"]["FailedCount"] == 1
 
     def test_failed_check_returns_1(self, capsys):
         gql_data = {
@@ -476,7 +476,7 @@ class TestMain:
         assert rc == 3
         output = json.loads(capsys.readouterr().out)
         assert output["Success"] is False
-        assert "internal server error" in output["Error"]
+        assert "internal server error" in output["Error"]["Message"]
 
     def test_no_commits_returns_unknown(self, capsys):
         """PR with no commits returns UNKNOWN state."""
@@ -500,8 +500,8 @@ class TestMain:
             rc = main(["--pull-request", "42"])
         assert rc == 0
         output = json.loads(capsys.readouterr().out)
-        assert output["HasChecks"] is False
-        assert output["OverallState"] == "UNKNOWN"
+        assert output["Data"]["HasChecks"] is False
+        assert output["Data"]["OverallState"] == "UNKNOWN"
 
     def test_no_rollup_returns_unknown(self, capsys):
         """PR with no statusCheckRollup returns UNKNOWN state."""
@@ -527,7 +527,7 @@ class TestMain:
             rc = main(["--pull-request", "42"])
         assert rc == 0
         output = json.loads(capsys.readouterr().out)
-        assert output["HasChecks"] is False
+        assert output["Data"]["HasChecks"] is False
 
     def test_pr_not_in_response_returns_2(self, capsys):
         """PR not found in GraphQL response returns exit code 2."""
@@ -547,7 +547,7 @@ class TestMain:
         assert output["Success"] is False
 
     def test_pending_checks_returns_0(self, capsys):
-        """Pending checks (no --wait) return exit code 0 with stderr message."""
+        """Pending checks (no --wait) return exit code 0 with pending count in output."""
         gql_data = {
             "repository": {
                 "pullRequest": {
@@ -589,8 +589,8 @@ class TestMain:
         ):
             rc = main(["--pull-request", "42"])
         assert rc == 0
-        captured = capsys.readouterr()
-        assert "pending" in captured.err
+        output = json.loads(capsys.readouterr().out)
+        assert output["Data"]["PendingCount"] > 0
 
     def test_wait_timeout_returns_7(self, capsys):
         """--wait with timeout returns exit code 7."""
@@ -641,10 +641,11 @@ class TestMain:
             rc = main([
                 "--pull-request", "42",
                 "--wait", "--timeout-seconds", "10",
+                "--output-format", "human",
             ])
         assert rc == 7
         captured = capsys.readouterr()
-        assert "Timeout" in captured.err
+        assert "Timeout" in captured.out
 
     def test_wait_timeout_json_suppresses_stderr(self, capsys):
         """--wait timeout with --output-format json suppresses stderr."""
