@@ -1,10 +1,10 @@
-"""Validate skill script output against the standard envelope schema (ADR-044).
+"""Validate skill script output against the standard envelope schema (ADR-051).
 
 Accepts JSON input from stdin or a file path and validates it against
 the skill-output.schema.json schema. Returns exit code 0 for valid,
 1 for invalid output.
 
-Related: ADR-044 (Skill Output Format Standardization)
+Related: ADR-051 (Skill Output Format Standardization)
 
 Usage:
     python3 scripts/validate_skill_output.py < output.json
@@ -42,7 +42,8 @@ def _validate_file_path(file_path: str, allowed_dir: Path) -> Path:
     Raises:
         SystemExit: If path traversal or symlink attack detected.
     """
-    resolved = Path(file_path).resolve()
+    original = Path(file_path)
+    resolved = original.resolve()
 
     # Check path is within allowed directory
     try:
@@ -55,9 +56,9 @@ def _validate_file_path(file_path: str, allowed_dir: Path) -> Path:
         print(f"[FAIL] File not found: {resolved}")
         sys.exit(1)
 
-    # Resolve symlinks and re-check (CWE-22 symlink bypass)
-    if resolved.is_symlink():
-        real_path = Path(os.path.realpath(resolved))
+    # Check symlinks against original path, not resolved (CWE-22 symlink bypass)
+    if original.is_symlink():
+        real_path = Path(os.path.realpath(original))
         try:
             real_path.relative_to(allowed_dir)
         except ValueError:
@@ -71,7 +72,7 @@ def _validate_file_path(file_path: str, allowed_dir: Path) -> Path:
 
 
 def validate_envelope(data: dict) -> list[str]:
-    """Validate the output envelope against ADR-044 schema.
+    """Validate the output envelope against ADR-051 schema.
 
     Args:
         data: Parsed JSON object.
@@ -121,7 +122,7 @@ def validate_envelope(data: dict) -> list[str]:
 def main() -> int:
     """Run validation and return exit code."""
     parser = argparse.ArgumentParser(
-        description="Validate skill output against ADR-044 envelope schema."
+        description="Validate skill output against ADR-051 envelope schema."
     )
     parser.add_argument(
         "--input-file",
@@ -158,7 +159,7 @@ def main() -> int:
             print(f"  - {err}")
         return 1
 
-    print("[PASS] Skill output conforms to ADR-044 envelope schema")
+    print("[PASS] Skill output conforms to ADR-051 envelope schema")
     return 0
 
 

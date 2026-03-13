@@ -1,4 +1,4 @@
-# ADR-044: Skill Output Format Standardization
+# ADR-051: Skill Output Format Standardization
 
 ## Status
 
@@ -59,9 +59,10 @@ ADR-028 established that all properties should be included in output objects. AD
 
 ## Implementation Notes
 
-- Output helpers live in `SkillOutput.psm1` module alongside `GitHubCore.psm1`
+- Output helpers live in `scripts/github_core/output.py` (Python, per ADR-042)
 - Schema defined in `.agents/schemas/skill-output.schema.json`
-- Phase 1: Helpers + 3 migrated skills (Get-PRChecks, Get-PRContext, Get-IssueContext)
+- Validator at `scripts/validate_skill_output.py`
+- Phase 1: Helpers + migrated skills (get_pr_checks, get_pr_context, get_pr_check_logs)
 - Phase 2+: Remaining skills migrated incrementally
 
 ## Related Decisions

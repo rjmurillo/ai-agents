@@ -1,10 +1,10 @@
-"""Standard skill output helpers per ADR-044.
+"""Standard skill output helpers per ADR-051.
 
 Provides write_skill_output, write_skill_error, and get_output_format
 functions for consistent skill script output formatting. All skill scripts
 should use these helpers to produce either JSON or human-readable output.
 
-Related: ADR-044 (Skill Output Format Standardization)
+Related: ADR-051 (Skill Output Format Standardization)
 Related: ADR-035 (Exit Code Standardization)
 """
 

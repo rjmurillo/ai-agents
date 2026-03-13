@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "skill-output.schema.json",
   "title": "Skill Output Envelope",
-  "description": "Standard envelope for all skill script outputs per ADR-044",
+  "description": "Standard envelope for all skill script outputs per ADR-051",
   "type": "object",
   "required": ["Success", "Metadata"],
   "properties": {
