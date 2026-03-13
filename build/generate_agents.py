@@ -205,14 +205,16 @@ def generate_agents(
             )
 
             # Expand toolset references
+            # Use toolsFrom alias if set (e.g., visual-studio reuses vscode tools)
             tools_value = transformed_fm.get("tools")
+            toolset_platform = str(platform.get("toolsFrom", platform_name))
             if (
                 toolsets
                 and isinstance(tools_value, str)
                 and "$toolset:" in tools_value
             ):
                 transformed_fm["tools"] = expand_toolset_references(
-                    tools_value, toolsets, platform_name
+                    tools_value, toolsets, toolset_platform
                 )
 
             # Transform body

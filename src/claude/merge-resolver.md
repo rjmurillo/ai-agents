@@ -63,8 +63,9 @@ Resolve merge conflicts systematically by analyzing commit intent and code histo
 ### Phase 1: Context Gathering
 
 ```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 # Get PR metadata
-python3 .claude/skills/github/scripts/pr/get_pr_context.py --pr <number>
+python3 "$SCRIPTS_DIR/pr/get_pr_context.py" --pr <number>
 
 # Check current branch
 git branch --show-current

@@ -19,6 +19,7 @@ from __future__ import annotations
 import argparse
 import os
 import platform
+from pathlib import Path
 import shutil
 import subprocess
 import sys
@@ -68,12 +69,17 @@ def write_status(message: str, status_type: str = "info") -> None:
 
 def get_repo_root() -> str | None:
     result = subprocess.run(
-        ["git", "rev-parse", "--show-toplevel"],
+        ["git", "rev-parse", "--git-common-dir"],
         capture_output=True, text=True, timeout=10, check=False,
     )
     if result.returncode != 0:
         return None
-    return result.stdout.strip()
+    git_common = Path(result.stdout.strip())
+    if not git_common.is_absolute():
+        git_common = (Path.cwd() / git_common).resolve()
+    else:
+        git_common = git_common.resolve()
+    return str(git_common.parent)
 
 
 def step_install_cli(repo_root: str, ci: bool) -> str:

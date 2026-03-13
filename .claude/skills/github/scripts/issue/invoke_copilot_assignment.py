@@ -108,11 +108,16 @@ def _load_synthesis_config(config_path: str) -> dict:
     if not config_path:
         try:
             result = subprocess.run(
-                ["git", "rev-parse", "--show-toplevel"],
+                ["git", "rev-parse", "--git-common-dir"],
                 capture_output=True, text=True, timeout=10,
             )
             if result.returncode == 0:
-                repo_root = result.stdout.strip()
+                git_common = Path(result.stdout.strip())
+                if not git_common.is_absolute():
+                    git_common = (Path.cwd() / git_common).resolve()
+                else:
+                    git_common = git_common.resolve()
+                repo_root = str(git_common.parent)
                 config_path = os.path.join(
                     repo_root, ".claude", "skills", "github", "copilot-synthesis.yml",
                 )

@@ -78,7 +78,8 @@ gh pr view --json number,state,headRefName 2>/dev/null
 Use the GitHub skill to retrieve CI check status:
 
 ```bash
-python3 .claude/skills/github/scripts/pr/get_pr_checks.py --pull-request <PR_NUMBER>
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request <PR_NUMBER>
 ```
 
 **Parse output to identify:**
@@ -98,7 +99,8 @@ python3 .claude/skills/github/scripts/pr/get_pr_checks.py --pull-request <PR_NUM
 For failing GitHub Actions checks, retrieve logs:
 
 ```bash
-python3 .claude/skills/github/scripts/pr/get_pr_check_logs.py --pull-request <PR_NUMBER> --max-lines 200 --context-lines 40
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+python3 "$SCRIPTS_DIR/pr/get_pr_check_logs.py" --pull-request <PR_NUMBER> --max-lines 200 --context-lines 40
 ```
 
 **Output structure:**
@@ -180,7 +182,8 @@ git push
 Wait for CI to re-run:
 
 ```bash
-python3 .claude/skills/github/scripts/pr/get_pr_checks.py --pull-request <PR_NUMBER>
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request <PR_NUMBER>
 ```
 
 **Report final status to user.**
