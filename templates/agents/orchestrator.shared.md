@@ -555,6 +555,7 @@ These three workflow paths are the canonical reference for all task routing. Oth
 | **Quick Fix** | `implementer → qa` | Can explain fix in one sentence; single file; obvious change |
 | **Standard** | `analyst → milestone-planner → implementer → qa` | Need to investigate first; 2-5 files; some complexity |
 | **Strategic** | `independent-thinker → high-level-advisor → task-decomposer` | Question is *whether*, not *how*; scope/priority question |
+| **Specification** | `spec-generator → critic → architect → task-decomposer` | Formal EARS requirements needed; traceability required |
 
 ## Agent Sequences by Task Type
 
@@ -572,10 +573,12 @@ These three workflow paths are the canonical reference for all task routing. Oth
 | Strategic | roadmap → architect → milestone-planner → critic | Strategic |
 | Refactoring | analyst → architect → implementer → qa | Standard |
 | Ideation | analyst → high-level-advisor → independent-thinker → critic → roadmap → explainer → task-decomposer → architect → devops → security → qa | Strategic (extended) |
+| Specification | spec-generator → critic → architect → task-decomposer → implementer → qa | Specification |
 | PR Comment (quick fix) | implementer → qa | Quick Fix |
 | PR Comment (standard) | analyst → milestone-planner → implementer → qa | Standard |
 | PR Comment (strategic) | independent-thinker → high-level-advisor → task-decomposer | Strategic |
 | Post-Retrospective | retrospective → [skillbook if skills] → [memory if updates] → git add | Automatic |
+| Specification | spec-generator → critic → architect → task-decomposer → implementer → qa | Specification |
 
 **Note**: Multi-domain features triggering 3+ areas should use impact analysis consultations during planning phase.
 
@@ -614,6 +617,61 @@ flowchart TB
 - "This seems like scope creep"
 - "Consider alternative approach"
 - Architecture direction questions
+
+### Specification Routing
+
+When formal requirements are needed, route through the spec workflow.
+
+**Trigger Detection**: Recognize specification scenarios by these signals:
+
+- Explicit request for requirements, specifications, or EARS format
+- Complex feature requiring traceability
+- Regulatory or compliance needs
+- "What should this do?" questions needing formal answers
+- Features that will be implemented by multiple agents/sessions
+
+**Orchestration Flow**:
+
+```text
+1. Orchestrator routes to spec-generator with feature description
+2. spec-generator asks clarifying questions (returns to user if needed)
+3. spec-generator produces REQ-NNN and DESIGN-NNN documents.
+4. Orchestrator routes to critic for EARS compliance validation.
+5. Orchestrator routes to architect for design review.
+6. Orchestrator routes to task-decomposer to create TASK-NNN documents.
+7. After approval, Orchestrator routes to implementer for TASK execution.
+8. Orchestrator routes to qa for quality assurance.
+```
+
+**Traceability Chain**:
+
+```text
+REQ-NNN (WHAT/WHY) → DESIGN-NNN (HOW) → TASK-NNN (IMPLEMENTATION)
+```
+
+**Validation Rules**:
+
+- Every TASK traces to a DESIGN
+- Every DESIGN traces to a REQ
+- No orphan requirements (REQ without DESIGN)
+- Status consistency (child cannot be `done` if parent is `draft`)
+
+**When to Use Specification vs Ideation**:
+
+| Scenario | Workflow | Reason |
+|----------|----------|--------|
+| Vague idea, unsure if worth doing | Ideation | Need validation first |
+| Feature approved, needs formal requirements | Specification | Skip ideation, proceed to specs |
+| Regulatory/compliance requirement | Specification | Traceability is mandatory |
+| Quick feature, low complexity | Standard | Skip formality, implement directly |
+
+**Output Locations**:
+
+| Artifact | Directory | Naming Pattern |
+|----------|-----------|----------------|
+| Requirements | `.agents/specs/requirements/` | `REQ-NNN-kebab-case.md` |
+| Designs | `.agents/specs/design/` | `DESIGN-NNN-kebab-case.md` |
+| Tasks | `.agents/specs/tasks/` | `TASK-NNN-kebab-case.md` |
 
 ## Impact Analysis Orchestration
 
@@ -846,6 +904,64 @@ See also: `.agents/governance/consistency-protocol.md` for the complete validati
 | Infrastructure changes | devops | security |
 | Feature ideation | analyst | roadmap |
 | PR comment triage | (see PR Comment Routing) | analyst |
+| Formal specifications | spec-generator | explainer |
+
+## Specification Workflow
+
+When formal requirements are needed, route through the spec workflow.
+
+**Trigger Detection**: Recognize specification scenarios by these signals:
+
+- Explicit request for requirements, specifications, or EARS format
+- Complex feature requiring traceability
+- Regulatory or compliance needs
+- "What should this do?" questions needing formal answers
+- Features that will be implemented by multiple agents/sessions
+
+**Orchestration Flow**:
+
+```text
+1. Orchestrator routes to spec-generator with feature description
+2. spec-generator asks clarifying questions (returns to user if needed)
+3. spec-generator produces:
+   - REQ-NNN documents in .agents/specs/requirements/
+   - DESIGN-NNN documents in .agents/specs/design/
+   - TASK-NNN documents in .agents/specs/tasks/
+4. Orchestrator routes to critic for EARS compliance validation
+5. Orchestrator routes to architect for design review
+6. After spec review and approval, Orchestrator routes to `task-decomposer` to ensure tasks are atomic.
+7. Orchestrator then routes tasks to `implementer` for execution, followed by `qa` for verification.
+```
+
+**Traceability Chain**:
+
+```text
+REQ-NNN (WHAT/WHY) → DESIGN-NNN (HOW) → TASK-NNN (IMPLEMENTATION)
+```
+
+**Validation Rules**:
+
+- Every TASK traces to a DESIGN
+- Every DESIGN traces to a REQ
+- No orphan requirements (REQ without DESIGN)
+- Status consistency (child cannot be `done` if parent is `draft`)
+
+**When to Use Specification vs Ideation**:
+
+| Scenario | Workflow | Reason |
+|----------|----------|---------|
+| Vague idea, unsure if worth doing | Ideation | Need validation first |
+| Feature approved, needs formal requirements | Specification | Skip ideation, proceed to specs |
+| Regulatory/compliance requirement | Specification | Traceability is mandatory |
+| Quick feature, low complexity | Standard | Skip formality, implement directly |
+
+**Output Locations**:
+
+| Artifact | Directory | Naming Pattern |
+|----------|-----------|----------------|
+| Requirements | `.agents/specs/requirements/` | `REQ-NNN-kebab-case.md` |
+| Designs | `.agents/specs/design/` | `DESIGN-NNN-kebab-case.md` |
+| Tasks | `.agents/specs/tasks/` | `TASK-NNN-kebab-case.md` |
 
 ## Ideation Workflow
 

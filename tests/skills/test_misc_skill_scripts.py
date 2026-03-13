@@ -144,7 +144,7 @@ class TestInvokeCodeqlScanSkill:
 
     def test_get_repo_root_success(self):
         mod = self._import()
-        proc = make_proc(stdout="/home/user/repo", returncode=0)
+        proc = make_proc(stdout="/home/user/repo/.git", returncode=0)
         with patch("subprocess.run", return_value=proc):
             result = mod.get_repo_root()
         assert result == "/home/user/repo"

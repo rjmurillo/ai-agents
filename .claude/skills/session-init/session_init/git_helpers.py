@@ -7,6 +7,7 @@ Retrieves repository root, current branch, commit SHA, and working tree status.
 from __future__ import annotations
 
 import subprocess
+from pathlib import Path
 
 from .common_types import ApplicationFailedError
 
@@ -45,7 +46,16 @@ def get_git_info() -> dict[str, str]:
         ApplicationFailedError: Unexpected errors during git command execution.
     """
     try:
-        repo_root = _run_git("rev-parse", "--show-toplevel") or ""
+        git_common_raw = _run_git("rev-parse", "--git-common-dir") or ""
+        if git_common_raw:
+            git_common = Path(git_common_raw)
+            if not git_common.is_absolute():
+                git_common = (Path.cwd() / git_common).resolve()
+            else:
+                git_common = git_common.resolve()
+            repo_root = str(git_common.parent)
+        else:
+            repo_root = ""
 
         try:
             branch = _run_git("branch", "--show-current")

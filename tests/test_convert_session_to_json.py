@@ -5,16 +5,17 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from scripts.convert_session_to_json import get_repo_root, main
+from scripts.convert_session_to_json import main
+from scripts.github_core.repo import get_repo_root
 
 
 class TestGetRepoRoot:
-    @patch("scripts.convert_session_to_json.subprocess.run")
+    @patch("scripts.github_core.repo.subprocess.run")
     def test_returns_path_on_success(self, mock_run: MagicMock) -> None:
-        mock_run.return_value = MagicMock(returncode=0, stdout="/repo\n")
+        mock_run.return_value = MagicMock(returncode=0, stdout="/repo/.git\n")
         assert get_repo_root() == Path("/repo")
 
-    @patch("scripts.convert_session_to_json.subprocess.run")
+    @patch("scripts.github_core.repo.subprocess.run")
     def test_returns_none_on_failure(self, mock_run: MagicMock) -> None:
         mock_run.return_value = MagicMock(returncode=128, stdout="")
         assert get_repo_root() is None
