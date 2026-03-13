@@ -13,50 +13,63 @@ Example:
     python package_skill.py ~/.claude/skills/my-skill ./dist
 """
 
+import os
 import sys
 import zipfile
+import fnmatch
+from dataclasses import dataclass
 from pathlib import Path
-import os
+from typing import Optional
+
+
+@dataclass
+class PackageResult:
+    """Result of packaging a skill."""
+    success: bool
+    message: str
+    output_path: Optional[Path] = None
+
+
+def load_skillignore(skill_path: Path) -> list[str]:
+    """Load .skillignore patterns from a skill directory."""
+    ignore_file = skill_path / ".skillignore"
+    if not ignore_file.exists():
+        return []
+
+    patterns: list[str] = []
+    for line in ignore_file.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if stripped and not stripped.startswith("#"):
+            patterns.append(stripped)
+    return patterns
+
+
+def is_ignored(file_path: Path, skill_path: Path, patterns: list[str]) -> bool:
+    """Check whether a file should be excluded by .skillignore."""
+    rel_path = str(file_path.relative_to(skill_path))
+    name = file_path.name
+
+    for pattern in patterns:
+        if fnmatch.fnmatch(name, pattern):
+            return True
+        if fnmatch.fnmatch(rel_path, pattern):
+            return True
+        # Handle directory-style patterns like "assets/images"
+        if rel_path.startswith(pattern + "/") or rel_path == pattern:
+            return True
+    return False
 
 # Import validation from quick_validate
 try:
     from quick_validate import validate_skill
 except ImportError:
     # If running from different directory, try relative import
+    import os
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     from quick_validate import validate_skill
 
 
-def validate_and_resolve_path(path_str: str, allowed_base: Path) -> Path | None:
-    """
-    Validate that a path string is safe and resolve it against a trusted base directory.
-    This prevents directory traversal by ensuring the final path stays within allowed_base.
-
-    Args:
-        path_str: Path string provided by the user.
-        allowed_base: Base directory that the resolved path must remain within.
-
-    Returns:
-        A resolved Path object if the path is safe, or None otherwise.
-    """
-    # Normalize inputs
-    raw = str(path_str)
-    base = allowed_base.resolve()
-
-    try:
-        # Treat all user input as relative to the trusted base and resolve it.
-        # Using strict=False so that existence of the path is not required for validation.
-        resolved_path = (base / raw).resolve(strict=False)
-
-        # Ensure the resolved path is contained within the allowed base
-        resolved_path.relative_to(base)
-        return resolved_path
-    except (ValueError, OSError):
-        # Any resolution or containment error means the path is unsafe
-        return None
-
-
-def package_skill(skill_path, output_dir=None):
+def package_skill(skill_path, output_dir=None) -> PackageResult:
     """
     Package a skill folder into a .skill file.
 
@@ -65,78 +78,72 @@ def package_skill(skill_path, output_dir=None):
         output_dir: Optional output directory for the .skill file (defaults to current directory)
 
     Returns:
-        Path to the created .skill file, or None if error
+        PackageResult with success status, message, and output path
     """
-    # SECURITY: Validate and resolve skill_path to trusted base (prevents CWE-22)
-    skills_root = (Path.home() / ".claude" / "skills").resolve()
+    skill_path = Path(skill_path).resolve()
 
-    # Step 1: Validate path safety and resolve to a single trusted path
-    resolved_skill_path = validate_and_resolve_path(str(skill_path), skills_root)
-    if resolved_skill_path is None:
-        print(f"❌ Error: Skill path contains unsafe characters or escapes allowed directory")
-        print(f"   Allowed root: {skills_root}")
-        return None
+    # SECURITY: Validate path stays within allowed base directory (CWE-22)
+    skills_root = os.path.realpath(str(Path.home() / ".claude" / "skills"))
+    resolved = os.path.realpath(str(skill_path))
+    if not resolved.startswith(skills_root + os.sep) and resolved != skills_root:
+        return PackageResult(False, f"Path traversal detected: {skill_path}")
 
-    # Step 2: Validate skill folder exists (using validated path)
-    if not resolved_skill_path.exists():
-        print(f"❌ Error: Skill folder not found: {resolved_skill_path}")
-        return None
+    # Validate skill folder exists
+    if not skill_path.exists():
+        return PackageResult(False, f"Skill folder not found: {skill_path}")
 
-    if not resolved_skill_path.is_dir():
-        print(f"❌ Error: Path is not a directory: {resolved_skill_path}")
-        return None
+    if not skill_path.is_dir():
+        return PackageResult(False, f"Path is not a directory: {skill_path}")
 
     # Validate SKILL.md exists
-    skill_md = resolved_skill_path / "SKILL.md"
+    skill_md = skill_path / "SKILL.md"
     if not skill_md.exists():
-        print(f"❌ Error: SKILL.md not found in {resolved_skill_path}")
-        return None
+        return PackageResult(False, f"SKILL.md not found in {skill_path}")
 
     # Run validation before packaging
     print("🔍 Validating skill...")
-    valid, message = validate_skill(resolved_skill_path)
+    valid, message = validate_skill(skill_path)
     if not valid:
-        print(f"❌ Validation failed: {message}")
-        print("   Please fix the validation errors before packaging.")
-        return None
+        return PackageResult(False, f"Validation failed: {message}")
     print(f"✅ {message}\n")
 
     # Determine output location
-    skill_name = resolved_skill_path.name
+    skill_name = skill_path.name
     if output_dir:
-        # SECURITY: Validate and resolve output_dir to trusted base
-        base = Path.cwd().resolve()
-        resolved_output_path = validate_and_resolve_path(str(output_dir), allowed_base=base)
-        if resolved_output_path is None:
-            print(f"❌ Error: Output path contains unsafe characters or escapes allowed directory")
-            return None
-
-        resolved_output_path.mkdir(parents=True, exist_ok=True)
+        output_path = Path(output_dir).resolve()
+        # SECURITY: Validate output path stays within cwd (CWE-22)
+        cwd_real = os.path.realpath(os.getcwd())
+        output_real = os.path.realpath(str(output_path))
+        if not output_real.startswith(cwd_real + os.sep) and output_real != cwd_real:
+            return PackageResult(False, f"Path traversal detected: {output_dir}")
+        output_path.mkdir(parents=True, exist_ok=True)
     else:
-        resolved_output_path = Path.cwd()
+        output_path = Path.cwd()
 
-    skill_filename = resolved_output_path / f"{skill_name}.skill"
+    skill_filename = output_path / f"{skill_name}.skill"
+    ignore_patterns = load_skillignore(skill_path)
 
     # Create the .skill file (zip format)
     try:
         with zipfile.ZipFile(skill_filename, 'w', zipfile.ZIP_DEFLATED) as zipf:
-            # Walk through the skill directory (using validated path)
-            for file_path in resolved_skill_path.rglob('*'):
+            # Walk through the skill directory
+            for file_path in skill_path.rglob('*'):
                 if file_path.is_file():
                     # Skip common exclusions
                     if file_path.name.startswith('.') or '__pycache__' in str(file_path):
                         continue
+                    # Apply explicit .skillignore patterns
+                    if is_ignored(file_path, skill_path, ignore_patterns):
+                        continue
                     # Calculate the relative path within the zip
-                    arcname = file_path.relative_to(resolved_skill_path.parent)
+                    arcname = file_path.relative_to(skill_path.parent)
                     zipf.write(file_path, arcname)
                     print(f"  Added: {arcname}")
 
-        print(f"\n✅ Successfully packaged skill to: {skill_filename}")
-        return skill_filename
+        return PackageResult(True, f"Successfully packaged skill to: {skill_filename}", skill_filename)
 
     except Exception as e:
-        print(f"❌ Error creating .skill file: {e}")
-        return None
+        return PackageResult(False, f"Error creating .skill file: {e}")
 
 
 def main():
@@ -157,9 +164,12 @@ def main():
 
     result = package_skill(skill_path, output_dir)
 
-    if result:
+    if result.success:
+        print(f"\n✅ {result.message}")
         sys.exit(0)
     else:
+        print(f"❌ {result.message}")
+        print("   Please fix the errors before packaging.")
         sys.exit(1)
 
 

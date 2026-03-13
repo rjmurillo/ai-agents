@@ -347,8 +347,9 @@ if __name__ == "__main__":
 # Verify extension installed
 gh extension list | grep <extension-name>
 
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 # Test wrapper script
-python3 .claude/skills/github/scripts/extensions/<script>.py
+python3 "$SCRIPTS_DIR/extensions/<script>.py"
 
 # Verify JSON output
 python3 <script>.py | jq .

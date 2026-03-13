@@ -56,7 +56,10 @@ def is_safe_file_path(path: str, allowed_base: str | None = None) -> bool:
 
     try:
         if allowed_base is None:
-            allowed_base = os.getcwd()
+            from .repo import get_repo_root
+
+            repo_root = get_repo_root()
+            allowed_base = str(repo_root) if repo_root is not None else os.getcwd()
         resolved_path = str(Path(path).resolve())
         resolved_base = str(Path(allowed_base).resolve())
         return resolved_path == resolved_base or resolved_path.startswith(

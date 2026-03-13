@@ -48,9 +48,7 @@ def is_path_within_root(path: str | Path, root: str | Path) -> bool:
         return True
 
     resolved_root_with_sep = resolved_root + os.sep
-    return os.path.normcase(resolved_path).startswith(
-        os.path.normcase(resolved_root_with_sep)
-    )
+    return os.path.normcase(resolved_path).startswith(os.path.normcase(resolved_root_with_sep))
 
 
 def read_yaml_frontmatter(content: str) -> dict[str, str] | None:
@@ -153,9 +151,7 @@ def convert_frontmatter_for_platform(
             continue
         if key.startswith("tools_"):
             continue
-        if key == "tools" and (
-            "tools_vscode" in frontmatter or "tools_copilot" in frontmatter
-        ):
+        if key == "tools" and ("tools_vscode" in frontmatter or "tools_copilot" in frontmatter):
             continue
         result[key] = value
 
@@ -190,10 +186,25 @@ def convert_frontmatter_for_platform(
     alt_name = re.sub(r"-cli$", "", platform_name)
     tools_key_alt = f"tools_{alt_name}"
 
+    # toolsFrom allows a platform to reuse another platform's tools key
+    # Normalize alias using the same rules as platform names
+    tools_from = platform_config.get("toolsFrom")
+    tools_key_alias: str | None = None
+    tools_key_alias_alt: str | None = None
+    if isinstance(tools_from, str):
+        clean_alias = tools_from.replace("-", "")
+        tools_key_alias = f"tools_{clean_alias}"
+        alt_alias = re.sub(r"-cli$", "", tools_from)
+        tools_key_alias_alt = f"tools_{alt_alias}"
+
     if tools_key in frontmatter:
         result["tools"] = frontmatter[tools_key]
     elif tools_key_alt in frontmatter:
         result["tools"] = frontmatter[tools_key_alt]
+    elif tools_key_alias and tools_key_alias in frontmatter:
+        result["tools"] = frontmatter[tools_key_alias]
+    elif tools_key_alias_alt and tools_key_alias_alt in frontmatter:
+        result["tools"] = frontmatter[tools_key_alias_alt]
     elif "tools" in frontmatter:
         tools_value = frontmatter["tools"]
         if isinstance(tools_value, str) and not tools_value.startswith("{{PLATFORM_"):
@@ -286,9 +297,7 @@ def convert_handoff_syntax(body: str, target_syntax: str) -> str:
         )
     elif target_syntax == "/agent":
         # Reverse transformations
-        result = re.sub(
-            r"`#runSubagent with subagentType=(\w+)`", r"`/agent \1`", result
-        )
+        result = re.sub(r"`#runSubagent with subagentType=(\w+)`", r"`/agent \1`", result)
         result = re.sub(r"`#runSubagent`", r"`/agent`", result)
         result = re.sub(
             r"^#runSubagent with subagentType=([\w-]+)", r"/agent \1", result, flags=re.MULTILINE
