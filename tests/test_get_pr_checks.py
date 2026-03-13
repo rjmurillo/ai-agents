@@ -59,9 +59,9 @@ class TestBuildParser:
         assert args.wait is True
         assert args.timeout_seconds == 60
 
-    def test_output_format_default_is_json(self):
+    def test_output_format_default_is_auto(self):
         args = build_parser().parse_args(["--pull-request", "1"])
-        assert args.output_format == "json"
+        assert args.output_format == "auto"
 
     def test_output_format_json(self):
         args = build_parser().parse_args([
