@@ -14,7 +14,7 @@ import argparse
 import json
 import os
 import sys
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from typing import Any
 
 
@@ -27,11 +27,11 @@ def add_output_format_arg(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--output-format",
         choices=["json", "human", "auto"],
-        default="json",
+        default="auto",
         help=(
             "Output format. 'json' emits only JSON on stdout. "
             "'human' emits colored text summaries. "
-            "'auto' detects context (default: json)."
+            "'auto' detects context (default: auto)."
         ),
     )
 
@@ -94,7 +94,7 @@ def write_skill_output(
         "Metadata": {
             "Script": script_name,
             "Version": version,
-            "Timestamp": datetime.now(UTC).isoformat(),
+            "Timestamp": datetime.now(timezone.utc).isoformat(),
         },
     }
 
@@ -153,7 +153,7 @@ def write_skill_error(
         "Metadata": {
             "Script": script_name,
             "Version": version,
-            "Timestamp": datetime.now(UTC).isoformat(),
+            "Timestamp": datetime.now(timezone.utc).isoformat(),
         },
     }
 
