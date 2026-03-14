@@ -9,7 +9,7 @@ Supports the /9-sync command for auto-documentation integration.
 
 Usage:
     python sync_session_documentation.py [--session-number N] [--lookback-hours 8]
-                                         [--output-path PATH] [--dry-run] [--verbose]
+                                         [--output-path PATH] [--dry-run]
 """
 
 from __future__ import annotations
