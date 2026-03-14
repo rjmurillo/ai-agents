@@ -102,7 +102,8 @@ def detect_domains(repo_root: Path) -> list[str]:
 
 
 def _grade_agents_layer(
-    repo_root: Path, domain: str,
+    repo_root: Path,
+    domain: str,
 ) -> tuple[int, int, list[Gap]]:
     """Grade the agents layer for a domain.
 
@@ -143,7 +144,8 @@ def _grade_agents_layer(
 
 
 def _grade_skills_layer(
-    repo_root: Path, domain: str,
+    repo_root: Path,
+    domain: str,
 ) -> tuple[int, int, list[Gap]]:
     """Grade the skills layer for a domain.
 
@@ -193,7 +195,8 @@ def _grade_skills_layer(
 
 
 def _grade_scripts_layer(
-    repo_root: Path, domain: str,
+    repo_root: Path,
+    domain: str,
 ) -> tuple[int, int, list[Gap]]:
     """Grade the scripts layer for a domain.
 
@@ -236,7 +239,8 @@ def _grade_scripts_layer(
 
 
 def _grade_tests_layer(
-    repo_root: Path, domain: str,
+    repo_root: Path,
+    domain: str,
 ) -> tuple[int, int, list[Gap]]:
     """Grade the tests layer for a domain.
 
@@ -262,8 +266,7 @@ def _grade_tests_layer(
     domain_tests = [
         f
         for f in test_files
-        if domain.replace("-", "_") in f.stem.lower()
-        or domain.replace("-", "") in f.stem.lower()
+        if domain.replace("-", "_") in f.stem.lower() or domain.replace("-", "") in f.stem.lower()
     ]
     file_count = len(domain_tests)
     if file_count > 0:
@@ -281,7 +284,8 @@ def _grade_tests_layer(
 
 
 def _grade_docs_layer(
-    repo_root: Path, domain: str,
+    repo_root: Path,
+    domain: str,
 ) -> tuple[int, int, list[Gap]]:
     """Grade the docs layer for a domain.
 
@@ -314,7 +318,8 @@ def _grade_docs_layer(
 
 
 def _grade_workflows_layer(
-    repo_root: Path, domain: str,
+    repo_root: Path,
+    domain: str,
 ) -> tuple[int, int, list[Gap]]:
     """Grade the workflows layer for a domain.
 
