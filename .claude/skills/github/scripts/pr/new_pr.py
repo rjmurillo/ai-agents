@@ -34,7 +34,7 @@ _CONVENTIONAL_COMMIT_PATTERN = re.compile(
 def get_repo_root() -> str:
     """Get the git repository root directory."""
     result = subprocess.run(
-        ["git", "rev-parse", "--show-toplevel"],
+        ["git", "rev-parse", "--git-common-dir"],
         capture_output=True,
         text=True,
         timeout=10,
@@ -42,7 +42,12 @@ def get_repo_root() -> str:
     if result.returncode != 0:
         print("Not in a git repository", file=sys.stderr)
         raise SystemExit(2)
-    return result.stdout.strip()
+    git_common = Path(result.stdout.strip())
+    if not git_common.is_absolute():
+        git_common = (Path.cwd() / git_common).resolve()
+    else:
+        git_common = git_common.resolve()
+    return str(git_common.parent)
 
 
 def validate_conventional_commit(title: str) -> bool:

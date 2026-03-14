@@ -42,7 +42,7 @@ class TestGetRepoRoot:
 
     def test_returns_string_in_git_repo(self, project_root: Path) -> None:
         with patch("subprocess.run") as mock_run:
-            mock_run.return_value = MagicMock(returncode=0, stdout=str(project_root))
+            mock_run.return_value = MagicMock(returncode=0, stdout=str(project_root / ".git"))
             result = get_repo_root()
             assert result == str(project_root)
 

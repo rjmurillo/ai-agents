@@ -30,6 +30,8 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+from scripts.github_core.repo import get_repo_root
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(message)s",
@@ -84,13 +86,10 @@ class SemgrepScanner:
 
     def _find_repo_root(self) -> Path:
         """Find the git repository root."""
-        result = subprocess.run(
-            ["git", "rev-parse", "--show-toplevel"],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        return Path(result.stdout.strip())
+        root = get_repo_root()
+        if root is None:
+            raise subprocess.CalledProcessError(1, "git rev-parse")
+        return root
 
     def _check_semgrep_installed(self) -> bool:
         """Check if semgrep is installed and accessible."""

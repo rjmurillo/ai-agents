@@ -39,6 +39,22 @@
             "type": "command",
             "command": "python3 -u .claude/hooks/PreToolUse/invoke_branch_protection_guard.py",
             "statusMessage": "Verifying branch protection"
+          },
+          {
+            "type": "command",
+            "command": "python3 -u .claude/hooks/PreToolUse/invoke_security_commit_gate.py",
+            "timeout": 10,
+            "statusMessage": "Checking security gate for staged auth files (ADR-033)"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash(gh pr create*)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -u .claude/hooks/PreToolUse/invoke_session_log_guard.py",
+            "statusMessage": "Verifying session log exists before PR creation (BLOCKING)"
           }
         ]
       },

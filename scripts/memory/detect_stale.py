@@ -22,6 +22,8 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
+from scripts.github_core.repo import get_repo_root
+
 
 @dataclass
 class StaleReport:
@@ -238,19 +240,9 @@ def main() -> int:
     args = parser.parse_args()
 
     # Determine paths
-    try:
-        result = subprocess.run(
-            ["git", "rev-parse", "--show-toplevel"],
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
-        if result.returncode != 0:
-            print("Error: not in a git repository", file=sys.stderr)
-            return 1
-        repo_root = Path(result.stdout.strip())
-    except (subprocess.TimeoutExpired, FileNotFoundError):
-        print("Error: git not available", file=sys.stderr)
+    repo_root = get_repo_root(timeout=5)
+    if repo_root is None:
+        print("Error: not in a git repository", file=sys.stderr)
         return 1
 
     memories_dir = (args.path or (repo_root / ".serena" / "memories")).resolve()

@@ -254,3 +254,8 @@ class TestOrchestrateShAgentConfiguration:
         """Parallel chains count is configurable via environment variable."""
         content = SCRIPT_PATH.read_text()
         assert "PARALLEL_CHAINS" in content
+
+    def test_uv_project_root_set_before_agent_execution(self):
+        """UV_PROJECT_ROOT is exported before agent commands run (#1431)."""
+        content = SCRIPT_PATH.read_text()
+        assert 'export UV_PROJECT_ROOT=' in content

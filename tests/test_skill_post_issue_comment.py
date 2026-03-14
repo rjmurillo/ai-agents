@@ -128,7 +128,7 @@ def test_403_error(mock_run, tmp_path):
         _completed(rc=0),  # auth
         _completed(stdout="https://github.com/o/r\n"),  # remote
         _completed(rc=1, stderr="HTTP 403: Resource not accessible by integration"),  # post fails
-        _completed(stdout=str(tmp_path)),  # git rev-parse --show-toplevel
+        _completed(stdout=str(tmp_path / ".git")),  # git rev-parse --git-common-dir
     ]
 
     with pytest.raises(SystemExit) as exc_info:

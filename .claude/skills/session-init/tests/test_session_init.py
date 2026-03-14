@@ -42,7 +42,7 @@ class TestGitHelpers:
         from session_init.git_helpers import get_git_info
 
         fake_results = {
-            ("rev-parse", "--show-toplevel"): "/fake/root",
+            ("rev-parse", "--git-common-dir"): "/fake/root/.git",
             ("branch", "--show-current"): "feat/test",
             ("rev-parse", "--short", "HEAD"): "abc1234",
             ("status", "--short"): "",
@@ -65,7 +65,7 @@ class TestGitHelpers:
         from session_init.git_helpers import get_git_info
 
         fake_results = {
-            ("rev-parse", "--show-toplevel"): "/fake/root",
+            ("rev-parse", "--git-common-dir"): "/fake/root/.git",
             ("branch", "--show-current"): "main",
             ("rev-parse", "--short", "HEAD"): "def5678",
             ("status", "--short"): " M file.py",
@@ -172,7 +172,7 @@ class TestNewSessionLog:
         )
 
         fake_git = {
-            ("rev-parse", "--show-toplevel"): str(tmp_path),
+            ("rev-parse", "--git-common-dir"): str(tmp_path / ".git"),
             ("branch", "--show-current"): "feat/test",
             ("rev-parse", "--short", "HEAD"): "abc1234",
             ("status", "--short"): "",
@@ -230,7 +230,7 @@ class TestNewSessionLogJson:
                 results = {
                     ("branch", "--show-current"): "feat/json-test",
                     ("rev-parse", "--short", "HEAD"): "def5678",
-                    ("rev-parse", "--show-toplevel"): str(tmp_path),
+                    ("rev-parse", "--git-common-dir"): str(tmp_path / ".git"),
                 }
                 stdout = results.get(git_args, "")
                 return subprocess.CompletedProcess(cmd, 0, stdout=stdout, stderr="")
