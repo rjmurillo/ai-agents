@@ -20,15 +20,31 @@ Related: Issue #676 (Skill Prompt Size Limits)
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import os
 import re
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 
+# Load local frontmatter module by file path to avoid collision with
+# the PyPI ``python-frontmatter`` package which also installs as ``frontmatter``.
+_SCRIPT_DIR = Path(__file__).resolve().parent
+_PROJECT_ROOT = _SCRIPT_DIR.parents[1]
+_FRONTMATTER_PATH = (
+    _PROJECT_ROOT / ".claude" / "skills" / "SkillForge" / "scripts" / "frontmatter.py"
+)
+_spec = importlib.util.spec_from_file_location("skill_frontmatter_utils", _FRONTMATTER_PATH)
+_mod = importlib.util.module_from_spec(_spec)  # type: ignore[arg-type]
+_spec.loader.exec_module(_mod)  # type: ignore[union-attr]
+has_size_exception = _mod.has_size_exception
+
 # Size thresholds (lines)
 SKILL_SIZE_LIMIT: int = 500
 SKILL_SIZE_WARNING: int = 300
+
+# Pattern matching staged/changed SKILL.md files
+_SKILL_MD_PATTERN: str = r"^\.claude/skills/.*/SKILL\.md$"
 
 
 @dataclass
@@ -41,19 +57,6 @@ class SizeCheckResult:
     passed: bool = True
     warning: bool = False
     errors: list[str] = field(default_factory=list)
-
-
-def has_size_exception(content: str) -> bool:
-    """Check if frontmatter declares a size exception."""
-    if not content.startswith("---"):
-        return False
-
-    lines = content.split("\n")
-    for i in range(1, len(lines)):
-        if lines[i].strip() == "---":
-            frontmatter = "\n".join(lines[1:i])
-            return bool(re.search(r"^size-exception:\s*true", frontmatter, re.MULTILINE))
-    return False
 
 
 def check_skill_size(
@@ -120,7 +123,7 @@ def get_staged_skill_files() -> list[Path]:
 
     files: list[Path] = []
     for line in result.stdout.strip().split("\n"):
-        if re.search(r"^\.claude/skills/.*/SKILL\.md$", line):
+        if re.search(_SKILL_MD_PATTERN, line):
             path = Path(line)
             if path.exists():
                 files.append(path)
@@ -134,7 +137,7 @@ def get_skill_files(
 ) -> list[Path]:
     """Get list of SKILL.md files to validate."""
     if changed_files:
-        skill_files = [f for f in changed_files if re.search(r"^\.claude/skills/.*/SKILL\.md$", f)]
+        skill_files = [f for f in changed_files if re.search(_SKILL_MD_PATTERN, f)]
         if not skill_files:
             return []
         return [Path(f) for f in skill_files if Path(f).exists()]
@@ -230,7 +233,10 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  [FAIL] {result.file_path} ({result.line_count} lines)")
             for error in result.errors:
                 print(f"    {error}")
-        elif result.warning:
+            continue
+
+        pass_count += 1
+        if result.warning:
             warn_count += 1
             if result.has_exception:
                 print(
@@ -239,9 +245,6 @@ def main(argv: list[str] | None = None) -> int:
                 )
             else:
                 print(f"  [WARN] {result.file_path} ({result.line_count} lines)")
-            pass_count += 1
-        else:
-            pass_count += 1
 
     print()
     print("=" * 40)
