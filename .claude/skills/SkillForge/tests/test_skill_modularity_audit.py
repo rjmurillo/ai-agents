@@ -9,15 +9,16 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-# Add SkillForge scripts to path for imports
+# Add SkillForge scripts directory to path for imports
 _TEST_DIR = Path(__file__).resolve().parent
 _SKILLFORGE_ROOT = _TEST_DIR.parent
-_PROJECT_ROOT = _TEST_DIR.parents[4]
-sys.path.insert(0, str(_SKILLFORGE_ROOT))
+_SCRIPT_DIR = _SKILLFORGE_ROOT / "scripts"
+_PROJECT_ROOT = _TEST_DIR.parents[3]
+sys.path.insert(0, str(_SCRIPT_DIR))
 sys.path.insert(0, str(_PROJECT_ROOT))
 
-from scripts.frontmatter import has_size_exception  # noqa: E402
-from scripts.skill_modularity_audit import (  # noqa: E402
+from frontmatter import has_size_exception  # noqa: E402
+from skill_modularity_audit import (  # noqa: E402
     IDEAL_MAX_LINES,
     MAX_H2_SECTIONS,
     SkillAuditResult,

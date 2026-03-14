@@ -30,6 +30,9 @@ def has_size_exception(content: str) -> bool:
         if lines[i].strip() == "---":
             frontmatter = "\n".join(lines[1:i])
             return bool(
-                re.search(r"^size-exception:\s*true", frontmatter, re.MULTILINE)
+                re.search(
+                    r"(?im)^\s*size-exception:\s*true\s*(?:#.*)?$",
+                    frontmatter,
+                )
             )
     return False

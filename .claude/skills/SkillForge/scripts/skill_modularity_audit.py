@@ -28,14 +28,13 @@ import sys
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-# Add project root to path for imports
+# Add script directory to path for sibling imports
 _SCRIPT_DIR = Path(__file__).resolve().parent
-_SKILLFORGE_ROOT = _SCRIPT_DIR.parent
 _PROJECT_ROOT = _SCRIPT_DIR.parents[3]
-sys.path.insert(0, str(_SKILLFORGE_ROOT))
+sys.path.insert(0, str(_SCRIPT_DIR))
 sys.path.insert(0, str(_PROJECT_ROOT))
 
-from scripts.frontmatter import has_size_exception  # noqa: E402
+from frontmatter import has_size_exception  # noqa: E402
 
 # Thresholds aligned with skill_size.py
 LINE_LIMIT: int = 500
@@ -281,25 +280,35 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def validate_path_safety(raw_path: str) -> Path | None:
+    """Validate a CLI path argument against traversal attacks (CWE-22).
+
+    Allows absolute paths (resolved). Blocks '..' in relative paths.
+
+    Returns:
+        Resolved Path if safe, None if traversal detected.
+    """
+    input_path = Path(raw_path)
+    if input_path.is_absolute():
+        return input_path.resolve()
+    if ".." in input_path.parts:
+        return None
+    return (Path.cwd() / input_path).resolve()
+
+
 def main(argv: list[str] | None = None) -> int:
     """Entry point."""
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    # CWE-22: Validate path for CLI usage.
-    # Allow absolute paths (resolved). Block '..' in relative paths.
-    input_path = Path(args.path)
-    if input_path.is_absolute():
-        skills_path = input_path.resolve()
-    else:
-        if ".." in input_path.parts:
-            print(
-                f"Error: Relative path traversal attempt detected. "
-                f"Path '{args.path}' contains '..'.",
-                file=sys.stderr,
-            )
-            return 2
-        skills_path = (Path.cwd() / input_path).resolve()
+    skills_path = validate_path_safety(args.path)
+    if skills_path is None:
+        print(
+            f"Error: Relative path traversal attempt detected. "
+            f"Path '{args.path}' contains '..'.",
+            file=sys.stderr,
+        )
+        return 2
 
     if not skills_path.is_dir():
         print(f"Skills directory not found: {skills_path}", file=sys.stderr)
