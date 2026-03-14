@@ -94,7 +94,7 @@ jobs:
         uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
 
       - name: Check for relevant file changes
-        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3
+        uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4
         id: filter
         # Skip paths-filter for workflow_dispatch (path filter requires pull_request event context; manual dispatch lacks base/head ref information)
         if: github.event_name != 'workflow_dispatch'
@@ -478,6 +478,7 @@ jobs:
   aggregate-skip:
     name: Aggregate Results
     runs-on: ubuntu-24.04-arm
+    timeout-minutes: 1
     needs: [check-changes]
     if: always() && needs.check-changes.result == 'success' && needs.check-changes.outputs.should-run != 'true'
     steps:
@@ -543,7 +544,7 @@ jobs:
         uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
 
       - name: Download all review artifacts
-        uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3
+        uses: actions/download-artifact@484a0b528fb4d7bd804637ccb632e47a0e638317
         with:
           pattern: review-*
           path: ai-review-results
