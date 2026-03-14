@@ -194,7 +194,9 @@ class TestCreateNotificationIssue:
 
     def test_raises_on_missing_gh(self) -> None:
         """Re-raise FileNotFoundError when gh is not installed."""
-        flagged = [{"domain": "x", "grade": "F", "score": 10, "trend": "degrading", "critical_gaps": 0}]
+        flagged = [
+            {"domain": "x", "grade": "F", "score": 10, "trend": "degrading", "critical_gaps": 0},
+        ]
         with patch(
             "check_grade_changes.subprocess.run",
             side_effect=FileNotFoundError("gh"),
@@ -204,7 +206,9 @@ class TestCreateNotificationIssue:
 
     def test_raises_on_gh_failure(self) -> None:
         """Re-raise CalledProcessError when gh command fails."""
-        flagged = [{"domain": "x", "grade": "F", "score": 10, "trend": "degrading", "critical_gaps": 0}]
+        flagged = [
+            {"domain": "x", "grade": "F", "score": 10, "trend": "degrading", "critical_gaps": 0},
+        ]
         with patch(
             "check_grade_changes.subprocess.run",
             side_effect=subprocess.CalledProcessError(1, "gh"),
