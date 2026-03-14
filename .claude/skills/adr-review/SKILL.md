@@ -14,6 +14,7 @@ metadata:
     patterns:
       - ".agents/architecture/ADR-*.md"
       - "docs/architecture/ADR-*.md"
+      - ".agents/SESSION-PROTOCOL.md"
     events: [create, update, delete]
     auto_invoke: true
 ---
@@ -55,6 +56,7 @@ Multi-agent debate pattern for rigorous ADR validation. Orchestrates 6 specializ
 |---------|----------|--------|
 | `ADR-*.md` | `.agents/architecture/` | create, update, delete |
 | `ADR-*.md` | `docs/architecture/` | create, update, delete |
+| `SESSION-PROTOCOL.md` | `.agents/` | create, update, delete |
 
 **Detection**: `.claude/skills/adr-review/scripts/detect_adr_changes.py`
 
@@ -64,6 +66,7 @@ Multi-agent debate pattern for rigorous ADR validation. Orchestrates 6 specializ
 
 - Architect creates or updates an ADR
 - ANY agent modifies `.agents/architecture/ADR-*.md`
+- ANY agent modifies `.agents/SESSION-PROTOCOL.md`
 
 **User-Initiated Triggers** (manual):
 
