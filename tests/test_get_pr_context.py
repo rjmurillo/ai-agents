@@ -22,6 +22,7 @@ from unittest.mock import patch
 
 import pytest
 
+from scripts.github_core.api import RepoInfo
 from tests.mock_fidelity import assert_mock_keys_match
 from scripts.github_core.api import RepoInfo
 

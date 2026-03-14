@@ -10,6 +10,8 @@ from typing import Any
 from unittest.mock import patch
 from scripts.github_core.api import RepoInfo
 
+from scripts.github_core.api import RepoInfo
+
 # ---------------------------------------------------------------------------
 # Import the script via importlib (same pattern as test_invoke_pr_maintenance.py)
 # ---------------------------------------------------------------------------

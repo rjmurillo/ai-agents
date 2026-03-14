@@ -12,6 +12,8 @@ from unittest.mock import patch
 import pytest
 from scripts.github_core.api import RepoInfo
 
+from scripts.github_core.api import RepoInfo
+
 # ---------------------------------------------------------------------------
 # Import the consumer script via importlib (not a package)
 # ---------------------------------------------------------------------------
