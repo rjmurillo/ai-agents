@@ -6,6 +6,7 @@ import json
 import os
 import sys
 import time
+from collections.abc import Generator
 from io import StringIO
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -20,7 +21,9 @@ from invoke_routing_gates import (  # noqa: E402
     check_critic_evidence,
     check_documentation_only,
     check_qa_evidence,
+    get_current_branch,
     get_today_session_log_local,
+    is_feature_branch,
     is_valid_project_root,
     main,
 )
@@ -469,3 +472,158 @@ class TestMainCriticGate:
         mock_stdin.seek(0)
         with patch.object(mock_stdin, "isatty", return_value=False):
             assert main() == 0
+
+
+class TestGetCurrentBranch:
+    def test_returns_branch_name(self) -> None:
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = "feature/123-my-feature\n"
+        with patch("invoke_routing_gates.subprocess.run", return_value=mock_result):
+            assert get_current_branch() == "feature/123-my-feature"
+
+    def test_raises_on_os_error(self) -> None:
+        with patch("invoke_routing_gates.subprocess.run", side_effect=OSError):
+            with pytest.raises(OSError):
+                get_current_branch()
+
+    def test_raises_on_timeout(self) -> None:
+        import subprocess as sp
+        with patch("invoke_routing_gates.subprocess.run", side_effect=sp.TimeoutExpired("git", 5)):
+            with pytest.raises(sp.TimeoutExpired):
+                get_current_branch()
+
+    def test_raises_on_empty_branch(self) -> None:
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = ""
+        with patch("invoke_routing_gates.subprocess.run", return_value=mock_result):
+            with pytest.raises(ValueError, match="detached HEAD"):
+                get_current_branch()
+
+
+class TestIsFeatureBranch:
+    def test_returns_true_for_feature_prefix(self) -> None:
+        assert is_feature_branch("feature/123-my-feature") is True
+
+    def test_returns_true_for_feat_prefix(self) -> None:
+        assert is_feature_branch("feat/my-feature") is True
+
+    def test_returns_false_for_fix_branch(self) -> None:
+        assert is_feature_branch("fix/my-fix") is False
+
+    def test_returns_false_for_docs_branch(self) -> None:
+        assert is_feature_branch("docs/update") is False
+
+    def test_returns_false_for_main(self) -> None:
+        assert is_feature_branch("main") is False
+
+    def test_returns_false_for_empty(self) -> None:
+        assert is_feature_branch("") is False
+
+
+class TestMainADRExistenceGate:
+    @pytest.fixture()
+    def mock_stdin(self) -> StringIO:
+        return StringIO()
+
+    @pytest.fixture(autouse=True)
+    def _mock_root(self) -> Generator[None]:
+        with patch("invoke_routing_gates.is_valid_project_root", return_value=True):
+            yield
+
+    @pytest.fixture(autouse=True)
+    def _mock_sessions(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        sessions_dir = tmp_path / ".agents" / "sessions"
+        sessions_dir.mkdir(parents=True)
+        monkeypatch.chdir(tmp_path)
+
+    def test_allows_non_feature_branch(
+        self,
+        mock_stdin: StringIO,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.delenv("SKIP_ADR_GATE", raising=False)
+        data = json.dumps({"tool_input": {"command": "gh pr create --title 'fix'"}})
+        mock_stdin.write(data)
+        mock_stdin.seek(0)
+        with patch("invoke_routing_gates.sys.stdin", mock_stdin):
+            with patch.object(mock_stdin, "isatty", return_value=False):
+                with patch("invoke_routing_gates.get_current_branch", return_value="fix/my-fix"):
+                    assert main() == 0
+
+    def test_allows_env_bypass(
+        self,
+        mock_stdin: StringIO,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv("SKIP_ADR_GATE", "true")
+        data = json.dumps({"tool_input": {"command": "gh pr create --title 'feat'"}})
+        mock_stdin.write(data)
+        mock_stdin.seek(0)
+        with patch("invoke_routing_gates.sys.stdin", mock_stdin):
+            with patch.object(mock_stdin, "isatty", return_value=False):
+                assert main() == 0
+
+    def test_denies_feature_branch_without_adr(
+        self,
+        mock_stdin: StringIO,
+        capsys: pytest.CaptureFixture[str],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.delenv("SKIP_ADR_GATE", raising=False)
+        monkeypatch.setenv("SKIP_QA_GATE", "true")
+        data = json.dumps({"tool_input": {"command": "gh pr create --title 'feat'"}})
+        mock_stdin.write(data)
+        mock_stdin.seek(0)
+        with patch("invoke_routing_gates.sys.stdin", mock_stdin):
+            with patch.object(mock_stdin, "isatty", return_value=False):
+                branch_patch = "invoke_routing_gates.get_current_branch"
+                with patch(branch_patch, return_value="feature/123-my-feat"):
+                    with patch("invoke_routing_gates.check_documentation_only", return_value=False):
+                        with patch("invoke_routing_gates.check_adr_evidence", return_value=False):
+                            assert main() == 0
+                            captured = capsys.readouterr()
+                            output = json.loads(captured.out.strip())
+                            assert output["decision"] == "deny"
+                            assert "ADR EXISTENCE GATE" in output["reason"]
+
+    def test_allows_feature_branch_with_adr(
+        self,
+        mock_stdin: StringIO,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.delenv("SKIP_ADR_GATE", raising=False)
+        monkeypatch.setenv("SKIP_QA_GATE", "true")
+        data = json.dumps({"tool_input": {"command": "gh pr create --title 'feat'"}})
+        mock_stdin.write(data)
+        mock_stdin.seek(0)
+        with patch("invoke_routing_gates.sys.stdin", mock_stdin):
+            with patch.object(mock_stdin, "isatty", return_value=False):
+                branch_patch = "invoke_routing_gates.get_current_branch"
+                with patch(branch_patch, return_value="feature/123-my-feat"):
+                    with patch("invoke_routing_gates.check_documentation_only", return_value=False):
+                        with patch("invoke_routing_gates.check_adr_evidence", return_value=True):
+                            assert main() == 0
+
+    def test_denies_feature_branch_when_get_branch_fails(
+        self,
+        mock_stdin: StringIO,
+        capsys: pytest.CaptureFixture[str],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Fail-closed: if get_current_branch raises, deny the PR creation."""
+        monkeypatch.delenv("SKIP_ADR_GATE", raising=False)
+        monkeypatch.setenv("SKIP_QA_GATE", "true")
+        data = json.dumps({"tool_input": {"command": "gh pr create --title 'feat'"}})
+        mock_stdin.write(data)
+        mock_stdin.seek(0)
+        with patch("invoke_routing_gates.sys.stdin", mock_stdin):
+            with patch.object(mock_stdin, "isatty", return_value=False):
+                branch_patch = "invoke_routing_gates.get_current_branch"
+                with patch(branch_patch, side_effect=OSError("git not found")):
+                    assert main() == 0
+                    captured = capsys.readouterr()
+                    output = json.loads(captured.out.strip())
+                    assert output["decision"] == "deny"
+                    assert "ADR EXISTENCE GATE FAILED" in output["reason"]

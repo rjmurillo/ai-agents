@@ -21,23 +21,17 @@ from __future__ import annotations
 import argparse
 import copy
 import json
-import subprocess
 import sys
 from pathlib import Path
 from typing import Any
+
+from scripts.github_core.repo import get_repo_root as _shared_get_repo_root
 
 
 def get_repo_root(override: str | None = None) -> Path:
     if override:
         return Path(override)
-    result = subprocess.run(
-        ["git", "rev-parse", "--show-toplevel"],
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode == 0 and result.stdout.strip():
-        return Path(result.stdout.strip())
-    return Path.cwd()
+    return _shared_get_repo_root() or Path.cwd()
 
 
 def transform_for_vscode(source: dict[str, Any]) -> dict[str, Any]:

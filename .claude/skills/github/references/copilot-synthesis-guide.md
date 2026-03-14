@@ -16,14 +16,16 @@ The synthesis comment is idempotent - if one already exists (detected by marker)
 ## Usage
 
 ```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+
 # Basic usage
-python3 .claude/skills/github/scripts/issue/invoke_copilot_assignment.py --issue-number 123
+python3 "$SCRIPTS_DIR/issue/invoke_copilot_assignment.py" --issue-number 123
 
 # Preview without posting
-python3 .claude/skills/github/scripts/issue/invoke_copilot_assignment.py --issue-number 123 --dry-run
+python3 "$SCRIPTS_DIR/issue/invoke_copilot_assignment.py" --issue-number 123 --dry-run
 
 # Custom config
-python3 .claude/skills/github/scripts/issue/invoke_copilot_assignment.py --issue-number 123 --config-path "custom.yml"
+python3 "$SCRIPTS_DIR/issue/invoke_copilot_assignment.py" --issue-number 123 --config-path "custom.yml"
 ```
 
 ## Configuration Reference

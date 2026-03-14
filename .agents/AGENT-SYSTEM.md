@@ -1173,6 +1173,46 @@ flowchart TD
 
 **Validation**: Every TASK traces to DESIGN, every DESIGN traces to REQ
 
+#### Usage Examples
+
+**Example 1: Route a new feature through the Specification path**
+
+```text
+User: "We need a new authentication system with audit logging"
+Orchestrator: Detects complexity + traceability need → routes to spec-generator
+spec-generator: Produces REQ-010-authentication-system.md, DESIGN-010-auth-design.md, TASK-010-*.md
+Orchestrator: Routes to critic for EARS compliance validation
+Orchestrator: Routes to architect for design review
+After approval: Routes to implementer for TASK execution
+```
+
+**Example 2: Invoke spec-generator directly for a known feature**
+
+```text
+User: "@spec-generator Create EARS requirements for rate limiting on the GraphQL API"
+spec-generator: Asks clarifying questions about scope
+spec-generator: Produces REQ-NNN, DESIGN-NNN, TASK-NNN documents
+User or orchestrator: Validates traceability chain manually or via critic
+```
+
+**Example 3: Validate an existing spec chain with the critic**
+
+```text
+User: "@critic Validate the traceability chain for REQ-001-pr-comment-handling"
+critic: Checks REQ → DESIGN → TASK links
+critic: Verifies EARS format compliance in requirement bodies
+critic: Reports any orphan requirements, broken references, or status inconsistencies
+```
+
+#### Troubleshooting Guide
+
+| Symptom | Cause | Resolution |
+|---------|-------|------------|
+| Duplicate REQ/DESIGN/TASK IDs | Manual spec creation bypassing spec-generator | Rename file; update YAML `id` field; fix cross-references in `related:` arrays |
+| Orphan requirement (REQ with no DESIGN) | spec-generator interrupted before completing full 3-tier output | Re-invoke spec-generator with existing REQ as input using `--continue` mode |
+| Status inconsistency (TASK `done`, REQ `draft`) | Out-of-order status updates | Update parent status to `approved` before marking child `done` |
+| Non-EARS requirement body | Spec created without spec-generator | Rewrite body using WHEN/THE SYSTEM SHALL/SO THAT pattern per `.agents/governance/ears-format.md` |
+
 ---
 
 ## 4. Routing Heuristics

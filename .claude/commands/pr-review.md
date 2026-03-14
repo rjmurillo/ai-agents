@@ -29,6 +29,16 @@ Parse the input: `$ARGUMENTS`
 | `--cleanup` | Clean up worktrees after completion | true |
 | `--dry-run` | Preview planned actions without executing (JSON output) | false |
 
+## Script Path Resolution
+
+Resolve the script directory once before any script invocations. This supports both the source repo and consumer repos using the project-toolkit plugin.
+
+```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+```
+
+All script paths below use `$SCRIPTS_DIR` to reference the correct location.
+
 ## Workflow
 
 ### Dry-Run Mode (--dry-run)
@@ -115,21 +125,22 @@ When `--dry-run` is specified, the command gathers all planned actions without e
 **Dry-run workflow:**
 
 ```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 # Step 1: Parse PR numbers (same as normal)
 # Step 2: For each PR, gather read-only context
 
 for pr in pr_numbers:
     # Get PR context (read-only)
-    context=$(python3 .claude/skills/github/scripts/pr/get_pr_context.py --pull-request $pr)
+    context=$(python3 "$SCRIPTS_DIR/pr/get_pr_context.py" --pull-request $pr)
 
     # Get all comments (read-only)
-    comments=$(python3 .claude/skills/github/scripts/pr/get_pr_review_comments.py --pull-request $pr --group-by-domain --include-issue-comments)
+    comments=$(python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request $pr --group-by-domain --include-issue-comments)
 
     # Get unaddressed comments (read-only)
-    unaddressed=$(python3 .claude/skills/github/scripts/pr/get_unaddressed_comments.py --pull-request $pr)
+    unaddressed=$(python3 "$SCRIPTS_DIR/pr/get_unaddressed_comments.py" --pull-request $pr)
 
     # Get failing checks (read-only)
-    checks=$(python3 .claude/skills/github/scripts/pr/get_pr_checks.py --pull-request $pr)
+    checks=$(python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request $pr)
 
     # Analyze and collect planned actions (no mutations)
     # Output JSON with planned actions
@@ -160,7 +171,8 @@ For `all-open`, query: `gh pr list --state open --json number,reviewDecision`
 For each PR number, validate using:
 
 ```bash
-python3 .claude/skills/github/scripts/pr/get_pr_context.py --pull-request {number}
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+python3 "$SCRIPTS_DIR/pr/get_pr_context.py" --pull-request {number}
 ```
 
 Verify: PR exists, is open (state != MERGED, CLOSED), targets current repo.
@@ -170,8 +182,9 @@ Verify: PR exists, is open (state != MERGED, CLOSED), targets current repo.
 Before proceeding with review work, verify PR has not been merged via GraphQL (source of truth):
 
 ```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 # Check merge state via test_pr_merged.py
-python3 .claude/skills/github/scripts/pr/test_pr_merged.py --pull-request {number}
+python3 "$SCRIPTS_DIR/pr/test_pr_merged.py" --pull-request {number}
 # Exit code 0 = not merged (safe to proceed), 1 = merged (skip)
 
 if [ $? -eq 1 ]; then
@@ -189,37 +202,40 @@ Before addressing comments, gather full PR context:
 **1. Review ALL Comments** (review comments + PR comments):
 
 ```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 # Get review threads with resolution status
-python3 .claude/skills/github/scripts/pr/get_pr_review_threads.py --pull-request {number}
+python3 "$SCRIPTS_DIR/pr/get_pr_review_threads.py" --pull-request {number}
 
 # Get unresolved review threads
-python3 .claude/skills/github/scripts/pr/get_unresolved_review_threads.py --pull-request {number}
+python3 "$SCRIPTS_DIR/pr/get_unresolved_review_threads.py" --pull-request {number}
 
 # Get unaddressed comments (comments without replies)
-python3 .claude/skills/github/scripts/pr/get_unaddressed_comments.py --pull-request {number}
+python3 "$SCRIPTS_DIR/pr/get_unaddressed_comments.py" --pull-request {number}
 
 # Get full PR context including comments
-python3 .claude/skills/github/scripts/pr/get_pr_context.py --pull-request {number}
+python3 "$SCRIPTS_DIR/pr/get_pr_context.py" --pull-request {number}
 ```
 
 **2. Check Merge Eligibility with Base Branch**:
 
 ```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 # Get PR context including merge state
-python3 .claude/skills/github/scripts/pr/get_pr_context.py --pull-request {number}
+python3 "$SCRIPTS_DIR/pr/get_pr_context.py" --pull-request {number}
 # Check: "mergeable" should be "MERGEABLE"
 # Check: "merge_state_status" for conflicts
 
 # Verify PR is not already merged
-python3 .claude/skills/github/scripts/pr/test_pr_merged.py --pull-request {number}
+python3 "$SCRIPTS_DIR/pr/test_pr_merged.py" --pull-request {number}
 # Exit code 0 = not merged (safe to proceed), 1 = merged (skip)
 ```
 
 **3. Review ALL Failing Checks**:
 
 ```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 # Get all checks with conclusions using get_pr_checks.py
-python3 .claude/skills/github/scripts/pr/get_pr_checks.py --pull-request {number}
+python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request {number}
 # Output is JSON with FailedCount, AllPassing, and Checks array
 
 # For each failing check, investigate:
@@ -391,19 +407,26 @@ When using `--parallel` with worktrees:
 ### Verification Command
 
 ```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 # Run after each PR to verify completion
 for pr in "${pr_numbers[@]}"; do
     echo "=== PR #$pr Completion Check ==="
 
+    # Verify PR is not already merged
+    if ! python3 "$SCRIPTS_DIR/pr/test_pr_merged.py" --pull-request "$pr"; then
+        echo "  MERGED: PR #$pr was merged during session. Skipping."
+        continue
+    fi
+
     # Get CI check status
-    checks=$(python3 .claude/skills/github/scripts/pr/get_pr_checks.py --pull-request "$pr")
+    checks=$(python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request "$pr")
     all_passing=$(echo "$checks" | jq -r '.AllPassing')
     if [ "$all_passing" != "true" ]; then
         echo "$checks" | jq -r '.Checks[] | select(.Conclusion != "SUCCESS" and .Conclusion != "NEUTRAL" and .Conclusion != "SKIPPED" and .Conclusion != null) | "  FAIL: \(.Name) - \(.Conclusion)"'
     fi
 
     # Check for unresolved threads
-    python3 .claude/skills/github/scripts/pr/get_pr_review_threads.py --pull-request "$pr" --unresolved-only | jq '.unresolved_count'
+    python3 "$SCRIPTS_DIR/pr/get_pr_review_threads.py" --pull-request "$pr" --unresolved-only | jq '.unresolved_count'
 done
 ```
 
@@ -418,17 +441,18 @@ done
 After replying to a review comment, resolve the thread:
 
 ```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 # Step 1: Reply to thread and resolve in one call
-python3 .claude/skills/github/scripts/pr/add_pr_review_thread_reply.py \
+python3 "$SCRIPTS_DIR/pr/add_pr_review_thread_reply.py" \
   --thread-id "PRRT_xxx" --body "Response text" --resolve
 
 # Or as two separate steps:
 # Step 1: Reply to comment
-python3 .claude/skills/github/scripts/pr/add_pr_review_thread_reply.py \
+python3 "$SCRIPTS_DIR/pr/add_pr_review_thread_reply.py" \
   --thread-id "PRRT_xxx" --body "Response text"
 
 # Step 2: Resolve thread (REQUIRED separate step)
-python3 .claude/skills/github/scripts/pr/resolve_pr_review_thread.py --thread-id "PRRT_xxx"
+python3 "$SCRIPTS_DIR/pr/resolve_pr_review_thread.py" --thread-id "PRRT_xxx"
 ```
 
 **Why this matters**: Replying to a comment does NOT automatically resolve the thread. Thread resolution requires a separate GraphQL mutation. Unresolved threads block PR merge per branch protection rules.
@@ -438,9 +462,10 @@ python3 .claude/skills/github/scripts/pr/resolve_pr_review_thread.py --thread-id
 For 2+ threads, use the script with multiple thread IDs:
 
 ```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 # Resolve multiple threads efficiently with reply + resolve
 for thread_id in "PRRT_xxx" "PRRT_yyy" "PRRT_zzz"; do
-    python3 .claude/skills/github/scripts/pr/add_pr_review_thread_reply.py \
+    python3 "$SCRIPTS_DIR/pr/add_pr_review_thread_reply.py" \
       --thread-id "$thread_id" --body "Addressed." --resolve
 done
 

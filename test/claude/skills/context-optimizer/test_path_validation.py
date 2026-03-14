@@ -35,12 +35,17 @@ from path_validation import get_repo_root, validate_path_within_repo  # noqa: E4
 def repo_root() -> Path:
     """Get the actual repo root for tests."""
     result = subprocess.run(
-        ["git", "rev-parse", "--show-toplevel"],
+        ["git", "rev-parse", "--git-common-dir"],
         capture_output=True,
         text=True,
         check=True,
     )
-    return Path(result.stdout.strip()).resolve()
+    git_common = Path(result.stdout.strip())
+    if not git_common.is_absolute():
+        git_common = (Path.cwd() / git_common).resolve()
+    else:
+        git_common = git_common.resolve()
+    return git_common.parent
 
 
 @pytest.fixture
