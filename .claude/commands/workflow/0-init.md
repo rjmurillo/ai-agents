@@ -1,55 +1,48 @@
 ---
-description: Initialize a new workflow session with memory-first architecture (ADR-007). Always the first command in any workflow sequence.
+description: Session initialization - enforce ADR-007 memory-first architecture at session start. Loads project context, creates session log, and declares current branch via Invoke-Init.ps1.
+argument-hint: [--session-number N] [--objective "text"]
+allowed-tools:
+  - Bash(pwsh .claude/skills/workflow/scripts/*)
+  - Bash(pwsh .claude/skills/session-init/scripts/*)
+  - Bash(git:*)
+  - Bash(ls:*)
+  - Read
 model: sonnet
 ---
 
-# /0-init - Session Initialization
+# /0-init — Session Initialization
 
-Enforce session protocol gates and establish context before any work begins. Always the first command in any workflow sequence.
+Enforce ADR-007 memory-first architecture at session start.
 
-## Actions
+## Context
 
-1. **Activate project context** - Load initial instructions and project configuration
-2. **Read HANDOFF.md** - Restore cross-session context from `.agents/HANDOFF.md`
-3. **Query relevant memories** - Retrieve session history and learned patterns
-4. **Create session log** - Initialize a new session log entry in `.agents/sessions/`
-5. **Declare current branch** - Record the active Git branch and working state
+Recent sessions: !`ls -1 .agents/sessions/ | tail -5`
 
-## MCP Integration
+Current branch: !`git branch --show-current`
 
-Maps to Session State MCP `session_start()` (ADR-011). Fallback: execute steps manually using Serena memory tools and file reads.
+## Invocation
 
-## Gate Requirements
-
-| Gate | Level | Validation |
-|------|-------|------------|
-| Project activation | BLOCKING | Tool output confirms activation |
-| HANDOFF.md loaded | BLOCKING | Content present in context |
-| Session log created | REQUIRED | File exists with correct template |
-| Git state documented | RECOMMENDED | Branch and status recorded |
-
-## Output
-
-After successful initialization, report:
-
-- Session ID and timestamp
-- Loaded context summary (HANDOFF.md highlights)
-- Current branch and Git state
-- Ready state for next command (`/1-plan` or direct work)
-
-## Sequence Position
-
-```text
-▶ /0-init → /1-plan → /2-impl → /3-qa → /4-security → /9-sync
+```bash
+pwsh .claude/skills/workflow/scripts/Invoke-Init.ps1 $ARGUMENTS
 ```
 
-## References
+## What This Command Does
 
-- ADR-007: Memory-First Architecture
-- ADR-011: Session State MCP
+1. **Load project context** — initializes session state via Agent Orchestration MCP (graceful fallback if unavailable)
+2. **Load initial instructions** — read AGENTS.md for current project rules
+3. **Read HANDOFF.md** — load prior session context (read-only)
+4. **Surface prior context** — retrieves relevant session history via Agent Orchestration MCP (graceful fallback if unavailable)
+5. **Create session log** — via `New-SessionLog.ps1`
+6. **Declare current branch** — output git branch for orientation
+7. **Record evidence** — persist session state (graceful fallback if unavailable)
 
-## Examples
+## Arguments
 
-```text
-/0-init
-```
+- `--session-number N`: Optional. Auto-detected from `.agents/sessions/`.
+- `--objective "text"`: Optional. Derived from branch name if omitted.
+
+## Related
+
+- Protocol: `.agents/SESSION-PROTOCOL.md`
+- ADR-007: `.agents/architecture/ADR-007-memory-first-architecture.md`
+- Session Init Skill: `.claude/skills/session-init/SKILL.md`
