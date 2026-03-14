@@ -1,4 +1,4 @@
-"""Tests for test_pr_description.py validation logic."""
+"""Tests for validate_pr_description.py validation logic."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from pathlib import Path
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 SCRIPT = str(
-    _REPO_ROOT / ".claude" / "skills" / "github" / "scripts" / "pr" / "test_pr_description.py"
+    _REPO_ROOT / ".claude" / "skills" / "github" / "scripts" / "pr" / "validate_pr_description.py"
 )
 
 

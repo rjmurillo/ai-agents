@@ -3,7 +3,6 @@ description: Use when validating a PR title and description for conventional com
 allowed-tools:
   - Bash(python3:*)
   - Bash(git:*)
-  - Bash(gh:*)
   - Read
   - Glob
   - Grep
@@ -27,9 +26,9 @@ Title must match `<type>(<scope>)?: <description>` where type is one of:
 
 ### 2. Issue Linking Keywords
 
-Body should contain at least one GitHub issue linking keyword:
+Body should contain at least one issue linking keyword:
 `Closes #N`, `Fixes #N`, `Resolves #N` (and their past-tense variants).
-These auto-close the linked issue when the PR merges.
+These keywords auto-close the linked issue when the PR merges on platforms that support them (GitHub, GitLab). On other platforms (Azure DevOps, Bitbucket), they serve as traceability markers.
 
 ### 3. PR Template Compliance
 
@@ -41,10 +40,10 @@ Check that required sections are populated:
 
 ### Validation Script (optional)
 
-If `.claude/skills/github/scripts/pr/test_pr_description.py` exists, run it:
+If `.claude/skills/github/scripts/pr/validate_pr_description.py` exists, run it:
 
 ```bash
-python3 .claude/skills/github/scripts/pr/test_pr_description.py \
+python3 .claude/skills/github/scripts/pr/validate_pr_description.py \
   --title "[title]" \
   --body-file "[path-to-body.md]"
 ```

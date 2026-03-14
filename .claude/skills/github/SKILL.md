@@ -58,7 +58,7 @@ Need GitHub data?
 ├─ Unaddressed bot comments → get_unaddressed_comments.py
 ├─ PR merged check → test_pr_merged.py
 ├─ Copilot follow-up PRs → detect_copilot_followup_pr.py
-├─ Validate PR description → test_pr_description.py
+├─ Validate PR description → validate_pr_description.py
 ├─ Issue info → get_issue_context.py
 ├─ Merge readiness check → test_pr_merge_ready.py
 ├─ Latest milestone → get_latest_semantic_milestone.py
@@ -112,7 +112,7 @@ Need GitHub data?
 | `set_pr_auto_merge.py` | Enable/disable auto-merge | `--pull-request`, `--enable`/`--disable`, `--merge-method` |
 | `invoke_pr_comment_processing.py` | Process AI triage output | `--pr-number`, `--verdict`, `--findings-json` |
 | `new_pr.py` | Create PR with validation | `--title`, `--body`, `--base` |
-| `test_pr_description.py` | Validate PR description | `--title`, `--body`, `--body-file`, `--fail-on-violation` |
+| `validate_pr_description.py` | Validate PR description | `--title`, `--body`, `--body-file`, `--fail-on-violation` |
 | `close_pr.py` | Close PR with comment | `--pull-request`, `--comment` |
 | `merge_pr.py` | Merge with strategy | `--pull-request`, `--strategy`, `--delete-branch`, `--auto` |
 

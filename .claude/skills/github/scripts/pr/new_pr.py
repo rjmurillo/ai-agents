@@ -141,7 +141,7 @@ def run_validations(
     print()
     print("[4/4] Validating PR description...")
     validate_script = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), "test_pr_description.py",
+        os.path.dirname(os.path.abspath(__file__)), "validate_pr_description.py",
     )
     if os.path.exists(validate_script) and title:
         val_args = [sys.executable, validate_script, "--title", title]

@@ -374,7 +374,7 @@ Verify code coverage meets minimum thresholds:
 Verify PR description meets GitHub standards and template compliance:
 
 ```bash
-python3 .claude/skills/github/scripts/pr/test_pr_description.py \
+python3 .claude/skills/github/scripts/pr/validate_pr_description.py \
   --title "[PR title]" \
   --body-file "[path-to-pr-body.md]"
 ```
