@@ -165,6 +165,41 @@ pwsh -NoProfile -Command 'Install-Module -Name powershell-yaml -Force -Scope Cur
 
 echo "=== Git Hooks ==="
 [[ -d ".githooks" ]] && git config core.hooksPath .githooks
+git config --global core.autocrlf input
+
+echo "=== Linting Tools ==="
+# actionlint: pinned to v1.7.11 with checksum verification
+ACTIONLINT_VERSION="1.7.11"
+if ! command -v actionlint &>/dev/null; then
+    ARCH="$(uname -m)"
+    case "$ARCH" in
+        x86_64)  AL_ARCH="amd64"; AL_SHA256="900919a84f2229bac68ca9cd4103ea297abc35e9689ebb842c6e34a3d1b01b0a" ;;
+        aarch64) AL_ARCH="arm64"; AL_SHA256="21bc0dfb57a913fe175298c2a9e906ee630f747cb66d0a934d0d4b69f4ee1235" ;;
+        *) echo "Unsupported architecture: $ARCH" >&2; exit 1 ;;
+    esac
+    AL_TARBALL="actionlint_${ACTIONLINT_VERSION}_linux_${AL_ARCH}.tar.gz"
+    AL_URL="https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/${AL_TARBALL}"
+
+    mkdir -p "$HOME/.local/bin"
+    curl -fsSL "$AL_URL" -o "/tmp/${AL_TARBALL}"
+    echo "${AL_SHA256}  /tmp/${AL_TARBALL}" | sha256sum --check --strict
+    tar -xzf "/tmp/${AL_TARBALL}" -C /tmp actionlint
+    install -m 755 /tmp/actionlint "$HOME/.local/bin/actionlint"
+    rm -f "/tmp/${AL_TARBALL}" /tmp/actionlint
+
+    if ! command -v actionlint &>/dev/null; then
+        echo "actionlint installation failed: binary not found on PATH" >&2
+        exit 1
+    fi
+fi
+if ! command -v yamllint &>/dev/null; then
+    uv pip install --system yamllint --quiet
+
+    if ! command -v yamllint &>/dev/null; then
+        echo "yamllint installation failed: binary not found on PATH" >&2
+        exit 1
+    fi
+fi
 
 echo "=== Environment ==="
 grep -q 'SKIP_AUTOFIX' "$HOME/.bashrc" 2>/dev/null || echo 'export SKIP_AUTOFIX=0' >> "$HOME/.bashrc"
