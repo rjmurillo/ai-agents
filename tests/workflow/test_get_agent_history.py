@@ -27,36 +27,38 @@ def _run_script(*args: str) -> subprocess.CompletedProcess:
 
 
 class TestJsonOutput:
-    def test_returns_valid_json_or_empty(self):
+    def test_exits_successfully(self):
         result = _run_script("--lookback-hours", "720")
-        if result.stdout.strip():
-            data = json.loads(result.stdout)
-            assert isinstance(data, list)
+        assert result.returncode == 0
+
+    def test_returns_valid_json_list(self):
+        result = _run_script("--lookback-hours", "720")
+        assert result.returncode == 0
+        data = json.loads(result.stdout)
+        assert isinstance(data, list)
 
     def test_entries_have_required_fields(self):
         result = _run_script("--lookback-hours", "8760")
-        if result.stdout.strip():
-            data = json.loads(result.stdout)
-            if data:
-                entry = data[0]
-                assert "Agent" in entry
-                assert "Commit" in entry
-                assert "Message" in entry
+        assert result.returncode == 0
+        data = json.loads(result.stdout)
+        for entry in data:
+            assert "Agent" in entry
+            assert "Commit" in entry
+            assert "Message" in entry
 
 
 class TestTableOutput:
-    def test_does_not_fail(self):
+    def test_exits_successfully(self):
         result = _run_script("--format", "table", "--lookback-hours", "1")
         assert result.returncode == 0
 
 
 class TestAgentDetection:
-    def test_detects_feat_as_implementer(self):
-        """Verify the heuristic detects conventional commit prefixes."""
+    def test_agent_names_are_nonempty_strings(self):
+        """Verify each detected agent has a valid name."""
         result = _run_script("--lookback-hours", "8760")
-        if result.stdout.strip():
-            data = json.loads(result.stdout)
-            # We can't guarantee specific agents but structure should be valid
-            for entry in data:
-                assert isinstance(entry["Agent"], str)
-                assert len(entry["Agent"]) > 0
+        assert result.returncode == 0
+        data = json.loads(result.stdout)
+        for entry in data:
+            assert isinstance(entry["Agent"], str)
+            assert len(entry["Agent"]) > 0

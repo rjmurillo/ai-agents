@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import importlib
 import json
 import os
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from unittest import mock
 
 SCRIPT = str(
     Path(__file__).resolve().parents[2]
@@ -16,6 +18,14 @@ SCRIPT = str(
     / "workflow"
     / "scripts"
     / "sync_session_documentation.py"
+)
+
+SCRIPTS_DIR = str(
+    Path(__file__).resolve().parents[2]
+    / ".claude"
+    / "skills"
+    / "workflow"
+    / "scripts"
 )
 
 
@@ -28,9 +38,20 @@ def _run_script(*args: str) -> subprocess.CompletedProcess:
     )
 
 
+def _import_module():
+    """Import the sync module, reloading to pick up monkeypatches."""
+    if SCRIPTS_DIR not in sys.path:
+        sys.path.insert(0, SCRIPTS_DIR)
+    import sync_session_documentation
+
+    importlib.reload(sync_session_documentation)
+    return sync_session_documentation
+
+
 class TestDryRun:
     def test_produces_output_without_writing_files(self):
         result = _run_script("--dry-run")
+        assert result.returncode == 0
         assert "DRY RUN" in result.stdout
         assert "Structured Output" in result.stdout
 
@@ -93,63 +114,33 @@ class TestLookbackHours:
 class TestQueryAgentsHistory:
     """Tests for MCP agents://history integration."""
 
-    def test_returns_none_when_no_mcp(self, monkeypatch):
+    def test_returns_none_when_no_mcp(self, monkeypatch, tmp_path):
         """Without MCP env or cache, should return None."""
         monkeypatch.delenv("AGENTS_HISTORY_JSON", raising=False)
-        sys.path.insert(
-            0,
-            str(
-                Path(__file__).resolve().parents[2]
-                / ".claude"
-                / "skills"
-                / "workflow"
-                / "scripts"
-            ),
-        )
-        from sync_session_documentation import query_agents_history
-
-        result = query_agents_history(8)
+        monkeypatch.chdir(tmp_path)
+        mod = _import_module()
+        result = mod.query_agents_history(8)
         assert result is None
 
-    def test_returns_list_from_env(self, monkeypatch):
+    def test_returns_list_from_env(self, monkeypatch, tmp_path):
         """When AGENTS_HISTORY_JSON is set with valid JSON list, returns it."""
         monkeypatch.setenv(
             "AGENTS_HISTORY_JSON",
             json.dumps([{"agent": "implementer", "ts": "2026-01-01T00:00:00Z"}]),
         )
-        sys.path.insert(
-            0,
-            str(
-                Path(__file__).resolve().parents[2]
-                / ".claude"
-                / "skills"
-                / "workflow"
-                / "scripts"
-            ),
-        )
-        from sync_session_documentation import query_agents_history
-
-        result = query_agents_history(8)
+        monkeypatch.chdir(tmp_path)
+        mod = _import_module()
+        result = mod.query_agents_history(8)
         assert isinstance(result, list)
         assert len(result) == 1
         assert result[0]["agent"] == "implementer"
 
-    def test_returns_none_on_invalid_json(self, monkeypatch):
+    def test_returns_none_on_invalid_json(self, monkeypatch, tmp_path):
         """Invalid JSON in env var should fall through gracefully."""
         monkeypatch.setenv("AGENTS_HISTORY_JSON", "not-json{{{")
-        sys.path.insert(
-            0,
-            str(
-                Path(__file__).resolve().parents[2]
-                / ".claude"
-                / "skills"
-                / "workflow"
-                / "scripts"
-            ),
-        )
-        from sync_session_documentation import query_agents_history
-
-        result = query_agents_history(8)
+        monkeypatch.chdir(tmp_path)
+        mod = _import_module()
+        result = mod.query_agents_history(8)
         assert result is None
 
 
@@ -161,19 +152,8 @@ class TestSyncSerenaMemory:
         memory_dir = tmp_path / ".serena" / "memories"
         memory_dir.mkdir(parents=True)
 
-        sys.path.insert(
-            0,
-            str(
-                Path(__file__).resolve().parents[2]
-                / ".claude"
-                / "skills"
-                / "workflow"
-                / "scripts"
-            ),
-        )
-        from sync_session_documentation import sync_serena_memory
-
-        result = sync_serena_memory(
+        mod = _import_module()
+        result = mod.sync_serena_memory(
             str(tmp_path),
             agents=["implementer", "qa"],
             decisions=["Used Python per ADR-042"],
@@ -191,19 +171,8 @@ class TestSyncSerenaMemory:
 
     def test_returns_false_when_no_serena(self, tmp_path):
         """Without .serena/memories/ dir, should return False gracefully."""
-        sys.path.insert(
-            0,
-            str(
-                Path(__file__).resolve().parents[2]
-                / ".claude"
-                / "skills"
-                / "workflow"
-                / "scripts"
-            ),
-        )
-        from sync_session_documentation import sync_serena_memory
-
-        result = sync_serena_memory(
+        mod = _import_module()
+        result = mod.sync_serena_memory(
             str(tmp_path),
             agents=[],
             decisions=[],
@@ -219,10 +188,19 @@ class TestPathTraversalPrevention:
 
     def test_rejects_path_outside_repo(self):
         traversal_path = os.path.join(tempfile.gettempdir(), "pwned.md")
+        # Remove target file if it exists from a prior run
+        if os.path.exists(traversal_path):
+            os.unlink(traversal_path)
+
         result = _run_script("--output-path", traversal_path)
         combined = result.stdout + result.stderr
+
         assert (
             "Path traversal attempt detected" in combined
             or "outside the repository root" in combined
             or result.returncode != 0
+        )
+        # Verify the file was not created
+        assert not os.path.exists(traversal_path), (
+            f"Path traversal succeeded: {traversal_path} was created"
         )

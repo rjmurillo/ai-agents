@@ -51,13 +51,13 @@ def get_agent_history(lookback_hours: int) -> list[dict]:
     since = (datetime.now(UTC) - timedelta(hours=lookback_hours)).strftime(
         "%Y-%m-%dT%H:%M:%S"
     )
-    lines = _run_git("log", f"--since={since}", "--format=%H|%s|%ai")
+    lines = _run_git("log", f"--since={since}", "--format=%H%x1f%s%x1f%ai")
 
     history: list[dict] = []
     order = 1
 
     for line in lines:
-        parts = line.split("|", 2)
+        parts = line.split("\x1f", 2)
         if len(parts) < 2:
             continue
 

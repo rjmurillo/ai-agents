@@ -65,13 +65,11 @@ def get_recent_commits(hours: int) -> list[dict]:
     since = (datetime.now(UTC) - timedelta(hours=hours)).strftime(
         "%Y-%m-%dT%H:%M:%S"
     )
-    lines = _run_git("log", f"--since={since}", "--format=%H|%s|%an|%ai")
-    if not lines:
-        lines = _run_git("log", "-20", "--format=%H|%s|%an|%ai")
+    lines = _run_git("log", f"--since={since}", "--format=%H%x1f%s%x1f%an%x1f%ai")
 
     commits = []
     for line in lines:
-        parts = line.split("|", 3)
+        parts = line.split("\x1f", 3)
         if len(parts) >= 2:
             commits.append({
                 "Hash": parts[0][:8],
@@ -127,10 +125,6 @@ def get_artifacts(hours: int) -> list[dict]:
     )
     added = _run_git("log", f"--since={since}", "--diff-filter=A", "--name-only", "--format=")
     modified = _run_git("log", f"--since={since}", "--diff-filter=M", "--name-only", "--format=")
-
-    if not added and not modified:
-        added = _run_git("log", "-10", "--diff-filter=A", "--name-only", "--format=")
-        modified = _run_git("log", "-10", "--diff-filter=M", "--name-only", "--format=")
 
     artifacts: list[dict] = []
     seen: set[str] = set()
@@ -370,7 +364,6 @@ def main() -> None:
     parser.add_argument("--lookback-hours", type=int, default=8)
     parser.add_argument("--output-path", type=str, default="")
     parser.add_argument("--dry-run", action="store_true")
-    parser.add_argument("--verbose", action="store_true")
     args = parser.parse_args()
 
     repo_root = get_repo_root()
@@ -387,11 +380,20 @@ def main() -> None:
     mcp_history = query_agents_history(args.lookback_hours)
     if mcp_history is not None:
         print("  Source: agents://history (MCP)")
+        # Extract agent names from MCP history entries
+        mcp_agents = [
+            entry.get("agent", "") for entry in mcp_history if entry.get("agent")
+        ]
     else:
         print("  Source: git history (MCP unavailable)")
+        mcp_agents = []
 
     commits = get_recent_commits(args.lookback_hours)
     agents = get_agents_from_commits(commits)
+    # Merge MCP-detected agents (preserving order, no duplicates)
+    for agent in mcp_agents:
+        if agent not in agents:
+            agents.append(agent)
     decisions = get_decisions(commits)
     artifacts = get_artifacts(args.lookback_hours)
     diagram = generate_mermaid_diagram(agents)
@@ -433,6 +435,20 @@ def main() -> None:
         print(f"  Agents detected: {len(agents)}")
         print(f"  Artifacts: {len(artifacts)}")
         print(f"  Learnings: {len(learnings)}")
+
+        # Sync to Serena memory for cross-session persistence
+        synced = sync_serena_memory(
+            repo_root,
+            agents=agents,
+            decisions=decisions,
+            learnings=learnings,
+            branch=current_branch,
+            date=date,
+        )
+        if synced:
+            print("  Memory: synced to Serena")
+        else:
+            print("  Memory: Serena unavailable (manual sync needed)")
 
     # Structured JSON output
     json_output = json.dumps(

@@ -1,6 +1,7 @@
 ---
 description: Auto-generate session documentation. Queries session history, generates workflow diagrams, updates session logs, and syncs memory. Use at the end of any workflow to capture what happened.
-argument-hint: [--verbose] [--dry-run]
+model: sonnet
+argument-hint: [--dry-run]
 allowed-tools:
   - Bash(python .claude/skills/workflow/scripts/*)
   - Bash(git:*)
@@ -45,7 +46,7 @@ ls -t .agents/sessions/*.json 2>/dev/null | head -1
 Run the sync script to produce the session documentation:
 
 ```bash
-python .claude/skills/workflow/scripts/sync_session_documentation.py
+python .claude/skills/workflow/scripts/sync_session_documentation.py $ARGUMENTS
 ```
 
 This script will:
@@ -95,50 +96,12 @@ Based on the session, suggest:
 
 | Argument | Description |
 |----------|-------------|
-| `--verbose` | Include full file diffs and extended commit history |
 | `--dry-run` | Preview documentation without writing to session log |
 
 ## Output
 
-The command produces a session sync report in this format:
-
-```markdown
-## Session Sync Report — YYYY-MM-DD Session N
-
-### Workflow Diagram
-```mermaid
-sequenceDiagram
-    participant U as User
-    participant O as Orchestrator
-    participant I as Implementer
-    participant Q as QA
-    U->>O: /2-impl feature
-    O->>I: Implement changes
-    I->>Q: Handoff for validation
-    Q->>U: Results
-```
-
-### Agents Invoked
-
-1. orchestrator (routing)
-2. implementer (code changes)
-3. qa (validation)
-
-### Decisions Made
-
-- Decision 1: rationale
-
-### Artifacts Created
-
-- feature_module.py (new)
-- README.md (modified)
-
-### Retrospective Learnings
-
-- Learning 1
-- Learning 2
-
-```text
+The command produces a session sync report with sections for Workflow Diagram (Mermaid),
+Agents Invoked, Decisions Made, Artifacts Created, and Retrospective Learnings.
 
 ## Dependencies
 
