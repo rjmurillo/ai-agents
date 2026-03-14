@@ -65,7 +65,15 @@ def validate_conventional_commit(title: str) -> bool:
     return True
 
 
-def run_validations(repo_root: str, base: str, head: str) -> None:
+def run_validations(
+    repo_root: str,
+    base: str,
+    head: str,
+    *,
+    title: str = "",
+    body: str = "",
+    body_file: str = "",
+) -> None:
     """Run pre-creation validations. Raises SystemExit(1) on failure."""
     try:
         os.makedirs(os.path.join(repo_root, ".agents"), exist_ok=True)
@@ -76,7 +84,7 @@ def run_validations(repo_root: str, base: str, head: str) -> None:
     print()
 
     # Validation 1: Session End (if .agents/ files changed)
-    print("[1/3] Checking Session End protocol...")
+    print("[1/4] Checking Session End protocol...")
     result = subprocess.run(
         ["git", "diff", "--name-only", f"{base}...{head}"],
         capture_output=True,
@@ -116,7 +124,7 @@ def run_validations(repo_root: str, base: str, head: str) -> None:
 
     # Validation 2: Skill violation detection (WARNING)
     print()
-    print("[2/3] Checking for skill violations...")
+    print("[2/4] Checking for skill violations...")
     skill_script = os.path.join(repo_root, "scripts/detect_skill_violation.py")
     if os.path.exists(skill_script):
         subprocess.run(
@@ -126,13 +134,33 @@ def run_validations(repo_root: str, base: str, head: str) -> None:
 
     # Validation 3: Test coverage detection (WARNING)
     print()
-    print("[3/3] Checking test coverage...")
+    print("[3/4] Checking test coverage...")
     test_script = os.path.join(repo_root, "scripts/Detect-TestCoverageGaps.ps1")
     if os.path.exists(test_script):
         subprocess.run(
             ["pwsh", "-NoProfile", "-File", test_script],
             timeout=30,
         )
+
+    # Validation 4: PR Description validation (WARNING)
+    print()
+    print("[4/4] Validating PR description...")
+    validate_script = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "validate_pr_description.py",
+    )
+    if os.path.exists(validate_script) and title:
+        val_args = [sys.executable, validate_script, "--title", title]
+        if body:
+            val_args.extend(["--body", body])
+        elif body_file:
+            val_args.extend(["--body-file", body_file])
+        val_result = subprocess.run(val_args, capture_output=True, text=True, timeout=30)
+        # Print human-readable output (on stderr from validator)
+        if val_result.stderr:
+            print(val_result.stderr, end="")
+        # Warning mode: don't fail on exit code
+    else:
+        print("  Skipped (no title available or validator not found)")
 
     print()
     print("All pre-creation validations passed!")
@@ -238,7 +266,12 @@ def main(argv: list[str] | None = None) -> int:
         print()
     else:
         try:
-            run_validations(repo_root, args.base, head)
+            run_validations(
+                repo_root, args.base, head,
+                title=args.title,
+                body=args.body,
+                body_file=args.body_file,
+            )
         except SystemExit:
             raise
         except Exception as exc:

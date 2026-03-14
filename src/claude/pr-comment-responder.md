@@ -1122,7 +1122,7 @@ After implementing a logical group of changes (or single critical fix):
 # Stage changes
 git add [files]
 
-# Commit with conventional message
+# Commit with conventional message and issue reference
 git commit -m "fix: [description]
 
 Addresses PR review comment from @[reviewer]
@@ -1130,11 +1130,19 @@ Addresses PR review comment from @[reviewer]
 - [Change 1]
 - [Change 2]
 
+Refs #[pr-number]
 Comment-ID: [comment_id]"
 
 # Push
 git push origin [branch]
 ```
+
+**Commit Message Etiquette:**
+
+- Use conventional commit format: `type: description`
+- Reference PR number with `Refs #[number]` in body
+- Include `Comment-ID: [id]` for traceability
+- Avoid `Closes`/`Fixes` in review response commits (reserve for main implementation)
 
 #### Step 6.3: Reply with Resolution
 
@@ -1161,6 +1169,44 @@ gh api repos/[owner]/[repo]/pulls/[pull_number]/comments \
 ```
 
 </details>
+
+**Response Format Best Practices:**
+
+Follow the pattern: **Action + Location + Reference**
+
+✅ Good:
+
+```text
+Fixed in abc1234. Updated validation logic to handle null values.
+```
+
+```text
+Refactored in def5678. Extracted method to reduce complexity from 15 to 8.
+```
+
+❌ Avoid:
+
+```text
+Done.
+Fixed.
+I've updated the code.
+```
+
+**Force Push Communication:**
+
+If force push is required (rebase, squash):
+
+```text
+Force pushed to update commit history.
+Previous: abc1234 → Current: def5678
+Changes: [brief explanation]
+```
+
+**Thread Resolution Protocol:**
+
+- Auto-resolve bot comments after fixing
+- Let human reviewers resolve their own threads
+- Resolve only after: fix committed + reply posted
 
 #### Step 6.4: Resolve Conversation Thread
 
