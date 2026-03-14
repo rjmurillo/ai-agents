@@ -75,12 +75,17 @@ def get_schema_path(
     if schema_directory is None:
         try:
             result = subprocess.run(
-                ["git", "rev-parse", "--show-toplevel"],
+                ["git", "rev-parse", "--git-common-dir"],
                 capture_output=True,
                 text=True,
                 check=True,
             )
-            git_root = result.stdout.strip()
+            git_common = Path(result.stdout.strip())
+            if not git_common.is_absolute():
+                git_common = (Path.cwd() / git_common).resolve()
+            else:
+                git_common = git_common.resolve()
+            git_root = str(git_common.parent)
         except (subprocess.CalledProcessError, FileNotFoundError) as err:
             msg = (
                 "Cannot determine git root. "

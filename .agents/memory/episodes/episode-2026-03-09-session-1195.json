@@ -1,0 +1,35 @@
+{
+  "id": "episode-2026-03-09-session-1195",
+  "session": "2026-03-09-session-1195",
+  "timestamp": "2026-03-09T23:55:40.694496+00:00",
+  "outcome": "failure",
+  "task": "",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-03-09T23:55:40.691609+00:00",
+      "type": "error",
+      "content": "\"markdownLintRun\": { \"level\": \"MUST\", \"Complete\": true, \"Evidence\": \"markdownlint-cli2 run on all changed files; error in unrelated pre-existing file only\" },",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-03-09T23:55:40.691609+00:00",
+      "type": "error",
+      "content": "\"outcome\": \"No errors in changed files; one pre-existing error in unrelated packages/semantic-hooks/README.md\"",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 2,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 0
+  },
+  "lessons": []
+}

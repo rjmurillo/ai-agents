@@ -375,7 +375,7 @@ def format_results(results: list[dict], output_format: str) -> None:
 def validate_path_containment(repo_path: str) -> None:
     script_dir = Path(__file__).resolve().parent
     result = subprocess.run(
-        ["git", "-C", str(script_dir), "rev-parse", "--show-toplevel"],
+        ["git", "-C", str(script_dir), "rev-parse", "--git-common-dir"],
         capture_output=True, text=True, timeout=10, check=False,
     )
     if result.returncode != 0:
@@ -385,7 +385,12 @@ def validate_path_containment(repo_path: str) -> None:
         )
         sys.exit(2)
 
-    project_root = os.path.realpath(result.stdout.strip())
+    git_common = Path(result.stdout.strip())
+    if not git_common.is_absolute():
+        git_common = (script_dir / git_common).resolve()
+    else:
+        git_common = git_common.resolve()
+    project_root = str(git_common.parent)
     resolved_repo = os.path.realpath(repo_path)
     if not (resolved_repo == project_root or resolved_repo.startswith(project_root + os.sep)):
         print(

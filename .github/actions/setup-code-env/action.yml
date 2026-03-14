@@ -98,6 +98,10 @@ runs:
         echo "Installing uv..."
         curl -LsSf https://astral.sh/uv/install.sh | sh
         echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+        # uv installer may place the binary in .cargo/bin on some runners (e.g. ARM)
+        if [ -d "$HOME/.cargo/bin" ]; then
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+        fi
         echo "✓ uv installed"
 
     - name: Setup Python

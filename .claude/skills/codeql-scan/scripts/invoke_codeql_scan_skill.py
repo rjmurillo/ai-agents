@@ -27,13 +27,18 @@ def get_repo_root() -> str | None:
     """Get the git repository root path."""
     try:
         result = subprocess.run(
-            ["git", "rev-parse", "--show-toplevel"],
+            ["git", "rev-parse", "--git-common-dir"],
             capture_output=True,
             text=True,
             timeout=10,
         )
         if result.returncode == 0:
-            return result.stdout.strip()
+            git_common = Path(result.stdout.strip())
+            if not git_common.is_absolute():
+                git_common = (Path.cwd() / git_common).resolve()
+            else:
+                git_common = git_common.resolve()
+            return str(git_common.parent)
     except (FileNotFoundError, subprocess.TimeoutExpired):
         pass
     return None

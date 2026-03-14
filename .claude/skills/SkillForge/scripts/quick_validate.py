@@ -10,8 +10,8 @@ Usage:
     python quick_validate.py ~/.claude/skills/my-skill/
 """
 
-import sys
 import os
+import sys
 import re
 from pathlib import Path
 
@@ -21,43 +21,84 @@ try:
 except ImportError:
     HAS_YAML = False
 
+# Import shared constants
+try:
+    from _constants import (
+        ALLOWED_PROPERTIES, REQUIRED_PROPERTIES,
+        NAME_MAX_LENGTH, DESCRIPTION_MAX_LENGTH, NAME_REGEX
+    )
+except ImportError:
+    # Fallback if _constants.py not available
+    ALLOWED_PROPERTIES = {
+        'name', 'description', 'license', 'allowed-tools', 'metadata',
+        'model', 'context', 'agent', 'hooks', 'user-invocable', 'version'
+    }
+    REQUIRED_PROPERTIES = {'name', 'description'}
+    NAME_MAX_LENGTH = 64
+    DESCRIPTION_MAX_LENGTH = 1024
+    NAME_REGEX = r'^[a-z][a-z0-9-]*[a-z0-9]$|^[a-z]$'
 
-def validate_and_resolve_path(path_str: str, allowed_base: Path) -> Path | None:
+
+def _parse_frontmatter_fallback(frontmatter_text: str) -> dict:
+    """Fallback YAML parser for when PyYAML is not available.
+
+    Handles folded (>) and literal (|) scalars for multi-line descriptions.
     """
-    Validate that a path string is safe and resolve it against a trusted base directory.
-    This prevents directory traversal by ensuring the final path stays within allowed_base.
+    frontmatter = {}
+    lines = frontmatter_text.split('\n')
+    current_key = None
+    current_value_lines = []
+    is_folded = False  # Track folded scalar (>)
+    is_literal = False  # Track literal scalar (|)
 
-    Args:
-        path_str: Path string provided by the user.
-        allowed_base: Base directory that the resolved path must remain within.
+    for line in lines:
+        # Check for top-level key
+        if ':' in line and not line.startswith(' ') and not line.startswith('\t'):
+            # Save previous key if exists
+            if current_key and (is_folded or is_literal):
+                frontmatter[current_key] = ' '.join(current_value_lines).strip()
 
-    Returns:
-        A resolved Path object if the path is safe, or None otherwise.
-    """
-    # Normalize inputs
-    raw = str(path_str)
-    base = allowed_base.resolve()
+            key, value = line.split(':', 1)
+            current_key = key.strip()
+            value = value.strip()
 
-    try:
-        # Treat all user input as relative to the trusted base and resolve it.
-        # Using strict=False so that existence of the path is not required for validation.
-        resolved_path = (base / raw).resolve(strict=False)
+            # Check for folded (>) or literal (|) scalar
+            if value == '>' or value == '>-':
+                is_folded = True
+                is_literal = False
+                current_value_lines = []
+            elif value == '|' or value == '|-':
+                is_literal = True
+                is_folded = False
+                current_value_lines = []
+            else:
+                is_folded = False
+                is_literal = False
+                frontmatter[current_key] = value
+                current_value_lines = []
 
-        # Ensure the resolved path is contained within the allowed base
-        resolved_path.relative_to(base)
-        return resolved_path
-    except (ValueError, OSError):
-        # Any resolution or containment error means the path is unsafe
-        return None
+        elif (is_folded or is_literal) and (line.startswith('  ') or line.startswith('\t')):
+            # Continuation of folded/literal scalar
+            current_value_lines.append(line.strip())
+
+        elif line.startswith('  ') and current_key == 'metadata':
+            # Basic nested parsing for metadata
+            if 'metadata' not in frontmatter or not isinstance(frontmatter['metadata'], dict):
+                frontmatter['metadata'] = {}
+            if ':' in line:
+                nested_key, nested_value = line.strip().split(':', 1)
+                frontmatter['metadata'][nested_key.strip()] = nested_value.strip()
+
+    # Save final key if it was a folded/literal scalar
+    if current_key and (is_folded or is_literal) and current_value_lines:
+        frontmatter[current_key] = ' '.join(current_value_lines).strip()
+
+    return frontmatter
 
 
-def validate_skill(skill_path: Path):
+def validate_skill(skill_path):
     """
     Basic validation of a skill for packaging compatibility.
-
-    The provided skill_path is expected to be an absolute, pre-validated
-    Path object. Callers are responsible for validating and resolving
-    any user-provided input before passing it here.
 
     Checks:
     - SKILL.md exists
@@ -70,24 +111,20 @@ def validate_skill(skill_path: Path):
     Returns:
         tuple: (is_valid: bool, message: str)
     """
-    # Ensure we are working with an absolute, filesystem-backed path
-    if not isinstance(skill_path, Path):
-        skill_path = Path(skill_path)
-    if not skill_path.is_absolute():
-        return False, f"Invalid path: {skill_path} must be absolute and pre-validated"
+    skill_path = Path(skill_path)
 
     # Check SKILL.md exists
     skill_md = skill_path / 'SKILL.md'
     if not skill_md.exists():
         return False, "SKILL.md not found"
 
-    # Read and validate frontmatter
-    content = skill_md.read_text()
+    # Read and validate frontmatter (explicit UTF-8 encoding)
+    content = skill_md.read_text(encoding='utf-8')
     if not content.startswith('---'):
         return False, "No YAML frontmatter found"
 
-    # Extract frontmatter
-    match = re.match(r'^---\n(.*?)\n---', content, re.DOTALL)
+    # Extract frontmatter (handles both LF and CRLF line endings)
+    match = re.match(r'^---\r?\n(.*?)\r?\n---', content, re.DOTALL)
     if not match:
         return False, "Invalid frontmatter format"
 
@@ -97,22 +134,17 @@ def validate_skill(skill_path: Path):
     if HAS_YAML:
         try:
             frontmatter = yaml.safe_load(frontmatter_text)
-            if not isinstance(frontmatter, dict):
+            if frontmatter is None:
+                frontmatter = {}
+            elif not isinstance(frontmatter, dict):
                 return False, "Frontmatter must be a YAML dictionary"
         except yaml.YAMLError as e:
             return False, f"Invalid YAML in frontmatter: {e}"
     else:
-        # Basic parsing without yaml library
-        frontmatter = {}
-        for line in frontmatter_text.split('\n'):
-            if ':' in line and not line.startswith(' '):
-                key, value = line.split(':', 1)
-                frontmatter[key.strip()] = value.strip()
+        # Basic parsing without yaml library (handles folded scalars)
+        frontmatter = _parse_frontmatter_fallback(frontmatter_text)
 
-    # Define allowed properties
-    ALLOWED_PROPERTIES = {'name', 'description', 'license', 'allowed-tools', 'metadata'}
-
-    # Check for unexpected properties (excluding nested keys under metadata)
+    # Check for unexpected properties
     unexpected_keys = set(frontmatter.keys()) - ALLOWED_PROPERTIES
     if unexpected_keys:
         return False, (
@@ -121,27 +153,26 @@ def validate_skill(skill_path: Path):
         )
 
     # Check required fields
-    if 'name' not in frontmatter:
-        return False, "Missing 'name' in frontmatter"
-    if 'description' not in frontmatter:
-        return False, "Missing 'description' in frontmatter"
+    for field in REQUIRED_PROPERTIES:
+        if field not in frontmatter:
+            return False, f"Missing '{field}' in frontmatter"
 
-    # Extract name for validation
+    # Validate name field
     name = frontmatter.get('name', '')
     if not isinstance(name, str):
         return False, f"Name must be a string, got {type(name).__name__}"
     name = name.strip()
     if name:
-        # Check naming convention (hyphen-case: lowercase with hyphens)
-        if not re.match(r'^[a-z0-9-]+$', name):
-            return False, f"Name '{name}' should be hyphen-case (lowercase letters, digits, and hyphens only)"
-        if name.startswith('-') or name.endswith('-') or '--' in name:
-            return False, f"Name '{name}' cannot start/end with hyphen or contain consecutive hyphens"
-        # Check name length (max 64 characters per spec)
-        if len(name) > 64:
-            return False, f"Name is too long ({len(name)} characters). Maximum is 64 characters."
+        # Check naming convention (hyphen-case: starts with letter, lowercase with hyphens)
+        if not re.match(NAME_REGEX, name):
+            return False, f"Name '{name}' should be hyphen-case (start with letter, lowercase letters, digits, and hyphens only)"
+        if '--' in name:
+            return False, f"Name '{name}' cannot contain consecutive hyphens"
+        # Check name length
+        if len(name) > NAME_MAX_LENGTH:
+            return False, f"Name is too long ({len(name)} characters). Maximum is {NAME_MAX_LENGTH} characters."
 
-    # Extract and validate description
+    # Validate description field
     description = frontmatter.get('description', '')
     if not isinstance(description, str):
         return False, f"Description must be a string, got {type(description).__name__}"
@@ -150,9 +181,9 @@ def validate_skill(skill_path: Path):
         # Check for angle brackets
         if '<' in description or '>' in description:
             return False, "Description cannot contain angle brackets (< or >)"
-        # Check description length (max 1024 characters per spec)
-        if len(description) > 1024:
-            return False, f"Description is too long ({len(description)} characters). Maximum is 1024 characters."
+        # Check description length
+        if len(description) > DESCRIPTION_MAX_LENGTH:
+            return False, f"Description is too long ({len(description)} characters). Maximum is {DESCRIPTION_MAX_LENGTH} characters."
 
     return True, "Skill is valid!"
 
@@ -164,22 +195,20 @@ def main():
         print("  python quick_validate.py ~/.claude/skills/my-skill/")
         sys.exit(1)
 
-    # SECURITY: Validate path safety and resolve to trusted path (prevents CWE-22)
-    raw_skill_path = sys.argv[1]
+    skill_path = sys.argv[1]
 
-    # Expand ~ but don't resolve yet (expanduser is safe, resolve is not)
-    expanded_path = str(Path(raw_skill_path).expanduser())
-
-    skill_path_obj = validate_and_resolve_path(expanded_path, allowed_base=Path.cwd())
-    if skill_path_obj is None:
-        print(f"❌ Error: Path contains unsafe characters or escapes allowed directory")
+    # SECURITY: Validate path stays within allowed base directory (CWE-22)
+    skills_root = os.path.realpath(str(Path.home() / ".claude" / "skills"))
+    resolved = os.path.realpath(skill_path)
+    if not resolved.startswith(skills_root + os.sep) and resolved != skills_root:
+        print(f"Error: Path traversal detected: {skill_path}")
         sys.exit(1)
 
-    if not skill_path_obj.exists():
-        print(f"❌ Error: Path not found: {raw_skill_path}")
+    if not Path(skill_path).exists():
+        print(f"Error: Path not found: {skill_path}")
         sys.exit(1)
 
-    valid, message = validate_skill(skill_path_obj)
+    valid, message = validate_skill(skill_path)
 
     if valid:
         print(f"✅ {message}")
