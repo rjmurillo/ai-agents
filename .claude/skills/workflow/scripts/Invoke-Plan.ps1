@@ -44,7 +44,7 @@ Import-Module $ModulePath -Force
 $taskText = $Task -join ' '
 
 if ([string]::IsNullOrWhiteSpace($taskText)) {
-    Write-Error 'Task description is required. Usage: /1-plan [--arch] [--strategic] <task>'
+    Write-Host 'Task description is required. Usage: /1-plan [--arch] [--strategic] <task>' -ForegroundColor Red
     exit 3
 }
 

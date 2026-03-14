@@ -67,14 +67,17 @@ if ($result.Fallback) {
     exit 2
 }
 
-# Parse and display results
+# Build output from MCP response
+$invocations = if ($result.PSObject.Properties['Invocations']) { $result.Invocations } else { @() }
+$handoffs    = if ($result.PSObject.Properties['Handoffs'])    { $result.Handoffs }    else { @() }
+
 $history = [PSCustomObject]@{
     QueryTime     = Get-Date -Format 'o'
     SessionFilter = $SessionNumber
     AgentFilter   = $AgentName
     Limit         = $Limit
-    Invocations   = @()
-    Handoffs      = @()
+    Invocations   = $invocations
+    Handoffs      = $handoffs
 }
 
 if ($OutputFormat -eq 'Json') {

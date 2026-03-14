@@ -19,7 +19,7 @@
     2 - MCP error
     3 - Validation error
 #>
-[CmdletBinding()]
+[CmdletBinding(PositionalBinding=$false)]
 param(
     [Parameter(ValueFromRemainingArguments)]
     [string[]]$Scope,

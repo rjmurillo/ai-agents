@@ -47,12 +47,13 @@ function Invoke-AgentOrchestrationMCP {
         }
     }
 
-    # In Claude Code context, MCP tools are invoked via their prefixed names.
-    # This function documents the invocation pattern for the agent.
-    Write-Verbose "Invoking MCP tool: $ToolName with arguments: $($Arguments | ConvertTo-Json -Compress)"
+    # In Claude Code context, MCP tools are invoked via the agent's tool system,
+    # not directly by PowerShell. This wrapper signals readiness and logs the request.
+    Write-Verbose "MCP tool ready: $ToolName with arguments: $($Arguments | ConvertTo-Json -Compress)"
 
     return [PSCustomObject]@{
         Success   = $true
+        Fallback  = $false
         ToolName  = $ToolName
         Arguments = $Arguments
     }

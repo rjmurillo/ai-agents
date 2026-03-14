@@ -48,13 +48,13 @@ $CommandMap = @{
 # Validate command
 if (-not $CommandMap.ContainsKey($Command)) {
     $validCommands = $CommandMap.Keys -join ', '
-    Write-Error "Unknown command: '$Command'. Valid: $validCommands"
+    Write-Host "Unknown command: '$Command'. Valid: $validCommands" -ForegroundColor Red
     exit 3
 }
 
 $ScriptPath = $CommandMap[$Command]
 if (-not (Test-Path $ScriptPath)) {
-    Write-Error "Command script not found: $ScriptPath"
+    Write-Host "Command script not found: $ScriptPath" -ForegroundColor Red
     exit 3
 }
 

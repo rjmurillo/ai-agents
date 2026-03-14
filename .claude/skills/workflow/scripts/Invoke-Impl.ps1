@@ -43,7 +43,7 @@ Import-Module $ModulePath -Force
 
 $taskText = $Task -join ' '
 if ([string]::IsNullOrWhiteSpace($taskText)) {
-    Write-Error 'Task description is required. Usage: /2-impl [--full] [--parallel] <task>'
+    Write-Host 'Task description is required. Usage: /2-impl [--full] [--parallel] <task>' -ForegroundColor Red
     exit 3
 }
 

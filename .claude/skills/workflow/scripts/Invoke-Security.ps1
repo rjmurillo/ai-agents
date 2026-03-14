@@ -64,6 +64,9 @@ $secResult = Invoke-AgentOrchestrationMCP -ToolName 'invoke_agent' -Arguments @{
 }
 if ($secResult.Fallback) {
     Write-Warning 'Agent Orchestration MCP unavailable. Instruct security agent directly with opus model.'
+} elseif (-not $secResult.Success) {
+    Write-Error 'Security agent invocation failed.' -ErrorAction Continue
+    exit 1
 }
 
 $step = 2
@@ -90,5 +93,11 @@ Invoke-AgentOrchestrationMCP -ToolName 'track_handoff' -Arguments @{
 $ctx | Add-Member -NotePropertyName 'LastCommand' -NotePropertyValue '4-security' -Force
 Set-WorkflowContext -Context $ctx
 
-Write-Host "`n✅ Security review complete." -ForegroundColor Green
+# Evaluate security findings from agent result
+if ($secResult.Findings) {
+    Write-Host "`n❌ Security findings detected. Review required." -ForegroundColor Red
+    exit 1
+}
+
+Write-Host "`n✅ Security review complete. No critical findings." -ForegroundColor Green
 exit 0
