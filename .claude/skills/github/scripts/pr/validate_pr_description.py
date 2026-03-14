@@ -30,7 +30,7 @@ _CONVENTIONAL_COMMIT_PATTERN = re.compile(
 )
 
 _ISSUE_KEYWORD_PATTERN = re.compile(
-    r"(?i)(close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+([\w-]+/[\w-]+)?#\d+"
+    r"(?i)(close[sd]?|fix(?:es|ed)?|resolve[sd]?)\s+([\w-]+/[\w-]+)?#\d+"
 )
 
 
