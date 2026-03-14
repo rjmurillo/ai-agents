@@ -62,16 +62,6 @@ scope: Brief scope description  # optional
 4. Otherwise:
    - **Allow merge** (advisory review)
 
-**For each DESIGN-REVIEW file in PR:**
-
-1. Parse frontmatter YAML
-2. If `blocking: true` AND (`status: NEEDS_CHANGES` OR `status: BLOCKED`):
-   - **Block merge** with reason: "Blocking architect review requires changes"
-3. If `blocking: true` AND `status: APPROVED`:
-   - **Allow merge** (review passed)
-4. If `blocking: false`:
-   - **Allow merge** (advisory review)
-
 **Result:** No PR can merge to main if it contains DESIGN-REVIEW files with NEEDS_CHANGES or BLOCKED status at P0/P1 priority.
 
 ## Rationale
@@ -114,7 +104,7 @@ scope: Brief scope description  # optional
 
 ### Negative
 
-- **Syntax burden**: Authors must remember 5 required frontmatter fields
+- **Syntax burden**: Authors must remember 4 required frontmatter fields
 - **Migration work**: Existing DESIGN-REVIEW files lack frontmatter (optional but recommended)
 - **Script maintenance**: New validation and CI gate scripts to maintain
 - **Requires tooling**: Python validation script and CI gate workflow needed
@@ -156,7 +146,7 @@ scope: Brief scope description  # optional
 2. Trigger on PR to main branch
 3. Detect DESIGN-REVIEW files in diff
 4. Parse frontmatter of review files
-5. Block merge if `blocking: true` AND `status` is not `APPROVED`
+5. Block merge if (`status: NEEDS_CHANGES` OR `status: BLOCKED`) AND (`priority: P0` OR `priority: P1`)
 6. Post status check to PR
 
 ### Phase 4: Architect Agent Update

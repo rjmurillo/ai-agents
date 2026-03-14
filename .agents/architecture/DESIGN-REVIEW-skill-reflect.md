@@ -2,15 +2,14 @@
 
 **Reviewer**: Architect
 **Date**: 2026-01-13
-**Status**: CONCERNS
+**Status**: NEEDS_CHANGES
 **Priority**: P1 (Blocking - memory architecture conflict)
-**Status-Change-Reason**: PR #908 merged before gate existed. Changed from NEEDS_CHANGES to CONCERNS to unblock CI. Original concerns remain valid and documented below.
 
 ## Executive Summary
 
 The skill-reflect capability proposes a mini-retrospective system for analyzing skill usage and updating skill-based memories. The concept aligns with memory-first architecture (ADR-007), but the implementation creates architectural conflicts with the established memory hierarchy and introduces maintenance burden.
 
-**Verdict**: CONCERNS
+**Verdict**: NEEDS_CHANGES
 
 **Severity**: P1 (Blocking)
 

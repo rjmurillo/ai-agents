@@ -1,7 +1,6 @@
 ---
 status: APPROVED              # APPROVED | NEEDS_CHANGES | BLOCKED
 priority: P1                  # P0 | P1 | P2 (severity if not approved)
-blocking: true                # true = CI blocks merge, false = advisory
 reviewer: architect           # agent performing review
 date: YYYY-MM-DD              # review date (ISO 8601)
 pr-branch: feature/example    # (optional) git branch being reviewed
@@ -12,7 +11,7 @@ scope: [Review scope]         # (optional) brief description of review scope
 
 ## Executive Summary
 
-**VERDICT**: [PASS | NEEDS_CHANGES | BLOCKED]
+**VERDICT**: [APPROVED | NEEDS_CHANGES | BLOCKED]
 
 [One-paragraph summary of the review outcome and overall assessment]
 
@@ -32,7 +31,7 @@ scope: [Review scope]         # (optional) brief description of review scope
 - **Isolation**: Are changes properly isolated to affected domains?
 - **Extensibility**: Does this leave room for future extensions?
 
-**Verdict**: PASS | NEEDS_CHANGES | BLOCKED
+**Verdict**: APPROVED | NEEDS_CHANGES | BLOCKED
 
 ### Pattern Consistency
 
@@ -43,7 +42,7 @@ scope: [Review scope]         # (optional) brief description of review scope
 - **Naming conventions**: Are names consistent with project standards?
 - **Documentation patterns**: Is documentation style consistent?
 
-**Verdict**: PASS | NEEDS_CHANGES | BLOCKED
+**Verdict**: APPROVED | NEEDS_CHANGES | BLOCKED
 
 ### Quality Assessment
 
@@ -54,7 +53,7 @@ scope: [Review scope]         # (optional) brief description of review scope
 - **Test coverage**: Are critical paths tested?
 - **Documentation**: Are decisions documented?
 
-**Verdict**: PASS | NEEDS_CHANGES | BLOCKED
+**Verdict**: APPROVED | NEEDS_CHANGES | BLOCKED
 
 ## Detailed Analysis
 
@@ -111,13 +110,12 @@ Suggestions for improvement or future consideration:
 |-------|-----------|--------------|---------|
 | `status` | Yes | `APPROVED`, `NEEDS_CHANGES`, `BLOCKED` | `APPROVED` |
 | `priority` | Yes | `P0`, `P1`, `P2` | `P1` |
-| `blocking` | Yes | `true`, `false` | `true` |
 | `reviewer` | Yes | agent name | `architect` |
 | `date` | Yes | `YYYY-MM-DD` | `2026-03-07` |
 | `pr-branch` | No | git branch name | `feature/example` |
 | `scope` | No | free text | `Schema validation` |
 
 **CI Gate Rules:**
-- If `blocking: true` AND (`status: NEEDS_CHANGES` OR `status: BLOCKED`): **merge blocked**
-- If `blocking: true` AND `status: APPROVED`: **merge allowed**
-- If `blocking: false`: **merge allowed** (advisory only)
+- If (`status: NEEDS_CHANGES` OR `status: BLOCKED`) AND (`priority: P0` OR `priority: P1`): **merge blocked**
+- If `status: APPROVED`: **merge allowed**
+- Otherwise: **merge allowed** (advisory review, P2 or lower)
