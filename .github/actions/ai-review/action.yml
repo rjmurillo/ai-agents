@@ -89,9 +89,10 @@ outputs:
     description: 'Exit code (0=pass, 1=fail)'
     value: ${{ steps.parse.outputs.exit_code }}
   # Retry/infrastructure failure tracking (Issue #328)
+  # Falls back to 'true' when context build fails (e.g., missing BOT_PAT for first-time contributor PRs)
   infrastructure-failure:
     description: 'Whether failure was infrastructure-related (true/false)'
-    value: ${{ steps.invoke.outputs.infrastructure_failure }}
+    value: ${{ steps.invoke.outputs.infrastructure_failure || (steps.context.outcome == 'failure' && 'true') || 'false' }}
   retry-count:
     description: 'Number of retry attempts made (0 = no retries)'
     value: ${{ steps.invoke.outputs.retry_count }}

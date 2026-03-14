@@ -591,10 +591,12 @@ jobs:
             $infraFile = "ai-review-results/$agent-infrastructure-failure.txt"
 
             # Read verdict (file existence already validated)
-            $verdict = (Get-Content $verdictFile -Raw).Trim()
+            $rawVerdict = Get-Content $verdictFile -Raw
+            $verdict = if ($rawVerdict) { $rawVerdict.Trim() } else { "NEEDS_REVIEW" }
 
             # Read infrastructure flag
-            $infra = if (Test-Path $infraFile) { (Get-Content $infraFile -Raw).Trim() } else { "false" }
+            $rawInfra = if (Test-Path $infraFile) { Get-Content $infraFile -Raw } else { $null }
+            $infra = if ($rawInfra) { $rawInfra.Trim() } else { "false" }
 
             Write-Output "  ${agent}: $verdict (infra: $infra)"
 
@@ -665,12 +667,14 @@ jobs:
             $retryFile = "ai-review-results/$agent-retry-count.txt"
 
             if (Test-Path $infraFile) {
-              $infraFlag = (Get-Content $infraFile -Raw).Trim()
+              $rawInfraFlag = Get-Content $infraFile -Raw
+              $infraFlag = if ($rawInfraFlag) { $rawInfraFlag.Trim() } else { "false" }
               if ($infraFlag -eq "true") {
                 $infrastructureFailureDetected = $true
                 $retryCount = 0
                 if (Test-Path $retryFile) {
-                  $retryCount = [int](Get-Content $retryFile -Raw).Trim()
+                  $rawRetry = Get-Content $retryFile -Raw
+                  $retryCount = if ($rawRetry) { [int]$rawRetry.Trim() } else { 0 }
                 }
                 $retryAttempts += "${agent}: $retryCount retries"
                 Write-Output "::notice::Infrastructure failure detected for $agent agent (retries: $retryCount)"
