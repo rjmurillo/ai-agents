@@ -2,7 +2,8 @@
 name: spec-generator
 description: Spec generation specialist who transforms vibe-level feature descriptions into structured 3-tier specifications using EARS requirements format. Guides users through clarifying questions, then produces requirements.md, design.md, and tasks.md with full traceability. Use when a feature idea needs to become an implementable specification.
 model: sonnet
-tier: integration
+metadata:
+  tier: integration
 argument-hint: Describe the feature or capability you want to specify
 ---
 # Spec Generator Agent
