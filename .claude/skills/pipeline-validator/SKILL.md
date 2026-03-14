@@ -16,11 +16,19 @@ This skill is designed to be **automatically invoked** after any change-making s
 
 ## Triggers
 
-- `validate pipelines` — Start pipeline validation for current branch
-- `trigger and fix pipelines` — Full trigger-diagnose-fix loop
-- `run pipeline validation` — Alternative phrasing
-- `check pr pipelines` — PR-focused validation
-- `monitor pipelines for {repo}` — Repo-specific trigger
+| Phrase | Context |
+|--------|---------|
+| `validate pipelines` | Start pipeline validation for current branch |
+| `trigger and fix pipelines` | Full trigger-diagnose-fix loop |
+| `run pipeline validation` | Alternative phrasing |
+| `check pr pipelines` | PR-focused validation |
+| `monitor pipelines for {repo}` | Repo-specific trigger |
+
+## Quick Start
+
+1. Ensure Azure CLI is authenticated (`az login`) and the `azure-devops` extension is installed.
+2. Create or push to a branch with an open PR.
+3. Invoke with `validate pipelines` or let `windows-image-updater` hand off automatically.
 
 ## Quick Reference
 
@@ -440,8 +448,43 @@ After complete execution:
 
 ---
 
+## Example Output
+
+### Success
+
+```
+Pipeline Validation Complete
+  PR Build:      PASSED (Run #12345)
+  Buddy Build:   PASSED (Run #12346)
+  Buddy Release: PASSED (Run #12347)
+  Retries: 0
+  PR description updated with pipeline run links.
+```
+
+### Failure
+
+```
+Pipeline Validation Failed
+  PR Build:      PASSED (Run #12345)
+  Buddy Build:   FAILED (Run #12346) — 2/3 retries exhausted
+  Last error: CS0246 — missing NuGet package reference
+  Fix attempted: Added package reference, rebuilt — still failing.
+  Action required: Manual investigation needed.
+```
+
+---
+
+## Related Skills
+
+| Skill | Relationship |
+|-------|-------------|
+| [windows-image-updater](../windows-image-updater/SKILL.md) | Hands off to this skill after PR creation |
+| [security-scan](../security-scan/SKILL.md) | Can be run before pipeline validation |
+
+---
+
 ## References
 
-- [Error Patterns Catalog](references/error-patterns.md) — Complete error diagnosis patterns with fixes
-- [Azure DevOps CLI — Pipelines](https://learn.microsoft.com/en-us/cli/azure/pipelines)
-- [Azure DevOps CLI — Build logs](https://learn.microsoft.com/en-us/cli/azure/devops)
+- [Error Patterns Catalog](references/error-patterns.md) -- Complete error diagnosis patterns with fixes
+- [Azure DevOps CLI -- Pipelines](https://learn.microsoft.com/en-us/cli/azure/pipelines)
+- [Azure DevOps CLI -- Build logs](https://learn.microsoft.com/en-us/cli/azure/devops)

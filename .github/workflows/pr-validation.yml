@@ -260,17 +260,21 @@ jobs:
           "overall_status=$overallStatus" >> $env:GITHUB_OUTPUT
 
       - name: Post PR Comment
+        id: post-pr-comment
         if: steps.should-run.outputs.skip != 'true'
-        continue-on-error: true
+        shell: pwsh
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          if [ -f "pr-validation-report.md" ]; then
-            python3 .github/scripts/post_issue_comment.py \
-              --issue "$PR_NUMBER" \
-              --body-file "pr-validation-report.md" \
+          if (Test-Path "pr-validation-report.md") {
+            python3 .github/scripts/post_issue_comment.py `
+              --issue $env:PR_NUMBER `
+              --body-file "pr-validation-report.md" `
               --marker "PR-VALIDATION"
-          fi
+            if ($LASTEXITCODE -ne 0) {
+              Write-Output "::warning::Failed to post PR validation comment (exit code: $LASTEXITCODE)"
+            }
+          }
 
       - name: Set Job Summary
         if: steps.should-run.outputs.skip != 'true'

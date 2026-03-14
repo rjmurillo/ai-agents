@@ -592,11 +592,11 @@ jobs:
 
             # Read verdict (file existence already validated)
             $rawVerdict = Get-Content $verdictFile -Raw
-            $verdict = if ($rawVerdict) { $rawVerdict.Trim() } else { "NEEDS_REVIEW" }
+            $verdict = if ([string]::IsNullOrWhiteSpace($rawVerdict)) { "NEEDS_REVIEW" } else { $rawVerdict.Trim() }
 
             # Read infrastructure flag
             $rawInfra = if (Test-Path $infraFile) { Get-Content $infraFile -Raw } else { $null }
-            $infra = if ($rawInfra) { $rawInfra.Trim() } else { "false" }
+            $infra = if ([string]::IsNullOrWhiteSpace($rawInfra)) { "false" } else { $rawInfra.Trim() }
 
             Write-Output "  ${agent}: $verdict (infra: $infra)"
 
@@ -668,14 +668,16 @@ jobs:
 
             if (Test-Path $infraFile) {
               $rawInfraFlag = Get-Content $infraFile -Raw
-              $infraFlag = if ($rawInfraFlag) { $rawInfraFlag.Trim() } else { "false" }
+              $infraFlag = if ([string]::IsNullOrWhiteSpace($rawInfraFlag)) { "false" } else { $rawInfraFlag.Trim() }
               if ($infraFlag -eq "true") {
                 $infrastructureFailureDetected = $true
                 $retryCount = 0
                 if (Test-Path $retryFile) {
                   $rawRetry = Get-Content $retryFile -Raw
-                  $retryCount = if ($rawRetry) { [int]$rawRetry.Trim() } else { 0 }
-                }
+                  if (-not [string]::IsNullOrWhiteSpace($rawRetry) -and -not [int]::TryParse($rawRetry.Trim(), [ref]$retryCount)) {
+                    Write-Output "::warning::Invalid retry count in $retryFile; defaulting to 0"
+                    $retryCount = 0
+                  }
                 $retryAttempts += "${agent}: $retryCount retries"
                 Write-Output "::notice::Infrastructure failure detected for $agent agent (retries: $retryCount)"
               }

@@ -395,14 +395,15 @@ runs:
 
               # Validate we got the correct PR
               ACTUAL_PR=$(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json number -q '.number' 2>/dev/null || echo "0")
+              INFRA_FAILURE="false"
               if [ "$ACTUAL_PR" != "$PR_NUMBER" ]; then
                 echo "::warning::PR number mismatch: requested $PR_NUMBER, got $ACTUAL_PR. Token may lack permissions (first-time contributor?)."
                 CONTEXT="INFRASTRUCTURE_FAILURE: Could not fetch PR #$PR_NUMBER. The GH_TOKEN may lack permissions for first-time contributor PRs from forks."
-                CONTEXT_MODE="error"
+                INFRA_FAILURE="true"
                 echo "context_infra_failure=true" >> $GITHUB_OUTPUT
               fi
 
-              if [ "$CONTEXT_MODE" != "error" ]; then
+              if [ "$INFRA_FAILURE" != "true" ]; then
               # Graceful degradation for large PRs (>300 files triggers HTTP 406)
               # Strategy: 1) Try gh pr diff, 2) Fall back to API with pagination, 3) Use --name-only summary
               DIFF_ERROR_FILE=$(mktemp)
@@ -496,7 +497,7 @@ runs:
               else
                 CONTEXT="## PR #$PR_NUMBER: $PR_TITLE"$'\n\n'"## Changes"$'\n'"$CONTEXT"
               fi
-              fi # end CONTEXT_MODE != error guard
+              fi # end INFRA_FAILURE guard
             else
               CONTEXT="No PR number provided"
             fi
@@ -593,9 +594,11 @@ runs:
         # Skip Copilot invocation if context build detected infrastructure failure
         if [ "${{ steps.context.outputs.context_infra_failure }}" = "true" ]; then
           echo "::warning::Skipping Copilot CLI invocation due to context build infrastructure failure"
-          echo "" > /tmp/ai-review-output.txt
+          printf 'VERDICT: WARN\nMESSAGE: AI analysis skipped due to infrastructure failure during context build. The GH_TOKEN may lack permissions for first-time contributor PRs from forks.\n' > /tmp/ai-review-output.txt
           echo "infrastructure_failure=true" >> $GITHUB_OUTPUT
           echo "retry_count=0" >> $GITHUB_OUTPUT
+          echo "verdict=WARN" >> $GITHUB_OUTPUT
+          echo "exit_code=0" >> $GITHUB_OUTPUT
           exit 0
         fi
 
