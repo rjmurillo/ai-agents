@@ -711,6 +711,7 @@ jobs:
           }
 
       - name: Post PR Comment
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ env.PR_NUMBER }}
