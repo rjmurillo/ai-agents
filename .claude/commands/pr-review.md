@@ -185,9 +185,9 @@ Before proceeding with review work, verify PR has not been merged via GraphQL (s
 SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 # Check merge state via test_pr_merged.py
 python3 "$SCRIPTS_DIR/pr/test_pr_merged.py" --pull-request {number}
-# Exit code 0 = not merged (safe to proceed), 1 = merged (skip)
+# Exit code 0 = not merged (safe to proceed), 100 = merged (skip)
 
-if [ $? -eq 1 ]; then
+if [ $? -eq 100 ]; then
     echo "PR #{number} is already merged. Skipping review work."
     continue
 fi
@@ -227,7 +227,7 @@ python3 "$SCRIPTS_DIR/pr/get_pr_context.py" --pull-request {number}
 
 # Verify PR is not already merged
 python3 "$SCRIPTS_DIR/pr/test_pr_merged.py" --pull-request {number}
-# Exit code 0 = not merged (safe to proceed), 1 = merged (skip)
+# Exit code 0 = not merged (safe to proceed), 100 = merged (skip)
 ```
 
 **3. Review ALL Failing Checks**:
