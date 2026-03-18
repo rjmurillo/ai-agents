@@ -13,14 +13,11 @@ Run all 6 quality gate agents (security, QA, analyst, architect, DevOps, and roa
 
 ## Pre-flight Checks
 
-<!-- NOTE: Commands prefixed with an exclamation mark and a backtick run at PREPROCESSING time in an
-     isolated shell. $ARGUMENTS and positional params ($0, $1) are NOT
-     available in that shell. Only $ARGUMENTS substitution in prompt text
-     works. This is why git diff uses hardcoded "main" below. See #1088. -->
+Use the Bash tool to gather context:
 
-- Current branch: !`git branch --show-current`
-- Changed files: !`git diff main --name-only | wc -l`
-- Base branch: main
+1. Run `git branch --show-current` to determine the current branch
+2. Use $ARGUMENTS as the base branch if provided, otherwise default to `main`
+3. Run `git diff "<base_branch>" --name-only | wc -l` to count changed files
 
 If no changes detected, exit early with PASS.
 
@@ -28,14 +25,14 @@ If no changes detected, exit early with PASS.
 
 Invoke each agent command using Skill tool and capture results.
 
-**Note**: All sub-skills compare against the `main` branch. To use a different base branch, run individual skills directly:
+**Note**: The base branch argument is forwarded to each sub-command.
 
-1. Security Agent: `/pr-quality:security BRANCH_NAME`
-2. QA Agent: `/pr-quality:qa BRANCH_NAME`
-3. Analyst Agent: `/pr-quality:analyst BRANCH_NAME`
-4. Architect Agent: `/pr-quality:architect BRANCH_NAME`
-5. DevOps Agent: `/pr-quality:devops BRANCH_NAME`
-6. Roadmap Agent: `/pr-quality:roadmap BRANCH_NAME`
+1. Security Agent: `/pr-quality:security $ARGUMENTS`
+2. QA Agent: `/pr-quality:qa $ARGUMENTS`
+3. Analyst Agent: `/pr-quality:analyst $ARGUMENTS`
+4. Architect Agent: `/pr-quality:architect $ARGUMENTS`
+5. DevOps Agent: `/pr-quality:devops $ARGUMENTS`
+6. Roadmap Agent: `/pr-quality:roadmap $ARGUMENTS`
 
 ## Verdict Aggregation
 
