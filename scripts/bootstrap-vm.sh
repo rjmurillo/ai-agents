@@ -181,11 +181,12 @@ if ! command -v actionlint &>/dev/null; then
     AL_URL="https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/${AL_TARBALL}"
 
     mkdir -p "$HOME/.local/bin"
-    curl -fsSL "$AL_URL" -o "/tmp/${AL_TARBALL}"
-    echo "${AL_SHA256}  /tmp/${AL_TARBALL}" | sha256sum --check --strict
-    tar -xzf "/tmp/${AL_TARBALL}" -C /tmp actionlint
-    install -m 755 /tmp/actionlint "$HOME/.local/bin/actionlint"
-    rm -f "/tmp/${AL_TARBALL}" /tmp/actionlint
+    TMP_DIR=$(mktemp -d)
+    trap 'rm -rf -- "$TMP_DIR"' EXIT
+    curl -fsSL "$AL_URL" -o "$TMP_DIR/$AL_TARBALL"
+    echo "${AL_SHA256}  $TMP_DIR/$AL_TARBALL" | sha256sum --check --strict
+    tar -xzf "$TMP_DIR/$AL_TARBALL" -C "$TMP_DIR" actionlint
+    install -m 755 "$TMP_DIR/actionlint" "$HOME/.local/bin/actionlint"
 
     if ! command -v actionlint &>/dev/null; then
         echo "actionlint installation failed: binary not found on PATH" >&2
