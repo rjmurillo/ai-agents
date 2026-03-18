@@ -412,7 +412,7 @@ When using `--parallel` with worktrees:
 | Criterion | Verification | Required |
 |-----------|--------------|----------|
 | All review comments triaged | Each comment classified as IMPLEMENT, DISMISS, or ESCALATE | Yes |
-| All triaged comments actioned | IMPLEMENT items have code changes; DISMISS items have evidence-based replies | Yes |
+| All triaged comments actioned | IMPLEMENT items have code changes; DISMISS items have evidence-based replies; ESCALATE items have explicit human owner and escalation note | Yes |
 | All PR comments acknowledged | Each PR comment has acknowledgment (reply or reaction) | Yes |
 | No bot suggestions implemented without verification | Bot claims verified against code before acting | Yes |
 | No new comments | Re-check after 45s wait returned 0 new | Yes |
