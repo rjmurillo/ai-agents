@@ -57,7 +57,7 @@ class TestGetRepoRoot:
     def test_returns_path_in_repo(self) -> None:
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(
-                returncode=0, stdout="/path/to/repo\n",
+                returncode=0, stdout="/path/to/repo/.git\n",
             )
             result = get_repo_root()
             assert result == "/path/to/repo"

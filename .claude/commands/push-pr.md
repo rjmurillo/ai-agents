@@ -1,6 +1,6 @@
 ---
 description: Commit, push, and open a PR
-allowed-tools: Bash(git checkout -b:*), Bash(git switch -c:*), Bash(git add:*), Bash(git status:*), Bash(git push:*), Bash(git commit:*), Bash(python3 .claude/skills/github/scripts/pr/new_pr.py:*), Bash(git diff:*), Bash(git branch:*)
+allowed-tools: Bash(git checkout -b:*), Bash(git switch -c:*), Bash(git add:*), Bash(git status:*), Bash(git push:*), Bash(git commit:*), Bash(python3:*/pr/new_pr.py*), Bash(git diff:*), Bash(git branch:*)
 # Security Note: Wildcards are Claude Code tool patterns, not shell globs.
 # The Bash tool executor must sanitize arguments to prevent command injection (CWE-78).
 # Shell metacharacters (; && | $() etc.) should be escaped/rejected before execution.
@@ -32,7 +32,8 @@ Based on the above changes:
 5. Create a pull request using the new_pr skill script:
 
    ```bash
-   python3 .claude/skills/github/scripts/pr/new_pr.py --title "<conventional commit title>" --body-file /tmp/PR-123-BODY.md
+   SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+   python3 "$SCRIPTS_DIR/pr/new_pr.py" --title "<conventional commit title>" --body-file /tmp/PR-123-BODY.md
    ```
 
    - Title MUST follow conventional commit format (e.g., `feat: Add feature`, `fix(auth): Resolve bug`)

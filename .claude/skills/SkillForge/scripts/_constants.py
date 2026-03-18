@@ -22,12 +22,13 @@ REQUIRED_PROPERTIES = {
 OPTIONAL_PROPERTIES = {
     'license',        # Distribution license (MIT, Apache-2.0, etc.)
     'allowed-tools',  # Tool restrictions (comma-separated or YAML list)
-    'metadata',       # Custom fields (version, author, domains, etc.)
+    'metadata',       # Custom fields (author, domains, etc.)
     'model',          # Specific Claude model (e.g., claude-sonnet-4-20250514)
     'context',        # Execution context ('fork' for isolated sub-agent)
     'agent',          # Agent type when context: fork
     'hooks',          # Lifecycle hooks (PreToolUse, PostToolUse, Stop)
     'user-invocable', # Slash menu visibility (default: true)
+    'version',        # Semantic version (e.g., 1.0.0)
 }
 
 # All allowed properties

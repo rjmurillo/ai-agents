@@ -26,13 +26,18 @@ def _find_project_root(fallback_dir: Path | None = None) -> Path:
     """Find project root via git or directory traversal."""
     try:
         result = subprocess.run(
-            ["git", "rev-parse", "--show-toplevel"],
+            ["git", "rev-parse", "--git-common-dir"],
             capture_output=True,
             text=True,
             check=False,
         )
         if result.returncode == 0:
-            return Path(result.stdout.strip())
+            git_common = Path(result.stdout.strip())
+            if not git_common.is_absolute():
+                git_common = (Path.cwd() / git_common).resolve()
+            else:
+                git_common = git_common.resolve()
+            return git_common.parent
     except FileNotFoundError:
         pass
 

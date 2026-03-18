@@ -47,7 +47,7 @@ class TestGetRepoRoot:
 
     @patch("new_session_log_json.subprocess.run")
     def test_returns_repo_root(self, mock_run):
-        mock_run.return_value = MagicMock(returncode=0, stdout="/repo\n")
+        mock_run.return_value = MagicMock(returncode=0, stdout="/repo/.git\n")
         assert new_session_log_json._get_repo_root() == "/repo"
 
     @patch("new_session_log_json.subprocess.run")

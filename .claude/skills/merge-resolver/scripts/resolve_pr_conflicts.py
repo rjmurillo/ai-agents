@@ -274,8 +274,13 @@ def resolve_conflicts_worktree(
         "files_blocked": [],
     }
 
-    repo_root_r = _run_git("rev-parse", "--show-toplevel")
-    repo_root = repo_root_r.stdout.strip()
+    repo_root_r = _run_git("rev-parse", "--git-common-dir")
+    git_common = Path(repo_root_r.stdout.strip())
+    if not git_common.is_absolute():
+        git_common = (Path.cwd() / git_common).resolve()
+    else:
+        git_common = git_common.resolve()
+    repo_root = str(git_common.parent)
 
     try:
         worktree_path = get_safe_worktree_path(worktree_base_path, pr_number)

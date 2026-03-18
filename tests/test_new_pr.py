@@ -287,7 +287,7 @@ class TestGetRepoRoot:
     def test_returns_repo_root(self):
         with patch(
             "subprocess.run",
-            return_value=_completed(stdout="/home/user/repo\n", rc=0),
+            return_value=_completed(stdout="/home/user/repo/.git\n", rc=0),
         ):
             assert get_repo_root() == "/home/user/repo"
 

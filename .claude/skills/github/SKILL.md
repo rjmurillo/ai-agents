@@ -166,7 +166,8 @@ Need GitHub data?
 All scripts output structured JSON:
 
 ```bash
-result=$(python3 .claude/skills/github/scripts/pr/get_pr_context.py --pull-request 50)
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+result=$(python3 "$SCRIPTS_DIR/pr/get_pr_context.py" --pull-request 50)
 echo "$result" | jq '.Title'
 ```
 
@@ -188,14 +189,16 @@ This skill provides a toolkit of Python scripts for GitHub operations. Use scrip
 **Example Flow:**
 
 ```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+
 # Get PR context
-python3 .claude/skills/github/scripts/pr/get_pr_context.py --pull-request 123
+python3 "$SCRIPTS_DIR/pr/get_pr_context.py" --pull-request 123
 
 # Check CI status
-python3 .claude/skills/github/scripts/pr/get_pr_checks.py --pull-request 123
+python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request 123
 
 # Add comment if needed
-python3 .claude/skills/github/scripts/pr/post_pr_comment_reply.py --pull-request 123 --body "CI failures detected"
+python3 "$SCRIPTS_DIR/pr/post_pr_comment_reply.py" --pull-request 123 --comment-id 456 --body "CI failures detected"
 ```
 
 ---

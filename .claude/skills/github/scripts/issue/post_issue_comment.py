@@ -84,10 +84,18 @@ def _save_failed_comment_artifact(
 
     try:
         result = subprocess.run(
-            ["git", "rev-parse", "--show-toplevel"],
+            ["git", "rev-parse", "--git-common-dir"],
             capture_output=True, text=True, timeout=10,
         )
-        repo_root = result.stdout.strip() if result.returncode == 0 else os.getcwd()
+        if result.returncode == 0:
+            git_common = Path(result.stdout.strip())
+            if not git_common.is_absolute():
+                git_common = (Path.cwd() / git_common).resolve()
+            else:
+                git_common = git_common.resolve()
+            repo_root = str(git_common.parent)
+        else:
+            repo_root = os.getcwd()
     except (subprocess.TimeoutExpired, FileNotFoundError):
         repo_root = os.getcwd()
 
