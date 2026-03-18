@@ -12,15 +12,7 @@ Run all quality gates locally on your current changes before pushing. This meta-
 ### Branch Information
 
 - Current branch: !`git branch --show-current`
-- Base branch: ${1:-main}
-
-### Changed Files
-
-!`git diff HEAD --name-only`
-
-### Full Diff
-
-!`git diff HEAD`
+- Base branch: If the user specified `--base <branch>`, use that branch. Otherwise default to `main`.
 
 ## Execution Plan
 
