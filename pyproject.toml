@@ -64,7 +64,7 @@ target-version = "py312"
 line-length = 100
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "N", "UP", "B"]
+select = ["E", "F", "W", "I", "N", "UP", "B", "ANN401"]
 ignore = []
 
 [tool.ruff.lint.per-file-ignores]
