@@ -91,7 +91,7 @@ class McpClient:
             raise
         return client
 
-    def call_tool(self, name: str, arguments: dict[str, Any]) -> Any:
+    def call_tool(self, name: str, arguments: dict[str, Any]) -> Any:  # noqa: ANN401
         """Call a Forgetful tool via MCP tools/call.
 
         Args:
