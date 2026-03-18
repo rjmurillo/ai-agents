@@ -11,6 +11,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import os
 import sys
 import time
 from pathlib import Path
@@ -273,15 +274,16 @@ def sync_batch(
 def is_memory_file(path: Path) -> bool:
     """Check if a path is a Serena memory file.
 
-    Validates structural path components and rejects traversal sequences
-    (CWE-22) to ensure the path stays within .serena/memories/.
+    Normalizes the path to resolve traversal sequences (CWE-22) before
+    checking structural components, ensuring the path stays within
+    .serena/memories/.
     """
-    parts = path.parts
+    normalized = Path(os.path.normpath(path))
+    parts = normalized.parts
     return (
         len(parts) >= 3
         and parts[0] == ".serena"
         and parts[1] == "memories"
-        and ".." not in parts
         and path.suffix == ".md"
     )
 
