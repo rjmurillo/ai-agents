@@ -8,6 +8,10 @@ Accepted
 
 2026-03-07
 
+## Decision Makers
+
+- rjmurillo-bot, Session 1152
+
 ## Context
 
 ADR-005 received a Python exception in PR #908 (Claude Code Hooks) without documented justification. The exception was technically valid but the rationale — why the PowerShell-only rule exists, what alternatives were tried, and what precedent risks the exception introduces — was not captured at the time.

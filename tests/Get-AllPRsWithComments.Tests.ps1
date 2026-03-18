@@ -21,6 +21,8 @@
     See: ADR-035 Exit Code Standardization
 #>
 
+Set-StrictMode -Version Latest
+
 BeforeAll {
     $Script:ModulePath = Join-Path $PSScriptRoot ".." ".claude" "skills" "github" "modules" "GitHubCore.psm1"
 
@@ -133,7 +135,6 @@ Describe "Get-AllPRsWithComments" {
             $pr2 = New-MockPRNode -Number 2 -HasComments $true
             $mockResponse = New-MockGraphQLResponse -Nodes @($pr1, $pr2)
 
-            Mock -ModuleName GitHubCore gh { return $mockResponse }
             Mock -ModuleName GitHubCore -CommandName 'gh' -MockWith {
                 $global:LASTEXITCODE = 0
                 return $mockResponse
