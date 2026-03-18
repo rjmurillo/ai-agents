@@ -71,7 +71,7 @@ def parse_workflow(data: dict[str, Any]) -> WorkflowDefinition:
     )
 
 
-def _parse_step(data: Any) -> WorkflowStep:
+def _parse_step(data: Any) -> WorkflowStep:  # noqa: ANN401
     """Parse a single step dict into a WorkflowStep."""
     if not isinstance(data, dict):
         raise ValueError(f"Each step must be a mapping, got {type(data).__name__}")
