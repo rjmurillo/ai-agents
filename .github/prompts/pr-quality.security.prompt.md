@@ -12,7 +12,7 @@ Run the security quality gate locally on your current changes before pushing.
 ### Branch Information
 
 - Current branch: !`git branch --show-current`
-- Base branch: ${1:-main}
+- Base branch: If the user specified `--base <branch>`, use that branch. Otherwise default to `main`.
 
 ### Review Criteria
 
@@ -22,15 +22,11 @@ Apply the security review criteria from the shared prompt file.
 
 ### Changed Files
 
-!`git diff HEAD --name-only`
-
-### Full Diff
-
-!`git diff HEAD`
+Run `git diff <base_branch> --name-only` to list changed files and `git diff <base_branch>` to obtain the full diff.
 
 ## Instructions
 
-1. Analyze the diff above for security vulnerabilities per OWASP Top 10
+1. Analyze the diff for security vulnerabilities per OWASP Top 10
 2. Check for secrets exposure (API keys, passwords, tokens)
 3. Identify security anti-patterns
 4. Output verdict in the required format
