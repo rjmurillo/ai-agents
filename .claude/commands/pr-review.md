@@ -256,7 +256,35 @@ python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request {number}
 | Markdown lint | Run `npx markdownlint-cli2 --fix` |
 | PR title validation | Update title to conventional commit format |
 
-### Step 2: Create Worktrees (if --parallel)
+### Step 2: Comment Triage (REQUIRED)
+
+Before acting on any comment, triage each one. Bot reviewers (Copilot, Gemini, CodeRabbit, qlty) make incorrect claims. Acting on a wrong bot suggestion can cause regressions (e.g., deleting files that are actually needed).
+
+For each unresolved review comment:
+
+1. **Identify source**: Is this from a human reviewer or a bot?
+2. **If bot**: Verify the claim independently before acting.
+   - Check: Does the claimed issue actually exist in the code?
+   - Check: Is the suggested fix correct?
+   - Verify against: actual code, documentation, tool behavior, or tests.
+3. **Classify action**:
+   - `IMPLEMENT`: Claim is verified correct and valuable. Make the code change.
+   - `DISMISS`: Claim is incorrect or not applicable. Reply with evidence-based reasoning.
+   - `ESCALATE`: Claim is uncertain or high-risk. Flag for human reviewer.
+4. **Never act on a bot comment solely to reach zero unresolved threads.**
+   Resolving threads is a side effect of correct decisions, not a goal.
+
+**Triage output** (pass to Step 4 agents):
+
+```markdown
+| Thread ID | Source | Claim | Verified | Action | Reasoning |
+|-----------|--------|-------|----------|--------|-----------|
+| PRRT_xxx | copilot[bot] | "Duplicate file" | No, files serve different consumers | DISMISS | CLAUDE.md serves Claude Code CLI; AGENTS.md serves GitHub Copilot |
+| PRRT_yyy | human-reviewer | "Missing null check" | Yes, crash on null input | IMPLEMENT | Added guard clause |
+| PRRT_zzz | coderabbitai[bot] | "Unused import" | Yes, import is unused | IMPLEMENT | Removed import |
+```
+
+### Step 3: Create Worktrees (if --parallel)
 
 For parallel execution:
 
@@ -265,7 +293,7 @@ branch=$(gh pr view {number} --json headRefName -q '.headRefName')
 git worktree add "../worktree-pr-{number}" "$branch"
 ```
 
-### Step 3: Launch Agents
+### Step 4: Launch Agents
 
 **Sequential (default):**
 
@@ -307,7 +335,7 @@ for agent_id in agents:
     TaskOutput(task_id=agent_id, block=True, timeout=600000)
 ```
 
-### Step 4: Verify and Push
+### Step 5: Verify and Push
 
 For each worktree:
 
@@ -320,7 +348,7 @@ if [[ -n "$(git status --short)" ]]; then
 fi
 ```
 
-### Step 5: Cleanup Worktrees (if --cleanup)
+### Step 6: Cleanup Worktrees (if --cleanup)
 
 ```bash
 cd "{main_repo}"
@@ -337,7 +365,7 @@ for pr in pr_numbers; do
 done
 ```
 
-### Step 6: Generate Summary
+### Step 7: Generate Summary
 
 Output:
 
@@ -383,8 +411,10 @@ When using `--parallel` with worktrees:
 
 | Criterion | Verification | Required |
 |-----------|--------------|----------|
-| All review comments addressed | Each review thread has reply + resolution | Yes |
+| All review comments triaged | Each comment classified as IMPLEMENT, DISMISS, or ESCALATE | Yes |
+| All triaged comments actioned | IMPLEMENT items have code changes; DISMISS items have evidence-based replies | Yes |
 | All PR comments acknowledged | Each PR comment has acknowledgment (reply or reaction) | Yes |
+| No bot suggestions implemented without verification | Bot claims verified against code before acting | Yes |
 | No new comments | Re-check after 45s wait returned 0 new | Yes |
 | CI checks pass | `get_pr_checks.py` AllPassing = true (or failures acknowledged) | Yes |
 | No unresolved threads | GraphQL query for unresolved reviewThreads = 0 | Yes |
