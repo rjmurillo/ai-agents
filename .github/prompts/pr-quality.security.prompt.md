@@ -22,7 +22,7 @@ Apply the security review criteria from the shared prompt file.
 
 ### Changed Files
 
-Run `git diff <base_branch> --name-only` to list changed files and `git diff <base_branch>` to obtain the full diff.
+Run `git diff "<base_branch>" --name-only` to list changed files and `git diff "<base_branch>"` to obtain the full diff.
 
 ## Instructions
 
