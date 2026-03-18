@@ -161,9 +161,19 @@ EXCLUDE_DIRS = {
 }
 
 
-def _should_exclude(path: Path) -> bool:
-    """Check if path is in an excluded directory."""
-    for part in path.parts:
+def _should_exclude(path: Path, repo_root: Path | None = None) -> bool:
+    """Check if path is in an excluded directory.
+
+    When repo_root is provided, only checks the repo-relative portion
+    of the path to avoid false positives from parent directory names.
+    """
+    check_path = path
+    if repo_root is not None:
+        try:
+            check_path = path.relative_to(repo_root)
+        except ValueError:
+            pass
+    for part in check_path.parts:
         if part in EXCLUDE_DIRS:
             return True
     return False
@@ -316,7 +326,7 @@ def _get_changed_files(diff_base: str, repo_root: Path) -> set[str]:
     """Get files changed since diff_base."""
     try:
         result = subprocess.run(
-            ["git", "diff", "--name-only", diff_base],
+            ["git", "diff", "--name-only", "--", diff_base],
             capture_output=True,
             text=True,
             check=True,
@@ -344,7 +354,7 @@ def run_assessment(
     doc_files_set: set[Path] = set()
     for glob_pattern in doc_globs:
         for p in repo_root.glob(glob_pattern):
-            if p.is_file() and not _should_exclude(p):
+            if p.is_file() and not _should_exclude(p, repo_root):
                 doc_files_set.add(p)
 
     # Enumerate source files
@@ -353,7 +363,7 @@ def run_assessment(
     symbol_names: set[str] = set()
 
     for p in repo_root.rglob("*"):
-        if not p.is_file() or _should_exclude(p):
+        if not p.is_file() or _should_exclude(p, repo_root):
             continue
 
         ext = p.suffix.lower()
@@ -411,13 +421,13 @@ def run_assessment(
     # Find benchmark files
     benchmark_files = []
     for p in repo_root.rglob("*benchmark*"):
-        if p.is_file() and not _should_exclude(p):
+        if p.is_file() and not _should_exclude(p, repo_root):
             benchmark_files.append(str(p.relative_to(repo_root)))
     for p in repo_root.rglob("*bench*"):
         if (
             p.is_file()
             and p.suffix in (".json", ".csv", ".md")
-            and not _should_exclude(p)
+            and not _should_exclude(p, repo_root)
         ):
             rel = str(p.relative_to(repo_root))
             if rel not in benchmark_files:
@@ -674,7 +684,7 @@ def run_compilability_check(
                         content,
                     )
                     for param in named_params:
-                        if param not in actual.signature:
+                        if not re.search(rf"\b{re.escape(param)}\b", actual.signature):
                             finding_counter += 1
                             findings.append(Finding(
                                 id=f"compile-{finding_counter:04d}",
@@ -939,13 +949,16 @@ def main(argv: list[str] | None = None) -> int:
     output_dir = args.output_dir or (target / ".doc-accuracy")
     output_dir = output_dir.resolve()
 
-    # Validate output_dir is within or adjacent to target
-    try:
-        output_dir.relative_to(target)
-    except ValueError:
-        if args.output_dir is None:
+    # Validate output_dir to prevent path traversal (CWE-22).
+    # Absolute paths are allowed (e.g., /tmp for CI). Relative paths must
+    # resolve within the target repository.
+    if args.output_dir is not None and not args.output_dir.is_absolute():
+        try:
+            output_dir.relative_to(target)
+        except ValueError:
             print(
-                f"ERROR: Output directory outside target: {output_dir}",
+                f"ERROR: Relative output directory '{args.output_dir}' resolves "
+                f"outside the target repository '{target}'.",
                 file=sys.stderr,
             )
             return 1
