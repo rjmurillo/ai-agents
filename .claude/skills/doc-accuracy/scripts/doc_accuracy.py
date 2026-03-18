@@ -16,11 +16,14 @@ Exit Codes:
 
 import argparse
 import json
+import logging
 import re
 import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Data classes
@@ -361,7 +364,8 @@ def run_assessment(
         rel_path = str(p.relative_to(repo_root))
         try:
             content = p.read_text(encoding="utf-8", errors="replace")
-        except OSError:
+        except OSError as exc:
+            logger.warning("Failed to read source file %s: %s", rel_path, exc)
             continue
 
         source_files[rel_path] = content
@@ -376,12 +380,13 @@ def run_assessment(
     # Build doc file inventory
     doc_inventory: list[DocFile] = []
     for doc_path in sorted(doc_files_set):
+        rel_path = str(doc_path.relative_to(repo_root))
         try:
             content = doc_path.read_text(encoding="utf-8", errors="replace")
-        except OSError:
+        except OSError as exc:
+            logger.warning("Failed to read doc file %s: %s", rel_path, exc)
             continue
 
-        rel_path = str(doc_path.relative_to(repo_root))
         refs = _find_referenced_symbols(content, symbol_names)
         mapped = _map_doc_to_source(rel_path, content, source_files)
 
@@ -509,7 +514,10 @@ def run_claim_extraction(
         doc_path = repo_root / doc_info["path"]
         try:
             content = doc_path.read_text(encoding="utf-8", errors="replace")
-        except OSError:
+        except OSError as exc:
+            logger.warning(
+                "Failed to read doc file %s: %s", doc_info["path"], exc
+            )
             continue
 
         lines = content.split("\n")
@@ -743,53 +751,183 @@ def run_compilability_check(
 SEVERITY_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3}
 
 
-def main() -> int:
+def check_gate(
+    compilability_data: dict | None,
+    severity_threshold: str,
+) -> dict:
+    """Evaluate findings against severity threshold.
+
+    Returns a gate_result dict with verdict and counts.
+    """
+    threshold_level = SEVERITY_ORDER.get(severity_threshold, 1)
+    by_severity: dict[str, int] = {}
+    blocking_count = 0
+
+    if compilability_data:
+        for finding in compilability_data["findings"]:
+            sev = finding["severity"]
+            by_severity[sev] = by_severity.get(sev, 0) + 1
+            finding_level = SEVERITY_ORDER.get(sev, 3)
+            if finding_level <= threshold_level:
+                blocking_count += 1
+
+    verdict = "FAIL" if blocking_count > 0 else "PASS"
+    return {
+        "verdict": verdict,
+        "threshold": severity_threshold,
+        "blocking_findings": blocking_count,
+        "total_findings": sum(by_severity.values()),
+        "by_severity": by_severity,
+    }
+
+
+def generate_markdown_report(
+    assessment: dict | None,
+    claims_data: dict | None,
+    compilability_data: dict | None,
+    gate_result: dict,
+    output_path: Path,
+) -> None:
+    """Write a markdown summary report to output_path."""
+    lines: list[str] = []
+    lines.append("# Documentation Accuracy Report")
+    lines.append("")
+
+    lines.append(
+        f"**Gate: {gate_result['verdict']}** "
+        f"(threshold: {gate_result['threshold']})"
+    )
+    lines.append("")
+
+    if assessment:
+        cs = assessment["coverage_summary"]
+        lines.append("## Coverage")
+        lines.append("")
+        lines.append(f"- Public symbols: {cs['public_symbols']}")
+        lines.append(f"- Documented symbols: {cs['documented_symbols']}")
+        lines.append(f"- Coverage: {cs['coverage_pct']}%")
+        lines.append("")
+
+    if claims_data:
+        by_type: dict[str, int] = {}
+        for c in claims_data["claims"]:
+            by_type[c["type"]] = by_type.get(c["type"], 0) + 1
+        lines.append("## Claims")
+        lines.append("")
+        lines.append(f"Total: {len(claims_data['claims'])}")
+        lines.append("")
+        for ct, count in sorted(by_type.items()):
+            lines.append(f"- {ct}: {count}")
+        lines.append("")
+
+    if compilability_data and compilability_data["findings"]:
+        lines.append("## Findings")
+        lines.append("")
+        lines.append(
+            f"Total: {gate_result['total_findings']} "
+            f"({gate_result['blocking_findings']} blocking)"
+        )
+        lines.append("")
+        lines.append("| Severity | File | Line | Description |")
+        lines.append("|----------|------|------|-------------|")
+        for f in compilability_data["findings"]:
+            desc = f["description"][:80]
+            lines.append(
+                f"| {f['severity']} | {f['file']} | {f['line']} | {desc} |"
+            )
+        lines.append("")
+
+    output_path.write_text("\n".join(lines), encoding="utf-8")
+
+
+def _print_summary(
+    assessment: dict | None,
+    claims_data: dict | None,
+    compilability_data: dict | None,
+    gate_result: dict,
+) -> None:
+    """Print a text summary to stdout."""
+    print("\n--- Documentation Accuracy Summary ---")
+    if assessment:
+        cs = assessment["coverage_summary"]
+        print(
+            f"Symbols: {cs['documented_symbols']}/{cs['public_symbols']} "
+            f"({cs['coverage_pct']}% coverage)"
+        )
+    if claims_data:
+        by_type: dict[str, int] = {}
+        for c in claims_data["claims"]:
+            by_type[c["type"]] = by_type.get(c["type"], 0) + 1
+        print(f"Claims: {len(claims_data['claims'])} total")
+        for ct, count in sorted(by_type.items()):
+            print(f"  {ct}: {count}")
+    if compilability_data:
+        print(f"Findings: {gate_result['total_findings']} total")
+        for sev in ("critical", "high", "medium", "low"):
+            count = gate_result["by_severity"].get(sev, 0)
+            if count:
+                print(f"  {sev}: {count}")
+    print(
+        f"Gate: {gate_result['verdict']} "
+        f"(threshold: {gate_result['threshold']})"
+    )
+
+
+def _load_json_artifact(path: Path, name: str) -> dict | None:
+    """Load a JSON artifact file, returning None with error on failure."""
+    if not path.exists():
+        print(
+            f"ERROR: {name} not found. Run the required phase first.",
+            file=sys.stderr,
+        )
+        return None
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+
+
+def _build_parser() -> argparse.ArgumentParser:
+    """Build the argument parser."""
     parser = argparse.ArgumentParser(
         description="Documentation accuracy scanner (Phases 1-3)"
     )
     parser.add_argument(
-        "--target",
-        "-t",
-        type=Path,
-        required=True,
+        "--target", "-t", type=Path, required=True,
         help="Repository root to scan",
     )
     parser.add_argument(
-        "--output-dir",
-        "-o",
-        type=Path,
-        default=None,
-        help="Output directory for JSON artifacts (default: <target>/.doc-accuracy)",
+        "--output-dir", "-o", type=Path, default=None,
+        help="Output directory for JSON artifacts "
+        "(default: <target>/.doc-accuracy)",
     )
     parser.add_argument(
-        "--phases",
-        type=str,
-        default="1,2,3",
+        "--phases", type=str, default="1,2,3",
         help="Comma-separated phases to run (default: 1,2,3)",
     )
     parser.add_argument(
-        "--diff-base",
-        type=str,
-        default=None,
+        "--diff-base", type=str, default=None,
         help="Git ref for incremental mode (only report changed files)",
     )
     parser.add_argument(
-        "--severity-threshold",
-        type=str,
-        default="high",
+        "--severity-threshold", type=str, default="high",
         choices=["critical", "high", "medium", "low"],
         help="Minimum severity for non-zero exit code (default: high)",
     )
     parser.add_argument(
-        "--format",
-        "-f",
-        type=str,
-        default="json",
-        choices=["json", "summary"],
+        "--format", "-f", type=str, default="json",
+        choices=["json", "summary", "markdown"],
         help="Output format (default: json)",
     )
+    return parser
 
-    args = parser.parse_args()
+
+def main(argv: list[str] | None = None) -> int:
+    """Entry point for doc-accuracy scanner."""
+    parser = _build_parser()
+    args = parser.parse_args(argv)
 
     # Validate target path (CWE-22 prevention)
     target = args.target.resolve()
@@ -805,7 +943,6 @@ def main() -> int:
     try:
         output_dir.relative_to(target)
     except ValueError:
-        # Allow output_dir outside target only if explicitly specified
         if args.output_dir is None:
             print(
                 f"ERROR: Output directory outside target: {output_dir}",
@@ -817,13 +954,15 @@ def main() -> int:
 
     phases = {int(p.strip()) for p in args.phases.split(",")}
 
-    # Phase 1: Assessment
     assessment = None
+    claims_data = None
+    compilability_data = None
+
+    # Phase 1: Assessment
     if 1 in phases or 2 in phases or 3 in phases:
         print("Phase 1: Assessment...", file=sys.stderr)
         assessment = run_assessment(target, diff_base=args.diff_base)
-        assessment_path = output_dir / "assessment.json"
-        assessment_path.write_text(
+        (output_dir / "assessment.json").write_text(
             json.dumps(assessment, indent=2), encoding="utf-8"
         )
         doc_count = len(assessment["documentation_files"])
@@ -834,99 +973,73 @@ def main() -> int:
         )
 
     # Phase 2: Claim Extraction
-    claims_data = None
     if 2 in phases or 3 in phases:
         if assessment is None:
-            # Load from file
-            assessment_path = output_dir / "assessment.json"
-            if not assessment_path.exists():
-                print(
-                    "ERROR: assessment.json not found. Run Phase 1 first.",
-                    file=sys.stderr,
-                )
+            assessment = _load_json_artifact(
+                output_dir / "assessment.json", "assessment.json"
+            )
+            if assessment is None:
                 return 1
-            assessment = json.loads(assessment_path.read_text(encoding="utf-8"))
 
         print("Phase 2: Claim Extraction...", file=sys.stderr)
         claims_data = run_claim_extraction(target, assessment)
-        claims_path = output_dir / "claims.json"
-        claims_path.write_text(
+        (output_dir / "claims.json").write_text(
             json.dumps(claims_data, indent=2), encoding="utf-8"
         )
-        claim_count = len(claims_data["claims"])
-        print(f"  Extracted {claim_count} claims", file=sys.stderr)
+        print(
+            f"  Extracted {len(claims_data['claims'])} claims",
+            file=sys.stderr,
+        )
 
     # Phase 3: Compilability Check
-    compilability_data = None
     if 3 in phases:
         if assessment is None:
-            assessment_path = output_dir / "assessment.json"
-            if not assessment_path.exists():
-                print(
-                    "ERROR: assessment.json not found. Run Phase 1 first.",
-                    file=sys.stderr,
-                )
+            assessment = _load_json_artifact(
+                output_dir / "assessment.json", "assessment.json"
+            )
+            if assessment is None:
                 return 1
-            assessment = json.loads(assessment_path.read_text(encoding="utf-8"))
 
         if claims_data is None:
-            claims_path = output_dir / "claims.json"
-            if not claims_path.exists():
-                print(
-                    "ERROR: claims.json not found. Run Phase 2 first.",
-                    file=sys.stderr,
-                )
+            claims_data = _load_json_artifact(
+                output_dir / "claims.json", "claims.json"
+            )
+            if claims_data is None:
                 return 1
-            claims_data = json.loads(claims_path.read_text(encoding="utf-8"))
 
         print("Phase 3: Compilability Check...", file=sys.stderr)
         compilability_data = run_compilability_check(assessment, claims_data)
-        comp_path = output_dir / "compilability-findings.json"
-        comp_path.write_text(
+        (output_dir / "compilability-findings.json").write_text(
             json.dumps(compilability_data, indent=2), encoding="utf-8"
         )
         finding_count = len(compilability_data["findings"])
-        print(f"  Found {finding_count} compilability issues", file=sys.stderr)
+        print(
+            f"  Found {finding_count} compilability issues",
+            file=sys.stderr,
+        )
 
-    # Determine exit code based on findings
-    threshold_level = SEVERITY_ORDER.get(args.severity_threshold, 1)
-    has_findings_above_threshold = False
+    # Gate evaluation
+    gate_result = check_gate(compilability_data, args.severity_threshold)
 
-    if compilability_data:
-        for finding in compilability_data["findings"]:
-            finding_level = SEVERITY_ORDER.get(finding["severity"], 3)
-            if finding_level <= threshold_level:
-                has_findings_above_threshold = True
-                break
+    # Write gate result
+    (output_dir / "gate-result.json").write_text(
+        json.dumps(gate_result, indent=2), encoding="utf-8"
+    )
 
-    # Print summary
+    # Output report
     if args.format == "summary":
-        print("\n--- Documentation Accuracy Summary ---")
-        if assessment:
-            cs = assessment["coverage_summary"]
-            print(
-                f"Symbols: {cs['documented_symbols']}/{cs['public_symbols']} "
-                f"({cs['coverage_pct']}% coverage)"
-            )
-        if claims_data:
-            by_type: dict[str, int] = {}
-            for c in claims_data["claims"]:
-                by_type[c["type"]] = by_type.get(c["type"], 0) + 1
-            print(f"Claims: {len(claims_data['claims'])} total")
-            for ct, count in sorted(by_type.items()):
-                print(f"  {ct}: {count}")
-        if compilability_data:
-            by_sev: dict[str, int] = {}
-            for f in compilability_data["findings"]:
-                by_sev[f["severity"]] = by_sev.get(f["severity"], 0) + 1
-            print(f"Findings: {len(compilability_data['findings'])} total")
-            for sev in ("critical", "high", "medium", "low"):
-                if sev in by_sev:
-                    print(f"  {sev}: {by_sev[sev]}")
-        gate = "FAIL" if has_findings_above_threshold else "PASS"
-        print(f"Gate: {gate} (threshold: {args.severity_threshold})")
+        _print_summary(
+            assessment, claims_data, compilability_data, gate_result
+        )
+    elif args.format == "markdown":
+        report_path = output_dir / "report.md"
+        generate_markdown_report(
+            assessment, claims_data, compilability_data,
+            gate_result, report_path,
+        )
+        print(f"Report written to {report_path}", file=sys.stderr)
 
-    if has_findings_above_threshold:
+    if gate_result["verdict"] == "FAIL":
         return 10
 
     return 0

@@ -96,7 +96,25 @@ python3 scripts/doc_accuracy.py --target /path/to/repo --output-dir .doc-accurac
 
 # Set severity threshold for exit code
 python3 scripts/doc_accuracy.py --target /path/to/repo --severity-threshold critical
+
+# Markdown report output
+python3 scripts/doc_accuracy.py --target /path/to/repo --format markdown
+
+# Text summary to stdout
+python3 scripts/doc_accuracy.py --target /path/to/repo --format summary
 ```
+
+---
+
+## Output Artifacts
+
+| File | Description |
+|------|-------------|
+| `assessment.json` | Phase 1: doc/source inventory with symbol index |
+| `claims.json` | Phase 2: verifiable claims extracted from docs |
+| `compilability-findings.json` | Phase 3: symbol resolution findings |
+| `gate-result.json` | Gate verdict with severity counts |
+| `report.md` | Markdown summary (when `--format markdown`) |
 
 ---
 
