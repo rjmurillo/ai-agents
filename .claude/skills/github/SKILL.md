@@ -161,7 +161,7 @@ Need GitHub data?
 
 ## Output Format
 
-All scripts output structured JSON wrapped in a standard envelope per [ADR-051](../../../.agents/architecture/ADR-051-skill-output-format-standardization.md).
+All scripts output structured JSON wrapped in a standard envelope per ADR-051.
 
 **Success envelope:**
 
