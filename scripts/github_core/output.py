@@ -14,8 +14,7 @@ import argparse
 import json
 import os
 import sys
-from datetime import datetime, timezone
-from typing import Any
+from datetime import UTC, datetime
 
 
 def add_output_format_arg(parser: argparse.ArgumentParser) -> None:
@@ -61,7 +60,7 @@ def get_output_format(requested: str = "auto") -> str:
 
 
 def write_skill_output(
-    data: Any,
+    data: object,
     *,
     output_format: str = "auto",
     human_summary: str = "",
@@ -94,7 +93,7 @@ def write_skill_output(
         "Metadata": {
             "Script": script_name,
             "Version": version,
-            "Timestamp": datetime.now(timezone.utc).isoformat(),
+            "Timestamp": datetime.now(UTC).isoformat(),
         },
     }
 
@@ -117,7 +116,7 @@ def write_skill_error(
     output_format: str = "auto",
     script_name: str = "",
     version: str = "1.0.0",
-    extra: dict[str, Any] | None = None,
+    extra: dict[str, object] | None = None,
 ) -> str | None:
     """Emit a standardized skill error envelope.
 
@@ -153,7 +152,7 @@ def write_skill_error(
         "Metadata": {
             "Script": script_name,
             "Version": version,
-            "Timestamp": datetime.now(timezone.utc).isoformat(),
+            "Timestamp": datetime.now(UTC).isoformat(),
         },
     }
 
