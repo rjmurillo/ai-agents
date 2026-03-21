@@ -1204,8 +1204,8 @@ Changes: [brief explanation]
 
 **Thread Resolution Protocol:**
 
-- Auto-resolve bot comments after fixing
-- Let human reviewers resolve their own threads
+- Auto-resolve only bot-authored threads after fixing
+- Never bulk-resolve when unresolved human-authored threads exist
 - Resolve only after: fix committed + reply posted
 
 #### Step 6.4: Resolve Conversation Thread
@@ -1219,16 +1219,16 @@ After replying with resolution, mark the thread as resolved. This is required fo
 
 ```bash
 SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
-# Resolve all unresolved threads on the PR (PREFERRED for bulk resolution)
+# Resolve all bot-authored unresolved threads (use only when no human threads remain)
 python3 "$SCRIPTS_DIR/pr/resolve_pr_review_thread.py" --pull-request [number] --all
 
-# Or resolve a single thread by ID
+# Or resolve a single thread by ID (PREFERRED when human threads exist)
 python3 "$SCRIPTS_DIR/pr/resolve_pr_review_thread.py" --thread-id "PRRT_kwDOQoWRls5m7ln8"
 ```
 
 **Complete Workflow**: Code fix → Reply → **Resolve** (all three steps required)
 
-**Note**: Thread IDs use the format `PRRT_xxx` (GraphQL node ID), not numeric comment IDs. The bulk resolution option (`-All`) automatically discovers and resolves all unresolved threads.
+**Note**: Thread IDs use the format `PRRT_xxx` (GraphQL node ID), not numeric comment IDs. The bulk resolution option (`--all`) resolves all unresolved threads. Use `--all` only after confirming no unresolved human-authored threads remain.
 
 #### Step 6.5: Update Task List
 

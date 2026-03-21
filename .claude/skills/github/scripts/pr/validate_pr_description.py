@@ -67,7 +67,11 @@ def validate_issue_keywords(text: str) -> dict:
 
 
 def validate_template_compliance(body: str) -> dict:
-    """Check PR template section completion."""
+    """Check PR template section completion.
+
+    Note: Patterns are coupled to .github/PULL_REQUEST_TEMPLATE.md format.
+    Update patterns here if the template structure changes.
+    """
     sections: dict[str, str] = {}
 
     # Summary section
@@ -117,7 +121,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--body", default="", help="PR description body text")
     p.add_argument("--body-file", default="", help="Path to file containing PR body")
     p.add_argument(
-        "--fail-on-violation", action="store_true",
+        "--fail-on-violation",
+        action="store_true",
         help="Exit with code 1 on any validation failure",
     )
     return p

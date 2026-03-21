@@ -21,14 +21,12 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from validate_pr_description import _CONVENTIONAL_COMMIT_PATTERN  # noqa: E402
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-_CONVENTIONAL_COMMIT_PATTERN = re.compile(
-    r"^(feat|fix|docs|style|refactor|perf|test|chore|ci|build|revert)"
-    r"(\(.+\))?!?: .+"
-)
 
 
 def get_repo_root() -> str:
@@ -95,10 +93,7 @@ def run_validations(
     agents_changed = any(f.startswith(".agents/") for f in changed_files)
 
     if agents_changed:
-        session_logs = [
-            f for f in changed_files
-            if re.match(r"^\.agents/sessions/.*\.md$", f)
-        ]
+        session_logs = [f for f in changed_files if re.match(r"^\.agents/sessions/.*\.md$", f)]
         if session_logs:
             session_log = session_logs[-1]
             validate_script = os.path.join(repo_root, "scripts/Validate-Session.ps1")
@@ -106,9 +101,12 @@ def run_validations(
                 session_log_path = os.path.join(repo_root, session_log)
                 vresult = subprocess.run(
                     [
-                        "pwsh", "-NoProfile", "-File",
+                        "pwsh",
+                        "-NoProfile",
+                        "-File",
                         validate_script,
-                        "-SessionLogPath", session_log_path,
+                        "-SessionLogPath",
+                        session_log_path,
                     ],
                     capture_output=True,
                     text=True,
@@ -146,7 +144,8 @@ def run_validations(
     print()
     print("[4/4] Validating PR description...")
     validate_script = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), "validate_pr_description.py",
+        os.path.dirname(os.path.abspath(__file__)),
+        "validate_pr_description.py",
     )
     if os.path.exists(validate_script) and title:
         val_args = [sys.executable, validate_script, "--title", title]
@@ -157,7 +156,7 @@ def run_validations(
         val_result = subprocess.run(val_args, capture_output=True, text=True, timeout=30)
         # Print human-readable output (on stderr from validator)
         if val_result.stderr:
-            print(val_result.stderr, end="")
+            print(val_result.stderr, end="", file=sys.stderr)
         # Warning mode: don't fail on exit code
     else:
         print("  Skipped (no title available or validator not found)")
@@ -168,7 +167,11 @@ def run_validations(
 
 
 def write_audit_log(
-    repo_root: str, head: str, base: str, title: str, reason: str,
+    repo_root: str,
+    head: str,
+    base: str,
+    title: str,
+    reason: str,
 ) -> None:
     """Write audit log entry for skipped validation."""
     audit_dir = os.path.join(repo_root, ".agents/audit")
@@ -210,7 +213,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--draft", action="store_true", help="Create as draft PR")
     parser.add_argument("--skip-validation", action="store_true", help="Skip validation checks")
     parser.add_argument(
-        "--audit-reason", default="",
+        "--audit-reason",
+        default="",
         help="Required when --skip-validation is used. Logged for audit trail.",
     )
     return parser
@@ -267,7 +271,9 @@ def main(argv: list[str] | None = None) -> int:
     else:
         try:
             run_validations(
-                repo_root, args.base, head,
+                repo_root,
+                args.base,
+                head,
                 title=args.title,
                 body=args.body,
                 body_file=args.body_file,
@@ -280,10 +286,15 @@ def main(argv: list[str] | None = None) -> int:
 
     # Build gh pr create command
     gh_args = [
-        "gh", "pr", "create",
-        "--base", args.base,
-        "--head", head,
-        "--title", args.title,
+        "gh",
+        "pr",
+        "create",
+        "--base",
+        args.base,
+        "--head",
+        head,
+        "--title",
+        args.title,
     ]
 
     if args.body:
