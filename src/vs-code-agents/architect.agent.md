@@ -358,7 +358,7 @@ When reviewing an ADR exception request, apply Chesterton's Fence analysis per A
 ```markdown
 - [ ] Original ADR rationale is QUOTED (not paraphrased)
 - [ ] "Impact if removed" lists specific consequences (not generic)
-- [ ] At least two compliance alternatives documented with outcomes
+- [ ] At least two compliance attempts documented with outcomes
 - [ ] Scope is narrowly bounded (exact path pattern or context)
 - [ ] Conditions include enforceable MUST requirements
 - [ ] Exception explicitly states what it MUST NOT be used as precedent for
@@ -369,7 +369,7 @@ When reviewing an ADR exception request, apply Chesterton's Fence analysis per A
 **MUST reject if ANY of the following are true:**
 
 - ADR rationale is paraphrased rather than quoted
-- Fewer than two alternatives are documented
+- Fewer than two compliance attempts are documented
 - Scope is unbounded ("all Python files", "any hook")
 - Conditions are aspirational rather than enforceable
 - Requestor has not attempted compliance

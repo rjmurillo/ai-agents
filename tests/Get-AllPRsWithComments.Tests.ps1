@@ -24,6 +24,7 @@
 Set-StrictMode -Version Latest
 
 BeforeAll {
+    $script:OriginalLastExitCode = $global:LASTEXITCODE
     $Script:ModulePath = Join-Path $PSScriptRoot ".." ".claude" "skills" "github" "modules" "GitHubCore.psm1"
 
     if (-not (Test-Path $Script:ModulePath)) {
@@ -247,5 +248,9 @@ Describe "Get-AllPRsWithComments" {
             { Get-AllPRsWithComments -Owner "testowner" -Repo "testrepo" -Since ([datetime]"2025-01-01") } |
                 Should -Throw "*Failed to query PRs*"
         }
+    }
+
+    AfterAll {
+        $global:LASTEXITCODE = $script:OriginalLastExitCode
     }
 }
