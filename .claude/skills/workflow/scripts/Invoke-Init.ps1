@@ -5,7 +5,7 @@
 
 .DESCRIPTION
     Enforces ADR-007 memory-first architecture at session start:
-    1. Activate Serena project
+    1. Activate project context
     2. Load initial instructions from AGENTS.md
     3. Read HANDOFF.md (read-only reference)
     4. Query relevant memories
@@ -56,8 +56,8 @@ function Write-StepResult {
     Write-Host "  → [$Status] $Message" -ForegroundColor $color
 }
 
-# Step 1: Activate Serena project
-Write-Step '1/7' 'Activating Serena project'
+# Step 1: Activate project context
+Write-Step '1/7' 'Activating project context'
 $mcpResult = Invoke-AgentOrchestrationMCP -ToolName 'activate_project' -Arguments @{}
 if ($mcpResult.Fallback) {
     Write-StepResult 'WARN' 'Agent Orchestration MCP unavailable — skipping project activation'

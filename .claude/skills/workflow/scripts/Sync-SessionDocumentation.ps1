@@ -8,7 +8,7 @@
     1. Generates workflow sequence diagram (Mermaid format)
     2. Extracts decisions and artifacts from handoff chain
     3. Appends to session log workLog section
-    4. Updates Serena memory with cross-session context
+    4. Updates memory with cross-session context
     5. Suggests retrospective learnings
 
 .PARAMETER SessionLogPath
@@ -116,7 +116,7 @@ catch {
     Write-Warning "Session log update failed (may not be JSON format): $_"
 }
 
-# Step 5: Update Serena memory
+# Step 5: Update cross-session memory
 Write-Host "  [5/5] Updating cross-session memory" -ForegroundColor Yellow
 Invoke-AgentOrchestrationMCP -ToolName 'mcp__serena__write_memory' -Arguments @{
     key     = "session-sync-$(Get-Date -Format 'yyyyMMdd')"

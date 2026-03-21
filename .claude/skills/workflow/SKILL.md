@@ -27,7 +27,7 @@ Use this skill when:
 
 | Command | Purpose | Agents |
 |---------|---------|--------|
-| `/0-init` | Session initialization (ADR-007) | Serena MCP |
+| `/0-init` | Session initialization (ADR-007) | Agent Orchestration MCP |
 | `/1-plan` | Planning phase | planner / architect / roadmap+advisor |
 | `/2-impl` | Implementation | implementer (+ qa + security) |
 | `/3-qa` | Quality assurance | qa |
@@ -37,7 +37,7 @@ Use this skill when:
 
 ### Phase 1: Session Initialization (`/0-init`)
 
-1. Activate Serena project via MCP
+1. Activate project context via MCP
 2. Load `AGENTS.md` and `HANDOFF.md` for context
 3. Query relevant memories from prior sessions
 4. Create session log in `.agents/sessions/`
@@ -122,7 +122,7 @@ Variants:
 
 **Session State MCP:** `/0-init` records evidence via `record_evidence`.
 
-**Serena MCP:** `/0-init` activates project and loads memories per ADR-007.
+**Agent Orchestration MCP:** `/0-init` activates project and loads memories per ADR-007.
 
 ## MCP Fallback
 
