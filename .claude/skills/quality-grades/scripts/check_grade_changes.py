@@ -110,6 +110,7 @@ def create_notification_issue(flagged: list[dict]) -> None:
                 "quality",
             ],
             check=True,
+            timeout=60,
         )
     except FileNotFoundError:
         print("Error: 'gh' CLI not found. Install GitHub CLI to create issues.", file=sys.stderr)
@@ -127,7 +128,11 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Error: grades file not found: {args.grades_file}", file=sys.stderr)
         return 1
 
-    data = load_grades(args.grades_file)
+    try:
+        data = load_grades(args.grades_file)
+    except (json.JSONDecodeError, OSError) as exc:
+        print(f"Error: failed to parse grades file: {exc}", file=sys.stderr)
+        return 1
     flagged = find_degraded_domains(data, args.threshold)
 
     if not flagged:

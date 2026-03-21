@@ -68,9 +68,9 @@ class TestComputeTrend:
         """Return 'stable' when score change is within 5 points."""
         assert compute_trend(75.0, 73.0) == "stable"
 
-    def test_stable_exact_boundary(self) -> None:
-        """Return 'stable' when score change is exactly 5 points."""
-        assert compute_trend(75.0, 70.0) == "stable"
+    def test_improving_exact_boundary(self) -> None:
+        """Return 'improving' when score change is exactly 5 points (docs: 5+)."""
+        assert compute_trend(75.0, 70.0) == "improving"
 
 
 class TestDetectDomains:
@@ -220,11 +220,13 @@ class TestGradeLayer:
         assert result.file_count == 1
 
     def test_workflows_layer_no_workflows(self, tmp_path: Path) -> None:
-        """Score 50 when no workflow files match the domain."""
+        """Score 50 with minor gap when no workflow files match the domain."""
         wf_dir = tmp_path / ".github" / "workflows"
         wf_dir.mkdir(parents=True)
         result = grade_layer(tmp_path, "absent", "workflows")
         assert result.score == 50
+        assert len(result.gaps) == 1
+        assert result.gaps[0].severity == "minor"
 
     def test_score_capped_at_100(self, tmp_path: Path) -> None:
         """Score cannot exceed 100 even with many bonus points."""

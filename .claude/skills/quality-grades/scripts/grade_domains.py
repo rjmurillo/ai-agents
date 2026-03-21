@@ -209,8 +209,10 @@ def _grade_scripts_layer(
     found_scripts: list[Path] = []
     if skill_scripts.is_dir():
         found_scripts.extend(skill_scripts.glob("*.py"))
+        found_scripts.extend(skill_scripts.glob("*.ps1"))
     if repo_scripts.is_dir():
         found_scripts.extend(f for f in repo_scripts.glob("*.py") if domain in f.stem)
+        found_scripts.extend(f for f in repo_scripts.glob("*.ps1") if domain in f.stem)
     file_count = len(found_scripts)
     if file_count == 0:
         gaps.append(
@@ -332,7 +334,7 @@ def _grade_workflows_layer(
 
     wf_files = [
         f
-        for f in wf_dir.glob("*.yml")
+        for f in list(wf_dir.glob("*.yml")) + list(wf_dir.glob("*.yaml"))
         if domain in f.stem.lower() or domain.replace("-", "") in f.stem.lower()
     ]
     file_count = len(wf_files)
@@ -340,7 +342,11 @@ def _grade_workflows_layer(
         score = 80 + min(file_count * 10, 20)
         return score, file_count, []
 
-    return 50, 0, []
+    return (
+        50,
+        0,
+        [Gap(layer="workflows", description="No matching workflow found", severity="minor")],
+    )
 
 
 _LAYER_GRADERS: dict[str, object] = {
@@ -386,9 +392,9 @@ def compute_trend(current: float, previous: float | None) -> str:
     if previous is None:
         return "new"
     delta = current - previous
-    if delta > 5:
+    if delta >= 5:
         return "improving"
-    if delta < -5:
+    if delta <= -5:
         return "degrading"
     return "stable"
 

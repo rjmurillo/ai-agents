@@ -27,11 +27,16 @@ permissions:
   contents: read
   issues: write
 
+concurrency:
+  group: quality-grades
+  cancel-in-progress: true
+
 jobs:
   audit:
     name: Run Quality Audit
     # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-24.04-arm
+    timeout-minutes: 10
 
     steps:
       - name: Checkout repository

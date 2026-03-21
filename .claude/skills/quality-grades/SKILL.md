@@ -24,16 +24,16 @@ Grade each product domain and architectural layer. Track gaps over time.
 
 ```python
 # Grade all auto-detected domains
-python3 scripts/grade_domains.py
+python3 .claude/skills/quality-grades/scripts/grade_domains.py
 
 # Grade specific domains as JSON
-python3 scripts/grade_domains.py --domains security memory --format json
+python3 .claude/skills/quality-grades/scripts/grade_domains.py --domains security memory --format json
 
 # Write report to file (enables trend tracking)
-python3 scripts/grade_domains.py --output quality-grades.md
+python3 .claude/skills/quality-grades/scripts/grade_domains.py --output quality-grades.md
 
 # Show top 10 domains by gap count
-python3 scripts/grade_domains.py --top-n 10
+python3 .claude/skills/quality-grades/scripts/grade_domains.py --top-n 10
 ```
 
 ---
