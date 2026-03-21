@@ -143,7 +143,12 @@ def audit_skill(skill_dir: Path) -> SkillAuditResult | None:
     if not skill_file.exists():
         return None
 
-    content = skill_file.read_text(encoding="utf-8")
+    try:
+        content = skill_file.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        print(f"Warning: Cannot read {skill_file}: {exc}", file=sys.stderr)
+        return None
+
     line_count = len(content.splitlines())
     h2_count, h3_count = _count_headings(content)
     has_exception = has_size_exception(content)

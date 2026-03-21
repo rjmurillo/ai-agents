@@ -34,10 +34,17 @@ _PROJECT_ROOT = _SCRIPT_DIR.parents[1]
 _FRONTMATTER_PATH = (
     _PROJECT_ROOT / ".claude" / "skills" / "SkillForge" / "scripts" / "frontmatter.py"
 )
-_spec = importlib.util.spec_from_file_location("skill_frontmatter_utils", _FRONTMATTER_PATH)
-_mod = importlib.util.module_from_spec(_spec)  # type: ignore[arg-type]
-_spec.loader.exec_module(_mod)  # type: ignore[union-attr]
-has_size_exception = _mod.has_size_exception
+try:
+    _spec = importlib.util.spec_from_file_location("skill_frontmatter_utils", _FRONTMATTER_PATH)
+    _mod = importlib.util.module_from_spec(_spec)  # type: ignore[arg-type]
+    _spec.loader.exec_module(_mod)  # type: ignore[union-attr]
+    has_size_exception = _mod.has_size_exception
+except (FileNotFoundError, TypeError, AttributeError) as _exc:
+    print(
+        f"Error: Failed to load frontmatter helper from {_FRONTMATTER_PATH}: {_exc}",
+        file=__import__("sys").stderr,
+    )
+    raise SystemExit(2) from _exc
 
 # Size thresholds (lines)
 SKILL_SIZE_LIMIT: int = 500
