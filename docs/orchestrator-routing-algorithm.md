@@ -244,6 +244,7 @@ AGENT_TIERS = {
     "adr-generator": "integration",
     "backlog-generator": "integration",
     "janitor": "integration",
+    "merge-resolver": "builder",
     "memory": "integration",
     "skillbook": "integration",
     "context-retrieval": "integration",
