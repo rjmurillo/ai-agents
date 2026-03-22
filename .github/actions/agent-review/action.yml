@@ -110,6 +110,7 @@ runs:
         {
           echo "findings<<${DELIMITER}"
           cat "$CACHE_DIR/findings.txt"
+          echo ""
           echo "${DELIMITER}"
         } >> $GITHUB_OUTPUT
 
