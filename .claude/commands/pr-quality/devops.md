@@ -13,14 +13,15 @@ model: sonnet
 
 # PR Quality Gate - DevOps Review
 
-Run the DevOps quality gate locally on your current changes before pushing.
+Run the devops quality gate locally on your current changes before pushing.
 
 ## Context
 
 ### Branch Information
 
-- Current branch: !`git branch --show-current`
-- Base branch: $ARGUMENTS or main
+Use the Bash tool to run `git branch --show-current` to determine the current branch.
+
+Use $ARGUMENTS as the base branch if provided, otherwise default to `main`.
 
 ### Review Criteria
 
@@ -28,13 +29,11 @@ Apply the criteria from: @.github/prompts/pr-quality-gate-devops.md
 
 ### Changed Files
 
-<!-- NOTE: Commands prefixed with an exclamation mark and a backtick run at PREPROCESSING time in an
-     isolated shell. $ARGUMENTS is NOT available here. See #1088. -->
-!`git diff main --name-only`
+Use the Bash tool to run `git diff "<base_branch>" --name-only` to list changed files.
 
 ### Full Diff
 
-!`git diff main`
+Use the Bash tool to run `git diff "<base_branch>"` to obtain the full diff.
 
 ## Output Format
 

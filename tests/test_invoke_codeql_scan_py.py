@@ -230,7 +230,7 @@ class TestAnalyzeDatabaseSarifParsing:
 
     def _run_analyze(
         self, tmp_path: Path, sarif_content: str | None, *, ci: bool = False,
-    ) -> Any:
+    ) -> Any:  # noqa: ANN401
         """Run analyze_database with mocked subprocess and optional SARIF file."""
         results_path = str(tmp_path / "results")
         os.makedirs(results_path, exist_ok=True)
