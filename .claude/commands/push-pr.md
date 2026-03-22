@@ -37,5 +37,10 @@ Based on the above changes:
    ```
 
    - Title MUST follow conventional commit format (e.g., `feat: Add feature`, `fix(auth): Resolve bug`)
+   - Body SHOULD include GitHub issue linking keywords to auto-close issues:
+     - `Closes #123` — auto-closes issue when PR merges
+     - `Fixes #456` — auto-fixes issue when PR merges
+     - `Resolves #789` — auto-resolves issue when PR merges
+   - Ensure PR template sections are completed
 
 You have the capability to call multiple tools in a single response. You MUST do all of the above in a single message. Do not use any other tools or do anything else. Do not send any other text or messages besides these tool calls.
