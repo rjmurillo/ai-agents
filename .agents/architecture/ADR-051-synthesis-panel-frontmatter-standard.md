@@ -4,13 +4,17 @@
 
 Accepted
 
+## Author
+
+Session 2026-03-07-session-01
+
 ## Date
 
 2026-03-07
 
 ## Context
 
-DESIGN-REVIEW documents (architect synthesis panels) contain critical metadata embedded in prose format, preventing automated enforcement of blocking verdicts. PR #908 was created and merged despite a P1 BLOCKING architect review, demonstrating the enforcement gap.
+DESIGN-REVIEW documents (architect synthesis panels) contain critical metadata embedded in prose format, preventing automated enforcement of blocking verdicts. PR #908 (2026-01-14) was created and merged despite a P1 BLOCKING architect review, demonstrating the enforcement gap.
 
 Current state:
 - DESIGN-REVIEW verdicts (`APPROVED`, `NEEDS_CHANGES`, `BLOCKED`) are prose-only
@@ -70,11 +74,11 @@ scope: Brief scope description  # optional
 
 | Alternative | Pros | Cons | Why Not Chosen |
 |-------------|------|------|----------------|
-| **Status Quo** (prose only) | Simple; no syntax overhead | Cannot automate; PR #908 proves enforcement fails | Unacceptable: violates ADR-010 quality gate principle |
+| **Status Quo** (prose only) | Simple; no syntax overhead | Cannot automate; PR #908 (2026-01-14) proves enforcement fails | Unacceptable: violates ADR-010 quality gate principle |
 | **JSON sidecar files** (DESIGN-REVIEW.json) | Separates concerns | Splits context; maintenance burden; harder to read | Would create parallel document problem |
 | **Markdown tables** | Easier to read in markdown | Brittle parsing; not standard; hard to validate | YAML is markdown-ecosystem standard |
 | **Plain-text header** (First line: "VERDICT: BLOCKED") | Minimal syntax | No structure; easy to miss; hard to parse | Not machine-friendly |
-| **Frontmatter + schema validation** (proposed) | Structured; automated; standard | Slight syntax overhead on authors | Solves PR #908; aligns with ADR-040; enables automation |
+| **Frontmatter + schema validation** (proposed) | Structured; automated; standard | Slight syntax overhead on authors | Solves PR #908 (2026-01-14); aligns with ADR-040; enables automation |
 
 ### Trade-offs
 
@@ -96,7 +100,7 @@ scope: Brief scope description  # optional
 
 - **Automated enforcement**: Blocking reviews now prevent merge via CI gate
 - **Machine-readable status**: Tools can parse review outcomes reliably
-- **PR #908 prevention**: No PR can merge despite blocking architect review
+- **PR #908 (2026-01-14) prevention**: No PR can merge despite blocking architect review
 - **Consistent structure**: All DESIGN-REVIEW documents follow same format
 - **Quality gate alignment**: Fulfills ADR-010 principle for automated gates
 - **Backwards compatible**: YAML frontmatter is ignored by markdown renderers; documents remain readable
@@ -180,11 +184,11 @@ scope: Brief scope description  # optional
 
 ## Related Issues
 
-- **Issue #937**: Create DESIGN-REVIEW template (depends on this ADR)
-- **Issue #934**: Pre-PR validation parsing (depends on this ADR)
-- **Issue #942**: CI gate workflow (depends on this ADR)
-- **Issue #947**: Architect agent prompt update (depends on this ADR)
-- **PR #908**: Architect BLOCKED but PR created anyway (incident that motivated this ADR)
+- **Issue #937 (2026-01-15)**: Create DESIGN-REVIEW template (depends on this ADR)
+- **Issue #934 (2026-01-15)**: Pre-PR validation parsing (depends on this ADR)
+- **Issue #942 (2026-01-15)**: CI gate workflow (depends on this ADR)
+- **Issue #947 (2026-01-15)**: Architect agent prompt update (depends on this ADR)
+- **PR #908 (2026-01-14)**: Architect BLOCKED but PR created anyway (incident that motivated this ADR)
 
 ## References
 
@@ -197,6 +201,6 @@ scope: Brief scope description  # optional
 ---
 
 *Created: 2026-03-07*
-*GitHub Issue: #946*
+*GitHub Issue: #946 (2026-01-15)*
 *Complexity: Medium (schema definition + scripting + CI)*
 *Priority: P1 (blocks automated enforcement of architect reviews)*
