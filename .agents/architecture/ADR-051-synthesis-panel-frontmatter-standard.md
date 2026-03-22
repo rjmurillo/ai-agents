@@ -68,6 +68,21 @@ scope: Brief scope description  # optional
 
 **Result:** No PR can merge to main if it contains DESIGN-REVIEW files with NEEDS_CHANGES or BLOCKED status at P0/P1 priority.
 
+### Deviation from Original Proposal
+
+Issue #946 (2026-01-15) originally proposed an explicit `blocking: true|false` field. This ADR uses `status` + `priority` as the single gating signal instead.
+
+Rationale:
+
+- Avoids redundant state between `blocking` and `status/priority`
+- Reduces contradictory metadata risk (identified during 6-agent debate review)
+- Keeps CI rule deterministic with fewer fields
+
+Impact:
+
+- Templates treat P0/P1 + non-approved status as blocking
+- No standalone `blocking` toggle is available
+
 ## Rationale
 
 ### Alternatives Considered
@@ -126,6 +141,33 @@ scope: Brief scope description  # optional
 **Escape hatch**: A `gate-override` label on the PR bypasses the frontmatter check for emergency merges. Requires CODEOWNERS approval.
 
 **Migration risk**: Existing DESIGN-REVIEW files without frontmatter are skipped by the gate (no frontmatter = no blocking signal). Only files with frontmatter are evaluated.
+
+## Security Considerations
+
+- No secrets or credentials are stored in frontmatter.
+- CI gate decisions are metadata-driven. Review files MUST be treated as untrusted input and parsed safely.
+- Gate override (`gate-override` label) MUST require CODEOWNERS approval and leave an audit trail in PR history.
+
+## Confirmation
+
+- Verification method: validate schema parsing with positive/negative fixtures.
+- Verification method: confirm gate blocks on `NEEDS_CHANGES|BLOCKED` + `P0|P1`.
+- Verification method: confirm advisory behavior for non-frontmatter and P2 cases.
+
+## Implementation Status
+
+- [x] ADR specification drafted
+- [x] Template definition drafted
+- [ ] Validation script implemented (Issue #937)
+- [ ] CI gate workflow implemented (Issue #942)
+- [ ] Architect prompt updates implemented (Issue #947)
+- [ ] Optional migration completed (Issue #940)
+
+Acceptance criteria:
+
+- Gate blocks required scenarios in CI
+- Advisory scenarios remain non-blocking
+- Documentation and template stay schema-aligned
 
 ## Implementation Notes
 
