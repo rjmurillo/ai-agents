@@ -118,6 +118,9 @@ def create_notification_issue(flagged: list[dict]) -> None:
     except subprocess.CalledProcessError as exc:
         print(f"Error: 'gh issue create' failed with exit code {exc.returncode}", file=sys.stderr)
         raise
+    except subprocess.TimeoutExpired:
+        print("Error: subprocess timed out after 60s", file=sys.stderr)
+        raise
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -145,7 +148,7 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         create_notification_issue(flagged)
-    except (FileNotFoundError, subprocess.CalledProcessError):
+    except (FileNotFoundError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
         return 1
     print("Notification issue created.")
     return 0

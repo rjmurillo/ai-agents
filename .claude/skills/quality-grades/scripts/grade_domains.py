@@ -194,6 +194,13 @@ def _grade_skills_layer(
     return score, 1, gaps
 
 
+def _has_docstring(header: str, suffix: str) -> bool:
+    """Check if a script header contains a docstring for its language."""
+    if suffix == ".ps1":
+        return "<#" in header
+    return '''"""''' in header or """'''""" in header
+
+
 def _grade_scripts_layer(
     repo_root: Path,
     domain: str,
@@ -224,8 +231,7 @@ def _grade_scripts_layer(
     has_docs = sum(
         1
         for script in found_scripts
-        if '"""' in script.read_text(encoding="utf-8")[:500]
-        or "'''" in script.read_text(encoding="utf-8")[:500]
+        if _has_docstring(script.read_text(encoding="utf-8")[:500], script.suffix)
     )
     doc_ratio = has_docs / file_count
     score += int(doc_ratio * 30)
