@@ -261,6 +261,7 @@ jobs:
 
       - name: Post PR Comment
         if: steps.should-run.outputs.skip != 'true'
+        continue-on-error: true
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
