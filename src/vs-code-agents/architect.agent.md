@@ -372,7 +372,6 @@ When reviewing an ADR exception request, apply Chesterton's Fence analysis per A
 - Fewer than two compliance attempts are documented
 - Scope is unbounded ("all Python files", "any hook")
 - Conditions are aspirational rather than enforceable
-- Requestor has not attempted compliance
 - No reversibility consideration
 
 **On rejection**: Return the request with the specific gaps identified. Do not approve a partial exception and note gaps. Reject and require a complete resubmission.
