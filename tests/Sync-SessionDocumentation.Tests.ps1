@@ -160,10 +160,10 @@ Describe 'Sync-SessionDocumentation.ps1' {
         }
     }
 
-    Context 'Serena memory integration' {
-        It 'updates Serena memory via MCP' {
+    Context 'Cross-session memory integration' {
+        It 'updates cross-session memory via MCP' {
             $content = Get-Content $ScriptPath -Raw
-            $content | Should -Match 'mcp__serena__write_memory'
+            $content | Should -Match 'memory://write'
         }
     }
 

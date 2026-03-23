@@ -53,7 +53,7 @@ Enforces ADR-007 memory-first architecture at session start.
 
 **What it does:**
 
-1. Activates Serena project (loads project context)
+1. Loads project context (graceful fallback if unavailable)
 2. Reads AGENTS.md (project rules)
 3. Reads HANDOFF.md (prior session context)
 4. Queries relevant memories
@@ -187,9 +187,9 @@ Commands integrate with the Agent Orchestration MCP for structured agent invocat
 
 All commands record evidence for protocol compliance tracking via `record_evidence()`.
 
-### Serena MCP
+### Memory MCP
 
-`/0-init` integrates with Serena for memory-first architecture:
+`/0-init` integrates with memory services for memory-first architecture:
 
 - `activate_project()` — load project context
 - `list_memories()` — surface relevant memories
@@ -202,7 +202,7 @@ All commands record evidence for protocol compliance tracking via `record_eviden
 
 Commands gracefully degrade when MCP servers are unavailable:
 
-- Serena MCP unavailable: session initialization continues with warning
+- Memory MCP unavailable: session initialization continues with warning
 - Agent Orchestration MCP unavailable: falls back to direct agent invocation
 
 Check MCP server status:

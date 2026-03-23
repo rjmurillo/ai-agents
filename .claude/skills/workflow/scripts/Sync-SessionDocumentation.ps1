@@ -118,7 +118,7 @@ catch {
 
 # Step 5: Update cross-session memory
 Write-Host "  [5/5] Updating cross-session memory" -ForegroundColor Yellow
-Invoke-AgentOrchestrationMCP -ToolName 'mcp__serena__write_memory' -Arguments @{
+Invoke-AgentOrchestrationMCP -ToolName 'memory://write' -Arguments @{
     key     = "session-sync-$(Get-Date -Format 'yyyyMMdd')"
     content = "Session documentation synced from $SessionLogPath"
 } | Out-Null
