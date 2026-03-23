@@ -16,7 +16,6 @@ Exit codes follow ADR-035:
 from __future__ import annotations
 
 import argparse
-import json
 import math
 import os
 import sys
@@ -43,6 +42,12 @@ from github_core.api import (  # noqa: E402
     assert_gh_authenticated,
     gh_graphql,
     resolve_repo_params,
+)
+from github_core.output import (  # noqa: E402
+    add_output_format_arg,
+    get_output_format,
+    write_skill_error,
+    write_skill_output,
 )
 
 # ---------------------------------------------------------------------------
@@ -269,16 +274,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--required-only", action="store_true",
         help="Filter output to required checks only",
     )
-    parser.add_argument(
-        "--output-format",
-        choices=["json", "text"],
-        default="text",
-        help=(
-            "Output format. 'json' emits only JSON on stdout "
-            "(no status messages on stderr). 'text' (default) "
-            "emits JSON on stdout and status summaries on stderr."
-        ),
-    )
+    add_output_format_arg(parser)
     return parser
 
 
@@ -290,7 +286,7 @@ def main(argv: list[str] | None = None) -> int:
     owner = resolved.owner
     repo = resolved.repo
 
-    quiet = args.output_format == "json"
+    fmt = get_output_format(args.output_format)
 
     start_time = time.monotonic()
     max_iterations = math.ceil(args.timeout_seconds / 10)
@@ -302,21 +298,25 @@ def main(argv: list[str] | None = None) -> int:
 
         # Handle errors
         if check_data.get("Error") == "NotFound":
-            output = {
-                "Success": False,
-                "Error": check_data["Message"],
-                "Number": args.pull_request,
-            }
-            print(json.dumps(output, indent=2))
+            write_skill_error(
+                check_data["Message"],
+                2,
+                error_type="NotFound",
+                output_format=fmt,
+                script_name="get_pr_checks.py",
+                extra={"Number": args.pull_request},
+            )
             return 2
 
         if check_data.get("Error") == "ApiError":
-            output = {
-                "Success": False,
-                "Error": check_data["Message"],
-                "Number": args.pull_request,
-            }
-            print(json.dumps(output, indent=2))
+            write_skill_error(
+                check_data["Message"],
+                3,
+                error_type="ApiError",
+                output_format=fmt,
+                script_name="get_pr_checks.py",
+                extra={"Number": args.pull_request},
+            )
             return 3
 
         output = build_output(check_data, owner, repo, args.required_only)
@@ -328,13 +328,16 @@ def main(argv: list[str] | None = None) -> int:
         # Check timeout
         elapsed = time.monotonic() - start_time
         if elapsed >= args.timeout_seconds:
-            print(json.dumps(output, indent=2))
-            if not quiet:
-                print(
+            write_skill_output(
+                output,
+                output_format=fmt,
+                human_summary=(
                     f"Timeout: {output['PendingCount']} checks still pending "
-                    f"after {args.timeout_seconds} seconds",
-                    file=sys.stderr,
-                )
+                    f"after {args.timeout_seconds} seconds"
+                ),
+                status="WARNING",
+                script_name="get_pr_checks.py",
+            )
             return 7
 
         if iteration >= max_iterations:
@@ -342,29 +345,27 @@ def main(argv: list[str] | None = None) -> int:
 
         time.sleep(10)
 
-    print(json.dumps(output, indent=2))
+    # Determine status for human output
+    if output["FailedCount"] > 0:
+        summary = f"PR #{output['Number']}: {output['FailedCount']} check(s) failed"
+        status = "FAIL"
+    elif output["PendingCount"] > 0:
+        summary = f"PR #{output['Number']}: {output['PendingCount']} check(s) still pending"
+        status = "WARNING"
+    else:
+        summary = f"PR #{output['Number']}: All {output['PassedCount']} check(s) passing"
+        status = "PASS"
+
+    write_skill_output(
+        output,
+        output_format=fmt,
+        human_summary=summary,
+        status=status,
+        script_name="get_pr_checks.py",
+    )
 
     if output["FailedCount"] > 0:
-        if not quiet:
-            print(
-                f"PR #{output['Number']}: {output['FailedCount']} check(s) failed",
-                file=sys.stderr,
-            )
         return 1
-
-    if output["PendingCount"] > 0:
-        if not quiet:
-            print(
-                f"PR #{output['Number']}: {output['PendingCount']} check(s) still pending",
-                file=sys.stderr,
-            )
-        return 0
-
-    if not quiet:
-        print(
-            f"PR #{output['Number']}: All {output['PassedCount']} check(s) passing",
-            file=sys.stderr,
-        )
     return 0
 
 
