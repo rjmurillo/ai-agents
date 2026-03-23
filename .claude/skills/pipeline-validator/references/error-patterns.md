@@ -1,141 +1,263 @@
-# Error Patterns: Pipeline Validator
+# Error Patterns Catalog
 
-12-category error diagnosis catalog for pipeline failure analysis.
+Comprehensive catalog of pipeline failure patterns, diagnosis rules, and automated fix actions for the pipeline-validator skill.
 
-## Category 1: NuGet Restore Failures
+---
 
-**Pattern**: `error NU1101`, `Unable to find package`, `version conflict`
+## Pattern Categories
 
-**Cause**: Missing or incompatible NuGet packages after a version bump.
+### 1. Build Compilation Errors
 
-**Auto-fix**: Re-run dependency resolution from the windows-image-updater skill (Phase 2). Update the conflicting package version and commit.
+**Match:** `error CS\d+`, `error MSB\d+`, `Build FAILED`, `error NU\d+`
 
-**Severity**: Auto-fixable
+**Diagnosis:** Read the error message to identify the file, line number, and error code.
 
-## Category 2: Build Compilation Errors
+**Action:** Open the file and fix the compilation error at the reported location.
 
-**Pattern**: `error CS`, `error MSB`, `Build FAILED`
+**Common sub-patterns:**
 
-**Cause**: Code changes introduced a compilation error, or a dependency change broke API compatibility.
+| Error Code | Meaning | Typical Fix |
+|-----------|---------|-------------|
+| CS0246 | Type or namespace not found | Add missing `using` or package reference |
+| CS0234 | Namespace does not contain type | Package version changed API surface |
+| CS1061 | Type does not contain member | API was renamed or removed in new version |
+| CS0029 | Cannot implicitly convert type | Type changed in updated package |
+| MSB3270 | Processor architecture mismatch | Update platform target |
+| MSB4019 | Imported project not found | Fix SDK or props file path |
 
-**Auto-fix**: None. Requires investigation of the specific compiler error.
+---
 
-**Severity**: Investigation required
+### 2. TreatWarningsAsErrors
 
-## Category 3: Container Image Pull Failures
+**Match:** `warning treated as error`, `TreatWarningsAsErrors`, `WarningsAsErrors`
 
-**Pattern**: `manifest unknown`, `image not found`, `pull access denied`
+**Diagnosis:** The build has `TreatWarningsAsErrors` enabled and a warning is being promoted to an error.
 
-**Cause**: The specified container image does not exist in the registry, or the pipeline agent lacks pull permissions.
+**Action Options (in preference order):**
+1. **Suppress the specific warning code** in the appropriate scope (`.csproj`, `Directory.Build.props`, or inline `#pragma`)
+2. **Fix the code** to eliminate the warning (if the fix is straightforward)
+3. **Set `TreatWarningsAsErrors` to `false`** in the pipeline YAML or `.csproj` (last resort)
 
-**Auto-fix**: Verify the image tag exists. If the tag is wrong, update the pipeline YAML and commit.
+**Discovery:**
+```powershell
+# Find TreatWarningsAsErrors in YAML files
+Select-String -Path ".pipelines\*.yml" -Pattern "TreatWarningsAsErrors" -SimpleMatch
+# Find in csproj files
+Get-ChildItem -Recurse -Filter "*.csproj" | Select-String -Pattern "TreatWarningsAsErrors" -SimpleMatch
+# Find in Directory.Build.props
+Select-String -Path "Directory.Build.props" -Pattern "TreatWarningsAsErrors" -SimpleMatch
+```
 
-**Severity**: Auto-fixable (if tag mismatch), Investigation required (if permissions)
+**Common new warnings in .NET 10:**
 
-## Category 4: Test Failures
+| Warning | Description | Recommended Fix |
+|---------|-------------|-----------------|
+| CA1873 | Logging argument evaluation | Suppress in code analysis props |
+| CA2263 | Prefer generic overload | Use generic `.Be<T>()` syntax |
+| IDE0044 | Make field readonly | Add `readonly` modifier |
+| ASPDEPR008 | IWebHost/WebHost obsolete | Suppress for now, address in follow-up |
+| SYSLIB0057 | X509Certificate2(byte[]) obsolete | Suppress for now, use X509CertificateLoader later |
 
-**Pattern**: `Failed!`, `Tests failed`, `Assert.`, `Expected .* but`
+---
 
-**Cause**: Unit or integration tests are failing due to behavioral changes from the update.
+### 3. NuGet Package Errors
 
-**Auto-fix**: None. Test failures require human review to determine if the test or the code is wrong.
+**Match:** `NU1101`, `Unable to find package`, `Package restore failed`, `NU1605`, `NU1608`, `NU1510`
 
-**Severity**: Investigation required
+**Sub-patterns:**
 
-## Category 5: Timeout Errors
+| Error | Meaning | Fix |
+|-------|---------|-----|
+| NU1101 | Package not found | Check NuGet.config feeds, verify package name |
+| NU1605 | Package downgrade detected | Bump the conflicting package to the required version |
+| NU1608 | Version outside dependency constraint | Bump package to latest compatible version |
+| NU1510 | Package pruning conflict (.NET 10) | Remove explicit PackageReference for auto-pruned packages |
+| NU1202 | Package not compatible with TFM | Find an updated version or alternative package |
 
-**Pattern**: `TimeoutException`, `exceeded the maximum`, `timed out`
+**NU1510 Auto-pruned packages (.NET 10):**
+- System.Net.Http
+- System.Security.Cryptography.X509Certificates
+- System.Net.Security
+- Microsoft.Extensions.Caching.Memory
+- Microsoft.Extensions.DependencyInjection.Abstractions
 
-**Cause**: A pipeline step or test exceeded its time limit. Often transient due to infrastructure load.
+**Exception:** Non-web class libraries may still need explicit references for some of these.
 
-**Auto-fix**: Retry the pipeline run. If timeout persists after 2 retries, escalate.
+---
 
-**Severity**: Transient
+### 4. File Not Found / Path Reference Errors
 
-## Category 6: Agent Pool Unavailability
+**Match:** `File not found`, `not a valid path`, `does not exist`, `Could not find file`
 
-**Pattern**: `No agent found`, `pool .* has no agents`, `all agents are busy`
+**Diagnosis:** A YAML pipeline, config, or code file references a path that doesn't exist.
 
-**Cause**: The build agent pool is exhausted or offline.
+**Action:**
+1. Identify the referenced file from the error message
+2. Search the repo for the correct path or filename
+3. Update the reference
 
-**Auto-fix**: Retry after a delay. Agent pools are shared resources that recover on their own.
+```powershell
+# Find files matching a pattern
+Get-ChildItem -Recurse -Filter "*RolloutSpec*" | Select-Object FullName
+Get-ChildItem -Recurse -Filter "*StageMap*" | Select-Object FullName
+```
 
-**Severity**: Transient
+---
 
-## Category 7: ConfigGen Validation Errors
+### 5. Assembly Loading Errors
 
-**Pattern**: `ConfigGen validation failed`, `schema mismatch`, `invalid pipeline definition`
+**Match:** `FileNotFoundException: Could not load file or assembly`, `AssemblyLoadContext`, `Could not load type`
 
-**Cause**: ConfigGen generated YAML that does not pass the pipeline schema validator.
+**Diagnosis:** Assembly name, namespace, or DLL reference is incorrect. Often caused by a mismatch in a `topologyName` or incorrect project reference after a package bump.
 
-**Auto-fix**: Re-run ConfigGen with updated parameters. If the schema has changed, update the ConfigGen configuration.
+**Action:**
+1. Check that assembly names match the expected convention
+2. Verify project references are correct
+3. Ensure namespace names haven't changed in updated packages
 
-**Severity**: Auto-fixable
+---
 
-## Category 8: Artifact Publishing Failures
+### 6. Test Failures
 
-**Pattern**: `Failed to publish artifact`, `artifact upload error`, `storage quota exceeded`
+**Match:** `Failed! - Failed:`, `Test Run Failed`, `[xUnit.net]`, `[NUnit]`, `[MSTest]`
 
-**Cause**: Pipeline artifact storage is full or the artifact path is invalid.
+**Diagnosis:** Read the failing test output to determine:
+- Is the test checking something affected by the current change? → Fix code or update test
+- Is it a flaky/infrastructure test? → Re-trigger without code changes
+- Is it pre-existing (failed before your changes)? → Document and skip
 
-**Auto-fix**: None for quota issues. For path issues, fix the artifact path in the pipeline definition.
+**Action:**
+- **Change-related:** Fix the code or update the test assertion
+- **Flaky:** Re-trigger the pipeline (counts toward retry limit)
+- **Pre-existing:** Document in the PR description and proceed
 
-**Severity**: Investigation required
+---
 
-## Category 9: Authentication and Authorization
+### 7. Subscription Key Conflicts
 
-**Pattern**: `401 Unauthorized`, `403 Forbidden`, `access denied`, `token expired`
+**Match:** `Conflict while trying to declarative backfill subscription`, `subscription key already exists`
 
-**Cause**: Service connection, PAT, or managed identity credentials are expired or lack permissions.
+**Diagnosis:** The subscription key name is too generic and conflicts with another service.
 
-**Auto-fix**: None. Credential management requires human intervention.
+**Action:** Rename the subscription key to something service-specific.
 
-**Severity**: Investigation required
+```powershell
+# Find subscription enum files
+Get-ChildItem -Recurse -Path "ConfigurationGeneration" -Filter "*.cs" | Select-String -Pattern "enum.*Subscription|AzureSubscriptionSubject" -List
+```
 
-## Category 10: Infrastructure Flakes
+---
 
-**Pattern**: `network unreachable`, `DNS resolution failed`, `connection reset`, `503 Service Unavailable`
+### 8. YAML Schema / Pipeline Syntax Errors
 
-**Cause**: Transient network or infrastructure issues in the build environment.
+**Match:** `unexpected value`, `Mapping values are not allowed`, `pipeline is not valid`, `A template expression is not allowed`
 
-**Auto-fix**: Retry the pipeline run.
+**Diagnosis:** YAML file has a syntax error or uses an invalid schema.
 
-**Severity**: Transient
+**Action:** Open the YAML file mentioned in the error and fix the syntax issue. Common fixes:
+- Incorrect indentation
+- Missing quotes around special characters
+- Invalid template expression syntax
 
-## Category 11: YAML Syntax Errors
+**IMPORTANT:** If the YAML is generated by ConfigGen, do NOT edit it directly. Fix the source (ConfigGen project, topology, or package) and regenerate.
 
-**Pattern**: `Invalid YAML`, `mapping values are not allowed`, `unexpected end of stream`
+---
 
-**Cause**: Malformed YAML in pipeline definition files, often from merge conflicts or manual edits.
+### 9. Permission / Access Denied
 
-**Auto-fix**: None. Report syntax errors with line numbers for human review. Automated fixing of YAML syntax is high-risk and can alter logic unintentionally.
+**Match:** `403`, `Access denied`, `authorization`, `permission`, `unauthorized`
 
-**Severity**: Investigation required
+**Diagnosis:** The pipeline agent or user account lacks required permissions.
 
-## Category 12: OneBranch-Specific Errors
+**Action:** ❌ **Cannot auto-fix.** Report to the user immediately with:
+- The specific permission error message
+- The resource that was denied
+- Suggested action (e.g., "Request pipeline trigger permissions for this repo")
 
-**Pattern**: `ob_`, `OneBranch`, `CloudBuild`, `cdpx`
+---
 
-**Cause**: OneBranch platform-specific failures, such as missing build variables, unsupported configurations, or platform version mismatches.
+### 10. Infrastructure / Transient Errors
 
-**Auto-fix**: Check OneBranch documentation for the specific error code. Common fixes include updating the `ob_` variable definitions or the CloudBuild manifest.
+**Match:** `timeout`, `503`, `agent was lost`, `infrastructure failure`, `lost communication`, `Service Unavailable`
 
-**Severity**: Auto-fixable (for known patterns), Investigation required (for unknown)
+**Diagnosis:** Transient infrastructure issue — not caused by code.
 
-## Diagnosis Workflow
+**Action:** Re-trigger the same pipeline without code changes. This counts toward the retry limit.
 
-When analyzing a failure log:
+If the same transient error occurs 3 times, it's likely a persistent infrastructure issue. Report to user.
 
-1. Extract the first error line (skip warnings)
-2. Match against patterns above in order (most specific first)
-3. If multiple categories match, use the earliest error in the log
-4. Record the category, matched pattern, and log excerpt
-5. Apply the prescribed action based on severity
+---
 
-## Severity Actions
+### 11. Helm / Deployment Errors
 
-| Severity | Action |
-|----------|--------|
-| Auto-fixable | Apply fix, commit, retry pipeline |
-| Transient | Retry pipeline without changes (up to 3 times) |
-| Investigation required | Add PR comment with diagnosis, assign to human reviewer |
+**Match:** `helm upgrade`, `helm template`, `Error: read`, `Failed to render helm chart`
+
+**Diagnosis:** Helm chart rendering or deployment failed. This is often a pre-existing issue in shared pipeline templates, not caused by the current change.
+
+**Action:**
+1. Check if the `Deployment/` folder has any changes in the current PR
+2. If NO changes to Deployment → Pre-existing issue, document and report to user
+3. If YES changes → Investigate the helm values files and fix
+
+---
+
+### 12. Docker Build Errors
+
+**Match:** `docker build`, `COPY failed`, `FROM`, `base image`, `manifest unknown`
+
+**Diagnosis:** Docker image build failed, often due to:
+- Base image tag not available for new .NET version
+- COPY paths changed
+- Multi-stage build reference errors
+
+**Action:**
+1. Check Dockerfile base image tags are valid
+2. Verify COPY source paths exist
+3. Update base image tags to match the target .NET version
+
+---
+
+## Diagnosis Decision Tree
+
+```
+Pipeline Failed
+    │
+    ├─ Error contains "error CS" or "Build FAILED"?
+    │   └─ YES → Pattern 1: Build Compilation Error
+    │
+    ├─ Error contains "TreatWarningsAsErrors"?
+    │   └─ YES → Pattern 2: TreatWarningsAsErrors
+    │
+    ├─ Error contains "NU" (NuGet error)?
+    │   └─ YES → Pattern 3: NuGet Package Error
+    │
+    ├─ Error contains "not found" or "does not exist"?
+    │   └─ YES → Pattern 4: File Not Found
+    │
+    ├─ Error contains "assembly" or "AssemblyLoadContext"?
+    │   └─ YES → Pattern 5: Assembly Loading Error
+    │
+    ├─ Error contains "Test Run Failed" or "Failed!"?
+    │   └─ YES → Pattern 6: Test Failure
+    │
+    ├─ Error contains "subscription" or "backfill"?
+    │   └─ YES → Pattern 7: Subscription Key Conflict
+    │
+    ├─ Error contains "YAML" or "pipeline is not valid"?
+    │   └─ YES → Pattern 8: YAML Syntax Error
+    │
+    ├─ Error contains "403" or "permission" or "denied"?
+    │   └─ YES → Pattern 9: Permission Error (STOP)
+    │
+    ├─ Error contains "timeout" or "503" or "agent was lost"?
+    │   └─ YES → Pattern 10: Transient Error (retry)
+    │
+    ├─ Error contains "helm" or "chart"?
+    │   └─ YES → Pattern 11: Helm Error
+    │
+    ├─ Error contains "docker" or "Dockerfile"?
+    │   └─ YES → Pattern 12: Docker Error
+    │
+    └─ None of the above?
+        └─ Report full error to user for manual diagnosis
+```
