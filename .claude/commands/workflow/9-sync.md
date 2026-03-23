@@ -1,97 +1,116 @@
 ---
-description: Auto-generate session documentation and sync workflow artifacts. Always the last command in a workflow sequence.
+description: Auto-generate session documentation. Queries session history, generates workflow diagrams, updates session logs, and syncs memory. Use at the end of any workflow to capture what happened.
 model: sonnet
+argument-hint: [--dry-run]
+allowed-tools:
+  - Bash(python .claude/skills/workflow/scripts/*)
+  - Bash(git:*)
+  - mcp__serena__*
+  - mcp__forgetful__*
 ---
 
-# /9-sync - Documentation Sync
+# /9-sync — Auto-Documentation & Memory Sync
 
-Capture session work into structured documentation. Queries agent execution history and synthesizes a workflow summary. Always the last command in a workflow sequence.
+Generate comprehensive session documentation automatically.
 
-## Actions
+## Overview
 
-1. **Query agent history** - Retrieve all agent invocations from the current session
-2. **Generate workflow diagram** - Sequence of agents invoked and their outcomes
-3. **Extract decisions** - Document key decisions made during the session
-4. **List artifacts** - Files created, modified, or deleted
-5. **Append to session log** - Write structured entry to `.agents/sessions/`
-6. **Update HANDOFF.md** - Persist cross-session context for the next session
-7. **Suggest retrospective learnings** - Identify patterns worth capturing as memories
+This command closes the workflow loop by documenting what happened during a session. It:
 
-## MCP Integration
+1. Collects session history (agents invoked, tools used, files changed)
+2. Generates a workflow sequence diagram (Mermaid)
+3. Extracts key decisions and artifacts
+4. Appends documentation to the session log
+5. Syncs context to Serena memory for cross-session persistence
+6. Suggests retrospective learnings
 
-Maps to Agent Orchestration MCP (ADR-013): `agents://history` resource and Session State MCP (ADR-011): `session://state` resource. Fallback: parse session log and Git history.
+## Execution Steps
 
-## Session Log Format
+### Step 1: Gather Session Context
 
-```markdown
-## Session [YYYY-MM-DD-NN]
+Collect the current session state:
 
-**Date**: YYYY-MM-DD
-**Branch**: feature/xxx
-**Duration**: ~Xh
+```bash
+# Get current branch and recent commits
+git log --oneline -20 --since="$(date -d '8 hours ago' --iso-8601)" 2>/dev/null || git log --oneline -20
 
-### Workflow Sequence
+# Get files changed in this session
+git diff --stat HEAD~10..HEAD 2>/dev/null || git diff --stat main..HEAD
 
-/0-init → /1-plan → /2-impl → /3-qa → /9-sync
-
-### Agents Invoked
-
-| # | Agent | Duration | Result |
-|---|-------|----------|--------|
-| 1 | planner | ~5m | Plan created |
-| 2 | implementer | ~15m | 4 files changed |
-| 3 | qa | ~8m | All tests pass |
-
-### Decisions Made
-
-- [Decision 1]: Chose X over Y because Z
-- [Decision 2]: ...
-
-### Artifacts
-
-- Created: `src/Services/AuthService.cs`
-- Modified: `src/Controllers/UserController.cs`
-- Created: `tests/AuthServiceTests.cs`
-
-### Retrospective Suggestions
-
-- Pattern: [description of reusable pattern]
-- Learning: [insight to persist as memory]
+# Get current session log if it exists
+ls -t .agents/sessions/*.json 2>/dev/null | head -1
 ```
 
-## HANDOFF.md Update
+### Step 2: Generate Session Documentation
 
-Appends a summary block to `.agents/HANDOFF.md`:
+Run the sync script to produce the session documentation:
 
-```markdown
-### [Date] - [Brief description]
-- Completed: [what was done]
-- In progress: [what remains]
-- Blockers: [any blockers]
-- Next steps: [recommended next actions]
+```bash
+python .claude/skills/workflow/scripts/sync_session_documentation.py $ARGUMENTS
 ```
+
+This script will:
+
+- Scan git history for session commits
+- Identify agents referenced in commit messages
+- Generate a Mermaid sequence diagram
+- Produce a structured session summary
+
+### Step 3: Extract Decisions and Artifacts
+
+From the session context, identify:
+
+- **Decisions made**: ADRs created/modified, design choices documented
+- **Artifacts created**: New files, modified scripts, PRs opened
+- **Issues referenced**: GitHub issues addressed or discovered
+- **Risks identified**: Any blockers or concerns raised
+
+### Step 4: Update Session Log
+
+Append the sync output to the current session log in `.agents/sessions/`. The entry MUST include:
+
+| Field | Description |
+|-------|-------------|
+| `agents_invoked` | Ordered list of agents used (with duration estimates) |
+| `decisions_made` | Key decisions with rationale |
+| `artifacts_created` | Files, commits, issues, PRs |
+| `workflow_diagram` | Mermaid sequence diagram |
+| `retrospective_learnings` | Suggested improvements |
+
+### Step 5: Sync to Memory Systems
+
+Update persistent memory for cross-session context:
+
+1. **Serena**: Store key decisions and outcomes via `mcp__serena__save_memory`
+2. **Forgetful**: Record learnings via `mcp__forgetful__save_memory`
+
+### Step 6: Suggest Retrospective Learnings
+
+Based on the session, suggest:
+
+- What went well (patterns to repeat)
+- What could improve (process gaps)
+- What to watch for (emerging risks)
+
+## Arguments
+
+| Argument | Description |
+|----------|-------------|
+| `--dry-run` | Preview documentation without writing to session log |
 
 ## Output
 
-- **Session log entry** - Appended to `.agents/sessions/`
-- **HANDOFF.md update** - Cross-session context preserved
-- **Workflow diagram** - Visual sequence of agent invocations
-- **Retrospective suggestions** - Learnings to capture as memories
+The command produces a session sync report with sections for Workflow Diagram (Mermaid),
+Agents Invoked, Decisions Made, Artifacts Created, and Retrospective Learnings.
 
-## Sequence Position
+## Dependencies
 
-```text
-/0-init → /1-plan → /2-impl → /3-qa → /4-security → ▶ /9-sync
-```
+- Session State MCP (`agents://history` resource) — graceful fallback to git history when unavailable
+- Serena MCP — for memory persistence
+- Forgetful MCP — for learning extraction
 
-## References
+## Related
 
-- ADR-011: Session State MCP
-- ADR-013: Agent Orchestration MCP
-
-## Examples
-
-```text
-/9-sync
-/9-sync Generate session documentation and update HANDOFF.md
-```
+- [SESSION-PROTOCOL.md](../../../.agents/SESSION-PROTOCOL.md) — Session requirements
+- [ADR-007: Memory-First Architecture](../../../.agents/architecture/ADR-007-memory-first-architecture.md)
+- [PRD: Workflow Orchestration Enhancement](../../../.agents/planning/prd-workflow-orchestration-enhancement.md)

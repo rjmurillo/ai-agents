@@ -28,7 +28,7 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 
-def build_parser() -> Any:
+def build_parser() -> Any:  # noqa: ANN401
     import argparse
     parser = argparse.ArgumentParser(
         description="Run CodeQL diagnostics and health checks.",
