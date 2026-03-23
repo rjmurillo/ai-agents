@@ -50,7 +50,7 @@ FORKED_COMPONENTS: dict[str, dict[str, str]] = {
             "Copyright (c) 2025\n"
             "\n"
             "Permission is hereby granted, free of charge, to any person obtaining a copy\n"
-            "of this software and associated documentation files (the \"Software\"), to deal\n"
+            'of this software and associated documentation files (the "Software"), to deal\n'
             "in the Software without restriction, including without limitation the rights\n"
             "to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\n"
             "copies of the Software, and to permit persons to whom the Software is\n"
@@ -59,7 +59,7 @@ FORKED_COMPONENTS: dict[str, dict[str, str]] = {
             "The above copyright notice and this permission notice shall be included in all\n"
             "copies or substantial portions of the Software.\n"
             "\n"
-            "THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\n"
+            'THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\n'
             "IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\n"
             "FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\n"
             "AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\n"
@@ -85,7 +85,7 @@ RUNTIME_DEPENDENCIES: dict[str, dict[str, str]] = {
             "Copyright (c) 2023 Anthropic, PBC\n"
             "\n"
             "Permission is hereby granted, free of charge, to any person obtaining a copy\n"
-            "of this software and associated documentation files (the \"Software\"), to deal\n"
+            'of this software and associated documentation files (the "Software"), to deal\n'
             "in the Software without restriction, including without limitation the rights\n"
             "to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\n"
             "copies of the Software, and to permit persons to whom the Software is\n"
@@ -94,7 +94,7 @@ RUNTIME_DEPENDENCIES: dict[str, dict[str, str]] = {
             "The above copyright notice and this permission notice shall be included in all\n"
             "copies or substantial portions of the Software.\n"
             "\n"
-            "THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\n"
+            'THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\n'
             "IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\n"
             "FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\n"
             "AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\n"
@@ -122,9 +122,7 @@ def load_marketplace_config(project_root: Path) -> list[dict[str, str]]:
     return data.get("plugins", [])
 
 
-def get_shipped_source_paths(
-    project_root: Path, plugins: list[dict[str, str]]
-) -> list[Path]:
+def get_shipped_source_paths(project_root: Path, plugins: list[dict[str, str]]) -> list[Path]:
     """Resolve plugin source paths to absolute paths."""
     paths: list[Path] = []
     for plugin in plugins:
@@ -141,9 +139,7 @@ def get_shipped_source_paths(
     return paths
 
 
-def find_forked_components(
-    project_root: Path, shipped_paths: list[Path]
-) -> list[ShippedComponent]:
+def find_forked_components(project_root: Path, shipped_paths: list[Path]) -> list[ShippedComponent]:
     """Identify forked/vendored components within shipped paths."""
     components: list[ShippedComponent] = []
 
@@ -153,9 +149,7 @@ def find_forked_components(
             continue
 
         component_path = (project_root / local_path).resolve()
-        is_shipped = any(
-            str(component_path).startswith(str(sp)) for sp in shipped_paths
-        )
+        is_shipped = any(str(component_path).startswith(str(sp)) for sp in shipped_paths)
 
         if is_shipped:
             components.append(
@@ -189,9 +183,7 @@ def find_runtime_dependencies(
             deps = _parse_requirements(req_file)
             for dep_name in deps:
                 normalized = dep_name.lower().replace("-", "_")
-                info = RUNTIME_DEPENDENCIES.get(dep_name) or RUNTIME_DEPENDENCIES.get(
-                    normalized
-                )
+                info = RUNTIME_DEPENDENCIES.get(dep_name) or RUNTIME_DEPENDENCIES.get(normalized)
                 if info:
                     components.append(
                         ShippedComponent(
@@ -249,29 +241,15 @@ def format_notices(
 
     lines.append("THIRD-PARTY SOFTWARE NOTICES AND INFORMATION")
     lines.append("")
-    lines.append(
-        "This project incorporates components from the projects listed below."
-    )
-    lines.append(
-        "The original copyright notices and the licenses under which"
-    )
-    lines.append(
-        "the components were provided are set forth below for informational"
-    )
-    lines.append(
-        "purposes. The project licensors do not grant you any additional"
-    )
+    lines.append("This project incorporates components from the projects listed below.")
+    lines.append("The original copyright notices and the licenses under which")
+    lines.append("the components were provided are set forth below for informational")
+    lines.append("purposes. The project licensors do not grant you any additional")
     lines.append("rights, express or implied.")
     lines.append("")
-    lines.append(
-        "Scope: This file covers components shipped as part of the plugins"
-    )
-    lines.append(
-        "defined in .claude-plugin/marketplace.json. Dev-only tools, test"
-    )
-    lines.append(
-        "frameworks, CI infrastructure, and build dependencies are excluded."
-    )
+    lines.append("Scope: This file covers components shipped as part of the plugins")
+    lines.append("defined in .claude-plugin/marketplace.json. Dev-only tools, test")
+    lines.append("frameworks, CI infrastructure, and build dependencies are excluded.")
     lines.append("")
     lines.append("=" * 72)
     lines.append("")
@@ -321,14 +299,12 @@ def _format_entry(num: int, dep: ShippedComponent) -> list[str]:
         lines.append("")
     elif dep.url:
         lines.append(
-            "   License text not embedded. See project URL for license"
-            f" details: {dep.url}"
+            f"   License text not embedded. See project URL for license details: {dep.url}"
         )
         lines.append("")
     else:
         lines.append(
-            "   License text not available."
-            " See project documentation for license details."
+            "   License text not available. See project documentation for license details."
         )
         lines.append("")
 
@@ -365,17 +341,11 @@ def main() -> int:
 
     if args.check:
         if not output_path.exists():
-            print(
-                f"ERROR: {args.output} does not exist."
-                " Run without --check to generate."
-            )
+            print(f"ERROR: {args.output} does not exist. Run without --check to generate.")
             return 1
         existing = output_path.read_text()
         if existing != content:
-            print(
-                f"ERROR: {args.output} is out of date."
-                " Run without --check to regenerate."
-            )
+            print(f"ERROR: {args.output} is out of date. Run without --check to regenerate.")
             return 1
         print(f"OK: {args.output} is up to date.")
         return 0
@@ -392,9 +362,7 @@ def main() -> int:
 
     # Flag unknown licenses
     all_components = forked + runtime
-    unknown = [
-        c for c in all_components if c.license_type in ("Unknown", "?", "UNKNOWN")
-    ]
+    unknown = [c for c in all_components if c.license_type in ("Unknown", "?", "UNKNOWN")]
     if unknown:
         print(f"\nWARNING: {len(unknown)} components have unknown licenses:")
         for c in unknown:
