@@ -71,9 +71,10 @@ jobs:
       - name: Write step summary
         env:
           GH_TOKEN: ${{ secrets.BOT_PAT }}
+          SUMMARY_JSON: ${{ steps.discover.outputs.summary }}
         shell: pwsh -NoProfile -Command "& '{0}'"
         run: |
-          $json = '${{ steps.discover.outputs.summary }}'
+          $json = $env:SUMMARY_JSON
           $parsed = $json | ConvertFrom-Json
 
           $summary = @"
@@ -476,9 +477,10 @@ jobs:
       - name: Final summary
         env:
           GH_TOKEN: ${{ secrets.BOT_PAT }}
+          SUMMARY_JSON: ${{ needs.discover-prs.outputs.summary-json }}
         shell: pwsh -NoProfile -Command "& '{0}'"
         run: |
-          $json = '${{ needs.discover-prs.outputs.summary-json }}'
+          $json = $env:SUMMARY_JSON
           if (-not $json) {
             Write-Host "No discovery results available"
             exit 0
