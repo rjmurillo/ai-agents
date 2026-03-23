@@ -309,8 +309,7 @@ def main(argv: list[str] | None = None) -> int:
     skills_path = validate_path_safety(args.path)
     if skills_path is None:
         print(
-            f"Error: Relative path traversal attempt detected. "
-            f"Path '{args.path}' contains '..'.",
+            f"Error: Relative path traversal attempt detected. Path '{args.path}' contains '..'.",
             file=sys.stderr,
         )
         return 2
