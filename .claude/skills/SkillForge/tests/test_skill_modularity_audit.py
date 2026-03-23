@@ -207,6 +207,19 @@ class TestAuditSkill:
         assert result.has_references is True
         assert result.modularity_score >= 100  # bonus applied
 
+    def test_audit_unreadable_skill_returns_error(self, tmp_path: Path) -> None:
+        skill_dir = tmp_path / "bad-skill"
+        skill_dir.mkdir()
+        skill_file = skill_dir / "SKILL.md"
+        # Write invalid UTF-8 to trigger UnicodeDecodeError
+        skill_file.write_bytes(b"---\nname: bad\n---\n" + bytes([0xFF, 0xFE]))
+        result = audit_skill(skill_dir)
+        assert result is not None
+        assert result.rating == "error"
+        assert result.modularity_score == 0
+        assert len(result.recommendations) == 1
+        assert "Cannot read" in result.recommendations[0]
+
 
 class TestAuditAllSkills:
     """Tests for directory-level audit."""
@@ -251,6 +264,10 @@ class TestMain:
 
     def test_main_rejects_relative_path_traversal(self) -> None:
         assert main(["--path", "../../../etc"]) == 2
+
+    def test_main_rejects_null_byte_path(self) -> None:
+        null_path = "path" + chr(0) + "evil"
+        assert main(["--path", null_path]) == 2
 
     def test_main_allows_absolute_path(self, tmp_path: Path) -> None:
         skill_dir = tmp_path / "abs-test"

@@ -60,7 +60,7 @@ class SkillAuditResult:
     has_modules: bool
     has_size_exception: bool
     modularity_score: int  # 0-100, higher is better
-    rating: str  # "good", "warning", "oversized"
+    rating: str  # "good", "warning", "oversized", "error"
     recommendations: list[str] = field(default_factory=list)
 
 
@@ -137,8 +137,31 @@ def _generate_recommendations(result: SkillAuditResult) -> list[str]:
     return recs
 
 
+def _error_result(skill_dir: Path, error_msg: str) -> SkillAuditResult:
+    """Return a result representing an unreadable skill."""
+    return SkillAuditResult(
+        name=skill_dir.name,
+        file_path=str(skill_dir / "SKILL.md"),
+        line_count=0,
+        h2_count=0,
+        h3_count=0,
+        has_scripts=False,
+        has_references=False,
+        has_templates=False,
+        has_modules=False,
+        has_size_exception=False,
+        modularity_score=0,
+        rating="error",
+        recommendations=[error_msg],
+    )
+
+
 def audit_skill(skill_dir: Path) -> SkillAuditResult | None:
-    """Audit a single skill directory."""
+    """Audit a single skill directory.
+
+    Returns None only when the directory has no SKILL.md (not a skill).
+    Returns an error-rated result when SKILL.md exists but cannot be read.
+    """
     skill_file = skill_dir / "SKILL.md"
     if not skill_file.exists():
         return None
@@ -147,7 +170,7 @@ def audit_skill(skill_dir: Path) -> SkillAuditResult | None:
         content = skill_file.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError) as exc:
         print(f"Warning: Cannot read {skill_file}: {exc}", file=sys.stderr)
-        return None
+        return _error_result(skill_dir, f"Cannot read SKILL.md: {exc}")
 
     line_count = len(content.splitlines())
     h2_count, h3_count = _count_headings(content)
@@ -217,6 +240,7 @@ def print_report(results: list[SkillAuditResult]) -> None:
     oversized = [r for r in results if r.rating == "oversized"]
     warnings = [r for r in results if r.rating == "warning"]
     good = [r for r in results if r.rating == "good"]
+    errors = [r for r in results if r.rating == "error"]
 
     print("=" * 60)
     print("Skill Modularity Audit Report")
@@ -225,7 +249,19 @@ def print_report(results: list[SkillAuditResult]) -> None:
     print(f"Good:         {len(good)}")
     print(f"Warning:      {len(warnings)}")
     print(f"Oversized:    {len(oversized)}")
+    if errors:
+        print(f"Errors:       {len(errors)}")
     print()
+
+    if errors:
+        print("-" * 60)
+        print("ERRORS (unreadable skills)")
+        print("-" * 60)
+        for r in errors:
+            print(f"  {r.name}: {r.file_path}")
+            for rec in r.recommendations:
+                print(f"    -> {rec}")
+        print()
 
     if oversized:
         print("-" * 60)
@@ -251,7 +287,12 @@ def print_report(results: list[SkillAuditResult]) -> None:
     print("ALL SKILLS (sorted by modularity score)")
     print("-" * 60)
     for r in sorted(results, key=lambda x: x.modularity_score):
-        marker = {"oversized": "[!]", "warning": "[~]", "good": "[+]"}[r.rating]
+        marker = {
+            "oversized": "[!]",
+            "warning": "[~]",
+            "good": "[+]",
+            "error": "[E]",
+        }[r.rating]
         print(
             f"  {marker} {r.name:40s} "
             f"{r.line_count:4d} lines  "
@@ -291,14 +332,19 @@ def validate_path_safety(raw_path: str) -> Path | None:
     Allows absolute paths (resolved). Blocks '..' in relative paths.
 
     Returns:
-        Resolved Path if safe, None if traversal detected.
+        Resolved Path if safe, None if traversal detected or path invalid.
     """
-    input_path = Path(raw_path)
-    if input_path.is_absolute():
-        return input_path.resolve()
-    if ".." in input_path.parts:
+    if not raw_path or "\x00" in raw_path:
         return None
-    return (Path.cwd() / input_path).resolve()
+    try:
+        input_path = Path(raw_path)
+        if input_path.is_absolute():
+            return input_path.resolve()
+        if ".." in input_path.parts:
+            return None
+        return (Path.cwd() / input_path).resolve()
+    except (OSError, ValueError):
+        return None
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -309,7 +355,7 @@ def main(argv: list[str] | None = None) -> int:
     skills_path = validate_path_safety(args.path)
     if skills_path is None:
         print(
-            f"Error: Relative path traversal attempt detected. Path '{args.path}' contains '..'.",
+            f"Error: Invalid or unsafe path: '{args.path}'.",
             file=sys.stderr,
         )
         return 2
