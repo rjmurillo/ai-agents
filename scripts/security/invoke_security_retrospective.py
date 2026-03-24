@@ -18,7 +18,6 @@ from __future__ import annotations
 import argparse
 import json
 import logging
-import os
 import re
 import subprocess
 import sys
@@ -27,6 +26,8 @@ from datetime import datetime
 from enum import Enum
 from pathlib import Path
 from typing import Any
+
+from scripts.github_core.repo import get_repo_root
 
 logging.basicConfig(
     level=logging.INFO,
@@ -77,13 +78,10 @@ class SecurityRetrospective:
 
     def _find_repo_root(self) -> Path:
         """Find the git repository root."""
-        result = subprocess.run(
-            ["git", "rev-parse", "--show-toplevel"],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        return Path(result.stdout.strip())
+        root = get_repo_root()
+        if root is None:
+            raise subprocess.CalledProcessError(1, "git rev-parse")
+        return root
 
     def run(self) -> int:
         """Execute the security retrospective workflow.

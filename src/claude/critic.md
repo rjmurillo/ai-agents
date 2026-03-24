@@ -2,6 +2,7 @@
 name: critic
 description: Constructive reviewer who stress-tests plans before implementation—validates completeness, identifies gaps, catches ambiguity. Challenges assumptions, checks alignment, and blocks approval when risks aren't mitigated. Use when you need a clear verdict on whether a plan is ready or needs revision.
 model: sonnet
+tier: manager
 argument-hint: Provide the plan file path or planning artifact to review
 ---
 # Critic Agent
@@ -35,7 +36,7 @@ You have direct access to:
 - **Read/Grep/Glob**: Verify plan against codebase reality
 - **TodoWrite**: Track review progress
 - **Memory Router** (ADR-037): Unified search across Serena + Forgetful
-  - `pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "topic"`
+  - `python3 .claude/skills/memory/scripts/search_memory.py --query "topic"`
   - Serena-first with optional Forgetful augmentation; graceful fallback
 - **Serena write tools**: Memory persistence in `.serena/memories/`
   - `mcp__serena__write_memory`: Create new memory
@@ -400,8 +401,8 @@ Use Memory Router for search and Serena tools for persistence (ADR-037):
 
 **Before review (retrieve context):**
 
-```powershell
-pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "critique patterns [topic/component]"
+```bash
+python3 .claude/skills/memory/scripts/search_memory.py --query "critique patterns [topic/component]"
 ```
 
 **After review (store learnings):**

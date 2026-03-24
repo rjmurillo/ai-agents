@@ -4,7 +4,7 @@
 
 Memory search performance benchmarking tool for measuring Serena (lexical) and Forgetful (semantic) search latency.
 
-**Script**: `scripts/Measure-MemoryPerformance.ps1`
+**Script**: `scripts/measure_memory_performance.py`
 
 **Task**: M-008 (Phase 2A Memory System)
 
@@ -14,27 +14,27 @@ Memory search performance benchmarking tool for measuring Serena (lexical) and F
 
 ```bash
 # Run default benchmarks (8 queries, 5 iterations each)
-pwsh scripts/Measure-MemoryPerformance.ps1
+python3 scripts/measure_memory_performance.py
 
 # Custom queries with more iterations
-pwsh scripts/Measure-MemoryPerformance.ps1 \
-    -Queries @("PowerShell arrays", "git hooks") \
-    -Iterations 10
+python3 scripts/measure_memory_performance.py \
+    --queries "PowerShell arrays" "git hooks" \
+    --iterations 10
 
 # Markdown report for documentation
-pwsh scripts/Measure-MemoryPerformance.ps1  > benchmark-report.md
+python3 scripts/measure_memory_performance.py > benchmark-report.md
 
 # JSON output for programmatic analysis
-pwsh scripts/Measure-MemoryPerformance.ps1 -Format json | ConvertFrom-Json
+python3 scripts/measure_memory_performance.py --format json
 ```
 
 ## Usage
 
 ### Basic Benchmarking
 
-```powershell
-# Import not required - script is self-contained
-pwsh scripts/Measure-MemoryPerformance.ps1
+```bash
+# No import required - script is self-contained
+python3 scripts/measure_memory_performance.py
 
 # Console output shows progress and results:
 # === Memory Performance Benchmark (M-008) ===
@@ -55,23 +55,22 @@ pwsh scripts/Measure-MemoryPerformance.ps1
 
 ### Custom Queries
 
-```powershell
+```bash
 # Define domain-specific queries
-$queries = @(
-    "PowerShell module patterns"
-    "Git pre-commit validation"
-    "Agent coordination protocols"
-    "Memory-first architecture"
-)
-
-pwsh scripts/Measure-MemoryPerformance.ps1 -Queries $queries -Iterations 10
+python3 scripts/measure_memory_performance.py \
+    --queries \
+        "PowerShell module patterns" \
+        "Git pre-commit validation" \
+        "Agent coordination protocols" \
+        "Memory-first architecture" \
+    --iterations 10
 ```
 
 ### Serena-Only Testing
 
-```powershell
+```bash
 # Skip Forgetful benchmarks (useful when MCP unavailable)
-pwsh scripts/Measure-MemoryPerformance.ps1 -SerenaOnly
+python3 scripts/measure_memory_performance.py --serena-only
 ```
 
 ### Output Formats
@@ -166,27 +165,27 @@ Programmatic output for analysis:
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| Queries | String[] | Default set | Array of test queries to benchmark |
-| Iterations | Int32 | 5 | Number of iterations per query for averaging |
-| WarmupIterations | Int32 | 2 | Number of warmup iterations before measurement |
-| SerenaOnly | Switch | - | Only benchmark Serena (skip Forgetful) |
-| Format | String | console | Output format: console, markdown, json |
+| --queries | str[] | Default set | List of test queries to benchmark |
+| --iterations | int | 5 | Number of iterations per query for averaging |
+| --warmup-iterations | int | 2 | Number of warmup iterations before measurement |
+| --serena-only | flag | - | Only benchmark Serena (skip Forgetful) |
+| --format | str | console | Output format: console, markdown, json |
 
 ### Default Query Set
 
 The script includes 8 default queries covering different domains:
 
-```powershell
-@(
-    "PowerShell array handling patterns"
-    "git pre-commit hook validation"
-    "GitHub CLI PR operations"
-    "session protocol compliance"
-    "security vulnerability detection"
-    "Pester test isolation"
-    "CI workflow patterns"
-    "memory-first architecture"
-)
+```python
+[
+    "PowerShell array handling patterns",
+    "git pre-commit hook validation",
+    "GitHub CLI PR operations",
+    "session protocol compliance",
+    "security vulnerability detection",
+    "Pester test isolation",
+    "CI workflow patterns",
+    "memory-first architecture",
+]
 ```
 
 **Rationale**: Diverse query set tests different keyword densities and result sizes.
@@ -336,14 +335,12 @@ Forgetful: Not available
 
 **Diagnosis**:
 
-```powershell
+```bash
 # Check memory file count
-(Get-ChildItem ".serena/memories" -Filter "*.md").Count
+find .serena/memories -name "*.md" | wc -l
 
 # Check average file size
-Get-ChildItem ".serena/memories" -Filter "*.md" |
-    Measure-Object -Property Length -Average |
-    Select-Object Average
+find .serena/memories -name "*.md" -exec wc -c {} + | awk '{total += $1; count++} END {print total/count " bytes avg"}'
 ```
 
 **Solutions**:
@@ -382,8 +379,8 @@ time curl -X POST http://localhost:8020/mcp \
 
 **Solutions**:
 
-1. **Increase iterations**: Use `-Iterations 10` or higher
-2. **Increase warmup**: Use `-WarmupIterations 5`
+1. **Increase iterations**: Use `--iterations 10` or higher
+2. **Increase warmup**: Use `--warmup-iterations 5`
 3. **Reduce background load**: Close applications, disable background tasks
 4. **Check CPU throttling**: Monitor CPU frequency during benchmarks
 
@@ -393,10 +390,9 @@ time curl -X POST http://localhost:8020/mcp \
 
 **Diagnosis**:
 
-```powershell
+```bash
 # Test availability manually
-Import-Module .claude/skills/memory/scripts/MemoryRouter.psm1
-Test-ForgetfulAvailable -Force
+curl -s -o /dev/null -w "%{http_code}" http://localhost:8020/health
 ```
 
 **Solutions**:
@@ -409,62 +405,69 @@ Test-ForgetfulAvailable -Force
 
 ### Compare Optimizations
 
-```powershell
+```bash
 # Baseline measurement
-pwsh .claude/skills/memory/scripts/Measure-MemoryPerformance.ps1 -Format json > baseline.json
+python3 scripts/measure_memory_performance.py --format json > baseline.json
 
 # ... apply optimization ...
 
 # Post-optimization measurement
-pwsh scripts/Measure-MemoryPerformance.ps1 -Format json > optimized.json
+python3 scripts/measure_memory_performance.py --format json > optimized.json
 
 # Compare results
-$baseline = Get-Content baseline.json | ConvertFrom-Json
-$optimized = Get-Content optimized.json | ConvertFrom-Json
-
-Write-Host "Serena improvement: $([math]::Round((1 - $optimized.Summary.SerenaAvgMs / $baseline.Summary.SerenaAvgMs) * 100, 2))%"
+python3 -c "
+import json
+baseline = json.load(open('baseline.json'))
+optimized = json.load(open('optimized.json'))
+improvement = round((1 - optimized['Summary']['SerenaAvgMs'] / baseline['Summary']['SerenaAvgMs']) * 100, 2)
+print(f'Serena improvement: {improvement}%')
+"
 ```
 
 ### Analyze Variance
 
-```powershell
+```bash
 # Run with more iterations for statistical analysis
-pwsh scripts/Measure-MemoryPerformance.ps1 -Iterations 20 -Format json > results.json
+python3 scripts/measure_memory_performance.py --iterations 20 --format json > results.json
 
-$results = Get-Content results.json | ConvertFrom-Json
-
-foreach ($result in $results.SerenaResults) {
-    $times = $result.IterationTimes
-    $avg = ($times | Measure-Object -Average).Average
-    $stddev = [Math]::Sqrt(($times | ForEach-Object { [Math]::Pow($_ - $avg, 2) } | Measure-Object -Average).Average)
-    $cv = $stddev / $avg * 100
-
-    Write-Host "$($result.Query):"
-    Write-Host "  Average: $([math]::Round($avg, 2))ms"
-    Write-Host "  Std Dev: $([math]::Round($stddev, 2))ms"
-    Write-Host "  CV: $([math]::Round($cv, 2))%"
-}
+python3 -c "
+import json, math
+results = json.load(open('results.json'))
+for result in results['SerenaResults']:
+    times = result['IterationTimes']
+    avg = sum(times) / len(times)
+    stddev = math.sqrt(sum((t - avg) ** 2 for t in times) / len(times))
+    cv = stddev / avg * 100
+    print(f'{result[\"Query\"]}:')
+    print(f'  Average: {avg:.2f}ms')
+    print(f'  Std Dev: {stddev:.2f}ms')
+    print(f'  CV: {cv:.2f}%')
+"
 ```
 
 ### Continuous Monitoring
 
-```powershell
+```bash
 # Run benchmarks hourly and track trends
-$logFile = "benchmark-history.jsonl"
+LOG_FILE="benchmark-history.jsonl"
 
-while ($true) {
-    $timestamp = Get-Date -Format "yyyy-MM-ddTHH:mm:ss"
-    $result = pwsh scripts/Measure-MemoryPerformance.ps1 -Format json | ConvertFrom-Json
+while true; do
+    TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%S")
+    RESULT=$(python3 scripts/measure_memory_performance.py --format json)
 
-    $entry = @{
-        timestamp = $timestamp
-        serena_avg = $result.Summary.SerenaAvgMs
-        forgetful_avg = $result.Summary.ForgetfulAvgMs
-    } | ConvertTo-Json -Compress
-
-    Add-Content -Path $logFile -Value $entry
-    Start-Sleep -Seconds 3600  # 1 hour
+    echo "$RESULT" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+entry = {
+    'timestamp': '$TIMESTAMP',
+    'serena_avg': data['Summary']['SerenaAvgMs'],
+    'forgetful_avg': data['Summary'].get('ForgetfulAvgMs')
 }
+print(json.dumps(entry))
+" >> "$LOG_FILE"
+
+    sleep 3600  # 1 hour
+done
 ```
 
 ## Best Practices
@@ -494,20 +497,20 @@ while ($true) {
 
 ### Script Configuration
 
-Edit `scripts/Measure-MemoryPerformance.ps1` to customize:
+Edit `scripts/measure_memory_performance.py` to customize:
 
-```powershell
-# Default queries (line 73-82)
-$DefaultQueries = @(
-    "your custom query 1"
-    "your custom query 2"
-)
+```python
+# Default queries
+DEFAULT_QUERIES = [
+    "your custom query 1",
+    "your custom query 2",
+]
 
-# Serena memory path (line 91)
-$SerenaMemoryPath = ".serena/memories"
+# Serena memory path
+SERENA_MEMORY_PATH = ".serena/memories"
 
-# Forgetful endpoint (line 95)
-$ForgetfulEndpoint = "http://localhost:8020/mcp"
+# Forgetful endpoint
+FORGETFUL_ENDPOINT = "http://localhost:8020/mcp"
 ```
 
 ### Environment Variables
@@ -527,4 +530,4 @@ Not currently supported. Configuration is hardcoded in script.
 
 - **claude-flow baseline**: <https://github.com/ruvnet/claude-flow> (96-164x target)
 - **Issue #167**: Vector Memory System
-- **PowerShell benchmarking**: `Measure-Command` cmdlet
+- **Python benchmarking**: `time` module (`time.perf_counter()`)

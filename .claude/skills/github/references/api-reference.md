@@ -18,14 +18,14 @@ Reference documentation for the GitHub skill. For usage, see `../SKILL.md`.
 
 | Script | Endpoint |
 |--------|----------|
-| `Get-PRContext` | `gh pr view --json ...` |
-| `Get-PRReviewComments` | `repos/{owner}/{repo}/pulls/{pr}/comments` |
-| `Get-PRReviewThreads` | GraphQL: `repository.pullRequest.reviewThreads` |
-| `Get-PRReviewers` | Multiple: pulls/comments, issues/comments, pr view |
-| `Post-PRCommentReply` | `repos/{owner}/{repo}/pulls/{pr}/comments` (with in_reply_to) |
-| `Resolve-PRReviewThread` | GraphQL: `resolveReviewThread` mutation |
-| `Close-PR` | `gh pr close` |
-| `Merge-PR` | `gh pr merge` |
+| `get_pr_context.py` | `gh pr view --json ...` |
+| `get_pr_review_comments.py` | `repos/{owner}/{repo}/pulls/{pr}/comments` |
+| `get_pr_review_threads.py` | GraphQL: `repository.pullRequest.reviewThreads` |
+| `get_pr_reviewers.py` | Multiple: pulls/comments, issues/comments, pr view |
+| `post_pr_comment_reply.py` | `repos/{owner}/{repo}/pulls/{pr}/comments` (with in_reply_to) |
+| `resolve_pr_review_thread.py` | GraphQL: `resolveReviewThread` mutation |
+| `close_pr.py` | `gh pr close` |
+| `merge_pr.py` | `gh pr merge` |
 | `Get-IssueContext` | `gh issue view --json ...` |
 | `Set-IssueLabels` | `repos/{owner}/{repo}/labels`, `gh issue edit --add-label` |
 | `Set-IssueMilestone` | `gh issue edit --milestone` |
@@ -75,14 +75,14 @@ The milestone must already exist in the repository. Create it via GitHub UI or `
 
 ### "PR is not mergeable"
 
-Check for merge conflicts or failing required checks. Use `Get-PRContext` to see `Mergeable` status.
+Check for merge conflicts or failing required checks. Use `get_pr_context.py` to see `Mergeable` status.
 
 ## Skills Applied
 
 | Skill ID | Description | Script |
 |----------|-------------|--------|
-| Skill-PR-001 | Enumerate all reviewers before triaging | `Get-PRReviewers.ps1` |
-| Skill-PR-004 | Use `in_reply_to` for thread replies | `Post-PRCommentReply.ps1` |
+| Skill-PR-001 | Enumerate all reviewers before triaging | `get_pr_reviewers.py` |
+| Skill-PR-004 | Use `in_reply_to` for thread replies | `post_pr_comment_reply.py` |
 
 ## Related
 

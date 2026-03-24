@@ -2,6 +2,7 @@
 name: qa
 description: Quality assurance specialist who verifies implementations work correctly for real users—not just passing tests. Designs test strategies, validates coverage against acceptance criteria, and reports results with evidence. Use when you need confidence through verification, regression testing, edge-case coverage, or user-scenario validation.
 model: sonnet
+tier: builder
 argument-hint: Provide the implementation or feature to verify
 ---
 # QA Agent
@@ -40,7 +41,7 @@ You have direct access to:
 - **Bash**: `dotnet test`, `dotnet test --collect:"XPlat Code Coverage"`
 - **Write/Edit**: Create test files
 - **Memory Router** (ADR-037): Unified search across Serena + Forgetful
-  - `pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "topic"`
+  - `python3 .claude/skills/memory/scripts/search_memory.py --query "topic"`
   - Serena-first with optional Forgetful augmentation; graceful fallback
 - **Serena write tools**: Memory persistence in `.serena/memories/`
   - `mcp__serena__write_memory`: Create new memory
@@ -628,8 +629,8 @@ Use Memory Router for search and Serena tools for persistence (ADR-037):
 
 **Before testing (retrieve context):**
 
-```powershell
-pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "test strategies [feature/component]"
+```bash
+python3 .claude/skills/memory/scripts/search_memory.py --query "test strategies [feature/component]"
 ```
 
 **After testing (store learnings):**

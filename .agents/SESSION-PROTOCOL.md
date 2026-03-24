@@ -193,8 +193,8 @@ The agent MUST create a session log early in the session.
 # Using slash command (Claude Code)
 /session-init
 
-# Using PowerShell script
-pwsh .claude/skills/session-init/scripts/New-SessionLog.ps1 -SessionNumber 375 -Objective "Implement feature X"
+# Using Python script
+python3 .claude/skills/session-init/scripts/new_session_log.py --session-number 375 --objective "Implement feature X"
 ```
 
 The script will:
@@ -334,6 +334,229 @@ The agent SHOULD monitor commit count during extended sessions to avoid oversize
 - No PR exceeds 20 commits without documented exception
 
 **Rationale:** PR #908 retrospective identified that large PRs (20+ commits) are harder to review, more likely to contain co-mingled changes, and have higher revert risk. See `.agents/governance/PROJECT-CONSTRAINTS.md` for the canonical commit limit policy.
+
+---
+
+## Tier-Based Coordination (BLOCKING for multi-agent sessions)
+
+When orchestrator coordinates multiple agents working on the same task, tier hierarchy rules apply per ADR-009 (Parallel-Safe Multi-Agent Design).
+
+### Tier Hierarchy Overview
+
+The agent system implements a 4-tier hierarchy enabling clear escalation paths and delegation patterns:
+
+| Tier | Agents | Authority | Examples |
+|------|--------|-----------|----------|
+| **Expert (Tier 1)** | high-level-advisor, independent-thinker, architect, roadmap | Final authority for conflicts | Strategic decisions, priority arbitration |
+| **Manager (Tier 2)** | orchestrator, milestone-planner, critic, issue-feature-review, pr-comment-responder | Coordinates builders, escalates to Expert | Task routing, plan validation |
+| **Builder (Tier 3)** | implementer, qa, devops, security, debug | Execution, parallel peers | Production work, testing, deployment |
+| **Integration (Tier 4)** | analyst, explainer, task-decomposer, retrospective, spec-generator, adr-generator, backlog-generator, janitor, memory, skillbook, context-retrieval | Support functions, no delegation authority | Research, documentation, context |
+
+See `.agents/AGENT-SYSTEM.md` Section 2.5 for complete tier documentation.
+
+### Tier Identification Checklist
+
+At session start, identify the required tier level:
+
+- **Integration Tier**: Research, documentation, simple queries (no coordination needed)
+- **Builder Tier**: Implementation, testing, deployment (may need coordination)
+- **Manager Tier**: Multi-agent coordination, plan validation (must coordinate builders)
+- **Expert Tier**: Strategic decisions, architectural changes (final authority)
+
+**Verification:**
+- Session log documents identified tier level
+- Agent selection matches tier requirements
+
+### Delegation Rules (MUST enforce)
+
+**Valid Delegation Patterns:**
+- Expert → Manager, Builder, Integration
+- Manager → Builder, Integration
+- Builder → Integration (support requests only)
+- Integration → None (leaf tier)
+
+**Invalid Patterns (escalate instead):**
+- Builder → Builder (use parallel execution, not delegation)
+- Integration → Any tier (cannot delegate)
+- Lower tier → Higher tier (MUST escalate, not delegate)
+
+**Verification:**
+- Agent sequence respects tier hierarchy
+- Escalations documented in session log when applicable
+- No invalid delegation patterns detected
+
+**Example:**
+```text
+✅ Valid: orchestrator (Manager) → implementer (Builder) → qa (Builder)
+✅ Valid: architect (Expert) → implementer (Builder)
+❌ Invalid: implementer (Builder) → architect (Expert) [use escalation instead]
+```
+
+### Escalation Protocol (MUST follow when conflicts arise)
+
+**When to Escalate:**
+
+| Escalation Path | Trigger | Resolution |
+|-----------------|---------|-----------|
+| **Builder → Manager** | Conflicting recommendations between parallel Builders | Manager tier decides based on risk/priority |
+| **Manager → Expert** | Manager cannot resolve conflict, strategic decision needed | Expert provides final verdict |
+| **Any → Expert** | Critical security decision, major architectural change | Expert provides authority |
+
+**Escalation Format:**
+
+Document escalations in session log:
+
+```markdown
+## Escalation Required
+
+**From Tier**: [builder|manager|expert]
+**To Tier**: [manager|expert]
+**Reason**: [Conflict description]
+**Agents Involved**: [agent-a, agent-b]
+**Conflicting Positions**:
+- [agent-a]: [position with evidence]
+- [agent-b]: [position with evidence]
+**Decision Needed**: [Specific question for escalation target]
+**Outcome**: [Expert verdict/Manager decision]
+```
+
+**Verification:**
+- Escalation documented with conflict details
+- Escalation resolved before proceeding
+- Resolution documented with rationale
+
+### Parallel Execution Checkpoints (REQUIRED for Builder-tier parallelism)
+
+When Manager tier coordinates parallel Builder agents, verify:
+
+**Before Dispatch:**
+- [ ] Tasks are independent (no shared file modifications)
+- [ ] No dependencies between builders
+- [ ] Rate limits checked (sufficient API budget)
+- [ ] Worktree directories prepared if needed
+
+**During Execution:**
+- [ ] Each Builder creates individual session log
+- [ ] Each Builder has exclusive file ownership
+- [ ] Monitor for conflicts (session log tracking)
+- [ ] No cross-Builder delegation
+
+**After Completion:**
+- [ ] All Builders complete before aggregation
+- [ ] Collect all results and session logs
+- [ ] Detect conflicts requiring Manager/Expert resolution
+- [ ] Document aggregation strategy (merge/vote/escalate)
+
+**Verification:**
+- Session log documents parallel execution pattern
+- Individual Builder session logs referenced
+- Conflict resolution (if any) documented
+- Final commit includes all session IDs
+
+### Tier Compatibility Validation (MUST before executing multi-agent sequence)
+
+**Requirements:**
+
+1. Before orchestrator dispatches multi-agent sequence, MUST validate tier compatibility
+2. Agent sequence MUST respect hierarchy rules (no invalid downward delegation)
+3. Escalations MUST use proper protocol (not delegation)
+4. Document validation result in session log
+
+**Validation Logic:**
+
+```python
+# Tier hierarchy levels
+TIER_HIERARCHY = {
+    "expert": 1,
+    "manager": 2,
+    "builder": 3,
+    "integration": 4
+}
+
+# For each agent pair in sequence
+for i in range(len(agent_sequence) - 1):
+    current_tier = get_tier(agent_sequence[i])
+    next_tier = get_tier(agent_sequence[i + 1])
+    
+    current_level = TIER_HIERARCHY[current_tier]
+    next_level = TIER_HIERARCHY[next_tier]
+    
+    if current_level <= next_level:
+        continue  # Valid: same tier or delegation downward
+    else:
+        # Invalid: lower tier to higher tier
+        raise TierViolationError(
+            f"Invalid delegation: {agent_sequence[i]} ({current_tier}) "
+            f"cannot delegate to {agent_sequence[i+1]} ({next_tier})"
+        )
+```
+
+**Verification:**
+- Tier validation completed before agent dispatch
+- Validation result documented in session log
+- No tier violations detected
+- Example: `orchestrator (Manager) → security (Builder) → implementer (Builder) → qa (Builder)` ✅ Valid
+
+### Example Scenarios
+
+**Scenario 1: Builder Conflict → Manager Resolution**
+
+```markdown
+## Tier Coordination: Builder Conflict
+
+**Session Context:** Multi-domain feature (code + security + deployment)
+
+**Builder Agents (Parallel):**
+1. implementer: "Implementation approach X is most efficient"
+2. security: "Implementation approach Y is required for compliance"
+3. devops: "Approach Y may impact deployment time"
+
+**Conflict Detected:** Implementer and Security disagree on approach
+
+**Escalation to Manager:**
+- orchestrator detects conflict
+- critic (Manager tier) reviews both positions
+- Critic decides: Security compliance (Y) takes priority over efficiency
+
+**Resolution:** All Builders proceed with approach Y per Manager decision
+```
+
+**Scenario 2: Manager Conflict → Expert Resolution**
+
+```markdown
+## Tier Coordination: Manager Conflict
+
+**Session Context:** Timeline dispute on architecture refactor
+
+**Manager Agents:**
+1. milestone-planner: "3 sprint timeline is feasible"
+2. critic: "Architecture blockers require 5 sprints"
+
+**Conflict Detected:** Manager tier cannot agree
+
+**Escalation to Expert:**
+- orchestrator escalates to architect (Expert tier)
+- architect evaluates technical feasibility
+- architect provides verdict: 5 sprints required, milestone-planner timeline is risk
+
+**Resolution:** All Manager agents proceed with 5-sprint plan per Expert verdict
+```
+
+**Scenario 3: Strategic Priority → Expert Direct**
+
+```markdown
+## Tier Coordination: Strategic Priority
+
+**Session Context:** Feature request vs roadmap priority
+
+**Direct to Expert:**
+- Orchestrator recognizes strategic decision required
+- Routes directly to roadmap (Expert tier)
+- Roadmap evaluates business value and strategic fit
+- Roadmap provides verdict and priority assignment
+
+**Resolution:** Roadmap verdict sets direction without lower-tier involvement
+```
 
 ---
 
@@ -501,7 +724,7 @@ Session logs (`.agents/sessions/`), analysis artifacts (`.agents/analysis/`), an
 **Valid investigation sessions** (may use `SKIPPED: investigation-only`):
 
 1. **Pure analysis** - Reading code, documenting findings in `.agents/analysis/`
-2. **Memory updates** - Cross-session context updates in `.serena/memories/`
+2. **Memory updates** - Cross-session context updates in `.serena/memories/`. This includes sessions where the agent reads code, reviews patterns, or audits memories and writes updated context to `.serena/memories/`. Memory-update sessions are investigation work because they produce no code or configuration changes, only cross-session context artifacts.
 3. **CI debugging** - Investigating CI failures, documenting in session log
 4. **Security assessments** - Writing security analysis to `.agents/security/`
 5. **Retrospectives** - Extracting learnings to `.agents/retrospective/`
@@ -661,7 +884,7 @@ Session logs must be in JSON format. The JSON schema is at `.agents/schemas/sess
 **Creation**:
 
 ```bash
-pwsh .claude/skills/session-init/scripts/New-SessionLog.ps1
+python3 .claude/skills/session-init/scripts/new_session_log.py
 # Auto-increments session number, derives objective from branch
 ```
 
@@ -685,6 +908,66 @@ python3 scripts/validate_session_json.py [session].json
 ```
 
 For detailed schema structure, load `.agents/schemas/session-log.schema.json` when needed.
+
+### Investigation-Only Session Log Example
+
+Investigation sessions that skip QA validation use `SKIPPED: investigation-only` as evidence. The following example shows a memory-update session where the agent reads code patterns and updates cross-session context. No code or configuration files are changed.
+
+```json
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 200,
+    "date": "2026-01-15",
+    "branch": "feat/my-feature",
+    "startingCommit": "abc1234",
+    "objective": "Investigate error handling patterns and update memory context"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": { "level": "MUST", "Complete": true, "Evidence": "Tool output present" },
+      "serenaInstructions": { "level": "MUST", "Complete": true, "Evidence": "Tool output present" },
+      "handoffRead": { "level": "MUST", "Complete": true, "Evidence": "Content in context" },
+      "sessionLogCreated": { "level": "MUST", "Complete": true, "Evidence": "This file" },
+      "skillScriptsListed": { "level": "MUST", "Complete": true, "Evidence": "Listed in transcript" },
+      "usageMandatoryRead": { "level": "MUST", "Complete": true, "Evidence": "Content in context" },
+      "constraintsRead": { "level": "MUST", "Complete": true, "Evidence": "Content in context" },
+      "memoriesLoaded": { "level": "MUST", "Complete": true, "Evidence": "memory-index loaded" },
+      "branchVerified": { "level": "MUST", "Complete": true, "Evidence": "feat/my-feature" },
+      "notOnMain": { "level": "MUST", "Complete": true, "Evidence": "On feat/my-feature" }
+    },
+    "sessionEnd": {
+      "checklistComplete": { "level": "MUST", "Complete": true, "Evidence": "All MUST items complete" },
+      "handoffNotUpdated": { "level": "MUST NOT", "Complete": false, "Evidence": "HANDOFF.md not modified" },
+      "serenaMemoryUpdated": { "level": "MUST", "Complete": true, "Evidence": "Memory write confirmed" },
+      "markdownLintRun": { "level": "MUST", "Complete": true, "Evidence": "Lint output clean" },
+      "qaValidation": { "level": "MUST", "Complete": true, "Evidence": "SKIPPED: investigation-only" },
+      "changesCommitted": { "level": "MUST", "Complete": true, "Evidence": "Commit SHA: def5678" },
+      "validationPassed": { "level": "MUST", "Complete": true, "Evidence": "validate_session_json.py exit 0" }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Analyzed error handling patterns across src/",
+      "outcome": "Documented 3 patterns in .agents/analysis/error-handling-patterns.md"
+    },
+    {
+      "action": "Updated Serena memory with error handling conventions",
+      "outcome": "Memory write confirmed for cross-session reference"
+    }
+  ],
+  "endingCommit": "def5678",
+  "nextSteps": [
+    "Implement standardized error handling in session 201 (requires QA validation)"
+  ]
+}
+```
+
+Key points in this example:
+
+- The `qaValidation` evidence field uses `SKIPPED: investigation-only` (see ADR-034)
+- Only investigation artifacts are staged: session logs, analysis docs, and memory files
+- Follow-up implementation work references this session and requires its own QA validation
 
 ---
 

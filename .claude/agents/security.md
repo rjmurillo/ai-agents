@@ -2,6 +2,8 @@
 name: security
 description: Security specialist with defense-first mindset, fluent in threat modeling, vulnerability assessment, and OWASP Top 10. Scans for CWE patterns, detects secrets, audits dependencies, maps attack surfaces. Use when you need hardening, penetration analysis, compliance review, or mitigation recommendations before shipping.
 model: opus
+metadata:
+  tier: builder
 argument-hint: Specify the code, feature, or changes to security review
 ---
 # Security Agent
@@ -43,7 +45,7 @@ You have direct access to:
 - **Bash**: Run security scanners, check dependencies
 - **TodoWrite**: Track security findings
 - **Memory Router** (ADR-037): Unified search across Serena + Forgetful
-  - `pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "topic"`
+  - `python3 .claude/skills/memory/scripts/search_memory.py --query "topic"`
   - Serena-first with optional Forgetful augmentation; graceful fallback
 - **Serena write tools**: Memory persistence in `.serena/memories/`
   - `mcp__serena__write_memory`: Create new memory
@@ -509,8 +511,8 @@ Use Memory Router for search and Serena tools for persistence (ADR-037):
 
 **Before assessment (retrieve context):**
 
-```powershell
-pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "security patterns vulnerabilities [component]"
+```bash
+python3 .claude/skills/memory/scripts/search_memory.py --query "security patterns vulnerabilities [component]"
 ```
 
 **After assessment (store learnings):**
@@ -619,6 +621,10 @@ try {
     }
 
     $MemoriesDirFull = [System.IO.Path]::GetFullPath($MemoriesDir)
+    $memoriesRoot = [System.IO.Path]::GetPathRoot($MemoriesDirFull)
+    if ($MemoriesDirFull.Length -gt $memoriesRoot.Length) {
+        $MemoriesDirFull = $MemoriesDirFull.TrimEnd([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar)
+    }
 
     if (-not (Test-Path $MemoriesDirFull -PathType Container)) {
         throw "Base directory does not exist: $MemoriesDirFull"
@@ -634,7 +640,7 @@ try {
     # $OutputFile is now "C:\Windows\System32\config" (normalized)
 
     # Check for path traversal
-    if (-not $OutputFile.StartsWith($MemoriesDirFull, [System.StringComparison]::OrdinalIgnoreCase)) {
+    if (-not $OutputFile.StartsWith($MemoriesDirFull + [System.IO.Path]::DirectorySeparatorChar, [System.StringComparison]::OrdinalIgnoreCase)) {
         throw "Path traversal attempt detected. Path '$UserInput' resolves to '$OutputFile' which is outside allowed directory '$MemoriesDirFull'."
     }
     # THROWS - Normalized path "C:\Windows\System32\config" does not start with "C:\Users\App\Memories"

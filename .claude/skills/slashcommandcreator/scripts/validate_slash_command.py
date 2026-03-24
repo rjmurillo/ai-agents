@@ -96,7 +96,9 @@ def _validate_security(
     if not uses_bash or frontmatter is None:
         return
 
-    tools_match = re.search(r"allowed-tools:\s*\[(.+)\]", frontmatter)
+    tools_match = re.search(
+        r"allowed-tools:\s*(?:\[(.+)\]|(.+))", frontmatter
+    )
     if not tools_match:
         violations.append(
             "BLOCKING: Prompt uses bash execution (!) but no "
@@ -104,16 +106,18 @@ def _validate_security(
         )
         return
 
-    allowed_tools = tools_match.group(1)
+    allowed_tools = tools_match.group(1) or tools_match.group(2)
 
     # Check for overly permissive wildcards
-    # WHY: Allow scoped namespaces like mcp__* but reject bare *
+    # WHY: Allow scoped namespaces like mcp__* and Bash(scope:*) but reject bare *
     tool_list = [t.strip() for t in allowed_tools.split(",")]
     for tool in tool_list:
-        if "*" in tool and not tool.startswith("mcp__"):
+        if "*" in tool and not (
+            tool.startswith("mcp__") or re.match(r"Bash\(.+:\*\)", tool)
+        ):
             violations.append(
                 "BLOCKING: 'allowed-tools' has overly permissive wildcard "
-                "(use mcp__* for scoped namespaces)"
+                "(use mcp__* or Bash(scope:*) for scoped namespaces)"
             )
             break
 

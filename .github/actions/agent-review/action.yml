@@ -84,7 +84,7 @@ runs:
     - name: Restore cached review
       if: inputs.should-run == 'true' && inputs.commit-sha != '' && inputs.bypass-cache != 'true'
       id: cache
-      uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4
+      uses: actions/cache/restore@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
       with:
         path: ai-review-cache/${{ inputs.agent }}
         key: ai-review-${{ inputs.agent }}-${{ inputs.commit-sha }}-${{ hashFiles(inputs.prompt-file) }}
@@ -105,10 +105,13 @@ runs:
         echo "verdict=$(cat "$CACHE_DIR/verdict.txt")" >> $GITHUB_OUTPUT
         echo "infrastructure_failure=$(cat "$CACHE_DIR/infrastructure-failure.txt" 2>/dev/null || echo false)" >> $GITHUB_OUTPUT
         echo "retry_count=0" >> $GITHUB_OUTPUT
+        # Use a cryptographically random delimiter to prevent collision with findings content (CWE-78)
+        DELIMITER="EOF_CACHED_FINDINGS_$(openssl rand -hex 16)"
         {
-          echo "findings<<EOF_CACHED_FINDINGS"
+          echo "findings<<${DELIMITER}"
           cat "$CACHE_DIR/findings.txt"
-          echo "EOF_CACHED_FINDINGS"
+          echo ""
+          echo "${DELIMITER}"
         } >> $GITHUB_OUTPUT
 
     - name: ${{ inputs.emoji }} ${{ inputs.agent }} Review
@@ -153,7 +156,7 @@ runs:
 
     - name: Save cache
       if: always() && inputs.should-run == 'true' && steps.cache.outputs.cache-hit != 'true' && inputs.commit-sha != ''
-      uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4
+      uses: actions/cache/save@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
       with:
         path: ai-review-cache/${{ inputs.agent }}
         key: ai-review-${{ inputs.agent }}-${{ inputs.commit-sha }}-${{ hashFiles(inputs.prompt-file) }}
@@ -179,10 +182,19 @@ runs:
 
         # Default empty verdict to NEEDS_REVIEW so aggregate job can process it
         $verdict = $env:VERDICT
+        $infraFailure = $env:INFRASTRUCTURE_FAILURE
         if ([string]::IsNullOrWhiteSpace($verdict)) {
           $verdict = 'NEEDS_REVIEW'
           Write-Output "::warning::Verdict was empty, defaulting to NEEDS_REVIEW"
+          # Empty verdict with empty findings indicates the review did not run
+          # (e.g., context build failed due to missing BOT_PAT for first-time contributors).
+          # Mark as infrastructure failure so aggregate downgrades to WARN.
+          if ([string]::IsNullOrWhiteSpace($env:FINDINGS)) {
+            $infraFailure = 'true'
+            Write-Output "::warning::Both verdict and findings are empty, marking as infrastructure failure"
+          }
         }
+        $env:INFRASTRUCTURE_FAILURE = $infraFailure
 
         if ($env:CACHE_HIT -eq 'true') {
           Write-Output "Using cached review result for $($env:AGENT)"
@@ -203,7 +215,7 @@ runs:
 
     - name: Upload review results
       if: always() && inputs.should-run == 'true'
-      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
       with:
         name: review-${{ inputs.agent }}
         path: ai-review-results/
@@ -298,15 +310,21 @@ runs:
         $findings = $env:FINDINGS
 
         # Default empty verdict to NEEDS_REVIEW (blocking) so failures are not silently passed
+        $infraFailure = $env:INFRASTRUCTURE_FAILURE
         if ([string]::IsNullOrWhiteSpace($verdict)) {
           $verdict = 'NEEDS_REVIEW'
           Write-Output "::warning::Verdict was empty, defaulting to NEEDS_REVIEW"
+          # Empty verdict with empty findings means review did not run (infrastructure issue)
+          if ([string]::IsNullOrWhiteSpace($findings)) {
+            $infraFailure = 'true'
+            Write-Output "::warning::Both verdict and findings are empty, treating as infrastructure failure"
+          }
         }
 
         $blockingVerdicts = @('CRITICAL_FAIL', 'REJECTED', 'FAIL', 'NEEDS_REVIEW')
 
         # Infrastructure failures should not block the PR (aggregate handles downgrade to WARN)
-        if ($verdict -in $blockingVerdicts -and $env:INFRASTRUCTURE_FAILURE -eq 'true') {
+        if ($verdict -in $blockingVerdicts -and $infraFailure -eq 'true') {
           Write-Output "::warning::[$agent] Infrastructure failure (verdict: $verdict). Not blocking PR."
           Write-Output ""
           Write-Output "⚠️ $emoji $agent review had infrastructure failure (Copilot CLI unavailable)"

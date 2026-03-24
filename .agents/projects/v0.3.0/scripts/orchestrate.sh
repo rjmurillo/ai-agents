@@ -751,6 +751,9 @@ run_agent() {
         log_info "run_agent: Round $((decision_round + 1))/${MAX_DECISION_ROUNDS}"
 
         # Run agent
+        # Set UV_PROJECT_ROOT so uv resolves tools (ruff, pytest, mypy, bandit)
+        # from the main repo venv, not the worktree's empty venv (#1431 Mode A).
+        export UV_PROJECT_ROOT="${REPO_ROOT}"
         log_info "run_agent: Executing ${AGENT_CMD} command..."
         case "${AGENT_CMD}" in
             claude)

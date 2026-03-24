@@ -14,7 +14,8 @@ tools:
   - perplexity/*
   - cloudmcp-manager/*
   - serena/*
-model: claude-opus-4.5
+model: claude-opus-4.6
+tier: builder
 ---
 # Security Agent
 
@@ -627,6 +628,10 @@ try {
     }
 
     $MemoriesDirFull = [System.IO.Path]::GetFullPath($MemoriesDir)
+    $memoriesRoot = [System.IO.Path]::GetPathRoot($MemoriesDirFull)
+    if ($MemoriesDirFull.Length -gt $memoriesRoot.Length) {
+        $MemoriesDirFull = $MemoriesDirFull.TrimEnd([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar)
+    }
 
     if (-not (Test-Path $MemoriesDirFull -PathType Container)) {
         throw "Base directory does not exist: $MemoriesDirFull"
@@ -642,7 +647,7 @@ try {
     # $OutputFile is now "C:\Windows\System32\config" (normalized)
 
     # Check for path traversal
-    if (-not $OutputFile.StartsWith($MemoriesDirFull, [System.StringComparison]::OrdinalIgnoreCase)) {
+    if (-not $OutputFile.StartsWith($MemoriesDirFull + [System.IO.Path]::DirectorySeparatorChar, [System.StringComparison]::OrdinalIgnoreCase)) {
         throw "Path traversal attempt detected. Path '$UserInput' resolves to '$OutputFile' which is outside allowed directory '$MemoriesDirFull'."
     }
     # THROWS - Normalized path "C:\Windows\System32\config" does not start with "C:\Users\App\Memories"

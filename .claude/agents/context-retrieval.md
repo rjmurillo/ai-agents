@@ -3,6 +3,8 @@ name: context-retrieval
 description: Context retrieval specialist for gathering relevant memories, code patterns, and framework documentation before planning or implementation. Use PROACTIVELY when about to plan or implement code - searches Forgetful Memory across ALL projects, reads linked artifacts/documents, and queries Context7 for framework-specific guidance.
 tools: mcp__forgetful__discover_forgetful_tools, mcp__forgetful__how_to_use_forgetful_tool, mcp__forgetful__execute_forgetful_tool, mcp__context7__resolve-library-id, mcp__context7__get-library-docs, mcp__serena__*, mcp__plugin_claude-mem_mcp-search__*, mcp__deepwiki__*, WebSearch, WebFetch, Read, Glob, Grep
 model: haiku
+metadata:
+  tier: integration
 ---
 
 # Context Retrieval Agent
@@ -21,7 +23,7 @@ The main agent is about to plan or implement something. Your job is to gather RE
 |----------|-----------|--------------|-----|
 | Quick memory search from CLI | `/memory-search` slash command | `/memory-search "topic"` | Fastest, no agent overhead |
 | Complex context gathering | `context-retrieval` agent | `Task(subagent_type="context-retrieval")` | Deep exploration, graph traversal |
-| Script integration | Memory Router skill | `Search-Memory -Query "topic"` | PowerShell pipeline, structured output |
+| Script integration | Memory Router skill | `search_memory.py --query "topic"` | Python pipeline, structured output |
 | Direct MCP access (agents only) | Forgetful/Serena MCP | `mcp__forgetful__*`, `mcp__serena__*` | Full control, programmatic |
 | Cross-session knowledge | Forgetful semantic search | `execute_forgetful_tool("query_memory")` | Vector similarity, cross-project |
 | File-based lookup | Serena memories | `Read .serena/memories/{name}.md` | Git-synced, always available |
@@ -30,7 +32,7 @@ The main agent is about to plan or implement something. Your job is to gather RE
 
 1. Are you a human at CLI? → Use `/memory-search`
 2. Are you an agent needing deep context? → Use `context-retrieval` agent (this agent)
-3. Are you a PowerShell script? → Use Memory Router skill
+3. Are you a script needing structured output? → Use Memory Router skill
 4. Need semantic search across projects? → Use Forgetful directly
 5. Need specific memory by name? → Use Serena directly
 
@@ -42,15 +44,15 @@ The main agent is about to plan or implement something. Your job is to gather RE
 
 **Use the Memory Router skill for Serena-first search with Forgetful augmentation**:
 
-```powershell
+```bash
 # Search across Serena + Forgetful (unified interface per ADR-037)
-pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "topic keywords" -MaxResults 10
+python3 .claude/skills/memory/scripts/search_memory.py --query "topic keywords" --max-results 10
 
 # Serena-only (faster, no network dependency)
-pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "topic keywords" -LexicalOnly
+python3 .claude/skills/memory/scripts/search_memory.py --query "topic keywords" --lexical-only
 
 # Human-readable output
-pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "topic keywords" -Format Table
+python3 .claude/skills/memory/scripts/search_memory.py --query "topic keywords" --format table
 ```
 
 **When to use Memory Router**:

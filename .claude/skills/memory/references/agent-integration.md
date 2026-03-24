@@ -22,9 +22,9 @@ This guide explains how AI agents integrate with the memory system. The memory s
 │                     Access Methods                           │
 │                                                              │
 │  ┌────────────────┐  ┌────────────────┐  ┌────────────────┐ │
-│  │  Skill Script  │  │  PowerShell    │  │   MCP Tools    │ │
-│  │  Search-Memory │  │   Module       │  │  Serena/       │ │
-│  │     .ps1       │  │   Import       │  │  Forgetful     │ │
+│  │  Skill Script  │  │  Python        │  │   MCP Tools    │ │
+│  │  search_memory │  │   Module       │  │  Serena/       │ │
+│  │     .py        │  │   Import       │  │  Forgetful     │ │
 │  └───────┬────────┘  └───────┬────────┘  └───────┬────────┘ │
 └──────────┼───────────────────┼───────────────────┼──────────┘
            │                   │                   │
@@ -52,13 +52,13 @@ The primary interface for agents is the Search-Memory skill:
 
 ```bash
 # Basic search
-pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "git hooks"
+python3 .claude/skills/memory/scripts/search_memory.py --query "git hooks"
 
 # With options
-pwsh .claude/skills/memory/scripts/Search-Memory.ps1 \
-    -Query "PowerShell arrays" \
-    -MaxResults 5 \
-    -Format Json
+python3 .claude/skills/memory/scripts/search_memory.py \
+    --query "PowerShell arrays" \
+    --max-results 5 \
+    --format json
 ```
 
 **Advantages**:
@@ -68,23 +68,22 @@ pwsh .claude/skills/memory/scripts/Search-Memory.ps1 \
 - JSON output for parsing
 - Error handling with structured output
 
-### Method 2: PowerShell Module Import
+### Method 2: Python Module Import
 
 For complex workflows requiring multiple operations:
 
-```powershell
-# Import modules
-Import-Module .claude/skills/memory/scripts/MemoryRouter.psm1
-Import-Module .claude/skills/memory/scripts/ReflexionMemory.psm1
-
+```bash
 # Search across tiers
-$results = Search-Memory -Query "authentication" -MaxResults 10
+python3 .claude/skills/memory/scripts/search_memory.py \
+    --query "authentication" --max-results 10
 
-# Access episodes
-$episodes = Get-Episodes -Outcome "success" -Since (Get-Date).AddDays(-30)
+# Extract episodes
+python3 .claude/skills/memory/scripts/extract_session_episode.py \
+    --session-log-path ".agents/sessions/2026-01-01-session-130.json"
 
-# Query causal relationships
-$path = Get-CausalPath -FromLabel "decision" -ToLabel "outcome"
+# Update causal graph
+python3 .claude/skills/memory/scripts/update_causal_graph.py \
+    --episode-path ".agents/memory/episodes/episode-2026-01-01-session-130.json"
 ```
 
 **Advantages**:
@@ -176,8 +175,8 @@ At session end, extract and persist learnings:
 ┌─────────────────────────────────────────────────────────────┐
 │  Step 1: Extract Episode                                     │
 │                                                              │
-│  pwsh scripts/Extract-SessionEpisode.ps1 \                   │
-│      -SessionLogPath ".agents/sessions/[session].md"         │
+│  python3 scripts/extract_session_episode.py \                │
+│      --session-log-path ".agents/sessions/[session].md"      │
 │                                                              │
 │  → Structured episode from session transcript                │
 └───────────────────────────┬─────────────────────────────────┘
@@ -186,7 +185,7 @@ At session end, extract and persist learnings:
 ┌─────────────────────────────────────────────────────────────┐
 │  Step 2: Update Causal Graph                                 │
 │                                                              │
-│  pwsh scripts/Update-CausalGraph.ps1                         │
+│  python3 scripts/update_causal_graph.py                       │
 │                                                              │
 │  → New nodes and edges from episode decisions/outcomes       │
 └───────────────────────────┬─────────────────────────────────┘
@@ -297,33 +296,12 @@ $decisions = Get-Episodes | ForEach-Object {
 
 The retrospective agent captures learnings:
 
-```powershell
+```bash
 # Extract session episode
-$episode = pwsh scripts/Extract-SessionEpisode.ps1 -SessionLogPath "[log]"
-
-# Analyze decision outcomes
-$decisionAnalysis = Get-DecisionSequence -SessionId "[session]" |
-    Group-Object { $_.outcome } |
-    Select-Object Name, Count
-
-# Identify new patterns
-$newPatterns = @()
-foreach ($decision in $episode.decisions) {
-    if ($decision.outcome -eq "success") {
-        $newPatterns += @{
-            trigger = $decision.rationale
-            action = $decision.chosen
-        }
-    }
-}
+result=$(python3 scripts/extract_session_episode.py --session-log-path "[log]")
 
 # Update causal graph
-pwsh scripts/Update-CausalGraph.ps1 -EpisodePath "[episode]"
-
-# Store extracted patterns
-foreach ($pattern in $newPatterns) {
-    Add-Pattern @pattern
-}
+python3 scripts/update_causal_graph.py --episode-path "[episode]"
 ```
 
 ## Session Protocol Integration
@@ -347,12 +325,12 @@ Get-Episodes -Since (Get-Date).AddDays(-7) -MaxResults 5
 
 Per SESSION-PROTOCOL.md, agents MUST:
 
-```powershell
+```bash
 # 1. Extract episode from session log
-pwsh scripts/Extract-SessionEpisode.ps1 -SessionLogPath "[log]"
+python3 scripts/extract_session_episode.py --session-log-path "[log]"
 
 # 2. Update causal graph
-pwsh scripts/Update-CausalGraph.ps1
+python3 scripts/update_causal_graph.py
 
 # 3. Store cross-session context
 mcp__serena__write_memory(memory_file_name="[relevant-memory]", content="...")
@@ -402,25 +380,18 @@ catch {
 
 ### Episode Not Found
 
-```powershell
-$episode = Get-Episode -SessionId "[session]"
-if (-not $episode) {
-    Write-Warning "Episode not found, extracting from session log"
-    pwsh scripts/Extract-SessionEpisode.ps1 -SessionLogPath "[log]"
-    $episode = Get-Episode -SessionId "[session]"
-}
+```bash
+# Check if episode exists, extract if not
+python3 scripts/extract_session_episode.py --session-log-path "[log]"
 ```
 
 ### Causal Graph Empty
 
-```powershell
-$status = Get-ReflexionMemoryStatus
-if ($status.CausalGraph.Nodes -eq 0) {
-    Write-Warning "Causal graph empty, rebuilding from episodes"
-    Get-ChildItem ".agents/memory/episodes/*.json" | ForEach-Object {
-        pwsh scripts/Update-CausalGraph.ps1 -EpisodePath $_.FullName
-    }
-}
+```bash
+# Rebuild causal graph from all episodes
+for episode in .agents/memory/episodes/*.json; do
+    python3 scripts/update_causal_graph.py --episode-path "$episode"
+done
 ```
 
 ## Performance Considerations

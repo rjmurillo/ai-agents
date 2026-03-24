@@ -2,6 +2,7 @@
 name: implementer
 description: Execution-focused engineering expert who implements approved plans with production-quality code. Applies rigorous software design methodology with explicit quality standards. Enforces testability, encapsulation, and intentional coupling. Uses Commonality/Variability Analysis (CVA) for design. Follows bottom-up emergence model where patterns emerge from enforcing qualities, not from picking patterns first. Writes tests alongside code, commits atomically with conventional messages. Use when you need to ship code.
 model: opus
+tier: builder
 argument-hint: Specify the plan file path and task to implement
 ---
 
@@ -58,9 +59,9 @@ Load these memories based on what you are doing:
 
 ### Memory Loading Protocol
 
-```powershell
+```bash
 # REQUIRED: Load before implementation starts
-pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "[memory-from-table-above]" -LexicalOnly
+python3 .claude/skills/memory/scripts/search_memory.py --query "[memory-from-table-above]" --lexical-only
 # Or read directly:
 Read .serena/memories/[memory-name].md
 ```
@@ -230,7 +231,7 @@ You have direct access to:
 - **WebSearch/WebFetch**: Research APIs, best practices
 - **TodoWrite**: Track implementation progress
 - **Memory Router** (ADR-037): Unified search across Serena + Forgetful
-  - `pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "topic"`
+  - `python3 .claude/skills/memory/scripts/search_memory.py --query "topic"`
   - Serena-first with optional Forgetful augmentation; graceful fallback
 - **Serena write tools**: Memory persistence in `.serena/memories/`
   - `mcp__serena__write_memory`: Create new memory
@@ -702,8 +703,8 @@ Use Memory Router for search and Serena tools for persistence (ADR-037):
 
 **Before implementation (retrieve context):**
 
-```powershell
-pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "implementation patterns [component/feature]"
+```bash
+python3 .claude/skills/memory/scripts/search_memory.py --query "implementation patterns [component/feature]"
 ```
 
 **After implementation (store learnings):**

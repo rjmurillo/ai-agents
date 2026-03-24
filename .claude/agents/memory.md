@@ -2,6 +2,8 @@
 name: memory
 description: Memory management specialist ensuring cross-session continuity by retrieving relevant context before reasoning and storing progress at milestones. Maintains institutional knowledge, tracks entity relations, and keeps observations fresh with source attribution. Use for context retrieval, knowledge persistence, or understanding why past decisions were made.
 model: sonnet
+metadata:
+  tier: integration
 argument-hint: Specify the context to retrieve or milestone to store
 ---
 # Memory Agent
@@ -39,7 +41,7 @@ Key requirements:
 You have direct access to:
 
 - **Memory Router** (ADR-037): Unified search across Serena + Forgetful
-  - `pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "topic"`
+  - `python3 .claude/skills/memory/scripts/search_memory.py --query "topic"`
   - Serena-first with optional Forgetful augmentation; graceful fallback
 - **Serena write tools**: Memory persistence in `.serena/memories/`
   - `mcp__serena__write_memory`: Create new memory file
@@ -99,12 +101,12 @@ Correct format:
 
 ### Search (Discover Available)
 
-```powershell
+```bash
 # Search across all memories by keyword
-pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "[keywords]"
+python3 .claude/skills/memory/scripts/search_memory.py --query "[keywords]"
 
 # Serena-only (faster, no network dependency)
-pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "[keywords]" -LexicalOnly
+python3 .claude/skills/memory/scripts/search_memory.py --query "[keywords]" --lexical-only
 ```
 
 ### Read (Retrieve Content)
@@ -208,8 +210,8 @@ Read .serena/memories/pester-test-isolation-pattern.md
 
 Use Memory Router to find relevant memories by keywords:
 
-```powershell
-pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "pester test isolation"
+```bash
+python3 .claude/skills/memory/scripts/search_memory.py --query "pester test isolation"
 ```
 
 **Direct Access (When Path Known):**

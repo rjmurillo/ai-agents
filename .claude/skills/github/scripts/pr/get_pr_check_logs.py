@@ -41,6 +41,12 @@ from github_core.api import (  # noqa: E402
     assert_gh_authenticated,
     resolve_repo_params,
 )
+from github_core.output import (  # noqa: E402
+    add_output_format_arg,
+    get_output_format,
+    write_skill_error,
+    write_skill_output,
+)
 
 # ---------------------------------------------------------------------------
 # Failure detection patterns
@@ -260,6 +266,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--context-lines", type=int, default=30,
         help="Lines of context before/after failure markers (default: 30)",
     )
+    add_output_format_arg(parser)
     return parser
 
 
@@ -271,6 +278,7 @@ def main(argv: list[str] | None = None) -> int:
     owner = resolved.owner
     repo = resolved.repo
 
+    fmt = get_output_format(args.output_format)
     pr_number = args.pull_request
     failing_checks: list[dict] = []
 
@@ -283,16 +291,23 @@ def main(argv: list[str] | None = None) -> int:
         try:
             checks_data = json.loads(checks_input)
         except json.JSONDecodeError as exc:
-            output = {"Success": False, "Error": f"Failed to parse checks input: {exc}"}
-            print(json.dumps(output, indent=2))
+            write_skill_error(
+                f"Failed to parse checks input: {exc}",
+                1,
+                error_type="InvalidParams",
+                output_format=fmt,
+                script_name="get_pr_check_logs.py",
+            )
             return 1
 
         if not checks_data.get("Success"):
-            output = {
-                "Success": False,
-                "Error": f"Input checks data indicates failure: {checks_data.get('Error', '')}",
-            }
-            print(json.dumps(output, indent=2))
+            write_skill_error(
+                f"Input checks data indicates failure: {checks_data.get('Error', '')}",
+                1,
+                error_type="InvalidParams",
+                output_format=fmt,
+                script_name="get_pr_check_logs.py",
+            )
             return 1
 
         if checks_data.get("Number") and pr_number == 0:
@@ -311,6 +326,7 @@ def main(argv: list[str] | None = None) -> int:
                 sys.executable, checks_script,
                 "--owner", owner, "--repo", repo,
                 "--pull-request", str(pr_number),
+                "--output-format", "json",
             ],
             capture_output=True,
             text=True,
@@ -325,8 +341,13 @@ def main(argv: list[str] | None = None) -> int:
         try:
             checks_data = json.loads(result.stdout)
         except json.JSONDecodeError as exc:
-            output = {"Success": False, "Error": f"Failed to parse checks response: {exc}"}
-            print(json.dumps(output, indent=2))
+            write_skill_error(
+                f"Failed to parse checks response: {exc}",
+                3,
+                error_type="ApiError",
+                output_format=fmt,
+                script_name="get_pr_check_logs.py",
+            )
             return 3
 
         if not checks_data.get("Success"):
@@ -338,17 +359,18 @@ def main(argv: list[str] | None = None) -> int:
             if c.get("Conclusion") in ("FAILURE", "CANCELLED", "TIMED_OUT", "ACTION_REQUIRED")
         ]
     else:
-        output = {
-            "Success": False,
-            "Error": "Either --pull-request or --checks-input is required",
-        }
-        print(json.dumps(output, indent=2))
+        write_skill_error(
+            "Either --pull-request or --checks-input is required",
+            1,
+            error_type="InvalidParams",
+            output_format=fmt,
+            script_name="get_pr_check_logs.py",
+        )
         return 1
 
     # No failing checks
     if not failing_checks:
         output = {
-            "Success": True,
             "Owner": owner,
             "Repo": repo,
             "PullRequest": pr_number,
@@ -356,8 +378,13 @@ def main(argv: list[str] | None = None) -> int:
             "Message": "No failing checks found",
             "CheckLogs": [],
         }
-        print(json.dumps(output, indent=2))
-        print("No failing checks to analyze", file=sys.stderr)
+        write_skill_output(
+            output,
+            output_format=fmt,
+            human_summary="No failing checks to analyze",
+            status="PASS",
+            script_name="get_pr_check_logs.py",
+        )
         return 0
 
     # Fetch logs
@@ -366,31 +393,34 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     output = {
-        "Success": True,
         "Owner": owner,
         "Repo": repo,
         "PullRequest": pr_number,
         "FailingChecks": len(failing_checks),
         "CheckLogs": check_logs,
     }
-    print(json.dumps(output, indent=2))
 
-    # Summary
     logs_found = sum(1 for cl in check_logs if cl.get("Snippets"))
     external = sum(1 for cl in check_logs if cl.get("LogSource") == "external")
 
     if external > 0:
-        print(
+        summary = (
             f"Analyzed {len(failing_checks)} failing check(s): "
-            f"{logs_found} with logs, {external} external (logs not accessible)",
-            file=sys.stderr,
+            f"{logs_found} with logs, {external} external (logs not accessible)"
         )
     else:
-        print(
+        summary = (
             f"Analyzed {len(failing_checks)} failing check(s) "
-            f"with {logs_found} containing failure snippets",
-            file=sys.stderr,
+            f"with {logs_found} containing failure snippets"
         )
+
+    write_skill_output(
+        output,
+        output_format=fmt,
+        human_summary=summary,
+        status="FAIL" if failing_checks else "PASS",
+        script_name="get_pr_check_logs.py",
+    )
 
     return 0
 

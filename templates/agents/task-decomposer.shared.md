@@ -1,4 +1,5 @@
 ---
+tier: integration
 description: Task decomposition specialist who breaks PRDs and epics into atomic, estimable work items with clear acceptance criteria and done definitions. Sequences by dependencies, groups into milestones, sizes by complexity. Use when tasks need to be discrete enough that someone can pick them up and know exactly what to do.
 argument-hint: Provide the PRD or epic to break into tasks
 tools_vscode:
@@ -66,8 +67,8 @@ Use Memory Router for search and Serena tools for persistence (ADR-037):
 
 **Before breakdown (retrieve context):**
 
-```powershell
-pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "task estimation patterns [feature type]"
+```bash
+python3 .claude/skills/memory/scripts/search_memory.py --query "task estimation patterns [feature type]"
 ```
 
 **After breakdown (store learnings):**

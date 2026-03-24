@@ -1,0 +1,90 @@
+# Quality Grades Audit Workflow
+#
+# Weekly cron that runs the quality-grades script, compares against
+# previous results, and creates a GitHub issue when grades degrade.
+#
+# Schedule: Weekly on Mondays at 8:00 AM UTC
+# Manual trigger: workflow_dispatch
+#
+# GitHub Issue: #1299
+
+name: Quality Grades Audit
+
+on:
+  schedule:
+    # Run weekly on Mondays at 8 AM UTC
+    - cron: '0 8 * * 1'
+
+  workflow_dispatch:
+    inputs:
+      top_n:
+        description: 'Number of top domains to report (0 = all)'
+        required: false
+        default: '0'
+        type: string
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: quality-grades
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    name: Run Quality Audit
+    # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
+
+      - name: Set up Python
+        uses: actions/setup-python@28f2168f4d98ee0445e3c6321f6e6616c83dd5ec
+        with:
+          python-version: '3.12'
+
+      - name: Run quality grading
+        id: grade
+        env:
+          TOP_N: ${{ inputs.top_n || '0' }}
+        run: |
+          TOP_N_FLAG=""
+          if [ "$TOP_N" != "0" ] && [ -n "$TOP_N" ]; then
+            if ! [[ "$TOP_N" =~ ^[0-9]+$ ]]; then
+              echo "Error: top_n must be numeric" >&2
+              exit 2
+            fi
+            TOP_N_FLAG="--top-n ${TOP_N}"
+          fi
+
+          python3 .claude/skills/quality-grades/scripts/grade_domains.py \
+            --format json $TOP_N_FLAG > quality-grades.json
+
+          python3 .claude/skills/quality-grades/scripts/grade_domains.py \
+            --format markdown $TOP_N_FLAG > quality-grades.md
+
+          # Write markdown report to job summary
+          echo "## Quality Grades Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          cat quality-grades.md >> $GITHUB_STEP_SUMMARY
+
+      - name: Check for degraded grades
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 .claude/skills/quality-grades/scripts/check_grade_changes.py \
+            --grades-file quality-grades.json
+
+      - name: Upload grades artifact
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
+        with:
+          name: quality-grades-${{ github.run_number }}
+          path: |
+            quality-grades.json
+            quality-grades.md
+          retention-days: 90
