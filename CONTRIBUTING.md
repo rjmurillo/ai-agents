@@ -15,6 +15,7 @@ Thank you for your interest in contributing to this project. This guide explains
 - [Session Protocol](#session-protocol)
 - [Running Tests](#running-tests)
 - [Copilot CLI Version Management](#copilot-cli-version-management)
+- [ADR-to-Protocol Sync Process](#adr-to-protocol-sync-process)
 - [Pull Request Guidelines](#pull-request-guidelines)
   - [Commit Count Thresholds](#commit-count-thresholds)
 
@@ -386,6 +387,48 @@ pwsh build/Generate-Agents.ps1 -WhatIf
 pwsh build/Generate-Agents.ps1 -Verbose
 ```
 
+## CI Drift Detection
+
+The `agent-drift-detection.yml` workflow runs on every PR that touches agent-related files. It:
+
+1. Regenerates all platform-specific files from source templates
+2. Compares generated output against committed files
+3. Fails CI with an actionable diff if semantic drift is detected
+
+### What counts as drift?
+
+Drift is detected when any generated file (`src/vs-code-agents/*.agent.md`, `src/copilot-cli/*.agent.md`) differs from what `generate_agents.py` would produce from the current templates. This includes both:
+
+- **Content drift**, body text changed directly in a generated file
+- **Frontmatter drift**, YAML frontmatter edited outside the generation pipeline
+
+Whitespace-only differences (line endings, trailing spaces) are ignored during comparison.
+
+### When CI fails: how to fix
+
+```bash
+# 1. Edit the source template (NOT the generated file)
+code templates/agents/<agent-name>.shared.md
+
+# 2. Regenerate
+python3 build/generate_agents.py
+
+# 3. Commit the regenerated files
+git add src/vs-code-agents/ src/copilot-cli/
+git commit -m "fix(agents): regenerate from updated template"
+```
+
+### Intentional divergence (bypass procedure)
+
+In rare cases (e.g., emergency hotfix), you may need to skip drift detection:
+
+1. Add `[skip-drift-check]` to a commit message in your PR
+2. Document the reason clearly in the PR description
+3. Update `templates/README.md` to record the intentional difference
+4. Obtain explicit code-owner approval for the bypass
+
+> **Note:** Bypasses are auditable. They appear in the workflow summary and require reviewer acknowledgement.
+
 ## Pre-Commit Hooks
 
 Enable automated validation on commits:
@@ -572,6 +615,27 @@ When the upstream regression ([github/copilot-cli#1195](https://github.com/githu
 5. Update ADR-044 with the new version and test results
 
 See `.serena/memories/copilot-cli-frontmatter-regression-runbook.md` for the full diagnostic runbook.
+
+## ADR-to-Protocol Sync Process
+
+When you create or update an Architecture Decision Record (ADR) that introduces enforceable requirements (MUST, SHOULD, MAY per RFC 2119), you must sync those requirements into SESSION-PROTOCOL.md so agents enforce them.
+
+### Manual Checklist
+
+1. Identify MUST/SHOULD requirements in the ADR's Decision section
+2. Add a "Protocol Integration" section to the ADR listing which SESSION-PROTOCOL.md sections need updates
+3. Update SESSION-PROTOCOL.md with the new requirements
+4. Update the ADR Cross-Reference table in SESSION-PROTOCOL.md
+
+### Automated Audit
+
+Run the sync audit script to detect ADRs with MUST requirements not referenced in SESSION-PROTOCOL.md:
+
+```bash
+python3 scripts/sync_adr_protocol.py
+```
+
+The script parses all ADR files, extracts RFC 2119 requirements, and reports coverage gaps. See [ADR-050](.agents/architecture/ADR-050-adr-protocol-sync.md) for the full process.
 
 ## Pull Request Guidelines
 

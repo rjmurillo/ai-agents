@@ -19,6 +19,7 @@ import re
 import subprocess
 import sys
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 _WORKSPACE = os.environ.get(
@@ -38,6 +39,14 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--objective", default="",
         help="Session objective description.",
+    )
+    parser.add_argument(
+        "--trace-id", default="",
+        help="Trace correlation ID (UUID) for multi-agent execution graphs.",
+    )
+    parser.add_argument(
+        "--parent-session-id", default="",
+        help="Parent session identifier (YYYY-MM-DD-session-N) for call graph reconstruction.",
     )
     return parser
 
@@ -64,12 +73,20 @@ def _get_commit() -> str:
 
 def _get_repo_root() -> str:
     result = subprocess.run(
-        ["git", "rev-parse", "--show-toplevel"],
+        ["git", "rev-parse", "--git-common-dir"],
         capture_output=True, text=True, timeout=10, check=False,
     )
     if result.returncode != 0:
         return _WORKSPACE
-    return result.stdout.strip() or _WORKSPACE
+    raw = result.stdout.strip()
+    if not raw:
+        return _WORKSPACE
+    git_common = Path(raw)
+    if not git_common.is_absolute():
+        git_common = (Path.cwd() / git_common).resolve()
+    else:
+        git_common = git_common.resolve()
+    return str(git_common.parent)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -111,16 +128,24 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     objective = args.objective
+    trace_id = args.trace_id
+    parent_session_id = args.parent_session_id
     not_on_main = branch not in ("main", "master")
 
+    session_metadata: dict[str, Any] = {
+        "number": session_number,
+        "date": current_date,
+        "branch": branch,
+        "startingCommit": commit,
+        "objective": objective if objective else "[TODO: Describe objective]",
+    }
+    if trace_id:
+        session_metadata["traceId"] = trace_id
+    if parent_session_id:
+        session_metadata["parentSessionId"] = parent_session_id
+
     session: dict[str, Any] = {
-        "session": {
-            "number": session_number,
-            "date": current_date,
-            "branch": branch,
-            "startingCommit": commit,
-            "objective": objective if objective else "[TODO: Describe objective]",
-        },
+        "session": session_metadata,
         "protocolCompliance": {
             "sessionStart": {
                 "serenaActivated": {"level": "MUST", "Complete": False, "Evidence": ""},
@@ -138,7 +163,7 @@ def main(argv: list[str] | None = None) -> int:
             },
             "sessionEnd": {
                 "checklistComplete": {"level": "MUST", "Complete": False, "Evidence": ""},
-                "handoffNotUpdated": {"level": "MUST NOT", "Complete": False, "Evidence": ""},
+                "handoffPreserved": {"level": "MUST", "Complete": False, "Evidence": ""},
                 "serenaMemoryUpdated": {"level": "MUST", "Complete": False, "Evidence": ""},
                 "markdownLintRun": {"level": "MUST", "Complete": False, "Evidence": ""},
                 "changesCommitted": {"level": "MUST", "Complete": False, "Evidence": ""},

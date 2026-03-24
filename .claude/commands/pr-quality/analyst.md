@@ -46,3 +46,5 @@ MESSAGE: [One sentence summary]
 
 [Detailed findings following prompt structure]
 ```
+
+Then emit a fenced JSON block conforming to `.agents/schemas/pr-quality-gate-output.schema.json` with `"agent": "analyst"`.

@@ -114,7 +114,7 @@ class TestParseSimpleFrontmatter:
         assert "tool2" in result["tools"]
 
     def test_quoted_values_stripped(self) -> None:
-        raw = "model: \"Claude Opus 4.5\""
+        raw = 'model: "Claude Opus 4.5"'
         result = parse_simple_frontmatter(raw)
         assert result["model"] == "Claude Opus 4.5"
 
@@ -170,30 +170,30 @@ class TestConvertFrontmatterForPlatform:
         fm: dict[str, str | None] = {"name": "test", "description": "A test"}
         config: dict[str, object] = {
             "platform": "vscode",
-            "frontmatter": {"includeNameField": False, "model": "Claude Opus 4.5"},
+            "frontmatter": {"includeNameField": False, "model": "Claude Opus 4.6 (copilot)"},
         }
         result = convert_frontmatter_for_platform(fm, config, "test")
         assert "name" not in result
-        assert result["model"] == "Claude Opus 4.5"
+        assert result["model"] == "Claude Opus 4.6 (copilot)"
 
     def test_copilot_platform_includes_name(self) -> None:
         fm: dict[str, str | None] = {"description": "A test"}
         config: dict[str, object] = {
             "platform": "copilot-cli",
-            "frontmatter": {"includeNameField": True, "model": "claude-opus-4.5"},
+            "frontmatter": {"includeNameField": True, "model": "claude-opus-4.6"},
         }
         result = convert_frontmatter_for_platform(fm, config, "test-agent")
         assert result["name"] == "test-agent"
-        assert result["model"] == "claude-opus-4.5"
+        assert result["model"] == "claude-opus-4.6"
 
     def test_skips_placeholder_values(self) -> None:
         fm: dict[str, str | None] = {"name": "test", "model": "{{PLATFORM_MODEL}}"}
         config: dict[str, object] = {
             "platform": "vscode",
-            "frontmatter": {"includeNameField": False, "model": "Claude Opus 4.5"},
+            "frontmatter": {"includeNameField": False, "model": "Claude Opus 4.6 (copilot)"},
         }
         result = convert_frontmatter_for_platform(fm, config, "test")
-        assert result["model"] == "Claude Opus 4.5"
+        assert result["model"] == "Claude Opus 4.6 (copilot)"
 
     def test_uses_platform_specific_tools(self) -> None:
         fm: dict[str, str | None] = {
@@ -224,10 +224,98 @@ class TestConvertFrontmatterForPlatform:
         }
         config = {
             "platform": "copilot-cli",
-            "frontmatter": {"includeNameField": True, "model": "claude-opus-4.5"},
+            "frontmatter": {"includeNameField": True, "model": "claude-opus-4.6"},
         }
         result = convert_frontmatter_for_platform(fm, config, "test")
         assert result.get("tools") == "['read', 'edit']"
+
+    def test_tools_from_alias_resolves_normalized_key(self) -> None:
+        """toolsFrom alias should normalize hyphens like platform names."""
+        fm = {
+            "description": "test",
+            "tools_vscode": "['vscode', 'read']",
+        }
+        config = {
+            "platform": "visual-studio",
+            "toolsFrom": "vscode",
+            "frontmatter": {"includeNameField": False},
+        }
+        result = convert_frontmatter_for_platform(fm, config, "test")
+        assert result.get("tools") == "['vscode', 'read']"
+
+    def test_tools_from_alias_normalizes_hyphens(self) -> None:
+        """toolsFrom with hyphens should match normalized frontmatter keys."""
+        fm = {
+            "description": "test",
+            "tools_copilotcli": "['read', 'edit']",
+        }
+        config = {
+            "platform": "visual-studio",
+            "toolsFrom": "copilot-cli",
+            "frontmatter": {"includeNameField": False},
+        }
+        result = convert_frontmatter_for_platform(fm, config, "test")
+        assert result.get("tools") == "['read', 'edit']"
+
+    def test_tools_from_alias_removes_cli_suffix(self) -> None:
+        """toolsFrom should also try without -cli suffix."""
+        fm = {
+            "description": "test",
+            "tools_copilot": "['read', 'edit']",
+        }
+        config = {
+            "platform": "visual-studio",
+            "toolsFrom": "copilot-cli",
+            "frontmatter": {"includeNameField": False},
+        }
+        result = convert_frontmatter_for_platform(fm, config, "test")
+        assert result.get("tools") == "['read', 'edit']"
+
+    def test_model_tier_overrides_platform_default(self) -> None:
+        fm: dict[str, str | None] = {
+            "description": "test",
+            "model_tier": "sonnet",
+        }
+        config: dict[str, object] = {
+            "platform": "copilot-cli",
+            "frontmatter": {"includeNameField": True, "model": "claude-opus-4.6"},
+            "model_tiers": {
+                "opus": "claude-opus-4.6",
+                "sonnet": "claude-sonnet-4.6",
+                "haiku": "claude-haiku-4.5",
+            },
+        }
+        result = convert_frontmatter_for_platform(fm, config, "test")
+        assert result["model"] == "claude-sonnet-4.6"
+
+    def test_model_tier_absent_uses_platform_default(self) -> None:
+        fm: dict[str, str | None] = {"description": "test"}
+        config: dict[str, object] = {
+            "platform": "vscode",
+            "frontmatter": {"includeNameField": False, "model": "Claude Opus 4.6 (copilot)"},
+            "model_tiers": {
+                "opus": "Claude Opus 4.6 (copilot)",
+                "sonnet": "Claude Sonnet 4.6 (copilot)",
+            },
+        }
+        result = convert_frontmatter_for_platform(fm, config, "test")
+        assert result["model"] == "Claude Opus 4.6 (copilot)"
+
+    def test_model_tier_removed_from_output(self) -> None:
+        fm: dict[str, str | None] = {
+            "description": "test",
+            "model_tier": "sonnet",
+        }
+        config: dict[str, object] = {
+            "platform": "copilot-cli",
+            "frontmatter": {"includeNameField": True, "model": "claude-opus-4.6"},
+            "model_tiers": {
+                "opus": "claude-opus-4.6",
+                "sonnet": "claude-sonnet-4.6",
+            },
+        }
+        result = convert_frontmatter_for_platform(fm, config, "test")
+        assert "model_tier" not in result
 
 
 class TestFormatFrontmatterYaml:

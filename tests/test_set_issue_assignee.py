@@ -87,3 +87,39 @@ def test_auth_failure(mock_run):
     with pytest.raises(SystemExit) as exc_info:
         main(["--issue", "1", "--assignees", "user"])
     assert exc_info.value.code == 4
+
+
+@patch("subprocess.run")
+def test_all_assignees_fail(mock_run, capsys):
+    mock_run.side_effect = [
+        _completed(rc=0),  # auth
+        _completed(stdout="https://github.com/o/r\n"),  # remote
+        _completed(rc=1),  # first fails
+        _completed(rc=1),  # second fails
+    ]
+
+    with pytest.raises(SystemExit) as exc_info:
+        main(["--issue", "1", "--assignees", "bad1", "bad2"])
+    assert exc_info.value.code == 3
+    output = json.loads(capsys.readouterr().out)
+    assert output["success"] is False
+    assert output["applied"] == []
+    assert output["failed"] == ["bad1", "bad2"]
+    assert output["total_applied"] == 0
+
+
+@patch("subprocess.run")
+def test_output_structure(mock_run, capsys):
+    mock_run.side_effect = [
+        _completed(rc=0),  # auth
+        _completed(stdout="https://github.com/o/r\n"),  # remote
+        _completed(rc=0),  # assign
+    ]
+
+    rc = main(["--issue", "99", "--assignees", "alice"])
+    assert rc == 0
+    output = json.loads(capsys.readouterr().out)
+    assert output["issue"] == 99
+    assert isinstance(output["applied"], list)
+    assert isinstance(output["failed"], list)
+    assert isinstance(output["total_applied"], int)

@@ -9,6 +9,7 @@ from __future__ import annotations
 from scripts.github_core.api import (  # noqa: F401
     DEFAULT_RATE_THRESHOLDS,
     RateLimitResult,
+    RepoInfo,
     assert_gh_authenticated,
     check_workflow_rate_limit,
     create_issue_comment,
@@ -34,6 +35,7 @@ from scripts.github_core.formatting import (  # noqa: F401
 )
 from scripts.github_core.gh_client import GhCliClient  # noqa: F401
 from scripts.github_core.protocol import GitHubClient  # noqa: F401
+from scripts.github_core.repo import get_repo_root  # noqa: F401
 from scripts.github_core.validation import (  # noqa: F401
     assert_valid_body_file,
     is_github_name_valid,
@@ -45,6 +47,7 @@ __all__ = [
     "GhCliClient",
     "GitHubClient",
     "RateLimitResult",
+    "RepoInfo",
     "assert_gh_authenticated",
     "assert_valid_body_file",
     "check_workflow_rate_limit",
@@ -57,6 +60,7 @@ __all__ = [
     "get_priority_emoji",
     "get_reaction_emoji",
     "get_repo_info",
+    "get_repo_root",
     "get_trusted_source_comments",
     "get_unresolved_review_threads",
     "gh_api_paginated",

@@ -242,3 +242,24 @@ EVIDENCE:
 
 These standards apply to CODE and WORKFLOW PRs only.
 DOCS and CONFIG PRs have different criteria (see PR Type Detection).
+
+## Structured JSON Output
+
+After your human-readable analysis, emit a fenced JSON block conforming to `.agents/schemas/pr-quality-gate-output.schema.json`:
+
+```json
+{
+  "verdict": "PASS|WARN|CRITICAL_FAIL",
+  "message": "One sentence summary",
+  "agent": "qa",
+  "timestamp": "ISO 8601",
+  "findings": [
+    {
+      "severity": "critical|high|medium|low",
+      "category": "test-coverage|code-quality|error-handling|regression-risk|edge-cases",
+      "description": "What was found",
+      "location": "file:line",
+      "recommendation": "Suggested fix"
+    }
+  ]
+}

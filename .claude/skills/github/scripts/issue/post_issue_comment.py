@@ -84,10 +84,18 @@ def _save_failed_comment_artifact(
 
     try:
         result = subprocess.run(
-            ["git", "rev-parse", "--show-toplevel"],
+            ["git", "rev-parse", "--git-common-dir"],
             capture_output=True, text=True, timeout=10,
         )
-        repo_root = result.stdout.strip() if result.returncode == 0 else os.getcwd()
+        if result.returncode == 0:
+            git_common = Path(result.stdout.strip())
+            if not git_common.is_absolute():
+                git_common = (Path.cwd() / git_common).resolve()
+            else:
+                git_common = git_common.resolve()
+            repo_root = str(git_common.parent)
+        else:
+            repo_root = os.getcwd()
     except (subprocess.TimeoutExpired, FileNotFoundError):
         repo_root = os.getcwd()
 
@@ -153,7 +161,7 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901 - faithful port of
 
     assert_gh_authenticated()
     resolved = resolve_repo_params(args.owner, args.repo)
-    owner, repo = resolved["Owner"], resolved["Repo"]
+    owner, repo = resolved.owner, resolved.repo
     issue: int = args.issue
 
     body: str = args.body
@@ -164,7 +172,7 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901 - faithful port of
         body = body_path.read_text(encoding="utf-8")
 
     if not body or not body.strip():
-        error_and_exit("Body cannot be empty.", 1)
+        error_and_exit("Body cannot be empty.", 2)
 
     # Marker / idempotency check
     if args.marker:

@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Memory Router (`.claude/skills/memory/scripts/MemoryRouter.psm1`) provides unified memory search across Serena (lexical) and Forgetful (semantic) memory systems with Serena-first routing.
+The Memory Router (`.claude/skills/memory/scripts/search_memory.py`) provides unified memory search across Serena (lexical) and Forgetful (semantic) memory systems with Serena-first routing.
 
 **ADR**: ADR-037 Memory Router Architecture
 
@@ -62,8 +62,8 @@ The router automatically detects Forgetful availability using a cached TCP healt
 ### Basic Search
 
 ```powershell
-# Import module
-Import-Module .claude/skills/memory/scripts/MemoryRouter.psm1
+# Import memory_router module
+# (Python equivalent: python3 .claude/skills/memory/scripts/search_memory.py)
 
 # Unified search (Serena + Forgetful if available)
 $results = Search-Memory -Query "PowerShell array handling" -MaxResults 10
@@ -107,7 +107,7 @@ catch {
 Agents should use the skill script:
 
 ```bash
-pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "git hooks" -Format Json
+python3 .claude/skills/memory/scripts/search_memory.py --query "git hooks" --format json
 ```
 
 **Output**: JSON with results and diagnostic info.
@@ -477,7 +477,7 @@ Measure-Command { Search-Memory -Query "test" }
 
 ### For Skill Authors
 
-1. **Use skill script**: Call `.claude/skills/memory/scripts/Search-Memory.ps1`
+1. **Use skill script**: Call `.claude/skills/memory/scripts/search_memory.py`
 2. **Parse JSON output**: Skill returns structured JSON for programmatic use
 3. **Include diagnostics**: Skill output includes `Get-MemoryRouterStatus`
 
@@ -486,7 +486,7 @@ Measure-Command { Search-Memory -Query "test" }
 1. **Test both modes**: Verify Serena-only and augmented searches
 2. **Mock health checks**: Use `-LexicalOnly` in tests to avoid network dependency
 3. **Validate input**: Never bypass `ValidatePattern` checks
-4. **Profile performance**: Use `Measure-MemoryPerformance.ps1` for benchmarking
+4. **Profile performance**: Use `measure_memory_performance.py` for benchmarking
 
 ## Related Documentation
 

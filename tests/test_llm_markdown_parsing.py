@@ -33,7 +33,7 @@ class TestMarkdownCodeFenceParsing(unittest.TestCase):
     """
 
     @patch('invoke_skill_learning.ANTHROPIC_AVAILABLE', True)
-    @patch('invoke_skill_learning.Anthropic')
+    @patch('invoke_skill_learning.Anthropic', create=True)
     @patch('invoke_skill_learning.get_api_key')
     def test_plain_json_no_markdown(self, mock_get_key, mock_anthropic):
         """Test parsing plain JSON without markdown code fences."""
@@ -53,7 +53,7 @@ class TestMarkdownCodeFenceParsing(unittest.TestCase):
         self.assertEqual(result["confidence"], 0.9)
 
     @patch('invoke_skill_learning.ANTHROPIC_AVAILABLE', True)
-    @patch('invoke_skill_learning.Anthropic')
+    @patch('invoke_skill_learning.Anthropic', create=True)
     @patch('invoke_skill_learning.get_api_key')
     def test_markdown_with_json_label(self, mock_get_key, mock_anthropic):
         """Test parsing markdown code fence with 'json' label."""
@@ -73,7 +73,7 @@ class TestMarkdownCodeFenceParsing(unittest.TestCase):
         self.assertEqual(result["confidence"], 0.7)
 
     @patch('invoke_skill_learning.ANTHROPIC_AVAILABLE', True)
-    @patch('invoke_skill_learning.Anthropic')
+    @patch('invoke_skill_learning.Anthropic', create=True)
     @patch('invoke_skill_learning.get_api_key')
     def test_markdown_without_language_label(self, mock_get_key, mock_anthropic):
         """Test parsing markdown code fence without language label (```)."""
@@ -93,7 +93,7 @@ class TestMarkdownCodeFenceParsing(unittest.TestCase):
         self.assertEqual(result["confidence"], 0.65)
 
     @patch('invoke_skill_learning.ANTHROPIC_AVAILABLE', True)
-    @patch('invoke_skill_learning.Anthropic')
+    @patch('invoke_skill_learning.Anthropic', create=True)
     @patch('invoke_skill_learning.get_api_key')
     def test_markdown_with_whitespace(self, mock_get_key, mock_anthropic):
         """Test parsing markdown with extra whitespace."""
@@ -112,7 +112,7 @@ class TestMarkdownCodeFenceParsing(unittest.TestCase):
         self.assertEqual(result["type"], "edge_case")
 
     @patch('invoke_skill_learning.ANTHROPIC_AVAILABLE', True)
-    @patch('invoke_skill_learning.Anthropic')
+    @patch('invoke_skill_learning.Anthropic', create=True)
     @patch('invoke_skill_learning.get_api_key')
     def test_markdown_with_text_before_fence(self, mock_get_key, mock_anthropic):
         """Test parsing when there's text before the code fence."""
@@ -131,7 +131,7 @@ class TestMarkdownCodeFenceParsing(unittest.TestCase):
         self.assertEqual(result["type"], "documentation")
 
     @patch('invoke_skill_learning.ANTHROPIC_AVAILABLE', True)
-    @patch('invoke_skill_learning.Anthropic')
+    @patch('invoke_skill_learning.Anthropic', create=True)
     @patch('invoke_skill_learning.get_api_key')
     def test_markdown_with_text_after_fence(self, mock_get_key, mock_anthropic):
         """Test parsing when there's text after the code fence."""
@@ -150,7 +150,7 @@ class TestMarkdownCodeFenceParsing(unittest.TestCase):
         self.assertEqual(result["type"], "question")
 
     @patch('invoke_skill_learning.ANTHROPIC_AVAILABLE', True)
-    @patch('invoke_skill_learning.Anthropic')
+    @patch('invoke_skill_learning.Anthropic', create=True)
     @patch('invoke_skill_learning.get_api_key')
     def test_multiline_json_in_markdown(self, mock_get_key, mock_anthropic):
         """Test parsing multiline JSON inside markdown."""
@@ -179,7 +179,7 @@ class TestMarkdownCodeFenceParsing(unittest.TestCase):
         self.assertEqual(result["source"], "Multi-line test")
 
     @patch('invoke_skill_learning.ANTHROPIC_AVAILABLE', True)
-    @patch('invoke_skill_learning.Anthropic')
+    @patch('invoke_skill_learning.Anthropic', create=True)
     @patch('invoke_skill_learning.get_api_key')
     def test_json_with_nested_braces(self, mock_get_key, mock_anthropic):
         """Test parsing JSON with nested objects."""
@@ -198,7 +198,7 @@ class TestMarkdownCodeFenceParsing(unittest.TestCase):
         self.assertIn("nested", result["source"])
 
     @patch('invoke_skill_learning.ANTHROPIC_AVAILABLE', True)
-    @patch('invoke_skill_learning.Anthropic')
+    @patch('invoke_skill_learning.Anthropic', create=True)
     @patch('invoke_skill_learning.get_api_key')
     def test_invalid_json_after_parsing(self, mock_get_key, mock_anthropic):
         """Test that invalid JSON after parsing is handled gracefully."""
@@ -217,7 +217,7 @@ class TestMarkdownCodeFenceParsing(unittest.TestCase):
         self.assertIsNone(result)
 
     @patch('invoke_skill_learning.ANTHROPIC_AVAILABLE', True)
-    @patch('invoke_skill_learning.Anthropic')
+    @patch('invoke_skill_learning.Anthropic', create=True)
     @patch('invoke_skill_learning.get_api_key')
     def test_no_code_fence_fallback_to_raw(self, mock_get_key, mock_anthropic):
         """Test that raw JSON without code fences still works."""

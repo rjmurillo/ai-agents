@@ -23,6 +23,7 @@ from unittest.mock import patch
 import pytest
 
 from tests.mock_fidelity import assert_mock_keys_match
+from scripts.github_core.api import RepoInfo
 
 # ---------------------------------------------------------------------------
 # Import the script via importlib (not a package)
@@ -107,7 +108,7 @@ def _patch_auth_and_repo():
         patch("get_pr_context.assert_gh_authenticated"),
         patch(
             "get_pr_context.resolve_repo_params",
-            return_value={"Owner": "o", "Repo": "r"},
+            return_value=RepoInfo(owner="o", repo="r"),
         ),
     )
 

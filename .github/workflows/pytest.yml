@@ -43,7 +43,7 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
       - name: Check for Python file changes
-        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        uses: dorny/paths-filter@9d7afb8d214ad99e78fbd4247752c4caed2b6e4c # v4.0.0
         id: filter
         if: github.event_name != 'workflow_dispatch'
         with:
@@ -74,29 +74,27 @@ jobs:
       checks: write
 
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@58077d3c7e43986b6b15fba718e8ea69e387dfcc # v2.15.1
+        with:
+          egress-policy: audit
+
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
-      - name: Set up Python
-        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+      - name: Setup code environment
+        uses: ./.github/actions/setup-code-env
         with:
-          python-version: "3.12"
-
-      - name: Install UV
-        run: curl -LsSf https://astral.sh/uv/install.sh | sh
-
-      - name: Install dependencies
-        run: |
-          export PATH="$HOME/.local/bin:$PATH"
-          uv pip install --system -e ".[dev]"
+          gh-token: ${{ secrets.GITHUB_TOKEN }}
+          enable-pester: false
+          enable-git-hooks: false
 
       - name: Run pytest
         run: |
-          export PATH="$HOME/.local/bin:$PATH"
           mkdir -p artifacts
           pytest --cov --cov-report=xml:artifacts/coverage.xml --junitxml=artifacts/pytest-results.xml
 
       - name: Upload test results
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         if: always()
         with:
           name: pytest-results
@@ -112,42 +110,42 @@ jobs:
       contents: read
 
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@58077d3c7e43986b6b15fba718e8ea69e387dfcc # v2.15.1
+        with:
+          egress-policy: audit
+
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
-      - name: Set up Python
-        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+      - name: Setup code environment
+        uses: ./.github/actions/setup-code-env
         with:
-          python-version: "3.12"
-
-      - name: Install UV
-        run: curl -LsSf https://astral.sh/uv/install.sh | sh
-
-      - name: Install dependencies
-        run: |
-          export PATH="$HOME/.local/bin:$PATH"
-          uv pip install --system -e ".[dev]"
+          gh-token: ${{ secrets.GITHUB_TOKEN }}
+          enable-pester: false
+          enable-git-hooks: false
 
       - name: Run pip-audit
         run: |
-          export PATH="$HOME/.local/bin:$PATH"
           pip-audit
 
       - name: Run Bandit
         run: |
-          export PATH="$HOME/.local/bin:$PATH"
           mkdir -p artifacts
           bandit -r .claude/ scripts/ -f sarif -o artifacts/bandit-results.sarif || true
 
       - name: Upload Bandit results
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         if: always()
         with:
           name: bandit-results
           path: artifacts/bandit-results.sarif
           retention-days: 7
 
+  # Pass-through job: satisfies required "Run Python Tests" check when no Python files changed.
+  # GitHub branch protection requires SUCCESS (not SKIPPED) for required checks.
+  # See: Issue #1168
   skip-tests:
-    name: Skip Python Tests (No Changes)
+    name: Run Python Tests
     needs: check-paths
     if: needs.check-paths.outputs.python-changed != 'true'
     # ADR-025: ARM runner for cost optimization
@@ -155,6 +153,11 @@ jobs:
     permissions:
       contents: read
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@58077d3c7e43986b6b15fba718e8ea69e387dfcc # v2.15.1
+        with:
+          egress-policy: audit
+
       - name: Skip tests (no Python files changed)
         run: |
           echo "No Python files changed - skipping tests"

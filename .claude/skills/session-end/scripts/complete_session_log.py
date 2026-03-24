@@ -19,6 +19,7 @@ import re
 import subprocess
 import sys
 from datetime import UTC
+from pathlib import Path
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -38,14 +39,19 @@ def build_parser() -> argparse.ArgumentParser:
 
 def _get_repo_root() -> str:
     result = subprocess.run(
-        ["git", "rev-parse", "--show-toplevel"],
+        ["git", "rev-parse", "--git-common-dir"],
         capture_output=True, text=True, timeout=10, check=False,
     )
     if result.returncode != 0:
         return os.path.abspath(
             os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", ".."),
         )
-    return result.stdout.strip()
+    git_common = Path(result.stdout.strip())
+    if not git_common.is_absolute():
+        git_common = (Path.cwd() / git_common).resolve()
+    else:
+        git_common = git_common.resolve()
+    return str(git_common.parent)
 
 
 def _find_current_session_log(sessions_dir: str) -> str | None:
@@ -222,10 +228,26 @@ def main(argv: list[str] | None = None) -> int:
         session["endingCommit"] = ending_commit
         changes.append(f"Set endingCommit: {ending_commit}")
 
-    # 2. handoffNotUpdated (MUST NOT)
+    # 2. handoffPreserved (MUST) - replaces legacy handoffNotUpdated (issue #868)
     handoff_modified = _test_handoff_modified()
-    if "handoffNotUpdated" in session_end:
-        check = session_end["handoffNotUpdated"]
+    # Support both new "handoffPreserved" and legacy "handoffNotUpdated" field names
+    handoff_key = (
+        "handoffPreserved" if "handoffPreserved" in session_end
+        else "handoffNotUpdated" if "handoffNotUpdated" in session_end
+        else None
+    )
+    if handoff_key == "handoffPreserved":
+        check = session_end[handoff_key]
+        if handoff_modified:
+            check["Complete"] = False
+            check["Evidence"] = "WARNING: HANDOFF.md was modified (should be read-only)"
+            changes.append("[WARN] HANDOFF.md was modified (violation)")
+        else:
+            check["Complete"] = True
+            check["Evidence"] = "HANDOFF.md not modified (read-only respected)"
+            changes.append("Confirmed HANDOFF.md preserved (not modified)")
+    elif handoff_key == "handoffNotUpdated":
+        check = session_end[handoff_key]
         if handoff_modified:
             check["Complete"] = True
             check["Evidence"] = "WARNING: HANDOFF.md was modified - this violates MUST NOT"
@@ -270,8 +292,8 @@ def main(argv: list[str] | None = None) -> int:
             changes.append("[TODO] Uncommitted changes exist - commit before completing")
 
     # 6. checklistComplete - evaluate after all others
-    must_items = ["handoffNotUpdated", "serenaMemoryUpdated", "markdownLintRun",
-                  "changesCommitted", "validationPassed"]
+    must_items = ["handoffPreserved", "handoffNotUpdated", "serenaMemoryUpdated",
+                  "markdownLintRun", "changesCommitted", "validationPassed"]
     all_must_complete = True
     for item in must_items:
         if item in session_end:

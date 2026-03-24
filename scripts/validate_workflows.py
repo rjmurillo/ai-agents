@@ -22,6 +22,7 @@ Exit codes:
 """
 
 import argparse
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -133,22 +134,75 @@ class WorkflowValidator:
                 )
 
     def validate_permissions(self, file_path: Path, content: dict[str, Any]) -> None:
-        """Validate permissions are explicitly set (security best practice)."""
-        if "permissions" not in content:
-            self.warnings.append(
-                f"{file_path}: No top-level 'permissions' field "
-                f"(security best practice: explicit permissions)"
-            )
+        """Validate permissions are explicitly set (security requirement).
 
-        # Check job-level permissions
+        Workflows without any permissions declaration run with broad default
+        permissions. This is a security error, not just a best practice.
+        """
+        has_top_level = "permissions" in content
+
+        if not has_top_level:
+            # Check if every job declares its own permissions
+            jobs = content.get("jobs", {})
+            all_jobs_have_perms = jobs and all(
+                "permissions" in job for job in jobs.values()
+                if isinstance(job, dict)
+            )
+            if not all_jobs_have_perms:
+                self.errors.append(
+                    f"{file_path}: Missing 'permissions' declaration. "
+                    f"Set top-level or per-job permissions to follow least-privilege."
+                )
+
+    # Patterns for attacker-controlled GitHub context data.
+    # These can be set by external contributors via PR titles, branch names, etc.
+    # See: https://securitylab.github.com/resources/github-actions-preventing-pwn-requests/
+    _DANGEROUS_PATTERNS: list[str] = [
+        r"github\.event\.issue\.title",
+        r"github\.event\.issue\.body",
+        r"github\.event\.pull_request\.title",
+        r"github\.event\.pull_request\.body",
+        r"github\.event\.comment\.body",
+        r"github\.event\.review\.body",
+        r"github\.event\.review_comment\.body",
+        r"github\.event\.discussion\.title",
+        r"github\.event\.discussion\.body",
+        r"github\.event\.pages\.\S*\.page_name",
+        r"github\.event\.commits\.\S*\.message",
+        r"github\.event\.commits\.\S*\.author\.name",
+        r"github\.event\.commits\.\S*\.author\.email",
+        r"github\.head_ref",
+    ]
+
+    def validate_expression_injection(
+        self, file_path: Path, content: dict[str, Any]
+    ) -> None:
+        """Detect expression injection in run blocks.
+
+        Flags ${{...}} in run: blocks when the expression references
+        attacker-controlled data (issue titles, branch names, commit
+        messages, comment bodies).
+        """
+        combined = re.compile("|".join(self._DANGEROUS_PATTERNS))
         jobs = content.get("jobs", {})
         for job_name, job in jobs.items():
-            if "permissions" not in job:
-                # Only warn if there's no top-level permissions
-                if "permissions" not in content:
-                    self.warnings.append(
-                        f"{file_path}: Job '{job_name}' has no permissions field"
-                    )
+            if not isinstance(job, dict):
+                continue
+            steps = job.get("steps", [])
+            for step_idx, step in enumerate(steps):
+                if not isinstance(step, dict):
+                    continue
+                run_block = step.get("run")
+                if not isinstance(run_block, str):
+                    continue
+                for match in re.finditer(r"\$\{\{(.+?)\}\}", run_block):
+                    expr = match.group(1).strip()
+                    if combined.search(expr):
+                        self.errors.append(
+                            f"{file_path}: Job '{job_name}' step {step_idx + 1}: "
+                            f"Expression injection risk: '${{{{ {expr} }}}}' in run block. "
+                            f"Use an environment variable instead."
+                        )
 
     def validate_file(self, file_path: Path) -> bool:
         """Validate a single workflow or action file."""
@@ -184,6 +238,9 @@ class WorkflowValidator:
 
         # Step 4: Action pinning (both workflows and actions)
         self.validate_action_pinning(file_path, content)
+
+        # Step 5: Expression injection detection (security)
+        self.validate_expression_injection(file_path, content)
 
         return len(self.errors) == 0
 

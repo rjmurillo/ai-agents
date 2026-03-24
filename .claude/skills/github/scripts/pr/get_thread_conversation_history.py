@@ -6,8 +6,7 @@ Supports pagination for threads with many comments.
 
 Exit codes follow ADR-035:
     0 - Success
-    1 - Invalid parameters
-    2 - Thread not found
+    2 - Config/usage error (invalid parameters, thread not found)
     3 - API error
     4 - Auth error
 """
@@ -180,9 +179,9 @@ def main(argv: list[str] | None = None) -> int:
 
     # Validate thread ID format
     if not args.thread_id or not args.thread_id.strip():
-        error_and_exit("ThreadId parameter is required.", 1)
+        error_and_exit("ThreadId parameter is required.", 2)
     if not args.thread_id.startswith("PRRT_"):
-        error_and_exit("Invalid ThreadId format. Expected PRRT_... format.", 1)
+        error_and_exit("Invalid ThreadId format. Expected PRRT_... format.", 2)
 
     assert_gh_authenticated()
 

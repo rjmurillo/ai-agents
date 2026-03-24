@@ -8,8 +8,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from scripts.github_core.api import RepoInfo
 from scripts.validation.pr_description import (
     Issue,
+    _strip_informational_sections,
     extract_mentioned_files,
     fetch_pr_data,
     file_matches,
@@ -41,6 +43,18 @@ class TestNormalizePath:
     def test_combined_normalization(self) -> None:
         assert normalize_path(" .\\src\\bar.py ") == "src/bar.py"
 
+    def test_strips_markdown_bold_markers(self) -> None:
+        assert normalize_path("**foo.yml") == "foo.yml"
+
+    def test_strips_surrounding_bold_markers(self) -> None:
+        assert normalize_path("**foo.yml**") == "foo.yml"
+
+    def test_strips_backticks(self) -> None:
+        assert normalize_path("`foo.yml") == "foo.yml"
+
+    def test_strips_surrounding_backticks(self) -> None:
+        assert normalize_path("`foo.yml`") == "foo.yml"
+
 
 # ---------------------------------------------------------------------------
 # file_matches
@@ -62,6 +76,21 @@ class TestFileMatches:
 
     def test_empty_strings(self) -> None:
         assert file_matches("", "") is True
+
+    def test_glob_star_match(self) -> None:
+        assert file_matches(".github/prompts/pr-quality-gate-qa.md",
+                            ".github/prompts/pr-quality-gate-*.md") is True
+
+    def test_glob_directory_star(self) -> None:
+        assert file_matches(".claude/commands/pr-quality/analyst.md",
+                            ".claude/commands/pr-quality/*.md") is True
+
+    def test_glob_no_match(self) -> None:
+        assert file_matches("scripts/foo.py",
+                            "scripts/*.md") is False
+
+    def test_glob_question_mark(self) -> None:
+        assert file_matches("src/a.py", "src/?.py") is True
 
 
 # ---------------------------------------------------------------------------
@@ -118,6 +147,142 @@ class TestExtractMentionedFiles:
         desc = "`a.py` and **b.yml** and\n- c.ts"
         result = extract_mentioned_files(desc)
         assert len(result) == 3
+
+    def test_bold_in_list_item_deduplicates(self) -> None:
+        """Bold filenames in list items should not produce duplicates with bold markers."""
+        desc = "- **workflow.yml**: Added skip job"
+        result = extract_mentioned_files(desc)
+        assert result == ["workflow.yml"]
+
+    def test_command_in_backticks_not_treated_as_file(self) -> None:
+        desc = "- [x] `uv run mypy scripts/homework_scanner.py` (clean)"
+        result = extract_mentioned_files(desc)
+        assert "uv run mypy scripts/homework_scanner.py" not in result
+
+    def test_renovate_detected_package_files_ignored(self) -> None:
+        desc = (
+            "### Detected Package Files\n\n"
+            " * `.github/workflows/pytest.yml` (github-actions)\n"
+            " * `pyproject.toml` (pep621)\n\n"
+            "---\n\n"
+            "Changed `renovate.json` configuration."
+        )
+        result = extract_mentioned_files(desc)
+        assert "renovate.json" in result
+        assert ".github/workflows/pytest.yml" not in result
+        assert "pyproject.toml" not in result
+
+    def test_github_admonition_blockquotes_ignored(self) -> None:
+        desc = (
+            "Welcome to Renovate!\n\n"
+            "> [!WARNING]\n"
+            "> Please correct these dependency lookup failures.\n"
+            ">\n"
+            "> Files affected: `.github/workflows/codeql-analysis.yml`\n\n"
+            "Updated `renovate.json`."
+        )
+        result = extract_mentioned_files(desc)
+        assert "renovate.json" in result
+        assert ".github/workflows/codeql-analysis.yml" not in result
+
+    def test_details_blocks_ignored(self) -> None:
+        desc = (
+            "<details>\n"
+            "<summary>chore(deps): update actions/cache</summary>\n\n"
+            "  - Upgrade `actions/cache` to `abc123`\n"
+            "  - Branch: `renovate/actions-cache-digest`\n\n"
+            "</details>\n\n"
+            "Updated `renovate.json`."
+        )
+        result = extract_mentioned_files(desc)
+        assert "renovate.json" in result
+        assert not any("actions/cache" in f for f in result)
+
+    def test_test_plan_section_ignored(self) -> None:
+        desc = (
+            "## Summary\n"
+            "Updated `skill.md` with new patterns.\n\n"
+            "## Test plan\n"
+            "- [ ] Skill validates against `.claude/skills/CLAUDE.md` conventions\n"
+            "- [ ] No breaking changes\n"
+        )
+        result = extract_mentioned_files(desc)
+        assert "skill.md" in result
+        assert ".claude/skills/CLAUDE.md" not in result
+
+
+# ---------------------------------------------------------------------------
+# _strip_informational_sections
+# ---------------------------------------------------------------------------
+
+
+class TestStripInformationalSections:
+    def test_strips_details_blocks(self) -> None:
+        text = "before\n<details>\nhidden\n</details>\nafter"
+        result = _strip_informational_sections(text)
+        assert "hidden" not in result
+        assert "before" in result
+        assert "after" in result
+
+    def test_strips_detected_package_files_section(self) -> None:
+        text = (
+            "Intro\n\n"
+            "### Detected Package Files\n\n"
+            " * `foo.yml`\n"
+            " * `bar.yml`\n\n"
+            "---\n\n"
+            "Footer"
+        )
+        result = _strip_informational_sections(text)
+        assert "foo.yml" not in result
+        assert "Footer" in result
+
+    def test_strips_github_admonition_blockquotes(self) -> None:
+        text = (
+            "Some intro text.\n\n"
+            "> [!WARNING]\n"
+            "> Please correct these dependency lookup failures.\n"
+            ">\n"
+            "> -   `Could not determine new digest`\n"
+            ">\n"
+            "> Files affected: `.github/workflows/codeql-analysis.yml`\n\n"
+            "Footer text."
+        )
+        result = _strip_informational_sections(text)
+        assert "codeql-analysis.yml" not in result
+        assert "Some intro text" in result
+        assert "Footer text" in result
+
+    def test_strips_test_plan_sections(self) -> None:
+        text = (
+            "## Summary\n"
+            "Changed `foo.py`.\n\n"
+            "## Test plan\n"
+            "- [ ] Validates against `.claude/skills/CLAUDE.md` conventions\n"
+            "- [ ] Tests pass locally\n"
+        )
+        result = _strip_informational_sections(text)
+        assert ".claude/skills/CLAUDE.md" not in result
+        assert "foo.py" in result
+
+    def test_strips_test_plan_with_next_heading(self) -> None:
+        text = (
+            "## Summary\n"
+            "Changed `foo.py`.\n\n"
+            "## Test Plan\n"
+            "- Check `conventions.md` compliance\n\n"
+            "## Notes\n"
+            "Some notes here."
+        )
+        result = _strip_informational_sections(text)
+        assert "conventions.md" not in result
+        assert "foo.py" in result
+        assert "Some notes here" in result
+
+    def test_preserves_non_informational_content(self) -> None:
+        text = "Changed `scripts/foo.py` and **bar.yml**"
+        result = _strip_informational_sections(text)
+        assert result == text
 
 
 # ---------------------------------------------------------------------------
@@ -177,6 +342,17 @@ class TestValidatePRDescription:
         issues = validate_pr_description(pr_files=[], mentioned_files=[])
         assert len(issues) == 0
 
+    def test_glob_pattern_prevents_critical(self) -> None:
+        issues = validate_pr_description(
+            pr_files=[
+                ".github/prompts/pr-quality-gate-analyst.md",
+                ".github/prompts/pr-quality-gate-qa.md",
+            ],
+            mentioned_files=[".github/prompts/pr-quality-gate-*.md"],
+        )
+        critical = [i for i in issues if i.severity == "CRITICAL"]
+        assert len(critical) == 0
+
     def test_mixed_critical_and_warning(self) -> None:
         issues = validate_pr_description(
             pr_files=["scripts/changed.py"],
@@ -234,8 +410,7 @@ class TestGetRepoInfo:
             stdout="https://github.com/myorg/myrepo.git\n",
         )
         info = get_repo_info()
-        assert info["owner"] == "myorg"
-        assert info["repo"] == "myrepo"
+        assert info == RepoInfo(owner="myorg", repo="myrepo")
 
     @patch("scripts.validation.pr_description.subprocess.run")
     def test_ssh_url(self, mock_run: MagicMock) -> None:
@@ -244,8 +419,7 @@ class TestGetRepoInfo:
             stdout="git@github.com:myorg/myrepo.git\n",
         )
         info = get_repo_info()
-        assert info["owner"] == "myorg"
-        assert info["repo"] == "myrepo"
+        assert info == RepoInfo(owner="myorg", repo="myrepo")
 
     @patch("scripts.validation.pr_description.subprocess.run")
     def test_nonzero_exit_raises(self, mock_run: MagicMock) -> None:
@@ -323,7 +497,7 @@ class TestMain:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.delenv("CI", raising=False)
-        mock_repo.return_value = {"owner": "o", "repo": "r"}
+        mock_repo.return_value = RepoInfo(owner="o", repo="r")
         mock_fetch.return_value = {
             "title": "Test",
             "body": "Changed `foo.py`",
@@ -339,7 +513,7 @@ class TestMain:
         mock_repo: MagicMock,
         mock_fetch: MagicMock,
     ) -> None:
-        mock_repo.return_value = {"owner": "o", "repo": "r"}
+        mock_repo.return_value = RepoInfo(owner="o", repo="r")
         mock_fetch.return_value = {
             "title": "Test",
             "body": "Changed `ghost.py`",
@@ -380,7 +554,7 @@ class TestMain:
         mock_repo: MagicMock,
         mock_fetch: MagicMock,
     ) -> None:
-        mock_repo.return_value = {"owner": "o", "repo": "r"}
+        mock_repo.return_value = RepoInfo(owner="o", repo="r")
         code = main(["--pr-number", "1"])
         assert code == 2
 
@@ -391,7 +565,7 @@ class TestMain:
         mock_repo: MagicMock,
         mock_fetch: MagicMock,
     ) -> None:
-        mock_repo.return_value = {"owner": "o", "repo": "r"}
+        mock_repo.return_value = RepoInfo(owner="o", repo="r")
         mock_fetch.return_value = {
             "title": "T",
             "body": None,

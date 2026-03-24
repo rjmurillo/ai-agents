@@ -15,7 +15,7 @@ tools:
   - cloudmcp-manager/*
   - serena/*
   - memory
-model: Claude Opus 4.5 (copilot)
+model: Claude Opus 4.6 (copilot)
 ---
 # Security Agent
 
@@ -210,24 +210,22 @@ When milestone-planner requests security impact analysis (during planning phase)
 
 When any changed file matches security trigger patterns, orchestrator MUST route to security agent AFTER implementation completes:
 
-```python
+```text
 # Mandatory routing for security-relevant changes
-SECURITY_TRIGGERS = [
-    "**/Auth/**", "**/Security/**", "*.env*",
-    ".githooks/*", "**/secrets/**", "*password*",
-    "**/token*", "**/oauth/**", "**/jwt/**"
-]
+# Trigger patterns:
+#   **/Auth/**, **/Security/**, *.env*
+#   .githooks/*, **/secrets/**, *password*
+#   **/token*, **/oauth/**, **/jwt/**
 
-if any(trigger_matches(changed_path, pattern) for pattern in SECURITY_TRIGGERS):
-    Task(subagent_type="security", prompt="""
-    Run Post-Implementation Verification for [feature].
+# When security-relevant files change:
+#runSubagent with subagentType=security
+Run Post-Implementation Verification for [feature].
 
-    Implementation completed by implementer.
-    Changed files: [list]
+Implementation completed by implementer.
+Changed files: [list]
 
-    Verify all security controls from pre-implementation plan.
-    This is a BLOCKING gate - no PR until PIV approved.
-    """)
+Verify all security controls from pre-implementation plan.
+This is a BLOCKING gate. No PR until PIV approved.
 ```
 
 **No PR Until PIV Approved**: Orchestrator MUST NOT proceed to PR creation until security agent returns APPROVED status.
@@ -630,6 +628,10 @@ try {
     }
 
     $MemoriesDirFull = [System.IO.Path]::GetFullPath($MemoriesDir)
+    $memoriesRoot = [System.IO.Path]::GetPathRoot($MemoriesDirFull)
+    if ($MemoriesDirFull.Length -gt $memoriesRoot.Length) {
+        $MemoriesDirFull = $MemoriesDirFull.TrimEnd([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar)
+    }
 
     if (-not (Test-Path $MemoriesDirFull -PathType Container)) {
         throw "Base directory does not exist: $MemoriesDirFull"
@@ -645,7 +647,7 @@ try {
     # $OutputFile is now "C:\Windows\System32\config" (normalized)
 
     # Check for path traversal
-    if (-not $OutputFile.StartsWith($MemoriesDirFull, [System.StringComparison]::OrdinalIgnoreCase)) {
+    if (-not $OutputFile.StartsWith($MemoriesDirFull + [System.IO.Path]::DirectorySeparatorChar, [System.StringComparison]::OrdinalIgnoreCase)) {
         throw "Path traversal attempt detected. Path '$UserInput' resolves to '$OutputFile' which is outside allowed directory '$MemoriesDirFull'."
     }
     # THROWS - Normalized path "C:\Windows\System32\config" does not start with "C:\Users\App\Memories"

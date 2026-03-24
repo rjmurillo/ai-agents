@@ -23,6 +23,11 @@ on:
         required: false
         type: boolean
         default: false
+      bypass-cache:
+        description: 'Bypass cached review results and force fresh Copilot API calls'
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -60,7 +65,7 @@ jobs:
     runs-on: ubuntu-24.04-arm
     steps:
       - name: Checkout repository
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
       
       - name: Apply debouncing delay
         uses: ./.github/actions/workflow-debounce
@@ -78,8 +83,7 @@ jobs:
     needs: debounce
     if: |-
       always() &&
-      (needs.debounce.result == 'success' || needs.debounce.result == 'skipped') &&
-      github.actor != 'dependabot[bot]' && github.actor != 'github-actions[bot]'
+      (needs.debounce.result == 'success' || needs.debounce.result == 'skipped')
 
     outputs:
       # For workflow_dispatch, always run review (manual trigger assumes user intent regardless of files changed); otherwise use paths-filter result
@@ -87,10 +91,10 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
 
       - name: Check for relevant file changes
-        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3
+        uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4
         id: filter
         # Skip paths-filter for workflow_dispatch (path filter requires pull_request event context; manual dispatch lacks base/head ref information)
         if: github.event_name != 'workflow_dispatch'
@@ -108,13 +112,19 @@ jobs:
 
       - name: Determine if review should run
         id: determine
+        env:
+          GH_ACTOR: ${{ github.actor }}
+          GH_EVENT_NAME: ${{ github.event_name }}
+          RELEVANT: ${{ steps.filter.outputs.relevant }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          # Skip AI review for bot actors but still emit status checks
+          if [ "$GH_ACTOR" = "dependabot[bot]" ] || [ "$GH_ACTOR" = "github-actions[bot]" ]; then
+            echo "should-run=false" >> $GITHUB_OUTPUT
+            echo "Decision: Skip review (bot actor: $GH_ACTOR)"
+          elif [ "$GH_EVENT_NAME" = "workflow_dispatch" ]; then
             echo "should-run=true" >> $GITHUB_OUTPUT
             echo "Decision: Run review (manual trigger)"
           else
-            RELEVANT="${{ steps.filter.outputs.relevant }}"
-
             echo "Relevant files changed: $RELEVANT"
 
             # Run review if relevant files changed, skip otherwise
@@ -126,6 +136,49 @@ jobs:
               echo "Decision: Skip review (no relevant files changed)"
             fi
           fi
+
+# ==============================================================================
+# Infrastructure Health Check (Issue #153)
+# ==============================================================================
+#
+# Lightweight, zero-cost validation of agent prerequisites.
+# Distinguishes environment errors from code quality issues.
+# When Copilot CLI is unavailable, agents are skipped (not failed).
+
+  infra-check:
+    name: Infrastructure Check
+    runs-on: ubuntu-24.04-arm
+    needs: check-changes
+    if: always() && needs.check-changes.result == 'success' && needs.check-changes.outputs.should-run == 'true'
+    timeout-minutes: 2
+    permissions:
+      contents: read
+
+    outputs:
+      copilot-available: ${{ steps.infra.outputs.copilot-available }}
+      overall-status: ${{ steps.infra.outputs.overall-status }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
+
+      - name: Check agent infrastructure
+        id: infra
+        uses: ./.github/actions/check-agent-infrastructure
+        with:
+          bot-pat: ${{ secrets.BOT_PAT }}
+          copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+
+      - name: Report infrastructure status
+        if: steps.infra.outputs.overall-status != 'ready'
+        shell: bash
+        env:
+          INFRA_STATUS: ${{ steps.infra.outputs.overall-status }}
+          COPILOT_STATUS: ${{ steps.infra.outputs.copilot-available }}
+        run: |
+          echo "::warning::Agent infrastructure is $INFRA_STATUS."
+          echo "::warning::Copilot available: $COPILOT_STATUS"
+          echo "::warning::Agent reviews requiring Copilot CLI will be skipped."
 
 # ==============================================================================
 # Pre-execute Tests (Issue #77: QA agent cannot run tests directly)
@@ -150,7 +203,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
 
       - name: Setup code environment
         uses: ./.github/actions/setup-code-env
@@ -252,7 +305,7 @@ jobs:
   security-review:
     name: Security Review
     runs-on: ubuntu-24.04-arm
-    needs: check-changes
+    needs: [check-changes, infra-check]
     if: always() && needs.check-changes.result == 'success'
     timeout-minutes: 10
     permissions:
@@ -261,7 +314,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
 
       - name: Run security review
         uses: ./.github/actions/agent-review
@@ -269,15 +322,17 @@ jobs:
           agent: security
           emoji: 🔒
           prompt-file: .github/prompts/pr-quality-gate-security.md
-          should-run: ${{ needs.check-changes.outputs.should-run }}
+          should-run: ${{ needs.check-changes.outputs.should-run == 'true' && needs.infra-check.outputs.copilot-available == 'true' }}
           pr-number: ${{ env.PR_NUMBER }}
           bot-pat: ${{ secrets.BOT_PAT }}
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+          commit-sha: ${{ github.event.pull_request.head.sha || github.sha }}
+          bypass-cache: ${{ inputs.bypass-cache == true && 'true' || 'false' }}
 
   qa-review:
     name: QA Review
     runs-on: ubuntu-24.04-arm
-    needs: [check-changes, run-tests]
+    needs: [check-changes, infra-check, run-tests]
     if: always() && needs.check-changes.result == 'success'
     timeout-minutes: 10
     permissions:
@@ -286,7 +341,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
 
       - name: Run qa review
         uses: ./.github/actions/agent-review
@@ -294,16 +349,18 @@ jobs:
           agent: qa
           emoji: 🧪
           prompt-file: .github/prompts/pr-quality-gate-qa.md
-          should-run: ${{ needs.check-changes.outputs.should-run }}
+          should-run: ${{ needs.check-changes.outputs.should-run == 'true' && needs.infra-check.outputs.copilot-available == 'true' }}
           pr-number: ${{ env.PR_NUMBER }}
           bot-pat: ${{ secrets.BOT_PAT }}
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
           additional-context: ${{ needs.run-tests.outputs.test-summary || 'Test execution was skipped (no relevant file changes or test job did not run).' }}
+          commit-sha: ${{ github.event.pull_request.head.sha || github.sha }}
+          bypass-cache: ${{ inputs.bypass-cache == true && 'true' || 'false' }}
 
   analyst-review:
     name: Analyst Review
     runs-on: ubuntu-24.04-arm
-    needs: check-changes
+    needs: [check-changes, infra-check]
     if: always() && needs.check-changes.result == 'success'
     timeout-minutes: 10
     permissions:
@@ -312,7 +369,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
 
       - name: Run analyst review
         uses: ./.github/actions/agent-review
@@ -320,15 +377,17 @@ jobs:
           agent: analyst
           emoji: 📊
           prompt-file: .github/prompts/pr-quality-gate-analyst.md
-          should-run: ${{ needs.check-changes.outputs.should-run }}
+          should-run: ${{ needs.check-changes.outputs.should-run == 'true' && needs.infra-check.outputs.copilot-available == 'true' }}
           pr-number: ${{ env.PR_NUMBER }}
           bot-pat: ${{ secrets.BOT_PAT }}
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+          commit-sha: ${{ github.event.pull_request.head.sha || github.sha }}
+          bypass-cache: ${{ inputs.bypass-cache == true && 'true' || 'false' }}
 
   architect-review:
     name: Architect Review
     runs-on: ubuntu-24.04-arm
-    needs: check-changes
+    needs: [check-changes, infra-check]
     if: always() && needs.check-changes.result == 'success'
     timeout-minutes: 10
     permissions:
@@ -337,7 +396,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
 
       - name: Run architect review
         uses: ./.github/actions/agent-review
@@ -345,15 +404,17 @@ jobs:
           agent: architect
           emoji: 📐
           prompt-file: .github/prompts/pr-quality-gate-architect.md
-          should-run: ${{ needs.check-changes.outputs.should-run }}
+          should-run: ${{ needs.check-changes.outputs.should-run == 'true' && needs.infra-check.outputs.copilot-available == 'true' }}
           pr-number: ${{ env.PR_NUMBER }}
           bot-pat: ${{ secrets.BOT_PAT }}
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+          commit-sha: ${{ github.event.pull_request.head.sha || github.sha }}
+          bypass-cache: ${{ inputs.bypass-cache == true && 'true' || 'false' }}
 
   devops-review:
     name: DevOps Review
     runs-on: ubuntu-24.04-arm
-    needs: check-changes
+    needs: [check-changes, infra-check]
     if: always() && needs.check-changes.result == 'success'
     timeout-minutes: 10
     permissions:
@@ -362,7 +423,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
 
       - name: Run devops review
         uses: ./.github/actions/agent-review
@@ -370,15 +431,17 @@ jobs:
           agent: devops
           emoji: ⚙️
           prompt-file: .github/prompts/pr-quality-gate-devops.md
-          should-run: ${{ needs.check-changes.outputs.should-run }}
+          should-run: ${{ needs.check-changes.outputs.should-run == 'true' && needs.infra-check.outputs.copilot-available == 'true' }}
           pr-number: ${{ env.PR_NUMBER }}
           bot-pat: ${{ secrets.BOT_PAT }}
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+          commit-sha: ${{ github.event.pull_request.head.sha || github.sha }}
+          bypass-cache: ${{ inputs.bypass-cache == true && 'true' || 'false' }}
 
   roadmap-review:
     name: Roadmap Review
     runs-on: ubuntu-24.04-arm
-    needs: check-changes
+    needs: [check-changes, infra-check]
     if: always() && needs.check-changes.result == 'success'
     timeout-minutes: 10
     permissions:
@@ -387,7 +450,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
 
       - name: Run roadmap review
         uses: ./.github/actions/agent-review
@@ -395,10 +458,12 @@ jobs:
           agent: roadmap
           emoji: 🗺️
           prompt-file: .github/prompts/pr-quality-gate-roadmap.md
-          should-run: ${{ needs.check-changes.outputs.should-run }}
+          should-run: ${{ needs.check-changes.outputs.should-run == 'true' && needs.infra-check.outputs.copilot-available == 'true' }}
           pr-number: ${{ env.PR_NUMBER }}
           bot-pat: ${{ secrets.BOT_PAT }}
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+          commit-sha: ${{ github.event.pull_request.head.sha || github.sha }}
+          bypass-cache: ${{ inputs.bypass-cache == true && 'true' || 'false' }}
 
 # ==============================================================================
 # Aggregate Results from All Agent Reviews
@@ -407,11 +472,24 @@ jobs:
 # Depends on all six agent review jobs explicitly (not matrix).
 # Downloads artifacts using pattern `review-*` to gather all agent verdicts.
 
+  # Pass-through job: satisfies required "Aggregate Results" check when path
+  # filter skips the real aggregate job. GitHub branch protection requires
+  # SUCCESS (not SKIPPED) for required checks. See issue #1168.
+  aggregate-skip:
+    name: Aggregate Results
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 1
+    needs: [check-changes]
+    if: always() && needs.check-changes.result == 'success' && needs.check-changes.outputs.should-run != 'true'
+    steps:
+      - name: No relevant changes
+        run: echo "Skipped - no relevant file changes detected"
+
   aggregate:
     name: Aggregate Results
     # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-24.04-arm
-    needs: [check-changes, security-review, qa-review, analyst-review, architect-review, devops-review, roadmap-review]
+    needs: [check-changes, infra-check, security-review, qa-review, analyst-review, architect-review, devops-review, roadmap-review]
     # Always run if check-changes ran and said to run, even if some agent jobs failed
     if: always() && needs.check-changes.outputs.should-run == 'true'
 
@@ -463,10 +541,10 @@ jobs:
           }
 
       - name: Checkout repository
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
 
       - name: Download all review artifacts
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        uses: actions/download-artifact@484a0b528fb4d7bd804637ccb632e47a0e638317
         with:
           pattern: review-*
           path: ai-review-results
@@ -564,6 +642,7 @@ jobs:
           ARCHITECT_CATEGORY: ${{ steps.aggregate.outputs.architect_category }}
           DEVOPS_CATEGORY: ${{ steps.aggregate.outputs.devops_category }}
           ROADMAP_CATEGORY: ${{ steps.aggregate.outputs.roadmap_category }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
         run: python3 .github/scripts/generate_quality_report.py
 
       - name: Check for infrastructure failures and add label

@@ -110,11 +110,7 @@ Add to `.githooks/pre-commit`:
 
 ```bash
 # Security detection (non-blocking warning)
-if command -v python3 &> /dev/null; then
-    python3 .claude/skills/security-detection/detect_infrastructure.py --git-staged
-elif command -v pwsh &> /dev/null; then
-    pwsh -File .claude/skills/security-detection/detect-infrastructure.ps1 -UseGitStaged
-fi
+python3 .claude/skills/security-detection/detect_infrastructure.py --git-staged
 ```
 
 ### CI Integration

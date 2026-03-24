@@ -8,37 +8,38 @@ This guide provides common usage patterns for the ai-agents memory system (v0.2.
 
 ### Basic Memory Search
 
-```powershell
-# Import the Memory Router
-Import-Module .claude/skills/memory/scripts/MemoryRouter.psm1
+```python
+from memory_router import search_memory
 
 # Search for relevant knowledge before making decisions
-$results = Search-Memory -Query "PowerShell array handling" -MaxResults 5
+results = search_memory(query="array handling", max_results=5)
 
 # Process results
-foreach ($result in $results) {
-    Write-Host "=== $($result.Name) (Source: $($result.Source)) ==="
-    Write-Host $result.Content
-    Write-Host ""
-}
+for result in results:
+    print(f"=== {result['name']} (Source: {result['source']}) ===")
+    print(result["content"])
+    print()
 ```
 
 **Use When**: Starting any non-trivial task, before making technical decisions.
 
 ### Agent Workflow Example
 
-```powershell
+```python
+from memory_router import search_memory
+from reflexion_memory import get_episodes, get_patterns
+
 # 1. Search memory for relevant patterns
-$arrayPatterns = Search-Memory -Query "PowerShell arrays" -MaxResults 5
+array_patterns = search_memory(query="arrays", max_results=5)
 
 # 2. Review past failures in similar scenarios
-Import-Module .claude/skills/memory/scripts/ReflexionMemory.psm1
-$pastFailures = Get-Episodes -Outcome "failure" | Where-Object {
-    $_.task -match "PowerShell" -or $_.task -match "array"
-}
+past_failures = [
+    ep for ep in get_episodes(outcome="failure")
+    if "array" in ep["task"]
+]
 
 # 3. Check for known patterns
-$patterns = Get-Patterns -MinSuccessRate 0.7 -MinOccurrences 2
+patterns = get_patterns(min_success_rate=0.7, min_occurrences=2)
 
 # 4. Make informed decision based on memory
 # ... your agent logic here ...
@@ -46,18 +47,17 @@ $patterns = Get-Patterns -MinSuccessRate 0.7 -MinOccurrences 2
 
 ### Check for Anti-Patterns
 
-```powershell
+```python
+from reflexion_memory import get_anti_patterns
+
 # Before implementing a solution, check for known anti-patterns
-Import-Module .claude/skills/memory/scripts/ReflexionMemory.psm1
+anti_patterns = get_anti_patterns(max_success_rate=0.3)
 
-$antiPatterns = Get-AntiPatterns -MaxSuccessRate 0.3
-
-foreach ($ap in $antiPatterns) {
-    Write-Host "AVOID: $($ap.name)"
-    Write-Host "  Failure rate: $((1 - $ap.success_rate) * 100)%"
-    Write-Host "  Trigger: $($ap.trigger)"
-    Write-Host ""
-}
+for ap in anti_patterns:
+    print(f"AVOID: {ap['name']}")
+    print(f"  Failure rate: {(1 - ap['success_rate']) * 100:.0f}%")
+    print(f"  Trigger: {ap['trigger']}")
+    print()
 ```
 
 ## For Human Users
@@ -66,59 +66,56 @@ foreach ($ap in $antiPatterns) {
 
 ```bash
 # Basic search with JSON output
-pwsh .claude/skills/memory/scripts/Search-Memory.ps1 \
-    -Query "git hooks" \
-    -Format Json
+python3 .claude/skills/memory/scripts/search_memory.py \
+    --query "git hooks" \
+    --format json
 
 # Table format for quick review
-pwsh .claude/skills/memory/scripts/Search-Memory.ps1 \
-    -Query "session protocol" \
-    -Format Table
+python3 .claude/skills/memory/scripts/search_memory.py \
+    --query "session protocol" \
+    --format table
 ```
 
 ### Check System Status
 
 ```bash
 # Run comprehensive health check (recommended)
-pwsh .claude/skills/memory/scripts/Test-MemoryHealth.ps1 -Format Table
+python3 .claude/skills/memory/scripts/test_memory_health.py --format table
 
-# Memory Router status
-pwsh -c "Import-Module .claude/skills/memory/scripts/MemoryRouter.psm1; Get-MemoryRouterStatus | ConvertTo-Json"
-
-# Reflexion Memory status
-pwsh -c "Import-Module .claude/skills/memory/scripts/ReflexionMemory.psm1; Get-ReflexionMemoryStatus | ConvertTo-Json"
+# Memory Router status (via MCP tools)
+# Use mcp__serena__list_memories() or mcp__forgetful__execute_forgetful_tool("query_memory", {...})
 ```
 
 ### Extract Episode from Session
 
 ```bash
 # After completing a session
-pwsh .claude/skills/memory/scripts/Extract-SessionEpisode.ps1 \
-    -SessionLogPath ".agents/sessions/.agents/sessions/2026-01-01-session-130.json"
+python3 .claude/skills/memory/scripts/extract_session_episode.py \
+    --session-log-path ".agents/sessions/.agents/sessions/2026-01-01-session-130.json"
 
 # Update causal graph
-pwsh .claude/skills/memory/scripts/Update-CausalGraph.ps1
+python3 .claude/skills/memory/scripts/update_causal_graph.py
 ```
 
 ## Common Patterns
 
 ### Pattern 1: Memory-First Decision Making
 
-```powershell
-# Import both modules
-Import-Module .claude/skills/memory/scripts/MemoryRouter.psm1
-Import-Module .claude/skills/memory/scripts/ReflexionMemory.psm1
+```python
+from memory_router import search_memory
+from reflexion_memory import get_patterns, get_episodes
 
 # Step 1: Search for relevant knowledge
-$knowledge = Search-Memory -Query "topic" -MaxResults 5
+knowledge = search_memory(query="topic", max_results=5)
 
 # Step 2: Check for proven patterns
-$patterns = Get-Patterns -MinSuccessRate 0.7 | Where-Object {
-    $_.trigger -match "topic" -or $_.action -match "topic"
-}
+patterns = [
+    p for p in get_patterns(min_success_rate=0.7)
+    if "topic" in p["trigger"] or "topic" in p["action"]
+]
 
 # Step 3: Review past attempts
-$pastAttempts = Get-Episodes | Where-Object { $_.task -match "topic" }
+past_attempts = [ep for ep in get_episodes() if "topic" in ep["task"]]
 
 # Step 4: Make decision with full context
 # ... decision logic ...
@@ -128,161 +125,160 @@ $pastAttempts = Get-Episodes | Where-Object { $_.task -match "topic" }
 
 ### Pattern 2: Failure Analysis
 
-```powershell
-Import-Module .claude/skills/memory/scripts/ReflexionMemory.psm1
+```python
+from datetime import datetime, timedelta
+from reflexion_memory import get_episodes
 
 # Get recent failures
-$failures = Get-Episodes -Outcome "failure" -Since (Get-Date).AddDays(-30)
+since = datetime.now() - timedelta(days=30)
+failures = get_episodes(outcome="failure", since=since)
 
-foreach ($failure in $failures) {
-    Write-Host "`n=== $($failure.session) ==="
-    Write-Host "Task: $($failure.task)"
+for failure in failures:
+    print(f"\n=== {failure['session']} ===")
+    print(f"Task: {failure['task']}")
 
     # Extract lessons
-    Write-Host "`nLessons:"
-    foreach ($lesson in $failure.lessons) {
-        Write-Host "  - $lesson"
-    }
+    print("\nLessons:")
+    for lesson in failure["lessons"]:
+        print(f"  - {lesson}")
 
     # Find error events
-    $errors = $failure.events | Where-Object { $_.type -eq "error" }
-    if ($errors) {
-        Write-Host "`nErrors:"
-        foreach ($err in $errors) {
-            Write-Host "  - $($err.content)"
-        }
-    }
+    errors = [e for e in failure["events"] if e["type"] == "error"]
+    if errors:
+        print("\nErrors:")
+        for err in errors:
+            print(f"  - {err['content']}")
 
     # Find recovery decisions
-    $recoveries = $failure.decisions | Where-Object { $_.type -eq "recovery" }
-    if ($recoveries) {
-        Write-Host "`nRecoveries Attempted:"
-        foreach ($rec in $recoveries) {
-            Write-Host "  - $($rec.chosen) (Outcome: $($rec.outcome))"
-        }
-    }
-}
+    recoveries = [d for d in failure["decisions"] if d["type"] == "recovery"]
+    if recoveries:
+        print("\nRecoveries Attempted:")
+        for rec in recoveries:
+            print(f"  - {rec['chosen']} (Outcome: {rec['outcome']})")
 ```
 
 ### Pattern 3: Pattern Library Maintenance
 
-```powershell
-Import-Module .claude/skills/memory/scripts/ReflexionMemory.psm1
+```python
+from reflexion_memory import get_patterns
 
 # Get all patterns
-$allPatterns = Get-Patterns
+all_patterns = get_patterns()
 
 # Categorize by success rate
-$highSuccess = $allPatterns | Where-Object { $_.success_rate -ge 0.8 }
-$mediumSuccess = $allPatterns | Where-Object { $_.success_rate -ge 0.5 -and $_.success_rate -lt 0.8 }
-$lowSuccess = $allPatterns | Where-Object { $_.success_rate -lt 0.5 }
+high_success = [p for p in all_patterns if p["success_rate"] >= 0.8]
+medium_success = [p for p in all_patterns if 0.5 <= p["success_rate"] < 0.8]
+low_success = [p for p in all_patterns if p["success_rate"] < 0.5]
 
-Write-Host "=== Pattern Library Summary ==="
-Write-Host "High Success (≥80%): $($highSuccess.Count)"
-Write-Host "Medium Success (50-79%): $($mediumSuccess.Count)"
-Write-Host "Low Success (<50%): $($lowSuccess.Count)"
+print("=== Pattern Library Summary ===")
+print(f"High Success (>=80%): {len(high_success)}")
+print(f"Medium Success (50-79%): {len(medium_success)}")
+print(f"Low Success (<50%): {len(low_success)}")
 
 # Review low success patterns for archival
-foreach ($pattern in $lowSuccess) {
-    Write-Host "`n$($pattern.name):"
-    Write-Host "  Success: $($pattern.success_rate * 100)%"
-    Write-Host "  Uses: $($pattern.occurrences)"
-    Write-Host "  Consider: Archival or revision"
-}
+for pattern in low_success:
+    print(f"\n{pattern['name']}:")
+    print(f"  Success: {pattern['success_rate'] * 100:.0f}%")
+    print(f"  Uses: {pattern['occurrences']}")
+    print("  Consider: Archival or revision")
 ```
 
 ### Pattern 4: Causal Tracing
 
-```powershell
-Import-Module .claude/skills/memory/scripts/ReflexionMemory.psm1
+```python
+from reflexion_memory import get_causal_path
 
 # Find causal path from decision to outcome
-$path = Get-CausalPath `
-    -FromLabel "routing strategy" `
-    -ToLabel "performance target met" `
-    -MaxDepth 5
+path = get_causal_path(
+    from_label="routing strategy",
+    to_label="performance target met",
+    max_depth=5,
+)
 
-if ($path.found) {
-    Write-Host "Causal chain ($($path.depth) steps):"
-    for ($i = 0; $i -lt $path.path.Count; $i++) {
-        $node = $path.path[$i]
-        Write-Host "  $($i + 1). $($node.label) ($($node.type))"
+if path["found"]:
+    print(f"Causal chain ({path['depth']} steps):")
+    for i, node in enumerate(path["path"]):
+        print(f"  {i + 1}. {node['label']} ({node['type']})")
 
         # Show success rate
-        if ($node.success_rate) {
-            Write-Host "     Success rate: $($node.success_rate * 100)%"
-        }
-    }
-}
-else {
-    Write-Host "No causal path found: $($path.error)"
-}
+        if node.get("success_rate"):
+            print(f"     Success rate: {node['success_rate'] * 100:.0f}%")
+else:
+    print(f"No causal path found: {path['error']}")
 ```
 
 ### Pattern 5: Session End Workflow
 
-```powershell
+```bash
 # Complete at end of every session
 
-# 1. Extract episode from session log
-$sessionId = "2026-01-01-session-130"
-$sessionLog = ".agents/sessions/$sessionId.md"
+SESSION_ID="2026-01-01-session-130"
+SESSION_LOG=".agents/sessions/${SESSION_ID}.md"
 
-pwsh .claude/skills/memory/scripts/Extract-SessionEpisode.ps1 -SessionLogPath $sessionLog
+# 1. Extract episode from session log
+python3 .claude/skills/memory/scripts/extract_session_episode.py \
+    --session-log-path "$SESSION_LOG"
 
 # 2. Update causal graph
-pwsh .claude/skills/memory/scripts/Update-CausalGraph.ps1 -EpisodePath ".agents/memory/episodes/episode-$sessionId.json"
+python3 .claude/skills/memory/scripts/update_causal_graph.py \
+    --episode-path ".agents/memory/episodes/episode-${SESSION_ID}.json"
+```
+
+```python
+from reflexion_memory import get_episode, get_reflexion_memory_status
 
 # 3. Verify extraction
-Import-Module .claude/skills/memory/scripts/ReflexionMemory.psm1
-$episode = Get-Episode -SessionId $sessionId
+episode = get_episode(session_id="2026-01-01-session-130")
 
-Write-Host "Episode verified:"
-Write-Host "  Outcome: $($episode.outcome)"
-Write-Host "  Decisions: $($episode.decisions.Count)"
-Write-Host "  Events: $($episode.events.Count)"
-Write-Host "  Lessons: $($episode.lessons.Count)"
+print("Episode verified:")
+print(f"  Outcome: {episode['outcome']}")
+print(f"  Decisions: {len(episode['decisions'])}")
+print(f"  Events: {len(episode['events'])}")
+print(f"  Lessons: {len(episode['lessons'])}")
 
 # 4. Check causal graph update
-$status = Get-ReflexionMemoryStatus
-Write-Host "`nCausal graph:"
-Write-Host "  Nodes: $($status.CausalGraph.Nodes)"
-Write-Host "  Edges: $($status.CausalGraph.Edges)"
-Write-Host "  Patterns: $($status.CausalGraph.Patterns)"
+status = get_reflexion_memory_status()
+print("\nCausal graph:")
+print(f"  Nodes: {status['causal_graph']['nodes']}")
+print(f"  Edges: {status['causal_graph']['edges']}")
+print(f"  Patterns: {status['causal_graph']['patterns']}")
 ```
 
 ## Integration with Session Protocol
 
 ### Session Start
 
-```powershell
+```python
+from datetime import datetime, timedelta
+from memory_router import search_memory
+from reflexion_memory import get_episodes
+
 # Required step in SESSION-PROTOCOL.md
 
 # 1. Read usage-mandatory memory
-Import-Module .claude/skills/memory/scripts/MemoryRouter.psm1
-$mandatory = Search-Memory -Query "usage-mandatory" -LexicalOnly
+mandatory = search_memory(query="usage-mandatory", lexical_only=True)
 
 # 2. Search for relevant project memories
-$projectContext = Search-Memory -Query "project phase 2A" -MaxResults 10
+project_context = search_memory(query="project phase 2A", max_results=10)
 
 # 3. Review recent episodes
-Import-Module .claude/skills/memory/scripts/ReflexionMemory.psm1
-$recentEpisodes = Get-Episodes -Since (Get-Date).AddDays(-7) -MaxResults 5
+since = datetime.now() - timedelta(days=7)
+recent_episodes = get_episodes(since=since, max_results=5)
 
 # Now proceed with session work...
 ```
 
 ### Session End
 
-```powershell
+```bash
 # Required step in SESSION-PROTOCOL.md
 
 # 1. Extract episode
-pwsh .claude/skills/memory/scripts/Extract-SessionEpisode.ps1 \
-    -SessionLogPath ".agents/sessions/$(Get-Date -Format 'yyyy-MM-dd')-session-*.md"
+python3 .claude/skills/memory/scripts/extract_session_episode.py \
+    --session-log-path ".agents/sessions/$(date +%Y-%m-%d)-session-*.md"
 
 # 2. Update causal graph
-pwsh .claude/skills/memory/scripts/Update-CausalGraph.ps1
+python3 .claude/skills/memory/scripts/update_causal_graph.py
 
 # 3. Commit changes (including episodes and causality)
 git add .agents/memory/episodes/ .agents/memory/causality/
@@ -293,112 +289,112 @@ git commit -m "session: Extract episode and update causal graph"
 
 ### When to Use LexicalOnly
 
-```powershell
-# Use LexicalOnly when:
+```python
+from memory_router import search_memory
+
+# Use lexical_only when:
 # - Forgetful is unavailable
 # - Performance is critical
 # - Exact keyword matching is needed
 
-$results = Search-Memory -Query "exact term" -LexicalOnly
+results = search_memory(query="exact term", lexical_only=True)
 ```
 
 ### When to Use SemanticOnly
 
-```powershell
-# Use SemanticOnly when:
+```python
+from memory_router import search_memory
+
+# Use semantic_only when:
 # - Need conceptual similarity
 # - Keywords are ambiguous
 # - Exploring related topics
 
-try {
-    $results = Search-Memory -Query "authentication security" -SemanticOnly
-}
-catch {
-    Write-Warning "Forgetful unavailable, falling back to lexical"
-    $results = Search-Memory -Query "authentication security" -LexicalOnly
-}
+try:
+    results = search_memory(query="authentication security", semantic_only=True)
+except RuntimeError:
+    print("WARNING: Forgetful unavailable, falling back to lexical")
+    results = search_memory(query="authentication security", lexical_only=True)
 ```
 
 ### Caching Results
 
-```powershell
-# Cache frequently accessed memories in session
-$script:MemoryCache = @{}
+```python
+from functools import lru_cache
+from memory_router import search_memory
 
-function Get-CachedMemory {
-    param([string]$Query)
-
-    if (-not $script:MemoryCache.ContainsKey($Query)) {
-        $script:MemoryCache[$Query] = Search-Memory -Query $Query
-    }
-
-    return $script:MemoryCache[$Query]
-}
+@lru_cache(maxsize=64)
+def get_cached_memory(query: str) -> list:
+    """Cache frequently accessed memories within a session."""
+    return search_memory(query=query)
 
 # Use cached results
-$results = Get-CachedMemory -Query "PowerShell arrays"
+results = get_cached_memory("array handling patterns")
 ```
 
 ## Troubleshooting
 
 ### No Results from Search
 
-```powershell
-# Check system status first
-$status = Get-MemoryRouterStatus
+```python
+from pathlib import Path
+from memory_router import get_memory_router_status, search_memory
 
-if (-not $status.Serena.Available) {
-    Write-Error "Serena not available at: $($status.Serena.Path)"
-}
+# Check system status first
+status = get_memory_router_status()
+
+if not status["serena"]["available"]:
+    raise RuntimeError(f"Serena not available at: {status['serena']['path']}")
 
 # Verify memory files exist
-$memoryCount = (Get-ChildItem $status.Serena.Path -Filter "*.md").Count
-Write-Host "Memory files: $memoryCount"
+memory_path = Path(status["serena"]["path"])
+memory_count = len(list(memory_path.glob("*.md")))
+print(f"Memory files: {memory_count}")
 
 # Try broader query
-$results = Search-Memory -Query "PowerShell" -MaxResults 20
+results = search_memory(query="general topic", max_results=20)
 ```
 
 ### Episode Not Found
 
-```powershell
+```bash
 # Check if episode file exists
-$episodePath = ".agents/memory/episodes/episode-2026-01-01-session-126.json"
-if (-not (Test-Path $episodePath)) {
-    Write-Warning "Episode not extracted yet"
+EPISODE_PATH=".agents/memory/episodes/episode-2026-01-01-session-126.json"
+if [ ! -f "$EPISODE_PATH" ]; then
+    echo "WARNING: Episode not extracted yet"
 
     # Extract from session log
-    $sessionLog = ".agents/sessions/.agents/sessions/2026-01-01-session-126.json"
-    if (Test-Path $sessionLog) {
-        pwsh .claude/skills/memory/scripts/Extract-SessionEpisode.ps1 -SessionLogPath $sessionLog
-    }
-}
+    SESSION_LOG=".agents/sessions/2026-01-01-session-126.json"
+    if [ -f "$SESSION_LOG" ]; then
+        python3 .claude/skills/memory/scripts/extract_session_episode.py \
+            --session-log-path "$SESSION_LOG"
+    fi
+fi
 ```
 
 ### Forgetful Not Available
 
-```powershell
+```python
+from memory_router import test_forgetful_available, search_memory
+
 # Check Forgetful health
-Import-Module .claude/skills/memory/scripts/MemoryRouter.psm1
+available = test_forgetful_available(force=True)
 
-$available = Test-ForgetfulAvailable -Force
-
-if (-not $available) {
-    Write-Warning "Forgetful not available"
-    Write-Host "Solutions:"
-    Write-Host "  1. Start Forgetful: systemctl --user start forgetful"
-    Write-Host "  2. Check port: netstat -an | grep 8020"
-    Write-Host "  3. Use -LexicalOnly: Search-Memory -Query 'test' -LexicalOnly"
-}
+if not available:
+    print("WARNING: Forgetful not available")
+    print("Solutions:")
+    print("  1. Start Forgetful: systemctl --user start forgetful")
+    print("  2. Check port: ss -tlnp | grep 8020")
+    print("  3. Use lexical_only: search_memory(query='test', lexical_only=True)")
 ```
 
 ## Best Practices
 
 ### For Agents
 
-1. **Always search before deciding**: Use `Search-Memory` at task start
-2. **Check patterns**: Use `Get-Patterns` to find proven approaches
-3. **Avoid anti-patterns**: Use `Get-AntiPatterns` before implementing
+1. **Always search before deciding**: Use `search_memory()` at task start
+2. **Check patterns**: Use `get_patterns()` to find proven approaches
+3. **Avoid anti-patterns**: Use `get_anti_patterns()` before implementing
 4. **Learn from failures**: Query past failures for similar scenarios
 5. **Record decisions**: Ensure episodes capture decision rationale
 
@@ -412,29 +408,34 @@ if (-not $available) {
 
 ### For Memory Queries
 
-1. **Use specific queries**: "PowerShell array handling" not "arrays"
-2. **Limit results**: Use `-MaxResults` to avoid information overload
+1. **Use specific queries**: "array handling patterns" not "arrays"
+2. **Limit results**: Use `max_results` to avoid information overload
 3. **Try both modes**: Compare lexical vs semantic for ambiguous queries
 4. **Cache frequent queries**: Reuse results within a session
-5. **Check availability**: Use `Get-MemoryRouterStatus` if queries fail
+5. **Check availability**: Use `get_memory_router_status()` if queries fail
 
 ## Examples by Use Case
 
 ### Use Case: Implementing New Feature
 
-```powershell
+```python
+from memory_router import search_memory
+from reflexion_memory import get_patterns, get_episodes
+
 # 1. Search for similar features
-$similar = Search-Memory -Query "feature implementation patterns" -MaxResults 10
+similar = search_memory(query="feature implementation patterns", max_results=10)
 
 # 2. Check proven design patterns
-$patterns = Get-Patterns -MinSuccessRate 0.8 | Where-Object {
-    $_.trigger -match "design" -or $_.action -match "architecture"
-}
+patterns = [
+    p for p in get_patterns(min_success_rate=0.8)
+    if "design" in p["trigger"] or "architecture" in p["action"]
+]
 
 # 3. Review past feature implementations
-$pastFeatures = Get-Episodes | Where-Object {
-    $_.task -match "implement" -and $_.outcome -eq "success"
-}
+past_features = [
+    ep for ep in get_episodes()
+    if "implement" in ep["task"] and ep["outcome"] == "success"
+]
 
 # 4. Implement with full context
 # ... implementation ...
@@ -442,17 +443,25 @@ $pastFeatures = Get-Episodes | Where-Object {
 
 ### Use Case: Debugging Issue
 
-```powershell
+```python
+from memory_router import search_memory
+from reflexion_memory import get_episodes, get_patterns
+
 # 1. Search for error patterns
-$errorPatterns = Search-Memory -Query "error message text" -MaxResults 5
+error_patterns = search_memory(query="error message text", max_results=5)
 
 # 2. Find past similar errors
-$pastErrors = Get-Episodes | Where-Object {
-    $_.events | Where-Object { $_.type -eq "error" -and $_.content -match "error pattern" }
-}
+past_errors = [
+    ep for ep in get_episodes()
+    if any(e["type"] == "error" and "error pattern" in e["content"]
+           for e in ep["events"])
+]
 
 # 3. Check recovery patterns
-$recoveries = Get-Patterns | Where-Object { $_.trigger -match "error pattern" }
+recoveries = [
+    p for p in get_patterns()
+    if "error pattern" in p["trigger"]
+]
 
 # 4. Apply recovery strategy
 # ... debugging ...
@@ -460,17 +469,21 @@ $recoveries = Get-Patterns | Where-Object { $_.trigger -match "error pattern" }
 
 ### Use Case: Code Review
 
-```powershell
+```python
+from memory_router import search_memory
+from reflexion_memory import get_anti_patterns, get_episodes
+
 # 1. Search for coding standards
-$standards = Search-Memory -Query "PowerShell code style" -MaxResults 5
+standards = search_memory(query="code style guidelines", max_results=5)
 
 # 2. Check for anti-patterns in code
-$antiPatterns = Get-AntiPatterns
+anti_patterns = get_anti_patterns()
 
 # 3. Review past code review findings
-$pastReviews = Get-Episodes | Where-Object {
-    $_.task -match "review" -and $_.lessons.Count -gt 0
-}
+past_reviews = [
+    ep for ep in get_episodes()
+    if "review" in ep["task"] and len(ep["lessons"]) > 0
+]
 
 # 4. Perform review with context
 # ... review ...

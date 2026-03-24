@@ -36,7 +36,7 @@ You have direct access to:
 - **Write**: Create documentation
 - **Bash**: `gh issue create` for GitHub issues
 - **Memory Router** (ADR-037): Unified search across Serena + Forgetful
-  - `pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "topic"`
+  - `python3 .claude/skills/memory/scripts/search_memory.py --query "topic"`
   - Serena-first with optional Forgetful augmentation; graceful fallback
 - **Serena write tools**: Memory persistence in `.serena/memories/`
   - `mcp__serena__write_memory`: Create new memory
@@ -217,6 +217,22 @@ Save to: `.agents/planning/PRD-[feature-name].md`
 ## Technical Considerations (Optional)
 [Technical constraints, dependencies]
 
+## Installation Artifacts (Required when feature involves installation or distribution)
+
+### Required Files for User Installation
+
+| File | Location | Purpose | Audience | Verified |
+|------|----------|---------|----------|----------|
+| [filename] | [src/env/path] | [purpose] | [User/Contributor] | [ ] |
+
+### Configuration References Audit
+
+| Config Key | Referenced File | Exists | Correct Audience |
+|------------|-----------------|--------|------------------|
+| [key] | [filename] | [ ] | [ ] |
+
+> QA acceptance criteria MUST include an end-to-end installation test when this section is populated.
+
 ## Success Metrics
 [How success will be measured]
 
@@ -259,8 +275,8 @@ Use Memory Router for search and Serena tools for persistence (ADR-037):
 
 **Before writing (retrieve context):**
 
-```powershell
-pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "documentation patterns [feature/topic]"
+```bash
+python3 .claude/skills/memory/scripts/search_memory.py --query "documentation patterns [feature/topic]"
 ```
 
 **After writing (store learnings):**

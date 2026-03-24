@@ -9,7 +9,7 @@ NEW -> ACKNOWLEDGED (eyes reaction) -> REPLIED -> RESOLVED (thread marked resolv
 
 Exit codes follow ADR-035:
     0 - Success
-    1 - Invalid parameters / logic error
+    2 - Config/usage error (invalid parameters)
     3 - External error (API failure)
     4 - Auth error
 """
@@ -58,11 +58,11 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
 
     if args.pull_request <= 0:
-        error_and_exit("Pull request number must be positive.", 1)
+        error_and_exit("Pull request number must be positive.", 2)
 
     assert_gh_authenticated()
     resolved = resolve_repo_params(args.owner, args.repo)
-    owner, repo = resolved["Owner"], resolved["Repo"]
+    owner, repo = resolved.owner, resolved.repo
 
     threads = get_unresolved_review_threads(owner, repo, args.pull_request)
     print(json.dumps(threads, indent=2))

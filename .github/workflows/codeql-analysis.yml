@@ -51,10 +51,15 @@ jobs:
       # Parentheses added for explicit operator precedence (&&  has higher precedence than ||)
       should-run-analysis: ${{ (github.event_name == 'workflow_dispatch' && 'true') || (github.event_name == 'schedule' && 'true') || steps.filter.outputs.scannable }}
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@58077d3c7e43986b6b15fba718e8ea69e387dfcc # v2.15.1
+        with:
+          egress-policy: audit
+
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Check for scannable file changes
-        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3
+        uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4
         id: filter
         # Skip paths-filter for workflow_dispatch/schedule as they may not have proper context
         if: github.event_name != 'workflow_dispatch' && github.event_name != 'schedule'
@@ -116,6 +121,11 @@ jobs:
             build-mode: none
 
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@58077d3c7e43986b6b15fba718e8ea69e387dfcc # v2.15.1
+        with:
+          egress-policy: audit
+
       - name: Checkout repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
@@ -128,7 +138,7 @@ jobs:
 
       - name: Initialize CodeQL
         if: needs.check-paths.outputs.should-run-analysis == 'true'
-        uses: github/codeql-action/init@2588666de8825e1e9dc4e2329a4c985457d55b32 # v3
+        uses: github/codeql-action/init@0d579ffd059c29b07949a3cce3983f0780820c98 # v4
         with:
           languages: ${{ matrix.language }}
           config-file: .github/codeql/codeql-config.yml
@@ -136,7 +146,7 @@ jobs:
 
       - name: Perform CodeQL Analysis
         if: needs.check-paths.outputs.should-run-analysis == 'true'
-        uses: github/codeql-action/analyze@2588666de8825e1e9dc4e2329a4c985457d55b32 # v3
+        uses: github/codeql-action/analyze@0d579ffd059c29b07949a3cce3983f0780820c98 # v4
         with:
           category: '/language:${{ matrix.language }}'
           upload: true
@@ -144,7 +154,7 @@ jobs:
 
       - name: Upload SARIF artifact
         if: always() && needs.check-paths.outputs.should-run-analysis == 'true'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
         with:
           name: codeql-results-${{ matrix.language }}
           path: .codeql/results/${{ matrix.language }}.sarif
@@ -161,6 +171,11 @@ jobs:
       contents: read
       checks: write
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@58077d3c7e43986b6b15fba718e8ea69e387dfcc # v2.15.1
+        with:
+          egress-policy: audit
+
       - name: Checkout repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
@@ -186,7 +201,7 @@ jobs:
           )
 
       - name: Publish Analysis Report (skipped)
-        uses: dorny/test-reporter@31a54ee7ebcacc03a09ea97a7e5465a47b84aea5 # v1
+        uses: dorny/test-reporter@3d76b34a4535afbd0600d347b09a6ee5deb3ed7f # v2
         if: always()
         with:
           name: CodeQL Analysis Report
@@ -204,11 +219,16 @@ jobs:
       contents: read
       security-events: read
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@58077d3c7e43986b6b15fba718e8ea69e387dfcc # v2.15.1
+        with:
+          egress-policy: audit
+
       - name: Checkout repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Download all SARIF artifacts
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           pattern: codeql-results-*
           path: ./sarif-results

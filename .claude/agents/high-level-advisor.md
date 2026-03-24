@@ -52,8 +52,8 @@ Query these Serena memories when relevant:
 
 Access via Memory Router or direct file read:
 
-```powershell
-pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "[memory-name]" -LexicalOnly
+```bash
+python3 .claude/skills/memory/scripts/search_memory.py --query "[memory-name]" --lexical-only
 # Or read directly:
 Read .serena/memories/[memory-name].md
 ```
@@ -65,7 +65,7 @@ You have direct access to:
 - **Read/Grep/Glob**: Analyze codebase for evidence
 - **WebSearch**: Research industry practices
 - **Memory Router** (ADR-037): Unified search across Serena + Forgetful
-  - `pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "topic"`
+  - `python3 .claude/skills/memory/scripts/search_memory.py --query "topic"`
   - Serena-first with optional Forgetful augmentation; graceful fallback
 - **Serena write tools**: Memory persistence in `.serena/memories/`
   - `mcp__serena__write_memory`: Create new memory
@@ -142,8 +142,8 @@ Use Memory Router for search and Serena tools for persistence (ADR-037):
 
 **Before strategic decisions (retrieve context):**
 
-```powershell
-pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "strategic decisions priorities [domain]"
+```bash
+python3 .claude/skills/memory/scripts/search_memory.py --query "strategic decisions priorities [domain]"
 ```
 
 **After decisions (store learnings):**

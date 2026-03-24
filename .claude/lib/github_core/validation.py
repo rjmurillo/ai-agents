@@ -56,7 +56,10 @@ def is_safe_file_path(path: str, allowed_base: str | None = None) -> bool:
 
     try:
         if allowed_base is None:
-            allowed_base = os.getcwd()
+            from .repo import get_repo_root
+
+            repo_root = get_repo_root()
+            allowed_base = str(repo_root) if repo_root is not None else os.getcwd()
         resolved_path = str(Path(path).resolve())
         resolved_base = str(Path(allowed_base).resolve())
         return resolved_path == resolved_base or resolved_path.startswith(
@@ -81,4 +84,4 @@ def assert_valid_body_file(body_file: str, allowed_base: str | None = None) -> N
         error_and_exit(f"Body file not found: {body_file}", 2)
 
     if not is_safe_file_path(body_file, allowed_base):
-        error_and_exit(f"Body file path traversal not allowed: {body_file}", 1)
+        error_and_exit(f"Body file path traversal not allowed: {body_file}", 2)

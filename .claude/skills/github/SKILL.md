@@ -39,6 +39,8 @@ Use these scripts instead of raw `gh` commands for consistent error handling and
 | `check CI status` | get_pr_checks.py / get_pr_check_logs.py |
 | `close issue` | close_pr.py / set_issue_labels.py |
 | `add label to issue` | set_issue_labels.py |
+| `list actionable items` | get_actionable_items.py |
+| `check notifications` | get_actionable_items.py |
 
 ---
 
@@ -59,6 +61,7 @@ Need GitHub data?
 ├─ Issue info → get_issue_context.py
 ├─ Merge readiness check → test_pr_merge_ready.py
 ├─ Latest milestone → get_latest_semantic_milestone.py
+├─ Actionable backlog → get_actionable_items.py
 └─ Need to take action?
    ├─ Create issue → new_issue.py
    ├─ Create PR → new_pr.py
@@ -87,9 +90,9 @@ Need GitHub data?
 
 | Script | Purpose | Key Parameters |
 |--------|---------|----------------|
-| `get_pull_requests.py` | List PRs with filters | `--state`, `--label`, `--author`, `--base`, `--head`, `--limit` |
+| `get_pull_requests.py` | List PRs with filters | `--state`, `--label`, `--author`, `--base`, `--head`, `--search`, `--limit` |
 | `get_pr_context.py` | PR metadata, diff, files | `--pull-request`, `--include-changed-files`, `--include-diff` |
-| `get_pr_checks.py` | CI check status, polling | `--pull-request`, `--wait`, `--timeout-seconds`, `--required-only` |
+| `get_pr_checks.py` | CI check status, polling | `--pull-request`, `--wait`, `--timeout-seconds`, `--required-only`, `--output-format {json,text}` |
 | `get_pr_check_logs.py` | Fetch logs from failing CI checks | `--pull-request`, `--max-lines`, `--context-lines` |
 | `get_pr_review_comments.py` | Paginated review comments with stale detection | `--pull-request`, `--include-issue-comments`, `--detect-stale`, `--exclude-stale`, `--only-stale` |
 | `get_pr_review_threads.py` | Thread-level review data | `--pull-request`, `--unresolved-only` |
@@ -136,6 +139,12 @@ Need GitHub data?
 |--------|---------|----------------|
 | `add_comment_reaction.py` | Add emoji reactions (batch support) | `--comment-ids`, `--reaction`, `--comment-type` |
 
+### Notifications (`scripts/notifications/`)
+
+| Script | Purpose | Key Parameters |
+|--------|---------|----------------|
+| `get_actionable_items.py` | List actionable backlog (reviews, authored PRs, assigned issues) | `--owner`, `--repo`, `--limit` |
+
 ### Utilities (`scripts/utils/`)
 
 | Script | Purpose | Key Parameters |
@@ -155,7 +164,8 @@ Need GitHub data?
 All scripts output structured JSON:
 
 ```bash
-result=$(python3 .claude/skills/github/scripts/pr/get_pr_context.py --pull-request 50)
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+result=$(python3 "$SCRIPTS_DIR/pr/get_pr_context.py" --pull-request 50)
 echo "$result" | jq '.Title'
 ```
 
@@ -177,14 +187,16 @@ This skill provides a toolkit of Python scripts for GitHub operations. Use scrip
 **Example Flow:**
 
 ```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+
 # Get PR context
-python3 .claude/skills/github/scripts/pr/get_pr_context.py --pull-request 123
+python3 "$SCRIPTS_DIR/pr/get_pr_context.py" --pull-request 123
 
 # Check CI status
-python3 .claude/skills/github/scripts/pr/get_pr_checks.py --pull-request 123
+python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request 123
 
 # Add comment if needed
-python3 .claude/skills/github/scripts/pr/post_pr_comment_reply.py --pull-request 123 --body "CI failures detected"
+python3 "$SCRIPTS_DIR/pr/post_pr_comment_reply.py" --pull-request 123 --comment-id 456 --body "CI failures detected"
 ```
 
 ---
@@ -201,6 +213,7 @@ python3 .claude/skills/github/scripts/pr/post_pr_comment_reply.py --pull-request
 | Hardcoding owner/repo | Breaks in forks | Let scripts infer from `git remote` |
 | Ignoring exit codes | Missing error handling | Check exit codes per ADR-035 |
 | Skipping idempotency markers | Duplicate comments | Use `--marker` parameter |
+| Raw `gh notify` or notifications API | 403 with app tokens | Use `get_actionable_items.py` |
 
 ---
 

@@ -12,6 +12,7 @@ import pytest
 
 from scripts.github_core import (
     RateLimitResult,
+    RepoInfo,
     assert_gh_authenticated,
     assert_valid_body_file,
     check_workflow_rate_limit,
@@ -134,11 +135,18 @@ class TestIsSafeFilePath:
         bad_path = str(tmp_path / ".." / "escape.txt")
         assert is_safe_file_path(bad_path, str(tmp_path)) is False
 
-    def test_default_base_is_cwd(self, tmp_path: Path):
+    def test_default_base_is_repo_root(self, tmp_path: Path):
         child = tmp_path / "file.txt"
         child.touch()
-        with patch("os.getcwd", return_value=str(tmp_path)):
+        with patch("scripts.github_core.repo.get_repo_root", return_value=tmp_path):
             assert is_safe_file_path(str(child)) is True
+
+    def test_default_base_falls_back_to_cwd(self, tmp_path: Path):
+        child = tmp_path / "file.txt"
+        child.touch()
+        with patch("scripts.github_core.repo.get_repo_root", return_value=None):
+            with patch("os.getcwd", return_value=str(tmp_path)):
+                assert is_safe_file_path(str(child)) is True
 
     def test_rejects_backslash_traversal(self):
         assert is_safe_file_path("foo\\..\\bar") is False
@@ -183,7 +191,7 @@ class TestAssertValidBodyFile:
             traversal_path = str(tmp_path / ".." / "body.md")
             with pytest.raises(SystemExit) as exc:
                 assert_valid_body_file(traversal_path, str(tmp_path))
-            assert exc.value.code == 1
+            assert exc.value.code == 2
         finally:
             f.unlink(missing_ok=True)
 
@@ -215,13 +223,13 @@ class TestGetRepoInfo:
         stdout = "https://github.com/rjmurillo/ai-agents.git\n"
         with patch("subprocess.run", return_value=_completed(stdout=stdout)):
             info = get_repo_info()
-        assert info == {"Owner": "rjmurillo", "Repo": "ai-agents"}
+        assert info == RepoInfo(owner="rjmurillo", repo="ai-agents")
 
     def test_parses_ssh_remote(self):
         stdout = "git@github.com:myorg/myrepo.git\n"
         with patch("subprocess.run", return_value=_completed(stdout=stdout)):
             info = get_repo_info()
-        assert info == {"Owner": "myorg", "Repo": "myrepo"}
+        assert info == RepoInfo(owner="myorg", repo="myrepo")
 
     def test_returns_none_when_not_git_repo(self):
         with patch("subprocess.run", return_value=_completed(rc=1, stderr="fatal")):
@@ -236,41 +244,51 @@ class TestGetRepoInfo:
         with patch("subprocess.run", return_value=_completed(stdout=stdout)):
             info = get_repo_info()
         assert info is not None
-        assert info["Repo"] == "repo"
+        assert info.repo == "repo"
 
     def test_returns_none_on_file_not_found(self):
         with patch("subprocess.run", side_effect=FileNotFoundError):
             assert get_repo_info() is None
 
+    def test_returns_repo_info_type(self):
+        stdout = "https://github.com/owner/repo.git\n"
+        with patch("subprocess.run", return_value=_completed(stdout=stdout)):
+            info = get_repo_info()
+        assert isinstance(info, RepoInfo)
+
 
 class TestResolveRepoParams:
     def test_uses_provided_params(self):
         result = resolve_repo_params("myowner", "myrepo")
-        assert result == {"Owner": "myowner", "Repo": "myrepo"}
+        assert result == RepoInfo(owner="myowner", repo="myrepo")
 
     def test_infers_from_git_remote(self):
         with patch(
             "scripts.github_core.api.get_repo_info",
-            return_value={"Owner": "inferred", "Repo": "repo"},
+            return_value=RepoInfo(owner="inferred", repo="repo"),
         ):
             result = resolve_repo_params()
-        assert result == {"Owner": "inferred", "Repo": "repo"}
+        assert result == RepoInfo(owner="inferred", repo="repo")
 
     def test_exits_when_cannot_infer(self):
         with patch("scripts.github_core.api.get_repo_info", return_value=None):
             with pytest.raises(SystemExit) as exc:
                 resolve_repo_params()
-            assert exc.value.code == 1
+            assert exc.value.code == 2
 
     def test_exits_on_invalid_owner(self):
         with pytest.raises(SystemExit) as exc:
             resolve_repo_params("-bad", "repo")
-        assert exc.value.code == 1
+        assert exc.value.code == 2
 
     def test_exits_on_invalid_repo(self):
         with pytest.raises(SystemExit) as exc:
             resolve_repo_params("owner", "bad/repo/name!")
-        assert exc.value.code == 1
+        assert exc.value.code == 2
+
+    def test_returns_repo_info_type(self):
+        result = resolve_repo_params("owner", "repo")
+        assert isinstance(result, RepoInfo)
 
 
 # ---------------------------------------------------------------------------

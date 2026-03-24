@@ -33,6 +33,7 @@ from scripts.github_core.api import (  # noqa: E402
     get_all_prs_with_comments,
     resolve_repo_params,
 )
+from scripts.github_core.repo import get_repo_root  # noqa: E402
 from scripts.llm_classification import (  # noqa: E402
     LLMClassifier,
     LLMFallbackConfig,
@@ -585,8 +586,8 @@ def main(argv: list[str] | None = None) -> int:
         logger.exception("Failed to resolve repository parameters")
         return 2
 
-    owner = repo_params["Owner"]
-    repo = repo_params["Repo"]
+    owner = repo_params.owner
+    repo = repo_params.repo
     logger.info("Repository: %s/%s", owner, repo)
 
     # Calculate date range
@@ -631,18 +632,8 @@ def main(argv: list[str] | None = None) -> int:
     total_comments = sum(s.total_comments for s in signal_stats.values())
 
     # Update Serena memory (source of truth)
-    try:
-        import subprocess
-
-        result = subprocess.run(
-            ["git", "rev-parse", "--show-toplevel"],
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-        repo_root = result.stdout.strip() if result.returncode == 0 else "."
-    except (subprocess.TimeoutExpired, FileNotFoundError):
-        repo_root = "."
+    root = get_repo_root()
+    repo_root = str(root) if root is not None else "."
 
     memory_full_path = os.path.join(repo_root, MEMORY_PATH)
     update_serena_memory(signal_stats, len(prs), args.days_back, memory_full_path)
