@@ -1,4 +1,4 @@
-# Template Strategy (ADR-051) - Architect Debate Log
+# Template Strategy (ADR-052) - Architect Debate Log
 
 ## Date
 
@@ -31,7 +31,7 @@ PR #1236 introduces the template strategy decision for multi-platform agent dist
 
 | Severity | Finding | Resolution |
 |----------|---------|------------|
-| Warning | PR title references ADR-048 but file is ADR-051 | PR title is metadata, not file content. No file change needed. |
+| Warning | PR title references ADR-048 but file is ADR-052 | PR title is metadata, not file content. No file change needed. |
 
 ## Decision
 

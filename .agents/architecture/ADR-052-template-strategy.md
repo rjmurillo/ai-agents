@@ -1,8 +1,8 @@
-# ADR-051: Template Strategy for Multi-Platform Agent Distribution
+# ADR-052: Template Strategy for Multi-Platform Agent Distribution
 
 ## Status
 
-Proposed (next available number after ADR-050). Supersedes ADR-036.
+Proposed. Supersedes ADR-036.
 
 ## Author
 
@@ -16,7 +16,7 @@ rjmurillo-bot (autonomous session, Issue #124)
 
 ADR-036 (Two-Source Agent Template Architecture, 2026-01-01) established the current three-layer system: shared templates as the canonical source, with Claude Code and platform variants generated from them. The intent was a single source of truth with automated synchronization.
 
-That model failed. The 2025-12-15 drift analysis measured 2-13% similarity between templates and Claude agents. Contributors iterated directly on Claude agents, bypassing templates entirely. The template layer became dead code that no process enforced or maintained. ADR-051 replaces the template-first model with a Claude-first model that formalizes existing contributor behavior.
+That model failed. The 2025-12-15 drift analysis measured 2-13% similarity between templates and Claude agents. Contributors iterated directly on Claude agents, bypassing templates entirely. The template layer became dead code that no process enforced or maintained. ADR-052 replaces the template-first model with a Claude-first model that formalizes existing contributor behavior.
 
 ## Context
 

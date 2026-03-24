@@ -52,7 +52,7 @@ You are reviewing a pull request for architectural design and system structure c
 - Are new patterns, frameworks, or dependencies being introduced without ADR?
 - Is there a technology choice that should be documented?
 - Are trade-offs being made that future maintainers need to understand?
-- Only reference ADR files that appear in the provided diff. Do not assume or invent ADR files that are not shown.
+- Check `.agents/architecture/` or `docs/adr/` for existing ADRs
 
 **ADR-worthy decisions include**:
 
