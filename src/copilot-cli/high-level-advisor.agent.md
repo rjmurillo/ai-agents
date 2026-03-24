@@ -8,7 +8,8 @@ tools:
   - search
   - cloudmcp-manager/*
   - serena/*
-model: claude-opus-4.5
+model: claude-opus-4.6
+tier: expert
 ---
 # High-Level Advisor Agent
 

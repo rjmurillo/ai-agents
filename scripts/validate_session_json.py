@@ -28,7 +28,7 @@ _PROJECT_ROOT = _SCRIPT_DIR.parent
 sys.path.insert(0, str(_PROJECT_ROOT))
 
 from scripts.utils.path_validation import validate_safe_path  # noqa: E402
-from scripts.validation.types import ValidationResult  # noqa: E402
+from scripts.validation.models import ValidationResult  # noqa: E402
 
 # Required session fields
 REQUIRED_SESSION_FIELDS = frozenset({"number", "date", "branch", "startingCommit", "objective"})
@@ -74,7 +74,7 @@ CONTRADICTION_PATTERNS = re.compile(
 _LEGACY_HANDOFF_FIELD = "handoffNotUpdated"
 
 
-def get_case_insensitive(data: dict[str, Any], key: str) -> Any | None:
+def get_case_insensitive(data: dict[str, Any], key: str) -> Any | None:  # noqa: ANN401
     """Get value from dict with case-insensitive key lookup.
 
     Args:

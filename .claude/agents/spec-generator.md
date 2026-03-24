@@ -2,6 +2,8 @@
 name: spec-generator
 description: Spec generation specialist who transforms vibe-level feature descriptions into structured 3-tier specifications using EARS requirements format. Guides users through clarifying questions, then produces requirements.md, design.md, and tasks.md with full traceability. Use when a feature idea needs to become an implementable specification.
 model: sonnet
+metadata:
+  tier: integration
 argument-hint: Describe the feature or capability you want to specify
 ---
 # Spec Generator Agent
@@ -36,7 +38,7 @@ You have direct access to:
 - **Write**: Create specification documents
 - **TodoWrite**: Track specification progress
 - **Memory Router** (ADR-037): Unified search across Serena + Forgetful
-  - `pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "topic"`
+  - `python3 .claude/skills/memory/scripts/search_memory.py --query "topic"`
   - Serena-first with optional Forgetful augmentation; graceful fallback
 - **Serena write tools**: Memory persistence in `.serena/memories/`
   - `mcp__serena__write_memory`: Create new memory
@@ -371,8 +373,8 @@ Use Memory Router for search and Serena tools for persistence (ADR-037):
 
 **Before specification (retrieve context):**
 
-```powershell
-pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "spec [feature-type] patterns"
+```bash
+python3 .claude/skills/memory/scripts/search_memory.py --query "spec [feature-type] patterns"
 ```
 
 **After specification (store learnings):**

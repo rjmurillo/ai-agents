@@ -29,7 +29,7 @@ import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from scripts.validation.types import ValidationResult
+from scripts.validation.models import ValidationResult
 
 # Valid model identifiers (from .agents/analysis/claude-code-skill-frontmatter-2026.md)
 VALID_MODEL_ALIASES: frozenset[str] = frozenset(

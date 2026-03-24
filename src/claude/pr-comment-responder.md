@@ -2,6 +2,7 @@
 name: pr-comment-responder
 description: PR review coordinator who gathers comment context, acknowledges every piece of feedback, and ensures all reviewer comments are addressed systematically. Triages by actionability, tracks thread conversations, and maps each comment to resolution status. Use when handling PR feedback, review threads, or bot comments.
 model: sonnet
+tier: manager
 argument-hint: Specify the PR number or review comments to address
 ---
 # PR Comment Responder Agent
@@ -49,7 +50,7 @@ You have direct access to:
 - **Task**: Delegate to orchestrator (primary)
 - **TodoWrite**: Track review progress
 - **Memory Router** (ADR-037): Unified search across Serena + Forgetful
-  - `pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "topic"`
+  - `python3 "$SCRIPTS_DIR/../memory/scripts/search_memory.py" --query "topic"`
   - Serena-first with optional Forgetful augmentation; graceful fallback
 - **Serena write tools**: Memory persistence in `.serena/memories/`
   - `mcp__serena__write_memory`: Create new memory
@@ -64,38 +65,37 @@ You have direct access to:
 
 | Operation | Script | Replaces |
 |-----------|--------|----------|
-| PR metadata | `Get-PRContext.ps1` | `gh pr view` |
-| Review + Issue comments | `Get-PRReviewComments.ps1 -IncludeIssueComments` | Manual pagination of both endpoints |
-| Review + Issue comments (exclude stale) | `Get-PRReviewComments.ps1 -IncludeIssueComments -DetectStale -ExcludeStale` | Manual pagination + stale detection |
-| Reviewer list | `Get-PRReviewers.ps1` | `gh api ... \| jq unique` |
-| Reply to comment | `Post-PRCommentReply.ps1` | `gh api ... -X POST` |
-| Add reaction | `Add-CommentReaction.ps1` | `gh api .../reactions` |
-| Issue comment | `Post-IssueComment.ps1` | `gh api .../comments` |
+| PR metadata | `get_pr_context.py` | `gh pr view` |
+| Review + Issue comments | `get_pr_review_comments.py --include-issue-comments` | Manual pagination of both endpoints |
+| Review + Issue comments (exclude stale) | `get_pr_review_comments.py --include-issue-comments --detect-stale --exclude-stale` | Manual pagination + stale detection |
+| Reviewer list | `get_pr_reviewers.py` | `gh api ... \| jq unique` |
+| Reply to comment | `post_pr_comment_reply.py` | `gh api ... -X POST` |
+| Add reaction | `add_comment_reaction.py` | `gh api .../reactions` |
+| Issue comment | `post_issue_comment.py` | `gh api .../comments` |
 
 ### Skill Usage Pattern
 
-```powershell
-# All scripts are in .claude/skills/github/scripts/
-# From repo root, invoke with pwsh:
-pwsh .claude/skills/github/scripts/pr/Get-PRContext.ps1 -PullRequest 50
+```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 
-# For global installs, use $HOME:
-pwsh $HOME/.claude/skills/github/scripts/pr/Get-PRContext.ps1 -PullRequest 50
+# All scripts are in .claude/skills/github/scripts/
+python3 "$SCRIPTS_DIR/pr/get_pr_context.py" --pull-request 50
 ```
 
 See `.claude/skills/github/SKILL.md` for full documentation.
 
 ### Stale Comment Detection
 
-Use `-DetectStale` with `Get-PRReviewComments.ps1` to identify comments referencing deleted or moved code:
+Use `-DetectStale` with `get_pr_review_comments.py` to identify comments referencing deleted or moved code:
 
-```powershell
+```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 # Detect and exclude stale comments (recommended for response workflow)
-pwsh .claude/skills/github/scripts/pr/Get-PRReviewComments.ps1 `
-  -PullRequest 908 `
-  -IncludeIssueComments `
-  -DetectStale `
-  -ExcludeStale
+python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" \
+  --pull-request 908 \
+  --include-issue-comments \
+  --detect-stale \
+  --exclude-stale
 ```
 
 **Stale Reasons**:
@@ -106,11 +106,11 @@ pwsh .claude/skills/github/scripts/pr/Get-PRReviewComments.ps1 `
 
 **When to Use**:
 
-- **Phase 1 (Context Gathering)**: Use `-DetectStale -ExcludeStale` to avoid wasting effort on deleted code
-- **PR Cleanup**: Use `-DetectStale -OnlyStale` to identify and resolve stale comment threads
+- **Phase 1 (Context Gathering)**: Use `--detect-stale --exclude-stale` to avoid wasting effort on deleted code
+- **PR Cleanup**: Use `--detect-stale --only-stale` to identify and resolve stale comment threads
 - **Bot Comment Hygiene**: Detect when bots reviewed outdated commits
 
-**Example**: PR #908 had 4 Gemini security comments on `.claude/hooks/Stop/Invoke-SkillLearning.ps1` (PowerShell), which was deleted in commit `2777c91` and replaced with Python. All 4 comments were stale (reason: `FileDeleted`).
+**Example**: PR #908 had 4 Gemini security comments on `.claude/hooks/Stop/invoke_skill_learning.py` (Python), which was deleted in commit `2777c91` and replaced with Python. All 4 comments were stale (reason: `FileDeleted`).
 
 ## Workflow Paths Reference
 
@@ -434,6 +434,7 @@ Reviewer-specific memories (e.g., `cursor-bot-review-patterns`) are loaded in **
 Before fetching new data, check if this is a continuation of a previous session:
 
 ```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 SESSION_DIR=".agents/pr-comments/PR-[number]"
 
 if [ -d "$SESSION_DIR" ]; then
@@ -443,7 +444,7 @@ if [ -d "$SESSION_DIR" ]; then
   echo "Previous session had $PREVIOUS_COMMENTS comments"
 
   # Check for NEW comments only (include issue comments to catch AI Quality Gate, etc.)
-  CURRENT_COMMENTS=$(pwsh .claude/skills/github/scripts/pr/Get-PRReviewComments.ps1 -PullRequest [number] -IncludeIssueComments | jq '.TotalComments')
+  CURRENT_COMMENTS=$(python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request [number] --include-issue-comments | jq '.TotalComments')
 
   if [ "$CURRENT_COMMENTS" -gt "$PREVIOUS_COMMENTS" ]; then
     echo "[NEW COMMENTS] $((CURRENT_COMMENTS - PREVIOUS_COMMENTS)) new comments since last session"
@@ -471,9 +472,10 @@ fi
 
 #### Step 1.1: Fetch PR Metadata
 
-```powershell
+```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 # Using github skill (PREFERRED)
-pwsh .claude/skills/github/scripts/pr/Get-PRContext.ps1 -PullRequest [number] -IncludeChangedFiles
+python3 "$SCRIPTS_DIR/pr/get_pr_context.py" --pull-request [number] --include-changed-files
 
 # Returns JSON with: number, title, body, headRefName, baseRefName, state, author, changedFiles
 ```
@@ -543,12 +545,13 @@ fi
 
 #### Step 1.2: Enumerate All Reviewers
 
-```powershell
+```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 # Using github skill (PREFERRED) - prevents single-bot blindness (pr-enum-001)
-pwsh .claude/skills/github/scripts/pr/Get-PRReviewers.ps1 -PullRequest [number]
+python3 "$SCRIPTS_DIR/pr/get_pr_reviewers.py" --pull-request [number]
 
 # Exclude bots from enumeration
-pwsh .claude/skills/github/scripts/pr/Get-PRReviewers.ps1 -PullRequest [number] -ExcludeBots
+python3 "$SCRIPTS_DIR/pr/get_pr_reviewers.py" --pull-request [number] --exclude-bots
 ```
 
 <details>
@@ -584,10 +587,11 @@ for reviewer in ALL_REVIEWERS:
 
 #### Step 1.3: Retrieve ALL Comments (with pagination)
 
-```powershell
+```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 # Using github skill (PREFERRED) - handles pagination automatically
-# IMPORTANT: Use -IncludeIssueComments to capture AI Quality Gate, CodeRabbit summaries, etc.
-pwsh .claude/skills/github/scripts/pr/Get-PRReviewComments.ps1 -PullRequest [number] -IncludeIssueComments
+# IMPORTANT: Use --include-issue-comments to capture AI Quality Gate, CodeRabbit summaries, etc.
+python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request [number] --include-issue-comments
 
 # Returns all comments with: id, CommentType (Review/Issue), author, path, line, body, diff_hunk, created_at, in_reply_to_id
 ```
@@ -629,7 +633,7 @@ echo "Total comments: $TOTAL_COMMENTS (Review: $REVIEW_COMMENT_COUNT, Issue: $IS
 
 #### Step 1.4: Extract Comment Details
 
-The `Get-PRReviewComments.ps1` script returns full comment details including:
+The `get_pr_review_comments.py` script returns full comment details including:
 
 - `id`: Comment ID for reactions and replies
 - `CommentType`: "Review" (code-level) or "Issue" (top-level PR comments)
@@ -678,31 +682,31 @@ Create a persistent map of all comments. Save to `.agents/pr-comments/PR-[number
 
 React with eyes emoji to acknowledge all comments. Use batch mode for 88% faster acknowledgment:
 
-```powershell
+```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+
 # PREFERRED: Batch acknowledge all comments (88% faster than individual calls)
 # Get all comment IDs from the comments retrieved in Phase 1
-$comments = pwsh -NoProfile .claude/skills/github/scripts/pr/Get-PRReviewComments.ps1 -PullRequest [number] -IncludeIssueComments | ConvertFrom-Json
-$ids = $comments.Comments | ForEach-Object { $_.id }
+comments=$(python3 "$SCRIPTS_DIR/pr/get_unaddressed_comments.py" --pull-request [number])
+ids=$(echo "$comments" | jq -r '.Comments[].id')
 
 # Batch acknowledge - single process, all comments
-$result = pwsh -NoProfile .claude/skills/github/scripts/reactions/Add-CommentReaction.ps1 -CommentId $ids -Reaction "eyes" | ConvertFrom-Json
+echo "$ids" | xargs -I{} python3 "$SCRIPTS_DIR/reactions/add_comment_reaction.py" --comment-id {} --reaction "eyes"
 
 # Verify all acknowledged
-Write-Host "Acknowledged $($result.Succeeded)/$($result.TotalCount) comments"
-if ($result.Failed -gt 0) {
-    Write-Host "Failed: $($result.Results | Where-Object { -not $_.Success } | ForEach-Object { $_.CommentId })"
-}
+echo "$result" | jq '"Acknowledged \(.Succeeded)/\(.TotalCount) comments"'
 ```
 
 <details>
 <summary>Alternative: Individual reactions (legacy)</summary>
 
-```powershell
+```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 # Individual comment reaction (slower - use batch above instead)
-pwsh .claude/skills/github/scripts/reactions/Add-CommentReaction.ps1 -CommentId [comment_id] -Reaction "eyes"
+python3 "$SCRIPTS_DIR/reactions/add_comment_reaction.py" --comment-id [comment_id] --reaction "eyes"
 
 # Issue comment reaction
-pwsh .claude/skills/github/scripts/reactions/Add-CommentReaction.ps1 -CommentId [comment_id] -CommentType "issue" -Reaction "eyes"
+python3 "$SCRIPTS_DIR/reactions/add_comment_reaction.py" --comment-id [comment_id] --comment-type "issue" --reaction "eyes"
 ```
 
 </details>
@@ -1020,16 +1024,17 @@ Reply to comments that need immediate response BEFORE implementation:
 
 > **[CRITICAL]**: Never use the issue comments API (`/issues/{number}/comments`) to reply to review comments. This places replies out of context as top-level PR comments instead of in-thread.
 
-```powershell
+```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 # Using github skill (PREFERRED) - handles thread-preserving replies correctly (pr-thread-reply)
 # Reply to review comment (in-thread reply using /replies endpoint)
-pwsh .claude/skills/github/scripts/pr/Post-PRCommentReply.ps1 -PullRequest [number] -CommentId [comment_id] -Body "[response]"
+python3 "$SCRIPTS_DIR/pr/post_pr_comment_reply.py" --pull-request [number] --comment-id [comment_id] --body "[response]"
 
-# For multi-line responses, use -BodyFile to avoid escaping issues
-pwsh .claude/skills/github/scripts/pr/Post-PRCommentReply.ps1 -PullRequest [number] -CommentId [comment_id] -BodyFile reply.md
+# For multi-line responses, use --body-file to avoid escaping issues
+python3 "$SCRIPTS_DIR/pr/post_pr_comment_reply.py" --pull-request [number] --comment-id [comment_id] --body-file reply.md
 
 # Post new top-level PR comment (no CommentId = issue comment)
-pwsh .claude/skills/github/scripts/pr/Post-PRCommentReply.ps1 -PullRequest [number] -Body "[response]"
+python3 "$SCRIPTS_DIR/pr/post_pr_comment_reply.py" --pull-request [number] --body "[response]"
 ```
 
 <details>
@@ -1118,7 +1123,7 @@ After implementing a logical group of changes (or single critical fix):
 # Stage changes
 git add [files]
 
-# Commit with conventional message
+# Commit with conventional message and issue reference
 git commit -m "fix: [description]
 
 Addresses PR review comment from @[reviewer]
@@ -1126,20 +1131,29 @@ Addresses PR review comment from @[reviewer]
 - [Change 1]
 - [Change 2]
 
+Refs #[pr-number]
 Comment-ID: [comment_id]"
 
 # Push
 git push origin [branch]
 ```
 
+**Commit Message Etiquette:**
+
+- Use conventional commit format: `type: description`
+- Reference PR number with `Refs #[number]` in body
+- Include `Comment-ID: [id]` for traceability
+- Avoid `Closes`/`Fixes` in review response commits (reserve for main implementation)
+
 #### Step 6.3: Reply with Resolution
 
-```powershell
+```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 # Using github skill (PREFERRED)
-pwsh .claude/skills/github/scripts/pr/Post-PRCommentReply.ps1 -PullRequest [pull_number] -CommentId [comment_id] -Body "Fixed in [commit_hash].`n`n[Brief summary of change]"
+python3 "$SCRIPTS_DIR/pr/post_pr_comment_reply.py" --pull-request [pull_number] --comment-id [comment_id] --body "Fixed in [commit_hash].\n\n[Brief summary of change]"
 
 # Or use a file for multi-line content
-pwsh .claude/skills/github/scripts/pr/Post-PRCommentReply.ps1 -PullRequest [pull_number] -CommentId [comment_id] -BodyFile resolution.md
+python3 "$SCRIPTS_DIR/pr/post_pr_comment_reply.py" --pull-request [pull_number] --comment-id [comment_id] --body-file resolution.md
 ```
 
 <details>
@@ -1157,6 +1171,44 @@ gh api repos/[owner]/[repo]/pulls/[pull_number]/comments \
 
 </details>
 
+**Response Format Best Practices:**
+
+Follow the pattern: **Action + Location + Reference**
+
+✅ Good:
+
+```text
+Fixed in abc1234. Updated validation logic to handle null values.
+```
+
+```text
+Refactored in def5678. Extracted method to reduce complexity from 15 to 8.
+```
+
+❌ Avoid:
+
+```text
+Done.
+Fixed.
+I've updated the code.
+```
+
+**Force Push Communication:**
+
+If force push is required (rebase, squash):
+
+```text
+Force pushed to update commit history.
+Previous: abc1234 → Current: def5678
+Changes: [brief explanation]
+```
+
+**Thread Resolution Protocol:**
+
+- Auto-resolve only bot-authored threads after fixing
+- Never bulk-resolve when unresolved human-authored threads exist
+- Resolve only after: fix committed + reply posted
+
 #### Step 6.4: Resolve Conversation Thread
 
 After replying with resolution, mark the thread as resolved. This is required for PRs with branch protection rules that require all conversations to be resolved before merging.
@@ -1166,17 +1218,18 @@ After replying with resolution, mark the thread as resolved. This is required fo
 1. The reviewer is human (let them resolve after verifying)
 2. You need a response from the reviewer (human or bot)
 
-```powershell
-# Resolve all unresolved threads on the PR (PREFERRED for bulk resolution)
-pwsh .claude/skills/github/scripts/pr/Resolve-PRReviewThread.ps1 -PullRequest [number] -All
+```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+# Resolve all bot-authored unresolved threads (use only when no human threads remain)
+python3 "$SCRIPTS_DIR/pr/resolve_pr_review_thread.py" --pull-request [number] --all
 
-# Or resolve a single thread by ID
-pwsh .claude/skills/github/scripts/pr/Resolve-PRReviewThread.ps1 -ThreadId "PRRT_kwDOQoWRls5m7ln8"
+# Or resolve a single thread by ID (PREFERRED when human threads exist)
+python3 "$SCRIPTS_DIR/pr/resolve_pr_review_thread.py" --thread-id "PRRT_kwDOQoWRls5m7ln8"
 ```
 
 **Complete Workflow**: Code fix → Reply → **Resolve** (all three steps required)
 
-**Note**: Thread IDs use the format `PRRT_xxx` (GraphQL node ID), not numeric comment IDs. The bulk resolution option (`-All`) automatically discovers and resolves all unresolved threads.
+**Note**: Thread IDs use the format `PRRT_xxx` (GraphQL node ID), not numeric comment IDs. The bulk resolution option (`--all`) resolves all unresolved threads. Use `--all` only after confirming no unresolved human-authored threads remain.
 
 #### Step 6.5: Update Task List
 
@@ -1238,9 +1291,10 @@ fi
 
 **Exception**: Do NOT auto-resolve threads from human reviewers. Let them verify and resolve.
 
-```powershell
+```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 # Run bulk resolution to ensure all threads are resolved
-pwsh .claude/skills/github/scripts/pr/Resolve-PRReviewThread.ps1 -PullRequest [number] -All
+python3 "$SCRIPTS_DIR/pr/resolve_pr_review_thread.py" --pull-request [number] --all
 ```
 
 The script will:
@@ -1262,11 +1316,12 @@ If any threads fail to resolve, investigate and retry before claiming completion
 After pushing commits, bots may post new comments. Wait and re-check:
 
 ```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 # Wait for bot responses (30-60 seconds)
 sleep 45
 
 # Re-fetch comments (include issue comments to catch AI Quality Gate, CodeRabbit summaries, etc.)
-NEW_COMMENTS=$(pwsh .claude/skills/github/scripts/pr/Get-PRReviewComments.ps1 -PullRequest [number] -IncludeIssueComments | jq '.TotalComments')
+NEW_COMMENTS=$(python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request [number] --include-issue-comments | jq '.TotalComments')
 
 # Compare to original count
 if [ "$NEW_COMMENTS" -gt "$TOTAL_COMMENTS" ]; then
@@ -1292,38 +1347,39 @@ It does NOT mean:
 - ❌ CI checks passing
 - ❌ Required status checks satisfied
 
-**Always verify CI explicitly** using the Get-PRChecks.ps1 skill:
+**Always verify CI explicitly** using the get_pr_checks.py skill:
 
-```powershell
+```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+
 # Check ALL CI checks status with wait for completion
-$checks = pwsh -NoProfile .claude/skills/github/scripts/pr/Get-PRChecks.ps1 -PullRequest [number] -Wait -TimeoutSeconds 300 | ConvertFrom-Json
-$exitCode = $LASTEXITCODE
+checks=$(python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request [number] --wait --timeout-seconds 300)
+exit_code=$?
 
 # Handle timeout (exit code 7)
-if ($exitCode -eq 7) {
-    Write-Host "[BLOCKED] Timeout waiting for CI checks to complete"
-    Write-Host "  Pending: $($checks.PendingCount) check(s) still running"
+if [ "$exit_code" -eq 7 ]; then
+    echo "[BLOCKED] Timeout waiting for CI checks to complete"
+    echo "  Pending: $(echo "$checks" | jq '.PendingCount') check(s) still running"
     exit 1
-}
+fi
 
 # Handle API errors
-if (-not $checks.Success) {
-    Write-Host "[ERROR] Failed to get CI check status: $($checks.Error)"
+success=$(echo "$checks" | jq '.Success')
+if [ "$success" != "true" ]; then
+    echo "[ERROR] Failed to get CI check status: $(echo "$checks" | jq -r '.Error')"
     exit 1
-}
+fi
 
 # Check for failures
-if ($checks.FailedCount -gt 0) {
-    Write-Host "[BLOCKED] $($checks.FailedCount) CI check(s) not passing:"
-    $checks.Checks | Where-Object { $_.Conclusion -notin @('SUCCESS', 'NEUTRAL', 'SKIPPED') } | ForEach-Object {
-        Write-Host "  - $($_.Name): $($_.Conclusion)"
-        Write-Host "    Details: $($_.DetailsUrl)"
-    }
+failed_count=$(echo "$checks" | jq '.FailedCount')
+if [ "$failed_count" -gt 0 ]; then
+    echo "[BLOCKED] $failed_count CI check(s) not passing:"
+    echo "$checks" | jq -r '.Checks[] | select(.Conclusion != "SUCCESS" and .Conclusion != "NEUTRAL" and .Conclusion != "SKIPPED") | "  - \(.Name): \(.Conclusion)\n    Details: \(.DetailsUrl)"'
     # Do NOT claim completion - return to Phase 6 for fixes
     exit 1
-}
+fi
 
-Write-Host "[PASS] All CI checks passing ($($checks.PassedCount) checks)"
+echo "[PASS] All CI checks passing ($(echo "$checks" | jq '.PassedCount') checks)"
 ```
 
 **Exit codes**:
@@ -1334,7 +1390,7 @@ Write-Host "[PASS] All CI checks passing ($($checks.PassedCount) checks)"
 
 **If CI fails**: Parse failure messages, add new tasks to task list, return to Phase 6 for implementation.
 
-**Skill Reference**: Get-PRChecks.ps1 (uses GraphQL statusCheckRollup for reliable check status)
+**Skill Reference**: get_pr_checks.py (uses GraphQL statusCheckRollup for reliable check status)
 
 #### Phase 8.5: Completion Criteria Checklist
 
@@ -1344,22 +1400,28 @@ Write-Host "[PASS] All CI checks passing ($($checks.PassedCount) checks)"
 |-----------|-------|--------|
 | All comments resolved | `grep -c "Status: \[COMPLETE\]\|\[WONTFIX\]"` equals total | [ ] |
 | No new comments | Re-check returned 0 new | [ ] |
-| CI checks pass | `Get-PRChecks.ps1 -PullRequest [number]` AllPassing = true | [ ] |
+| CI checks pass | `get_pr_checks.py --pull-request [number]` AllPassing = true | [ ] |
 | No unresolved threads | `gh pr view --json reviewThreads` all resolved | [ ] |
 | Commits pushed | `git status` shows "up to date with origin" | [ ] |
 
-```powershell
+```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+
 # Final verification
-Write-Host "=== Completion Criteria ==="
-Write-Host "[ ] Comments: $($ADDRESSED + $WONTFIX)/$TOTAL resolved"
-Write-Host "[ ] New comments: None after 45s wait"
+echo "=== Completion Criteria ==="
+echo "[ ] Comments: $((ADDRESSED + WONTFIX))/$TOTAL resolved"
+echo "[ ] New comments: None after 45s wait"
 
 # CI check verification using skill
-$checks = pwsh -NoProfile .claude/skills/github/scripts/pr/Get-PRChecks.ps1 -PullRequest [number] | ConvertFrom-Json
-$ciStatus = if ($checks.AllPassing) { "PASS" } else { "$($checks.FailedCount) failures, $($checks.PendingCount) pending" }
-Write-Host "[ ] CI checks: $ciStatus"
+checks=$(python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request [number])
+all_passing=$(echo "$checks" | jq '.AllPassing')
+if [ "$all_passing" = "true" ]; then
+    echo "[ ] CI checks: PASS"
+else
+    echo "[ ] CI checks: $(echo "$checks" | jq '.FailedCount') failures, $(echo "$checks" | jq '.PendingCount') pending"
+fi
 
-Write-Host "[ ] Pushed: $(git status -sb | Select-Object -First 1)"
+echo "[ ] Pushed: $(git status -sb | head -1)"
 ```
 
 **If ANY criterion fails**: Do NOT claim completion. Return to appropriate phase.
@@ -1458,8 +1520,9 @@ Use Memory Router for search and Serena tools for persistence (ADR-037). Memory 
 
 **At start (MANDATORY, retrieve context):**
 
-```powershell
-pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "PR review patterns bot behaviors reviewer preferences"
+```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+python3 "$SCRIPTS_DIR/../memory/scripts/search_memory.py" --query "PR review patterns bot behaviors reviewer preferences"
 ```
 
 **After EVERY triage decision (store learnings):**

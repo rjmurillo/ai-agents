@@ -146,6 +146,7 @@ class TestMain:
                 _completed(rc=0),  # gh --version
                 _completed(stdout="feat/branch\n", rc=0),  # git branch
                 _completed(stdout="", rc=0),  # git diff (validations)
+                _completed(stdout="{}", stderr="", rc=0),  # PR description validation
                 _completed(rc=0),  # gh pr create
             ],
         ):
@@ -234,6 +235,7 @@ class TestMain:
                 _completed(stdout=str(tmp_path), rc=0),  # git rev-parse
                 _completed(rc=0),  # gh --version
                 _completed(stdout="", rc=0),  # git diff (validations)
+                _completed(stdout="{}", stderr="", rc=0),  # PR description validation
                 _completed(rc=0),  # gh pr create
             ],
         ):
@@ -254,6 +256,8 @@ class TestMain:
                 return _completed(rc=0)  # gh --version
             if len(calls) == 3:
                 return _completed(stdout="", rc=0)  # git diff
+            if len(calls) == 4:
+                return _completed(stdout="{}", stderr="", rc=0)  # PR description validation
             return _completed(rc=0)  # gh pr create
 
         with patch("subprocess.run", side_effect=_side_effect):
@@ -283,7 +287,7 @@ class TestGetRepoRoot:
     def test_returns_repo_root(self):
         with patch(
             "subprocess.run",
-            return_value=_completed(stdout="/home/user/repo\n", rc=0),
+            return_value=_completed(stdout="/home/user/repo/.git\n", rc=0),
         ):
             assert get_repo_root() == "/home/user/repo"
 

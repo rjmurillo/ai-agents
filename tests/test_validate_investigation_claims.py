@@ -43,12 +43,41 @@ def _setup_output(tmp_path: Path, monkeypatch) -> Path:
 
 
 def _read_outputs(output_file: Path) -> dict[str, str]:
-    lines = output_file.read_text().strip().splitlines()
-    result = {}
-    for line in lines:
-        if "=" in line:
+    """Parse GitHub Actions output file supporting both formats.
+
+    Heredoc format: ``key<<delimiter`` (no ``=`` before ``<<``)
+    Simple format: ``key=value`` (may contain ``<<`` in value)
+
+    Example heredoc::
+
+        key<<delimiter
+        multiline value
+        delimiter
+    """
+    text = output_file.read_text()
+    lines = text.splitlines()
+    result: dict[str, str] = {}
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        # Heredoc: key<<delimiter (no = before <<)
+        eq_pos = line.find("=")
+        heredoc_pos = line.find("<<")
+        if heredoc_pos != -1 and (eq_pos == -1 or heredoc_pos < eq_pos):
+            key, delimiter = line.split("<<", 1)
+            value_lines: list[str] = []
+            i += 1
+            while i < len(lines) and lines[i] != delimiter:
+                value_lines.append(lines[i])
+                i += 1
+            result[key] = "\n".join(value_lines)
+            i += 1  # skip closing delimiter
+        elif eq_pos != -1:
             k, v = line.split("=", 1)
             result[k] = v
+            i += 1
+        else:
+            i += 1
     return result
 
 
@@ -150,6 +179,28 @@ class TestMain:
         assert exit_code == 0
         outputs = _read_outputs(output_file)
         assert outputs["investigation_violations"] == "2"
+
+    def test_multiline_violation_details_use_heredoc(self, tmp_path, monkeypatch):
+        """Multiline violation_details must use heredoc format (#1386)."""
+        output_file = _setup_output(tmp_path, monkeypatch)
+        mixed_files = [
+            ".agents/sessions/2026-01-01-session-01.json",
+            "src/main.py",
+            "README.md",
+        ]
+        with patch.object(_mod, "get_changed_files", return_value=mixed_files):
+            exit_code = main([])
+        assert exit_code == 0
+
+        raw = output_file.read_text()
+        # The multiline value must NOT appear as bare key=value lines
+        assert "violation_details=  - " not in raw
+        # It must use heredoc delimiter format (key<<delimiter)
+        assert any(line.startswith("violation_details<<") for line in raw.splitlines())
+
+        outputs = _read_outputs(output_file)
+        assert "src/main.py" in outputs["violation_details"]
+        assert "README.md" in outputs["violation_details"]
 
     def test_base_ref_injection_rejected(self, tmp_path, monkeypatch, capsys):
         """Refs starting with a dash are rejected (CWE-78)."""

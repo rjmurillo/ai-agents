@@ -8,7 +8,8 @@ tools:
   - memory
   - cloudmcp-manager/*
   - serena/*
-model: claude-opus-4.5
+model: claude-opus-4.6
+tier: integration
 ---
 # Memory Agent
 

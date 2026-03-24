@@ -205,14 +205,16 @@ def generate_agents(
             )
 
             # Expand toolset references
+            # Use toolsFrom alias if set (e.g., visual-studio reuses vscode tools)
             tools_value = transformed_fm.get("tools")
+            toolset_platform = str(platform.get("toolsFrom", platform_name))
             if (
                 toolsets
                 and isinstance(tools_value, str)
                 and "$toolset:" in tools_value
             ):
                 transformed_fm["tools"] = expand_toolset_references(
-                    tools_value, toolsets, platform_name
+                    tools_value, toolsets, toolset_platform
                 )
 
             # Transform body
@@ -222,10 +224,10 @@ def generate_agents(
             transformed_body = convert_handoff_syntax(body, handoff_syntax)
             transformed_body = convert_memory_prefix(transformed_body, memory_prefix)
 
-            # Build output content with CRLF line endings
+            # Build output content with LF line endings (per .gitattributes eol=lf)
             fm_yaml = format_frontmatter_yaml(transformed_fm)
             output_content = f"---\n{fm_yaml}\n---\n{transformed_body}"
-            output_content = output_content.replace("\r\n", "\n").replace("\n", "\r\n")
+            output_content = output_content.replace("\r\n", "\n")
 
             if validate:
                 _handle_validate(output_file, output_content, platform_name, differences)

@@ -1,6 +1,6 @@
 ---
 description: Commit, push, and open a PR
-allowed-tools: Bash(git checkout -b:*), Bash(git switch -c:*), Bash(git add:*), Bash(git status:*), Bash(git push:*), Bash(git commit:*), Bash(python3 .claude/skills/github/scripts/pr/new_pr.py:*), Bash(git diff:*), Bash(git branch:*)
+allowed-tools: Bash(git checkout -b:*), Bash(git switch -c:*), Bash(git add:*), Bash(git status:*), Bash(git push:*), Bash(git commit:*), Bash(python3:*/pr/new_pr.py*), Bash(git diff:*), Bash(git branch:*)
 # Security Note: Wildcards are Claude Code tool patterns, not shell globs.
 # The Bash tool executor must sanitize arguments to prevent command injection (CWE-78).
 # Shell metacharacters (; && | $() etc.) should be escaped/rejected before execution.
@@ -32,9 +32,15 @@ Based on the above changes:
 5. Create a pull request using the new_pr skill script:
 
    ```bash
-   python3 .claude/skills/github/scripts/pr/new_pr.py --title "<conventional commit title>" --body-file /tmp/PR-123-BODY.md
+   SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+   python3 "$SCRIPTS_DIR/pr/new_pr.py" --title "<conventional commit title>" --body-file /tmp/PR-123-BODY.md
    ```
 
    - Title MUST follow conventional commit format (e.g., `feat: Add feature`, `fix(auth): Resolve bug`)
+   - Body SHOULD include GitHub issue linking keywords to auto-close issues:
+     - `Closes #123` — auto-closes issue when PR merges
+     - `Fixes #456` — auto-fixes issue when PR merges
+     - `Resolves #789` — auto-resolves issue when PR merges
+   - Ensure PR template sections are completed
 
 You have the capability to call multiple tools in a single response. You MUST do all of the above in a single message. Do not use any other tools or do anything else. Do not send any other text or messages besides these tool calls.

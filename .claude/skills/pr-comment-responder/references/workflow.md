@@ -11,8 +11,10 @@ Extract PR number and repository context from the user prompt before any API cal
 ### Step -1.1: Extract GitHub Context
 
 ```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+
 # Extract PR numbers, issue numbers, owner/repo from user prompt
-python3 .claude/skills/github/scripts/utils/extract_github_context.py --text "[user_prompt]" --require-pr
+python3 "$SCRIPTS_DIR/utils/extract_github_context.py" --text "[user_prompt]" --require-pr
 
 # Result JSON contains:
 # - pr_numbers: Array of PR numbers found
@@ -26,7 +28,8 @@ python3 .claude/skills/github/scripts/utils/extract_github_context.py --text "[u
 ### Step -1.2: Validate Context
 
 ```bash
-context=$(python3 .claude/skills/github/scripts/utils/extract_github_context.py --text "[user_prompt]" --require-pr)
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+context=$(python3 "$SCRIPTS_DIR/utils/extract_github_context.py" --text "[user_prompt]" --require-pr)
 # Exit code 1 if no PR found (fail fast, no user prompt)
 
 # Use first PR number (most common case is single PR)
@@ -61,8 +64,10 @@ When running autonomously (no user interaction possible):
 - Error message must be actionable: include what patterns are supported
 
 ```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+
 # Autonomous execution - fail if context missing
-python3 .claude/skills/github/scripts/utils/extract_github_context.py --text "[prompt]" --require-pr
+python3 "$SCRIPTS_DIR/utils/extract_github_context.py" --text "[prompt]" --require-pr
 
 # Exit code 1 if no PR found:
 # "Cannot extract PR number from prompt. Provide explicit PR number or URL."
@@ -88,12 +93,13 @@ Verify core memory loaded:
 ### Step 1.0: Session State Check
 
 ```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 SESSION_DIR=".agents/pr-comments/PR-[number]"
 
 if [ -d "$SESSION_DIR" ]; then
   echo "[CONTINUATION] Previous session found"
   PREVIOUS_COMMENTS=$(grep -c "^### Comment" "$SESSION_DIR/comments.md" 2>/dev/null || echo 0)
-  CURRENT_COMMENTS=$(python3 .claude/skills/github/scripts/pr/get_pr_review_comments.py --pull-request [number] --include-issue-comments | jq '.TotalComments')
+  CURRENT_COMMENTS=$(python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request [number] --include-issue-comments | jq '.TotalComments')
 
   if [ "$CURRENT_COMMENTS" -gt "$PREVIOUS_COMMENTS" ]; then
     echo "[NEW COMMENTS] $((CURRENT_COMMENTS - PREVIOUS_COMMENTS)) new comments"
@@ -104,13 +110,15 @@ fi
 ### Step 1.1: Fetch PR Metadata
 
 ```bash
-python3 .claude/skills/github/scripts/pr/get_pr_context.py --pull-request [number]
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+python3 "$SCRIPTS_DIR/pr/get_pr_context.py" --pull-request [number]
 ```
 
 ### Step 1.2: Enumerate All Reviewers
 
 ```bash
-python3 .claude/skills/github/scripts/pr/get_pr_reviewers.py --pull-request [number]
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+python3 "$SCRIPTS_DIR/pr/get_pr_reviewers.py" --pull-request [number]
 ```
 
 ### Step 1.2a: Load Reviewer-Specific Memories
@@ -126,8 +134,10 @@ for reviewer in ALL_REVIEWERS:
 ### Step 1.3: Retrieve ALL Comments
 
 ```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+
 # IMPORTANT: Use --include-issue-comments to capture AI Quality Gate, CodeRabbit summaries
-python3 .claude/skills/github/scripts/pr/get_pr_review_comments.py --pull-request [number] --include-issue-comments
+python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request [number] --include-issue-comments
 ```
 
 ## Phase 2: Comment Map Generation
@@ -135,12 +145,14 @@ python3 .claude/skills/github/scripts/pr/get_pr_review_comments.py --pull-reques
 ### Step 2.1: Acknowledge All Comments (Batch)
 
 ```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+
 # Get all comment IDs
-comments=$(python3 .claude/skills/github/scripts/pr/get_pr_review_comments.py --pull-request [number] --include-issue-comments)
+comments=$(python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request [number] --include-issue-comments)
 ids=$(echo "$comments" | jq -r '.Comments[].id')
 
 # Batch acknowledge with eyes reaction
-python3 .claude/skills/github/scripts/reactions/add_comment_reaction.py --comment-id $ids --reaction eyes
+python3 "$SCRIPTS_DIR/reactions/add_comment_reaction.py" --comment-id $ids --reaction eyes
 ```
 
 ### Step 2.2: Generate Comment Map
@@ -201,8 +213,10 @@ Categories:
 Reply to Won't Fix, Questions, Clarification Needed before implementation.
 
 ```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+
 # In-thread reply
-python3 .claude/skills/github/scripts/pr/post_pr_comment_reply.py --pull-request [number] --comment-id [id] --body "[response]"
+python3 "$SCRIPTS_DIR/pr/post_pr_comment_reply.py" --pull-request [number] --comment-id [id] --body "[response]"
 ```
 
 ## Phase 6: Implementation

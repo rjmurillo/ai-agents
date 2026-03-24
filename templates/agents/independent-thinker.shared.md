@@ -1,4 +1,5 @@
 ---
+tier: expert
 description: Contrarian analyst who challenges assumptions with evidence, presents alternative viewpoints, and declares uncertainty rather than guessing. Intellectually rigorous, respectfully skeptical, cites sources. Use as devil's advocate when you need opposing critique, trade-off analysis, or verification rather than validation.
 argument-hint: State the decision or assumption to challenge
 tools_vscode:
@@ -81,8 +82,8 @@ Use Memory Router for search and Serena tools for persistence (ADR-037):
 
 **Before analysis (retrieve context):**
 
-```powershell
-pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "analysis challenges [topic/assumption]"
+```bash
+python3 .claude/skills/memory/scripts/search_memory.py --query "analysis challenges [topic/assumption]"
 ```
 
 **After analysis (store learnings):**

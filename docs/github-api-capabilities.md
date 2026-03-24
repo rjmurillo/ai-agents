@@ -192,19 +192,33 @@ gh api graphql -f query='
 
 ### REST API Skills
 
+#### Python Scripts (Full-Featured)
+
 | Skill | Location | Purpose |
 |-------|----------|---------|
-| `Get-PRContext.ps1` | `.claude/skills/github/scripts/pr/` | Get PR metadata |
-| `Set-IssueLabels.ps1` | `.claude/skills/github/scripts/issue/` | Manage issue labels |
-| `Add-CommentReaction.ps1` | `.claude/skills/github/scripts/reactions/` | Add emoji reactions |
+| `get_pr_context.py` | `.claude/skills/github/scripts/pr/` | Get PR metadata |
+| `set_issue_labels.py` | `.claude/skills/github/scripts/issue/` | Manage issue labels |
+| `add_comment_reaction.py` | `.claude/skills/github/scripts/reactions/` | Add emoji reactions |
+
+#### Bash Scripts (Copilot CLI Optimized)
+
+| Skill | Location | Purpose | Overhead |
+|-------|----------|---------|----------|
+| `get-pr-context.sh` | `.claude/skills/github/scripts/gh-native/` | Get PR metadata (Copilot CLI) | 50-80ms |
+| `set-issue-labels.sh` | `.claude/skills/github/scripts/gh-native/` | Manage issue labels (Copilot CLI) | 50-80ms |
+| `set-issue-milestone.sh` | `.claude/skills/github/scripts/gh-native/` | Set issue milestone (Copilot CLI) | 50-80ms |
+| `post-issue-comment.sh` | `.claude/skills/github/scripts/gh-native/` | Post issue comment (Copilot CLI) | 50-80ms |
+| `add-comment-reaction.sh` | `.claude/skills/github/scripts/gh-native/` | Add emoji reactions (Copilot CLI) | 50-80ms |
+
+**Note**: gh-native scripts are optimized for Copilot CLI environments where PowerShell spawn overhead (183-416ms) becomes a bottleneck. For Claude Code and VS Code Agents, use Python scripts or GitHub MCP.
 
 ### GraphQL API Skills
 
 | Skill | Location | Purpose |
 |-------|----------|---------|
-| `Resolve-PRReviewThread.ps1` | `.claude/skills/github/scripts/pr/` | Resolve review threads |
-| `Get-PRReviewThreads.ps1` | `.claude/skills/github/scripts/pr/` | Get thread details |
-| `Get-UnresolvedReviewThreads.ps1` | `.claude/skills/github/scripts/pr/` | Find unresolved threads |
+| `resolve_pr_review_thread.py` | `.claude/skills/github/scripts/pr/` | Resolve review threads |
+| `get_pr_review_threads.py` | `.claude/skills/github/scripts/pr/` | Get thread details |
+| `get_unresolved_review_threads.py` | `.claude/skills/github/scripts/pr/` | Find unresolved threads |
 
 ## Common Patterns
 
