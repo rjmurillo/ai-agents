@@ -14,12 +14,12 @@ Accepted
 
 ## Context
 
-ADR-005 received a Python exception in PR #908 (Claude Code Hooks) without documented justification. The exception was technically valid but the rationale — why the PowerShell-only rule exists, what alternatives were tried, and what precedent risks the exception introduces — was not captured at the time.
+ADR-005 received a Python exception in PR #908 (2026-01-14) (Claude Code Hooks) without documented justification. The exception was technically valid but the rationale, why the PowerShell-only rule exists, what alternatives were tried, and what precedent risks the exception introduces, was not captured at the time.
 
 This creates two problems:
 
 1. **Future maintainers** cannot assess whether the exception was well-reasoned or expedient.
-2. **Future exception requests** have a precedent (PR #908) showing that exceptions can be granted informally.
+2. **Future exception requests** have a precedent (PR #908 (2026-01-14)) showing that exceptions can be granted informally.
 
 The broader issue is that ADR exceptions are structurally easier to create than to challenge. An exception adds a few lines to an ADR; challenging an exception requires understanding the original decision's full context. Chesterton's Fence analysis corrects this asymmetry by requiring that context to be documented before approval.
 
@@ -43,8 +43,8 @@ The analysis template and rejection criteria are documented in `.agents/governan
 
 | Alternative | Pros | Cons | Why Not Chosen |
 |-------------|------|------|----------------|
-| **Status quo** (no analysis required) | No friction | PR #908 shows exceptions become informal; rationale lost | Rejected: PR #908 is concrete evidence of the failure mode |
-| **Blanket prohibition** (no exceptions ever) | Eliminates exception abuse | Inflexible; some exceptions are legitimate (e.g., PR #760 SkillForge, PR #908 Anthropic SDK) | Rejected: legitimate cases exist |
+| **Status quo** (no analysis required) | No friction | PR #908 (2026-01-14) shows exceptions become informal; rationale lost | Rejected: PR #908 (2026-01-14) is concrete evidence of the failure mode |
+| **Blanket prohibition** (no exceptions ever) | Eliminates exception abuse | Inflexible; some exceptions are legitimate (e.g., PR #760 (2026-01-04) SkillForge, PR #908 (2026-01-14) Anthropic SDK) | Rejected: legitimate cases exist |
 | **Architect approval without documentation** | Faster approval | Loses rationale for future reference; approval authority leaves organization | Rejected: documentation is the point |
 | **Chesterton's Fence analysis (chosen)** | Forces understanding before exception; documents rationale for future maintainers; intentional friction discourages unnecessary exceptions | Slows exception process; requires effort | Accepted: friction is intentional and proportionate |
 
@@ -61,7 +61,7 @@ The analysis template and rejection criteria are documented in `.agents/governan
 - Future exceptions include rationale that survives team turnover.
 - Exception requests that skip alternatives analysis are surfaced and rejected early.
 - ADR authority is preserved: exceptions document trade-offs rather than undermining rules silently.
-- PR #908-style informal exceptions are no longer accepted.
+- PR #908 (2026-01-14) style informal exceptions are no longer accepted.
 
 ### Negative
 
@@ -71,7 +71,7 @@ The analysis template and rejection criteria are documented in `.agents/governan
 
 ### Neutral
 
-- Existing exceptions (PR #760 SkillForge, PR #908 Claude Code Hooks) are retroactively documented in `.agents/governance/ADR-EXCEPTION-CRITERIA.md` as examples — they remain valid.
+- Existing exceptions (PR #760 (2026-01-04) SkillForge, PR #908 (2026-01-14) Claude Code Hooks) are retroactively documented in `.agents/governance/ADR-EXCEPTION-CRITERIA.md` as examples. They remain valid.
 
 ## Implementation Notes
 
@@ -81,7 +81,7 @@ The analysis template and rejection criteria are documented in `.agents/governan
 
 ## Related Decisions
 
-- [ADR-005](./ADR-005-powershell-only-scripting.md) — Motivating case (PR #908 exception)
+- [ADR-005](./ADR-005-powershell-only-scripting.md) — Motivating case (PR #908 (2026-01-14) exception)
 - [ADR-022](./ADR-022-architecture-governance-split-criteria.md) — Governance split criteria
 
 ## Confirmation
@@ -90,8 +90,8 @@ Compliance is verified through the architect agent review gate in CI. The gate c
 
 ## References
 
-- GitHub Issue #947
-- GitHub Issue #938 (criteria document)
-- PR #908 (Claude Code Hooks exception — motivating incident)
-- PR #760 (SkillForge exception — positive example)
+- Issue #947 (2026-01-15)
+- Issue #938 (2026-01-15) (criteria document)
+- PR #908 (2026-01-14) (Claude Code Hooks exception, motivating incident)
+- PR #760 (2026-01-04) (SkillForge exception, positive example)
 - `.agents/governance/ADR-EXCEPTION-CRITERIA.md`
