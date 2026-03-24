@@ -4,6 +4,10 @@
 
 Proposed (next available number after ADR-050). Supersedes ADR-036.
 
+## Author
+
+rjmurillo-bot (autonomous session, Issue #124)
+
 ## Date
 
 2026-03-01
@@ -135,10 +139,23 @@ Compliance is verified through CI:
 2. The generation script (`generate_platform_agents.py`) runs in CI on every push to ensure derived agents stay current.
 3. Any manual edit to `src/vs-code-agents/` or `src/copilot-cli/` triggers a drift warning because those directories contain generated output.
 
+## Implementation Status
+
+- [ ] Phase 1: Create `build/scripts/generate_platform_agents.py`
+- [ ] Phase 2: Verify generated output and remove `templates/agents/`
+- [ ] Phase 3: Create `platform-overrides/` mechanism
+
+No blockers identified. Implementation tracked via Issue #124.
+
+## Security Considerations
+
+This ADR affects documentation and build tooling only. No runtime behavior, authentication, data handling, or network exposure changes. The generation script processes local markdown files with no external inputs.
+
 ## References
 
 - Issue #124: Strategic decision needed on dual template system
 - `.agents/analysis/drift-analysis-claude-vs-templates.md`
+- `.agents/analysis/template-strategy-debate.md` (architect review findings)
 - `.agents/retrospective/2025-12-15-accountability-analysis.md`
 - `build/scripts/detect_agent_drift.py`
 - ADR-042: Python for new scripts (applies to `generate_platform_agents.py`)
