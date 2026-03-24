@@ -139,6 +139,14 @@ def main(argv: list[str] | None = None) -> int:
     except (json.JSONDecodeError, OSError) as exc:
         print(f"Error: failed to parse grades file: {exc}", file=sys.stderr)
         return 1
+
+    if not isinstance(data, dict) or not isinstance(data.get("domains"), list):
+        print(
+            f"Error: invalid grades format in {args.grades_file} "
+            "(expected object with 'domains' list)",
+            file=sys.stderr,
+        )
+        return 1
     flagged = find_degraded_domains(data, args.threshold)
 
     if not flagged:

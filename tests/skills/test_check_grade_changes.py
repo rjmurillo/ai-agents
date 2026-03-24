@@ -215,3 +215,28 @@ class TestCreateNotificationIssue:
         ):
             with pytest.raises(subprocess.CalledProcessError):
                 create_notification_issue(flagged)
+
+
+class TestMainInvalidShape:
+    """Tests for JSON shape validation in main()."""
+
+    def test_invalid_shape_list_returns_one(self, tmp_path: Path) -> None:
+        """Return exit code 1 when grades file contains a list instead of object."""
+        p = tmp_path / "grades.json"
+        p.write_text(json.dumps([{"domain": "foo"}]), encoding="utf-8")
+        result = main(["--grades-file", str(p)])
+        assert result == 1
+
+    def test_invalid_shape_missing_domains_key_returns_one(self, tmp_path: Path) -> None:
+        """Return exit code 1 when grades file is an object without 'domains' list."""
+        p = tmp_path / "grades.json"
+        p.write_text(json.dumps({"summary": "no domains key"}), encoding="utf-8")
+        result = main(["--grades-file", str(p)])
+        assert result == 1
+
+    def test_invalid_shape_domains_not_list_returns_one(self, tmp_path: Path) -> None:
+        """Return exit code 1 when 'domains' is not a list."""
+        p = tmp_path / "grades.json"
+        p.write_text(json.dumps({"domains": "not-a-list"}), encoding="utf-8")
+        result = main(["--grades-file", str(p)])
+        assert result == 1
