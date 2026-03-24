@@ -5,8 +5,8 @@ Compares current grades against a degradation threshold and creates
 a GitHub issue when domains have critical or degrading grades.
 
 Exit codes:
-  0: No degradation detected, or notification sent
-  1: Script error
+  0: No degradation detected
+  1: Script error or degradation detected
 """
 
 from __future__ import annotations
@@ -45,6 +45,9 @@ def find_degraded_domains(data: dict, threshold: int) -> list[dict]:
     """Find domains that are degrading or below the score threshold."""
     flagged = []
     for domain in data.get("domains", []):
+        domain_name = domain.get("domain")
+        if not domain_name:
+            continue
         trend = domain.get("trend", "new")
         score = domain.get("overall_score", 100)
         grade = domain.get("overall_grade", "?")
@@ -58,7 +61,7 @@ def find_degraded_domains(data: dict, threshold: int) -> list[dict]:
             )
             flagged.append(
                 {
-                    "domain": domain["domain"],
+                    "domain": domain_name,
                     "grade": grade,
                     "score": score,
                     "trend": trend,
@@ -151,7 +154,7 @@ def main(argv: list[str] | None = None) -> int:
     except (FileNotFoundError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
         return 1
     print("Notification issue created.")
-    return 0
+    return 1
 
 
 if __name__ == "__main__":

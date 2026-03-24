@@ -156,12 +156,12 @@ class TestMain:
         assert result == 1
 
     def test_degradation_creates_issue(self, tmp_path: Path, sample_grades: dict) -> None:
-        """Create notification issue when degraded domains are found."""
+        """Create notification issue and return 1 when degraded domains are found."""
         p = tmp_path / "grades.json"
         p.write_text(json.dumps(sample_grades), encoding="utf-8")
         with patch("check_grade_changes.create_notification_issue") as mock_notify:
             result = main(["--grades-file", str(p)])
-        assert result == 0
+        assert result == 1
         mock_notify.assert_called_once()
         flagged = mock_notify.call_args[0][0]
         assert any(d["domain"] == "memory" for d in flagged)
