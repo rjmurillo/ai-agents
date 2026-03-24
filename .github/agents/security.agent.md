@@ -15,6 +15,7 @@ tools:
   - serena/*
   - perplexity/*
 model: claude-opus-4.5
+tier: builder
 ---
 # Security Agent
 
