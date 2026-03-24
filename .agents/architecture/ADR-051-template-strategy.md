@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed. Supersedes ADR-036.
+Proposed (next available number after ADR-050). Supersedes ADR-036.
 
 ## Date
 
