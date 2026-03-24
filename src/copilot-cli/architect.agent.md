@@ -350,7 +350,7 @@ Document which strategic frameworks informed this decision:
 
 ### ADR Exception Evaluation (BLOCKING)
 
-When reviewing an ADR exception request, apply Chesterton's Fence analysis per ADR-051.
+When reviewing an ADR exception request, apply Chesterton's Fence analysis per ADR-052.
 
 **MUST verify before approval:**
 
