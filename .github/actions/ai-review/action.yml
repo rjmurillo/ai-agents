@@ -89,9 +89,10 @@ outputs:
     description: 'Exit code (0=pass, 1=fail)'
     value: ${{ steps.parse.outputs.exit_code }}
   # Retry/infrastructure failure tracking (Issue #328)
+  # Falls back to 'true' when context build fails (e.g., missing BOT_PAT for first-time contributor PRs)
   infrastructure-failure:
     description: 'Whether failure was infrastructure-related (true/false)'
-    value: ${{ steps.invoke.outputs.infrastructure_failure }}
+    value: ${{ steps.invoke.outputs.infrastructure_failure || steps.context.outputs.context_infra_failure || 'false' }}
   retry-count:
     description: 'Number of retry attempts made (0 = no retries)'
     value: ${{ steps.invoke.outputs.retry_count }}
@@ -140,7 +141,7 @@ runs:
         node-version: 'lts/*'
 
     - name: Cache npm packages
-      uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
+      uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
       with:
         path: ~/.npm
         key: ${{ runner.os }}-copilot-cli-v1
@@ -395,17 +396,13 @@ runs:
               # Validate we got the correct PR
               ACTUAL_PR=$(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json number -q '.number' 2>/dev/null || echo "0")
               if [ "$ACTUAL_PR" != "$PR_NUMBER" ]; then
-                echo "::error::PR number mismatch: requested $PR_NUMBER, got $ACTUAL_PR"
-                CONTEXT="ERROR: Failed to fetch PR #$PR_NUMBER from $GITHUB_REPOSITORY"
-                echo "$CONTEXT" > /tmp/ai-review-context-pr${PR_NUMBER:-$GITHUB_RUN_ID}.txt
-                echo "context_mode=error" >> $GITHUB_OUTPUT
-                echo "context_file=/tmp/ai-review-context-pr${PR_NUMBER:-$GITHUB_RUN_ID}.txt" >> $GITHUB_OUTPUT
-                echo "context_built<<EOF_CONTEXT" >> $GITHUB_OUTPUT
-                echo "$CONTEXT" >> $GITHUB_OUTPUT
-                echo "EOF_CONTEXT" >> $GITHUB_OUTPUT
-                exit 1
+                echo "::warning::PR number mismatch: requested $PR_NUMBER, got $ACTUAL_PR. Token may lack permissions (first-time contributor?)."
+                CONTEXT="INFRASTRUCTURE_FAILURE: Could not fetch PR #$PR_NUMBER. The GH_TOKEN may lack permissions for first-time contributor PRs from forks."
+                CONTEXT_MODE="error"
+                echo "context_infra_failure=true" >> $GITHUB_OUTPUT
               fi
 
+              if [ "$CONTEXT_MODE" != "error" ]; then
               # Graceful degradation for large PRs (>300 files triggers HTTP 406)
               # Strategy: 1) Try gh pr diff, 2) Fall back to API with pagination, 3) Use --name-only summary
               DIFF_ERROR_FILE=$(mktemp)
@@ -499,6 +496,7 @@ runs:
               else
                 CONTEXT="## PR #$PR_NUMBER: $PR_TITLE"$'\n\n'"## Changes"$'\n'"$CONTEXT"
               fi
+              fi # end CONTEXT_MODE != error guard
             else
               CONTEXT="No PR number provided"
             fi
@@ -592,6 +590,15 @@ runs:
         COPILOT_AGENT: ${{ inputs.agent }}
         COPILOT_MODEL: ${{ inputs.copilot-model }}
       run: |
+        # Skip Copilot invocation if context build detected infrastructure failure
+        if [ "${{ steps.context.outputs.context_infra_failure }}" = "true" ]; then
+          echo "::warning::Skipping Copilot CLI invocation due to context build infrastructure failure"
+          echo "" > /tmp/ai-review-output.txt
+          echo "infrastructure_failure=true" >> $GITHUB_OUTPUT
+          echo "retry_count=0" >> $GITHUB_OUTPUT
+          exit 0
+        fi
+
         # Assemble prompt from template + context
         # Note: Agent definition is loaded automatically by Copilot CLI via --agent flag
         FULL_PROMPT=""

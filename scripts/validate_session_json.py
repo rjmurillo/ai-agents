@@ -74,7 +74,7 @@ CONTRADICTION_PATTERNS = re.compile(
 _LEGACY_HANDOFF_FIELD = "handoffNotUpdated"
 
 
-def get_case_insensitive(data: dict[str, Any], key: str) -> Any | None:
+def get_case_insensitive(data: dict[str, Any], key: str) -> Any | None:  # noqa: ANN401
     """Get value from dict with case-insensitive key lookup.
 
     Args:
