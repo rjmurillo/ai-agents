@@ -23,7 +23,7 @@ The multi-agent system originally allocated ~58 tools to all agents via blanket 
 ## Decision Drivers
 
 * **Principle of least privilege**: Agents should only have access to tools required for their specific role
-* **Context efficiency**: Minimize tool definition overhead in context windows (target: 3-9 tools per agent)
+* **Context efficiency**: Minimize tool definition overhead in context windows (target: 4-15 tools per agent)
 * **Role clarity**: Tool allocation should reinforce agent specialization
 * **Operational requirements**: Each agent must have all tools necessary to complete their designated tasks
 * **Cross-session continuity**: All agents need persistent memory capabilities
@@ -119,11 +119,12 @@ The GitHub MCP Server provides ~77 tools. **Blanket allocation of `github/*` is 
 
 | Agent | GitHub Toolsets | Mode | Rationale |
 |-------|-----------------|------|----------|
-| analyst | `context`, `repos`, `issues`, `pull_requests` | read-only | Research issues, PRs, code |
-| orchestrator | `context`, `repos`, `issues`, `pull_requests` | read-only | Monitor status for coordination |
-| implementer | `context`, `repos`, `issues`, `pull_requests` | read-write | Create branches, PRs, commits |
-| devops | `context`, `repos`, `actions` | read-write | CI/CD workflow management |
-| security | `code_security`, `secret_protection`, `dependabot` | read-only | Security scanning review |
+| analyst | `context`, `repos`, `issues`, `pull_requests`, `users` + `search_*` | read-only | Full research suite including search |
+| orchestrator | `context`, `repos`, `issues`, `pull_requests` + `search_code`, `search_issues`, `search_pull_requests`, `search_repositories` | read-only | Coordination requires finding related issues/PRs |
+| implementer | `context`, `repos`, `issues`, `pull_requests` + `search_code`, `search_issues` | read-write | Create branches, PRs, commits; find existing implementations |
+| devops | `context`, `repos`, `actions` + `search_code`, `search_issues`, `search_repositories`, `list_issues` | read-write | CI/CD workflow management and troubleshooting |
+| security | `code_security`, `secret_protection`, `dependabot` + `search_code` | read-only | Security scanning and vulnerability pattern search |
+| backlog-generator | `issues`, `pull_requests` + `search_issues`, `search_pull_requests`, `search_repositories`, `list_issues`, `list_pull_requests` | read-only | Autonomous backlog generation requires surveying project state |
 | pr-comment-responder | `github.vscode-pull-request-github/*` | read-write | VS Code PR extension (separate server) |
 
 **Agents without GitHub tools**: architect, critic, explainer, high-level-advisor, independent-thinker, memory, planner, qa, retrospective, roadmap, skillbook, task-generator
@@ -167,22 +168,23 @@ The GitHub MCP Server provides ~77 tools. **Blanket allocation of `github/*` is 
 
 | Agent | Research | GitHub | Orchestration | Rationale |
 |-------|:--------:|:------:|:-------------:|-----------|
-| analyst | web, perplexity, context7, deepwiki | repos/issues/PRs (read-only) | ✗ | Heavy research needs |
+| analyst | web, perplexity, context7, deepwiki | repos/issues/PRs + search_* (read-only) | ✗ | Heavy research needs |
 | architect | ✗ | ✗ | ✗ | Internal design focus |
+| backlog-generator | web | issues/PRs + search_* (read-only) | ✗ | Project state analysis |
 | critic | ✗ | ✗ | ✗ | Internal review focus |
-| devops | ✗ | repos + actions | ✗ | GitHub Actions, workflows |
+| devops | ✗ | repos + actions + search_code/issues | ✗ | GitHub Actions, workflows |
 | explainer | ✗ | ✗ | ✗ | Documentation focus |
 | high-level-advisor | ✗ | ✗ | ✗ | Strategic reasoning |
-| implementer | ✗ | repos/issues/PRs | ✗ | Create branches, PRs, commits |
+| implementer | ✗ | repos/issues/PRs + search_code/issues | ✗ | Create branches, PRs, commits |
 | independent-thinker | web, perplexity, deepwiki | ✗ | ✗ | External perspective research |
 | memory | ✗ | ✗ | memory | Direct memory ops |
-| orchestrator | ✗ | repos/issues/PRs (read-only) | agent, todo, memory | Full coordination |
+| orchestrator | ✗ | repos/issues/PRs + search_* (read-only) | agent, todo, memory | Full coordination |
 | planner | ✗ | ✗ | ✗ | Internal planning |
 | pr-comment-responder | ✗ | vscode-pr/* | agent | PR-specific operations |
 | qa | ✗ | ✗ | ✗ | Test-focused |
 | retrospective | ✗ | ✗ | agent | May delegate analysis |
 | roadmap | ✗ | ✗ | ✗ | Strategic documents |
-| security | web, perplexity | security toolsets (read-only) | ✗ | CVE/vulnerability research |
+| security | web, perplexity | security toolsets + search_code (read-only) | ✗ | CVE/vulnerability research |
 | skillbook | ✗ | ✗ | ✗ | Internal skill docs |
 | task-generator | ✗ | ✗ | ✗ | Task file creation |
 
@@ -192,27 +194,28 @@ The GitHub MCP Server provides ~77 tools. **Blanket allocation of `github/*` is 
 |-------|-------|:-----:|
 | analyst | read, edit, search, web, github/search_*, github/*_read, cloudmcp-manager/*, cognitionai/deepwiki/*, context7/*, perplexity/*, serena/* | 11 |
 | architect | read, edit, search, cloudmcp-manager/*, serena/* | 5 |
+| backlog-generator | read, edit, search, web, cloudmcp-manager/*, serena/*, github/list_issues, github/list_pull_requests, github/search_issues, github/search_pull_requests, github/search_repositories | 11 |
 | critic | read, edit, search, cloudmcp-manager/*, serena/* | 5 |
-| devops | execute, read, edit, search, cloudmcp-manager/*, github/list_workflow*, github/get_workflow*, github/run_workflow, serena/* | 10 |
+| devops | execute, read, edit, search, cloudmcp-manager/*, github/list_workflow*, github/get_workflow*, github/run_workflow, github/list_issues, github/search_code, github/search_issues, github/search_repositories, serena/* | 13 |
 | explainer | read, edit, cloudmcp-manager/*, serena/* | 4 |
 | high-level-advisor | read, edit, search, cloudmcp-manager/*, serena/* | 5 |
-| implementer | execute, read, edit, search, cloudmcp-manager/*, github/create_branch, github/push_files, github/create_pull_request, github/pull_request_read, github/issue_read, serena/* | 11 |
+| implementer | execute, read, edit, search, cloudmcp-manager/*, github/create_branch, github/push_files, github/create_pull_request, github/pull_request_read, github/issue_read, github/search_code, github/search_issues, serena/* | 13 |
 | independent-thinker | read, edit, search, web, cognitionai/deepwiki/*, cloudmcp-manager/*, perplexity/*, serena/* | 8 |
 | memory | read, edit, memory, cloudmcp-manager/*, serena/* | 5 |
-| orchestrator | execute, read, edit, search, agent, memory, todo, cloudmcp-manager/*, github/list_*, github/*_read, serena/* | 11 |
+| orchestrator | execute, read, edit, search, agent, memory, todo, cloudmcp-manager/*, github/list_*, github/*_read, github/search_code, github/search_issues, github/search_pull_requests, github/search_repositories, serena/* | 15 |
 | planner | read, edit, search, cloudmcp-manager/*, serena/* | 5 |
 | pr-comment-responder | execute, read, edit, agent, cloudmcp-manager/*, github.vscode-pull-request-github/*, serena/* | 7 |
 | qa | execute, read, edit, search, cloudmcp-manager/*, serena/* | 6 |
 | retrospective | read, edit, search, agent, cloudmcp-manager/*, serena/* | 6 |
 | roadmap | read, edit, cloudmcp-manager/*, serena/* | 4 |
-| security | read, edit, search, web, cloudmcp-manager/*, serena/*, perplexity/*, github/list_*_alerts, github/get_*_alert | 10 |
+| security | read, edit, search, web, cloudmcp-manager/*, serena/*, perplexity/*, github/list_*_alerts, github/get_*_alert, github/search_code | 11 |
 | skillbook | read, edit, search, cloudmcp-manager/*, serena/* | 5 |
 | task-generator | read, edit, search, cloudmcp-manager/*, serena/* | 5 |
 
 **Statistics:**
 - Minimum: 4 tools (explainer, roadmap)
-- Maximum: 11 tools (analyst, implementer)
-- Average: 6.5 tools per agent
+- Maximum: 15 tools (orchestrator)
+- Average: 7.4 tools per agent
 - Reduction: ~77 GitHub tools alone → specific subsets (74-90% reduction per agent)
 
 ## Pros and Cons of the Options
@@ -230,7 +233,7 @@ The GitHub MCP Server provides ~77 tools. **Blanket allocation of `github/*` is 
 
 ### Option 2: Role-Specific Tool Allocation (Chosen)
 
-*Each agent receives 3-9 curated tools based on role*
+*Each agent receives 4-15 curated tools based on role*
 
 * Good, because minimal context overhead
 * Good, because reinforces agent specialization
@@ -346,3 +349,4 @@ The GitHub MCP Server provides ~77 tools. **Blanket allocation of `github/*` is 
 **Task reference**: This ADR documents the methodology established during Task 8 tool optimization.
 
 **Review schedule**: Re-evaluate tool allocations quarterly or when adding new agents/tools.
+
