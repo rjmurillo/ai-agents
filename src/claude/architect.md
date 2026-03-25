@@ -290,7 +290,7 @@ Chosen option: "{title of option 1}", because {justification: meets criterion X 
 
 ### ADR Exception Evaluation (BLOCKING)
 
-When reviewing an ADR exception request, apply Chesterton's Fence analysis per ADR-052.
+When reviewing an ADR exception request, apply Chesterton's Fence analysis per ADR-053.
 
 **MUST verify before approval:**
 
