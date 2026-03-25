@@ -1,135 +1,180 @@
-# Troubleshooting: Windows Image Updater
+# Troubleshooting Guide
 
-Phase-by-phase error guide for the windows-image-updater skill.
+Common errors and their resolutions during the Windows container image update workflow.
 
-## Phase 1: Package Update
+---
 
-### Package not found
+## Phase 1: Repository Setup Errors
 
-**Symptom**: NuGet reports the target version does not exist.
+### Build fails on default branch
 
-**Resolution**:
+**Symptom:** `dotnet build` fails before any changes are made.
 
-1. Verify the version exists on the configured NuGet feed
-2. Check feed authentication (PAT expiry, feed permissions)
-3. Run `nuget list ConfigurationGeneration.AdoPipelineGeneration -AllVersions -Source {feed}` to list available versions
+**Cause:** The repository has pre-existing build issues unrelated to the image update.
 
-### Wrong packages.config location
+**Resolution:**
+1. STOP the image update workflow
+2. Report the build errors to the repository owner
+3. Do not proceed until the default branch builds cleanly
+4. If the user confirms the errors are known/expected, document them and continue at your discretion
 
-**Symptom**: Package reference not found in expected file.
+### Tests fail on default branch
 
-**Resolution**:
+**Symptom:** `dotnet test` fails before any changes.
 
-1. Search recursively: `find . -name "packages.config" -o -name "*.csproj" | xargs grep -l "ConfigurationGeneration"`
-2. Some repos use `Directory.Packages.props` for central package management
-3. Check for `.nuget/packages.config` at the solution root
+**Resolution:**
+1. Record the failing tests as baseline
+2. These tests should still fail (not be fixed or broken differently) after your changes
+3. Proceed with the workflow, noting pre-existing test failures
 
-## Phase 2: Dependency Resolution
+---
 
-### Version conflict loops
+## Phase 2: Package Update Errors
 
-**Symptom**: Fixing one dependency creates a new conflict with another.
+### NU1605: Package downgrade detected
 
-**Resolution**:
+**Symptom:**
+```
+error NU1605: Detected package downgrade: PackageName from X.Y.Z to A.B.C
+```
 
-1. List all conflicting packages and their required version ranges
-2. Find the intersection of compatible versions
-3. Update all conflicting packages in a single pass
-4. If no intersection exists, check whether a newer ConfigGen version resolves the conflict
+**Cause:** Bumping AdoPipelineGeneration pulls in a newer transitive dependency, but another package in the solution pins an older version.
 
-### Feed authentication failure
+**Resolution:**
+1. Find the package mentioned in the error in `Directory.Packages.props` or `Packages.props`
+2. Bump that package's version to match or exceed the version required
+3. Run `dotnet build` again
+4. Repeat if there are cascading downgrades
 
-**Symptom**: `401 Unauthorized` during restore.
+**Example fix:**
+```xml
+<!-- Before -->
+<PackageVersion Include="SomePackage" Version="1.0.0" />
+<!-- After (bump to resolve downgrade) -->
+<PackageVersion Include="SomePackage" Version="2.0.0" />
+```
 
-**Resolution**:
+### NU1608: Detected package version outside of dependency constraint
 
-1. Verify `nuget.config` contains valid feed credentials
-2. Check PAT expiration date
-3. Ensure the feed URL matches the organization's artifact feed
-4. Try `dotnet nuget list source` to verify configured sources
+**Symptom:**
+```
+warning NU1608: Detected package version outside of dependency constraint: PackageName X.Y.Z requires OtherPackage (>= A.B.C) but version D.E.F was resolved.
+```
 
-### Transitive dependency pinning
+**Resolution:**
+1. Update the version constraint in the props file to satisfy the dependency
+2. May require bumping multiple related packages
 
-**Symptom**: A transitive dependency is pinned to an incompatible version.
+### CS0246: Type or namespace not found
 
-**Resolution**:
+**Symptom:**
+```
+error CS0246: The type or namespace name 'SomeType' could not be found
+```
 
-1. Check for explicit version pins in `Directory.Packages.props` or `packages.config`
-2. Remove or update the pin to allow the required version range
-3. Re-run restore and verify
+**Cause:** A dependent package's API changed in the newer version (breaking change).
 
-## Phase 3: ConfigGen Execution
+**Resolution:**
+1. Check the package's release notes for API changes
+2. Update the code to use the new API
+3. This is rare for ConfigGen updates but possible for transitive dependencies
 
-### ConfigGen not found
+### NuGet restore fails
 
-**Symptom**: ConfigGen executable not on PATH or in expected location.
+**Symptom:** `dotnet restore` fails with authentication or feed errors.
 
-**Resolution**:
+**Resolution:**
+1. Ensure NuGet feed credentials are configured
+2. Check `nuget.config` for correct feed URLs
+3. Try: `dotnet nuget locals all --clear` then retry
 
-1. Check `tools/ConfigGen/` directory
-2. Run `nuget restore` to ensure ConfigGen package is downloaded
-3. Check `.config/dotnet-tools.json` for tool manifest entries
-4. Search: `find . -name "ConfigGen*" -type f`
+---
 
-### ConfigGen non-zero exit code
+## Phase 3: Config Generation Errors
 
-**Symptom**: ConfigGen exits with a non-zero code.
+### ConfigGen project not found
 
-**Resolution**:
+**Symptom:** No .csproj file found with Topology or ConfigurationGeneration in the name.
 
-1. Read stderr output for specific error messages
-2. Common causes:
-   - Missing or invalid `configgen.json` configuration file
-   - Schema validation failures in pipeline definitions
-   - Missing environment variables required by templates
-3. Fix the root cause and re-run. Do not proceed to Phase 4 with a failed ConfigGen run.
+**Resolution:**
+1. Check if the repo uses a different naming convention
+2. Search more broadly: `Get-ChildItem -Recurse -Filter "*.csproj"` and examine each
+3. Look for projects that reference `ConfigurationGeneration` packages
+4. Ask the user for the correct project path
 
-### ConfigGen generates no changes
+### ConfigGen run produces no changes
 
-**Symptom**: ConfigGen exits successfully but no YAML files are modified.
+**Symptom:** `dotnet run` completes but no file changes appear in `.pipelines/`.
 
-**Resolution**:
+**Resolution:**
+1. Verify you ran the correct project (Topology for resources repos, ConfigGen for service repos)
+2. Check if the project requires specific arguments or environment variables
+3. Check if the `.pipelines/` folder is in a different location
+4. Verify the package version actually changed (diff the props file)
 
-1. Verify the package version actually changes the image reference
-2. Check if the repo uses a custom ConfigGen configuration that overrides image selection
-3. Inspect the ConfigGen template files for hardcoded image references
+### Image reference still shows ltsc2019
 
-## Phase 4: Image Verification
+**Symptom:** After running ConfigGen, yml files still contain ltsc2019 references.
 
-### Old image references remain
+**Resolution:**
+1. Verify the AdoPipelineGeneration package version is actually the latest
+2. The latest version might still use ltsc2019 — check the package release notes
+3. There may be a different package or configuration that controls the image
+4. Report to user — may need to escalate to the ConfigGen team
 
-**Symptom**: `grep` still finds the old image string in YAML files after ConfigGen.
+### dotnet run fails with runtime error
 
-**Resolution**:
+**Symptom:** The ConfigGen project fails during execution.
 
-1. Check if the remaining references are in files not managed by ConfigGen
-2. Look for hardcoded image references in:
-   - `.azure-pipelines/` directories
-   - `build/` directories
-   - Custom pipeline templates
-3. These files may need manual updates. Document them in the PR description.
+**Resolution:**
+1. Read the error message carefully — it often indicates a configuration issue
+2. Check if the project requires specific files or configuration that may be missing
+3. Try running with `--verbosity detailed` for more information
+4. Ensure all project dependencies are restored: `dotnet restore`
 
-### False positive matches
+---
 
-**Symptom**: grep matches the old image string in comments, documentation, or unrelated contexts.
+## Phase 4: PR and Pipeline Errors
 
-**Resolution**:
+### Pipeline validation fails
 
-1. Filter results to only `.yml` and `.yaml` files in pipeline directories
-2. Exclude `CHANGELOG.md`, `README.md`, and documentation files
-3. Use context-aware grep: `grep -n "image:.*ltsc2019" --include="*.yml" -r .`
+**Symptom:** PR validation or buddy build pipeline fails.
 
-## General
+**Resolution:**
+1. Download and examine the pipeline logs
+2. Determine if the failure is related to the image update or pre-existing
+3. Common causes:
+   - Test failures (compare with baseline)
+   - Configuration errors in generated yml files
+   - Infrastructure issues (retry)
+4. If related to the change, investigate the specific failure in the ConfigGen output
 
-### Multiple solutions in one repository
+### Cannot create PR via CLI
 
-Some repos contain multiple solutions with separate package configurations. Run each phase per solution, then verify across the entire repo in Phase 4.
+**Symptom:** `az repos pr create` fails with permission or authentication errors.
 
-### Rollback procedure
+**Resolution:**
+1. Ensure you're authenticated: `az login`
+2. Verify you have permission to create PRs in the repository
+3. Try creating the PR manually through the ADO web interface
+4. Check if branch policies prevent draft PR creation
 
-If the update causes pipeline failures that cannot be resolved:
+### Pipeline takes too long
 
-1. Revert the package bump commit
-2. Re-run ConfigGen with the original version
-3. Verify the old image references are restored
-4. Document the failure in the issue for investigation
+**Symptom:** Pipeline runs for longer than expected (>30 minutes for build).
+
+**Resolution:**
+1. Continue polling at 5-minute intervals
+2. Check the pipeline UI for progress
+3. Some repositories have long build times — this is normal
+4. If stuck for >1 hour, check for infrastructure issues in the pipeline
+
+---
+
+## General Tips
+
+1. **Always check exit codes** — Don't assume success; verify with `$LASTEXITCODE` or `$?`
+2. **Save build output** — Redirect to log files for later comparison
+3. **One fix at a time** — When resolving package conflicts, fix one error, rebuild, then fix the next
+4. **Git stash** — If you need to temporarily revert, use `git stash` to save work in progress
+5. **Ask the user** — If stuck on a non-obvious error, ask for guidance rather than guessing

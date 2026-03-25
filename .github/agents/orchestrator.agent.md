@@ -19,6 +19,7 @@ tools:
   - cloudmcp-manager/*
   - serena/*
 model: Claude Opus 4.5 (copilot)
+tier: manager
 ---
 # Orchestrator Agent
 

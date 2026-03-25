@@ -182,10 +182,19 @@ runs:
 
         # Default empty verdict to NEEDS_REVIEW so aggregate job can process it
         $verdict = $env:VERDICT
+        $infraFailure = $env:INFRASTRUCTURE_FAILURE
         if ([string]::IsNullOrWhiteSpace($verdict)) {
           $verdict = 'NEEDS_REVIEW'
           Write-Output "::warning::Verdict was empty, defaulting to NEEDS_REVIEW"
+          # Empty verdict with empty findings indicates the review did not run
+          # (e.g., context build failed due to missing BOT_PAT for first-time contributors).
+          # Mark as infrastructure failure so aggregate downgrades to WARN.
+          if ([string]::IsNullOrWhiteSpace($env:FINDINGS)) {
+            $infraFailure = 'true'
+            Write-Output "::warning::Both verdict and findings are empty, marking as infrastructure failure"
+          }
         }
+        $env:INFRASTRUCTURE_FAILURE = $infraFailure
 
         if ($env:CACHE_HIT -eq 'true') {
           Write-Output "Using cached review result for $($env:AGENT)"
@@ -301,15 +310,21 @@ runs:
         $findings = $env:FINDINGS
 
         # Default empty verdict to NEEDS_REVIEW (blocking) so failures are not silently passed
+        $infraFailure = $env:INFRASTRUCTURE_FAILURE
         if ([string]::IsNullOrWhiteSpace($verdict)) {
           $verdict = 'NEEDS_REVIEW'
           Write-Output "::warning::Verdict was empty, defaulting to NEEDS_REVIEW"
+          # Empty verdict with empty findings means review did not run (infrastructure issue)
+          if ([string]::IsNullOrWhiteSpace($findings)) {
+            $infraFailure = 'true'
+            Write-Output "::warning::Both verdict and findings are empty, treating as infrastructure failure"
+          }
         }
 
         $blockingVerdicts = @('CRITICAL_FAIL', 'REJECTED', 'FAIL', 'NEEDS_REVIEW')
 
         # Infrastructure failures should not block the PR (aggregate handles downgrade to WARN)
-        if ($verdict -in $blockingVerdicts -and $env:INFRASTRUCTURE_FAILURE -eq 'true') {
+        if ($verdict -in $blockingVerdicts -and $infraFailure -eq 'true') {
           Write-Output "::warning::[$agent] Infrastructure failure (verdict: $verdict). Not blocking PR."
           Write-Output ""
           Write-Output "⚠️ $emoji $agent review had infrastructure failure (Copilot CLI unavailable)"

@@ -8,6 +8,7 @@ tools:
   - cloudmcp-manager/*
   - serena/*
 model: claude-opus-4.5
+tier: expert
 ---
 # Roadmap Agent
 

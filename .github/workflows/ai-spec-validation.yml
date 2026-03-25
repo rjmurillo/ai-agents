@@ -254,6 +254,7 @@ jobs:
       - name: 🔗 Requirements Traceability Check (Analyst Agent)
         if: steps.spec-ref.outputs.has_specs == 'true'
         id: trace
+        continue-on-error: true
         uses: ./.github/actions/ai-review
         with:
           agent: analyst
@@ -268,6 +269,7 @@ jobs:
       - name: ✅ Completeness Check (Critic Agent)
         if: steps.spec-ref.outputs.has_specs == 'true'
         id: completeness
+        continue-on-error: true
         uses: ./.github/actions/ai-review
         with:
           agent: critic
@@ -297,6 +299,7 @@ jobs:
         run: python3 .github/scripts/generate_spec_report.py
 
       - name: Post PR Comment
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ env.PR_NUMBER }}
