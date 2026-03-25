@@ -100,6 +100,12 @@ Run build/test/lint in the worktree directory.
 
 - Keep build outputs isolated per worktree.
 - Share only safe caches (NuGet packages, etc.), not `bin/obj`.
+- Set `UV_PROJECT_ROOT` to the main repo root so `uv run` resolves tools
+  (ruff, pytest, mypy, bandit) from the main project venv:
+
+```bash
+export UV_PROJECT_ROOT="$(git rev-parse --git-common-dir | xargs dirname)"
+```
 
 Example (.NET):
 
@@ -240,6 +246,11 @@ git worktree unlock ../wt-feature-xyz
 
    - `git gc`, `git repack`, aggressive cleanup affects all worktrees.
    - Fix: avoid unless you own the repo state.
+
+5. **Running `uv run` without `UV_PROJECT_ROOT`**
+
+   - `uv` creates a fresh `.venv` per directory. Worktree venvs lack dev tools.
+   - Fix: `export UV_PROJECT_ROOT="$(git rev-parse --git-common-dir | xargs dirname)"`
 
 ---
 

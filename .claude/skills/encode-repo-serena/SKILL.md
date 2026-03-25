@@ -1,6 +1,6 @@
 ---
 name: encode-repo-serena
-version: 1.0.0
+version: 1.1.0
 description: Systematically populate the Forgetful knowledge base using Serena's LSP-powered
   symbol analysis for accurate, comprehensive codebase understanding.
 license: MIT
@@ -20,6 +20,7 @@ Transform an undocumented codebase into a rich, searchable knowledge repository 
 | `populate forgetful with this codebase` | Full encoding pipeline |
 | `onboard to this repo` | Discovery + foundation phases |
 | `refresh project understanding` | Re-run encoding on updated codebase |
+| `build knowledge base for this project` | Full encoding pipeline |
 
 ## When to Use
 
@@ -55,31 +56,55 @@ Use `research-and-incorporate` instead when:
 
 ## Process
 
-| Phase | Focus | Output |
-|-------|-------|--------|
-| **0** | Discovery | Project assessment, structure map |
-| **1** | Foundation | 5-10 project overview memories |
-| **1B** | Dependencies | 1-3 dependency memories |
-| **2** | Symbols | 10-15 architecture memories |
-| **2B** | Entities | Component entities + relationships |
-| **3** | Patterns | 8-12 pattern memories |
-| **4** | Features | 1-2 per critical feature |
-| **5** | Decisions | Design decision memories |
-| **6** | Artifacts | Code artifact storage |
-| **6B** | Symbol Index | Document + entry memory |
-| **7** | Documents | Long-form documentation |
-| **7B** | Architecture | Architecture reference doc |
+### Phase 0: Discovery
+
+Assess project size, complexity, and structure. Produce a structure map.
+
+### Phase 1: Foundation
+
+Create 5-10 project overview memories covering purpose, tech stack, and entry points.
+
+### Phase 1B: Dependencies
+
+Create 1-3 dependency memories documenting external libraries and internal references.
+
+### Phase 2: Symbols
+
+Use Serena `find_symbol` and `find_referencing_symbols` to produce 10-15 architecture memories.
+
+### Phase 2B: Entities
+
+Create component entities with relationships in Forgetful. Deduplicate before creating.
+
+### Phase 3: Patterns
+
+Document 8-12 recurring code patterns, conventions, and idioms.
+
+### Phase 4: Features
+
+Create 1-2 memories per critical feature describing behavior and implementation.
+
+### Phase 5: Decisions
+
+Record design decisions with rationale and alternatives considered.
+
+### Phase 6: Artifacts
+
+Store code artifacts (configs, schemas, key files) in Forgetful.
+
+### Phase 6B: Symbol Index
+
+Create a symbol index document with an entry memory for navigation.
+
+### Phase 7: Documents
+
+Produce long-form documentation summarizing the codebase.
+
+### Phase 7B: Architecture
+
+Create an architecture reference document linking all prior phases.
 
 See [references/phases.md](references/phases.md) for full phase details.
-
-## Memory Targets
-
-| Profile | Total Memories | Documents | Entities |
-|---------|----------------|-----------|----------|
-| Small Simple | 17-31 | 2 | 3-5 |
-| Small Complex | 28-46 | 2 | 5-10 |
-| Medium | 38-66 | 2-3 | 10-20 |
-| Large | 66-112 | 3-6 | 20-40 |
 
 ## Execution Order
 
@@ -95,6 +120,15 @@ See [references/phases.md](references/phases.md) for full phase details.
 - Link entities to memories bidirectionally
 - Create entry memories for documents
 
+## Memory Targets
+
+| Profile | Total Memories | Documents | Entities |
+|---------|----------------|-----------|----------|
+| Small Simple | 17-31 | 2 | 3-5 |
+| Small Complex | 28-46 | 2 | 5-10 |
+| Medium | 38-66 | 2-3 | 10-20 |
+| Large | 66-112 | 3-6 | 20-40 |
+
 ## Quality Principles
 
 | Principle | Description |
@@ -105,9 +139,9 @@ See [references/phases.md](references/phases.md) for full phase details.
 | Importance | Most should be 7-8 |
 | Linking | Connect related memories |
 
-## Validation Checklist
+## Validation
 
-After completion:
+After encoding, verify all outputs meet quality standards:
 
 - [ ] Test memory search: "How do I add a new API endpoint?"
 - [ ] Test dependency query: "What dependencies does this project use?"
@@ -116,6 +150,10 @@ After completion:
 - [ ] Check Symbol Index document exists
 - [ ] Check Architecture Reference document exists
 - [ ] Verify project.notes populated
+- [ ] All target components have Forgetful entities created
+- [ ] Entity relationships reflect actual code dependencies
+- [ ] Memories linked to corresponding entities
+- [ ] No duplicate entities in knowledge graph
 
 See [references/validation.md](references/validation.md) for test commands.
 
@@ -127,16 +165,6 @@ See [references/validation.md](references/validation.md) for test commands.
 | Creating non-atomic memories | Pollutes search results, hard to maintain | One concept per memory, 200-400 words |
 | Duplicate entities | Bloats knowledge graph, inconsistent links | Deduplicate entities before creating |
 | Skipping validation | No confidence in encoding quality | Run validation checklist after completion |
-
-## Verification
-
-After encoding:
-
-- [ ] All target components have Forgetful entities created
-- [ ] Entity relationships reflect actual code dependencies
-- [ ] Memories linked to corresponding entities
-- [ ] No duplicate entities in knowledge graph
-- [ ] Validation checklist items pass
 
 ## References
 

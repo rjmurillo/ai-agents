@@ -40,10 +40,10 @@ jobs:
     outputs:
       python-changed: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.python }}
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Check for Python file changes
-        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
         id: filter
         if: github.event_name != 'workflow_dispatch'
         with:
@@ -75,28 +75,21 @@ jobs:
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@58077d3c7e43986b6b15fba718e8ea69e387dfcc # v2.15.1
+        uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
         with:
           egress-policy: audit
 
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Set up Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+      - name: Setup code environment
+        uses: ./.github/actions/setup-code-env
         with:
-          python-version: "3.12"
-
-      - name: Install UV
-        run: curl -LsSf https://astral.sh/uv/install.sh | sh
-
-      - name: Install dependencies
-        run: |
-          export PATH="$HOME/.local/bin:$PATH"
-          uv pip install --system -e ".[dev]"
+          gh-token: ${{ secrets.GITHUB_TOKEN }}
+          enable-pester: false
+          enable-git-hooks: false
 
       - name: Run pytest
         run: |
-          export PATH="$HOME/.local/bin:$PATH"
           mkdir -p artifacts
           pytest --cov --cov-report=xml:artifacts/coverage.xml --junitxml=artifacts/pytest-results.xml
 
@@ -118,33 +111,25 @@ jobs:
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@58077d3c7e43986b6b15fba718e8ea69e387dfcc # v2.15.1
+        uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
         with:
           egress-policy: audit
 
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Set up Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+      - name: Setup code environment
+        uses: ./.github/actions/setup-code-env
         with:
-          python-version: "3.12"
-
-      - name: Install UV
-        run: curl -LsSf https://astral.sh/uv/install.sh | sh
-
-      - name: Install dependencies
-        run: |
-          export PATH="$HOME/.local/bin:$PATH"
-          uv pip install --system -e ".[dev]"
+          gh-token: ${{ secrets.GITHUB_TOKEN }}
+          enable-pester: false
+          enable-git-hooks: false
 
       - name: Run pip-audit
         run: |
-          export PATH="$HOME/.local/bin:$PATH"
           pip-audit
 
       - name: Run Bandit
         run: |
-          export PATH="$HOME/.local/bin:$PATH"
           mkdir -p artifacts
           bandit -r .claude/ scripts/ -f sarif -o artifacts/bandit-results.sarif || true
 
@@ -169,7 +154,7 @@ jobs:
       contents: read
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@58077d3c7e43986b6b15fba718e8ea69e387dfcc # v2.15.1
+        uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
         with:
           egress-policy: audit
 
