@@ -1,59 +1,45 @@
 ---
-description: Run QA verification on implementation results. Validates acceptance criteria, test coverage, and quality standards.
-argument-hint: <verification scope>
+description: Quality assurance - invoke QA agent, validate test coverage, check acceptance criteria, and report results.
+argument-hint: [--coverage-threshold N] <verification-scope>
+allowed-tools:
+  - Bash(pwsh .claude/skills/workflow/scripts/*)
+  - Bash(git:*)
+  - Bash(ls:*)
+  - Read
+  - mcp__agent_orchestration__invoke_agent
+  - mcp__agent_orchestration__track_handoff
 model: sonnet
 ---
 
-# /3-qa - Quality Assurance
+# /3-qa — Quality Assurance
 
-Validate that implementation meets acceptance criteria, test coverage targets, and quality standards. Routes to the **qa** agent.
+Invoke the QA agent and validate implementation quality.
 
-## Actions
+## Context
 
-1. **Review implementation** - Examine changed files from `/2-impl`
-2. **Validate acceptance criteria** - Check each criterion from the plan
-3. **Verify test coverage** - Ensure new/changed code has adequate tests
-4. **Run existing tests** - Execute test suite, report failures
-5. **Generate QA report** - Structured pass/fail with evidence
+Implementation artifacts: !`ls -1 .agents/sessions/ | tail -3`
 
-## Agent Routing
+Current branch: !`git branch --show-current`
 
-Routes to **qa** (Tier 3: Builder). For complex QA requiring design review, escalates to **critic** (Tier 2: Manager).
+## Invocation
 
-Maps to Agent Orchestration MCP (ADR-013): `invoke_agent("qa", ...)`, `track_handoff()`. Fallback: `Task(subagent_type="qa", prompt=...)`.
-
-## QA Checklist
-
-| Check | Required | Description |
-|-------|----------|-------------|
-| Acceptance criteria met | MUST | Each criterion from plan passes |
-| Tests pass | MUST | All existing tests remain green |
-| New tests added | SHOULD | Changed code has corresponding tests |
-| Edge cases covered | SHOULD | Boundary conditions tested |
-| No regressions | MUST | Existing functionality unaffected |
-| Code quality | RECOMMENDED | Lint clean, no warnings introduced |
-
-## Output
-
-- **QA Report** - Pass/fail per acceptance criterion
-- **Test Results** - Suite execution summary
-- **Coverage Delta** - Test coverage change from implementation
-- **Issues Found** - List of defects or concerns, if any
-- **Recommendation** - Proceed to `/4-security` or return to `/2-impl` for fixes
-
-## Sequence Position
-
-```text
-/0-init → /1-plan → /2-impl → ▶ /3-qa → /4-security → /9-sync
+```bash
+pwsh .claude/skills/workflow/scripts/Invoke-QA.ps1 $ARGUMENTS
 ```
 
-## Prerequisites
+## What This Command Does
 
-Requires implementation from `/2-impl`.
+1. Invoke `qa` agent via Agent Orchestration MCP
+2. Validate test coverage against threshold (default: 80%)
+3. Check acceptance criteria from planning artifacts
+4. Report pass/fail with details
+5. Track handoff back to orchestrator
 
-## Examples
+## Arguments
 
-```text
-/3-qa Verify the authentication implementation meets acceptance criteria
-/3-qa Run full test suite and report coverage for the caching changes
-```
+- `--coverage-threshold N`: Minimum coverage percentage (default: 80).
+- Remaining text: Verification scope.
+
+## Related
+
+- ADR-006: `.agents/architecture/ADR-006-thin-workflows-testable-modules.md`

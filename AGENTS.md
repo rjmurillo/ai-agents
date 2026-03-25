@@ -45,6 +45,7 @@ Read first, reason second. Pre-training is last resort.
 | Security | security-detection |
 | Quality | analyze |
 | Learn | reflect |
+| Workflow | workflow (0-init, 1-plan, 2-impl, 3-qa, 4-security) |
 
 ## Agents
 

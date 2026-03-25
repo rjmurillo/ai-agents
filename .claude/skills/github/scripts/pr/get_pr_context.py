@@ -45,6 +45,11 @@ from github_core.api import (  # noqa: E402
     error_and_exit,
     resolve_repo_params,
 )
+from github_core.output import (  # noqa: E402
+    add_output_format_arg,
+    get_output_format,
+    write_skill_output,
+)
 
 _JSON_FIELDS = (
     "number,title,body,headRefName,baseRefName,state,author,labels,"
@@ -74,6 +79,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--diff-stat", action="store_true",
         help="With --include-diff, return stat format instead of full diff",
     )
+    add_output_format_arg(parser)
     return parser
 
 
@@ -85,6 +91,7 @@ def main(argv: list[str] | None = None) -> int:
     owner, repo = resolved.owner, resolved.repo
     pr = args.pull_request
     repo_flag = f"{owner}/{repo}"
+    fmt = get_output_format(args.output_format)
 
     pr_result = subprocess.run(
         ["gh", "pr", "view", str(pr), "--repo", repo_flag, "--json", _JSON_FIELDS],
@@ -105,8 +112,7 @@ def main(argv: list[str] | None = None) -> int:
     labels = [label.get("name", "") for label in pr_data.get("labels", [])]
     merged_by = pr_data.get("mergedBy")
 
-    output: dict = {
-        "success": True,
+    data: dict = {
         "number": pr_data.get("number"),
         "title": pr_data.get("title"),
         "body": pr_data.get("body"),
@@ -138,7 +144,7 @@ def main(argv: list[str] | None = None) -> int:
             diff_args, capture_output=True, text=True, timeout=60, check=False,
         )
         if diff_result.returncode == 0:
-            output["diff"] = diff_result.stdout
+            data["diff"] = diff_result.stdout
 
     if args.include_changed_files:
         files_result = subprocess.run(
@@ -149,11 +155,17 @@ def main(argv: list[str] | None = None) -> int:
             check=False,
         )
         if files_result.returncode == 0:
-            output["files"] = [
+            data["files"] = [
                 f for f in files_result.stdout.splitlines() if f.strip()
             ]
 
-    print(json.dumps(output, indent=2))
+    write_skill_output(
+        data,
+        output_format=fmt,
+        human_summary=f"PR #{pr}: {pr_data.get('title', '')} ({pr_data.get('state', '')})",
+        status="PASS",
+        script_name="get_pr_context.py",
+    )
     return 0
 
 
