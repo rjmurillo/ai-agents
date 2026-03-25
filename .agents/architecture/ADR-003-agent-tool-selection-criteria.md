@@ -32,7 +32,7 @@ The multi-agent system originally allocated ~58 tools to all agents via blanket 
 ## Considered Options
 
 * **Option 1: Blanket tool allocation** - All agents get all ~58 tools
-* **Option 2: Role-specific tool allocation** - Curated 3-9 tools per agent based on responsibilities
+* **Option 2: Role-specific tool allocation** - Curated 4-20 tools per agent based on responsibilities
 * **Option 3: Tiered tool allocation** - Base tools for all, specialty tools per role
 * **Option 4: Dynamic tool loading** - Load tools on-demand based on task
 
@@ -44,7 +44,7 @@ The multi-agent system originally allocated ~58 tools to all agents via blanket 
 
 **Good:**
 
-* Reduced context overhead from ~58 tools to 3-9 per agent
+* Reduced context overhead from ~58 tools to 4-20 per agent
 * Clearer agent specialization reinforced by tool boundaries
 * Reduced token costs per request
 * Faster response times due to smaller context
@@ -65,7 +65,7 @@ The multi-agent system originally allocated ~58 tools to all agents via blanket 
 ### Confirmation
 
 Verify implementation by checking each `.github/agents/*.agent.md` file has:
-- Explicit `tools:` frontmatter with 3-9 entries
+- Explicit `tools:` frontmatter with 4-20 entries
 - Tools aligned with role responsibilities per decision matrix
 
 ## Tool Categories
@@ -304,7 +304,7 @@ The GitHub MCP Server provides ~59 tools. **Blanket allocation of `github/*` is 
 
 **Why**: Every tool adds context overhead. Only add tools with demonstrated need based on agent responsibilities.
 
-**Bad Example**: Allocating `github/*` (~77 tools) when agent only needs `github/pull_request_read` and `github/issue_read` (~2 tools).
+**Bad Example**: Allocating `github/*` (~59 tools) when agent only needs `github/pull_request_read` and `github/issue_read` (~2 tools).
 
 ### ❌ DO NOT: Use blanket `github/*` allocation
 
