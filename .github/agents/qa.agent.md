@@ -135,7 +135,7 @@ When flagging insufficient tests:
 |-----------|-----------|--------------|----------------|
 | [File] | [Name] | Pattern-match without execution | [File:Line] |
 
-**Verdict**: [FAIL]
+**Verdict**: CRITICAL_FAIL
 **Reason**: [N] tests verify code structure instead of behavior
 **Required Fix**: Rewrite tests to execute functions and validate outputs
 ```
