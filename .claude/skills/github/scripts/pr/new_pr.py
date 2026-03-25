@@ -29,6 +29,11 @@ from validate_pr_description import _CONVENTIONAL_COMMIT_PATTERN  # noqa: E402
 # ---------------------------------------------------------------------------
 
 
+def _git_env() -> dict[str, str]:
+    """Return environment with GIT_DIR/GIT_WORK_TREE stripped to avoid hook interference."""
+    return {k: v for k, v in os.environ.items() if k not in ("GIT_DIR", "GIT_WORK_TREE")}
+
+
 def get_repo_root() -> str:
     """Get the git repository root directory."""
     result = subprocess.run(
@@ -36,6 +41,7 @@ def get_repo_root() -> str:
         capture_output=True,
         text=True,
         timeout=10,
+        env=_git_env(),
     )
     if result.returncode != 0:
         print("Not in a git repository", file=sys.stderr)
@@ -88,6 +94,7 @@ def run_validations(
         capture_output=True,
         text=True,
         timeout=30,
+        env=_git_env(),
     )
     changed_files = result.stdout.strip().splitlines() if result.returncode == 0 else []
     agents_changed = any(f.startswith(".agents/") for f in changed_files)
@@ -96,16 +103,13 @@ def run_validations(
         session_logs = [f for f in changed_files if re.match(r"^\.agents/sessions/.*\.md$", f)]
         if session_logs:
             session_log = session_logs[-1]
-            validate_script = os.path.join(repo_root, "scripts/Validate-Session.ps1")
+            validate_script = os.path.join(repo_root, "scripts/validate_session_json.py")
             if os.path.exists(validate_script):
                 session_log_path = os.path.join(repo_root, session_log)
                 vresult = subprocess.run(
                     [
-                        "pwsh",
-                        "-NoProfile",
-                        "-File",
+                        sys.executable,
                         validate_script,
-                        "-SessionLogPath",
                         session_log_path,
                     ],
                     capture_output=True,
@@ -133,10 +137,10 @@ def run_validations(
     # Validation 3: Test coverage detection (WARNING)
     print()
     print("[3/4] Checking test coverage...")
-    test_script = os.path.join(repo_root, "scripts/Detect-TestCoverageGaps.ps1")
+    test_script = os.path.join(repo_root, "scripts/detect_test_coverage_gaps.py")
     if os.path.exists(test_script):
         subprocess.run(
-            ["pwsh", "-NoProfile", "-File", test_script],
+            [sys.executable, test_script],
             timeout=30,
         )
 
@@ -243,6 +247,7 @@ def main(argv: list[str] | None = None) -> int:
             capture_output=True,
             text=True,
             timeout=10,
+            env=_git_env(),
         )
         head = result.stdout.strip()
         if not head:
