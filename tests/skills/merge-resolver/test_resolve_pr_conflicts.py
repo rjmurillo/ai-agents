@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import os
+import subprocess
 import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -179,6 +180,9 @@ class TestGetRepoInfo:
                 get_repo_info()
 
     def test_raises_for_no_remote(self) -> None:
-        with patch("subprocess.run", return_value=self._make_proc(returncode=1)):
-            with pytest.raises(RuntimeError, match="Not in a git repository"):
+        with patch(
+            "subprocess.run",
+            side_effect=subprocess.CalledProcessError(1, "git"),
+        ):
+            with pytest.raises(RuntimeError, match="Could not determine git remote origin"):
                 get_repo_info()
