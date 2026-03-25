@@ -125,14 +125,22 @@ def get_safe_worktree_path(base_path: str, pr_number: int) -> str:
 
 
 def get_repo_info() -> RepoInfo:
-    """Auto-detect owner/repo from git remote."""
-    result = subprocess.run(
-        ["git", "remote", "get-url", "origin"],
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode != 0:
-        raise RuntimeError("Not in a git repository or no origin remote")
+    """Auto-detect owner/repo from git remote.
+
+    Raises:
+        RuntimeError: If git is not available, times out, or the remote
+            URL cannot be parsed as a GitHub repository.
+    """
+    try:
+        result = subprocess.run(
+            ["git", "remote", "get-url", "origin"],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=10,
+        )
+    except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired) as exc:
+        raise RuntimeError("Could not determine git remote origin") from exc
 
     remote = result.stdout.strip()
     match = re.search(r"github\.com[:/]([^/]+)/([^/.]+)", remote)
@@ -183,8 +191,7 @@ def resolve_conflicts_runner(
 
     if dry_run:
         result["message"] = (
-            f"[DryRun] Would resolve conflicts for branch {branch_name} "
-            f"in GitHub runner mode"
+            f"[DryRun] Would resolve conflicts for branch {branch_name} in GitHub runner mode"
         )
         result["success"] = True
         return result
@@ -240,8 +247,7 @@ def resolve_conflicts_runner(
         diff_r = _run_git("diff", "--cached", "--quiet")
         if diff_r.returncode != 0:
             commit_msg = (
-                f"Merge {target_branch} into {branch_name} "
-                f"- auto-resolve HANDOFF.md conflicts"
+                f"Merge {target_branch} into {branch_name} - auto-resolve HANDOFF.md conflicts"
             )
             commit_r = _run_git("commit", "-m", commit_msg)
             if commit_r.returncode != 0:
@@ -274,8 +280,13 @@ def resolve_conflicts_worktree(
         "files_blocked": [],
     }
 
-    repo_root_r = _run_git("rev-parse", "--show-toplevel")
-    repo_root = repo_root_r.stdout.strip()
+    repo_root_r = _run_git("rev-parse", "--git-common-dir")
+    git_common = Path(repo_root_r.stdout.strip())
+    if not git_common.is_absolute():
+        git_common = (Path.cwd() / git_common).resolve()
+    else:
+        git_common = git_common.resolve()
+    repo_root = str(git_common.parent)
 
     try:
         worktree_path = get_safe_worktree_path(worktree_base_path, pr_number)
@@ -308,7 +319,10 @@ def resolve_conflicts_worktree(
 
         if r.returncode != 0:
             conflicts_r = _run_git(
-                "diff", "--name-only", "--diff-filter=U", cwd=worktree_path,
+                "diff",
+                "--name-only",
+                "--diff-filter=U",
+                cwd=worktree_path,
             )
             conflicts = [f for f in conflicts_r.stdout.strip().split("\n") if f]
 
@@ -316,12 +330,13 @@ def resolve_conflicts_worktree(
             for file_path in conflicts:
                 if is_auto_resolvable(file_path):
                     checkout_r = _run_git(
-                        "checkout", "--theirs", file_path, cwd=worktree_path,
+                        "checkout",
+                        "--theirs",
+                        file_path,
+                        cwd=worktree_path,
                     )
                     if checkout_r.returncode != 0:
-                        result["message"] = (
-                            f"Failed to checkout --theirs for {file_path}"
-                        )
+                        result["message"] = f"Failed to checkout --theirs for {file_path}"
                         return result
                     add_r = _run_git("add", file_path, cwd=worktree_path)
                     if add_r.returncode != 0:
@@ -335,16 +350,13 @@ def resolve_conflicts_worktree(
             if not can_auto_resolve:
                 _run_git("merge", "--abort", cwd=worktree_path)
                 blocked = ", ".join(result["files_blocked"])
-                result["message"] = (
-                    f"Conflicts in non-auto-resolvable files: {blocked}"
-                )
+                result["message"] = f"Conflicts in non-auto-resolvable files: {blocked}"
                 return result
 
             diff_r = _run_git("diff", "--cached", "--quiet", cwd=worktree_path)
             if diff_r.returncode != 0:
                 commit_msg = (
-                    f"Merge {target_branch} into {branch_name} "
-                    f"- auto-resolve HANDOFF.md conflicts"
+                    f"Merge {target_branch} into {branch_name} - auto-resolve HANDOFF.md conflicts"
                 )
                 commit_r = _run_git("commit", "-m", commit_msg, cwd=worktree_path)
                 if commit_r.returncode != 0:
@@ -357,9 +369,7 @@ def resolve_conflicts_worktree(
             return result
 
         result["success"] = True
-        result["message"] = (
-            f"Successfully resolved conflicts for PR #{pr_number}"
-        )
+        result["message"] = f"Successfully resolved conflicts for PR #{pr_number}"
         return result
 
     except Exception as exc:
@@ -369,7 +379,12 @@ def resolve_conflicts_worktree(
         # Clean up worktree
         if Path(worktree_path).exists():
             _run_git(
-                "-C", repo_root, "worktree", "remove", worktree_path, "--force",
+                "-C",
+                repo_root,
+                "worktree",
+                "remove",
+                worktree_path,
+                "--force",
             )
 
 
@@ -387,9 +402,7 @@ def resolve_pr_conflicts(
     if not is_safe_branch_name(branch_name):
         return {
             "success": False,
-            "message": (
-                f"Rejecting PR #{pr_number} due to unsafe branch name: {branch_name}"
-            ),
+            "message": (f"Rejecting PR #{pr_number} due to unsafe branch name: {branch_name}"),
             "files_resolved": [],
             "files_blocked": [],
         }
@@ -397,9 +410,7 @@ def resolve_pr_conflicts(
     if not is_safe_branch_name(target_branch):
         return {
             "success": False,
-            "message": (
-                f"Rejecting PR #{pr_number} due to unsafe target branch: {target_branch}"
-            ),
+            "message": (f"Rejecting PR #{pr_number} due to unsafe target branch: {target_branch}"),
             "files_resolved": [],
             "files_blocked": [],
         }
@@ -408,7 +419,11 @@ def resolve_pr_conflicts(
         return resolve_conflicts_runner(branch_name, target_branch, dry_run)
 
     return resolve_conflicts_worktree(
-        branch_name, target_branch, pr_number, worktree_base_path, dry_run,
+        branch_name,
+        target_branch,
+        pr_number,
+        worktree_base_path,
+        dry_run,
     )
 
 
@@ -419,20 +434,30 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")
     parser.add_argument(
-        "--pr-number", type=int, required=True, help="Pull request number",
+        "--pr-number",
+        type=int,
+        required=True,
+        help="Pull request number",
     )
     parser.add_argument(
-        "--branch-name", required=True, help="Branch name (headRefName)",
+        "--branch-name",
+        required=True,
+        help="Branch name (headRefName)",
     )
     parser.add_argument(
-        "--target-branch", default="main", help="Target branch (baseRefName)",
+        "--target-branch",
+        default="main",
+        help="Target branch (baseRefName)",
     )
     parser.add_argument(
-        "--worktree-base-path", default="..",
+        "--worktree-base-path",
+        default="..",
         help="Base path for worktrees when running locally",
     )
     parser.add_argument(
-        "--dry-run", action="store_true", help="Show what would be done without acting",
+        "--dry-run",
+        action="store_true",
+        help="Show what would be done without acting",
     )
     return parser
 

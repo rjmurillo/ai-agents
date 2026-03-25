@@ -63,8 +63,8 @@ class TestCompleteSessionLog:
         session_path = self._make_session_json(sessions_dir)
 
         def mock_run(cmd, **kwargs):
-            if cmd[0] == "git" and cmd[1:3] == ["rev-parse", "--show-toplevel"]:
-                return subprocess.CompletedProcess(cmd, 0, stdout=str(tmp_path), stderr="")
+            if cmd[0] == "git" and cmd[1:3] == ["rev-parse", "--git-common-dir"]:
+                return subprocess.CompletedProcess(cmd, 0, stdout=str(tmp_path / ".git"), stderr="")
             if cmd[0] == "git" and cmd[1:4] == ["rev-parse", "--short", "HEAD"]:
                 return subprocess.CompletedProcess(cmd, 0, stdout="abc1234", stderr="")
             if cmd[0] == "git":
@@ -89,8 +89,8 @@ class TestCompleteSessionLog:
         mod = _load_module()
 
         def mock_run(cmd, **kwargs):
-            if cmd[0] == "git" and cmd[1:3] == ["rev-parse", "--show-toplevel"]:
-                return subprocess.CompletedProcess(cmd, 0, stdout=str(tmp_path), stderr="")
+            if cmd[0] == "git" and cmd[1:3] == ["rev-parse", "--git-common-dir"]:
+                return subprocess.CompletedProcess(cmd, 0, stdout=str(tmp_path / ".git"), stderr="")
             return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
 
         with mock.patch("subprocess.run", side_effect=mock_run):
@@ -108,8 +108,8 @@ class TestCompleteSessionLog:
         mod = _load_module()
 
         def mock_run(cmd, **kwargs):
-            if cmd[0] == "git" and cmd[1:3] == ["rev-parse", "--show-toplevel"]:
-                return subprocess.CompletedProcess(cmd, 0, stdout=str(tmp_path), stderr="")
+            if cmd[0] == "git" and cmd[1:3] == ["rev-parse", "--git-common-dir"]:
+                return subprocess.CompletedProcess(cmd, 0, stdout=str(tmp_path / ".git"), stderr="")
             return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
 
         with mock.patch("subprocess.run", side_effect=mock_run):

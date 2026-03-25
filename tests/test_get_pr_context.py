@@ -24,7 +24,6 @@ import pytest
 
 from scripts.github_core.api import RepoInfo
 from tests.mock_fidelity import assert_mock_keys_match
-from scripts.github_core.api import RepoInfo
 
 # ---------------------------------------------------------------------------
 # Import the script via importlib (not a package)
@@ -215,33 +214,34 @@ class TestMainSuccess:
         assert rc == 0
         output = json.loads(capsys.readouterr().out)
         assert isinstance(output, dict)
-        assert output["success"] is True
-        assert isinstance(output["number"], int)
-        assert output["number"] == 50
-        assert isinstance(output["title"], str)
-        assert output["title"] == "Test PR"
-        assert isinstance(output["body"], str)
-        assert output["body"] == "Description"
-        assert output["state"] == "OPEN"
-        assert output["author"] == "alice"
-        assert output["head_branch"] == "feature"
-        assert output["base_branch"] == "main"
-        assert isinstance(output["labels"], list)
-        assert output["labels"] == ["bug"]
-        assert isinstance(output["additions"], int)
-        assert output["additions"] == 10
-        assert isinstance(output["deletions"], int)
-        assert output["deletions"] == 5
-        assert isinstance(output["changed_files"], int)
-        assert output["changed_files"] == 2
-        assert output["mergeable"] == "MERGEABLE"
-        assert isinstance(output["merged"], bool)
-        assert output["merged"] is False
-        assert output["merged_by"] is None
-        assert output["diff"] is None
-        assert output["files"] is None
-        assert output["owner"] == "o"
-        assert output["repo"] == "r"
+        assert output["Success"] is True
+        data = output["Data"]
+        assert isinstance(data["number"], int)
+        assert data["number"] == 50
+        assert isinstance(data["title"], str)
+        assert data["title"] == "Test PR"
+        assert isinstance(data["body"], str)
+        assert data["body"] == "Description"
+        assert data["state"] == "OPEN"
+        assert data["author"] == "alice"
+        assert data["head_branch"] == "feature"
+        assert data["base_branch"] == "main"
+        assert isinstance(data["labels"], list)
+        assert data["labels"] == ["bug"]
+        assert isinstance(data["additions"], int)
+        assert data["additions"] == 10
+        assert isinstance(data["deletions"], int)
+        assert data["deletions"] == 5
+        assert isinstance(data["changed_files"], int)
+        assert data["changed_files"] == 2
+        assert data["mergeable"] == "MERGEABLE"
+        assert isinstance(data["merged"], bool)
+        assert data["merged"] is False
+        assert data["merged_by"] is None
+        assert data["diff"] is None
+        assert data["files"] is None
+        assert data["owner"] == "o"
+        assert data["repo"] == "r"
 
     def test_commits_count_from_list(self, capsys):
         """Regression: commits field is a list, not a dict with totalCount."""
@@ -257,7 +257,7 @@ class TestMainSuccess:
             rc = main(["--pull-request", "50"])
         assert rc == 0
         output = json.loads(capsys.readouterr().out)
-        assert output["commits"] == 2
+        assert output["Data"]["commits"] == 2
 
     def test_commits_empty_list(self, capsys):
         """Zero commits returns 0."""
@@ -269,7 +269,7 @@ class TestMainSuccess:
             rc = main(["--pull-request", "50"])
         assert rc == 0
         output = json.loads(capsys.readouterr().out)
-        assert output["commits"] == 0
+        assert output["Data"]["commits"] == 0
 
     def test_commits_missing_key(self, capsys):
         """If commits key is absent, default to 0."""
@@ -283,7 +283,7 @@ class TestMainSuccess:
             rc = main(["--pull-request", "50"])
         assert rc == 0
         output = json.loads(capsys.readouterr().out)
-        assert output["commits"] == 0
+        assert output["Data"]["commits"] == 0
 
     def test_merged_pr(self, capsys):
         """Merged PR populates merged=True and merged_by."""
@@ -302,8 +302,9 @@ class TestMainSuccess:
             rc = main(["--pull-request", "50"])
         assert rc == 0
         output = json.loads(capsys.readouterr().out)
-        assert output["merged"] is True
-        assert output["merged_by"] == "bob"
+        data = output["Data"]
+        assert data["merged"] is True
+        assert data["merged_by"] == "bob"
 
     def test_empty_labels(self, capsys):
         """PR with no labels returns empty list."""
@@ -315,7 +316,7 @@ class TestMainSuccess:
             rc = main(["--pull-request", "50"])
         assert rc == 0
         output = json.loads(capsys.readouterr().out)
-        assert output["labels"] == []
+        assert output["Data"]["labels"] == []
 
     def test_missing_author(self, capsys):
         """PR with missing author field returns None."""
@@ -329,7 +330,7 @@ class TestMainSuccess:
             rc = main(["--pull-request", "50"])
         assert rc == 0
         output = json.loads(capsys.readouterr().out)
-        assert output["author"] is None
+        assert output["Data"]["author"] is None
 
 
 # ---------------------------------------------------------------------------
@@ -356,7 +357,7 @@ class TestMainDiffAndFiles:
             rc = main(["--pull-request", "50", "--include-diff"])
         assert rc == 0
         output = json.loads(capsys.readouterr().out)
-        assert output["diff"] == "diff output"
+        assert output["Data"]["diff"] == "diff output"
 
     def test_include_diff_with_stat(self, capsys):
         """--diff-stat appends --stat to the diff command."""
@@ -376,7 +377,7 @@ class TestMainDiffAndFiles:
             rc = main(["--pull-request", "50", "--include-diff", "--diff-stat"])
         assert rc == 0
         output = json.loads(capsys.readouterr().out)
-        assert output["diff"] == "stat output"
+        assert output["Data"]["diff"] == "stat output"
         assert "--stat" in calls[1]
 
     def test_include_diff_failure(self, capsys):
@@ -398,7 +399,7 @@ class TestMainDiffAndFiles:
             rc = main(["--pull-request", "50", "--include-diff"])
         assert rc == 0
         output = json.loads(capsys.readouterr().out)
-        assert output["diff"] is None
+        assert output["Data"]["diff"] is None
 
     def test_include_changed_files(self, capsys):
         call_count = 0
@@ -418,7 +419,7 @@ class TestMainDiffAndFiles:
             rc = main(["--pull-request", "50", "--include-changed-files"])
         assert rc == 0
         output = json.loads(capsys.readouterr().out)
-        assert output["files"] == ["file1.py", "file2.py"]
+        assert output["Data"]["files"] == ["file1.py", "file2.py"]
 
     def test_include_changed_files_filters_blanks(self, capsys):
         """Blank lines in name-only output are filtered."""
@@ -439,7 +440,7 @@ class TestMainDiffAndFiles:
             rc = main(["--pull-request", "50", "--include-changed-files"])
         assert rc == 0
         output = json.loads(capsys.readouterr().out)
-        assert output["files"] == ["a.py", "b.py"]
+        assert output["Data"]["files"] == ["a.py", "b.py"]
 
     def test_include_changed_files_failure(self, capsys):
         """Changed-files fetch failure leaves files as None."""
@@ -460,7 +461,7 @@ class TestMainDiffAndFiles:
             rc = main(["--pull-request", "50", "--include-changed-files"])
         assert rc == 0
         output = json.loads(capsys.readouterr().out)
-        assert output["files"] is None
+        assert output["Data"]["files"] is None
 
     def test_both_diff_and_files(self, capsys):
         """Both flags trigger two additional subprocess calls."""
@@ -487,5 +488,6 @@ class TestMainDiffAndFiles:
             ])
         assert rc == 0
         output = json.loads(capsys.readouterr().out)
-        assert output["diff"] == "the diff"
-        assert output["files"] == ["x.py", "y.py"]
+        data = output["Data"]
+        assert data["diff"] == "the diff"
+        assert data["files"] == ["x.py", "y.py"]

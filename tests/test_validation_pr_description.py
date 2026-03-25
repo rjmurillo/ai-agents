@@ -198,6 +198,18 @@ class TestExtractMentionedFiles:
         assert "renovate.json" in result
         assert not any("actions/cache" in f for f in result)
 
+    def test_test_plan_section_ignored(self) -> None:
+        desc = (
+            "## Summary\n"
+            "Updated `skill.md` with new patterns.\n\n"
+            "## Test plan\n"
+            "- [ ] Skill validates against `.claude/skills/CLAUDE.md` conventions\n"
+            "- [ ] No breaking changes\n"
+        )
+        result = extract_mentioned_files(desc)
+        assert "skill.md" in result
+        assert ".claude/skills/CLAUDE.md" not in result
+
 
 # ---------------------------------------------------------------------------
 # _strip_informational_sections
@@ -240,6 +252,32 @@ class TestStripInformationalSections:
         assert "codeql-analysis.yml" not in result
         assert "Some intro text" in result
         assert "Footer text" in result
+
+    def test_strips_test_plan_sections(self) -> None:
+        text = (
+            "## Summary\n"
+            "Changed `foo.py`.\n\n"
+            "## Test plan\n"
+            "- [ ] Validates against `.claude/skills/CLAUDE.md` conventions\n"
+            "- [ ] Tests pass locally\n"
+        )
+        result = _strip_informational_sections(text)
+        assert ".claude/skills/CLAUDE.md" not in result
+        assert "foo.py" in result
+
+    def test_strips_test_plan_with_next_heading(self) -> None:
+        text = (
+            "## Summary\n"
+            "Changed `foo.py`.\n\n"
+            "## Test Plan\n"
+            "- Check `conventions.md` compliance\n\n"
+            "## Notes\n"
+            "Some notes here."
+        )
+        result = _strip_informational_sections(text)
+        assert "conventions.md" not in result
+        assert "foo.py" in result
+        assert "Some notes here" in result
 
     def test_preserves_non_informational_content(self) -> None:
         text = "Changed `scripts/foo.py` and **bar.yml**"

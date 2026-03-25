@@ -114,7 +114,7 @@ class TestParseSimpleFrontmatter:
         assert "tool2" in result["tools"]
 
     def test_quoted_values_stripped(self) -> None:
-        raw = "model: \"Claude Opus 4.5\""
+        raw = 'model: "Claude Opus 4.5"'
         result = parse_simple_frontmatter(raw)
         assert result["model"] == "Claude Opus 4.5"
 
@@ -225,6 +225,48 @@ class TestConvertFrontmatterForPlatform:
         config = {
             "platform": "copilot-cli",
             "frontmatter": {"includeNameField": True, "model": "claude-opus-4.6"},
+        }
+        result = convert_frontmatter_for_platform(fm, config, "test")
+        assert result.get("tools") == "['read', 'edit']"
+
+    def test_tools_from_alias_resolves_normalized_key(self) -> None:
+        """toolsFrom alias should normalize hyphens like platform names."""
+        fm = {
+            "description": "test",
+            "tools_vscode": "['vscode', 'read']",
+        }
+        config = {
+            "platform": "visual-studio",
+            "toolsFrom": "vscode",
+            "frontmatter": {"includeNameField": False},
+        }
+        result = convert_frontmatter_for_platform(fm, config, "test")
+        assert result.get("tools") == "['vscode', 'read']"
+
+    def test_tools_from_alias_normalizes_hyphens(self) -> None:
+        """toolsFrom with hyphens should match normalized frontmatter keys."""
+        fm = {
+            "description": "test",
+            "tools_copilotcli": "['read', 'edit']",
+        }
+        config = {
+            "platform": "visual-studio",
+            "toolsFrom": "copilot-cli",
+            "frontmatter": {"includeNameField": False},
+        }
+        result = convert_frontmatter_for_platform(fm, config, "test")
+        assert result.get("tools") == "['read', 'edit']"
+
+    def test_tools_from_alias_removes_cli_suffix(self) -> None:
+        """toolsFrom should also try without -cli suffix."""
+        fm = {
+            "description": "test",
+            "tools_copilot": "['read', 'edit']",
+        }
+        config = {
+            "platform": "visual-studio",
+            "toolsFrom": "copilot-cli",
+            "frontmatter": {"includeNameField": False},
         }
         result = convert_frontmatter_for_platform(fm, config, "test")
         assert result.get("tools") == "['read', 'edit']"

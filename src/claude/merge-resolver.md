@@ -1,5 +1,6 @@
 ---
 name: merge-resolver
+tier: builder
 description: Resolve git merge conflicts by analyzing commit history, code intent, and metadata. Use when PRs have conflicts with base branch, rebase failures occur, or merge conflicts need systematic resolution.
 model: sonnet
 argument-hint: Provide the PR number or branch name with conflicts to resolve
@@ -63,8 +64,9 @@ Resolve merge conflicts systematically by analyzing commit intent and code histo
 ### Phase 1: Context Gathering
 
 ```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 # Get PR metadata
-python3 .claude/skills/github/scripts/pr/get_pr_context.py --pr <number>
+python3 "$SCRIPTS_DIR/pr/get_pr_context.py" --pr <number>
 
 # Check current branch
 git branch --show-current

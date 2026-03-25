@@ -172,6 +172,9 @@ def get_repository_context(repository: str) -> RepoInfo:
     Args:
         repository: Repository in owner/repo format, or empty string for auto-detect.
 
+    Returns:
+        RepoInfo with owner and repo.
+
     Raises:
         RuntimeError: If repository format is invalid.
         SystemExit: If resolve_repo_params cannot determine the repo.
