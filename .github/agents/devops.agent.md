@@ -8,7 +8,6 @@ tools:
   - edit
   - search
   - cloudmcp-manager/*
-  - github/list_issues
   - github/list_workflows
   - github/list_workflow_runs
   - github/get_workflow_run
@@ -18,7 +17,6 @@ tools:
   - github/list_releases
   - github/get_file_contents
   - github/search_code
-  - github/search_issues
   - github/search_repositories
   - serena/*
 model: claude-opus-4.5
