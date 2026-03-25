@@ -126,7 +126,7 @@ jobs:
 
       - name: Run pip-audit
         run: |
-          pip-audit
+          pip-audit --ignore-vuln CVE-2026-4539  # pygments 2.19.2 (latest) - no fix available yet
 
       - name: Run Bandit
         run: |
