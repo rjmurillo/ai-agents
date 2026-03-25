@@ -1,4 +1,4 @@
-# ADR-052: ADR Exception Criteria (Chesterton's Fence)
+# ADR-053: ADR Exception Criteria (Chesterton's Fence)
 
 ## Status
 
