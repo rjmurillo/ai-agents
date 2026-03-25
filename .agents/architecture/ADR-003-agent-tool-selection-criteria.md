@@ -23,7 +23,7 @@ The multi-agent system originally allocated ~58 tools to all agents via blanket 
 ## Decision Drivers
 
 * **Principle of least privilege**: Agents should only have access to tools required for their specific role
-* **Context efficiency**: Minimize tool definition overhead in context windows (target: 4-15 tools per agent)
+* **Context efficiency**: Minimize tool definition overhead in context windows (target: 4-20 tools per agent)
 * **Role clarity**: Tool allocation should reinforce agent specialization
 * **Operational requirements**: Each agent must have all tools necessary to complete their designated tasks
 * **Cross-session continuity**: All agents need persistent memory capabilities
@@ -99,7 +99,7 @@ Verify implementation by checking each `.github/agents/*.agent.md` file has:
 
 ### Category 4: GitHub Integration
 
-The GitHub MCP Server provides ~77 tools. **Blanket allocation of `github/*` is an anti-pattern** that violates the same "just in case" principle this ADR seeks to avoid. Instead, use specific GitHub toolsets.
+The GitHub MCP Server provides ~59 tools. **Blanket allocation of `github/*` is an anti-pattern** that violates the same "just in case" principle this ADR seeks to avoid. Instead, use specific GitHub toolsets.
 
 #### GitHub Toolset Definitions
 
@@ -213,10 +213,10 @@ The GitHub MCP Server provides ~77 tools. **Blanket allocation of `github/*` is 
 | task-generator | read, edit, search, cloudmcp-manager/*, serena/* | 5 |
 
 **Statistics:**
-- Minimum: 4 tools (explainer, roadmap)
-- Maximum: 15 tools (orchestrator)
-- Average: 7.4 tools per agent
-- Reduction: ~77 GitHub tools alone → specific subsets (74-90% reduction per agent)
+- Minimum: 4 tools (roadmap)
+- Maximum: 20 tools (orchestrator)
+- Average: 9.2 tools per agent
+- Reduction: ~59 GitHub tools alone → specific subsets (significant reduction per agent)
 
 ## Pros and Cons of the Options
 
@@ -233,7 +233,7 @@ The GitHub MCP Server provides ~77 tools. **Blanket allocation of `github/*` is 
 
 ### Option 2: Role-Specific Tool Allocation (Chosen)
 
-*Each agent receives 4-15 curated tools based on role*
+*Each agent receives 4-20 curated tools based on role*
 
 * Good, because minimal context overhead
 * Good, because reinforces agent specialization
@@ -308,7 +308,7 @@ The GitHub MCP Server provides ~77 tools. **Blanket allocation of `github/*` is 
 
 ### ❌ DO NOT: Use blanket `github/*` allocation
 
-**Why**: The GitHub MCP Server provides ~77 tools across 19 toolsets. Blanket allocation adds 30-40KB of tool definitions to context. Use specific toolsets instead:
+**Why**: The GitHub MCP Server provides ~59 tools across 9 toolsets. Blanket allocation adds significant tool definitions to context. Use specific toolsets instead:
 - Research agents: repos/issues/PRs read-only
 - Implementation agents: repos/issues/PRs read-write
 - DevOps agents: repos + actions
