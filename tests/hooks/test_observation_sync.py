@@ -97,6 +97,24 @@ class TestFindObservationFile:
         result = _find_observation_file(str(tmp_path), "nonexistent-observations")
         assert result is None
 
+    def test_rejects_path_traversal_dotdot(self, tmp_path: Path) -> None:
+        memories_dir = tmp_path / ".serena" / "memories"
+        memories_dir.mkdir(parents=True)
+        result = _find_observation_file(str(tmp_path), "../../etc/passwd")
+        assert result is None
+
+    def test_rejects_path_traversal_slash(self, tmp_path: Path) -> None:
+        memories_dir = tmp_path / ".serena" / "memories"
+        memories_dir.mkdir(parents=True)
+        result = _find_observation_file(str(tmp_path), "subdir/evil-observations")
+        assert result is None
+
+    def test_rejects_path_traversal_backslash(self, tmp_path: Path) -> None:
+        memories_dir = tmp_path / ".serena" / "memories"
+        memories_dir.mkdir(parents=True)
+        result = _find_observation_file(str(tmp_path), "subdir\\evil-observations")
+        assert result is None
+
 
 class TestMainHook:
     """Tests for the main hook entry point."""

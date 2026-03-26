@@ -71,12 +71,21 @@ def _is_observation_memory(tool_input: dict[str, object]) -> str | None:
 
 
 def _find_observation_file(repo_root: str, memory_name: str) -> Path | None:
-    """Locate the observation markdown file in .serena/memories/."""
+    """Locate the observation markdown file in .serena/memories/.
+
+    Validates that resolved paths stay within the memories directory
+    to prevent path traversal (CWE-22).
+    """
     memories_dir = Path(repo_root) / ".serena" / "memories"
     if not memories_dir.is_dir():
         return None
+    # Reject names containing path separators or parent references
+    if "/" in memory_name or "\\" in memory_name or ".." in memory_name:
+        return None
     # Try exact match first
-    candidate = memories_dir / f"{memory_name}.md"
+    candidate = (memories_dir / f"{memory_name}.md").resolve()
+    if not candidate.is_relative_to(memories_dir.resolve()):
+        return None
     if candidate.is_file():
         return candidate
     # Try glob match
