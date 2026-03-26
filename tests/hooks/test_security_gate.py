@@ -49,7 +49,7 @@ class TestIsAuthPath:
         assert not invoke_security_gate.is_auth_path("")
 
     def test_rejects_none_like(self):
-        assert not invoke_security_gate.is_auth_path("")
+        assert not invoke_security_gate.is_auth_path(None)
 
 
 # ---------------------------------------------------------------------------

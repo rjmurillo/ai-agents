@@ -171,6 +171,38 @@ class TestMain:
             result = invoke_retrospective_gate.main()
         assert result == 0
 
+    @patch(
+        "invoke_retrospective_gate.check_retrospective_file_exists",
+        return_value=False,
+    )
+    @patch("invoke_retrospective_gate.check_documentation_only", return_value=False)
+    @patch("invoke_retrospective_gate.check_trivial_session", return_value=False)
+    @patch("invoke_retrospective_gate.get_today_session_log", return_value=None)
+    @patch(
+        "invoke_retrospective_gate.get_project_directory", return_value="/project"
+    )
+    @patch("os.path.isdir", return_value=True)
+    @patch("os.environ.get", return_value=None)
+    def test_exits_2_when_no_retrospective_evidence(
+        self,
+        _env,
+        _isdir,
+        _dir,
+        _log,
+        _trivial,
+        _doc,
+        _retro,
+        mock_stdin: Callable[[str], None],
+        capsys,
+    ):
+        mock_stdin(
+            json.dumps({"tool_input": {"command": "git push origin main"}})
+        )
+        result = invoke_retrospective_gate.main()
+        assert result == 2
+        captured = capsys.readouterr()
+        assert "BLOCKED" in captured.out
+
     def test_fails_open_on_exception(self, mock_stdin: Callable[[str], None]):
         mock_stdin(json.dumps({"tool_input": None}))
         result = invoke_retrospective_gate.main()
