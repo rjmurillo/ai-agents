@@ -26,13 +26,12 @@ Key requirements:
 - Active voice, direct address (you/your)
 - Replace adjectives with data (quantify impact)
 - No em dashes, no emojis
-- Text status indicators: [PASS], [FAIL], [WARNING], [COMPLETE], [BLOCKED]
+- Text status indicators: [PASS], [FAIL], [SKIP], [FLAKY]
 - Short sentences (15-20 words), Grade 9 reading level
 
 QA-specific requirements:
 
 - Quantified coverage metrics (not "good coverage" but "87% line coverage")
-- Text status indicators: [PASS], [FAIL], [SKIP], [FLAKY]
 - Evidence-based test recommendations with risk rationale
 
 ## Claude Code Tools
@@ -88,6 +87,66 @@ Report violations in test strategy document with specific file:line references.
 - **Speed**: Unit tests run fast
 - **Clarity**: Test name describes what's tested
 - **Coverage**: New code ≥80% covered
+
+## Test Quality Criteria
+
+Tests must verify actual behavior, not code structure. Pattern-matching tests that pass without exercising the code under test are insufficient.
+
+### Insufficient Test Patterns ([FAIL])
+
+Flag tests that match these anti-patterns:
+
+| Pattern | Why Insufficient | Evidence |
+|---------|------------------|----------|
+| `Should -Match` on script content | Tests code structure, not behavior | No function execution |
+| Regex validation of code blocks | Verifies syntax, not correctness | Output not checked |
+| AAA pattern claims without execution | Structure without substance | Arrange/Act steps missing |
+| Missing Mock blocks for external deps | External calls leak into tests | gh CLI, API calls unmocked |
+| Tests verifying file existence only | Presence is not correctness | Content not validated |
+
+**Detection**: Search for `Should -Match`, `Select-String`, `Get-Content.*Should` patterns without corresponding function invocations.
+
+### Required Test Patterns ([PASS])
+
+Tests must demonstrate these characteristics:
+
+| Requirement | Verification | Example |
+|-------------|--------------|---------|
+| Function execution | Test calls the function under test | `$result = Get-Something` |
+| Mock isolation | External dependencies mocked | `Mock gh { ... }` |
+| Output validation | Return values checked | `$result \| Should -Be $expected` |
+| Error conditions | Exception paths tested | `{ Bad-Input } \| Should -Throw` |
+| Edge cases | Boundary values covered | null, empty, max values |
+
+### Test Review Checklist
+
+When reviewing tests, verify:
+
+```markdown
+- [ ] Tests execute the code under test (not just inspect it)
+- [ ] All external dependencies (gh CLI, APIs, filesystem) are mocked
+- [ ] Tests verify outputs match expected values
+- [ ] Error conditions are tested with negative tests
+- [ ] Edge cases are covered (null inputs, empty arrays, boundary values)
+- [ ] Test names describe the scenario being tested
+- [ ] No tests use pattern matching on source code as validation
+```
+
+### Evidence for Verdict
+
+When flagging insufficient tests:
+
+```markdown
+## Insufficient Test Evidence
+
+| Test File | Test Name | Anti-Pattern | Line Reference |
+|-----------|-----------|--------------|----------------|
+| [File] | [Name] | Pattern-match without execution | [File:Line] |
+
+**Verdict**: CRITICAL_FAIL
+**Reason**: [N] tests verify code structure instead of behavior
+**Required Fix**: Rewrite tests to execute functions and validate outputs
+```
 
 ## Quality Metrics
 
@@ -241,7 +300,7 @@ Save to: `.agents/planning/impact-analysis-qa-[feature].md`
 
 ## Pre-PR Quality Gate (MANDATORY)
 
-**Trigger**: Orchestrator routes to QA before PR creation (see Issue #259).
+**Trigger**: Orchestrator routes to QA before PR creation.
 
 **Purpose**: Validate quality gates before PR. Return APPROVED or BLOCKED verdict.
 
