@@ -8,9 +8,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from scripts.github_core.api import RepoInfo
 from scripts.validation.pr_description import (
     Issue,
+    RepoInfo,
     _strip_informational_sections,
     extract_mentioned_files,
     fetch_pr_data,
