@@ -95,6 +95,43 @@ jobs:
             echo "validation_result=FAIL" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Validate PR Description Standards
+        if: steps.should-run.outputs.skip != 'true'
+        id: validate-standards
+        shell: bash
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          # Write body to temp file to avoid shell escaping issues
+          printf '%s' "$PR_BODY" > /tmp/pr-body.txt
+
+          # Run the standards validator (issue keywords + template compliance)
+          # Exit code 0 on warnings (non-blocking), non-zero only for errors
+          output=$(python3 .claude/skills/github/scripts/pr/validate_pr_description.py \
+            --title "$PR_TITLE" \
+            --body-file /tmp/pr-body.txt 2>/dev/null) || true
+
+          # Parse JSON results
+          keywords_status=$(echo "$output" | python3 -c "import json,sys; print(json.load(sys.stdin)['Validations']['IssueKeywords']['Status'])" 2>/dev/null || echo "SKIP")
+          template_status=$(echo "$output" | python3 -c "import json,sys; print(json.load(sys.stdin)['Validations']['TemplateCompliance']['Status'])" 2>/dev/null || echo "SKIP")
+          template_msg=$(echo "$output" | python3 -c "import json,sys; print(json.load(sys.stdin)['Validations']['TemplateCompliance']['Message'])" 2>/dev/null || echo "")
+          warnings=$(echo "$output" | python3 -c "import json,sys; print('\n'.join(json.load(sys.stdin).get('Warnings',[])))" 2>/dev/null || echo "")
+
+          echo "keywords_status=$keywords_status" >> "$GITHUB_OUTPUT"
+          echo "template_status=$template_status" >> "$GITHUB_OUTPUT"
+          echo "template_message=$template_msg" >> "$GITHUB_OUTPUT"
+
+          # Store warnings for report (use delimiter for multiline)
+          {
+            echo "standards_warnings<<STANDARDS_EOF"
+            echo "$warnings"
+            echo "STANDARDS_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+          echo "Issue keywords: $keywords_status"
+          echo "Template compliance: $template_status - $template_msg"
+
       - name: Check Review Comment Status
         if: steps.should-run.outputs.skip != 'true'
         id: check-comments
@@ -185,6 +222,10 @@ jobs:
           HAS_CODE_CHANGES: ${{ steps.check-qa.outputs.has_code_changes }}
           QA_EXISTS: ${{ steps.check-qa.outputs.qa_report_exists }}
           QA_REPORT: ${{ steps.check-qa.outputs.qa_report }}
+          KEYWORDS_STATUS: ${{ steps.validate-standards.outputs.keywords_status }}
+          TEMPLATE_STATUS: ${{ steps.validate-standards.outputs.template_status }}
+          TEMPLATE_MESSAGE: ${{ steps.validate-standards.outputs.template_message }}
+          STANDARDS_WARNINGS: ${{ steps.validate-standards.outputs.standards_warnings }}
         run: |
           $overallStatus = "PASS"
           $blockingIssues = @()
@@ -199,6 +240,14 @@ jobs:
             $blockingIssues += "Description validation error"
           }
           
+          # Check PR standards (issue keywords + template compliance)
+          if ($env:KEYWORDS_STATUS -eq "WARN") {
+            $warnings += "No GitHub issue linking keywords found (Closes, Fixes, Resolves #N)"
+          }
+          if ($env:TEMPLATE_STATUS -eq "WARN" -and $env:TEMPLATE_MESSAGE) {
+            $warnings += $env:TEMPLATE_MESSAGE
+          }
+
           # Check QA report
           if ($env:HAS_CODE_CHANGES -eq "true" -and $env:QA_EXISTS -eq "false") {
             $warnings += "QA report not found for code changes (recommended before merge)"
@@ -221,11 +270,18 @@ jobs:
           > $emoji **Status: $overallStatus**
           
           ### Description Validation
-          
+
           | Check | Status |
           |:------|:-------|
           | Description matches diff | $env:DESCRIPTION_RESULT |
-          
+
+          ### PR Standards
+
+          | Check | Status |
+          |:------|:-------|
+          | Issue linking keywords | $env:KEYWORDS_STATUS |
+          | Template compliance | $env:TEMPLATE_STATUS |
+
           ### QA Validation
           
           | Check | Status |
