@@ -654,7 +654,8 @@ class TestMain:
         )
         assert exit_code == 1
 
-    def test_non_ci_returns_zero_on_violations(self, tmp_path):
+    def test_non_ci_returns_zero_on_violations(self, tmp_path, monkeypatch):
+        monkeypatch.delenv("CI", raising=False)
         settings_dir = tmp_path / ".claude"
         settings_dir.mkdir()
         settings = {
