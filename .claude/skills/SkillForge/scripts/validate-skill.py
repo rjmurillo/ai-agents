@@ -463,7 +463,10 @@ class SkillValidator:
             )
 
             # Validate trigger phrase characters (CWE-94 mitigation)
-            safe_pattern = re.compile(r"^[a-zA-Z0-9 \-:,./\'\"()]+$")
+            # Block shell metacharacters that enable command injection:
+            # ; | & $ < > \ (newline already stripped)
+            # Allow common punctuation: {} for templates, # for refs, ! for commands
+            safe_pattern = re.compile(r"^[a-zA-Z0-9 \-:,./\'\"(){}#!_=+@*?]+$")
             unsafe_triggers = [
                 t for t in trigger_phrases if not safe_pattern.match(t)
             ]
