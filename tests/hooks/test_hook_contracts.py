@@ -74,7 +74,7 @@ class TestParseSettings:
         settings_path = tmp_path / "settings.json"
         settings_path.write_text(json.dumps(settings))
 
-        _, entries = hook_contracts.parse_settings(settings_path)
+        _, entries, _ = hook_contracts.parse_settings(settings_path)
 
         assert len(entries) == 1
         assert entries[0].hook_type == "PreToolUse"
@@ -101,7 +101,7 @@ class TestParseSettings:
         settings_path = tmp_path / "settings.json"
         settings_path.write_text(json.dumps(settings))
 
-        _, entries = hook_contracts.parse_settings(settings_path)
+        _, entries, _ = hook_contracts.parse_settings(settings_path)
         assert len(entries) == 0
 
     def test_parses_multiple_hook_types(self, tmp_path):
@@ -132,14 +132,14 @@ class TestParseSettings:
         settings_path = tmp_path / "settings.json"
         settings_path.write_text(json.dumps(settings))
 
-        _, entries = hook_contracts.parse_settings(settings_path)
+        _, entries, _ = hook_contracts.parse_settings(settings_path)
         assert len(entries) == 2
 
     def test_no_hooks_section(self, tmp_path):
         settings_path = tmp_path / "settings.json"
         settings_path.write_text(json.dumps({"other": "config"}))
 
-        _, entries = hook_contracts.parse_settings(settings_path)
+        _, entries, _ = hook_contracts.parse_settings(settings_path)
         assert len(entries) == 0
 
     def test_group_without_matcher(self, tmp_path):
@@ -160,9 +160,48 @@ class TestParseSettings:
         settings_path = tmp_path / "settings.json"
         settings_path.write_text(json.dumps(settings))
 
-        _, entries = hook_contracts.parse_settings(settings_path)
+        _, entries, _ = hook_contracts.parse_settings(settings_path)
         assert len(entries) == 1
         assert entries[0].matcher is None
+
+    def test_powershell_command_reported(self, tmp_path):
+        settings = {
+            "hooks": {
+                "PreToolUse": [
+                    {
+                        "hooks": [
+                            {
+                                "type": "command",
+                                "command": "pwsh script.ps1",
+                            }
+                        ],
+                    }
+                ]
+            }
+        }
+        settings_path = tmp_path / "settings.json"
+        settings_path.write_text(json.dumps(settings))
+
+        _, entries, violations = hook_contracts.parse_settings(settings_path)
+        assert len(entries) == 0
+        assert len(violations) == 1
+        assert violations[0].category == "unsupported_command"
+
+    def test_malformed_group_skipped(self, tmp_path):
+        settings = {"hooks": {"PreToolUse": [None]}}
+        settings_path = tmp_path / "settings.json"
+        settings_path.write_text(json.dumps(settings))
+
+        _, entries, _ = hook_contracts.parse_settings(settings_path)
+        assert len(entries) == 0
+
+    def test_malformed_hook_skipped(self, tmp_path):
+        settings = {"hooks": {"PreToolUse": [{"hooks": [None]}]}}
+        settings_path = tmp_path / "settings.json"
+        settings_path.write_text(json.dumps(settings))
+
+        _, entries, _ = hook_contracts.parse_settings(settings_path)
+        assert len(entries) == 0
 
 
 # ---------------------------------------------------------------------------
@@ -194,6 +233,26 @@ class TestValidateScriptExists:
         assert violation.category == "missing_script"
         assert "missing.py" in violation.message
 
+    def test_path_traversal_blocked(self, tmp_path):
+        entry = hook_contracts.HookEntry(
+            hook_type="PreToolUse",
+            script_path="../../../etc/passwd.py",
+            command="python3 ../../../etc/passwd.py",
+        )
+        violation = hook_contracts.validate_script_exists(entry, tmp_path)
+        assert violation is not None
+        assert violation.category == "invalid_script_path"
+
+    def test_absolute_path_blocked(self, tmp_path):
+        entry = hook_contracts.HookEntry(
+            hook_type="PreToolUse",
+            script_path="/etc/passwd.py",
+            command="python3 /etc/passwd.py",
+        )
+        violation = hook_contracts.validate_script_exists(entry, tmp_path)
+        assert violation is not None
+        assert violation.category == "invalid_script_path"
+
 
 # ---------------------------------------------------------------------------
 # validate_hook_type_known
@@ -206,11 +265,18 @@ class TestValidateHookTypeKnown:
         [
             "PreToolUse",
             "PostToolUse",
+            "PostToolUseFailure",
             "Stop",
             "SubagentStop",
+            "SubagentStart",
             "SessionStart",
+            "SessionEnd",
             "UserPromptSubmit",
             "PermissionRequest",
+            "Notification",
+            "PreCompact",
+            "TeammateIdle",
+            "TaskCompleted",
         ],
     )
     def test_known_types(self, hook_type):
@@ -342,7 +408,7 @@ class TestValidateExitCodeDocs:
         script = tmp_path / "hook.py"
         script.write_text('"""No exit docs."""\n')
         entry = hook_contracts.HookEntry(
-            hook_type="Stop",
+            hook_type="PostToolUse",
             script_path="hook.py",
             command="python3 hook.py",
         )

@@ -24,11 +24,23 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 # Hook types where exit code 2 = block
-BLOCKING_HOOK_TYPES = frozenset({"PreToolUse", "PermissionRequest"})
+BLOCKING_HOOK_TYPES = frozenset(
+    {"PreToolUse", "PermissionRequest", "Stop", "SubagentStop", "UserPromptSubmit"}
+)
 
 # Hook types where exit code is always 0 (non-blocking)
 NON_BLOCKING_HOOK_TYPES = frozenset(
-    {"Stop", "SubagentStop", "SessionStart", "PostToolUse", "UserPromptSubmit"}
+    {
+        "SessionStart",
+        "SessionEnd",
+        "PostToolUse",
+        "PostToolUseFailure",
+        "Notification",
+        "SubagentStart",
+        "PreCompact",
+        "TeammateIdle",
+        "TaskCompleted",
+    }
 )
 
 ALL_HOOK_TYPES = BLOCKING_HOOK_TYPES | NON_BLOCKING_HOOK_TYPES
@@ -39,6 +51,9 @@ MAX_TIMEOUT = 300
 
 # Pattern to extract script path from command string
 _SCRIPT_PATH_PATTERN = re.compile(r"python3?\s+(?:-\w+\s+)*(.+\.py)(?:\s|$)")
+
+# Pattern to detect PowerShell commands
+_PWSH_PATTERN = re.compile(r"(?:pwsh|powershell)\s+.*\.ps1(?:\s|$)", re.IGNORECASE)
 
 # ANSI color codes (disabled when NO_COLOR is set or in CI)
 _USE_COLOR = not (os.environ.get("NO_COLOR") or os.environ.get("CI"))
@@ -83,6 +98,16 @@ class ContractReport:
         return len(self.violations) == 0
 
 
+def _resolve_script_path(base_path: Path, script_path: str) -> Path | None:
+    """Resolve a script path and verify it stays within base_path."""
+    try:
+        candidate = (base_path / script_path).resolve(strict=False)
+        candidate.relative_to(base_path.resolve())
+    except (ValueError, OSError):
+        return None
+    return candidate
+
+
 def extract_script_path(command: str) -> str | None:
     """Extract the Python script path from a hook command string."""
     match = _SCRIPT_PATH_PATTERN.search(command)
@@ -91,32 +116,51 @@ def extract_script_path(command: str) -> str | None:
     return None
 
 
-def parse_settings(settings_path: Path) -> tuple[dict, list[HookEntry]]:
+def parse_settings(settings_path: Path) -> tuple[dict, list[HookEntry], list[Violation]]:
     """Parse settings.json and extract all hook entries.
 
-    Returns (raw_settings, hook_entries).
+    Returns (raw_settings, hook_entries, parse_violations).
     """
     content = settings_path.read_text(encoding="utf-8")
     settings = json.loads(content)
 
     hooks_config = settings.get("hooks", {})
     entries: list[HookEntry] = []
+    parse_violations: list[Violation] = []
 
     for hook_type, hook_groups in hooks_config.items():
         if not isinstance(hook_groups, list):
             continue
 
         for group in hook_groups:
+            if not isinstance(group, dict):
+                continue
             matcher = group.get("matcher")
             group_hooks = group.get("hooks", [])
+            if not isinstance(group_hooks, list):
+                continue
 
             for hook in group_hooks:
+                if not isinstance(hook, dict):
+                    continue
                 if hook.get("type") != "command":
                     continue
 
                 command = hook.get("command", "")
                 script_path = extract_script_path(command)
                 if not script_path:
+                    if _PWSH_PATTERN.search(command):
+                        parse_violations.append(
+                            Violation(
+                                hook_type=hook_type,
+                                script=command,
+                                category="unsupported_command",
+                                message=(
+                                    f"PowerShell hook not validated "
+                                    f"(only Python hooks are supported): {command}"
+                                ),
+                            )
+                        )
                     continue
 
                 entries.append(
@@ -130,15 +174,22 @@ def parse_settings(settings_path: Path) -> tuple[dict, list[HookEntry]]:
                     )
                 )
 
-    return settings, entries
+    return settings, entries, parse_violations
 
 
 def validate_script_exists(
     entry: HookEntry,
     base_path: Path,
 ) -> Violation | None:
-    """Check that the referenced script file exists."""
-    full_path = base_path / entry.script_path
+    """Check that the referenced script file exists within project root."""
+    full_path = _resolve_script_path(base_path, entry.script_path)
+    if full_path is None:
+        return Violation(
+            hook_type=entry.hook_type,
+            script=entry.script_path,
+            category="invalid_script_path",
+            message=f"Script path escapes project root: {entry.script_path}",
+        )
     if not full_path.is_file():
         return Violation(
             hook_type=entry.hook_type,
@@ -182,17 +233,19 @@ def validate_timeout(entry: HookEntry) -> Violation | None:
     return None
 
 
+_EXIT_DOC_PATTERN = re.compile(r"\bexit[\s_-]?code|\bblock\b", re.IGNORECASE)
+
+
 def validate_exit_code_docs(
     entry: HookEntry,
     base_path: Path,
 ) -> Violation | None:
     """Check that script docstring documents exit codes matching hook semantics.
 
-    PreToolUse/PermissionRequest hooks should document exit 2 = block.
-    Stop/SubagentStop hooks should document exit 0 = always/non-blocking.
+    Blocking hooks should document exit code semantics (0=allow, 2=block).
     """
-    full_path = base_path / entry.script_path
-    if not full_path.is_file():
+    full_path = _resolve_script_path(base_path, entry.script_path)
+    if full_path is None or not full_path.is_file():
         return None  # Already caught by validate_script_exists
 
     try:
@@ -201,10 +254,10 @@ def validate_exit_code_docs(
         return None
 
     # Only check the docstring area (first 30 lines)
-    header = "\n".join(content.splitlines()[:30]).lower()
+    header = "\n".join(content.splitlines()[:30])
 
     if entry.hook_type in BLOCKING_HOOK_TYPES:
-        if "exit" not in header and "block" not in header:
+        if not _EXIT_DOC_PATTERN.search(header):
             return Violation(
                 hook_type=entry.hook_type,
                 script=entry.script_path,
@@ -257,8 +310,9 @@ def validate_all(
     Returns:
         ContractReport with all entries and violations found.
     """
-    _, entries = parse_settings(settings_path)
+    _, entries, parse_violations = parse_settings(settings_path)
     report = ContractReport(entries=entries)
+    report.violations.extend(parse_violations)
 
     # Per-entry validations
     for entry in entries:
@@ -352,8 +406,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--ci",
         action="store_true",
-        default=os.environ.get("CI", "").lower() in ("true", "1"),
-        help="CI mode: exit non-zero on violations (env: CI)",
+        default=False,
+        help="CI mode: exit non-zero on violations",
     )
     parser.add_argument(
         "--format",
@@ -387,9 +441,9 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         report = validate_all(settings_path, base_path)
-    except json.JSONDecodeError as exc:
+    except (json.JSONDecodeError, TypeError, AttributeError) as exc:
         print(
-            f"Error: Invalid JSON in settings.json: {exc}",
+            f"Error: Invalid settings.json: {exc}",
             file=sys.stderr,
         )
         return 2
