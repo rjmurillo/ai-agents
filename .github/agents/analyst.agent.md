@@ -10,6 +10,8 @@ tools:
   - github/search_code
   - github/search_issues
   - github/search_pull_requests
+  - github/search_repositories
+  - github/search_users
   - github/issue_read
   - github/pull_request_read
   - github/get_file_contents
