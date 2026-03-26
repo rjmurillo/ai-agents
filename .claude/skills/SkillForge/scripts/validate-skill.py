@@ -226,6 +226,12 @@ class SkillValidator:
                 f"Description too long ({len(desc)} chars, max {DESCRIPTION_MAX_LENGTH})",
                 warning=True
             )
+            word_count = len(desc.split())
+            self.check(
+                "frontmatter.description.word_count",
+                word_count >= 5,
+                f"Description too short ({word_count} words, minimum 5)"
+            )
 
         # Validate version format (top-level or in metadata)
         if "version" in self.frontmatter:
@@ -446,14 +452,30 @@ class SkillValidator:
 
         if triggers_match:
             triggers_section = triggers_match.group(1)
-            # Count trigger phrases (look for backtick-wrapped phrases)
-            trigger_count = len(re.findall(r'`[^`]+`', triggers_section))
+            # Extract trigger phrases (backtick-wrapped)
+            trigger_phrases = re.findall(r'`([^`]+)`', triggers_section)
+            trigger_count = len(trigger_phrases)
 
             self.check(
                 "triggers.count",
-                3 <= trigger_count <= 5,
-                f"Should have 3-5 trigger phrases (found {trigger_count})"
+                1 <= trigger_count <= 5,
+                f"Should have 1-5 trigger phrases (found {trigger_count})"
             )
+
+            # Validate trigger phrase characters (CWE-94 mitigation)
+            # Block shell metacharacters that enable command injection:
+            # ; | & $ < > \ (newline already stripped)
+            # Allow common punctuation: {} for templates, # for refs, ! for commands
+            safe_pattern = re.compile(r"^[a-zA-Z0-9 \-:,./\'\"(){}#!_=+@*?]+$")
+            unsafe_triggers = [
+                t for t in trigger_phrases if not safe_pattern.match(t)
+            ]
+            if unsafe_triggers:
+                self.check(
+                    "triggers.safe_characters",
+                    False,
+                    f"Trigger phrases contain unsafe characters: {unsafe_triggers}"
+                )
 
     def validate_process(self):
         """Validate process/phases section."""

@@ -6,6 +6,44 @@
 
 ---
 
+## Plugin Consumer Guide
+
+When installed as a Claude Code plugin, this project creates an `.agents/` directory in
+consumer project roots. This directory stores session logs, analysis artifacts, and
+governance documents used by the plugin's hooks and skills.
+
+### Directory Structure
+
+| Path | Purpose | Safe to Delete |
+|------|---------|----------------|
+| `.agents/sessions/` | Session logs (JSON) for audit trail | Yes, loses history |
+| `.agents/analysis/` | Generated analysis reports | Yes, regenerated on demand |
+| `.agents/architecture/` | ADRs and design decisions | No, contains governance |
+| `.agents/governance/` | Project constraints and policies | No, contains enforcement rules |
+| `.agents/security/` | Security review artifacts | No, contains audit evidence |
+| `.agents/critique/` | Plan critique results | Yes, regenerated on demand |
+
+### Gitignore Recommendations
+
+Add to your `.gitignore` if you do not want to track generated artifacts:
+
+```gitignore
+# Optional: exclude regenerable plugin artifacts
+.agents/sessions/
+.agents/analysis/
+.agents/critique/
+```
+
+Do not exclude `.agents/architecture/`, `.agents/governance/`, or `.agents/security/`.
+These contain decisions and policies that should be version-controlled.
+
+### Directory Creation
+
+The plugin creates directories with `os.makedirs(path, exist_ok=True)`. If your project
+root is read-only, set `CLAUDE_PROJECT_DIR` to a writable location.
+
+---
+
 ## Quick Start
 
 1. Copy contents to your ai-agents repository's `.agents/` directory
