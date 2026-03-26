@@ -36,7 +36,7 @@ Key requirements:
 QA-specific requirements:
 
 - Quantified coverage metrics (not "good coverage" but "87% line coverage")
-- Text status indicators: [PASS], [FAIL], [SKIP], [FLAKY]
+- Test result indicators: [PASS], [FAIL], [SKIP], [FLAKY]
 - Evidence-based test recommendations with risk rationale
 
 ## Core Mission
