@@ -4,13 +4,13 @@
 |---------------|-------------------|
 | session start init handoff protocol serena blocking | [skills-session-init-index](skills-session-init-index.md) (219), [project/project-overview](project/project-overview.md) (347), [project/codebase-structure](project/codebase-structure.md) (783) |
 | session validation diagnose fixer protocol compliance NON_COMPLIANT changelog history | [session/changelog-session-log-fixer](session/changelog-session-log-fixer.md) (480) |
-| github pr issue cli gh api review comment batch response | [skills-github-cli-index](skills-github-cli-index.md) (507), [skills/skills-pr-review-index](skills/skills-pr-review-index.md) (883), [pr-review/pr-review-batch-response-pattern](pr-review/pr-review-batch-response-pattern.md) (699), [project/project-labels-milestones](project/project-labels-milestones.md) (325) |
-| graphql mutation query resolve thread reply batch nested | [skills/skills-graphql-index](skills/skills-graphql-index.md) (103) |
+| github pr issue cli gh api review comment batch response | [skills-github-cli-index](skills-github-cli-index.md) (507), [skills-pr-review-index](skills-pr-review-index.md) (883), [pr-review/pr-review-batch-response-pattern](pr-review/pr-review-batch-response-pattern.md) (699), [project/project-labels-milestones](project/project-labels-milestones.md) (325) |
+| graphql mutation query resolve thread reply batch nested | [skills-graphql-index](skills-graphql-index.md) (103) |
 | jq json parse filter select map array object string | [skills-jq-index](skills-jq-index.md) (356) |
 | gh extension notify combine metrics milestone webhook grep sub-issue | [skills-gh-extensions-index](skills-gh-extensions-index.md) (321) |
 | label milestone issue create tag priority | [project/project-labels-milestones](project/project-labels-milestones.md) (325) |
-| powershell ps1 psm1 module pester test discovery isolation variable scope script BeforeAll It block visibility shadowing automatic | [skills-powershell-index](skills-powershell-index.md) (443), [skills/skills-pester-testing-index](skills/skills-pester-testing-index.md) (151), [powershell/pester-variable-scoping](powershell/pester-variable-scoping.md) (497), [powershell/powershell-variable-shadowing-detection](powershell/powershell-variable-shadowing-detection.md) (665), [patterns/pattern-thin-workflows](patterns/pattern-thin-workflows.md) (1373) |
-| bash exit code cross-language contract AUTOFIX pre-commit hook | [skills/skills-bash-integration-index](skills/skills-bash-integration-index.md) (104) |
+| powershell ps1 psm1 module pester test discovery isolation variable scope script BeforeAll It block visibility shadowing automatic | [skills-powershell-index](skills-powershell-index.md) (443), [skills-pester-testing-index](skills-pester-testing-index.md) (151), [powershell/pester-variable-scoping](powershell/pester-variable-scoping.md) (497), [powershell/powershell-variable-shadowing-detection](powershell/powershell-variable-shadowing-detection.md) (665), [patterns/pattern-thin-workflows](patterns/pattern-thin-workflows.md) (1373) |
+| bash exit code cross-language contract AUTOFIX pre-commit hook | [skills-bash-integration-index](skills-bash-integration-index.md) (104) |
 | security vulnerability TOCTOU secret injection | [skills-security-index](skills-security-index.md) (477) |
 | autonomous execution guardrails circuit breaker patch signal trust metric | [skills-autonomous-execution-index](skills-autonomous-execution-index.md) (150) |
 | planning task file path scope breakdown | [skills-planning-index](skills-planning-index.md) (246) |
@@ -23,12 +23,12 @@
 | agent workflow pipeline critic atomic commit scope MVP | [skills-agent-workflow-index](skills-agent-workflow-index.md) (378) |
 | quality qa DoD definition-of-done test strategy critique | [skills-quality-index](skills-quality-index.md) (290) |
 | utility script markdown fence PathInfo security pattern | [skills-utilities-index](skills-utilities-index.md) (183) |
-| documentation PRD spec user-facing migration self-contained | [skills/skills-documentation-index](skills/skills-documentation-index.md) (291) |
+| documentation PRD spec user-facing migration self-contained | [skills-documentation-index](skills-documentation-index.md) (291) |
 | validation quality lint false-positive gate test | [skills-validation-index](skills-validation-index.md) (422) |
 | test exit code pytest pester error failed passed block commit | [testing/testing-exit-code-interpretation](testing/testing-exit-code-interpretation.md) (628) |
-| linting markdown autofix config exclude language backtick | [skills/skills-linting-index](skills/skills-linting-index.md) (143) |
+| linting markdown autofix config exclude language backtick | [skills-linting-index](skills-linting-index.md) (143) |
 | CI CD workflow actions runner ARM | [skills-ci-infrastructure-index](skills-ci-infrastructure-index.md) (773) |
-| workflow pattern composite matrix artifact verdict report | [skills/skills-workflow-patterns-index](skills/skills-workflow-patterns-index.md) (252) |
+| workflow pattern composite matrix artifact verdict report | [skills-workflow-patterns-index](skills-workflow-patterns-index.md) (252) |
 | copilot review false-positive triage response | [skills-copilot-index](skills-copilot-index.md) (316) |
 | copilot cli agent frontmatter regression version pin auto-update diagnostic | [skills-copilot-index](skills-copilot-index.md) (316), [copilot/copilot-cli-frontmatter-regression-runbook](copilot/copilot-cli-frontmatter-regression-runbook.md) (1875) |
 | gemini code assist config styleguide ignore path enterprise | [skills-gemini-index](skills-gemini-index.md) (200) |
