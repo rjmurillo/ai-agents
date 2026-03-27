@@ -185,13 +185,15 @@ class TestScanMemories:
 
 
 class TestMainAllowPath:
+    @patch("invoke_correction_applier.skip_if_consumer_repo", return_value=False)
     @patch("invoke_correction_applier.sys.stdin")
-    def test_allows_when_tty(self, mock_stdin: MagicMock) -> None:
+    def test_allows_when_tty(self, mock_stdin: MagicMock, _mock_skip: MagicMock) -> None:
         mock_stdin.isatty.return_value = True
         assert main() == 0
 
+    @patch("invoke_correction_applier.skip_if_consumer_repo", return_value=False)
     @patch("invoke_correction_applier.sys.stdin", new_callable=StringIO)
-    def test_allows_when_empty_stdin(self, mock_stdin: StringIO) -> None:
+    def test_allows_when_empty_stdin(self, mock_stdin: StringIO, _mock_skip: MagicMock) -> None:
         mock_stdin.write("")
         mock_stdin.seek(0)
         with patch.object(mock_stdin, "isatty", return_value=False):
