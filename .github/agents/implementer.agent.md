@@ -997,7 +997,7 @@ Review your own code and implementation against these checks:
 For every weakness found, do one of:
 
 1. **Fix it** in the code before delivery
-2. **Document it** as an accepted limitation with explicit rationale
+2. **Document it** as an accepted risk with explicit rationale
 
 Do not leave weaknesses unaddressed.
 
