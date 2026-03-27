@@ -974,6 +974,46 @@ Before marking complete:
 - [ ] Conventional commits made
 ```
 
+## Self-Critique Pass (Always On)
+
+Before finalizing any implementation output, run this adversarial self-review. Do not skip this step.
+
+### Step 1: Identify Weaknesses
+
+Review your own code and implementation against these checks:
+
+```markdown
+- [ ] Are there untested code paths or edge cases?
+- [ ] Does any method exceed complexity limits (cyclomatic >10, >60 lines)?
+- [ ] Are there coupling issues (accidental dependencies, Law of Demeter violations)?
+- [ ] Is any duplication introduced that should be extracted?
+- [ ] Are error handling paths complete (no silent failures)?
+- [ ] Does the implementation match the plan, or did scope drift occur?
+```
+
+### Step 2: Address Each Weakness
+
+For every weakness found, do one of:
+
+1. **Fix it** in the code before delivery
+2. **Document it** as an accepted limitation with explicit rationale
+
+Do not leave weaknesses unaddressed.
+
+### Step 3: Flag Unresolved Risks
+
+List any risks you cannot resolve with available information:
+
+```markdown
+## Unresolved Risks
+
+| Risk | Why Unresolved | Recommended Action |
+|------|---------------|-------------------|
+| [Risk] | [What information is missing] | [Who/what can resolve it] |
+```
+
+If no unresolved risks remain, state: "No unresolved risks identified."
+
 ## Execution Mindset
 
 **Think:** "I execute the plan with quality, not quantity"
