@@ -649,7 +649,7 @@ When review is complete and NO ADR was created/updated:
 
 ## Self-Critique Pass (MANDATORY)
 
-Before finalizing any output (ADR, design review, impact analysis), complete this adversarial self-review. Do not skip this step.
+Before finalizing any output (ADR, design review, impact analysis), complete this adversarial self-review. Apply all three steps below.
 
 ### Step 1: Identify Weaknesses
 
@@ -671,7 +671,7 @@ For every weakness found, do one of:
 1. **Fix it** in the output before delivery
 2. **Document it** as an accepted risk with rationale
 
-Do not leave weaknesses unaddressed.
+Address every weakness before proceeding.
 
 ### Step 3: Flag Unresolved Risks
 
