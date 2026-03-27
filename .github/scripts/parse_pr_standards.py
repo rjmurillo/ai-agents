@@ -32,12 +32,13 @@ def main() -> int:
     # Write body to unique temp file to avoid concurrent run collisions
     run_id = os.environ.get("GITHUB_RUN_ID", "local")
     attempt = os.environ.get("GITHUB_RUN_ATTEMPT", "1")
+    temp_dir = os.environ.get("RUNNER_TEMP") or tempfile.gettempdir()
     with tempfile.NamedTemporaryFile(
         mode="w",
         prefix=f"pr-body-{run_id}-{attempt}-",
         suffix=".txt",
         delete=False,
-        dir="/tmp",
+        dir=temp_dir,
     ) as tmp:
         tmp.write(body)
         body_file = tmp.name
@@ -46,12 +47,21 @@ def main() -> int:
         validator = Path(
             ".claude/skills/github/scripts/pr/validate_pr_description.py"
         )
-        result = subprocess.run(
-            [sys.executable, str(validator), "--title", title, "--body-file", body_file],
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
+        try:
+            result = subprocess.run(
+                [sys.executable, str(validator), "--title", title, "--body-file", body_file],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+        except subprocess.TimeoutExpired:
+            print("Validator timed out after 30 seconds", file=sys.stderr)
+            _write_skip_outputs(github_output)
+            return 1
+        except OSError as exc:
+            print(f"Failed to execute validator: {exc}", file=sys.stderr)
+            _write_skip_outputs(github_output)
+            return 2
 
         if result.returncode != 0 and result.returncode != 1:
             print(f"Validator failed with exit code {result.returncode}", file=sys.stderr)
