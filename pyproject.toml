@@ -64,7 +64,7 @@ target-version = "py312"
 line-length = 100
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "N", "UP", "B", "ANN401"]
+select = ["E", "F", "W", "I", "N", "UP", "B", "ANN"]
 ignore = []
 
 [tool.ruff.lint.per-file-ignores]
@@ -73,9 +73,31 @@ ignore = []
 # Test files use sys.path.insert() before importing modules under test
 "tests/hooks/**/*.py" = ["E402"]
 "tests/skills/**/*.py" = ["E402"]
+# Test files: suppress annotation requirements (pre-existing, Phase 1 triage)
+"tests/**/*.py" = ["ANN"]
+".claude/skills/*/tests/**/*.py" = ["ANN"]
+"packages/*/tests/**/*.py" = ["ANN"]
+# Pre-existing production code without full annotations (Phase 1 triage per #1188)
+".claude/skills/SkillForge/scripts/*.py" = ["ANN"]
+".claude/skills/SkillForge/assets/templates/*.py" = ["ANN"]
+".claude/hooks/Stop/*.py" = ["ANN"]
+".claude/skills/incoherence/scripts/*.py" = ["ANN"]
+".claude/skills/context-optimizer/scripts/*.py" = ["ANN"]
+".claude/skills/memory/scripts/*.py" = ["ANN"]
+".claude/skills/style-enforcement/scripts/*.py" = ["ANN"]
+".claude/skills/analyze/scripts/*.py" = ["ANN"]
+".claude/skills/buy-vs-build-framework/scripts/*.py" = ["ANN"]
+".claude/skills/cva-analysis/scripts/*.py" = ["ANN"]
+".claude/skills/decision-critic/scripts/*.py" = ["ANN"]
+".claude/skills/doc-coverage/scripts/*.py" = ["ANN"]
+".claude/skills/planner/scripts/*.py" = ["ANN"]
+".claude/skills/security-scan/scripts/*.py" = ["ANN"]
+"packages/semantic-hooks/src/**/*.py" = ["ANN"]
+"scripts/validate_workflows.py" = ["ANN"]
 
 [tool.mypy]
 python_version = "3.12"
 warn_return_any = true
 warn_unused_configs = true
+disallow_any_generics = true
 ignore_missing_imports = true
