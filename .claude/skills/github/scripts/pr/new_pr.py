@@ -140,7 +140,7 @@ def run_validations(
     test_script = os.path.join(repo_root, "scripts/detect_test_coverage_gaps.py")
     if os.path.exists(test_script):
         subprocess.run(
-            [sys.executable, test_script],
+            [sys.executable, test_script, "--staged-only"],
             timeout=30,
         )
 
