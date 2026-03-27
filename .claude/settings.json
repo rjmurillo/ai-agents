@@ -166,6 +166,17 @@
             "statusMessage": "Checking for ADR changes"
           }
         ]
+      },
+      {
+        "matcher": "mcp__serena__write_memory",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -u .claude/hooks/PostToolUse/invoke_observation_sync.py",
+            "timeout": 30,
+            "statusMessage": "Syncing observation memories to Forgetful"
+          }
+        ]
       }
     ],
     "Stop": [
