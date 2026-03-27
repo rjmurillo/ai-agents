@@ -272,8 +272,5 @@ class TestMainFailOpen:
         mock_stdin.write(data)
         mock_stdin.seek(0)
         with patch.object(mock_stdin, "isatty", return_value=False):
-            # Should not raise; hook is advisory only
-            # Note: this will actually raise since we mock parse_command
-            # but the hook should ideally catch exceptions.
-            # For now, verify the hook design is advisory (exit 0 only).
-            pass
+            result = main()
+            assert result == 0

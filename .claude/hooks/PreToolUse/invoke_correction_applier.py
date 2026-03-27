@@ -165,40 +165,42 @@ def scan_memories(project_root: str) -> list[tuple[str, str]]:
 def main() -> int:
     """Main entry point. Always returns 0 (advisory, never blocks)."""
     hook_name = "correction-applier"
+    try:
+        if skip_if_consumer_repo(hook_name):
+            return 0
 
-    if skip_if_consumer_repo(hook_name):
-        return 0
+        if sys.stdin.isatty():
+            return 0
 
-    if sys.stdin.isatty():
-        return 0
+        stdin_data = sys.stdin.read()
+        if not stdin_data.strip():
+            return 0
 
-    stdin_data = sys.stdin.read()
-    if not stdin_data.strip():
-        return 0
+        command = parse_command(stdin_data)
+        if not command:
+            return 0
 
-    command = parse_command(stdin_data)
-    if not command:
-        return 0
+        keywords = extract_keywords(command)
+        if not keywords:
+            return 0
 
-    keywords = extract_keywords(command)
-    if not keywords:
-        return 0
+        project_root = get_project_directory()
+        all_corrections = scan_memories(project_root)
+        if not all_corrections:
+            return 0
 
-    project_root = get_project_directory()
-    all_corrections = scan_memories(project_root)
-    if not all_corrections:
-        return 0
+        matches = find_matching_corrections(all_corrections, keywords)
+        if not matches:
+            return 0
 
-    matches = find_matching_corrections(all_corrections, keywords)
-    if not matches:
-        return 0
+        shown = matches[:MAX_CORRECTIONS]
+        lines = ["**Self-Improving Agent: Relevant corrections found**"]
+        for source, text in shown:
+            lines.append(f"- [{source}] {text}")
 
-    shown = matches[:MAX_CORRECTIONS]
-    lines = ["**Self-Improving Agent: Relevant corrections found**"]
-    for source, text in shown:
-        lines.append(f"- [{source}] {text}")
-
-    print("\n".join(lines))
+        print("\n".join(lines))
+    except Exception as exc:
+        print(f"[{hook_name}] Error (fail-open): {exc}", file=sys.stderr)
     return 0
 
 
