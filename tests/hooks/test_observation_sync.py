@@ -115,6 +115,18 @@ class TestFindObservationFile:
         result = _find_observation_file(str(tmp_path), "subdir\\evil-observations")
         assert result is None
 
+    def test_rejects_symlink_outside_boundary_in_glob(self, tmp_path: Path) -> None:
+        memories_dir = tmp_path / ".serena" / "memories"
+        memories_dir.mkdir(parents=True)
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        real_file = outside / "evil-observations.md"
+        real_file.write_text("# Evil")
+        symlink = memories_dir / "evil-observations.md"
+        symlink.symlink_to(real_file)
+        result = _find_observation_file(str(tmp_path), "evil")
+        assert result is None
+
 
 class TestMainHook:
     """Tests for the main hook entry point."""

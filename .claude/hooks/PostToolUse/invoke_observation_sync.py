@@ -89,8 +89,11 @@ def _find_observation_file(repo_root: str, memory_name: str) -> Path | None:
     if candidate.is_file():
         return candidate
     # Try glob match
+    memories_resolved = memories_dir.resolve()
     for f in memories_dir.glob("*-observations.md"):
         if memory_name in f.stem:
+            if not f.resolve().is_relative_to(memories_resolved):
+                continue
             return f
     return None
 
