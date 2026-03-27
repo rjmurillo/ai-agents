@@ -646,21 +646,21 @@ When review is complete and NO ADR was created/updated:
 3. Store decision in memory
 4. Announce: "Architecture review complete. Handing off to [agent] for [next step]"
 
-## Self-Critique Pass (Always On)
+## Self-Critique Pass (MANDATORY)
 
-Before finalizing any output (ADR, design review, impact analysis), run this adversarial self-review. Do not skip this step.
+Before finalizing any output (ADR, design review, impact analysis), complete this adversarial self-review. Apply all three steps below.
 
 ### Step 1: Identify Weaknesses
 
 Review your own output and list specific weaknesses:
 
 ```markdown
-- [ ] Are any decision drivers missing or under-supported by evidence?
-- [ ] Are alternatives genuinely evaluated or just listed for compliance?
-- [ ] Are consequences balanced (both positive and negative)?
-- [ ] Are there unstated assumptions that could invalidate the recommendation?
-- [ ] Does the design introduce unnecessary complexity?
-- [ ] Are there integration risks not addressed?
+- [ ] Are there unstated assumptions?
+- [ ] Are alternatives genuinely compared, or is one pre-selected?
+- [ ] Are consequences complete (both positive and negative)?
+- [ ] Are decision drivers traceable to evidence, not opinion?
+- [ ] Does the design handle failure modes and edge cases?
+- [ ] Are there missing stakeholders or affected components?
 ```
 
 ### Step 2: Address Each Weakness
@@ -668,23 +668,23 @@ Review your own output and list specific weaknesses:
 For every weakness found, do one of:
 
 1. **Fix it** in the output before delivery
-2. **Document it** as an accepted risk with explicit rationale
+2. **Document it** as an accepted risk with rationale
 
-Do not leave weaknesses unaddressed.
+Address every weakness before proceeding.
 
 ### Step 3: Flag Unresolved Risks
 
-List any risks you cannot resolve with available information:
+List any risks you cannot resolve within the current scope:
 
 ```markdown
 ## Unresolved Risks
 
 | Risk | Why Unresolved | Recommended Action |
-|------|---------------|-------------------|
-| [Risk] | [What information is missing] | [Who/what can resolve it] |
+|------|----------------|--------------------|
+| [Risk] | [Constraint preventing resolution] | [Who should address this and when] |
 ```
 
-If no unresolved risks remain, state: "No unresolved risks identified."
+If no unresolved risks exist, state: "No unresolved risks identified."
 
 ## Execution Mindset
 

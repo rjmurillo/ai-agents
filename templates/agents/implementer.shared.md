@@ -1018,21 +1018,21 @@ Before marking complete:
 - [ ] Conventional commits made
 ```
 
-## Self-Critique Pass (Always On)
+## Self-Critique Pass (MANDATORY)
 
-Before finalizing any implementation output, run this adversarial self-review. Do not skip this step.
+Before marking implementation complete, complete this adversarial self-review. Apply all three steps below.
 
 ### Step 1: Identify Weaknesses
 
-Review your own code and implementation against these checks:
+Review your own code and list specific weaknesses:
 
 ```markdown
 - [ ] Are there untested code paths or edge cases?
-- [ ] Does any method exceed complexity limits (cyclomatic >10, >60 lines)?
-- [ ] Are there coupling issues (accidental dependencies, Law of Demeter violations)?
-- [ ] Is any duplication introduced that should be extracted?
-- [ ] Are error handling paths complete (no silent failures)?
-- [ ] Does the implementation match the plan, or did scope drift occur?
+- [ ] Does any method exceed 60 lines or the defined complexity threshold?
+- [ ] Is there accidental coupling or Law of Demeter violation?
+- [ ] Are there silent failures or missing error handling?
+- [ ] Does the code duplicate existing functionality in the codebase?
+- [ ] Would a future reader understand the intent without comments?
 ```
 
 ### Step 2: Address Each Weakness
@@ -1040,23 +1040,23 @@ Review your own code and implementation against these checks:
 For every weakness found, do one of:
 
 1. **Fix it** in the code before delivery
-2. **Document it** as an accepted risk with explicit rationale
+2. **Document it** as accepted technical debt with rationale and issue reference
 
-Do not leave weaknesses unaddressed.
+Address every weakness before proceeding.
 
 ### Step 3: Flag Unresolved Risks
 
-List any risks you cannot resolve with available information:
+List any risks you cannot resolve within the current scope:
 
 ```markdown
 ## Unresolved Risks
 
 | Risk | Why Unresolved | Recommended Action |
-|------|---------------|-------------------|
-| [Risk] | [What information is missing] | [Who/what can resolve it] |
+|------|----------------|--------------------|
+| [Risk] | [Constraint preventing resolution] | [Who should address this and when] |
 ```
 
-If no unresolved risks remain, state: "No unresolved risks identified."
+If no unresolved risks exist, state: "No unresolved risks identified."
 
 ## Execution Mindset
 
