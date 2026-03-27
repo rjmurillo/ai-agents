@@ -36,6 +36,9 @@ elif _workspace:
     _LIB_DIR = os.path.join(_workspace, ".claude", "lib")
 else:
     _LIB_DIR = str(Path(__file__).resolve().parents[3] / "lib")
+if not os.path.isdir(_LIB_DIR):
+    print(f"Plugin lib directory not found: {_LIB_DIR}", file=sys.stderr)
+    sys.exit(2)  # Config error per ADR-035
 if _LIB_DIR not in sys.path:
     sys.path.insert(0, _LIB_DIR)
 

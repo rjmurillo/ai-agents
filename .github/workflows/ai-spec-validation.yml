@@ -79,7 +79,7 @@ jobs:
 
       - name: Check for code changes
         id: filter
-        uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d
+        uses: dorny/paths-filter@61f87a10cd2c304679af17bb73ef192addf33c1c
         with:
           filters: |
             code:

@@ -16,6 +16,8 @@ tools:
   - github/pull_request_read
   - github/issue_read
   - github/add_issue_comment
+  - github/search_code
+  - github/search_issues
   - serena/*
 model: claude-opus-4.5
 tier: builder

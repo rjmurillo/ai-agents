@@ -114,9 +114,9 @@ jobs:
           enable-git-hooks: true
           skip-autofix: 0
 
-      # Pin to SHA - https://github.com/anthropics/claude-code-action/releases/tag/v1.0.77
+      # Pin to SHA - https://github.com/anthropics/claude-code-action/releases/tag/v1.0.78
       # Fixes orphaned installer processes causing race conditions (Issue #804)
-      - uses: anthropics/claude-code-action@ff9acae5886d41a99ed4ec14b7dc147d55834722
+      - uses: anthropics/claude-code-action@0ee1beea589a67d33340072691a5d42abec7ae6b
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
 
