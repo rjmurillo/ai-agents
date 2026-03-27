@@ -98,39 +98,10 @@ jobs:
       - name: Validate PR Description Standards
         if: steps.should-run.outputs.skip != 'true'
         id: validate-standards
-        shell: bash
         env:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
-        run: |
-          # Write body to temp file to avoid shell escaping issues
-          printf '%s' "$PR_BODY" > /tmp/pr-body.txt
-
-          # Run the standards validator (issue keywords + template compliance)
-          # Exit code 0 on warnings (non-blocking), non-zero only for errors
-          output=$(python3 .claude/skills/github/scripts/pr/validate_pr_description.py \
-            --title "$PR_TITLE" \
-            --body-file /tmp/pr-body.txt 2>/dev/null) || true
-
-          # Parse JSON results
-          keywords_status=$(echo "$output" | python3 -c "import json,sys; print(json.load(sys.stdin)['Validations']['IssueKeywords']['Status'])" 2>/dev/null || echo "SKIP")
-          template_status=$(echo "$output" | python3 -c "import json,sys; print(json.load(sys.stdin)['Validations']['TemplateCompliance']['Status'])" 2>/dev/null || echo "SKIP")
-          template_msg=$(echo "$output" | python3 -c "import json,sys; print(json.load(sys.stdin)['Validations']['TemplateCompliance']['Message'])" 2>/dev/null || echo "")
-          warnings=$(echo "$output" | python3 -c "import json,sys; print('\n'.join(json.load(sys.stdin).get('Warnings',[])))" 2>/dev/null || echo "")
-
-          echo "keywords_status=$keywords_status" >> "$GITHUB_OUTPUT"
-          echo "template_status=$template_status" >> "$GITHUB_OUTPUT"
-          echo "template_message=$template_msg" >> "$GITHUB_OUTPUT"
-
-          # Store warnings for report (use delimiter for multiline)
-          {
-            echo "standards_warnings<<STANDARDS_EOF"
-            echo "$warnings"
-            echo "STANDARDS_EOF"
-          } >> "$GITHUB_OUTPUT"
-
-          echo "Issue keywords: $keywords_status"
-          echo "Template compliance: $template_status - $template_msg"
+        run: python3 .github/scripts/parse_pr_standards.py
 
       - name: Check Review Comment Status
         if: steps.should-run.outputs.skip != 'true'
