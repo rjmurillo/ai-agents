@@ -66,9 +66,7 @@ _ALLOWLIST_PATTERNS = [
 ]
 
 # Pattern to detect investigation-only claims in session logs
-_INVESTIGATION_CLAIM_PATTERN = re.compile(
-    r"SKIPPED:\s*investigation-only", re.IGNORECASE
-)
+_INVESTIGATION_CLAIM_PATTERN = re.compile(r"SKIPPED:\s*investigation-only", re.IGNORECASE)
 
 
 @dataclass
@@ -327,10 +325,7 @@ def _run_session_validation(args: argparse.Namespace) -> int:
             print()
             print("VIOLATIONS DETECTED:")
             for violation in result.violations:
-                print(
-                    f"  Session: {violation.session_file} "
-                    f"(commit {violation.commit_sha})"
-                )
+                print(f"  Session: {violation.session_file} (commit {violation.commit_sha})")
                 for filepath in violation.disallowed_files:
                     print(f"    - {filepath}")
 
@@ -355,9 +350,7 @@ def _run_diff_validation(args: argparse.Namespace) -> int:
     if violations:
         details = "\n".join(f"  - {filepath}" for filepath in violations)
         write_output("violation_details", details)
-        write_log(
-            f"Investigation-only claim violated by {len(violations)} file(s):"
-        )
+        write_log(f"Investigation-only claim violated by {len(violations)} file(s):")
         for filepath in violations:
             write_log(f"  {filepath}")
         write_log("")
