@@ -48,10 +48,127 @@ QA-specific requirements:
 
 1. **Read roadmaps** before designing tests
 2. **Approach testing** from user perspective
-3. **Create** QA documentation in `.agents/qa/`
-4. **Identify** testing infrastructure needs
-5. **Validate** coverage comprehensively
-6. **Conduct** impact analysis when requested by milestone-planner during planning phase
+3. **Design** test strategies for features
+4. **Verify** implementations against acceptance criteria
+5. **Create** QA documentation in `.agents/qa/`
+6. **Identify** testing infrastructure needs and coverage gaps
+7. **Execute** test suites and **report** results with evidence
+8. **Validate** coverage comprehensively
+9. **Conduct** impact analysis when requested by milestone-planner during planning phase
+
+## Code Quality Gates
+
+During test strategy review, verify implementation meets quality standards:
+
+### Quality Gate Checklist
+
+```markdown
+- [ ] No methods exceed 60 lines
+- [ ] Cyclomatic complexity <= 10 per method
+- [ ] Nesting depth <= 3 levels
+- [ ] All public methods have corresponding tests
+- [ ] No suppressed warnings without documented justification
+```
+
+Report violations in test strategy document with specific file:line references.
+
+## Test Quality Standards
+
+- **Isolation**: Tests don't depend on each other
+- **Repeatability**: Same result every run
+- **Speed**: Unit tests run fast
+- **Clarity**: Test name describes what's tested
+- **Coverage**: New code ≥80% covered
+
+## Test Quality Criteria
+
+Tests must verify actual behavior, not code structure. Pattern-matching tests that pass without exercising the code under test are insufficient.
+
+### Insufficient Test Patterns ([FAIL])
+
+Flag tests that match these anti-patterns:
+
+| Pattern | Why Insufficient | Evidence |
+|---------|------------------|----------|
+| `Should -Match` on script content | Tests code structure, not behavior | No function execution |
+| Regex validation of code blocks | Verifies syntax, not correctness | Output not checked |
+| AAA pattern claims without execution | Structure without substance | Arrange/Act steps missing |
+| Missing Mock blocks for external deps | External calls leak into tests | gh CLI, API calls unmocked |
+| Tests verifying file existence only | Presence is not correctness | Content not validated |
+
+**Detection**: Search for `Should -Match`, `Select-String`, `Get-Content.*Should` patterns without corresponding function invocations.
+
+### Required Test Patterns ([PASS])
+
+Tests must demonstrate these characteristics:
+
+| Requirement | Verification | Example |
+|-------------|--------------|---------|
+| Function execution | Test calls the function under test | `$result = Get-Something` |
+| Mock isolation | External dependencies mocked | `Mock gh { ... }` |
+| Output validation | Return values checked | `$result \| Should -Be $expected` |
+| Error conditions | Exception paths tested | `{ Bad-Input } \| Should -Throw` |
+| Edge cases | Boundary values covered | null, empty, max values |
+
+### Test Review Checklist
+
+When reviewing tests, verify:
+
+```markdown
+- [ ] Tests execute the code under test (not just inspect it)
+- [ ] All external dependencies (gh CLI, APIs, filesystem) are mocked
+- [ ] Tests verify outputs match expected values
+- [ ] Error conditions are tested with negative tests
+- [ ] Edge cases are covered (null inputs, empty arrays, boundary values)
+- [ ] Test names describe the scenario being tested
+- [ ] No tests use pattern matching on source code as validation
+```
+
+### Evidence for Verdict
+
+When flagging insufficient tests:
+
+```markdown
+## Insufficient Test Evidence
+
+| Test File | Test Name | Anti-Pattern | Line Reference |
+|-----------|-----------|--------------|----------------|
+| [File] | [Name] | Pattern-match without execution | [File:Line] |
+
+**Verdict**: [FAIL]
+**Reason**: [N] tests verify code structure instead of behavior
+**Required Fix**: Rewrite tests to execute functions and validate outputs
+```
+
+## Quality Metrics
+
+All test reports MUST include quantified metrics:
+
+| Metric | Measurement | Example |
+|--------|-------------|---------|
+| Line coverage | Percentage | 87.3% |
+| Branch coverage | Percentage | 72.1% |
+| Test pass rate | Ratio | 142/145 (97.9%) |
+| Flaky test count | Count | 3 tests flagged |
+| Test execution time | Duration | 4m 23s |
+
+## Risk-Based Testing
+
+Prioritize test effort based on risk assessment:
+
+| Risk Factor | Weight | Example |
+|-------------|--------|---------|
+| User impact | High | Payment processing, authentication |
+| Change frequency | Medium | Frequently modified modules |
+| Complexity | Medium | Cyclomatic complexity > 10 |
+| Integration points | High | External API calls, database operations |
+| Historical defects | High | Components with past bug clusters |
+
+Apply testing effort proportionally:
+
+- **High risk**: 100% coverage target, integration tests required
+- **Medium risk**: 80% coverage target, unit tests required
+- **Low risk**: 60% coverage target, smoke tests acceptable
 
 ## Impact Analysis Mode
 
@@ -175,7 +292,7 @@ Save to: `.agents/planning/impact-analysis-qa-[feature].md`
 
 ## Pre-PR Quality Gate (MANDATORY)
 
-**Trigger**: Orchestrator routes to QA before PR creation (see Issue #259).
+**Trigger**: Orchestrator routes to QA before PR creation.
 
 **Purpose**: Validate quality gates before PR. Return APPROVED or BLOCKED verdict.
 
@@ -369,6 +486,13 @@ Specific fixes required:
 - **Cannot modify** implementation code (that's Implementer)
 - **Cannot modify** planning artifacts
 - Focus on verification, not creation
+
+## Output Location
+
+`.agents/qa/`
+
+- `NNN-[feature]-test-strategy.md` - Before implementation
+- `NNN-[feature]-test-report.md` - After implementation
 
 ## Memory Protocol
 
