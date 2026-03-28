@@ -1,5 +1,5 @@
 ---
-argument-hint: <PR_NUMBERS> [--parallel] [--cleanup]
+argument-hint: <PR_NUMBERS> [--parallel] [--cleanup] [--dry-run]
 description: Use when responding to PR review comments for specified pull request(s)
 tools:
   - vscode
@@ -38,6 +38,7 @@ Load configuration from `.claude/commands/pr-review-config.yaml` for scripts (us
 | `PR_NUMBERS` | Comma-separated PR numbers or `all-open` | Required |
 | `--parallel` | Use git worktrees for parallel execution | false |
 | `--cleanup` | Clean up worktrees after completion | true |
+| `--dry-run` | Preview planned actions without executing | false |
 
 ## Workflow
 

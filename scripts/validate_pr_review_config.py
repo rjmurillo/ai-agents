@@ -162,11 +162,10 @@ def main() -> int:
 
     if yaml is None:
         print(
-            "WARNING: PyYAML not installed. Skipping deep validation.",
+            "ERROR: PyYAML not installed. Cannot validate config schema.",
             file=sys.stderr,
         )
-        print(f"Config file exists: {config_path}")
-        return 0
+        return 2
 
     try:
         with open(config_path) as f:
