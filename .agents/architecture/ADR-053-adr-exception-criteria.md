@@ -1,4 +1,4 @@
-# ADR-049: ADR Exception Criteria (Chesterton's Fence)
+# ADR-053: ADR Exception Criteria (Chesterton's Fence)
 
 ## Status
 
@@ -94,6 +94,26 @@ Every ADR exception request MUST document:
 2. Architect verifies all four elements are documented
 3. Incomplete analysis blocks exception approval
 4. Approved exceptions are documented in the ADR's Exceptions section
+
+## Prior Art Investigation
+
+### What Currently Exists
+
+- **Structure/pattern being changed**: Informal ADR exception process where exceptions are requested in PRs and approved without structured analysis
+- **When introduced**: No formal process existed. Exceptions were handled ad hoc since ADR adoption
+- **Original author and context**: The informal process emerged organically as ADRs accumulated
+
+### Historical Rationale
+
+- **Why was it built this way?** No deliberate design. Exception handling was not addressed when the ADR process was established
+- **What alternatives were considered?** None documented. The absence of a formal exception process was an oversight, not a decision
+- **What constraints drove the design?** Early project phase prioritized shipping ADRs over governing exceptions
+
+### Why Change Now
+
+- **Has the original problem changed?** Yes. PR #908 demonstrated that informal exceptions lose architectural rationale and enable scope creep
+- **Is there a better solution now?** Yes. Chesterton's Fence analysis provides structured rigor without blocking legitimate exceptions
+- **What are the risks of change?** Low. Adds 10-15 minutes of documentation per exception request. No existing code changes required
 
 ## Rationale
 
