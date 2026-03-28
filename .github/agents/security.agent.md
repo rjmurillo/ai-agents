@@ -12,9 +12,11 @@ tools:
   - github/get_code_scanning_alert
   - github/list_secret_scanning_alerts
   - github/list_dependabot_alerts
+  - github/search_code
   - serena/*
   - perplexity/*
 model: claude-opus-4.5
+tier: builder
 ---
 # Security Agent
 

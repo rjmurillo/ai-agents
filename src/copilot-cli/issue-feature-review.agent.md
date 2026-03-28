@@ -20,6 +20,7 @@ tools:
   - cloudmcp-manager/*
   - serena/*
 model: claude-sonnet-4.6
+tier: manager
 ---
 # Issue Feature Review Agent
 

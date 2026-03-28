@@ -46,7 +46,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           fetch-depth: 1
 
@@ -59,7 +59,7 @@ jobs:
 
       # Pin to SHA - matches claude.yml
       - name: Run Claude Code
-        uses: anthropics/claude-code-action@5d0cc745cd0cce4c0e9e0b3511de26c3bc285eb5 # v1.0.71
+        uses: anthropics/claude-code-action@0ee1beea589a67d33340072691a5d42abec7ae6b # v1.0.78
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
 

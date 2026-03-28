@@ -21,14 +21,17 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from validate_pr_description import _CONVENTIONAL_COMMIT_PATTERN  # noqa: E402
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
-_CONVENTIONAL_COMMIT_PATTERN = re.compile(
-    r"^(feat|fix|docs|style|refactor|perf|test|chore|ci|build|revert)"
-    r"(\(.+\))?!?: .+"
-)
+
+def _git_env() -> dict[str, str]:
+    """Return environment with GIT_DIR/GIT_WORK_TREE stripped to avoid hook interference."""
+    return {k: v for k, v in os.environ.items() if k not in ("GIT_DIR", "GIT_WORK_TREE")}
 
 
 def get_repo_root() -> str:
@@ -38,6 +41,7 @@ def get_repo_root() -> str:
         capture_output=True,
         text=True,
         timeout=10,
+        env=_git_env(),
     )
     if result.returncode != 0:
         print("Not in a git repository", file=sys.stderr)
@@ -65,7 +69,15 @@ def validate_conventional_commit(title: str) -> bool:
     return True
 
 
-def run_validations(repo_root: str, base: str, head: str) -> None:
+def run_validations(
+    repo_root: str,
+    base: str,
+    head: str,
+    *,
+    title: str = "",
+    body: str = "",
+    body_file: str = "",
+) -> None:
     """Run pre-creation validations. Raises SystemExit(1) on failure."""
     try:
         os.makedirs(os.path.join(repo_root, ".agents"), exist_ok=True)
@@ -76,31 +88,29 @@ def run_validations(repo_root: str, base: str, head: str) -> None:
     print()
 
     # Validation 1: Session End (if .agents/ files changed)
-    print("[1/3] Checking Session End protocol...")
+    print("[1/4] Checking Session End protocol...")
     result = subprocess.run(
         ["git", "diff", "--name-only", f"{base}...{head}"],
         capture_output=True,
         text=True,
         timeout=30,
+        env=_git_env(),
     )
     changed_files = result.stdout.strip().splitlines() if result.returncode == 0 else []
     agents_changed = any(f.startswith(".agents/") for f in changed_files)
 
     if agents_changed:
-        session_logs = [
-            f for f in changed_files
-            if re.match(r"^\.agents/sessions/.*\.md$", f)
-        ]
+        session_logs = [f for f in changed_files if re.match(r"^\.agents/sessions/.*\.md$", f)]
         if session_logs:
             session_log = session_logs[-1]
-            validate_script = os.path.join(repo_root, "scripts/Validate-Session.ps1")
+            validate_script = os.path.join(repo_root, "scripts/validate_session_json.py")
             if os.path.exists(validate_script):
                 session_log_path = os.path.join(repo_root, session_log)
                 vresult = subprocess.run(
                     [
-                        "pwsh", "-NoProfile", "-File",
+                        sys.executable,
                         validate_script,
-                        "-SessionLogPath", session_log_path,
+                        session_log_path,
                     ],
                     capture_output=True,
                     text=True,
@@ -116,7 +126,7 @@ def run_validations(repo_root: str, base: str, head: str) -> None:
 
     # Validation 2: Skill violation detection (WARNING)
     print()
-    print("[2/3] Checking for skill violations...")
+    print("[2/4] Checking for skill violations...")
     skill_script = os.path.join(repo_root, "scripts/detect_skill_violation.py")
     if os.path.exists(skill_script):
         subprocess.run(
@@ -126,13 +136,34 @@ def run_validations(repo_root: str, base: str, head: str) -> None:
 
     # Validation 3: Test coverage detection (WARNING)
     print()
-    print("[3/3] Checking test coverage...")
-    test_script = os.path.join(repo_root, "scripts/Detect-TestCoverageGaps.ps1")
+    print("[3/4] Checking test coverage...")
+    test_script = os.path.join(repo_root, "scripts/detect_test_coverage_gaps.py")
     if os.path.exists(test_script):
         subprocess.run(
-            ["pwsh", "-NoProfile", "-File", test_script],
+            [sys.executable, test_script, "--staged-only"],
             timeout=30,
         )
+
+    # Validation 4: PR Description validation (WARNING)
+    print()
+    print("[4/4] Validating PR description...")
+    validate_script = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        "validate_pr_description.py",
+    )
+    if os.path.exists(validate_script) and title:
+        val_args = [sys.executable, validate_script, "--title", title]
+        if body:
+            val_args.extend(["--body", body])
+        elif body_file:
+            val_args.extend(["--body-file", body_file])
+        val_result = subprocess.run(val_args, capture_output=True, text=True, timeout=30)
+        # Print human-readable output (on stderr from validator)
+        if val_result.stderr:
+            print(val_result.stderr, end="", file=sys.stderr)
+        # Warning mode: don't fail on exit code
+    else:
+        print("  Skipped (no title available or validator not found)")
 
     print()
     print("All pre-creation validations passed!")
@@ -140,7 +171,11 @@ def run_validations(repo_root: str, base: str, head: str) -> None:
 
 
 def write_audit_log(
-    repo_root: str, head: str, base: str, title: str, reason: str,
+    repo_root: str,
+    head: str,
+    base: str,
+    title: str,
+    reason: str,
 ) -> None:
     """Write audit log entry for skipped validation."""
     audit_dir = os.path.join(repo_root, ".agents/audit")
@@ -182,7 +217,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--draft", action="store_true", help="Create as draft PR")
     parser.add_argument("--skip-validation", action="store_true", help="Skip validation checks")
     parser.add_argument(
-        "--audit-reason", default="",
+        "--audit-reason",
+        default="",
         help="Required when --skip-validation is used. Logged for audit trail.",
     )
     return parser
@@ -211,6 +247,7 @@ def main(argv: list[str] | None = None) -> int:
             capture_output=True,
             text=True,
             timeout=10,
+            env=_git_env(),
         )
         head = result.stdout.strip()
         if not head:
@@ -238,7 +275,14 @@ def main(argv: list[str] | None = None) -> int:
         print()
     else:
         try:
-            run_validations(repo_root, args.base, head)
+            run_validations(
+                repo_root,
+                args.base,
+                head,
+                title=args.title,
+                body=args.body,
+                body_file=args.body_file,
+            )
         except SystemExit:
             raise
         except Exception as exc:
@@ -247,10 +291,15 @@ def main(argv: list[str] | None = None) -> int:
 
     # Build gh pr create command
     gh_args = [
-        "gh", "pr", "create",
-        "--base", args.base,
-        "--head", head,
-        "--title", args.title,
+        "gh",
+        "pr",
+        "create",
+        "--base",
+        args.base,
+        "--head",
+        head,
+        "--title",
+        args.title,
     ]
 
     if args.body:

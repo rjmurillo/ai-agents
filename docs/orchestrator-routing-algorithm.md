@@ -205,6 +205,108 @@ def add_mandatory_agents(sequence, task_type, risk, file_patterns):
 
 ---
 
+## Phase 2.5: Validate Tier Compatibility
+
+After selecting agents, validate the delegation sequence respects the tier hierarchy.
+
+```python
+TIER_HIERARCHY = {
+    "expert": 1,
+    "manager": 2,
+    "builder": 3,
+    "integration": 4
+}
+
+AGENT_TIERS = {
+    # Expert
+    "high-level-advisor": "expert",
+    "independent-thinker": "expert",
+    "architect": "expert",
+    "roadmap": "expert",
+    # Manager
+    "orchestrator": "manager",
+    "milestone-planner": "manager",
+    "critic": "manager",
+    "issue-feature-review": "manager",
+    "pr-comment-responder": "manager",
+    # Builder
+    "implementer": "builder",
+    "qa": "builder",
+    "devops": "builder",
+    "security": "builder",
+    "debug": "builder",
+    # Integration
+    "analyst": "integration",
+    "explainer": "integration",
+    "task-decomposer": "integration",
+    "retrospective": "integration",
+    "spec-generator": "integration",
+    "adr-generator": "integration",
+    "backlog-generator": "integration",
+    "janitor": "integration",
+    "merge-resolver": "builder",
+    "memory": "integration",
+    "skillbook": "integration",
+    "context-retrieval": "integration",
+}
+
+def validate_tier_sequence(agent_sequence):
+    """
+    Validates that agent sequence respects tier hierarchy rules.
+    
+    Valid patterns:
+      - Higher tier delegates to lower tier (expert -> manager -> builder -> integration)
+      - Same tier agents execute in parallel
+    
+    Invalid patterns:
+      - Lower tier delegating to higher tier (use escalation instead)
+    """
+    for i in range(len(agent_sequence) - 1):
+        current = agent_sequence[i]
+        next_agent = agent_sequence[i + 1]
+
+        current_level = TIER_HIERARCHY[AGENT_TIERS[current]]
+        next_level = TIER_HIERARCHY[AGENT_TIERS[next_agent]]
+
+        if current_level <= next_level:
+            continue  # Valid: same tier (parallel) or delegation downward
+
+        raise TierViolationError(
+            f"Invalid delegation: {current} ({AGENT_TIERS[current]}) "
+            f"cannot delegate to {next_agent} ({AGENT_TIERS[next_agent]}). "
+            f"Use escalation instead."
+        )
+
+    return True
+
+
+def detect_escalation_need(results):
+    """
+    Detects when Builder-tier conflicts require Manager escalation.
+    """
+    builder_results = {
+        agent: result for agent, result in results.items()
+        if AGENT_TIERS.get(agent) == "builder"
+    }
+
+    if len(builder_results) < 2:
+        return False
+
+    recommendations = [r.get("recommendation") for r in builder_results.values()]
+
+    if len(set(recommendations)) > 1:
+        return {
+            "escalate_to": "manager",
+            "reason": "Conflicting Builder recommendations",
+            "agents": list(builder_results.keys()),
+            "conflict": recommendations
+        }
+
+    return False
+```
+
+---
+
 ## Phase 3: Execution Strategy
 
 ### Step 3.1: Determine Execution Mode

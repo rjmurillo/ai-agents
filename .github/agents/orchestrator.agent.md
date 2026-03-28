@@ -12,6 +12,10 @@ tools:
   - todo
   - github/list_issues
   - github/list_pull_requests
+  - github/search_code
+  - github/search_issues
+  - github/search_pull_requests
+  - github/search_repositories
   - github/issue_read
   - github/pull_request_read
   - github/list_workflow_runs
@@ -19,6 +23,7 @@ tools:
   - cloudmcp-manager/*
   - serena/*
 model: Claude Opus 4.5 (copilot)
+tier: manager
 ---
 # Orchestrator Agent
 
