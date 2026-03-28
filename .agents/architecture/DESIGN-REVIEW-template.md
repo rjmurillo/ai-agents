@@ -1,64 +1,121 @@
 ---
-status: NEEDS_CHANGES              # APPROVED | NEEDS_CHANGES | BLOCKED
-priority: P1                       # P0 | P1 | P2 (severity if not approved)
-blocking: true                     # true = CI blocks merge, false = advisory
-reviewer: architect                # agent performing review
-date: YYYY-MM-DD                   # review date (ISO 8601)
-pr-branch: feature/example         # (optional) git branch being reviewed
-scope: "[Review scope]"            # (optional) brief description of review scope
+status: APPROVED              # APPROVED | NEEDS_CHANGES | BLOCKED
+priority: P1                  # P0 | P1 | P2 (severity if not approved)
+reviewer: architect           # agent performing review
+date: YYYY-MM-DD              # review date (ISO 8601)
+pr-branch: feature/example    # (optional) git branch being reviewed
+scope: [Review scope]         # (optional) brief description of review scope
 ---
 
-# Design Review: [Title]
+# Architectural Review: [Title]
 
 ## Executive Summary
 
-**Verdict**: [APPROVED | NEEDS_CHANGES | BLOCKED]
+**VERDICT**: [APPROVED | NEEDS_CHANGES | BLOCKED]
 
-[1-3 sentence summary of the review outcome.]
+[One-paragraph summary of the review outcome and overall assessment]
 
-## Context
+**Design Quality**: High | Medium | Low
+**ADR Compliance**: Full | Partial | None
+**Test Coverage**: Comprehensive | Adequate | Gaps
+**Risk Level**: Low | Medium | High
 
-[What is being reviewed. Include PR number, issue number, and scope.]
+## Design Coherence Assessment
 
-## Architectural Assessment
+### Architectural Fit
 
-### ADR Compliance
+[Evaluate how well the change fits within the existing architecture]
 
-| ADR | Status | Evidence |
-|-----|--------|----------|
-| [ADR-NNN] | COMPLIANT / VIOLATION | [Brief evidence] |
+- **Principle alignment**: How does this align with core architectural principles?
+- **Pattern consistency**: Does this follow established patterns (ADRs, conventions)?
+- **Isolation**: Are changes properly isolated to affected domains?
+- **Extensibility**: Does this leave room for future extensions?
+
+**Verdict**: APPROVED | NEEDS_CHANGES | BLOCKED
 
 ### Pattern Consistency
 
-| Pattern | Compliance | Evidence |
-|---------|-----------|----------|
-| [Pattern name] | PASS / FAIL | [Brief evidence] |
+[Assess consistency with existing project patterns and conventions]
 
-## Findings
+- **Code patterns**: Does code follow established conventions?
+- **File organization**: Is file structure consistent with project layout?
+- **Naming conventions**: Are names consistent with project standards?
+- **Documentation patterns**: Is documentation style consistent?
 
-### Blocking (if any)
+**Verdict**: APPROVED | NEEDS_CHANGES | BLOCKED
 
-1. **[Finding title]**: [Description of the blocking issue and required resolution]
+### Quality Assessment
 
-### Non-Blocking (if any)
+[Evaluate code quality, testing, documentation]
 
-1. **[Finding title]**: [Description and recommendation]
+- **Code clarity**: Is the code clear and maintainable?
+- **Error handling**: Are error cases properly handled?
+- **Test coverage**: Are critical paths tested?
+- **Documentation**: Are decisions documented?
 
-## Recommendations
+**Verdict**: APPROVED | NEEDS_CHANGES | BLOCKED
 
-[Ordered list of actions for the author.]
+## Detailed Analysis
 
-## Verification Checklist
+### [Analysis Area 1]
 
-- [ ] Problem statement is clear
-- [ ] Solution aligns with existing architecture
-- [ ] ADR compliance verified
-- [ ] Test coverage adequate
-- [ ] No breaking changes (or migration documented)
-- [ ] Security considerations addressed
+[Detailed assessment of specific concern or component]
+
+**Finding**: [What was discovered]
+**Impact**: [Consequences if not addressed]
+**Recommendation**: [How to address]
+
+### [Analysis Area 2]
+
+[Detailed assessment of specific concern or component]
+
+**Finding**: [What was discovered]
+**Impact**: [Consequences if not addressed]
+**Recommendation**: [How to address]
+
+## Required Changes (Blocking)
+
+If `status: BLOCKED` or `status: NEEDS_CHANGES`, list required changes:
+
+1. [First required change]
+2. [Second required change]
+
+Each item MUST include:
+- What needs to change
+- Why it's required (reference ADRs or principles)
+- How to verify the change is complete
+
+## Recommendations (Non-Blocking)
+
+Suggestions for improvement or future consideration:
+
+1. [Optional improvement]
+2. [Future enhancement]
+
+## Risks and Mitigations
+
+| Risk | Probability | Impact | Mitigation |
+|------|-------------|--------|-----------|
+| [Risk description] | High/Med/Low | High/Med/Low | [How to address] |
+
+## Conclusion
+
+[Final summary of the review. Restate verdict and key findings.]
 
 ---
 
-**Review Date**: YYYY-MM-DD
-**Review Duration**: [Approximate time]
-**Artifacts Reviewed**: [Count and types]
+## Frontmatter Reference
+
+| Field | Required? | Valid Values | Example |
+|-------|-----------|--------------|---------|
+| `status` | Yes | `APPROVED`, `NEEDS_CHANGES`, `BLOCKED` | `APPROVED` |
+| `priority` | Yes | `P0`, `P1`, `P2` | `P1` |
+| `reviewer` | Yes | agent name | `architect` |
+| `date` | Yes | `YYYY-MM-DD` | `2026-03-07` |
+| `pr-branch` | No | git branch name | `feature/example` |
+| `scope` | No | free text | `Schema validation` |
+
+**CI Gate Rules:**
+- If (`status: NEEDS_CHANGES` OR `status: BLOCKED`) AND (`priority: P0` OR `priority: P1`): **merge blocked**
+- If `status: APPROVED`: **merge allowed**
+- Otherwise: **merge allowed** (advisory review, P2 or lower)

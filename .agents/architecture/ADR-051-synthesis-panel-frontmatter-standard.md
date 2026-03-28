@@ -2,46 +2,86 @@
 
 ## Status
 
-Proposed
+Accepted
+
+## Author
+
+Session 2026-03-07-session-01
 
 ## Date
 
-2026-02-19
+2026-03-07
 
 ## Context
 
-Architect blocking reviews are advisory because the markdown format prevents automated enforcement. In PR #908, a P1 BLOCKING review was ignored and the PR merged anyway. The root cause: DESIGN-REVIEW documents use unstructured markdown headers for metadata (status, priority, blocking). No tooling can reliably parse prose-based verdicts.
+DESIGN-REVIEW documents (architect synthesis panels) contain critical metadata embedded in prose format, preventing automated enforcement of blocking verdicts. PR #908 (2026-01-14) was created and merged despite a P1 BLOCKING architect review, demonstrating the enforcement gap.
 
-Current DESIGN-REVIEW documents embed metadata as bold markdown text:
+Current state:
+- DESIGN-REVIEW verdicts (`APPROVED`, `NEEDS_CHANGES`, `BLOCKED`) are prose-only
+- No machine-readable structure for review status, priority, or blocking status
+- Architect reviews are advisory; no CI gate prevents PR merge despite blocking verdict
+- Inconsistent document structure across existing DESIGN-REVIEW files
+- Review automation requires unreliable regex parsing of prose
 
-```markdown
-**Status**: NEEDS_CHANGES
-**Priority**: P1 (Blocking)
-**Verdict**: NEEDS_CHANGES
-```
-
-This format varies across documents. Some use `**Verdict**`, others use `**Status**`. Priority formatting is inconsistent (`P1`, `P1 (Blocking)`, `P1 - Blocking`). There is no machine-readable way to determine if a review blocks a PR.
+This violates the project's commitment to automated quality gates (ADR-010) and creates a critical gap between architect authority and enforcement capability.
 
 ## Decision
 
-All DESIGN-REVIEW documents MUST include YAML frontmatter with structured metadata. The frontmatter schema is:
+**All DESIGN-REVIEW documents MUST include YAML frontmatter with structured metadata.**
+
+### Frontmatter Schema
 
 ```yaml
 ---
-status: APPROVED | NEEDS_CHANGES | NEEDS_ADR
+status: APPROVED | NEEDS_CHANGES | BLOCKED
 priority: P0 | P1 | P2
-blocking: true | false
-reviewer: architect | security | qa | analyst
+reviewer: architect
 date: YYYY-MM-DD
-pr: <number>
-issue: <number>
+pr-branch: branch-name          # optional
+scope: Brief scope description  # optional
 ---
 ```
 
-Required fields: `status`, `blocking`, `reviewer`, `date`.
-Optional fields: `priority`, `pr`, `issue`.
+### Field Semantics
 
-A template file at `.agents/architecture/DESIGN-REVIEW-template.md` defines the standard structure.
+| Field | Type | Values | Purpose |
+|-------|------|--------|---------|
+| `status` | enum | `APPROVED`, `NEEDS_CHANGES`, `BLOCKED` | Review outcome |
+| `priority` | enum | `P0`, `P1`, `P2` | Issue severity if not approved |
+| `reviewer` | string | agent name | Identity of reviewing agent |
+| `date` | date | `YYYY-MM-DD` | Review date (ISO 8601) |
+| `pr-branch` | string | branch name (pattern: `[a-zA-Z0-9/_.-]+`) | Git branch under review (optional) |
+| `scope` | string | max 100 chars, alphanumeric/spaces/hyphens | Brief description of review scope (optional) |
+
+### CI Gate Logic
+
+**For each DESIGN-REVIEW file in PR:**
+
+0. If file has no frontmatter, skip (advisory warning only)
+1. Parse frontmatter YAML
+2. If (`status: NEEDS_CHANGES` OR `status: BLOCKED`) AND (`priority: P0` OR `priority: P1`):
+   - **Block merge** with reason: "Blocking architect review requires changes"
+3. If `status: APPROVED`:
+   - **Allow merge** (review passed)
+4. Otherwise:
+   - **Allow merge** (advisory review)
+
+**Result:** No PR can merge to main if it contains DESIGN-REVIEW files with NEEDS_CHANGES or BLOCKED status at P0/P1 priority.
+
+### Deviation from Original Proposal
+
+Issue #946 (2026-01-15) originally proposed an explicit `blocking: true|false` field. This ADR uses `status` + `priority` as the single gating signal instead.
+
+Rationale:
+
+- Avoids redundant state between `blocking` and `status/priority`
+- Reduces contradictory metadata risk (identified during 6-agent debate review)
+- Keeps CI rule deterministic with fewer fields
+
+Impact:
+
+- Templates treat P0/P1 + non-approved status as blocking
+- No standalone `blocking` toggle is available
 
 ## Rationale
 
@@ -49,86 +89,160 @@ A template file at `.agents/architecture/DESIGN-REVIEW-template.md` defines the 
 
 | Alternative | Pros | Cons | Why Not Chosen |
 |-------------|------|------|----------------|
-| Status quo (prose only) | No migration effort | Cannot automate enforcement | Blocking reviews ignored in practice |
-| JSON sidecar files | Strong schema validation | Splits context from review, maintenance burden | Two files per review is error-prone |
-| Markdown tables | Familiar format | Harder to parse reliably than YAML | Regex parsing is fragile for tables |
-| Structured markdown headers | Simple | Still requires custom parsing | YAML frontmatter is an ecosystem standard |
+| **Status Quo** (prose only) | Simple; no syntax overhead | Cannot automate; PR #908 (2026-01-14) proves enforcement fails | Unacceptable: violates ADR-010 quality gate principle |
+| **JSON sidecar files** (DESIGN-REVIEW.json) | Separates concerns | Splits context; maintenance burden; harder to read | Would create parallel document problem |
+| **Markdown tables** | Easier to read in markdown | Brittle parsing; not standard; hard to validate | YAML is markdown-ecosystem standard |
+| **Plain-text header** (First line: "VERDICT: BLOCKED") | Minimal syntax | No structure; easy to miss; hard to parse | Not machine-friendly |
+| **Frontmatter + schema validation** (proposed) | Structured; automated; standard | Slight syntax overhead on authors | Solves PR #908 (2026-01-14); aligns with ADR-040; enables automation |
 
 ### Trade-offs
 
-- YAML frontmatter adds syntax overhead to DESIGN-REVIEW documents. This is acceptable because the frontmatter is small (6-8 lines) and ignored by markdown renderers.
-- Existing documents are not required to migrate. New documents MUST use the frontmatter. Migration is optional and can happen incrementally.
+**Syntax Overhead vs Enforcement Power:**
+
+- Frontmatter adds 7 lines per document (~5% overhead)
+- Enables complete automation of blocking reviews
+- Decision: Overhead is negligible compared to enforcement value
+
+**Migration Effort vs Long-term Clarity:**
+
+- New requirement applies to all new DESIGN-REVIEW files
+- Existing documents can migrate gradually (optional)
+- Decision: New files required; gradual migration acceptable
 
 ## Consequences
 
 ### Positive
 
-- Pre-PR validation can parse `blocking: true` and reject PRs with unresolved blocking reviews
-- CI gates can enforce architect approval before merge
-- Status is unambiguous: `APPROVED` vs `NEEDS_CHANGES` vs `NEEDS_ADR`
-- YAML frontmatter is a standard in the markdown ecosystem (Jekyll, Hugo, Astro)
+- **Automated enforcement**: Blocking reviews now prevent merge via CI gate
+- **Machine-readable status**: Tools can parse review outcomes reliably
+- **PR #908 (2026-01-14) prevention**: No PR can merge despite blocking architect review
+- **Consistent structure**: All DESIGN-REVIEW documents follow same format
+- **Quality gate alignment**: Fulfills ADR-010 principle for automated gates
+- **Backwards compatible**: YAML frontmatter is ignored by markdown renderers; documents remain readable
+- **Reuses patterns**: YAML frontmatter already established in ADR-040 (skill files) and session protocol
 
 ### Negative
 
-- Architect agent prompt must be updated to produce frontmatter
-- Existing DESIGN-REVIEW documents lack frontmatter (optional migration)
+- **Syntax burden**: Authors must remember 4 required frontmatter fields
+- **Migration work**: Existing DESIGN-REVIEW files lack frontmatter (optional but recommended)
+- **Script maintenance**: New validation and CI gate scripts to maintain
+- **Requires tooling**: Python validation script and CI gate workflow needed
 
 ### Neutral
 
-- Markdown renderers ignore YAML frontmatter, so document readability is unchanged
-- The `blocking` field is explicit rather than inferred from `priority`
+- **Document body unchanged**: Existing DESIGN-REVIEW body structure remains compatible
+- **No breaking changes**: P2 advisory reviews unaffected
+- **Gradual adoption**: Old documents continue working; focus on new documents first
+
+## Reversibility Assessment
+
+**Rollback capability**: Remove the CI gate workflow to disable enforcement. Frontmatter in existing files is inert without the gate.
+
+**Escape hatch**: A `gate-override` label on the PR bypasses the frontmatter check for emergency merges. Requires CODEOWNERS approval.
+
+**Migration risk**: Existing DESIGN-REVIEW files without frontmatter are skipped by the gate (no frontmatter = no blocking signal). Only files with frontmatter are evaluated.
+
+## Security Considerations
+
+- No secrets or credentials are stored in frontmatter.
+- CI gate decisions are metadata-driven. Review files MUST be treated as untrusted input and parsed safely.
+- Gate override (`gate-override` label) MUST require CODEOWNERS approval and leave an audit trail in PR history.
+
+## Confirmation
+
+- Verification method: validate schema parsing with positive/negative fixtures.
+- Verification method: confirm gate blocks on `NEEDS_CHANGES|BLOCKED` + `P0|P1`.
+- Verification method: confirm advisory behavior for non-frontmatter and P2 cases.
+
+## Implementation Status
+
+- [x] ADR specification drafted
+- [x] Template definition drafted
+- [ ] Validation script implemented (Issue #937)
+- [ ] CI gate workflow implemented (Issue #942)
+- [ ] Architect prompt updates implemented (Issue #947)
+- [ ] Optional migration completed (Issue #940)
+
+Acceptance criteria:
+
+- Gate blocks required scenarios in CI
+- Advisory scenarios remain non-blocking
+- Documentation and template stay schema-aligned
 
 ## Implementation Notes
 
-### Template Location
+### Phase 1: Schema & Template Definition
 
-`.agents/architecture/DESIGN-REVIEW-template.md` provides the standard structure. The architect agent uses this template when creating new reviews.
+1. Create `.agents/architecture/DESIGN-REVIEW-template.md` with frontmatter and body sections
+2. Document ADR-051 with full specification
+3. Update architect agent prompt to reference template
 
-### Validation
+### Phase 2: Validation Script
 
-Pre-PR validation (Issue #934) should:
+1. Create `scripts/validation/validate_design_review.py` following ADR-042 (Python Migration Strategy) pattern
+2. Validate required fields: `status`, `priority`, `reviewer`, `date`
+3. Validate field values against allowed enums
+4. Validate date format (YYYY-MM-DD)
+5. Integrate with existing validation pipeline
+6. Create pytest tests in `tests/test_validate_design_review.py`
 
-1. Find all `DESIGN-REVIEW-*.md` files in `.agents/architecture/`
-2. Parse YAML frontmatter using a standard parser
-3. Check for `blocking: true` with `status: NEEDS_CHANGES`
-4. Block PR creation if any blocking review is unresolved
+### Phase 3: CI Gate Workflow
 
-### CI Gate
+1. Create `.github/workflows/architect-review-gate.yml` following ADR-006 (thin workflows) pattern
+2. Trigger on PR to main branch
+3. Detect DESIGN-REVIEW files in diff
+4. Parse frontmatter of review files
+5. Block merge if (`status: NEEDS_CHANGES` OR `status: BLOCKED`) AND (`priority: P0` OR `priority: P1`)
+6. Post status check to PR
 
-A CI workflow (Issue #942) should:
+### Phase 4: Architect Agent Update
 
-1. Run on PR events
-2. Parse DESIGN-REVIEW frontmatter for the PR
-3. Fail the check if `blocking: true` and `status != APPROVED`
+1. Update `.claude/agents/` to require frontmatter
+2. Add frontmatter example (copy-paste ready)
+3. Add checklist: "Verify all required frontmatter fields are present"
 
-### Field Semantics
+### Phase 5: Migration (Optional, Non-Blocking)
 
-| Field | Values | Meaning |
-|-------|--------|---------|
-| `status` | `APPROVED` | Review passes, no changes needed |
-| `status` | `NEEDS_CHANGES` | Review fails, changes required before merge |
-| `status` | `NEEDS_ADR` | Architectural decision needed before proceeding |
-| `blocking` | `true` | PR MUST NOT merge until status is APPROVED |
-| `blocking` | `false` | Advisory review, PR may merge |
-| `priority` | `P0` | Critical, blocks core functionality |
-| `priority` | `P1` | Important, affects user experience |
-| `priority` | `P2` | Enhancement, low urgency |
+1. Create migration script to add frontmatter to existing DESIGN-REVIEW files
+2. Not required; can be done ad-hoc when documents are reviewed again
+
+## Convergence with Related ADRs
+
+- **ADR-042**: Python Migration Strategy → Validation script in Python
+- **ADR-006**: Thin Workflows → CI workflow delegates to Python module
+- **ADR-010**: Quality Gates Evaluator Optimizer → Frontmatter enables automated gate
+- **ADR-040**: Skill Frontmatter Standardization → Reuses YAML frontmatter pattern
+- **ADR-043**: Scoped Tool Execution → CI gate applies scoped checking (only DESIGN-REVIEW files)
+
+**Critical Path**: Schema → Template → Validation → CI Gate → Agent Update
+**Blocking dependencies**: None (all phases can proceed in parallel after schema definition)
 
 ## Related Decisions
 
-- ADR-040: Skill Frontmatter Standardization (precedent for YAML frontmatter in this project)
-- ADR-047: Plugin-Mode Hook Behavior (hooks that could enforce frontmatter validation)
+- **ADR-010**: Quality Gates Evaluator Optimizer (establishes gate automation principles)
+- **ADR-040**: Skill Frontmatter Standardization (established YAML frontmatter pattern for skills)
+- **ADR-042**: Python Migration Strategy (validation script language)
+- **ADR-006**: Thin Workflows (CI workflow architecture)
+
+## Related Issues
+
+- **Issue #937 (2026-01-15)**: Create DESIGN-REVIEW template (depends on this ADR)
+- **Issue #934 (2026-01-15)**: Pre-PR validation parsing (depends on this ADR)
+- **Issue #942 (2026-01-15)**: CI gate workflow (depends on this ADR)
+- **Issue #947 (2026-01-15)**: Architect agent prompt update (depends on this ADR)
+- **PR #908 (2026-01-14)**: Architect BLOCKED but PR created anyway (incident that motivated this ADR)
 
 ## References
 
-- Issue #937 (template creation)
-- Issue #934 (validation parsing)
-- Issue #942 (CI gate)
-- PR #908 (architect BLOCKED review but PR merged)
-- `.agents/retrospective/2026-01-15-pr-908-comprehensive-retrospective.md`
+- `.agents/architecture/ADR-040-skill-frontmatter-standardization.md` (frontmatter pattern reference)
+- `.agents/retrospective/2026-01-15-pr-908-comprehensive-retrospective.md` (incident analysis)
+- `.agents/SESSION-PROTOCOL.md` (YAML frontmatter precedent in session logs)
+- `scripts/validation/` (validation pattern reference)
+- `.github/workflows/ai-session-protocol.yml` (CI workflow pattern reference)
 
 ---
 
-*Template Version: 1.0*
-*Created: 2026-02-19*
-*GitHub Issue: #946*
+*Created: 2026-03-07*
+*GitHub Issue: #946 (2026-01-15)*
+*Complexity: Medium (schema definition + scripting + CI)*
+*Priority: P1 (blocks automated enforcement of architect reviews)*

@@ -42,7 +42,7 @@ runs:
   steps:
     - name: Setup Node.js
       id: node-setup
-      uses: actions/setup-node@54045abd5dcd3b0fee9ca02fa24c57545834c9cc
+      uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f
       with:
         node-version: "lts/*"
 
@@ -98,6 +98,10 @@ runs:
         echo "Installing uv..."
         curl -LsSf https://astral.sh/uv/install.sh | sh
         echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+        # uv installer may place the binary in .cargo/bin on some runners (e.g. ARM)
+        if [ -d "$HOME/.cargo/bin" ]; then
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+        fi
         echo "✓ uv installed"
 
     - name: Setup Python

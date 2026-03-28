@@ -94,7 +94,7 @@ jobs:
         uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
 
       - name: Check for relevant file changes
-        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3
+        uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4
         id: filter
         # Skip paths-filter for workflow_dispatch (path filter requires pull_request event context; manual dispatch lacks base/head ref information)
         if: github.event_name != 'workflow_dispatch'
@@ -544,7 +544,7 @@ jobs:
         uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
 
       - name: Download all review artifacts
-        uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3
+        uses: actions/download-artifact@484a0b528fb4d7bd804637ccb632e47a0e638317
         with:
           pattern: review-*
           path: ai-review-results
@@ -591,10 +591,12 @@ jobs:
             $infraFile = "ai-review-results/$agent-infrastructure-failure.txt"
 
             # Read verdict (file existence already validated)
-            $verdict = (Get-Content $verdictFile -Raw).Trim()
+            $rawVerdict = Get-Content $verdictFile -Raw
+            $verdict = if ($rawVerdict) { $rawVerdict.Trim() } else { "NEEDS_REVIEW" }
 
             # Read infrastructure flag
-            $infra = if (Test-Path $infraFile) { (Get-Content $infraFile -Raw).Trim() } else { "false" }
+            $rawInfra = if (Test-Path $infraFile) { Get-Content $infraFile -Raw } else { $null }
+            $infra = if ($rawInfra) { $rawInfra.Trim() } else { "false" }
 
             Write-Output "  ${agent}: $verdict (infra: $infra)"
 
@@ -665,12 +667,14 @@ jobs:
             $retryFile = "ai-review-results/$agent-retry-count.txt"
 
             if (Test-Path $infraFile) {
-              $infraFlag = (Get-Content $infraFile -Raw).Trim()
+              $rawInfraFlag = Get-Content $infraFile -Raw
+              $infraFlag = if ($rawInfraFlag) { $rawInfraFlag.Trim() } else { "false" }
               if ($infraFlag -eq "true") {
                 $infrastructureFailureDetected = $true
                 $retryCount = 0
                 if (Test-Path $retryFile) {
-                  $retryCount = [int](Get-Content $retryFile -Raw).Trim()
+                  $rawRetry = Get-Content $retryFile -Raw
+                  $retryCount = if ($rawRetry) { [int]$rawRetry.Trim() } else { 0 }
                 }
                 $retryAttempts += "${agent}: $retryCount retries"
                 Write-Output "::notice::Infrastructure failure detected for $agent agent (retries: $retryCount)"
@@ -707,6 +711,7 @@ jobs:
           }
 
       - name: Post PR Comment
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ env.PR_NUMBER }}
