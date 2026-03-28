@@ -1189,6 +1189,79 @@ List any risks you cannot resolve within the current scope:
 
 If no unresolved risks exist, state: "No unresolved risks identified."
 
+## Completion Confidence Gate
+
+After the self-critique pass, score your implementation against three evidence categories before declaring work complete. This gate prevents rubber-stamping and forces explicit gap identification.
+
+### Scoring Categories
+
+| Category | Weight | What Counts as Evidence |
+|----------|--------|------------------------|
+| Testing evidence | 40% | Meets style guide coverage requirements (e.g., 100% for security-critical), tests pass, edge cases covered, no skipped tests |
+| Code review evidence | 30% | No bugs found, no regressions, security/trust-boundary scan clean |
+| Logical inspection evidence | 30% | Call-path consistency verified, state transitions correct, error/rollback handling complete |
+
+### Scoring Rules
+
+Rate each category 0-100 based on concrete evidence. Multiply by weight. Sum for total.
+
+```markdown
+## Confidence Score
+
+| Category | Score | Weight | Weighted |
+|----------|-------|--------|----------|
+| Testing evidence | [0-100] | 0.40 | [score] |
+| Code review evidence | [0-100] | 0.30 | [score] |
+| Logical inspection | [0-100] | 0.30 | [score] |
+| **Total** | | | **[sum]** |
+```
+
+### Threshold: 84.7%
+
+Use 84.7% as the pass threshold. The non-round number is intentional. It prevents pattern-matching to "good enough" and forces actual calculation.
+
+### Context-Dependent Thresholds
+
+Not every change needs 84.7%. Apply the threshold that matches the change scope:
+
+| Change Type | Threshold | Rationale |
+|-------------|-----------|-----------|
+| Typo fix, comment update | 50.0% | Low risk, low blast radius |
+| Config change, dependency bump | 65.0% | Moderate risk, verify no regressions |
+| Bug fix | 75.0% | Must verify fix works and nothing else breaks |
+| New feature, refactor | 84.7% | High risk, full evidence required |
+| Security-relevant change | 92.0% | Highest risk, near-complete evidence required |
+
+### Below Threshold
+
+If your score falls below the applicable threshold:
+
+1. **Report** the current confidence score with category breakdown
+2. **Identify** the top gaps dragging the score down
+3. **Specify** the minimum checks needed to cross the threshold
+4. **Ask for context** instead of guessing. The real win: reducing "pull down and fix for an hour" scenarios
+
+```markdown
+## Confidence Below Threshold
+
+**Score**: [X]% (threshold: [Y]%)
+
+**Top Gaps**:
+1. [Category]: [Specific gap, e.g., "No integration test for error path"]
+2. [Category]: [Specific gap]
+
+**To Cross Threshold**:
+- [ ] [Specific action, e.g., "Add test for null input on line 45"]
+- [ ] [Specific action]
+
+**Context Needed**:
+- [Question you cannot answer from available information]
+```
+
+Do not proceed to handoff until the score meets the threshold or you have explicitly requested the missing context.
+
+**Routing when blocked**: If the score remains below threshold after identifying gaps, route as a Blocker Handoff to `milestone-planner` (plan ambiguity) or `analyst` (technical unknown). Include: owner, reason, required context, and next steps.
+
 ## Execution Mindset
 
 **Think:** "I execute the plan with quality, not quantity"
