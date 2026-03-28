@@ -12,6 +12,7 @@ Limits:
 EXIT CODES:
   0  - Success: All workspace files within budget
   1  - Error: Budget exceeded
+  2  - Config/environment error (e.g. invalid path)
 
 See: ADR-035 Exit Code Standardization
 """
@@ -66,7 +67,7 @@ def measure_workspace_files(
     workspace_files: list[str] | None = None,
 ) -> list[FileMetric]:
     """Measure byte sizes of workspace files."""
-    targets = workspace_files or WORKSPACE_FILES
+    targets = WORKSPACE_FILES if workspace_files is None else workspace_files
     metrics: list[FileMetric] = []
     for rel_path in targets:
         full_path = repo_root / rel_path
@@ -129,6 +130,9 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     repo_root = Path(args.path).resolve()
+    if not repo_root.exists() or not repo_root.is_dir():
+        print(f"ERROR: Invalid repository path: {repo_root}", file=sys.stderr)
+        return 2
     metrics = measure_workspace_files(repo_root)
     result = validate_budget(metrics, args.total_budget, args.per_file_budget)
 

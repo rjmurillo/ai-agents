@@ -103,8 +103,8 @@ class TestValidateBudget:
 
 
 class TestMain:
-    def test_nonexistent_path_passes_no_files(self) -> None:
-        assert main(["--path", "/nonexistent/dir"]) == 0
+    def test_nonexistent_path_returns_config_error(self) -> None:
+        assert main(["--path", "/nonexistent/dir"]) == 2
 
     def test_under_budget_returns_0(self, tmp_path: Path) -> None:
         (tmp_path / "CLAUDE.md").write_text("small", encoding="utf-8")
