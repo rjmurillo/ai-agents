@@ -14,6 +14,10 @@ sys.path.insert(
     0,
     str(Path(__file__).resolve().parents[1] / ".claude" / "hooks" / "UserPromptSubmit"),
 )
+sys.path.insert(
+    0,
+    str(Path(__file__).resolve().parents[1] / "scripts"),
+)
 
 from invoke_research_then_implement import (
     build_research_guidance,
@@ -81,6 +85,12 @@ class TestDetectComplexity:
         assert "migration" in reasons
         assert "security-sensitive" in reasons
 
+    def test_complexity_overrides_skip_pattern(self) -> None:
+        """Complexity signals take precedence over skip patterns."""
+        prompt = "Fix bug in the authentication module handler"
+        reasons = detect_complexity(prompt)
+        assert "security-sensitive" in reasons
+
 
 class TestBuildResearchGuidance:
     def test_includes_all_reasons(self) -> None:
@@ -121,6 +131,14 @@ class TestExtractPrompt:
 
 
 class TestMain:
+    @pytest.fixture(autouse=True)
+    def _stub_repo_guard(self):
+        with patch(
+            "invoke_research_then_implement.skip_if_consumer_repo",
+            return_value=False,
+        ):
+            yield
+
     def test_returns_zero_when_stdin_is_tty(self) -> None:
         with patch("sys.stdin") as mock_stdin:
             mock_stdin.isatty.return_value = True
@@ -162,7 +180,7 @@ class TestMain:
             assert mock_stdout.getvalue() == ""
 
     def test_no_output_for_skip_pattern_prompt(self) -> None:
-        input_data = json.dumps({"prompt": "Fix bug in the authentication module handler"})
+        input_data = json.dumps({"prompt": "Fix bug in the rendering pipeline handler"})
         with (
             patch("sys.stdin", StringIO(input_data)),
             patch("sys.stdout", new_callable=StringIO) as mock_stdout,

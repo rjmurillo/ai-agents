@@ -24,13 +24,21 @@ if _plugin_root:
     _lib_dir = str(Path(_plugin_root).resolve() / "lib")
 else:
     _lib_dir = str(Path(__file__).resolve().parents[2] / "lib")
-if not os.path.isdir(_lib_dir):
-    print(f"Plugin lib directory not found: {_lib_dir}", file=sys.stderr)
-    sys.exit(2)  # Config error per ADR-035
-if _lib_dir not in sys.path:
+if os.path.isdir(_lib_dir) and _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
 
-from hook_utilities.guards import skip_if_consumer_repo  # noqa: E402
+try:
+    from hook_utilities.guards import skip_if_consumer_repo  # noqa: E402
+except ImportError:
+
+    def skip_if_consumer_repo(hook_name: str) -> bool:  # type: ignore[misc]
+        """Fallback: skip when .agents/ directory is absent."""
+        project_dir = os.environ.get("CLAUDE_PROJECT_DIR", "").strip() or str(Path.cwd())
+        if not Path(project_dir, ".agents").is_dir():
+            print(f"[SKIP] {hook_name}: .agents/ not found", file=sys.stderr)
+            return True
+        return False
+
 
 # Patterns indicating complex work that benefits from research first.
 # Each tuple: (compiled regex, short reason for the match).
@@ -111,14 +119,18 @@ def detect_complexity(prompt: str) -> list[str]:
     if not prompt or len(prompt.strip()) < MIN_PROMPT_LENGTH:
         return []
 
-    for skip in SKIP_PATTERNS:
-        if skip.search(prompt):
-            return []
-
     reasons: list[str] = []
     for pattern, reason in COMPLEXITY_SIGNALS:
         if pattern.search(prompt):
             reasons.append(reason)
+
+    if reasons:
+        return reasons
+
+    for skip in SKIP_PATTERNS:
+        if skip.search(prompt):
+            return []
+
     return reasons
 
 
