@@ -7,7 +7,6 @@ and spec ID format validation used by multiple traceability scripts.
 from __future__ import annotations
 
 import re
-import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -188,18 +187,9 @@ def load_all_specs(base_path: Path, use_cache: bool = True) -> dict[str, Any]:
 
 def get_repo_root() -> Path | None:
     """Get the git repository root, or None if not in a repo."""
-    try:
-        result = subprocess.run(
-            ["git", "rev-parse", "--show-toplevel"],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        if result.returncode == 0:
-            return Path(result.stdout.strip())
-    except FileNotFoundError:
-        pass
-    return None
+    from scripts.github_core.repo import get_repo_root as _shared_get_repo_root
+
+    return _shared_get_repo_root()
 
 
 def validate_specs_path(specs_path: str) -> Path:

@@ -19,12 +19,7 @@
     {
       "name": "project-toolkit",
       "description": "Complete project development toolkit: agents, slash commands, lifecycle hooks, and 50 reusable skills for Claude Code workflows",
-      "source": "./.claude",
-      "includes": {
-        "skills": "./.claude/skills/",
-        "agents": "./.claude/agents/",
-        "commands": "./.claude/commands/"
-      }
+      "source": "./.claude"
     }
   ]
 }

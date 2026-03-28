@@ -27,7 +27,17 @@ import sys
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import List, Dict, Optional, Any
+
+# Import shared constants (optional - used for validation if available)
+try:
+    from _constants import SEMVER_REGEX, VALID_AGENT_TYPES
+    HAS_CONSTANTS = True
+except ImportError:
+    HAS_CONSTANTS = False
+    SEMVER_REGEX = r'^\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?(\+[a-zA-Z0-9.]+)?$'
+    VALID_AGENT_TYPES = {'Explore', 'Plan', 'general-purpose'}
+
 
 # ===========================================================================
 # RESULT TYPES
@@ -39,8 +49,8 @@ class Result:
     success: bool
     message: str
     data: dict = field(default_factory=dict)
-    errors: list[str] = field(default_factory=list)
-    warnings: list[str] = field(default_factory=list)
+    errors: List[str] = field(default_factory=list)
+    warnings: List[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         return {
@@ -59,15 +69,9 @@ class Result:
 
 SKILL_SOURCES = [
     {
-        "name": "repo",
-        "path": Path.cwd() / ".claude" / "skills",
-        "pattern": "*/SKILL.md",
-        "priority": 0
-    },
-    {
         "name": "custom",
         "path": Path.home() / ".claude" / "skills",
-        "pattern": "*/SKILL.md",
+        "pattern": "*/[Ss][Kk][Ii][Ll][Ll].[Mm][Dd]",  # Case-insensitive: SKILL.md or skill.md
         "priority": 1
     },
     {
@@ -137,7 +141,7 @@ DOMAIN_KEYWORDS = {
 # PARSING FUNCTIONS
 # ===========================================================================
 
-def extract_frontmatter(content: str) -> dict[str, Any]:
+def extract_frontmatter(content: str) -> Dict[str, Any]:
     """Extract YAML frontmatter from markdown content."""
     frontmatter = {}
 
@@ -145,15 +149,57 @@ def extract_frontmatter(content: str) -> dict[str, Any]:
         parts = content.split("---", 2)
         if len(parts) >= 3:
             yaml_content = parts[1].strip()
-            for line in yaml_content.split("\n"):
-                if ":" in line:
-                    key, value = line.split(":", 1)
-                    frontmatter[key.strip()] = value.strip()
+
+            # Try proper YAML parsing first
+            try:
+                import yaml
+                parsed = yaml.safe_load(yaml_content)
+                if isinstance(parsed, dict):
+                    frontmatter = parsed
+                # else: non-dict YAML (e.g., scalar) - keep empty dict
+            except ImportError:
+                # PyYAML not installed - use fallback parser below
+                pass
+            except Exception:
+                # Malformed YAML - use fallback parser below
+                pass
+
+            # Fallback to basic parsing if YAML parsing failed or returned non-dict
+            if not frontmatter:
+                current_key = None
+                for line in yaml_content.split("\n"):
+                    if ":" in line and not line.startswith(" "):
+                        key, value = line.split(":", 1)
+                        current_key = key.strip()
+                        frontmatter[current_key] = value.strip()
+                    elif line.startswith("  ") and current_key == "metadata":
+                        # Basic nested parsing for metadata
+                        if "metadata" not in frontmatter or not isinstance(frontmatter["metadata"], dict):
+                            frontmatter["metadata"] = {}
+                        if ":" in line:
+                            key, value = line.strip().split(":", 1)
+                            frontmatter["metadata"][key.strip()] = value.strip()
 
     return frontmatter
 
 
-def extract_triggers(content: str) -> list[str]:
+def get_version(frontmatter: Dict[str, Any]) -> str:
+    """Extract version from frontmatter, checking both root and metadata."""
+    # First check root level (legacy/deprecated)
+    if "version" in frontmatter:
+        return str(frontmatter["version"])
+
+    # Then check metadata.version (preferred location)
+    if "metadata" in frontmatter and isinstance(frontmatter["metadata"], dict):
+        version = frontmatter["metadata"].get("version")
+        if version:
+            return str(version)
+
+    # Default fallback
+    return "1.0.0"
+
+
+def extract_triggers(content: str) -> List[str]:
     """Extract trigger phrases from skill content."""
     triggers = []
 
@@ -171,15 +217,20 @@ def extract_triggers(content: str) -> list[str]:
 
     # Also extract from trigger tables
     table_pattern = r'\|\s*`([^`]+)`\s*\|'
-    if "Trigger" in content:
-        table_section = content[content.find("Trigger"):content.find("---", content.find("Trigger"))]
+    trigger_start = content.find("Trigger")
+    if trigger_start != -1:
+        # Guard against find() returning -1
+        end_marker = content.find("---", trigger_start)
+        if end_marker == -1:
+            end_marker = len(content)  # Use end of content if no delimiter found
+        table_section = content[trigger_start:end_marker]
         matches = re.findall(table_pattern, table_section)
         triggers.extend(matches)
 
     return list(set(triggers))
 
 
-def extract_keywords(content: str, name: str) -> list[str]:
+def extract_keywords(content: str, name: str) -> List[str]:
     """Extract keywords from skill content."""
     keywords = []
 
@@ -203,7 +254,7 @@ def extract_keywords(content: str, name: str) -> list[str]:
     return list(set(keywords))
 
 
-def classify_domain(keywords: list[str], content: str) -> list[str]:
+def classify_domain(keywords: List[str], content: str) -> List[str]:
     """Classify skill into domains based on keywords."""
     domains = []
     content_lower = content.lower()
@@ -222,11 +273,11 @@ def classify_domain(keywords: list[str], content: str) -> list[str]:
     return domains
 
 
-def parse_skill_file(path: Path, source_name: str, priority: int) -> dict | None:
+def parse_skill_file(path: Path, source_name: str, priority: int) -> Optional[Dict]:
     """Parse a skill file and extract metadata."""
     try:
         content = path.read_text(encoding="utf-8")
-    except Exception:
+    except Exception as e:
         return None
 
     # Extract skill name from path or frontmatter
@@ -257,7 +308,7 @@ def parse_skill_file(path: Path, source_name: str, priority: int) -> dict | None
         "triggers": triggers,
         "keywords": keywords,
         "domains": domains,
-        "version": frontmatter.get("version", "1.0.0")
+        "version": get_version(frontmatter)
     }
 
 
@@ -281,21 +332,16 @@ def discover_skills(verbose: bool = False) -> Result:
         if verbose:
             print(f"Scanning {source['name']}: {source_path}", file=sys.stderr)
 
-        # Find skill files (case-insensitive: try both SKILL.md and skill.md)
+        # Find skill files
         pattern_parts = source["pattern"].split("/")
 
         if len(pattern_parts) == 2:
-            # Simple pattern like */SKILL.md - try both cases for Linux
+            # Simple pattern like */skill.md or */[Ss][Kk][Ii][Ll][Ll].[Mm][Dd]
             skill_files = list(source_path.glob(source["pattern"]))
-            alt_pattern = source["pattern"].replace("SKILL.md", "skill.md")
-            if alt_pattern != source["pattern"]:
-                skill_files.extend(source_path.glob(alt_pattern))
-            # Deduplicate (same file may match on case-insensitive FS)
-            skill_files = list({f.resolve(): f for f in skill_files}.values())
         else:
-            # Complex pattern - use recursive glob
+            # Complex pattern - use recursive glob (case-insensitive for skill files)
             skill_files = list(source_path.glob("**/*.md"))
-            skill_files = [f for f in skill_files if "skill" in f.name.lower()]
+            skill_files = [f for f in skill_files if f.name.lower() in ("skill.md", "skills.md")]
 
         for skill_file in skill_files:
             skill_data = parse_skill_file(skill_file, source["name"], source["priority"])
@@ -342,7 +388,7 @@ def get_index_path() -> Path:
     return cache_dir / "skill_index.json"
 
 
-def save_index(result: Result, output_path: Path | None = None) -> None:
+def save_index(result: Result, output_path: Optional[Path] = None) -> None:
     """Save skill index to disk."""
     path = output_path or get_index_path()
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -408,7 +454,14 @@ def main():
             for warning in result.warnings:
                 print(f"  - {warning}")
 
-    sys.exit(0 if result.success else 1)
+    # Exit codes: 0 = success, 1 = general failure, 3 = no sources found
+    if not result.success:
+        sys.exit(1)
+    elif result.data['total_count'] == 0 and len(result.warnings) == len(SKILL_SOURCES):
+        # All sources were missing - this is exit code 3 per docstring
+        sys.exit(3)
+    else:
+        sys.exit(0)
 
 
 if __name__ == "__main__":

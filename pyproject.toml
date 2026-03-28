@@ -7,7 +7,7 @@ requires-python = ">=3.10"
 license = {text = "MIT"}
 
 dependencies = [
-    "anthropic==0.83.0",
+    "anthropic==0.86.0",
     "markdown-it-py>=3.0.0",
     "python-frontmatter==1.1.0",
     "PyYAML==6.0.3",
@@ -62,8 +62,17 @@ skips = []
 [tool.ruff]
 target-version = "py312"
 line-length = 100
-select = ["E", "F", "W", "I", "N", "UP", "B"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "ANN401"]
 ignore = []
+
+[tool.ruff.lint.per-file-ignores]
+# sys.path manipulation required before imports for plugin-context path resolution
+".claude/skills/github/scripts/**/*.py" = ["E402"]
+# Test files use sys.path.insert() before importing modules under test
+"tests/hooks/**/*.py" = ["E402"]
+"tests/skills/**/*.py" = ["E402"]
 
 [tool.mypy]
 python_version = "3.12"

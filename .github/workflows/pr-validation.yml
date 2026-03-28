@@ -50,7 +50,7 @@ jobs:
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@5ef0c079ce82195b2a36a210272d6b661572d83e # v2.14.2
+        uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
         with:
           egress-policy: audit
 
@@ -71,7 +71,7 @@ jobs:
 
       - name: Checkout repository
         if: steps.should-run.outputs.skip != 'true'
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Setup PowerShell
         if: steps.should-run.outputs.skip != 'true'
@@ -94,6 +94,14 @@ jobs:
           else
             echo "validation_result=FAIL" >> "$GITHUB_OUTPUT"
           fi
+
+      - name: Validate PR Description Standards
+        if: steps.should-run.outputs.skip != 'true'
+        id: validate-standards
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: python3 .github/scripts/parse_pr_standards.py
 
       - name: Check Review Comment Status
         if: steps.should-run.outputs.skip != 'true'
@@ -185,6 +193,10 @@ jobs:
           HAS_CODE_CHANGES: ${{ steps.check-qa.outputs.has_code_changes }}
           QA_EXISTS: ${{ steps.check-qa.outputs.qa_report_exists }}
           QA_REPORT: ${{ steps.check-qa.outputs.qa_report }}
+          KEYWORDS_STATUS: ${{ steps.validate-standards.outputs.keywords_status }}
+          TEMPLATE_STATUS: ${{ steps.validate-standards.outputs.template_status }}
+          TEMPLATE_MESSAGE: ${{ steps.validate-standards.outputs.template_message }}
+          STANDARDS_WARNINGS: ${{ steps.validate-standards.outputs.standards_warnings }}
         run: |
           $overallStatus = "PASS"
           $blockingIssues = @()
@@ -199,6 +211,14 @@ jobs:
             $blockingIssues += "Description validation error"
           }
           
+          # Check PR standards (issue keywords + template compliance)
+          if ($env:KEYWORDS_STATUS -eq "WARN") {
+            $warnings += "No GitHub issue linking keywords found (Closes, Fixes, Resolves #N)"
+          }
+          if ($env:TEMPLATE_STATUS -eq "WARN" -and $env:TEMPLATE_MESSAGE) {
+            $warnings += $env:TEMPLATE_MESSAGE
+          }
+
           # Check QA report
           if ($env:HAS_CODE_CHANGES -eq "true" -and $env:QA_EXISTS -eq "false") {
             $warnings += "QA report not found for code changes (recommended before merge)"
@@ -221,11 +241,18 @@ jobs:
           > $emoji **Status: $overallStatus**
           
           ### Description Validation
-          
+
           | Check | Status |
           |:------|:-------|
           | Description matches diff | $env:DESCRIPTION_RESULT |
-          
+
+          ### PR Standards
+
+          | Check | Status |
+          |:------|:-------|
+          | Issue linking keywords | $env:KEYWORDS_STATUS |
+          | Template compliance | $env:TEMPLATE_STATUS |
+
           ### QA Validation
           
           | Check | Status |
@@ -261,6 +288,7 @@ jobs:
 
       - name: Post PR Comment
         if: steps.should-run.outputs.skip != 'true'
+        continue-on-error: true
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |

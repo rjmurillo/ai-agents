@@ -7,6 +7,7 @@ per ADR-042.
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -42,6 +43,7 @@ class TestConstants:
     def test_valid_extensions_contains_expected(self) -> None:
         """VALID_EXTENSIONS contains expected file types."""
         assert ".md" in VALID_EXTENSIONS
+        assert ".py" in VALID_EXTENSIONS
         assert ".ps1" in VALID_EXTENSIONS
         assert ".psm1" in VALID_EXTENSIONS
 
@@ -79,10 +81,16 @@ class TestGetRepoRoot:
         assert result.exists()
         assert (result / ".git").exists() or (result / ".git").is_file()
 
-    def test_raises_for_non_git_directory(self, tmp_path: Path) -> None:
+    def test_raises_for_non_git_directory(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Raises RuntimeError for non-git directory."""
         non_git_dir = tmp_path / "not_a_repo"
         non_git_dir.mkdir()
+        # Prevent git hook env vars from overriding repo discovery
+        monkeypatch.delenv("GIT_DIR", raising=False)
+        monkeypatch.delenv("GIT_WORK_TREE", raising=False)
+        monkeypatch.setenv("GIT_CEILING_DIRECTORIES", str(tmp_path))
 
         with pytest.raises(RuntimeError, match="Could not find git repo root"):
             get_repo_root(non_git_dir)
@@ -125,7 +133,8 @@ class TestGetAllFiles:
         (tmp_path / "file.md").write_text("# Markdown")
         (tmp_path / "script.ps1").write_text("Write-Host 'Hello'")
         (tmp_path / "module.psm1").write_text("function Test {}")
-        (tmp_path / "code.py").write_text("print('hello')")  # Should be excluded
+        (tmp_path / "code.py").write_text("print('hello')")
+        (tmp_path / "ignored.txt").write_text("text file")  # Should be excluded
 
         # Create subdirectory
         sub_dir = tmp_path / "sub"
@@ -143,10 +152,11 @@ class TestGetAllFiles:
         """Finds files with valid extensions."""
         result = get_all_files(test_repo)
 
-        assert len(result) == 4  # file.md, script.ps1, module.psm1, sub/nested.md
+        assert len(result) == 5  # file.md, script.ps1, module.psm1, code.py, sub/nested.md
         assert "file.md" in result
         assert "script.ps1" in result
         assert "module.psm1" in result
+        assert "code.py" in result
         assert "sub/nested.md" in result
 
     def test_excludes_git_directory(self, test_repo: Path) -> None:
@@ -159,7 +169,7 @@ class TestGetAllFiles:
         """Excludes files with non-matching extensions."""
         result = get_all_files(test_repo)
 
-        assert not any(f.endswith(".py") for f in result)
+        assert not any(f.endswith(".txt") for f in result)
 
 
 class TestCheckFileForViolations:
@@ -306,21 +316,31 @@ class TestReportViolations:
 class TestMainFunction:
     """Tests for main() function via monkeypatching."""
 
+    @pytest.fixture(autouse=True)
+    def _isolate_git_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Clear git env vars that leak from hook execution contexts."""
+        monkeypatch.delenv("GIT_DIR", raising=False)
+        monkeypatch.delenv("GIT_WORK_TREE", raising=False)
+
     @pytest.fixture
     def test_repo(self, tmp_path: Path) -> Path:
         """Create a mock repository structure."""
-        # Initialize git repo
+        # Initialize git repo (strip GIT_DIR to avoid reinitializing
+        # the parent repo when running inside git hooks).
+        clean_env = {k: v for k, v in os.environ.items()
+                     if k not in ("GIT_DIR", "GIT_WORK_TREE")}
         subprocess.run(
             ["git", "init"],
             cwd=tmp_path,
             capture_output=True,
             check=True,
+            env=clean_env,
         )
 
         # Create skills directory
         skills_dir = tmp_path / ".claude" / "skills" / "github" / "scripts" / "pr"
         skills_dir.mkdir(parents=True)
-        (skills_dir / "Get-PRContext.ps1").touch()
+        (skills_dir / "get_pr_context.py").touch()
 
         # Create test files
         (tmp_path / "clean.md").write_text("# Clean file")
@@ -402,6 +422,8 @@ class TestMainFunction:
 
         non_git_dir = tmp_path / "not_a_repo"
         non_git_dir.mkdir()
+        # Prevent git from traversing parent dirs (e.g. in worktrees)
+        monkeypatch.setenv("GIT_CEILING_DIRECTORIES", str(tmp_path))
 
         monkeypatch.setattr(
             "sys.argv",
@@ -423,12 +445,16 @@ class TestMainFunction:
         """main() returns 0 (warning) when skills directory missing."""
         from scripts import detect_skill_violation
 
-        # Initialize git repo without skills directory
+        # Initialize git repo without skills directory (strip GIT_DIR
+        # to avoid reinitializing the parent repo inside git hooks).
+        clean_env = {k: v for k, v in os.environ.items()
+                     if k not in ("GIT_DIR", "GIT_WORK_TREE")}
         subprocess.run(
             ["git", "init"],
             cwd=tmp_path,
             capture_output=True,
             check=True,
+            env=clean_env,
         )
 
         monkeypatch.setattr(

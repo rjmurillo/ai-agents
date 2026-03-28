@@ -8,9 +8,15 @@ fileExtension: .agent.md
 # Frontmatter settings
 frontmatter:
   # VS Code requires model field
-  model: "Claude Opus 4.5 (copilot)"
+  model: "Claude Opus 4.6 (copilot)"
   # VS Code does not use name field
   includeNameField: false
+
+# Per-agent model tier mappings (used when template specifies model_tier)
+model_tiers:
+  opus: "Claude Opus 4.6 (copilot)"
+  sonnet: "Claude Sonnet 4.6 (copilot)"
+  haiku: "Claude Haiku 4.5 (copilot)"
 
 # Agent handoff syntax
 handoffSyntax: "#runSubagent"

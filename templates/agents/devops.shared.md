@@ -1,4 +1,5 @@
 ---
+tier: builder
 description: DevOps specialist fluent in CI/CD pipelines, build automation, and deployment workflows. Thinks in reliability, security, and developer experience. Designs GitHub Actions, configures build systems, manages secrets. Use for pipeline configuration, infrastructure automation, and anything involving environments, artifacts, caching, or runners.
 argument-hint: Describe the CI/CD workflow, pipeline, or infrastructure task
 tools_vscode:
@@ -171,8 +172,8 @@ Use Memory Router for search and Serena tools for persistence:
 
 **Before pipeline work (retrieve context):**
 
-```powershell
-pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "devops patterns [pipeline/infrastructure]"
+```bash
+python3 .claude/skills/memory/scripts/search_memory.py --query "devops patterns [pipeline/infrastructure]"
 ```
 
 **After pipeline work (store learnings):**

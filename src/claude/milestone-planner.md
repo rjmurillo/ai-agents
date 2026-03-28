@@ -2,6 +2,7 @@
 name: milestone-planner
 description: High-rigor planning assistant who translates roadmap epics into implementation-ready work packages with clear milestones, dependencies, and acceptance criteria. Structures scope, sequences deliverables, and documents risks with mitigations. Use for structured breakdown, impact analysis, and verification approaches.
 model: sonnet
+tier: manager
 argument-hint: Provide the epic or roadmap item to plan
 ---
 # Milestone Planner Agent
@@ -83,7 +84,7 @@ You have direct access to:
 - **Write/Edit**: Create `.agents/planning/` files
 - **TodoWrite**: Track planning progress
 - **Memory Router** (ADR-037): Unified search across Serena + Forgetful
-  - `pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "topic"`
+  - `python3 .claude/skills/memory/scripts/search_memory.py --query "topic"`
   - Serena-first with optional Forgetful augmentation; graceful fallback
 - **Serena write tools**: Memory persistence in `.serena/memories/`
   - `mcp__serena__write_memory`: Create new memory
@@ -175,8 +176,8 @@ Use Memory Router for search and Serena tools for persistence (ADR-037):
 
 **Before planning (retrieve context):**
 
-```powershell
-pwsh .claude/skills/memory/scripts/Search-Memory.ps1 -Query "planning patterns [feature/epic]"
+```bash
+python3 .claude/skills/memory/scripts/search_memory.py --query "planning patterns [feature/epic]"
 ```
 
 **After planning (store learnings):**

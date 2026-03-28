@@ -62,7 +62,7 @@ version: 3.1.0
 | Phrase | Operation |
 |--------|-----------|
 | `create a PR` | Create-PullRequest.ps1 |
-| `check CI status for PR #123` | Get-PRChecks.ps1 |
+| `check CI status for PR #123` | get_pr_checks.py |
 | `close issue #123` | Close-Issue operations |
 
 ---

@@ -6,8 +6,8 @@ Complete reference for all public functions in the Phase 2A Memory System (v0.2.
 
 | Module | Purpose | Location |
 |--------|---------|----------|
-| [MemoryRouter](#memoryrouter-module) | Unified memory search (Tier 1) | .claude/skills/memory/scripts/MemoryRouter.psm1 |
-| [ReflexionMemory](#reflexionmemory-module) | Episodes and causality (Tiers 2 & 3) | .claude/skills/memory/scripts/ReflexionMemory.psm1 |
+| [MemoryRouter](#memoryrouter-module) | Unified memory search (Tier 1) | .claude/skills/memory/scripts/search_memory.py |
+| [ReflexionMemory](#reflexionmemory-module) | Episodes and causality (Tiers 2 & 3) | .claude/skills/memory/scripts/extract_session_episode.py, update_causal_graph.py |
 
 ## MemoryRouter Module
 
@@ -557,17 +557,17 @@ Write-Host "Nodes: $($status.CausalGraph.Nodes)"
 
 ## Scripts
 
-### Extract-SessionEpisode.ps1
+### extract_session_episode.py
 
 Extracts episode data from session logs.
 
 **Syntax**:
 
-```powershell
-pwsh .claude/skills/memory/scripts/Extract-SessionEpisode.ps1
-    -SessionLogPath <String>
-    [-OutputPath <String>]
-    [-Force]
+```bash
+python3 .claude/skills/memory/scripts/extract_session_episode.py
+    --session-log-path <String>
+    [--output-path <String>]
+    [--force]
 ```
 
 **Parameters**:
@@ -586,23 +586,23 @@ pwsh .claude/skills/memory/scripts/Extract-SessionEpisode.ps1
 **Example**:
 
 ```bash
-pwsh .claude/skills/memory/scripts/Extract-SessionEpisode.ps1 \
-    -SessionLogPath ".agents/sessions/2026-01-01-session-126.json"
+python3 .claude/skills/memory/scripts/extract_session_episode.py \
+    --session-log-path ".agents/sessions/2026-01-01-session-126.json"
 ```
 
 ---
 
-### Update-CausalGraph.ps1
+### update_causal_graph.py
 
 Updates the causal graph from episode data.
 
 **Syntax**:
 
-```powershell
-pwsh .claude/skills/memory/scripts/Update-CausalGraph.ps1
-    [-EpisodePath <String>]
-    [-Since <DateTime>]
-    [-DryRun]
+```bash
+python3 .claude/skills/memory/scripts/update_causal_graph.py
+    [--episode-path <String>]
+    [--since <duration>]
+    [--dry-run]
 ```
 
 **Parameters**:
@@ -626,7 +626,7 @@ pwsh .claude/skills/memory/scripts/Update-CausalGraph.ps1
 **Example**:
 
 ```bash
-pwsh .claude/skills/memory/scripts/Update-CausalGraph.ps1 -Since (Get-Date).AddDays(-7)
+python3 .claude/skills/memory/scripts/update_causal_graph.py --since 7d
 ```
 
 ---

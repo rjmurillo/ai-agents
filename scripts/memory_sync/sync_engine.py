@@ -82,7 +82,7 @@ def detect_changes(
     return changes
 
 
-def build_create_payload(memory: Any, path: Path) -> dict[str, Any]:
+def build_create_payload(memory: Any, path: Path) -> dict[str, Any]:  # noqa: ANN401
     """Build Forgetful create_memory payload from a parsed Memory.
 
     Args:
@@ -109,7 +109,7 @@ def build_create_payload(memory: Any, path: Path) -> dict[str, Any]:
 
 
 def build_update_payload(
-    memory: Any, path: Path, forgetful_id: str
+    memory: Any, path: Path, forgetful_id: str  # noqa: ANN401
 ) -> dict[str, Any]:
     """Build Forgetful update_memory payload.
 
@@ -303,7 +303,7 @@ def _confidence_to_importance(confidence: float) -> int:
     return max(1, min(10, int(confidence * 10)))
 
 
-def _parse_memory(abs_path: Path) -> Any:
+def _parse_memory(abs_path: Path) -> Any:  # noqa: ANN401
     """Parse a Serena memory file using Memory.from_file."""
     # Import here to avoid circular dependency at module level
     from memory_enhancement.models import Memory
@@ -313,7 +313,7 @@ def _parse_memory(abs_path: Path) -> Any:
 
 def _sync_create(
     client: McpClient,
-    memory: Any,
+    memory: Any,  # noqa: ANN401
     path: Path,
     content_hash: str,
     state: dict[str, Any],
@@ -336,7 +336,7 @@ def _sync_create(
 
 def _sync_update(
     client: McpClient,
-    memory: Any,
+    memory: Any,  # noqa: ANN401
     path: Path,
     content_hash: str,
     state: dict[str, Any],

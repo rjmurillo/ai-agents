@@ -9,7 +9,8 @@ tools:
   - cloudmcp-manager/*
   - serena/*
   - memory
-model: Claude Opus 4.5 (copilot)
+model: Claude Opus 4.6 (copilot)
+tier: manager
 ---
 # Milestone Planner Agent
 

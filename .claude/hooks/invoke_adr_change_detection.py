@@ -150,7 +150,7 @@ def main() -> int:
         print("\n".join(lines))
         return 0
 
-    except (json.JSONDecodeError, OSError) as exc:
+    except (json.JSONDecodeError, OSError, subprocess.TimeoutExpired) as exc:
         print(f"ADR change detection failed: {exc}", file=sys.stderr)
         print(
             "ADR detection skipped. Run detection manually if needed:",

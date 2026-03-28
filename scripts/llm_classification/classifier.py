@@ -74,7 +74,7 @@ class LLMClassifier:
         )
         self._client: anthropic.Anthropic | None = None
 
-    def _get_client(self) -> Any:
+    def _get_client(self) -> Any:  # noqa: ANN401
         """Lazily initialize Anthropic client."""
         if self._client is None:
             import anthropic

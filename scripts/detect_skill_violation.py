@@ -34,6 +34,7 @@ _SCRIPT_DIR = Path(__file__).resolve().parent
 _PROJECT_ROOT = _SCRIPT_DIR.parent
 sys.path.insert(0, str(_PROJECT_ROOT))
 
+from scripts.github_core.repo import get_repo_root as _get_repo_root  # noqa: E402
 from scripts.utils.path_validation import validate_safe_path  # noqa: E402
 
 # Patterns to detect raw gh usage
@@ -45,7 +46,7 @@ GH_PATTERNS = (
 )
 
 # File extensions to check
-VALID_EXTENSIONS = frozenset({".md", ".ps1", ".psm1"})
+VALID_EXTENSIONS = frozenset({".md", ".py", ".ps1", ".psm1"})
 
 
 @dataclass
@@ -69,19 +70,10 @@ def get_repo_root(start_dir: Path) -> Path:
     Raises:
         RuntimeError: If not in a git repository.
     """
-    try:
-        result = subprocess.run(
-            ["git", "-C", str(start_dir), "rev-parse", "--show-toplevel"],
-            capture_output=True,
-            text=True,
-            timeout=30,
-            check=False,
-        )
-        if result.returncode != 0 or not result.stdout.strip():
-            raise RuntimeError(f"Could not find git repo root from: {start_dir}")
-        return Path(result.stdout.strip())
-    except subprocess.TimeoutExpired:
-        raise RuntimeError(f"Timeout finding git repo root from: {start_dir}") from None
+    root = _get_repo_root(start_dir=start_dir)
+    if root is None:
+        raise RuntimeError(f"Could not find git repo root from: {start_dir}")
+    return root
 
 
 def get_skills_dir(repo_root: Path) -> Path:
@@ -247,7 +239,7 @@ def report_violations(violations: list[Violation]) -> None:
     print()
     print("REMINDER: Use GitHub skills for better error handling, consistency, and auditability.")
     print("  Before using raw 'gh' commands, check:")
-    print("    Get-ChildItem .claude/skills/github/scripts -Recurse")
+    print("    find .claude/skills/github/scripts -name '*.py'")
     print("  If the capability you need doesn't exist, create a skill script or file an issue.")
     print()
     print("See: .serena/memories/skill-usage-mandatory.md")

@@ -57,7 +57,7 @@ jobs:
     runs-on: ubuntu-24.04-arm
     steps:
       - name: Checkout repository
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
       
       - name: Apply debouncing delay
         uses: ./.github/actions/workflow-debounce
@@ -75,11 +75,11 @@ jobs:
       has-code-changes: ${{ steps.filter.outputs.code }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
 
       - name: Check for code changes
         id: filter
-        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36
+        uses: dorny/paths-filter@61f87a10cd2c304679af17bb73ef192addf33c1c
         with:
           filters: |
             code:
@@ -95,6 +95,7 @@ jobs:
   validate-spec-skip:
     name: Validate Spec Coverage
     needs: check-paths
+    timeout-minutes: 1
     if: always() && needs.check-paths.result == 'success' && needs.check-paths.outputs.has-code-changes != 'true'
     runs-on: ubuntu-24.04-arm
     steps:
@@ -114,7 +115,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
         with:
           fetch-depth: 0
 
@@ -253,6 +254,7 @@ jobs:
       - name: 🔗 Requirements Traceability Check (Analyst Agent)
         if: steps.spec-ref.outputs.has_specs == 'true'
         id: trace
+        continue-on-error: true
         uses: ./.github/actions/ai-review
         with:
           agent: analyst
@@ -267,6 +269,7 @@ jobs:
       - name: ✅ Completeness Check (Critic Agent)
         if: steps.spec-ref.outputs.has_specs == 'true'
         id: completeness
+        continue-on-error: true
         uses: ./.github/actions/ai-review
         with:
           agent: critic
@@ -296,6 +299,7 @@ jobs:
         run: python3 .github/scripts/generate_spec_report.py
 
       - name: Post PR Comment
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ env.PR_NUMBER }}

@@ -10,6 +10,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+
 from scripts.github_core.api import RepoInfo
 
 # ---------------------------------------------------------------------------
@@ -18,17 +19,20 @@ from scripts.github_core.api import RepoInfo
 _SCRIPTS_DIR = Path(__file__).resolve().parents[1] / ".github" / "scripts"
 
 
-def _import_script(name: str):
-    spec = importlib.util.spec_from_file_location(name, _SCRIPTS_DIR / f"{name}.py")
+_MODULE_NAME = "consumer_post_issue_comment"
+
+
+def _import_script(name: str, alias: str):
+    spec = importlib.util.spec_from_file_location(alias, _SCRIPTS_DIR / f"{name}.py")
     assert spec is not None, f"Could not load spec for {name}"
     assert spec.loader is not None, f"Spec for {name} has no loader"
     mod = importlib.util.module_from_spec(spec)
-    sys.modules[name] = mod
+    sys.modules[alias] = mod
     spec.loader.exec_module(mod)
     return mod
 
 
-_mod = _import_script("post_issue_comment")
+_mod = _import_script("post_issue_comment", _MODULE_NAME)
 main = _mod.main
 build_parser = _mod.build_parser
 save_failed_comment_artifact = _mod.save_failed_comment_artifact
@@ -153,7 +157,7 @@ class TestMainBody:
     def test_empty_body_exits_2(self, tmp_path, monkeypatch):
         _setup_output(tmp_path, monkeypatch)
         with patch("subprocess.run", return_value=_completed(rc=0)), patch(
-            "post_issue_comment.resolve_repo_params",
+            f"{_MODULE_NAME}.resolve_repo_params",
             return_value=RepoInfo(owner="o", repo="r"),
         ):
             with pytest.raises(SystemExit) as exc:
@@ -173,7 +177,7 @@ class TestMainBody:
             return _completed(rc=0, stdout=response)
 
         with patch("subprocess.run", side_effect=_side_effect), patch(
-            "post_issue_comment.resolve_repo_params",
+            f"{_MODULE_NAME}.resolve_repo_params",
             return_value=RepoInfo(owner="o", repo="r"),
         ):
             rc = main(["--issue", "1", "--body-file", str(body_file)])
@@ -182,7 +186,7 @@ class TestMainBody:
     def test_body_file_not_found_exits_2(self, tmp_path, monkeypatch):
         _setup_output(tmp_path, monkeypatch)
         with patch("subprocess.run", return_value=_completed(rc=0)), patch(
-            "post_issue_comment.resolve_repo_params",
+            f"{_MODULE_NAME}.resolve_repo_params",
             return_value=RepoInfo(owner="o", repo="r"),
         ):
             with pytest.raises(SystemExit) as exc:
@@ -201,10 +205,10 @@ class TestMainIdempotency:
         existing_comments = [{"id": 99, "body": "<!-- test-marker -->\nold body"}]
 
         with patch("subprocess.run", return_value=_completed(rc=0)), patch(
-            "post_issue_comment.resolve_repo_params",
+            f"{_MODULE_NAME}.resolve_repo_params",
             return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
-            "post_issue_comment.get_issue_comments",
+            f"{_MODULE_NAME}.get_issue_comments",
             return_value=existing_comments,
         ):
             rc = main([
@@ -222,13 +226,13 @@ class TestMainIdempotency:
         update_response = {"id": 99, "html_url": "https://ex.com", "updated_at": "now"}
 
         with patch("subprocess.run", return_value=_completed(rc=0)), patch(
-            "post_issue_comment.resolve_repo_params",
+            f"{_MODULE_NAME}.resolve_repo_params",
             return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
-            "post_issue_comment.get_issue_comments",
+            f"{_MODULE_NAME}.get_issue_comments",
             return_value=existing_comments,
         ), patch(
-            "post_issue_comment.update_issue_comment",
+            f"{_MODULE_NAME}.update_issue_comment",
             return_value=update_response,
         ):
             rc = main([
@@ -255,10 +259,10 @@ class TestMainIdempotency:
             return _completed(rc=0, stdout=response)
 
         with patch("subprocess.run", side_effect=_side_effect), patch(
-            "post_issue_comment.resolve_repo_params",
+            f"{_MODULE_NAME}.resolve_repo_params",
             return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
-            "post_issue_comment.get_issue_comments",
+            f"{_MODULE_NAME}.get_issue_comments",
             return_value=[],
         ):
             rc = main([
@@ -290,7 +294,7 @@ class TestMainPostErrors:
             return _completed(rc=1, stderr="HTTP 403: Forbidden")
 
         with patch("subprocess.run", side_effect=_side_effect), patch(
-            "post_issue_comment.resolve_repo_params",
+            f"{_MODULE_NAME}.resolve_repo_params",
             return_value=RepoInfo(owner="o", repo="r"),
         ):
             with pytest.raises(SystemExit) as exc:
@@ -309,7 +313,7 @@ class TestMainPostErrors:
             return _completed(rc=1, stderr="HTTP 500: Internal Server Error")
 
         with patch("subprocess.run", side_effect=_side_effect), patch(
-            "post_issue_comment.resolve_repo_params",
+            f"{_MODULE_NAME}.resolve_repo_params",
             return_value=RepoInfo(owner="o", repo="r"),
         ):
             with pytest.raises(SystemExit) as exc:
@@ -328,7 +332,7 @@ class TestMainPostErrors:
             raise subprocess.TimeoutExpired(cmd="gh", timeout=30)
 
         with patch("subprocess.run", side_effect=_side_effect), patch(
-            "post_issue_comment.resolve_repo_params",
+            f"{_MODULE_NAME}.resolve_repo_params",
             return_value=RepoInfo(owner="o", repo="r"),
         ):
             with pytest.raises(SystemExit) as exc:
@@ -347,7 +351,7 @@ class TestMainPostErrors:
             return _completed(rc=0, stdout="not json")
 
         with patch("subprocess.run", side_effect=_side_effect), patch(
-            "post_issue_comment.resolve_repo_params",
+            f"{_MODULE_NAME}.resolve_repo_params",
             return_value=RepoInfo(owner="o", repo="r"),
         ):
             rc = main(["--issue", "1", "--body", "test body"])
