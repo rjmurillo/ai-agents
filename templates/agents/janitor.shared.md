@@ -1,4 +1,5 @@
 ---
+tier: integration
 description: 'Perform janitorial tasks on any codebase including cleanup, simplification, and tech debt remediation.'
 argument-hint: Describe the area of the codebase to clean up or the type of tech debt to address
 tools_vscode:

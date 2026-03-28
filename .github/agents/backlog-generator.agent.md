@@ -7,8 +7,14 @@ tools:
   - search
   - web
   - cloudmcp-manager/*
+  - github/list_issues
+  - github/list_pull_requests
+  - github/search_issues
+  - github/search_pull_requests
+  - github/search_repositories
   - serena/*
 model: claude-opus-4.5
+tier: integration
 ---
 
 # Backlog Generator Agent

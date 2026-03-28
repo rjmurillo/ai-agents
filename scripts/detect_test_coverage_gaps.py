@@ -19,6 +19,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from scripts.github_core.repo import get_repo_root as _shared_get_repo_root
+
 DEFAULT_IGNORE_PATTERNS = [
     r"\.Tests\.ps1$",
     r"tests?[/\\]",
@@ -31,14 +33,7 @@ DEFAULT_IGNORE_PATTERNS = [
 
 
 def get_repo_root(start_dir: str = ".") -> Path | None:
-    result = subprocess.run(
-        ["git", "-C", start_dir, "rev-parse", "--show-toplevel"],
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode != 0:
-        return None
-    return Path(result.stdout.strip())
+    return _shared_get_repo_root(start_dir=start_dir)
 
 
 def load_ignore_patterns(ignore_file: str) -> list[str]:

@@ -16,13 +16,36 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import random
 import re
+import subprocess
 import sys
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+
+_logger = logging.getLogger(__name__)
+
+
+def _get_repo_root() -> Path:
+    """Return the main repository root using git."""
+    result = subprocess.run(
+        ["git", "rev-parse", "--git-common-dir"],
+        capture_output=True, text=True, check=True,
+    )
+    return Path(result.stdout.strip()).resolve().parent
+
+
+def _get_mcp_client_class() -> type:
+    """Lazy-import McpClient from scripts/memory_sync/mcp_client.py."""
+    repo_root = _get_repo_root()
+    scripts_dir = str(repo_root / "scripts")
+    if scripts_dir not in sys.path:
+        sys.path.insert(0, scripts_dir)
+    from memory_sync.mcp_client import McpClient  # type: ignore[import-untyped]
+    return McpClient
 
 DomainInfo = dict[str, str | list[str]]
 
@@ -416,38 +439,58 @@ def main(argv: list[str] | None = None) -> int:
         "by_confidence": {"HIGH": 0, "MED": 0, "LOW": 0},
     }
 
-    for file_path in files:
-        print(f"\nProcessing: {file_path.name}")
-        print("-" * 50)
+    client = None
+    if not args.dry_run:
+        mcp_cls = _get_mcp_client_class()
+        if not mcp_cls.is_available():
+            print("WARNING: Forgetful DB not found, memories will be created on first use")
+        client = mcp_cls.create()
 
-        try:
-            learnings = parse_observation_file(file_path, args.confidence_levels)
-            if not learnings:
-                print("  No learnings found matching filter")
-                results["files_processed"].append(
-                    {"file": file_path.name, "learnings": 0, "status": "empty"}
-                )
-                continue
+    try:
+        for file_path in files:
+            print(f"\nProcessing: {file_path.name}")
+            print("-" * 50)
 
-            print(f"  Found {len(learnings)} learnings")
+            try:
+                learnings = parse_observation_file(file_path, args.confidence_levels)
+                if not learnings:
+                    print("  No learnings found matching filter")
+                    results["files_processed"].append(
+                        {"file": file_path.name, "learnings": 0, "status": "empty"}
+                    )
+                    continue
 
-            for learning in learnings:
-                results["total_learnings"] += 1
-                results["by_confidence"][learning.confidence_level] += 1
-                domain = learning.domain
-                results["by_domain"][domain] = results["by_domain"].get(domain, 0) + 1
+                print(f"  Found {len(learnings)} learnings")
 
-                title = safe_title(learning.text)
-                if args.dry_run:
-                    print(f"  [DRY-RUN] Would import: {title}")
-                    results["imported"] += 1
-                else:
-                    print(f"  [IMPORT] {title}")
-                    results["imported"] += 1
+                for learning in learnings:
+                    results["total_learnings"] += 1
+                    results["by_confidence"][learning.confidence_level] += 1
+                    domain = learning.domain
+                    results["by_domain"][domain] = results["by_domain"].get(domain, 0) + 1
 
-        except Exception as e:
-            print(f"  [ERROR] Failed to process {file_path.name}: {e}")
-            results["errors"].append({"file": file_path.name, "error": str(e)})
+                    title = safe_title(learning.text)
+                    if args.dry_run:
+                        print(f"  [DRY-RUN] Would import: {title}")
+                        results["imported"] += 1
+                    else:
+                        payload = build_memory_payload(learning, project_id=0)
+                        try:
+                            client.call_tool("create_memory", payload)
+                            print(f"  [IMPORT] {title}")
+                            results["imported"] += 1
+                        except Exception as e:
+                            _logger.debug("Failed to import '%s': %s", title, e)
+                            print(f"  [ERROR] Failed to import: {title}: {e}")
+                            results["errors"].append(
+                                {"file": file_path.name, "title": title, "error": str(e)}
+                            )
+
+            except Exception as e:
+                print(f"  [ERROR] Failed to process {file_path.name}: {e}")
+                results["errors"].append({"file": file_path.name, "error": str(e)})
+    finally:
+        if client is not None:
+            client.close()
 
     results["end_time"] = datetime.now().isoformat()
 

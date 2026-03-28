@@ -329,6 +329,13 @@ def _parse_yaml_frontmatter(text: str) -> dict[str, Any] | None:
         key = line[:colon_pos].strip()
         value = line[colon_pos + 1 :].strip()
 
+        # Strip inline YAML comments (e.g., "APPROVED  # valid values")
+        # Only strip if not inside quotes
+        if value and value[0] not in ('"', "'"):
+            comment_pos = value.find("#")
+            if comment_pos > 0:
+                value = value[:comment_pos].strip()
+
         # Strip quotes
         if len(value) >= 2 and value[0] == value[-1] and value[0] in ('"', "'"):
             value = value[1:-1]

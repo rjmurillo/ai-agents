@@ -851,6 +851,46 @@ else
     record_skip "ADR review (no ADR files changed)"
 fi
 
+# 21. Observation memory sync to Forgetful
+CHANGED_OBSERVATIONS=$(echo "$CHANGED_FILES" | grep -E '^\.serena/memories/.*-observations\.md$' || true)
+IMPORT_SCRIPT="$REPO_ROOT/.serena/scripts/import_observations_to_forgetful.py"
+
+if [ -n "$CHANGED_OBSERVATIONS" ]; then
+    if [ -L "$IMPORT_SCRIPT" ]; then
+        record_warn "Observation import script is a symlink (skipping)"
+    elif [ -f "$IMPORT_SCRIPT" ]; then
+        if set_python_cmd; then
+            OBS_ERRORS=0
+            while IFS= read -r obs_file; do
+                [ -z "$obs_file" ] && continue
+                [ ! -f "$obs_file" ] && continue
+                OBS_OUTPUT=$(mktemp)
+                TEMP_FILES+=("$OBS_OUTPUT")
+                if "${PYTHON_CMD[@]}" "$IMPORT_SCRIPT" --observation-file "$obs_file" --confidence-levels HIGH MED > "$OBS_OUTPUT" 2>&1; then
+                    echo_info "  Synced: $obs_file"
+                else
+                    echo_info "  Sync failed for: $obs_file"
+                    head -5 "$OBS_OUTPUT"
+                    OBS_ERRORS=1
+                fi
+                rm -f "$OBS_OUTPUT"
+            done <<< "$CHANGED_OBSERVATIONS"
+
+            if [ "$OBS_ERRORS" -eq 1 ]; then
+                record_warn "Some observation syncs failed (non-blocking)"
+            else
+                record_pass "Observation memory sync to Forgetful"
+            fi
+        else
+            record_skip "Observation memory sync (Python 3 not available)"
+        fi
+    else
+        record_skip "Observation memory sync (import script not found)"
+    fi
+else
+    record_skip "Observation memory sync (no observation files changed)"
+fi
+
 # ============================================================================
 # Phase 6: Summary
 # ============================================================================

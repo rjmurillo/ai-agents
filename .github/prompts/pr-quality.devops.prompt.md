@@ -12,7 +12,7 @@ Run the DevOps quality gate locally on your current changes before pushing.
 ### Branch Information
 
 - Current branch: !`git branch --show-current`
-- Base branch: ${1:-main}
+- Base branch: If the user specified `--base <branch>`, use that branch. Otherwise default to `main`.
 
 ### Review Criteria
 
@@ -22,11 +22,7 @@ Apply the DevOps review criteria from the shared prompt file.
 
 ### Changed Files
 
-!`git diff HEAD --name-only`
-
-### Full Diff
-
-!`git diff HEAD`
+Run `git diff "<base_branch>" --name-only` to list changed files and `git diff "<base_branch>"` to obtain the full diff.
 
 ## Instructions
 

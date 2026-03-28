@@ -58,6 +58,7 @@ Need GitHub data?
 ├─ Unaddressed bot comments → get_unaddressed_comments.py
 ├─ PR merged check → test_pr_merged.py
 ├─ Copilot follow-up PRs → detect_copilot_followup_pr.py
+├─ Validate PR description → validate_pr_description.py
 ├─ Issue info → get_issue_context.py
 ├─ Merge readiness check → test_pr_merge_ready.py
 ├─ Latest milestone → get_latest_semantic_milestone.py
@@ -111,6 +112,7 @@ Need GitHub data?
 | `set_pr_auto_merge.py` | Enable/disable auto-merge | `--pull-request`, `--enable`/`--disable`, `--merge-method` |
 | `invoke_pr_comment_processing.py` | Process AI triage output | `--pr-number`, `--verdict`, `--findings-json` |
 | `new_pr.py` | Create PR with validation | `--title`, `--body`, `--base` |
+| `validate_pr_description.py` | Validate PR description | `--title`, `--body`, `--body-file`, `--fail-on-violation` |
 | `close_pr.py` | Close PR with comment | `--pull-request`, `--comment` |
 | `merge_pr.py` | Merge with strategy | `--pull-request`, `--strategy`, `--delete-branch`, `--auto` |
 
@@ -161,11 +163,36 @@ Need GitHub data?
 
 ## Output Format
 
-All scripts output structured JSON:
+All scripts output structured JSON wrapped in a standard envelope per ADR-051.
+
+**Success envelope:**
+
+```json
+{
+  "Success": true,
+  "Data": { "Number": 42, "Title": "..." },
+  "Error": null,
+  "Metadata": { "Script": "get_pr_checks.py", "Version": "1.0.0", "Timestamp": "..." }
+}
+```
+
+**Error envelope:**
+
+```json
+{
+  "Success": false,
+  "Data": null,
+  "Error": { "Message": "PR not found", "Code": 2, "Type": "NotFound" },
+  "Metadata": { "Script": "get_pr_checks.py", "Version": "1.0.0", "Timestamp": "..." }
+}
+```
+
+**Usage:**
 
 ```bash
-result=$(python3 .claude/skills/github/scripts/pr/get_pr_context.py --pull-request 50)
-echo "$result" | jq '.Title'
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+result=$(python3 "$SCRIPTS_DIR/pr/get_pr_context.py" --pull-request 50)
+echo "$result" | jq '.Data'
 ```
 
 Exit codes follow ADR-035: 0=success, 1=logic error, 2=config error, 3=external failure, 4=auth error.
@@ -186,15 +213,60 @@ This skill provides a toolkit of Python scripts for GitHub operations. Use scrip
 **Example Flow:**
 
 ```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+
 # Get PR context
-python3 .claude/skills/github/scripts/pr/get_pr_context.py --pull-request 123
+python3 "$SCRIPTS_DIR/pr/get_pr_context.py" --pull-request 123
 
 # Check CI status
-python3 .claude/skills/github/scripts/pr/get_pr_checks.py --pull-request 123
+python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request 123
 
 # Add comment if needed
-python3 .claude/skills/github/scripts/pr/post_pr_comment_reply.py --pull-request 123 --body "CI failures detected"
+python3 "$SCRIPTS_DIR/pr/post_pr_comment_reply.py" --pull-request 123 --comment-id 456 --body "CI failures detected"
 ```
+
+---
+
+## GitHub Keywords for Issue Linking
+
+GitHub automatically links and closes issues when PRs use specific keywords in PR descriptions, commit messages, or PR comments.
+
+### Supported Keywords
+
+| Keyword | Variations | Example |
+|---------|-----------|---------|
+| Closes | close, closed | `Closes #123` |
+| Fixes | fix, fixed | `Fixes #456` |
+| Resolves | resolve, resolved | `Resolves #789` |
+
+### Usage Patterns
+
+**In PR Descriptions:**
+
+```markdown
+## Summary
+This PR adds feature X.
+
+Closes #123
+Fixes #456
+```
+
+**In Commit Messages:**
+
+```text
+feat: Add feature X
+
+Implements the new feature as specified.
+
+Closes #123
+```
+
+**Best Practices:**
+
+- Use keywords in PR description for primary issue
+- Use keywords in commit bodies for related issues
+- One keyword per line for clarity
+- Place keywords in dedicated section or at end of description
 
 ---
 

@@ -8,6 +8,7 @@ from datetime import UTC
 from pathlib import Path
 from typing import Any
 from unittest.mock import patch
+
 from scripts.github_core.api import RepoInfo
 
 # ---------------------------------------------------------------------------
@@ -52,7 +53,7 @@ def _make_run(
     event: str = "pull_request",
     head_branch: str = "feature-branch",
     pull_requests: list[dict] | None = None,
-) -> Any:
+) -> Any:  # noqa: ANN401
     if pull_requests is None:
         pull_requests = [{"number": 123}]
     return WorkflowRun(

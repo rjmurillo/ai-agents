@@ -135,11 +135,18 @@ class TestIsSafeFilePath:
         bad_path = str(tmp_path / ".." / "escape.txt")
         assert is_safe_file_path(bad_path, str(tmp_path)) is False
 
-    def test_default_base_is_cwd(self, tmp_path: Path):
+    def test_default_base_is_repo_root(self, tmp_path: Path):
         child = tmp_path / "file.txt"
         child.touch()
-        with patch("os.getcwd", return_value=str(tmp_path)):
+        with patch("scripts.github_core.repo.get_repo_root", return_value=tmp_path):
             assert is_safe_file_path(str(child)) is True
+
+    def test_default_base_falls_back_to_cwd(self, tmp_path: Path):
+        child = tmp_path / "file.txt"
+        child.touch()
+        with patch("scripts.github_core.repo.get_repo_root", return_value=None):
+            with patch("os.getcwd", return_value=str(tmp_path)):
+                assert is_safe_file_path(str(child)) is True
 
     def test_rejects_backslash_traversal(self):
         assert is_safe_file_path("foo\\..\\bar") is False

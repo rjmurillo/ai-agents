@@ -5,8 +5,10 @@ ADR-047 requires that:
    for path resolution (not early exit).
 2. No hook uses sys.exit(0) gated on CLAUDE_PLUGIN_ROOT (the plugin IS the system).
 3. Skill scripts that previously skipped on missing .agents/ now create directories.
+4. All files with CLAUDE_PLUGIN_ROOT validate the lib directory exists before importing.
 
-This test prevents regression to the "skip in plugin mode" anti-pattern.
+This test prevents regression to the "skip in plugin mode" anti-pattern
+and ensures the standard boilerplate includes path validation per ADR-047.
 """
 
 from __future__ import annotations
@@ -31,6 +33,12 @@ PLUGIN_SKIP_PATTERN = 'if os.environ.get("CLAUDE_PLUGIN_ROOT"):\n    sys.exit(0)
 # The required pattern: CLAUDE_PLUGIN_ROOT used for path resolution
 PLUGIN_PATH_PATTERN = 'os.environ.get("CLAUDE_PLUGIN_ROOT")'
 
+# The required validation: lib directory must exist before importing
+LIB_DIR_VALIDATION_PATTERNS = (
+    "os.path.isdir(_lib_dir)",
+    "os.path.isdir(_LIB_DIR)",
+)
+
 
 def _collect_python_files(directory: Path) -> list[Path]:
     """Collect all .py files recursively, excluding __pycache__ and tests."""
@@ -44,6 +52,11 @@ def _collect_python_files(directory: Path) -> list[Path]:
 def _has_lib_import(content: str) -> bool:
     """Check if file imports from the shared lib (hook_utilities or github_core)."""
     return any(marker in content for marker in LIB_IMPORT_MARKERS)
+
+
+def _has_lib_dir_validation(content: str) -> bool:
+    """Check if file validates lib directory exists before importing."""
+    return any(pattern in content for pattern in LIB_DIR_VALIDATION_PATTERNS)
 
 
 class TestPluginPathResolution:
@@ -83,6 +96,20 @@ class TestPluginPathResolution:
             + "\n".join(f"  - {v}" for v in violations)
         )
 
+    def test_hooks_validate_lib_dir_exists(self, hook_files: list[Path]) -> None:
+        """Hooks with CLAUDE_PLUGIN_ROOT must validate lib directory exists (ADR-047)."""
+        violations = []
+        for hook_path in hook_files:
+            content = hook_path.read_text(encoding="utf-8")
+            if PLUGIN_PATH_PATTERN in content and not _has_lib_dir_validation(content):
+                rel = hook_path.relative_to(REPO_ROOT)
+                violations.append(str(rel))
+
+        assert not violations, (
+            "Hooks with CLAUDE_PLUGIN_ROOT but missing lib dir validation:\n"
+            + "\n".join(f"  - {v}" for v in violations)
+        )
+
 
 class TestSkillPluginPathResolution:
     """Verify skill scripts use CLAUDE_PLUGIN_ROOT for import resolution."""
@@ -105,6 +132,22 @@ class TestSkillPluginPathResolution:
 
         assert not violations, (
             "Skill scripts importing from lib but missing CLAUDE_PLUGIN_ROOT:\n"
+            + "\n".join(f"  - {v}" for v in violations)
+        )
+
+    def test_skill_scripts_validate_lib_dir_exists(
+        self, skill_scripts_with_lib_imports: list[Path],
+    ) -> None:
+        """Skill scripts with CLAUDE_PLUGIN_ROOT must validate lib dir exists (ADR-047)."""
+        violations = []
+        for script_path in skill_scripts_with_lib_imports:
+            content = script_path.read_text(encoding="utf-8")
+            if PLUGIN_PATH_PATTERN in content and not _has_lib_dir_validation(content):
+                rel = script_path.relative_to(REPO_ROOT)
+                violations.append(str(rel))
+
+        assert not violations, (
+            "Skill scripts with CLAUDE_PLUGIN_ROOT but missing lib dir validation:\n"
             + "\n".join(f"  - {v}" for v in violations)
         )
 

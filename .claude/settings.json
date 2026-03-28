@@ -14,6 +14,12 @@
             "type": "command",
             "command": "python3 -u .claude/hooks/PreToolUse/invoke_skill_first_guard.py",
             "statusMessage": "Enforcing skills-first policy for GitHub operations (BLOCKING)"
+          },
+          {
+            "type": "command",
+            "command": "python3 -u .claude/hooks/PreToolUse/invoke_correction_applier.py",
+            "timeout": 3,
+            "statusMessage": "Checking correction memories (Self-Improving Agent)"
           }
         ]
       },
@@ -39,6 +45,22 @@
             "type": "command",
             "command": "python3 -u .claude/hooks/PreToolUse/invoke_branch_protection_guard.py",
             "statusMessage": "Verifying branch protection"
+          },
+          {
+            "type": "command",
+            "command": "python3 -u .claude/hooks/PreToolUse/invoke_security_commit_gate.py",
+            "timeout": 10,
+            "statusMessage": "Checking security gate for staged auth files (ADR-033)"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash(gh pr create*)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -u .claude/hooks/PreToolUse/invoke_session_log_guard.py",
+            "statusMessage": "Verifying session log exists before PR creation (BLOCKING)"
           }
         ]
       },
@@ -148,6 +170,17 @@
             "type": "command",
             "command": "python3 -u .claude/hooks/PostToolUse/invoke_adr_lifecycle_hook.py",
             "statusMessage": "Checking for ADR changes"
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__serena__write_memory",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -u .claude/hooks/PostToolUse/invoke_observation_sync.py",
+            "timeout": 30,
+            "statusMessage": "Syncing observation memories to Forgetful"
           }
         ]
       }

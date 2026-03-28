@@ -75,12 +75,17 @@ def get_schema_path(
     if schema_directory is None:
         try:
             result = subprocess.run(
-                ["git", "rev-parse", "--show-toplevel"],
+                ["git", "rev-parse", "--git-common-dir"],
                 capture_output=True,
                 text=True,
                 check=True,
             )
-            git_root = result.stdout.strip()
+            git_common = Path(result.stdout.strip())
+            if not git_common.is_absolute():
+                git_common = (Path.cwd() / git_common).resolve()
+            else:
+                git_common = git_common.resolve()
+            git_root = str(git_common.parent)
         except (subprocess.CalledProcessError, FileNotFoundError) as err:
             msg = (
                 "Cannot determine git root. "
@@ -107,7 +112,7 @@ def get_schema_path(
 
 def _check_type(
     field_name: str,
-    field_value: Any,
+    field_value: Any,  # noqa: ANN401
     expected_type: str,
     field_schema: dict[str, Any],
 ) -> list[str]:
@@ -171,7 +176,7 @@ def _check_type(
 
 
 def test_schema_valid(
-    json_content: str | dict[str, Any] | Any,
+    json_content: str | dict[str, Any] | Any,  # noqa: ANN401
     schema_name: str,
     schema_directory: str | Path | None = None,
 ) -> ValidationResult:
@@ -270,7 +275,7 @@ setattr(test_schema_valid, "__test__", False)  # noqa: B010
 
 
 def write_validated_json(
-    data: Any,
+    data: Any,  # noqa: ANN401
     file_path: str | Path,
     schema_name: str,
     schema_directory: str | Path | None = None,

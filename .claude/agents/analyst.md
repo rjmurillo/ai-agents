@@ -2,6 +2,8 @@
 name: analyst
 description: Research and investigation specialist who digs deep into root causes, surfaces unknowns, and gathers evidence before implementation. Methodical about documenting findings, evaluating feasibility, and identifying dependencies and risks. Use when you need clarity on patterns, impact assessment, requirements discovery, or hypothesis validation.
 model: sonnet
+metadata:
+  tier: integration
 argument-hint: Describe the topic, issue, or feature to research
 ---
 # Analyst Agent
@@ -108,8 +110,10 @@ mcp__context7__get-library-docs with context7CompatibleLibraryID="/lib/id"
 ### GitHub Integration
 
 ```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+
 # View issue details (using github skill - PREFERRED for detailed context)
-python3 .claude/skills/github/scripts/issue/get_issue_context.py --issue [number]
+python3 "$SCRIPTS_DIR/issue/get_issue_context.py" --issue [number]
 ```
 
 ```bash

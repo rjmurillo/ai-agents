@@ -6,9 +6,10 @@ Target: 6.6KB total for injected files, 3KB per file max.
 
 from __future__ import annotations
 
-import subprocess
 import sys
 from pathlib import Path
+
+from scripts.github_core.repo import get_repo_root
 
 MAX_TOTAL = 6758  # 6.6KB
 MAX_PER_FILE = 3072  # 3KB
@@ -21,16 +22,7 @@ INJECTED_FILES = [
 
 def get_workspace() -> Path:
     """Return the git repo root or current directory."""
-    try:
-        result = subprocess.run(
-            ["git", "rev-parse", "--show-toplevel"],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        return Path(result.stdout.strip())
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        return Path.cwd()
+    return get_repo_root() or Path.cwd()
 
 
 def main() -> int:
