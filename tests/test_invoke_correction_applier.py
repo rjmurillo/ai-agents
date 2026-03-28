@@ -108,9 +108,8 @@ class TestExtractKeywords:
     def test_skips_flags(self) -> None:
         result = extract_keywords("pytest --verbose --cov=src")
         assert "pytest" in result
-        # Flags should be excluded
-        for kw in result:
-            assert not kw.startswith("-")
+        assert "verbose" not in result
+        assert "cov=src" not in result
 
     def test_handles_pipes_and_semicolons(self) -> None:
         result = extract_keywords("echo hello | grep pattern; echo done")

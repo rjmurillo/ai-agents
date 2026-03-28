@@ -112,10 +112,10 @@ def extract_keywords(command: str) -> list[str]:
     tokens = re.split(r"[\s|;&]+", command)
     keywords: list[str] = []
     for token in tokens:
+        if token.lstrip("'\"").startswith("-"):
+            continue
         clean = token.strip("'-\"./\\")
         if len(clean) < MIN_KEYWORD_LENGTH:
-            continue
-        if clean.startswith("-"):
             continue
         keywords.append(clean.lower())
     return keywords
