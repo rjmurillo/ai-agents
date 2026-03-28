@@ -100,18 +100,21 @@ fi
 ### Phase 8.2: Conversation Resolution
 
 ```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+
 # Resolve all threads for a PR
-python3 .claude/skills/github/scripts/pr/get_pr_review_threads.py --pull-request [number] --unresolved-only | \
+python3 "$SCRIPTS_DIR/pr/get_pr_review_threads.py" --pull-request [number] --unresolved-only | \
   jq -r '.threads[].thread_id' | while read tid; do
-    python3 .claude/skills/github/scripts/pr/resolve_pr_review_thread.py --thread-id "$tid"
+    python3 "$SCRIPTS_DIR/pr/resolve_pr_review_thread.py" --thread-id "$tid"
   done
 ```
 
 ### Phase 8.3: Re-check for New Comments
 
 ```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 sleep 45
-NEW_COMMENTS=$(python3 .claude/skills/github/scripts/pr/get_pr_review_comments.py --pull-request [number] --include-issue-comments | jq '.TotalComments')
+NEW_COMMENTS=$(python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request [number] --include-issue-comments | jq '.TotalComments')
 
 if [ "$NEW_COMMENTS" -gt "$TOTAL_COMMENTS" ]; then
   echo "[NEW COMMENTS] $((NEW_COMMENTS - TOTAL_COMMENTS)) new comments detected"
@@ -121,7 +124,8 @@ fi
 ### Phase 8.4: CI Check Verification
 
 ```bash
-checks=$(python3 .claude/skills/github/scripts/pr/get_pr_checks.py --pull-request [number])
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+checks=$(python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request [number])
 failed_count=$(echo "$checks" | jq '.FailedCount')
 
 if [ "$failed_count" -gt 0 ]; then

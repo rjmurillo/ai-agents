@@ -161,6 +161,14 @@ def _strip_informational_sections(description: str) -> str:
         text,
         flags=re.DOTALL | re.MULTILINE,
     )
+    # Strip "Test plan" sections. Files mentioned there are validation targets,
+    # not claims that those files were changed.
+    text = re.sub(
+        r"##\s*Test\s*[Pp]lan.*?(?=^##|\Z)",
+        "",
+        text,
+        flags=re.DOTALL | re.MULTILINE,
+    )
     return text
 
 

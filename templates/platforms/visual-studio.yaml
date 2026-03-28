@@ -1,0 +1,39 @@
+# Visual Studio Platform Configuration
+# Used by Generate-Agents.ps1 to transform shared sources
+#
+# Visual Studio 2022 (17.14+) and Visual Studio 2026 support GitHub Copilot
+# agent mode with custom .agent.md files. This platform configuration generates
+# agents compatible with Visual Studio's Copilot Chat integration.
+#
+# Repository-level install path: .github/agents/
+# User-level install path: TBD - requires clarification from VS team (see issue #51)
+# Reference: https://learn.microsoft.com/en-us/visualstudio/ide/copilot-agent-mode
+
+platform: visual-studio
+outputDir: src/vs-code-agents
+fileExtension: .agent.md
+
+# Frontmatter settings
+frontmatter:
+  # Visual Studio uses the same model field as VS Code
+  model: "Claude Opus 4.6 (copilot)"
+  # Visual Studio does not use name field
+  includeNameField: false
+
+# Per-agent model tier mappings (must match vscode since outputDir is shared)
+model_tiers:
+  opus: "Claude Opus 4.6 (copilot)"
+  sonnet: "Claude Sonnet 4.6 (copilot)"
+  haiku: "Claude Haiku 4.5 (copilot)"
+
+# Agent handoff syntax
+handoffSyntax: "#runSubagent"
+
+# Reuse vscode tools since output directory is shared
+toolsFrom: vscode
+
+# Tool syntax style
+toolSyntax: path
+
+# Memory protocol prefix (for MCP tools)
+memoryPrefix: "serena/"

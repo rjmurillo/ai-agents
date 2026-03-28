@@ -90,10 +90,10 @@ Use `-DetectStale` with `get_pr_review_comments.py` to identify comments referen
 ```bash
 SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 # Detect and exclude stale comments (recommended for response workflow)
-python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py `
-  --pull-request 908 `
-  --include-issue-comments `
-  --detect-stale `
+python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" \
+  --pull-request 908 \
+  --include-issue-comments \
+  --detect-stale \
   --exclude-stale
 ```
 
@@ -105,8 +105,8 @@ python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py `
 
 **When to Use**:
 
-- **Phase 1 (Context Gathering)**: Use `-DetectStale --exclude-stale` to avoid wasting effort on deleted code
-- **PR Cleanup**: Use `-DetectStale -OnlyStale` to identify and resolve stale comment threads
+- **Phase 1 (Context Gathering)**: Use `--detect-stale --exclude-stale` to avoid wasting effort on deleted code
+- **PR Cleanup**: Use `--detect-stale --only-stale` to identify and resolve stale comment threads
 - **Bot Comment Hygiene**: Detect when bots reviewed outdated commits
 
 **Example**: PR #908 had 4 Gemini security comments on `.claude/hooks/Stop/invoke_skill_learning.py` (Python), which was deleted in commit `2777c91` and replaced with Python. All 4 comments were stale (reason: `FileDeleted`).
@@ -690,7 +690,6 @@ comments=$(python3 "$SCRIPTS_DIR/pr/get_unaddressed_comments.py" --pull-request 
 ids=$(echo "$comments" | jq -r '.Comments[].id')
 
 # Batch acknowledge - single process, all comments
-# Batch acknowledge - single process, all comments
 echo "$ids" | xargs -I{} python3 "$SCRIPTS_DIR/reactions/add_comment_reaction.py" --comment-id {} --reaction "eyes"
 
 # Verify all acknowledged
@@ -1142,7 +1141,7 @@ git push origin [branch]
 ```bash
 SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 # Using github skill (PREFERRED)
-python3 "$SCRIPTS_DIR/pr/post_pr_comment_reply.py" --pull-request [pull_number] --comment-id [comment_id] --body "Fixed in [commit_hash].`n`n[Brief summary of change]"
+python3 "$SCRIPTS_DIR/pr/post_pr_comment_reply.py" --pull-request [pull_number] --comment-id [comment_id] --body "Fixed in [commit_hash].\n\n[Brief summary of change]"
 
 # Or use a file for multi-line content
 python3 "$SCRIPTS_DIR/pr/post_pr_comment_reply.py" --pull-request [pull_number] --comment-id [comment_id] --body-file resolution.md

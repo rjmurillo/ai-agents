@@ -91,6 +91,9 @@ skill-installer install copilot-cli-agents --platform copilot
 
 # Install VS Code agents
 skill-installer install vscode-agents --platform vscode
+
+# Install Visual Studio agents (repository-level)
+skill-installer install vscode-agents --platform visual-studio
 ```
 
 ## Installation Paths
@@ -102,6 +105,12 @@ skill-installer install vscode-agents --platform vscode
 | Claude Code | `~/.claude/agents/` | `~/.claude/skills/` |
 | Copilot CLI | `~/.copilot/agents/` | N/A |
 | VS Code | `~/.copilot/agents/` | N/A |
+| Visual Studio 2022/2026 | TBD, see note below | N/A |
+
+> **Note (Visual Studio user-level path):** The user-level (global) agent storage path for
+> Visual Studio 2022/2026 is not yet documented by Microsoft. Repository-level installation
+> (`.github/agents/`) works today. User-level support will be added once the path is confirmed.
+> Track progress in [issue #51](https://github.com/rjmurillo/ai-agents/issues/51).
 
 ### Repository Installation Paths
 
@@ -110,6 +119,26 @@ skill-installer install vscode-agents --platform vscode
 | Claude Code | `.claude/agents/` | `CLAUDE.md` |
 | Copilot CLI | `.github/agents/` | `.github/copilot-instructions.md` |
 | VS Code | `.github/agents/` | `.github/copilot-instructions.md` |
+| Visual Studio 2022/2026 | `.github/agents/` | `.github/copilot-instructions.md` |
+
+### Visual Studio 2022/2026 Notes
+
+Visual Studio 2022 (version 17.14+) and Visual Studio 2026 support GitHub Copilot agent mode
+using the same `.github/agents/*.agent.md` format as VS Code. Repository-level agents work
+automatically when you open a solution in a repository containing `.github/agents/`.
+
+**Requirements:**
+
+- Visual Studio 2022 version 17.14 or later, or Visual Studio 2026
+- GitHub Copilot subscription
+- "Enable project specific .NET instructions" feature enabled (on by default in VS 2026)
+
+**Usage in Copilot Chat:**
+
+```text
+@orchestrator Help me implement a feature
+@analyst Review this code for issues
+```
 
 ## Skills Installation
 
@@ -269,6 +298,7 @@ After installation, restart your editor/CLI to load new agents:
 
 - **Claude Code**: Restart Claude Code
 - **VS Code**: Restart VS Code or reload window (`Ctrl+Shift+P` -> "Developer: Reload Window")
+- **Visual Studio**: Restart Visual Studio to load new agents
 - **Copilot CLI**: No restart needed
 
 ### Verify Installation
@@ -290,6 +320,13 @@ Task(subagent_type="analyst", prompt="Hello, are you available?")
 
 ```text
 # In VS Code chat
+@orchestrator Hello, are you available?
+```
+
+**Visual Studio:**
+
+```text
+# In Visual Studio Copilot Chat
 @orchestrator Hello, are you available?
 ```
 
