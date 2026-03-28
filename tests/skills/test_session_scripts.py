@@ -525,12 +525,14 @@ class TestConvertSessionToJson:
 
         # Load explicitly from the skill path to avoid picking up the
         # scripts/ PowerShell wrapper when pytest-cov reorders imports.
+        # Use an isolated module name to prevent polluting sys.modules
+        # and causing test-order dependencies with tests/skills/session/.
         skill_path = _migration / "convert_session_to_json.py"
-        spec = importlib.util.spec_from_file_location(
-            "convert_session_to_json", skill_path
-        )
+        module_name = "_test_convert_session_to_json"
+        spec = importlib.util.spec_from_file_location(module_name, skill_path)
+        if spec is None or spec.loader is None:
+            raise ImportError(f"Unable to load module spec from {skill_path}")
         mod = importlib.util.module_from_spec(spec)
-        sys.modules["convert_session_to_json"] = mod
         spec.loader.exec_module(mod)
         return mod
 
