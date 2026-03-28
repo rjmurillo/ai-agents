@@ -38,7 +38,7 @@ except ImportError:
 class WorkflowValidator:
     """Validates GitHub Actions workflow files."""
 
-    def __init__(self, repo_root: Path):
+    def __init__(self, repo_root: Path) -> None:
         self.repo_root = repo_root
         self.workflows_dir = repo_root / ".github" / "workflows"
         self.actions_dir = repo_root / ".github" / "actions"
