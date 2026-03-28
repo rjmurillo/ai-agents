@@ -1197,7 +1197,7 @@ After the self-critique pass, score your implementation against three evidence c
 
 | Category | Weight | What Counts as Evidence |
 |----------|--------|------------------------|
-| Testing evidence | 40% | Tests pass, edge cases covered, coverage measured, no skipped tests |
+| Testing evidence | 40% | Meets style guide coverage requirements (e.g., 100% for security-critical), tests pass, edge cases covered, no skipped tests |
 | Code review evidence | 30% | No bugs found, no regressions, security/trust-boundary scan clean |
 | Logical inspection evidence | 30% | Call-path consistency verified, state transitions correct, error/rollback handling complete |
 
@@ -1259,6 +1259,8 @@ If your score falls below the applicable threshold:
 ```
 
 Do not proceed to handoff until the score meets the threshold or you have explicitly requested the missing context.
+
+**Routing when blocked**: If the score remains below threshold after identifying gaps, route as a Blocker Handoff to `milestone-planner` (plan ambiguity) or `analyst` (technical unknown). Include: owner, reason, required context, and next steps.
 
 ## Execution Mindset
 
