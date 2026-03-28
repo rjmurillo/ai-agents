@@ -153,7 +153,7 @@ def scan_memories(project_root: str) -> list[tuple[str, str]]:
     for md_file in memories_dir.rglob("*.md"):
         try:
             content = md_file.read_text(encoding="utf-8")
-        except OSError:
+        except (OSError, UnicodeDecodeError):
             continue
         corrections = extract_high_corrections(content)
         for c in corrections:

@@ -175,6 +175,20 @@ class TestScanMemories:
     def test_returns_empty_when_no_memories_dir(self, tmp_path: Path) -> None:
         assert scan_memories(str(tmp_path)) == []
 
+    def test_skips_unreadable_utf8_files(self, tmp_path: Path) -> None:
+        memories = tmp_path / ".serena" / "memories"
+        memories.mkdir(parents=True)
+        bad = memories / "bad-encoding.md"
+        bad.write_bytes(b"## Constraints (HIGH confidence)\n\n- \xff\xfe broken.\n")
+        good = memories / "good.md"
+        good.write_text(
+            "## Constraints (HIGH confidence)\n\n- Use pnpm.\n",
+            encoding="utf-8",
+        )
+        result = scan_memories(str(tmp_path))
+        assert len(result) == 1
+        assert "pnpm" in result[0][1]
+
     def test_skips_files_without_high_section(self, tmp_path: Path) -> None:
         memories = tmp_path / ".serena" / "memories"
         memories.mkdir(parents=True)
