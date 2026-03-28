@@ -264,6 +264,54 @@ class TestValidateInvestigationClaims:
         assert result.claims_found == 1
         assert len(result.violations) == 0
 
+    def test_commits_filter_matches_full_sha(self, tmp_path):
+        """Commit SHA filtering works with full 40-char SHAs."""
+        full_sha = "abc1234567890abcdef1234567890abcdef123456"
+        session = {
+            "protocolCompliance": {
+                "sessionEnd": {
+                    "qaValidation": {
+                        "evidence": "SKIPPED: investigation-only",
+                    }
+                }
+            }
+        }
+        (tmp_path / "session.json").write_text(json.dumps(session))
+
+        with patch.object(_mod, "get_commit_for_session", return_value=full_sha):
+            with patch.object(
+                _mod,
+                "get_files_in_commit",
+                return_value=[".agents/sessions/log.json", "src/bad.py"],
+            ):
+                result = validate_investigation_claims(tmp_path, [full_sha])
+
+        assert not result.valid
+        assert result.claims_found == 1
+        assert len(result.violations) == 1
+
+    def test_commits_filter_skips_non_matching(self, tmp_path):
+        """Sessions whose commit is not in the filter list are skipped."""
+        session = {
+            "protocolCompliance": {
+                "sessionEnd": {
+                    "qaValidation": {
+                        "evidence": "SKIPPED: investigation-only",
+                    }
+                }
+            }
+        }
+        (tmp_path / "session.json").write_text(json.dumps(session))
+
+        with patch.object(
+            _mod, "get_commit_for_session", return_value="aaa" * 13 + "a"
+        ):
+            result = validate_investigation_claims(tmp_path, ["bbb" * 13 + "b"])
+
+        assert result.valid
+        assert result.claims_found == 1
+        assert len(result.violations) == 0
+
     def test_invalid_claim_fails(self, tmp_path):
         session = {
             "protocolCompliance": {
@@ -398,6 +446,12 @@ class TestMain:
         outputs = _read_outputs(output_file)
         assert "src/main.py" in outputs["violation_details"]
         assert "README.md" in outputs["violation_details"]
+
+    def test_missing_session_dir_returns_exit_2(self, tmp_path, monkeypatch):
+        """Missing session directory is a config error, exit code 2 per ADR-035."""
+        _setup_output(tmp_path, monkeypatch)
+        exit_code = main(["--mode=session", "--session-dir", str(tmp_path / "nope")])
+        assert exit_code == 2
 
     def test_base_ref_injection_rejected(self, tmp_path, monkeypatch, capsys):
         """Refs starting with a dash are rejected (CWE-78)."""

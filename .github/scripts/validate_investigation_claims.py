@@ -11,6 +11,7 @@ logs violations for metrics without blocking.
 Exit codes per ADR-035:
     0 - Validation passed (all claims valid)
     1 - Validation failed (claim violations found)
+    2 - Configuration/environment error (e.g. missing session directory)
 
 Input:
     --session-dir: Directory containing session log JSON files
@@ -148,7 +149,7 @@ def get_commit_for_session(session_path: Path) -> str | None:
     )
     if result.returncode != 0 or not result.stdout.strip():
         return None
-    return result.stdout.strip()[:7]  # Short SHA
+    return result.stdout.strip()
 
 
 def validate_investigation_claims(
@@ -276,7 +277,7 @@ def _run_session_validation(args: argparse.Namespace) -> int:
     if not args.session_dir.exists():
         write_log(f"Session directory not found: {args.session_dir}")
         print(f"ERROR: Session directory not found: {args.session_dir}")
-        return 1
+        return 2
 
     commits = [c.strip() for c in args.commits.split(",") if c.strip()] or None
 
