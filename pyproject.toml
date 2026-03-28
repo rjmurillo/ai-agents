@@ -64,7 +64,7 @@ target-version = "py312"
 line-length = 100
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "N", "UP", "B", "ANN401"]
+select = ["E", "F", "W", "I", "N", "UP", "B", "ANN"]
 ignore = []
 
 [tool.ruff.lint.per-file-ignores]
@@ -73,6 +73,14 @@ ignore = []
 # Test files use sys.path.insert() before importing modules under test
 "tests/hooks/**/*.py" = ["E402"]
 "tests/skills/**/*.py" = ["E402"]
+# ANN suppression for test files (annotations not required in tests)
+"tests/**/*.py" = ["ANN"]
+"test/**/*.py" = ["ANN"]
+"**/tests/**/*.py" = ["ANN"]
+# ANN suppression for pre-existing code (to be fixed incrementally)
+".claude/skills/**/*.py" = ["ANN"]
+".claude/hooks/**/*.py" = ["ANN"]
+"packages/**/*.py" = ["ANN"]
 
 [tool.mypy]
 python_version = "3.12"
