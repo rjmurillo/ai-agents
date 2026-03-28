@@ -229,6 +229,7 @@ class TestMainAllowPath:
 
 
 class TestMainOutputPath:
+    @patch("invoke_correction_applier.skip_if_consumer_repo", return_value=False)
     @patch(
         "invoke_correction_applier.scan_memories",
         return_value=[("obs.md", "Always use pnpm not npm.")],
@@ -240,6 +241,7 @@ class TestMainOutputPath:
         mock_stdin: StringIO,
         _mock_project: MagicMock,
         _mock_scan: MagicMock,
+        _mock_skip: MagicMock,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
         data = json.dumps({"tool_input": {"command": "pnpm install express"}})
@@ -252,6 +254,7 @@ class TestMainOutputPath:
             assert "Self-Improving Agent" in captured.out
             assert "pnpm" in captured.out
 
+    @patch("invoke_correction_applier.skip_if_consumer_repo", return_value=False)
     @patch(
         "invoke_correction_applier.scan_memories",
         return_value=[("obs.md", "Use yarn not npm.")],
@@ -263,6 +266,7 @@ class TestMainOutputPath:
         mock_stdin: StringIO,
         _mock_project: MagicMock,
         _mock_scan: MagicMock,
+        _mock_skip: MagicMock,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
         data = json.dumps({"tool_input": {"command": "pytest tests/"}})
@@ -276,12 +280,14 @@ class TestMainOutputPath:
 
 
 class TestMainFailOpen:
+    @patch("invoke_correction_applier.skip_if_consumer_repo", return_value=False)
     @patch("invoke_correction_applier.parse_command", side_effect=Exception("boom"))
     @patch("invoke_correction_applier.sys.stdin", new_callable=StringIO)
     def test_never_blocks_on_exception(
         self,
         mock_stdin: StringIO,
         _mock_parse: MagicMock,
+        _mock_skip: MagicMock,
     ) -> None:
         data = json.dumps({"tool_input": {"command": "test"}})
         mock_stdin.write(data)
