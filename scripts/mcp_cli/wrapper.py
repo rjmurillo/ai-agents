@@ -34,8 +34,10 @@ _MCPORTER_CMD = "mcporter"
 _NPX_CMD = "npx"
 _DEFAULT_TIMEOUT = 30
 
-# Allow-list: alphanumeric, hyphens, underscores, dots, slashes, colons, spaces.
-_SAFE_VALUE_PATTERN = re.compile(r"^[a-zA-Z0-9\-_./: @=,\[\]{}\"']+$")
+# Allow-list: any content except NUL bytes.  Realistic MCP payloads include
+# newlines, Unicode, punctuation, and escaped JSON.  Argument-injection is
+# blocked separately by the dash-prefix check in _validate_arg_value.
+_SAFE_VALUE_PATTERN = re.compile(r"^[^\x00]+$", re.DOTALL)
 
 
 class McpCliError(Exception):
@@ -101,7 +103,7 @@ def mcp_call(
     """
     cmd = _find_mcporter()
     selector = f"{server}.{tool}"
-    cmd.extend(["call", selector, "--json"])
+    cmd.extend(["call", selector, "--output", "json/raw"])
 
     for key, value in kwargs.items():
         if isinstance(value, bool):
@@ -113,7 +115,11 @@ def mcp_call(
         _validate_arg_value(key, serialized)
         cmd.append(f"{key}:{serialized}")
 
-    _logger.debug("mcporter call: %s", " ".join(cmd))
+    _logger.debug(
+        "mcporter call: selector=%s arg_keys=%s",
+        selector,
+        sorted(kwargs),
+    )
 
     try:
         result = subprocess.run(

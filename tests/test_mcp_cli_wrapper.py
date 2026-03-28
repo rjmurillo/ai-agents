@@ -29,6 +29,15 @@ class TestValidateArgValue:
         _validate_arg_value("repo", "owner/repo")
         _validate_arg_value("content", '{"key": "value"}')
 
+    def test_allows_newlines(self) -> None:
+        _validate_arg_value("body", "line1\nline2\nline3")
+
+    def test_allows_unicode(self) -> None:
+        _validate_arg_value("body", "caf\u00e9 na\u00efve")
+
+    def test_allows_punctuation(self) -> None:
+        _validate_arg_value("body", "Looks good! Well done.")
+
     def test_rejects_dash_prefix(self) -> None:
         with pytest.raises(McpCliError, match="must not start with '-'"):
             _validate_arg_value("name", "--malicious")
@@ -75,7 +84,7 @@ class TestMcpCall:
         returncode: int = 0,
     ) -> subprocess.CompletedProcess[str]:
         return subprocess.CompletedProcess(
-            args=["mcporter", "call", "serena.list_memories", "--json"],
+            args=["mcporter", "call", "serena.list_memories", "--output", "json/raw"],
             returncode=returncode,
             stdout=stdout,
             stderr=stderr,
@@ -90,7 +99,7 @@ class TestMcpCall:
 
         call_args = mock_run.call_args
         cmd = call_args[0][0]
-        assert cmd == ["mcporter", "call", "serena.list_memories", "--json"]
+        assert cmd == ["mcporter", "call", "serena.list_memories", "--output", "json/raw"]
 
     @patch("shutil.which", return_value="/usr/bin/mcporter")
     @patch("subprocess.run")
