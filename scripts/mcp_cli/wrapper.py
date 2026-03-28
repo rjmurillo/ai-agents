@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -33,9 +34,29 @@ _MCPORTER_CMD = "mcporter"
 _NPX_CMD = "npx"
 _DEFAULT_TIMEOUT = 30
 
+# Allow-list: alphanumeric, hyphens, underscores, dots, slashes, colons, spaces.
+_SAFE_VALUE_PATTERN = re.compile(r"^[a-zA-Z0-9\-_./: @=,\[\]{}\"']+$")
+
 
 class McpCliError(Exception):
     """Raised when an mcporter call fails."""
+
+
+def _validate_arg_value(key: str, value: str) -> None:
+    """Validate a CLI argument value against injection attacks.
+
+    Raises:
+        McpCliError: If the value starts with a dash or contains unsafe characters.
+    """
+    str_value = str(value)
+    if str_value.startswith("-"):
+        raise McpCliError(
+            f"Argument value for '{key}' must not start with '-': {str_value}"
+        )
+    if str_value and not _SAFE_VALUE_PATTERN.match(str_value):
+        raise McpCliError(
+            f"Argument value for '{key}' contains unsafe characters: {str_value}"
+        )
 
 
 def _find_mcporter() -> list[str]:
@@ -84,11 +105,13 @@ def mcp_call(
 
     for key, value in kwargs.items():
         if isinstance(value, bool):
-            cmd.append(f"{key}:{str(value).lower()}")
+            serialized = str(value).lower()
         elif isinstance(value, (dict, list)):
-            cmd.append(f"{key}:{json.dumps(value)}")
+            serialized = json.dumps(value)
         else:
-            cmd.append(f"{key}:{value}")
+            serialized = str(value)
+        _validate_arg_value(key, serialized)
+        cmd.append(f"{key}:{serialized}")
 
     _logger.debug("mcporter call: %s", " ".join(cmd))
 
@@ -108,10 +131,9 @@ def mcp_call(
         raise McpCliError(f"Command not found: {cmd[0]}") from exc
 
     if result.returncode != 0:
-        stderr_summary = result.stderr.strip().split("\n")[-3:]
         raise McpCliError(
             f"mcporter call failed (exit {result.returncode}): "
-            f"{selector}\n{''.join(stderr_summary)}"
+            f"{selector}\n{result.stderr.strip()}"
         )
 
     stdout = result.stdout.strip()
@@ -179,6 +201,8 @@ def mcp_list_tools(
     servers: list[dict[str, object]] = data.get("servers", [])
     for srv in servers:
         if srv.get("name") == server:
-            tools: list[dict[str, str]] = srv.get("tools", [])  # type: ignore[assignment]
-            return tools
+            raw_tools: object = srv.get("tools", [])
+            if not isinstance(raw_tools, list):
+                return []
+            return [t for t in raw_tools if isinstance(t, dict)]
     return []

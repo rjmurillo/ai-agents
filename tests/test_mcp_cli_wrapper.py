@@ -17,9 +17,31 @@ import pytest
 from scripts.mcp_cli.wrapper import (
     McpCliError,
     _find_mcporter,
+    _validate_arg_value,
     mcp_call,
     mcp_list_tools,
 )
+
+
+class TestValidateArgValue:
+    def test_allows_safe_values(self) -> None:
+        _validate_arg_value("name", "my-memory")
+        _validate_arg_value("repo", "owner/repo")
+        _validate_arg_value("content", '{"key": "value"}')
+
+    def test_rejects_dash_prefix(self) -> None:
+        with pytest.raises(McpCliError, match="must not start with '-'"):
+            _validate_arg_value("name", "--malicious")
+
+    def test_rejects_dash_single(self) -> None:
+        with pytest.raises(McpCliError, match="must not start with '-'"):
+            _validate_arg_value("flag", "-v")
+
+    @patch("shutil.which", return_value="/usr/bin/mcporter")
+    @patch("subprocess.run")
+    def test_mcp_call_rejects_injected_arg(self, mock_run: MagicMock, _which: MagicMock) -> None:
+        with pytest.raises(McpCliError, match="must not start with '-'"):
+            mcp_call("serena", "read_memory", name="--exec=rm -rf /")
 
 
 class TestFindMcporter:
