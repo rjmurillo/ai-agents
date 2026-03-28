@@ -126,11 +126,6 @@ def main(argv: list[str] | None = None) -> int:
         default=PER_FILE_BUDGET_BYTES,
         help=f"Per-file budget in bytes (default: {PER_FILE_BUDGET_BYTES})",
     )
-    parser.add_argument(
-        "--ci",
-        action="store_true",
-        help="CI mode: stricter enforcement",
-    )
     args = parser.parse_args(argv)
 
     repo_root = Path(args.path).resolve()
