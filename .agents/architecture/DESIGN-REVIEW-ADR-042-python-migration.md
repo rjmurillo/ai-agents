@@ -1,3 +1,11 @@
+---
+status: "NEEDS_CHANGES"
+priority: "P0"
+blocking: true
+reviewer: "architect"
+date: "2026-01-17"
+---
+
 # Architectural Review: ADR-042 Python Migration Strategy
 
 **Reviewer**: Architect Agent

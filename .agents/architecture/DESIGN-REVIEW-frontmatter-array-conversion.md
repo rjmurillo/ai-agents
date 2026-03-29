@@ -1,3 +1,11 @@
+---
+status: "APPROVED"
+priority: "P2"
+blocking: false
+reviewer: "architect"
+date: "2026-01-13"
+---
+
 # Architectural Review: Frontmatter Array Conversion to Block-Style Syntax
 
 **Date**: 2026-01-13

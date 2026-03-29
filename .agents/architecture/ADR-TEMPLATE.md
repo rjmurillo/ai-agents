@@ -70,6 +70,16 @@ Use `python3 .claude/skills/chestertons-fence/scripts/investigate.py` to automat
 
 - [Neutral consequence 1]
 
+## Impact on Dependent Components
+
+[Required when changing canonical source files (e.g., SESSION-PROTOCOL.md). List all components that depend on the changed file and describe the required updates.]
+
+| Component | Dependency Type | Required Update | Risk |
+|-----------|----------------|-----------------|------|
+| [e.g., Session log templates] | [Direct/Indirect] | [What must change] | [Low/Medium/High] |
+| [e.g., Validation scripts] | [Direct/Indirect] | [What must change] | [Low/Medium/High] |
+| [e.g., CI workflows] | [Direct/Indirect] | [What must change] | [Low/Medium/High] |
+
 ## Implementation Notes
 
 [Optional: Add any implementation details, steps, or guidelines]
@@ -115,6 +125,6 @@ Use `python3 .claude/skills/chestertons-fence/scripts/investigate.py` to automat
 
 ---
 
-*Template Version: 1.0*
+*Template Version: 1.1*
 *Created: 2025-12-13*
 *GitHub Issue: #8*
