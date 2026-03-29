@@ -19,8 +19,6 @@ model: Claude Opus 4.5 (copilot)
 
 # PR Review Command
 
-ultrathink
-
 Respond to PR review comments for: $ARGUMENTS
 
 Load configuration from `.claude/commands/pr-review-config.yaml` for scripts (use `scripts.copilot` section), completion criteria, error recovery, and failure handling tables.
@@ -60,7 +58,7 @@ Before addressing comments, gather full context:
 
 ```bash
 branch=$(gh pr view {number} --json headRefName -q '.headRefName')
-git worktree add "./.worktrees/pr-{number}" "$branch"
+git worktree add "worktree-pr-{number}" "$branch"
 ```
 
 ### Step 4: Launch Agents
