@@ -667,6 +667,15 @@ Ask: "Does this refactoring unblock my task or improve testability of code I'm c
 2. Check shared modules and utility files for reusable implementations
 3. Prefer extending existing helpers over creating new ones
 
+### Parallel Work Awareness
+
+When working in parallel with other agents, prevent boilerplate duplication:
+
+1. Before defining helper methods, search for existing shared helpers (Check `tests/**/conftest.py`, glob for `*helper*`, `*utilities*`, `*common*`)
+2. If you need test fixtures or shared setup, check `tests/conftest.py` and subdirectory `conftest.py` files first, then search for `test_helpers.py` modules
+3. Prefer importing existing helpers over defining new ones
+4. If no shared helper exists and the code is likely needed by other test files, add it to the appropriate `conftest.py` (for fixtures) or create a `test_helpers.py` module in the relevant subdirectory rather than inline
+
 **While writing:**
 
 1. Before writing, identify what varies and apply Chesterton's Fence
