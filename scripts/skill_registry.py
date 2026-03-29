@@ -7,8 +7,8 @@ based on git history.
 
 EXIT CODES:
   0  - Success: Registry generated or list completed
-  1  - Error: Invalid parameters or skill directory not found
-  2  - Error: Unexpected error
+  1  - Error: Runtime/logic error (no skills found, unexpected failure)
+  2  - Error: Config/environment error (missing directory, path traversal)
 
 See: ADR-035 Exit Code Standardization
 """
@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
+import logging
 import subprocess
 import sys
 from dataclasses import dataclass, field
@@ -25,10 +25,14 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+import frontmatter
+
 # Add project root to path for imports
 _SCRIPT_DIR = Path(__file__).resolve().parent
 _PROJECT_ROOT = _SCRIPT_DIR.parent
 sys.path.insert(0, str(_PROJECT_ROOT))
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -50,53 +54,36 @@ class SkillMetadata:
 def parse_yaml_frontmatter(content: str) -> dict[str, Any]:
     """Parse YAML frontmatter from SKILL.md content.
 
+    Uses the python-frontmatter library for robust YAML parsing.
+
     Args:
         content: The full content of a SKILL.md file.
 
     Returns:
         Dictionary of frontmatter key-value pairs.
     """
-    # Match YAML frontmatter between --- delimiters
-    match = re.match(r"^---\s*\n(.*?)\n---", content, re.DOTALL)
-    if not match:
+    try:
+        post = frontmatter.loads(content)
+        return dict(post.metadata)
+    except Exception as e:
+        logger.warning("Failed to parse YAML frontmatter: %s", e)
         return {}
 
-    frontmatter_text = match.group(1)
-    result: dict[str, Any] = {}
 
-    # Simple YAML parsing for common skill frontmatter fields
-    for line in frontmatter_text.split("\n"):
-        line = line.strip()
-        if not line or line.startswith("#"):
-            continue
-
-        # Handle key: value pairs
-        if ":" in line:
-            key, _, value = line.partition(":")
-            key = key.strip()
-            value = value.strip()
-
-            # Remove quotes if present
-            if value.startswith('"') and value.endswith('"'):
-                value = value[1:-1]
-            elif value.startswith("'") and value.endswith("'"):
-                value = value[1:-1]
-
-            result[key] = value
-
-    return result
-
-
-def get_git_commits_count(skill_path: Path, days: int = 30) -> int:
+def get_git_commits_count(
+    skill_path: Path, days: int = 30, *, repo_root: Path | None = None
+) -> int:
     """Count git commits touching a skill directory in the last N days.
 
     Args:
         skill_path: Path to the skill directory.
         days: Number of days to look back.
+        repo_root: Git repository root. Defaults to _PROJECT_ROOT.
 
     Returns:
         Number of commits touching files in the skill directory.
     """
+    cwd = repo_root or _PROJECT_ROOT
     try:
         result = subprocess.run(
             [
@@ -109,7 +96,7 @@ def get_git_commits_count(skill_path: Path, days: int = 30) -> int:
             ],
             capture_output=True,
             text=True,
-            cwd=_PROJECT_ROOT,
+            cwd=cwd,
             timeout=30,
         )
         if result.returncode == 0:
@@ -120,15 +107,17 @@ def get_git_commits_count(skill_path: Path, days: int = 30) -> int:
     return 0
 
 
-def get_last_modified_date(skill_path: Path) -> datetime | None:
+def get_last_modified_date(skill_path: Path, *, repo_root: Path | None = None) -> datetime | None:
     """Get the last modified date for a skill from git history.
 
     Args:
         skill_path: Path to the skill directory.
+        repo_root: Git repository root. Defaults to _PROJECT_ROOT.
 
     Returns:
         Datetime of last modification, or None if not available.
     """
+    cwd = repo_root or _PROJECT_ROOT
     try:
         result = subprocess.run(
             [
@@ -141,7 +130,7 @@ def get_last_modified_date(skill_path: Path) -> datetime | None:
             ],
             capture_output=True,
             text=True,
-            cwd=_PROJECT_ROOT,
+            cwd=cwd,
             timeout=30,
         )
         if result.returncode == 0 and result.stdout.strip():
@@ -161,27 +150,26 @@ def infer_category(skill_name: str, description: str) -> str:
     Returns:
         Inferred category string.
     """
-    name_lower = skill_name.lower()
-    desc_lower = description.lower()
+    search_text = f"{skill_name} {description}".lower()
 
-    # Category inference rules
-    if any(kw in name_lower for kw in ["github", "pr-", "issue", "merge"]):
+    # Category inference rules (checked against both name and description)
+    if any(kw in search_text for kw in ["github", "pr-", "issue", "merge"]):
         return "github"
-    if any(kw in name_lower for kw in ["session", "workflow"]):
+    if any(kw in search_text for kw in ["session", "workflow"]):
         return "workflow"
-    if any(kw in name_lower for kw in ["memory", "serena", "forgetful"]):
+    if any(kw in search_text for kw in ["memory", "serena", "forgetful"]):
         return "memory"
-    if any(kw in name_lower for kw in ["security", "codeql", "threat"]):
+    if any(kw in search_text for kw in ["security", "codeql", "threat"]):
         return "security"
-    if any(kw in name_lower for kw in ["doc", "explain"]):
+    if any(kw in search_text for kw in ["doc", "explain"]):
         return "documentation"
-    if any(kw in name_lower for kw in ["adr", "architect", "decision"]):
+    if any(kw in search_text for kw in ["adr", "architect", "decision"]):
         return "architecture"
-    if any(kw in name_lower for kw in ["test", "qa", "quality"]):
+    if any(kw in search_text for kw in ["test", "qa", "quality"]):
         return "quality"
-    if any(kw in name_lower for kw in ["plan", "roadmap", "milestone"]):
+    if any(kw in search_text for kw in ["plan", "roadmap", "milestone"]):
         return "planning"
-    if any(kw in desc_lower for kw in ["analyze", "analysis", "assess"]):
+    if any(kw in search_text for kw in ["analyze", "analysis", "assess"]):
         return "analysis"
 
     return "utility"
@@ -407,17 +395,28 @@ def main() -> int:
     """Main entry point. Returns exit code.
 
     Returns:
-        0 on success, 1 if skills directory not found, 2 on unexpected error.
+        0 on success, 1 on runtime/logic error, 2 on config/environment error.
+
+    See ADR-035 for exit code conventions.
     """
     try:
         args = parse_args()
 
-        # Determine skills directory
-        skills_dir = args.skills_dir or (_PROJECT_ROOT / ".claude" / "skills")
+        # Determine and validate skills directory
+        raw_skills_dir = args.skills_dir or (_PROJECT_ROOT / ".claude" / "skills")
+        skills_path = Path(raw_skills_dir)
 
+        if ".." in skills_path.parts:
+            print(
+                f"ERROR: Path traversal detected in skills directory: {skills_path}",
+                file=sys.stderr,
+            )
+            return 2
+
+        skills_dir = skills_path.resolve()
         if not skills_dir.exists():
             print(f"ERROR: Skills directory not found: {skills_dir}", file=sys.stderr)
-            return 1
+            return 2
 
         # Scan skills
         skills = scan_skills(skills_dir)
@@ -443,7 +442,7 @@ def main() -> int:
         return 1
     except Exception as e:
         print(f"FATAL: {e}", file=sys.stderr)
-        return 2
+        return 1
 
 
 if __name__ == "__main__":

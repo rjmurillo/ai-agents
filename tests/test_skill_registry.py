@@ -7,6 +7,7 @@ and utilization across the project.
 from __future__ import annotations
 
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -14,6 +15,8 @@ from scripts.skill_registry import (
     SkillMetadata,
     format_json,
     format_summary,
+    get_git_commits_count,
+    get_last_modified_date,
     infer_category,
     parse_yaml_frontmatter,
     scan_skills,
@@ -91,9 +94,31 @@ class TestInferCategory:
 
     def test_infers_from_description_when_name_unclear(self) -> None:
         """Uses description for category inference when name is generic."""
-        result = infer_category("helper-tool", "Analyze code quality")
+        result = infer_category("helper-tool", "Analyze data patterns")
 
         assert result == "analysis"
+
+    @pytest.mark.parametrize(
+        ("name", "description", "expected"),
+        [
+            ("helper", "Manage github issues", "github"),
+            ("helper", "Automate workflow steps", "workflow"),
+            ("helper", "Sync memory stores", "memory"),
+            ("helper", "Run security scans", "security"),
+            ("helper", "Generate documentation", "documentation"),
+            ("helper", "Review architecture decisions", "architecture"),
+            ("helper", "Run quality checks", "quality"),
+            ("helper", "Create a roadmap", "planning"),
+            ("helper", "Assess code complexity", "analysis"),
+        ],
+    )
+    def test_infers_category_from_description(
+        self, name: str, description: str, expected: str
+    ) -> None:
+        """Infers category from description for all supported categories."""
+        result = infer_category(name, description)
+
+        assert result == expected
 
 
 class TestScanSkills:
@@ -244,3 +269,51 @@ class TestFormatJson:
         parsed = json.loads(result)
         assert "inactive" in parsed["underutilized"]
         assert "active" not in parsed["underutilized"]
+
+
+class TestGitHelpers:
+    """Tests for git helper functions."""
+
+    def test_get_git_commits_count_with_mock(self, tmp_path: Path) -> None:
+        """Returns commit count from git log output."""
+        mock_result = type(
+            "Result", (), {"returncode": 0, "stdout": "abc1234 commit 1\ndef5678 commit 2\n"}
+        )()
+        with patch("scripts.skill_registry.subprocess.run", return_value=mock_result):
+            count = get_git_commits_count(tmp_path, repo_root=tmp_path)
+
+        assert count == 2
+
+    def test_get_git_commits_count_fallback_on_error(self, tmp_path: Path) -> None:
+        """Returns 0 when git is unavailable."""
+        with patch("scripts.skill_registry.subprocess.run", side_effect=FileNotFoundError):
+            count = get_git_commits_count(tmp_path, repo_root=tmp_path)
+
+        assert count == 0
+
+    def test_get_last_modified_date_with_mock(self, tmp_path: Path) -> None:
+        """Returns datetime from git log output."""
+        mock_result = type(
+            "Result", (), {"returncode": 0, "stdout": "2026-01-15T10:30:00+00:00\n"}
+        )()
+        with patch("scripts.skill_registry.subprocess.run", return_value=mock_result):
+            result = get_last_modified_date(tmp_path, repo_root=tmp_path)
+
+        assert result is not None
+        assert result.year == 2026
+        assert result.month == 1
+
+    def test_get_last_modified_date_fallback_on_error(self, tmp_path: Path) -> None:
+        """Returns None when git is unavailable."""
+        with patch("scripts.skill_registry.subprocess.run", side_effect=FileNotFoundError):
+            result = get_last_modified_date(tmp_path, repo_root=tmp_path)
+
+        assert result is None
+
+    def test_get_git_commits_count_uses_repo_root(self, tmp_path: Path) -> None:
+        """Passes repo_root as cwd to subprocess."""
+        mock_result = type("Result", (), {"returncode": 0, "stdout": ""})()
+        with patch("scripts.skill_registry.subprocess.run", return_value=mock_result) as mock_run:
+            get_git_commits_count(tmp_path / "skill", repo_root=tmp_path)
+
+        assert mock_run.call_args.kwargs["cwd"] == tmp_path
