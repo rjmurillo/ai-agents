@@ -87,3 +87,27 @@ python_version = "3.12"
 warn_return_any = true
 warn_unused_configs = true
 ignore_missing_imports = true
+disallow_any_generics = true
+
+# Per-module overrides: suppress disallow_any_generics for pre-existing code
+[[tool.mypy.overrides]]
+module = "scripts.github_core.*"
+disallow_any_generics = false
+
+[[tool.mypy.overrides]]
+module = [
+    "scripts.validate_skill_installation",
+    "scripts.validate_skill_output",
+    "scripts.validate_quality_gate_output",
+    "scripts.measure_context_retrieval_metrics",
+    "scripts.analyze_pr_failure",
+    "scripts.pr_branch_mapping",
+    "scripts.utils.markdown_parser",
+    "scripts.validation.hook_contracts",
+    "scripts.forgetful.import_forgetful_memories",
+]
+disallow_any_generics = false
+
+[[tool.mypy.overrides]]
+module = "semantic_hooks.*"
+disallow_any_generics = false
