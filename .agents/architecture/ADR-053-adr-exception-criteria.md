@@ -4,6 +4,10 @@
 
 Proposed
 
+## Author
+
+rjmurillo-bot (autonomous session, Issue #947)
+
 ## Date
 
 2026-02-19
@@ -12,7 +16,7 @@ Proposed
 
 ADRs codify architectural decisions. Sometimes legitimate exceptions arise. The exception process should balance flexibility with discipline.
 
-PR #908 created an exception to ADR-005 (PowerShell-only scripting) for Python hooks without documenting:
+PR #908 (2026-01-14) created an exception to ADR-005 (PowerShell-only scripting) for Python hooks without documenting:
 
 1. Why ADR-005 existed (its original purpose)
 2. Alternatives attempted before requesting exception
@@ -41,7 +45,7 @@ This process misses critical analysis:
 | Symptom | Evidence |
 |---------|----------|
 | Exception without rationale | ADR-005 Python exception cites SDK availability, not why PowerShell rule existed |
-| Missing alternatives | PR #908 did not document attempts at PowerShell HTTP calls to Anthropic API |
+| Missing alternatives | PR #908 (2026-01-14) did not document attempts at PowerShell HTTP calls to Anthropic API |
 | Scope creep | Exception for "hooks with LLM integration" became pattern for all Python hooks |
 | Lost institutional knowledge | Future maintainers see exception, not original constraint |
 
@@ -111,7 +115,7 @@ Every ADR exception request MUST document:
 
 ### Why Change Now
 
-- **Has the original problem changed?** Yes. PR #908 demonstrated that informal exceptions lose architectural rationale and enable scope creep
+- **Has the original problem changed?** Yes. PR #908 (2026-01-14) demonstrated that informal exceptions lose architectural rationale and enable scope creep
 - **Is there a better solution now?** Yes. Chesterton's Fence analysis provides structured rigor without blocking legitimate exceptions
 - **What are the risks of change?** Low. Adds 10-15 minutes of documentation per exception request. No existing code changes required
 
@@ -121,7 +125,7 @@ Every ADR exception request MUST document:
 
 | Alternative | Pros | Cons | Why Not Chosen |
 |-------------|------|------|----------------|
-| Status quo (informal exceptions) | Fast, low friction | Loses rationale, enables shortcuts | PR #908 demonstrates failure mode |
+| Status quo (informal exceptions) | Fast, low friction | Loses rationale, enables shortcuts | PR #908 (2026-01-14) demonstrates failure mode |
 | Blanket prohibition (no exceptions) | Maximum enforcement | Inflexible, blocks legitimate needs | Exceptions exist for good reasons |
 | Architect approval only (no docs) | Adds oversight | Rationale lost after approval | Same problem as status quo |
 | Automated enforcement | Consistent | Cannot evaluate architectural judgment | Exceptions require human review |
@@ -182,6 +186,22 @@ Track exception approval rate before/after this ADR:
 - Baseline: Exceptions approved / exceptions requested
 - Target: 80% of requests include complete analysis within 90 days
 
+## Confirmation
+
+- Verification method: architect-agent checklist blocks approval when Chesterton's Fence analysis is incomplete
+- Evidence: exception request template includes four required elements with structured format
+- Acceptance criteria: all future ADR exception requests include documented Original Rationale, Compliance Attempts, Impact Assessment, and Scope Containment
+
+## Implementation Status
+
+- [ ] Architect agent template updated with exception review checklist
+- [ ] Exception request template documented in this ADR
+- [x] Prior art investigation completed
+
+## Security Considerations
+
+No direct security impact. This ADR governs documentation process for architectural exceptions. Indirectly improves security posture by requiring impact assessment before weakening security-relevant ADRs.
+
 ## Related Decisions
 
 - ADR-005: PowerShell-Only Scripting Standard (example of exception without analysis)
@@ -191,8 +211,8 @@ Track exception approval rate before/after this ADR:
 ## References
 
 - `.agents/retrospective/2026-01-15-pr-908-comprehensive-retrospective.md` (lines 1341-1347)
-- Issue #938 (criteria document)
-- Issue #947 (this ADR)
+- Issue #938 (2026-01-15, criteria document)
+- Issue #947 (2026-01-15, this ADR)
 - [Chesterton's Fence](https://en.wikipedia.org/wiki/G._K._Chesterton#Chesterton's_fence) (principle)
 
 ---
