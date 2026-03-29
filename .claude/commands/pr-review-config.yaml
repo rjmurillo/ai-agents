@@ -115,3 +115,30 @@ thread_resolution:
       t1: resolveReviewThread(input: {threadId: "THREAD_ID_1"}) { thread { id isResolved } }
       t2: resolveReviewThread(input: {threadId: "THREAD_ID_2"}) { thread { id isResolved } }
     }
+
+dry_run:
+  description: "Preview planned actions without executing any GitHub mutations"
+  behavior:
+    - "Parse and validate PR numbers (same as normal)"
+    - "Gather PR context, comments, and check status (read-only API calls)"
+    - "Analyze what actions would be taken"
+    - "Output planned actions as JSON to stdout"
+  constraints:
+    - "No comments are posted"
+    - "No reactions are added"
+    - "No labels are applied"
+    - "No threads are resolved"
+    - "No commits are made"
+    - "No git push operations"
+    - "Exit after outputting JSON, do not proceed to execution"
+  output_schema:
+    root_keys:
+      - "dry_run: true"
+      - "timestamp: ISO 8601"
+      - "prs: array of per-PR planned action objects"
+      - "summary: totals for prs, comments, replies, threads"
+    per_pr_keys:
+      - "number, branch, state, mergeable"
+      - "planned_actions: comments_to_post, reactions_to_add, labels_to_apply, status_updates"
+      - "unaddressed_comments: id, author, body, domain, priority"
+      - "failing_checks: name, conclusion, suggested_action"
