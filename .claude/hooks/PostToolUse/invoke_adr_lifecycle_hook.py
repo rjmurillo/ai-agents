@@ -45,7 +45,7 @@ _CANONICAL_SOURCE_PATTERN = re.compile(r"SESSION-PROTOCOL\.md$", re.IGNORECASE)
 
 # Bash commands that remove or rename files
 _DESTRUCTIVE_CMD_PATTERN = re.compile(
-    r"\b(?:rm|git\s+rm|mv|git\s+mv)\b.*(?:ADR-\d+|SESSION-PROTOCOL)",
+    r"\b(?:rm|git\s+rm|mv|git\s+mv)\b.*(?:ADR-\d+.*\.md|SESSION-PROTOCOL\.md)",
     re.IGNORECASE,
 )
 
