@@ -30,7 +30,7 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = [".", ".claude/skills/memory-enhancement/src"]
-include = ["scripts*", "scripts.memory_sync*", "scripts.hook_utilities*", "scripts.test_result_helpers*", "scripts.pr_maintenance*", "scripts.github_core*", "scripts.ai_review_common*", "scripts.validation*", "scripts.workflow*", "memory_enhancement*"]
+include = ["scripts*", "scripts.mcp_cli*", "scripts.memory_sync*", "scripts.hook_utilities*", "scripts.test_result_helpers*", "scripts.pr_maintenance*", "scripts.github_core*", "scripts.ai_review_common*", "scripts.validation*", "scripts.workflow*", "memory_enhancement*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests", "test"]
@@ -64,7 +64,7 @@ target-version = "py312"
 line-length = 100
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "N", "UP", "B", "ANN401"]
+select = ["E", "F", "W", "I", "N", "UP", "B", "ANN"]
 ignore = []
 
 [tool.ruff.lint.per-file-ignores]
@@ -73,9 +73,41 @@ ignore = []
 # Test files use sys.path.insert() before importing modules under test
 "tests/hooks/**/*.py" = ["E402"]
 "tests/skills/**/*.py" = ["E402"]
+# ANN suppression for test files (annotations not required in tests)
+"tests/**/*.py" = ["ANN"]
+"test/**/*.py" = ["ANN"]
+"**/tests/**/*.py" = ["ANN"]
+# ANN suppression for pre-existing code (to be fixed incrementally)
+".claude/skills/**/*.py" = ["ANN"]
+".claude/hooks/**/*.py" = ["ANN"]
+"packages/**/*.py" = ["ANN"]
 
 [tool.mypy]
 python_version = "3.12"
 warn_return_any = true
 warn_unused_configs = true
 ignore_missing_imports = true
+disallow_any_generics = true
+
+# Per-module overrides: suppress disallow_any_generics for pre-existing code
+[[tool.mypy.overrides]]
+module = "scripts.github_core.*"
+disallow_any_generics = false
+
+[[tool.mypy.overrides]]
+module = [
+    "scripts.validate_skill_installation",
+    "scripts.validate_skill_output",
+    "scripts.validate_quality_gate_output",
+    "scripts.measure_context_retrieval_metrics",
+    "scripts.analyze_pr_failure",
+    "scripts.pr_branch_mapping",
+    "scripts.utils.markdown_parser",
+    "scripts.validation.hook_contracts",
+    "scripts.forgetful.import_forgetful_memories",
+]
+disallow_any_generics = false
+
+[[tool.mypy.overrides]]
+module = "semantic_hooks.*"
+disallow_any_generics = false

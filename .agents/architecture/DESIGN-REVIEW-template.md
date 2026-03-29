@@ -1,6 +1,7 @@
 ---
 status: APPROVED              # APPROVED | NEEDS_CHANGES | BLOCKED
 priority: P1                  # P0 | P1 | P2 (severity if not approved)
+blocking: false               # true if status is NEEDS_ADR/BLOCKED/REJECTED
 reviewer: architect           # agent performing review
 date: YYYY-MM-DD              # review date (ISO 8601)
 pr-branch: feature/example    # (optional) git branch being reviewed

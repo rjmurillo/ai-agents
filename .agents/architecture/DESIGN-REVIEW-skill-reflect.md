@@ -1,3 +1,11 @@
+---
+status: "NEEDS_CHANGES"
+priority: "P1"
+blocking: false
+reviewer: "architect"
+date: "2026-01-13"
+---
+
 # Design Review: skill-reflect
 
 **Reviewer**: Architect

@@ -47,6 +47,10 @@ Read first, reason second. Pre-training is last resort.
 | Learn | reflect |
 | Workflow | workflow (0-init, 1-plan, 2-impl, 3-qa, 4-security) |
 
+### ADR Review (BLOCKING)
+
+Any file matching `.agents/architecture/ADR-*.md` or `.agents/SESSION-PROTOCOL.md` created or edited triggers mandatory adr-review skill before workflow continues.
+
 ## Agents
 
 | Agent | Purpose | Model |
