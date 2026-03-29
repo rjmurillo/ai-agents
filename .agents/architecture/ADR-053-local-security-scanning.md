@@ -30,7 +30,7 @@ Extend the pre-push hook to run lightweight security scanning on changed code fi
 **Tool choice**: semgrep (preferred) or bandit as fallback.
 
 **Rationale for tool selection**:
-- **semgrep**: Fast (1-5 seconds), cross-language, excellent Python/PowerShell support, simple CLI
+- **semgrep**: Fast (1-5 seconds), cross-language, supports Python/PowerShell/JS/TS/YAML, simple CLI
 - **bandit**: Python-only but zero dependencies, well-established
 - **CodeQL CLI**: Too slow for pre-push (30-60 seconds minimum), requires database build
 
@@ -46,28 +46,35 @@ Add to Phase 5 (Security & Governance) of `.githooks/pre-push`:
 
 ```bash
 # 15.5. Security scan (semgrep)
-if [ -n "$CHANGED_PY" ] || [ -n "$CHANGED_PS" ]; then
+if [ -n "$CHANGED_PY" ] || [ -n "$CHANGED_PS" ] || [ -n "$CHANGED_JS" ] || [ -n "$CHANGED_YAML" ]; then
     if command -v semgrep &> /dev/null; then
-        # Build file list
+        # Build file list from all supported languages
         SCAN_FILES=()
         while IFS= read -r file; do
             [ -z "$file" ] && continue
             [ -L "$file" ] && continue
             [ -f "$file" ] && SCAN_FILES+=("$file")
-        done <<< "$CHANGED_PY"$'\n'"$CHANGED_PS"
+        done <<< "$CHANGED_PY"$'\n'"$CHANGED_PS"$'\n'"$CHANGED_JS"$'\n'"$CHANGED_YAML"
 
         if [ ${#SCAN_FILES[@]} -gt 0 ]; then
             SCAN_OUTPUT=$(mktemp)
             TEMP_FILES+=("$SCAN_OUTPUT")
             if semgrep scan --config auto --severity ERROR --severity WARNING \
-                    --quiet --no-git-ignore \
+                    --error --quiet --no-git-ignore \
                     "${SCAN_FILES[@]}" > "$SCAN_OUTPUT" 2>&1; then
                 record_pass "Security scan/semgrep (${#SCAN_FILES[@]} files)"
             else
-                echo_info "  Security findings:"
-                head -30 "$SCAN_OUTPUT"
-                record_fail "Security scan found vulnerabilities"
-                echo_info "  Fix: Address security findings or document exception."
+                SEMGREP_EXIT=$?
+                if [ "$SEMGREP_EXIT" -eq 1 ]; then
+                    echo_info "  Security findings:"
+                    head -30 "$SCAN_OUTPUT"
+                    record_fail "Security scan found vulnerabilities"
+                    echo_info "  Fix: Address security findings or document exception."
+                elif [ "$SEMGREP_EXIT" -eq 2 ]; then
+                    record_skip "Security scan (semgrep tool error)"
+                else
+                    record_fail "Security scan (unexpected exit: $SEMGREP_EXIT)"
+                fi
             fi
             rm -f "$SCAN_OUTPUT"
         else
