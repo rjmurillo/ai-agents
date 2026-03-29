@@ -1,4 +1,4 @@
-# ADR-048: Local Security Scanning
+# ADR-053: Local Security Scanning
 
 ## Status
 
