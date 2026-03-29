@@ -649,6 +649,17 @@ Ask: "Does this refactoring unblock my task or improve testability of code I'm c
 
 ## Task Behaviors
 
+### Parallel Work Awareness
+
+When working alongside other agents on the same PR:
+
+1. Before defining helper methods, search for existing shared helpers (Glob for `*Helper*`, `*Utilities*`, `*Fixture*`, `*Common*`)
+2. If you need compilation setup, test fixtures, or reference assembly configuration, check `tests/*/Helpers/` and `tests/*/Fixtures/` first
+3. Prefer importing existing helpers over defining new ones
+4. If no shared helper exists and the code is likely needed by other test files, create it in a shared location (e.g., `tests/Helpers/`) rather than inline
+
+This prevents O(N) duplication where N is the number of parallel agents. Each agent writing identical boilerplate independently creates maintenance burden.
+
 ### Writing Code
 
 **Before writing new functions or helpers:**

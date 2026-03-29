@@ -29,6 +29,23 @@ When reviewing new or modified code, verify no duplication exists against the co
 
 Report DRY violations with confidence 90+ (Critical). Duplicated functionality that already exists in shared modules is a blocking issue.
 
+## Cross-File Duplication Detection (REQUIRED for multi-file PRs)
+
+When the PR touches 3 or more files, perform cross-file duplication analysis:
+
+1. Identify all new methods, fields, constants, and type definitions across changed files
+2. Flag any method body, field definition, or constant that appears identically in 2 or more files
+3. Recommend extraction to a shared helper class or module
+4. Severity: Critical (90+, blocks merge)
+
+This check is essential for PRs produced by parallel agent workflows where each agent works in isolation and cannot see what other agents are writing. Without this check, identical boilerplate (compilation helpers, test fixtures, reference assemblies) can multiply across files undetected.
+
+When flagging cross-file duplication, include:
+
+- The duplicated code block (abbreviated if longer than 10 lines)
+- All file paths where the duplication appears
+- A concrete extraction recommendation (target file path, class/module name)
+
 ## Issue Confidence Scoring
 
 Rate each issue from 0-100:
