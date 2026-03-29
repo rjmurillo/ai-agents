@@ -213,20 +213,20 @@ def scan_skills(skills_dir: Path) -> list[SkillMetadata]:
         # Parse frontmatter
         try:
             content = skill_md.read_text(encoding="utf-8")
-            frontmatter = parse_yaml_frontmatter(content)
+            fm_data = parse_yaml_frontmatter(content)
         except (OSError, UnicodeDecodeError):
-            frontmatter = {}
+            fm_data = {}
 
-        name = frontmatter.get("name", skill_path.name)
-        description = frontmatter.get("description", "")
+        name = fm_data.get("name", skill_path.name)
+        description = fm_data.get("description", "")
 
         skill = SkillMetadata(
             name=name,
             path=skill_path,
             description=description[:200] if description else "",
-            version=frontmatter.get("version", ""),
-            model=frontmatter.get("model", ""),
-            license=frontmatter.get("license", ""),
+            version=fm_data.get("version", ""),
+            model=fm_data.get("model", ""),
+            license=fm_data.get("license", ""),
             last_modified=get_last_modified_date(skill_path),
             git_commits_30d=get_git_commits_count(skill_path),
             category=infer_category(name, description),
@@ -234,7 +234,7 @@ def scan_skills(skills_dir: Path) -> list[SkillMetadata]:
 
         # Store any extra frontmatter fields
         known_keys = {"name", "description", "version", "model", "license", "metadata"}
-        skill.extra = {k: v for k, v in frontmatter.items() if k not in known_keys}
+        skill.extra = {k: v for k, v in fm_data.items() if k not in known_keys}
 
         skills.append(skill)
 
@@ -414,6 +414,13 @@ def main() -> int:
             return 2
 
         skills_dir = skills_path.resolve()
+        # Default path must stay under project root (symlink escape protection)
+        if args.skills_dir is None and not skills_dir.is_relative_to(_PROJECT_ROOT):
+            print(
+                f"ERROR: Skills directory escapes project root: {skills_dir}",
+                file=sys.stderr,
+            )
+            return 2
         if not skills_dir.exists():
             print(f"ERROR: Skills directory not found: {skills_dir}", file=sys.stderr)
             return 2
