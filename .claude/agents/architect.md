@@ -456,10 +456,10 @@ issue: 0
 
 ### CI Enforcement
 
-The `synthesis-panel-gate.yml` workflow parses frontmatter and blocks PRs when:
+Design review enforcement happens in two checks:
 
-- `blocking: true` and status is NEEDS_ADR, BLOCKED, or REJECTED
-- No `status` field present in frontmatter
+- `scripts/validation/pre_pr.py` validates required frontmatter fields (including `status`) and rejects PRs when fields are missing or invalid.
+- `synthesis-panel-gate.yml` parses frontmatter via `.github/scripts/check_design_review_gate.py` and blocks PRs when the verdict is NEEDS_CHANGES, FAIL, or REJECTED.
 
 ## Architecture Review Process
 
