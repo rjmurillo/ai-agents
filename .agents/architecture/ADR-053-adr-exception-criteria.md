@@ -195,7 +195,7 @@ Track exception approval rate before/after this ADR:
 ## Implementation Status
 
 - [ ] Architect agent template updated with exception review checklist
-- [ ] Exception request template documented in this ADR
+- [x] Exception request template documented in this ADR
 - [x] Prior art investigation completed
 
 ## Security Considerations
