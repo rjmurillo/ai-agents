@@ -31,12 +31,12 @@ Report DRY violations with confidence 90+ (Critical). Duplicated functionality t
 
 ## Cross-File Duplication Detection (REQUIRED for multi-file PRs)
 
-When the PR touches 3 or more files, perform cross-file duplication analysis:
+When the PR touches 2 or more files, perform cross-file duplication analysis (excluding intentional duplication between .prompt.md and .agent.md files):
 
 1. Identify all new methods, fields, constants, and type definitions across changed files
 2. Flag any method body, field definition, or constant that appears identically in 2 or more files
 3. Recommend extraction to a shared helper class or module
-4. Severity: Critical (90+, blocks merge)
+4. Severity: Assign confidence score 90-100 (Critical, blocks merge)
 
 This check is essential for PRs produced by parallel agent workflows where each agent works in isolation and cannot see what other agents are writing. Without this check, identical boilerplate (compilation helpers, test fixtures, reference assemblies) can multiply across files undetected.
 
