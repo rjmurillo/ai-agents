@@ -77,7 +77,7 @@ jobs:
           echo ""
 
   skip-validation:
-    name: Validate Marketplace Counts
+    name: Validate Marketplace Counts (Skipped)
     needs: check-paths
     if: needs.check-paths.outputs.should-validate != 'true'
     runs-on: ubuntu-24.04-arm

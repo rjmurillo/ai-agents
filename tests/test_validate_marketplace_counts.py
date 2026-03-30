@@ -117,9 +117,21 @@ class TestValidateWithFixtures:
         assert "999" not in desc
         assert "23 specialized agent definitions" in desc
 
-    def test_missing_marketplace_returns_error(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_missing_marketplace_returns_error(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.setattr(
             "validate_marketplace_counts.MARKETPLACE_JSON",
             tmp_path / "nonexistent.json",
+        )
+        assert validate(fix=False) == 2
+
+    def test_malformed_json_returns_error(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        marketplace = tmp_path / "marketplace.json"
+        marketplace.write_text("{invalid json")
+        monkeypatch.setattr(
+            "validate_marketplace_counts.MARKETPLACE_JSON", marketplace
         )
         assert validate(fix=False) == 2

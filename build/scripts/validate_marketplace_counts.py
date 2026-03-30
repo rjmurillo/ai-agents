@@ -16,6 +16,7 @@ import argparse
 import json
 import re
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -23,7 +24,7 @@ MARKETPLACE_JSON = REPO_ROOT / ".claude-plugin" / "marketplace.json"
 
 # Maps plugin name to a dict of (label -> counting function).
 # Each counting function returns an int.
-PLUGIN_COUNTERS: dict[str, dict[str, callable]] = {}
+PLUGIN_COUNTERS: dict[str, dict[str, Callable[[], int]]] = {}
 
 
 def _count_md_agents(directory: Path, exclude: set[str] | None = None) -> int:
@@ -127,7 +128,11 @@ def validate(fix: bool = False) -> int:
         return 2
 
     with open(MARKETPLACE_JSON) as f:
-        data = json.load(f)
+        try:
+            data = json.load(f)
+        except json.JSONDecodeError as e:
+            print(f"Error: Failed to parse {MARKETPLACE_JSON}: {e}", file=sys.stderr)
+            return 2
 
     plugins = data.get("plugins", [])
     mismatches: list[str] = []
