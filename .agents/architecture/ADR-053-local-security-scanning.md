@@ -1,14 +1,13 @@
 # ADR-053: Local Security Scanning
 
-## Status
+**Status**: Accepted
+**Date**: 2026-02-19
+**Deciders**: Security Agent, DevOps Agent
+**Context**: Pre-push security scanning to complement CI-based CodeQL
 
-Accepted
+---
 
-## Date
-
-2026-02-19
-
-## Context
+## Context and Problem Statement
 
 PR #908 demonstrated that security findings discovered in CI (CodeQL CWE-22 path traversal) create significant overhead:
 
