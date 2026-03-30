@@ -1,4 +1,4 @@
-# ADR-053: Local Security Scanning
+# ADR-054: Local Security Scanning
 
 **Status**: Accepted
 **Date**: 2026-02-19
