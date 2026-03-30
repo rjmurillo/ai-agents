@@ -8,17 +8,17 @@
   "plugins": [
     {
       "name": "claude-agents",
-      "description": "26 specialized agent definitions with templates and governance for Claude Code",
+      "description": "23 specialized agent definitions with templates and governance for Claude Code",
       "source": "./src/claude"
     },
     {
       "name": "copilot-cli-agents",
-      "description": "Agent definitions for GitHub Copilot CLI",
+      "description": "23 agent definitions for GitHub Copilot CLI",
       "source": "./src/copilot-cli"
     },
     {
       "name": "project-toolkit",
-      "description": "Complete project development toolkit: agents, slash commands, lifecycle hooks, and 50 reusable skills for Claude Code workflows",
+      "description": "Complete project development toolkit: 25 agents, 12 slash commands, 28 lifecycle hooks, and 59 reusable skills for Claude Code workflows",
       "source": "./.claude"
     }
   ]
