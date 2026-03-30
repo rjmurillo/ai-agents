@@ -41,43 +41,35 @@ Extend the pre-push hook to run lightweight security scanning on changed code fi
 
 ### Implementation
 
-Add to Phase 5 (Security & Governance) of `.githooks/pre-push`:
+Phase 5 (Security & Governance) of `.githooks/pre-push` delegates to
+`scripts/security/run_semgrep.py`, which owns file discovery, severity
+classification, and exit-code handling.
+
+The script:
+
+1. Detects changed files via `git diff --name-only` against the merge-base with `origin/main`
+2. Filters to supported extensions: `.py`, `.ps1`, `.psm1`, `.js`, `.ts`, `.yaml`, `.yml`
+3. Runs `semgrep scan --config auto --json --no-git-ignore` on matched files
+4. Classifies findings by severity (ERROR = HIGH/CRITICAL, WARNING = MEDIUM)
+5. Blocks on ERROR findings only. Warns on WARNING findings without blocking.
+
+Pre-push hook integration:
 
 ```bash
 # 15.5. Security scan (semgrep)
 if [ -n "$CHANGED_PY" ] || [ -n "$CHANGED_PS" ] || [ -n "$CHANGED_JS" ] || [ -n "$CHANGED_YAML" ]; then
     if command -v semgrep &> /dev/null; then
-        # Build file list from all supported languages
-        SCAN_FILES=()
-        while IFS= read -r file; do
-            [ -z "$file" ] && continue
-            [ -L "$file" ] && continue
-            [ -f "$file" ] && SCAN_FILES+=("$file")
-        done <<< "$CHANGED_PY"$'\n'"$CHANGED_PS"$'\n'"$CHANGED_JS"$'\n'"$CHANGED_YAML"
-
-        if [ ${#SCAN_FILES[@]} -gt 0 ]; then
-            SCAN_OUTPUT=$(mktemp)
-            TEMP_FILES+=("$SCAN_OUTPUT")
-            if semgrep scan --config auto --severity ERROR --severity WARNING \
-                    --error --quiet --no-git-ignore \
-                    "${SCAN_FILES[@]}" > "$SCAN_OUTPUT" 2>&1; then
-                record_pass "Security scan/semgrep (${#SCAN_FILES[@]} files)"
-            else
-                SEMGREP_EXIT=$?
-                if [ "$SEMGREP_EXIT" -eq 1 ]; then
-                    echo_info "  Security findings:"
-                    head -30 "$SCAN_OUTPUT"
-                    record_fail "Security scan found vulnerabilities"
-                    echo_info "  Fix: Address security findings or document exception."
-                elif [ "$SEMGREP_EXIT" -eq 2 ]; then
-                    record_skip "Security scan (semgrep tool error)"
-                else
-                    record_fail "Security scan (unexpected exit: $SEMGREP_EXIT)"
-                fi
-            fi
-            rm -f "$SCAN_OUTPUT"
+        if python3 scripts/security/run_semgrep.py; then
+            record_pass "Security scan/semgrep"
         else
-            record_skip "Security scan (no accessible files)"
+            SEMGREP_EXIT=$?
+            if [ "$SEMGREP_EXIT" -eq 1 ]; then
+                record_fail "Security scan found HIGH/CRITICAL vulnerabilities"
+            elif [ "$SEMGREP_EXIT" -eq 2 ]; then
+                record_skip "Security scan (configuration error)"
+            else
+                record_fail "Security scan (unexpected exit: $SEMGREP_EXIT)"
+            fi
         fi
     else
         record_skip "Security scan (semgrep not installed)"
