@@ -6,8 +6,8 @@ dates from git history, and outputs a JSON or markdown registry report.
 
 EXIT CODES:
   0  - Success: Registry generated
-  1  - Error: Invalid parameters or no skills found
-  2  - Error: Unexpected error
+  1  - Error: No skills found
+  2  - Error: Configuration/path error or unexpected failure
 
 See: ADR-035 Exit Code Standardization
 See: Issue #1266 - Implement skill utilization tracking
@@ -196,7 +196,7 @@ def scan_skills(
             description=fm.get("description", "")[:120],
             version=fm.get("version", ""),
             model=fm.get("model", ""),
-            category=categorize_skill(skill_dir.name),
+            category=fm.get("category") or categorize_skill(skill_dir.name),
             last_commit_date=last_date or "",
             last_commit_days_ago=days_ago,
         )
@@ -268,9 +268,14 @@ def format_markdown(
         lines.append("| Skill | Version | Model | Last Changed | Days Ago |")
         lines.append("|-------|---------|-------|-------------|----------|")
         for e in sorted(categories[cat], key=lambda x: x.name):
+            days_display = (
+                str(e.last_commit_days_ago)
+                if e.last_commit_days_ago >= 0
+                else "-"
+            )
             lines.append(
                 f"| {e.name} | {e.version or '-'} | {e.model or '-'} "
-                f"| {e.last_commit_date or '-'} | {e.last_commit_days_ago} |"
+                f"| {e.last_commit_date or '-'} | {days_display} |"
             )
         lines.append("")
 
@@ -306,7 +311,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--output",
         type=Path,
         default=None,
-        help="Write output to file instead of stdout",
+        help="Write output to file instead of stdout (any writable path accepted)",
     )
     parser.add_argument(
         "--skills-dir",
@@ -335,12 +340,17 @@ def main(argv: list[str] | None = None) -> int:
     try:
         args = parse_args(argv)
 
-        project_root = args.project_root or _PROJECT_ROOT
-        skills_dir = args.skills_dir or (project_root / ".claude" / "skills")
+        project_root = Path(args.project_root or _PROJECT_ROOT).resolve()
+        skills_dir = Path(
+            args.skills_dir or (project_root / ".claude" / "skills")
+        ).resolve()
 
-        if not skills_dir.exists():
-            print(f"ERROR: Skills directory not found: {skills_dir}", file=sys.stderr)
-            return 1
+        if not skills_dir.is_dir():
+            print(
+                f"ERROR: Skills directory not found: {skills_dir}",
+                file=sys.stderr,
+            )
+            return 2
 
         entries = scan_skills(skills_dir, project_root)
         if not entries:
@@ -353,8 +363,9 @@ def main(argv: list[str] | None = None) -> int:
             output = format_markdown(entries, args.stale_days)
 
         if args.output:
-            args.output.write_text(output, encoding="utf-8")
-            print(f"Registry written to {args.output}", file=sys.stderr)
+            out_path = args.output.resolve()
+            out_path.write_text(output, encoding="utf-8")
+            print(f"Registry written to {out_path}", file=sys.stderr)
         else:
             print(output)
 

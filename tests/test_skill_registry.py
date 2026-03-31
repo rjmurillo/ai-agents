@@ -102,6 +102,34 @@ class TestCategorizeSkill:
         assert categorize_skill("unknown-skill") == "other"
 
 
+class TestSelfCategorization:
+    """Tests for frontmatter-based self-categorization."""
+
+    def test_frontmatter_category_overrides_name(self, tmp_path: Path) -> None:
+        """Skill frontmatter category takes precedence over name-based."""
+        skills_dir = tmp_path / ".claude" / "skills"
+        skill = skills_dir / "my-custom-skill"
+        skill.mkdir(parents=True)
+        (skill / "SKILL.md").write_text(
+            "---\nname: my-custom-skill\ncategory: planning\n---\n"
+        )
+
+        entries = scan_skills(skills_dir, tmp_path)
+
+        assert entries[0].category == "planning"
+
+    def test_fallback_to_name_categorization(self, tmp_path: Path) -> None:
+        """Falls back to name-based categorization when no category in frontmatter."""
+        skills_dir = tmp_path / ".claude" / "skills"
+        skill = skills_dir / "session-init"
+        skill.mkdir(parents=True)
+        (skill / "SKILL.md").write_text("---\nname: session-init\n---\n")
+
+        entries = scan_skills(skills_dir, tmp_path)
+
+        assert entries[0].category == "session"
+
+
 class TestScanSkills:
     """Tests for scan_skills function."""
 
@@ -228,6 +256,22 @@ class TestFormatMarkdown:
 
         assert "Underutilized" not in result
 
+    def test_negative_days_displayed_as_dash(self) -> None:
+        """Shows '-' instead of -1 when no git history available."""
+        entries = [
+            SkillEntry(
+                name="no-history",
+                path=".claude/skills/no-history",
+                category="other",
+                last_commit_days_ago=-1,
+            ),
+        ]
+
+        result = format_markdown(entries, stale_days=30)
+
+        assert "| - |" in result
+        assert "-1" not in result
+
 
 class TestMain:
     """Tests for main entry point."""
@@ -267,13 +311,13 @@ class TestMain:
         assert "# Skill Registry" in captured.out
 
     def test_missing_skills_dir_returns_error(self, tmp_path: Path) -> None:
-        """Returns 1 when skills directory does not exist."""
+        """Returns 2 when skills directory does not exist."""
         rc = main([
             "--skills-dir", str(tmp_path / "nonexistent"),
             "--project-root", str(tmp_path),
         ])
 
-        assert rc == 1
+        assert rc == 2
 
     def test_output_to_file(self, skill_tree: Path, tmp_path: Path) -> None:
         """Writes output to specified file."""
