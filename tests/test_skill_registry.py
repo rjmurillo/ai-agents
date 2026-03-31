@@ -9,7 +9,9 @@ See: Issue #1266 - Implement skill utilization tracking
 from __future__ import annotations
 
 import json
+import subprocess
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -18,6 +20,7 @@ from scripts.skill_registry import (
     categorize_skill,
     format_json,
     format_markdown,
+    git_last_commit_date,
     main,
     parse_frontmatter,
     scan_skills,
@@ -333,3 +336,70 @@ class TestMain:
         assert out_file.exists()
         data = json.loads(out_file.read_text())
         assert data["total_skills"] == 1
+
+    def test_keyboard_interrupt_returns_1(self, skill_tree: Path) -> None:
+        """Returns exit code 1 on KeyboardInterrupt."""
+        with patch(
+            "scripts.skill_registry.parse_args",
+            side_effect=KeyboardInterrupt,
+        ):
+            rc = main([
+                "--skills-dir", str(skill_tree / ".claude" / "skills"),
+                "--project-root", str(skill_tree),
+            ])
+
+        assert rc == 1
+
+
+class TestGitLastCommitDate:
+    """Tests for git_last_commit_date function."""
+
+    def test_returns_date_on_success(self, tmp_path: Path) -> None:
+        """Returns ISO date string when git reports a commit date."""
+        mock_result = subprocess.CompletedProcess(
+            args=[], returncode=0, stdout="2026-03-15T10:00:00+00:00\n", stderr=""
+        )
+        with patch("scripts.skill_registry.subprocess.run", return_value=mock_result):
+            result = git_last_commit_date(tmp_path / "skill", tmp_path)
+
+        assert result == "2026-03-15"
+
+    def test_returns_none_on_empty_output(self, tmp_path: Path) -> None:
+        """Returns None when git log produces no output."""
+        mock_result = subprocess.CompletedProcess(
+            args=[], returncode=0, stdout="", stderr=""
+        )
+        with patch("scripts.skill_registry.subprocess.run", return_value=mock_result):
+            result = git_last_commit_date(tmp_path / "skill", tmp_path)
+
+        assert result is None
+
+    def test_returns_none_on_nonzero_exit(self, tmp_path: Path) -> None:
+        """Returns None when git exits with error."""
+        mock_result = subprocess.CompletedProcess(
+            args=[], returncode=128, stdout="", stderr="fatal: not a git repo"
+        )
+        with patch("scripts.skill_registry.subprocess.run", return_value=mock_result):
+            result = git_last_commit_date(tmp_path / "skill", tmp_path)
+
+        assert result is None
+
+    def test_returns_none_on_timeout(self, tmp_path: Path) -> None:
+        """Returns None when git command times out."""
+        with patch(
+            "scripts.skill_registry.subprocess.run",
+            side_effect=subprocess.TimeoutExpired(cmd="git", timeout=10),
+        ):
+            result = git_last_commit_date(tmp_path / "skill", tmp_path)
+
+        assert result is None
+
+    def test_returns_none_on_os_error(self, tmp_path: Path) -> None:
+        """Returns None when git binary is not found."""
+        with patch(
+            "scripts.skill_registry.subprocess.run",
+            side_effect=OSError("git not found"),
+        ):
+            result = git_last_commit_date(tmp_path / "skill", tmp_path)
+
+        assert result is None
