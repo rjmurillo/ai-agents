@@ -25,6 +25,7 @@ Match Squad's three-step onramp. Remove the only advantage they have.
    - `npx ai-agents init` — scaffolds `.agents/` + `.serena/` with 4 default agents
    - `npx ai-agents status` — shows team knowledge, session count, health
    - `npx ai-agents doctor` — validates setup, checks for common issues
+   - `npx ai-agents init --from squad` — imports `.squad/` directory
    - Ships as single ESM bundle via esbuild, zero runtime dependencies
 
 2. **Updated README**
@@ -42,49 +43,86 @@ Match Squad's three-step onramp. Remove the only advantage they have.
    - `--template standard` — 12 agents, governance policies
    - `--template full` — 21 agents, security, ADRs, complete governance
 
+4. **Spec v1.0 (Parallel Track)**
+   - Publish `.agents/` spec document + JSON Schema in Week 2
+   - Establishes standard before HN launch
+   - Blog post: "The .agents/ standard" accompanies Beta release
+
 ### Success Criteria
 - `npx ai-agents init` runs in < 3 seconds
 - Generated `.agents/` passes `doctor` check
 - Works with Claude Code, Copilot CLI, and VS Code out of the box
 
-### Timeline
-- Day 1-3: CLI scaffolding (commander.js, init command, templates)
-- Day 4-5: status + doctor commands
-- Day 6-7: npm publish, README rewrite, CI for the package
-- Day 8: Soft launch (tweet, Discord mention, r/ChatGPTCoding)
+### Timeline (Aligned with CEO Review)
+
+**Week 1:**
+- Day 1-2: Set up `packages/ai-agents-cli/` with commander.js
+- Day 3-4: Implement `init` (minimal template) + `--from squad` parser
+- Day 5: Implement `status`
+- Day 6-7: Alpha publish to npm (`--tag alpha`)
+
+**Week 2:**
+- Day 8-9: Implement `doctor` + standard/full templates
+- Day 10-11: Spec v1.0 document + JSON Schema
+- Day 12: Beta publish to npm (`--tag beta`)
+- Day 13-14: Blog post: "The .agents/ standard"
 
 ---
 
-## Phase 2: The Migration (Week 3-6)
+## Phase 2: Seed Community + Full CLI (Week 3-4)
 
 ### Goal
-Convert Squad users by making migration frictionless and showing the depth gap.
+Build social proof before public launch. Complete CLI feature parity with Squad.
 
 ### Deliverables
 
-1. **`npx ai-agents init --from squad`**
-   - Auto-detects `.squad/` directory
-   - Maps Squad format → `.agents/` format:
-     - `team.md` → `AGENTS.md`
-     - `agents/{name}/charter.md` → `agents/{name}.md`
-     - `agents/{name}/history.md` → `.serena/memories/{name}/`
-     - `decisions.md` → `decisions/`
-     - `routing.md` → `governance/ROUTING.md`
-     - `skills/` → skills/ (1:1 copy)
-   - Preserves all Squad state (non-destructive, `.squad/` is not deleted)
-   - Prints diff summary: "Imported 4 agents, 12 decisions, 3 skills. Added: session protocol, governance framework, ADR template, security policy."
+1. **Seed Community (CRITICAL — Week 3)**
+   - Recruit 5-10 developers to use ai-agents for 2 weeks before HN launch
+   - Target: Senior engineers already frustrated with AI tooling fragmentation
+   - Sources: Twitter DMs, Discord AI communities, personal network
+   - Ask: "Try ai-agents for 2 weeks, share honest feedback"
+   - Outcome: Genuine testimonials + bug fixes before public launch
+   - **Why this matters:** 60% risk of "no organic discovery" — social proof on day 1 is the mitigation
 
-2. **Blog post: "What Your AI Team Looks Like After 6 Months"**
+2. **Remaining CLI Commands (Week 3-4)**
+   - `npx ai-agents export` — portable JSON snapshot
+   - `npx ai-agents import` — restore from snapshot
+   - `npx ai-agents nap` — context hygiene (compress, prune, archive)
+   - `npx ai-agents upgrade` — update framework files, preserve team state
+   - Beta 2 publish (Week 3), GA publish (Week 4)
+
+3. **Squad Community Outreach (Week 3)**
+   - Join Squad Discord/community channels
+   - Help users with genuine questions (don't shill)
+   - Let `--from squad` speak for itself when relevant
+
+4. **Blog post: "What Your AI Team Looks Like After 6 Months"**
    - Side-by-side comparison: `.squad/` (fresh init) vs `.agents/` (6 months of real use)
    - Concrete examples: session protocols, ADRs, governance policies, security audits
    - Numbers: 1,555 PRs, 53 ADRs, 2,847 knowledge files, 21 specialized agents
+   - Include testimonials from seed community
    - Ends with: `npx ai-agents init --from squad` — try it, keep your Squad state, see what you gain
    - **Target:** Hacker News front page, dev.to trending
 
-3. **Comparison page in docs**
+5. **Comparison page in docs**
    - Feature matrix: ai-agents vs. Squad vs. Copilot Workspace vs. Cursor Teams
    - Honest: "Squad wins on simplicity. ai-agents wins on everything else."
    - Include "When to use Squad" (genuinely small projects that won't need governance)
+
+### Timeline (Aligned with CEO Review)
+
+**Week 3:**
+- Day 15-16: Implement `export` + `import`
+- Day 17-18: Seed community recruitment (5-10 developers)
+- Day 19-20: Squad community outreach (join, observe, help)
+- Day 21: Beta 2 publish
+
+**Week 4:**
+- Day 22-23: Implement `nap` + `upgrade`
+- Day 24-25: Collect seed community testimonials
+- Day 26: GA publish to npm (`--tag latest`)
+- Day 27: Write blog post with testimonials
+- Day 28: **LAUNCH DAY** — HN, dev.to, Reddit, Twitter (coordinated)
 
 ### Distribution Channels
 
@@ -97,8 +135,10 @@ Convert Squad users by making migration frictionless and showing the depth gap.
 | LinkedIn | Professional angle: "Why governance matters for AI dev teams" | 5K views |
 | Discord (AI/dev servers) | Direct community engagement | 1K reach |
 | YouTube Short | 60-second "init Squad vs init ai-agents" comparison | 10K views |
+| **Seed community** | Personal testimonials on launch day | **Social proof multiplier** |
 
 ### Success Criteria
+- 5-10 seed community members with genuine testimonials
 - 50+ Squad imports in first month
 - Blog post gets > 5K views
 - 20% of importers continue using ai-agents after 2 weeks
@@ -207,14 +247,16 @@ Don't announce it. Just ship it. Let Squad users discover that ai-agents can eat
 
 | Item | Cost | Timeline |
 |------|------|----------|
-| CLI development | $0 (DevClaw workers) | Week 1-2 |
-| npm publishing | $0 | Week 1 |
-| Blog post writing | $0 (self) | Week 3 |
+| CLI development (8 commands) | $0 (DevClaw workers) | Week 1-4 |
+| npm publishing | $0 | Week 1-4 |
+| Spec v1.0 document | $0 (self) | Week 2 |
+| Blog post writing | $0 (self) | Week 4 |
 | Domain for docs site | $12/year | Week 1 |
-| Dev.to / HN posting | $0 | Week 3 |
+| Seed community recruitment | $0 (personal outreach) | Week 3 |
+| HN / dev.to / Reddit posting | $0 | Week 4 |
 | Template creation | $0 (DevClaw workers) | Month 2-4 |
-| Video content | $0 (self) | Month 2 |
-| **Total Phase 1-2** | **~$12** | **6 weeks** |
+| Video content | $0 (self) | Week 4 |
+| **Total Phase 1-2** | **~$12** | **4 weeks** |
 
 ---
 
@@ -224,35 +266,51 @@ Don't announce it. Just ship it. Let Squad users discover that ai-agents can eat
 |------|------------|--------|------------|
 | Squad ships governance before us | 30% | High | Ship fast. Our evidence (1,555 PRs) is the moat — they can't fabricate 6 months of production use. |
 | npm name conflict | 20% | Medium | Register `@rjmurillo/ai-agents` immediately. Consider `ai-dev-team` as fallback. |
-| No organic discovery | 60% | High | Multi-channel launch. HN + dev.to + Reddit + Twitter on same day. Target Squad's community directly. |
+| No organic discovery | 60% → 40% | High | **Seed community (5-10 devs) provides day-1 social proof.** Multi-channel launch. HN + dev.to + Reddit + Twitter coordinated. Testimonials in blog post. |
 | Spec is ignored by ecosystem | 40% | Medium | Get 1-2 early adopters (OpenClaw, Continue.dev) before public announcement. Social proof. |
 | Maintenance burden | 30% | Low | CLI is thin (templates + validation). Most value is in the spec, not the tool. |
 
 ---
 
-## 30-60-90 Day Plan
+## 4-Week Sprint Plan (Aligned with CEO Review)
 
-### Day 1-30: Ship the CLI
-- [ ] Scaffold `packages/ai-agents-cli/` with commander.js
-- [ ] Implement `init`, `status`, `doctor` commands
-- [ ] Create minimal, standard, full templates
-- [ ] Publish to npm
+### Week 1: Alpha
+- [ ] Set up `packages/ai-agents-cli/` with commander.js
+- [ ] Implement `init` command (minimal template)
+- [ ] Implement `--from squad` parser
+- [ ] Implement `status` command
+- [ ] Alpha publish to npm (`--tag alpha`)
 - [ ] Rewrite README with three-line quickstart
-- [ ] Soft launch on Twitter + Discord
 
-### Day 30-60: Convert Squad Users
-- [ ] Implement `--from squad` importer
-- [ ] Write "6 Months of AI Team Knowledge" blog post
-- [ ] Launch on HN, dev.to, Reddit (coordinated, same day)
-- [ ] Create comparison page in docs
+### Week 2: Beta + Spec
+- [ ] Implement `doctor` command
+- [ ] Create standard + full templates
+- [ ] Write Spec v1.0 document + JSON Schema
+- [ ] Beta publish to npm (`--tag beta`)
+- [ ] Blog post: "The .agents/ standard"
+
+### Week 3: Seed Community + Beta 2
+- [ ] Implement `export` + `import` commands
+- [ ] Recruit 5-10 seed community developers
+- [ ] Join Squad community (observe, help, don't shill)
+- [ ] Beta 2 publish
+- [ ] Collect early feedback, fix bugs
+
+### Week 4: GA + Launch
+- [ ] Implement `nap` + `upgrade` commands
+- [ ] Collect seed community testimonials
+- [ ] GA publish to npm (`--tag latest`)
+- [ ] Write "6 Months of AI Team Knowledge" blog post (with testimonials)
+- [ ] **LAUNCH DAY:** HN + dev.to + Reddit + Twitter (coordinated)
 - [ ] YouTube Short: init comparison
 
-### Day 60-90: Publish the Spec
+### Month 2-4: Spec Adoption
 - [ ] Create `agents-spec` repo with formal spec
 - [ ] Ship `agents-spec validate` CLI tool
 - [ ] Reach out to 5 dev tool teams for adoption
 - [ ] Submit to awesome-ai lists
 - [ ] First batch of team templates
+- [ ] Create comparison page in docs
 
 ---
 
