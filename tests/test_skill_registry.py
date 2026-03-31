@@ -288,7 +288,9 @@ class TestMain:
         (skill_a / "SKILL.md").write_text("---\nname: alpha\n---\n")
         return tmp_path
 
-    def test_json_output_success(self, skill_tree: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    def test_json_output_success(
+        self, skill_tree: Path, capsys: pytest.CaptureFixture[str],
+    ) -> None:
         """Returns 0 and outputs JSON for valid skills directory."""
         rc = main([
             "--format", "json",
@@ -301,7 +303,9 @@ class TestMain:
         data = json.loads(captured.out)
         assert data["total_skills"] == 1
 
-    def test_markdown_output_success(self, skill_tree: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    def test_markdown_output_success(
+        self, skill_tree: Path, capsys: pytest.CaptureFixture[str],
+    ) -> None:
         """Returns 0 and outputs markdown for valid skills directory."""
         rc = main([
             "--format", "markdown",
