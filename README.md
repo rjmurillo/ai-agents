@@ -131,7 +131,7 @@ The agents themselves use the platform specific handoffs to invoke subagents, ke
 
 > **Requirements:** Python 3.10+ and [UV](https://docs.astral.sh/uv/) package manager (for skill-installer method only). The `/install-plugin` method has no prerequisites.
 >
-> See [CONTRIBUTING.md](CONTRIBUTING.md#prerequisites) for full development setup including Python 3.12.x, pre-commit hooks, and test dependencies.
+> See [CONTRIBUTING.md](CONTRIBUTING.md#prerequisites) for full development setup including Python 3.14.x, pre-commit hooks, and test dependencies.
 
 ### Quick Install (Recommended)
 
@@ -404,8 +404,8 @@ ai-agents/
 <details>
 <summary><strong>Python version errors when running tests</strong></summary>
 
-- This project requires **Python 3.12.x** for development (not 3.13+)
-- Use `pyenv` to manage Python versions: `pyenv install 3.12.8 && pyenv local 3.12.8`
+- This project requires **Python 3.14.x** for development
+- The `.python-version` file pins the exact version (currently 3.14.3)
 - See [CONTRIBUTING.md](CONTRIBUTING.md#prerequisites) for detailed setup
 
 </details>

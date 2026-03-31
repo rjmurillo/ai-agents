@@ -51,7 +51,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@28f2168f4d98ee0445e3c6321f6e6616c83dd5ec
         with:
-          python-version: '3.11'
+          python-version: '3.14'
 
       - name: Determine analysis period
         id: period
@@ -111,7 +111,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@28f2168f4d98ee0445e3c6321f6e6616c83dd5ec
         with:
-          python-version: '3.11'
+          python-version: '3.14'
 
       - name: Check thresholds
         id: check
