@@ -3,7 +3,7 @@
 **Skill:** plan-ceo-review (Garry Tan gstack methodology)  
 **Project:** ai-agents  
 **Branch:** claude/slack-session-VWZ5m  
-**Plan:** `.agents/plans/PRD-ai-agents-platform-v2.md`  
+**Plan:** `.agents/plans/PRD-ai-agents-platform.md`  
 **Date:** 2025-03-31  
 **Mode:** SELECTIVE EXPANSION  
 **Approach:** B (Phased: 4 commands → 8 commands)  
