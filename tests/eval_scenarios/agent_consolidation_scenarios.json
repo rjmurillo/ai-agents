@@ -1,0 +1,251 @@
+{
+  "metadata": {
+    "name": "Agent Consolidation A/B Test Scenarios",
+    "version": "1.0",
+    "created": "2026-03-31",
+    "description": "Test scenarios for comparing 21-agent vs 5-agent architectures"
+  },
+  "task_scenarios": [
+    {
+      "id": "T01",
+      "category": "feature",
+      "complexity": "high",
+      "prompt": "Add a new REST API endpoint /api/users/{id}/preferences that returns user preferences as JSON. Include authentication and input validation.",
+      "expected_agents_control": ["analyst", "architect", "implementer", "security", "qa"],
+      "expected_agents_treatment": ["Analyst", "Architect", "Builder", "Critic"],
+      "verification": {
+        "code_exists": true,
+        "tests_exist": true,
+        "security_reviewed": true
+      }
+    },
+    {
+      "id": "T02",
+      "category": "feature",
+      "complexity": "high",
+      "prompt": "Refactor the authentication module to support OAuth2 in addition to the existing JWT auth. This is a breaking change.",
+      "expected_agents_control": ["analyst", "architect", "implementer", "security", "qa", "critic"],
+      "expected_agents_treatment": ["Analyst", "Architect", "Builder", "Critic"],
+      "verification": {
+        "code_exists": true,
+        "tests_exist": true,
+        "security_reviewed": true,
+        "adr_created": true
+      }
+    },
+    {
+      "id": "T03",
+      "category": "bugfix",
+      "complexity": "medium",
+      "prompt": "Fix the SQL injection vulnerability in the search endpoint. The user input is not sanitized before being used in the query.",
+      "expected_agents_control": ["security", "implementer", "qa"],
+      "expected_agents_treatment": ["Critic", "Builder"],
+      "verification": {
+        "code_exists": true,
+        "tests_exist": true,
+        "vulnerability_fixed": true
+      }
+    },
+    {
+      "id": "T04",
+      "category": "bugfix",
+      "complexity": "medium",
+      "prompt": "Fix failing integration tests in the payment module. Tests started failing after the last dependency update.",
+      "expected_agents_control": ["qa", "implementer"],
+      "expected_agents_treatment": ["Critic", "Builder"],
+      "verification": {
+        "tests_pass": true
+      }
+    },
+    {
+      "id": "T05",
+      "category": "bugfix",
+      "complexity": "medium",
+      "prompt": "Debug and fix the performance regression in the report generation feature. Response time increased from 2s to 15s.",
+      "expected_agents_control": ["analyst", "implementer"],
+      "expected_agents_treatment": ["Analyst", "Builder"],
+      "verification": {
+        "performance_improved": true
+      }
+    },
+    {
+      "id": "T06",
+      "category": "documentation",
+      "complexity": "low",
+      "prompt": "Write an ADR for the decision to migrate from PostgreSQL to CockroachDB for horizontal scaling.",
+      "expected_agents_control": ["architect", "critic"],
+      "expected_agents_treatment": ["Architect", "Critic"],
+      "verification": {
+        "adr_created": true,
+        "adr_complete": true
+      }
+    },
+    {
+      "id": "T07",
+      "category": "planning",
+      "complexity": "low",
+      "prompt": "Create a milestone plan for implementing the new notification system. Break it down into phases with deliverables.",
+      "expected_agents_control": ["milestone-planner", "critic"],
+      "expected_agents_treatment": ["Orchestrator", "Critic"],
+      "verification": {
+        "plan_created": true,
+        "milestones_defined": true
+      }
+    },
+    {
+      "id": "T08",
+      "category": "research",
+      "complexity": "low",
+      "prompt": "Research the pros and cons of using Redis vs Memcached for our session caching needs. Consider performance, scaling, and operational complexity.",
+      "expected_agents_control": ["analyst"],
+      "expected_agents_treatment": ["Analyst"],
+      "verification": {
+        "analysis_complete": true,
+        "recommendation_provided": true
+      }
+    },
+    {
+      "id": "T09",
+      "category": "security",
+      "complexity": "critical",
+      "prompt": "Review the recent PR that adds file upload functionality. Check for path traversal, file type validation, and size limits.",
+      "expected_agents_control": ["security"],
+      "expected_agents_treatment": ["Critic"],
+      "verification": {
+        "security_findings": true,
+        "cwe_referenced": true
+      }
+    },
+    {
+      "id": "T10",
+      "category": "security",
+      "complexity": "critical",
+      "prompt": "Perform a threat model for the new admin dashboard. Identify assets, threat actors, and attack vectors.",
+      "expected_agents_control": ["security", "architect"],
+      "expected_agents_treatment": ["Critic", "Architect"],
+      "verification": {
+        "threat_model_created": true,
+        "stride_analysis": true
+      }
+    }
+  ],
+  "security_test_corpus": [
+    {
+      "id": "SEC-001",
+      "cwe": "CWE-89",
+      "name": "SQL Injection",
+      "vulnerable_code": "query = f\"SELECT * FROM users WHERE name = '{user_input}'\"",
+      "expected_detection": true,
+      "severity": "critical"
+    },
+    {
+      "id": "SEC-002",
+      "cwe": "CWE-22",
+      "name": "Path Traversal",
+      "vulnerable_code": "file_path = os.path.join(base_dir, user_filename)",
+      "expected_detection": true,
+      "severity": "high"
+    },
+    {
+      "id": "SEC-003",
+      "cwe": "CWE-78",
+      "name": "Command Injection",
+      "vulnerable_code": "subprocess.run(f'echo {user_input}', shell=True)",
+      "expected_detection": true,
+      "severity": "critical"
+    },
+    {
+      "id": "SEC-004",
+      "cwe": "CWE-798",
+      "name": "Hardcoded Secret",
+      "vulnerable_code": "api_key = 'sk-1234567890abcdef'",
+      "expected_detection": true,
+      "severity": "critical"
+    },
+    {
+      "id": "SEC-005",
+      "cwe": "CWE-79",
+      "name": "XSS",
+      "vulnerable_code": "return f'<div>{user_comment}</div>'",
+      "expected_detection": true,
+      "severity": "high"
+    },
+    {
+      "id": "SEC-006",
+      "cwe": "CWE-918",
+      "name": "SSRF",
+      "vulnerable_code": "requests.get(user_provided_url)",
+      "expected_detection": true,
+      "severity": "high"
+    },
+    {
+      "id": "SEC-007",
+      "cwe": "CWE-502",
+      "name": "Insecure Deserialization",
+      "vulnerable_code": "pickle.loads(user_data)",
+      "expected_detection": true,
+      "severity": "critical"
+    },
+    {
+      "id": "SEC-008",
+      "cwe": "CWE-639",
+      "name": "IDOR",
+      "vulnerable_code": "def get_order(order_id): return Order.get(order_id)  # No auth check",
+      "expected_detection": true,
+      "severity": "high"
+    },
+    {
+      "id": "SEC-009",
+      "cwe": "CWE-362",
+      "name": "Race Condition (TOCTOU)",
+      "vulnerable_code": "if os.path.exists(path): os.remove(path)",
+      "expected_detection": true,
+      "severity": "medium"
+    },
+    {
+      "id": "SEC-010",
+      "cwe": "ASI06",
+      "name": "Memory Poisoning (Agentic)",
+      "vulnerable_code": "memory.store(key=user_input, value=untrusted_data)",
+      "expected_detection": true,
+      "severity": "high"
+    }
+  ],
+  "routing_scenarios": [
+    {
+      "id": "R01",
+      "prompt": "Fix the typo in the README",
+      "expected_routing_control": "implementer",
+      "expected_routing_treatment": "Builder",
+      "complexity": "trivial"
+    },
+    {
+      "id": "R02",
+      "prompt": "We need to redesign the entire data layer to support multi-tenancy",
+      "expected_routing_control": "orchestrator",
+      "expected_routing_treatment": "Orchestrator",
+      "complexity": "complex"
+    },
+    {
+      "id": "R03",
+      "prompt": "Is this approach secure?",
+      "expected_routing_control": "security",
+      "expected_routing_treatment": "Critic",
+      "complexity": "medium"
+    },
+    {
+      "id": "R04",
+      "prompt": "Create tests for the new payment flow",
+      "expected_routing_control": "qa",
+      "expected_routing_treatment": "Critic",
+      "complexity": "medium"
+    },
+    {
+      "id": "R05",
+      "prompt": "What should our Q2 priorities be?",
+      "expected_routing_control": "roadmap",
+      "expected_routing_treatment": "Analyst",
+      "complexity": "medium"
+    }
+  ]
+}
