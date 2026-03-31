@@ -32,6 +32,6 @@
 | skills validation cross-validation orphan detection | [skills/skills-validation-observations](skills/skills-validation-observations.md) |
 | reflect reflection skill learning capture iterative | [retrospective/reflect-observations](retrospective/reflect-observations.md) |
 | retrospective patterns learning extraction chestertons | [retrospective/retrospective-observations](retrospective/retrospective-observations.md) |
-| SkillForge skill creation patterns workflows | [skills/SkillForge-observations](skills/SkillForge-observations.md) |
+| SkillForge skill creation patterns workflows | [skills/skillforge-observations](skills/skillforge-observations.md) |
 | tool usage patterns best practices selection | [skills/tool-usage-observations](skills/tool-usage-observations.md) |
 | enforcement patterns validation compliance automation | [patterns/enforcement-patterns-observations](patterns/enforcement-patterns-observations.md) |

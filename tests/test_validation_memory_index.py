@@ -23,6 +23,7 @@ from scripts.validation.memory_index import (
     check_keyword_density,
     check_memory_index_references,
     check_minimum_keywords,
+    check_naming_convention,
     find_domain_indices,
     find_orphaned_files,
     format_json,
@@ -921,3 +922,80 @@ class TestBuildParser:
             args = parser.parse_args([])
             assert args.path == "/custom/path"
             assert args.ci is True
+
+
+# ---------------------------------------------------------------------------
+# check_naming_convention
+# ---------------------------------------------------------------------------
+
+
+class TestCheckNamingConvention:
+    """Tests for kebab-case naming convention validation."""
+
+    def test_valid_kebab_case_passes(self, tmp_path: Path) -> None:
+        (tmp_path / "valid-memory-name.md").write_text("content")
+        (tmp_path / "another-file.md").write_text("content")
+        result = check_naming_convention(tmp_path)
+        assert result.passed is True
+        assert result.violations == []
+
+    def test_uppercase_detected(self, tmp_path: Path) -> None:
+        (tmp_path / "SkillForge-observations.md").write_text("content")
+        result = check_naming_convention(tmp_path)
+        assert result.passed is False
+        assert len(result.violations) == 1
+        assert "SkillForge-observations.md" in result.violations[0]
+
+    def test_dots_in_name_detected(self, tmp_path: Path) -> None:
+        (tmp_path / "roadmap-v0.3.0-items.md").write_text("content")
+        result = check_naming_convention(tmp_path)
+        assert result.passed is False
+        assert len(result.violations) == 1
+
+    def test_underscores_detected(self, tmp_path: Path) -> None:
+        (tmp_path / "some_underscore_name.md").write_text("content")
+        result = check_naming_convention(tmp_path)
+        assert result.passed is False
+        assert len(result.violations) == 1
+
+    def test_special_names_excluded(self, tmp_path: Path) -> None:
+        (tmp_path / "README.md").write_text("content")
+        (tmp_path / "CLAUDE.md").write_text("content")
+        result = check_naming_convention(tmp_path)
+        assert result.passed is True
+        assert result.violations == []
+
+    def test_subdirectory_files_checked(self, tmp_path: Path) -> None:
+        subdir = tmp_path / "subdir"
+        subdir.mkdir()
+        (subdir / "Valid-Name.md").write_text("content")
+        result = check_naming_convention(tmp_path)
+        assert result.passed is False
+        assert len(result.violations) == 1
+        assert "subdir/Valid-Name.md" in result.violations[0]
+
+    def test_non_kebab_directory_detected(self, tmp_path: Path) -> None:
+        subdir = tmp_path / "Sub_Dir"
+        subdir.mkdir()
+        (subdir / "valid-file.md").write_text("content")
+        result = check_naming_convention(tmp_path)
+        assert result.passed is False
+        assert len(result.violations) == 1
+        assert "Sub_Dir/valid-file.md" in result.violations[0]
+
+    def test_special_name_in_non_kebab_directory_detected(self, tmp_path: Path) -> None:
+        subdir = tmp_path / "Sub_Dir"
+        subdir.mkdir()
+        (subdir / "README.md").write_text("content")
+        result = check_naming_convention(tmp_path)
+        assert result.passed is False
+        assert len(result.violations) == 1
+        assert "Sub_Dir/README.md" in result.violations[0]
+
+    def test_nonexistent_path_passes(self, tmp_path: Path) -> None:
+        result = check_naming_convention(tmp_path / "does-not-exist")
+        assert result.passed is True
+
+    def test_empty_directory_passes(self, tmp_path: Path) -> None:
+        result = check_naming_convention(tmp_path)
+        assert result.passed is True
