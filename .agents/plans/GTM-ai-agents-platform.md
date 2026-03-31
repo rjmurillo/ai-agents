@@ -8,7 +8,7 @@
 
 ## Executive Summary
 
-ai-agents has 6 months of production evidence (1,555 merged PRs, 53 ADRs, 22MB of structured knowledge) that no competitor can match. The problem: nobody knows it exists outside the repo. The GTM is four phases over 6 months, starting with a CLI that matches Squad's onramp, then systematically converting Squad users, publishing the spec as an open standard, and building network effects through a marketplace.
+ai-agents has 6 months of production evidence (1,555+ merged PRs, 57+ ADRs, 22MB+ of structured knowledge as of 2026-03-31) that no competitor can match. The problem: nobody knows it exists outside the repo. The GTM is four phases over 6 months, starting with a CLI that matches Squad's onramp, then systematically converting Squad users, publishing the spec as an open standard, and building network effects through a marketplace.
 
 **The core insight:** We're not launching a product. We're formalizing a standard that already works and has 6 months of proof. Everything else is distribution.
 
@@ -99,7 +99,7 @@ Build social proof before public launch. Complete CLI feature parity with Squad.
 4. **Blog post: "What Your AI Team Looks Like After 6 Months"**
    - Side-by-side comparison: `.squad/` (fresh init) vs `.agents/` (6 months of real use)
    - Concrete examples: session protocols, ADRs, governance policies, security audits
-   - Numbers: 1,555 PRs, 53 ADRs, 2,847 knowledge files, 21 specialized agents
+   - Numbers: 1,555+ PRs, 57+ ADRs, 2,847+ knowledge files, 25+ specialized agents
    - Include testimonials from seed community
    - Ends with: `npx ai-agents init --from squad` — try it, keep your Squad state, see what you gain
    - **Target:** Hacker News front page, dev.to trending
@@ -170,7 +170,7 @@ Publish the `.agents/` directory format as an open standard. Make other tools co
    - Usable in CI pipelines
 
 3. **Integration outreach**
-   - Contact OpenClaw team about native `.agents/` support
+   - Contact [OpenClaw](https://github.com/nichochar/open-claw) team about native `.agents/` support
    - Reach out to Cursor, Continue.dev, Aider for format adoption
    - Submit to awesome-ai-coding-agents lists
 
@@ -233,7 +233,7 @@ Build switching cost through shared knowledge and network effects.
 
 Don't compete on charm. Compete on depth.
 
-Squad shows a fresh `squad init` with themed names and a cute CLI. We show what `.agents/` looks like after **1,555 pull requests**. Session protocols. 53 architectural decisions. Governance policies. Security audits. Pre-commit hooks that actually enforce quality.
+Squad shows a fresh `squad init` with themed names and a cute CLI. We show what `.agents/` looks like after **1,555+ pull requests**. Session protocols. 57+ architectural decisions. Governance policies. Security audits. Pre-commit hooks that actually enforce quality.
 
 One is a demo. The other is production.
 
@@ -264,10 +264,10 @@ Don't announce it. Just ship it. Let Squad users discover that ai-agents can eat
 
 | Risk | Probability | Impact | Mitigation |
 |------|------------|--------|------------|
-| Squad ships governance before us | 30% | High | Ship fast. Our evidence (1,555 PRs) is the moat — they can't fabricate 6 months of production use. |
+| Squad ships governance before us | 30% | High | Ship fast. Our evidence (1,555+ PRs) is the moat. They cannot fabricate 6 months of production use. |
 | npm name conflict | 20% | Medium | Register `@rjmurillo/ai-agents` immediately. Consider `ai-dev-team` as fallback. |
 | No organic discovery | 60% → 40% | High | **Seed community (5-10 devs) provides day-1 social proof.** Multi-channel launch. HN + dev.to + Reddit + Twitter coordinated. Testimonials in blog post. |
-| Spec is ignored by ecosystem | 40% | Medium | Get 1-2 early adopters (OpenClaw, Continue.dev) before public announcement. Social proof. |
+| Spec is ignored by ecosystem | 40% | Medium | Get 1-2 early adopters ([OpenClaw](https://github.com/nichochar/open-claw), Continue.dev) before public announcement. Social proof. |
 | Maintenance burden | 30% | Low | CLI is thin (templates + validation). Most value is in the spec, not the tool. |
 
 ---

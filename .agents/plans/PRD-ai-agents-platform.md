@@ -20,7 +20,7 @@ AI-assisted software development is moving from single-agent prompting to multi-
 | **Squad** (Brady Gaster) | Easy onramp (`squad init`), themed agents, Copilot integration | Copilot-only, no governance, shallow knowledge (`history.md` per agent), no session protocol, no security model |
 | **Copilot Workspace** | GitHub-native | Closed platform, single-agent mental model |
 | **Cursor Teams** | IDE-integrated | Proprietary, no cross-tool portability |
-| **ai-agents** (this project) | 21 agents, 53 ADRs, 1,558 closed issues, RFC-2119 session protocol, governance, security audits, multi-tool support | No CLI onramp, no npm package, high learning curve |
+| **ai-agents** (this project) | 25+ agents, 53+ ADRs, 1,550+ closed issues (as of 2026-03-31), RFC-2119 session protocol, governance, security audits, multi-tool support | No CLI onramp, no npm package, high learning curve |
 
 ### The Gap
 
@@ -30,7 +30,7 @@ Nobody owns the **knowledge layer**. The directory structure, the session protoc
 
 ## 2. Vision
 
-**ai-agents is the open standard for AI development teams — what OpenClaw is to single agents, ai-agents becomes to multi-agent development.**
+**ai-agents is the open standard for AI development teams. What [OpenClaw](https://github.com/nichochar/open-claw) (an open spec for single-agent AI workflows) is to single agents, ai-agents becomes to multi-agent development.**
 
 The product is not the agents. The product is the **harness**: the `.agents/` directory spec, the session protocol, the knowledge accumulation format, and the governance framework. Agents and orchestrators are pluggable. The knowledge layer is the platform.
 
@@ -159,14 +159,14 @@ The spec defines:
 
 | Capability | ai-agents | Squad |
 |-----------|-----------|-------|
-| Agent count | 21 specialized agents | 4-6 themed characters |
+| Agent count | 25+ specialized agents | 4-6 themed characters |
 | Session protocol | RFC 2119-grade gates, start/end prompts, handoff | Crash recovery only |
 | Governance | 10+ policy files, ADR exceptions, consensus model | None |
 | Security | Dedicated security agent, OWASP checks, security audits | None |
 | Knowledge depth | 22MB structured memory, 2,847 markdown files | `history.md` per agent |
 | Multi-tool support | Claude Code, Copilot, Gemini, VS Code | Copilot only |
-| ADR system | 53 architectural decision records | None |
-| Production evidence | 1,555 merged PRs, 1,552 closed issues | Alpha software |
+| ADR system | 57+ architectural decision records | None |
+| Production evidence | 1,555+ merged PRs, 1,550+ closed issues | Alpha software |
 | Memory model | Serena (semantic memory), session continuity | Basic persistence |
 | Git integration | Branch validation, pre-commit hooks, PR quality gates | Basic git |
 
