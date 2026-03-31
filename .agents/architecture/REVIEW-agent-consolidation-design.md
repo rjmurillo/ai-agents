@@ -14,7 +14,7 @@ issue: 0
 
 **Verdict**: NEEDS_CHANGES
 
-The proposed 21-to-5 consolidation is too aggressive. This comprehensive analysis identifies 9 distinct reasoning modes across 21 agents, recommending an optimal target of **9 core agents + 4 utilities = 13 total** (down from 21). The highest-risk proposal (merging security into critic) violates ADR-039's asymmetric risk principle and MUST be rejected. A phased approach preserving parallel execution benefits (2.8-4.4x speedup per ADR-009) and security isolation is required.
+The proposed 21-to-5 consolidation is too aggressive. This comprehensive analysis identifies 9 distinct reasoning modes across 21 agents, recommending an optimal target of **11 core agents + 4 utilities = 15 total** (down from 21). The highest-risk proposal (merging security into critic) violates ADR-039's asymmetric risk principle and MUST be rejected. Additionally, **critic and high-level-advisor MUST remain separate** as they are the most frequently invoked agents with distinct roles. A phased approach preserving parallel execution benefits (2.8-4.4x speedup per ADR-009) and security isolation is required.
 
 ## Context
 
@@ -70,9 +70,9 @@ An agent needs its own context window when it has a DISTINCT REASONING MODE. Age
 | independent-thinker | Sonnet | Evidence-based contrarian positions, assumption challenges | Medium |
 | high-level-advisor | Sonnet | Ruthless triage, Continue/Pivot/Cut decisions, OODA loop | Medium |
 
-**Verdict**: Both apply contrarian reasoning. High-level-advisor adds strategic prioritization, but core mode is "challenge before agreeing."
+**Verdict**: While both apply contrarian reasoning, high-level-advisor is one of the most frequently invoked agents and adds distinct strategic prioritization (OODA loop, Continue/Pivot/Cut). User feedback confirms these play distinct roles in practice.
 
-**Consolidated Agent**: **Advisor** (contrarian strategic guidance)
+**Decision**: **KEEP SEPARATE** - high-level-advisor and independent-thinker remain as distinct agents due to high invocation frequency and distinct strategic vs. analytical contrarian modes.
 
 ### Mode 4: Code Generation and Implementation
 
@@ -97,9 +97,9 @@ An agent needs its own context window when it has a DISTINCT REASONING MODE. Age
 | qa | Sonnet | Test strategy design, coverage validation, pre-PR gates | Medium |
 | quality-auditor | Sonnet | Domain grading, gap tracking, trend analysis | Medium |
 
-**Verdict**: All three apply validation reasoning to different artifacts (plans, implementation, quality metrics).
+**Verdict**: While all three apply validation reasoning, critic is one of the most frequently invoked agents with distinct responsibilities (plan validation, disagreement escalation, pre-PR readiness). User feedback confirms critic plays a distinct role.
 
-**Consolidated Agent**: **Validator** (plan and implementation validation)
+**Decision**: **KEEP CRITIC SEPARATE** - critic remains as distinct agent due to high invocation frequency. qa + quality-auditor can merge into **Validator** for implementation/coverage validation.
 
 ### Mode 6: Security Analysis (MUST REMAIN SEPARATE)
 
