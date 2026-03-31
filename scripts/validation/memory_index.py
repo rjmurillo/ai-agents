@@ -421,9 +421,10 @@ _ALLOWED_SPECIAL_NAMES: frozenset[str] = frozenset({
 def check_naming_convention(memory_path: Path) -> NamingConventionResult:
     """Validate that all memory files follow lowercase kebab-case naming.
 
-    Scans all .md files under memory_path (recursively). Files must use
-    lowercase kebab-case: ``some-file-name.md``. Index files and known
-    special names (README, CLAUDE) are excluded from the check.
+    Scans all .md files under memory_path (recursively). Both directory
+    names and filenames must use lowercase kebab-case:
+    ``some-dir/some-file-name.md``. Known special names (README, CLAUDE)
+    are excluded from the filename check only.
     """
     result = NamingConventionResult()
 
@@ -431,17 +432,31 @@ def check_naming_convention(memory_path: Path) -> NamingConventionResult:
         return result
 
     for f in sorted(memory_path.rglob("*.md")):
-        stem = f.stem
+        relative = f.relative_to(memory_path)
 
-        if stem in _ALLOWED_SPECIAL_NAMES:
-            continue
+        # Check all path components for kebab-case compliance.
+        is_violation = False
+        for i, part in enumerate(relative.parts):
+            is_last = i == len(relative.parts) - 1
+            if is_last:
+                stem = f.stem
+                if stem in _ALLOWED_SPECIAL_NAMES:
+                    continue
+                if not _KEBAB_CASE_PATTERN.match(stem):
+                    is_violation = True
+            else:
+                if not _KEBAB_CASE_PATTERN.match(part):
+                    is_violation = True
 
-        if not _KEBAB_CASE_PATTERN.match(stem):
+            if is_violation:
+                break
+
+        if is_violation:
             result.passed = False
-            relative = f.relative_to(memory_path)
-            result.violations.append(str(relative))
+            rel_posix = relative.as_posix()
+            result.violations.append(rel_posix)
             result.issues.append(
-                f"Naming violation: {relative} is not lowercase "
+                f"Naming violation: {rel_posix} is not lowercase "
                 f"kebab-case (expected pattern: lowercase-with-hyphens)"
             )
 
@@ -785,13 +800,15 @@ def run_validation(memory_path: Path, output_format: str) -> ValidationReport:
     naming_result = check_naming_convention(memory_path)
     report.naming_convention = naming_result
 
-    if not naming_result.passed and output_format == "console":
-        print(
-            f"\n[P1 WARN] Naming convention violations "
-            f"({len(naming_result.violations)}):"
-        )
-        for issue in naming_result.issues:
-            print(f"  - {issue}")
+    if not naming_result.passed:
+        report.passed = False
+        if output_format == "console":
+            print(
+                f"\n[P1] Naming convention violations "
+                f"({len(naming_result.violations)}):"
+            )
+            for issue in naming_result.issues:
+                print(f"  - {issue}")
 
     return report
 

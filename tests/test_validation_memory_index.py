@@ -974,6 +974,24 @@ class TestCheckNamingConvention:
         assert len(result.violations) == 1
         assert "subdir/Valid-Name.md" in result.violations[0]
 
+    def test_non_kebab_directory_detected(self, tmp_path: Path) -> None:
+        subdir = tmp_path / "Sub_Dir"
+        subdir.mkdir()
+        (subdir / "valid-file.md").write_text("content")
+        result = check_naming_convention(tmp_path)
+        assert result.passed is False
+        assert len(result.violations) == 1
+        assert "Sub_Dir/valid-file.md" in result.violations[0]
+
+    def test_special_name_in_non_kebab_directory_detected(self, tmp_path: Path) -> None:
+        subdir = tmp_path / "Sub_Dir"
+        subdir.mkdir()
+        (subdir / "README.md").write_text("content")
+        result = check_naming_convention(tmp_path)
+        assert result.passed is False
+        assert len(result.violations) == 1
+        assert "Sub_Dir/README.md" in result.violations[0]
+
     def test_nonexistent_path_passes(self, tmp_path: Path) -> None:
         result = check_naming_convention(tmp_path / "does-not-exist")
         assert result.passed is True
