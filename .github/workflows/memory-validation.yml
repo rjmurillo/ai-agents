@@ -68,6 +68,10 @@ jobs:
         run: |
           echo "::warning::Memory tier validation found issues (non-blocking). Run 'python3 scripts/validate_memory_tier.py' locally to see details."
 
+      - name: Validate memory index consistency (ADR-017)
+        id: index-validation
+        run: python3 scripts/validation/memory_index.py --path .serena/memories --ci --format console
+
       - name: Verify all memories
         id: verify
         continue-on-error: true
