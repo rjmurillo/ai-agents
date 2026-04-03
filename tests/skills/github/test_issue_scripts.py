@@ -77,17 +77,17 @@ class TestGetIssueContext:
 
         assert rc == 0
         captured = capsys.readouterr()
-        result = json.loads(captured.out)
-        assert result["success"] is True
-        assert result["number"] == 42
-        assert result["title"] == "Test Issue"
-        assert result["state"] == "OPEN"
-        assert result["author"] == "alice"
-        assert result["labels"] == ["bug"]
-        assert result["milestone"] == "v1.0"
-        assert result["assignees"] == ["bob"]
-        assert result["owner"] == "owner"
-        assert result["repo"] == "repo"
+        output = json.loads(captured.out)
+        assert output["Success"] is True
+        assert output["Data"]["number"] == 42
+        assert output["Data"]["title"] == "Test Issue"
+        assert output["Data"]["state"] == "OPEN"
+        assert output["Data"]["author"] == "alice"
+        assert output["Data"]["labels"] == ["bug"]
+        assert output["Data"]["milestone"] == "v1.0"
+        assert output["Data"]["assignees"] == ["bob"]
+        assert output["Data"]["owner"] == "owner"
+        assert output["Data"]["repo"] == "repo"
 
     def test_no_milestone(self, capsys):
         mod = self._import()
@@ -111,8 +111,8 @@ class TestGetIssueContext:
         ):
             rc = mod.main(["--issue", "1"])
         assert rc == 0
-        result = json.loads(capsys.readouterr().out)
-        assert result["milestone"] is None
+        output = json.loads(capsys.readouterr().out)
+        assert output["Data"]["milestone"] is None
 
     def test_api_not_found_exits_2(self):
         mod = self._import()
@@ -189,8 +189,8 @@ class TestGetIssueContextMain:
 
         captured = capsys.readouterr()
         parsed = json.loads(captured.out)
-        assert parsed["success"] is True
-        assert parsed["number"] == 7
+        assert parsed["Success"] is True
+        assert parsed["Data"]["number"] == 7
 
 
 # ---------------------------------------------------------------------------
@@ -474,10 +474,10 @@ class TestSetIssueAssignee:
         ):
             rc = mod.main(["--issue", "1", "--assignees", "alice"])
         assert rc == 0
-        result = json.loads(capsys.readouterr().out)
-        assert result["success"] is True
-        assert result["applied"] == ["alice"]
-        assert result["failed"] == []
+        output = json.loads(capsys.readouterr().out)
+        assert output["Success"] is True
+        assert output["Data"]["applied"] == ["alice"]
+        assert output["Data"]["failed"] == []
 
     def test_multiple_assignees(self, capsys):
         mod = self._import()
@@ -488,9 +488,9 @@ class TestSetIssueAssignee:
             patch("subprocess.run", return_value=proc),
         ):
             rc = mod.main(["--issue", "1", "--assignees", "alice", "bob"])
-        result = json.loads(capsys.readouterr().out)
-        assert result["total_applied"] == 2
-        assert result["success"] is True
+        output = json.loads(capsys.readouterr().out)
+        assert output["Data"]["total_applied"] == 2
+        assert output["Success"] is True
 
     def test_partial_failure(self, capsys):
         mod = self._import()
@@ -545,9 +545,9 @@ class TestSetIssueLabels:
         ):
             rc = mod.main(["--issue", "1", "--labels", "bug"])
         assert rc == 0
-        result = json.loads(capsys.readouterr().out)
-        assert result["success"] is True
-        assert "bug" in result["applied"]
+        output = json.loads(capsys.readouterr().out)
+        assert output["Success"] is True
+        assert "bug" in output["Data"]["applied"]
 
     def test_label_missing_auto_created(self, capsys):
         mod = self._import()
@@ -563,8 +563,8 @@ class TestSetIssueLabels:
         ):
             rc = mod.main(["--issue", "1", "--labels", "new-label"])
         assert rc == 0
-        result = json.loads(capsys.readouterr().out)
-        assert result["success"] is True
+        output = json.loads(capsys.readouterr().out)
+        assert output["Success"] is True
 
     def test_label_missing_no_create(self, capsys):
         mod = self._import()
@@ -590,8 +590,8 @@ class TestSetIssueLabels:
         ):
             rc = mod.main(["--issue", "1", "--priority", "P1"])
         assert rc == 0
-        result = json.loads(capsys.readouterr().out)
-        assert any("priority:P1" in label for label in result["applied"])
+        output = json.loads(capsys.readouterr().out)
+        assert any("priority:P1" in label for label in output["Data"]["applied"])
 
     def test_no_labels_prints_message(self, capsys):
         mod = self._import()

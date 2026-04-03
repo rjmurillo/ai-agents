@@ -46,10 +46,10 @@ class TestSetIssueAssignee:
             rc = mod.main(["--issue", "1", "--assignees", "user1"])
         assert rc == 0
         result = json.loads(capsys.readouterr().out)
-        assert result["success"] is True
-        assert result["applied"] == ["user1"]
-        assert result["failed"] == []
-        assert result["total_applied"] == 1
+        assert result["Success"] is True
+        assert result["Data"]["applied"] == ["user1"]
+        assert result["Data"]["failed"] == []
+        assert result["Data"]["total_applied"] == 1
 
     def test_assign_multiple_users(self, _import_module, capsys):
         mod = _import_module
@@ -61,8 +61,8 @@ class TestSetIssueAssignee:
             rc = mod.main(["--issue", "1", "--assignees", "u1", "u2", "u3"])
         assert rc == 0
         result = json.loads(capsys.readouterr().out)
-        assert result["total_applied"] == 3
-        assert result["applied"] == ["u1", "u2", "u3"]
+        assert result["Data"]["total_applied"] == 3
+        assert result["Data"]["applied"] == ["u1", "u2", "u3"]
 
     def test_partial_failure(self, _import_module):
         mod = _import_module

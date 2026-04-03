@@ -46,9 +46,9 @@ def test_assign_single_user(mock_run, capsys):
     rc = main(["--issue", "42", "--assignees", "@me"])
     assert rc == 0
     output = json.loads(capsys.readouterr().out)
-    assert output["success"] is True
-    assert output["applied"] == ["@me"]
-    assert output["failed"] == []
+    assert output["Success"] is True
+    assert output["Data"]["applied"] == ["@me"]
+    assert output["Data"]["failed"] == []
 
 
 @patch("subprocess.run")
@@ -63,7 +63,7 @@ def test_assign_multiple_users(mock_run, capsys):
     rc = main(["--issue", "1", "--assignees", "user1", "user2"])
     assert rc == 0
     output = json.loads(capsys.readouterr().out)
-    assert output["total_applied"] == 2
+    assert output["Data"]["total_applied"] == 2
 
 
 @patch("subprocess.run")
@@ -102,10 +102,10 @@ def test_all_assignees_fail(mock_run, capsys):
         main(["--issue", "1", "--assignees", "bad1", "bad2"])
     assert exc_info.value.code == 3
     output = json.loads(capsys.readouterr().out)
-    assert output["success"] is False
-    assert output["applied"] == []
-    assert output["failed"] == ["bad1", "bad2"]
-    assert output["total_applied"] == 0
+    assert output["Success"] is False
+    assert output["Data"]["applied"] == []
+    assert output["Data"]["failed"] == ["bad1", "bad2"]
+    assert output["Data"]["total_applied"] == 0
 
 
 @patch("subprocess.run")
@@ -119,7 +119,7 @@ def test_output_structure(mock_run, capsys):
     rc = main(["--issue", "99", "--assignees", "alice"])
     assert rc == 0
     output = json.loads(capsys.readouterr().out)
-    assert output["issue"] == 99
-    assert isinstance(output["applied"], list)
-    assert isinstance(output["failed"], list)
-    assert isinstance(output["total_applied"], int)
+    assert output["Data"]["issue"] == 99
+    assert isinstance(output["Data"]["applied"], list)
+    assert isinstance(output["Data"]["failed"], list)
+    assert isinstance(output["Data"]["total_applied"], int)
