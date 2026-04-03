@@ -153,4 +153,3 @@ jobs:
           name: bandit-results
           path: artifacts/bandit-results.sarif
           retention-days: 7
-
