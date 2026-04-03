@@ -23,6 +23,8 @@ from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
+from scripts.utils.path_validation import validate_safe_path
+
 _SCRIPT_DIR = Path(__file__).resolve().parent
 _PROJECT_ROOT = _SCRIPT_DIR.parent
 _SKILLS_DIR = _PROJECT_ROOT / ".claude" / "skills"
@@ -366,7 +368,7 @@ def filter_stale(skills: list[SkillMetadata], stale_days: int) -> list[SkillMeta
 
     cutoff_date = (datetime.now(UTC) - timedelta(days=stale_days)).strftime("%Y-%m-%d")
 
-    return [s for s in skills if s.last_modified != "unknown" and s.last_modified < cutoff_date]
+    return [s for s in skills if s.last_modified != "unknown" and s.last_modified <= cutoff_date]
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -381,17 +383,14 @@ def main(argv: list[str] | None = None) -> int:
     try:
         args = parse_args(argv)
 
-        raw_project_root = Path(args.project_root or _PROJECT_ROOT)
-        if ".." in raw_project_root.parts:
-            print("ERROR: Path traversal detected in project root", file=sys.stderr)
-            return 2
-        project_root = raw_project_root.resolve()
+        project_root = Path(args.project_root or _PROJECT_ROOT).resolve()
 
         raw_skills_dir = Path(args.skills_dir or (project_root / ".claude" / "skills"))
-        if ".." in raw_skills_dir.parts:
-            print("ERROR: Path traversal detected in skills directory", file=sys.stderr)
+        try:
+            skills_dir = validate_safe_path(raw_skills_dir, project_root)
+        except (ValueError, FileNotFoundError) as exc:
+            print(f"ERROR: {exc}", file=sys.stderr)
             return 2
-        skills_dir = raw_skills_dir.resolve()
 
         if not skills_dir.is_dir():
             print(
@@ -427,9 +426,9 @@ def main(argv: list[str] | None = None) -> int:
     except KeyboardInterrupt:
         print("\nInterrupted", file=sys.stderr)
         return 1
-    except Exception as e:
+    except (OSError, subprocess.SubprocessError) as e:
         print(f"FATAL: {e}", file=sys.stderr)
-        return 2
+        return 1
 
 
 if __name__ == "__main__":
