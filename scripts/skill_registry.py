@@ -381,8 +381,17 @@ def main(argv: list[str] | None = None) -> int:
     try:
         args = parse_args(argv)
 
-        project_root = args.project_root or _PROJECT_ROOT
-        skills_dir = args.skills_dir or (project_root / ".claude" / "skills")
+        raw_project_root = Path(args.project_root or _PROJECT_ROOT)
+        if ".." in raw_project_root.parts:
+            print("ERROR: Path traversal detected in project root", file=sys.stderr)
+            return 2
+        project_root = raw_project_root.resolve()
+
+        raw_skills_dir = Path(args.skills_dir or (project_root / ".claude" / "skills"))
+        if ".." in raw_skills_dir.parts:
+            print("ERROR: Path traversal detected in skills directory", file=sys.stderr)
+            return 2
+        skills_dir = raw_skills_dir.resolve()
 
         if not skills_dir.is_dir():
             print(

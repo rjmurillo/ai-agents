@@ -326,3 +326,20 @@ class TestFormatSessionMessage:
         ]
         msg = format_session_message(skills, stale_days=30)
         assert "and 5 more" in msg
+
+
+class TestPathTraversal:
+    """Tests for CWE-22 path traversal prevention."""
+
+    def test_rejects_project_root_traversal(self, tmp_path: Path) -> None:
+        """Returns error code when project root contains path traversal."""
+        exit_code = main(["--project-root", str(tmp_path / ".." / "escape")])
+        assert exit_code == 2
+
+    def test_rejects_skills_dir_traversal(self, tmp_path: Path) -> None:
+        """Returns error code when skills dir contains path traversal."""
+        exit_code = main([
+            "--project-root", str(tmp_path),
+            "--skills-dir", str(tmp_path / ".." / "escape"),
+        ])
+        assert exit_code == 2
