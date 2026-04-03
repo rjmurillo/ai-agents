@@ -278,6 +278,30 @@ def format_markdown(skills: list[SkillMetadata]) -> str:
     return "\n".join(lines) + "\n"
 
 
+def format_session_message(stale_skills: list[SkillMetadata], stale_days: int) -> str:
+    """Format a session-ready message listing underutilized skills.
+
+    Designed for integration with session-init or reflect skills.
+    Outputs a concise notification when stale skills exist, or empty
+    string when all skills are recently used.
+
+    Args:
+        stale_skills: Skills not modified within the threshold.
+        stale_days: Threshold in days.
+
+    Returns:
+        Session message string, or empty string if no stale skills.
+    """
+    if not stale_skills:
+        return ""
+    names = ", ".join(s.name for s in stale_skills[:10])
+    remaining = len(stale_skills) - 10
+    msg = f"These skills haven't been used in {stale_days}+ days: {names}"
+    if remaining > 0:
+        msg += f" (and {remaining} more)"
+    return msg
+
+
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     """Parse command line arguments.
 
@@ -319,6 +343,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--show-stale",
         action="store_true",
         help="Only show skills not modified in --stale-days",
+    )
+    parser.add_argument(
+        "--session-message",
+        action="store_true",
+        help="Output a session-ready message about stale skills for session integration",
     )
     return parser.parse_args(argv)
 
@@ -363,6 +392,13 @@ def main(argv: list[str] | None = None) -> int:
             return 2
 
         skills = build_registry(skills_dir, project_root)
+
+        if args.session_message:
+            stale = filter_stale(skills, args.stale_days)
+            msg = format_session_message(stale, args.stale_days)
+            if msg:
+                print(msg)
+            return 0
 
         if args.show_stale:
             skills = filter_stale(skills, args.stale_days)

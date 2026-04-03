@@ -19,6 +19,7 @@ from scripts.skill_registry import (
     filter_stale,
     format_json,
     format_markdown,
+    format_session_message,
     main,
     parse_frontmatter,
     scan_skill,
@@ -284,3 +285,44 @@ class TestMain:
             ]
         )
         assert exit_code == 0
+
+    def test_session_message(self, skill_tree: Path) -> None:
+        """--session-message outputs session-ready stale skill notification."""
+        exit_code = main(
+            [
+                "--session-message",
+                "--stale-days",
+                "30",
+                "--skills-dir",
+                str(skill_tree),
+                "--project-root",
+                str(skill_tree.parent.parent),
+            ]
+        )
+        assert exit_code == 0
+
+
+class TestFormatSessionMessage:
+    """Tests for format_session_message function."""
+
+    def test_returns_empty_when_no_stale(self) -> None:
+        """Returns empty string when no skills are stale."""
+        assert format_session_message([], stale_days=30) == ""
+
+    def test_lists_stale_skill_names(self) -> None:
+        """Message includes stale skill names."""
+        skills = [
+            SkillMetadata("old-skill", "p", "d", "c", "2020-01-01", "", False, False, 1),
+        ]
+        msg = format_session_message(skills, stale_days=30)
+        assert "old-skill" in msg
+        assert "30+ days" in msg
+
+    def test_truncates_at_ten_skills(self) -> None:
+        """Truncates to first 10 skills with overflow count."""
+        skills = [
+            SkillMetadata(f"skill-{i}", "p", "d", "c", "2020-01-01", "", False, False, 1)
+            for i in range(15)
+        ]
+        msg = format_session_message(skills, stale_days=30)
+        assert "and 5 more" in msg
