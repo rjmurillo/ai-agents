@@ -37,12 +37,12 @@ if _lib_dir not in sys.path:
 
 from github_core.api import (  # noqa: E402
     assert_gh_authenticated,
-    error_and_exit,
     resolve_repo_params,
 )
 from github_core.output import (  # noqa: E402
     add_output_format_arg,
     get_output_format,
+    write_skill_error,
     write_skill_output,
 )
 
@@ -79,18 +79,36 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     if result.returncode != 0:
-        error_and_exit(
+        write_skill_error(
             f"Issue #{args.issue} not found or API error (exit code {result.returncode})",
             2,
+            error_type="NotFound",
+            output_format=fmt,
+            script_name="get_issue_context.py",
         )
+        raise SystemExit(2)
 
     try:
         issue_data = json.loads(result.stdout)
     except json.JSONDecodeError:
-        error_and_exit("Failed to parse issue JSON", 3)
+        write_skill_error(
+            "Failed to parse issue JSON",
+            3,
+            error_type="ApiError",
+            output_format=fmt,
+            script_name="get_issue_context.py",
+        )
+        raise SystemExit(3)
 
     if not issue_data:
-        error_and_exit("Failed to parse issue JSON", 3)
+        write_skill_error(
+            "Failed to parse issue JSON",
+            3,
+            error_type="ApiError",
+            output_format=fmt,
+            script_name="get_issue_context.py",
+        )
+        raise SystemExit(3)
 
     labels = [label["name"] for label in issue_data.get("labels", [])]
     assignees = [a["login"] for a in issue_data.get("assignees", [])]

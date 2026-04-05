@@ -488,6 +488,7 @@ class TestSetIssueAssignee:
             patch("subprocess.run", return_value=proc),
         ):
             rc = mod.main(["--issue", "1", "--assignees", "alice", "bob"])
+        assert rc == 0
         output = json.loads(capsys.readouterr().out)
         assert output["Data"]["total_applied"] == 2
         assert output["Success"] is True

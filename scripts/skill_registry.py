@@ -23,11 +23,14 @@ from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
-from scripts.utils.path_validation import validate_safe_path
-
 _SCRIPT_DIR = Path(__file__).resolve().parent
 _PROJECT_ROOT = _SCRIPT_DIR.parent
 _SKILLS_DIR = _PROJECT_ROOT / ".claude" / "skills"
+
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from scripts.utils.path_validation import validate_safe_path  # noqa: E402
 
 
 @dataclass(frozen=True)
@@ -62,11 +65,16 @@ def parse_frontmatter(skill_md: Path) -> dict[str, str]:
     if not lines or lines[0].strip() != "---":
         return {}
 
+    try:
+        end_index = next(
+            index for index, line in enumerate(lines[1:], start=1) if line.strip() == "---"
+        )
+    except StopIteration:
+        return {}
+
     frontmatter: dict[str, str] = {}
-    for line in lines[1:]:
+    for line in lines[1:end_index]:
         stripped = line.strip()
-        if stripped == "---":
-            break
         if ":" in stripped and not stripped.startswith("-"):
             key, _, value = stripped.partition(":")
             frontmatter[key.strip()] = value.strip()
@@ -219,6 +227,8 @@ def build_registry(skills_dir: Path, project_root: Path) -> list[SkillMetadata]:
     """
     skills: list[SkillMetadata] = []
     for entry in sorted(skills_dir.iterdir()):
+        if entry.is_symlink():
+            continue
         if not entry.is_dir():
             continue
         if entry.name.startswith(".") or entry.name == "__pycache__":
@@ -335,9 +345,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=None,
         help="Project root directory (defaults to auto-detection)",
     )
+    def _non_negative_int(value: str) -> int:
+        parsed = int(value)
+        if parsed < 0:
+            raise argparse.ArgumentTypeError("--stale-days must be >= 0")
+        return parsed
+
     parser.add_argument(
         "--stale-days",
-        type=int,
+        type=_non_negative_int,
         default=30,
         help="Days without modification to consider a skill stale (default: 30)",
     )
