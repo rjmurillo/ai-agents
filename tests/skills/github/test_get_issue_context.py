@@ -62,18 +62,18 @@ class TestGetIssueContext:
             rc = mod.main(["--issue", "42"])
 
         assert rc == 0
-        result = json.loads(capsys.readouterr().out)
-        assert result["success"] is True
-        assert result["number"] == 42
-        assert result["title"] == "Test Issue"
-        assert result["body"] == "Some description"
-        assert result["state"] == "OPEN"
-        assert result["author"] == "testuser"
-        assert result["labels"] == ["bug", "P1"]
-        assert result["milestone"] == "v1.0.0"
-        assert result["assignees"] == ["dev1"]
-        assert result["owner"] == "owner"
-        assert result["repo"] == "repo"
+        output = json.loads(capsys.readouterr().out)
+        assert output["Success"] is True
+        assert output["Data"]["number"] == 42
+        assert output["Data"]["title"] == "Test Issue"
+        assert output["Data"]["body"] == "Some description"
+        assert output["Data"]["state"] == "OPEN"
+        assert output["Data"]["author"] == "testuser"
+        assert output["Data"]["labels"] == ["bug", "P1"]
+        assert output["Data"]["milestone"] == "v1.0.0"
+        assert output["Data"]["assignees"] == ["dev1"]
+        assert output["Data"]["owner"] == "owner"
+        assert output["Data"]["repo"] == "repo"
 
     def test_no_milestone(self, _import_module, capsys):
         mod = _import_module
@@ -98,8 +98,8 @@ class TestGetIssueContext:
         ):
             rc = mod.main(["--issue", "10"])
         assert rc == 0
-        result = json.loads(capsys.readouterr().out)
-        assert result["milestone"] is None
+        output = json.loads(capsys.readouterr().out)
+        assert output["Data"]["milestone"] is None
 
     def test_not_found_exits_2(self, _import_module):
         mod = _import_module
@@ -150,7 +150,7 @@ class TestGetIssueContext:
         ):
             rc = mod.main(["--issue", "5"])
         assert rc == 0
-        result = json.loads(capsys.readouterr().out)
-        assert result["labels"] == []
-        assert result["assignees"] == []
-        assert result["body"] == ""
+        output = json.loads(capsys.readouterr().out)
+        assert output["Data"]["labels"] == []
+        assert output["Data"]["assignees"] == []
+        assert output["Data"]["body"] == ""

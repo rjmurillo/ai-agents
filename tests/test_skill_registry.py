@@ -331,15 +331,24 @@ class TestFormatSessionMessage:
 class TestPathTraversal:
     """Tests for CWE-22 path traversal prevention."""
 
-    def test_rejects_project_root_traversal(self, tmp_path: Path) -> None:
-        """Returns error code when project root contains path traversal."""
-        exit_code = main(["--project-root", str(tmp_path / ".." / "escape")])
+    def test_rejects_skills_dir_outside_project_root(self, tmp_path: Path) -> None:
+        """Returns error code when skills dir escapes project root."""
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        project = tmp_path / "project"
+        project.mkdir()
+        exit_code = main([
+            "--project-root", str(project),
+            "--skills-dir", str(outside),
+        ])
         assert exit_code == 2
 
     def test_rejects_skills_dir_traversal(self, tmp_path: Path) -> None:
-        """Returns error code when skills dir contains path traversal."""
+        """Returns error code when skills dir uses .. to escape project root."""
+        project = tmp_path / "project"
+        project.mkdir()
         exit_code = main([
-            "--project-root", str(tmp_path),
-            "--skills-dir", str(tmp_path / ".." / "escape"),
+            "--project-root", str(project),
+            "--skills-dir", str(project / ".." / "escape"),
         ])
         assert exit_code == 2

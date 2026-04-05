@@ -37,8 +37,13 @@ if _lib_dir not in sys.path:
 
 from github_core.api import (  # noqa: E402
     assert_gh_authenticated,
-    error_and_exit,
     resolve_repo_params,
+)
+from github_core.output import (  # noqa: E402
+    add_output_format_arg,
+    get_output_format,
+    write_skill_error,
+    write_skill_output,
 )
 
 
@@ -49,6 +54,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")
     parser.add_argument("--issue", type=int, required=True, help="Issue number")
+    add_output_format_arg(parser)
     return parser
 
 
@@ -58,6 +64,7 @@ def main(argv: list[str] | None = None) -> int:
     assert_gh_authenticated()
     resolved = resolve_repo_params(args.owner, args.repo)
     owner, repo = resolved.owner, resolved.repo
+    fmt = get_output_format(args.output_format)
 
     fields = "number,title,body,state,author,labels,milestone,assignees,createdAt,updatedAt"
     result = subprocess.run(
@@ -72,26 +79,43 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     if result.returncode != 0:
-        error_and_exit(
+        write_skill_error(
             f"Issue #{args.issue} not found or API error (exit code {result.returncode})",
             2,
+            error_type="NotFound",
+            output_format=fmt,
+            script_name="get_issue_context.py",
         )
+        raise SystemExit(2)
 
     try:
         issue_data = json.loads(result.stdout)
     except json.JSONDecodeError:
-        error_and_exit("Failed to parse issue JSON", 3)
+        write_skill_error(
+            "Failed to parse issue JSON",
+            3,
+            error_type="ApiError",
+            output_format=fmt,
+            script_name="get_issue_context.py",
+        )
+        raise SystemExit(3)
 
     if not issue_data:
-        error_and_exit("Failed to parse issue JSON", 3)
+        write_skill_error(
+            "Failed to parse issue JSON",
+            3,
+            error_type="ApiError",
+            output_format=fmt,
+            script_name="get_issue_context.py",
+        )
+        raise SystemExit(3)
 
     labels = [label["name"] for label in issue_data.get("labels", [])]
     assignees = [a["login"] for a in issue_data.get("assignees", [])]
     milestone_obj = issue_data.get("milestone")
     milestone = milestone_obj["title"] if milestone_obj else None
 
-    output = {
-        "success": True,
+    data = {
         "number": issue_data["number"],
         "title": issue_data["title"],
         "body": issue_data.get("body", ""),
@@ -106,7 +130,13 @@ def main(argv: list[str] | None = None) -> int:
         "repo": repo,
     }
 
-    print(json.dumps(output, indent=2))
+    write_skill_output(
+        data,
+        output_format=fmt,
+        human_summary=f"Issue #{args.issue}: {issue_data['title']} ({issue_data['state']})",
+        status="PASS",
+        script_name="get_issue_context.py",
+    )
     return 0
 
 
