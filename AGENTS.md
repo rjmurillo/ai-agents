@@ -47,6 +47,10 @@ Read first, reason second. Pre-training is last resort.
 | Learn | reflect |
 | Workflow | workflow (0-init, 1-plan, 2-impl, 3-qa, 4-security) |
 
+### ADR Review (BLOCKING)
+
+Any file matching `.agents/architecture/ADR-*.md` or `.agents/SESSION-PROTOCOL.md` created or edited triggers mandatory adr-review skill before workflow continues.
+
 ## Agents
 
 | Agent | Purpose | Model |
@@ -73,7 +77,7 @@ Tests: `tests/`|`.claude/skills/<name>/tests/`|`.agents/security/benchmarks/`
 
 ## Stack
 
-Python 3.12|UV|PowerShell 7.5.4+|Node LTS|Pester 5.7.1|pytest 8+|gh 2.60+
+Python 3.14|UV|PowerShell 7.5.4+|Node LTS|Pester 5.7.1|pytest 8+|gh 2.60+
 
 ## Refs
 

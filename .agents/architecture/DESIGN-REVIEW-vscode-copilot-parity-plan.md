@@ -1,3 +1,11 @@
+---
+status: "NEEDS_CHANGES"
+priority: "P1"
+blocking: false
+reviewer: "architect"
+date: "2026-01-14"
+---
+
 # Design Review: VSCode Copilot Parity Plan
 
 **Reviewer**: Architect

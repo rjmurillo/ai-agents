@@ -1,3 +1,13 @@
+---
+status: "APPROVED"
+priority: "P1"
+blocking: false
+reviewer: "architect"
+date: "2026-02-07"
+pr: 1085
+issue: 1083
+---
+
 # Architecture Review: PR #1085 Session Log CWE Fixes
 
 **Date**: 2026-02-07

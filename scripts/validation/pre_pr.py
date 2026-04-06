@@ -9,10 +9,11 @@ Validation sequence:
     2. Pester Tests (all unit tests)
     3. Markdown Lint (auto-fix and validate)
     4. Workflow YAML (validate GitHub Actions workflows)
-    5. YAML Style (check YAML style with yamllint) [skip if --quick]
-    6. Path Normalization (check for absolute paths) [skip if --quick, requires PS1]
-    7. Planning Artifacts (validate planning consistency) [skip if --quick, requires PS1]
-    8. Agent Drift (detect semantic drift) [skip if --quick, requires PS1]
+    5. Design Review Frontmatter (validate DESIGN-REVIEW YAML frontmatter)
+    6. YAML Style (check YAML style with yamllint) [skip if --quick]
+    7. Path Normalization (check for absolute paths) [skip if --quick, requires PS1]
+    8. Planning Artifacts (validate planning consistency) [skip if --quick, requires PS1]
+    9. Agent Drift (detect semantic drift) [skip if --quick, requires PS1]
 
 Exit codes follow ADR-035:
     0 - Success (all validations passed)
@@ -33,6 +34,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 
 @dataclass
@@ -299,6 +301,141 @@ def validate_planning_artifacts(repo_root: Path) -> bool:
     return exit_code == 0
 
 
+def _parse_yaml_frontmatter(text: str) -> dict[str, Any] | None:
+    """Parse YAML frontmatter from markdown text.
+
+    Returns parsed dict or None if no frontmatter found.
+    Uses a minimal parser to avoid external dependencies.
+    """
+    if not text.startswith("---"):
+        return None
+
+    end_index = text.find("\n---", 3)
+    if end_index == -1:
+        return None
+
+    frontmatter_text = text[4:end_index].strip()
+    result: dict[str, Any] = {}
+
+    for line in frontmatter_text.split("\n"):
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+
+        colon_pos = line.find(":")
+        if colon_pos == -1:
+            continue
+
+        key = line[:colon_pos].strip()
+        value = line[colon_pos + 1 :].strip()
+
+        # Strip inline YAML comments (e.g., "APPROVED  # valid values")
+        # Only strip if not inside quotes
+        if value and value[0] not in ('"', "'"):
+            comment_pos = value.find("#")
+            if comment_pos > 0:
+                value = value[:comment_pos].strip()
+
+        # Strip quotes
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in ('"', "'"):
+            value = value[1:-1]
+
+        # Parse booleans
+        if value.lower() == "true":
+            result[key] = True
+        elif value.lower() == "false":
+            result[key] = False
+        # Parse integers
+        elif value.isdigit():
+            result[key] = int(value)
+        else:
+            result[key] = value
+
+    return result
+
+
+_REQUIRED_FRONTMATTER_FIELDS = {"status", "priority", "blocking", "reviewer", "date"}
+_VALID_STATUSES = {"APPROVED", "NEEDS_CHANGES", "NEEDS_ADR", "BLOCKED", "REJECTED"}
+_VALID_PRIORITIES = {"P0", "P1", "P2"}
+_BLOCKING_STATUSES = {"NEEDS_ADR", "BLOCKED", "REJECTED"}
+
+
+def validate_design_review_frontmatter(repo_root: Path) -> bool:
+    """Validate YAML frontmatter in DESIGN-REVIEW documents.
+
+    Checks all .agents/architecture/DESIGN-REVIEW-*.md files for:
+    - Presence of YAML frontmatter
+    - Required fields (status, priority, blocking, reviewer, date)
+    - Valid status and priority values
+    - Blocking consistency (blocking=true when status is NEEDS_ADR/BLOCKED/REJECTED)
+
+    Returns True if all files pass or no files exist.
+    """
+    review_dir = repo_root / ".agents" / "architecture"
+    if not review_dir.is_dir():
+        print("[WARNING] No .agents/architecture/ directory found")
+        return True
+
+    review_files = sorted(review_dir.glob("DESIGN-REVIEW-*.md"))
+    if not review_files:
+        print("No DESIGN-REVIEW files found. Nothing to validate.")
+        return True
+
+    print(f"Validating {len(review_files)} DESIGN-REVIEW file(s)...")
+
+    all_passed = True
+    blocking_reviews: list[str] = []
+
+    for filepath in review_files:
+        text = filepath.read_text(encoding="utf-8")
+        frontmatter = _parse_yaml_frontmatter(text)
+
+        if frontmatter is None:
+            print(f"  [FAIL] {filepath.name}: missing YAML frontmatter")
+            all_passed = False
+            continue
+
+        # Check required fields
+        missing = _REQUIRED_FRONTMATTER_FIELDS - set(frontmatter.keys())
+        if missing:
+            print(f"  [FAIL] {filepath.name}: missing fields: {', '.join(sorted(missing))}")
+            all_passed = False
+            continue
+
+        # Validate status value
+        status = str(frontmatter["status"]).strip()
+        if status not in _VALID_STATUSES:
+            print(f"  [FAIL] {filepath.name}: invalid status '{status}'")
+            all_passed = False
+
+        # Validate priority value
+        priority = str(frontmatter["priority"]).strip()
+        if priority not in _VALID_PRIORITIES:
+            print(f"  [FAIL] {filepath.name}: invalid priority '{priority}'")
+            all_passed = False
+
+        # Check blocking consistency
+        blocking = frontmatter.get("blocking", False)
+        if status in _BLOCKING_STATUSES and not blocking:
+            print(
+                f"  [WARNING] {filepath.name}: status '{status}' should have blocking: true"
+            )
+
+        if blocking and status in _BLOCKING_STATUSES:
+            blocking_reviews.append(filepath.name)
+
+        print(f"  [PASS] {filepath.name} (status={status}, blocking={blocking})")
+
+    if blocking_reviews:
+        print()
+        print(f"[WARNING] {len(blocking_reviews)} blocking review(s) detected:")
+        for name in blocking_reviews:
+            print(f"  - {name}")
+        print("  These will block PR merges via synthesis-panel-gate.yml")
+
+    return all_passed
+
+
 def validate_agent_drift(repo_root: Path) -> bool:
     """Detect agent semantic drift."""
     script = repo_root / "build" / "scripts" / "Detect-AgentDrift.ps1"
@@ -398,6 +535,13 @@ def main(argv: list[str] | None = None) -> int:
         "Workflow YAML Validation",
         state,
         lambda: validate_workflow_yaml(repo_root),
+    )
+
+    # 3.6 Design Review Frontmatter
+    run_validation(
+        "Design Review Frontmatter",
+        state,
+        lambda: validate_design_review_frontmatter(repo_root),
     )
 
     # 3.9 YAML Style (skip if quick)

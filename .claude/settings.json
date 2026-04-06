@@ -14,6 +14,12 @@
             "type": "command",
             "command": "python3 -u .claude/hooks/PreToolUse/invoke_skill_first_guard.py",
             "statusMessage": "Enforcing skills-first policy for GitHub operations (BLOCKING)"
+          },
+          {
+            "type": "command",
+            "command": "python3 -u .claude/hooks/PreToolUse/invoke_correction_applier.py",
+            "timeout": 3,
+            "statusMessage": "Checking correction memories (Self-Improving Agent)"
           }
         ]
       },
@@ -132,6 +138,12 @@
             "type": "command",
             "command": "python3 -u .claude/hooks/UserPromptSubmit/invoke_autonomous_execution_detector.py",
             "statusMessage": "Detecting autonomous execution patterns"
+          },
+          {
+            "type": "command",
+            "command": "python3 -u .claude/hooks/UserPromptSubmit/invoke_research_then_implement.py",
+            "timeout": 3,
+            "statusMessage": "Checking for research-before-implementation signals"
           },
           {
             "type": "command",

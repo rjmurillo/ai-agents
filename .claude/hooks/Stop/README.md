@@ -4,7 +4,7 @@ Automatically extracts skill learnings from session conversations.
 
 ## Requirements
 
-**Python 3.12+** with `anthropic` package installed.
+**Python 3.14+** with `anthropic` package installed.
 
 ## Setup
 
@@ -23,20 +23,20 @@ Then install anthropic:
 python -m pip install anthropic
 ```
 
-The `.python-version` file at the repository root ensures Python 3.12.8 is used.
+The `.python-version` file at the repository root ensures Python 3.14.3 is used.
 
 ### Option 2: System Python
 
-Install Python 3.12+ and the anthropic package:
+Install Python 3.14+ and the anthropic package:
 
 ```bash
 # Ubuntu/Debian
-sudo apt install python3.12 python3.12-venv
-python3.12 -m pip install --user anthropic
+sudo apt install python3.14 python3.14-venv
+python3.14 -m pip install --user anthropic
 
 # macOS
-brew install python@3.12
-python3.12 -m pip install anthropic
+brew install python@3.14
+python3.14 -m pip install anthropic
 ```
 
 ## Configuration
@@ -95,7 +95,7 @@ ls ~/.claude/debug/  # Recent debug logs
 Verify Python version:
 
 ```bash
-python3 --version  # Should be 3.12+
+python3 --version  # Should be 3.14+
 ```
 
 ### Missing anthropic package

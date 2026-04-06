@@ -521,9 +521,19 @@ class TestConvertSessionToJson:
     """
 
     def _import(self):
-        import importlib
-        import convert_session_to_json as mod
-        importlib.reload(mod)
+        import importlib.util
+
+        # Load explicitly from the skill path to avoid picking up the
+        # scripts/ PowerShell wrapper when pytest-cov reorders imports.
+        # Use an isolated module name to prevent polluting sys.modules
+        # and causing test-order dependencies with tests/skills/session/.
+        skill_path = _migration / "convert_session_to_json.py"
+        module_name = "_test_convert_session_to_json"
+        spec = importlib.util.spec_from_file_location(module_name, skill_path)
+        if spec is None or spec.loader is None:
+            raise ImportError(f"Unable to load module spec from {skill_path}")
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
         return mod
 
     def _make_md(self):
@@ -608,16 +618,12 @@ Reviewed and approved the PR changes with extensive documentation.
         assert entries == []
 
     def test_main_path_not_found_exits_1(self, tmp_path):
-        import importlib
-        import convert_session_to_json as mod
-        importlib.reload(mod)
+        mod = self._import()
         rc = mod.main([str(tmp_path / "missing_path")])
         assert rc == 1
 
     def test_main_single_file(self, tmp_path):
-        import importlib
-        import convert_session_to_json as mod
-        importlib.reload(mod)
+        mod = self._import()
         md_file = tmp_path / "2024-01-01-session-1.md"
         md_file.write_text(self._make_md())
         rc = mod.main([str(md_file)])
@@ -628,9 +634,7 @@ Reviewed and approved the PR changes with extensive documentation.
         assert "session" in data
 
     def test_main_dry_run_no_file_created(self, tmp_path):
-        import importlib
-        import convert_session_to_json as mod
-        importlib.reload(mod)
+        mod = self._import()
         md_file = tmp_path / "2024-01-01-session-1.md"
         md_file.write_text(self._make_md())
         rc = mod.main([str(md_file), "--dry-run"])
@@ -639,9 +643,7 @@ Reviewed and approved the PR changes with extensive documentation.
         assert not json_file.exists()
 
     def test_main_skips_existing_without_force(self, tmp_path):
-        import importlib
-        import convert_session_to_json as mod
-        importlib.reload(mod)
+        mod = self._import()
         md_file = tmp_path / "2024-01-01-session-1.md"
         md_file.write_text(self._make_md())
         json_file = tmp_path / "2024-01-01-session-1.json"
@@ -653,9 +655,7 @@ Reviewed and approved the PR changes with extensive documentation.
         assert data.get("existing") is True
 
     def test_main_force_overwrites(self, tmp_path):
-        import importlib
-        import convert_session_to_json as mod
-        importlib.reload(mod)
+        mod = self._import()
         md_file = tmp_path / "2024-01-01-session-1.md"
         md_file.write_text(self._make_md())
         json_file = tmp_path / "2024-01-01-session-1.json"
@@ -666,9 +666,7 @@ Reviewed and approved the PR changes with extensive documentation.
         assert "session" in data
 
     def test_main_directory_converts_all_sessions(self, tmp_path):
-        import importlib
-        import convert_session_to_json as mod
-        importlib.reload(mod)
+        mod = self._import()
         for i in range(1, 4):
             f = tmp_path / f"2024-01-0{i}-session-{i}.md"
             f.write_text(self._make_md())
@@ -680,9 +678,9 @@ Reviewed and approved the PR changes with extensive documentation.
         assert len(jsons) == 3
 
     def test_help_does_not_crash(self):
+        mod = self._import()
         with pytest.raises(SystemExit) as exc:
             sys.argv = ["convert_session_to_json.py", "--help"]
-            import convert_session_to_json as mod
             mod.main()
         assert exc.value.code == 0
 
