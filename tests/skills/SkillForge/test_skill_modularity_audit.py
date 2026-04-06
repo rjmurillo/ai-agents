@@ -10,10 +10,8 @@ import sys
 from pathlib import Path
 
 # Add SkillForge scripts directory to path for imports
-_TEST_DIR = Path(__file__).resolve().parent
-_SKILLFORGE_ROOT = _TEST_DIR.parent
-_SCRIPT_DIR = _SKILLFORGE_ROOT / "scripts"
-_PROJECT_ROOT = _TEST_DIR.parents[3]
+_PROJECT_ROOT = Path(__file__).resolve().parents[3]
+_SCRIPT_DIR = _PROJECT_ROOT / ".claude" / "skills" / "SkillForge" / "scripts"
 sys.path.insert(0, str(_SCRIPT_DIR))
 sys.path.insert(0, str(_PROJECT_ROOT))
 
