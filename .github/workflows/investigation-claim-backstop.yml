@@ -47,12 +47,23 @@ jobs:
           gh-token: ${{ github.token }}
           enable-pester: 'false'
 
+      - name: Get PR commits
+        id: pr-commits
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          COMMITS=$(git log --format=%H "origin/$BASE_REF"..HEAD | paste -sd, -)
+          echo "shas=$COMMITS" >> "$GITHUB_OUTPUT"
+
       - name: Validate Investigation Claims
         id: validate
+        env:
+          PR_COMMITS: ${{ steps.pr-commits.outputs.shas }}
         run: |
           python3 .github/scripts/validate_investigation_claims.py \
             --session-dir .agents/sessions \
             --mode session \
+            --commits "$PR_COMMITS" \
             --output-format text
 
       - name: Post Warning on Violations
