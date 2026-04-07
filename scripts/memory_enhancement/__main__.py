@@ -145,10 +145,11 @@ def _cmd_verify_all(args: argparse.Namespace) -> int:
     """
     memories_dir = _resolve_memories_dir(args)
 
+    memories = load_memories(memories_dir)
+    found_issues = False
+
     if args.json_output:
-        memories = load_memories(memories_dir)
         flat_results: list[dict[str, object]] = []
-        found_issues = False
 
         for memory in memories:
             results = verify_all_citations(memory, args.repo_root)
@@ -164,12 +165,14 @@ def _cmd_verify_all(args: argparse.Namespace) -> int:
                 })
 
         print(json.dumps(flat_results, indent=2))
-        return 1 if found_issues else 0
     else:
-        report = generate_health_report(memories_dir, args.repo_root)
-        print(format_report(report))
-        found_issues = report.broken_citations > 0 or report.stale_citations > 0
-        return 1 if found_issues else 0
+        for memory in memories:
+            results = verify_all_citations(memory, args.repo_root)
+            _print_verification_results(memory.memory_id, results)
+            if any(not r.is_valid for r in results):
+                found_issues = True
+
+    return 1 if found_issues else 0
 
 
 def _cmd_health(args: argparse.Namespace) -> int:
