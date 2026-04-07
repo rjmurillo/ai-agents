@@ -209,7 +209,8 @@ def save_memory(memory: MemoryWithCitations, memories_dir: Path) -> Path:
     try:
         file_path.relative_to(base_dir)
     except ValueError:
-        raise ValueError(f"Invalid memory_id: path traversal detected in '{memory.memory_id}'") from None
+        msg = f"Invalid memory_id: path traversal detected in '{memory.memory_id}'"
+        raise ValueError(msg) from None
 
     metadata = {
         "title": memory.title,
