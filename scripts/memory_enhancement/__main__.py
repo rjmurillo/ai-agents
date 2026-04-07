@@ -92,6 +92,22 @@ def _add_verify_all_command(subparsers: argparse._SubParsersAction) -> None:  # 
 def _add_health_command(subparsers: argparse._SubParsersAction) -> None:  # type: ignore[type-arg]
     """Register the health subcommand."""
     health_parser = subparsers.add_parser("health", help="Generate health report")
+    output_group = health_parser.add_mutually_exclusive_group()
+    output_group.add_argument(
+        "--json",
+        dest="output_format",
+        action="store_const",
+        const="json",
+        default="text",
+        help="Output the health report as JSON",
+    )
+    output_group.add_argument(
+        "--markdown",
+        dest="output_format",
+        action="store_const",
+        const="markdown",
+        help="Output the health report as Markdown (default is plain text)",
+    )
     health_parser.set_defaults(func=_cmd_health)
 
 
@@ -176,11 +192,32 @@ def _cmd_verify_all(args: argparse.Namespace) -> int:
 
 
 def _cmd_health(args: argparse.Namespace) -> int:
-    """Execute the health command."""
+    """Execute the health command.
+
+    Exits with code 1 when broken or stale citations are detected,
+    matching the non-zero exit code contract in CITATION-SCHEMA.md.
+    """
     memories_dir = _resolve_memories_dir(args)
     report = generate_health_report(memories_dir, args.repo_root)
-    print(format_report(report))
-    return 0
+
+    output_format = getattr(args, "output_format", "text")
+    if output_format == "json":
+        print(json.dumps({
+            "total_memories": report.total_memories,
+            "total_citations": report.total_citations,
+            "valid_citations": report.valid_citations,
+            "stale_citations": report.stale_citations,
+            "broken_citations": report.broken_citations,
+            "unverified_citations": report.unverified_citations,
+            "health_score": report.health_score,
+            "stale_memories": list(report.stale_memories),
+            "recommendations": list(report.recommendations),
+        }, indent=2))
+    else:
+        print(format_report(report))
+
+    has_issues = report.broken_citations > 0 or report.stale_citations > 0
+    return 1 if has_issues else 0
 
 
 def _cmd_graph(args: argparse.Namespace) -> int:

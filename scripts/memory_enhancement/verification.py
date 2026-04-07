@@ -167,9 +167,9 @@ def _search_function_in_file(
 ) -> VerificationResult:
     """Search for a function definition in a file.
 
-    Note: Only detects Python function definitions (def keyword).
+    Detects both sync and async Python function definitions.
     """
-    pattern = re.compile(rf"\bdef\s+{re.escape(func_name)}\b")
+    pattern = re.compile(rf"\b(?:async\s+)?def\s+{re.escape(func_name)}\b")
     try:
         content = file_path.read_text(encoding="utf-8", errors="replace")
     except OSError as exc:

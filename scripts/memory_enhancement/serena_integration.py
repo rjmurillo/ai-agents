@@ -25,12 +25,12 @@ from .models import (
 
 _CITATION_PATTERN = re.compile(
     r"\[cite:(?P<source_type>\w+)\]\((?P<target>[^)]+)\)"
-    r"(?:\s*-\s*(?P<context>.+))?",
+    r"(?:\s*-\s*(?P<context>[^\n\r]*?))?(?=\s*\[(?:cite|link):|$|\n)",
 )
 
 _LINK_PATTERN = re.compile(
     r"\[link:(?P<link_type>\w+)\]\((?P<target_id>[^)]+)\)"
-    r"(?:\s*-\s*(?P<context>.+))?",
+    r"(?:\s*-\s*(?P<context>[^\n\r]*?))?(?=\s*\[(?:cite|link):|$|\n)",
 )
 
 _CITATIONS_HEADER_PATTERN = re.compile(r"^##\s+Citations\s*$", re.MULTILINE)
@@ -213,7 +213,10 @@ def save_memory(memory: MemoryWithCitations, memories_dir: Path) -> Path:
         "confidence": memory.confidence,
     }
 
-    body_parts = [memory.content]
+    # Strip any inline citation/link blocks that may be embedded in content
+    # from a previous load. This prevents duplication on each save→load→save cycle.
+    clean_content = _strip_citation_link_blocks(memory.content)
+    body_parts = [clean_content]
     body_parts.extend(_format_citations(memory.citations))
     body_parts.extend(_format_links(memory.links))
 
