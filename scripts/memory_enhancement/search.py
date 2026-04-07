@@ -16,7 +16,7 @@ from .confidence import calculate_confidence
 from .hooks import find_repo_root
 from .models import VerificationResult
 from .serena_integration import load_memory
-from .verification import verify_all_citations
+from .verification import STALE_REASON_MARKERS, verify_all_citations
 
 _SEARCH_TIMEOUT = 5
 _DEFAULT_MAX_RESULTS = 5
@@ -181,9 +181,6 @@ def _score_memory_file(file_path: Path, repo_root: Path) -> SearchResult | None:
     )
 
 
-_STALE_REASON_MARKERS = ("exceeds", "not found in file")
-
-
 def _determine_citation_status(results: list[VerificationResult]) -> str:
     """Classify overall citation status from verification results.
 
@@ -204,7 +201,7 @@ def _determine_citation_status(results: list[VerificationResult]) -> str:
         if r.is_valid:
             continue
         reason_lower = r.reason.lower()
-        if any(marker in reason_lower for marker in _STALE_REASON_MARKERS):
+        if any(marker in reason_lower for marker in STALE_REASON_MARKERS):
             has_stale = True
         else:
             has_broken = True

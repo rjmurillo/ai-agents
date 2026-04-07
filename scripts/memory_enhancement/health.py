@@ -15,10 +15,7 @@ from .models import (
     VerificationResult,
 )
 from .serena_integration import load_memories
-from .verification import verify_all_citations
-
-# Reason substrings that indicate stale (content changed) vs broken (target gone)
-_STALE_REASON_MARKERS = ("exceeds", "not found in file")
+from .verification import STALE_REASON_MARKERS, verify_all_citations
 
 
 def generate_health_report(memories_dir: Path, repo_root: Path) -> HealthReport:
@@ -224,7 +221,7 @@ def _classify_result(result: VerificationResult) -> str:
         return "valid"
     reason_lower = result.reason.lower()
     # Stale: the file exists but the specific content has changed
-    if any(marker in reason_lower for marker in _STALE_REASON_MARKERS):
+    if any(marker in reason_lower for marker in STALE_REASON_MARKERS):
         return "stale"
     return "broken"
 

@@ -17,6 +17,8 @@ from .models import (
     VerificationResult,
 )
 
+STALE_REASON_MARKERS: tuple[str, ...] = ("exceeds", "not found in file")
+
 # Exhaustiveness check: every SourceType must have a verifier registered.
 # This runs at import time; see _VERIFIERS at module bottom.
 _SOURCE_TYPES_EXPECTED = set(SourceType)

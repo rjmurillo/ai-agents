@@ -156,7 +156,7 @@ def load_memory(file_path: Path) -> MemoryWithCitations | None:
             tags=tags,
             links=links,
         )
-    except ValueError as exc:
+    except (ValueError, TypeError) as exc:
         print(f"Warning: invalid memory data in {file_path}: {exc}", file=sys.stderr)
         return None
 
@@ -307,7 +307,7 @@ def _extract_metadata(
 
     if has_frontmatter:
         title = post.metadata.get("title")
-        tags = post.metadata.get("tags", [])
+        tags = _parse_tags(post.metadata.get("tags"))
         created_at = _parse_datetime(post.metadata.get("created_at"), now)
         updated_at = _parse_datetime(post.metadata.get("updated_at"), now)
         confidence = _parse_confidence(post.metadata.get("confidence"))
@@ -375,6 +375,21 @@ def _parse_confidence(value: object) -> float:
         except ValueError:
             return 0.0
     return 0.0
+
+
+def _parse_tags(value: object) -> list[str]:
+    """Parse tags from frontmatter, handling None, strings, and lists.
+
+    Returns an empty list for None/null values. Wraps a single string
+    in a list to avoid character-splitting when tuple() is called.
+    """
+    if value is None:
+        return []
+    if isinstance(value, str):
+        return [value] if value else []
+    if isinstance(value, list):
+        return [str(tag) for tag in value if tag is not None]
+    return []
 
 
 def _parse_source_type(value: str) -> SourceType | None:
