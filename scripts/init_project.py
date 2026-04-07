@@ -79,6 +79,57 @@ _GITIGNORE_ENTRIES: list[str] = [
     ".agents/sessions/*.json",
 ]
 
+_SERENA_PROJECT_TEMPLATE = """\
+# Serena project configuration for ai-agents
+# See https://github.com/rjmurillo/ai-agents for details.
+languages:
+- python
+- markdown
+
+encoding: "utf-8"
+ignore_all_files_in_gitignore: true
+ignored_paths: []
+read_only: false
+excluded_tools: []
+initial_prompt: ""
+project_name: "{project_name}"
+included_optional_tools: []
+base_modes:
+default_modes:
+fixed_tools: []
+symbol_info_budget:
+language_backend:
+line_ending:
+read_only_memory_patterns: []
+ignored_memory_patterns: []
+ls_specific_settings: {{}}
+"""
+
+_TEAM_YAML_TEMPLATE = """\
+# Default agent team configuration
+# Defines the starter set of agents available after `ai-agents init`.
+# Each agent maps to a shared template in templates/agents/.
+#
+# Customize roles, add new agents, or remove unused ones as your project grows.
+team:
+  - name: orchestrator
+    role: Task coordination and multi-step workflow management
+  - name: implementer
+    role: Code implementation with quality standards
+  - name: analyst
+    role: Research, investigation, and root cause analysis
+  - name: architect
+    role: System design, ADRs, and architectural governance
+  - name: qa
+    role: Testing, verification, and coverage validation
+  - name: security
+    role: Threat modeling, vulnerability scanning, OWASP compliance
+  - name: devops
+    role: CI/CD pipelines, build automation, deployment
+  - name: critic
+    role: Plan validation and gap analysis
+"""
+
 _COPILOT_INSTRUCTIONS_TEMPLATE = """\
 # GitHub Copilot Instructions
 
@@ -172,6 +223,28 @@ class ProjectInitializer:
             _CLAUDE_MD_TEMPLATE,
         )
 
+    def scaffold_serena(self) -> bool:
+        """Create .serena/ directory with project.yml and memories/."""
+        serena_root = self.target_dir / ".serena"
+        project_name = self.target_dir.name
+
+        if not self._make_dir(serena_root / "memories"):
+            return False
+
+        return self._write_file(
+            serena_root / "project.yml",
+            _SERENA_PROJECT_TEMPLATE.format(project_name=project_name),
+        )
+
+    def scaffold_team_manifest(self) -> bool:
+        """Create .agents/team.yaml with the default agent team."""
+        if self.minimal:
+            return True
+        return self._write_file(
+            self.target_dir / ".agents" / "team.yaml",
+            _TEAM_YAML_TEMPLATE,
+        )
+
     def scaffold_copilot_instructions(self) -> bool:
         """Create .github/copilot-instructions.md."""
         if self.minimal:
@@ -223,6 +296,8 @@ class ProjectInitializer:
             self.scaffold_agents_dirs,
             self.scaffold_agents_md,
             self.scaffold_claude_md,
+            self.scaffold_serena,
+            self.scaffold_team_manifest,
             self.scaffold_copilot_instructions,
             self.update_gitignore,
         ]
@@ -252,12 +327,8 @@ class ProjectInitializer:
             )
 
 
-def main() -> int:
-    """Entry point for project initialization."""
-    parser = argparse.ArgumentParser(
-        description="Initialize ai-agents project scaffolding",
-    )
-
+def _add_init_args(parser: argparse.ArgumentParser) -> None:
+    """Add shared init arguments to a parser."""
     parser.add_argument(
         "--target-dir",
         type=Path,
@@ -280,8 +351,9 @@ def main() -> int:
         help="Preview changes without writing files",
     )
 
-    args = parser.parse_args()
 
+def _run_init(args: argparse.Namespace) -> int:
+    """Run the init command from parsed args."""
     initializer = ProjectInitializer(
         target_dir=args.target_dir,
         minimal=args.minimal,
@@ -289,6 +361,39 @@ def main() -> int:
         dry_run=args.dry_run,
     )
     return initializer.run()
+
+
+def main() -> int:
+    """Entry point for the ai-agents CLI.
+
+    Supports subcommands:
+        ai-agents init [--target-dir DIR] [--minimal] [--force] [--dry-run]
+
+    When invoked without a subcommand (for backwards compatibility),
+    behaves as if 'init' was specified.
+    """
+    parser = argparse.ArgumentParser(
+        prog="ai-agents",
+        description="AI agent orchestration framework",
+    )
+    subparsers = parser.add_subparsers(dest="command")
+
+    init_parser = subparsers.add_parser(
+        "init",
+        help="Initialize ai-agents project scaffolding",
+    )
+    _add_init_args(init_parser)
+
+    # Backwards compatibility: support direct flags without 'init' subcommand
+    _add_init_args(parser)
+
+    args = parser.parse_args()
+
+    if args.command == "init" or args.command is None:
+        return _run_init(args)
+
+    parser.print_help()
+    return 0
 
 
 if __name__ == "__main__":

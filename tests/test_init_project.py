@@ -121,6 +121,79 @@ class TestScaffoldFiles:
         assert content == _CLAUDE_MD_TEMPLATE
 
 
+class TestScaffoldSerena:
+    """Tests for .serena/ directory and project.yml creation."""
+
+    def test_creates_serena_memories_dir(self, tmp_path: Path) -> None:
+        init = ProjectInitializer(target_dir=tmp_path)
+        assert init.scaffold_serena() is True
+        assert (tmp_path / ".serena" / "memories").is_dir()
+
+    def test_creates_project_yml(self, tmp_path: Path) -> None:
+        init = ProjectInitializer(target_dir=tmp_path)
+        assert init.scaffold_serena() is True
+
+        path = tmp_path / ".serena" / "project.yml"
+        assert path.exists()
+        content = path.read_text(encoding="utf-8")
+        assert f'project_name: "{tmp_path.name}"' in content
+
+    def test_skips_existing_project_yml_without_force(self, tmp_path: Path) -> None:
+        serena_dir = tmp_path / ".serena"
+        serena_dir.mkdir()
+        existing = "# custom config"
+        (serena_dir / "project.yml").write_text(existing)
+
+        init = ProjectInitializer(target_dir=tmp_path)
+        init.scaffold_serena()
+
+        content = (serena_dir / "project.yml").read_text(encoding="utf-8")
+        assert content == existing
+
+    def test_overwrites_project_yml_with_force(self, tmp_path: Path) -> None:
+        serena_dir = tmp_path / ".serena"
+        serena_dir.mkdir()
+        (serena_dir / "project.yml").write_text("# old")
+
+        init = ProjectInitializer(target_dir=tmp_path, force=True)
+        init.scaffold_serena()
+
+        content = (serena_dir / "project.yml").read_text(encoding="utf-8")
+        assert "languages:" in content
+
+
+class TestScaffoldTeamManifest:
+    """Tests for .agents/team.yaml creation."""
+
+    def test_creates_team_yaml(self, tmp_path: Path) -> None:
+        init = ProjectInitializer(target_dir=tmp_path)
+        init.scaffold_agents_dirs()
+        assert init.scaffold_team_manifest() is True
+
+        path = tmp_path / ".agents" / "team.yaml"
+        assert path.exists()
+        content = path.read_text(encoding="utf-8")
+        assert "orchestrator" in content
+        assert "implementer" in content
+
+    def test_minimal_skips_team_yaml(self, tmp_path: Path) -> None:
+        init = ProjectInitializer(target_dir=tmp_path, minimal=True)
+        assert init.scaffold_team_manifest() is True
+        assert not (tmp_path / ".agents" / "team.yaml").exists()
+
+    def test_skips_existing_team_yaml_without_force(self, tmp_path: Path) -> None:
+        agents_dir = tmp_path / ".agents"
+        agents_dir.mkdir()
+        existing = "# my team"
+        (agents_dir / "team.yaml").write_text(existing)
+
+        init = ProjectInitializer(target_dir=tmp_path)
+        init.scaffold_team_manifest()
+
+        content = (agents_dir / "team.yaml").read_text(encoding="utf-8")
+        assert content == existing
+
+
 class TestDryRun:
     """Tests for --dry-run mode."""
 
@@ -186,6 +259,9 @@ class TestFullRun:
         assert (tmp_path / "AGENTS.md").exists()
         assert (tmp_path / ".agents" / "architecture").is_dir()
         assert (tmp_path / ".agents" / "sessions").is_dir()
+        assert (tmp_path / ".agents" / "team.yaml").exists()
+        assert (tmp_path / ".serena" / "project.yml").exists()
+        assert (tmp_path / ".serena" / "memories").is_dir()
         assert (tmp_path / ".github" / "copilot-instructions.md").exists()
 
     def test_minimal_run_succeeds(self, tmp_path: Path) -> None:
@@ -196,7 +272,9 @@ class TestFullRun:
         assert (tmp_path / "CLAUDE.md").exists()
         assert (tmp_path / "AGENTS.md").exists()
         assert (tmp_path / ".agents" / "architecture").is_dir()
+        assert (tmp_path / ".serena" / "project.yml").exists()
         assert not (tmp_path / ".agents" / "governance").exists()
+        assert not (tmp_path / ".agents" / "team.yaml").exists()
         assert not (tmp_path / ".github" / "copilot-instructions.md").exists()
 
     def test_invalid_target_returns_exit_code_2(self, tmp_path: Path) -> None:
@@ -208,10 +286,22 @@ class TestFullRun:
 class TestMainEntryPoint:
     """Tests for the main() CLI entry point."""
 
-    def test_main_with_target_dir(self, tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    def test_main_with_init_subcommand(self, tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
         monkeypatch.setattr(
             "sys.argv",
-            ["init_project.py", "--target-dir", str(tmp_path)],
+            ["ai-agents", "init", "--target-dir", str(tmp_path)],
+        )
+        result = main()
+        assert result == 0
+        assert (tmp_path / "CLAUDE.md").exists()
+        assert (tmp_path / ".serena" / "project.yml").exists()
+
+    def test_main_backwards_compat_without_subcommand(
+        self, tmp_path: Path, monkeypatch: MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(
+            "sys.argv",
+            ["ai-agents", "--target-dir", str(tmp_path)],
         )
         result = main()
         assert result == 0
@@ -220,7 +310,7 @@ class TestMainEntryPoint:
     def test_main_dry_run(self, tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
         monkeypatch.setattr(
             "sys.argv",
-            ["init_project.py", "--target-dir", str(tmp_path), "--dry-run"],
+            ["ai-agents", "init", "--target-dir", str(tmp_path), "--dry-run"],
         )
         result = main()
         assert result == 0
@@ -229,8 +319,9 @@ class TestMainEntryPoint:
     def test_main_minimal(self, tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
         monkeypatch.setattr(
             "sys.argv",
-            ["init_project.py", "--target-dir", str(tmp_path), "--minimal"],
+            ["ai-agents", "init", "--target-dir", str(tmp_path), "--minimal"],
         )
         result = main()
         assert result == 0
         assert not (tmp_path / ".agents" / "governance").exists()
+        assert (tmp_path / ".serena" / "project.yml").exists()
