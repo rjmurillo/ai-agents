@@ -230,6 +230,9 @@ def _strip_citation_link_blocks(content: str) -> str:
 
     When loading a memory that was previously saved, the content may already
     contain these blocks. Stripping them ensures save_memory won't duplicate.
+
+    Also removes inline citation/link markup from body text to prevent duplication
+    when citations are stored as structured data.
     """
     lines = content.split("\n")
     result_lines: list[str] = []
@@ -251,7 +254,12 @@ def _strip_citation_link_blocks(content: str) -> str:
             continue
         result_lines.append(line)
 
-    return "\n".join(result_lines).rstrip()
+    stripped = "\n".join(result_lines).rstrip()
+    stripped = _CITATION_PATTERN.sub("", stripped)
+    stripped = _LINK_PATTERN.sub("", stripped)
+    stripped = re.sub(r"^\s*-\s*$", "", stripped, flags=re.MULTILINE)
+    stripped = re.sub(r"\n{3,}", "\n\n", stripped)
+    return stripped.strip()
 
 
 def _extract_metadata(

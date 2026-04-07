@@ -125,6 +125,11 @@ def _verify_file_line(
     citation: Citation, file_path: Path, line_num: int
 ) -> VerificationResult:
     """Check that a file has at least the specified number of lines."""
+    if line_num < 1:
+        return VerificationResult.create(
+            citation, False, f"Line number must be >= 1, got {line_num}"
+        )
+
     try:
         with file_path.open(encoding="utf-8", errors="replace") as f:
             line_count = sum(1 for _ in f)
