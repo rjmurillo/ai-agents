@@ -52,6 +52,15 @@ class TestVerifyFileCitation:
         assert "exceeds" in result.reason.lower()
 
     @pytest.mark.unit
+    def test_file_line_zero_rejected(self, tmp_path):
+        """Line number 0 is invalid (1-indexed); must be rejected."""
+        (tmp_path / "file.py").write_text("line1\nline2\n")
+        c = Citation(source_type=SourceType.FILE, target="file.py:0", context="")
+        result = verify_citation(c, tmp_path)
+        assert result.is_valid is False
+        assert "1" in result.reason
+
+    @pytest.mark.unit
     def test_invalid_file_format(self, tmp_path):
         """Empty target now raises ValueError at Citation construction."""
         with pytest.raises(ValueError, match="non-empty"):
@@ -203,6 +212,18 @@ class TestVerifyMemoryCitation:
         result = verify_citation(c, tmp_path)
         assert result.is_valid is False
 
+    @pytest.mark.unit
+    def test_memory_path_traversal_blocked(self, tmp_path):
+        """CWE-22: memory citations with traversal paths must be rejected."""
+        c = Citation(
+            source_type=SourceType.MEMORY,
+            target="../../etc/passwd",
+            context="",
+        )
+        result = verify_citation(c, tmp_path)
+        assert result.is_valid is False
+        assert "traversal" in result.reason.lower()
+
 
 class TestVerifyAdrCitation:
     """ADR citation verification against .agents/architecture/ directory."""
@@ -223,6 +244,18 @@ class TestVerifyAdrCitation:
         c = Citation(source_type=SourceType.ADR, target="ADR-999", context="")
         result = verify_citation(c, tmp_path)
         assert result.is_valid is False
+
+    @pytest.mark.unit
+    def test_adr_path_traversal_blocked(self, tmp_path):
+        """CWE-22: ADR citations with traversal paths must be rejected."""
+        c = Citation(
+            source_type=SourceType.ADR,
+            target="../../etc/passwd",
+            context="",
+        )
+        result = verify_citation(c, tmp_path)
+        assert result.is_valid is False
+        assert "traversal" in result.reason.lower()
 
 
 class TestVerifyUrlCitation:
