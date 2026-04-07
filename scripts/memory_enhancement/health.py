@@ -176,6 +176,43 @@ def format_report(report: HealthReport) -> str:
     return "\n".join(lines)
 
 
+def format_report_text(report: HealthReport) -> str:
+    """Format a HealthReport as plain text.
+
+    Args:
+        report: The health report to format.
+
+    Returns:
+        Plain text string representation.
+    """
+    lines = [
+        "Memory Health Report",
+        "=" * 20,
+        "",
+        f"Health Score: {report.health_score:.1%}",
+        "",
+        "Citation Summary:",
+        f"  Total memories:   {report.total_memories}",
+        f"  Total citations:  {report.total_citations}",
+        f"  Valid:            {report.valid_citations}",
+        f"  Stale:            {report.stale_citations}",
+        f"  Broken:           {report.broken_citations}",
+        f"  Unverified:       {report.unverified_citations}",
+    ]
+
+    if report.stale_memories:
+        lines.extend(["", "Stale Memories:"])
+        for mid in report.stale_memories:
+            lines.append(f"  - {mid}")
+
+    if report.recommendations:
+        lines.extend(["", "Recommendations:"])
+        for rec in report.recommendations:
+            lines.append(f"  - {rec}")
+
+    return "\n".join(lines)
+
+
 def _classify_result(result: VerificationResult) -> str:
     """Classify a verification result into a status category.
 
@@ -193,15 +230,20 @@ def _classify_result(result: VerificationResult) -> str:
 
 
 def _calculate_health_score(counts: dict[str, int], total_memories: int) -> float:
-    """Calculate overall health score from 0.0 to 1.0."""
+    """Calculate overall health score from 0.0 to 1.0.
+
+    The score is a weighted ratio where:
+    - Valid citations contribute fully (weight 1.0)
+    - Stale citations contribute partially (weight 0.5)
+    - Broken and unverified citations contribute nothing (weight 0.0)
+    """
     if total_memories == 0:
         return 1.0
     if counts["total"] == 0:
         return 1.0
 
-    valid_ratio = counts["valid"] / counts["total"] if counts["total"] > 0 else 1.0
-    broken_penalty = counts["broken"] / max(counts["total"], 1) * 0.5
-    return max(0.0, min(1.0, valid_ratio - broken_penalty))
+    weighted_score = counts["valid"] + counts["stale"] * 0.5
+    return max(0.0, min(1.0, weighted_score / counts["total"]))
 
 
 def _is_memory_stale(

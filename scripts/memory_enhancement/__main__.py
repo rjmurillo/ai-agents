@@ -19,7 +19,7 @@ from pathlib import Path
 
 from .confidence import update_confidence_scores
 from .graph import build_memory_graph, traverse
-from .health import format_report, generate_health_report
+from .health import format_report, format_report_text, generate_health_report
 from .models import VerificationResult
 from .serena_integration import load_memories
 from .verification import verify_all_citations
@@ -98,15 +98,15 @@ def _add_health_command(subparsers: argparse._SubParsersAction) -> None:  # type
         dest="output_format",
         action="store_const",
         const="json",
-        default="text",
+        default="markdown",
         help="Output the health report as JSON",
     )
     output_group.add_argument(
-        "--markdown",
+        "--text",
         dest="output_format",
         action="store_const",
-        const="markdown",
-        help="Output the health report as Markdown (default is plain text)",
+        const="text",
+        help="Output the health report as plain text",
     )
     health_parser.set_defaults(func=_cmd_health)
 
@@ -200,7 +200,7 @@ def _cmd_health(args: argparse.Namespace) -> int:
     memories_dir = _resolve_memories_dir(args)
     report = generate_health_report(memories_dir, args.repo_root)
 
-    output_format = getattr(args, "output_format", "text")
+    output_format = getattr(args, "output_format", "markdown")
     if output_format == "json":
         print(json.dumps({
             "total_memories": report.total_memories,
@@ -213,6 +213,8 @@ def _cmd_health(args: argparse.Namespace) -> int:
             "stale_memories": list(report.stale_memories),
             "recommendations": list(report.recommendations),
         }, indent=2))
+    elif output_format == "text":
+        print(format_report_text(report))
     else:
         print(format_report(report))
 
