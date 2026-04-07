@@ -79,32 +79,6 @@ _GITIGNORE_ENTRIES: list[str] = [
     ".agents/sessions/*.json",
 ]
 
-_SERENA_PROJECT_TEMPLATE = """\
-# Serena project configuration for ai-agents
-# See https://github.com/rjmurillo/ai-agents for details.
-languages:
-- python
-- markdown
-
-encoding: "utf-8"
-ignore_all_files_in_gitignore: true
-ignored_paths: []
-read_only: false
-excluded_tools: []
-initial_prompt: ""
-project_name: "{project_name}"
-included_optional_tools: []
-base_modes:
-default_modes:
-fixed_tools: []
-symbol_info_budget:
-language_backend:
-line_ending:
-read_only_memory_patterns: []
-ignored_memory_patterns: []
-ls_specific_settings: {{}}
-"""
-
 _TEAM_YAML_TEMPLATE = """\
 # Default agent team configuration
 # Defines the starter set of agents available after `ai-agents init`.
@@ -223,19 +197,6 @@ class ProjectInitializer:
             _CLAUDE_MD_TEMPLATE,
         )
 
-    def scaffold_serena(self) -> bool:
-        """Create .serena/ directory with project.yml and memories/."""
-        serena_root = self.target_dir / ".serena"
-        project_name = self.target_dir.name
-
-        if not self._make_dir(serena_root / "memories"):
-            return False
-
-        return self._write_file(
-            serena_root / "project.yml",
-            _SERENA_PROJECT_TEMPLATE.format(project_name=project_name),
-        )
-
     def scaffold_team_manifest(self) -> bool:
         """Create .agents/team.yaml with the default agent team."""
         if self.minimal:
@@ -296,7 +257,6 @@ class ProjectInitializer:
             self.scaffold_agents_dirs,
             self.scaffold_agents_md,
             self.scaffold_claude_md,
-            self.scaffold_serena,
             self.scaffold_team_manifest,
             self.scaffold_copilot_instructions,
             self.update_gitignore,

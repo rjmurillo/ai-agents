@@ -121,47 +121,6 @@ class TestScaffoldFiles:
         assert content == _CLAUDE_MD_TEMPLATE
 
 
-class TestScaffoldSerena:
-    """Tests for .serena/ directory and project.yml creation."""
-
-    def test_creates_serena_memories_dir(self, tmp_path: Path) -> None:
-        init = ProjectInitializer(target_dir=tmp_path)
-        assert init.scaffold_serena() is True
-        assert (tmp_path / ".serena" / "memories").is_dir()
-
-    def test_creates_project_yml(self, tmp_path: Path) -> None:
-        init = ProjectInitializer(target_dir=tmp_path)
-        assert init.scaffold_serena() is True
-
-        path = tmp_path / ".serena" / "project.yml"
-        assert path.exists()
-        content = path.read_text(encoding="utf-8")
-        assert f'project_name: "{tmp_path.name}"' in content
-
-    def test_skips_existing_project_yml_without_force(self, tmp_path: Path) -> None:
-        serena_dir = tmp_path / ".serena"
-        serena_dir.mkdir()
-        existing = "# custom config"
-        (serena_dir / "project.yml").write_text(existing)
-
-        init = ProjectInitializer(target_dir=tmp_path)
-        init.scaffold_serena()
-
-        content = (serena_dir / "project.yml").read_text(encoding="utf-8")
-        assert content == existing
-
-    def test_overwrites_project_yml_with_force(self, tmp_path: Path) -> None:
-        serena_dir = tmp_path / ".serena"
-        serena_dir.mkdir()
-        (serena_dir / "project.yml").write_text("# old")
-
-        init = ProjectInitializer(target_dir=tmp_path, force=True)
-        init.scaffold_serena()
-
-        content = (serena_dir / "project.yml").read_text(encoding="utf-8")
-        assert "languages:" in content
-
-
 class TestScaffoldTeamManifest:
     """Tests for .agents/team.yaml creation."""
 
@@ -260,8 +219,6 @@ class TestFullRun:
         assert (tmp_path / ".agents" / "architecture").is_dir()
         assert (tmp_path / ".agents" / "sessions").is_dir()
         assert (tmp_path / ".agents" / "team.yaml").exists()
-        assert (tmp_path / ".serena" / "project.yml").exists()
-        assert (tmp_path / ".serena" / "memories").is_dir()
         assert (tmp_path / ".github" / "copilot-instructions.md").exists()
 
     def test_minimal_run_succeeds(self, tmp_path: Path) -> None:
@@ -272,7 +229,6 @@ class TestFullRun:
         assert (tmp_path / "CLAUDE.md").exists()
         assert (tmp_path / "AGENTS.md").exists()
         assert (tmp_path / ".agents" / "architecture").is_dir()
-        assert (tmp_path / ".serena" / "project.yml").exists()
         assert not (tmp_path / ".agents" / "governance").exists()
         assert not (tmp_path / ".agents" / "team.yaml").exists()
         assert not (tmp_path / ".github" / "copilot-instructions.md").exists()
@@ -294,7 +250,6 @@ class TestMainEntryPoint:
         result = main()
         assert result == 0
         assert (tmp_path / "CLAUDE.md").exists()
-        assert (tmp_path / ".serena" / "project.yml").exists()
 
     def test_main_backwards_compat_without_subcommand(
         self, tmp_path: Path, monkeypatch: MonkeyPatch
@@ -324,4 +279,3 @@ class TestMainEntryPoint:
         result = main()
         assert result == 0
         assert not (tmp_path / ".agents" / "governance").exists()
-        assert (tmp_path / ".serena" / "project.yml").exists()
