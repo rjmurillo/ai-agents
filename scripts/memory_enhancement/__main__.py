@@ -139,28 +139,30 @@ def _cmd_verify(args: argparse.Namespace) -> int:
 
 
 def _cmd_verify_all(args: argparse.Namespace) -> int:
-    """Verify all memory citations, with optional JSON output."""
+    """Verify all memory citations, with optional JSON output.
+
+    JSON format: flat array of objects with 'valid' field (CI compatible).
+    """
     memories_dir = _resolve_memories_dir(args)
     memories = load_memories(memories_dir)
-    all_results: dict[str, list[dict[str, object]]] = {}
+    flat_results: list[dict[str, object]] = []
     found_issues = False
 
     for memory in memories:
         results = verify_all_citations(memory, args.repo_root)
         if any(not r.is_valid for r in results):
             found_issues = True
-        all_results[memory.memory_id] = [
-            {
+        for r in results:
+            flat_results.append({
+                "memory_id": memory.memory_id,
                 "target": r.citation.target,
                 "source_type": r.citation.source_type.value,
-                "is_valid": r.is_valid,
+                "valid": r.is_valid,
                 "reason": r.reason,
-            }
-            for r in results
-        ]
+            })
 
     if args.json_output:
-        print(json.dumps(all_results, indent=2))
+        print(json.dumps(flat_results, indent=2))
     else:
         report = generate_health_report(memories_dir, args.repo_root)
         print(format_report(report))
