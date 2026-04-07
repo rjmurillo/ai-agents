@@ -144,30 +144,32 @@ def _cmd_verify_all(args: argparse.Namespace) -> int:
     JSON format: flat array of objects with 'valid' field (CI compatible).
     """
     memories_dir = _resolve_memories_dir(args)
-    memories = load_memories(memories_dir)
-    flat_results: list[dict[str, object]] = []
-    found_issues = False
-
-    for memory in memories:
-        results = verify_all_citations(memory, args.repo_root)
-        if any(not r.is_valid for r in results):
-            found_issues = True
-        for r in results:
-            flat_results.append({
-                "memory_id": memory.memory_id,
-                "target": r.citation.target,
-                "source_type": r.citation.source_type.value,
-                "valid": r.is_valid,
-                "reason": r.reason,
-            })
 
     if args.json_output:
+        memories = load_memories(memories_dir)
+        flat_results: list[dict[str, object]] = []
+        found_issues = False
+
+        for memory in memories:
+            results = verify_all_citations(memory, args.repo_root)
+            if any(not r.is_valid for r in results):
+                found_issues = True
+            for r in results:
+                flat_results.append({
+                    "memory_id": memory.memory_id,
+                    "target": r.citation.target,
+                    "source_type": r.citation.source_type.value,
+                    "valid": r.is_valid,
+                    "reason": r.reason,
+                })
+
         print(json.dumps(flat_results, indent=2))
+        return 1 if found_issues else 0
     else:
         report = generate_health_report(memories_dir, args.repo_root)
         print(format_report(report))
-
-    return 1 if found_issues else 0
+        found_issues = report.broken_citations > 0 or report.stale_citations > 0
+        return 1 if found_issues else 0
 
 
 def _cmd_health(args: argparse.Namespace) -> int:

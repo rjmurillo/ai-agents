@@ -24,8 +24,8 @@ _STALE_REASON_MARKERS = ("exceeds", "not found in file")
 def generate_health_report(memories_dir: Path, repo_root: Path) -> HealthReport:
     """Generate a comprehensive health report for all memories.
 
-    Loads memories once and passes them to all downstream functions
-    to avoid redundant I/O.
+    Loads memories once and verifies citations once, then passes results
+    to all downstream functions to avoid redundant I/O.
 
     Args:
         memories_dir: Directory containing memory .md files.
@@ -35,8 +35,9 @@ def generate_health_report(memories_dir: Path, repo_root: Path) -> HealthReport:
         HealthReport with aggregated statistics and recommendations.
     """
     memories = load_memories(memories_dir)
-    counts = _count_citation_statuses(memories, repo_root)
-    stale = _detect_stale_from_loaded(memories, repo_root, max_age_days=30)
+    all_results = _verify_all_memories(memories, repo_root)
+    counts = _count_citation_statuses_from_results(all_results)
+    stale = _detect_stale_from_results(memories, all_results, max_age_days=30)
     health_score = _calculate_health_score(counts, len(memories))
     recommendations = _generate_recommendations(counts, stale)
 
@@ -84,6 +85,53 @@ def _detect_stale_from_loaded(
 
     for memory in memories:
         if _is_memory_stale(memory, now, max_age_days, repo_root):
+            stale_ids.append(memory.memory_id)
+
+    return sorted(stale_ids)
+
+
+def _verify_all_memories(
+    memories: list[MemoryWithCitations],
+    repo_root: Path,
+) -> dict[str, list[VerificationResult]]:
+    """Verify all citations for all memories, returning results keyed by memory_id."""
+    return {
+        memory.memory_id: verify_all_citations(memory, repo_root)
+        for memory in memories
+    }
+
+
+def _count_citation_statuses_from_results(
+    all_results: dict[str, list[VerificationResult]],
+) -> dict[str, int]:
+    """Count citation statuses from pre-computed verification results."""
+    counts = {"total": 0, "valid": 0, "stale": 0, "broken": 0, "unverified": 0}
+
+    for results in all_results.values():
+        for result in results:
+            counts["total"] += 1
+            status = _classify_result(result)
+            counts[status] += 1
+
+    return counts
+
+
+def _detect_stale_from_results(
+    memories: list[MemoryWithCitations],
+    all_results: dict[str, list[VerificationResult]],
+    max_age_days: int = 30,
+) -> list[str]:
+    """Find stale memories using pre-computed verification results."""
+    now = datetime.now(UTC)
+    stale_ids: list[str] = []
+
+    for memory in memories:
+        age_days = (now - memory.updated_at).days
+        if age_days > max_age_days:
+            stale_ids.append(memory.memory_id)
+            continue
+        results = all_results.get(memory.memory_id, [])
+        if any(not r.is_valid for r in results):
             stale_ids.append(memory.memory_id)
 
     return sorted(stale_ids)

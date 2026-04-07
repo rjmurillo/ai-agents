@@ -134,17 +134,21 @@ def load_memory(file_path: Path) -> MemoryWithCitations | None:
     links = parse_link_block(content)
     content = _strip_citation_link_blocks(content)
 
-    return MemoryWithCitations(
-        memory_id=memory_id,
-        title=title,
-        content=content,
-        citations=citations,
-        confidence=confidence,
-        created_at=created_at,
-        updated_at=updated_at,
-        tags=tags,
-        links=links,
-    )
+    try:
+        return MemoryWithCitations(
+            memory_id=memory_id,
+            title=title,
+            content=content,
+            citations=citations,
+            confidence=confidence,
+            created_at=created_at,
+            updated_at=updated_at,
+            tags=tags,
+            links=links,
+        )
+    except ValueError as exc:
+        print(f"Warning: invalid memory data in {file_path}: {exc}", file=sys.stderr)
+        return None
 
 
 def load_memories(memories_dir: Path) -> list[MemoryWithCitations]:
