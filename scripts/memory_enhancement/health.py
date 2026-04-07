@@ -176,25 +176,6 @@ def format_report(report: HealthReport) -> str:
     return "\n".join(lines)
 
 
-def _count_citation_statuses(
-    memories: list[MemoryWithCitations], repo_root: Path
-) -> dict[str, int]:
-    """Verify all citations and count by status.
-
-    Uses VerificationResult.reason to distinguish stale from broken.
-    """
-    counts = {"total": 0, "valid": 0, "stale": 0, "broken": 0, "unverified": 0}
-
-    for memory in memories:
-        results = verify_all_citations(memory, repo_root)
-        for result in results:
-            counts["total"] += 1
-            status = _classify_result(result)
-            counts[status] += 1
-
-    return counts
-
-
 def _classify_result(result: VerificationResult) -> str:
     """Classify a verification result into a status category.
 

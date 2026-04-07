@@ -189,8 +189,11 @@ def _verify_memory(citation: Citation, repo_root: Path) -> VerificationResult:
     if not target.endswith(".md"):
         target = target + ".md"
 
-    target_path = memories_dir / target
-    if target_path.is_file():
+    resolved, error = _validate_path_containment(target, memories_dir)
+    if error or resolved is None:
+        return VerificationResult.create(citation, False, error or "Invalid path")
+
+    if resolved.is_file():
         return VerificationResult.create(citation, True, "Memory file exists")
     return VerificationResult.create(citation, False, f"Memory file not found: {target}")
 
@@ -202,8 +205,11 @@ def _verify_adr(citation: Citation, repo_root: Path) -> VerificationResult:
     if not target.endswith(".md"):
         target = target + ".md"
 
-    target_path = adr_dir / target
-    if target_path.is_file():
+    resolved, error = _validate_path_containment(target, adr_dir)
+    if error or resolved is None:
+        return VerificationResult.create(citation, False, error or "Invalid path")
+
+    if resolved.is_file():
         return VerificationResult.create(citation, True, "ADR file exists")
     return VerificationResult.create(citation, False, f"ADR file not found: {target}")
 
