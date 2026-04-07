@@ -45,36 +45,27 @@ def _generate_reflection(memories_dir: Path, repo_root: Path) -> str:
     Returns:
         Formatted reflection string for stderr, or empty string.
     """
-    from ..confidence import update_confidence_scores
-    from ..health import detect_stale_memories, generate_health_report
+    from ..health import generate_health_report
 
-    scores = update_confidence_scores(memories_dir, repo_root)
-    if not scores:
+    report = generate_health_report(memories_dir, repo_root)
+    if report.total_memories == 0:
         return ""
 
-    stale = detect_stale_memories(memories_dir, repo_root)
-    report = generate_health_report(memories_dir, repo_root)
-
-    return _format_reflection(scores, stale, report)
+    return _format_reflection(report)
 
 
-def _format_reflection(
-    scores: dict[str, float],
-    stale: list[str],
-    report: object,
-) -> str:
+def _format_reflection(report: object) -> str:
     """Format the session reflection block for stderr.
 
     Args:
-        scores: Memory ID to confidence score mapping.
-        stale: List of stale memory IDs.
-        report: HealthReport object with health_score and recommendations.
+        report: HealthReport object with health data and recommendations.
 
     Returns:
         Formatted reflection string.
     """
-    total = len(scores)
+    total = getattr(report, "total_memories", 0)
     health_score = getattr(report, "health_score", 0.0)
+    stale = list(getattr(report, "stale_memories", []))
     recommendations = list(getattr(report, "recommendations", []))[:3]
 
     lines = [

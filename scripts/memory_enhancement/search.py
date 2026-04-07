@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .confidence import calculate_confidence
+from .hooks import find_repo_root
 from .models import VerificationResult
 from .serena_integration import load_memory
 from .verification import verify_all_citations
@@ -50,7 +51,7 @@ def search_memories(
         memories_dir: Directory containing memory .md files.
         max_results: Maximum number of results to return.
         repo_root: Repository root for citation verification.
-                   Defaults to memories_dir parent if not provided.
+                   Defaults to detected repo root via find_repo_root.
 
     Returns:
         List of SearchResult sorted by confidence descending.
@@ -61,7 +62,7 @@ def search_memories(
     if not memories_dir.is_dir():
         return []
 
-    effective_root = repo_root or memories_dir.parent
+    effective_root = repo_root or find_repo_root(memories_dir) or memories_dir.parent.parent
 
     paths = _search_with_ripgrep(query, memories_dir)
     if paths is None:
