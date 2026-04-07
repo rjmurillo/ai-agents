@@ -181,8 +181,16 @@ def _score_memory_file(file_path: Path, repo_root: Path) -> SearchResult | None:
     )
 
 
+_STALE_REASON_MARKERS = ("exceeds", "not found in file")
+
+
 def _determine_citation_status(results: list[VerificationResult]) -> str:
-    """Classify overall citation status from verification results."""
+    """Classify overall citation status from verification results.
+
+    Uses reason-based classification consistent with health.py:
+    - "stale" means file exists but content changed (e.g., line count exceeded)
+    - "broken" means target is missing entirely
+    """
     if not results:
         return "unverified"
 
@@ -190,8 +198,20 @@ def _determine_citation_status(results: list[VerificationResult]) -> str:
     if all_valid:
         return "verified"
 
-    any_valid = any(r.is_valid for r in results)
-    if any_valid:
+    has_stale = False
+    has_broken = False
+    for r in results:
+        if r.is_valid:
+            continue
+        reason_lower = r.reason.lower()
+        if any(marker in reason_lower for marker in _STALE_REASON_MARKERS):
+            has_stale = True
+        else:
+            has_broken = True
+
+    if has_broken:
+        return "broken"
+    if has_stale:
         return "stale"
 
     return "broken"

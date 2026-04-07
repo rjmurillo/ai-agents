@@ -208,13 +208,34 @@ class TestDetermineCitationStatus:
         assert _determine_citation_status(results) == "verified"
 
     @pytest.mark.unit
-    def test_mixed_valid_invalid(self):
+    def test_mixed_valid_and_broken(self):
         from memory_enhancement.models import Citation, SourceType, VerificationResult
 
         c = Citation(source_type=SourceType.FILE, target="x.py", context="")
         results = [
             VerificationResult(citation=c, is_valid=True, reason="ok"),
-            VerificationResult(citation=c, is_valid=False, reason="gone"),
+            VerificationResult(citation=c, is_valid=False, reason="file does not exist"),
+        ]
+        assert _determine_citation_status(results) == "broken"
+
+    @pytest.mark.unit
+    def test_mixed_valid_and_stale(self):
+        from memory_enhancement.models import Citation, SourceType, VerificationResult
+
+        c = Citation(source_type=SourceType.FILE, target="x.py", context="")
+        results = [
+            VerificationResult(citation=c, is_valid=True, reason="ok"),
+            VerificationResult(citation=c, is_valid=False, reason="line 50 exceeds file length"),
+        ]
+        assert _determine_citation_status(results) == "stale"
+
+    @pytest.mark.unit
+    def test_stale_reason_not_found_in_file(self):
+        from memory_enhancement.models import Citation, SourceType, VerificationResult
+
+        c = Citation(source_type=SourceType.FILE, target="x.py", context="")
+        results = [
+            VerificationResult(citation=c, is_valid=False, reason="function foo not found in file"),
         ]
         assert _determine_citation_status(results) == "stale"
 

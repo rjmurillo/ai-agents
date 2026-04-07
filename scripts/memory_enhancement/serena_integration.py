@@ -25,12 +25,22 @@ from .models import (
 
 _CITATION_PATTERN = re.compile(
     r"\[cite:(?P<source_type>\w+)\]\((?P<target>[^)]+)\)"
-    r"(?:\s*-\s*(?P<context>[^\n\r]*?))?(?=\s*\[(?:cite|link):|$|\n)",
+    r"(?:\s*-\s*(?P<context>[^\n\r]*))?$",
+    re.MULTILINE,
 )
 
 _LINK_PATTERN = re.compile(
     r"\[link:(?P<link_type>\w+)\]\((?P<target_id>[^)]+)\)"
-    r"(?:\s*-\s*(?P<context>[^\n\r]*?))?(?=\s*\[(?:cite|link):|$|\n)",
+    r"(?:\s*-\s*(?P<context>[^\n\r]*))?$",
+    re.MULTILINE,
+)
+
+_INLINE_CITATION_PATTERN = re.compile(
+    r"\[cite:\w+\]\([^)]+\)",
+)
+
+_INLINE_LINK_PATTERN = re.compile(
+    r"\[link:\w+\]\([^)]+\)",
 )
 
 _CITATIONS_HEADER_PATTERN = re.compile(r"^##\s+Citations\s*$", re.MULTILINE)
@@ -265,8 +275,8 @@ def _strip_citation_link_blocks(content: str) -> str:
         result_lines.append(line)
 
     stripped = "\n".join(result_lines).rstrip()
-    stripped = _CITATION_PATTERN.sub("", stripped)
-    stripped = _LINK_PATTERN.sub("", stripped)
+    stripped = _INLINE_CITATION_PATTERN.sub("", stripped)
+    stripped = _INLINE_LINK_PATTERN.sub("", stripped)
     stripped = re.sub(r"^\s*-\s*$", "", stripped, flags=re.MULTILINE)
     stripped = re.sub(r"\n{3,}", "\n\n", stripped)
     return stripped.strip()
