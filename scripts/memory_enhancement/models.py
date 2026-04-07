@@ -11,6 +11,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import Enum
+from pathlib import Path
 
 
 class SourceType(Enum):
@@ -154,6 +155,30 @@ class MemoryWithCitations:
     def unverified_citations(self) -> list[Citation]:
         """Return citations that have not been verified."""
         return [c for c in self.citations if c.status == CitationStatus.UNVERIFIED]
+
+    @property
+    def id(self) -> str:
+        """Backward-compatible alias for memory_id (used by sync_engine)."""
+        return self.memory_id
+
+    @classmethod
+    def from_file(cls, file_path: Path) -> MemoryWithCitations:
+        """Load a memory from a Serena markdown file.
+
+        Backward-compatible factory used by sync_engine.
+        Raises FileNotFoundError if the file cannot be parsed.
+        """
+        from .serena_integration import load_memory
+
+        result = load_memory(file_path)
+        if result is None:
+            msg = f"Failed to parse memory file: {file_path}"
+            raise FileNotFoundError(msg)
+        return result
+
+
+# Backward-compatible alias for sync_engine and other consumers.
+Memory = MemoryWithCitations
 
 
 @dataclass(frozen=True)
