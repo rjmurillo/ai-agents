@@ -1,0 +1,142 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Agent Observability Event",
+  "description": "JSONL event schema for agent-legible observability. Each line in a .jsonl file is one event.",
+  "type": "object",
+  "required": [
+    "timestamp",
+    "event_type",
+    "session_id"
+  ],
+  "properties": {
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp of the event"
+    },
+    "event_type": {
+      "type": "string",
+      "enum": [
+        "tool_call",
+        "decision",
+        "metric",
+        "error",
+        "session_start",
+        "session_end"
+      ],
+      "description": "Type of observability event"
+    },
+    "session_id": {
+      "type": "string",
+      "description": "Unique session identifier grouping events from one agent invocation"
+    },
+    "agent": {
+      "type": "string",
+      "description": "Agent name (orchestrator, implementer, qa, etc.)"
+    },
+    "trace_id": {
+      "type": "string",
+      "description": "Cross-agent trace identifier for correlating orchestrator and sub-agent events"
+    },
+    "level": {
+      "type": "string",
+      "enum": [
+        "DEBUG",
+        "INFO",
+        "WARN",
+        "ERROR"
+      ],
+      "default": "INFO"
+    },
+    "tool": {
+      "type": "object",
+      "description": "Present for tool_call events",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "duration_ms": {
+          "type": "number"
+        },
+        "success": {
+          "type": "boolean"
+        },
+        "input_summary": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "output_summary": {
+          "type": "string",
+          "maxLength": 200
+        }
+      },
+      "required": [
+        "name"
+      ]
+    },
+    "decision": {
+      "type": "object",
+      "description": "Present for decision events. Captures reasoning alongside actions.",
+      "properties": {
+        "action": {
+          "type": "string"
+        },
+        "reasoning": {
+          "type": "string"
+        },
+        "alternatives_considered": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "action",
+        "reasoning"
+      ]
+    },
+    "metric": {
+      "type": "object",
+      "description": "Present for metric events",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "value": {
+          "type": "number"
+        },
+        "unit": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "value"
+      ]
+    },
+    "error": {
+      "type": "object",
+      "description": "Present for error events",
+      "properties": {
+        "message": {
+          "type": "string"
+        },
+        "category": {
+          "type": "string"
+        },
+        "recoverable": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "message"
+      ]
+    },
+    "message": {
+      "type": "string",
+      "description": "Human-readable event description"
+    }
+  },
+  "additionalProperties": false
+}

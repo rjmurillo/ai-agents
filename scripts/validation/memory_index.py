@@ -104,6 +104,13 @@ class MemoryIndexRefResult(ValidationIssues):
 
 
 @dataclass
+class NamingConventionResult(ValidationIssues):
+    """Result of naming convention validation."""
+
+    violations: list[str] = field(default_factory=list)
+
+
+@dataclass
 class Orphan:
     """An orphaned file not referenced by any index."""
 
@@ -148,6 +155,7 @@ class ValidationReport:
     memory_path: str = ""
     domain_results: dict[str, DomainResult] = field(default_factory=dict)
     memory_index_result: MemoryIndexRefResult | None = None
+    naming_convention: NamingConventionResult | None = None
     orphans: list[Orphan] = field(default_factory=list)
     summary: ValidationSummary = field(default_factory=ValidationSummary)
 
@@ -396,6 +404,61 @@ def check_duplicate_entries(entries: list[IndexEntry]) -> DuplicateResult:
                     "multiple times in index"
                 )
         seen.add(entry.file_name)
+
+    return result
+
+
+# Kebab-case pattern: lowercase letters, digits, and hyphens only.
+_KEBAB_CASE_PATTERN: re.Pattern[str] = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
+
+# Directories are allowed to use simple lowercase names.
+_ALLOWED_SPECIAL_NAMES: frozenset[str] = frozenset({
+    "README",
+    "CLAUDE",
+})
+
+
+def check_naming_convention(memory_path: Path) -> NamingConventionResult:
+    """Validate that all memory files follow lowercase kebab-case naming.
+
+    Scans all .md files under memory_path (recursively). Both directory
+    names and filenames must use lowercase kebab-case:
+    ``some-dir/some-file-name.md``. Known special names (README, CLAUDE)
+    are excluded from the filename check only.
+    """
+    result = NamingConventionResult()
+
+    if not memory_path.exists():
+        return result
+
+    for f in sorted(memory_path.rglob("*.md")):
+        relative = f.relative_to(memory_path)
+
+        # Check all path components for kebab-case compliance.
+        is_violation = False
+        for i, part in enumerate(relative.parts):
+            is_last = i == len(relative.parts) - 1
+            if is_last:
+                stem = f.stem
+                if stem in _ALLOWED_SPECIAL_NAMES:
+                    continue
+                if not _KEBAB_CASE_PATTERN.match(stem):
+                    is_violation = True
+            else:
+                if not _KEBAB_CASE_PATTERN.match(part):
+                    is_violation = True
+
+            if is_violation:
+                break
+
+        if is_violation:
+            result.passed = False
+            rel_posix = relative.as_posix()
+            result.violations.append(rel_posix)
+            result.issues.append(
+                f"Naming violation: {rel_posix} is not lowercase "
+                f"kebab-case (expected pattern: lowercase-with-hyphens)"
+            )
 
     return result
 
@@ -733,6 +796,20 @@ def run_validation(memory_path: Path, output_format: str) -> ValidationReport:
                 f"  - {orphan.file} (should be in {orphan.expected_index})"
             )
 
+    # P1: Naming convention enforcement (kebab-case)
+    naming_result = check_naming_convention(memory_path)
+    report.naming_convention = naming_result
+
+    if not naming_result.passed:
+        report.passed = False
+        if output_format == "console":
+            print(
+                f"\n[P1] Naming convention violations "
+                f"({len(naming_result.violations)}):"
+            )
+            for issue in naming_result.issues:
+                print(f"  - {issue}")
+
     return report
 
 
@@ -792,6 +869,14 @@ def format_markdown(report: ValidationReport) -> str:
             lines.append(
                 f"- {orphan.file} - add to {orphan.expected_index}"
             )
+        lines.append("")
+
+    if report.naming_convention and report.naming_convention.violations:
+        lines.append("## Naming Convention Violations")
+        lines.append("")
+        for v in report.naming_convention.violations:
+            lines.append(f"- {v}")
+        lines.append("")
 
     return "\n".join(lines)
 

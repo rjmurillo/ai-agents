@@ -77,7 +77,7 @@ Tests: `tests/`|`.claude/skills/<name>/tests/`|`.agents/security/benchmarks/`
 
 ## Stack
 
-Python 3.12|UV|PowerShell 7.5.4+|Node LTS|Pester 5.7.1|pytest 8+|gh 2.60+
+Python 3.14|UV|PowerShell 7.5.4+|Node LTS|Pester 5.7.1|pytest 8+|gh 2.60+
 
 ## Refs
 

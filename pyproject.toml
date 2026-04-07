@@ -7,7 +7,7 @@ requires-python = ">=3.10"
 license = {text = "MIT"}
 
 dependencies = [
-    "anthropic==0.86.0",
+    "anthropic==0.89.0",
     "markdown-it-py>=3.0.0",
     "python-frontmatter==1.1.0",
     "PyYAML==6.0.3",
@@ -60,7 +60,7 @@ exclude_dirs = [".venv", "tests", ".git"]
 skips = []
 
 [tool.ruff]
-target-version = "py312"
+target-version = "py314"
 line-length = 100
 
 [tool.ruff.lint]
@@ -83,7 +83,7 @@ ignore = []
 "packages/**/*.py" = ["ANN"]
 
 [tool.mypy]
-python_version = "3.12"
+python_version = "3.14"
 warn_return_any = true
 warn_unused_configs = true
 ignore_missing_imports = true

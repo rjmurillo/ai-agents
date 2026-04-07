@@ -61,7 +61,7 @@
 - **Epic #990**: Memory Enhancement Layer (closed, but phases 1-3 unmilestoned)
 - **PR #908**: Retrospective findings led to #934-#936 quality gates
 - **Analysis**: `.agents/analysis/v0.3.0-issue-triage-2026-02-07.md`
-- **Prior memory**: `roadmap-v0.3.0-top-10-items` (2026-01-23)
+- **Prior memory**: `roadmap-v030-top-10-items` (2026-01-23)
 
 ## Next Steps
 

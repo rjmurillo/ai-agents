@@ -18,6 +18,7 @@ Thank you for your interest in contributing to this project. This guide explains
 - [ADR-to-Protocol Sync Process](#adr-to-protocol-sync-process)
 - [Pull Request Guidelines](#pull-request-guidelines)
   - [Commit Count Thresholds](#commit-count-thresholds)
+- [Third-Party License Attribution](#third-party-license-attribution)
 
 ## Getting Started
 
@@ -25,54 +26,16 @@ Thank you for your interest in contributing to this project. This guide explains
 
 **Required Versions:**
 
-- **Python 3.12.x** (primary scripting language per ADR-042; not 3.13.x due to CodeQL bug)
+- **Python 3.14.x** (primary scripting language per ADR-042)
 - **PowerShell 7.5.4+** (for existing scripts and cross-platform execution)
 - **Pester 5.7.1** (exact version, pinned for supply chain security)
 - **UV** (Python package manager, see [installation](https://docs.astral.sh/uv/getting-started/installation/))
-
-**Python 3.12.x Required** (Not 3.13.x)
-
-This project requires Python 3.12.x due to a known bug in Python 3.13.7 that breaks CodeQL analysis and skill validation. Ubuntu 25.10 users must use `pyenv` to install Python 3.12.8:
-
-```bash
-# Install pyenv (if not already installed)
-curl https://pyenv.run | bash
-
-# Add to your shell profile (~/.bashrc or ~/.zshrc)
-cat >> ~/.bashrc <<'EOF'
-export PYENV_ROOT="$HOME/.pyenv"
-[[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"
-eval "$(pyenv init -)"
-EOF
-
-# Or for zsh users:
-cat >> ~/.zshrc <<'EOF'
-export PYENV_ROOT="$HOME/.pyenv"
-[[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"
-eval "$(pyenv init -)"
-EOF
-
-# Reload shell
-exec "$SHELL"
-
-# Install Python 3.12.8
-pyenv install 3.12.8
-
-# Set for this project
-cd /path/to/ai-agents
-pyenv local 3.12.8
-
-# Verify
-python3 --version  # Should show Python 3.12.8
-```
-
-**See:** `.serena/memories/python-version-compatibility.md` for details on the Python 3.13.7 issue.
 
 ### Setup Steps
 
 1. Fork the repository
 2. Clone your fork locally
-3. **Install Python 3.12.x** (see Prerequisites above)
+3. **Install Python 3.14.x** (see Prerequisites above)
 4. **Set up Python environment**: `uv venv && uv pip install -e ".[dev]"`
 5. Configure Git for cross-platform development (see [Git Configuration](#git-configuration) below)
 6. Set up git hooks (pre-commit + pre-push): `git config core.hooksPath .githooks`
@@ -861,6 +824,37 @@ Displays routing history and cost savings metrics.
 - LLM fallback only triggers for uncertain cases
 - Token overhead optimized to ~3.4k tokens per interaction
 - Slash commands (`/route`, `/router-stats`) and router questions are handled directly, not routed
+
+## Third-Party License Attribution
+
+This project ships plugins via `.claude-plugin/marketplace.json`. Any
+third-party component redistributed in a shipped plugin path requires
+license attribution in `THIRD-PARTY-NOTICES.TXT`.
+
+### What Requires Attribution
+
+| Component Type | Example | Requires Attribution |
+|----------------|---------|---------------------|
+| Forked/vendored source code | SkillForge | Yes |
+| Runtime dependencies in shipped `requirements.txt` | anthropic SDK | Yes |
+| Dev-only tools | pytest, ruff | No |
+| CI infrastructure | GitHub Actions | No |
+| Transitive pip packages | pydantic, httpx | No |
+| Test frameworks | Pester, pytest-cov | No |
+
+### Adding a New Third-Party Component
+
+1. Verify the license is compatible with MIT (see `docs/third-party-license-attribution.md`)
+2. Add the component to `FORKED_COMPONENTS` or `RUNTIME_DEPENDENCIES` in
+   `scripts/generate_third_party_notices.py`
+3. Run `uv run python3 scripts/generate_third_party_notices.py` to regenerate
+4. Commit both the script and `THIRD-PARTY-NOTICES.TXT` together
+5. Run `--check` mode to verify: `uv run python3 scripts/generate_third_party_notices.py --check`
+
+### Full Policy
+
+See `docs/third-party-license-attribution.md` for the complete policy,
+license compatibility matrix, and compliance checklist.
 
 ## Questions?
 
