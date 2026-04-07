@@ -6,14 +6,14 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from scripts.memory_enhancement.models import (
+from memory_enhancement.models import (
     Citation,
     CitationStatus,
     HealthReport,
     MemoryWithCitations,
     SourceType,
 )
-from scripts.memory_enhancement.health import (
+from memory_enhancement.health import (
     detect_stale_memories,
     format_report,
     generate_health_report,

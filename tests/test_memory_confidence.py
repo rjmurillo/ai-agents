@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from scripts.memory_enhancement.models import (
+from memory_enhancement.models import (
     Citation,
     LinkType,
     MemoryLink,
@@ -14,7 +14,7 @@ from scripts.memory_enhancement.models import (
     SourceType,
     VerificationResult,
 )
-from scripts.memory_enhancement.confidence import (
+from memory_enhancement.confidence import (
     calculate_confidence,
     update_confidence_scores,
 )

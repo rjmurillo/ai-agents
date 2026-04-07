@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from scripts.memory_enhancement.models import (
+from memory_enhancement.models import (
     Citation,
     CitationStatus,
     HealthReport,

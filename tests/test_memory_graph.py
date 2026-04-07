@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import pytest
 
-from scripts.memory_enhancement.models import (
+from memory_enhancement.models import (
     LinkType,
     MemoryLink,
     MemoryWithCitations,
 )
-from scripts.memory_enhancement.graph import (
+from memory_enhancement.graph import (
     build_memory_graph,
     detect_cycles,
     find_orphans,

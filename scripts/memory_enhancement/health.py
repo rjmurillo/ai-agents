@@ -9,13 +9,13 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from pathlib import Path
 
-from scripts.memory_enhancement.models import (
+from .models import (
     HealthReport,
     MemoryWithCitations,
     VerificationResult,
 )
-from scripts.memory_enhancement.serena_integration import load_memories
-from scripts.memory_enhancement.verification import verify_all_citations
+from .serena_integration import load_memories
+from .verification import verify_all_citations
 
 # Reason substrings that indicate stale (content changed) vs broken (target gone)
 _STALE_REASON_MARKERS = ("exceeds", "not found in file")

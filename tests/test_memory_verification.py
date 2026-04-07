@@ -6,13 +6,13 @@ from pathlib import Path
 
 import pytest
 
-from scripts.memory_enhancement.models import (
+from memory_enhancement.models import (
     Citation,
     CitationStatus,
     MemoryWithCitations,
     SourceType,
 )
-from scripts.memory_enhancement.verification import (
+from memory_enhancement.verification import (
     find_stale_citations,
     verify_all_citations,
     verify_citation,

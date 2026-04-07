@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from scripts.memory_enhancement.__main__ import main
+from memory_enhancement.__main__ import main
 
 
 class TestCLIVerify:

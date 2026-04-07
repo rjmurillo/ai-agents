@@ -9,9 +9,9 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from pathlib import Path
 
-from scripts.memory_enhancement.models import MemoryWithCitations, VerificationResult
-from scripts.memory_enhancement.serena_integration import load_memories
-from scripts.memory_enhancement.verification import verify_all_citations
+from .models import MemoryWithCitations, VerificationResult
+from .serena_integration import load_memories
+from .verification import verify_all_citations
 
 _WEIGHT_VALIDITY = 0.50
 _WEIGHT_RECENCY = 0.25

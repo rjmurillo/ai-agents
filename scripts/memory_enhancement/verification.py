@@ -10,7 +10,7 @@ import re
 from collections.abc import Callable
 from pathlib import Path
 
-from scripts.memory_enhancement.models import (
+from .models import (
     Citation,
     MemoryWithCitations,
     SourceType,

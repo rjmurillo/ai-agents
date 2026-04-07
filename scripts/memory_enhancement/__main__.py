@@ -12,18 +12,17 @@ Commands:
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from collections.abc import Callable
 from pathlib import Path
 
-from scripts.memory_enhancement.confidence import (
-    update_confidence_scores,
-)
-from scripts.memory_enhancement.graph import build_memory_graph, traverse
-from scripts.memory_enhancement.health import format_report, generate_health_report
-from scripts.memory_enhancement.models import VerificationResult
-from scripts.memory_enhancement.serena_integration import load_memories
-from scripts.memory_enhancement.verification import verify_all_citations
+from .confidence import update_confidence_scores
+from .graph import build_memory_graph, traverse
+from .health import format_report, generate_health_report
+from .models import VerificationResult
+from .serena_integration import load_memories
+from .verification import verify_all_citations
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -68,6 +67,7 @@ def _build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(title="commands")
 
     _add_verify_command(subparsers)
+    _add_verify_all_command(subparsers)
     _add_health_command(subparsers)
     _add_graph_command(subparsers)
     _add_confidence_command(subparsers)
@@ -80,6 +80,13 @@ def _add_verify_command(subparsers: argparse._SubParsersAction) -> None:  # type
     verify_parser = subparsers.add_parser("verify", help="Verify citations")
     verify_parser.add_argument("--memory-id", type=str, default=None, help="Specific memory ID")
     verify_parser.set_defaults(func=_cmd_verify)
+
+
+def _add_verify_all_command(subparsers: argparse._SubParsersAction) -> None:  # type: ignore[type-arg]
+    """Register the verify-all subcommand (CI compatibility)."""
+    va_parser = subparsers.add_parser("verify-all", help="Verify all memory citations")
+    va_parser.add_argument("--json", dest="json_output", action="store_true", help="Output as JSON")
+    va_parser.set_defaults(func=_cmd_verify_all)
 
 
 def _add_health_command(subparsers: argparse._SubParsersAction) -> None:  # type: ignore[type-arg]
@@ -127,6 +134,36 @@ def _cmd_verify(args: argparse.Namespace) -> int:
         _print_verification_results(memory.memory_id, results)
         if any(not r.is_valid for r in results):
             found_issues = True
+
+    return 1 if found_issues else 0
+
+
+def _cmd_verify_all(args: argparse.Namespace) -> int:
+    """Verify all memory citations, with optional JSON output."""
+    memories_dir = _resolve_memories_dir(args)
+    memories = load_memories(memories_dir)
+    all_results: dict[str, list[dict[str, object]]] = {}
+    found_issues = False
+
+    for memory in memories:
+        results = verify_all_citations(memory, args.repo_root)
+        if any(not r.is_valid for r in results):
+            found_issues = True
+        all_results[memory.memory_id] = [
+            {
+                "target": r.citation.target,
+                "source_type": r.citation.source_type.value,
+                "is_valid": r.is_valid,
+                "reason": r.reason,
+            }
+            for r in results
+        ]
+
+    if args.json_output:
+        print(json.dumps(all_results, indent=2))
+    else:
+        report = generate_health_report(memories_dir, args.repo_root)
+        print(format_report(report))
 
     return 1 if found_issues else 0
 

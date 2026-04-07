@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from scripts.memory_enhancement.models import (
+from memory_enhancement.models import (
     Citation,
     CitationStatus,
     LinkType,
@@ -15,7 +15,7 @@ from scripts.memory_enhancement.models import (
     MemoryWithCitations,
     SourceType,
 )
-from scripts.memory_enhancement.serena_integration import (
+from memory_enhancement.serena_integration import (
     load_memories,
     load_memory,
     parse_citation_block,

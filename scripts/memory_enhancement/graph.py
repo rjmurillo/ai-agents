@@ -9,8 +9,8 @@ from __future__ import annotations
 from collections import deque
 from pathlib import Path
 
-from scripts.memory_enhancement.models import LinkType, MemoryWithCitations
-from scripts.memory_enhancement.serena_integration import load_memories
+from .models import LinkType, MemoryWithCitations
+from .serena_integration import load_memories
 
 
 def build_memory_graph(memories_dir: Path) -> dict[str, MemoryWithCitations]:

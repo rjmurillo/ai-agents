@@ -15,7 +15,7 @@ from pathlib import Path
 import frontmatter
 import yaml
 
-from scripts.memory_enhancement.models import (
+from .models import (
     Citation,
     LinkType,
     MemoryLink,
