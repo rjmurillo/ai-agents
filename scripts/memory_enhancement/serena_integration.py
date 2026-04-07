@@ -203,7 +203,13 @@ def save_memory(memory: MemoryWithCitations, memories_dir: Path) -> Path:
     except OSError as exc:
         raise RuntimeError(f"Cannot create directory {memories_dir}: {exc}") from exc
 
-    file_path = memories_dir / f"{memory.memory_id}.md"
+    # Security: validate memory_id does not escape memories_dir (CWE-22).
+    base_dir = memories_dir.resolve()
+    file_path = (base_dir / f"{memory.memory_id}.md").resolve()
+    try:
+        file_path.relative_to(base_dir)
+    except ValueError:
+        raise ValueError(f"Invalid memory_id: path traversal detected in '{memory.memory_id}'") from None
 
     metadata = {
         "title": memory.title,
