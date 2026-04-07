@@ -108,7 +108,8 @@ def _verify_file_line(
 ) -> VerificationResult:
     """Check that a file has at least the specified number of lines."""
     try:
-        line_count = sum(1 for _ in file_path.open(encoding="utf-8", errors="replace"))
+        with file_path.open(encoding="utf-8", errors="replace") as f:
+            line_count = sum(1 for _ in f)
     except OSError as exc:
         return VerificationResult.create(citation, False, f"Cannot read file: {exc}")
 

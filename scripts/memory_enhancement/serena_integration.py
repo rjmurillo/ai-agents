@@ -9,7 +9,7 @@ from __future__ import annotations
 import re
 import sys
 from collections.abc import Sequence
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 import frontmatter
@@ -32,6 +32,9 @@ _LINK_PATTERN = re.compile(
     r"\[link:(?P<link_type>\w+)\]\((?P<target_id>[^)]+)\)"
     r"(?:\s*-\s*(?P<context>.+))?",
 )
+
+_CITATIONS_HEADER_PATTERN = re.compile(r"^##\s+Citations\s*$", re.MULTILINE)
+_LINKS_HEADER_PATTERN = re.compile(r"^##\s+Links\s*$", re.MULTILINE)
 
 _TITLE_DATE_PATTERN = re.compile(
     r"^#\s+(?P<title>.+?)\s*\((?P<date>\d{4}-\d{2}-\d{2})\)\s*$",
@@ -129,6 +132,7 @@ def load_memory(file_path: Path) -> MemoryWithCitations | None:
 
     citations = parse_citation_block(content)
     links = parse_link_block(content)
+    content = _strip_citation_link_blocks(content)
 
     return MemoryWithCitations(
         memory_id=memory_id,
@@ -217,6 +221,30 @@ def save_memory(memory: MemoryWithCitations, memories_dir: Path) -> Path:
     return file_path
 
 
+def _strip_citation_link_blocks(content: str) -> str:
+    """Remove ## Citations and ## Links sections from content to prevent duplication.
+
+    When loading a memory that was previously saved, the content may already
+    contain these blocks. Stripping them ensures save_memory won't duplicate.
+    """
+    lines = content.split("\n")
+    result_lines: list[str] = []
+    in_block = False
+
+    for line in lines:
+        if _CITATIONS_HEADER_PATTERN.match(line) or _LINKS_HEADER_PATTERN.match(line):
+            in_block = True
+            continue
+        if in_block:
+            if line.startswith("## ") and not _CITATIONS_HEADER_PATTERN.match(line) and not _LINKS_HEADER_PATTERN.match(line):
+                in_block = False
+                result_lines.append(line)
+            continue
+        result_lines.append(line)
+
+    return "\n".join(result_lines).rstrip()
+
+
 def _extract_metadata(
     raw_text: str,
 ) -> tuple[str | None, datetime, datetime, list[str], float, str]:
@@ -269,9 +297,14 @@ def _parse_datetime(value: object, default: datetime) -> datetime:
 
     Normalizes all parsed datetimes to UTC. If the parsed result is naive
     (no tzinfo), UTC is assumed and attached.
+
+    Handles datetime.date objects from YAML (unquoted dates like 2026-01-01)
+    by converting to datetime at midnight UTC.
     """
     if isinstance(value, datetime):
         return _ensure_utc(value)
+    if isinstance(value, date):
+        return datetime(value.year, value.month, value.day, tzinfo=UTC)
     if isinstance(value, str):
         try:
             return _ensure_utc(datetime.fromisoformat(value))

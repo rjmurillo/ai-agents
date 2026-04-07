@@ -19,7 +19,6 @@ from .verification import verify_all_citations
 
 # Reason substrings that indicate stale (content changed) vs broken (target gone)
 _STALE_REASON_MARKERS = ("exceeds", "not found in file")
-_BROKEN_REASON_MARKERS = ("not found", "invalid", "no verifier", "cannot read")
 
 
 def generate_health_report(memories_dir: Path, repo_root: Path) -> HealthReport:
@@ -134,18 +133,12 @@ def _count_citation_statuses(
 ) -> dict[str, int]:
     """Verify all citations and count by status.
 
-    Uses VerificationResult.reason to distinguish stale from broken,
-    and counts citations that could not be verified as unverified.
+    Uses VerificationResult.reason to distinguish stale from broken.
     """
     counts = {"total": 0, "valid": 0, "stale": 0, "broken": 0, "unverified": 0}
 
     for memory in memories:
         results = verify_all_citations(memory, repo_root)
-        if not results and memory.citations:
-            # Citations exist but verification produced no results
-            counts["total"] += len(memory.citations)
-            counts["unverified"] += len(memory.citations)
-            continue
         for result in results:
             counts["total"] += 1
             status = _classify_result(result)
