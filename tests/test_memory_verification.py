@@ -57,6 +57,22 @@ class TestVerifyFileCitation:
         with pytest.raises(ValueError, match="non-empty"):
             Citation(source_type=SourceType.FILE, target="", context="")
 
+    @pytest.mark.unit
+    def test_path_traversal_blocked(self, tmp_path):
+        """CWE-22: paths that escape repo_root must be rejected."""
+        c = Citation(source_type=SourceType.FILE, target="../../etc/passwd", context="")
+        result = verify_citation(c, tmp_path)
+        assert result.is_valid is False
+        assert "traversal" in result.reason.lower()
+
+    @pytest.mark.unit
+    def test_function_path_traversal_blocked(self, tmp_path):
+        """CWE-22: function citations with traversal paths must be rejected."""
+        c = Citation(source_type=SourceType.FUNCTION, target="../../etc/passwd::func", context="")
+        result = verify_citation(c, tmp_path)
+        assert result.is_valid is False
+        assert "traversal" in result.reason.lower()
+
 
     @pytest.mark.unit
     def test_verify_file_line_oserror(self, tmp_path, monkeypatch):

@@ -236,7 +236,12 @@ def _strip_citation_link_blocks(content: str) -> str:
             in_block = True
             continue
         if in_block:
-            if line.startswith("## ") and not _CITATIONS_HEADER_PATTERN.match(line) and not _LINKS_HEADER_PATTERN.match(line):
+            is_new_section = (
+                line.startswith("## ")
+                and not _CITATIONS_HEADER_PATTERN.match(line)
+                and not _LINKS_HEADER_PATTERN.match(line)
+            )
+            if is_new_section:
                 in_block = False
                 result_lines.append(line)
             continue

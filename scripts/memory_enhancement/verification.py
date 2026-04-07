@@ -85,6 +85,21 @@ def _get_verifier(source_type: SourceType) -> VerifierFn:
     return _VERIFIERS.get(source_type, _verify_unknown)
 
 
+def _validate_path_containment(
+    relative_path: str, repo_root: Path
+) -> tuple[Path | None, str | None]:
+    """Resolve a path and verify it stays within repo_root (CWE-22 guard).
+
+    Returns (resolved_path, None) on success or (None, error_reason) on failure.
+    """
+    candidate = (repo_root / relative_path).resolve()
+    try:
+        candidate.relative_to(repo_root.resolve())
+    except ValueError:
+        return None, f"Path traversal blocked: {relative_path}"
+    return candidate, None
+
+
 def _verify_file(citation: Citation, repo_root: Path) -> VerificationResult:
     """Verify a file citation exists at the specified path and optional line."""
     match = _FILE_LINE_PATTERN.match(citation.target)
@@ -92,13 +107,16 @@ def _verify_file(citation: Citation, repo_root: Path) -> VerificationResult:
         reason = f"Invalid file target format: {citation.target}"
         return VerificationResult.create(citation, False, reason)
 
-    file_path = repo_root / match.group("path")
-    if not file_path.is_file():
+    resolved, error = _validate_path_containment(match.group("path"), repo_root)
+    if error or resolved is None:
+        return VerificationResult.create(citation, False, error or "Invalid path")
+
+    if not resolved.is_file():
         return VerificationResult.create(citation, False, f"File not found: {match.group('path')}")
 
     line_str = match.group("line")
     if line_str is not None:
-        return _verify_file_line(citation, file_path, int(line_str))
+        return _verify_file_line(citation, resolved, int(line_str))
 
     return VerificationResult.create(citation, True, "File exists")
 
@@ -128,12 +146,15 @@ def _verify_function(citation: Citation, repo_root: Path) -> VerificationResult:
             citation, False, f"Invalid function target format: {citation.target}"
         )
 
-    file_path = repo_root / match.group("path")
-    if not file_path.is_file():
+    resolved, error = _validate_path_containment(match.group("path"), repo_root)
+    if error or resolved is None:
+        return VerificationResult.create(citation, False, error or "Invalid path")
+
+    if not resolved.is_file():
         return VerificationResult.create(citation, False, f"File not found: {match.group('path')}")
 
     func_name = match.group("func")
-    return _search_function_in_file(citation, file_path, func_name)
+    return _search_function_in_file(citation, resolved, func_name)
 
 
 def _search_function_in_file(
