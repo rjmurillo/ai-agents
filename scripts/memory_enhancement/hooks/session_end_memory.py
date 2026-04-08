@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 
 from ..models import HealthReport
+from ..reflection import extract_session_facts, reinforce_memories
 
 
 def main() -> int:
@@ -49,18 +50,25 @@ def _generate_reflection(memories_dir: Path, repo_root: Path) -> str:
     """
     from ..health import generate_health_report
 
+    # Use reflection module for confidence reinforcement
+    reinforce_memories(memories_dir, repo_root)
+
+    # Track session activity
+    session_facts = extract_session_facts(memories_dir)
+
     report = generate_health_report(memories_dir, repo_root)
     if report.total_memories == 0:
         return ""
 
-    return _format_reflection(report)
+    return _format_reflection(report, session_facts)
 
 
-def _format_reflection(report: HealthReport) -> str:
+def _format_reflection(report: HealthReport, session_facts: list[str] | None = None) -> str:
     """Format the session reflection block for stderr.
 
     Args:
         report: HealthReport with health data and recommendations.
+        session_facts: Memory IDs updated this session.
 
     Returns:
         Formatted reflection string.
@@ -76,6 +84,9 @@ def _format_reflection(report: HealthReport) -> str:
         f"- Total: {total} memories, {health_score:.0%} health",
         f"- Stale: {len(stale)} need verification",
     ]
+
+    if session_facts:
+        lines.append(f"- Updated this session: {len(session_facts)} memories")
 
     if recommendations:
         lines.append(f"- Recommendations: {'; '.join(recommendations)}")

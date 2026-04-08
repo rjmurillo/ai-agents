@@ -21,6 +21,7 @@ from .confidence import update_confidence_scores
 from .graph import build_memory_graph, traverse
 from .health import format_report, format_report_text, generate_health_report
 from .models import VerificationResult
+from .search import search_memories
 from .serena_integration import load_memories
 from .verification import verify_all_citations
 
@@ -71,6 +72,7 @@ def _build_parser() -> argparse.ArgumentParser:
     _add_health_command(subparsers)
     _add_graph_command(subparsers)
     _add_confidence_command(subparsers)
+    _add_search_command(subparsers)
 
     return parser
 
@@ -124,6 +126,17 @@ def _add_confidence_command(subparsers: argparse._SubParsersAction) -> None:  # 
     conf_parser = subparsers.add_parser("confidence", help="Show confidence scores")
     # Write-back (--update) deferred to a future PR.
     conf_parser.set_defaults(func=_cmd_confidence)
+
+
+def _add_search_command(subparsers: argparse._SubParsersAction) -> None:  # type: ignore[type-arg]
+    """Register the search subcommand."""
+    search_parser = subparsers.add_parser("search", help="Search memories")
+    search_parser.add_argument("query", type=str, help="Search query")
+    search_parser.add_argument("--top", type=int, default=5, help="Max results (default: 5)")
+    search_parser.add_argument(
+        "--json", dest="json_output", action="store_true", help="Output as JSON array"
+    )
+    search_parser.set_defaults(func=_cmd_search)
 
 
 def _resolve_memories_dir(args: argparse.Namespace) -> Path:
@@ -258,6 +271,40 @@ def _cmd_confidence(args: argparse.Namespace) -> int:
 
     for memory_id, score in sorted(scores.items()):
         print(f"{memory_id}: {score:.3f}")
+    return 0
+
+
+def _cmd_search(args: argparse.Namespace) -> int:
+    """Execute the search command."""
+    memories_dir = _resolve_memories_dir(args)
+    results = search_memories(
+        query=args.query,
+        memories_dir=memories_dir,
+        max_results=args.top,
+        repo_root=args.repo_root,
+    )
+
+    if not results:
+        print("No results found.")
+        return 0
+
+    if args.json_output:
+        json_results = [
+            {
+                "memory_id": r.memory_id,
+                "confidence": r.confidence,
+                "citation_status": r.citation_status,
+                "title": r.title,
+                "snippet": r.snippet,
+                "file_path": str(r.file_path),
+            }
+            for r in results
+        ]
+        print(json.dumps(json_results, indent=2))
+    else:
+        for r in results:
+            print(f"{r.memory_id} ({r.confidence:.0%}, {r.citation_status}) - {r.title}")
+
     return 0
 
 

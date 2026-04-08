@@ -6,13 +6,14 @@ import io
 
 import pytest
 
+from memory_enhancement.extraction import (
+    extract_error_pattern,
+    format_suggestion,
+    has_error_indicators,
+    has_notable_content,
+)
 from memory_enhancement.hooks.post_tool_call_memory import (
     _analyze_tool_result,
-    _extract_error_pattern,
-    _format_content_suggestion,
-    _format_error_suggestion,
-    _has_notable_content,
-    _is_error_result,
     _read_tool_result,
 )
 
@@ -55,23 +56,23 @@ class TestIsErrorResult:
 
     @pytest.mark.unit
     def test_detects_error(self):
-        assert _is_error_result("Error: file not found") is True
+        assert has_error_indicators("Error: file not found") is True
 
     @pytest.mark.unit
     def test_detects_traceback(self):
-        assert _is_error_result("Traceback (most recent call last):") is True
+        assert has_error_indicators("Traceback (most recent call last):") is True
 
     @pytest.mark.unit
     def test_detects_failure(self):
-        assert _is_error_result("Build failed with 3 errors") is True
+        assert has_error_indicators("Build failed with 3 errors") is True
 
     @pytest.mark.unit
     def test_clean_output(self):
-        assert _is_error_result("Build succeeded. 0 warnings.") is False
+        assert has_error_indicators("Build succeeded. 0 warnings.") is False
 
     @pytest.mark.unit
     def test_empty_string(self):
-        assert _is_error_result("") is False
+        assert has_error_indicators("") is False
 
 
 class TestHasNotableContent:
@@ -79,19 +80,19 @@ class TestHasNotableContent:
 
     @pytest.mark.unit
     def test_detects_python_file(self):
-        assert _has_notable_content("Modified scripts/search.py") is True
+        assert has_notable_content("Modified scripts/search.py") is True
 
     @pytest.mark.unit
     def test_detects_function_def(self):
-        assert _has_notable_content("def calculate_score():") is True
+        assert has_notable_content("def calculate_score():") is True
 
     @pytest.mark.unit
     def test_detects_class(self):
-        assert _has_notable_content("class SearchEngine:") is True
+        assert has_notable_content("class SearchEngine:") is True
 
     @pytest.mark.unit
     def test_plain_text(self):
-        assert _has_notable_content("Hello world") is False
+        assert has_notable_content("Hello world") is False
 
 
 class TestExtractErrorPattern:
@@ -100,20 +101,21 @@ class TestExtractErrorPattern:
     @pytest.mark.unit
     def test_extracts_first_error_line(self):
         text = "line 1\nError: something broke\nline 3"
-        result = _extract_error_pattern(text)
-        assert "Error: something broke" in result
+        result = extract_error_pattern("Bash", text)
+        assert "Error: something broke" in result["pattern"]
 
     @pytest.mark.unit
     def test_truncates_long_patterns(self):
         text = "Error: " + "x" * 300
-        result = _extract_error_pattern(text)
-        assert len(result) <= 200
+        result = extract_error_pattern("Bash", text)
+        assert len(result["suggested_memory"]) <= 300
 
     @pytest.mark.unit
-    def test_no_error_line_uses_start(self):
+    def test_returns_dict_with_tool_name(self):
         text = "some output"
-        result = _extract_error_pattern(text)
-        assert result == "some output"
+        result = extract_error_pattern("Read", text)
+        assert result["tool_name"] == "Read"
+        assert "pattern" in result
 
 
 class TestAnalyzeToolResult:
@@ -138,25 +140,27 @@ class TestAnalyzeToolResult:
         assert result == ""
 
 
-class TestFormatErrorSuggestion:
-    """Tests for error suggestion formatting."""
+class TestFormatSuggestion:
+    """Tests for suggestion formatting via extraction module."""
 
     @pytest.mark.unit
-    def test_contains_required_fields(self):
-        result = _format_error_suggestion("Bash", "Error: timeout")
+    def test_error_suggestion_contains_required_fields(self):
+        pattern = extract_error_pattern("Bash", "Error: timeout")
+        result = format_suggestion(pattern)
         assert "<memory-suggestion>" in result
         assert "</memory-suggestion>" in result
         assert "type: learning" in result
         assert "trigger: Bash failure" in result
         assert "citation: tool_result:Bash" in result
 
-
-class TestFormatContentSuggestion:
-    """Tests for content suggestion formatting."""
-
     @pytest.mark.unit
-    def test_contains_required_fields(self):
-        result = _format_content_suggestion("Read", "Found def my_func():")
+    def test_content_suggestion_contains_required_fields(self):
+        pattern = {
+            "tool_name": "Read",
+            "content": "Found def my_func():",
+            "type": "observation",
+        }
+        result = format_suggestion(pattern)
         assert "<memory-suggestion>" in result
         assert "</memory-suggestion>" in result
         assert "type: observation" in result

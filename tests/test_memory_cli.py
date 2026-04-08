@@ -181,6 +181,88 @@ class TestCLIConfidence:
         assert "m1" in captured.out
 
 
+class TestCLISearch:
+    """CLI search command tests."""
+
+    @pytest.mark.unit
+    def test_search_no_results(self, tmp_path, capsys):
+        mem_dir = tmp_path / "memories"
+        mem_dir.mkdir()
+        exit_code = main([
+            "--repo-root", str(tmp_path),
+            "--memories-dir", str(mem_dir),
+            "search", "nonexistent",
+        ])
+        assert exit_code == 0
+        captured = capsys.readouterr()
+        assert "No results found" in captured.out
+
+    @pytest.mark.unit
+    def test_search_with_results(self, tmp_path, capsys):
+        mem_dir = tmp_path / "memories"
+        mem_dir.mkdir()
+        (mem_dir / "m1.md").write_text("# M1 (2026-01-01)\n\nSome test content\n")
+        exit_code = main([
+            "--repo-root", str(tmp_path),
+            "--memories-dir", str(mem_dir),
+            "search", "test",
+        ])
+        assert exit_code == 0
+        captured = capsys.readouterr()
+        assert "m1" in captured.out
+
+    @pytest.mark.unit
+    def test_search_json_output(self, tmp_path, capsys):
+        import json
+        mem_dir = tmp_path / "memories"
+        mem_dir.mkdir()
+        (mem_dir / "m1.md").write_text("# M1 (2026-01-01)\n\nSome test content\n")
+        exit_code = main([
+            "--repo-root", str(tmp_path),
+            "--memories-dir", str(mem_dir),
+            "search", "test", "--json",
+        ])
+        assert exit_code == 0
+        captured = capsys.readouterr()
+        data = json.loads(captured.out)
+        assert isinstance(data, list)
+        assert len(data) >= 1
+        assert "memory_id" in data[0]
+        assert "confidence" in data[0]
+
+    @pytest.mark.unit
+    def test_search_top_limit(self, tmp_path, capsys):
+        mem_dir = tmp_path / "memories"
+        mem_dir.mkdir()
+        for i in range(5):
+            (mem_dir / f"m{i}.md").write_text(f"# M{i} (2026-01-01)\n\nTest content {i}\n")
+        exit_code = main([
+            "--repo-root", str(tmp_path),
+            "--memories-dir", str(mem_dir),
+            "search", "test", "--top", "2",
+        ])
+        assert exit_code == 0
+        captured = capsys.readouterr()
+        lines = [l for l in captured.out.strip().splitlines() if l.strip()]
+        assert len(lines) <= 2
+
+    @pytest.mark.unit
+    def test_search_plain_output_format(self, tmp_path, capsys):
+        mem_dir = tmp_path / "memories"
+        mem_dir.mkdir()
+        (mem_dir / "m1.md").write_text("# M1 (2026-01-01)\n\nSome test content\n")
+        exit_code = main([
+            "--repo-root", str(tmp_path),
+            "--memories-dir", str(mem_dir),
+            "search", "test",
+        ])
+        assert exit_code == 0
+        captured = capsys.readouterr()
+        # Format: {memory_id} ({confidence:.0%}, {citation_status}) - {title}
+        assert "%" in captured.out
+        assert " - " in captured.out
+
+
 class TestCLINoCommand:
     """CLI with no command prints help and returns 1."""
 
