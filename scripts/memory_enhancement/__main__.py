@@ -1,6 +1,6 @@
 """CLI entry point for the memory enhancement layer.
 
-Usage: python -m scripts.memory_enhancement <command> [options]
+Usage: python -m memory_enhancement <command> [options]
 
 Commands:
   verify      Verify citations in memories
@@ -16,6 +16,7 @@ import json
 import sys
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 from .confidence import update_confidence_scores
 from .graph import build_memory_graph, traverse
@@ -77,21 +78,21 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _add_verify_command(subparsers: argparse._SubParsersAction) -> None:  # type: ignore[type-arg]
+def _add_verify_command(subparsers: argparse._SubParsersAction[Any]) -> None:
     """Register the verify subcommand."""
     verify_parser = subparsers.add_parser("verify", help="Verify citations")
     verify_parser.add_argument("--memory-id", type=str, default=None, help="Specific memory ID")
     verify_parser.set_defaults(func=_cmd_verify)
 
 
-def _add_verify_all_command(subparsers: argparse._SubParsersAction) -> None:  # type: ignore[type-arg]
+def _add_verify_all_command(subparsers: argparse._SubParsersAction[Any]) -> None:
     """Register the verify-all subcommand (CI compatibility)."""
     va_parser = subparsers.add_parser("verify-all", help="Verify all memory citations")
     va_parser.add_argument("--json", dest="json_output", action="store_true", help="Output as JSON")
     va_parser.set_defaults(func=_cmd_verify_all)
 
 
-def _add_health_command(subparsers: argparse._SubParsersAction) -> None:  # type: ignore[type-arg]
+def _add_health_command(subparsers: argparse._SubParsersAction[Any]) -> None:
     """Register the health subcommand."""
     health_parser = subparsers.add_parser("health", help="Generate health report")
     output_group = health_parser.add_mutually_exclusive_group()
@@ -120,7 +121,7 @@ def _add_health_command(subparsers: argparse._SubParsersAction) -> None:  # type
     health_parser.set_defaults(func=_cmd_health)
 
 
-def _add_graph_command(subparsers: argparse._SubParsersAction) -> None:  # type: ignore[type-arg]
+def _add_graph_command(subparsers: argparse._SubParsersAction[Any]) -> None:
     """Register the graph subcommand."""
     graph_parser = subparsers.add_parser("graph", help="Traverse memory graph")
     graph_parser.add_argument("--start", type=str, required=True, help="Starting memory ID")
@@ -128,14 +129,14 @@ def _add_graph_command(subparsers: argparse._SubParsersAction) -> None:  # type:
     graph_parser.set_defaults(func=_cmd_graph)
 
 
-def _add_confidence_command(subparsers: argparse._SubParsersAction) -> None:  # type: ignore[type-arg]
+def _add_confidence_command(subparsers: argparse._SubParsersAction[Any]) -> None:
     """Register the confidence subcommand."""
     conf_parser = subparsers.add_parser("confidence", help="Show confidence scores")
     # Write-back (--update) deferred to a future PR.
     conf_parser.set_defaults(func=_cmd_confidence)
 
 
-def _add_search_command(subparsers: argparse._SubParsersAction) -> None:  # type: ignore[type-arg]
+def _add_search_command(subparsers: argparse._SubParsersAction[Any]) -> None:
     """Register the search subcommand."""
     search_parser = subparsers.add_parser("search", help="Search memories")
     search_parser.add_argument("query", type=str, help="Search query")

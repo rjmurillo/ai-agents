@@ -2,21 +2,17 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from memory_enhancement.models import (
-    Citation,
-    CitationStatus,
-    HealthReport,
-    MemoryWithCitations,
-    SourceType,
-)
 from memory_enhancement.health import (
     detect_stale_memories,
     format_report,
     generate_health_report,
+)
+from memory_enhancement.models import (
+    HealthReport,
 )
 
 
@@ -61,7 +57,7 @@ class TestDetectStaleMemories:
     def test_old_memory_detected(self, tmp_path):
         mem_dir = tmp_path / "memories"
         mem_dir.mkdir()
-        old_date = (datetime.now(timezone.utc) - timedelta(days=60)).strftime("%Y-%m-%d")
+        old_date = (datetime.now(UTC) - timedelta(days=60)).strftime("%Y-%m-%d")
         (mem_dir / "old.md").write_text(f"# Old ({old_date})\n\nContent\n")
         stale = detect_stale_memories(mem_dir, tmp_path, max_age_days=30)
         assert "old" in stale
@@ -70,7 +66,7 @@ class TestDetectStaleMemories:
     def test_recent_memory_not_stale(self, tmp_path):
         mem_dir = tmp_path / "memories"
         mem_dir.mkdir()
-        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        today = datetime.now(UTC).strftime("%Y-%m-%d")
         (mem_dir / "fresh.md").write_text(f"# Fresh ({today})\n\nContent\n")
         stale = detect_stale_memories(mem_dir, tmp_path, max_age_days=30)
         # Fresh memory with no broken citations should not be stale
@@ -80,7 +76,7 @@ class TestDetectStaleMemories:
     def test_memory_with_broken_citation_detected(self, tmp_path):
         mem_dir = tmp_path / "memories"
         mem_dir.mkdir()
-        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        today = datetime.now(UTC).strftime("%Y-%m-%d")
         (mem_dir / "broken.md").write_text(
             f"# Broken ({today})\n\n[cite:file](nonexistent.py) - ref\n"
         )

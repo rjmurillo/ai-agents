@@ -45,7 +45,7 @@ markers = [
 ]
 
 [tool.coverage.run]
-source = [".claude", "scripts", "scripts/memory_sync"]
+source = [".claude", "scripts", "scripts/memory_sync", "scripts/memory_enhancement"]
 omit = ["**/tests/*", "**/__pycache__/*"]
 
 [tool.coverage.report]

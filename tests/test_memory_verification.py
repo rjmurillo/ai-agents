@@ -8,7 +8,6 @@ import pytest
 
 from memory_enhancement.models import (
     Citation,
-    CitationStatus,
     MemoryWithCitations,
     SourceType,
 )

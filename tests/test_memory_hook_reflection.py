@@ -94,18 +94,18 @@ class TestGenerateReflection:
     """Tests for the reflection generation pipeline."""
 
     @pytest.mark.unit
+    @patch("memory_enhancement.hooks.session_end_memory.extract_session_facts")
+    @patch("memory_enhancement.hooks.session_end_memory.reinforce_memories")
     @patch("memory_enhancement.health.generate_health_report")
-    @patch("memory_enhancement.health.detect_stale_memories")
-    @patch("memory_enhancement.confidence.update_confidence_scores")
     def test_generates_reflection(
-        self, mock_scores, mock_stale, mock_report, tmp_path: Path
+        self, mock_report, mock_reinforce, mock_facts, tmp_path: Path
     ):
         memories_dir = tmp_path / "memories"
         memories_dir.mkdir()
         (memories_dir / "test.md").write_text("# Test (2026-01-01)\n\nContent\n")
 
-        mock_scores.return_value = {"test": 0.8}
-        mock_stale.return_value = []
+        mock_reinforce.return_value = None
+        mock_facts.return_value = ["test"]
         mock_report.return_value = MagicMock(
             total_memories=1,
             health_score=0.8,
@@ -118,11 +118,17 @@ class TestGenerateReflection:
         assert "1 memories" in result
 
     @pytest.mark.unit
-    @patch("memory_enhancement.confidence.update_confidence_scores")
-    def test_empty_memories_returns_empty(self, mock_scores, tmp_path: Path):
+    @patch("memory_enhancement.hooks.session_end_memory.extract_session_facts")
+    @patch("memory_enhancement.hooks.session_end_memory.reinforce_memories")
+    @patch("memory_enhancement.health.generate_health_report")
+    def test_empty_memories_returns_empty(
+        self, mock_report, mock_reinforce, mock_facts, tmp_path: Path
+    ):
         memories_dir = tmp_path / "memories"
         memories_dir.mkdir()
-        mock_scores.return_value = {}
+        mock_reinforce.return_value = None
+        mock_facts.return_value = []
+        mock_report.return_value = MagicMock(total_memories=0)
 
         result = _generate_reflection(memories_dir, tmp_path)
         assert result == ""

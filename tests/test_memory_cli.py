@@ -243,7 +243,7 @@ class TestCLISearch:
         ])
         assert exit_code == 0
         captured = capsys.readouterr()
-        lines = [l for l in captured.out.strip().splitlines() if l.strip()]
+        lines = [line for line in captured.out.strip().splitlines() if line.strip()]
         assert len(lines) <= 2
 
     @pytest.mark.unit

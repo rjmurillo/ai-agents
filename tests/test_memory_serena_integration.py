@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from pathlib import Path
+from datetime import UTC, datetime
 
 import pytest
 
 from memory_enhancement.models import (
     Citation,
-    CitationStatus,
     LinkType,
     MemoryLink,
     MemoryWithCitations,
@@ -181,7 +179,7 @@ class TestSaveMemory:
 
     @pytest.mark.unit
     def test_save_and_reload(self, tmp_path):
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         memory = MemoryWithCitations(
             memory_id="save-test",
             title="Save Test",
@@ -217,7 +215,7 @@ class TestSaveMemory:
 
     @pytest.mark.unit
     def test_save_load_roundtrip_confidence(self, tmp_path):
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         memory = MemoryWithCitations(
             memory_id="conf-test",
             title="Confidence Test",

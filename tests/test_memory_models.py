@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -87,7 +87,7 @@ class TestCitation:
     def test_citation_is_frozen(self):
         c = Citation(source_type=SourceType.FILE, target="f.py", context="")
         with pytest.raises(AttributeError):
-            c.target = "other.py"  # type: ignore[misc]
+            c.target = "other.py"
 
     @pytest.mark.unit
     def test_citation_empty_target_raises(self):
@@ -115,7 +115,7 @@ class TestCitation:
                 target="f.py",
                 context="",
                 status=CitationStatus.UNVERIFIED,
-                verified_at=datetime.now(timezone.utc),
+                verified_at=datetime.now(UTC),
             )
 
 
@@ -148,7 +148,7 @@ class TestVerificationResult:
     @pytest.mark.unit
     def test_create_result(self):
         c = Citation(source_type=SourceType.FILE, target="f.py", context="")
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         r = VerificationResult(
             citation=c, is_valid=True, reason="File exists", checked_at=now
         )
@@ -167,7 +167,7 @@ class TestMemoryWithCitations:
     """MemoryWithCitations provides behavior methods over citation data."""
 
     def _make_memory(self, statuses: list[CitationStatus]) -> MemoryWithCitations:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         citations = [
             Citation(
                 source_type=SourceType.FILE,
@@ -235,7 +235,7 @@ class TestMemoryWithCitationsPostInit:
 
     @pytest.mark.unit
     def test_updated_before_created_raises(self):
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         with pytest.raises(ValueError, match="updated_at"):
             MemoryWithCitations(
                 memory_id="t",

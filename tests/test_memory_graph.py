@@ -4,17 +4,17 @@ from __future__ import annotations
 
 import pytest
 
-from memory_enhancement.models import (
-    LinkType,
-    MemoryLink,
-    MemoryWithCitations,
-)
 from memory_enhancement.graph import (
     build_memory_graph,
     detect_cycles,
     find_orphans,
     find_related,
     traverse,
+)
+from memory_enhancement.models import (
+    LinkType,
+    MemoryLink,
+    MemoryWithCitations,
 )
 
 

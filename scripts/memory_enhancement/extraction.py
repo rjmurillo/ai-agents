@@ -6,16 +6,17 @@ successful tool output. Used by the post_tool_call hook.
 
 from __future__ import annotations
 
+import re
+
 _ERROR_INDICATORS = frozenset({
     "error", "exception", "traceback", "failed", "failure",
     "permission denied", "not found", "timeout",
 })
 
-_FALSE_POSITIVE_PATTERNS = frozenset({
-    "0 error", "no error", "without error", "zero error",
-    "0 failure", "no failure", "without failure", "zero failure",
-    "not found any", "found 0", "found no",
-})
+# Patterns that look like errors but indicate success (e.g. "0 errors", "no errors").
+_FALSE_POSITIVE_PATTERN = re.compile(
+    r"\b(?:0|no|zero|without)\s+(?:error|exception|failure)s?\b", re.IGNORECASE
+)
 
 _CONTENT_INDICATORS = (".py", ".ts", ".js", ".md", "def ", "class ", "function ")
 
@@ -117,15 +118,17 @@ def format_suggestion(pattern: dict[str, str]) -> str:
 
 
 def has_error_indicators(result_text: str) -> bool:
-    """Check if the result contains error indicators.
+    """Check if the result contains genuine error indicators.
 
-    Filters out false positives where success messages contain error keywords
-    (e.g., "0 errors", "no errors found").
+    Filters out false positives like '0 errors' or 'no errors' that
+    indicate success rather than failure.
     """
     lower = result_text.lower()
-    if any(fp in lower for fp in _FALSE_POSITIVE_PATTERNS):
+    if not any(indicator in lower for indicator in _ERROR_INDICATORS):
         return False
-    return any(indicator in lower for indicator in _ERROR_INDICATORS)
+    # Strip false-positive phrases before re-checking.
+    cleaned = _FALSE_POSITIVE_PATTERN.sub("", lower)
+    return any(indicator in cleaned for indicator in _ERROR_INDICATORS)
 
 
 def has_notable_content(result_text: str) -> bool:

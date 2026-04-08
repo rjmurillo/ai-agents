@@ -242,15 +242,12 @@ def _determine_citation_status(results: list[VerificationResult]) -> str:
     if all_valid:
         return "verified"
 
-    has_stale = False
     has_broken = False
     for r in results:
         if r.is_valid:
             continue
         reason_lower = r.reason.lower()
-        if any(marker in reason_lower for marker in STALE_REASON_MARKERS):
-            has_stale = True
-        else:
+        if not any(marker in reason_lower for marker in STALE_REASON_MARKERS):
             has_broken = True
 
     if has_broken:

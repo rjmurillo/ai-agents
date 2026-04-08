@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import time
-from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -162,7 +160,7 @@ class TestApplyConfidenceDecay:
         mem_dir.mkdir()
         # Create memory with old updated_at date
         old_date = "2025-01-01"
-        path = _write_memory(
+        _write_memory(
             mem_dir, "old", f"# Old ({old_date})\n\nContent\n"
         )
         # The updated_at comes from the parsed date in the header

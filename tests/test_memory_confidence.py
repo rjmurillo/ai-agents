@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
+from memory_enhancement.confidence import (
+    calculate_confidence,
+    update_confidence_scores,
+)
 from memory_enhancement.models import (
     Citation,
     LinkType,
@@ -14,10 +18,6 @@ from memory_enhancement.models import (
     SourceType,
     VerificationResult,
 )
-from memory_enhancement.confidence import (
-    calculate_confidence,
-    update_confidence_scores,
-)
 
 
 def _make_memory(
@@ -25,7 +25,7 @@ def _make_memory(
     days_since_update: int = 0,
     num_links: int = 0,
 ) -> MemoryWithCitations:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     links = [
         MemoryLink(link_type=LinkType.RELATED_TO, target_id=f"link-{i}", context="")
         for i in range(num_links)
