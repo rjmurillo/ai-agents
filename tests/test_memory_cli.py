@@ -100,7 +100,8 @@ class TestCLIHealth:
             "--memories-dir", str(mem_dir),
             "health",
         ])
-        assert exit_code == 0
+        # Old memory (>30 days) is flagged as stale, exit code 1 for CI gating
+        assert exit_code == 1
 
 
 class TestCLIGraph:

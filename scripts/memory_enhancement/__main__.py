@@ -218,7 +218,11 @@ def _cmd_health(args: argparse.Namespace) -> int:
     else:
         print(format_report(report))
 
-    has_issues = report.broken_citations > 0 or report.stale_citations > 0
+    has_issues = (
+        report.broken_citations > 0
+        or report.stale_citations > 0
+        or len(report.stale_memories) > 0
+    )
     return 1 if has_issues else 0
 
 

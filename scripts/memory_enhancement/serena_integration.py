@@ -308,8 +308,14 @@ def _extract_metadata(
     if has_frontmatter:
         title = post.metadata.get("title")
         tags = _parse_tags(post.metadata.get("tags"))
-        created_at = _parse_datetime(post.metadata.get("created_at"), now)
-        updated_at = _parse_datetime(post.metadata.get("updated_at"), now)
+        raw_created = post.metadata.get("created_at")
+        raw_updated = post.metadata.get("updated_at")
+        created_at = _parse_datetime(raw_created, now)
+        updated_at = _parse_datetime(raw_updated, now)
+        if raw_created is None and raw_updated is not None:
+            created_at = updated_at
+        elif raw_updated is None and raw_created is not None:
+            updated_at = created_at
         confidence = _parse_confidence(post.metadata.get("confidence"))
         return title, created_at, updated_at, tags, confidence, post.content
 
@@ -366,15 +372,22 @@ def _parse_date(date_str: str, default: datetime) -> datetime:
 
 
 def _parse_confidence(value: object) -> float:
-    """Parse a confidence score from frontmatter, defaulting to 0.0."""
+    """Parse a confidence score from frontmatter, defaulting to 0.0.
+
+    Values are clamped to [0.0, 1.0] to handle percentage-style inputs
+    (e.g., confidence: 85) or negative values gracefully.
+    """
+    raw: float
     if isinstance(value, (int, float)):
-        return float(value)
-    if isinstance(value, str):
+        raw = float(value)
+    elif isinstance(value, str):
         try:
-            return float(value)
+            raw = float(value)
         except ValueError:
             return 0.0
-    return 0.0
+    else:
+        return 0.0
+    return max(0.0, min(1.0, raw))
 
 
 def _parse_tags(value: object) -> list[str]:

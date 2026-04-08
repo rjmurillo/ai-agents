@@ -144,7 +144,15 @@ def _format_memory_context(results: list[SearchResult]) -> str:
             f"(confidence: {result.confidence:.0%}, {result.citation_status})"
         )
         lines.append(result.snippet)
-        lines.append(f"Source: .serena/memories/{result.memory_id}.md")
+        relative_path = result.file_path
+        try:
+            from . import find_repo_root
+            repo_root = find_repo_root(result.file_path)
+            if repo_root is not None:
+                relative_path = result.file_path.relative_to(repo_root)
+        except (ValueError, ImportError):
+            pass
+        lines.append(f"Source: {relative_path}")
         lines.append("")
 
     lines.append("</memory-context>")
