@@ -239,3 +239,12 @@ class TestSaveMemory:
         )
         path = save_memory(memory, target_dir)
         assert path.is_file()
+
+    @pytest.mark.unit
+    def test_save_path_traversal_blocked(self, tmp_path):
+        """CWE-22: memory_id with traversal path must be rejected."""
+        memory = MemoryWithCitations(
+            memory_id="../escape", title="Escape", content="Body"
+        )
+        with pytest.raises(ValueError, match="traversal"):
+            save_memory(memory, tmp_path)

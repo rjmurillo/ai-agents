@@ -33,7 +33,7 @@ def calculate_confidence(
     - Citation validity ratio (50%)
     - Update recency (25%)
     - Link count (15%)
-    - Memory age penalty (10%)
+    - Memory freshness (10%)
 
     Args:
         memory: The memory to score.
@@ -45,13 +45,13 @@ def calculate_confidence(
     validity = _validity_factor(verification_results)
     recency = _recency_factor(memory)
     links = _links_factor(memory)
-    age = _freshness_factor(memory)
+    freshness = _freshness_factor(memory)
 
     raw_score = (
         _WEIGHT_VALIDITY * validity
         + _WEIGHT_RECENCY * recency
         + _WEIGHT_LINKS * links
-        + _WEIGHT_FRESHNESS * age
+        + _WEIGHT_FRESHNESS * freshness
     )
     return max(0.0, min(1.0, raw_score))
 

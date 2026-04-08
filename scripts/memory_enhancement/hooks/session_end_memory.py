@@ -10,6 +10,8 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+from ..models import HealthReport
+
 
 def main() -> int:
     """Entry point for the session_end hook."""
@@ -54,19 +56,19 @@ def _generate_reflection(memories_dir: Path, repo_root: Path) -> str:
     return _format_reflection(report)
 
 
-def _format_reflection(report: object) -> str:
+def _format_reflection(report: HealthReport) -> str:
     """Format the session reflection block for stderr.
 
     Args:
-        report: HealthReport object with health data and recommendations.
+        report: HealthReport with health data and recommendations.
 
     Returns:
         Formatted reflection string.
     """
-    total = getattr(report, "total_memories", 0)
-    health_score = getattr(report, "health_score", 0.0)
-    stale = list(getattr(report, "stale_memories", []))
-    recommendations = list(getattr(report, "recommendations", []))[:3]
+    total = report.total_memories
+    health_score = report.health_score
+    stale = list(report.stale_memories)
+    recommendations = list(report.recommendations)[:3]
 
     lines = [
         "<session-reflection>",
