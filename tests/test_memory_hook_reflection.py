@@ -95,7 +95,7 @@ class TestGenerateReflection:
 
     @pytest.mark.unit
     @patch("memory_enhancement.hooks.session_end_memory.extract_session_facts")
-    @patch("memory_enhancement.hooks.session_end_memory.reinforce_memories")
+    @patch("memory_enhancement.reflection.reinforce_memories")
     @patch("memory_enhancement.health.generate_health_report")
     def test_generates_reflection(
         self, mock_report, mock_reinforce, mock_facts, tmp_path: Path
@@ -119,7 +119,7 @@ class TestGenerateReflection:
 
     @pytest.mark.unit
     @patch("memory_enhancement.hooks.session_end_memory.extract_session_facts")
-    @patch("memory_enhancement.hooks.session_end_memory.reinforce_memories")
+    @patch("memory_enhancement.reflection.reinforce_memories")
     @patch("memory_enhancement.health.generate_health_report")
     def test_empty_memories_returns_empty(
         self, mock_report, mock_reinforce, mock_facts, tmp_path: Path
