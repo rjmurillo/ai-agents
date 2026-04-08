@@ -3,7 +3,7 @@
 
 Searches .serena/memories/ for content matching the user's prompt,
 ranks by confidence score, and injects top results via stderr.
-Exit code 0 = success. stderr content becomes model context.
+Exit code 0 = no guidance. Exit code 2 = stderr contains model context.
 """
 
 from __future__ import annotations
@@ -50,6 +50,7 @@ def main() -> int:
     results = _search_and_format(query, memories_dir, repo_root)
     if results:
         print(results, file=sys.stderr)
+        return 2
 
     return 0
 

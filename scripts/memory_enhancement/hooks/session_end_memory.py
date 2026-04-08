@@ -27,6 +27,7 @@ def main() -> int:
     summary = _generate_reflection(memories_dir, repo_root)
     if summary:
         print(summary, file=sys.stderr)
+        return 2
 
     return 0
 

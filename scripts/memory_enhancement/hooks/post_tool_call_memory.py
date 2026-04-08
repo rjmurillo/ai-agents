@@ -29,6 +29,7 @@ def main() -> int:
     suggestion = _analyze_tool_result(tool_name, result_text)
     if suggestion:
         print(suggestion, file=sys.stderr)
+        return 2
 
     return 0
 
@@ -46,11 +47,11 @@ def _read_tool_result() -> tuple[str, str]:
 
     try:
         data = json.loads(raw)
-    except (json.JSONDecodeError, TypeError):
+        tool_name = str(data.get("tool_name", ""))
+        result = str(data.get("result", ""))
+    except (json.JSONDecodeError, TypeError, AttributeError):
         return "", ""
 
-    tool_name = str(data.get("tool_name", ""))
-    result = str(data.get("result", ""))
     return tool_name, result
 
 
