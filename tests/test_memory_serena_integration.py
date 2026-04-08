@@ -248,3 +248,68 @@ class TestSaveMemory:
         )
         with pytest.raises(ValueError, match="traversal"):
             save_memory(memory, tmp_path)
+
+
+class TestConfidenceClamping:
+    """Confidence values are clamped to [0.0, 1.0] on load."""
+
+    @pytest.mark.unit
+    def test_high_value_clamped_to_one(self, tmp_path):
+        md = tmp_path / "high.md"
+        md.write_text(
+            "---\ntitle: High\nconfidence: 85\n"
+            "created_at: '2026-01-01T00:00:00+00:00'\n---\nBody.\n"
+        )
+        result = load_memory(md)
+        assert result is not None
+        assert result.confidence == 1.0
+
+    @pytest.mark.unit
+    def test_negative_value_clamped_to_zero(self, tmp_path):
+        md = tmp_path / "neg.md"
+        md.write_text(
+            "---\ntitle: Neg\nconfidence: -0.5\n"
+            "created_at: '2026-01-01T00:00:00+00:00'\n---\nBody.\n"
+        )
+        result = load_memory(md)
+        assert result is not None
+        assert result.confidence == 0.0
+
+    @pytest.mark.unit
+    def test_valid_value_unchanged(self, tmp_path):
+        md = tmp_path / "valid.md"
+        md.write_text(
+            "---\ntitle: Valid\nconfidence: 0.75\n"
+            "created_at: '2026-01-01T00:00:00+00:00'\n---\nBody.\n"
+        )
+        result = load_memory(md)
+        assert result is not None
+        assert result.confidence == pytest.approx(0.75)
+
+
+class TestDateFallback:
+    """Missing created_at/updated_at falls back to the other."""
+
+    @pytest.mark.unit
+    def test_missing_created_at_uses_updated_at(self, tmp_path):
+        md = tmp_path / "no-created.md"
+        md.write_text(
+            "---\ntitle: NoCreated\n"
+            "updated_at: '2026-06-15T12:00:00+00:00'\n---\nBody.\n"
+        )
+        result = load_memory(md)
+        assert result is not None
+        assert result.created_at.month == 6
+        assert result.created_at.day == 15
+
+    @pytest.mark.unit
+    def test_missing_updated_at_uses_created_at(self, tmp_path):
+        md = tmp_path / "no-updated.md"
+        md.write_text(
+            "---\ntitle: NoUpdated\n"
+            "created_at: '2026-03-10T08:00:00+00:00'\n---\nBody.\n"
+        )
+        result = load_memory(md)
+        assert result is not None
+        assert result.updated_at.month == 3
+        assert result.updated_at.day == 10
