@@ -76,15 +76,13 @@ def _detect_stale_from_loaded(
     repo_root: Path,
     max_age_days: int = 30,
 ) -> list[str]:
-    """Find stale memories from a pre-loaded list. Avoids redundant I/O."""
-    now = datetime.now(UTC)
-    stale_ids: list[str] = []
+    """Find stale memories from a pre-loaded list.
 
-    for memory in memories:
-        if _is_memory_stale(memory, now, max_age_days, repo_root):
-            stale_ids.append(memory.memory_id)
-
-    return sorted(stale_ids)
+    Verifies all citations once upfront and delegates to _detect_stale_from_results
+    to avoid duplicating stale-detection logic.
+    """
+    all_results = _verify_all_memories(memories, repo_root)
+    return _detect_stale_from_results(memories, all_results, max_age_days)
 
 
 def _verify_all_memories(
@@ -241,21 +239,6 @@ def _calculate_health_score(counts: dict[str, int], total_memories: int) -> floa
 
     weighted_score = counts["valid"] + counts["stale"] * 0.5
     return max(0.0, min(1.0, weighted_score / counts["total"]))
-
-
-def _is_memory_stale(
-    memory: MemoryWithCitations,
-    now: datetime,
-    max_age_days: int,
-    repo_root: Path,
-) -> bool:
-    """Determine if a memory is stale by age or broken citations."""
-    age_days = (now - memory.updated_at).days
-    if age_days > max_age_days:
-        return True
-
-    results = verify_all_citations(memory, repo_root)
-    return any(not r.is_valid for r in results)
 
 
 def _generate_recommendations(counts: dict[str, int], stale: list[str]) -> list[str]:

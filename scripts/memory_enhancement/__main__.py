@@ -148,10 +148,25 @@ def _add_search_command(subparsers: argparse._SubParsersAction[Any]) -> None:
 
 
 def _resolve_memories_dir(args: argparse.Namespace) -> Path:
-    """Resolve the memories directory from args or default."""
+    """Resolve the memories directory from args or default.
+
+    Validates that the memories directory is contained within repo_root
+    as a defense-in-depth measure against CWE-22 path traversal.
+
+    Raises:
+        SystemExit: If memories_dir is outside repo_root.
+    """
+    repo_root = Path(args.repo_root).resolve()
     if args.memories_dir is not None:
-        return Path(args.memories_dir)
-    return Path(args.repo_root) / ".serena" / "memories"
+        memories_dir = Path(args.memories_dir).resolve()
+        if not memories_dir.is_relative_to(repo_root):
+            print(
+                f"Error: memories-dir must be within repo-root: {memories_dir}",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        return memories_dir
+    return repo_root / ".serena" / "memories"
 
 
 def _cmd_verify(args: argparse.Namespace) -> int:
