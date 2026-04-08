@@ -166,14 +166,14 @@ class MemoryWithCitations:
         """Load a memory from a Serena markdown file.
 
         Backward-compatible factory used by sync_engine.
-        Raises FileNotFoundError if the file cannot be parsed.
+        Raises ValueError if the file cannot be parsed.
         """
         from .serena_integration import load_memory
 
         result = load_memory(file_path)
         if result is None:
             msg = f"Failed to parse memory file: {file_path}"
-            raise FileNotFoundError(msg)
+            raise ValueError(msg)
         return result
 
 

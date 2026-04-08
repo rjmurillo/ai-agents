@@ -7,6 +7,7 @@ by confidence score from the existing scoring infrastructure.
 
 from __future__ import annotations
 
+import re
 import shutil
 import subprocess
 from dataclasses import dataclass
@@ -99,15 +100,48 @@ def rank_results(
     return results[:max_results]
 
 
+def _sanitize_term(term: str) -> str | None:
+    """Return term if it contains only safe characters, else None.
+
+    Allows alphanumeric, hyphens, underscores, and periods.
+    Rejects terms with regex metacharacters to prevent injection.
+    """
+    if re.fullmatch(r"[\w.\-]+", term):
+        return term
+    return None
+
+
+def _split_query_terms(query: str) -> list[str]:
+    """Split a multi-word query into sanitized individual terms.
+
+    Returns a list of safe terms. Single-term queries return one element.
+    """
+    terms = query.strip().split()
+    safe = [t for raw in terms if (t := _sanitize_term(raw)) is not None]
+    return safe
+
+
 def _search_with_ripgrep(query: str, memories_dir: Path) -> list[Path] | None:
-    """Search using ripgrep. Returns None if rg is unavailable or fails."""
+    """Search using ripgrep. Returns None if rg is unavailable or fails.
+
+    Multi-word queries use OR logic via multiple -e flags.
+    """
     rg_path = shutil.which("rg")
     if rg_path is None:
         return None
 
+    terms = _split_query_terms(query)
+    if not terms:
+        return None
+
+    cmd: list[str] = [rg_path, "-il", "--glob", "*.md"]
+    for term in terms:
+        cmd.extend(["-e", term])
+    cmd.extend(["--", str(memories_dir)])
+
     try:
         result = subprocess.run(
-            [rg_path, "-il", "-F", "--glob", "*.md", "--", query, str(memories_dir)],
+            cmd,
             capture_output=True,
             text=True,
             timeout=_SEARCH_TIMEOUT,
@@ -122,14 +156,26 @@ def _search_with_ripgrep(query: str, memories_dir: Path) -> list[Path] | None:
 
 
 def _search_with_grep(query: str, memories_dir: Path) -> list[Path] | None:
-    """Search using grep. Returns None if grep is unavailable or fails."""
+    """Search using grep. Returns None if grep is unavailable or fails.
+
+    Multi-word queries use OR logic via multiple -e flags.
+    """
     grep_path = shutil.which("grep")
     if grep_path is None:
         return None
 
+    terms = _split_query_terms(query)
+    if not terms:
+        return None
+
+    cmd: list[str] = [grep_path, "-ril", "--include=*.md"]
+    for term in terms:
+        cmd.extend(["-e", term])
+    cmd.extend(["--", str(memories_dir)])
+
     try:
         result = subprocess.run(
-            [grep_path, "-rilF", "--include=*.md", "--", query, str(memories_dir)],
+            cmd,
             capture_output=True,
             text=True,
             timeout=_SEARCH_TIMEOUT,

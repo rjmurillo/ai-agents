@@ -27,8 +27,10 @@ class TestFindRepoRoot:
 
     @pytest.mark.unit
     def test_returns_none_when_no_git(self, tmp_path: Path):
-        result = _find_repo_root(tmp_path)
-        assert result is None or (result / ".git").exists()
+        """Verify None is returned when no .git exists in any ancestor."""
+        with patch.object(Path, "exists", return_value=False):
+            result = _find_repo_root(tmp_path)
+            assert result is None
 
 
 class TestFormatReflection:
@@ -36,13 +38,13 @@ class TestFormatReflection:
 
     @pytest.mark.unit
     def test_format_basic_summary(self):
-        scores = {"mem-1": 0.8, "mem-2": 0.6, "mem-3": 0.9}
-        stale = ["mem-2"]
         report = MagicMock(
+            total_memories=3,
             health_score=0.75,
+            stale_memories=["mem-2"],
             recommendations=["Fix 1 broken citation.", "Verify 2 unverified."],
         )
-        result = _format_reflection(scores, stale, report)
+        result = _format_reflection(report)
 
         assert "<session-reflection>" in result
         assert "</session-reflection>" in result
@@ -53,28 +55,38 @@ class TestFormatReflection:
 
     @pytest.mark.unit
     def test_format_no_stale(self):
-        scores = {"mem-1": 0.95}
-        report = MagicMock(health_score=0.95, recommendations=[])
-        result = _format_reflection(scores, [], report)
+        report = MagicMock(
+            total_memories=1,
+            health_score=0.95,
+            stale_memories=[],
+            recommendations=[],
+        )
+        result = _format_reflection(report)
 
         assert "0 need verification" in result
 
     @pytest.mark.unit
     def test_format_limits_recommendations_to_3(self):
-        scores = {"a": 0.5}
         report = MagicMock(
+            total_memories=1,
             health_score=0.5,
+            stale_memories=[],
             recommendations=["r1", "r2", "r3", "r4", "r5"],
         )
-        result = _format_reflection(scores, [], report)
+        result = _format_reflection(report)
         # Should only include first 3
         assert "r4" not in result
         assert "r5" not in result
 
     @pytest.mark.unit
     def test_format_empty_scores(self):
-        report = MagicMock(health_score=1.0, recommendations=[])
-        result = _format_reflection({}, [], report)
+        report = MagicMock(
+            total_memories=0,
+            health_score=1.0,
+            stale_memories=[],
+            recommendations=[],
+        )
+        result = _format_reflection(report)
         assert "0 memories" in result
 
 
@@ -95,7 +107,10 @@ class TestGenerateReflection:
         mock_scores.return_value = {"test": 0.8}
         mock_stale.return_value = []
         mock_report.return_value = MagicMock(
-            health_score=0.8, recommendations=["Check stale."]
+            total_memories=1,
+            health_score=0.8,
+            stale_memories=[],
+            recommendations=["Check stale."],
         )
 
         result = _generate_reflection(memories_dir, tmp_path)

@@ -100,10 +100,10 @@ class TestFindRepoRoot:
 
     @pytest.mark.unit
     def test_returns_none_when_no_git(self, tmp_path: Path):
-        result = _find_repo_root(tmp_path)
-        # tmp_path may be inside the actual repo, so check isolation
-        # by checking that the function does walk upward
-        assert result is None or (result / ".git").exists()
+        """Verify None is returned when no .git exists in any ancestor."""
+        with patch.object(Path, "exists", return_value=False):
+            result = _find_repo_root(tmp_path)
+            assert result is None
 
 
 class TestFormatMemoryContext:
