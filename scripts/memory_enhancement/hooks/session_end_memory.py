@@ -51,14 +51,14 @@ def _generate_reflection(memories_dir: Path, repo_root: Path) -> str:
     """
     from ..health import generate_health_report
 
-    # Recalculate confidence scores
+    # Track session activity first (before any writes that update mtime)
+    session_facts = extract_session_facts(memories_dir)
+
+    # Recalculate confidence scores (may write to disk)
     reinforce_memories(memories_dir, repo_root)
 
     # Identify memories needing re-verification due to age
     decayed = apply_confidence_decay(memories_dir, repo_root)
-
-    # Track session activity
-    session_facts = extract_session_facts(memories_dir)
 
     report = generate_health_report(memories_dir, repo_root)
     if report.total_memories == 0:
