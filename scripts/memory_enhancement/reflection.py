@@ -15,6 +15,7 @@ from .serena_integration import load_memories, save_memory
 
 _SKILL_CONFIDENCE_THRESHOLD = 0.8
 _SKILL_MIN_LINKS = 2
+_CONFIDENCE_EPSILON = 0.01
 
 
 def reinforce_memories(
@@ -23,7 +24,8 @@ def reinforce_memories(
     """Recalculate and persist confidence scores for all memories.
 
     Loads all memories, computes updated confidence scores, and
-    persists the updated scores back to disk.
+    persists the updated scores back to disk. Uses epsilon comparison
+    to avoid unnecessary writes from time-dependent score drift.
 
     Args:
         memories_dir: Path to .serena/memories/.
@@ -36,7 +38,7 @@ def reinforce_memories(
 
     for memory in memories:
         new_score = scores.get(memory.memory_id)
-        if new_score is not None and new_score != memory.confidence:
+        if new_score is not None and abs(new_score - memory.confidence) > _CONFIDENCE_EPSILON:
             memory.confidence = new_score
             save_memory(memory, memories_dir)
 
