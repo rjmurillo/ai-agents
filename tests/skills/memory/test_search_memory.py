@@ -1,11 +1,8 @@
 """Tests for search_memory.py."""
 
-import json
 import sys
 from pathlib import Path
 from unittest.mock import patch
-
-import pytest
 
 SCRIPT_DIR = Path(__file__).resolve().parents[3] / ".claude" / "skills" / "memory" / "scripts"
 sys.path.insert(0, str(SCRIPT_DIR))
@@ -82,5 +79,6 @@ class TestGetMemoryRouterStatus:
         assert status["Serena"]["Available"] is False
 
     def test_forgetful_unavailable(self, tmp_path):
-        status = search_memory.get_memory_router_status(tmp_path)
-        assert status["Forgetful"]["Available"] is False
+        with patch.object(search_memory, "test_forgetful_available", return_value=False):
+            status = search_memory.get_memory_router_status(tmp_path)
+            assert status["Forgetful"]["Available"] is False
