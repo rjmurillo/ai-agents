@@ -11,6 +11,12 @@ _ERROR_INDICATORS = frozenset({
     "permission denied", "not found", "timeout",
 })
 
+_FALSE_POSITIVE_PATTERNS = frozenset({
+    "0 error", "no error", "without error", "zero error",
+    "0 failure", "no failure", "without failure", "zero failure",
+    "not found any", "found 0", "found no",
+})
+
 _CONTENT_INDICATORS = (".py", ".ts", ".js", ".md", "def ", "class ", "function ")
 
 _MAX_PATTERN_LENGTH = 200
@@ -111,8 +117,14 @@ def format_suggestion(pattern: dict[str, str]) -> str:
 
 
 def has_error_indicators(result_text: str) -> bool:
-    """Check if the result contains error indicators."""
+    """Check if the result contains error indicators.
+
+    Filters out false positives where success messages contain error keywords
+    (e.g., "0 errors", "no errors found").
+    """
     lower = result_text.lower()
+    if any(fp in lower for fp in _FALSE_POSITIVE_PATTERNS):
+        return False
     return any(indicator in lower for indicator in _ERROR_INDICATORS)
 
 

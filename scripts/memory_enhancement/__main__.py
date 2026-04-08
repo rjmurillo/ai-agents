@@ -110,6 +110,13 @@ def _add_health_command(subparsers: argparse._SubParsersAction) -> None:  # type
         const="text",
         help="Output the health report as plain text",
     )
+    output_group.add_argument(
+        "--markdown",
+        dest="output_format",
+        action="store_const",
+        const="markdown",
+        help="Output the health report as markdown (default)",
+    )
     health_parser.set_defaults(func=_cmd_health)
 
 
