@@ -11,7 +11,7 @@ import sys
 from pathlib import Path
 
 from ..models import HealthReport
-from ..reflection import extract_session_facts
+from ..reflection import apply_confidence_decay, extract_session_facts, reinforce_memories
 
 
 def main() -> int:
@@ -51,6 +51,12 @@ def _generate_reflection(memories_dir: Path, repo_root: Path) -> str:
     """
     from ..health import generate_health_report
 
+    # Recalculate confidence scores
+    reinforce_memories(memories_dir, repo_root)
+
+    # Identify memories needing re-verification due to age
+    decayed = apply_confidence_decay(memories_dir, repo_root)
+
     # Track session activity
     session_facts = extract_session_facts(memories_dir)
 
@@ -58,15 +64,20 @@ def _generate_reflection(memories_dir: Path, repo_root: Path) -> str:
     if report.total_memories == 0:
         return ""
 
-    return _format_reflection(report, session_facts)
+    return _format_reflection(report, session_facts, decayed)
 
 
-def _format_reflection(report: HealthReport, session_facts: list[str] | None = None) -> str:
+def _format_reflection(
+    report: HealthReport,
+    session_facts: list[str] | None = None,
+    decayed: list[str] | None = None,
+) -> str:
     """Format the session reflection block for stderr.
 
     Args:
         report: HealthReport with health data and recommendations.
         session_facts: Memory IDs updated this session.
+        decayed: Memory IDs flagged for confidence decay.
 
     Returns:
         Formatted reflection string.
@@ -82,6 +93,9 @@ def _format_reflection(report: HealthReport, session_facts: list[str] | None = N
         f"- Total: {total} memories, {health_score:.0%} health",
         f"- Stale: {len(stale)} need verification",
     ]
+
+    if decayed:
+        lines.append(f"- Decayed: {len(decayed)} exceed age threshold")
 
     if session_facts:
         lines.append(f"- Updated this session: {len(session_facts)} memories")

@@ -95,16 +95,18 @@ class TestGenerateReflection:
 
     @pytest.mark.unit
     @patch("memory_enhancement.hooks.session_end_memory.extract_session_facts")
-    @patch("memory_enhancement.reflection.reinforce_memories")
+    @patch("memory_enhancement.hooks.session_end_memory.apply_confidence_decay")
+    @patch("memory_enhancement.hooks.session_end_memory.reinforce_memories")
     @patch("memory_enhancement.health.generate_health_report")
     def test_generates_reflection(
-        self, mock_report, mock_reinforce, mock_facts, tmp_path: Path
+        self, mock_report, mock_reinforce, mock_decay, mock_facts, tmp_path: Path
     ):
         memories_dir = tmp_path / "memories"
         memories_dir.mkdir()
         (memories_dir / "test.md").write_text("# Test (2026-01-01)\n\nContent\n")
 
-        mock_reinforce.return_value = None
+        mock_reinforce.return_value = {"test": 0.85}
+        mock_decay.return_value = []
         mock_facts.return_value = ["test"]
         mock_report.return_value = MagicMock(
             total_memories=1,
@@ -116,19 +118,47 @@ class TestGenerateReflection:
         result = _generate_reflection(memories_dir, tmp_path)
         assert "<session-reflection>" in result
         assert "1 memories" in result
+        mock_reinforce.assert_called_once_with(memories_dir, tmp_path)
+        mock_decay.assert_called_once_with(memories_dir, tmp_path)
 
     @pytest.mark.unit
     @patch("memory_enhancement.hooks.session_end_memory.extract_session_facts")
-    @patch("memory_enhancement.reflection.reinforce_memories")
+    @patch("memory_enhancement.hooks.session_end_memory.apply_confidence_decay")
+    @patch("memory_enhancement.hooks.session_end_memory.reinforce_memories")
     @patch("memory_enhancement.health.generate_health_report")
     def test_empty_memories_returns_empty(
-        self, mock_report, mock_reinforce, mock_facts, tmp_path: Path
+        self, mock_report, mock_reinforce, mock_decay, mock_facts, tmp_path: Path
     ):
         memories_dir = tmp_path / "memories"
         memories_dir.mkdir()
-        mock_reinforce.return_value = None
+        mock_reinforce.return_value = {}
+        mock_decay.return_value = []
         mock_facts.return_value = []
         mock_report.return_value = MagicMock(total_memories=0)
 
         result = _generate_reflection(memories_dir, tmp_path)
         assert result == ""
+
+    @pytest.mark.unit
+    @patch("memory_enhancement.hooks.session_end_memory.extract_session_facts")
+    @patch("memory_enhancement.hooks.session_end_memory.apply_confidence_decay")
+    @patch("memory_enhancement.hooks.session_end_memory.reinforce_memories")
+    @patch("memory_enhancement.health.generate_health_report")
+    def test_decayed_memories_shown_in_reflection(
+        self, mock_report, mock_reinforce, mock_decay, mock_facts, tmp_path: Path
+    ):
+        memories_dir = tmp_path / "memories"
+        memories_dir.mkdir()
+
+        mock_reinforce.return_value = {"old1": 0.3, "old2": 0.2}
+        mock_decay.return_value = ["old1", "old2"]
+        mock_facts.return_value = []
+        mock_report.return_value = MagicMock(
+            total_memories=2,
+            health_score=0.5,
+            stale_memories=[],
+            recommendations=[],
+        )
+
+        result = _generate_reflection(memories_dir, tmp_path)
+        assert "Decayed: 2 exceed age threshold" in result
