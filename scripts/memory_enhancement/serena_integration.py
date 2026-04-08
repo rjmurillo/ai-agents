@@ -25,8 +25,7 @@ from .models import (
 
 _CITATION_PATTERN = re.compile(
     r"\[cite:(?P<source_type>\w+)\]\((?P<target>[^)]+)\)"
-    r"(?:\s*-\s*(?P<context>[^\n\r]*))?$",
-    re.MULTILINE,
+    r"(?:\s*-\s*(?P<context>[^\n\r]*))?",
 )
 
 _LINK_PATTERN = re.compile(
@@ -376,8 +375,11 @@ def _parse_confidence(value: object) -> float:
 
     Values are clamped to [0.0, 1.0] to handle percentage-style inputs
     (e.g., confidence: 85) or negative values gracefully.
+    Boolean values are rejected (YAML parses true/false as bool).
     """
     raw: float
+    if isinstance(value, bool):
+        return 0.0
     if isinstance(value, (int, float)):
         raw = float(value)
     elif isinstance(value, str):

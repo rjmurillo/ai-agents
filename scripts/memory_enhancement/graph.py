@@ -143,31 +143,45 @@ def _enqueue_neighbors(
 
 def _dfs_detect_cycles(
     graph: dict[str, MemoryWithCitations],
-    node: str,
+    start_node: str,
     visited: set[str],
     path: list[str],
     on_stack: set[str],
     cycles: list[list[str]],
 ) -> None:
-    """Recursive DFS for cycle detection."""
-    visited.add(node)
-    on_stack.add(node)
-    path.append(node)
+    """Iterative DFS for cycle detection to avoid recursion depth limits."""
+    stack: list[tuple[str, int]] = [(start_node, 0)]
 
-    memory = graph.get(node)
-    if memory is not None:
-        for link in memory.links:
-            target = link.target_id
+    while stack:
+        node, edge_idx = stack.pop()
+
+        if edge_idx == 0:
+            if node in visited:
+                continue
+            visited.add(node)
+            on_stack.add(node)
+            path.append(node)
+
+        memory = graph.get(node)
+        edges = memory.links if memory is not None else []
+
+        found_next = False
+        for i in range(edge_idx, len(edges)):
+            target = edges[i].target_id
             if target not in graph:
                 continue
             if target in on_stack:
                 cycle_start = path.index(target)
                 cycles.append(path[cycle_start:] + [target])
             elif target not in visited:
-                _dfs_detect_cycles(graph, target, visited, path, on_stack, cycles)
+                stack.append((node, i + 1))
+                stack.append((target, 0))
+                found_next = True
+                break
 
-    path.pop()
-    on_stack.discard(node)
+        if not found_next:
+            path.pop()
+            on_stack.discard(node)
 
 
 def _collect_incoming_targets(graph: dict[str, MemoryWithCitations]) -> set[str]:

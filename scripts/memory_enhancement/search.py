@@ -13,8 +13,8 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
+from . import find_repo_root
 from .confidence import calculate_confidence
-from .hooks import find_repo_root
 from .models import VerificationResult
 from .serena_integration import load_memory
 from .verification import STALE_REASON_MARKERS, verify_all_citations
@@ -105,9 +105,10 @@ def _sanitize_term(term: str) -> str | None:
 
     Allows alphanumeric, hyphens, underscores, and periods.
     Rejects terms with regex metacharacters to prevent injection.
+    Escapes dots to prevent them being treated as regex wildcards.
     """
     if re.fullmatch(r"[\w.\-]+", term):
-        return term
+        return term.replace(".", r"\.")
     return None
 
 
@@ -254,7 +255,4 @@ def _determine_citation_status(results: list[VerificationResult]) -> str:
 
     if has_broken:
         return "broken"
-    if has_stale:
-        return "stale"
-
-    return "broken"
+    return "stale"
