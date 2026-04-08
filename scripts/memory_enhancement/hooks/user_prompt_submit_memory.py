@@ -79,13 +79,19 @@ def _extract_query(user_input: str) -> str:
         Space-joined query terms, or empty string if insufficient terms.
     """
     words = user_input.lower().split()
-    terms = [w for w in words if w not in _STOP_WORDS and len(w) > 2]
+    terms = [_strip_punctuation(w) for w in words]
+    terms = [w for w in terms if w and w not in _STOP_WORDS and len(w) > 2]
     top_terms = terms[:5]
 
     if len(top_terms) < _MIN_QUERY_TERMS:
         return ""
 
     return " ".join(top_terms)
+
+
+def _strip_punctuation(word: str) -> str:
+    """Strip leading/trailing punctuation from a word."""
+    return word.strip("?!.,;:\"'()[]{}*#@&^%$~`<>|\\/")
 
 
 def _find_repo_root(start: Path | None = None) -> Path | None:

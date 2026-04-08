@@ -10,7 +10,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from pathlib import Path
 
-from .confidence import update_confidence_scores
+from .confidence import update_confidence_scores, update_confidence_scores_with_memories
 from .serena_integration import load_memories
 
 _SKILL_CONFIDENCE_THRESHOLD = 0.8
@@ -50,8 +50,7 @@ def generate_skill_candidates(
     Returns:
         List of dicts with keys: memory_id, title, confidence, reason.
     """
-    scores = update_confidence_scores(memories_dir, repo_root)
-    memories = load_memories(memories_dir)
+    scores, memories = update_confidence_scores_with_memories(memories_dir, repo_root)
     memory_map = {m.memory_id: m for m in memories}
 
     candidates: list[dict[str, str]] = []
@@ -88,7 +87,7 @@ def extract_session_facts(memories_dir: Path) -> list[str]:
     today = datetime.now(UTC).date()
     updated: list[str] = []
 
-    for md_file in memories_dir.glob("*.md"):
+    for md_file in memories_dir.rglob("*.md"):
         stat = md_file.stat()
         mod_date = datetime.fromtimestamp(stat.st_mtime, tz=UTC).date()
         if mod_date == today:

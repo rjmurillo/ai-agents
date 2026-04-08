@@ -68,6 +68,25 @@ def update_confidence_scores(
     Returns:
         Dictionary mapping memory_id to updated confidence score.
     """
+    scores, _ = update_confidence_scores_with_memories(memories_dir, repo_root)
+    return scores
+
+
+def update_confidence_scores_with_memories(
+    memories_dir: Path, repo_root: Path
+) -> tuple[dict[str, float], list[MemoryWithCitations]]:
+    """Recalculate confidence scores for all memories and return both.
+
+    This variant avoids redundant load_memories calls when the caller
+    also needs the memory objects.
+
+    Args:
+        memories_dir: Directory containing memory files.
+        repo_root: Repository root for citation verification.
+
+    Returns:
+        Tuple of (scores dict, list of loaded memories).
+    """
     memories = load_memories(memories_dir)
     scores: dict[str, float] = {}
 
@@ -75,7 +94,7 @@ def update_confidence_scores(
         results = verify_all_citations(memory, repo_root)
         scores[memory.memory_id] = calculate_confidence(memory, results)
 
-    return scores
+    return scores, memories
 
 
 def _validity_factor(results: list[VerificationResult]) -> float:
