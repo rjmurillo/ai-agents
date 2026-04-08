@@ -84,10 +84,13 @@ def extract_session_facts(memories_dir: Path) -> list[str]:
     if not memories_dir.is_dir():
         return []
 
+    skip_names = {"README.md", "CLAUDE.md"}
     today = datetime.now(UTC).date()
     updated: list[str] = []
 
     for md_file in memories_dir.rglob("*.md"):
+        if md_file.name in skip_names:
+            continue
         stat = md_file.stat()
         mod_date = datetime.fromtimestamp(stat.st_mtime, tz=UTC).date()
         if mod_date == today:

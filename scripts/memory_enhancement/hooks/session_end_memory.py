@@ -11,7 +11,7 @@ import sys
 from pathlib import Path
 
 from ..models import HealthReport
-from ..reflection import extract_session_facts, reinforce_memories
+from ..reflection import extract_session_facts
 
 
 def main() -> int:
@@ -50,9 +50,6 @@ def _generate_reflection(memories_dir: Path, repo_root: Path) -> str:
         Formatted reflection string for stderr, or empty string.
     """
     from ..health import generate_health_report
-
-    # Use reflection module for confidence reinforcement
-    reinforce_memories(memories_dir, repo_root)
 
     # Track session activity
     session_facts = extract_session_facts(memories_dir)
