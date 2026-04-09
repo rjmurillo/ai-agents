@@ -7,11 +7,11 @@
 
 ## Platform Capabilities Matrix
 
-| Platform | Skills Support | MCP Support | Best Implementation |
+| Platform | Skills Support | Hook Routing | Best Implementation |
 |----------|---------------|-------------|---------------------|
-| **Claude Code (CLI)** | ✅ Yes | ✅ Yes | GitHub MCP Skill (5-20ms) |
-| **VS Code Agents** | ✅ Yes | ✅ Yes | GitHub MCP Skill (5-20ms) |
-| **Copilot CLI** | ❌ No | ⚠️ Limited | gh CLI wrappers (50-80ms) |
+| **Claude Code (CLI)** | ✅ Yes | ✅ Yes | Python scripts via hook (80-150ms) |
+| **VS Code Agents** | ✅ Yes | ✅ Yes | Python scripts via hook (80-150ms) |
+| **Copilot CLI** | ❌ No | ❌ No | gh-native shell scripts (50-80ms) |
 
 ---
 
@@ -35,7 +35,30 @@
 **Maintenance**: Low (official GitHub MCP)
 **Coverage**: ~90% (validate reactions/threads)
 
-### Path B: Native Tool Wrappers (Fallback)
+### Path B: Python Scripts (Hook-Integrated, Primary for Claude Code)
+
+**For**: Claude Code (enforced by `invoke_skill_first_guard.py` hook)
+
+```
+.claude/skills/github/scripts/
+├── pr/                    # 27 Python scripts
+│   ├── get_pr_context.py
+│   ├── new_pr.py
+│   ├── merge_pr.py
+│   └── ...
+├── issue/                 # 7 Python scripts
+│   ├── get_issue_context.py
+│   ├── set_issue_labels.py
+│   └── ...
+├── milestone/             # 2 Python scripts
+└── reactions/             # 1 Python script
+```
+
+**Performance**: 80-150ms overhead + API time
+**Maintenance**: Medium (Python scripts with validation, error handling)
+**Coverage**: 100% (gh CLI + graphql, with rich error reporting)
+
+### Path C: Native Shell Wrappers (Fallback)
 
 **For**: Copilot CLI, bash environments
 
@@ -44,14 +67,15 @@
 ├── gh-native/
 │   ├── get-pr-context.sh
 │   ├── set-issue-labels.sh
+│   ├── set-issue-milestone.sh
 │   ├── post-issue-comment.sh
 │   └── add-comment-reaction.sh
 └── README.md
 ```
 
 **Performance**: 50-80ms overhead + API time
-**Maintenance**: Medium (bash scripts)
-**Coverage**: 100% (gh CLI + graphql)
+**Maintenance**: Low (thin shell wrappers)
+**Coverage**: 5 high-frequency operations
 
 ---
 
@@ -120,35 +144,38 @@ fi
 
 ## Phased Implementation
 
-### Phase 1: Copilot CLI Path (Issue #286) - Week 1-2
+### Phase 1: Copilot CLI Path (Issue #286) - COMPLETE
 
 **Goal**: Ensure Copilot CLI works with native tools
 
 **Tasks**:
-- [ ] Create `.claude/skills/github/scripts/gh-native/`
-- [ ] Implement 4 high-frequency operations:
-  - [ ] `get-pr-context.sh` (replaces Get-PRContext.ps1)
-  - [ ] `set-issue-labels.sh` (replaces Set-IssueLabels.ps1)
-  - [ ] `post-issue-comment.sh` (replaces Post-IssueComment.ps1)
-  - [ ] `add-comment-reaction.sh` (replaces Add-CommentReaction.ps1)
-- [ ] Test in Copilot CLI environment
-- [ ] Document usage patterns
+- [x] Create `.claude/skills/github/scripts/gh-native/`
+- [x] Implement 5 high-frequency operations:
+  - [x] `get-pr-context.sh` (replaces Get-PRContext.ps1)
+  - [x] `set-issue-labels.sh` (replaces Set-IssueLabels.ps1)
+  - [x] `post-issue-comment.sh` (replaces Post-IssueComment.ps1)
+  - [x] `add-comment-reaction.sh` (replaces Add-CommentReaction.ps1)
+  - [x] `set-issue-milestone.sh` (replaces Set-IssueMilestone.ps1)
+- [x] Document usage patterns (gh-native/README.md)
 
-**Success Criteria**: Copilot CLI works with 50-80ms overhead (vs 183ms)
+**Status**: All 5 shell scripts implemented with structured JSON output and
+ADR-035 exit codes. README documents usage, performance benchmarks, and
+comparison with Python scripts. Original PowerShell scripts removed.
 
-### Phase 2: GitHub MCP Skill (NEW) - Week 2-3
+### Phase 2: Python Script Path with Hook Routing - COMPLETE
 
-**Goal**: Optimize Claude Code and VS Code Agents
+**Goal**: Provide validated, hook-enforced GitHub operations for Claude Code
 
 **Tasks**:
-- [ ] Install GitHub MCP server
-- [ ] Create `.claude/skills/github/SKILL.md` with `allowed-tools`
-- [ ] Validate reactions and thread resolution support
-- [ ] Document MCP tool equivalents for all 20 operations
-- [ ] Test in Claude Code and VS Code
-- [ ] Implement platform detection and routing
+- [x] Create `.claude/skills/github/SKILL.md` (v4.0.0)
+- [x] Implement 37 Python scripts across pr/, issue/, milestone/, reactions/
+- [x] Create `invoke_skill_first_guard.py` PreToolUse hook for routing
+- [x] Hook maps raw `gh` commands to Python script equivalents
+- [x] Validate reactions and thread resolution support (GraphQL)
 
-**Success Criteria**: Claude Code and VS Code use 5-20ms MCP path
+**Status**: Python scripts are the primary path for Claude Code. The
+PreToolUse hook blocks raw `gh` commands and redirects to validated
+Python scripts with structured JSON output and error handling.
 
 ### Phase 3: Documentation (Issue #288) - Week 3-4
 
@@ -163,18 +190,20 @@ fi
 
 **Success Criteria**: Clear documentation for all three platforms
 
-### Phase 4: Migration & Cleanup - Week 4+
+### Phase 4: Migration & Cleanup - COMPLETE
 
 **Goal**: Deprecate PowerShell wrappers
 
 **Tasks**:
-- [ ] Update pr-comment-responder to use skill (auto-routing)
-- [ ] Migrate all GitHub operations to dual-path
-- [ ] Deprecate PowerShell scripts (keep for reference)
+- [x] Update pr-comment-responder to use skill (auto-routing via hook)
+- [x] Migrate all GitHub operations to Python scripts
+- [x] Remove PowerShell scripts (original Get-PRContext.ps1 etc. deleted)
 - [ ] Archive ADR-005 (PowerShell-only) with platform exceptions
-- [ ] Performance benchmarks on all platforms
+- [x] Performance documented in gh-native/README.md
 
-**Success Criteria**: All platforms work optimally with their best path
+**Status**: All original PowerShell scripts removed. Python scripts
+serve as primary path with hook enforcement. Shell scripts provide
+Copilot CLI fallback.
 
 ---
 
@@ -182,11 +211,11 @@ fi
 
 ### Performance Improvements
 
-| Platform | Current | After Phase 1 | After Phase 2 | Improvement |
-|----------|---------|---------------|---------------|-------------|
-| **Copilot CLI** | 183ms | 50-80ms | N/A | **56-72%** |
-| **Claude Code** | 183ms | 50-80ms | 5-20ms | **89-97%** |
-| **VS Code** | 183ms | 50-80ms | 5-20ms | **89-97%** |
+| Platform | Before (PowerShell) | Current Implementation | Improvement |
+|----------|---------------------|----------------------|-------------|
+| **Copilot CLI** | 183-416ms | 50-80ms (shell) | **56-80%** |
+| **Claude Code** | 183-416ms | 80-150ms (Python) | **56-64%** |
+| **VS Code** | 183-416ms | 80-150ms (Python) | **56-64%** |
 
 ### Maintenance Impact
 
