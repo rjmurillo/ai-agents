@@ -304,10 +304,25 @@ jobs:
           $prdTemplate | Set-Content /tmp/prd-comment.md -Encoding UTF8
 
           # Post comment via Python script (ADR-042 migration)
-          python3 .github/scripts/post_issue_comment.py `
-            --issue $env:ISSUE_NUMBER `
-            --body-file "/tmp/prd-comment.md" `
-            --marker "AI-PRD-GENERATION"
+          # ADR-035 exit code handling: retry on transient failures (exit 3)
+          $maxRetries = 2
+          for ($attempt = 0; $attempt -le $maxRetries; $attempt++) {
+              python3 .github/scripts/post_issue_comment.py `
+                --issue $env:ISSUE_NUMBER `
+                --body-file "/tmp/prd-comment.md" `
+                --marker "AI-PRD-GENERATION"
+              $ec = $LASTEXITCODE
+              if ($ec -eq 0) { break }
+              if ($ec -eq 3 -and $attempt -lt $maxRetries) {
+                  $delay = ($attempt + 1) * 5
+                  Write-Host "::warning::Transient failure (ADR-035 exit 3). Retry $($attempt + 1)/$maxRetries in ${delay}s..."
+                  Start-Sleep -Seconds $delay
+                  continue
+              }
+              if ($ec -eq 2) { Write-Host "::error::Configuration error (ADR-035 exit 2)."; exit 2 }
+              if ($ec -eq 4) { Write-Host "::error::Authentication error (ADR-035 exit 4)."; exit 1 }
+              exit $ec
+          }
 
       - name: Post Triage Summary
         shell: pwsh -NoProfile -Command "& '{0}'"
@@ -432,7 +447,22 @@ jobs:
           $triageComment | Set-Content /tmp/triage-comment.md -Encoding UTF8
 
           # Post comment via Python script (ADR-042 migration)
-          python3 .github/scripts/post_issue_comment.py `
-            --issue $env:ISSUE_NUMBER `
-            --body-file "/tmp/triage-comment.md" `
-            --marker "AI-ISSUE-TRIAGE"
+          # ADR-035 exit code handling: retry on transient failures (exit 3)
+          $maxRetries = 2
+          for ($attempt = 0; $attempt -le $maxRetries; $attempt++) {
+              python3 .github/scripts/post_issue_comment.py `
+                --issue $env:ISSUE_NUMBER `
+                --body-file "/tmp/triage-comment.md" `
+                --marker "AI-ISSUE-TRIAGE"
+              $ec = $LASTEXITCODE
+              if ($ec -eq 0) { break }
+              if ($ec -eq 3 -and $attempt -lt $maxRetries) {
+                  $delay = ($attempt + 1) * 5
+                  Write-Host "::warning::Transient failure (ADR-035 exit 3). Retry $($attempt + 1)/$maxRetries in ${delay}s..."
+                  Start-Sleep -Seconds $delay
+                  continue
+              }
+              if ($ec -eq 2) { Write-Host "::error::Configuration error (ADR-035 exit 2)."; exit 2 }
+              if ($ec -eq 4) { Write-Host "::error::Authentication error (ADR-035 exit 4)."; exit 1 }
+              exit $ec
+          }

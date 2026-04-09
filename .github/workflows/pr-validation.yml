@@ -293,7 +293,8 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           if [ -f "pr-validation-report.md" ]; then
-            python3 .github/scripts/post_issue_comment.py \
+            source .github/scripts/exit_code_handler.sh
+            run_with_adr035 python3 .github/scripts/post_issue_comment.py \
               --issue "$PR_NUMBER" \
               --body-file "pr-validation-report.md" \
               --marker "PR-VALIDATION"

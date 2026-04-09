@@ -34,8 +34,9 @@ jobs:
           OWNER: ${{ github.repository_owner }}
           REPO_NAME: ${{ github.event.repository.name }}
         run: |
+          source .github/scripts/exit_code_handler.sh
           exit_code=0
-          python3 .github/scripts/set_item_milestone.py \
+          run_with_adr035 python3 .github/scripts/set_item_milestone.py \
             --item-type pr \
             --item-number "$PR_NUMBER" \
             --owner "$OWNER" \
@@ -56,8 +57,9 @@ jobs:
           OWNER: ${{ github.repository_owner }}
           REPO_NAME: ${{ github.event.repository.name }}
         run: |
+          source .github/scripts/exit_code_handler.sh
           exit_code=0
-          python3 .github/scripts/set_item_milestone.py \
+          run_with_adr035 python3 .github/scripts/set_item_milestone.py \
             --item-type issue \
             --item-number "$ISSUE_NUMBER" \
             --owner "$OWNER" \

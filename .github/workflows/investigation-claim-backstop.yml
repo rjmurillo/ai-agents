@@ -95,7 +95,8 @@ jobs:
           See [ADR-034](.agents/architecture/ADR-034-investigation-session-qa-exemption.md) for details.
           EOF
 
-          python3 .github/scripts/post_issue_comment.py \
+          source .github/scripts/exit_code_handler.sh
+          run_with_adr035 python3 .github/scripts/post_issue_comment.py \
             --issue "$PR_NUMBER" \
             --body-file comment.md \
             --marker "INVESTIGATION-CLAIM-BACKSTOP"
