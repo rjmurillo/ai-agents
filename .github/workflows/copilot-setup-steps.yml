@@ -31,7 +31,7 @@ jobs:
   # The job MUST be called `copilot-setup-steps` or it will not be picked up by Copilot.
   copilot-setup-steps:
     name: Configure Git Hooks and Linting Tools
-    # NOTE: Copilot agent runtime requires x86_64 architecture (ADR-032 exception)
+    # NOTE: Copilot agent runtime requires x86_64 architecture (ADR-055 exception)
     # ARM runners cannot be used here despite cost savings
     runs-on: ubuntu-latest
 

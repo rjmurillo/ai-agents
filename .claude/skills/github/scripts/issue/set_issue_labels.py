@@ -41,6 +41,12 @@ from github_core.api import (  # noqa: E402
     error_and_exit,
     resolve_repo_params,
 )
+from github_core.output import (  # noqa: E402
+    add_output_format_arg,
+    get_output_format,
+    write_skill_error,
+    write_skill_output,
+)
 
 VALID_PRIORITIES = ("P0", "P1", "P2", "P3")
 
@@ -79,6 +85,7 @@ def build_parser() -> argparse.ArgumentParser:
         default="FFA500",
         help="Color for priority labels",
     )
+    add_output_format_arg(parser)
     return parser
 
 
@@ -134,6 +141,7 @@ def main(argv: list[str] | None = None) -> int:
     assert_gh_authenticated()
     resolved = resolve_repo_params(args.owner, args.repo)
     owner, repo = resolved.owner, resolved.repo
+    fmt = get_output_format(args.output_format)
 
     create_missing = not args.no_create_missing
 
@@ -175,8 +183,7 @@ def main(argv: list[str] | None = None) -> int:
         else:
             failed.append(label_name)
 
-    output = {
-        "success": len(failed) == 0,
+    data = {
         "issue": args.issue,
         "applied": applied,
         "created": created,
@@ -184,10 +191,24 @@ def main(argv: list[str] | None = None) -> int:
         "total_applied": len(applied),
     }
 
-    print(json.dumps(output, indent=2))
-
     if failed:
-        error_and_exit(f"Failed: {', '.join(failed)}", 3)
+        write_skill_error(
+            f"Failed: {', '.join(failed)}",
+            3,
+            error_type="ApiError",
+            output_format=fmt,
+            script_name="set_issue_labels.py",
+            extra=data,
+        )
+        raise SystemExit(3)
+
+    write_skill_output(
+        data,
+        output_format=fmt,
+        human_summary=f"Applied {len(applied)} label(s) to issue #{args.issue}",
+        status="PASS",
+        script_name="set_issue_labels.py",
+    )
 
     return 0
 

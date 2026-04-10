@@ -186,6 +186,10 @@ def load_memories(memories_dir: Path) -> list[MemoryWithCitations]:
             continue
         memory = load_memory(md_file)
         if memory is not None:
+            # Preserve subdirectory structure in memory_id so save_memory
+            # writes back to the correct location (not flattened to root).
+            relative = md_file.relative_to(memories_dir)
+            memory.memory_id = str(relative.with_suffix(""))
             memories.append(memory)
 
     if not memories:
@@ -220,6 +224,9 @@ def save_memory(memory: MemoryWithCitations, memories_dir: Path) -> Path:
     except ValueError:
         msg = f"Invalid memory_id: path traversal detected in '{memory.memory_id}'"
         raise ValueError(msg) from None
+
+    # Ensure subdirectory exists (memory_id may contain path separators).
+    file_path.parent.mkdir(parents=True, exist_ok=True)
 
     metadata = {
         "title": memory.title,
