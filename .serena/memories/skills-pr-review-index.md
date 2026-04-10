@@ -28,3 +28,4 @@
 | status classification decision tree blocking human | [pr-review/pr-review-status-001](pr-review/pr-review-status-001.md) |
 | batch response single commit multiple comments clean history efficiency | [pr-review/pr-review-batch-response-pattern](pr-review/pr-review-batch-response-pattern.md) |
 | code-review observations skill constraints parallel agents confidence threshold haiku sonnet permalink | [pr-review/pr-review-code-review-skill-observations](pr-review/pr-review-code-review-skill-observations.md) |
+| batching triage tier parallel dispatch merge ordering bot thread classification required checks | [workflows/pr-review-batching-strategy](workflows/pr-review-batching-strategy.md) |
