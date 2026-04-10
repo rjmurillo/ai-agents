@@ -305,8 +305,8 @@ jobs:
           PR_NUMBER: ${{ env.PR_NUMBER }}
           REPORT_FILE: ${{ steps.report.outputs.report_file }}
         run: |
-          source .github/scripts/exit_code_handler.sh
-          run_with_adr035 python3 .github/scripts/post_issue_comment.py \
+          python3 .github/scripts/run_with_retry.py -- \
+            python3 .github/scripts/post_issue_comment.py \
             --issue "$PR_NUMBER" \
             --body-file "$REPORT_FILE" \
             --marker "AI-SPEC-VALIDATION"
