@@ -444,7 +444,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     except (OSError, subprocess.SubprocessError) as e:
         print(f"FATAL: {e}", file=sys.stderr)
-        return 1
+        return 2
 
 
 if __name__ == "__main__":

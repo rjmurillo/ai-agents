@@ -90,7 +90,7 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         issue_data = json.loads(result.stdout)
-    except json.JSONDecodeError:
+    except json.JSONDecodeError as err:
         write_skill_error(
             "Failed to parse issue JSON",
             3,
@@ -98,7 +98,7 @@ def main(argv: list[str] | None = None) -> int:
             output_format=fmt,
             script_name="get_issue_context.py",
         )
-        raise SystemExit(3)
+        raise SystemExit(3) from err
 
     if not issue_data:
         write_skill_error(
