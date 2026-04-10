@@ -44,16 +44,11 @@ from github_core.api import (  # noqa: E402
     gh_graphql,
     resolve_repo_params,
 )
+from github_core.bot_config import is_bot  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # GraphQL: fetch all review threads with path and line info
 # ---------------------------------------------------------------------------
-
-_KNOWN_BOTS = frozenset({
-    "copilot",
-    "github-actions",
-})
-_BOT_SUFFIXES = ("[bot]", "-bot")
 
 _REVIEW_THREADS_QUERY = """\
 query($owner: String!, $name: String!, $prNumber: Int!) {
@@ -140,13 +135,9 @@ def fetch_pr_files(owner: str, repo: str, pr_number: int) -> set[str]:
 def _is_bot_author(login: str) -> bool:
     """Check if a login belongs to a bot reviewer.
 
-    Uses a known-bots set for exact matches (e.g. "Copilot") plus
-    suffix checks as a backstop for bots following naming conventions.
+    Delegates to the shared is_bot utility in github_core.bot_config.
     """
-    lower = login.lower()
-    if lower in _KNOWN_BOTS:
-        return True
-    return any(lower.endswith(s) for s in _BOT_SUFFIXES)
+    return is_bot(login)
 
 
 def _classify_thread(

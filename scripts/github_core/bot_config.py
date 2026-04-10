@@ -142,3 +142,32 @@ def get_bot_authors(category: str = "all") -> list[str]:
         return sorted(combined)
 
     return list(bots.get(category, []))
+
+
+_BOT_SUFFIXES = ("[bot]", "-bot")
+
+
+def is_bot(login: str, user_type: str | None = None) -> bool:
+    """Determine if a GitHub login belongs to a bot account.
+
+    Uses multiple detection strategies:
+    1. API-provided user_type field (most reliable when available)
+    2. Configured bot authors from bot-authors.yml
+    3. Naming convention suffixes ([bot] and -bot)
+
+    Args:
+        login: GitHub username to check.
+        user_type: Optional GitHub API user type field (e.g., "Bot", "User").
+
+    Returns:
+        True if the login appears to be a bot account.
+    """
+    if user_type == "Bot":
+        return True
+
+    lower = login.lower()
+    if any(lower.endswith(s) for s in _BOT_SUFFIXES):
+        return True
+
+    configured_bots = {b.lower() for b in get_bot_authors()}
+    return lower in configured_bots
