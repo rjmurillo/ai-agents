@@ -89,12 +89,13 @@ def fetch_review_threads(
         {"owner": owner, "name": repo, "prNumber": pr_number},
     )
     threads = (
-        data.get("repository", {})
-        .get("pullRequest", {})
-        .get("reviewThreads", {})
-        .get("nodes", [])
-    )
-    return threads if threads else []
+        (data.get("repository") or {})
+        .get("pullRequest") or {}
+    ).get("reviewThreads") or {}
+    nodes = threads.get("nodes")
+    if nodes is None:
+        return []
+    return nodes
 
 
 def fetch_pr_files(owner: str, repo: str, pr_number: int) -> set[str]:
