@@ -42,7 +42,7 @@ concurrency:
 jobs:
   check-paths:
     name: Check Changed Paths
-    # ADR-032: ARM runner for cost optimization (37.5% savings vs x64)
+    # ADR-055: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-24.04-arm
     permissions:
       contents: read
@@ -52,7 +52,7 @@ jobs:
       should-run-analysis: ${{ (github.event_name == 'workflow_dispatch' && 'true') || (github.event_name == 'schedule' && 'true') || steps.filter.outputs.scannable }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@fe104658747b27e96e4f7e80cd0a94068e53901d # v2.16.1
+        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
         with:
           egress-policy: audit
 
@@ -122,7 +122,7 @@ jobs:
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@fe104658747b27e96e4f7e80cd0a94068e53901d # v2.16.1
+        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
         with:
           egress-policy: audit
 
@@ -154,7 +154,7 @@ jobs:
 
       - name: Upload SARIF artifact
         if: always() && needs.check-paths.outputs.should-run-analysis == 'true'
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: codeql-results-${{ matrix.language }}
           path: .codeql/results/${{ matrix.language }}.sarif
@@ -165,14 +165,14 @@ jobs:
     name: Skip CodeQL Analysis (No Changes)
     needs: check-paths
     if: needs.check-paths.outputs.should-run-analysis != 'true'
-    # ADR-032: ARM runner for cost optimization
+    # ADR-055: ARM runner for cost optimization
     runs-on: ubuntu-24.04-arm
     permissions:
       contents: read
       checks: write
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@fe104658747b27e96e4f7e80cd0a94068e53901d # v2.16.1
+        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
         with:
           egress-policy: audit
 
@@ -213,14 +213,14 @@ jobs:
     name: Check for Blocking Issues
     needs: [check-paths, analyze]
     if: always() && needs.check-paths.outputs.should-run-analysis == 'true'
-    # ADR-032: ARM runner for cost optimization
+    # ADR-055: ARM runner for cost optimization
     runs-on: ubuntu-24.04-arm
     permissions:
       contents: read
       security-events: read
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@fe104658747b27e96e4f7e80cd0a94068e53901d # v2.16.1
+        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
         with:
           egress-policy: audit
 

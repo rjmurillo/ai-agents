@@ -47,8 +47,8 @@ def test_apply_existing_labels(mock_run, capsys):
     rc = main(["--issue", "1", "--labels", "bug"])
     assert rc == 0
     output = json.loads(capsys.readouterr().out)
-    assert output["success"] is True
-    assert "bug" in output["applied"]
+    assert output["Success"] is True
+    assert "bug" in output["Data"]["applied"]
 
 
 @patch("subprocess.run")
@@ -64,8 +64,8 @@ def test_create_and_apply_missing_label(mock_run, capsys):
     rc = main(["--issue", "1", "--labels", "new-label"])
     assert rc == 0
     output = json.loads(capsys.readouterr().out)
-    assert "new-label" in output["created"]
-    assert "new-label" in output["applied"]
+    assert "new-label" in output["Data"]["created"]
+    assert "new-label" in output["Data"]["applied"]
 
 
 @patch("subprocess.run")
@@ -81,7 +81,7 @@ def test_priority_label(mock_run, capsys):
     rc = main(["--issue", "1", "--priority", "P1"])
     assert rc == 0
     output = json.loads(capsys.readouterr().out)
-    assert "priority:P1" in output["applied"]
+    assert "priority:P1" in output["Data"]["applied"]
 
 
 @patch("subprocess.run")
@@ -123,8 +123,8 @@ def test_create_failure_skips_apply(mock_run, capsys):
         main(["--issue", "1", "--labels", "fail-to-create"])
     assert exc_info.value.code == 3
     output = json.loads(capsys.readouterr().out)
-    assert "fail-to-create" in output["failed"]
-    assert output["applied"] == []
+    assert "fail-to-create" in output["Data"]["failed"]
+    assert output["Data"]["applied"] == []
 
 
 @patch("subprocess.run")
@@ -139,9 +139,9 @@ def test_no_create_missing_skips_label(mock_run, capsys):
     rc = main(["--issue", "1", "--labels", "missing", "--no-create-missing"])
     assert rc == 0
     output = json.loads(capsys.readouterr().out)
-    assert output["applied"] == []
-    assert output["failed"] == []
-    assert output["success"] is True
+    assert output["Data"]["applied"] == []
+    assert output["Data"]["failed"] == []
+    assert output["Success"] is True
 
 
 @patch("subprocess.run")
@@ -160,9 +160,9 @@ def test_mixed_existing_and_missing_labels(mock_run, capsys):
     rc = main(["--issue", "1", "--labels", "bug", "new-one"])
     assert rc == 0
     output = json.loads(capsys.readouterr().out)
-    assert output["applied"] == ["bug", "new-one"]
-    assert output["created"] == ["new-one"]
-    assert output["total_applied"] == 2
+    assert output["Data"]["applied"] == ["bug", "new-one"]
+    assert output["Data"]["created"] == ["new-one"]
+    assert output["Data"]["total_applied"] == 2
 
 
 @patch("subprocess.run")

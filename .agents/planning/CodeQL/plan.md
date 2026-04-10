@@ -506,7 +506,7 @@ permissions:
 jobs:
   analyze:
     name: Analyze (${{ matrix.language }})
-    runs-on: ubuntu-24.04-arm  # ADR-032: ARM for cost optimization
+    runs-on: ubuntu-24.04-arm  # ADR-055: ARM for cost optimization
     timeout-minutes: 30
     
     strategy:

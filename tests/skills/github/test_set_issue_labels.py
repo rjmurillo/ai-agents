@@ -52,9 +52,9 @@ class TestSetIssueLabels:
             rc = mod.main(["--issue", "1", "--labels", "bug", "P1"])
         assert rc == 0
         result = json.loads(capsys.readouterr().out)
-        assert result["success"] is True
-        assert result["applied"] == ["bug", "P1"]
-        assert result["total_applied"] == 2
+        assert result["Success"] is True
+        assert result["Data"]["applied"] == ["bug", "P1"]
+        assert result["Data"]["total_applied"] == 2
 
     def test_create_missing_label(self, _import_module, capsys):
         mod = _import_module
@@ -70,8 +70,8 @@ class TestSetIssueLabels:
             rc = mod.main(["--issue", "1", "--labels", "new-label"])
         assert rc == 0
         result = json.loads(capsys.readouterr().out)
-        assert result["created"] == ["new-label"]
-        assert result["applied"] == ["new-label"]
+        assert result["Data"]["created"] == ["new-label"]
+        assert result["Data"]["applied"] == ["new-label"]
 
     def test_priority_label(self, _import_module, capsys):
         mod = _import_module
@@ -86,7 +86,7 @@ class TestSetIssueLabels:
             rc = mod.main(["--issue", "1", "--priority", "P1"])
         assert rc == 0
         result = json.loads(capsys.readouterr().out)
-        assert "priority:P1" in result["applied"]
+        assert "priority:P1" in result["Data"]["applied"]
 
     def test_empty_labels(self, _import_module):
         mod = _import_module
@@ -135,4 +135,4 @@ class TestSetIssueLabels:
             rc = mod.main(["--issue", "1", "--labels", "good", "  ", ""])
         assert rc == 0
         result = json.loads(capsys.readouterr().out)
-        assert result["applied"] == ["good"]
+        assert result["Data"]["applied"] == ["good"]

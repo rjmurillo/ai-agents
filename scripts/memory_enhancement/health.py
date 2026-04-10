@@ -18,7 +18,12 @@ from .serena_integration import load_memories
 from .verification import STALE_REASON_MARKERS, verify_all_citations
 
 
-def generate_health_report(memories_dir: Path, repo_root: Path) -> HealthReport:
+def generate_health_report(
+    memories_dir: Path,
+    repo_root: Path,
+    *,
+    preloaded_memories: list[MemoryWithCitations] | None = None,
+) -> HealthReport:
     """Generate a comprehensive health report for all memories.
 
     Loads memories once and verifies citations once, then passes results
@@ -27,11 +32,12 @@ def generate_health_report(memories_dir: Path, repo_root: Path) -> HealthReport:
     Args:
         memories_dir: Directory containing memory .md files.
         repo_root: Repository root for citation verification.
+        preloaded_memories: Optional pre-loaded memories to skip redundant I/O.
 
     Returns:
         HealthReport with aggregated statistics and recommendations.
     """
-    memories = load_memories(memories_dir)
+    memories = preloaded_memories if preloaded_memories is not None else load_memories(memories_dir)
     all_results = _verify_all_memories(memories, repo_root)
     counts = _count_citation_statuses_from_results(all_results)
     stale = _detect_stale_from_results(memories, all_results, max_age_days=30)

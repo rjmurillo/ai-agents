@@ -35,7 +35,8 @@ jobs:
           REPO_NAME: ${{ github.event.repository.name }}
         run: |
           exit_code=0
-          python3 .github/scripts/set_item_milestone.py \
+          python3 .github/scripts/run_with_retry.py -- \
+            python3 .github/scripts/set_item_milestone.py \
             --item-type pr \
             --item-number "$PR_NUMBER" \
             --owner "$OWNER" \
@@ -57,7 +58,8 @@ jobs:
           REPO_NAME: ${{ github.event.repository.name }}
         run: |
           exit_code=0
-          python3 .github/scripts/set_item_milestone.py \
+          python3 .github/scripts/run_with_retry.py -- \
+            python3 .github/scripts/set_item_milestone.py \
             --item-type issue \
             --item-number "$ISSUE_NUMBER" \
             --owner "$OWNER" \

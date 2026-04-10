@@ -144,7 +144,7 @@ i/lf    w/lf    attr/text=auto eol=lf 	.agents/architecture/ADR-029-skill-file-l
 i/lf    w/lf    attr/text=auto eol=lf 	.agents/architecture/ADR-030-skills-pattern-superiority.md
 i/lf    w/crlf  attr/text=auto eol=lf 	.agents/architecture/ADR-031-hybrid-powershell-architecture.md
 i/lf    w/lf    attr/text=auto eol=lf 	.agents/architecture/ADR-032-ears-requirements-syntax.md
-i/lf    w/crlf  attr/text=auto eol=lf 	.agents/architecture/ADR-032-github-actions-runner-selection.md
+i/lf    w/crlf  attr/text=auto eol=lf 	.agents/architecture/ADR-055-github-actions-runner-selection.md
 i/lf    w/crlf  attr/text=auto eol=lf 	.agents/architecture/ADR-033-routing-level-enforcement-gates.md
 i/lf    w/lf    attr/text=auto eol=lf 	.agents/architecture/ADR-034-investigation-session-qa-exemption.md
 i/lf    w/crlf  attr/text=auto eol=lf 	.agents/architecture/ADR-035-exit-code-standardization.md

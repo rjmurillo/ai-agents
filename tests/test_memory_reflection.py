@@ -36,17 +36,19 @@ class TestReinforceMemories:
     def test_empty_directory(self, tmp_path):
         mem_dir = tmp_path / "memories"
         mem_dir.mkdir()
-        scores = reinforce_memories(mem_dir, tmp_path)
+        scores, memories = reinforce_memories(mem_dir, tmp_path)
         assert scores == {}
+        assert memories == []
 
     @pytest.mark.unit
     def test_single_memory(self, tmp_path):
         mem_dir = tmp_path / "memories"
         mem_dir.mkdir()
         _write_memory(mem_dir, "m1", "# M1 (2026-01-01)\n\nContent\n")
-        scores = reinforce_memories(mem_dir, tmp_path)
+        scores, memories = reinforce_memories(mem_dir, tmp_path)
         assert "m1" in scores
         assert 0.0 <= scores["m1"] <= 1.0
+        assert len(memories) == 1
 
     @pytest.mark.unit
     def test_multiple_memories(self, tmp_path):
@@ -54,8 +56,9 @@ class TestReinforceMemories:
         mem_dir.mkdir()
         _write_memory(mem_dir, "m1", "# M1 (2026-01-01)\n\nContent\n")
         _write_memory(mem_dir, "m2", "# M2 (2026-01-01)\n\nOther content\n")
-        scores = reinforce_memories(mem_dir, tmp_path)
+        scores, memories = reinforce_memories(mem_dir, tmp_path)
         assert len(scores) == 2
+        assert len(memories) == 2
 
 
 class TestGenerateSkillCandidates:

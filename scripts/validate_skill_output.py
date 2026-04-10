@@ -1,10 +1,10 @@
-"""Validate skill script output against the standard envelope schema (ADR-051).
+"""Validate skill script output against the standard envelope schema (ADR-056).
 
 Accepts JSON input from stdin or a file path and validates it against
 the skill-output.schema.json schema. Returns exit code 0 for valid,
 1 for invalid output.
 
-Related: ADR-051 (Skill Output Format Standardization)
+Related: ADR-056 (Skill Output Format Standardization)
 
 Usage:
     python3 scripts/validate_skill_output.py < output.json
@@ -72,7 +72,7 @@ def _validate_file_path(file_path: str, allowed_dir: Path) -> Path:
 
 
 def validate_envelope(data: dict) -> list[str]:
-    """Validate the output envelope against ADR-051 schema.
+    """Validate the output envelope against ADR-056 schema.
 
     Args:
         data: Parsed JSON object.
@@ -122,7 +122,7 @@ def validate_envelope(data: dict) -> list[str]:
 def main() -> int:
     """Run validation and return exit code."""
     parser = argparse.ArgumentParser(
-        description="Validate skill output against ADR-051 envelope schema."
+        description="Validate skill output against ADR-056 envelope schema."
     )
     parser.add_argument(
         "--input-file",
@@ -159,7 +159,7 @@ def main() -> int:
             print(f"  - {err}")
         return 1
 
-    print("[PASS] Skill output conforms to ADR-051 envelope schema")
+    print("[PASS] Skill output conforms to ADR-056 envelope schema")
     return 0
 
 

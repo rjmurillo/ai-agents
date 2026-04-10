@@ -1,4 +1,4 @@
-# ADR-051: Skill Output Format Standardization
+# ADR-056: Skill Output Format Standardization
 
 ## Status
 

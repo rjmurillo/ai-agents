@@ -729,7 +729,8 @@ jobs:
             echo "::error::Report file not found: $REPORT_FILE"
             exit 1
           fi
-          python3 .github/scripts/post_issue_comment.py \
+          python3 .github/scripts/run_with_retry.py -- \
+            python3 .github/scripts/post_issue_comment.py \
             --issue "$PR_NUMBER" \
             --body-file "$REPORT_FILE" \
             --marker "AI-PR-QUALITY-GATE" \

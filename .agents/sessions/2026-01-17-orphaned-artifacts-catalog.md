@@ -2,10 +2,22 @@
 
 Generated: 2026-01-18 05:17:14 UTC
 
-## Summary
+## Resolution
 
-These branches contain session logs and memory files that were not merged to main.
-The hypothesis is confirmed: automerge completed PRs before session artifacts were pushed.
+**Status**: Resolved (2026-04-09)
+**Audited by**: `scripts/audit_orphaned_branches.py`
+
+All 54 branches listed below have been deleted from the remote. No orphaned
+session or memory artifacts remain on any remote branch. The root cause
+(automerge completing PRs before session artifacts were pushed) has been
+addressed by the session protocol validator (ADR-007).
+
+For future audits, run: `python scripts/audit_orphaned_branches.py`
+
+## Original Summary
+
+These branches contained session logs and memory files that were not merged to main.
+The hypothesis was confirmed: automerge completed PRs before session artifacts were pushed.
 
 ## Branches with Orphaned Artifacts
 

@@ -77,16 +77,16 @@ def test_happy_path(mock_run, capsys):
 
     output = json.loads(capsys.readouterr().out)
     assert isinstance(output, dict)
-    assert output["success"] is True
-    assert isinstance(output["number"], int)
-    assert output["number"] == 42
-    assert isinstance(output["title"], str)
-    assert output["title"] == "Test Issue"
-    assert isinstance(output["labels"], list)
-    assert output["labels"] == ["bug", "P1"]
-    assert output["milestone"] == "v1.0.0"
-    assert isinstance(output["assignees"], list)
-    assert output["assignees"] == ["dev1"]
+    assert output["Success"] is True
+    assert isinstance(output["Data"]["number"], int)
+    assert output["Data"]["number"] == 42
+    assert isinstance(output["Data"]["title"], str)
+    assert output["Data"]["title"] == "Test Issue"
+    assert isinstance(output["Data"]["labels"], list)
+    assert output["Data"]["labels"] == ["bug", "P1"]
+    assert output["Data"]["milestone"] == "v1.0.0"
+    assert isinstance(output["Data"]["assignees"], list)
+    assert output["Data"]["assignees"] == ["dev1"]
 
 
 @patch("subprocess.run")
@@ -125,7 +125,7 @@ def test_no_milestone(mock_run, capsys):
     rc = main(["--issue", "10"])
     assert rc == 0
     output = json.loads(capsys.readouterr().out)
-    assert output["milestone"] is None
+    assert output["Data"]["milestone"] is None
 
 
 @patch("subprocess.run")

@@ -1,4 +1,4 @@
-# ADR-032: GitHub Actions Runner Selection
+# ADR-055: GitHub Actions Runner Selection
 
 **Status**: Accepted (supersedes ADR-024, ADR-025)
 **Date**: 2025-12-29
