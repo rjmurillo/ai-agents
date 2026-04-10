@@ -31,6 +31,7 @@ on:
 
 permissions:
   contents: read
+  issues: write
   pull-requests: write
 
 # Concurrency control: Attempts to cancel in-progress runs when new runs start
