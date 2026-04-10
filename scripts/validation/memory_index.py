@@ -504,7 +504,7 @@ def check_memory_index_references(
     # P1: Check validity of references
     # Collect file references from both table rows and pipe-delimited lines
     file_refs: list[str] = []
-    for line in content.split("\n"):
+    for line in content.splitlines():
         # Try table row format first: | keywords | files |
         match = _TABLE_ROW_PATTERN.match(line)
         if match:
@@ -526,6 +526,7 @@ def check_memory_index_references(
             for link_match in _MARKDOWN_LINK_PATTERN.finditer(stripped):
                 file_refs.append(link_match.group(0))
 
+    file_refs = list({ref.strip() for ref in file_refs})
     for file_name in file_refs:
         # Parse markdown link syntax
         link_match = _MARKDOWN_LINK_PATTERN.search(file_name)

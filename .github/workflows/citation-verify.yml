@@ -64,7 +64,7 @@ jobs:
 
       - name: Verify all citations
         run: |
-          PYTHONPATH=.claude/skills/memory-enhancement/src python3 -m memory_enhancement verify-all --repo-root . --dir .serena/memories
+          PYTHONPATH=.claude/skills/memory-enhancement/src python3 -m memory_enhancement verify-all --repo-root . --memories-dir .serena/memories
 
   skip-verification:
     name: Skip verification (no changes)

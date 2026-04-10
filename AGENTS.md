@@ -39,7 +39,7 @@ Knowledge goes in passive context (@imported docs). Actions stay as skills. Pass
 
 ## Skill-First
 
-|PRs: github|Reviews: pr-comment-responder|Conflicts: merge-resolver
+|PRs: GitHub|Reviews: pr-comment-responder|Conflicts: merge-resolver
 |Session: session-init, session-end|CI fix: session-log-fixer|Push: /push-pr
 |Security: security-detection|Quality: analyze|Learn: reflect
 |Workflow: workflow (0-init, 1-plan, 2-impl, 3-qa, 4-security)
