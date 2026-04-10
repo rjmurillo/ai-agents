@@ -102,15 +102,23 @@ def fetch_pr_files(owner: str, repo: str, pr_number: int) -> set[str]:
 
     Uses the GitHub REST API to get the file list.
     Excludes files with status 'removed' since they do not exist at HEAD.
+    For renamed files, includes both the new filename and previous_filename
+    to avoid false positives on review threads referencing the old path.
     """
     raw_files = gh_api_paginated(
         f"repos/{owner}/{repo}/pulls/{pr_number}/files"
     )
-    return {
-        f.get("filename", "")
-        for f in raw_files
-        if f.get("filename") and f.get("status") != "removed"
-    }
+    result: set[str] = set()
+    for f in raw_files:
+        if f.get("status") == "removed":
+            continue
+        filename = f.get("filename", "")
+        if filename:
+            result.add(filename)
+        previous = f.get("previous_filename", "")
+        if previous:
+            result.add(previous)
+    return result
 
 
 # ---------------------------------------------------------------------------
