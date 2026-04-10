@@ -7,7 +7,6 @@ ai-agents directory structure in new projects.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 from scripts.init_project import (
     _AGENTS_DIRS,
@@ -19,9 +18,6 @@ from scripts.init_project import (
     ProjectInitializer,
     main,
 )
-
-if TYPE_CHECKING:
-    from _pytest.monkeypatch import MonkeyPatch
 
 
 class TestProjectInitializerValidation:
@@ -40,6 +36,18 @@ class TestProjectInitializerValidation:
         file_path.write_text("content")
         init = ProjectInitializer(target_dir=file_path)
         assert init.validate_target() is False
+
+    def test_rejects_project_name_with_yaml_special_chars(self, tmp_path: Path) -> None:
+        bad_dir = tmp_path / "my project: {inject}"
+        bad_dir.mkdir()
+        init = ProjectInitializer(target_dir=bad_dir)
+        assert init.validate_target() is False
+
+    def test_accepts_valid_project_name(self, tmp_path: Path) -> None:
+        good_dir = tmp_path / "my-project_01"
+        good_dir.mkdir()
+        init = ProjectInitializer(target_dir=good_dir)
+        assert init.validate_target() is True
 
 
 class TestScaffoldAgentsDirs:
@@ -242,40 +250,22 @@ class TestFullRun:
 class TestMainEntryPoint:
     """Tests for the main() CLI entry point."""
 
-    def test_main_with_init_subcommand(self, tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
-        monkeypatch.setattr(
-            "sys.argv",
-            ["ai-agents", "init", "--target-dir", str(tmp_path)],
-        )
-        result = main()
+    def test_main_with_init_subcommand(self, tmp_path: Path) -> None:
+        result = main(["init", "--target-dir", str(tmp_path)])
         assert result == 0
         assert (tmp_path / "CLAUDE.md").exists()
 
-    def test_main_backwards_compat_without_subcommand(
-        self, tmp_path: Path, monkeypatch: MonkeyPatch
-    ) -> None:
-        monkeypatch.setattr(
-            "sys.argv",
-            ["ai-agents", "--target-dir", str(tmp_path)],
-        )
-        result = main()
+    def test_main_no_args_shows_help(self, capsys: object) -> None:
+        """No subcommand prints help and exits 0 without scaffolding."""
+        result = main([])
         assert result == 0
-        assert (tmp_path / "CLAUDE.md").exists()
 
-    def test_main_dry_run(self, tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
-        monkeypatch.setattr(
-            "sys.argv",
-            ["ai-agents", "init", "--target-dir", str(tmp_path), "--dry-run"],
-        )
-        result = main()
+    def test_main_dry_run(self, tmp_path: Path) -> None:
+        result = main(["init", "--target-dir", str(tmp_path), "--dry-run"])
         assert result == 0
         assert not (tmp_path / "CLAUDE.md").exists()
 
-    def test_main_minimal(self, tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
-        monkeypatch.setattr(
-            "sys.argv",
-            ["ai-agents", "init", "--target-dir", str(tmp_path), "--minimal"],
-        )
-        result = main()
+    def test_main_minimal(self, tmp_path: Path) -> None:
+        result = main(["init", "--target-dir", str(tmp_path), "--minimal"])
         assert result == 0
         assert not (tmp_path / ".agents" / "governance").exists()

@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import re
 import sys
 from pathlib import Path
 
@@ -130,12 +131,19 @@ class ProjectInitializer:
         self.skipped_files: list[Path] = []
 
     def validate_target(self) -> bool:
-        """Verify target directory exists and is a directory."""
+        """Verify target directory exists, is a directory, and has a safe name."""
         if not self.target_dir.exists():
             logger.error("Target directory does not exist: %s", self.target_dir)
             return False
         if not self.target_dir.is_dir():
             logger.error("Target path is not a directory: %s", self.target_dir)
+            return False
+        project_name = self.target_dir.name
+        if not re.match(r"^[a-zA-Z0-9_-]+$", project_name):
+            logger.error(
+                "Error: project name must be alphanumeric with hyphens/underscores, got: %s",
+                project_name,
+            )
             return False
         return True
 
@@ -323,14 +331,13 @@ def _run_init(args: argparse.Namespace) -> int:
     return initializer.run()
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     """Entry point for the ai-agents CLI.
 
     Supports subcommands:
         ai-agents init [--target-dir DIR] [--minimal] [--force] [--dry-run]
 
-    When invoked without a subcommand (for backwards compatibility),
-    behaves as if 'init' was specified.
+    Prints help and exits when no subcommand is given.
     """
     parser = argparse.ArgumentParser(
         prog="ai-agents",
@@ -344,12 +351,13 @@ def main() -> int:
     )
     _add_init_args(init_parser)
 
-    # Backwards compatibility: support direct flags without 'init' subcommand
-    _add_init_args(parser)
+    args = parser.parse_args(argv)
 
-    args = parser.parse_args()
+    if not hasattr(args, "func") and args.command is None:
+        parser.print_help()
+        return 0
 
-    if args.command == "init" or args.command is None:
+    if args.command == "init":
         return _run_init(args)
 
     parser.print_help()
