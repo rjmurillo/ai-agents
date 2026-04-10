@@ -59,7 +59,7 @@ jobs:
         shell: pwsh
         run: |
           $actor = "${{ github.actor }}"
-          $excludedBots = @('dependabot[bot]', 'github-actions[bot]')
+          $excludedBots = @('dependabot[bot]', 'github-actions[bot]', 'renovate[bot]')
           
           if ($actor -in $excludedBots) {
             Write-Host "Skipping validation for bot actor: $actor"
