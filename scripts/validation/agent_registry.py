@@ -13,10 +13,13 @@ Exit codes follow ADR-035:
 from __future__ import annotations
 
 import argparse
+import logging
 import re
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 # Reuse existing frontmatter parsing from build utilities
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "build"))
@@ -149,6 +152,12 @@ def parse_catalog(agents_md_path: Path) -> list[CatalogEntry]:
             if name not in seen_names:
                 seen_names.add(name)
                 entries.append(CatalogEntry(name=name, model=m.group("model")))
+            else:
+                logger.debug(
+                    "Skipping duplicate agent %r (model=%s, format=table)",
+                    name,
+                    m.group("model"),
+                )
             continue
 
         # Try pipe-delimited format (only in Agents section)
@@ -159,6 +168,12 @@ def parse_catalog(agents_md_path: Path) -> list[CatalogEntry]:
                 if name not in seen_names:
                     seen_names.add(name)
                     entries.append(CatalogEntry(name=name, model=model))
+                else:
+                    logger.debug(
+                        "Skipping duplicate agent %r (model=%s, format=pipe)",
+                        name,
+                        model,
+                    )
 
     return entries
 
