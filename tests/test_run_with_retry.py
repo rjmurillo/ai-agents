@@ -62,11 +62,36 @@ class TestExitCodeTwoConfigError:
         assert result.returncode == 2
         assert "Configuration error" in result.stdout
 
-    def test_no_retry_on_config_error(self) -> None:
-        """Config errors must not retry. Verify via a counter file."""
-        result = _run(2, max_retries=2, retry_delay=0)
+    def test_no_retry_on_config_error(self, tmp_path: Path) -> None:
+        """Config errors must not retry. Verify via invocation count."""
+        counter = tmp_path / "counter"
+        counter.write_text("0")
+        script = (
+            f"import pathlib; "
+            f"p = pathlib.Path(r'{counter}'); "
+            f"c = int(p.read_text()) + 1; "
+            f"p.write_text(str(c)); "
+            f"raise SystemExit(2)"
+        )
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(SCRIPT),
+                "--max-retries",
+                "2",
+                "--retry-delay",
+                "0",
+                "--",
+                sys.executable,
+                "-c",
+                script,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
         assert result.returncode == 2
-        assert "Retry" not in result.stdout
+        assert counter.read_text().strip() == "1"
 
 
 class TestExitCodeThreeTransientRetry:

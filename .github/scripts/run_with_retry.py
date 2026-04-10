@@ -8,8 +8,8 @@ Exit codes (ADR-035):
     0 - Success
     1 - Logic/validation error (passthrough)
     2 - Configuration error (fail-fast, passthrough)
-    3 - External service error (retried, then exits 1)
-    4 - Authentication error (fail-fast, exits 1)
+    3 - External service error (retried, then passthrough)
+    4 - Authentication error (fail-fast, passthrough)
 
 Usage:
     python3 run_with_retry.py [--max-retries N] [--retry-delay N] -- COMMAND [ARGS...]
@@ -96,7 +96,7 @@ def run_with_retry(
         if code == _EXIT_CONFIG:
             print(
                 "::error::Configuration error (ADR-035 exit 2). "
-                "Check script arguments.",
+                "Check command output for details.",
                 flush=True,
             )
             return _EXIT_CONFIG
