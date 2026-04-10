@@ -28,10 +28,32 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+import yaml
+
 import frontmatter
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
+
+
+def _validate_path_component(name: str, base_dir: Path) -> Path:
+    """Validate that a name does not escape base_dir via path traversal.
+
+    Args:
+        name: Untrusted name from YAML frontmatter.
+        base_dir: Directory the resulting path must stay within.
+
+    Returns:
+        Resolved safe path under base_dir.
+
+    Raises:
+        ValueError: If the name contains path traversal characters.
+    """
+    sanitized = name.replace("/", "_").replace("\\", "_").replace("..", "_")
+    candidate = base_dir / sanitized
+    if not candidate.resolve().is_relative_to(base_dir.resolve()):
+        raise ValueError(f"Path traversal detected in agent name: {name}")
+    return candidate
 
 # OpenClaw tier mapping from ai-agents tiers
 _TIER_TO_OPENCLAW_ROLE: dict[str, str] = {
@@ -83,7 +105,7 @@ def parse_agent_file(path: Path) -> AgentDefinition | None:
     """
     try:
         post = frontmatter.load(str(path))
-    except Exception as exc:
+    except (yaml.YAMLError, OSError, UnicodeDecodeError) as exc:
         logger.warning("Failed to parse %s: %s", path.name, exc)
         return None
 
@@ -189,7 +211,7 @@ def generate_skill_md(agent: AgentDefinition) -> str:
         "",
         f"- **Model**: `{model}`",
         f"- **Role**: {_TIER_TO_OPENCLAW_ROLE.get(agent.tier, agent.tier)}",
-        f"- **Source**: ai-agents (`src/claude/{agent.name}.md`)",
+        f"- **Source**: ai-agents (`{agent.source_path}`)" if agent.source_path else f"- **Source**: ai-agents ({agent.name})",
         "",
     ]
 
@@ -217,7 +239,11 @@ def export_agents(agents: list[AgentDefinition]) -> ExportResult:
     result.agents_md = generate_agents_md(agents)
     result.agent_count = len(agents)
 
+    seen_names: set[str] = set()
     for agent in agents:
+        if agent.name in seen_names:
+            raise ValueError(f"Duplicate agent name: {agent.name}")
+        seen_names.add(agent.name)
         result.agent_skills[agent.name] = generate_skill_md(agent)
 
     return result
@@ -247,7 +273,8 @@ def write_workspace(result: ExportResult, output_dir: Path, dry_run: bool = Fals
 
     skills_dir = output_dir / "skills"
     for agent_name, skill_content in result.agent_skills.items():
-        skill_path = skills_dir / agent_name / "SKILL.md"
+        safe_agent_dir = _validate_path_component(agent_name, skills_dir)
+        skill_path = safe_agent_dir / "SKILL.md"
         if dry_run:
             logger.info("  WOULD CREATE %s", skill_path)
         else:
@@ -276,7 +303,7 @@ def export_json(agents: list[AgentDefinition]) -> str:
             "model": _MODEL_MAP.get(agent.model, agent.model),
             "role": _TIER_TO_OPENCLAW_ROLE.get(agent.tier, agent.tier),
             "argument_hint": agent.argument_hint,
-            "source": f"src/claude/{agent.name}.md",
+            "source": agent.source_path if agent.source_path else agent.name,
         })
     return json.dumps({"agents": data, "count": len(data)}, indent=2)
 

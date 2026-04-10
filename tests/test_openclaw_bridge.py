@@ -292,7 +292,7 @@ class TestExportJson:
         orch = next(a for a in data["agents"] if a["name"] == "orchestrator")
         assert orch["model"] == "anthropic/claude-opus-4-6"
         assert orch["role"] == "coordinator"
-        assert orch["source"] == "src/claude/orchestrator.md"
+        assert orch["source"] == "orchestrator"
 
     def test_empty_list(self):
         result = export_json([])
