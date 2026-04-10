@@ -140,7 +140,8 @@ def audit_branches(
     for branch in branches:
         try:
             changed = diff_files_vs_main(branch, base_ref)
-        except RuntimeError:
+        except RuntimeError as exc:
+            print(f"WARNING: skipping branch {branch}: {exc}", file=sys.stderr)
             continue
 
         artifacts = find_orphaned_artifacts(branch, changed)
