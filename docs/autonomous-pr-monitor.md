@@ -563,25 +563,25 @@ $ModulePath = Join-Path $PSScriptRoot ".." ".." ".." ".." ".claude" "skills" "gi
 
 ## Handling Stale Merge Status
 
-GitHub calculates merge status asynchronously. When all PRs show `mergeable: UNKNOWN`, the status cache is stale.
+GitHub calculates merge status asynchronously. When all PRs show `mergeable: null` (REST API) or `UNKNOWN` (GraphQL), the status cache is stale.
 
 Force a recalculation by fetching the PR directly:
 
 ```bash
 # Trigger recalculation for a specific PR
-gh api repos/{owner}/{repo}/pulls/{number} --jq '.mergeable'
+gh api "repos/{owner}/{repo}/pulls/{number}" --jq '.mergeable'
 ```
 
-Wait 5-10 seconds, then re-query. If `UNKNOWN` persists across all PRs, use a loop:
+Wait 5-10 seconds, then re-query. If `null`/`UNKNOWN` persists across all PRs, use a loop:
 
 ```bash
 for pr in {list}; do
-  gh api repos/{owner}/{repo}/pulls/$pr --jq '.number, .mergeable'
+  gh api "repos/{owner}/{repo}/pulls/$pr" --jq '.number, .mergeable'
   sleep 2
 done
 ```
 
-Do not attempt to land PRs while `mergeable` is `UNKNOWN`. Resolve status first, then proceed with tiering. If status remains stale after retry, enable auto-merge and let GitHub handle it when checks pass.
+Do not attempt to land PRs while `mergeable` is `null` or `UNKNOWN`. Resolve status first, then proceed with tiering. If status remains stale after retry, enable auto-merge and let GitHub handle it when checks pass.
 
 ## Key Commands Used
 
@@ -590,29 +590,29 @@ Do not attempt to land PRs while `mergeable` is `UNKNOWN`. Resolve status first,
 - `{repo}` → Repository name (e.g., `ai-agents`)
 - `{number}` → PR number (e.g., `255`)
 
-Use the Python skill scripts instead of raw `gh` commands. The project hook blocks raw `gh` usage.
+Use the Python skill scripts instead of raw `gh pr`/`gh issue` commands. The project hook blocks specific `gh pr` and `gh issue` actions when a validated skill exists. Other `gh` commands (e.g., `gh api`, `gh notify`) remain available.
 
 ```bash
 # List all open PRs
-python3 .claude/skills/github/scripts/pr/get_pull_requests.py --owner {owner} --repo {repo} --state open
+python3 .claude/skills/github/scripts/pr/get_pull_requests.py --owner "{owner}" --repo "{repo}" --state open
 
 # Check merge readiness for a specific PR
-python3 .claude/skills/github/scripts/pr/test_pr_merge_ready.py --owner {owner} --repo {repo} --pull-request {number}
+python3 .claude/skills/github/scripts/pr/test_pr_merge_ready.py --owner "{owner}" --repo "{repo}" --pull-request "{number}"
 
 # Get CI check status
-python3 .claude/skills/github/scripts/pr/get_pr_checks.py --owner {owner} --repo {repo} --pull-request {number}
+python3 .claude/skills/github/scripts/pr/get_pr_checks.py --owner "{owner}" --repo "{repo}" --pull-request "{number}"
 
-# Get CI failure logs
-python3 .claude/skills/github/scripts/pr/get_pr_check_logs.py --owner {owner} --repo {repo} --pull-request {number} --check-name "{check_name}"
+# Get CI failure logs (fetches all failing checks; filter output by check name)
+python3 .claude/skills/github/scripts/pr/get_pr_check_logs.py --owner "{owner}" --repo "{repo}" --pull-request "{number}"
 
 # Get unresolved review threads
-python3 .claude/skills/github/scripts/pr/get_unresolved_review_threads.py --owner {owner} --repo {repo} --pull-request {number}
+python3 .claude/skills/github/scripts/pr/get_unresolved_review_threads.py --owner "{owner}" --repo "{repo}" --pull-request "{number}"
 
 # Merge a PR
-python3 .claude/skills/github/scripts/pr/merge_pr.py --owner {owner} --repo {repo} --pull-request {number}
+python3 .claude/skills/github/scripts/pr/merge_pr.py --owner "{owner}" --repo "{repo}" --pull-request "{number}"
 
 # Enable auto-merge
-python3 .claude/skills/github/scripts/pr/set_pr_auto_merge.py --owner {owner} --repo {repo} --pull-request {number}
+python3 .claude/skills/github/scripts/pr/set_pr_auto_merge.py --owner "{owner}" --repo "{repo}" --pull-request "{number}"
 
 # Find notifications needing attention
 gh notify -s
@@ -646,17 +646,18 @@ Renovate PRs that fail "Validate PR" or "Validate PR title" require special hand
 Check whether the failure is a title format mismatch:
 
 ```bash
-python3 .claude/skills/github/scripts/pr/get_pr_context.py --owner {owner} --repo {repo} --pull-request {number}
+python3 .claude/skills/github/scripts/pr/get_pr_context.py --owner "{owner}" --repo "{repo}" --pull-request "{number}"
 ```
 
 If the title does not match the required conventional commit format, update it. Renovate titles use `chore(deps):` or `fix(deps):` prefix by default. Confirm this matches the repo's commitlint rules.
 
 If the title is valid and the check still fails, the most common cause is a **concurrency cancellation race**. Renovate fires `opened` then immediately `edited`, and `cancel-in-progress: true` cancels the first run. GitHub branch protection treats CANCELLED runs as failures.
 
-To diagnose, check for CANCELLED runs alongside SUCCESS runs:
+To diagnose, check for CANCELLED runs alongside SUCCESS runs. Use `get_pr_checks.py` to list all check statuses, then inspect logs for failing ones:
 
 ```bash
-python3 .claude/skills/github/scripts/pr/get_pr_check_logs.py --owner {owner} --repo {repo} --pull-request {number} --check-name "Validate PR title"
+python3 .claude/skills/github/scripts/pr/get_pr_checks.py --owner "{owner}" --repo "{repo}" --pull-request "{number}"
+python3 .claude/skills/github/scripts/pr/get_pr_check_logs.py --owner "{owner}" --repo "{repo}" --pull-request "{number}"
 ```
 
 To fix: re-run the cancelled workflow. This creates a fresh run that succeeds without cancellation.
@@ -681,7 +682,7 @@ When multiple PRs modify the same file or action, merge order matters.
 Before landing a batch, check for overlap:
 
 ```bash
-gh pr diff {number} --name-only
+gh pr diff "{number}" --name-only
 ```
 
 If two PRs touch the same file:
