@@ -7,7 +7,6 @@ those stale comments so they can be resolved or ignored.
 
 Exit codes follow ADR-035:
     0 - Success
-    1 - Logic error
     2 - Configuration error (plugin lib not found)
     3 - External error (API failure)
     4 - Auth error
@@ -19,6 +18,7 @@ import argparse
 import json
 import os
 import sys
+from collections.abc import Callable
 from typing import Any
 
 _plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
@@ -54,9 +54,9 @@ query($owner: String!, $name: String!, $prNumber: Int!) {
     repository(owner: $owner, name: $name) {
         pullRequest(number: $prNumber) {
             reviewThreads(first: 100) {
+                # Capped at 100; pagination not implemented (P2, rare edge case)
                 nodes {
                     id
-                    isResolved
                     path
                     line
                     comments(first: 1) {
@@ -78,7 +78,8 @@ def fetch_review_threads(
 ) -> list[dict[str, Any]]:
     """Fetch all review threads for a PR via GraphQL.
 
-    Returns a list of thread dicts with id, path, line, and author info.
+    Returns a list of thread dicts with id, path, line, and author.
+    Limited to first 100 threads (no cursor pagination).
 
     Raises:
         RuntimeError: On GraphQL transport or response errors.
@@ -117,56 +118,55 @@ def fetch_pr_files(owner: str, repo: str, pr_number: int) -> set[str]:
 # ---------------------------------------------------------------------------
 
 
+def _classify_thread(
+    thread: dict[str, Any], pr_files: set[str],
+) -> dict[str, Any]:
+    """Classify a single review thread as stale or active."""
+    path = thread.get("path") or ""
+    first_comment_nodes = thread.get("comments", {}).get("nodes", [])
+    author = ""
+    if first_comment_nodes and first_comment_nodes[0]:
+        author_obj = first_comment_nodes[0].get("author") or {}
+        author = author_obj.get("login", "")
+
+    is_stale = bool(path) and path not in pr_files
+    reason = "File not present at PR HEAD" if is_stale else ""
+
+    return {
+        "ThreadId": thread.get("id", ""),
+        "Path": path,
+        "Line": thread.get("line"),
+        "Author": author,
+        "IsStale": is_stale,
+        "Reason": reason,
+    }
+
+
+def _fetch_or_exit(
+    fetch_fn: Callable[..., Any], owner: str, repo: str, pr_number: int, label: str,
+) -> Any:
+    """Call a fetch function, converting exceptions to ADR-035 exit 3."""
+    try:
+        return fetch_fn(owner, repo, pr_number)
+    except SystemExit:
+        raise
+    except Exception as exc:
+        print(f"Failed to fetch {label} for PR #{pr_number}: {exc}", file=sys.stderr)
+        raise SystemExit(3) from exc
+
+
 def detect_stale_comments(
     owner: str, repo: str, pr_number: int,
 ) -> dict[str, Any]:
     """Detect review comments referencing files absent from PR HEAD.
 
-    Args:
-        owner: Repository owner.
-        repo: Repository name.
-        pr_number: Pull request number.
-
-    Returns:
-        Result dict with stale/active classification per comment.
+    Returns a result dict with Owner, Repo, PullRequest, counts,
+    and per-comment stale/active classification.
     """
-    try:
-        threads = fetch_review_threads(owner, repo, pr_number)
-    except SystemExit:
-        raise
-    except Exception as exc:
-        print(f"Failed to fetch review threads for PR #{pr_number}: {exc}", file=sys.stderr)
-        raise SystemExit(3) from exc
+    threads = _fetch_or_exit(fetch_review_threads, owner, repo, pr_number, "review threads")
+    pr_files = _fetch_or_exit(fetch_pr_files, owner, repo, pr_number, "PR files")
 
-    try:
-        pr_files = fetch_pr_files(owner, repo, pr_number)
-    except SystemExit:
-        raise
-    except Exception as exc:
-        print(f"Failed to fetch PR files for PR #{pr_number}: {exc}", file=sys.stderr)
-        raise SystemExit(3) from exc
-
-    comments: list[dict[str, Any]] = []
-    for thread in threads:
-        path = thread.get("path") or ""
-        first_comment_nodes = thread.get("comments", {}).get("nodes", [])
-        author = ""
-        if first_comment_nodes and first_comment_nodes[0]:
-            author_obj = first_comment_nodes[0].get("author") or {}
-            author = author_obj.get("login", "")
-
-        is_stale = bool(path) and path not in pr_files
-        reason = "File not present at PR HEAD" if is_stale else ""
-
-        comments.append({
-            "ThreadId": thread.get("id", ""),
-            "Path": path,
-            "Line": thread.get("line"),
-            "Author": author,
-            "IsStale": is_stale,
-            "Reason": reason,
-        })
-
+    comments = [_classify_thread(t, pr_files) for t in threads]
     stale_count = sum(1 for c in comments if c["IsStale"])
     active_count = len(comments) - stale_count
 
@@ -177,6 +177,8 @@ def detect_stale_comments(
 
     return {
         "Success": True,
+        "Owner": owner,
+        "Repo": repo,
         "PullRequest": pr_number,
         "TotalComments": len(comments),
         "StaleComments": stale_count,
