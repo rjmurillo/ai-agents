@@ -18,6 +18,7 @@ import argparse
 import json
 import os
 import sys
+from typing import Any
 
 _plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
 _workspace = os.environ.get("GITHUB_WORKSPACE")
@@ -38,11 +39,10 @@ if _lib_dir not in sys.path:
 
 from github_core.api import (  # noqa: E402
     assert_gh_authenticated,
-    gh_graphql,
     gh_api_paginated,
+    gh_graphql,
     resolve_repo_params,
 )
-
 
 # ---------------------------------------------------------------------------
 # GraphQL: fetch all review threads with path and line info
@@ -75,7 +75,7 @@ query($owner: String!, $name: String!, $prNumber: Int!) {
 
 def fetch_review_threads(
     owner: str, repo: str, pr_number: int,
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """Fetch all review threads for a PR via GraphQL.
 
     Returns a list of thread dicts with id, path, line, and author info.
@@ -114,7 +114,7 @@ def fetch_pr_files(owner: str, repo: str, pr_number: int) -> set[str]:
 
 def detect_stale_comments(
     owner: str, repo: str, pr_number: int,
-) -> dict:
+) -> dict[str, Any]:
     """Detect review comments referencing files absent from PR HEAD.
 
     Args:
@@ -141,7 +141,7 @@ def detect_stale_comments(
         print(f"Failed to fetch PR files for PR #{pr_number}: {exc}", file=sys.stderr)
         raise SystemExit(3) from exc
 
-    comments: list[dict] = []
+    comments: list[dict[str, Any]] = []
     for thread in threads:
         path = thread.get("path") or ""
         first_comment_nodes = thread.get("comments", {}).get("nodes", [])

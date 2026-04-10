@@ -44,7 +44,7 @@ fetch_pr_files = _mod.fetch_pr_files
 
 def _make_thread(
     thread_id: str, path: str, line: int, author: str,
-) -> dict:
+) -> dict[str, object]:
     return {
         "id": thread_id,
         "isResolved": False,
@@ -58,7 +58,7 @@ def _make_thread(
     }
 
 
-def _make_file_entry(filename: str) -> dict:
+def _make_file_entry(filename: str) -> dict[str, str]:
     return {"filename": filename, "status": "modified"}
 
 
