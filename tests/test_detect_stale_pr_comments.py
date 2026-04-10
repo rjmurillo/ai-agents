@@ -101,8 +101,6 @@ class TestAllActive:
             _make_thread("PRRT_1", "src/main.py", 10, "gemini-code-assist[bot]"),
             _make_thread("PRRT_2", "src/utils.py", 20, "copilot[bot]"),
         ]
-        files = [_make_file_entry("src/main.py"), _make_file_entry("src/utils.py")]
-
         with patch(
             "detect_stale_pr_comments.fetch_review_threads",
             return_value=threads,
