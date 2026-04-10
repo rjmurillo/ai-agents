@@ -62,7 +62,7 @@ inputs:
     default: 'false'
   execute-script:
     description: |
-      Optional PowerShell script to run after analysis.
+      Optional script to run after analysis (Python or PowerShell).
       The script receives AI findings via environment variables:
       - AI_VERDICT: The parsed verdict (PASS, WARN, CRITICAL_FAIL, etc.)
       - AI_FINDINGS: Raw output from the AI model (JSON if prompt requested it)
@@ -872,7 +872,7 @@ runs:
 
     - name: Execute post-analysis script
       if: inputs.execute-script != ''
-      shell: pwsh -NoProfile -Command "& '{0}'"
+      shell: bash
       env:
         GH_TOKEN: ${{ inputs.bot-pat }}
         AI_VERDICT: ${{ steps.parse.outputs.verdict }}
@@ -881,25 +881,39 @@ runs:
         PR_NUMBER: ${{ inputs.pr-number }}
         EXECUTE_SCRIPT: ${{ inputs.execute-script }}
       run: |
-        Write-Host "Executing post-analysis script: $env:EXECUTE_SCRIPT"
-        Write-Host "PR Number: $env:PR_NUMBER"
-        Write-Host "AI Verdict: $env:AI_VERDICT"
+        echo "Executing post-analysis script: $EXECUTE_SCRIPT"
+        echo "PR Number: $PR_NUMBER"
+        echo "AI Verdict: $AI_VERDICT"
 
-        # Validate script exists (use -LiteralPath to prevent path injection)
-        if (-not (Test-Path -LiteralPath $env:EXECUTE_SCRIPT)) {
-          Write-Error "Execute script not found: $env:EXECUTE_SCRIPT"
+        # Validate script exists
+        if [ ! -f "$EXECUTE_SCRIPT" ]; then
+          echo "::error::Execute script not found: $EXECUTE_SCRIPT"
           exit 1
-        }
+        fi
 
-        # Execute the script with parameters
-        & $env:EXECUTE_SCRIPT `
-          -PRNumber ([int]$env:PR_NUMBER) `
-          -Verdict $env:AI_VERDICT `
-          -FindingsJson $env:AI_FINDINGS
+        # Detect script type by extension and invoke with correct syntax
+        case "$EXECUTE_SCRIPT" in
+          *.py)
+            python3 "$EXECUTE_SCRIPT" \
+              --pr-number "$PR_NUMBER" \
+              --verdict "$AI_VERDICT" \
+              --findings-json "$AI_FINDINGS" || exit_code=$?
+            ;;
+          *.ps1)
+            pwsh -NoProfile -File "$EXECUTE_SCRIPT" \
+              -PRNumber "$PR_NUMBER" \
+              -Verdict "$AI_VERDICT" \
+              -FindingsJson "$AI_FINDINGS" || exit_code=$?
+            ;;
+          *)
+            echo "::error::Unsupported script type: $EXECUTE_SCRIPT (expected .py or .ps1)"
+            exit 1
+            ;;
+        esac
 
-        if ($LASTEXITCODE -ne 0) {
-          Write-Error "Execute script failed with exit code $LASTEXITCODE"
-          exit $LASTEXITCODE
-        }
+        if [ "${exit_code:-0}" -ne 0 ]; then
+          echo "::error::Execute script failed with exit code $exit_code"
+          exit "$exit_code"
+        fi
 
-        Write-Host "Post-analysis script completed successfully"
+        echo "Post-analysis script completed successfully"

@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import re
 import sys
 from pathlib import Path
 
@@ -79,6 +80,31 @@ _GITIGNORE_ENTRIES: list[str] = [
     ".agents/sessions/*.json",
 ]
 
+_TEAM_YAML_TEMPLATE = """\
+# Default agent team configuration
+# Defines the starter set of agents available after `ai-agents init`.
+# Each agent maps to a shared template in templates/agents/.
+#
+# Customize roles, add new agents, or remove unused ones as your project grows.
+team:
+  - name: orchestrator
+    role: Task coordination and multi-step workflow management
+  - name: implementer
+    role: Code implementation with quality standards
+  - name: analyst
+    role: Research, investigation, and root cause analysis
+  - name: architect
+    role: System design, ADRs, and architectural governance
+  - name: qa
+    role: Testing, verification, and coverage validation
+  - name: security
+    role: Threat modeling, vulnerability scanning, OWASP compliance
+  - name: devops
+    role: CI/CD pipelines, build automation, deployment
+  - name: critic
+    role: Plan validation and gap analysis
+"""
+
 _COPILOT_INSTRUCTIONS_TEMPLATE = """\
 # GitHub Copilot Instructions
 
@@ -105,12 +131,19 @@ class ProjectInitializer:
         self.skipped_files: list[Path] = []
 
     def validate_target(self) -> bool:
-        """Verify target directory exists and is a directory."""
+        """Verify target directory exists, is a directory, and has a safe name."""
         if not self.target_dir.exists():
             logger.error("Target directory does not exist: %s", self.target_dir)
             return False
         if not self.target_dir.is_dir():
             logger.error("Target path is not a directory: %s", self.target_dir)
+            return False
+        project_name = self.target_dir.name
+        if not re.match(r"^[a-zA-Z0-9_-]+$", project_name):
+            logger.error(
+                "Error: project name must be alphanumeric with hyphens/underscores, got: %s",
+                project_name,
+            )
             return False
         return True
 
@@ -172,6 +205,15 @@ class ProjectInitializer:
             _CLAUDE_MD_TEMPLATE,
         )
 
+    def scaffold_team_manifest(self) -> bool:
+        """Create .agents/team.yaml with the default agent team."""
+        if self.minimal:
+            return True
+        return self._write_file(
+            self.target_dir / ".agents" / "team.yaml",
+            _TEAM_YAML_TEMPLATE,
+        )
+
     def scaffold_copilot_instructions(self) -> bool:
         """Create .github/copilot-instructions.md."""
         if self.minimal:
@@ -223,6 +265,7 @@ class ProjectInitializer:
             self.scaffold_agents_dirs,
             self.scaffold_agents_md,
             self.scaffold_claude_md,
+            self.scaffold_team_manifest,
             self.scaffold_copilot_instructions,
             self.update_gitignore,
         ]
@@ -252,12 +295,8 @@ class ProjectInitializer:
             )
 
 
-def main() -> int:
-    """Entry point for project initialization."""
-    parser = argparse.ArgumentParser(
-        description="Initialize ai-agents project scaffolding",
-    )
-
+def _add_init_args(parser: argparse.ArgumentParser) -> None:
+    """Add shared init arguments to a parser."""
     parser.add_argument(
         "--target-dir",
         type=Path,
@@ -280,8 +319,9 @@ def main() -> int:
         help="Preview changes without writing files",
     )
 
-    args = parser.parse_args()
 
+def _run_init(args: argparse.Namespace) -> int:
+    """Run the init command from parsed args."""
     initializer = ProjectInitializer(
         target_dir=args.target_dir,
         minimal=args.minimal,
@@ -289,6 +329,39 @@ def main() -> int:
         dry_run=args.dry_run,
     )
     return initializer.run()
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Entry point for the ai-agents CLI.
+
+    Supports subcommands:
+        ai-agents init [--target-dir DIR] [--minimal] [--force] [--dry-run]
+
+    Prints help and exits when no subcommand is given.
+    """
+    parser = argparse.ArgumentParser(
+        prog="ai-agents",
+        description="AI agent orchestration framework",
+    )
+    subparsers = parser.add_subparsers(dest="command")
+
+    init_parser = subparsers.add_parser(
+        "init",
+        help="Initialize ai-agents project scaffolding",
+    )
+    _add_init_args(init_parser)
+
+    args = parser.parse_args(argv)
+
+    if not hasattr(args, "func") and args.command is None:
+        parser.print_help()
+        return 0
+
+    if args.command == "init":
+        return _run_init(args)
+
+    parser.print_help()
+    return 0
 
 
 if __name__ == "__main__":

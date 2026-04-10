@@ -451,7 +451,7 @@ jobs:
           context-type: pr-diff
           pr-number: ${{ matrix.number }}
           prompt-file: .github/prompts/pr-comment-triage.md
-          execute-script: .claude/skills/github/scripts/pr/Invoke-PRCommentProcessing.ps1
+          execute-script: .claude/skills/github/scripts/pr/invoke_pr_comment_processing.py
           timeout-minutes: 10
           bot-pat: ${{ secrets.BOT_PAT }}
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}

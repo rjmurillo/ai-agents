@@ -89,37 +89,35 @@ jobs:
               - 'build/**'
               - '.claude/skills/**'
 
-  # Pass-through job: satisfies required "Validate Spec Coverage" check when
-  # path filter skips the real validation job. GitHub branch protection requires
-  # SUCCESS (not SKIPPED) for required checks. See issue #1168.
-  validate-spec-skip:
-    name: Validate Spec Coverage
-    needs: check-paths
-    timeout-minutes: 1
-    if: always() && needs.check-paths.result == 'success' && needs.check-paths.outputs.has-code-changes != 'true'
-    runs-on: ubuntu-24.04-arm
-    steps:
-      - name: No code changes
-        run: echo "Skipped - no code changes detected"
-
   validate-spec:
     name: Validate Spec Coverage
     needs: check-paths
-    # Only run full validation when code paths are changed
     # always() required: transitive dependency on debounce (which may be SKIPPED)
     # would otherwise cause this job to be skipped even when check-paths succeeds
-    if: always() && needs.check-paths.result == 'success' && needs.check-paths.outputs.has-code-changes == 'true'
+    if: always() && needs.check-paths.result == 'success'
     # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 15
 
     steps:
+      - name: Check if validation needed
+        id: should-run
+        env:
+          HAS_CODE_CHANGES: ${{ needs.check-paths.outputs.has-code-changes }}
+        run: |
+          if [ "$HAS_CODE_CHANGES" != "true" ]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "Skipped - no code changes detected"
+          fi
+
       - name: Checkout repository
+        if: steps.should-run.outputs.skip != 'true'
         uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
         with:
           fetch-depth: 0
 
       - name: Extract Spec References
+        if: steps.should-run.outputs.skip != 'true'
         id: spec-ref
         env:
           PR_TITLE_INPUT: ${{ github.event.pull_request.title }}
@@ -180,7 +178,7 @@ jobs:
           rm -f /tmp/pr-title.txt /tmp/pr-body.txt
 
       - name: Load Spec Content
-        if: steps.spec-ref.outputs.has_specs == 'true'
+        if: steps.should-run.outputs.skip != 'true' && steps.spec-ref.outputs.has_specs == 'true'
         id: load-spec
         env:
           SPEC_REFS: ${{ steps.spec-ref.outputs.spec_refs }}
@@ -234,7 +232,7 @@ jobs:
           echo "spec_file=/tmp/spec-content.md" >> $GITHUB_OUTPUT
 
       - name: Prepare Spec Context
-        if: steps.spec-ref.outputs.has_specs == 'true'
+        if: steps.should-run.outputs.skip != 'true' && steps.spec-ref.outputs.has_specs == 'true'
         id: prepare-context
         run: |
           # Create spec context string for additional-context input
@@ -252,7 +250,7 @@ jobs:
           fi
 
       - name: 🔗 Requirements Traceability Check (Analyst Agent)
-        if: steps.spec-ref.outputs.has_specs == 'true'
+        if: steps.should-run.outputs.skip != 'true' && steps.spec-ref.outputs.has_specs == 'true'
         id: trace
         continue-on-error: true
         uses: ./.github/actions/ai-review
@@ -267,7 +265,7 @@ jobs:
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
 
       - name: ✅ Completeness Check (Critic Agent)
-        if: steps.spec-ref.outputs.has_specs == 'true'
+        if: steps.should-run.outputs.skip != 'true' && steps.spec-ref.outputs.has_specs == 'true'
         id: completeness
         continue-on-error: true
         uses: ./.github/actions/ai-review
@@ -282,6 +280,7 @@ jobs:
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
 
       - name: Generate Validation Report
+        if: steps.should-run.outputs.skip != 'true'
         id: report
         env:
           HAS_SPECS: ${{ steps.spec-ref.outputs.has_specs }}
@@ -299,6 +298,7 @@ jobs:
         run: python3 .github/scripts/generate_spec_report.py
 
       - name: Post PR Comment
+        if: steps.should-run.outputs.skip != 'true'
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
@@ -312,6 +312,7 @@ jobs:
             --marker "AI-SPEC-VALIDATION"
 
       - name: Set Job Summary
+        if: steps.should-run.outputs.skip != 'true'
         shell: pwsh -NoProfile -Command "& '{0}'"
         env:
           REPORT_FILE: ${{ steps.report.outputs.report_file }}
@@ -319,7 +320,7 @@ jobs:
           Get-Content $env:REPORT_FILE | Add-Content $env:GITHUB_STEP_SUMMARY
 
       - name: Check for Failures
-        if: steps.spec-ref.outputs.has_specs == 'true'
+        if: steps.should-run.outputs.skip != 'true' && steps.spec-ref.outputs.has_specs == 'true'
         env:
           TRACE_VERDICT: ${{ steps.trace.outputs.verdict }}
           COMPLETENESS_VERDICT: ${{ steps.completeness.outputs.verdict }}

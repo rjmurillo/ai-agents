@@ -67,21 +67,33 @@ jobs:
   test:
     name: Run Python Tests
     needs: check-paths
-    if: needs.check-paths.outputs.python-changed == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
       checks: write
 
     steps:
+      - name: Check if tests needed
+        id: should-run
+        env:
+          PYTHON_CHANGED: ${{ needs.check-paths.outputs.python-changed }}
+        run: |
+          if [ "$PYTHON_CHANGED" != "true" ]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "No Python files changed - skipping tests"
+          fi
+
       - name: Harden Runner
+        if: steps.should-run.outputs.skip != 'true'
         uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
         with:
           egress-policy: audit
 
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        if: steps.should-run.outputs.skip != 'true'
 
       - name: Setup code environment
+        if: steps.should-run.outputs.skip != 'true'
         uses: ./.github/actions/setup-code-env
         with:
           gh-token: ${{ secrets.GITHUB_TOKEN }}
@@ -89,13 +101,14 @@ jobs:
           enable-git-hooks: false
 
       - name: Run pytest
+        if: steps.should-run.outputs.skip != 'true'
         run: |
           mkdir -p artifacts
           pytest --cov --cov-report=xml:artifacts/coverage.xml --junitxml=artifacts/pytest-results.xml
 
       - name: Upload test results
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        if: always()
+        if: always() && steps.should-run.outputs.skip != 'true'
         with:
           name: pytest-results
           path: artifacts/

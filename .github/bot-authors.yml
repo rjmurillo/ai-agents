@@ -17,10 +17,12 @@ reviewer:
   - github-copilot[bot]
   - gemini-code-assist[bot]
   - cursor[bot]
+  - Copilot             # GitHub Copilot code review (no [bot] suffix)
 
 # CI/CD and dependency management bots
 automation:
   - github-actions[bot]
+  - github-actions       # GitHub Actions (no [bot] suffix in some contexts)
   - dependabot[bot]
 
 # Repository-specific bots

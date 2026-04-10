@@ -31,3 +31,19 @@ For any non-trivial task: `Task(subagent_type="orchestrator", prompt="...")`
 | Direct MCP (last resort) | `mcp__serena__read_memory` | Full control when abstractions fail |
 
 Start with the cheapest option. Escalate only when the cheaper option lacks capability.
+
+## Skill routing
+
+When the user's request matches an available skill, ALWAYS invoke it using the Skill
+tool as your FIRST action. Do NOT answer directly, do NOT use other tools first.
+The skill has specialized workflows that produce better results than ad-hoc answers.
+
+Key routing rules:
+- Bugs, errors, "why is this broken", 500 errors → invoke analyze
+- Ship, deploy, push, create PR → invoke github
+- QA, test the site, find bugs → invoke qa (subagent_type)
+- Code review, check my diff → invoke pr-comment-responder
+- Weekly retro → invoke reflect
+- Architecture review → invoke analyze
+- Save progress, checkpoint, resume → invoke session-end
+- Code quality, health check → invoke quality-grades
