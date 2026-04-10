@@ -35,7 +35,7 @@
 **Maintenance**: Low (official GitHub MCP)
 **Coverage**: ~90% (validate reactions/threads)
 
-### Path B: Python Scripts (Hook-Integrated, Primary for Claude Code)
+### Path B: Python Scripts (Hook-Integrated, Enforcement Path for Claude Code)
 
 **For**: Claude Code (enforced by `invoke_skill_first_guard.py` hook)
 
@@ -162,19 +162,19 @@ fi
 ADR-035 exit codes. README documents usage, performance benchmarks, and
 comparison with Python scripts. Original PowerShell scripts removed.
 
-### Phase 2: Python Script Path with Hook Routing - COMPLETE
+### Phase 2: Python Script Path with Hook Enforcement - COMPLETE
 
 **Goal**: Provide validated, hook-enforced GitHub operations for Claude Code
 
 **Tasks**:
 - [x] Create `.claude/skills/github/SKILL.md` (v4.0.0)
 - [x] Implement 37 Python scripts across pr/, issue/, milestone/, reactions/
-- [x] Create `invoke_skill_first_guard.py` PreToolUse hook for routing
-- [x] Hook maps raw `gh` commands to Python script equivalents
+- [x] Create `invoke_skill_first_guard.py` PreToolUse hook for enforcement
+- [x] Hook blocks raw `gh` commands and enforces use of Python skill scripts
 - [x] Validate reactions and thread resolution support (GraphQL)
 
-**Status**: Python scripts are the primary path for Claude Code. The
-PreToolUse hook blocks raw `gh` commands and redirects to validated
+**Status**: Python scripts are the enforcement path for Claude Code. The
+PreToolUse hook blocks raw `gh` commands and enforces use of validated
 Python scripts with structured JSON output and error handling.
 
 ### Phase 3: Documentation (Issue #288) - Week 3-4
@@ -190,7 +190,7 @@ Python scripts with structured JSON output and error handling.
 
 **Success Criteria**: Clear documentation for all three platforms
 
-### Phase 4: Migration & Cleanup - COMPLETE
+### Phase 4: Migration & Cleanup - IN PROGRESS
 
 **Goal**: Deprecate PowerShell wrappers
 
@@ -202,8 +202,9 @@ Python scripts with structured JSON output and error handling.
 - [x] Performance documented in gh-native/README.md
 
 **Status**: All original PowerShell scripts removed. Python scripts
-serve as primary path with hook enforcement. Shell scripts provide
-Copilot CLI fallback.
+serve as the enforcement path, blocking raw `gh` and enforcing skill
+script usage. Shell scripts provide Copilot CLI fallback. ADR-005
+archival remains pending.
 
 ---
 
