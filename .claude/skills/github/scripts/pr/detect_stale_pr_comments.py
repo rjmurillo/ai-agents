@@ -99,9 +99,7 @@ def fetch_review_threads(
         (data.get("repository") or {})
         .get("pullRequest") or {}
     ).get("reviewThreads") or {}
-    nodes = threads.get("nodes")
-    if nodes is None:
-        return []
+    nodes: list[dict[str, Any]] = threads.get("nodes") or []
     return nodes
 
 
