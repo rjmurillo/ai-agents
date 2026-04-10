@@ -20,7 +20,7 @@ _CONFIDENCE_EPSILON = 0.01
 
 def reinforce_memories(
     memories_dir: Path, repo_root: Path
-) -> dict[str, float]:
+) -> tuple[dict[str, float], list]:
     """Recalculate and persist confidence scores for all memories.
 
     Loads all memories, computes updated confidence scores, and
@@ -32,7 +32,7 @@ def reinforce_memories(
         repo_root: Repository root for citation verification.
 
     Returns:
-        Dict mapping memory_id to updated confidence score.
+        Tuple of (scores dict mapping memory_id to confidence, loaded memories).
     """
     scores, memories = update_confidence_scores_with_memories(memories_dir, repo_root)
 
@@ -42,7 +42,7 @@ def reinforce_memories(
             memory.confidence = new_score
             save_memory(memory, memories_dir)
 
-    return scores
+    return scores, memories
 
 
 def generate_skill_candidates(

@@ -55,12 +55,15 @@ def _generate_reflection(memories_dir: Path, repo_root: Path) -> str:
     session_facts = extract_session_facts(memories_dir)
 
     # Recalculate confidence scores (may write to disk)
-    reinforce_memories(memories_dir, repo_root)
+    _scores, memories = reinforce_memories(memories_dir, repo_root)
 
     # Identify memories needing re-verification due to age
     decayed = apply_confidence_decay(memories_dir, repo_root)
 
-    report = generate_health_report(memories_dir, repo_root)
+    # Pass pre-loaded memories to avoid redundant load + citation verification.
+    report = generate_health_report(
+        memories_dir, repo_root, preloaded_memories=memories
+    )
     if report.total_memories == 0:
         return ""
 

@@ -129,7 +129,7 @@ class TestReinforceMemories:
 
         result = reinforce_memories(tmp_path, tmp_path)
 
-        assert result == {"mem-1": 0.62}
+        assert result == ({"mem-1": 0.62}, [memory])
         mock_save.assert_called_once_with(memory, tmp_path)
         assert memory.confidence == 0.62
 
@@ -165,7 +165,7 @@ class TestGenerateReflection:
         memories_dir.mkdir()
         (memories_dir / "test.md").write_text("# Test (2026-01-01)\n\nContent\n")
 
-        mock_reinforce.return_value = {"test": 0.85}
+        mock_reinforce.return_value = ({"test": 0.85}, [])
         mock_decay.return_value = []
         mock_facts.return_value = ["test"]
         mock_report.return_value = MagicMock(
@@ -191,7 +191,7 @@ class TestGenerateReflection:
     ):
         memories_dir = tmp_path / "memories"
         memories_dir.mkdir()
-        mock_reinforce.return_value = {}
+        mock_reinforce.return_value = ({}, [])
         mock_decay.return_value = []
         mock_facts.return_value = []
         mock_report.return_value = MagicMock(total_memories=0)
@@ -210,7 +210,7 @@ class TestGenerateReflection:
         memories_dir = tmp_path / "memories"
         memories_dir.mkdir()
 
-        mock_reinforce.return_value = {"old1": 0.3, "old2": 0.2}
+        mock_reinforce.return_value = ({"old1": 0.3, "old2": 0.2}, [])
         mock_decay.return_value = ["old1", "old2"]
         mock_facts.return_value = []
         mock_report.return_value = MagicMock(
