@@ -19,6 +19,7 @@ Thank you for your interest in contributing to this project. This guide explains
 - [Pull Request Guidelines](#pull-request-guidelines)
   - [Commit Count Thresholds](#commit-count-thresholds)
 - [Third-Party License Attribution](#third-party-license-attribution)
+- [Security Scanning](#security-scanning)
 
 ## Getting Started
 
@@ -855,6 +856,58 @@ license attribution in `THIRD-PARTY-NOTICES.TXT`.
 
 See `docs/third-party-license-attribution.md` for the complete policy,
 license compatibility matrix, and compliance checklist.
+
+## Security Scanning
+
+The pre-push hook runs lightweight security scanning on changed code files using [semgrep](https://semgrep.dev/docs/). This catches common vulnerabilities (CWE-22 path traversal, CWE-78 command injection, CWE-079 XSS) locally before PR creation. See [ADR-054](.agents/architecture/ADR-054-local-security-scanning.md) for the decision rationale.
+
+### Installing semgrep
+
+```bash
+# macOS
+brew install semgrep
+
+# Linux/Windows (via pip)
+pip install semgrep
+
+# Verify installation
+semgrep --version
+```
+
+semgrep is recommended but not required. The pre-push hook skips the scan gracefully if semgrep is not installed, matching existing patterns for optional tools (ruff, mypy, actionlint).
+
+### How It Works
+
+The pre-push hook delegates to `scripts/security/run_semgrep.py`, which:
+
+1. Detects changed files via `git diff --name-only` against the merge-base with `origin/main`
+2. Filters to supported extensions: `.py`, `.ps1`, `.psm1`, `.js`, `.ts`, `.yaml`, `.yml`
+3. Runs `semgrep scan --config auto --json --no-git-ignore` on matched files
+4. Classifies findings by severity
+
+**Severity thresholds:**
+
+| Severity | Action |
+|----------|--------|
+| HIGH/CRITICAL | Blocks push (exit code 1) |
+| MEDIUM | Warning only, does not block |
+| LOW/INFO | Ignored |
+
+### Suppressing semgrep Findings
+
+Use the `# nosemgrep` inline comment with a justification when a finding is a false positive:
+
+```python
+# nosemgrep: path-traversal-check
+# Justification: Input validated by sanitize_path() on line 42
+os.path.join(base, user_input)
+```
+
+Always include a justification comment explaining why the suppression is safe. Suppressions without justification will be flagged during code review.
+
+### Bypassing the Security Scan
+
+Use `git push --no-verify` to bypass all pre-push checks, including the security scan. Document the justification in the PR description when bypassing.
 
 ## Questions?
 
