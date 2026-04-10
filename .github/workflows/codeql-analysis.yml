@@ -42,7 +42,7 @@ concurrency:
 jobs:
   check-paths:
     name: Check Changed Paths
-    # ADR-032: ARM runner for cost optimization (37.5% savings vs x64)
+    # ADR-055: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-24.04-arm
     permissions:
       contents: read
@@ -165,7 +165,7 @@ jobs:
     name: Skip CodeQL Analysis (No Changes)
     needs: check-paths
     if: needs.check-paths.outputs.should-run-analysis != 'true'
-    # ADR-032: ARM runner for cost optimization
+    # ADR-055: ARM runner for cost optimization
     runs-on: ubuntu-24.04-arm
     permissions:
       contents: read
@@ -213,7 +213,7 @@ jobs:
     name: Check for Blocking Issues
     needs: [check-paths, analyze]
     if: always() && needs.check-paths.outputs.should-run-analysis == 'true'
-    # ADR-032: ARM runner for cost optimization
+    # ADR-055: ARM runner for cost optimization
     runs-on: ubuntu-24.04-arm
     permissions:
       contents: read
