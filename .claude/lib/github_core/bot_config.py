@@ -21,9 +21,11 @@ _DEFAULT_BOTS: dict[str, list[str]] = {
         "github-copilot[bot]",
         "gemini-code-assist[bot]",
         "cursor[bot]",
+        "Copilot",
     ],
     "automation": [
         "github-actions[bot]",
+        "github-actions",
         "dependabot[bot]",
     ],
     "repository": [
@@ -37,10 +39,15 @@ _bot_authors_cache_path: str | None = None
 
 
 def _find_repo_root(start: str | None = None) -> str | None:
-    """Walk up from *start* to find the directory containing .git."""
+    """Walk up from *start* to find the directory containing .git.
+
+    Handles both regular repos (.git is a directory) and worktrees
+    (.git is a file containing 'gitdir: ...').
+    """
     search = start or os.getcwd()
     while search and search != os.path.dirname(search):
-        if os.path.isdir(os.path.join(search, ".git")):
+        git_path = os.path.join(search, ".git")
+        if os.path.isdir(git_path) or os.path.isfile(git_path):
             return search
         search = os.path.dirname(search)
     return None

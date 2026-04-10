@@ -59,7 +59,7 @@
       "serenaMemoryUpdated": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Learnings persisted to Serena memories for cross-session availability"
+        "Evidence": "Stale-comment-detection memory written to .serena/memories/pr-review/stale-comment-detection.md"
       },
       "markdownLintRun": {
         "level": "MUST",
@@ -85,7 +85,7 @@
       "files": [".agents/retrospective/2026-04-10-pr-1589-exit-code-workflows.md"]
     },
     {
-      "action": "Built detect_stale_pr_comments.py with 15 tests",
+      "action": "Built detect_stale_pr_comments.py with 26 tests",
       "result": "All tests pass, mypy clean, ruff clean",
       "files": [
         ".claude/skills/github/scripts/pr/detect_stale_pr_comments.py",
@@ -113,7 +113,7 @@
       {
         "type": "tests",
         "path": "tests/test_detect_stale_pr_comments.py",
-        "description": "15 tests covering active, stale, mixed, edge cases, and ADR-035 errors"
+        "description": "26 tests covering active, stale, mixed, edge cases, bot detection, and ADR-035 errors"
       },
       {
         "type": "analysis",

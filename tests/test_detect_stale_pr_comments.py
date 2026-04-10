@@ -392,6 +392,20 @@ class TestFetchPrFilesStatusFiltering:
         assert result == {"src/keep.py", "src/new.py", "renamed.py", "old_name.py"}
         assert "old/deleted.py" not in result
 
+    def test_renamed_file_includes_previous_filename(self):
+        """Renamed files include both new and previous paths."""
+        raw_files = [
+            _make_file_entry("new_name.py", "renamed", previous_filename="old_name.py"),
+        ]
+        with patch(
+            "detect_stale_pr_comments.gh_api_paginated",
+            return_value=raw_files,
+        ):
+            result = fetch_pr_files("o", "r", 1)
+
+        assert "new_name.py" in result
+        assert "old_name.py" in result
+
 
 # ---------------------------------------------------------------------------
 # Tests: bot author detection

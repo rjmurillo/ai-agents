@@ -7,8 +7,8 @@ those stale comments so they can be resolved or ignored.
 
 Exit codes follow ADR-035:
     0 - Success
-    2 - Configuration or usage error
-    3 - External error (API failure)
+    2 - Configuration or usage error (missing args, plugin lib not found, invalid repo)
+    3 - External error (API failure, PR not found)
     4 - Auth error
 """
 
