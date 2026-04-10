@@ -49,6 +49,12 @@ from github_core.api import (  # noqa: E402
 # GraphQL: fetch all review threads with path and line info
 # ---------------------------------------------------------------------------
 
+_KNOWN_BOTS = frozenset({
+    "copilot",
+    "github-actions",
+})
+_BOT_SUFFIXES = ("[bot]", "-bot")
+
 _REVIEW_THREADS_QUERY = """\
 query($owner: String!, $name: String!, $prNumber: Int!) {
     repository(owner: $owner, name: $name) {
@@ -57,6 +63,7 @@ query($owner: String!, $name: String!, $prNumber: Int!) {
                 # Capped at 100; pagination not implemented (P2, rare edge case)
                 nodes {
                     id
+                    isOutdated
                     path
                     line
                     comments(first: 1) {
@@ -127,26 +134,48 @@ def fetch_pr_files(owner: str, repo: str, pr_number: int) -> set[str]:
 # ---------------------------------------------------------------------------
 
 
+def _is_bot_author(login: str) -> bool:
+    """Check if a login belongs to a bot reviewer.
+
+    Uses a known-bots set for exact matches (e.g. "Copilot") plus
+    suffix checks as a backstop for bots following naming conventions.
+    """
+    lower = login.lower()
+    if lower in _KNOWN_BOTS:
+        return True
+    return any(lower.endswith(s) for s in _BOT_SUFFIXES)
+
+
 def _classify_thread(
     thread: dict[str, Any], pr_files: set[str],
 ) -> dict[str, Any]:
-    """Classify a single review thread as stale or active."""
+    """Classify a single review thread as stale, outdated, or active."""
     path = thread.get("path") or ""
+    is_outdated = thread.get("isOutdated", False)
     first_comment_nodes = thread.get("comments", {}).get("nodes", [])
     author = ""
     if first_comment_nodes and first_comment_nodes[0]:
         author_obj = first_comment_nodes[0].get("author") or {}
         author = author_obj.get("login", "")
 
-    is_stale = bool(path) and path not in pr_files
-    reason = "File not present at PR HEAD" if is_stale else ""
+    is_bot = _is_bot_author(author)
+    file_missing = bool(path) and path not in pr_files
+
+    if file_missing:
+        reason = "File not present at PR HEAD"
+    elif is_outdated:
+        reason = "Thread marked outdated by GitHub (code changed since comment)"
+    else:
+        reason = ""
 
     return {
         "ThreadId": thread.get("id", ""),
         "Path": path,
         "Line": thread.get("line"),
         "Author": author,
-        "IsStale": is_stale,
+        "IsBot": is_bot,
+        "IsStale": file_missing,
+        "IsOutdated": is_outdated,
         "Reason": reason,
     }
 
@@ -165,22 +194,39 @@ def _fetch_or_exit(
 
 
 def detect_stale_comments(
-    owner: str, repo: str, pr_number: int,
+    owner: str, repo: str, pr_number: int, *, bot_only: bool = False,
 ) -> dict[str, Any]:
     """Detect review comments referencing files absent from PR HEAD.
 
+    Args:
+        owner: Repository owner.
+        repo: Repository name.
+        pr_number: Pull request number.
+        bot_only: If True, only classify bot-authored threads. Human
+            threads are included in the output but never marked stale,
+            preventing accidental bulk-resolution of human reviews.
+
     Returns a result dict with Owner, Repo, PullRequest, counts,
-    and per-comment stale/active classification.
+    and per-comment stale/outdated/active classification.
     """
     threads = _fetch_or_exit(fetch_review_threads, owner, repo, pr_number, "review threads")
     pr_files = _fetch_or_exit(fetch_pr_files, owner, repo, pr_number, "PR files")
 
     comments = [_classify_thread(t, pr_files) for t in threads]
+
+    if bot_only:
+        for c in comments:
+            if not c["IsBot"]:
+                c["IsStale"] = False
+                c["IsOutdated"] = False
+                c["Reason"] = "Skipped (human reviewer, --bot-only active)"
+
     stale_count = sum(1 for c in comments if c["IsStale"])
-    active_count = len(comments) - stale_count
+    outdated_count = sum(1 for c in comments if c["IsOutdated"] and not c["IsStale"])
+    active_count = len(comments) - stale_count - outdated_count
 
     print(
-        f"PR #{pr_number}: {stale_count} stale / {active_count} active comments",
+        f"PR #{pr_number}: {stale_count} stale / {outdated_count} outdated / {active_count} active",
         file=sys.stderr,
     )
 
@@ -191,6 +237,7 @@ def detect_stale_comments(
         "PullRequest": pr_number,
         "TotalComments": len(comments),
         "StaleComments": stale_count,
+        "OutdatedComments": outdated_count,
         "ActiveComments": active_count,
         "Comments": comments,
     }
@@ -211,6 +258,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--pull-request", type=int, required=True,
         help="PR number",
     )
+    parser.add_argument(
+        "--bot-only", action="store_true", default=False,
+        help="Only classify bot-authored threads as stale. "
+        "Human threads are reported but never marked stale.",
+    )
     return parser
 
 
@@ -222,7 +274,9 @@ def main(argv: list[str] | None = None) -> int:
     owner = resolved.owner
     repo = resolved.repo
 
-    result = detect_stale_comments(owner, repo, args.pull_request)
+    result = detect_stale_comments(
+        owner, repo, args.pull_request, bot_only=args.bot_only,
+    )
     print(json.dumps(result, indent=2))
     return 0
 

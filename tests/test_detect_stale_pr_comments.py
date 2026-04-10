@@ -42,12 +42,17 @@ fetch_pr_files = _mod.fetch_pr_files
 # ---------------------------------------------------------------------------
 
 
+_is_bot_author = _mod._is_bot_author
+
+
 def _make_thread(
     thread_id: str, path: str, line: int, author: str,
+    *, is_outdated: bool = False,
 ) -> dict[str, object]:
     return {
         "id": thread_id,
         "isResolved": False,
+        "isOutdated": is_outdated,
         "path": path,
         "line": line,
         "comments": {
@@ -374,3 +379,140 @@ class TestFetchPrFilesStatusFiltering:
 
         assert result == {"src/keep.py", "src/new.py", "renamed.py"}
         assert "old/deleted.py" not in result
+
+
+# ---------------------------------------------------------------------------
+# Tests: bot author detection
+# ---------------------------------------------------------------------------
+
+
+class TestIsBotAuthor:
+    def test_github_bot_suffix(self):
+        assert _is_bot_author("gemini-code-assist[bot]") is True
+        assert _is_bot_author("copilot[bot]") is True
+        assert _is_bot_author("dependabot[bot]") is True
+
+    def test_dash_bot_suffix(self):
+        assert _is_bot_author("rjmurillo-bot") is True
+
+    def test_known_bots_exact_match(self):
+        assert _is_bot_author("Copilot") is True
+        assert _is_bot_author("copilot") is True
+        assert _is_bot_author("github-actions") is True
+
+    def test_human_authors(self):
+        assert _is_bot_author("rjmurillo") is False
+        assert _is_bot_author("octocat") is False
+
+    def test_empty_string(self):
+        assert _is_bot_author("") is False
+
+
+# ---------------------------------------------------------------------------
+# Tests: bot-only filtering
+# ---------------------------------------------------------------------------
+
+
+class TestBotOnlyFiltering:
+    def test_bot_only_skips_human_threads(self):
+        threads = [
+            _make_thread("PRRT_1", "old/gone.py", 10, "gemini-code-assist[bot]"),
+            _make_thread("PRRT_2", "old/gone.py", 20, "rjmurillo"),
+        ]
+        with patch(
+            "detect_stale_pr_comments.fetch_review_threads",
+            return_value=threads,
+        ), patch(
+            "detect_stale_pr_comments.fetch_pr_files",
+            return_value=set(),
+        ):
+            result = detect_stale_comments("o", "r", 1, bot_only=True)
+
+        comments = result["Comments"]
+        bot_comment = next(c for c in comments if c["IsBot"])
+        human_comment = next(c for c in comments if not c["IsBot"])
+        assert bot_comment["IsStale"] is True
+        assert bot_comment["IsBot"] is True
+        assert human_comment["IsStale"] is False
+        assert human_comment["IsBot"] is False
+        assert "human reviewer" in human_comment["Reason"]
+
+    def test_without_bot_only_classifies_all(self):
+        threads = [
+            _make_thread("PRRT_1", "old/gone.py", 10, "gemini-code-assist[bot]"),
+            _make_thread("PRRT_2", "old/gone.py", 20, "rjmurillo"),
+        ]
+        with patch(
+            "detect_stale_pr_comments.fetch_review_threads",
+            return_value=threads,
+        ), patch(
+            "detect_stale_pr_comments.fetch_pr_files",
+            return_value=set(),
+        ):
+            result = detect_stale_comments("o", "r", 1, bot_only=False)
+
+        assert all(c["IsStale"] for c in result["Comments"])
+
+
+# ---------------------------------------------------------------------------
+# Tests: isOutdated classification
+# ---------------------------------------------------------------------------
+
+
+class TestIsOutdated:
+    def test_outdated_thread_on_existing_file(self):
+        threads = [
+            _make_thread("PRRT_1", "src/main.py", 10, "copilot[bot]", is_outdated=True),
+        ]
+        with patch(
+            "detect_stale_pr_comments.fetch_review_threads",
+            return_value=threads,
+        ), patch(
+            "detect_stale_pr_comments.fetch_pr_files",
+            return_value={"src/main.py"},
+        ):
+            result = detect_stale_comments("o", "r", 1)
+
+        c = result["Comments"][0]
+        assert c["IsStale"] is False
+        assert c["IsOutdated"] is True
+        assert "outdated" in c["Reason"].lower()
+        assert result["OutdatedComments"] == 1
+        assert result["ActiveComments"] == 0
+
+    def test_stale_takes_precedence_over_outdated(self):
+        threads = [
+            _make_thread("PRRT_1", "old/gone.py", 5, "copilot[bot]", is_outdated=True),
+        ]
+        with patch(
+            "detect_stale_pr_comments.fetch_review_threads",
+            return_value=threads,
+        ), patch(
+            "detect_stale_pr_comments.fetch_pr_files",
+            return_value=set(),
+        ):
+            result = detect_stale_comments("o", "r", 1)
+
+        c = result["Comments"][0]
+        assert c["IsStale"] is True
+        assert c["Reason"] == "File not present at PR HEAD"
+        assert result["StaleComments"] == 1
+        assert result["OutdatedComments"] == 0
+
+    def test_not_outdated_not_stale_is_active(self):
+        threads = [
+            _make_thread("PRRT_1", "src/main.py", 10, "copilot[bot]", is_outdated=False),
+        ]
+        with patch(
+            "detect_stale_pr_comments.fetch_review_threads",
+            return_value=threads,
+        ), patch(
+            "detect_stale_pr_comments.fetch_pr_files",
+            return_value={"src/main.py"},
+        ):
+            result = detect_stale_comments("o", "r", 1)
+
+        c = result["Comments"][0]
+        assert c["IsStale"] is False
+        assert c["IsOutdated"] is False
+        assert result["ActiveComments"] == 1
