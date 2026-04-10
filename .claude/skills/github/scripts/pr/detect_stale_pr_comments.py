@@ -7,7 +7,7 @@ those stale comments so they can be resolved or ignored.
 
 Exit codes follow ADR-035:
     0 - Success
-    2 - Configuration error (plugin lib not found)
+    2 - Configuration or usage error
     3 - External error (API failure)
     4 - Auth error
 """
@@ -95,10 +95,15 @@ def fetch_review_threads(
         _REVIEW_THREADS_QUERY,
         {"owner": owner, "name": repo, "prNumber": pr_number},
     )
-    threads = (
-        (data.get("repository") or {})
-        .get("pullRequest") or {}
-    ).get("reviewThreads") or {}
+    repo_data = data.get("repository") or {}
+    pr_data = repo_data.get("pullRequest")
+    if pr_data is None:
+        print(
+            f"PR not found in {owner}/{repo}",
+            file=sys.stderr,
+        )
+        raise SystemExit(3)
+    threads = (pr_data.get("reviewThreads") or {})
     nodes: list[dict[str, Any]] = threads.get("nodes") or []
     return nodes
 

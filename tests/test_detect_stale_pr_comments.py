@@ -51,20 +51,24 @@ def _make_thread(
 ) -> dict[str, object]:
     return {
         "id": thread_id,
-        "isResolved": False,
         "isOutdated": is_outdated,
         "path": path,
         "line": line,
         "comments": {
             "nodes": [
-                {"author": {"login": author}, "body": "Some review comment"},
+                {"author": {"login": author}},
             ],
         },
     }
 
 
-def _make_file_entry(filename: str, status: str = "modified") -> dict[str, str]:
-    return {"filename": filename, "status": status}
+def _make_file_entry(
+    filename: str, status: str = "modified", *, previous_filename: str = "",
+) -> dict[str, str]:
+    entry: dict[str, str] = {"filename": filename, "status": status}
+    if previous_filename:
+        entry["previous_filename"] = previous_filename
+    return entry
 
 
 # ---------------------------------------------------------------------------
@@ -223,6 +227,17 @@ class TestAuthError:
 # ---------------------------------------------------------------------------
 
 
+class TestPrNotFound:
+    def test_null_pull_request_exits_3(self):
+        with patch(
+            "detect_stale_pr_comments.gh_graphql",
+            return_value={"repository": {"pullRequest": None}},
+        ):
+            with pytest.raises(SystemExit) as exc:
+                fetch_review_threads("o", "r", 999)
+            assert exc.value.code == 3
+
+
 class TestApiFailure:
     def test_graphql_failure_exits_3(self):
         with patch(
@@ -299,10 +314,9 @@ class TestEdgeCases:
     def test_thread_with_no_author(self):
         thread = {
             "id": "PRRT_x",
-            "isResolved": False,
             "path": "gone.py",
             "line": 1,
-            "comments": {"nodes": [{"author": None, "body": "test"}]},
+            "comments": {"nodes": [{"author": None}]},
         }
         with patch(
             "detect_stale_pr_comments.fetch_review_threads",
@@ -319,7 +333,6 @@ class TestEdgeCases:
     def test_thread_with_empty_comments_nodes(self):
         thread = {
             "id": "PRRT_y",
-            "isResolved": False,
             "path": "src/ok.py",
             "line": 5,
             "comments": {"nodes": []},
@@ -339,10 +352,9 @@ class TestEdgeCases:
     def test_thread_with_no_path(self):
         thread = {
             "id": "PRRT_z",
-            "isResolved": False,
             "path": None,
             "line": None,
-            "comments": {"nodes": [{"author": {"login": "bot"}, "body": "x"}]},
+            "comments": {"nodes": [{"author": {"login": "bot"}}]},
         }
         with patch(
             "detect_stale_pr_comments.fetch_review_threads",
@@ -369,7 +381,7 @@ class TestFetchPrFilesStatusFiltering:
             _make_file_entry("src/keep.py", "modified"),
             _make_file_entry("src/new.py", "added"),
             _make_file_entry("old/deleted.py", "removed"),
-            _make_file_entry("renamed.py", "renamed"),
+            _make_file_entry("renamed.py", "renamed", previous_filename="old_name.py"),
         ]
         with patch(
             "detect_stale_pr_comments.gh_api_paginated",
@@ -377,7 +389,7 @@ class TestFetchPrFilesStatusFiltering:
         ):
             result = fetch_pr_files("o", "r", 1)
 
-        assert result == {"src/keep.py", "src/new.py", "renamed.py"}
+        assert result == {"src/keep.py", "src/new.py", "renamed.py", "old_name.py"}
         assert "old/deleted.py" not in result
 
 

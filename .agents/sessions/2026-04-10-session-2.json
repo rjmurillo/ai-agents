@@ -59,7 +59,7 @@
       "serenaMemoryUpdated": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Learnings to be persisted to Serena memories for cross-session availability"
+        "Evidence": "Learnings persisted to Serena memories for cross-session availability"
       },
       "markdownLintRun": {
         "level": "MUST",

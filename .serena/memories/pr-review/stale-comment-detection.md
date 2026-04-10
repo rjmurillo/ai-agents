@@ -9,7 +9,7 @@ PR #1589: 8 of 10 bot review comments referenced files deleted in commit 2 (`3cb
 ## Detection
 Use `detect_stale_pr_comments.py` in `.claude/skills/github/scripts/pr/` to check if commented files exist at PR HEAD before triaging.
 
-```
+```bash
 python3 .claude/skills/github/scripts/pr/detect_stale_pr_comments.py --pull-request N
 ```
 
