@@ -192,12 +192,36 @@ gh api graphql -f query='
 
 ### REST API Skills
 
-#### Python Scripts (Full-Featured)
+#### Python Scripts (Full-Featured, Hook-Integrated)
+
+Python scripts are the primary path for Claude Code. The `invoke_skill_first_guard.py`
+hook routes raw `gh` commands to these scripts automatically.
 
 | Skill | Location | Purpose |
 |-------|----------|---------|
 | `get_pr_context.py` | `.claude/skills/github/scripts/pr/` | Get PR metadata |
+| `get_pull_requests.py` | `.claude/skills/github/scripts/pr/` | List pull requests |
+| `new_pr.py` | `.claude/skills/github/scripts/pr/` | Create pull request |
+| `close_pr.py` | `.claude/skills/github/scripts/pr/` | Close pull request |
+| `merge_pr.py` | `.claude/skills/github/scripts/pr/` | Merge pull request |
+| `get_pr_checks.py` | `.claude/skills/github/scripts/pr/` | Get PR check status |
+| `get_pr_check_logs.py` | `.claude/skills/github/scripts/pr/` | Get PR check logs |
+| `get_pr_reviewers.py` | `.claude/skills/github/scripts/pr/` | Get PR reviewers |
+| `get_pr_review_comments.py` | `.claude/skills/github/scripts/pr/` | Get review comments |
+| `get_pr_comments_by_reviewer.py` | `.claude/skills/github/scripts/pr/` | Get comments by reviewer |
+| `get_unaddressed_comments.py` | `.claude/skills/github/scripts/pr/` | Find unaddressed comments |
+| `post_pr_comment_reply.py` | `.claude/skills/github/scripts/pr/` | Reply to PR comment |
+| `set_pr_auto_merge.py` | `.claude/skills/github/scripts/pr/` | Enable auto-merge |
+| `validate_pr_description.py` | `.claude/skills/github/scripts/pr/` | Validate PR description |
+| `test_pr_merge_ready.py` | `.claude/skills/github/scripts/pr/` | Check merge readiness |
+| `get_issue_context.py` | `.claude/skills/github/scripts/issue/` | Get issue metadata |
+| `new_issue.py` | `.claude/skills/github/scripts/issue/` | Create issue |
+| `post_issue_comment.py` | `.claude/skills/github/scripts/issue/` | Post issue comment |
 | `set_issue_labels.py` | `.claude/skills/github/scripts/issue/` | Manage issue labels |
+| `set_issue_milestone.py` | `.claude/skills/github/scripts/issue/` | Set issue milestone |
+| `set_issue_assignee.py` | `.claude/skills/github/scripts/issue/` | Set issue assignee |
+| `set_item_milestone.py` | `.claude/skills/github/scripts/milestone/` | Set milestone on item |
+| `get_latest_semantic_milestone.py` | `.claude/skills/github/scripts/milestone/` | Get latest milestone |
 | `add_comment_reaction.py` | `.claude/skills/github/scripts/reactions/` | Add emoji reactions |
 
 #### Bash Scripts (Copilot CLI Optimized)
@@ -225,33 +249,56 @@ gh api graphql -f query='
 
 ### Pattern 1: Check REST First, Fall Back to GraphQL
 
-```powershell
+```python
+import json
+import subprocess
+
 # Try REST API first (simpler)
-$result = gh api repos/{owner}/{repo}/pulls/{number} | ConvertFrom-Json
+result = subprocess.run(
+    ["gh", "api", f"repos/{owner}/{repo}/pulls/{number}"],
+    capture_output=True, text=True,
+)
+data = json.loads(result.stdout)
 
 # If operation not available, use GraphQL
-if ($needThreadResolution) {
-    gh api graphql -f query='mutation { resolveReviewThread... }'
-}
+if need_thread_resolution:
+    subprocess.run(
+        ["gh", "api", "graphql", "-f",
+         "query=mutation { resolveReviewThread... }"],
+        capture_output=True, text=True,
+    )
 ```
 
 ### Pattern 2: Use GraphQL for Complex Data Gathering
 
-```powershell
+```python
+import json
+import subprocess
+
 # When you need multiple related pieces of data, prefer GraphQL
-$query = '
+query = """
 query($owner: String!, $repo: String!, $number: Int!) {
   repository(owner: $owner, name: $repo) {
     pullRequest(number: $number) {
       title
       author { login }
       reviews(first: 50) { nodes { state author { login } } }
-      reviewThreads(first: 100) { nodes { isResolved comments(first: 1) { nodes { body } } } }
+      reviewThreads(first: 100) {
+        nodes { isResolved comments(first: 1) { nodes { body } } }
+      }
     }
   }
 }
-'
-$data = gh api graphql -f query="$query" -f owner="$owner" -f repo="$repo" -F number="$number" | ConvertFrom-Json
+"""
+result = subprocess.run(
+    ["gh", "api", "graphql",
+     "-f", f"query={query}",
+     "-f", f"owner={owner}",
+     "-f", f"repo={repo}",
+     "-F", f"number={number}"],
+    capture_output=True, text=True,
+)
+data = json.loads(result.stdout)
 ```
 
 ## Related Resources
