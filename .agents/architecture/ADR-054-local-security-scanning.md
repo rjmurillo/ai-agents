@@ -81,18 +81,7 @@ fi
 
 ### Installation
 
-Add semgrep to developer setup in `docs/installation.md`:
-
-```bash
-# macOS
-brew install semgrep
-
-# Linux/Windows (via pip)
-pip install semgrep
-
-# Verify installation
-semgrep --version
-```
+See [CONTRIBUTING.md](../../CONTRIBUTING.md#security-scanning) for semgrep installation and usage instructions.
 
 ## Rationale
 
@@ -169,13 +158,7 @@ This ADR complements ADR-041's multi-tier strategy:
 
 ### Suppression Patterns
 
-Document in CONTRIBUTING.md:
-
-```python
-# nosemgrep: path-traversal-check
-# Justification: Input validated by sanitize_path() on line 42
-os.path.join(base, user_input)
-```
+See [CONTRIBUTING.md](../../CONTRIBUTING.md#suppressing-semgrep-findings) for suppression syntax and justification requirements.
 
 ## Related Decisions
 
