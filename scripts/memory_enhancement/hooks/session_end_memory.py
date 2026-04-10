@@ -95,7 +95,9 @@ def _format_reflection(
     ]
 
     if decayed:
-        lines.append(f"- Decayed: {len(decayed)} exceed age threshold")
+        decayed_count = len(decayed)
+        verb = "exceeds" if decayed_count == 1 else "exceed"
+        lines.append(f"- Decayed: {decayed_count} {verb} the age threshold")
 
     if session_facts:
         lines.append(f"- Updated this session: {len(session_facts)} memories")
