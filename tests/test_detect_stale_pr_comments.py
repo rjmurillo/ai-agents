@@ -58,8 +58,8 @@ def _make_thread(
     }
 
 
-def _make_file_entry(filename: str) -> dict[str, str]:
-    return {"filename": filename, "status": "modified"}
+def _make_file_entry(filename: str, status: str = "modified") -> dict[str, str]:
+    return {"filename": filename, "status": status}
 
 
 # ---------------------------------------------------------------------------
@@ -350,3 +350,27 @@ class TestEdgeCases:
 
         # A thread with no path should not be marked stale
         assert result["Comments"][0]["IsStale"] is False
+
+
+# ---------------------------------------------------------------------------
+# Tests: fetch_pr_files - status filtering
+# ---------------------------------------------------------------------------
+
+
+class TestFetchPrFilesStatusFiltering:
+    def test_removed_files_excluded_from_pr_files(self):
+        """Files with status 'removed' should be excluded from the result set."""
+        raw_files = [
+            _make_file_entry("src/keep.py", "modified"),
+            _make_file_entry("src/new.py", "added"),
+            _make_file_entry("old/deleted.py", "removed"),
+            _make_file_entry("renamed.py", "renamed"),
+        ]
+        with patch(
+            "detect_stale_pr_comments.gh_api_paginated",
+            return_value=raw_files,
+        ):
+            result = fetch_pr_files("o", "r", 1)
+
+        assert result == {"src/keep.py", "src/new.py", "renamed.py"}
+        assert "old/deleted.py" not in result

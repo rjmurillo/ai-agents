@@ -100,11 +100,16 @@ def fetch_pr_files(owner: str, repo: str, pr_number: int) -> set[str]:
     """Fetch the set of file paths present in the PR at HEAD.
 
     Uses the GitHub REST API to get the file list.
+    Files with status "removed" are excluded since they don't exist at PR HEAD.
     """
     raw_files = gh_api_paginated(
         f"repos/{owner}/{repo}/pulls/{pr_number}/files"
     )
-    return {f.get("filename", "") for f in raw_files if f.get("filename")}
+    return {
+        f.get("filename", "")
+        for f in raw_files
+        if f.get("filename") and f.get("status") != "removed"
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -127,9 +132,9 @@ def detect_stale_comments(
     """
     try:
         threads = fetch_review_threads(owner, repo, pr_number)
-    except (RuntimeError, SystemExit) as exc:
-        if isinstance(exc, SystemExit):
-            raise
+    except SystemExit:
+        raise
+    except Exception as exc:
         print(f"Failed to fetch review threads for PR #{pr_number}: {exc}", file=sys.stderr)
         raise SystemExit(3) from exc
 
