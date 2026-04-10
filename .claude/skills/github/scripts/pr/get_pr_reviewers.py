@@ -18,7 +18,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import re
 import subprocess
 import sys
 
@@ -44,8 +43,7 @@ from github_core.api import (  # noqa: E402
     gh_api_paginated,
     resolve_repo_params,
 )
-
-_BOT_SUFFIX = re.compile(r"\[bot\]$")
+from github_core.bot_config import is_bot  # noqa: E402
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -67,7 +65,11 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def _is_bot(login: str, user_type: str) -> bool:
-    return user_type == "Bot" or bool(_BOT_SUFFIX.search(login))
+    """Check if a login belongs to a bot account.
+
+    Delegates to the shared is_bot utility in github_core.bot_config.
+    """
+    return is_bot(login, user_type)
 
 
 def _ensure_reviewer(reviewer_map: dict, login: str, user_type: str) -> None:

@@ -28,6 +28,7 @@ from scripts.github_core.api import (  # noqa: F401
 from scripts.github_core.bot_config import (  # noqa: F401
     get_bot_authors,
     get_bot_authors_config,
+    is_bot,
 )
 from scripts.github_core.formatting import (  # noqa: F401
     get_priority_emoji,
@@ -71,6 +72,7 @@ __all__ = [
     "get_unresolved_review_threads",
     "gh_api_paginated",
     "gh_graphql",
+    "is_bot",
     "is_gh_authenticated",
     "is_github_name_valid",
     "is_safe_file_path",
