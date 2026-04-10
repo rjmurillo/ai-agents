@@ -28,14 +28,72 @@ Your most valuable capabilities include:
 After completing session initialization (if this is a new session), you must check for actionable items that require PR review:
 
 1. **Retrieve actionable items**: Run `gh notify -s` to get notifications and check for open PRs
-2. **Identify PRs requiring review**: Determine which PRs need responses to comments or review
+2. **Triage PRs**: Classify each PR into a tier (see PR Triage Protocol below)
 3. **Execute PR review**: Use the `/pr-review` command with appropriate flags:
    - The command accepts multiple PR numbers separated by spaces
    - Use `--parallel` flag to spawn multiple agent instances for efficiency
    - Use `--cleanup` flag to manage branch cleanup
-   - Example: `/pr-review 1 3 5 8 13 21 --parallel --cleanup`
+
+When handling more than 5 open PRs, batch by tier rather than running all at once.
+
+```bash
+# T1: Land-ready PRs first (no failures, no threads)
+/pr-review {T1_numbers} --parallel --cleanup
+
+# T2: CI-only failures (fix and land)
+/pr-review {T2_numbers} --parallel
+
+# T3 and T4: Threads or both (requires review)
+/pr-review {T3_T4_numbers}
+```
+
+Batch size limit: 8 PRs per `/pr-review` call. Above this, parallelism degrades. Do not mix T5 (bot validation failures) into other batches. Handle T5 PRs individually.
 
 This workflow should be completed after initialization and before proceeding with the main task, unless the main task itself involves PR review.
+
+## PR Triage Protocol
+
+Before running `/pr-review`, classify each open PR into a tier. This determines batch order and handling.
+
+Use `test_pr_merge_ready.py` to collect merge readiness data for each PR. Then assign tiers:
+
+| Tier | Criteria | Action |
+|------|----------|--------|
+| T1 | No CI failures, no unresolved threads | Land immediately (enable auto-merge) |
+| T2 | CI failures only (no threads) | Fix CI, then land |
+| T3 | Threads only (CI passing) | Resolve threads, then land |
+| T4 | Both CI failures and unresolved threads | Fix CI first, then threads |
+| T5 | Bot PR with validation failures | See Renovate PR Handling section |
+
+Process tiers in order: T1, T2, T3, T4, T5.
+
+### Required vs. Non-Required Checks
+
+Not all failing checks block merge. Distinguish them before acting.
+
+- Required check with FAILURE: block landing. Fix before proceeding.
+- Non-required check with FAILURE: do not block landing. Document in PR comment if expected.
+
+Known non-required checks that may fail without blocking:
+
+| Check | Category | Action |
+|-------|----------|--------|
+| Respond to @rjmurillo-bot | Bot activity | Skip if no open threads |
+| Verify citations | Documentation | Skip on non-doc PRs |
+| Python Security Checks | Security scan | Review output; skip if no Python changes |
+
+### Thread Severity Classification
+
+When a PR has unresolved threads, classify them before acting.
+
+| Category | Criteria | Action |
+|----------|----------|--------|
+| Blocking | Reviewer requested changes; thread is open | Must resolve before landing |
+| Informational | Comment-only; no change requested | Acknowledge, do not block |
+| Bot-only | All threads from review bots (CodeRabbit, Cursor, Gemini) | Synthesize and post to author |
+| Stale | Thread predates last commit; underlying code changed | Resolve with "addressed in latest commit" |
+
+A PR with 8 threads of type "Bot-only" or "Stale" is not blocked. A PR with 1 "Blocking" thread is blocked until resolved.
 
 ## Session Initialization Protocol (REQUIRED FOR NEW SESSIONS)
 
@@ -503,25 +561,58 @@ $ModulePath = Join-Path $PSScriptRoot ".." ".." ".." ".." ".claude" "skills" "gi
 | copilot-setup.yml | ubuntu-latest (x64) | Copilot architecture compatibility |
 ```
 
+## Handling Stale Merge Status
+
+GitHub calculates merge status asynchronously. When all PRs show `mergeable: UNKNOWN`, the status cache is stale.
+
+Force a recalculation by fetching the PR directly:
+
+```bash
+# Trigger recalculation for a specific PR
+gh api repos/{owner}/{repo}/pulls/{number} --jq '.mergeable'
+```
+
+Wait 5-10 seconds, then re-query. If `UNKNOWN` persists across all PRs, use a loop:
+
+```bash
+for pr in {list}; do
+  gh api repos/{owner}/{repo}/pulls/$pr --jq '.number, .mergeable'
+  sleep 2
+done
+```
+
+Do not attempt to land PRs while `mergeable` is `UNKNOWN`. Resolve status first, then proceed with tiering. If status remains stale after retry, enable auto-merge and let GitHub handle it when checks pass.
+
 ## Key Commands Used
 
 **Note**: Replace placeholders with actual values:
-- `{owner}/{repo}` → Your repository (e.g., `rjmurillo/ai-agents`)
+- `{owner}` → Repository owner (e.g., `rjmurillo`)
+- `{repo}` → Repository name (e.g., `ai-agents`)
 - `{number}` → PR number (e.g., `255`)
-- `{run_id}` → Workflow run ID
+
+Use the Python skill scripts instead of raw `gh` commands. The project hook blocks raw `gh` usage.
 
 ```bash
-# Check all PRs
-gh pr list --state open --json number,title,headRefName,mergeable
+# List all open PRs
+python3 .claude/skills/github/scripts/pr/get_pull_requests.py --owner {owner} --repo {repo} --state open
 
-# Check CI status for a specific PR
-gh pr view {number} --json statusCheckRollup --jq '.statusCheckRollup[] | "\(.conclusion // .status)\t\(.name)"'
+# Check merge readiness for a specific PR
+python3 .claude/skills/github/scripts/pr/test_pr_merge_ready.py --owner {owner} --repo {repo} --pull-request {number}
 
-# Get failure logs
-gh run view {run_id} --log-failed
+# Get CI check status
+python3 .claude/skills/github/scripts/pr/get_pr_checks.py --owner {owner} --repo {repo} --pull-request {number}
 
-# Create missing labels
-gh api repos/{owner}/{repo}/labels -X POST -f "name=label-name" -f "description=Label description" -f "color=d73a4a"
+# Get CI failure logs
+python3 .claude/skills/github/scripts/pr/get_pr_check_logs.py --owner {owner} --repo {repo} --pull-request {number} --check-name "{check_name}"
+
+# Get unresolved review threads
+python3 .claude/skills/github/scripts/pr/get_unresolved_review_threads.py --owner {owner} --repo {repo} --pull-request {number}
+
+# Merge a PR
+python3 .claude/skills/github/scripts/pr/merge_pr.py --owner {owner} --repo {repo} --pull-request {number}
+
+# Enable auto-merge
+python3 .claude/skills/github/scripts/pr/set_pr_auto_merge.py --owner {owner} --repo {repo} --pull-request {number}
 
 # Find notifications needing attention
 gh notify -s
@@ -548,6 +639,30 @@ The PR maintenance script classifies PRs by author category to determine appropr
 | `review-bot` | `coderabbitai`, `cursor[bot]`, `gemini-code-assist` | Read-only - provide feedback but don't author PRs |
 | Human | All other authors | Blocked - requires human action |
 
+### Renovate PR Handling
+
+Renovate PRs that fail "Validate PR" or "Validate PR title" require special handling.
+
+Check whether the failure is a title format mismatch:
+
+```bash
+python3 .claude/skills/github/scripts/pr/get_pr_context.py --owner {owner} --repo {repo} --pull-request {number}
+```
+
+If the title does not match the required conventional commit format, update it. Renovate titles use `chore(deps):` or `fix(deps):` prefix by default. Confirm this matches the repo's commitlint rules.
+
+If the title is valid and the check still fails, the most common cause is a **concurrency cancellation race**. Renovate fires `opened` then immediately `edited`, and `cancel-in-progress: true` cancels the first run. GitHub branch protection treats CANCELLED runs as failures.
+
+To diagnose, check for CANCELLED runs alongside SUCCESS runs:
+
+```bash
+python3 .claude/skills/github/scripts/pr/get_pr_check_logs.py --owner {owner} --repo {repo} --pull-request {number} --check-name "Validate PR title"
+```
+
+To fix: re-run the cancelled workflow. This creates a fresh run that succeeds without cancellation.
+
+For a durable fix, consider removing `cancel-in-progress: true` from the PR validation workflows, or filtering `edited` events for bot actors.
+
 ### Copilot PR Handling
 
 When a Copilot-authored PR (e.g., `copilot-swe-agent`) has `CHANGES_REQUESTED`:
@@ -558,6 +673,37 @@ When a Copilot-authored PR (e.g., `copilot-swe-agent`) has `CHANGES_REQUESTED`:
 4. Copilot receives the consolidated feedback and can address all issues in one pass
 
 This enables automated coordination between review bots and Copilot without human intervention.
+
+## Merge Ordering
+
+When multiple PRs modify the same file or action, merge order matters.
+
+Before landing a batch, check for overlap:
+
+```bash
+gh pr diff {number} --name-only
+```
+
+If two PRs touch the same file:
+
+1. Land the one with the smaller diff first.
+2. Re-run CI on the remaining PR after the first lands.
+3. If the remaining PR now has a merge conflict, use the merge-resolver skill.
+
+For dependency update PRs (e.g., Renovate updating the same action across branches), merge in ascending PR number order. Lower PR numbers were opened first and have the least risk of conflict.
+
+## Fix Patterns: CI Concurrency Race (From Session Analysis)
+
+**Problem**: `cancel-in-progress: true` in PR validation workflows creates stale CANCELLED check runs that block merge. Renovate's `opened` + `edited` event sequence triggers this consistently.
+
+**Affected workflows**: `pr-validation.yml`, `semantic-pr-title-check.yml`
+
+**Immediate fix**: Re-run the cancelled workflow run for each affected PR.
+
+**Durable fix options**:
+- Remove `cancel-in-progress: true` from PR validation workflows
+- Add `renovate[bot]` to the bot skip list alongside `dependabot[bot]`
+- Filter `edited` events for bot actors in workflow conditions
 
 ## Prerequisites
 
