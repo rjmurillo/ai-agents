@@ -36,6 +36,11 @@ _AGENT_TABLE_ROW = re.compile(
     r"^\|\s*(?P<name>[\w-]+)\s*\|[^|]*\|\s*(?P<model>opus|sonnet|haiku)\s*\|",
 )
 
+# Pattern for pipe-delimited agent entries: |name: purpose (model)
+_AGENT_PIPE_ENTRY = re.compile(
+    r"(?P<name>[\w-]+):\s*[^(|]+(?:\((?P<model>opus|sonnet|haiku)\))?"
+)
+
 
 @dataclass(frozen=True)
 class AgentDefinition:
@@ -117,17 +122,44 @@ def parse_agent_files(agent_dir: Path) -> tuple[list[AgentDefinition], list[str]
 
 
 def parse_catalog(agents_md_path: Path) -> list[CatalogEntry]:
-    """Parse the agent catalog table from AGENTS.md.
+    """Parse the agent catalog from AGENTS.md.
 
-    Extracts agent name and model from the markdown table in the
-    Agent Catalog section.
+    Supports both markdown table format and pipe-delimited format.
+    Table format: | name | purpose | model |
+    Pipe format: |name: purpose (model)|name2: purpose2
     """
     content = agents_md_path.read_text(encoding="utf-8")
     entries: list[CatalogEntry] = []
+    seen_names: set[str] = set()
+    in_agents_section = False
+
     for line in content.splitlines():
+        # Track when we enter/leave the Agents section
+        if line.startswith("## Agents"):
+            in_agents_section = True
+            continue
+        if in_agents_section and line.startswith("## "):
+            in_agents_section = False
+            continue
+
+        # Try table row format first
         m = _AGENT_TABLE_ROW.match(line)
         if m:
-            entries.append(CatalogEntry(name=m.group("name"), model=m.group("model")))
+            name = m.group("name")
+            if name not in seen_names:
+                seen_names.add(name)
+                entries.append(CatalogEntry(name=name, model=m.group("model")))
+            continue
+
+        # Try pipe-delimited format (only in Agents section)
+        if in_agents_section and line.startswith("|"):
+            for m in _AGENT_PIPE_ENTRY.finditer(line):
+                name = m.group("name")
+                model = m.group("model") or "sonnet"
+                if name not in seen_names:
+                    seen_names.add(name)
+                    entries.append(CatalogEntry(name=name, model=model))
+
     return entries
 
 
