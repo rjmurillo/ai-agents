@@ -473,32 +473,31 @@ jobs:
 # Depends on all six agent review jobs explicitly (not matrix).
 # Downloads artifacts using pattern `review-*` to gather all agent verdicts.
 
-  # Pass-through job: satisfies required "Aggregate Results" check when path
-  # filter skips the real aggregate job. GitHub branch protection requires
-  # SUCCESS (not SKIPPED) for required checks. See issue #1168.
-  aggregate-skip:
-    name: Aggregate Results
-    runs-on: ubuntu-24.04-arm
-    timeout-minutes: 1
-    needs: [check-changes]
-    if: always() && needs.check-changes.result == 'success' && needs.check-changes.outputs.should-run != 'true'
-    steps:
-      - name: No relevant changes
-        run: echo "Skipped - no relevant file changes detected"
-
   aggregate:
     name: Aggregate Results
     # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-24.04-arm
     needs: [check-changes, infra-check, security-review, qa-review, analyst-review, architect-review, devops-review, roadmap-review]
-    # Always run if check-changes ran and said to run, even if some agent jobs failed
-    if: always() && needs.check-changes.outputs.should-run == 'true'
+    # Always run to produce a SUCCESS check (not SKIPPED) for rulesets.
+    # Step-level conditions gate the actual work.
+    if: always()
 
     outputs:
       final-verdict: ${{ steps.aggregate.outputs.final_verdict }}
 
     steps:
+      - name: Check if aggregation needed
+        id: should-run
+        env:
+          SHOULD_RUN: ${{ needs.check-changes.outputs.should-run }}
+        run: |
+          if [ "$SHOULD_RUN" != "true" ]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "Skipped - no relevant file changes detected"
+          fi
+
       - name: Check for failed agents
+        if: steps.should-run.outputs.skip != 'true'
         id: failed-agents
         shell: pwsh -NoProfile -Command "& '{0}'"
         env:
@@ -542,9 +541,11 @@ jobs:
           }
 
       - name: Checkout repository
+        if: steps.should-run.outputs.skip != 'true'
         uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
 
       - name: Download all review artifacts
+        if: steps.should-run.outputs.skip != 'true'
         uses: actions/download-artifact@484a0b528fb4d7bd804637ccb632e47a0e638317
         with:
           pattern: review-*
@@ -552,6 +553,7 @@ jobs:
           merge-multiple: true
 
       - name: Validate artifact download
+        if: steps.should-run.outputs.skip != 'true'
         shell: pwsh -NoProfile -Command "& '{0}'"
         run: |
           $ErrorActionPreference = 'Stop'
@@ -579,6 +581,7 @@ jobs:
           Write-Output "✓ All required verdict files present"
 
       - name: Load review results
+        if: steps.should-run.outputs.skip != 'true'
         id: load-results
         shell: pwsh -NoProfile -Command "& '{0}'"
         run: |
@@ -607,6 +610,7 @@ jobs:
           }
 
       - name: Aggregate Verdicts
+        if: steps.should-run.outputs.skip != 'true'
         id: aggregate
         env:
           SECURITY_VERDICT: ${{ steps.load-results.outputs.security_verdict }}
@@ -624,6 +628,7 @@ jobs:
         run: python3 .github/scripts/aggregate_quality_verdicts.py
 
       - name: Generate Report
+        if: steps.should-run.outputs.skip != 'true'
         id: report
         env:
           RUN_ID: ${{ github.run_id }}
@@ -649,6 +654,7 @@ jobs:
         run: python3 .github/scripts/generate_quality_report.py
 
       - name: Check for infrastructure failures and add label
+        if: steps.should-run.outputs.skip != 'true'
         continue-on-error: true
         shell: pwsh -NoProfile -Command "& '{0}'"
         env:
@@ -712,6 +718,7 @@ jobs:
           }
 
       - name: Post PR Comment
+        if: steps.should-run.outputs.skip != 'true'
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
@@ -738,6 +745,7 @@ jobs:
             --update-if-exists
 
       - name: Set Job Summary
+        if: steps.should-run.outputs.skip != 'true'
         shell: pwsh -NoProfile -Command "& '{0}'"
         env:
           REPORT_FILE: ${{ steps.report.outputs.report_file }}
@@ -746,6 +754,7 @@ jobs:
           Get-Content $env:REPORT_FILE | Add-Content $env:GITHUB_STEP_SUMMARY
 
       - name: Check for Critical Failures
+        if: steps.should-run.outputs.skip != 'true'
         shell: pwsh -NoProfile -Command "& '{0}'"
         env:
           FINAL_VERDICT: ${{ steps.aggregate.outputs.final_verdict }}

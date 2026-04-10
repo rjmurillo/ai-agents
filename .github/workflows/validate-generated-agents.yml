@@ -81,27 +81,39 @@ jobs:
     # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-24.04-arm
     needs: check-paths
-    if: needs.check-paths.outputs.should-validate == 'true'
     permissions:
       contents: read
 
     steps:
+      - name: Check if validation needed
+        id: should-run
+        env:
+          SHOULD_VALIDATE: ${{ needs.check-paths.outputs.should-validate }}
+        run: |
+          if [ "$SHOULD_VALIDATE" != "true" ]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "No agent files changed - skipping validation"
+          fi
+
       - name: Checkout repository
+        if: steps.should-run.outputs.skip != 'true'
         uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
 
       - name: Regenerate and validate agent files
+        if: steps.should-run.outputs.skip != 'true'
         run: |
           echo "Running agent generation in validation mode..."
           python3 build/generate_agents.py --validate
 
       - name: Validate GitHub Actions SHA Pinning
+        if: steps.should-run.outputs.skip != 'true'
         shell: bash
         run: |
           echo "Validating GitHub Actions SHA pinning..."
           python3 scripts/validation/sha_pinning.py --ci
 
       - name: Show diff on failure
-        if: failure()
+        if: failure() && steps.should-run.outputs.skip != 'true'
         run: |
           echo ""
           echo "=== Files that differ from generated output ==="
@@ -130,23 +142,3 @@ jobs:
           else
             echo "No differences detected in git diff (validation may have failed for other reasons)"
           fi
-
-  # Skip job that provides passing status when no relevant files changed
-  # Uses the SAME NAME as the real job to satisfy required status checks
-  # (Dual-job same-name pattern from Issue #335)
-  skip:
-    name: Validate Generated Files
-    needs: check-paths
-    if: needs.check-paths.outputs.should-validate != 'true'
-    # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
-    runs-on: ubuntu-24.04-arm
-    permissions:
-      contents: read
-
-    steps:
-      - name: Skip validation (no agent files changed)
-        run: |
-          echo "No agent files changed - skipping validation"
-          echo ""
-          echo "See the 'agents' filter in check-paths job for paths that trigger validation."
-          echo "Reference: .github/workflows/validate-generated-agents.yml"
