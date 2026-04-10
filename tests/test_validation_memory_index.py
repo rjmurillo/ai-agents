@@ -519,6 +519,47 @@ class TestCheckMemoryIndexReferences:
         assert result.passed is True
         assert not result.broken_references
 
+    def test_pipe_delimited_format(self, tmp_path: Path) -> None:
+        """Pipe-delimited memory-index format is validated correctly."""
+        create_memory_structure(tmp_path, {
+            "memory-index.md": (
+                "# Memory Index\n\n"
+                "[Session and Protocol]\n"
+                "|session start init: [skills-session-init-index](skills-session-init-index.md)\n"
+            ),
+            "skills-session-init-index.md": "content",
+        })
+        indices = [DomainIndex(tmp_path / "skills-session-init-index.md", "skills-session-init-index", "session")]
+        result = check_memory_index_references(tmp_path, indices)
+        assert result.passed is True
+        assert not result.broken_references
+
+    def test_pipe_delimited_broken_reference(self, tmp_path: Path) -> None:
+        """Pipe-delimited format detects broken references."""
+        create_memory_structure(tmp_path, {
+            "memory-index.md": (
+                "[Section]\n"
+                "|keywords: [nonexistent](nonexistent.md)\n"
+            ),
+        })
+        result = check_memory_index_references(tmp_path, [])
+        assert result.passed is False
+        assert "nonexistent" in result.broken_references
+
+    def test_pipe_delimited_multiple_links(self, tmp_path: Path) -> None:
+        """Pipe-delimited format with multiple comma-separated links."""
+        create_memory_structure(tmp_path, {
+            "memory-index.md": (
+                "[Section]\n"
+                "|keywords: [index-a](index-a.md), [index-b](index-b.md)\n"
+            ),
+            "index-a.md": "content",
+            "index-b.md": "content",
+        })
+        result = check_memory_index_references(tmp_path, [])
+        assert result.passed is True
+        assert not result.broken_references
+
     def test_path_traversal_detected(self, tmp_path: Path) -> None:
         create_memory_structure(tmp_path, {
             "memory-index.md": (

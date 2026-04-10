@@ -13,10 +13,13 @@ Exit codes follow ADR-035:
 from __future__ import annotations
 
 import argparse
+import logging
 import re
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 # Reuse existing frontmatter parsing from build utilities
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "build"))
@@ -34,6 +37,11 @@ _VALID_MODELS = frozenset({"opus", "sonnet", "haiku"})
 # Pattern for extracting agent rows from AGENTS.md markdown table
 _AGENT_TABLE_ROW = re.compile(
     r"^\|\s*(?P<name>[\w-]+)\s*\|[^|]*\|\s*(?P<model>opus|sonnet|haiku)\s*\|",
+)
+
+# Pattern for pipe-delimited agent entries: |name: purpose (model)
+_AGENT_PIPE_ENTRY = re.compile(
+    r"(?P<name>[\w-]+):\s*[^(|]+(?:\((?P<model>opus|sonnet|haiku)\))?"
 )
 
 
@@ -117,17 +125,56 @@ def parse_agent_files(agent_dir: Path) -> tuple[list[AgentDefinition], list[str]
 
 
 def parse_catalog(agents_md_path: Path) -> list[CatalogEntry]:
-    """Parse the agent catalog table from AGENTS.md.
+    """Parse the agent catalog from AGENTS.md.
 
-    Extracts agent name and model from the markdown table in the
-    Agent Catalog section.
+    Supports both markdown table format and pipe-delimited format.
+    Table format: | name | purpose | model |
+    Pipe format: |name: purpose (model)|name2: purpose2
     """
     content = agents_md_path.read_text(encoding="utf-8")
     entries: list[CatalogEntry] = []
+    seen_names: set[str] = set()
+    in_agents_section = False
+
     for line in content.splitlines():
+        # Track when we enter/leave the Agents section
+        if line.startswith("## Agents"):
+            in_agents_section = True
+            continue
+        if in_agents_section and line.startswith("## "):
+            in_agents_section = False
+            continue
+
+        # Try table row format first
         m = _AGENT_TABLE_ROW.match(line)
         if m:
-            entries.append(CatalogEntry(name=m.group("name"), model=m.group("model")))
+            name = m.group("name")
+            if name not in seen_names:
+                seen_names.add(name)
+                entries.append(CatalogEntry(name=name, model=m.group("model")))
+            else:
+                logger.debug(
+                    "Skipping duplicate agent %r (model=%s, format=table)",
+                    name,
+                    m.group("model"),
+                )
+            continue
+
+        # Try pipe-delimited format (only in Agents section)
+        if in_agents_section and line.startswith("|"):
+            for m in _AGENT_PIPE_ENTRY.finditer(line):
+                name = m.group("name")
+                model = m.group("model") or "sonnet"
+                if name not in seen_names:
+                    seen_names.add(name)
+                    entries.append(CatalogEntry(name=name, model=model))
+                else:
+                    logger.debug(
+                        "Skipping duplicate agent %r (model=%s, format=pipe)",
+                        name,
+                        model,
+                    )
+
     return entries
 
 

@@ -10,14 +10,12 @@ Cross-platform agent instructions for Claude Code, Copilot CLI, Cortex, Factory 
 
 Read first, reason second. Pre-training is last resort.
 
-| Type | Source |
-|------|--------|
-| APIs | Context7, DeepWiki, WebSearch |
-| Constraints | `.agents/governance/PROJECT-CONSTRAINTS.md` |
-| Patterns | Serena `mcp__serena__read_memory` |
-| ADRs | `.agents/architecture/ADR-*.md` |
-| Protocol | `.agents/SESSION-PROTOCOL.md` |
-| Skills | `.claude/skills/{name}/SKILL.md` |
+|APIs: Context7, DeepWiki, WebSearch
+|Constraints: `.agents/governance/PROJECT-CONSTRAINTS.md`
+|Patterns: Serena `mcp__serena__read_memory`
+|ADRs: `.agents/architecture/ADR-*.md`
+|Protocol: `.agents/SESSION-PROTOCOL.md`
+|Skills: `.claude/skills/{name}/SKILL.md`
 
 ## Session Gates
 
@@ -32,41 +30,30 @@ Read first, reason second. Pre-training is last resort.
 **Ask First**: Architecture changes|New ADRs|Breaking changes|Security-sensitive
 **Never**: Commit secrets|Update HANDOFF.md|Use bash|Skip validation|Logic in YAML (ADR-006)|Raw gh when skills exist|Force push|Skip hooks|Internal refs in src/
 
+## Context Type Decision
+
+Knowledge goes in passive context (@imported docs). Actions stay as skills. Passive context eliminates decision points. See `.agents/analysis/vercel-passive-context-vs-skills-research.md`.
+
+|Passive context: reference knowledge every turn, content outside training data, <8KB compressed
+|Skills: tool access needed, vertical workflows, user-triggered, file mutation or API calls
+
 ## Skill-First
 
-| Op | Skill |
-|----|-------|
-| PRs | github |
-| Reviews | pr-comment-responder |
-| Conflicts | merge-resolver |
-| Session | session-init, session-end |
-| CI fix | session-log-fixer |
-| Push | /push-pr |
-| Security | security-detection |
-| Quality | analyze |
-| Learn | reflect |
-| Workflow | workflow (0-init, 1-plan, 2-impl, 3-qa, 4-security) |
+|PRs: GitHub|Reviews: pr-comment-responder|Conflicts: merge-resolver
+|Session: session-init, session-end|CI fix: session-log-fixer|Push: /push-pr
+|Security: security-detection|Quality: analyze|Learn: reflect
+|Workflow: workflow (0-init, 1-plan, 2-impl, 3-qa, 4-security)
 
 ### ADR Review (BLOCKING)
 
-Any file matching `.agents/architecture/ADR-*.md` or `.agents/SESSION-PROTOCOL.md` created or edited triggers mandatory adr-review skill before workflow continues.
+Any `.agents/architecture/ADR-*.md` or `.agents/SESSION-PROTOCOL.md` create/edit triggers mandatory adr-review skill.
 
 ## Agents
 
-| Agent | Purpose | Model |
-|-------|---------|-------|
-| orchestrator | coordination | opus |
-| analyst | research | sonnet |
-| architect | ADRs, governance | sonnet |
-| implementer | code, tests | sonnet |
-| critic | validation | sonnet |
-| qa | testing | sonnet |
-| security | threats, OWASP | sonnet |
-| devops | CI/CD | sonnet |
-| pr-comment-responder | review triage | sonnet |
-| merge-resolver | conflict resolution | sonnet |
-| retrospective | learning | haiku |
-| memory | cross-session | haiku |
+|orchestrator: coordination (opus)|analyst: research|architect: ADRs, governance
+|implementer: code, tests|critic: validation|qa: testing
+|security: threats, OWASP|devops: CI/CD|pr-comment-responder: review triage
+|merge-resolver: conflict resolution|retrospective: learning (haiku)|memory: cross-session (haiku)
 
 ## Standards
 

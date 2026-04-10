@@ -502,52 +502,58 @@ def check_memory_index_references(
             )
 
     # P1: Check validity of references
-    for line in content.split("\n"):
+    # Collect file references from both table rows and pipe-delimited lines
+    file_refs: list[str] = []
+    for line in content.splitlines():
+        # Try table row format first: | keywords | files |
         match = _TABLE_ROW_PATTERN.match(line)
-        if not match:
-            continue
-
-        file_entry = match.group(2).strip()
-
-        # Skip header/separator rows
-        skip_values = {
-            "File", "Essential Memories", "Memory", "Memory Index"
-        }
-        if file_entry in skip_values or re.match(r"^-+$", file_entry):
-            continue
-
-        # Handle comma-separated file lists
-        file_names = [
-            f.strip() for f in file_entry.split(",") if f.strip()
-        ]
-
-        for file_name in file_names:
-            # Parse markdown link syntax
-            link_match = _MARKDOWN_LINK_PATTERN.search(file_name)
-            if link_match:
-                link_target = link_match.group(2)
-                file_name = re.sub(r"\.md$", "", link_target)
-
-            ref_path = memory_path / f"{file_name}.md"
-
-            # Security: Prevent path traversal (CWE-22).
-            resolved_ref = ref_path.resolve()
-            if not resolved_ref.is_relative_to(resolved_memory):
-                result.passed = False
-                result.broken_references.append(file_name)
-                result.issues.append(
-                    f"P1 VALIDITY: Path traversal detected "
-                    f"in memory-index: {file_name}.md"
-                )
+        if match:
+            file_entry = match.group(2).strip()
+            skip_values = {
+                "File", "Essential Memories", "Memory", "Memory Index"
+            }
+            if file_entry in skip_values or re.match(r"^-+$", file_entry):
                 continue
+            file_refs.extend(
+                f.strip() for f in file_entry.split(",") if f.strip()
+            )
+            continue
 
-            if not resolved_ref.exists():
-                result.passed = False
-                result.broken_references.append(file_name)
-                result.issues.append(
-                    f"P1 VALIDITY: memory-index references "
-                    f"non-existent file: {file_name}.md"
-                )
+        # Try pipe-delimited format: |keywords: [name](file.md), ...
+        stripped = line.strip()
+        if stripped.startswith("|") and not stripped.startswith("|---"):
+            # Extract all markdown links from the line
+            for link_match in _MARKDOWN_LINK_PATTERN.finditer(stripped):
+                file_refs.append(link_match.group(0))
+
+    file_refs = list({ref.strip() for ref in file_refs})
+    for file_name in file_refs:
+        # Parse markdown link syntax
+        link_match = _MARKDOWN_LINK_PATTERN.search(file_name)
+        if link_match:
+            link_target = link_match.group(2)
+            file_name = re.sub(r"\.md$", "", link_target)
+
+        ref_path = memory_path / f"{file_name}.md"
+
+        # Security: Prevent path traversal (CWE-22).
+        resolved_ref = ref_path.resolve()
+        if not resolved_ref.is_relative_to(resolved_memory):
+            result.passed = False
+            result.broken_references.append(file_name)
+            result.issues.append(
+                f"P1 VALIDITY: Path traversal detected "
+                f"in memory-index: {file_name}.md"
+            )
+            continue
+
+        if not resolved_ref.exists():
+            result.passed = False
+            result.broken_references.append(file_name)
+            result.issues.append(
+                f"P1 VALIDITY: memory-index references "
+                f"non-existent file: {file_name}.md"
+            )
 
     return result
 
