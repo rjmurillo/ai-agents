@@ -219,6 +219,7 @@ gh api graphql -f query='
 | `resolve_pr_review_thread.py` | `.claude/skills/github/scripts/pr/` | Resolve review threads |
 | `get_pr_review_threads.py` | `.claude/skills/github/scripts/pr/` | Get thread details |
 | `get_unresolved_review_threads.py` | `.claude/skills/github/scripts/pr/` | Find unresolved threads |
+| `detect_stale_pr_comments.py` | `.claude/skills/github/scripts/pr/` | Detect bot comments on files absent from PR HEAD |
 
 ## Common Patterns
 
