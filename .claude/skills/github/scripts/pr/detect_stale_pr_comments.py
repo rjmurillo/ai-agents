@@ -97,11 +97,10 @@ def fetch_review_threads(
 
 
 def fetch_pr_files(owner: str, repo: str, pr_number: int) -> set[str]:
-    """Fetch the set of file paths that are part of the PR diff.
+    """Fetch the set of file paths present in the PR at HEAD.
 
     Uses the GitHub REST API to get the file list.
-    Includes all files regardless of status (added, modified, removed) since
-    review comments on any of these are legitimate targets for the PR.
+    Excludes files with status 'removed' since they do not exist at HEAD.
     """
     raw_files = gh_api_paginated(
         f"repos/{owner}/{repo}/pulls/{pr_number}/files"
@@ -109,7 +108,7 @@ def fetch_pr_files(owner: str, repo: str, pr_number: int) -> set[str]:
     return {
         f.get("filename", "")
         for f in raw_files
-        if f.get("filename")
+        if f.get("filename") and f.get("status") != "removed"
     }
 
 
