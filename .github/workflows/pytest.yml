@@ -85,7 +85,7 @@ jobs:
 
       - name: Harden Runner
         if: steps.should-run.outputs.skip != 'true'
-        uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
+        uses: step-security/harden-runner@fe104658747b27e96e4f7e80cd0a94068e53901d # v2.16.1
         with:
           egress-policy: audit
 
@@ -124,7 +124,7 @@ jobs:
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
+        uses: step-security/harden-runner@fe104658747b27e96e4f7e80cd0a94068e53901d # v2.16.1
         with:
           egress-policy: audit
 
@@ -153,3 +153,27 @@ jobs:
           name: bandit-results
           path: artifacts/bandit-results.sarif
           retention-days: 7
+
+  # Pass-through job: satisfies required "Run Python Tests" check when no Python files changed.
+  # GitHub branch protection requires SUCCESS (not SKIPPED) for required checks.
+  # See: Issue #1168
+  skip-tests:
+    name: Run Python Tests
+    needs: check-paths
+    if: needs.check-paths.outputs.python-changed != 'true'
+    # ADR-025: ARM runner for cost optimization
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@fe104658747b27e96e4f7e80cd0a94068e53901d # v2.16.1
+        with:
+          egress-policy: audit
+
+      - name: Skip tests (no Python files changed)
+        run: |
+          echo "No Python files changed - skipping tests"
+          echo ""
+          echo "See the 'python' filter in check-paths job for paths that trigger tests."
+          echo "Reference: .github/workflows/pytest.yml"

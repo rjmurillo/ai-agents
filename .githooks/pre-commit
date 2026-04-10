@@ -1829,8 +1829,8 @@ if [ -n "$STAGED_LINT_FILES" ]; then
         if set_python_cmd; then
             echo_info "Running taste invariant lints..."
             # Run in git-staged mode, non-blocking (warnings only)
-            TASTE_OUTPUT=$("${PYTHON_CMD[@]}" "$TASTE_LINTS_SCRIPT" --git-staged 2>&1)
-            TASTE_EXIT=$?
+            # Guard against set -e: taste lints exit 10 for violations (non-blocking)
+            TASTE_OUTPUT=$("${PYTHON_CMD[@]}" "$TASTE_LINTS_SCRIPT" --git-staged 2>&1) && TASTE_EXIT=0 || TASTE_EXIT=$?
             if [ $TASTE_EXIT -eq 10 ]; then
                 # Exit code 10 = violations detected
                 echo_warning "Taste lint violations detected (non-blocking):"

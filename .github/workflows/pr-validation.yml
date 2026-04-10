@@ -50,7 +50,7 @@ jobs:
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
+        uses: step-security/harden-runner@fe104658747b27e96e4f7e80cd0a94068e53901d # v2.16.1
         with:
           egress-policy: audit
 
@@ -293,7 +293,8 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           if [ -f "pr-validation-report.md" ]; then
-            python3 .github/scripts/post_issue_comment.py \
+            python3 .github/scripts/run_with_retry.py -- \
+              python3 .github/scripts/post_issue_comment.py \
               --issue "$PR_NUMBER" \
               --body-file "pr-validation-report.md" \
               --marker "PR-VALIDATION"

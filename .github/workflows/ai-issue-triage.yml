@@ -304,10 +304,12 @@ jobs:
           $prdTemplate | Set-Content /tmp/prd-comment.md -Encoding UTF8
 
           # Post comment via Python script (ADR-042 migration)
-          python3 .github/scripts/post_issue_comment.py `
+          python3 .github/scripts/run_with_retry.py -- `
+            python3 .github/scripts/post_issue_comment.py `
             --issue $env:ISSUE_NUMBER `
             --body-file "/tmp/prd-comment.md" `
             --marker "AI-PRD-GENERATION"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Post Triage Summary
         shell: pwsh -NoProfile -Command "& '{0}'"
@@ -432,7 +434,9 @@ jobs:
           $triageComment | Set-Content /tmp/triage-comment.md -Encoding UTF8
 
           # Post comment via Python script (ADR-042 migration)
-          python3 .github/scripts/post_issue_comment.py `
+          python3 .github/scripts/run_with_retry.py -- `
+            python3 .github/scripts/post_issue_comment.py `
             --issue $env:ISSUE_NUMBER `
             --body-file "/tmp/triage-comment.md" `
             --marker "AI-ISSUE-TRIAGE"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

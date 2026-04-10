@@ -1,0 +1,139 @@
+{
+  "protocolCompliance": {
+    "sessionStart": {
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Evidence": "Read AGENTS.md and PROJECT-CONSTRAINTS.md",
+        "Complete": true
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Evidence": "Working on feature/947-adr-exception-criteria",
+        "Complete": true
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Evidence": "Used github skill for PR operations",
+        "Complete": true
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Evidence": "Loaded chestertons-fence memory for ADR analysis",
+        "Complete": true
+      },
+      "serenaActivated": {
+        "level": "MUST",
+        "Evidence": "Serena activated at session start",
+        "Complete": true
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Evidence": "Verified clean working tree",
+        "Complete": true
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Evidence": "Read PROJECT-CONSTRAINTS.md",
+        "Complete": true
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Evidence": "Read Serena initial instructions",
+        "Complete": true
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Evidence": "a41cae9",
+        "Complete": true
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Evidence": "Read HANDOFF.md",
+        "Complete": true
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Evidence": "On feature/947-adr-exception-criteria",
+        "Complete": true
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Evidence": "Created session log JSON",
+        "Complete": true
+      }
+    },
+    "sessionEnd": {
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Evidence": "Updated Serena memory with ADR exception criteria pattern",
+        "Complete": true
+      },
+      "checklistComplete": {
+        "level": "MUST",
+        "Evidence": "All checklist items verified",
+        "Complete": true
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Evidence": "Session validation passed",
+        "Complete": true
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Evidence": "All changes committed with conventional messages",
+        "Complete": true
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Evidence": "Markdown lint passed",
+        "Complete": true
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Evidence": "HANDOFF.md preserved without modification",
+        "Complete": true
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Evidence": "Retrospective completed",
+        "Complete": true
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Evidence": "Tasks updated in session log",
+        "Complete": true
+      }
+    }
+  },
+  "session": {
+    "number": 1152,
+    "date": "2026-03-07",
+    "objective": "Implement ADR exception criteria with Chesterton's Fence analysis requirement (Issue #947)",
+    "github_issue": 947,
+    "branch": "feature/947-adr-exception-criteria",
+    "startingCommit": "a41cae9"
+  },
+  "workLog": [
+    {
+      "action": "Created ADR exception criteria governance document with Chesterton's Fence analysis template",
+      "files": [
+        ".agents/governance/ADR-EXCEPTION-CRITERIA.md",
+        ".agents/architecture/ADR-053-adr-exception-criteria.md"
+      ],
+      "result": "Defined exception request format, rejection criteria, and approval checklist"
+    },
+    {
+      "action": "Updated architect agent template with enhanced exception evaluation checklist",
+      "files": [
+        "templates/agents/architect.shared.md",
+        "src/claude/architect.md",
+        "src/copilot-cli/architect.agent.md",
+        "src/vs-code-agents/architect.agent.md"
+      ],
+      "result": "Added enforceable MUST requirements, rejection criteria, and on-rejection protocol"
+    }
+  ],
+  "endingCommit": "4bbc0029",
+  "nextSteps": [],
+  "outcome": "done"
+}

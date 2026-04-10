@@ -2,122 +2,40 @@
 
 ## Status
 
-Proposed
-
-## Author
-
-rjmurillo-bot (autonomous session, Issue #947)
+Accepted
 
 ## Date
 
-2026-02-19
+2026-03-07
+
+## Decision Makers
+
+- rjmurillo-bot, Session 1152
 
 ## Context
 
-ADRs codify architectural decisions. Sometimes legitimate exceptions arise. The exception process should balance flexibility with discipline.
+ADR-005 received a Python exception in PR #908 (2026-01-14) (Claude Code Hooks) without documented justification. The exception was technically valid but the rationale, why the PowerShell-only rule exists, what alternatives were tried, and what precedent risks the exception introduces, was not captured at the time.
 
-PR #908 (2026-01-14) created an exception to ADR-005 (PowerShell-only scripting) for Python hooks without documenting:
+This creates two problems:
 
-1. Why ADR-005 existed (its original purpose)
-2. Alternatives attempted before requesting exception
-3. Impact of creating the exception
+1. **Future maintainers** cannot assess whether the exception was well-reasoned or expedient.
+2. **Future exception requests** have a precedent (PR #908 (2026-01-14)) showing that exceptions can be granted informally.
 
-The exception was approved based on immediate need (Anthropic SDK only available in Python). This expedient choice bypassed the architectural reasoning that ADR-005 encoded.
-
-G.K. Chesterton's fence principle applies: do not remove a fence until you understand why it was built. Similarly, do not create ADR exceptions until you understand why the rule exists.
-
-### Problem Statement
-
-Creating ADR exceptions is too easy. The current process:
-
-1. Identify constraint blocking implementation
-2. Request exception in PR
-3. Document scope and conditions
-
-This process misses critical analysis:
-
-- Why does the ADR exist? What problem did it solve?
-- What happens if we weaken the rule? What debt accumulates?
-- Did we try to comply before requesting exception?
-
-### Observed Symptoms
-
-| Symptom | Evidence |
-|---------|----------|
-| Exception without rationale | ADR-005 Python exception cites SDK availability, not why PowerShell rule existed |
-| Missing alternatives | PR #908 (2026-01-14) did not document attempts at PowerShell HTTP calls to Anthropic API |
-| Scope creep | Exception for "hooks with LLM integration" became pattern for all Python hooks |
-| Lost institutional knowledge | Future maintainers see exception, not original constraint |
+The broader issue is that ADR exceptions are structurally easier to create than to challenge. An exception adds a few lines to an ADR; challenging an exception requires understanding the original decision's full context. Chesterton's Fence analysis corrects this asymmetry by requiring that context to be documented before approval.
 
 ## Decision
 
-ADR exceptions require documented Chesterton's Fence analysis before approval.
+**ADR exceptions MUST include a Chesterton's Fence analysis before approval.**
 
-### Required Analysis
+The analysis MUST answer three questions:
 
-Every ADR exception request MUST document:
+1. **Why does the rule exist?** — Quote the original ADR rationale. Paraphrase is not acceptable.
+2. **Impact if removed?** — Document what breaks, degrades, or sets problematic precedent.
+3. **Alternatives tried?** — List at least two compliance attempts and their outcomes.
 
-| Element | Question | Purpose |
-|---------|----------|---------|
-| **Original Rationale** | Why does this ADR exist? | Prove understanding of the rule |
-| **Impact Assessment** | What breaks if we weaken this rule? | Surface hidden costs |
-| **Compliance Attempts** | What alternatives did we try first? | Verify exception is necessary |
-| **Scope Containment** | How do we prevent this exception from becoming the norm? | Limit precedent |
+Exceptions that do not include this analysis are rejected by the architect agent.
 
-### Exception Request Template
-
-```markdown
-## Exception Request: [ADR-NNN]
-
-### 1. Original Rationale
-[Why does ADR-NNN exist? Quote relevant sections.]
-
-### 2. Compliance Attempts
-| Approach | Result | Why Insufficient |
-|----------|--------|------------------|
-| [Attempt 1] | [Outcome] | [Reason] |
-| [Attempt 2] | [Outcome] | [Reason] |
-
-### 3. Impact Assessment
-- **Rule weakened how**: [Description]
-- **Technical debt introduced**: [Description]
-- **Precedent risk**: [How others might cite this exception]
-
-### 4. Scope Containment
-- **Exact scope**: [File paths, conditions]
-- **Expiration**: [Sunset condition or review date]
-- **Enforcement**: [How compliance will be verified]
-
-### 5. Decision
-[Accept/Reject with summary]
-```
-
-### Review Process
-
-1. Exception requests trigger mandatory architect agent review
-2. Architect verifies all four elements are documented
-3. Incomplete analysis blocks exception approval
-4. Approved exceptions are documented in the ADR's Exceptions section
-
-## Prior Art Investigation
-
-### What Currently Exists
-
-- **Structure/pattern being changed**: Informal ADR exception process where exceptions are requested in PRs and approved without structured analysis
-- **When introduced**: No formal process existed. Exceptions were handled ad hoc since ADR adoption
-- **Original author and context**: The informal process emerged organically as ADRs accumulated
-
-### Historical Rationale
-
-- **Why was it built this way?** No deliberate design. Exception handling was not addressed when the ADR process was established
-- **What alternatives were considered?** None documented. The absence of a formal exception process was an oversight, not a decision
-- **What constraints drove the design?** Early project phase prioritized shipping ADRs over governing exceptions
-
-### Why Change Now
-
-- **Has the original problem changed?** Yes. PR #908 (2026-01-14) demonstrated that informal exceptions lose architectural rationale and enable scope creep
-- **Is there a better solution now?** Yes. Chesterton's Fence analysis provides structured rigor without blocking legitimate exceptions
-- **What are the risks of change?** Low. Adds 10-15 minutes of documentation per exception request. No existing code changes required
+The analysis template and rejection criteria are documented in `.agents/governance/ADR-EXCEPTION-CRITERIA.md`.
 
 ## Rationale
 
@@ -125,98 +43,55 @@ Every ADR exception request MUST document:
 
 | Alternative | Pros | Cons | Why Not Chosen |
 |-------------|------|------|----------------|
-| Status quo (informal exceptions) | Fast, low friction | Loses rationale, enables shortcuts | PR #908 (2026-01-14) demonstrates failure mode |
-| Blanket prohibition (no exceptions) | Maximum enforcement | Inflexible, blocks legitimate needs | Exceptions exist for good reasons |
-| Architect approval only (no docs) | Adds oversight | Rationale lost after approval | Same problem as status quo |
-| Automated enforcement | Consistent | Cannot evaluate architectural judgment | Exceptions require human review |
+| **Status quo** (no analysis required) | No friction | PR #908 (2026-01-14) shows exceptions become informal; rationale lost | Rejected: PR #908 (2026-01-14) is concrete evidence of the failure mode |
+| **Blanket prohibition** (no exceptions ever) | Eliminates exception abuse | Inflexible; some exceptions are legitimate (e.g., PR #760 (2026-01-04) SkillForge, PR #908 (2026-01-14) Anthropic SDK) | Rejected: legitimate cases exist |
+| **Architect approval without documentation** | Faster approval | Loses rationale for future reference; approval authority leaves organization | Rejected: documentation is the point |
+| **Chesterton's Fence analysis (chosen)** | Forces understanding before exception; documents rationale for future maintainers; intentional friction discourages unnecessary exceptions | Slows exception process; requires effort | Accepted: friction is intentional and proportionate |
 
 ### Trade-offs
 
-**Friction vs Integrity**: This process adds 10-15 minutes to exception requests. This friction is intentional. If an exception is not worth 15 minutes of analysis, it is not worth the architectural debt it creates.
+**Intentional friction is a feature.** The extra documentation effort is designed to raise the cost of creating an unnecessary exception above the cost of complying with the original ADR. If compliance is genuinely impossible, the analysis should take 30 minutes. If compliance was never seriously attempted, the analysis will expose that.
 
-**Documentation vs Speed**: Complete analysis takes longer than "just approve it." The analysis serves future maintainers who will encounter the exception without original context.
+**Rubber stamp risk is mitigated by requiring direct quotes.** Requiring the original ADR rationale to be quoted (not paraphrased) means the requestor must actually read the decision. This is a lightweight but effective quality gate.
 
 ## Consequences
 
 ### Positive
 
-- Exceptions documented with full context
-- Future maintainers understand trade-offs
-- Reduces tactical violations disguised as exceptions
-- Forces compliance attempts before exceptions
-- Preserves ADR authority
+- Future exceptions include rationale that survives team turnover.
+- Exception requests that skip alternatives analysis are surfaced and rejected early.
+- ADR authority is preserved: exceptions document trade-offs rather than undermining rules silently.
+- PR #908 (2026-01-14) style informal exceptions are no longer accepted.
 
 ### Negative
 
-- Slows exception approval process (intentional)
-- Requires more upfront documentation
-- May be perceived as bureaucratic
+- Exception process takes longer (intentional).
+- Documentation burden increases for legitimate exceptions.
+- Some teams may perceive this as bureaucratic overhead.
 
 ### Neutral
 
-- Does not prevent legitimate exceptions
-- Analysis effort proportional to exception significance
+- Existing exceptions (PR #760 (2026-01-04) SkillForge, PR #908 (2026-01-14) Claude Code Hooks) are retroactively documented in `.agents/governance/ADR-EXCEPTION-CRITERIA.md` as examples. They remain valid.
 
 ## Implementation Notes
 
-### Enforcement
-
-The architect agent template includes:
-
-```markdown
-## ADR Exception Review Checklist
-
-Before approving any ADR exception:
-
-- [ ] Original rationale documented (quotes from ADR)
-- [ ] At least one compliance attempt documented
-- [ ] Impact assessment complete
-- [ ] Scope containment defined
-- [ ] Expiration or review date set
-```
-
-### Retroactive Application
-
-Existing exceptions (e.g., ADR-005 Python exceptions) do not require retroactive analysis. This ADR applies to future exception requests only.
-
-### Metrics
-
-Track exception approval rate before/after this ADR:
-
-- Baseline: Exceptions approved / exceptions requested
-- Target: 80% of requests include complete analysis within 90 days
-
-## Confirmation
-
-- Verification method: architect-agent checklist blocks approval when Chesterton's Fence analysis is incomplete
-- Evidence: exception request template includes four required elements with structured format
-- Acceptance criteria: all future ADR exception requests include documented Original Rationale, Compliance Attempts, Impact Assessment, and Scope Containment
-
-## Implementation Status
-
-- [ ] Architect agent template updated with exception review checklist
-- [x] Exception request template documented in this ADR
-- [x] Prior art investigation completed
-
-## Security Considerations
-
-No direct security impact. This ADR governs documentation process for architectural exceptions. Indirectly improves security posture by requiring impact assessment before weakening security-relevant ADRs.
+1. `.agents/governance/ADR-EXCEPTION-CRITERIA.md` — criteria document and exception template (this PR).
+2. `src/claude/architect.md` — exception validation checklist added to ADR Review section (this PR).
+3. Existing ADR-005 exceptions remain valid; no retroactive revocation.
 
 ## Related Decisions
 
-- ADR-005: PowerShell-Only Scripting Standard (example of exception without analysis)
-- ADR-042: Python Migration Strategy (superseded ADR-005)
-- ADR-033: Routing Level Enforcement Gates (gates prevent bypass)
+- [ADR-005](./ADR-005-powershell-only-scripting.md) — Motivating case (PR #908 (2026-01-14) exception)
+- [ADR-022](./ADR-022-architecture-governance-split-criteria.md) — Governance split criteria
+
+## Confirmation
+
+Compliance is verified through the architect agent review gate in CI. The gate checks that any PR containing an ADR exception includes the three required Chesterton's Fence questions answered. PRs missing the analysis receive a CRITICAL_FAIL verdict and cannot merge.
 
 ## References
 
-- `.agents/retrospective/2026-01-15-pr-908-comprehensive-retrospective.md` (lines 1341-1347)
-- Issue #938 (2026-01-15, criteria document)
-- Issue #947 (2026-01-15, this ADR)
-- [Chesterton's Fence](https://en.wikipedia.org/wiki/G._K._Chesterton#Chesterton's_fence) (principle)
-
----
-
-*Template Version: 1.0*
-*Created: 2026-02-19*
-*GitHub Issue: #947*
+- Issue #947 (2026-01-15)
+- Issue #938 (2026-01-15) (criteria document)
+- PR #908 (2026-01-14) (Claude Code Hooks exception, motivating incident)
+- PR #760 (2026-01-04) (SkillForge exception, positive example)
+- `.agents/governance/ADR-EXCEPTION-CRITERIA.md`
