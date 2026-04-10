@@ -8,6 +8,7 @@ those stale comments so they can be resolved or ignored.
 Exit codes follow ADR-035:
     0 - Success
     1 - Logic error
+    2 - Configuration error (plugin lib not found)
     3 - External error (API failure)
     4 - Auth error
 """
@@ -63,7 +64,6 @@ query($owner: String!, $name: String!, $prNumber: Int!) {
                             author {
                                 login
                             }
-                            body
                         }
                     }
                 }
