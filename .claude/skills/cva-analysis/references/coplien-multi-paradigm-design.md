@@ -1,5 +1,5 @@
 ---
-source: ~/Documents/Mobile/wiki/concepts/Design Principles/Commonality Variability Analysis.md
+source: wiki/concepts/Design Principles/Commonality Variability Analysis.md
 created: 2026-04-11
 review-by: 2026-07-11
 ---

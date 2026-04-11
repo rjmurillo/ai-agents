@@ -1,5 +1,5 @@
 ---
-source: /home/richard/Documents/Mobile/wiki/concepts/Design Principles/Separation of Concerns.md
+source: wiki/concepts/Design Principles/Separation of Concerns.md
 created: 2026-04-11
 review-by: 2026-07-11
 ---

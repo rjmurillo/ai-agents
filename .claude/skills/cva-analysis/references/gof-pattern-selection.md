@@ -1,5 +1,5 @@
 ---
-source: ~/Documents/Mobile/wiki/concepts/Design Principles/Wisdom from the Gang of Four.md, Pattern Oriented Design.md
+source: wiki/concepts/Design Principles/Wisdom from the Gang of Four.md, Pattern Oriented Design.md
 created: 2026-04-11
 review-by: 2026-07-11
 ---
