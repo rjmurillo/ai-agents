@@ -35,11 +35,11 @@
 
 | # | Name | Effort | Dependencies | Status |
 |---|------|--------|-------------|--------|
-| M0 | Probe Test (references/ auto-loading) | 1 hour | None | PENDING |
-| M1 | Baseline Measurement (5 skills, 30 prompts) | Half day | M0 | PENDING |
-| M2 | Resource Selection + Creation (20-30 files) | 2 days | M1 | PENDING |
-| M3 | After-Injection + Kill Gate | Half day | M2 | PENDING |
-| M4 | Scale Decision (contingent) | TBD | M3 pass | BLOCKED |
+| M0 | Probe Test (references/ auto-loading) | 1 hour | None | COMPLETE |
+| M1 | Baseline Measurement (5 skills, 30 prompts) | Half day | M0 | COMPLETE |
+| M2 | Resource Selection + Creation (22 files) | 2 days | M1 | COMPLETE |
+| M3 | After-Injection + Kill Gate | Half day | M2 | COMPLETE (PROCEED) |
+| M4 | Scale Decision (contingent) | TBD | M3 pass | READY |
 
 Critical path: M0 + M1 + M2 + M3 = 3 days to kill gate.
 
@@ -58,6 +58,7 @@ Critical path: M0 + M1 + M2 + M3 = 3 days to kill gate.
 |------|--------|-------|
 | 2026-04-11 | Created spec, plan, and task breakdown. Resolved 4 open questions. Expanded scope to 3 sources (wiki + Osmani + gstack). | orchestrator |
 | 2026-04-11 | /autoplan review: CEO (6/6 consensus), Eng (4/6), DX (5/5). Plan revised from bulk import (283 files) to proof-first (20-30 files with kill gate). Key fixes: references/ not resources/, agents removed from target list, M0 probe test added, summarization methodology required before M2, naming conventions and size enforcement added. 15 auto-decisions, 1 user challenge resolved. | autoplan |
+| 2026-04-11 | M0-M3 complete. 22 reference files created across 5 skills. Kill gate PROCEED: +1.6 avg delta, 5/5 skills improved, 0 regressions. Biggest impact: golden-principles (+2.5, from scope-mismatched 2.2 to functional 4.7). PR #1614 open. Phase 2 (scale to remaining content) now READY. | implementer |
 
 ## Blockers
 
