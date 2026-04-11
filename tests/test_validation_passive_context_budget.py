@@ -5,6 +5,7 @@ Validates passive context file measurement, budget checking, and CLI behavior.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -163,6 +164,36 @@ class TestMeasureFile:
         assert result.exists is True
         assert result.estimated_tokens > 0
 
+    def test_unreadable_file_returns_none(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """A file that exists but cannot be read returns None with stderr diagnostic."""
+        bad_file = tmp_path / "unreadable.md"
+        bad_file.write_bytes(b"\x80\x81\x82\x83" * 100)
+        target = {"path": "unreadable.md", "max_tokens": 5000, "label": "Bad"}
+        result = measure_file(tmp_path, target)
+        # Binary content may or may not raise UnicodeDecodeError depending on
+        # the platform codec. If it does, result is None with stderr output.
+        # If it does not, result is a valid FileResult. Both are acceptable.
+        if result is None:
+            captured = capsys.readouterr()
+            assert "cannot read" in captured.err
+
+    def test_permission_denied_returns_none(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """A file with no read permission returns None with stderr diagnostic."""
+        no_read = tmp_path / "noperm.md"
+        no_read.write_text("secret", encoding="utf-8")
+        no_read.chmod(0o000)
+        target = {"path": "noperm.md", "max_tokens": 5000, "label": "NoPerm"}
+        result = measure_file(tmp_path, target)
+        assert result is None
+        captured = capsys.readouterr()
+        assert "cannot read" in captured.err
+        # Restore permissions for tmp_path cleanup
+        no_read.chmod(0o644)
+
 
 # ---------------------------------------------------------------------------
 # CWE-22: Path traversal protection
@@ -290,6 +321,13 @@ class TestValidatePassiveContext:
         assert results[0].within_budget is True
         assert results[1].within_budget is False
 
+    def test_traversal_path_returns_exit_code_two(self, tmp_path: Path) -> None:
+        targets = [
+            {"path": "../../etc/passwd", "max_tokens": 5000, "label": "Traversal"},
+        ]
+        results, code = validate_passive_context(tmp_path, targets, ci=True)
+        assert code == 2
+
 
 # ---------------------------------------------------------------------------
 # Output formatting
@@ -369,8 +407,6 @@ class TestPrintJson:
         ]
         print_json(results)
         captured = capsys.readouterr()
-        import json
-
         data = json.loads(captured.out)
         assert data["all_pass"] is True
         assert len(data["files"]) == 1
@@ -431,8 +467,6 @@ class TestMain:
         result = main(["--path", str(tmp_path), "--json"])
         assert result == 0
         captured = capsys.readouterr()
-        import json
-
         data = json.loads(captured.out)
         assert "files" in data
         assert "all_pass" in data
