@@ -16,4 +16,6 @@
 | error message investigate tool output infra flag classification handler | [ci/ci-infrastructure-004-error-message-investigation](ci/ci-infrastructure-004-error-message-investigation.md) |
 | dorny paths-filter checkout fetch-depth base ref PR diff sparse | [ci/ci-infrastructure-dorny-paths-filter-checkout](ci/ci-infrastructure-dorny-paths-filter-checkout.md) |
 | CodeQL code_scanning ruleset required_status_checks SARIF upload skip analysis merge blocked friction | [ci/ci-infrastructure-codeql-ruleset-friction](ci/ci-infrastructure-codeql-ruleset-friction.md) |
+| renovate concurrency race cancel-in-progress bot skip validation cancelled check branch protection | [ci/renovate-concurrency-race-condition](ci/renovate-concurrency-race-condition.md) |
+| CI sidecar learnings pre-existing bug main branch failure misattribution | [ci-infrastructure-observations](ci-infrastructure-observations.md) |
 | copilot-cli frontmatter regression agent model argument-hint version pin auto-update diagnostic runbook | [copilot/copilot-cli-frontmatter-regression-runbook](copilot/copilot-cli-frontmatter-regression-runbook.md) |

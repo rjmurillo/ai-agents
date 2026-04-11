@@ -10,3 +10,4 @@
 | index selection domain routing keyword overlap create new | [documentation/documentation-index-selection-decision-tree](documentation/documentation-index-selection-decision-tree.md) |
 | verification critic amnesiac completeness objective PASS FAIL protocol | [documentation/documentation-verification-protocol](documentation/documentation-verification-protocol.md) |
 | framework constraints limitations pull push SKILL.md automatic invocation | [documentation/documentation-008-framework-constraints](documentation/documentation-008-framework-constraints.md) |
+| documentation link requirement URL reference all agents artifacts | [documentation-link-requirement](documentation-link-requirement.md) |

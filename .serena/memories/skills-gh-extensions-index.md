@@ -10,3 +10,4 @@
 | sub-issue child parent hierarchy link task breakdown nested | [github/gh-extensions-sub-issue](github/gh-extensions-sub-issue.md) |
 | extension install upgrade remove list maintenance version | [github/gh-extensions-maintenance](github/gh-extensions-maintenance.md) |
 | interactive TUI prompt agent anti-pattern avoid pitfall | [github/gh-extensions-anti-patterns](github/gh-extensions-anti-patterns.md) |
+| evaluation selection criteria assessment useful extensions AI agent | [gh-extensions-evaluation](gh-extensions-evaluation.md) |
