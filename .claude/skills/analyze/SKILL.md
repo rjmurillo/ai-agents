@@ -68,6 +68,7 @@ Use direct code reading instead when:
 - [Tell, Don't Ask](references/design-tell-dont-ask.md) - Detect feature envy and getter chain code smells
 - [Boy Scout Rule](references/quality-boy-scout-rule.md) - Scope improvement recommendations by size
 - [Observability Pillars](references/reliability-observability-pillars.md) - Logs, metrics, traces for investigation methodology
+- [Engineering Complexity Tiers](references/engineering-complexity-tiers.md) - Classify components by tier, evaluate pattern appropriateness
 
 ---
 
