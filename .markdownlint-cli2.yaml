@@ -137,3 +137,12 @@ ignores:
   # CLAUDE.md files are managed by the claude-mem plugin which prepends <claude-mem-context>
   # HTML tags, violating MD033 and MD041. These are tool-managed metadata, not authored markdown.
   - "**/CLAUDE.md"
+
+  # New lifecycle command files have only YAML frontmatter, no H1 heading. MD041 not applicable.
+  # Only the 6 new lifecycle commands are excluded; other command files retain full linting.
+  - ".claude/commands/spec.md"
+  - ".claude/commands/plan.md"
+  - ".claude/commands/build.md"
+  - ".claude/commands/test.md"
+  - ".claude/commands/review.md"
+  - ".claude/commands/ship.md"

@@ -4,13 +4,13 @@ version: 1.0.0
 model: claude-sonnet-4-5
 license: MIT
 description: |
-  Numbered workflow commands for structured agent orchestration.
-  Implements the MoAI-ADK inspired pipeline: /0-init → /1-plan → /2-impl → /3-qa → /4-security.
+  DEPRECATED: Workflow commands replaced by lifecycle commands (/spec, /plan, /build, /test, /review, /ship).
+  Scripts in this directory may still be referenced. Use lifecycle commands for new work.
 ---
 
-# Workflow Orchestration Skill
+# Workflow Orchestration Skill (DEPRECATED)
 
-Numbered workflow commands for structured agent orchestration. Implements the MoAI-ADK inspired pipeline: `/0-init → /1-plan → /2-impl → /3-qa → /4-security`.
+This skill is deprecated. The numbered workflow commands (`/0-init` through `/4-security`) have been replaced by lifecycle commands: `/spec`, `/plan`, `/build`, `/test`, `/review`, `/ship`. Scripts in this directory may still be referenced by other skills.
 
 ## Triggers
 
