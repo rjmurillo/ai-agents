@@ -6,7 +6,7 @@ argument-hint: [target-branch]
 
 @CLAUDE.md
 
-Invoke the pipeline-validator and validate-pr-description skills.
+Invoke the pipeline-validator skill.
 
 Ship the current branch: $ARGUMENTS
 
@@ -30,8 +30,8 @@ Pre-flight checks (all must pass):
 
 1. Run pre-flight checks (all 5 above)
 2. If any check fails: report what failed, why, and how to fix. Stop.
-3. If all pass: validate PR description (invoke validate-pr-description skill)
-4. Create PR via /push-pr delegation (invoke Skill tool with push-pr)
+3. If all pass: validate PR description (run /validate-pr-description command)
+4. Create PR via /push-pr command
 5. Report: what shipped, PR link, any warnings
 
 ## Output
