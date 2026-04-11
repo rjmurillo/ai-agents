@@ -4,7 +4,7 @@ description: Optimize system prompts for Claude Code agents using proven prompt 
 license: MIT
 metadata:
 version: 1.0.0
-model: claude-sonnet-4-5
+model: claude-sonnet-4-6
 ---
 
 # Prompt Optimizer
