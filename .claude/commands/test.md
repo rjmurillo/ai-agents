@@ -1,6 +1,6 @@
 ---
 description: Prove it works. Multi-dimensional quality validation across functional, non-functional, security, DevOps, DX, and observability. Run after /build.
-allowed-tools: Task, Skill, Read, Glob, Grep, Bash(git diff:*), Bash(git status:*), Bash(git log:*), Bash(python3:*), Bash(pytest:*), Bash(npm test:*), Bash(uv:*), Bash(pester:*)
+allowed-tools: Task, Skill, Read, Glob, Grep, Bash(git diff:*), Bash(git status:*), Bash(git log:*), Bash(gh:*), Bash(python3:*), Bash(pytest:*), Bash(npm test:*), Bash(uv:*), Bash(pester:*)
 argument-hint: [component-or-failure-description]
 ---
 
@@ -12,7 +12,7 @@ If $ARGUMENTS is empty, test the current branch diff against the base branch.
 
 ## Step 0: Classify PR Type
 
-Run `git diff origin/main --name-only` and classify changed files:
+Detect the base branch from `gh pr view --json baseRefName` or fall back to `main`. Run `git diff origin/<base-branch> --name-only` and classify changed files:
 
 | Type | Patterns | Gates to Run |
 |------|----------|--------------|
