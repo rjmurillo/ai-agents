@@ -42,7 +42,11 @@ def _load_api_key() -> str:
                     continue
                 k, v = line.split("=", 1)
                 if k.strip() == "ANTHROPIC_API_KEY":
-                    return v.strip()
+                    v = v.strip()
+                    # Strip matching surrounding quotes (single or double)
+                    if len(v) >= 2 and v[0] == v[-1] and v[0] in ('"', "'"):
+                        v = v[1:-1]
+                    return v
         search = search.parent
 
     print("ERROR: ANTHROPIC_API_KEY not found in environment or .env", file=sys.stderr)
