@@ -246,8 +246,15 @@ Respond in JSON only, no other text:
 # ---------------------------------------------------------------------------
 
 def apply_kill_gate(results: dict[str, Any]) -> dict[str, Any]:
-    """Apply kill gate: enhanced must beat baseline by >= 0.5 avg across dimensions."""
-    gate = {"passed": True, "failures": [], "summary": {}}
+    """Apply kill gate per plan criteria:
+    - PROCEED: at least 4 of 5 skills show improvement >= 0.5 with no skill regressing
+    - CONDITIONAL: 3 of 5 skills improve >= 0.5, proceed only for improving skills
+    - STOP: fewer than 3 skills improve >= 0.5 OR any skill regresses
+    """
+    gate = {"passed": True, "verdict": "PROCEED", "failures": [], "summary": {}}
+
+    skills_passing = 0
+    skills_regressing = []
 
     for skill, data in results.items():
         baseline_avg = _avg_scores(data.get("baseline", []))
@@ -255,18 +262,41 @@ def apply_kill_gate(results: dict[str, Any]) -> dict[str, Any]:
         delta = {dim: enhanced_avg[dim] - baseline_avg[dim] for dim in baseline_avg}
         overall_delta = sum(delta.values()) / len(delta) if delta else 0
 
+        passed_threshold = overall_delta >= 0.5
+        regressed = overall_delta < 0
+
         skill_result = {
             "baseline_avg": baseline_avg,
             "enhanced_avg": enhanced_avg,
             "delta": delta,
             "overall_delta": round(overall_delta, 2),
-            "passed": overall_delta >= 0.5,
+            "passed": passed_threshold,
+            "regressed": regressed,
         }
         gate["summary"][skill] = skill_result
 
-        if not skill_result["passed"]:
-            gate["passed"] = False
+        if passed_threshold:
+            skills_passing += 1
+        if regressed:
+            skills_regressing.append(skill)
+            gate["failures"].append(f"{skill}: REGRESSED with delta {overall_delta:.2f}")
+        elif not passed_threshold:
             gate["failures"].append(f"{skill}: delta {overall_delta:.2f} < 0.5 threshold")
+
+    total_skills = len(results)
+
+    if skills_regressing:
+        gate["passed"] = False
+        gate["verdict"] = "STOP"
+    elif skills_passing >= 4 or (total_skills < 5 and skills_passing >= total_skills - 1):
+        gate["passed"] = True
+        gate["verdict"] = "PROCEED"
+    elif skills_passing >= 3:
+        gate["passed"] = True
+        gate["verdict"] = "CONDITIONAL"
+    else:
+        gate["passed"] = False
+        gate["verdict"] = "STOP"
 
     return gate
 
@@ -442,8 +472,8 @@ def main() -> None:
 
     # Print summary table
     print(f"\n{'='*70}", file=sys.stderr)
-    print(f"  KILL GATE: {'PASS' if gate['passed'] else 'FAIL'}", file=sys.stderr)
-    print(f"  Threshold: enhanced must beat baseline by >= 0.5 avg", file=sys.stderr)
+    print(f"  KILL GATE: {gate['verdict']} ({'PASS' if gate['passed'] else 'FAIL'})", file=sys.stderr)
+    print(f"  Criteria: PROCEED=4/5 pass (no regression), CONDITIONAL=3/5, STOP=<3 or regression", file=sys.stderr)
     print(f"{'='*70}", file=sys.stderr)
     print(f"  {'Skill':<20} {'Baseline':>10} {'Enhanced':>10} {'Delta':>10} {'Status':>8}", file=sys.stderr)
     print(f"  {'-'*58}", file=sys.stderr)
@@ -451,7 +481,12 @@ def main() -> None:
         b = sum(summary["baseline_avg"].values()) / 3
         e = sum(summary["enhanced_avg"].values()) / 3
         d = summary["overall_delta"]
-        status = "PASS" if summary["passed"] else "FAIL"
+        if summary.get("regressed"):
+            status = "REGRESS"
+        elif summary["passed"]:
+            status = "PASS"
+        else:
+            status = "BELOW"
         print(f"  {skill:<20} {b:>10.2f} {e:>10.2f} {d:>10.2f} {status:>8}", file=sys.stderr)
     print(f"{'='*70}", file=sys.stderr)
 
