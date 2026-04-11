@@ -39,11 +39,13 @@ tool as your FIRST action. Do NOT answer directly, do NOT use other tools first.
 The skill has specialized workflows that produce better results than ad-hoc answers.
 
 Key routing rules:
-- Bugs, errors, "why is this broken", 500 errors → invoke analyze
-- Ship, deploy, push, create PR → invoke github
-- QA, test the site, find bugs → invoke qa (subagent_type)
-- Code review, check my diff → invoke pr-comment-responder
+- Define requirements, "what should we build" → invoke spec
+- Plan work, break down tasks, estimate → invoke plan
+- Implement, code, build features → invoke build
+- Test, prove it works, debug failures → invoke test
+- Review code, check my diff → invoke review
+- Ship, deploy, push, create PR → invoke ship
+- Bugs, errors, "why is this broken" → invoke analyze
 - Weekly retro → invoke reflect
-- Architecture review → invoke analyze
-- Save progress, checkpoint, resume → invoke session-end
+- Save progress, checkpoint → invoke session-end
 - Code quality, health check → invoke quality-grades

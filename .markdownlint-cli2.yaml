@@ -137,3 +137,6 @@ ignores:
   # CLAUDE.md files are managed by the claude-mem plugin which prepends <claude-mem-context>
   # HTML tags, violating MD033 and MD041. These are tool-managed metadata, not authored markdown.
   - "**/CLAUDE.md"
+
+  # Slash command files have YAML frontmatter, not headings. MD041 not applicable.
+  - ".claude/commands/**"
