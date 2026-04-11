@@ -1,6 +1,6 @@
 ---
 description: Prove it works. Multi-dimensional quality validation across functional, non-functional, security, DevOps, DX, and observability. Run after /build.
-allowed-tools: Task, Skill, Read, Glob, Grep, Bash(git diff:*), Bash(git status:*), Bash(git log:*), Bash(gh:*), Bash(python3:*), Bash(pytest:*), Bash(npm test:*), Bash(uv:*), Bash(pester:*)
+allowed-tools: Task, Skill, Read, Glob, Grep, Bash(git diff:*), Bash(git status:*), Bash(git log:*), Bash(gh:*), Bash(python3:*), Bash(pytest:*), Bash(npm test:*), Bash(uv:*), Bash(pwsh:*)
 argument-hint: [component-or-failure-description]
 ---
 

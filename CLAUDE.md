@@ -53,5 +53,5 @@ For development lifecycle phases, use these slash commands (not skills):
 - Plan work, break down tasks, estimate → /plan
 - Implement, code, build features → /build
 - Test, prove it works, debug failures → /test
-- Review code, check my diff → /review
+- Review code, check my diff, architecture review → /review
 - Ship, deploy, push, create PR → /ship
