@@ -39,13 +39,19 @@ tool as your FIRST action. Do NOT answer directly, do NOT use other tools first.
 The skill has specialized workflows that produce better results than ad-hoc answers.
 
 Key routing rules:
-- Define requirements, "what should we build" → invoke spec
-- Plan work, break down tasks, estimate → invoke plan
-- Implement, code, build features → invoke build
-- Test, prove it works, debug failures → invoke test
-- Review code, check my diff → invoke review
-- Ship, deploy, push, create PR → invoke ship
-- Bugs, errors, "why is this broken" → invoke analyze
-- Weekly retro → invoke reflect
-- Save progress, checkpoint → invoke session-end
-- Code quality, health check → invoke quality-grades
+- Bugs, errors, "why is this broken" → invoke analyze skill
+- PRs, issues, GitHub operations → invoke github skill
+- PR review threads, comment triage → invoke pr-comment-responder skill
+- Weekly retro → invoke reflect skill
+- Save progress, checkpoint → invoke session-end skill
+- Code quality, health check → invoke quality-grades skill
+
+## Lifecycle commands
+
+For development lifecycle phases, use these slash commands (not skills):
+- Define requirements, "what should we build" → /spec
+- Plan work, break down tasks, estimate → /plan
+- Implement, code, build features → /build
+- Test, prove it works, debug failures → /test
+- Review code, check my diff → /review
+- Ship, deploy, push, create PR → /ship

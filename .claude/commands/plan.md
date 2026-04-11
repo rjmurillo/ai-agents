@@ -4,6 +4,8 @@ allowed-tools: Task, Skill, Read, Glob, Grep
 argument-hint: [spec-output-or-issue-number]
 ---
 
+@CLAUDE.md
+
 Invoke the planner and execution-plans skills.
 
 Plan how to build: $ARGUMENTS

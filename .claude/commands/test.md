@@ -1,8 +1,10 @@
 ---
 description: Prove it works. Run layered tests and debug failures with hypothesis-driven investigation. Run after /build.
-allowed-tools: Task, Skill, Read, Glob, Grep, Bash(git diff:*), Bash(git status:*), Bash(python3:*), Bash(pytest:*), Bash(npm test:*)
+allowed-tools: Task, Skill, Read, Write, Edit, Glob, Grep, Bash(git diff:*), Bash(git status:*), Bash(python3:*), Bash(pytest:*), Bash(npm test:*)
 argument-hint: [component-or-failure-description]
 ---
+
+@CLAUDE.md
 
 Invoke the code-qualities-assessment and quality-grades skills.
 

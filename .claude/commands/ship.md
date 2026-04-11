@@ -4,6 +4,8 @@ allowed-tools: Task, Skill, Read, Glob, Grep, Bash(git diff:*), Bash(git log:*),
 argument-hint: [target-branch]
 ---
 
+@CLAUDE.md
+
 Invoke the pipeline-validator and validate-pr-description skills.
 
 Ship the current branch: $ARGUMENTS

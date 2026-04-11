@@ -4,6 +4,8 @@ allowed-tools: Task, Skill, Read, Glob, Grep
 argument-hint: [problem-statement-or-issue-number]
 ---
 
+@CLAUDE.md
+
 Invoke the cva-analysis and decision-critic skills.
 
 Define what to build for: $ARGUMENTS
