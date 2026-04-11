@@ -202,9 +202,9 @@ def _call_api(api_key: str, messages: list[dict], system: str = "", model: str =
         with urllib.request.urlopen(req, timeout=120) as resp:
             result = json.loads(resp.read().decode())
     except urllib.error.HTTPError as e:
-        body = e.read().decode(errors="replace")
+        error_body = e.read().decode(errors="replace")
         raise RuntimeError(
-            f"Anthropic API returned {e.code}: {body[:500]}"
+            f"Anthropic API returned {e.code}: {error_body[:500]}"
         ) from e
 
     # Extract text from content blocks
@@ -260,10 +260,10 @@ Respond in JSON only, no other text:
 # ---------------------------------------------------------------------------
 
 def apply_kill_gate(results: dict[str, Any]) -> dict[str, Any]:
-    """Apply kill gate per plan criteria:
-    - PROCEED: at least 4 of 5 skills show improvement >= 0.5 with no skill regressing
-    - CONDITIONAL: 3 of 5 skills improve >= 0.5, proceed only for improving skills
-    - STOP: median improvement <= 0 OR fewer than 3 skills improve >= 0.5
+    """Apply kill gate per plan criteria (scales proportionally):
+    - PROCEED: at least 80% of skills show improvement >= 0.5 with no skill regressing
+    - CONDITIONAL: 60% of skills improve >= 0.5, proceed only for improving skills
+    - STOP: fewer than 60% of skills improve >= 0.5
     """
     gate = {"passed": True, "verdict": "PROCEED", "failures": [], "summary": {}}
 
@@ -300,14 +300,17 @@ def apply_kill_gate(results: dict[str, Any]) -> dict[str, Any]:
     total_skills = len(results)
     has_regressions = len(skills_regressing) > 0
 
-    if skills_passing >= 4 or (total_skills < 5 and skills_passing >= max(1, total_skills - 1)):
+    proceed_threshold = max(1, int(total_skills * 0.8))
+    conditional_threshold = max(1, int(total_skills * 0.6))
+
+    if skills_passing >= proceed_threshold:
         if has_regressions:
             gate["passed"] = True
             gate["verdict"] = "CONDITIONAL"
         else:
             gate["passed"] = True
             gate["verdict"] = "PROCEED"
-    elif skills_passing >= 3:
+    elif skills_passing >= conditional_threshold:
         gate["passed"] = True
         gate["verdict"] = "CONDITIONAL"
     else:
