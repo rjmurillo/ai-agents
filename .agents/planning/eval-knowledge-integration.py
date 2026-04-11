@@ -286,7 +286,7 @@ def apply_kill_gate(results: dict[str, Any]) -> dict[str, Any]:
     total_skills = len(results)
     has_regressions = len(skills_regressing) > 0
 
-    if skills_passing >= 4 or (total_skills < 5 and skills_passing >= total_skills - 1):
+    if skills_passing >= 4 or (total_skills < 5 and skills_passing >= max(1, total_skills - 1)):
         if has_regressions:
             gate["passed"] = True
             gate["verdict"] = "CONDITIONAL"
