@@ -9,7 +9,6 @@ Usage:
 """
 
 import json
-from pathlib import Path
 
 SKILLS = ["cva-analysis", "decision-critic", "golden-principles", "threat-modeling", "analyze"]
 
@@ -89,8 +88,3 @@ PROMPTS = {
 if __name__ == "__main__":
     output = {"skills": SKILLS, "prompts": PROMPTS, "total_prompts": 30}
     print(json.dumps(output, indent=2))
-
-    # Also write to file
-    out_path = Path(__file__).parent / "quality-eval-prompts.json"
-    out_path.write_text(json.dumps(output, indent=2))
-    print(f"\nWritten to {out_path}", file=__import__("sys").stderr)
