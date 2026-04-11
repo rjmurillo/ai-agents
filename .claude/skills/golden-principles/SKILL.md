@@ -110,6 +110,14 @@ After execution:
 - [ ] Exit code matches violation state
 - [ ] Output format matches --format flag
 
+## References
+
+- [Code Qualities](references/design-code-qualities.md) - Five foundational qualities: cohesion, coupling, non-redundancy, encapsulation, testability
+- [SOLID Principles](references/design-solid-principles.md) - SRP, OCP, LSP, ISP, DIP with violation signs and code examples
+- [Programming by Intention](references/design-programming-by-intention.md) - Sergeant pattern for expressing intent over implementation
+- [Separation of Concerns](references/design-separation-of-concerns.md) - Decomposition at method, class, layer, and service levels
+- [DRY Principle](references/design-dry-principle.md) - Single authoritative representation with scope, violations, and when NOT to DRY
+
 ## Cross-References
 
 - [Golden Principles Document](.agents/governance/golden-principles.md)
