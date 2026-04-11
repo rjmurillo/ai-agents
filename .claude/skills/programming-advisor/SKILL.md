@@ -441,3 +441,5 @@ See [references/common-solutions.md](references/common-solutions.md) for exhaust
 See [references/integration-patterns.md](references/integration-patterns.md) for project detection and starter code patterns.
 
 See [references/pricing-data.md](references/pricing-data.md) for SaaS pricing and cost calculation data.
+
+See [references/bitter-lesson-llms.md](references/bitter-lesson-llms.md) for why simpler integrations with better models beat complex scaffolding.

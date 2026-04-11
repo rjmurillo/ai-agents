@@ -174,3 +174,5 @@ After optimization:
 - [prompt-engineering-single-turn.md](references/prompt-engineering-single-turn.md) - Single-turn patterns
 - [prompt-engineering-multi-turn.md](references/prompt-engineering-multi-turn.md) - Multi-turn patterns
 - [workflow.md](references/workflow.md) - Detailed phase workflows and card template
+- [prompting-anti-patterns.md](references/prompting-anti-patterns.md) - Anti-pattern catalog with effective replacements
+- [prompting-ai-detection-cliff.md](references/prompting-ai-detection-cliff.md) - AI detection cliff and why more rules increase detectability

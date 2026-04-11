@@ -99,6 +99,7 @@ Skills create decision points where agents must choose whether to retrieve docum
 - Analysis: `.agents/analysis/vercel-passive-context-vs-skills-research.md`
 - Memory: `passive-context-vs-skills-vercel-research`
 - Decision framework: `SKILL-QUICK-REF.md` (see the "Decision Framework" section)
+- [vibe-engineering.md](references/vibe-engineering.md) - 7-step agent interaction protocol for structured context optimization
 
 ## Related
 

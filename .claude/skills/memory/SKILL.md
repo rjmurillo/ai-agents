@@ -257,6 +257,7 @@ What do you need?
 | [troubleshooting.md](references/troubleshooting.md) | Error recovery |
 | [benchmarking.md](references/benchmarking.md) | Performance targets |
 | [agent-integration.md](references/agent-integration.md) | Multi-agent patterns |
+| [zettelkasten-memory-agents.md](references/zettelkasten-memory-agents.md) | Atomic memory principle and auto-linking |
 
 ---
 
