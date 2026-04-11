@@ -4,7 +4,7 @@ description: Interactive planning and execution for complex tasks. Use when brea
 license: MIT
 metadata:
 version: 1.0.0
-model: claude-opus-4-5
+model: claude-opus-4-6
 ---
 
 # Planner Skill

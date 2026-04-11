@@ -1,7 +1,7 @@
 ---
 name: golden-principles
 version: 1.0.0
-model: claude-sonnet-4-5
+model: claude-sonnet-4-6
 description: Scan repository for golden principle violations with agent-readable remediation. Enforces GP-001 through GP-008 from .agents/governance/golden-principles.md. Use when auditing compliance, preparing PRs, or running garbage collection scans.
 license: MIT
 ---

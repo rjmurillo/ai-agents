@@ -4,7 +4,7 @@ description: Architectural analysis workflow using Serena symbols and Forgetful 
 license: MIT
 metadata:
 version: 1.0.0
-model: claude-opus-4-5
+model: claude-opus-4-6
 ---
 
 # Architectural Analysis with Serena + Forgetful

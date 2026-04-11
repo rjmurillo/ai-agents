@@ -4,7 +4,7 @@ description: Guidance for deep knowledge graph traversal across memories, entiti
 license: MIT
 metadata:
 version: 1.0.0
-model: claude-sonnet-4-5
+model: claude-sonnet-4-6
 ---
 
 # Exploring the Knowledge Graph

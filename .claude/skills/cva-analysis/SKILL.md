@@ -2,7 +2,7 @@
 name: cva-analysis
 version: 1.0.0
 description: Systematic abstraction discovery using Commonality Variability Analysis. Build matrix of what varies vs what's constant, then let patterns emerge. Prevents wrong abstractions by deferring pattern selection until requirements are analyzed. Use when facing multiple similar requirements and need to discover natural abstractions.
-model: claude-sonnet-4-5
+model: claude-sonnet-4-6
 license: MIT
 metadata:
   tier: 3

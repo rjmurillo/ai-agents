@@ -4,7 +4,7 @@ description: Guidance for using Serena's LSP-powered symbol analysis. Use when e
 license: MIT
 metadata:
 version: 1.0.0
-model: claude-sonnet-4-5
+model: claude-sonnet-4-6
 ---
 
 # Using Serena Symbol Analysis

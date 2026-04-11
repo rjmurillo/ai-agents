@@ -4,7 +4,7 @@ version: 1.1.0
 description: Systematically populate the Forgetful knowledge base using Serena's LSP-powered
   symbol analysis for accurate, comprehensive codebase understanding.
 license: MIT
-model: claude-sonnet-4-5
+model: claude-sonnet-4-6
 metadata:
   argument-hint: 'Project path or name to encode (default: current directory)'
 ---

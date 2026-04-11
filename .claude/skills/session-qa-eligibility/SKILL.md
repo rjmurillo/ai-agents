@@ -3,7 +3,7 @@ name: session-qa-eligibility
 description: Check investigation session QA skip eligibility per ADR-034. Validates if staged files qualify for investigation-only exemption by checking against allowed paths (.agents/sessions/, .agents/analysis/, .serena/memories/, etc).
 version: 1.0.0
 license: MIT
-model: claude-sonnet-4-5
+model: claude-sonnet-4-6
 ---
 
 # Session QA Eligibility

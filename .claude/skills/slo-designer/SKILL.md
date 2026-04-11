@@ -1,7 +1,7 @@
 ---
 name: slo-designer
 version: 1.0.0
-model: claude-sonnet-4-5
+model: claude-sonnet-4-6
 description: Design Service Level Objectives (SLOs) with SLIs, targets, alerting thresholds, and error budget calculations following Google SRE best practices. Use when defining reliability targets, designing SLOs, calculating error budgets, or establishing service level indicators.
 license: MIT
 metadata:

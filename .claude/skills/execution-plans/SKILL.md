@@ -1,7 +1,7 @@
 ---
 name: execution-plans
 version: 1.0.0
-model: claude-sonnet-4-5
+model: claude-sonnet-4-6
 description: Manage execution plans as versioned artifacts with progress tracking and decision logs. Use when creating, updating, or archiving plans for complex multi-step work.
 license: MIT
 ---

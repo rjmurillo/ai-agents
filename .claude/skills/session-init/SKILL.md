@@ -3,7 +3,7 @@ name: session-init
 description: Create protocol-compliant JSON session logs with verification-based enforcement. Autonomous operation with auto-incremented session numbers and objective derivation from git state. Use when starting any new session.
 version: 1.0.0
 license: MIT
-model: claude-sonnet-4-5
+model: claude-sonnet-4-6
 metadata:
   domains:
     - session-protocol

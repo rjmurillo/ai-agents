@@ -4,7 +4,7 @@ description: Synchronizes CLAUDE.md navigation indexes and README.md architectur
 license: MIT
 metadata:
 version: 1.0.0
-model: claude-sonnet-4-5
+model: claude-sonnet-4-6
 ---
 
 # Doc Sync

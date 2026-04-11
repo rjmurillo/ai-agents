@@ -5,7 +5,7 @@ description: Unified four-tier memory system for AI agents. Tier 1 Semantic (Ser
   search), Tier 2 Episodic (session replay), Tier 3 Causal (decision patterns). Enables
   memory-first architecture per ADR-007.
 license: MIT
-model: claude-sonnet-4-5
+model: claude-sonnet-4-6
 metadata:
   adr: ADR-037, ADR-038
   timelessness: 8/10

@@ -6,7 +6,7 @@ description: PR review coordinator who gathers comment context, acknowledges eve
   Triages by actionability, tracks thread conversations, and maps each comment to
   resolution status. Use when handling PR feedback, review threads, or bot comments.
 license: MIT
-model: claude-sonnet-4-5
+model: claude-sonnet-4-6
 metadata:
   argument-hint: Specify the PR number or review comments to address
 ---

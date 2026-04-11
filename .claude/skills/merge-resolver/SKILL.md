@@ -3,7 +3,7 @@ name: merge-resolver
 version: 2.1.0
 description: Resolve merge conflicts by analyzing git history and commit intent. Handles PR conflicts, branch conflicts, and session file conflicts with automated resolution for known patterns.
 license: MIT
-model: claude-opus-4-5
+model: claude-opus-4-6
 metadata:
   domains:
   - git
