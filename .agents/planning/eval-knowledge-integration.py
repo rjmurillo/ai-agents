@@ -413,8 +413,12 @@ def main() -> None:
     parser.add_argument("--output", type=str, help="Write results to file instead of stdout")
     args = parser.parse_args()
 
-    api_key = _load_api_key()
-    print(f"API key loaded (length: {len(api_key)})", file=sys.stderr)
+    # Only load API key when not in dry-run mode (API key is never used during dry-run)
+    if args.dry_run:
+        api_key = ""
+    else:
+        api_key = _load_api_key()
+        print(f"API key loaded (length: {len(api_key)})", file=sys.stderr)
 
     # Determine which skills to eval
     if args.skill:
