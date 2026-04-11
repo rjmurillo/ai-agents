@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import sys
 import time
@@ -300,8 +301,8 @@ def apply_kill_gate(results: dict[str, Any]) -> dict[str, Any]:
     total_skills = len(results)
     has_regressions = len(skills_regressing) > 0
 
-    proceed_threshold = max(1, int(total_skills * 0.8))
-    conditional_threshold = max(1, int(total_skills * 0.6))
+    proceed_threshold = max(1, math.ceil(total_skills * 0.8))
+    conditional_threshold = max(1, math.ceil(total_skills * 0.6))
 
     if skills_passing >= proceed_threshold:
         if has_regressions:
