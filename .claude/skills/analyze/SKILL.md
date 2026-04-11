@@ -69,6 +69,8 @@ Use direct code reading instead when:
 - [Boy Scout Rule](references/quality-boy-scout-rule.md) - Scope improvement recommendations by size
 - [Observability Pillars](references/reliability-observability-pillars.md) - Logs, metrics, traces for investigation methodology
 - [Engineering Complexity Tiers](references/engineering-complexity-tiers.md) - Classify components by tier, evaluate pattern appropriateness
+- [Agent Architecture Patterns](references/agent-architecture-patterns.md) - Skill budget rule, structured prompt design, diagnostic signals for agent reliability
+- [Context Budget Management](references/context-budget-management.md) - Context flood prevention, Think in Code principle, hook architecture for session continuity
 
 ---
 

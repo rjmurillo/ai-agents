@@ -291,6 +291,8 @@ separate resource files) since it's only used by that script.
 | `references/mental-models-galls-law.md` | Validate milestone decomposition against incremental complexity |
 | `references/engineering-complexity-tiers.md` | Classify tasks by tier, set review rigor and quality gates |
 | `references/explainers-and-intents.md` | Write explainers before work, use intents as permission gates |
+| `references/agent-architecture-patterns.md` | Skill budget rule, 3-file planning pattern, milestone decomposition for agent systems |
+| `references/hybrid-memory-architecture.md` | Hybrid retrieval cascade, memory decay tiers, decision extraction for planning memory systems |
 
 ---
 

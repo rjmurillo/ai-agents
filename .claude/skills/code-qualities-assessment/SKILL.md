@@ -381,6 +381,16 @@ For detailed scoring methodology and examples:
 
 ---
 
+## References
+
+| File | Content |
+|------|---------|
+| [dotnet-performance-patterns.md](references/dotnet-performance-patterns.md) | Allocation-free .NET patterns with quality scoring calibration |
+| [calibration-examples.md](references/calibration-examples.md) | Reference examples for consistent scoring |
+| [refactoring-patterns.md](references/refactoring-patterns.md) | Smell-to-refactoring mappings |
+
+---
+
 ## Language Support
 
 | Support Level | Languages |
