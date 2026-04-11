@@ -149,7 +149,7 @@ pattern: SKILL.md contains path references, agent reads on demand.
 **Effort**: S (half day)
 
 **Deliverables**:
-- [ ] 15 after-injection responses captured and scored with same rubric
+- [ ] 30 after-injection responses captured and scored with same rubric
 - [ ] Per-skill delta documented (before vs after)
 - [ ] Quality improvement report at `.agents/planning/quality-results.md`
 

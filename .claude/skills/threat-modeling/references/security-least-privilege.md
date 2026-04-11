@@ -56,8 +56,8 @@ serviceAccount:
 GRANT ALL PRIVILEGES ON database.* TO 'app_user'@'%';
 
 -- Least privilege
-GRANT SELECT, INSERT ON database.orders TO 'order_service'@'%';
-GRANT SELECT ON database.products TO 'order_service'@'%';
+GRANT SELECT, INSERT ON database.orders TO 'order_service'@'10.0.1.0/255.255.255.0';
+GRANT SELECT ON database.products TO 'order_service'@'10.0.1.0/255.255.255.0';
 ```
 
 ### API Scopes

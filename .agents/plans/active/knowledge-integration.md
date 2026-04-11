@@ -24,7 +24,7 @@
 
 | Date | Decision | Rationale | Alternatives Considered |
 |------|----------|-----------|------------------------|
-| 2026-04-11 | Per-skill resources/ only, no shared .agents/knowledge/ | Discoverability, each skill owns its resources | Shared .agents/knowledge/ dir (rejected: search ambiguity) |
+| 2026-04-11 | Per-skill references/ only, no shared .agents/knowledge/ | Discoverability, each skill owns its references | Shared .agents/knowledge/ dir (rejected: search ambiguity) |
 | 2026-04-11 | Summarized LLM-optimized format, not pipe-delimited | Preserves semantic fidelity better than pipe-delimited | Pipe-delimited (rejected: strips narrative structure), raw copy (rejected: too large) |
 | 2026-04-11 | Triage Modernization for non-internal .NET content | Valuable .NET patterns worth including | Quarantine all (rejected: loses useful content) |
 | 2026-04-11 | Import all Osmani and gstack skills as resources | Broadens agent knowledge base | Selective import (rejected: user wants comprehensive import) |
