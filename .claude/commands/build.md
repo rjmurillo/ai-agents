@@ -10,6 +10,13 @@ Build: $ARGUMENTS
 
 If $ARGUMENTS is empty, check for recent /plan output in the conversation. If none found, ask the user what to build.
 
+## Complexity Assessment
+
+Before implementation, Task(subagent_type="analyst"): Read `.claude/skills/analyze/references/engineering-complexity-tiers.md` and the task description. Classify as Tier 1-5. Return: tier, rationale, and recommended oversight level. Use this to calibrate implementation approach:
+- Tier 1-2: Implement directly. Async code review sufficient.
+- Tier 3: Validate approach before coding. Active mentorship pattern (check in at milestones).
+- Tier 4-5: Proof-of-concept first. Get design sign-off before full implementation.
+
 ## Agent
 
 Task(subagent_type="implementer"): You are a senior engineer. Discover the project's tech stack, coding patterns, and test conventions by reading the codebase. Build in thin vertical slices. Test-first when the project has tests. Commit atomically.

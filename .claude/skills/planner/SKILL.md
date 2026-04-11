@@ -289,7 +289,7 @@ separate resource files) since it's only used by that script.
 | `references/strategy-ooda-loop.md` | Map planning and execution phases to OODA stages |
 | `references/design-pit-of-success.md` | Design milestones so the obvious path produces correct results |
 | `references/mental-models-galls-law.md` | Validate milestone decomposition against incremental complexity |
-| `references/engineering-complexity-tiers.md` | Classify tasks by tier, set review rigor and quality gates |
+| `.claude/skills/analyze/references/engineering-complexity-tiers.md` | Classify tasks by tier (single source of truth in analyze skill) |
 | `references/explainers-and-intents.md` | Write explainers before work, use intents as permission gates |
 | `references/agent-architecture-patterns.md` | Skill budget rule, 3-file planning pattern, milestone decomposition for agent systems |
 | `references/hybrid-memory-architecture.md` | Hybrid retrieval cascade, memory decay tiers, decision extraction for planning memory systems |
