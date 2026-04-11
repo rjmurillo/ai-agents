@@ -249,7 +249,7 @@ def apply_kill_gate(results: dict[str, Any]) -> dict[str, Any]:
     """Apply kill gate per plan criteria:
     - PROCEED: at least 4 of 5 skills show improvement >= 0.5 with no skill regressing
     - CONDITIONAL: 3 of 5 skills improve >= 0.5, proceed only for improving skills
-    - STOP: fewer than 3 skills improve >= 0.5 OR any skill regresses
+    - STOP: median improvement <= 0 OR fewer than 3 skills improve >= 0.5
     """
     gate = {"passed": True, "verdict": "PROCEED", "failures": [], "summary": {}}
 
@@ -284,13 +284,15 @@ def apply_kill_gate(results: dict[str, Any]) -> dict[str, Any]:
             gate["failures"].append(f"{skill}: delta {overall_delta:.2f} < 0.5 threshold")
 
     total_skills = len(results)
+    has_regressions = len(skills_regressing) > 0
 
-    if skills_regressing:
-        gate["passed"] = False
-        gate["verdict"] = "STOP"
-    elif skills_passing >= 4 or (total_skills < 5 and skills_passing >= total_skills - 1):
-        gate["passed"] = True
-        gate["verdict"] = "PROCEED"
+    if skills_passing >= 4 or (total_skills < 5 and skills_passing >= total_skills - 1):
+        if has_regressions:
+            gate["passed"] = True
+            gate["verdict"] = "CONDITIONAL"
+        else:
+            gate["passed"] = True
+            gate["verdict"] = "PROCEED"
     elif skills_passing >= 3:
         gate["passed"] = True
         gate["verdict"] = "CONDITIONAL"

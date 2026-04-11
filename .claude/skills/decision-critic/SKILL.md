@@ -99,7 +99,7 @@ After execution:
 
 - [Chesterton's Fence](references/mental-models-chestertons-fence.md) - Understand why something exists before removing or changing it
 - [Gall's Law](references/mental-models-galls-law.md) - Complex working systems evolved from simple working systems
-- [Boy Scout Rule](../analyze/references/quality-boy-scout-rule.md) - Scope boundaries for incremental improvement decisions
+- [Boy Scout Rule](references/quality-boy-scout-rule.md) - Scope boundaries for incremental improvement decisions
 - [Survivorship Bias](references/critical-thinking-survivorship-bias.md) - Avoid drawing conclusions from winners while ignoring failures
 - [Systems Thinking](references/strategic-thinking-systems-thinking.md) - Trace second-order effects and feedback loops in decisions
 
