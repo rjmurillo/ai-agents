@@ -6,16 +6,16 @@ review-by: 2026-07-11
 
 # OpenTelemetry Migration Reference
 
-Migrate from legacy IFx telemetry to OpenTelemetry (OTel) before IFx retirement on September 30, 2026.
+Migrate from legacy telemetry to OpenTelemetry (OTel) before legacy SDK retirement.
 
 ## Migration Phases
 
 | Phase | Activities |
 |-------|-----------|
-| 1. Dual Ingestion | Run IFx and OTel side-by-side, validate metrics consistency, use feature flags |
-| 2. Validation | Compare IFx vs OTel metrics, duplicate dashboards, break down by `host.arch` |
-| 3. Cutover | Gradual IFx disable + OTel enable using deployment rings, update Geneva configs |
-| 4. Cleanup | Remove IFx code and config, finalize docs, update monitoring standards |
+| 1. Dual Ingestion | Run legacy and OTel side-by-side, validate metrics consistency, use feature flags |
+| 2. Validation | Compare legacy vs OTel metrics, duplicate dashboards, break down by `host.arch` |
+| 3. Cutover | Gradual legacy disable + OTel enable using deployment rings, update collector configs |
+| 4. Cleanup | Remove legacy code and config, finalize docs, update monitoring standards |
 
 ## Instrumentation Best Practices
 
@@ -72,7 +72,7 @@ Kubernetes enrichment: Use `k8sattributesprocessor` + `resourcedetection` for `k
 
 ## Dimensionality Regression Risk
 
-IFx surfaces dimensions via MDM/MDSD that OTel does not automatically provide. Hard-coding dimensions into OTel instrumentation is an anti-pattern.
+Legacy telemetry SDKs may surface dimensions that OTel does not automatically provide. Hard-coding dimensions into OTel instrumentation is an anti-pattern.
 
 **Resolution**: Use OTel Collector processors to inject `pod_name`, `service_name`, and infrastructure dimensions automatically. Deploy Collector as sidecar or gateway.
 

@@ -18,8 +18,8 @@ Recording rule = PromQL query that runs periodically and stores the result as a 
 
 Add at scrape time via relabeling to enable architecture-aware dashboards:
 
-- `machine_sku`: Instance type (from node label)
-- `dk8s_arch`: CPU architecture (from node label)
+- `instance_type`: Instance type (from node label)
+- `cpu_arch`: CPU architecture (from node label)
 
 Group by these dimensions in recording rules for comparative analysis (x64 vs ARM64).
 
@@ -31,10 +31,10 @@ Group by these dimensions in recording rules for comparative analysis (x64 vs AR
 - record: container:cpu_throttle_ratio
   expr: |
     sum(increase(container_cpu_cfs_throttled_periods_total{container!=""}[5m]))
-      by (container, pod, namespace, dk8s_arch, machine_sku)
+      by (container, pod, namespace, cpu_arch, instance_type)
     /
     sum(increase(container_cpu_cfs_periods_total{}[5m]))
-      by (container, pod, namespace, dk8s_arch, machine_sku)
+      by (container, pod, namespace, cpu_arch, instance_type)
 ```
 
 Alert thresholds: WARN >0.15 (10m), CRIT >0.30 (10m), gated by sustained CPU >80%.
@@ -68,13 +68,13 @@ Sustained >2.0 may need investigation.
 
 ```prometheus
 - record: node:cpu_stall_rate
-  expr: avg(rate(node_pressure_cpu_waiting_seconds_total[5m])) by (dk8s_arch, machine_sku) * 300
+  expr: avg(rate(node_pressure_cpu_waiting_seconds_total[5m])) by (cpu_arch, instance_type) * 300
 
 - record: node:memory_stall_rate
-  expr: avg(rate(node_pressure_memory_waiting_seconds_total[5m])) by (dk8s_arch, machine_sku) * 300
+  expr: avg(rate(node_pressure_memory_waiting_seconds_total[5m])) by (cpu_arch, instance_type) * 300
 
 - record: node:io_stall_rate
-  expr: avg(rate(node_pressure_io_waiting_seconds_total[5m])) by (dk8s_arch, machine_sku) * 300
+  expr: avg(rate(node_pressure_io_waiting_seconds_total[5m])) by (cpu_arch, instance_type) * 300
 ```
 
 The `*300` converts 5m rate to stalled seconds.
