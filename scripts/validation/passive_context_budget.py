@@ -20,7 +20,7 @@ import json
 import os
 import sys
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from scripts.validation.token_budget import estimate_token_count
 
@@ -67,12 +67,36 @@ class FileResult:
         return round(self.size_bytes / 1024, 2)
 
 
-def measure_file(repo_path: Path, target: dict[str, str | int]) -> FileResult:
-    """Measure a single passive context file against its budget."""
+def measure_file(
+    repo_path: Path, target: dict[str, str | int]
+) -> FileResult | None:
+    """Measure a single passive context file against its budget.
+
+    Returns None if the target path is rejected (traversal or absolute).
+    """
     rel_path = str(target["path"])
     max_tokens = int(target["max_tokens"])
     label = str(target.get("label", rel_path))
-    file_path = repo_path / rel_path
+
+    # Defense-in-depth: reject absolute or traversal paths before construction
+    parts = PurePosixPath(rel_path).parts
+    if any(p == ".." for p in parts) or PurePosixPath(rel_path).is_absolute():
+        print(
+            f"Error: invalid path '{rel_path}': "
+            "traversal or absolute paths not allowed",
+            file=sys.stderr,
+        )
+        return None
+
+    file_path = (repo_path / rel_path).resolve()
+
+    # CWE-22: verify resolved path stays within repo root
+    if not file_path.is_relative_to(repo_path.resolve()):
+        print(
+            f"Error: path '{rel_path}' resolves outside repository root",
+            file=sys.stderr,
+        )
+        return None
 
     if not file_path.exists():
         return FileResult(
@@ -85,7 +109,12 @@ def measure_file(repo_path: Path, target: dict[str, str | int]) -> FileResult:
             max_tokens=max_tokens,
         )
 
-    content = file_path.read_text(encoding="utf-8")
+    try:
+        content = file_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as err:
+        print(f"Error: cannot read '{rel_path}': {err}", file=sys.stderr)
+        return None
+
     return FileResult(
         path=rel_path,
         label=label,
@@ -105,8 +134,16 @@ def validate_passive_context(
     """Validate all passive context files against their budgets.
 
     Returns a tuple of (results, exit_code).
+    Exit code 2 if any target has an invalid path or unreadable file.
     """
-    results = [measure_file(repo_path, t) for t in targets]
+    raw = [measure_file(repo_path, t) for t in targets]
+
+    # None indicates a rejected path or unreadable file (exit code 2)
+    if any(r is None for r in raw):
+        results = [r for r in raw if r is not None]
+        return results, 2
+
+    results: list[FileResult] = raw  # type: ignore[assignment]
     failures = [r for r in results if not r.within_budget]
 
     if failures and ci:
