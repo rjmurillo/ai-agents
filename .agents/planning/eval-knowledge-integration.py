@@ -175,6 +175,7 @@ SKILLS = list(PROMPTS.keys())
 
 def _call_api(api_key: str, messages: list[dict], system: str = "", model: str = "claude-sonnet-4-20250514") -> str:
     """Call the Anthropic Messages API. Returns the assistant text response."""
+    import urllib.error
     import urllib.request
 
     body: dict[str, Any] = {
@@ -197,8 +198,14 @@ def _call_api(api_key: str, messages: list[dict], system: str = "", model: str =
         method="POST",
     )
 
-    with urllib.request.urlopen(req, timeout=120) as resp:
-        result = json.loads(resp.read().decode())
+    try:
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            result = json.loads(resp.read().decode())
+    except urllib.error.HTTPError as e:
+        body = e.read().decode(errors="replace")
+        raise RuntimeError(
+            f"Anthropic API returned {e.code}: {body[:500]}"
+        ) from e
 
     # Extract text from content blocks
     text_parts = [block["text"] for block in result.get("content", []) if block.get("type") == "text"]
@@ -233,9 +240,12 @@ Respond in JSON only, no other text:
 
     # Parse JSON from response (handle markdown code blocks)
     text = raw.strip()
-    if text.startswith("```"):
-        lines = text.splitlines()
-        text = "\n".join(lines[1:-1])
+    if "```" in text:
+        # Extract content between first ``` and last ```
+        import re
+        match = re.search(r"```(?:json)?\s*\n(.*?)```", text, re.DOTALL)
+        if match:
+            text = match.group(1).strip()
 
     try:
         scores = json.loads(text)
