@@ -498,9 +498,12 @@ def main() -> None:
         print(json_output)
 
     # Print summary table
+    total_skills = len(skills)
+    proceed_threshold = max(1, math.ceil(total_skills * 0.8))
+    conditional_threshold = max(1, math.ceil(total_skills * 0.6))
     print(f"\n{'='*70}", file=sys.stderr)
     print(f"  KILL GATE: {gate['verdict']} ({'PASS' if gate['passed'] else 'FAIL'})", file=sys.stderr)
-    print(f"  Criteria: PROCEED=4/5 pass (no regression), CONDITIONAL=3/5, STOP=<3 or regression", file=sys.stderr)
+    print(f"  Criteria: PROCEED={proceed_threshold}/{total_skills} pass (no regression), CONDITIONAL={conditional_threshold}/{total_skills} (or regression downgrades PROCEED), STOP=<{conditional_threshold}", file=sys.stderr)
     print(f"{'='*70}", file=sys.stderr)
     print(f"  {'Skill':<20} {'Baseline':>10} {'Enhanced':>10} {'Delta':>10} {'Status':>8}", file=sys.stderr)
     print(f"  {'-'*58}", file=sys.stderr)

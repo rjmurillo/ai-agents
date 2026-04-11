@@ -1,0 +1,127 @@
+{
+  "model": "claude-sonnet-4-20250514",
+  "skills_evaluated": [
+    "analyze"
+  ],
+  "total_prompts": 6,
+  "results": {
+    "analyze": {
+      "context_chars": 24786,
+      "baseline_avg": {
+        "accuracy": 4.67,
+        "depth": 5.0,
+        "specificity": 5.0
+      },
+      "enhanced_avg": {
+        "accuracy": 4.17,
+        "depth": 4.5,
+        "specificity": 4.33
+      },
+      "baseline_detail": [
+        {
+          "accuracy": 5,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "Response perfectly captures all expected OODA elements (metrics/logs/traces for Observe, baseline comparison for Orient, hypothesis formation for Decide, targeted testing for Act) while providing exceptional depth with detailed breakdowns, practical examples, code snippets, and implementation guidance. Demonstrates expert-level understanding with highly specific technical details, tools, and methodologies."
+        },
+        {
+          "accuracy": 4,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "The response accurately covers most key concepts from the expected answer - characterization tests, avoiding rewrites, and strangler pattern (similar to 'strangle'). It misses the specific 'Sprout Method/Class' technique and 'change/inflection points' terminology. However, it demonstrates exceptional depth with comprehensive strategies, practical implementation steps, and tools. The specificity is excellent with concrete code examples, specific testing approaches, and actionable weekly steps."
+        },
+        {
+          "accuracy": 5,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "Response correctly identifies Tell Don't Ask and Information Expert principles from expected answer, plus Feature Envy concept. Goes well beyond surface level with detailed problem analysis, concrete before/after code examples, and comprehensive explanation of violated principles. Uses precise OOP terminology and demonstrates deep understanding through practical implementation guidance."
+        },
+        {
+          "accuracy": 5,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "Response accurately captures the Boy Scout Rule and scoped improvement concept from expected answer. Goes much deeper with comprehensive framework, decision criteria, and risk management. Provides highly specific code examples, git commands, and concrete scenarios demonstrating when/when not to fix adjacent code."
+        },
+        {
+          "accuracy": 5,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "Response perfectly covers all three pillars with correct definitions. Goes well beyond expected answer with detailed when-to-use cases, concrete examples, and best practices. Uses precise technical terminology throughout and provides specific, actionable guidance for implementation."
+        },
+        {
+          "accuracy": 4,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "The response covers key concepts from the expected answer (testability implied through 'hard to understand/modify', coupling/cohesion through parameter example, understandability through 'would a stranger understand'). It goes well beyond the expected answer with comprehensive frameworks, decision trees, and practical guidelines. Uses precise terminology, concrete code examples, and specific criteria throughout."
+        }
+      ],
+      "enhanced_detail": [
+        {
+          "accuracy": 5,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "Response perfectly captures all expected OODA elements (Observe: metrics/logs; Orient: baseline comparison; Decide: hypothesis; Act: targeted testing) and significantly exceeds expectations with concrete timeline examples, specific performance metrics (P50/P95/P99), detailed investigation steps, and practical implementation guidance including time-boxing and parallel workstreams."
+        },
+        {
+          "accuracy": 1,
+          "depth": 2,
+          "specificity": 1,
+          "reasoning": "The response completely misses the key concepts from the expected answer (characterization tests, boundaries, Sprout Method/Class, strangler pattern). Instead, it focuses on generic codebase analysis and tooling exploration rather than proven legacy code testing strategies. Shows some understanding of systematic analysis but lacks the specific methodological approaches needed for legacy code testing."
+        },
+        {
+          "accuracy": 5,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "Response perfectly identifies Tell Don't Ask violation and Feature Envy as expected. Goes far beyond surface level with comprehensive analysis including root causes, impacts, detection patterns, and refactoring strategies. Uses precise OOP terminology and provides concrete C# code examples demonstrating both problematic and corrected approaches."
+        },
+        {
+          "accuracy": 5,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "Response perfectly captures the Boy Scout Rule and 'don't expand blast radius' concepts from expected answer. Goes far beyond surface level with comprehensive decision framework, practical guidelines, code examples, and review considerations. Uses precise engineering terminology and provides concrete, actionable examples throughout."
+        },
+        {
+          "accuracy": 5,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "Response perfectly covers all three pillars with correct definitions and use cases. Goes far beyond expected answer with practical examples, investigation workflows, quality assessment frameworks, and concrete JSON examples. Uses precise technical terminology throughout and provides actionable guidance for real-world implementation."
+        },
+        {
+          "accuracy": 4,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "The response captures key concepts from the expected answer (testing difficulty, understanding by strangers) but embeds them within a much more comprehensive framework. It demonstrates deep understanding by providing systematic decision-making processes, risk assessment, and contextual factors. The response is highly specific with concrete examples, detailed tables, flowcharts, and actionable categories."
+        }
+      ]
+    }
+  },
+  "kill_gate": {
+    "passed": true,
+    "verdict": "CONDITIONAL",
+    "failures": [
+      "analyze: REGRESSED with delta -0.56"
+    ],
+    "summary": {
+      "analyze": {
+        "baseline_avg": {
+          "accuracy": 4.67,
+          "depth": 5.0,
+          "specificity": 5.0
+        },
+        "enhanced_avg": {
+          "accuracy": 4.17,
+          "depth": 4.5,
+          "specificity": 4.33
+        },
+        "delta": {
+          "accuracy": -0.5,
+          "depth": -0.5,
+          "specificity": -0.6699999999999999
+        },
+        "overall_delta": -0.56,
+        "passed": false,
+        "regressed": true
+      }
+    }
+  }
+}

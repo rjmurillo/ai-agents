@@ -1,0 +1,127 @@
+{
+  "model": "claude-sonnet-4-20250514",
+  "skills_evaluated": [
+    "threat-modeling"
+  ],
+  "total_prompts": 6,
+  "results": {
+    "threat-modeling": {
+      "context_chars": 42101,
+      "baseline_avg": {
+        "accuracy": 4.83,
+        "depth": 5.0,
+        "specificity": 5.0
+      },
+      "enhanced_avg": {
+        "accuracy": 4.83,
+        "depth": 5.0,
+        "specificity": 5.0
+      },
+      "baseline_detail": [
+        {
+          "accuracy": 5,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "Response covers all expected concepts (WAF, input validation, auth, authz, parameterized queries, encryption, network segmentation) with comprehensive coverage across network, application, and database layers. Goes far beyond expected answer with detailed implementation examples, code snippets, and practical configurations. Uses precise technical terminology with concrete Python/SQL examples showing exactly how to implement each security control."
+        },
+        {
+          "accuracy": 5,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "Response correctly covers all expected core principles (never trust/always verify, least privilege, implicit trust elimination) and adds the missing 'verify explicitly' and 'assume breach' concepts through implementation details. Goes well beyond surface level with practical implementation guidance, code examples, and technical architecture. Uses precise terminology (mTLS, micro-segmentation, service mesh) with concrete YAML/bash examples and specific tools like Istio."
+        },
+        {
+          "accuracy": 4,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "The response correctly maps all expected STRIDE-OWASP pairs with updated OWASP 2021 terminology (A07 vs Broken Auth, A09 vs Insufficient Logging, A02 vs Sensitive Data Exposure). It goes far beyond the expected answer by covering all 6 STRIDE threats, providing multiple mappings per threat, and explaining the many-to-many relationship. The response uses precise OWASP 2021 terminology throughout and provides concrete vulnerability examples like SQL injection and SSRF."
+        },
+        {
+          "accuracy": 5,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "Response perfectly covers all expected concepts (separate credentials, time-limited tokens, minimal permissions per stage) and demonstrates deep understanding through comprehensive examples across multiple platforms (GitHub Actions, GitLab, AWS, Docker). Provides concrete YAML/JSON configurations showing exact implementation of least privilege principles in real CI/CD scenarios."
+        },
+        {
+          "accuracy": 5,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "The response accurately captures all key concepts from the expected answer: DiD's layered approach assuming outer layers may fail, ZT's no-trust verification model, and their complementary nature. It demonstrates exceptional depth with detailed explanations of philosophies, trust models, failure modes, and key components for both approaches. The response shows high specificity with precise terminology (micro-segmentation, IAM, MFA), concrete examples of implementation components, and a structured comparison table that clearly differentiates the approaches."
+        },
+        {
+          "accuracy": 5,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "Response perfectly captures all expected concepts (zero trust principles, internal network vulnerabilities, defense in depth) while providing extensive additional value through concrete attack vectors, code examples, and practical implementation guidance. Uses precise security terminology and demonstrates deep understanding of the security landscape."
+        }
+      ],
+      "enhanced_detail": [
+        {
+          "accuracy": 5,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "Response accurately covers all expected concepts (WAF, input validation, auth/authz, parameterized queries, encryption, network segmentation) with comprehensive detail. Goes far beyond surface-level by providing architectural diagrams, layer-by-layer breakdown, code examples, and implementation details. Uses precise technical terminology with concrete examples including configuration snippets, code samples, and specific security controls for each layer."
+        },
+        {
+          "accuracy": 5,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "Response accurately covers all expected core principles (never trust/always verify, verify explicitly, least privilege, assume breach, no implicit network trust). Goes well beyond surface level with detailed implementation architectures, service mesh patterns, and identity-based security models. Provides highly specific examples including YAML configurations, code snippets, OPA policies, and concrete technology implementations (Istio, Azure AD, Kubernetes)."
+        },
+        {
+          "accuracy": 4,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "Response accurately captures most expected mappings (Spoofing->Auth, Tampering->Injection, Repudiation->Logging) but maps Info Disclosure to Cryptographic Failures instead of Sensitive Data Exposure, likely due to OWASP 2021 vs older version. Shows exceptional depth with comprehensive secondary mappings, cross-reference matrix, and detailed analysis. Highly specific with concrete examples like session hijacking, SQL injection, IDOR, and precise OWASP category references."
+        },
+        {
+          "accuracy": 5,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "Response perfectly covers all expected concepts (separate creds, time-limited tokens, no persistent admin, scoped permissions) with comprehensive implementation details, concrete YAML examples, and platform-specific guidance that goes well beyond the basic requirements."
+        },
+        {
+          "accuracy": 5,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "The response perfectly captures the core concepts from the expected answer: DiD uses multiple layers assuming outer layers may fail, ZT trusts nothing and verifies everything, and they are complementary. It goes far beyond the expected answer with detailed explanations, practical examples, visual diagrams, and concrete implementation scenarios. The terminology is precise throughout, using specific technical concepts like micro-segmentation, MFA, API security layers, and threat modeling phases with concrete examples for each."
+        },
+        {
+          "accuracy": 5,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "Response perfectly captures all expected concepts (zero trust violation, internal network breaches, defense in depth) and goes far beyond with comprehensive threat modeling, STRIDE analysis, concrete attack scenarios, code examples, and actionable recommendations. Uses precise security terminology and specific implementation patterns."
+        }
+      ]
+    }
+  },
+  "kill_gate": {
+    "passed": true,
+    "verdict": "PROCEED",
+    "failures": [
+      "threat-modeling: delta 0.00 < 0.5 threshold"
+    ],
+    "summary": {
+      "threat-modeling": {
+        "baseline_avg": {
+          "accuracy": 4.83,
+          "depth": 5.0,
+          "specificity": 5.0
+        },
+        "enhanced_avg": {
+          "accuracy": 4.83,
+          "depth": 5.0,
+          "specificity": 5.0
+        },
+        "delta": {
+          "accuracy": 0.0,
+          "depth": 0.0,
+          "specificity": 0.0
+        },
+        "overall_delta": 0.0,
+        "passed": false,
+        "regressed": false
+      }
+    }
+  }
+}
