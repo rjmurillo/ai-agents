@@ -24,8 +24,8 @@ Task(subagent_type="devops"): You are a release engineer. Run all 5 pre-flight c
 
 1. Run all 5 pre-flight checks
 2. If any check fails: report what failed, why, and how to fix. Stop.
-3. If all pass: invoke Skill(skill="validate-pr-description") to validate PR metadata
-4. Create PR: invoke Skill(skill="push-pr") to commit, push, and open PR
+3. If all pass: run /validate-pr-description to validate PR metadata
+4. Create PR: run /push-pr to commit, push, and open PR
 5. Report: what shipped, PR link, any warnings
 
 ## Principles
