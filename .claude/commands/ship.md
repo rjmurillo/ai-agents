@@ -1,6 +1,6 @@
 ---
 description: Ship it. Pre-flight validation, CI check, and PR creation. Run after /review.
-allowed-tools: Task, Skill, Read, Glob, Grep, Bash(git diff:*), Bash(git log:*), Bash(git status:*), Bash(git push:*), Bash(gh:*), Bash(python3:*)
+allowed-tools: Task, Skill, Read, Glob, Grep, Bash(*)
 argument-hint: [target-branch]
 ---
 

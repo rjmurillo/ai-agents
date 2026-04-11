@@ -1,6 +1,6 @@
 ---
 description: Review before merge. Five-axis code review across architecture, security, quality, tests, and standards. Run after /test.
-allowed-tools: Task, Skill, Read, Glob, Grep, Bash(git diff:*), Bash(git log:*), Bash(git status:*), Bash(gh:*)
+allowed-tools: Task, Skill, Read, Glob, Grep, Bash(*)
 argument-hint: [branch-or-pr-number]
 ---
 
