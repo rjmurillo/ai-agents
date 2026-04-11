@@ -312,5 +312,12 @@ After completing a pre-mortem:
 
 ## References
 
+| Reference | Purpose |
+|-----------|---------|
+| `references/mental-models-galls-law.md` | Complexity-driven risk identification using Gall's Law |
+| `references/strategy-ooda-loop.md` | Iterative risk review cadence using OODA Loop |
+
+### Academic Sources
+
 - Klein, G. (2007). "Performing a Project Premortem." Harvard Business Review.
 - Mitchell, D. J., et al. (1989). "Back to the Future: Temporal Perspective in the Explanation of Events." Journal of Behavioral Decision Making.

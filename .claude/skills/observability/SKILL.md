@@ -130,6 +130,16 @@ After execution:
 - [ ] Filters reduce event count as expected
 - [ ] Session summaries include all sessions present in the log
 
+## References
+
+Domain knowledge for observability analysis:
+
+| File | Content |
+|------|---------|
+| [three-pillars-reference.md](references/three-pillars-reference.md) | Logs, metrics, traces definitions, correlation matrix, OpenTelemetry |
+| [prometheus-recording-rules.md](references/prometheus-recording-rules.md) | Recording rule patterns, CPU throttling, disk I/O, PSI, TCP metrics |
+| [otel-migration-reference.md](references/otel-migration-reference.md) | IFx to OTel migration phases, instrumentation best practices, standard metrics |
+
 ## Related Documents
 
 - [Event Schema](schema.json)

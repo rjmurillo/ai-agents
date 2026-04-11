@@ -282,6 +282,16 @@ separate resource files) since it's only used by that script.
 
 ---
 
+## References
+
+| Reference | Purpose |
+|-----------|---------|
+| `references/strategy-ooda-loop.md` | Map planning and execution phases to OODA stages |
+| `references/design-pit-of-success.md` | Design milestones so the obvious path produces correct results |
+| `references/mental-models-galls-law.md` | Validate milestone decomposition against incremental complexity |
+
+---
+
 ## Quick Reference
 
 ```bash

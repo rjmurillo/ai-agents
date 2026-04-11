@@ -116,3 +116,11 @@ After execution:
 - [ ] Each domain has grades for all six layers
 - [ ] Gaps include actionable descriptions
 - [ ] Output format matches --format flag
+
+## References
+
+| File | Content |
+|------|---------|
+| `references/code-qualities.md` | Five foundational qualities (cohesion, coupling, DRY, encapsulation, testability) with diagnostics |
+| `references/solid-principles.md` | SOLID overview, violation signs, mapping to code qualities, grading application |
+| `references/kiss-principle.md` | Simplicity principles, KISS vs YAGNI, complexity justification criteria |
