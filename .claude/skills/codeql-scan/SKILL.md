@@ -3,7 +3,7 @@ name: codeql-scan
 version: 1.0.1
 description: Execute CodeQL security scans with language detection, database caching, and SARIF output. Use when performing static security analysis on Python or GitHub Actions code.
 license: MIT
-model: claude-sonnet-4-5
+model: claude-sonnet-4-6
 ---
 
 # CodeQL Scan Skill

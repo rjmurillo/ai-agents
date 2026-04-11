@@ -3,7 +3,7 @@ name: slashcommandcreator
 description: Autonomous meta-skill for creating high-quality custom slash commands using 5-phase workflow with multi-agent validation and quality gates. Use when user requests new slash command, reusable prompt automation, or wants to convert repetitive workflows into documented commands.
 version: 1.0.0
 license: MIT
-model: claude-opus-4-5
+model: claude-opus-4-6
 trigger: SlashCommandCreator
 ---
 

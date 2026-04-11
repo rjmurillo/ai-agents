@@ -5,7 +5,7 @@ description: Validate and complete session logs before commit. Auto-populates se
   when finishing a session, before committing, or when session validation fails.
 version: 1.0.0
 license: MIT
-model: claude-sonnet-4-5
+model: claude-sonnet-4-6
 metadata:
   domains:
     - session-protocol

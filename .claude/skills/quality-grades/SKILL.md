@@ -1,7 +1,7 @@
 ---
 name: quality-grades
 version: 1.0.0
-model: claude-sonnet-4-5
+model: claude-sonnet-4-6
 description: Grade quality per product domain and architectural layer with gap tracking. Produces markdown or JSON reports showing grades (A-F), file counts, gaps, and trends over time. Use when auditing repo quality, tracking improvement, or identifying domains that need attention.
 license: MIT
 ---

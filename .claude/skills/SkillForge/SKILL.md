@@ -2,7 +2,7 @@
 name: skillforge
 description: "Intelligent skill router and creator. Analyzes ANY input to recommend existing skills, improve them, or create new ones. Uses deep iterative analysis with 11 thinking models, regression questioning, evolution lens, and multi-agent synthesis panel. Phase 0 triage ensures you never duplicate existing functionality."
 license: MIT
-model: claude-opus-4-5-20251101
+model: claude-opus-4-6
 user-invocable: true
 allowed-tools:
   - Read
@@ -12,7 +12,7 @@ allowed-tools:
   - Edit
 metadata:
   version: 4.1.0
-  subagent_model: claude-opus-4-5-20251101
+  subagent_model: claude-opus-4-6
   domains: [meta-skill, automation, skill-creation, orchestration, agentic, routing]
   type: orchestrator
   inputs: [any-input, user-goal, domain-hints]
@@ -287,7 +287,7 @@ Skills must use only these allowed frontmatter properties:
 name: my-skill
 description: What this skill does and when to use it
 license: MIT
-model: claude-opus-4-5-20251101
+model: claude-opus-4-6
 user-invocable: true
 metadata:
   version: 1.0.0
@@ -301,7 +301,7 @@ metadata:
 name: isolated-analyzer
 description: Runs analysis in isolated context with validation hooks
 license: MIT
-model: claude-opus-4-5-20251101
+model: claude-opus-4-6
 context: fork
 agent: Explore
 user-invocable: true
@@ -922,8 +922,8 @@ SKILLCREATOR_CONFIG:
     require_temporal_projection: true
 
   model:
-    primary: claude-opus-4-5-20251101
-    subagents: claude-opus-4-5-20251101
+    primary: claude-opus-4-6
+    subagents: claude-opus-4-6
 ```
 
 </details>

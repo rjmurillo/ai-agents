@@ -4,7 +4,7 @@ version: 1.0.0
 description: >
   Manage memory citations, verify code references, and track confidence scores. Use when adding citations to memories, checking memory health, or verifying code references are still valid.
 license: MIT
-model: claude-sonnet-4-5
+model: claude-sonnet-4-6
 metadata:
   domains: [memory, citations, verification]
   type: utility

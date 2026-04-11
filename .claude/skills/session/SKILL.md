@@ -3,7 +3,7 @@ name: session
 version: 1.0.0
 description: Session management and protocol compliance skills. Use Test-InvestigationEligibility to check if staged files qualify for investigation-only QA skip per ADR-034 before committing with 'SKIPPED investigation-only' verdict.
 license: MIT
-model: claude-sonnet-4-5
+model: claude-sonnet-4-6
 metadata:
   domains:
     - session-protocol

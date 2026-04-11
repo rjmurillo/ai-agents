@@ -7,7 +7,7 @@ description: Fix session protocol validation failures in GitHub Actions. Use whe
   requirements directly in Job Summary - no artifact downloads needed.
 version: 3.0.0
 license: MIT
-model: claude-sonnet-4-5
+model: claude-sonnet-4-6
 metadata:
   domains:
   - ci

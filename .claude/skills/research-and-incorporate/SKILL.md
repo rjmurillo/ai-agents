@@ -5,7 +5,7 @@ description: Research external topics, create comprehensive analysis, determine 
   applicability, and incorporate learnings into Serena and Forgetful memory systems.
   Transforms knowledge into searchable, actionable project context.
 license: MIT
-model: claude-opus-4-5
+model: claude-opus-4-6
 metadata:
   timelessness: 8/10
   source: Chesterton's Fence research workflow (Session 203)

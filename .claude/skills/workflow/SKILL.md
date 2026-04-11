@@ -1,7 +1,7 @@
 ---
 name: workflow
 version: 1.0.0
-model: claude-sonnet-4-5
+model: claude-sonnet-4-6
 license: MIT
 description: |
   DEPRECATED: Workflow commands replaced by lifecycle commands (/spec, /plan, /build, /test, /review, /ship).

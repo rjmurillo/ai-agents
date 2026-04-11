@@ -1,7 +1,7 @@
 ---
 name: pipeline-validator
 version: 1.0.0
-model: claude-sonnet-4-5
+model: claude-sonnet-4-6
 description: Discovers, triggers, and monitors Azure DevOps pipelines (PR, Buddy Build, Buddy Release) for the current repo and branch. Auto-diagnoses failures from build logs, applies fixes, commits, pushes, and re-triggers until all pipelines pass or max retries reached. Validates PR existence and description completeness. Designed to be invoked automatically after any change-making skill creates a PR.
 license: MIT
 ---

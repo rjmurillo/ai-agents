@@ -4,7 +4,7 @@ description: Detect contradictions between documentation and code, ambiguous spe
   and policy violations across a codebase. Use when documentation seems stale,
   specs conflict with implementation, or a pre-release consistency audit is needed.
   Produces an actionable incoherence report with resolution workflow.
-model: claude-sonnet-4-5
+model: claude-sonnet-4-6
 license: MIT
 metadata:
   version: 1.0.0
