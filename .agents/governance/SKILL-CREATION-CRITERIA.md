@@ -259,6 +259,67 @@ Sometimes the question is "skill or agent?"
 
 ---
 
+## Skill vs Passive Context
+
+Before creating a skill, determine if the content belongs as passive context in AGENTS.md instead. Passive context achieves higher compliance rates for knowledge-based tasks (Vercel research: 100% vs 79% for skills).
+
+**Source**: [Vercel passive context research](./../analysis/vercel-passive-context-vs-skills-research.md)
+
+### Decision Criteria
+
+| Question | Yes = Passive Context | Yes = Skill |
+|----------|----------------------|-------------|
+| Is it reference knowledge (not an action)? | Passive context | |
+| Does it need tool access (file mutation, API calls)? | | Skill |
+| Must the agent decide when to retrieve it? | Passive context (eliminates decision point) | |
+| Is it a vertical, multi-step workflow? | | Skill |
+| Is the content outside model training data? | Passive context | |
+| Is it user-triggered on demand? | | Skill |
+| Does instruction wording sensitivity matter? | Passive context (immune to prompt fragility) | |
+
+**Rule**: If the content is knowledge the agent needs every session, use passive context. If the content is a procedure the agent executes on command, use a skill.
+
+### Why Passive Context Outperforms Skills for Knowledge
+
+1. **Zero decision points**: Content is always available. No agent judgment about when to look it up.
+2. **Consistent availability**: Loaded every turn via system prompt. Skills load only when invoked.
+3. **No sequencing failures**: No risk of retrieving documentation too late or in the wrong order.
+4. **Instruction-insensitive**: Minor prompt changes do not affect availability.
+
+### Migration Checklist: Skill to Passive Context
+
+When a skill is knowledge-heavy with minimal tool use:
+
+- [ ] Extract knowledge content from SKILL.md
+- [ ] Compress to pipe-delimited format (<8KB target)
+- [ ] Add to AGENTS.md or an @imported file
+- [ ] Measure token delta (before/after)
+- [ ] Verify protocol compliance still passes
+- [ ] Deprecate or simplify the original skill
+
+### Token Budget
+
+Passive context files have token budgets enforced by CI:
+
+| File | Budget | Rationale |
+|------|--------|-----------|
+| AGENTS.md | 2000 tokens | Primary passive context |
+| memory-index.md | 4000 tokens | Retrieval index |
+
+Compression target: 60-80% reduction from source material using pipe-delimited format.
+
+### Compression Format
+
+```text
+[Section Name]
+|key concept: brief description (see: path/to/detail.md)
+|another concept: brief description
+```
+
+This format maintains discoverability while minimizing token usage. Full documentation lives in referenced files loaded on demand.
+
+---
+
 ## Maintenance Burden Assessment
 
 Before creating a skill, estimate maintenance:
@@ -305,10 +366,11 @@ Remove skills when:
 - [ADR-033](../architecture/ADR-033-routing-level-enforcement-gates.md): Routing-level enforcement gates
 - [Agent Design Principles](./agent-design-principles.md): Agent creation criteria
 - [SkillCreator](../../.claude/skills/skillcreator/SKILL.md): Meta-skill for production-ready skill creation
+- [Vercel Passive Context Research](../analysis/vercel-passive-context-vs-skills-research.md): Evidence for passive context over skills
 
 ---
 
-*Governance Version: 1.3*
+*Governance Version: 1.4*
 *Established: 2025-12-30*
-*Updated: 2025-12-30 - Added SkillCreator guidance section*
+*Updated: 2026-04-11 - Added Skill vs Passive Context decision framework (Vercel research)*
 *Debate Reference: critic recommendation (agent aabd3d0)*
