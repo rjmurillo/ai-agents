@@ -55,19 +55,19 @@ def _load_api_key() -> str:
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
-SKILL_PATHS: dict[str, Path] = {
-    "cva-analysis": REPO_ROOT / ".claude" / "skills" / "cva-analysis",
-    "decision-critic": REPO_ROOT / ".claude" / "skills" / "decision-critic",
-    "golden-principles": REPO_ROOT / ".claude" / "skills" / "golden-principles",
-    "threat-modeling": REPO_ROOT / ".claude" / "skills" / "threat-modeling",
-    "analyze": REPO_ROOT / ".claude" / "skills" / "analyze",
-}
+SKILLS_DIR = REPO_ROOT / ".claude" / "skills"
+
+
+def _get_skill_dir(skill_name: str) -> Path | None:
+    """Resolve skill directory. Works for any skill, not just hardcoded ones."""
+    skill_dir = SKILLS_DIR / skill_name
+    return skill_dir if skill_dir.exists() else None
 
 
 def load_skill_context(skill_name: str) -> str:
     """Load SKILL.md and all references/ files for a skill."""
-    skill_dir = SKILL_PATHS.get(skill_name)
-    if not skill_dir or not skill_dir.exists():
+    skill_dir = _get_skill_dir(skill_name)
+    if not skill_dir:
         return ""
 
     parts: list[str] = []
@@ -418,8 +418,8 @@ def main() -> None:
 
     # Determine which skills to eval
     if args.skill:
-        if args.skill not in SKILL_PATHS:
-            print(f"ERROR: Unknown skill '{args.skill}'. Available: {', '.join(SKILLS)}", file=sys.stderr)
+        if not _get_skill_dir(args.skill):
+            print(f"ERROR: Skill directory not found for '{args.skill}' in {SKILLS_DIR}", file=sys.stderr)
             sys.exit(1)
         skills = [args.skill]
     else:
@@ -429,6 +429,9 @@ def main() -> None:
     if args.prompts_file:
         prompts = load_custom_prompts(args.prompts_file)
         print(f"Loaded custom prompts from {args.prompts_file}", file=sys.stderr)
+        # Use skills from the prompts file, not the built-in list
+        if not args.skill:
+            skills = list(prompts.keys())
     else:
         prompts = PROMPTS
 
