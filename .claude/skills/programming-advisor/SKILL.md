@@ -4,7 +4,7 @@ description: Evaluate existing solutions (libraries, SaaS, open source) before c
 license: MIT
 metadata:
   version: 1.0.0
-  model: claude-opus-4-5
+  model: claude-opus-4-6
 ---
 
 # Programming Advisor - "Reinventing the Wheel" Detector

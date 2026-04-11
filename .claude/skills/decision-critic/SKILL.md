@@ -7,7 +7,7 @@ triggers:
   - "poke holes in this decision"
   - "stress-test this"
   - "criticize this approach"
-model: claude-opus-4-5
+model: claude-opus-4-6
 license: MIT
 ---
 

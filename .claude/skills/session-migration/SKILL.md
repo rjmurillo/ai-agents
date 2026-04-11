@@ -3,7 +3,7 @@ name: session-migration
 description: Migrate session logs from markdown to JSON format. Use when PRs contain markdown session logs that need conversion to the new JSON schema, or when batch-migrating historical sessions.
 license: MIT
 version: 1.0.0
-model: claude-sonnet-4-5
+model: claude-sonnet-4-6
 metadata:
   domains:
     - session-protocol

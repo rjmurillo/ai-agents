@@ -1,7 +1,7 @@
 ---
 name: buy-vs-build-framework
 version: 1.0.1
-model: claude-opus-4-5
+model: claude-opus-4-6
 description: Strategic framework for evaluating build, buy, partner, or defer decisions with four-phase process, tiered TCO analysis, and integration with decision quality tools
 license: MIT
 metadata:

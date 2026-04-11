@@ -78,6 +78,7 @@
     - [Examples](#examples)
       - [Simple Scenarios](#simple-scenarios)
       - [Advanced Scenarios](#advanced-scenarios)
+  - [Lifecycle Commands](#lifecycle-commands)
   - [System Architecture](#system-architecture)
     - [How Agents Work Together](#how-agents-work-together)
     - [Agent Catalog](#agent-catalog)
@@ -288,6 +289,53 @@ The orchestrator runs the same evaluation pipeline across all candidates, produc
 
 ---
 
+## Lifecycle Commands
+
+Six slash commands that map to the development lifecycle. Each one activates the right agents and quality gates automatically.
+
+```text
+  DEFINE          PLAN           BUILD          VERIFY         REVIEW          SHIP
+ ┌──────┐      ┌──────┐      ┌──────┐      ┌──────┐      ┌──────┐      ┌──────┐
+ │ Idea │ ───> │ Spec │ ───> │ Code │ ───> │ Test │ ───> │  QA  │ ───> │  Go  │
+ │Refine│      │  PRD │      │ Impl │      │Debug │      │ Gate │      │ Live │
+ └──────┘      └──────┘      └──────┘      └──────┘      └──────┘      └──────┘
+  /spec          /plan          /build        /test         /review       /ship
+```
+
+| What you're doing | Command | What happens |
+|-------------------|---------|--------------|
+| Define what to build | `/spec` | CVA analysis, testable acceptance criteria, critic review |
+| Plan how to build it | `/plan` | Milestones, atomic tasks (S/M/L), dependency graph, risk register |
+| Build incrementally | `/build` | TDD slices, atomic commits, code quality scoring |
+| Prove it works | `/test` | 6 quality gates (functional, security, DevOps, DX, observability) |
+| Review before merge | `/review` | 5-axis review (architecture, security, quality, tests, standards) |
+| Ship to production | `/ship` | Pre-flight checks, PR creation, ship report |
+
+Each command chains to the next. Output from `/spec` feeds into `/plan`, which feeds into `/build`, and so on. You can also jump in at any point for smaller tasks.
+
+**Standard feature:**
+
+```text
+/spec Add OAuth2 login flow with JWT tokens
+/plan
+/build
+/test
+/review
+/ship
+```
+
+**Quick fix:**
+
+```text
+/build Fix null reference in UserService.GetById
+/test
+/ship
+```
+
+See [docs/workflow-commands.md](docs/workflow-commands.md) for the full command reference.
+
+---
+
 ## System Architecture
 
 ### How Agents Work Together
@@ -488,6 +536,7 @@ This project uses a **template-based generation system**. To modify agents:
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Contribution guidelines and agent development |
 | [CLAUDE.md](CLAUDE.md) | Claude Code integration |
 | [copilot-instructions.md](.github/copilot-instructions.md) | GitHub Copilot integration |
+| [docs/workflow-commands.md](docs/workflow-commands.md) | Lifecycle commands (/spec, /plan, /build, /test, /review, /ship) |
 | [docs/ideation-workflow.md](docs/ideation-workflow.md) | Ideation workflow documentation |
 | [docs/markdown-linting.md](docs/markdown-linting.md) | Markdown standards |
 

@@ -1,7 +1,7 @@
 ---
 name: analysis-provenance
 version: 1.0.0
-model: claude-sonnet-4-5
+model: claude-sonnet-4-6
 description: Identify code ownership before modifying validators or linters. Checks file headers for provenance indicators, reviews documentation, and determines provenance as UPSTREAM, LOCAL, VENDOR, or UNKNOWN. Prevents accidental modification of upstream tools.
 license: MIT
 user-invocable: true

@@ -1,240 +1,229 @@
-# Workflow Commands Reference
+# Lifecycle Commands Reference
 
-Numbered workflow commands for structured agent orchestration. Implements the MoAI-ADK inspired pipeline.
+Slash commands for structured development phases. Each command invokes specialized agents and quality gates.
 
 ## Overview
 
-The workflow command system provides a numbered sequence of slash commands that guide development from session initialization through security review.
+The lifecycle command system provides six slash commands that guide development from requirements through shipping.
 
 ```text
-/0-init → /1-plan → /2-impl → /3-qa → /4-security
+/spec → /plan → /build → /test → /review → /ship
 ```
+
+Each command chains to the next. Output from one phase feeds into the next automatically.
 
 ## Getting Started
 
-### Quick Workflow (Standard Feature)
+### Standard Feature Workflow
 
 ```bash
-/0-init --objective "Add user authentication"
-/1-plan Add OAuth2 login flow with JWT tokens
-/2-impl --full Add OAuth2 login flow
-```
-
-### Strategic Planning Workflow
-
-```bash
-/0-init
-/1-plan --strategic Q2 roadmap for authentication system
-/1-plan --arch Design OAuth2 implementation approach
-/2-impl Implement approved design
-/3-qa
-/4-security
+/spec Add OAuth2 login flow with JWT tokens
+/plan
+/build
+/test
+/review
+/ship
 ```
 
 ### Quick Fix Workflow
 
 ```bash
-/0-init
-/2-impl Fix null reference in UserService.GetById
-/3-qa
+/build Fix null reference in UserService.GetById
+/test
+/ship
+```
+
+### Research-First Workflow
+
+```bash
+/spec Should we migrate from REST to gRPC for internal services?
+/plan
 ```
 
 ## Command Reference
 
-### /0-init — Session Initialization
+### /spec -- Define What to Build
 
-Enforces ADR-007 memory-first architecture at session start.
+Transforms a problem statement into testable requirements with acceptance criteria.
 
 ```bash
-/0-init
-/0-init --session-number 42
-/0-init --objective "Implement feature X"
+/spec <problem-statement-or-issue-number>
 ```
 
 **What it does:**
 
-1. Loads project context (graceful fallback if unavailable)
-2. Reads AGENTS.md (project rules)
-3. Reads HANDOFF.md (prior session context)
-4. Queries relevant memories
-5. Creates session log
-6. Declares current branch
-7. Records evidence to Session State MCP
+1. Clarifies the problem (what, who, why, constraints)
+2. Searches the codebase for existing solutions
+3. Runs Commonality/Variability Analysis (CVA) to identify shared behavior and variation points
+4. Writes requirements as testable acceptance criteria
+5. Invokes analyst, decision-critic, and critic agents to find gaps and challenge assumptions
 
-**When to use:** Always at the start of a new session.
+**Output:** Structured requirements with problem statement, acceptance criteria, out-of-scope exclusions, open questions, and CVA summary.
 
----
-
-### /1-plan — Planning Phase
-
-Routes to the appropriate planning agent based on task type.
-
-```bash
-/1-plan <task-description>           # Default: planner agent
-/1-plan --arch <design-decision>     # Architect agent
-/1-plan --strategic <roadmap-item>   # roadmap → high-level-advisor chain
-```
-
-**Variants:**
-
-- Default: `planner` agent for standard feature planning
-- `--arch`: `architect` agent for design decisions and ADR creation
-- `--strategic`: chains `roadmap` → `high-level-advisor` for high-level planning
-
-**Output:** Planning artifacts stored in `.agents/planning/`
+**When to use:** Starting a new feature or investigating whether something is worth building.
 
 ---
 
-### /2-impl — Implementation Phase
+### /plan -- Plan How to Build It
 
-Invokes the implementer agent with optional QA and security follow-up.
-
-```bash
-/2-impl <task>                # Default: implementer only
-/2-impl --full <task>         # Sequential: implementer → qa → security
-/2-impl --parallel <task>     # Parallel: implementer + (qa ‖ security)
-```
-
-**Variants:**
-
-- Default: implementer agent only
-- `--full`: sequential chain (implementer → qa → security)
-- `--parallel`: parallel execution (implementer + concurrent qa and security)
-
-**Context:** Automatically surfaces planning artifacts from `/1-plan`.
-
----
-
-### /3-qa — Quality Assurance
-
-Invokes the QA agent to verify implementation.
+Decomposes specs into milestones with dependencies and risk mitigations.
 
 ```bash
-/3-qa <scope>
-/3-qa --coverage-threshold 90 <scope>
+/plan <spec-output-or-issue-number>
 ```
 
 **What it does:**
 
-1. Invokes `qa` agent
-2. Validates test coverage against threshold (default: 80%)
-3. Checks acceptance criteria from planning phase
-4. Reports pass/fail with details
+1. Reads the spec or issue
+2. Maps sub-problems to existing code
+3. Invokes milestone-planner to break work into independently shippable milestones
+4. Invokes task-decomposer to create atomic tasks with done definitions (sized S/M/L)
+5. Persists the plan as a versioned artifact via execution-plans skill
+6. Runs analyst pre-mortem and critic validation
+
+**Output:** Milestones with exit criteria, tasks per milestone, dependency graph, risk register, and deferred items.
+
+**When to use:** After `/spec`, or when you have a clear problem and need an execution plan.
 
 ---
 
-### /4-security — Security Review
+### /build -- Build Incrementally
 
-Invokes the security agent with thorough review using opus model.
+Implements changes in thin vertical slices with TDD and atomic commits.
 
 ```bash
-/4-security <scope>
-/4-security --owasp-only <scope>    # Skip secret detection
-/4-security --secrets-only <scope>  # OWASP check only
+/build <plan-step-or-task-description>
 ```
 
 **What it does:**
 
-1. Invokes `security` agent (uses opus per ADR-013)
-2. OWASP Top 10 check
-3. Secret detection scan
-4. Dependency audit for known CVEs
-5. Generates security report
+1. Reads the task and existing code patterns
+2. Invokes the implementer agent as a senior engineer
+3. For each slice: write failing test, write minimum code to pass, refactor toward quality
+4. Commits atomically with conventional messages
+5. Runs code-qualities-assessment to score the result
+
+**Guardrails:** Atomic commits, no code without understanding existing patterns, favor delegation over inheritance, three similar lines beat a premature abstraction.
+
+**When to use:** After `/plan`, or for direct implementation of a well-understood task.
 
 ---
 
-## Supporting Scripts
+### /test -- Prove It Works
 
-### Invoke-WorkflowCommand.ps1
-
-Generic executor for workflow commands with standardized error handling.
+Multi-dimensional quality validation across 6 gates: functional, non-functional, security, DevOps, DX, and observability.
 
 ```bash
-pwsh .claude/skills/workflow/scripts/Invoke-WorkflowCommand.ps1 -Command "init" -Arguments @{}
+/test <component-or-failure-description>
 ```
 
-### Get-AgentHistory.ps1
+**What it does:**
 
-Query agent invocation history from the Agent Orchestration MCP.
+1. Classifies the PR type (CODE, WORKFLOW, CONFIG, DOCS, MIXED)
+2. Runs only the applicable gates based on PR type
+3. Each gate dispatches a specialized agent (qa, analyst, security, devops, critic, architect)
+4. Produces per-gate verdicts: PASS, WARN, or CRITICAL_FAIL
 
-```bash
-pwsh .claude/skills/workflow/scripts/Get-AgentHistory.ps1 -SessionNumber 42
-pwsh .claude/skills/workflow/scripts/Get-AgentHistory.ps1 -Limit 20 -Format json
-```
+**Gates:**
 
-### Sync-SessionDocumentation.ps1
+| Gate | Agent | Focus |
+|------|-------|-------|
+| Functional | qa | Unit, integration, acceptance, edge cases, error paths |
+| Non-Functional | analyst | Performance, scalability, reliability, complexity |
+| Security | security | OWASP Top 10, CWE references, secrets, dependencies |
+| DevOps | devops | Pipeline safety, Actions security, build reproducibility |
+| DX | critic | API ergonomics, documentation, debuggability, onboarding |
+| Observability | architect | Logging, metrics, alerting, tracing, health checks |
 
-Sync session log with agent history, generate workflow diagrams, and update memories.
+**Output:** Per-gate verdict table with findings, evidence, and overall PASS/WARN/CRITICAL_FAIL.
 
-```bash
-pwsh .claude/skills/workflow/scripts/Sync-SessionDocumentation.ps1 -SessionLogPath .agents/sessions/session-042.json
-```
+**When to use:** After `/build`, or to validate any branch before shipping.
 
 ---
 
-## Integration
+### /review -- Review Before Merge
 
-### Agent Orchestration MCP
+Five-axis code review across architecture, security, quality, tests, and standards.
 
-Commands integrate with the Agent Orchestration MCP for structured agent invocation:
+```bash
+/review <branch-or-pr-number>
+```
 
-- `invoke_agent()` — structured agent invocation with context
-- `track_handoff()` — context preservation between agents
-- `start_parallel_execution()` — parallel agent execution (`/2-impl --parallel`)
-- `aggregate_parallel_results()` — merge parallel outputs
+**What it does:**
 
-### Session State MCP
+1. Reads the diff against the base branch
+2. Runs five review axes sequentially, each dispatching a specialized agent or skill
+3. Categorizes findings as Critical, Important, or Suggestion
 
-All commands record evidence for protocol compliance tracking via `record_evidence()`.
+**Axes:**
 
-### Memory MCP
+| Axis | Agent/Skill | Focus |
+|------|-------------|-------|
+| Architecture | architect | Patterns, boundaries, ADR conformance, coupling |
+| Security | security + security-scan | CWE references, OWASP, least privilege |
+| Quality | code-qualities-assessment | Cohesion, coupling, encapsulation, testability, DRY |
+| Tests | qa | Coverage for every new code path, failure paths |
+| Standards | golden-principles + taste-lints | Naming, style, consistency |
 
-`/0-init` integrates with memory services for memory-first architecture:
+**Output:** Per-finding format with location (file:line), severity, and fix recommendation.
 
-- `activate_project()` — load project context
-- `list_memories()` — surface relevant memories
+**When to use:** After `/test`, before shipping. Also useful for reviewing any diff or PR.
 
 ---
 
-## Troubleshooting
+### /ship -- Ship It
 
-### MCP Unavailable
-
-Commands gracefully degrade when MCP servers are unavailable:
-
-- Memory MCP unavailable: session initialization continues with warning
-- Agent Orchestration MCP unavailable: falls back to direct agent invocation
-
-Check MCP server status:
+Pre-flight validation, CI check, and PR creation.
 
 ```bash
-# Check if agent-orchestration MCP is running
-mcp status
+/ship <target-branch>
 ```
 
-### Command Validation Errors
+Default target is `main` unless specified.
 
-Validate command files:
+**What it does:**
 
-```bash
-pwsh .claude/skills/slashcommandcreator/scripts/Validate-SlashCommand.ps1 -Path .claude/commands/workflow/0-init.md
-```
+1. Runs 5 pre-flight checks (pipeline, security, review, tests, standards)
+2. If any check fails: reports what failed, why, and how to fix. Stops.
+3. If all pass: validates PR description and creates the PR
 
-### PowerShell Script Errors
+**Pre-flight checks:**
 
-Run Pester tests:
+| Check | What | Blocking |
+|-------|------|----------|
+| Pipeline | CI checks green, no suppressed failures | Yes |
+| Security | No new CWE findings, no secrets in diff | Yes |
+| Review | /review run, no unresolved Critical findings | Yes |
+| Tests | All tests green, no unjustified skips | Yes |
+| Standards | Golden principles and taste lints pass | Yes |
 
-```bash
-pwsh ./build/scripts/Invoke-PesterTests.ps1 -Path .claude/skills/workflow/
-```
+**Output:** Ship report with per-check PASS/FAIL, PR link if created, and follow-up items.
+
+**When to use:** After `/review`, when you are ready to open a PR.
 
 ---
+
+## Lifecycle vs. Old Workflow Commands
+
+The lifecycle commands replace the numbered workflow commands that were removed in PR #1611:
+
+| Old Command | Replacement | Notes |
+|-------------|-------------|-------|
+| `/0-init` | `/session-init` skill | Session initialization is now a skill, not a lifecycle phase |
+| `/1-plan` | `/spec` + `/plan` | Requirements and planning are now separate phases |
+| `/2-impl` | `/build` | TDD-first, atomic commits, quality scoring |
+| `/3-qa` | `/test` | Expanded from 1 gate to 6 gates |
+| `/4-security` | `/test` + `/review` | Security is now integrated into both test and review |
+
+Key differences:
+
+- **Stack-agnostic**: Commands discover the project's tech stack instead of assuming one.
+- **Platform-agnostic**: Commands use `Bash(*)` instead of PowerShell-specific scripts.
+- **Separated concerns**: Requirements (`/spec`) and planning (`/plan`) are distinct phases.
+- **Deeper quality gates**: `/test` runs 6 specialized gates instead of a single QA pass.
 
 ## Related
 
-- PRD: [`.agents/planning/prd-workflow-orchestration-enhancement.md`](../.agents/planning/prd-workflow-orchestration-enhancement.md)
-- Skill: [`.claude/skills/workflow/SKILL.md`](../.claude/skills/workflow/SKILL.md)
-- ADR-005: PowerShell Standards
-- ADR-006: Thin Workflows
-- ADR-007: Memory-First Architecture
-- ADR-013: Agent Orchestration MCP
+- CLAUDE.md: [Lifecycle commands](../CLAUDE.md#lifecycle-commands) routing rules
+- AGENTS.md: [Skill-First](../AGENTS.md#skill-first) lifecycle references
+- Deprecated workflow skill: [`.claude/skills/workflow/SKILL.md`](../.claude/skills/workflow/SKILL.md)

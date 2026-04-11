@@ -1,6 +1,6 @@
 ---
 name: code-qualities-assessment
-model: claude-sonnet-4-5
+model: claude-sonnet-4-6
 description: Assess code maintainability through 5 foundational qualities (cohesion, coupling, encapsulation, testability, non-redundancy) with quantifiable scoring rubrics. Works at method/class/module levels across multiple languages. Produces markdown reports with remediation guidance.
 version: 1.1.0
 license: MIT

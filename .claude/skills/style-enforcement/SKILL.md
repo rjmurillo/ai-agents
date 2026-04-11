@@ -4,7 +4,7 @@ description: Validate code against style rules from .editorconfig, StyleCop.json
 license: MIT
 metadata:
   version: 1.0.0
-  model: claude-sonnet-4-5
+  model: claude-sonnet-4-6
 ---
 
 # Style Enforcement

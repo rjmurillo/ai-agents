@@ -6,7 +6,7 @@ description: Generate evidence-based documentary reports by searching across all
   GitHub issues. Produces investigative journalism-style analysis with full citation
   chains.
 license: MIT
-model: claude-sonnet-4-5
+model: claude-sonnet-4-6
 metadata:
   timelessness: 8/10
   category: analysis

@@ -4,7 +4,7 @@ description: Scan code content for CWE-22 (path traversal) and CWE-78 (command i
 license: MIT
 metadata:
   version: 1.0.0
-  model: claude-sonnet-4-5
+  model: claude-sonnet-4-6
 ---
 
 # Security Scan
