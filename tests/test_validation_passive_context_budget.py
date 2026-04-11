@@ -165,6 +165,83 @@ class TestMeasureFile:
 
 
 # ---------------------------------------------------------------------------
+# CWE-22: Path traversal protection
+# ---------------------------------------------------------------------------
+
+
+class TestCWE22PathTraversal:
+    """Security tests for CWE-22 path traversal rejection in measure_file."""
+
+    def test_absolute_path_rejected(self, tmp_path: Path) -> None:
+        """Absolute paths like /etc/passwd must return None."""
+        target = {"path": "/etc/passwd", "max_tokens": 5000, "label": "Absolute"}
+        result = measure_file(tmp_path, target)
+        assert result is None
+
+    def test_path_traversal_rejected(self, tmp_path: Path) -> None:
+        """Relative paths containing .. components must return None."""
+        target = {
+            "path": "../../etc/passwd",
+            "max_tokens": 5000,
+            "label": "Traversal",
+        }
+        result = measure_file(tmp_path, target)
+        assert result is None
+
+    def test_resolved_path_escaping_repo_root_rejected(
+        self, tmp_path: Path,
+    ) -> None:
+        """A symlink pointing outside repo root must return None.
+
+        Even without literal '..' in the path string, the resolved path
+        must stay within the repository root (is_relative_to check).
+        """
+        # Create a symlink inside tmp_path that points outside it
+        outside_dir = tmp_path.parent / "outside_repo"
+        outside_dir.mkdir(exist_ok=True)
+        escape_target = outside_dir / "secret.txt"
+        escape_target.write_text("secret data", encoding="utf-8")
+
+        link = tmp_path / "escape_link.md"
+        link.symlink_to(escape_target)
+
+        target = {"path": "escape_link.md", "max_tokens": 5000, "label": "Symlink"}
+        result = measure_file(tmp_path, target)
+        assert result is None
+
+    def test_valid_relative_path_accepted(self, tmp_path: Path) -> None:
+        """A normal relative path within repo root must succeed."""
+        sub = tmp_path / "docs"
+        sub.mkdir()
+        valid_file = sub / "guide.md"
+        valid_file.write_text("valid content", encoding="utf-8")
+
+        target = {"path": "docs/guide.md", "max_tokens": 5000, "label": "Valid"}
+        result = measure_file(tmp_path, target)
+        assert result is not None
+        assert result.exists is True
+        assert result.estimated_tokens > 0
+
+    def test_traversal_stderr_message(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Traversal rejection must emit a diagnostic to stderr."""
+        target = {"path": "../escape", "max_tokens": 5000, "label": "Escape"}
+        measure_file(tmp_path, target)
+        captured = capsys.readouterr()
+        assert "traversal or absolute paths not allowed" in captured.err
+
+    def test_absolute_path_stderr_message(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Absolute path rejection must emit a diagnostic to stderr."""
+        target = {"path": "/tmp/nope", "max_tokens": 5000, "label": "Abs"}
+        measure_file(tmp_path, target)
+        captured = capsys.readouterr()
+        assert "traversal or absolute paths not allowed" in captured.err
+
+
+# ---------------------------------------------------------------------------
 # validate_passive_context
 # ---------------------------------------------------------------------------
 
