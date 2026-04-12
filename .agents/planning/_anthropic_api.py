@@ -46,8 +46,10 @@ def load_api_key() -> str:
                     return v
         search = search.parent
 
-    print("ERROR: ANTHROPIC_API_KEY not found in environment or .env", file=sys.stderr)
-    sys.exit(1)
+    raise RuntimeError(
+        "ANTHROPIC_API_KEY not found in environment or .env file. "
+        "Set the environment variable or add it to a .env file in the repo root."
+    )
 
 
 def call_api(
@@ -70,8 +72,10 @@ def call_api(
         The assistant's text response.
 
     Raises:
-        RuntimeError: If the API returns an HTTP error.
+        RuntimeError: If the API returns an HTTP error, network failure,
+            or timeout. Original exception is chained via __cause__.
     """
+    import socket
     import urllib.error
     import urllib.request
 
@@ -101,7 +105,17 @@ def call_api(
     except urllib.error.HTTPError as e:
         error_body = e.read().decode(errors="replace")
         raise RuntimeError(
-            f"Anthropic API returned {e.code}: {error_body[:500]}"
+            f"Anthropic API returned HTTP {e.code}: {error_body[:500]}"
+        ) from e
+    except urllib.error.URLError as e:
+        raise RuntimeError(
+            f"Anthropic API network error: {e.reason}. "
+            "Check connectivity and DNS resolution."
+        ) from e
+    except (TimeoutError, socket.timeout) as e:
+        raise RuntimeError(
+            "Anthropic API request timed out after 120s. "
+            "The service may be slow or unreachable."
         ) from e
 
     text_parts = [block["text"] for block in result.get("content", []) if block.get("type") == "text"]

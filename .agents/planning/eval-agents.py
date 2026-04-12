@@ -775,7 +775,11 @@ def main() -> None:
     if args.dry_run:
         api_key = ""
     else:
-        api_key = _load_api_key()
+        try:
+            api_key = _load_api_key()
+        except RuntimeError as e:
+            print(f"ERROR: {e}", file=sys.stderr)
+            sys.exit(1)
 
     # Determine which agents to assess
     if args.agent:
