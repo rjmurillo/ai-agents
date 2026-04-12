@@ -1,7 +1,5 @@
 # SPEC: Agent Prompt Optimization and Wiki Enrichment
 
-<!-- /autoplan restore point: /home/richard/.gstack/projects/rjmurillo-ai-agents/main-autoplan-restore-20260411-201222.md -->
-
 ## Problem Statement
 
 The `.claude/agents/` directory has 23 agent definitions totaling 441KB. The largest agents (orchestrator 69KB, implementer 45KB, retrospective 43KB) score worst on quality assessments. The smallest agents (high-level-advisor 8KB, adr-generator 7KB) score best. Agent prompts need slimming and targeted enrichment, not consolidation.
