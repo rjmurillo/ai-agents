@@ -32,9 +32,12 @@ from _anthropic_api import call_api as _call_api, load_api_key as _load_api_key,
 # Skill context loading
 # ---------------------------------------------------------------------------
 
+RATE_LIMIT_SLEEP_SEC = 1.0  # fixed inter-call delay; no 429 backoff (dev tool)
+
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
 SKILLS_DIR = REPO_ROOT / ".claude" / "skills"
+assert SKILLS_DIR.is_dir(), f"SKILLS_DIR miscomputed: {SKILLS_DIR} (is this script still at scripts/eval/?)"
 
 
 def _get_skill_dir(skill_name: str) -> Path | None:
@@ -53,13 +56,13 @@ def load_skill_context(skill_name: str) -> str:
 
     skill_md = skill_dir / "SKILL.md"
     if skill_md.exists():
-        parts.append(f"# SKILL.md\n\n{skill_md.read_text()}")
+        parts.append(f"# SKILL.md\n\n{skill_md.read_text(encoding='utf-8')}")
 
     refs_dir = skill_dir / "references"
     if refs_dir.is_dir():
         for ref_file in sorted(refs_dir.iterdir()):
             if ref_file.is_file():
-                parts.append(f"# Reference: {ref_file.name}\n\n{ref_file.read_text()}")
+                parts.append(f"# Reference: {ref_file.name}\n\n{ref_file.read_text(encoding='utf-8')}")
 
     return "\n\n---\n\n".join(parts)
 
@@ -234,6 +237,10 @@ def apply_kill_gate(results: dict[str, Any]) -> dict[str, Any]:
 
     proceed_threshold = max(1, math.ceil(total_skills * 0.8))
     conditional_threshold = max(1, math.ceil(total_skills * 0.6))
+    gate["total_skills"] = total_skills
+    gate["proceed_threshold"] = proceed_threshold
+    gate["conditional_threshold"] = conditional_threshold
+    gate["skills_passing"] = skills_passing
 
     if skills_passing >= proceed_threshold:
         if has_regressions:
@@ -313,7 +320,7 @@ def run_assessment(
             print(f"    Baseline: A={baseline_score.get('accuracy',0)} D={baseline_score.get('depth',0)} S={baseline_score.get('specificity',0)}", file=sys.stderr)
 
             # Rate limit pause
-            time.sleep(1)
+            time.sleep(RATE_LIMIT_SLEEP_SEC)
 
             # Enhanced: with skill context
             system_ctx = f"You are a software engineering expert. Use the following skill knowledge to answer:\n\n{context}"
@@ -322,7 +329,7 @@ def run_assessment(
             enhanced_scores.append(enhanced_score)
             print(f"    Enhanced: A={enhanced_score.get('accuracy',0)} D={enhanced_score.get('depth',0)} S={enhanced_score.get('specificity',0)}", file=sys.stderr)
 
-            time.sleep(1)
+            time.sleep(RATE_LIMIT_SLEEP_SEC)
 
         results[skill] = {
             "baseline": baseline_scores,
@@ -410,15 +417,15 @@ def main() -> None:
     json_output = json.dumps(output, indent=2)
 
     if args.output:
-        Path(args.output).write_text(json_output)
+        Path(args.output).write_text(json_output, encoding="utf-8")
         print(f"Results written to {args.output}", file=sys.stderr)
     else:
         print(json_output)
 
-    # Print summary table
-    total_skills = len(skills)
-    proceed_threshold = max(1, math.ceil(total_skills * 0.8))
-    conditional_threshold = max(1, math.ceil(total_skills * 0.6))
+    # Print summary table (thresholds computed once by apply_kill_gate)
+    total_skills = gate.get("total_skills", len(skills))
+    proceed_threshold = gate.get("proceed_threshold", 0)
+    conditional_threshold = gate.get("conditional_threshold", 0)
     print(f"\n{'='*70}", file=sys.stderr)
     print(f"  KILL GATE: {gate['verdict']} ({'PASS' if gate['passed'] else 'FAIL'})", file=sys.stderr)
     print(f"  Criteria: PROCEED={proceed_threshold}/{total_skills} pass (no regression), CONDITIONAL={conditional_threshold}/{total_skills} (or regression downgrades PROCEED), STOP=<{conditional_threshold}", file=sys.stderr)

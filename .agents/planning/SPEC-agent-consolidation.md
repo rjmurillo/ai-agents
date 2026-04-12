@@ -2,7 +2,7 @@
 
 ## Problem Statement
 
-The `.claude/agents/` directory has 23 agent definitions totaling 441KB. The largest agents (orchestrator 69KB, implementer 45KB, retrospective 43KB) score worst on quality assessments. The smallest agents (high-level-advisor 8KB, adr-generator 7KB) score best. Agent prompts need slimming and targeted enrichment, not consolidation.
+The `.claude/agents/` directory has 23 agent definitions totaling 441KB. The largest agents (orchestrator 69KB, implementer 44KB, retrospective 43KB) score worst on quality assessments. The smallest agents (high-level-advisor 8KB, adr-generator 7KB) score best. Agent prompts need slimming and targeted enrichment, not consolidation.
 
 ## Goals
 
@@ -23,8 +23,10 @@ The `.claude/agents/` directory has 23 agent definitions totaling 441KB. The lar
 
 ### Mirror Synchronization
 
-- AC-7: Changes to `.claude/agents/*.md` are propagated to `src/claude/*.md`, `templates/agents/*.shared.md`, `src/copilot-cli/*.agent.md`, and `src/vs-code-agents/*.agent.md` for the 11 slim targets. Helper script: `build/sync_slim_agents.py`. Verified by `build/scripts/detect_agent_drift.py` (all 11 targets at 100.0% similarity).
-- AC-8: `context-retrieval` and `spec-generator` are Claude-only agents; not mirrored to other platforms.
+- AC-7: 9 of the 11 slim targets (explainer, implementer, issue-feature-review, roadmap, milestone-planner, analyst, critic, orchestrator, skillbook) are propagated to all four mirror locations: `src/claude/<name>.md`, `templates/agents/<name>.shared.md`, `src/copilot-cli/<name>.agent.md`, and `src/vs-code-agents/<name>.agent.md`. Verified by `build/scripts/detect_agent_drift.py` (100.0% similarity across those 9).
+- AC-8: Two slim targets follow reduced-mirror rules:
+  - `spec-generator`: mirrored only to `src/claude/spec-generator.md`. Not published to `templates/agents/`, `src/copilot-cli/`, or `src/vs-code-agents/`.
+  - `context-retrieval`: lives only at `.claude/agents/context-retrieval.md`. Not mirrored anywhere (adding a `src/claude/` copy would break `Validate Marketplace Counts`; enforced via the `CLAUDE_ONLY_AGENTS` set in the sync tooling).
 
 ### Eval Framework
 

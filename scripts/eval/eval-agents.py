@@ -48,17 +48,26 @@ from _anthropic_api import call_api as _call_api, load_api_key as _load_api_key,
 # Agent context loading
 # ---------------------------------------------------------------------------
 
+RATE_LIMIT_SLEEP_SEC = 1.0  # fixed inter-call delay; no 429 backoff (dev tool)
+
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 AGENTS_DIR = REPO_ROOT / ".claude" / "agents"
+assert AGENTS_DIR.is_dir(), f"AGENTS_DIR miscomputed: {AGENTS_DIR} (is this script still at scripts/eval/?)"
 
 
 def list_agents() -> list[str]:
-    """List available agent names (excluding index files)."""
-    skip = {"AGENTS.md", "CLAUDE.md"}
+    """List agent names under AGENTS_DIR.
+
+    Only includes markdown files whose content starts with a `---` frontmatter
+    block. Index files, READMEs, and CLAUDE.md are skipped automatically.
+    """
     agents = []
     for f in sorted(AGENTS_DIR.iterdir()):
-        if f.is_file() and f.suffix == ".md" and f.name not in skip:
-            agents.append(f.stem)
+        if not (f.is_file() and f.suffix == ".md"):
+            continue
+        with f.open(encoding="utf-8") as fh:
+            if fh.read(3) == "---":
+                agents.append(f.stem)
     return agents
 
 
@@ -67,11 +76,16 @@ def load_agent_context(agent_name: str) -> str:
     agent_file = AGENTS_DIR / f"{agent_name}.md"
     if not agent_file.exists():
         return ""
-    return agent_file.read_text()
+    return agent_file.read_text(encoding="utf-8")
 
 
 def extract_agent_meta(agent_name: str) -> dict[str, str]:
-    """Extract frontmatter metadata from agent definition."""
+    """Extract minimal frontmatter fields (name, description, model).
+
+    Ignores nested keys like ``metadata.tier`` and list-valued fields. Good
+    enough for the assessment framework, which only needs the three fields
+    above.
+    """
     text = load_agent_context(agent_name)
     if not text.startswith("---"):
         return {"name": agent_name}
@@ -737,7 +751,7 @@ def run_assessment(
             ap = score.get("appropriateness", 0)
             print(f"    R={r} A={a} Q={q} Ap={ap}", file=sys.stderr)
 
-            time.sleep(1)
+            time.sleep(RATE_LIMIT_SLEEP_SEC)
 
         results[agent_name] = {
             "scores": scores,
@@ -833,7 +847,7 @@ def main() -> None:
     json_output = json.dumps(output, indent=2)
 
     if args.output:
-        Path(args.output).write_text(json_output)
+        Path(args.output).write_text(json_output, encoding="utf-8")
         print(f"Results written to {args.output}", file=sys.stderr)
     else:
         print(json_output)
@@ -878,7 +892,7 @@ def main() -> None:
         for name, data in weak:
             print(f"    {name}: {data['overall']:.2f}", file=sys.stderr)
 
-    sys.exit(0)
+    sys.exit(1 if weak else 0)
 
 
 if __name__ == "__main__":

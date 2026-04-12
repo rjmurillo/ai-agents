@@ -1,13 +1,17 @@
 """Shared Anthropic API utilities for evaluation scripts.
 
-This module provides common functions for loading API keys and calling the
-Anthropic Messages API. Used by eval-agents.py and eval-knowledge-integration.py.
+This module provides common functions for loading API keys, calling the
+Anthropic Messages API, and loading custom prompt JSON files. Used by
+eval-agents.py and eval-knowledge-integration.py.
 """
 
 from __future__ import annotations
 
 import json
 import os
+import socket
+import urllib.error
+import urllib.request
 from pathlib import Path
 from typing import Any
 
@@ -35,16 +39,16 @@ def load_api_key() -> str:
     for _ in range(10):
         env_path = search / ".env"
         if env_path.exists():
-            for line in env_path.read_text().splitlines():
-                line = line.strip()
+            for raw_line in env_path.read_text(encoding="utf-8").splitlines():
+                line = raw_line.strip()
                 if line.startswith("#") or "=" not in line:
                     continue
                 k, v = line.split("=", 1)
                 if k.strip() == "ANTHROPIC_API_KEY":
-                    v = v.strip()
-                    if len(v) >= 2 and v[0] == v[-1] and v[0] in ('"', "'"):
-                        v = v[1:-1]
-                    return v
+                    value = v.strip()
+                    if len(value) >= 2 and value[0] == value[-1] and value[0] in ('"', "'"):
+                        value = value[1:-1]
+                    return value
         search = search.parent
 
     raise RuntimeError(
@@ -77,10 +81,6 @@ def call_api(
             timeout, or invalid JSON response. Original exception is chained
             via __cause__.
     """
-    import socket
-    import urllib.error
-    import urllib.request
-
     body: dict[str, Any] = {
         "model": model,
         "max_tokens": max_tokens,
@@ -132,15 +132,21 @@ def call_api(
 def load_custom_prompts(path: str) -> dict[str, list[dict[str, Any]]]:
     """Load prompts from a JSON file.
 
-    The file may either contain a top-level mapping of {name: [prompts]}
-    or wrap it under a ``prompts`` key. Used by both eval-agents.py and
-    eval-knowledge-integration.py.
+    The file may either contain a top-level mapping of ``{name: [prompts]}``
+    or wrap it under a ``prompts`` key. Validates structural shape at the
+    CLI boundary and raises ``RuntimeError`` with an actionable message on
+    invalid input. Per-item content is trusted downstream.
     """
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         data = json.load(f)
     prompts = data["prompts"] if isinstance(data, dict) and isinstance(data.get("prompts"), dict) else data
     if not isinstance(prompts, dict):
         raise RuntimeError(
             f"Invalid prompts file {path}: expected top-level object mapping names to lists."
         )
+    for name, items in prompts.items():
+        if not isinstance(items, list):
+            raise RuntimeError(
+                f"Invalid prompts file {path}: entry '{name}' must map to a list of prompt objects."
+            )
     return prompts
