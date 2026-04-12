@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import json
 import os
-import sys
 from pathlib import Path
 from typing import Any
 
@@ -23,8 +22,10 @@ def load_api_key() -> str:
     Returns:
         The API key string.
 
-    Exits:
-        With code 1 if the key is not found.
+    Raises:
+        RuntimeError: If the key is not found in the environment or any .env file.
+            Callers at the CLI boundary should catch this and sys.exit(1) if
+            process termination is appropriate.
     """
     key = os.environ.get("ANTHROPIC_API_KEY")
     if key:

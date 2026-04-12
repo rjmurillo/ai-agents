@@ -88,8 +88,16 @@ Format (kept verbatim, do not add commentary):
 ```markdown
 | Keywords | File |
 |----------|------|
-| keyword1 keyword2 | [skill-name](path/to/skill-name.md) |
+| keyword1 keyword2 | [skill-descriptor]({domain}/{domain}-{NNN}-{short-descriptor}) |
 ```
+
+Concrete example from `skills-pr-review-index.md`:
+
+```markdown
+| reviewer enumeration all reviewers single-bot blindness | [pr-review/pr-review-001-reviewer-enumeration](pr-review/pr-review-001-reviewer-enumeration.md) |
+```
+
+The relative link path matches the skill file layout described in the Skill File Format section above.
 
 Update flow:
 
