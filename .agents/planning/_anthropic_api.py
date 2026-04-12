@@ -74,7 +74,8 @@ def call_api(
 
     Raises:
         RuntimeError: If the API returns an HTTP error, network failure,
-            or timeout. Original exception is chained via __cause__.
+            timeout, or invalid JSON response. Original exception is chained
+            via __cause__.
     """
     import socket
     import urllib.error
@@ -117,6 +118,11 @@ def call_api(
         raise RuntimeError(
             "Anthropic API request timed out after 120s. "
             "The service may be slow or unreachable."
+        ) from e
+    except json.JSONDecodeError as e:
+        raise RuntimeError(
+            f"Anthropic API returned invalid JSON: {e.msg} at position {e.pos}. "
+            "Response may be truncated or malformed."
         ) from e
 
     text_parts = [block["text"] for block in result.get("content", []) if block.get("type") == "text"]
