@@ -93,7 +93,7 @@ Format (kept verbatim, do not add commentary):
 ```markdown
 | Keywords | File |
 |----------|------|
-| keyword1 keyword2 | [skill-descriptor]({domain}/{domain}-{NNN}-{short-descriptor}) |
+| keyword1 keyword2 | [skill-descriptor]({domain}/{domain}-{NNN}-{short-descriptor}.md) |
 ```
 
 Concrete example from `skills-pr-review-index.md`:

@@ -44,9 +44,9 @@ REQ-NNN (WHAT/WHY) → DESIGN-NNN (HOW) → TASK-NNN (IMPLEMENTATION)
 
 | Tier | Format | Location |
 |------|--------|----------|
-| Requirements | EARS | `.agents/specs/requirements/REQ-NNN-kebab.md` |
-| Design | Technical spec | `.agents/specs/design/DESIGN-NNN-kebab.md` |
-| Tasks | Atomic work items | `.agents/specs/tasks/TASK-NNN-kebab.md` |
+| Requirements | EARS | `.agents/specs/requirements/REQ-NNN-{kebab-case-title}.md` |
+| Design | Technical spec | `.agents/specs/design/DESIGN-NNN-{kebab-case-title}.md` |
+| Tasks | Atomic work items | `.agents/specs/tasks/TASK-NNN-{kebab-case-title}.md` |
 
 ### EARS Syntax
 
