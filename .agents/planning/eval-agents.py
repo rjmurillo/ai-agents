@@ -2,10 +2,22 @@
 """Agent Definition Quality Assessment: Measure agent prompt quality against role expectations.
 
 Unlike skill assessments (baseline vs enhanced), agent assessments score how well the agent
-definition performs its stated job. Each agent is scored on:
+definition performs its stated job. Each agent is scored on four dimensions:
   - Role adherence: stays in character, does what the definition says
   - Actionability: outputs are concrete, specific, and usable
   - Quality signals: follows style guide (no filler, data over adjectives)
+  - Appropriateness: matches behavior to problem complexity (Cynefin-aware)
+
+Each prompt is tagged with a Cynefin complexity classification that determines the
+expected behavior pattern. An "ask first" agent receives high appropriateness for
+asking good questions on Complex problems, and low appropriateness for asking
+unnecessary questions on Clear problems where direct output is expected.
+
+Complexity classifications:
+  - clear: Standard problem, known pattern. Expected: direct output, minimal questions.
+  - complicated: Requires expert analysis. Expected: produce with trade-offs and assumptions.
+  - complex: Multiple unknowns, no clear right answer. Expected: ask clarifying questions, explore space.
+  - chaotic: Crisis/urgent. Expected: stabilize first, then ask, then produce.
 
 Usage:
     python3 .agents/planning/eval-agents.py
@@ -108,23 +120,27 @@ def extract_agent_meta(agent_name: str) -> dict[str, str]:
 # Built-in prompts: 4 prompts per agent, targeting stated capabilities
 # ---------------------------------------------------------------------------
 
-PROMPTS: dict[str, list[dict[str, str]]] = {
+PROMPTS: dict[str, list[dict[str, Any]]] = {
     "analyst": [
         {
             "prompt": "A deployment pipeline started failing intermittently 3 days ago. No code changes were deployed. The failure rate is ~15% and only affects the build step. Investigate.",
-            "expected": "Structured investigation plan: environment changes (OS patches, dependency updates, runner changes), flaky test identification, timeline correlation, log analysis approach. Should NOT jump to solutions."
+            "expected": "Structured investigation plan: environment changes (OS patches, dependency updates, runner changes), flaky test identification, timeline correlation, log analysis approach. Should NOT jump to solutions.",
+            "complexity": "complicated"
         },
         {
             "prompt": "Product wants to add real-time notifications. We currently use polling. Research the feasibility and trade-offs.",
-            "expected": "WebSocket vs SSE vs long-polling comparison with concrete trade-offs (connection limits, proxy compatibility, mobile battery). Infrastructure requirements. Existing code patterns to leverage. Dependencies and risks."
+            "expected": "WebSocket vs SSE vs long-polling comparison with concrete trade-offs (connection limits, proxy compatibility, mobile battery). Infrastructure requirements. Existing code patterns to leverage. Dependencies and risks.",
+            "complexity": "complicated"
         },
         {
             "prompt": "We have 3 microservices that each maintain their own user cache. Users report stale data after profile updates. What are we dealing with?",
-            "expected": "Cache invalidation analysis: identify cache consistency model (eventual vs strong), propagation delay measurement, event-driven invalidation options. Root cause vs symptom distinction."
+            "expected": "Cache invalidation analysis: identify cache consistency model (eventual vs strong), propagation delay measurement, event-driven invalidation options. Root cause vs symptom distinction.",
+            "complexity": "complicated"
         },
         {
             "prompt": "A feature request asks for 'AI-powered search'. Before anyone writes code, what do I need to know?",
-            "expected": "Requirements discovery: what does 'AI-powered' mean specifically? Semantic search vs autocomplete vs RAG. Data volume, latency requirements, cost per query. Build vs buy analysis. Existing search infrastructure."
+            "expected": "Requirements discovery: what does 'AI-powered' mean specifically? Semantic search vs autocomplete vs RAG. Data volume, latency requirements, cost per query. Build vs buy analysis. Existing search infrastructure.",
+            "complexity": "complex"
         },
     ],
     "architect": [
@@ -148,19 +164,23 @@ PROMPTS: dict[str, list[dict[str, str]]] = {
     "critic": [
         {
             "prompt": "Here is our plan: migrate from MySQL to PostgreSQL over 3 weekends. Step 1: export MySQL data. Step 2: import to PostgreSQL. Step 3: switch connection strings. Step 4: decommission MySQL. Assess.",
-            "expected": "Missing rollback plan. No dual-write/read period. No data validation step. Application-level query compatibility not addressed. Performance regression testing absent. What happens if Step 3 fails at 2am Sunday?"
+            "expected": "Missing rollback plan. No dual-write/read period. No data validation step. Application-level query compatibility not addressed. Performance regression testing absent. What happens if Step 3 fails at 2am Sunday?",
+            "complexity": "complicated"
         },
         {
             "prompt": "Plan: Add feature flags to all new features. Use LaunchDarkly. Roll out to 10% of users first, then 50%, then 100%. Is this plan ready?",
-            "expected": "Missing: flag cleanup strategy (flag debt), monitoring per cohort, definition of 'success' metrics per rollout stage, kill criteria, data consistency across flag states."
+            "expected": "Missing: flag cleanup strategy (flag debt), monitoring per cohort, definition of 'success' metrics per rollout stage, kill criteria, data consistency across flag states.",
+            "complexity": "complicated"
         },
         {
             "prompt": "We will refactor the auth module by extracting it into a separate service. Timeline: 2 weeks. No tests exist for the current module. Plan review.",
-            "expected": "Pre-mortem: extracting without tests means no safety net. 2-week estimate for service extraction is unrealistic. Missing: characterization tests first, API contract definition, auth token handling during migration."
+            "expected": "Pre-mortem: extracting without tests means no safety net. 2-week estimate for service extraction is unrealistic. Missing: characterization tests first, API contract definition, auth token handling during migration.",
+            "complexity": "complicated"
         },
         {
             "prompt": "Proposal: replace our custom logging with structured logging using Serilog. Scope: all 12 services. Timeline: 1 sprint. Review.",
-            "expected": "Scope vs timeline mismatch: 12 services in 1 sprint requires parallel work. Missing: log schema standardization, correlation ID propagation, backward compatibility with existing log consumers, rollback strategy per service."
+            "expected": "Scope vs timeline mismatch: 12 services in 1 sprint requires parallel work. Missing: log schema standardization, correlation ID propagation, backward compatibility with existing log consumers, rollback strategy per service.",
+            "complexity": "complicated"
         },
     ],
     "implementer": [
@@ -238,19 +258,23 @@ PROMPTS: dict[str, list[dict[str, str]]] = {
     "explainer": [
         {
             "prompt": "Write a PRD for adding two-factor authentication to an existing login system. Target audience: junior developers.",
-            "expected": "Clear problem statement. User stories with INVEST criteria. Acceptance criteria (testable, pass/fail). No jargon without definition. Concrete examples of user flow. Out of scope section."
+            "expected": "Clear problem statement. User stories with INVEST criteria. Acceptance criteria (testable, pass/fail). No jargon without definition. Concrete examples of user flow. Out of scope section.",
+            "complexity": "clear"
         },
         {
             "prompt": "Explain the difference between authentication and authorization to someone who has never heard either term.",
-            "expected": "Concrete analogy (building access: badge = authentication, floor access = authorization). No assumed knowledge. Examples before definitions. Progressive complexity."
+            "expected": "Concrete analogy (building access: badge = authentication, floor access = authorization). No assumed knowledge. Examples before definitions. Progressive complexity.",
+            "complexity": "clear"
         },
         {
             "prompt": "Document how our API rate limiting works for new team members.",
-            "expected": "What it does (plain English), why it exists, how to test against it, what happens when limits are hit, how to request increases. Code examples. No unexplained acronyms."
+            "expected": "What it does (plain English), why it exists, how to test against it, what happens when limits are hit, how to request increases. Code examples. No unexplained acronyms.",
+            "complexity": "clear"
         },
         {
             "prompt": "Write acceptance criteria for a 'forgot password' feature.",
-            "expected": "Numbered, independently testable criteria. Each one pass/fail verifiable. Covers: email validation, token expiry, password requirements, rate limiting, success/failure UX. No ambiguous language."
+            "expected": "Numbered, independently testable criteria. Each one pass/fail verifiable. Covers: email validation, token expiry, password requirements, rate limiting, success/failure UX. No ambiguous language.",
+            "complexity": "clear"
         },
     ],
     "milestone-planner": [
@@ -292,19 +316,23 @@ PROMPTS: dict[str, list[dict[str, str]]] = {
     "orchestrator": [
         {
             "prompt": "A user reports: 'The checkout page is broken after the latest deploy. Orders are failing with a 500 error.' Coordinate the response.",
-            "expected": "Classify severity (P0, revenue impact). Route: analyst for root cause, devops for rollback assessment, qa for reproduction. Sequence: investigate first, don't fix blind. Synthesize findings before action."
+            "expected": "Classify severity (P0, revenue impact). Route: analyst for root cause, devops for rollback assessment, qa for reproduction. Sequence: investigate first, don't fix blind. Synthesize findings before action.",
+            "complexity": "chaotic"
         },
         {
             "prompt": "User asks: 'Plan and implement a new webhook system for our API.' Coordinate the multi-step task.",
-            "expected": "Route: spec-generator for requirements, architect for design review, milestone-planner for breakdown, implementer for code, qa for testing. Sequence respects dependencies. Handoff context preserved between agents."
+            "expected": "Route: spec-generator for requirements, architect for design review, milestone-planner for breakdown, implementer for code, qa for testing. Sequence respects dependencies. Handoff context preserved between agents.",
+            "complexity": "complicated"
         },
         {
             "prompt": "Three PRs are open: a security fix (P0), a feature (P2), and a refactor (P3). Coordinate review and merge.",
-            "expected": "Priority ordering: security first. Route security to security agent + implementer. Feature to architect + qa. Refactor to critic. Merge order matters: security, then feature (check conflicts), then refactor."
+            "expected": "Priority ordering: security first. Route security to security agent + implementer. Feature to architect + qa. Refactor to critic. Merge order matters: security, then feature (check conflicts), then refactor.",
+            "complexity": "complicated"
         },
         {
             "prompt": "User says: 'Our API is slow. Fix it.' Classify complexity and coordinate.",
-            "expected": "Classify as Complex (Cynefin). Don't jump to implementation. Route to analyst for profiling/investigation first. Then architect for systemic issues. Then implementer for targeted fixes. Report back with evidence."
+            "expected": "Classify as Complex (Cynefin). Don't jump to implementation. Route to analyst for profiling/investigation first. Then architect for systemic issues. Then implementer for targeted fixes. Report back with evidence.",
+            "complexity": "complex"
         },
     ],
     "roadmap": [
@@ -364,19 +392,23 @@ PROMPTS: dict[str, list[dict[str, str]]] = {
     "spec-generator": [
         {
             "prompt": "We need a password reset feature. Generate the spec.",
-            "expected": "Clarifying questions first (email or SMS? token expiry? rate limiting?). EARS format requirements. Testable acceptance criteria. Security considerations (token entropy, brute force protection). Out of scope section."
+            "expected": "Clarifying questions first (email or SMS? token expiry? rate limiting?). EARS format requirements. Testable acceptance criteria. Security considerations (token entropy, brute force protection). Out of scope section.",
+            "complexity": "complicated"
         },
         {
             "prompt": "Feature idea: 'users should be able to share reports with external people'. Spec it.",
-            "expected": "Questions: what access level? Expiry? Revocation? Auth required for viewers? Then: requirements with SHALL/SHOULD/MAY. Acceptance criteria (each independently testable). Privacy/compliance considerations."
+            "expected": "Questions: what access level? Expiry? Revocation? Auth required for viewers? Then: requirements with SHALL/SHOULD/MAY. Acceptance criteria (each independently testable). Privacy/compliance considerations.",
+            "complexity": "complex"
         },
         {
             "prompt": "Vibe-level description: 'make the dashboard faster'. Transform into a spec.",
-            "expected": "Push back on vague requirement. Define measurable targets (LCP < 2.5s, TTI < 3.8s). Identify which dashboard components are slow. Requirements tied to specific performance metrics, not subjective 'fast'."
+            "expected": "Push back on vague requirement. Define measurable targets (LCP < 2.5s, TTI < 3.8s). Identify which dashboard components are slow. Requirements tied to specific performance metrics, not subjective 'fast'.",
+            "complexity": "complex"
         },
         {
             "prompt": "We want to add webhooks so customers can subscribe to events. Spec this feature.",
-            "expected": "Event catalog (which events?). Delivery guarantees (at-least-once). Retry policy. Payload format (schema versioning). Authentication (HMAC signing). Rate limiting. Self-service management UI vs API-only."
+            "expected": "Event catalog (which events?). Delivery guarantees (at-least-once). Retry policy. Payload format (schema versioning). Authentication (HMAC signing). Rate limiting. Self-service management UI vs API-only.",
+            "complexity": "complex"
         },
     ],
     "backlog-generator": [
@@ -568,22 +600,54 @@ def _call_api(api_key: str, messages: list[dict], system: str = "", model: str =
     return "\n".join(text_parts)
 
 
+COMPLEXITY_BEHAVIOR = {
+    "clear": (
+        "Direct output. The problem is standard with a known pattern. "
+        "Producing the requested artifact directly is the correct behavior. "
+        "Asking clarifying questions for basic context is OVER-ENGINEERING and scores low on appropriateness."
+    ),
+    "complicated": (
+        "Expert analysis. The problem requires domain expertise but has defensible answers. "
+        "The agent should produce output while flagging key assumptions and trade-offs. "
+        "Asking questions is appropriate ONLY if essential information is missing. "
+        "Jumping to implementation without considering alternatives scores low."
+    ),
+    "complex": (
+        "Explore the space. The problem has multiple stakeholders or unknowns with no clear right answer. "
+        "The agent SHOULD ask clarifying questions before committing to a direction. "
+        "Producing direct output without surfacing unknowns is INAPPROPRIATE and scores low. "
+        "Good questions target high-leverage unknowns."
+    ),
+    "chaotic": (
+        "Stabilize first. The problem is urgent or involves a crisis. "
+        "The agent should acknowledge urgency, prioritize immediate stabilization steps, "
+        "then ask focused questions, then produce output. Deep analysis without action is inappropriate."
+    ),
+}
+
+
 def score_agent_response(
     api_key: str,
     prompt: str,
     response: str,
     expected: str,
     agent_name: str,
+    complexity: str = "complicated",
     model: str = "claude-sonnet-4-20250514",
 ) -> dict[str, Any]:
-    """Score an agent response on role adherence, actionability, and quality."""
-    scoring_prompt = f"""Score the following agent response on three dimensions (1-5 each).
+    """Score an agent response on 4 dimensions: role, actionability, quality, appropriateness."""
+    behavior_guidance = COMPLEXITY_BEHAVIOR.get(complexity, COMPLEXITY_BEHAVIOR["complicated"])
+
+    scoring_prompt = f"""Score the following agent response on four dimensions (1-5 each).
 
 **Agent role**: {agent_name}
 
 **Task given to agent**: {prompt}
 
-**Expected behavior**: {expected}
+**Problem complexity**: {complexity}
+**Expected behavior pattern for this complexity**: {behavior_guidance}
+
+**Expected output description**: {expected}
 
 **Actual response**: {response}
 
@@ -591,9 +655,10 @@ Score each dimension:
 - **Role adherence** (1-5): Does the response stay in character for the {agent_name} role? Does it do what the role says it should do, not what other roles do?
 - **Actionability** (1-5): Are the outputs concrete, specific, and immediately usable? File names, line numbers, specific recommendations vs vague advice?
 - **Quality** (1-5): Does the response follow style standards (no AI filler, no hedging, data over adjectives, active voice, short sentences)?
+- **Appropriateness** (1-5): Does the response match the behavior pattern for this complexity level? For '{complexity}' problems, {behavior_guidance.split('.')[0]}. Score 5 if the agent correctly matched behavior to complexity, 1 if it went the wrong direction (e.g., asked 10 questions on a clear problem, or produced direct output on a complex problem without surfacing unknowns).
 
 Respond in JSON only, no other text:
-{{"role_adherence": <int>, "actionability": <int>, "quality": <int>, "reasoning": "<brief explanation>"}}"""
+{{"role_adherence": <int>, "actionability": <int>, "quality": <int>, "appropriateness": <int>, "reasoning": "<brief explanation>"}}"""
 
     raw = _call_api(api_key, [{"role": "user", "content": scoring_prompt}], model=model)
 
@@ -605,11 +670,15 @@ Respond in JSON only, no other text:
 
     try:
         scores = json.loads(text)
+        # Backfill appropriateness if missing from an older response
+        if "appropriateness" not in scores:
+            scores["appropriateness"] = 0
     except json.JSONDecodeError:
         scores = {
             "role_adherence": 0,
             "actionability": 0,
             "quality": 0,
+            "appropriateness": 0,
             "reasoning": f"Failed to parse: {text[:200]}",
         }
 
@@ -620,15 +689,17 @@ Respond in JSON only, no other text:
 # Assessment runner
 # ---------------------------------------------------------------------------
 
-def _avg_scores(score_list: list[dict]) -> dict[str, float]:
-    """Average role_adherence, actionability, quality across score dicts."""
-    if not score_list:
-        return {"role_adherence": 0.0, "actionability": 0.0, "quality": 0.0}
+DIMENSIONS = ["role_adherence", "actionability", "quality", "appropriateness"]
 
-    dims = ["role_adherence", "actionability", "quality"]
+
+def _avg_scores(score_list: list[dict]) -> dict[str, float]:
+    """Average role_adherence, actionability, quality, appropriateness across score dicts."""
+    if not score_list:
+        return {dim: 0.0 for dim in DIMENSIONS}
+
     return {
         dim: round(sum(s.get(dim, 0) for s in score_list) / len(score_list), 2)
-        for dim in dims
+        for dim in DIMENSIONS
     }
 
 
@@ -669,14 +740,17 @@ def run_assessment(
             current += 1
             prompt_text = item["prompt"]
             expected = item["expected"]
-            print(f"  [{current}/{total}] {prompt_text[:70]}...", file=sys.stderr)
+            complexity = item.get("complexity", "complicated")
+            print(f"  [{current}/{total}] ({complexity}) {prompt_text[:60]}...", file=sys.stderr)
 
             if dry_run:
                 scores.append({
                     "role_adherence": 0,
                     "actionability": 0,
                     "quality": 0,
+                    "appropriateness": 0,
                     "reasoning": "dry-run",
+                    "complexity": complexity,
                 })
                 continue
 
@@ -688,16 +762,19 @@ def run_assessment(
             response = _call_api(api_key, [{"role": "user", "content": prompt_text}],
                                  system=system_ctx, model=model)
 
-            # Score the response
+            # Score the response with complexity context
             score = score_agent_response(
-                api_key, prompt_text, response, expected, agent_name, model=model
+                api_key, prompt_text, response, expected, agent_name,
+                complexity=complexity, model=model
             )
+            score["complexity"] = complexity
             scores.append(score)
 
             r = score.get("role_adherence", 0)
             a = score.get("actionability", 0)
             q = score.get("quality", 0)
-            print(f"    R={r} A={a} Q={q}", file=sys.stderr)
+            ap = score.get("appropriateness", 0)
+            print(f"    R={r} A={a} Q={q} Ap={ap}", file=sys.stderr)
 
             time.sleep(1)
 
@@ -777,7 +854,7 @@ def main() -> None:
         "model": args.model,
         "agents_assessed": agents,
         "total_prompts": prompt_count,
-        "dimensions": ["role_adherence", "actionability", "quality"],
+        "dimensions": DIMENSIONS,
         "results": {},
     }
 
@@ -802,12 +879,12 @@ def main() -> None:
         print(json_output)
 
     # Print summary table
-    print(f"\n{'='*80}", file=sys.stderr)
-    print(f"  AGENT QUALITY BASELINE RESULTS", file=sys.stderr)
-    print(f"{'='*80}", file=sys.stderr)
-    print(f"  {'Agent':<22} {'Model':<8} {'Role':>6} {'Action':>8} {'Quality':>8} {'Overall':>8}",
+    print(f"\n{'='*92}", file=sys.stderr)
+    print(f"  AGENT QUALITY RESULTS (4-dimensional, Cynefin-aware)", file=sys.stderr)
+    print(f"{'='*92}", file=sys.stderr)
+    print(f"  {'Agent':<22} {'Model':<8} {'Role':>6} {'Action':>7} {'Qual':>6} {'Approp':>7} {'Overall':>8}",
           file=sys.stderr)
-    print(f"  {'-'*68}", file=sys.stderr)
+    print(f"  {'-'*80}", file=sys.stderr)
 
     sorted_agents = sorted(
         output["results"].items(),
@@ -821,13 +898,14 @@ def main() -> None:
         print(
             f"  {agent_name:<22} {model:<8} "
             f"{avg.get('role_adherence', 0):>6.2f} "
-            f"{avg.get('actionability', 0):>8.2f} "
-            f"{avg.get('quality', 0):>8.2f} "
+            f"{avg.get('actionability', 0):>7.2f} "
+            f"{avg.get('quality', 0):>6.2f} "
+            f"{avg.get('appropriateness', 0):>7.2f} "
             f"{overall:>8.2f}",
             file=sys.stderr,
         )
 
-    print(f"{'='*80}", file=sys.stderr)
+    print(f"{'='*92}", file=sys.stderr)
 
     # Highlight weak spots
     weak = [
