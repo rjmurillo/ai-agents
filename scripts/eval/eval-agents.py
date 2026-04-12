@@ -810,7 +810,11 @@ def main() -> None:
         print(f"Starting assessment (est. {api_calls * 3}s with rate limiting)...",
               file=sys.stderr)
 
-    results = run_assessment(api_key, agents, prompts, model=args.model, dry_run=args.dry_run)
+    try:
+        results = run_assessment(api_key, agents, prompts, model=args.model, dry_run=args.dry_run)
+    except RuntimeError as exc:
+        print(f"Error: assessment failed: {exc}", file=sys.stderr)
+        sys.exit(1)
 
     # Build output
     output: dict[str, Any] = {

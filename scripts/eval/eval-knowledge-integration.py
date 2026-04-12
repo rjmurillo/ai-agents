@@ -268,7 +268,7 @@ def _avg_scores(score_list: list[dict]) -> dict[str, float]:
 # Main eval runner
 # ---------------------------------------------------------------------------
 
-def run_eval(
+def run_assessment(
     api_key: str,
     skills: list[str],
     prompts: dict[str, list[dict[str, str]]],
@@ -399,7 +399,11 @@ def main() -> None:
     if not args.dry_run:
         print(f"Starting eval (est. {api_calls * 2}s with rate limiting)...", file=sys.stderr)
 
-    results = run_eval(api_key, skills, prompts, model=args.model, dry_run=args.dry_run)
+    try:
+        results = run_assessment(api_key, skills, prompts, model=args.model, dry_run=args.dry_run)
+    except RuntimeError as exc:
+        print(f"Error: assessment failed: {exc}", file=sys.stderr)
+        sys.exit(1)
 
     # Apply kill gate
     gate = apply_kill_gate(results)
