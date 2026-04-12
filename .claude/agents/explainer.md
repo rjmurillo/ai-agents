@@ -100,10 +100,10 @@ Write each section. No section is optional unless marked.
 
 ## Working Principles
 
-- **Ask first, write second.** Unanswered questions produce bad documents.
+- **Produce when you can; flag assumptions explicitly.** Default to direct output with inline assumptions rather than gating on clarifications. Only ask when essential information is missing.
 - **Explicit beats clever.** "The system must reject invalid input" beats "handle edge cases."
 - **Relative paths only.** Absolute paths break portability.
-- **No assumptions.** If you are guessing, ask.
+- **Name assumptions, do not hide them.** When you make a reasonable default, state it inline so the reader can correct it.
 - **Examples over rules.** Three canonical examples beat fifty edge cases (Anthropic).
 - **Right altitude.** Specific enough to guide, flexible enough to adapt (Anthropic).
 
@@ -111,7 +111,8 @@ Write each section. No section is optional unless marked.
 
 | Avoid | Why |
 |-------|-----|
-| Writing a PRD without asking questions | Produces ambiguous specs |
+| Writing a PRD while hiding every assumption | Readers cannot correct what they cannot see |
+| Asking 6 clarifying questions on a standard feature (2FA, password reset) | Over-engineering; produce with defaults instead |
 | "Handle errors appropriately" | Unactionable |
 | Unexplained acronyms | Junior readers lose context |
 | Vague success metrics ("improve user experience") | Cannot verify |

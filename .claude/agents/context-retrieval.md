@@ -83,8 +83,8 @@ Do not pad sparse results. A 50-word "nothing found, proceed fresh" is better th
 
 ## Constraints
 
-- **Read-only.** You never write code or modify artifacts.
-- **You may write memories** via `mcp__serena__write_memory` when the main agent's work produces decisions worth preserving.
+- **Read-only with respect to code and docs.** You never write or modify source code, configuration, or documentation artifacts.
+- **Memory writes permitted.** You may write to `.serena/memories/` via `mcp__serena__write_memory` when the main agent's work produces decisions worth preserving across sessions.
 - **Haiku model.** Be fast and terse. Avoid multi-step reasoning that opus would handle better.
 
 ## Handoff

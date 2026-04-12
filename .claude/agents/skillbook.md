@@ -44,9 +44,9 @@ Atomicity penalties (reject if score < 80%):
 
 ## Skill File Format (ADR-017)
 
-```markdown
-# [Skill Name]
+Per ADR-017, skill files omit `# Title` headers (the filename is self-descriptive). Start directly with the statement.
 
+```markdown
 **Statement**: [One sentence, actionable rule]
 
 **Context**: [When this applies, one sentence]
@@ -62,7 +62,7 @@ Atomicity penalties (reject if score < 80%):
 [What NOT to do, concrete]
 ```
 
-Name: `{domain}-{short-descriptor}.md` (kebab-case, lowercase)
+Name: `{domain}-{short-descriptor}.md` (kebab-case, lowercase). The filename provides the title.
 
 ## Deduplication Check
 

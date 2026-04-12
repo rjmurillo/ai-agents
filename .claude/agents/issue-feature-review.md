@@ -60,6 +60,8 @@ Use the answers to sharpen the recommendation. Do NOT include this list in the o
 
 ## Output Format
 
+This format mirrors `.github/prompts/issue-feature-review.md` (consumed by `ai-issue-triage.yml`). Keep both in sync when changing the format.
+
 ```markdown
 ## Thank You
 [1-2 sentences, genuine, acknowledge the effort to file the request]
@@ -76,16 +78,21 @@ Use the answers to sharpen the recommendation. Do NOT include this list in the o
 | Strategic Alignment | ... | ... |
 | Trade-offs | ... | ... |
 
-## Findings
-**Determined**: [facts you verified from issue or repo]
-**Unknown**: [what requires manual research]
+## Research Findings
+
+### What I Could Determine
+[Bullet list of facts established from the issue or repo]
+
+### What Requires Manual Research
+[Bullet list of unknowns requiring maintainer investigation]
+
+## Questions for Submitter
+[Only include if genuinely needed; prefer self-answering. If no questions, omit this section or state: "No additional information needed from submitter at this time."]
 
 ## Recommendation
 **RECOMMENDATION**: PROCEED | DEFER | REQUEST_EVIDENCE | NEEDS_RESEARCH | DECLINE
 
 **Rationale**: [1-2 sentences]
-
-**Confidence**: HIGH | MEDIUM | LOW
 
 ## Suggested Actions
 - **Assignees**: [usernames or "none"]

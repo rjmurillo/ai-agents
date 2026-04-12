@@ -60,7 +60,7 @@ Include confidence level (HIGH / MEDIUM / LOW) with every verdict. Low confidenc
 
 ## Critique Document Structure
 
-Save to `.agents/plans/critiques/critique-[plan-name]-[YYYY-MM-DD].md`.
+Save to `.agents/critique/[NNN]-[plan-name]-critique-[YYYY-MM-DD].md` (existing repo convention).
 
 ```markdown
 # Critique: [Plan Name]

@@ -137,7 +137,9 @@ Never close a session with pending delegations.
 
 ## Tools
 
-Read, Grep, Glob, Bash, Task (for delegation). Memory via `mcp__serena__read_memory` for cross-session context.
+Read, Grep, Glob, Bash, TodoWrite, Task (for delegation). Memory via `mcp__serena__read_memory` and `mcp__serena__write_memory` for cross-session context and handoff persistence.
+
+Investigation tools (WebSearch, WebFetch) are intentionally not included. If a task needs external research, delegate to the analyst agent. Orchestrator coordinates; it does not investigate.
 
 ## Anti-Patterns
 
