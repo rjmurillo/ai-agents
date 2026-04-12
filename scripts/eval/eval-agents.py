@@ -825,7 +825,8 @@ def main() -> None:
     for agent_name in agents:
         if agent_name in results:
             avg = _avg_scores(results[agent_name]["scores"])
-            overall = round(sum(avg.values()) / len(avg), 2) if avg else 0.0
+            non_zero_values = [v for v in avg.values() if v > 0]
+            overall = round(sum(non_zero_values) / len(non_zero_values), 2) if non_zero_values else 0.0
             output["results"][agent_name] = {
                 "context_chars": results[agent_name]["context_chars"],
                 "model": results[agent_name]["model"],
