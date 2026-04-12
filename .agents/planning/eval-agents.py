@@ -280,19 +280,23 @@ PROMPTS: dict[str, list[dict[str, Any]]] = {
     "milestone-planner": [
         {
             "prompt": "Break down 'migrate from REST to gRPC for inter-service communication' into milestones. We have 4 services.",
-            "expected": "Sequential milestones with exit criteria. M1: protobuf schema + code gen. M2: one service (lowest risk) dual-protocol. M3: remaining services. M4: decommission REST. Each independently shippable. Parallel opportunities identified."
+            "expected": "Sequential milestones with exit criteria. M1: protobuf schema + code gen. M2: one service (lowest risk) dual-protocol. M3: remaining services. M4: decommission REST. Each independently shippable. Parallel opportunities identified.",
+            "complexity": "complicated"
         },
         {
             "prompt": "Plan milestones for adding multi-tenancy to a single-tenant SaaS application.",
-            "expected": "Data isolation strategy first (schema-per-tenant vs row-level). M1: tenant context middleware. M2: data layer isolation. M3: auth/authz per tenant. M4: tenant provisioning. Risk: data leakage between tenants."
+            "expected": "Data isolation strategy first (schema-per-tenant vs row-level). M1: tenant context middleware. M2: data layer isolation. M3: auth/authz per tenant. M4: tenant provisioning. Risk: data leakage between tenants.",
+            "complexity": "complicated"
         },
         {
             "prompt": "Epic: 'Improve API response times by 50%'. Create implementation milestones.",
-            "expected": "M1: baseline measurement + profiling (exit: bottlenecks identified with data). M2: quick wins (caching, query optimization). M3: architectural changes (async, connection pooling). Each with measurable exit criteria."
+            "expected": "M1: baseline measurement + profiling (exit: bottlenecks identified with data). M2: quick wins (caching, query optimization). M3: architectural changes (async, connection pooling). Each with measurable exit criteria.",
+            "complexity": "complicated"
         },
         {
             "prompt": "We need to upgrade from .NET 6 to .NET 9. 15 projects in the solution. Plan it.",
-            "expected": "Dependency graph analysis first. Leaf projects before root. M1: shared libraries. M2: test projects. M3: application projects. M4: deployment pipeline updates. Breaking change assessment per milestone."
+            "expected": "Dependency graph analysis first. Leaf projects before root. M1: shared libraries. M2: test projects. M3: application projects. M4: deployment pipeline updates. Breaking change assessment per milestone.",
+            "complexity": "complicated"
         },
     ],
     "task-decomposer": [
@@ -338,19 +342,23 @@ PROMPTS: dict[str, list[dict[str, Any]]] = {
     "roadmap": [
         {
             "prompt": "We have 5 feature requests, 3 tech debt items, and a security vulnerability. Prioritize for next quarter.",
-            "expected": "Security vulnerability is P0 (non-negotiable). Then RICE/KANO scoring for features vs debt. Outcome-focused: which features drive retention/revenue? Tech debt scored by blast radius. Clear sequencing with rationale."
+            "expected": "Security vulnerability is P0 (non-negotiable). Then RICE/KANO scoring for features vs debt. Outcome-focused: which features drive retention/revenue? Tech debt scored by blast radius. Clear sequencing with rationale.",
+            "complexity": "complicated"
         },
         {
             "prompt": "A stakeholder wants us to build a custom CRM. We currently use spreadsheets. Should we build, buy, or partner?",
-            "expected": "Challenge the build instinct. Consider Salesforce/HubSpot fit. What is unique about our needs? TCO comparison. Build only if core differentiator. Start with the smallest thing that could work."
+            "expected": "Challenge the build instinct. Consider Salesforce/HubSpot fit. What is unique about our needs? TCO comparison. Build only if core differentiator. Start with the smallest thing that could work.",
+            "complexity": "complex"
         },
         {
             "prompt": "We shipped 3 features last quarter but NPS dropped 5 points. What is the strategic response?",
-            "expected": "Features without user value is vanity work. Investigate: which features drove the drop? User feedback data. Reliability/performance regression? Strategic drift: building what was asked vs what was needed."
+            "expected": "Features without user value is vanity work. Investigate: which features drove the drop? User feedback data. Reliability/performance regression? Strategic drift: building what was asked vs what was needed.",
+            "complexity": "complex"
         },
         {
             "prompt": "Engineering wants to spend a full sprint on tech debt. Product says we need 2 features for a conference demo. Resolve.",
-            "expected": "False dichotomy. Which tech debt blocks feature velocity? Interleave: debt that enables features ships first. Conference demo scope: what is the minimum that impresses? Challenge both sides."
+            "expected": "False dichotomy. Which tech debt blocks feature velocity? Interleave: debt that enables features ships first. Conference demo scope: what is the minimum that impresses? Challenge both sides.",
+            "complexity": "complex"
         },
     ],
     "high-level-advisor": [
