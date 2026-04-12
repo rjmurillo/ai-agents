@@ -1,0 +1,316 @@
+API key loaded (length: 108)
+Agents: ['adr-generator', 'analyst', 'architect', 'backlog-generator', 'context-retrieval', 'critic', 'devops', 'explainer', 'high-level-advisor', 'implementer', 'independent-thinker', 'issue-feature-review', 'memory', 'milestone-planner', 'orchestrator', 'qa', 'quality-auditor', 'retrospective', 'roadmap', 'security', 'skillbook', 'spec-generator', 'task-decomposer']
+Prompts: 92, API calls: 184
+Starting assessment (est. 552s with rate limiting)...
+
+============================================================
+  Agent: adr-generator (model: unspecified, 4 prompts, context: 6684 chars)
+============================================================
+  [1/92] (complicated) We decided to use PostgreSQL over MongoDB for our new servic...
+    R=5 A=5 Q=4 Ap=5
+  [2/92] (complicated) We are adopting Python for new scripts instead of Bash. Docu...
+    R=5 A=5 Q=4 Ap=5
+  [3/92] (complicated) The team decided to use feature flags (LaunchDarkly) instead...
+    R=5 A=5 Q=5 Ap=5
+  [4/92] (complicated) We are moving from REST to gRPC for internal service communi...
+    R=5 A=5 Q=4 Ap=5
+
+============================================================
+  Agent: analyst (model: sonnet, 4 prompts, context: 5424 chars)
+============================================================
+  [5/92] (complicated) A deployment pipeline started failing intermittently 3 days ...
+    R=4 A=2 Q=3 Ap=2
+  [6/92] (complicated) Product wants to add real-time notifications. We currently u...
+    R=5 A=4 Q=4 Ap=5
+  [7/92] (complicated) We have 3 microservices that each maintain their own user ca...
+    R=4 A=3 Q=3 Ap=4
+  [8/92] (complex) A feature request asks for 'AI-powered search'. Before anyon...
+    R=5 A=5 Q=5 Ap=5
+
+============================================================
+  Agent: architect (model: opus, 4 prompts, context: 22292 chars)
+============================================================
+  [9/92] (complicated) A team proposes adding a GraphQL layer on top of our existin...
+    R=5 A=5 Q=5 Ap=5
+  [10/92] (complicated) We need to share business logic between a web app and a mobi...
+    R=5 A=4 Q=4 Ap=5
+  [11/92] (complicated) Our monolith has grown to 500K LOC. Three teams work on it. ...
+    R=4 A=5 Q=4 Ap=5
+  [12/92] (complicated) Review this design: a service that both reads from and write...
+    R=5 A=5 Q=5 Ap=5
+
+============================================================
+  Agent: backlog-generator (model: sonnet, 4 prompts, context: 6905 chars)
+============================================================
+  [13/92] (complicated) The project has 3 open PRs (2 bug fixes, 1 feature), 5 open ...
+    R=5 A=5 Q=4 Ap=5
+  [14/92] (complicated) All PRs are merged, no open issues, CI is green, but test co...
+    R=5 A=5 Q=4 Ap=5
+  [15/92] (complicated) We have 10 open issues, 5 are stale (>30 days). Agent slots ...
+    R=5 A=5 Q=4 Ap=5
+  [16/92] (complicated) The last 3 PRs all touched the same 2 files. No issues menti...
+    R=2 A=4 Q=2 Ap=2
+
+============================================================
+  Agent: context-retrieval (model: haiku, 4 prompts, context: 5046 chars)
+============================================================
+  [17/92] (complicated) About to plan implementation of a caching layer. What contex...
+    R=5 A=4 Q=5 Ap=5
+  [18/92] (complicated) Starting work on a branch that was abandoned 2 weeks ago. Re...
+    R=4 A=2 Q=3 Ap=3
+  [19/92] (complicated) Need to understand how the authentication system works befor...
+    R=5 A=4 Q=4 Ap=5
+  [20/92] (complicated) User mentions they discussed API versioning in a previous se...
+    R=4 A=3 Q=4 Ap=4
+
+============================================================
+  Agent: critic (model: sonnet, 4 prompts, context: 5926 chars)
+============================================================
+  [21/92] (complicated) Here is our plan: migrate from MySQL to PostgreSQL over 3 we...
+    R=5 A=5 Q=5 Ap=5
+  [22/92] (complicated) Plan: Add feature flags to all new features. Use LaunchDarkl...
+    R=5 A=5 Q=5 Ap=5
+  [23/92] (complicated) We will refactor the auth module by extracting it into a sep...
+    R=5 A=4 Q=4 Ap=2
+  [24/92] (complicated) Proposal: replace our custom logging with structured logging...
+    R=5 A=4 Q=5 Ap=5
+
+============================================================
+  Agent: devops (model: sonnet, 4 prompts, context: 15572 chars)
+============================================================
+  [25/92] (complicated) Design a GitHub Actions CI pipeline for a Python monorepo wi...
+    R=5 A=4 Q=4 Ap=5
+  [26/92] (complicated) Our Docker build takes 8 minutes. The Dockerfile installs de...
+    R=5 A=5 Q=5 Ap=5
+  [27/92] (complicated) We need to deploy the same app to 3 environments (dev, stagi...
+    R=5 A=5 Q=4 Ap=5
+  [28/92] (complicated) A developer accidentally pushed a secret (API key) to the re...
+    R=5 A=5 Q=4 Ap=5
+
+============================================================
+  Agent: explainer (model: sonnet, 4 prompts, context: 5683 chars)
+============================================================
+  [29/92] (clear) Write a PRD for adding two-factor authentication to an exist...
+    R=5 A=5 Q=5 Ap=5
+  [30/92] (clear) Explain the difference between authentication and authorizat...
+    R=5 A=4 Q=4 Ap=5
+  [31/92] (clear) Document how our API rate limiting works for new team member...
+    R=5 A=5 Q=5 Ap=2
+  [32/92] (clear) Write acceptance criteria for a 'forgot password' feature....
+    R=5 A=5 Q=5 Ap=5
+
+============================================================
+  Agent: high-level-advisor (model: opus, 4 prompts, context: 8467 chars)
+============================================================
+  [33/92] (complicated) We have been discussing our architecture for 3 weeks. No cod...
+    R=5 A=5 Q=5 Ap=5
+  [34/92] (complicated) Our team of 5 is maintaining 12 microservices. Performance i...
+    R=5 A=4 Q=5 Ap=5
+  [35/92] (complicated) We are 80% done with a rewrite but the original system still...
+    R=5 A=5 Q=5 Ap=5
+  [36/92] (complicated) Three senior engineers disagree on the right database. Postg...
+    R=5 A=5 Q=5 Ap=5
+
+============================================================
+  Agent: implementer (model: opus, 4 prompts, context: 7345 chars)
+============================================================
+  [37/92] (complicated) Implement a rate limiter middleware for an ASP.NET Core API....
+    R=4 A=3 Q=4 Ap=2
+  [38/92] (complicated) Add a health check endpoint that verifies database connectiv...
+    R=4 A=4 Q=4 Ap=3
+  [39/92] (complicated) The current code uses string concatenation for SQL queries i...
+    R=2 A=2 Q=3 Ap=2
+  [40/92] (complicated) Write a retry policy for HTTP calls to an external API. Requ...
+    R=5 A=5 Q=4 Ap=5
+
+============================================================
+  Agent: independent-thinker (model: opus, 4 prompts, context: 8254 chars)
+============================================================
+  [41/92] (complicated) Everyone on the team agrees we should use Kubernetes. Challe...
+    R=5 A=5 Q=4 Ap=5
+  [42/92] (complicated) The industry consensus is that microservices are better than...
+    R=5 A=4 Q=5 Ap=5
+  [43/92] (complicated) Our CTO says 'we should rewrite in Rust for performance'. Pr...
+    R=5 A=5 Q=5 Ap=5
+  [44/92] (complicated) The team wants 100% test coverage. Is this always the right ...
+    R=5 A=4 Q=4 Ap=5
+
+============================================================
+  Agent: issue-feature-review (model: sonnet, 4 prompts, context: 7400 chars)
+============================================================
+  [45/92] (complicated) Feature request: 'Add dark mode to the admin dashboard'. 15 ...
+    R=4 A=4 Q=3 Ap=4
+  [46/92] (complicated) Issue: 'Support SAML SSO for enterprise customers'. 3 enterp...
+    R=4 A=4 Q=3 Ap=2
+  [47/92] (complicated) Feature request: 'Add AI-powered code review comments'. No u...
+    R=4 A=4 Q=3 Ap=2
+  [48/92] (complicated) Bug report: 'App crashes when uploading files > 100MB'. 2 re...
+    R=2 A=2 Q=3 Ap=1
+
+============================================================
+  Agent: memory (model: sonnet, 4 prompts, context: 14123 chars)
+============================================================
+  [49/92] (complicated) It is a new session. The user is working on a payment refund...
+    R=4 A=3 Q=3 Ap=2
+  [50/92] (complicated) During the session, the architect agent decided to use the O...
+    R=5 A=5 Q=4 Ap=5
+  [51/92] (complicated) A memory from 3 months ago says 'the user table has 50K rows...
+    R=5 A=5 Q=4 Ap=5
+  [52/92] (complicated) The user asks 'what did we decide about caching last month?'...
+    R=5 A=4 Q=4 Ap=5
+
+============================================================
+  Agent: milestone-planner (model: sonnet, 4 prompts, context: 19179 chars)
+============================================================
+  [53/92] (complicated) Break down 'migrate from REST to gRPC for inter-service comm...
+    R=5 A=4 Q=4 Ap=5
+  [54/92] (complicated) Plan milestones for adding multi-tenancy to a single-tenant ...
+    R=2 A=2 Q=2 Ap=1
+  [55/92] (complicated) Epic: 'Improve API response times by 50%'. Create implementa...
+    R=3 A=4 Q=2 Ap=2
+  [56/92] (complicated) We need to upgrade from .NET 6 to .NET 9. 15 projects in the...
+    R=4 A=4 Q=4 Ap=3
+
+============================================================
+  Agent: orchestrator (model: opus, 4 prompts, context: 7566 chars)
+============================================================
+  [57/92] (chaotic) A user reports: 'The checkout page is broken after the lates...
+    R=5 A=4 Q=4 Ap=3
+  [58/92] (complicated) User asks: 'Plan and implement a new webhook system for our ...
+    R=4 A=4 Q=4 Ap=3
+  [59/92] (complicated) Three PRs are open: a security fix (P0), a feature (P2), and...
+    R=3 A=4 Q=4 Ap=2
+  [60/92] (complex) User says: 'Our API is slow. Fix it.' Classify complexity an...
+    R=5 A=5 Q=5 Ap=5
+
+============================================================
+  Agent: qa (model: sonnet, 4 prompts, context: 22788 chars)
+============================================================
+  [61/92] (complicated) A signup form was just implemented. Design the test strategy...
+    R=5 A=5 Q=4 Ap=5
+  [62/92] (complicated) After deploying a cart feature, users report items disappear...
+    R=5 A=5 Q=4 Ap=5
+  [63/92] (complicated) The test suite has 200 tests, all passing, but users keep fi...
+    R=5 A=5 Q=5 Ap=5
+  [64/92] (complicated) We added dark mode. What should QA verify beyond 'colors cha...
+    R=5 A=5 Q=4 Ap=5
+
+============================================================
+  Agent: quality-auditor (model: sonnet, 4 prompts, context: 3533 chars)
+============================================================
+  [65/92] (complicated) Audit the test infrastructure domain: test configuration, fi...
+    R=5 A=5 Q=5 Ap=5
+  [66/92] (complicated) The documentation domain has README.md, CLAUDE.md, and AGENT...
+    R=5 A=4 Q=4 Ap=5
+  [67/92] (complicated) Run a quality audit on the agent definitions in .claude/agen...
+    R=5 A=5 Q=4 Ap=5
+  [68/92] (complicated) Scan the CI/CD configuration for quality issues....
+    R=4 A=2 Q=3 Ap=2
+
+============================================================
+  Agent: retrospective (model: sonnet, 4 prompts, context: 43354 chars)
+============================================================
+  [69/92] (complicated) Last sprint: shipped 2 features, missed 1 deadline, had 1 pr...
+    R=5 A=4 Q=4 Ap=5
+  [70/92] (complicated) The team has been using AI agents for 2 months. Run a retros...
+    R=5 A=4 Q=4 Ap=5
+  [71/92] (complicated) We ran 3 sprints without a retro. Run a combined retrospecti...
+    R=4 A=3 Q=4 Ap=4
+  [72/92] (complicated) A project took 3x the estimated time. Run a post-project ret...
+    R=4 A=3 Q=2 Ap=4
+
+============================================================
+  Agent: roadmap (model: opus, 4 prompts, context: 12616 chars)
+============================================================
+  [73/92] (complicated) We have 5 feature requests, 3 tech debt items, and a securit...
+    R=3 A=2 Q=3 Ap=2
+  [74/92] (complicated) A stakeholder wants us to build a custom CRM. We currently u...
+    R=4 A=4 Q=4 Ap=2
+  [75/92] (complicated) We shipped 3 features last quarter but NPS dropped 5 points....
+    R=5 A=4 Q=4 Ap=5
+  [76/92] (complicated) Engineering wants to spend a full sprint on tech debt. Produ...
+    R=2 A=3 Q=3 Ap=2
+
+============================================================
+  Agent: security (model: opus, 4 prompts, context: 31193 chars)
+============================================================
+  [77/92] (complicated) Review this endpoint: POST /api/upload accepts a file path f...
+    R=5 A=5 Q=4 Ap=5
+  [78/92] (complicated) Our CI pipeline uses a GitHub Action that runs `npm install`...
+    R=5 A=5 Q=4 Ap=5
+  [79/92] (complicated) API returns user objects including email, phone, and hashed_...
+    R=5 A=5 Q=5 Ap=5
+  [80/92] (complicated) Authentication uses JWT stored in localStorage. Tokens expir...
+    R=5 A=5 Q=5 Ap=5
+
+============================================================
+  Agent: skillbook (model: sonnet, 4 prompts, context: 14037 chars)
+============================================================
+  [81/92] (complicated) During this sprint, we learned: (1) our retry policy needs j...
+    R=1 A=1 Q=2 Ap=1
+  [82/92] (complicated) A developer said 'mocking the database in tests is fine'. La...
+    R=5 A=5 Q=4 Ap=5
+  [83/92] (complicated) We have been using the same deployment script for 6 months w...
+    R=4 A=3 Q=4 Ap=4
+  [84/92] (complicated) Three different developers independently chose the Strategy ...
+    R=5 A=5 Q=5 Ap=4
+
+============================================================
+  Agent: spec-generator (model: sonnet, 4 prompts, context: 5821 chars)
+============================================================
+  [85/92] (complicated) We need a password reset feature. Generate the spec....
+    R=5 A=5 Q=4 Ap=3
+  [86/92] (complex) Feature idea: 'users should be able to share reports with ex...
+    R=5 A=5 Q=5 Ap=5
+  [87/92] (complex) Vibe-level description: 'make the dashboard faster'. Transfo...
+    R=5 A=5 Q=5 Ap=5
+  [88/92] (complex) We want to add webhooks so customers can subscribe to events...
+    R=5 A=4 Q=5 Ap=5
+
+============================================================
+  Agent: task-decomposer (model: sonnet, 4 prompts, context: 10355 chars)
+============================================================
+  [89/92] (complicated) Decompose 'Add CSV export to the reports page' into atomic t...
+    R=5 A=5 Q=4 Ap=5
+  [90/92] (complicated) Break down 'Implement email notifications for order status c...
+    R=5 A=5 Q=4 Ap=5
+  [91/92] (complicated) Decompose: 'Add audit logging for all admin actions'....
+    R=4 A=5 Q=4 Ap=4
+  [92/92] (complicated) Break down 'Add dark mode support' for a React application....
+    R=5 A=5 Q=4 Ap=5
+Results written to .agents/planning/agent-baseline-v2-results.json
+
+============================================================================================
+  AGENT QUALITY RESULTS (4-dimensional, Cynefin-aware)
+============================================================================================
+  Agent                  Model      Role  Action   Qual  Approp  Overall
+  --------------------------------------------------------------------------------
+  high-level-advisor     opus       5.00    4.75   5.00    5.00     4.94
+  security               opus       5.00    5.00   4.50    5.00     4.88
+  adr-generator          unspec     5.00    5.00   4.25    5.00     4.81
+  qa                     sonnet     5.00    5.00   4.25    5.00     4.81
+  architect              opus       4.75    4.75   4.50    5.00     4.75
+  devops                 sonnet     5.00    4.75   4.25    5.00     4.75
+  independent-thinker    opus       5.00    4.50   4.50    5.00     4.75
+  spec-generator         sonnet     5.00    4.75   4.75    4.50     4.75
+  explainer              sonnet     5.00    4.75   4.75    4.25     4.69
+  critic                 sonnet     5.00    4.50   4.75    4.25     4.62
+  task-decomposer        sonnet     4.75    5.00   4.00    4.75     4.62
+  memory                 sonnet     4.75    4.25   3.75    4.25     4.25
+  quality-auditor        sonnet     4.75    4.00   4.00    4.25     4.25
+  backlog-generator      sonnet     4.25    4.75   3.50    4.25     4.19
+  context-retrieval      haiku      4.50    3.25   4.00    4.25     4.00
+  orchestrator           opus       4.25    4.25   4.25    3.25     4.00
+  retrospective          sonnet     4.50    3.50   3.50    4.50     4.00
+  analyst                sonnet     4.50    3.50   3.75    4.00     3.94
+  skillbook              sonnet     3.75    3.50   3.75    3.50     3.62
+  implementer            opus       3.75    3.50   3.75    3.00     3.50
+  roadmap                opus       3.50    3.25   3.50    2.75     3.25
+  milestone-planner      sonnet     3.50    3.50   3.00    2.75     3.19
+  issue-feature-review   sonnet     3.50    3.50   3.00    2.25     3.06
+============================================================================================
+
+  BELOW THRESHOLD (<3.5):
+    roadmap: 3.25
+    milestone-planner: 3.19
+    issue-feature-review: 3.06
