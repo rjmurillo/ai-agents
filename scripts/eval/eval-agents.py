@@ -41,7 +41,7 @@ from typing import Any
 # API utilities (shared module)
 # ---------------------------------------------------------------------------
 
-from _anthropic_api import call_api as _call_api, load_api_key as _load_api_key
+from _anthropic_api import call_api as _call_api, load_api_key as _load_api_key, load_custom_prompts
 
 
 # ---------------------------------------------------------------------------
@@ -746,15 +746,6 @@ def run_assessment(
         }
 
     return results
-
-
-def load_custom_prompts(path: str) -> dict[str, list[dict[str, str]]]:
-    """Load prompts from a JSON file."""
-    with open(path) as f:
-        data = json.load(f)
-    if "prompts" in data and isinstance(data["prompts"], dict):
-        return data["prompts"]
-    return data
 
 
 # ---------------------------------------------------------------------------

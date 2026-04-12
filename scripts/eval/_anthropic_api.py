@@ -127,3 +127,30 @@ def call_api(
 
     text_parts = [block["text"] for block in result.get("content", []) if block.get("type") == "text"]
     return "\n".join(text_parts)
+
+
+def load_custom_prompts(path: str) -> dict[str, list[dict[str, str]]]:
+    """Load prompts from a JSON file.
+
+    Expected format:
+    {
+        "skill-name": [
+            {"prompt": "...", "expected": "..."},
+            ...
+        ]
+    }
+
+    Also supports a {"prompts": {...}} wrapper format.
+
+    Args:
+        path: Path to the JSON file containing prompts.
+
+    Returns:
+        Dictionary mapping names to lists of prompt dicts.
+    """
+    with open(path) as f:
+        data = json.load(f)
+
+    if "prompts" in data and isinstance(data["prompts"], dict):
+        return data["prompts"]
+    return data
