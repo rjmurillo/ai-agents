@@ -129,7 +129,7 @@ def call_api(
     return "\n".join(text_parts)
 
 
-def load_custom_prompts(path: str) -> dict[str, list[dict[str, str]]]:
+def load_custom_prompts(path: str) -> dict[str, list[dict[str, Any]]]:
     """Load prompts from a JSON file.
 
     The file may either contain a top-level mapping of {name: [prompts]}
@@ -138,6 +138,9 @@ def load_custom_prompts(path: str) -> dict[str, list[dict[str, str]]]:
     """
     with open(path) as f:
         data = json.load(f)
-    if "prompts" in data and isinstance(data["prompts"], dict):
-        return data["prompts"]
-    return data
+    prompts = data["prompts"] if isinstance(data, dict) and isinstance(data.get("prompts"), dict) else data
+    if not isinstance(prompts, dict):
+        raise RuntimeError(
+            f"Invalid prompts file {path}: expected top-level object mapping names to lists."
+        )
+    return prompts
