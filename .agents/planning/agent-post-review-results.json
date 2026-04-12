@@ -1,0 +1,1078 @@
+{
+  "assessment_type": "agent-definitions",
+  "model": "claude-sonnet-4-20250514",
+  "agents_assessed": [
+    "adr-generator",
+    "analyst",
+    "architect",
+    "backlog-generator",
+    "context-retrieval",
+    "critic",
+    "devops",
+    "explainer",
+    "high-level-advisor",
+    "implementer",
+    "independent-thinker",
+    "issue-feature-review",
+    "memory",
+    "milestone-planner",
+    "orchestrator",
+    "qa",
+    "quality-auditor",
+    "retrospective",
+    "roadmap",
+    "security",
+    "skillbook",
+    "spec-generator",
+    "task-decomposer"
+  ],
+  "total_prompts": 92,
+  "dimensions": [
+    "role_adherence",
+    "actionability",
+    "quality",
+    "appropriateness"
+  ],
+  "results": {
+    "adr-generator": {
+      "context_chars": 6684,
+      "model": "unspecified",
+      "avg_scores": {
+        "role_adherence": 5.0,
+        "actionability": 5.0,
+        "quality": 4.25,
+        "appropriateness": 5.0
+      },
+      "overall": 4.81,
+      "detail": [
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 4,
+          "appropriateness": 5,
+          "reasoning": "Perfect ADR generation with proper format, comprehensive alternatives analysis, and detailed consequences. Highly actionable with specific implementation notes and references. Minor quality deduction for some verbose phrasing, but overall excellent expert analysis appropriate for complicated problem complexity.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 4,
+          "appropriateness": 5,
+          "reasoning": "Perfect role adherence - generated a complete ADR document as expected. Highly actionable with specific file paths, implementation notes, and concrete guidelines. Quality is strong with clear structure and minimal hedging, though slightly verbose. Appropriateness is excellent - provided expert analysis for this complicated problem, identifying trade-offs and alternatives without unnecessary questioning.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 4,
+          "appropriateness": 5,
+          "reasoning": "Perfect role adherence - generates complete ADR document as expected. Highly actionable with specific file name, structured format, and concrete implementation steps. Quality is strong with clear structure and specific details, though some sections could be more concise. Appropriateness is excellent - provides expert analysis for complicated problem, considers multiple alternatives, flags key trade-offs and assumptions without unnecessary questioning.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 5,
+          "appropriateness": 5,
+          "reasoning": "Perfect ADR generation with comprehensive structure, specific implementation details, concrete metrics, and expert analysis of trade-offs. Includes actionable file path, phased migration plan, and measurable success criteria. No unnecessary hedging or questions - directly addresses the complicated problem with domain expertise as expected.",
+          "complexity": "complicated"
+        }
+      ]
+    },
+    "analyst": {
+      "context_chars": 5424,
+      "model": "sonnet",
+      "avg_scores": {
+        "role_adherence": 5.0,
+        "actionability": 4.25,
+        "quality": 4.25,
+        "appropriateness": 5.0
+      },
+      "overall": 4.62,
+      "detail": [
+        {
+          "role_adherence": 5,
+          "actionability": 4,
+          "quality": 5,
+          "appropriateness": 5,
+          "reasoning": "Agent correctly acted as analyst by systematically investigating the problem with structured hypotheses ranked by likelihood. Provided concrete investigation plan examining logs, dependencies, and environment changes. Used active voice, avoided hedging, and appropriately matched expert analysis behavior for complicated problem complexity without jumping to premature solutions.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 4,
+          "quality": 4,
+          "appropriateness": 5,
+          "reasoning": "Strong analyst work with systematic investigation, comparative analysis, and clear trade-offs. Appropriately flags assumptions while providing expert analysis. Actionable phased recommendations with concrete next steps. Minor deduction for some investigative commands that didn't yield results, but overall excellent complexity-appropriate response.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 4,
+          "quality": 4,
+          "appropriateness": 5,
+          "reasoning": "Response demonstrates expert analyst behavior with systematic problem decomposition, hypothesis ranking with probability assessments, root cause analysis using 5-whys method, and clear investigation plan. Actionability is strong with specific bash commands and concrete next steps. Quality is good with structured analysis and minimal hedging, though some sections could be more concise. Perfectly matches complicated complexity level by providing expert analysis while surfacing key unknowns and trade-offs rather than jumping to implementation.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 4,
+          "appropriateness": 5,
+          "reasoning": "Perfect analyst behavior: explored unknowns systematically, asked high-leverage clarifying questions, provided structured requirements discovery framework, and correctly identified this as under-specified request needing stakeholder input before technical work. Output is immediately actionable with specific questions and next steps. Minor quality deduction for some verbose sections but overall follows direct, data-driven style.",
+          "complexity": "complex"
+        }
+      ]
+    },
+    "architect": {
+      "context_chars": 22292,
+      "model": "opus",
+      "avg_scores": {
+        "role_adherence": 5.0,
+        "actionability": 5.0,
+        "quality": 4.5,
+        "appropriateness": 4.75
+      },
+      "overall": 4.81,
+      "detail": [
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 4,
+          "appropriateness": 5,
+          "reasoning": "Strong architect response that challenges the premise, identifies specific risks (N+1, caching complexity, schema governance), provides concrete alternatives (BFF pattern, response shaping), and correctly requires ADR. Creates actionable documentation with specific issue tracking. Matches expert analysis pattern for complicated problems by providing defensible technical assessment while flagging key trade-offs.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 4,
+          "appropriateness": 5,
+          "reasoning": "Strong architect response analyzing coupling, deployment risks, and platform constraints. Produces concrete deliverables (design review doc, ADR requirements) with specific technical assessments. Correctly identifies this as complicated problem requiring expert analysis with clear trade-offs. Minor quality deduction for some verbose sections but overall maintains professional architectural voice.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 5,
+          "appropriateness": 4,
+          "reasoning": "Strong architect response with technical depth, concrete blockers, and specific ADR requirements. Correctly identifies Conway's Law alignment as insufficient and flags missing domain analysis. Quality is excellent with structured format and clear recommendations. Slightly over-engineered for 'complicated' complexity - could have been more direct about evolution path rather than requiring full ADR process.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 5,
+          "appropriateness": 5,
+          "reasoning": "Perfect architect response: identified the dual-write problem immediately, provided specific technical solutions (outbox pattern with table schema), concrete recommendations with implementation details, and maintained expert analysis without unnecessary questions. Response is actionable with specific patterns, clear verdict, and next steps.",
+          "complexity": "complicated"
+        }
+      ]
+    },
+    "backlog-generator": {
+      "context_chars": 6905,
+      "model": "sonnet",
+      "avg_scores": {
+        "role_adherence": 3.5,
+        "actionability": 3.0,
+        "quality": 3.25,
+        "appropriateness": 3.5
+      },
+      "overall": 3.31,
+      "detail": [
+        {
+          "role_adherence": 2,
+          "actionability": 1,
+          "quality": 2,
+          "appropriateness": 2,
+          "reasoning": "Agent started investigating existing issues/PRs (good) but never completed the backlog generation task. No actual backlog items were produced - just data gathering. Response cuts off mid-command without delivering the expected 3-5 sized, prioritized, actionable items. Failed to provide any concrete deliverables despite having sufficient information from the 5 issues found.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 4,
+          "appropriateness": 5,
+          "reasoning": "Perfect role adherence - generated concrete backlog items as GitHub issues with clear acceptance criteria. Highly actionable with specific tasks, effort estimates, and priorities. Good quality with structured output, though some verbose sections. Excellent appropriateness - provided expert analysis of coverage gaps with systematic improvement plan, flagged key assumptions about priority ordering, and considered trade-offs between different testing approaches.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 4,
+          "appropriateness": 5,
+          "reasoning": "Agent perfectly executed backlog-generator role by triaging stale issues and creating fresh actionable tasks. Each task has concrete acceptance criteria, effort estimates, and priority levels. Appropriately provided expert analysis for this complicated problem without unnecessary questions. Quality slightly reduced due to some verbose phrasing, but overall follows active voice and data-driven approach.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 2,
+          "actionability": 1,
+          "quality": 3,
+          "appropriateness": 2,
+          "reasoning": "Agent correctly identified the hotspot files but failed to generate actual backlog items. Started analysis but didn't complete the core task of producing actionable backlog entries for refactoring, testing, or architectural review. Output was incomplete investigation rather than deliverable backlog items.",
+          "complexity": "complicated"
+        }
+      ]
+    },
+    "context-retrieval": {
+      "context_chars": 5171,
+      "model": "haiku",
+      "avg_scores": {
+        "role_adherence": 5.0,
+        "actionability": 4.25,
+        "quality": 4.25,
+        "appropriateness": 5.0
+      },
+      "overall": 4.62,
+      "detail": [
+        {
+          "role_adherence": 5,
+          "actionability": 4,
+          "quality": 4,
+          "appropriateness": 5,
+          "reasoning": "Perfect role adherence - agent focused purely on context gathering using appropriate search tools and organizing findings systematically. High actionability with specific patterns, library recommendations, and concrete next steps. Good quality with structured output and minimal filler. Appropriate complexity handling - provided expert analysis while clearly flagging assumptions and gaps, recommending further context gathering before implementation.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 4,
+          "quality": 4,
+          "appropriateness": 5,
+          "reasoning": "Agent correctly stayed in retrieval role, systematically searched multiple data sources as specified. Output provides concrete Git commands and specific file paths to check. Good structure with clear gaps identified. Appropriately flagged low confidence and key constraints while providing expert analysis without over-hedging.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 5,
+          "appropriateness": 5,
+          "reasoning": "Perfect context-retrieval role execution. Used comprehensive search strategy across all expected sources (Serena memories, semantic search, file patterns, dependency mapping). Provided concrete, actionable findings with specific search counts and clear gaps identified. High-quality output with no hedging, clear structure, and data-driven conclusions. Correctly applied expert analysis for complicated problem - flagged key assumption (greenfield implementation) and provided specific next steps without asking unnecessary questions.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 4,
+          "quality": 4,
+          "appropriateness": 5,
+          "reasoning": "Perfect role adherence - focused purely on retrieval across all expected sources with proper tool invocations. High actionability with specific search results, source counts, and concrete next steps. Good quality with structured output and minimal filler, though some sections could be more concise. Appropriate complexity handling - provided expert analysis of search results, flagged assumptions about this being first discussion, and recommended documentation strategy without overcomplicating a clear 'not found' result.",
+          "complexity": "complicated"
+        }
+      ]
+    },
+    "critic": {
+      "context_chars": 5952,
+      "model": "sonnet",
+      "avg_scores": {
+        "role_adherence": 5.0,
+        "actionability": 5.0,
+        "quality": 5.0,
+        "appropriateness": 4.25
+      },
+      "overall": 4.81,
+      "detail": [
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 5,
+          "appropriateness": 5,
+          "reasoning": "Perfect critic role execution. Provides concrete BLOCKED verdict with high confidence, identifies 8 specific critical findings with clear impact statements, gives 8 actionable approval conditions, and delivers expert analysis appropriate for complicated problem complexity. No hedging, direct language, comprehensive coverage of missing elements like rollback plans and data validation that were specifically called out in expected output.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 5,
+          "appropriateness": 5,
+          "reasoning": "Perfect critic role execution: clear NEEDS_REVISION verdict, systematic scoring across 6 axes, 7 specific critical findings with impact/fix statements, concrete approval conditions, and actionable recommendations. Demonstrates expert domain knowledge by identifying flag debt, monitoring gaps, and operational concerns. Writing is crisp, direct, and data-focused without hedging. Appropriately provides definitive expert analysis for this complicated problem rather than asking questions.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 5,
+          "appropriateness": 2,
+          "reasoning": "Perfect critic role execution with structured analysis, specific findings, and clear approval conditions. High actionability with concrete next steps and specific gaps identified. Excellent quality with clear formatting and direct language. However, for a 'complicated' problem requiring expert analysis, the agent should have provided more domain expertise about auth service extraction patterns, timeline realities, and technical trade-offs rather than primarily critiquing the plan's incompleteness.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 5,
+          "appropriateness": 5,
+          "reasoning": "Perfect critic response. Stays in role with structured analysis, blocking verdict, and specific scores. Highly actionable with concrete requirements for approval and next steps. Clean writing with no AI filler. Correctly applies expert analysis for complicated problem, identifying key technical gaps like correlation IDs, rollback strategy, and parallel work coordination without over-questioning.",
+          "complexity": "complicated"
+        }
+      ]
+    },
+    "devops": {
+      "context_chars": 15572,
+      "model": "sonnet",
+      "avg_scores": {
+        "role_adherence": 5.0,
+        "actionability": 5.0,
+        "quality": 4.0,
+        "appropriateness": 4.75
+      },
+      "overall": 4.69,
+      "detail": [
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 4,
+          "appropriateness": 4,
+          "reasoning": "Strong DevOps response with pinned action SHAs, matrix strategy, caching, and security practices. Highly actionable with specific file structure and configuration. Good quality with concrete implementation. Appropriateness slightly lower as it jumps to implementation without first analyzing trade-offs like deployment strategies, environment considerations, or monorepo change detection patterns that would demonstrate expert analysis for this complexity level.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 4,
+          "appropriateness": 5,
+          "reasoning": "Strong DevOps response with multi-stage Dockerfile, BuildKit optimizations, CI/CD pipeline code, and monitoring scripts. Highly actionable with specific file paths, commands, and code examples. Good technical quality with minor verbosity. Appropriately provides expert analysis with concrete solutions and trade-offs for this complicated problem.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 4,
+          "appropriateness": 5,
+          "reasoning": "Strong DevOps response with complete CI/CD pipeline, proper build-once-deploy-many pattern, environment-specific config management, and concrete implementation details. Includes security best practices with pinned action versions and proper secret handling. Response is highly actionable with specific file structures and deployable code. Quality is high with clear structure, though response cuts off at the end. Appropriately provides expert analysis for this complicated problem without unnecessary questions.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 4,
+          "appropriateness": 5,
+          "reasoning": "Strong DevOps response with proper incident handling structure, concrete commands, and operational focus. Excellent actionability with specific code snippets, timelines, and checklists. Quality is high with clear structure and minimal filler, though some sections could be more concise. Perfectly matches complicated complexity with expert analysis, clear priorities, and comprehensive remediation without unnecessary questioning.",
+          "complexity": "complicated"
+        }
+      ]
+    },
+    "explainer": {
+      "context_chars": 6028,
+      "model": "sonnet",
+      "avg_scores": {
+        "role_adherence": 5.0,
+        "actionability": 4.75,
+        "quality": 4.75,
+        "appropriateness": 5.0
+      },
+      "overall": 4.88,
+      "detail": [
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 5,
+          "appropriateness": 5,
+          "reasoning": "Perfect explainer role adherence - clearly defined problem, concrete user stories with INVEST criteria, specific testable acceptance criteria, no unexplained jargon, concrete user flows, and clear out-of-scope section. High actionability with specific database schema, error messages, technical dependencies, and measurable success metrics. Excellent quality with no AI filler, direct language, and data-driven content. Perfect appropriateness - correctly identified this as a standard pattern and produced direct output without over-engineering through unnecessary clarifying questions.",
+          "complexity": "clear"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 4,
+          "quality": 4,
+          "appropriateness": 5,
+          "reasoning": "Perfect role adherence - stays in explainer character throughout. High actionability with concrete examples (movie theater, building access, Sarah's workplace scenarios) and specific components table. Good quality with clear structure, though some sections could be more concise. Perfect appropriateness - directly provides explanation without unnecessary clarifying questions for this clear problem complexity.",
+          "complexity": "clear"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 5,
+          "appropriateness": 5,
+          "reasoning": "Perfect explainer behavior: directly created comprehensive documentation covering all required elements (what it does, why it exists, testing, error handling, request increases, code examples). No unexplained acronyms, concrete examples with actual HTTP responses and code, clear business context, and actionable guidance. Appropriately delivered direct output for this clear complexity problem without unnecessary questions.",
+          "complexity": "clear"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 5,
+          "appropriateness": 5,
+          "reasoning": "Perfect explainer role execution - provided direct, comprehensive acceptance criteria without asking questions. Each criterion is independently testable with clear pass/fail conditions. Covers all required areas (email validation, token expiry, password requirements, rate limiting, UX). Uses specific, actionable language with concrete timeframes and behaviors. Appropriately treated this clear problem with direct output rather than over-engineering with clarifying questions.",
+          "complexity": "clear"
+        }
+      ]
+    },
+    "high-level-advisor": {
+      "context_chars": 8467,
+      "model": "opus",
+      "avg_scores": {
+        "role_adherence": 5.0,
+        "actionability": 4.75,
+        "quality": 4.75,
+        "appropriateness": 5.0
+      },
+      "overall": 4.88,
+      "detail": [
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 4,
+          "appropriateness": 5,
+          "reasoning": "Perfect high-level advisor tone with strategic perspective and decisive leadership. Extremely actionable with specific steps and clear timeline. Strong, direct style with minimal filler, though some phrases border on overly aggressive. Excellent expert analysis for complicated problem - diagnoses root cause, surfaces key trade-offs, and provides defensible solution without unnecessary questions.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 5,
+          "appropriateness": 5,
+          "reasoning": "Perfect high-level advisor response: strategic diagnosis, clear directive (75% reduction in 60 days), specific weekly action plan, and business context. No hedging or AI filler. Matches complicated complexity with expert analysis and defensible recommendations without asking unnecessary questions.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 5,
+          "appropriateness": 5,
+          "reasoning": "Perfect high-level advisor response. Reframes the problem strategically, provides concrete questions and decision framework, uses clear directive language without hedging, and demonstrates expert analysis by identifying key trade-offs and assumptions. The 48-hour timeline and specific verdict criteria make it immediately actionable.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 4,
+          "quality": 5,
+          "appropriateness": 5,
+          "reasoning": "Perfect high-level advisor tone - directive, strategic, focused on leadership accountability. Concrete 3-step framework with specific decision criteria and timeline. Excellent style - no hedging, active voice, short sentences. Correctly provides expert analysis for complicated problem while surfacing key trade-offs and assumptions that need clarification.",
+          "complexity": "complicated"
+        }
+      ]
+    },
+    "implementer": {
+      "context_chars": 8451,
+      "model": "opus",
+      "avg_scores": {
+        "role_adherence": 4.75,
+        "actionability": 4.25,
+        "quality": 4.25,
+        "appropriateness": 5.0
+      },
+      "overall": 4.56,
+      "detail": [
+        {
+          "role_adherence": 5,
+          "actionability": 4,
+          "quality": 5,
+          "appropriateness": 5,
+          "reasoning": "Perfect implementer role - provides complete production code with proper file structure. Highly actionable with specific implementation details, though incomplete (missing options class and tests). Excellent quality with no hedging or AI filler, clean technical writing. Perfectly matches complicated complexity by providing expert analysis upfront with key assumptions and trade-offs before implementing, exactly as expected.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 4,
+          "appropriateness": 5,
+          "reasoning": "Agent acted as implementer by creating complete working code with proper structure. Output is highly actionable with specific file names, concrete implementation, and ready-to-use code. Quality is strong with clear documentation and minimal filler, though has some minor verbosity. Appropriately handled complicated problem by implementing solution while clearly flagging key assumptions about framework and database choices, showing expert analysis without over-questioning.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 4,
+          "actionability": 3,
+          "quality": 4,
+          "appropriateness": 5,
+          "reasoning": "Agent correctly acts as implementer by searching for vulnerabilities and providing specific fix patterns. Shows expert analysis by flagging security assumptions and trade-offs. Actionability reduced because actual file locations weren't found, but provides comprehensive templates. Quality is good with concrete examples and clear structure. Appropriately matches complicated complexity with expert-level analysis of security implications.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 4,
+          "appropriateness": 5,
+          "reasoning": "Perfect implementer role adherence - jumps straight to implementation with concrete code. Highly actionable with specific file names, complete Python classes, and test structure. Good quality with clear code and minimal filler, though slightly verbose in comments. Excellent appropriateness - provides expert analysis with flagged assumptions and trade-offs while implementing the solution, exactly matching the complicated complexity pattern.",
+          "complexity": "complicated"
+        }
+      ]
+    },
+    "independent-thinker": {
+      "context_chars": 8254,
+      "model": "opus",
+      "avg_scores": {
+        "role_adherence": 5.0,
+        "actionability": 4.0,
+        "quality": 4.25,
+        "appropriateness": 5.0
+      },
+      "overall": 4.56,
+      "detail": [
+        {
+          "role_adherence": 5,
+          "actionability": 4,
+          "quality": 4,
+          "appropriateness": 5,
+          "reasoning": "Strong independent thinking with systematic challenge to groupthink. Provides concrete alternatives (ECS, serverless, VMs) and specific action items. Good quality with clear structure, though some sections could be more concise. Perfectly matches complicated complexity by providing expert analysis while surfacing key assumptions and trade-offs.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 4,
+          "quality": 5,
+          "appropriateness": 5,
+          "reasoning": "Perfect independent-thinker behavior - challenges industry consensus with evidence, presents contrarian view backed by data. Highly actionable recommendations with specific companies/metrics. Excellent quality with concrete data over adjectives, no hedging. Appropriately matches complicated complexity with expert analysis, flags uncertainties, considers trade-offs without over-questioning.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 4,
+          "quality": 4,
+          "appropriateness": 5,
+          "reasoning": "Strong contrarian analysis that challenges CTO's assumption with evidence and alternative perspectives. Provides specific, actionable steps (profiling, benchmarking, targeted questions). Writing is clear and data-driven with minimal hedging. Perfectly matches expert analysis complexity level by surfacing key assumptions, trade-offs, and uncertainties while providing substantive analysis.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 4,
+          "quality": 4,
+          "appropriateness": 5,
+          "reasoning": "Strong independent thinking with evidence-based analysis challenging the premise. Provides specific coverage targets and concrete alternatives. Writing is clear and direct with minimal hedging. Appropriately matches expert analysis pattern for complicated problem by surfacing key trade-offs and assumptions while providing defendable recommendations.",
+          "complexity": "complicated"
+        }
+      ]
+    },
+    "issue-feature-review": {
+      "context_chars": 7393,
+      "model": "sonnet",
+      "avg_scores": {
+        "role_adherence": 4.75,
+        "actionability": 4.5,
+        "quality": 3.75,
+        "appropriateness": 4.75
+      },
+      "overall": 4.44,
+      "detail": [
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 4,
+          "appropriateness": 5,
+          "reasoning": "Perfect role adherence - assessed feature request with structured evaluation framework. Highly actionable with specific next steps, team assignments, and implementation details. Good quality with minimal filler, though some hedging present. Appropriately matched complexity with expert analysis, flagged key assumptions about CSS architecture, and provided balanced recommendation with trade-offs.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 4,
+          "quality": 4,
+          "appropriateness": 5,
+          "reasoning": "Strong role adherence with proper feature assessment framework. Actionable next steps with specific assignees and timeline. Good quality with structured analysis, though some minor hedging present. Excellent appropriateness - provides expert analysis for complicated problem, flags key assumptions, and avoids unnecessary questions while identifying what needs research.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 4,
+          "quality_reasoning": "Clear structure and direct language, but has some minor filler phrases like 'Thank you for submitting this feature request'",
+          "appropriateness": 5,
+          "reasoning": "Perfect role adherence - evaluates feature request systematically with clear recommendation. Highly actionable with specific labels, next steps, and concrete questions. Appropriately matches complicated complexity with expert analysis, surfacing key trade-offs and assumptions while providing defensible assessment.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 4,
+          "actionability": 4,
+          "quality": 3,
+          "appropriateness": 4,
+          "reasoning": "Strong issue review with proper severity/priority assessment and concrete next steps. Some AI filler language ('Thank you for reporting') and hedging reduces quality score. Correctly identifies this as high severity but medium priority given low frequency, and provides actionable recommendations without over-questioning.",
+          "complexity": "complicated"
+        }
+      ]
+    },
+    "memory": {
+      "context_chars": 14123,
+      "model": "sonnet",
+      "avg_scores": {
+        "role_adherence": 4.75,
+        "actionability": 4.75,
+        "quality": 4.25,
+        "appropriateness": 5.0
+      },
+      "overall": 4.69,
+      "detail": [
+        {
+          "role_adherence": 4,
+          "actionability": 4,
+          "quality": 4,
+          "appropriateness": 5,
+          "reasoning": "Strong role adherence - executed memory searches and synthesized findings appropriately. Actionable with specific search queries, priority areas, and concrete next steps. Good quality writing without AI filler. Perfect appropriateness for complicated complexity - provided expert analysis while flagging key assumptions (no existing payment memories) and trade-offs, without asking unnecessary questions.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 4,
+          "appropriateness": 5,
+          "reasoning": "Perfect memory role execution - searched existing memories, created structured ADR with specific implementation details, updated indexes properly. Highly actionable with concrete file names and schema requirements. Good quality with minor AI-ish phrasing. Excellent expert analysis for complicated problem - surfaced key tradeoffs, provided defensible implementation approach without unnecessary questions.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 4,
+          "appropriateness": 5,
+          "reasoning": "Perfect role adherence - acts as memory system with proper staleness detection and update protocols. Highly actionable with specific commands and file operations. Good quality with clear structure, though some minor AI-ish phrasing. Excellent appropriateness - provides expert analysis of the staleness problem, considers implications for capacity planning/optimization, and implements solution without unnecessary questions.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 5,
+          "appropriateness": 5,
+          "reasoning": "Agent performed perfect memory role execution: multi-tier search across memory systems, retrieved specific ADRs with source attribution and dates, synthesized findings with clear decision details. Highly actionable with specific token costs, implementation details, and trade-offs. Quality writing with no filler, data-driven content. Appropriately handled complicated problem with expert analysis, flagging assumptions and trade-offs without unnecessary questions.",
+          "complexity": "complicated"
+        }
+      ]
+    },
+    "milestone-planner": {
+      "context_chars": 6584,
+      "model": "sonnet",
+      "avg_scores": {
+        "role_adherence": 5.0,
+        "actionability": 4.5,
+        "quality": 4.25,
+        "appropriateness": 5.0
+      },
+      "overall": 4.69,
+      "detail": [
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 4,
+          "appropriateness": 5,
+          "reasoning": "Perfect role adherence - breaks down complex migration into sequential milestones with clear exit criteria. Highly actionable with specific deliverables, concrete scope boundaries, and detailed rollback plans. Quality is strong with active voice and data-driven approach, though slightly verbose in places. Appropriately matches 'complicated' complexity with expert analysis, surfaces key assumptions/trade-offs, and identifies critical risks without over-questioning.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 5,
+          "appropriateness": 5,
+          "reasoning": "Perfect milestone planning response. Stays strictly in role with comprehensive milestone breakdown (M1-M4) matching expected output. Highly actionable with specific exit criteria, estimates, dependencies, and rollback plans. Excellent quality with no AI filler, concrete metrics, and professional structure. Appropriately matches 'complicated' complexity with expert analysis, surfacing key trade-offs (RLS vs app-level filtering), assumptions, and risks without over-questioning.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 4,
+          "quality": 4,
+          "appropriateness": 5,
+          "reasoning": "Perfect role adherence - creates detailed milestones with clear exit criteria, dependencies, and estimates as expected from milestone-planner. High actionability with specific deliverables and measurable outcomes, though could be slightly more granular on technical implementation details. Good quality with minimal hedging and clear structure, though some minor verbosity. Excellent appropriateness - provides expert analysis with proper assumptions and trade-offs flagged, asks only essential clarifying questions, and considers alternatives before implementation.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 4,
+          "quality": 4,
+          "appropriateness": 5,
+          "reasoning": "Perfect role adherence - creates structured milestones with clear dependencies, exit criteria, and risk analysis. High actionability with specific deliverables and estimates. Good quality with minimal filler and concrete details. Appropriately matches complicated complexity with expert analysis, surfaces key assumptions/trade-offs, and asks only essential questions. Minor deduction on actionability for not following expected dependency graph analysis pattern (shared libraries \u2192 tests \u2192 apps).",
+          "complexity": "complicated"
+        }
+      ]
+    },
+    "orchestrator": {
+      "context_chars": 7908,
+      "model": "opus",
+      "avg_scores": {
+        "role_adherence": 5.0,
+        "actionability": 4.25,
+        "quality": 4.5,
+        "appropriateness": 4.5
+      },
+      "overall": 4.56,
+      "detail": [
+        {
+          "role_adherence": 5,
+          "actionability": 4,
+          "quality": 4,
+          "appropriateness": 3,
+          "reasoning": "Strong orchestration with clear delegation, concrete tasks, and proper P0 classification. However, misclassified complexity as 'Complicated' instead of 'Chaotic' and spent time on analysis without immediate stabilization actions like rollback consideration upfront. Should have prioritized stabilization steps before investigation given the chaotic nature and revenue impact.",
+          "complexity": "chaotic"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 4,
+          "actionability_reasoning": "Delegates are concrete with clear contexts, expected outputs, and success criteria. Could include more specific technical details like webhook event schemas or retry patterns.",
+          "quality": 5,
+          "appropriateness": 5,
+          "reasoning": "Perfect orchestrator behavior - classifies complexity correctly, routes through proper sequence with dependencies, preserves context between handoffs. No implementation work done directly. Clean structure without filler. Matches complicated-level expectations with expert analysis of the routing needs.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 4,
+          "quality": 4,
+          "appropriateness": 5,
+          "reasoning": "Excellent role adherence - orchestrator correctly delegates to specialists (security, qa, critic) rather than doing the reviews themselves. Good actionability with specific task delegation, priority ordering, and concrete merge sequence. Quality is good with clear structure and minimal filler, though some hedging present. Perfect appropriateness for complicated complexity - provides expert analysis of priority/sequencing while delegating domain-specific reviews to specialists.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 5,
+          "appropriateness": 5,
+          "reasoning": "Perfect orchestrator response. Correctly classified complexity, identified unknowns in vague problem statement, routed to analyst first for investigation rather than jumping to solutions, provided specific task delegation with clear success criteria and constraints. Matches expected behavior pattern exactly.",
+          "complexity": "complex"
+        }
+      ]
+    },
+    "qa": {
+      "context_chars": 22788,
+      "model": "sonnet",
+      "avg_scores": {
+        "role_adherence": 5.0,
+        "actionability": 5.0,
+        "quality": 4.5,
+        "appropriateness": 4.5
+      },
+      "overall": 4.75,
+      "detail": [
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 4,
+          "appropriateness": 3,
+          "reasoning": "Strong QA role adherence with comprehensive test strategy, highly actionable test cases with specific inputs/outputs and priorities. Quality is good with structured approach though could be more concise. Appropriateness is moderate - while the output is expert-level, the agent spent significant time searching for implementation details rather than designing the strategy based on standard signup form patterns and flagging key assumptions upfront.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 4,
+          "appropriateness": 5,
+          "reasoning": "Response stays perfectly in QA role with comprehensive testing strategy. Provides concrete test scenarios, scripts, commands, and validation criteria. Writing is mostly crisp and data-focused though slightly verbose in places. Demonstrates expert analysis with clear assumptions about cart persistence issues and appropriate trade-off considerations without unnecessary questions.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 5,
+          "appropriateness": 5,
+          "reasoning": "Perfect QA role adherence with expert analysis of test suite failures. Provides concrete diagnostic commands, specific code examples, and actionable remediation steps. Clean, direct writing without AI filler. Correctly matches complicated complexity with expert analysis while flagging key assumptions about test patterns.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 5,
+          "appropriateness": 5,
+          "reasoning": "Perfect QA response with comprehensive test strategy covering all expected areas (contrast ratios, accessibility, persistence, etc.) plus additional QA concerns like performance and cross-browser testing. Highly actionable with specific test cases, code snippets, and measurable criteria. Clean structure without AI filler. Appropriately matches expert analysis complexity with detailed technical considerations and trade-offs.",
+          "complexity": "complicated"
+        }
+      ]
+    },
+    "quality-auditor": {
+      "context_chars": 3533,
+      "model": "sonnet",
+      "avg_scores": {
+        "role_adherence": 5.0,
+        "actionability": 4.75,
+        "quality": 4.5,
+        "appropriateness": 5.0
+      },
+      "overall": 4.81,
+      "detail": [
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 4,
+          "appropriateness": 5,
+          "reasoning": "Perfect role adherence - conducted thorough audit with graded report (A-F), file counts, specific gaps, and actionable improvements. Highly actionable with concrete file names, directory structures, and specific implementation steps. Good quality with data-driven analysis and minimal filler, though some minor hedging present. Appropriate complexity handling with expert analysis, clear assumptions about missing test infrastructure, and consideration of multiple improvement alternatives.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 5,
+          "appropriateness": 5,
+          "reasoning": "Perfect quality-auditor behavior: executed systematic grading across all architectural layers, provided specific scores and gap analysis, delivered concrete improvement recommendations with priority levels. Response was direct, data-driven, and appropriately comprehensive for complicated complexity level without unnecessary hedging.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 4,
+          "quality": 4,
+          "appropriateness": 5,
+          "reasoning": "Agent correctly performed quality audit role, discovering no agents exist and providing structured grades (A-F), specific gaps, and actionable recommendations. Used domain expertise to analyze the absence as a critical finding. Minor deductions for some verbose exploration commands and slightly formal tone, but overall demonstrated expert analysis appropriate for complicated problem.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 5,
+          "appropriateness": 5,
+          "reasoning": "Perfect quality-auditor response: systematically scanned CI/CD configs, provided specific file:line analysis (.github/workflows/test.yml, deploy.yml), graded with concrete scores (C- 67/100), identified exact gaps with file locations, and delivered actionable recommendations. No hedging, data-driven assessment, appropriate expert analysis for complicated problem complexity.",
+          "complexity": "complicated"
+        }
+      ]
+    },
+    "retrospective": {
+      "context_chars": 43354,
+      "model": "sonnet",
+      "avg_scores": {
+        "role_adherence": 4.0,
+        "actionability": 3.25,
+        "quality": 3.25,
+        "appropriateness": 4.0
+      },
+      "overall": 3.62,
+      "detail": [
+        {
+          "role_adherence": 5,
+          "actionability": 4,
+          "quality": 3,
+          "appropriateness": 5,
+          "reasoning": "Excellent retrospective structure with proper Start/Stop/Continue framework, root cause analysis using Five Whys, and concrete actions like '20% sprint planning buffer' and 'failure mode analysis checklist'. Quality reduced for overly complex formatting and some AI-style language patterns. Perfectly matches expert analysis expectations for complicated problems.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 4,
+          "quality": 4,
+          "appropriateness": 5,
+          "reasoning": "Perfect retrospective role adherence with structured analysis, specific improvement recommendations, and learning matrix. Highly actionable with concrete solutions like execution logging and performance dashboards. Good quality with data-driven approach and clear structure, though some sections feel slightly verbose. Excellent appropriateness - provides expert analysis while flagging key assumptions about missing data, produces defensible recommendations despite data limitations.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 1,
+          "actionability": 1,
+          "quality": 2,
+          "appropriateness": 1,
+          "reasoning": "Agent started data gathering but never completed the retrospective analysis. Failed to produce timeline analysis, trend identification, Five Whys, or consolidated learnings as expected. The response shows tool usage but no retrospective insights or patterns. For a complicated problem requiring expert analysis, the agent should have produced comprehensive output with assumptions flagged, not just raw data collection.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 4,
+          "quality": 4,
+          "appropriateness": 5,
+          "reasoning": "Excellent retrospective structure with proper post-mortem methodologies (4-step debrief, five whys, fishbone analysis). Provides specific, actionable recommendations like three-point estimation and uncertainty quantification. Good expert analysis appropriate for complicated problems, though some sections are cut off. Minor style issues with some hedging language, but overall follows standards well.",
+          "complexity": "complicated"
+        }
+      ]
+    },
+    "roadmap": {
+      "context_chars": 6143,
+      "model": "opus",
+      "avg_scores": {
+        "role_adherence": 5.0,
+        "actionability": 4.5,
+        "quality": 5.0,
+        "appropriateness": 4.25
+      },
+      "overall": 4.69,
+      "detail": [
+        {
+          "role_adherence": 5,
+          "actionability": 4,
+          "quality": 5,
+          "appropriateness": 5,
+          "reasoning": "Strong roadmap role adherence with proper prioritization frameworks (RICE/KANO), security-first mindset, and strategic thinking. Highly actionable with clear next steps, specific data requirements, and immediate security fix directive. Excellent quality with no hedging, data-focused approach, and clear structure. Perfect appropriateness for complicated complexity - provides expert analysis while flagging key assumptions and asking only essential questions about missing impact data needed for defensible prioritization.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 5,
+          "appropriateness": 4,
+          "reasoning": "Strong roadmap response with clear recommendation, structured analysis, and concrete next steps. Excellent actionability with specific vendors, pricing, and success metrics. High quality writing without AI filler. Slightly dock appropriateness because while it does ask some clarifying questions, it leads with a strong recommendation rather than fully exploring the problem space first for this complex decision.",
+          "complexity": "complex"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 5,
+          "appropriateness": 5,
+          "reasoning": "Perfect roadmap role execution with strategic diagnosis framework, prioritized action phases, and kill criteria. Highly actionable with specific metrics, timelines, and next steps. Clean style with data-driven approach and structured format. Correctly explores complex problem space with high-leverage diagnostic questions before committing to solutions.",
+          "complexity": "complex"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 4,
+          "quality": 5,
+          "appropriateness": 3,
+          "reasoning": "Strong roadmap role adherence with strategic sequencing and stakeholder trade-offs. Very actionable with specific sprint plans and metrics. Excellent quality - no filler, data-driven, concrete language. However, for complex problems should explore unknowns first rather than jumping to solutions. Does surface some key questions but embeds them in a full solution rather than leading with exploration.",
+          "complexity": "complex"
+        }
+      ]
+    },
+    "security": {
+      "context_chars": 31193,
+      "model": "opus",
+      "avg_scores": {
+        "role_adherence": 5.0,
+        "actionability": 5.0,
+        "quality": 4.5,
+        "appropriateness": 5.0
+      },
+      "overall": 4.88,
+      "detail": [
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 5,
+          "appropriateness": 5,
+          "reasoning": "Perfect security analysis that stays completely in role. Provides highly actionable code examples, specific file paths, concrete remediation steps with priority levels. Clean, professional writing with no AI filler or hedging. Matches expert analysis complexity exactly - comprehensive assessment with clear assumptions about the endpoint design, appropriate trade-offs discussion, and no unnecessary questions on a clear security problem.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 5,
+          "appropriateness": 5,
+          "reasoning": "Perfect security role adherence with comprehensive vulnerability assessment, specific CWEs, CVSS scoring, and attack scenarios. Highly actionable with exact YAML configurations, commands, and implementation steps. High quality with clear structure, technical precision, and minimal hedging. Appropriately matches 'complicated' complexity with expert-level analysis covering all expected elements (supply chain attacks, postinstall risks, mitigations like --ignore-scripts, lockfile integrity, dependency pinning) plus additional security hardening measures.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 4,
+          "appropriateness": 5,
+          "reasoning": "Perfect security role execution with OWASP/CWE classifications, threat modeling, and compliance analysis. Highly actionable with specific code examples, test scripts, and implementation timeline. Strong technical writing with data-driven analysis. Appropriately provides expert analysis for this complicated problem with clear trade-offs and assumptions flagged.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 4,
+          "quality_note": "Minor AI filler in transitions but overall crisp",
+          "appropriateness": 5,
+          "reasoning": "Perfect security role adherence with comprehensive vulnerability assessment, specific implementation code, and prioritized remediation. Highly actionable with exact code examples, CVE mappings, and step-by-step fixes. Appropriately matches 'complicated' complexity with expert analysis showing trade-offs and assumptions. Quality is strong with data-driven assessment, though has minor AI-style transitions.",
+          "complexity": "complicated"
+        }
+      ]
+    },
+    "skillbook": {
+      "context_chars": 6098,
+      "model": "sonnet",
+      "avg_scores": {
+        "role_adherence": 4.75,
+        "actionability": 4.5,
+        "quality": 4.25,
+        "appropriateness": 4.25
+      },
+      "overall": 4.44,
+      "detail": [
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 4,
+          "appropriateness": 5,
+          "reasoning": "Perfect skillbook behavior: checked for duplication, created three atomic skills with rule/why/how structure, provided concrete patterns and anti-patterns, organized with proper indexing. Highly actionable with specific implementation steps, thresholds, and file paths. Strong quality with minimal hedging and concrete examples. Appropriately handled complicated task with expert analysis, clear trade-offs (atomicity scores), and defensible domain categorization without unnecessary questions.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 5,
+          "appropriateness": 5,
+          "reasoning": "Agent perfectly executed skillbook role by checking for duplicates, creating atomic skill with concrete evidence from production incident, and updating index. Output is immediately actionable with specific patterns/anti-patterns. Writing is concise, data-driven, no hedging. Correctly provided expert analysis for complicated problem without unnecessary questions, creating defensible solution based on clear production evidence.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 4,
+          "quality": 5,
+          "appropriateness": 5,
+          "reasoning": "Agent correctly rejected vague input as insufficiently specific for skill encoding, staying true to skillbook role. Provided concrete examples of what evidence would be needed. Quality is high with clear reasoning and no AI filler. Appropriately applied expert analysis by evaluating the submission against skill encoding standards and explaining the gap.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 4,
+          "actionability": 4,
+          "quality": 3,
+          "appropriateness": 2,
+          "reasoning": "Good role adherence as skillbook with proper skill creation and indexing. Actionable with concrete file structures and clear patterns. Quality hampered by excessive tool invocation logging and some filler. Poor appropriateness - treated this as simple skill encoding rather than expert analysis of the meta-pattern. Should have analyzed WHY Strategy pattern emerges, what recognition heuristics trigger it, and trade-offs, not just documented convergence behavior.",
+          "complexity": "complicated"
+        }
+      ]
+    },
+    "spec-generator": {
+      "context_chars": 5821,
+      "model": "sonnet",
+      "avg_scores": {
+        "role_adherence": 4.75,
+        "actionability": 4.75,
+        "quality": 4.25,
+        "appropriateness": 3.5
+      },
+      "overall": 4.31,
+      "detail": [
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 5,
+          "appropriateness": 3,
+          "reasoning": "Agent correctly generated comprehensive specs with proper EARS format, security considerations, and 3-tier structure. High quality writing with specifics like bcrypt cost factor 12, 15-minute expiry, rate limits. However, for 'complicated' complexity, should have flagged key assumptions (email vs SMS, specific timeouts, token format) and trade-offs before jumping to implementation. Missing the expert analysis behavior pattern expected at this complexity level.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 4,
+          "quality_issues": "Contains some AI hedging phrases like 'I need to clarify' and could be more direct",
+          "appropriateness": 5,
+          "reasoning": "Perfect role execution - stays in spec-generator character, asks high-leverage clarifying questions that directly impact technical implementation. Questions are concrete and actionable, targeting authentication, access scope, permissions, security, and technical architecture. Correctly identifies this as complex problem requiring exploration before specification. Minor quality issues with some hedging language but overall follows style standards well.",
+          "complexity": "complex"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 4,
+          "quality": 4,
+          "appropriateness": 5,
+          "reasoning": "Agent correctly stayed in spec-generator role by pushing back on vague requirements and asking for measurable targets. Questions are high-leverage and target key unknowns (performance metrics, scope, baselines). Response is concrete and actionable with specific examples. Quality is strong with clear structure and minimal filler. Perfectly appropriate for complex problem - explores the space before committing to direction.",
+          "complexity": "complex"
+        },
+        {
+          "role_adherence": 4,
+          "actionability": 5,
+          "quality": 4,
+          "appropriateness": 1,
+          "reasoning": "The agent produced comprehensive, actionable specs with clear acceptance criteria and concrete implementation details. However, it completely ignored the 'complex' problem pattern by diving straight into detailed specifications without asking any clarifying questions about critical unknowns like which events to support, delivery guarantees, rate limiting, or UI vs API-only management. This direct output approach is inappropriate for a complex problem requiring exploration.",
+          "complexity": "complex"
+        }
+      ]
+    },
+    "task-decomposer": {
+      "context_chars": 10355,
+      "model": "sonnet",
+      "avg_scores": {
+        "role_adherence": 4.75,
+        "actionability": 5.0,
+        "quality": 4.25,
+        "appropriateness": 5.0
+      },
+      "overall": 4.75,
+      "detail": [
+        {
+          "role_adherence": 4,
+          "actionability": 5,
+          "quality": 4,
+          "appropriateness": 5,
+          "reasoning": "Strong task decomposition with properly sized atomic tasks (S/M/L), clear acceptance criteria, and dependency mapping. Includes all expected components: CSV serialization, export endpoint, UI components, and data handling. Attempted codebase analysis shows expert approach. Minor points lost for some unnecessary exploration commands and todo-write formatting, but overall excellent decomposition matching complexity expectations.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 4,
+          "quality_reasoning": "Well-structured with concrete acceptance criteria and file names, but cuts off mid-sentence in risks section",
+          "appropriateness": 5,
+          "reasoning": "Excellent task decomposition with 10 detailed work items including proper sizing (XS-L), dependencies, acceptance criteria, and specific file impacts. Shows expert domain knowledge of email systems, order management, and software architecture. Appropriately handles complicated problem with comprehensive analysis without unnecessary questions.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 5,
+          "appropriateness": 5,
+          "reasoning": "Agent perfectly decomposed the task into 8 concrete, well-structured tasks with proper dependencies, file paths, and acceptance criteria. It analyzed the existing codebase to inform decisions, created appropriate milestones, and provided expert-level task breakdown matching the complicated complexity level. Output is immediately actionable with specific files, clear descriptions, and proper dependency ordering.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 4,
+          "appropriateness": 5,
+          "reasoning": "Excellent task decomposition with proper breakdown into dependencies, complexity sizing, and acceptance criteria. Very actionable with specific file names and implementation details. Quality is strong despite some verbose sections. Perfectly matches complicated problem complexity with expert analysis showing trade-offs and comprehensive coverage.",
+          "complexity": "complicated"
+        }
+      ]
+    }
+  }
+}
