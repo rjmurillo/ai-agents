@@ -829,7 +829,6 @@ def main() -> None:
         api_key = ""
     else:
         api_key = _load_api_key()
-        print(f"API key loaded (length: {len(api_key)})", file=sys.stderr)
 
     # Determine which agents to assess
     if args.agent:
