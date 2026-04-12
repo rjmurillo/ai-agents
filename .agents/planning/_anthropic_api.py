@@ -1,0 +1,108 @@
+"""Shared Anthropic API utilities for evaluation scripts.
+
+This module provides common functions for loading API keys and calling the
+Anthropic Messages API. Used by eval-agents.py and eval-knowledge-integration.py.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import sys
+from pathlib import Path
+from typing import Any
+
+
+def load_api_key() -> str:
+    """Load ANTHROPIC_API_KEY from environment or .env file.
+
+    Searches for the key in:
+    1. ANTHROPIC_API_KEY environment variable
+    2. .env file in the script's directory or parent directories (up to 10 levels)
+
+    Returns:
+        The API key string.
+
+    Exits:
+        With code 1 if the key is not found.
+    """
+    key = os.environ.get("ANTHROPIC_API_KEY")
+    if key:
+        return key.strip()
+
+    search = Path(__file__).resolve().parent
+    for _ in range(10):
+        env_path = search / ".env"
+        if env_path.exists():
+            for line in env_path.read_text().splitlines():
+                line = line.strip()
+                if line.startswith("#") or "=" not in line:
+                    continue
+                k, v = line.split("=", 1)
+                if k.strip() == "ANTHROPIC_API_KEY":
+                    v = v.strip()
+                    if len(v) >= 2 and v[0] == v[-1] and v[0] in ('"', "'"):
+                        v = v[1:-1]
+                    return v
+        search = search.parent
+
+    print("ERROR: ANTHROPIC_API_KEY not found in environment or .env", file=sys.stderr)
+    sys.exit(1)
+
+
+def call_api(
+    api_key: str,
+    messages: list[dict],
+    system: str = "",
+    model: str = "claude-sonnet-4-20250514",
+    max_tokens: int = 1024,
+) -> str:
+    """Call the Anthropic Messages API.
+
+    Args:
+        api_key: The Anthropic API key.
+        messages: List of message dicts with 'role' and 'content' keys.
+        system: Optional system prompt.
+        model: Model identifier to use.
+        max_tokens: Maximum tokens in the response.
+
+    Returns:
+        The assistant's text response.
+
+    Raises:
+        RuntimeError: If the API returns an HTTP error.
+    """
+    import urllib.error
+    import urllib.request
+
+    body: dict[str, Any] = {
+        "model": model,
+        "max_tokens": max_tokens,
+        "messages": messages,
+    }
+    if system:
+        body["system"] = system
+
+    data = json.dumps(body).encode()
+    req = urllib.request.Request(
+        "https://api.anthropic.com/v1/messages",
+        data=data,
+        headers={
+            "Content-Type": "application/json",
+            "x-api-key": api_key,
+            "anthropic-version": "2023-06-01",
+        },
+        method="POST",
+    )
+
+    try:
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            result = json.loads(resp.read().decode())
+    except urllib.error.HTTPError as e:
+        error_body = e.read().decode(errors="replace")
+        raise RuntimeError(
+            f"Anthropic API returned {e.code}: {error_body[:500]}"
+        ) from e
+
+    text_parts = [block["text"] for block in result.get("content", []) if block.get("type") == "text"]
+    return "\n".join(text_parts)

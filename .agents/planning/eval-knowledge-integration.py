@@ -16,42 +16,16 @@ from __future__ import annotations
 import argparse
 import json
 import math
-import os
 import sys
 import time
 from pathlib import Path
 from typing import Any
 
 # ---------------------------------------------------------------------------
-# API key loading
+# API utilities (shared module)
 # ---------------------------------------------------------------------------
 
-def _load_api_key() -> str:
-    """Load ANTHROPIC_API_KEY from environment or .env file. Never prints the key."""
-    key = os.environ.get("ANTHROPIC_API_KEY")
-    if key:
-        return key.strip()
-
-    # Walk up from script location to find .env
-    search = Path(__file__).resolve().parent
-    for _ in range(10):
-        env_path = search / ".env"
-        if env_path.exists():
-            for line in env_path.read_text().splitlines():
-                line = line.strip()
-                if line.startswith("#") or "=" not in line:
-                    continue
-                k, v = line.split("=", 1)
-                if k.strip() == "ANTHROPIC_API_KEY":
-                    v = v.strip()
-                    # Strip matching surrounding quotes (single or double)
-                    if len(v) >= 2 and v[0] == v[-1] and v[0] in ('"', "'"):
-                        v = v[1:-1]
-                    return v
-        search = search.parent
-
-    print("ERROR: ANTHROPIC_API_KEY not found in environment or .env", file=sys.stderr)
-    sys.exit(1)
+from _anthropic_api import call_api as _call_api, load_api_key as _load_api_key
 
 
 # ---------------------------------------------------------------------------
@@ -168,49 +142,6 @@ PROMPTS: dict[str, list[dict[str, str]]] = {
 }
 
 SKILLS = list(PROMPTS.keys())
-
-
-# ---------------------------------------------------------------------------
-# Anthropic API interaction
-# ---------------------------------------------------------------------------
-
-def _call_api(api_key: str, messages: list[dict], system: str = "", model: str = "claude-sonnet-4-20250514") -> str:
-    """Call the Anthropic Messages API. Returns the assistant text response."""
-    import urllib.error
-    import urllib.request
-
-    body: dict[str, Any] = {
-        "model": model,
-        "max_tokens": 1024,
-        "messages": messages,
-    }
-    if system:
-        body["system"] = system
-
-    data = json.dumps(body).encode()
-    req = urllib.request.Request(
-        "https://api.anthropic.com/v1/messages",
-        data=data,
-        headers={
-            "Content-Type": "application/json",
-            "x-api-key": api_key,
-            "anthropic-version": "2023-06-01",
-        },
-        method="POST",
-    )
-
-    try:
-        with urllib.request.urlopen(req, timeout=120) as resp:
-            result = json.loads(resp.read().decode())
-    except urllib.error.HTTPError as e:
-        error_body = e.read().decode(errors="replace")
-        raise RuntimeError(
-            f"Anthropic API returned {e.code}: {error_body[:500]}"
-        ) from e
-
-    # Extract text from content blocks
-    text_parts = [block["text"] for block in result.get("content", []) if block.get("type") == "text"]
-    return "\n".join(text_parts)
 
 
 def run_prompt(api_key: str, prompt: str, system_context: str = "", model: str = "claude-sonnet-4-20250514") -> str:

@@ -31,7 +31,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import re
 import sys
 import time
@@ -39,33 +38,10 @@ from pathlib import Path
 from typing import Any
 
 # ---------------------------------------------------------------------------
-# API key loading (shared logic with knowledge integration assessment)
+# API utilities (shared module)
 # ---------------------------------------------------------------------------
 
-def _load_api_key() -> str:
-    """Load ANTHROPIC_API_KEY from environment or .env file."""
-    key = os.environ.get("ANTHROPIC_API_KEY")
-    if key:
-        return key.strip()
-
-    search = Path(__file__).resolve().parent
-    for _ in range(10):
-        env_path = search / ".env"
-        if env_path.exists():
-            for line in env_path.read_text().splitlines():
-                line = line.strip()
-                if line.startswith("#") or "=" not in line:
-                    continue
-                k, v = line.split("=", 1)
-                if k.strip() == "ANTHROPIC_API_KEY":
-                    v = v.strip()
-                    if len(v) >= 2 and v[0] == v[-1] and v[0] in ('"', "'"):
-                        v = v[1:-1]
-                    return v
-        search = search.parent
-
-    print("ERROR: ANTHROPIC_API_KEY not found in environment or .env", file=sys.stderr)
-    sys.exit(1)
+from _anthropic_api import call_api as _call_api, load_api_key as _load_api_key
 
 
 # ---------------------------------------------------------------------------
@@ -567,45 +543,16 @@ PROMPTS: dict[str, list[dict[str, Any]]] = {
 
 
 # ---------------------------------------------------------------------------
-# Anthropic API interaction
+# Anthropic API interaction (uses shared module with agent-specific max_tokens)
 # ---------------------------------------------------------------------------
 
-def _call_api(api_key: str, messages: list[dict], system: str = "", model: str = "claude-sonnet-4-20250514") -> str:
-    """Call the Anthropic Messages API."""
-    import urllib.error
-    import urllib.request
+# Agent assessments use 2048 max_tokens for longer responses
+_AGENT_MAX_TOKENS = 2048
 
-    body: dict[str, Any] = {
-        "model": model,
-        "max_tokens": 2048,
-        "messages": messages,
-    }
-    if system:
-        body["system"] = system
 
-    data = json.dumps(body).encode()
-    req = urllib.request.Request(
-        "https://api.anthropic.com/v1/messages",
-        data=data,
-        headers={
-            "Content-Type": "application/json",
-            "x-api-key": api_key,
-            "anthropic-version": "2023-06-01",
-        },
-        method="POST",
-    )
-
-    try:
-        with urllib.request.urlopen(req, timeout=120) as resp:
-            result = json.loads(resp.read().decode())
-    except urllib.error.HTTPError as e:
-        error_body = e.read().decode(errors="replace")
-        raise RuntimeError(
-            f"Anthropic API returned {e.code}: {error_body[:500]}"
-        ) from e
-
-    text_parts = [block["text"] for block in result.get("content", []) if block.get("type") == "text"]
-    return "\n".join(text_parts)
+def _call_api_for_agents(api_key: str, messages: list[dict], system: str = "", model: str = "claude-sonnet-4-20250514") -> str:
+    """Call the Anthropic API with agent-specific max_tokens."""
+    return _call_api(api_key, messages, system=system, model=model, max_tokens=_AGENT_MAX_TOKENS)
 
 
 COMPLEXITY_BEHAVIOR = {
@@ -668,7 +615,7 @@ Score each dimension:
 Respond in JSON only, no other text:
 {{"role_adherence": <int>, "actionability": <int>, "quality": <int>, "appropriateness": <int>, "reasoning": "<brief explanation>"}}"""
 
-    raw = _call_api(api_key, [{"role": "user", "content": scoring_prompt}], model=model)
+    raw = _call_api_for_agents(api_key, [{"role": "user", "content": scoring_prompt}], model=model)
 
     text = raw.strip()
     if "```" in text:
@@ -773,7 +720,7 @@ def run_assessment(
                 f"You are the {agent_name} agent. Follow your agent definition exactly.\n\n"
                 f"{agent_context}"
             )
-            response = _call_api(api_key, [{"role": "user", "content": prompt_text}],
+            response = _call_api_for_agents(api_key, [{"role": "user", "content": prompt_text}],
                                  system=system_ctx, model=model)
 
             # Score the response with complexity context
