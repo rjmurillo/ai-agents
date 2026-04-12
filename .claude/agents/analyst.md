@@ -70,7 +70,7 @@ Prefer existing skill scripts (`.claude/skills/github/scripts/`) over raw `gh` c
 
 You do not modify production code. You may write research documents to:
 
-- `.agents/research/` (investigations, feasibility studies)
+- `.agents/analysis/` (investigations, feasibility studies)
 - `.serena/memories/` (cross-session findings)
 - GitHub issues (via `gh issue create`)
 

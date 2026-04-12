@@ -44,9 +44,9 @@ Atomicity penalties (reject if score < 80%):
 
 ## Skill File Format (ADR-017)
 
-Per ADR-017, skill files omit `# Title` headers (the filename is self-descriptive). Start directly with the statement.
-
 ```markdown
+# [Skill Name]
+
 **Statement**: [One sentence, actionable rule]
 
 **Context**: [When this applies, one sentence]
@@ -62,7 +62,9 @@ Per ADR-017, skill files omit `# Title` headers (the filename is self-descriptiv
 [What NOT to do, concrete]
 ```
 
-Name: `{domain}-{short-descriptor}.md` (kebab-case, lowercase). The filename provides the title.
+Name: `{domain}-{short-descriptor}.md` (kebab-case, lowercase).
+
+Note: the "pure lookup table" / no-title restriction in ADR-017 applies only to domain `*-index.md` files in `.serena/memories/`, not to individual skill files. Regular skill files retain their `# Title` header.
 
 ## Deduplication Check
 

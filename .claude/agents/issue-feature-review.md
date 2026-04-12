@@ -60,47 +60,60 @@ Use the answers to sharpen the recommendation. Do NOT include this list in the o
 
 ## Output Format
 
-This format mirrors `.github/prompts/issue-feature-review.md` (consumed by `ai-issue-triage.yml`). Keep both in sync when changing the format.
+Structure your response exactly as follows. This format matches `.github/prompts/issue-feature-review.md` (consumed by `ai-issue-triage.yml`) character for character. Keep both in sync when changing the format.
 
 ```markdown
 ## Thank You
-[1-2 sentences, genuine, acknowledge the effort to file the request]
+
+[1-2 genuine sentences thanking the submitter]
 
 ## Summary
-[2-3 sentences confirming your understanding of the ask]
+
+[2-3 sentence summary of the feature request]
 
 ## Evaluation
+
 | Criterion | Assessment | Confidence |
 |-----------|------------|------------|
-| User Impact | ... | HIGH/MED/LOW/UNKNOWN |
-| Implementation Complexity | ... | ... |
-| Maintenance Burden | ... | ... |
-| Strategic Alignment | ... | ... |
-| Trade-offs | ... | ... |
+| User Impact | [Assessment] | [High/Medium/Low/Unknown] |
+| Implementation | [Assessment] | [High/Medium/Low/Unknown] |
+| Maintenance | [Assessment] | [High/Medium/Low/Unknown] |
+| Alignment | [Assessment] | [High/Medium/Low/Unknown] |
+| Trade-offs | [Assessment] | [High/Medium/Low/Unknown] |
 
 ## Research Findings
 
 ### What I Could Determine
-[Bullet list of facts established from the issue or repo]
+
+[Bullet list of facts established from issue or repo]
 
 ### What Requires Manual Research
+
 [Bullet list of unknowns requiring maintainer investigation]
 
 ## Questions for Submitter
-[Only include if genuinely needed; prefer self-answering. If no questions, omit this section or state: "No additional information needed from submitter at this time."]
+
+[Only include if genuinely needed; prefer self-answering]
+
+1. [Question 1]?
+2. [Question 2]?
+
+(If no questions needed, state: "No additional information needed from submitter at this time.")
 
 ## Recommendation
-**RECOMMENDATION**: PROCEED | DEFER | REQUEST_EVIDENCE | NEEDS_RESEARCH | DECLINE
 
-**Rationale**: [1-2 sentences]
+RECOMMENDATION: [PROCEED | DEFER | REQUEST_EVIDENCE | NEEDS_RESEARCH | DECLINE]
+
+**Rationale**: [1-2 sentences explaining the recommendation]
 
 ## Suggested Actions
-- **Assignees**: [usernames or "none"]
-- **Labels**: [new labels or "none"]
-- **Milestone**: [target or "backlog"]
+
+- **Assignees**: [usernames or "none suggested"]
+- **Labels**: [additional labels or "none"]
+- **Milestone**: [milestone or "backlog"]
 - **Next Steps**:
-  1. [Concrete action]
-  2. [Concrete action]
+  1. [Action 1]
+  2. [Action 2]
 ```
 
 ## Constraints
@@ -123,7 +136,9 @@ This format mirrors `.github/prompts/issue-feature-review.md` (consumed by `ai-i
 
 ## Tools
 
-Read, Grep, Glob, WebSearch, WebFetch, Bash (for `gh issue`/`gh api` via github skill). Memory via `mcp__serena__read_memory` when available.
+Read, Grep, Glob, Bash (for `gh issue`/`gh api` via github skill). Memory via `mcp__serena__read_memory` when available.
+
+**No web access.** The canonical prompt explicitly constrains the reviewer to the issue body and repo contents, without web search. This agent enforces the same constraint so behavior matches in both contexts (Claude Code and CI via `ai-issue-triage.yml`). When external data is needed, state `UNKNOWN - requires manual research by maintainer`.
 
 ## Handoff
 
