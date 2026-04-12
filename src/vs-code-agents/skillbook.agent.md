@@ -134,7 +134,7 @@ Create a new domain index only if 5+ skills will exist in it, and register it in
 
 **Read existing skills** via `mcp__serena__read_memory` when Serena is available. If not, fall back to `Read` on `.serena/memories/*.md` directly.
 
-**Write new skills** via `mcp__serena__write_memory` when Serena is available. If not, fall back to `Write` on `.serena/memories/{name}.md` and note the manual edit for later sync.
+**Write new skills** via `mcp__serena__write_memory` when Serena is available. If not, fall back to `Write` on `.serena/memories/{domain}/{domain}-{NNN}-{short-descriptor}.md` (matching the layout described above) and note the manual edit for later sync.
 
 **Never block on Serena availability.** Skillbook work can proceed with direct file reads and writes.
 

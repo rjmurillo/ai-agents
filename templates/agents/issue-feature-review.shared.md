@@ -146,7 +146,7 @@ RECOMMENDATION: [PROCEED | DEFER | REQUEST_EVIDENCE | NEEDS_RESEARCH | DECLINE]
 
 Read, Grep, Glob, Bash (for `gh issue`/`gh api` via github skill). Memory via `mcp__serena__read_memory` when available.
 
-**No web access.** The canonical prompt explicitly constrains the reviewer to the issue body and repo contents, without web search. This agent enforces the same constraint so behavior matches in both contexts (Claude Code and CI via `ai-issue-triage.yml`). When external data is needed, state `UNKNOWN - requires manual research by maintainer by maintainer`.
+**No web access.** The canonical prompt explicitly constrains the reviewer to the issue body and repo contents, without web search. This agent enforces the same constraint so behavior matches in both contexts (Claude Code and CI via `ai-issue-triage.yml`). When external data is needed, state `UNKNOWN - requires manual research by maintainer`.
 
 ## Handoff
 
