@@ -108,7 +108,7 @@ Frontmatter: `type, id, title, status, priority, complexity, related (DESIGN ids
 | Avoid | Problem |
 |-------|---------|
 | "Make it fast" | No measurable target |
-| "The system validates input" (passive) | EARS requires active voice |
+| "Input is validated" (passive) | EARS requires active voice |
 | Combined requirements (multiple behaviors per REQ) | Violates atomicity |
 | Missing SO THAT clause | No rationale = no scope control |
 | Orphaned specs (no parent/child links) | Breaks traceability |
