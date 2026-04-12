@@ -1,0 +1,865 @@
+{
+  "assessment_type": "agent-definitions",
+  "model": "claude-sonnet-4-20250514",
+  "agents_assessed": [
+    "adr-generator",
+    "analyst",
+    "architect",
+    "backlog-generator",
+    "context-retrieval",
+    "critic",
+    "devops",
+    "explainer",
+    "high-level-advisor",
+    "implementer",
+    "independent-thinker",
+    "issue-feature-review",
+    "memory",
+    "milestone-planner",
+    "orchestrator",
+    "qa",
+    "quality-auditor",
+    "retrospective",
+    "roadmap",
+    "security",
+    "skillbook",
+    "spec-generator",
+    "task-decomposer"
+  ],
+  "total_prompts": 92,
+  "dimensions": [
+    "role_adherence",
+    "actionability",
+    "quality"
+  ],
+  "results": {
+    "adr-generator": {
+      "context_chars": 6684,
+      "model": "unspecified",
+      "avg_scores": {
+        "role_adherence": 5.0,
+        "actionability": 5.0,
+        "quality": 4.0
+      },
+      "overall": 4.67,
+      "detail": [
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 4,
+          "reasoning": "Perfect role adherence - generates complete ADR with all required sections (title, status, context, decision, consequences). Highly actionable with specific file path, numbered items, concrete implementation notes, and measurable success metrics. Good quality overall but contains some AI filler phrases like 'comprehensive ADR' and 'robust database solution' that reduce crispness."
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 4,
+          "reasoning": "Perfect role adherence - generates complete ADR with proper structure and numbering. Highly actionable with specific file path, implementation steps, and concrete recommendations. Quality is strong with clear structure and specific details, though contains some minor verbose elements typical of formal documentation."
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 4,
+          "reasoning": "Perfect role adherence - generates complete ADR with proper structure and numbering. Highly actionable with specific file path, structured consequences, detailed implementation notes, and concrete alternatives. Quality is strong with clear sections and specific details, though some minor verbosity in explanations could be tightened."
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 4,
+          "reasoning": "Perfect role adherence - generates a complete, well-structured ADR with proper formatting and sections. Highly actionable with specific file path, numbered consequences/alternatives, concrete implementation strategy and metrics. Quality is strong with clear technical content and specific details, though contains some minor verbose phrasing that could be more concise."
+        }
+      ]
+    },
+    "analyst": {
+      "context_chars": 17295,
+      "model": "sonnet",
+      "avg_scores": {
+        "role_adherence": 3.25,
+        "actionability": 3.0,
+        "quality": 3.0
+      },
+      "overall": 3.08,
+      "detail": [
+        {
+          "role_adherence": 2,
+          "actionability": 3,
+          "quality": 2,
+          "reasoning": "Failed role adherence - jumped to solutions/recommendations when expected to focus on investigation plan only. Moderate actionability with some specific commands but mixed with premature solutions. Quality issues include AI filler phrases, hedging language, and overly complex structure when simple investigation steps were needed."
+        },
+        {
+          "role_adherence": 4,
+          "actionability": 3,
+          "quality": 4,
+          "reasoning": "Strong analyst role adherence with systematic research methodology and structured analysis document. Good quality with data-driven approach and clear comparisons. Actionability limited by lack of specific recommendations and dependency on unavailable current implementation details, though the framework provided is solid."
+        },
+        {
+          "role_adherence": 2,
+          "actionability": 2,
+          "quality": 2,
+          "reasoning": "Agent started well with systematic investigation but devolved into generic research and documentation creation rather than technical analysis. Spent too much time on unsuccessful file searches instead of focusing on cache consistency models and invalidation patterns. Final deliverable was incomplete and lacked specific technical recommendations for measuring propagation delays or implementing event-driven invalidation."
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 4,
+          "quality": 4,
+          "reasoning": "Strong analyst behavior - systematically investigates unknowns, gathers evidence, and produces structured analysis document. Actionable with specific cost estimates, timeline ranges, and prioritized recommendations with effort estimates. Quality is good with data-driven approach and clear structure, though slightly verbose in places and cuts off mid-sentence."
+        }
+      ]
+    },
+    "architect": {
+      "context_chars": 22292,
+      "model": "opus",
+      "avg_scores": {
+        "role_adherence": 5.0,
+        "actionability": 4.5,
+        "quality": 4.5
+      },
+      "overall": 4.67,
+      "detail": [
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 5,
+          "reasoning": "Perfect architect response: challenges the premise with technical depth (N+1 queries, caching complexity), identifies schema governance overhead, suggests BFF pattern alternative, and blocks until ADR is created. Provides concrete issues (ARCH-001 through ARCH-005), specific approval conditions checklist, and actionable next steps. Writing is crisp, direct, and data-focused without AI hedging."
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 5,
+          "reasoning": "Perfect role adherence - conducts thorough architectural review focusing on coupling analysis, deployment risks, and alternatives as expected. Highly actionable with specific file creation, concrete issue tracking (ARCH-001 through ARCH-005), and clear ADR requirements. Quality is excellent with technical precision, no hedging language, structured analysis format, and specific handoff instructions."
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 4,
+          "quality": 4,
+          "reasoning": "Perfect architect role - blocks flawed design, creates formal review document, identifies specific issues with priorities. Strong actionability with concrete ADRs, blocking issues checklist, and alternative path. Good quality with data-driven analysis, though slightly verbose in places and misses some expected warnings like Gall's Law and hot module identification."
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 4,
+          "quality": 4,
+          "reasoning": "Strong architectural perspective with design patterns, trade-offs, and system-level concerns. Provides concrete patterns (outbox, CQRS) with implementation approaches and clear approval conditions. Minor deductions for some verbose explanations and lack of specific technology details, though appropriately hands off implementation specifics to analyst role."
+        }
+      ]
+    },
+    "backlog-generator": {
+      "context_chars": 6905,
+      "model": "sonnet",
+      "avg_scores": {
+        "role_adherence": 4.0,
+        "actionability": 4.0,
+        "quality": 3.5
+      },
+      "overall": 3.83,
+      "detail": [
+        {
+          "role_adherence": 2,
+          "actionability": 1,
+          "quality": 2,
+          "reasoning": "Agent started correctly by examining existing issues/PRs but never completed the core task of generating 3-5 sized and prioritized backlog items. The response cuts off mid-execution without delivering any actual backlog items. While the approach was sound, it failed to produce the expected deliverables entirely."
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 4,
+          "reasoning": "Perfect role execution - agent analyzes codebase systematically, identifies specific coverage gaps, and creates detailed GitHub issues with clear acceptance criteria. Outputs are immediately actionable with specific file names, effort estimates, and priorities. Quality is high with concrete technical details, though some minor verbosity in issue descriptions."
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 4,
+          "reasoning": "Perfect role adherence - triaged stale issues and generated fresh actionable tasks from code health analysis rather than restating existing issues. Highly actionable with specific GitHub issue creation commands, clear acceptance criteria, and concrete next steps. Quality is strong with data-driven analysis and clear structure, though contains some minor AI phrases like 'Let me analyze' and could be more concise in places."
+        },
+        {
+          "role_adherence": 4,
+          "actionability": 5,
+          "quality": 4,
+          "reasoning": "Strong role adherence - performed hotspot analysis and generated proactive backlog items as expected. Excellent actionability with specific GitHub issues, acceptance criteria, and effort estimates. Good quality with concrete details and clear structure, though some minor AI-isms in the analysis section."
+        }
+      ]
+    },
+    "context-retrieval": {
+      "context_chars": 11587,
+      "model": "haiku",
+      "avg_scores": {
+        "role_adherence": 3.0,
+        "actionability": 3.5,
+        "quality": 3.0
+      },
+      "overall": 3.17,
+      "detail": [
+        {
+          "role_adherence": 2,
+          "actionability": 4,
+          "quality": 3,
+          "reasoning": "Agent started correctly by searching for existing caching decisions, performance data, and documentation, but then shifted into implementation guidance rather than just surfacing context. The actionability is high with specific code examples and concrete patterns. Quality suffers from some AI filler phrases and the response being cut off mid-sentence."
+        },
+        {
+          "role_adherence": 2,
+          "actionability": 3,
+          "quality": 2,
+          "reasoning": "Agent partially followed role by searching memory and git logs, but failed to deliver synthesized context as expected. Instead provided generic recovery strategy when searches yielded no results. Should have been more systematic about git log examination and attempted to read HANDOFF.md. Response was too verbose with AI filler and hedging language rather than concise data presentation."
+        },
+        {
+          "role_adherence": 4,
+          "actionability": 5,
+          "quality": 4,
+          "reasoning": "Strong role adherence - systematically searches memory, files, and docs as expected for context-retrieval. Highly actionable with specific file paths, code snippets, and concrete architecture details. Good quality with clear structure and data-focused content, though includes some incomplete code examples that could be cleaner."
+        },
+        {
+          "role_adherence": 4,
+          "actionability": 2,
+          "quality": 3,
+          "reasoning": "Good role adherence - performs systematic search across memory systems as specified, but only searches 2 of 4 required sources (missing session logs and ADRs). Low actionability - provides no timestamps, limited source attribution, and offers vague recommendations instead of concrete next steps. Moderate quality - uses some AI filler phrases and hedging, but maintains reasonable structure and directness."
+        }
+      ]
+    },
+    "critic": {
+      "context_chars": 17606,
+      "model": "sonnet",
+      "avg_scores": {
+        "role_adherence": 3.25,
+        "actionability": 3.5,
+        "quality": 3.5
+      },
+      "overall": 3.42,
+      "detail": [
+        {
+          "role_adherence": 5,
+          "actionability": 4,
+          "quality": 4,
+          "reasoning": "Perfect critic role - identifies specific risks, provides clear verdict, asks probing questions. High actionability with concrete checklists and approval conditions, though could be more specific on technical details like exact MySQL/PostgreSQL differences. Good quality with clear structure and minimal fluff, though some sections could be more concise."
+        },
+        {
+          "role_adherence": 4,
+          "actionability": 3,
+          "quality": 4,
+          "reasoning": "Strong critic role - properly identified critical gaps and blocked approval. Actionable checklist format with specific questions, though could be more concrete on exact metrics/thresholds. Clean writing with minimal filler, though some hedging present ('I need to see')."
+        },
+        {
+          "role_adherence": 2,
+          "actionability": 3,
+          "quality": 3,
+          "reasoning": "Agent correctly identifies critical issues (no tests, aggressive timeline) but fails role by requesting documents instead of critiquing available information. Shows some actionability with specific checklist items and clear warnings, but blocks progress unnecessarily. Writing is direct with good structure, though 'BLOCKED' status and document requests weaken the response."
+        },
+        {
+          "role_adherence": 2,
+          "actionability": 4,
+          "quality": 3,
+          "reasoning": "Role adherence is low - the critic spent most time doing analyst work (codebase exploration, memory searches) rather than purely critiquing the proposal. Actionability is high with specific checklists, questions, and clear approval conditions. Quality is moderate - good structure and specifics but contains some hedging ('potentially feasible') and could be more concise."
+        }
+      ]
+    },
+    "devops": {
+      "context_chars": 15572,
+      "model": "sonnet",
+      "avg_scores": {
+        "role_adherence": 4.75,
+        "actionability": 4.5,
+        "quality": 4.0
+      },
+      "overall": 4.42,
+      "detail": [
+        {
+          "role_adherence": 5,
+          "actionability": 4,
+          "quality": 4,
+          "reasoning": "Strong devops response with proper CI/CD architecture, matrix strategies, path-based triggers, caching, and parallel execution. Highly actionable with specific YAML configurations, job dependencies, and concrete implementation details. Quality is good with technical precision, though response appears truncated and includes some verbose analysis section that could be more concise."
+        },
+        {
+          "role_adherence": 4,
+          "actionability": 5,
+          "quality": 4,
+          "reasoning": "Strong devops focus with concrete Docker optimizations, specific time savings estimates (2-3 min Phase 1, 1-2 min Phase 2), exact Dockerfile examples, and implementation plan. Covers all expected behaviors except BuildKit cache mounts could be more detailed. Uses some unnecessary commands like memory search, but overall very actionable with specific file contents and metrics."
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 4,
+          "quality": 4,
+          "reasoning": "Strong devops focus with proper CI/CD pipeline design, environment management, and deployment automation. Provides concrete GitHub Actions workflows, specific file structures, and actionable configuration patterns. Uses proper technical terminology and follows infrastructure-as-code principles. Minor deduction on actionability as the composite action appears incomplete, and quality could be improved with more concise explanations."
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 4,
+          "reasoning": "Perfect DevOps response with immediate incident handling, comprehensive technical remediation steps, and operational procedures. Highly actionable with specific commands, file paths, and scripts. Minor quality deduction for some verbose sections and incomplete incident report template, but overall excellent technical depth and practical implementation."
+        }
+      ]
+    },
+    "explainer": {
+      "context_chars": 9518,
+      "model": "sonnet",
+      "avg_scores": {
+        "role_adherence": 2.0,
+        "actionability": 1.75,
+        "quality": 3.0
+      },
+      "overall": 2.25,
+      "detail": [
+        {
+          "role_adherence": 2,
+          "actionability": 1,
+          "quality": 3,
+          "reasoning": "Agent failed to fulfill explainer role by asking questions instead of explaining/writing the PRD as requested. Response provides no actionable PRD content - no user stories, acceptance criteria, or concrete deliverables. Quality is average - well-structured questions but contains some hedging and doesn't deliver the expected output format."
+        },
+        {
+          "role_adherence": 2,
+          "actionability": 3,
+          "quality": 3,
+          "reasoning": "Role adherence is poor - response starts with definitions instead of concrete analogies, assumes knowledge of technical terms, and uses progressive complexity backwards. Actionability is moderate with good concrete examples and analogies, but lacks immediately usable guidance for the novice audience. Quality is acceptable with clear structure and minimal filler, though some sections are overly technical for beginners."
+        },
+        {
+          "role_adherence": 2,
+          "actionability": 2,
+          "quality": 3,
+          "reasoning": "The agent was asked to document existing rate limiting but instead acted as a researcher asking clarifying questions rather than explaining. An explainer should provide clear documentation based on what they can find or state what specific information they need. The response has some concrete elements (specific technical terms, structured questions) but doesn't deliver the requested documentation. Writing is clear and well-structured but contains some verbose sections."
+        },
+        {
+          "role_adherence": 2,
+          "actionability": 1,
+          "quality": 3,
+          "reasoning": "Agent failed to fulfill explainer role by asking questions instead of providing acceptance criteria as requested. Response lacks actionable deliverables - no numbered criteria, testable conditions, or concrete specifications. Writing quality is decent with clear structure and specific questions, but doesn't meet the core task requirements."
+        }
+      ]
+    },
+    "high-level-advisor": {
+      "context_chars": 8467,
+      "model": "opus",
+      "avg_scores": {
+        "role_adherence": 5.0,
+        "actionability": 4.5,
+        "quality": 5.0
+      },
+      "overall": 4.83,
+      "detail": [
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 5,
+          "reasoning": "Perfect role adherence - acts as decisive high-level advisor cutting through analysis paralysis. Extremely actionable with specific timeline (2-hour meeting today, 15min per proposal, 100 lines by week end). Excellent quality with no hedging, clear structure, direct language, and concrete do/don't framework."
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 4,
+          "quality": 5,
+          "reasoning": "Perfect role adherence - provides strategic diagnosis, hard truths, and high-level direction as expected. Strong actionability with specific consolidation targets (3-4 services max) and concrete next step (map services by coupling, identify 3 merge candidates by Friday). Excellent quality with direct language, no hedging, active voice, and clear structure without AI filler."
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 4,
+          "quality": 5,
+          "reasoning": "Perfect role adherence - identifies sunk cost fallacy, questions the 80% metric, suggests strangler fig alternatives. High actionability with concrete 4-step process and decision framework, though could be more specific on implementation. Excellent quality with no hedging, direct language, and structured delivery appropriate for executive level."
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 5,
+          "reasoning": "Perfect role adherence - acts as high-level advisor focusing on decision-making process and business outcomes rather than technical details. Highly actionable with specific 48-hour deadline, concrete decision matrix, and clear next steps. Excellent quality with direct language, no hedging, and focus on shipping over perfectionism."
+        }
+      ]
+    },
+    "implementer": {
+      "context_chars": 44876,
+      "model": "opus",
+      "avg_scores": {
+        "role_adherence": 2.75,
+        "actionability": 2.75,
+        "quality": 3.0
+      },
+      "overall": 2.83,
+      "detail": [
+        {
+          "role_adherence": 2,
+          "actionability": 3,
+          "quality": 2,
+          "reasoning": "The agent starts implementing but spends excessive time exploring the project structure instead of directly implementing the middleware. An implementer should create the solution efficiently. The actionability is moderate as it begins creating concrete files, but the response is cut off. Quality is low due to verbose exploration, AI-like investigation patterns, and incomplete implementation of the core requirement."
+        },
+        {
+          "role_adherence": 2,
+          "actionability": 1,
+          "quality": 3,
+          "reasoning": "The implementer spent excessive time exploring and asking questions instead of implementing the task. An implementer should write code first and make reasonable assumptions about missing context. The response lacks any concrete implementation - no files created, no code written, no health check endpoint delivered. While the exploration was methodical, the role requires action over analysis."
+        },
+        {
+          "role_adherence": 2,
+          "actionability": 2,
+          "quality": 3,
+          "reasoning": "The agent performed extensive search commands (good implementer behavior) but failed to deliver the core task - fixing SQL injection vulnerabilities. Instead of implementing fixes, it asked for clarification about locations, which shifts responsibility back to the requester. An implementer should find and fix the issues. The searches were systematic and specific, showing some actionability, but no actual fixes were provided. Writing style was direct and clear without AI filler."
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 4,
+          "reasoning": "Perfect role adherence - implementer provides actual code implementation with specific file paths and concrete C# classes. Highly actionable with complete implementation including retry logic, circuit breaker, and proper structure. Quality is high with clean code following SOLID principles, though response is cut off mid-implementation and includes some unnecessary memory search commands at the start."
+        }
+      ]
+    },
+    "independent-thinker": {
+      "context_chars": 8254,
+      "model": "opus",
+      "avg_scores": {
+        "role_adherence": 5.0,
+        "actionability": 4.0,
+        "quality": 4.25
+      },
+      "overall": 4.42,
+      "detail": [
+        {
+          "role_adherence": 5,
+          "actionability": 4,
+          "quality": 4,
+          "reasoning": "Excellent role adherence - challenges consensus with data, questions assumptions, and provides contrarian analysis with specific statistics. Good actionability with concrete alternatives, cost figures, and specific questions to answer. Quality is strong with data-driven arguments and clear structure, though could be more concise in places."
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 4,
+          "quality": 5,
+          "reasoning": "Perfect role adherence - challenges consensus with evidence, questions industry narratives, and thinks independently. Strong actionability with specific criteria for when to extract services and concrete recommendations. Excellent quality with data-driven arguments, specific examples, active voice, and no hedging or AI filler."
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 4,
+          "quality": 4,
+          "reasoning": "Perfect role adherence - provides strong contrarian view with evidence-based pushback against CTO's proposal. High actionability with specific steps like profiling, POC testing, and concrete questions to ask. Good quality with data-driven arguments and clear structure, though some minor hedging language remains."
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 4,
+          "quality": 4,
+          "reasoning": "Strong independent thinking with data-driven analysis, industry research, and challenging conventional wisdom. Actionable recommendations include specific coverage targets (90%/80%/60%) and implementation steps. Minor quality issues with some hedging phrases and AI-like structure, but overall concise with good data support."
+        }
+      ]
+    },
+    "issue-feature-review": {
+      "context_chars": 7400,
+      "model": "sonnet",
+      "avg_scores": {
+        "role_adherence": 3.75,
+        "actionability": 3.25,
+        "quality": 3.5
+      },
+      "overall": 3.5,
+      "detail": [
+        {
+          "role_adherence": 2,
+          "actionability": 2,
+          "quality": 3,
+          "reasoning": "Agent correctly identifies as feature reviewer but fails to deliver the core expected behavior - it should assess the given request directly rather than seeking more context. While the evaluation framework is relevant, it doesn't provide the required recommendation with actionable next steps. The response is well-structured but lacks the decisive assessment and constructive skepticism expected from this role."
+        },
+        {
+          "role_adherence": 4,
+          "actionability": 4,
+          "quality": 3,
+          "reasoning": "Strong role adherence with proper feature assessment framework, revenue impact consideration, and business outcome focus. Good actionability with specific next steps, assignees, and labels. Quality reduced by some AI-style phrases like 'Thank you for submitting' and overly structured formatting, but otherwise clear and direct."
+        },
+        {
+          "role_adherence": 4,
+          "actionability": 3,
+          "quality": 4,
+          "reasoning": "Strong role adherence - correctly identified low signal, flagged internal request without user demand, questioned build vs buy. Good quality with concrete concerns and specific questions. Actionability reduced because it requests more info rather than providing definitive assessment, though the preliminary direction is clear."
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 4,
+          "quality": 4,
+          "reasoning": "Agent correctly identifies role mismatch and refuses to perform bug triage work that's outside its feature review scope. Provides specific routing instructions and agent name for handoff. Well-structured response with clear status and next actions, though could be slightly more concise."
+        }
+      ]
+    },
+    "memory": {
+      "context_chars": 14123,
+      "model": "sonnet",
+      "avg_scores": {
+        "role_adherence": 4.75,
+        "actionability": 4.5,
+        "quality": 4.0
+      },
+      "overall": 4.42,
+      "detail": [
+        {
+          "role_adherence": 4,
+          "actionability": 4,
+          "quality": 4,
+          "reasoning": "Strong role adherence - performs semantic searches, reads memory files, synthesizes context as expected. High actionability with specific file references, concrete development patterns, and clear next steps. Good quality with minimal filler, though some hedging present ('appears to be', 'may need'). Minor deduction for not finding payment-specific ADRs or architectural constraints as specified in expected behavior."
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 4,
+          "reasoning": "Perfect role adherence - acts as memory system, searches existing memories, makes persistence decision, stores structured data with proper indexing. Highly actionable with specific file names, concrete storage format, and detailed implementation context. Quality is strong with structured data and clear reasoning, though has some minor AI-style phrasing like 'significant design choice' and 'institutional knowledge'."
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 4,
+          "reasoning": "Perfect role adherence - stays in memory lane, detects staleness, updates appropriately. Highly actionable with specific MCP commands, file operations, and concrete next steps. Quality is strong with clear structure and specific data, though has some minor verbose sections that could be tighter."
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 4,
+          "quality": 4,
+          "reasoning": "Perfect role adherence - performed multi-tier search, provided source attribution with ADR reference, flagged limited results instead of fabricating. High actionability with specific metrics (82% savings), clear architecture details, and concrete recommendation for better search. Good quality with data-driven approach, though has minor hedging in warning section."
+        }
+      ]
+    },
+    "milestone-planner": {
+      "context_chars": 19179,
+      "model": "sonnet",
+      "avg_scores": {
+        "role_adherence": 3.5,
+        "actionability": 4.25,
+        "quality": 3.25
+      },
+      "overall": 3.67,
+      "detail": [
+        {
+          "role_adherence": 2,
+          "actionability": 4,
+          "quality": 3,
+          "reasoning": "Role adherence is poor - agent acts as codebase-analyzer instead of milestone-planner, running exploratory bash commands rather than planning. Actionability is good with specific deliverables, acceptance criteria, and timelines. Quality is mixed - structured output but verbose with some filler content and passive voice."
+        },
+        {
+          "role_adherence": 4,
+          "actionability": 5,
+          "quality": 4,
+          "reasoning": "Strong milestone planning with proper sequencing, dependencies, and acceptance criteria. Covers expected behaviors (data isolation, tenant context, auth, provisioning) and identifies data leakage risks. Minor role drift with excessive file exploration at start. Highly actionable with specific deliverables, timelines, and measurable criteria. Quality is good but has some filler phrases and could be more concise."
+        },
+        {
+          "role_adherence": 4,
+          "actionability": 4,
+          "quality": 3,
+          "reasoning": "Strong role adherence with proper milestone structure, measurable exit criteria, and systematic planning. High actionability with specific deliverables, quantified acceptance criteria, and concrete timelines. Quality reduced by some verbose sections and AI-style language like 'comprehensive analysis' and 'systematic performance optimization' that could be more direct."
+        },
+        {
+          "role_adherence": 4,
+          "actionability": 4,
+          "quality": 3,
+          "reasoning": "Strong role adherence with proper milestone planning structure, dependencies, and risk assessment. High actionability with specific deliverables, acceptance criteria, and effort estimates. Quality reduced by some AI-style phrasing ('based on complexity') and the plan cuts off mid-sentence. The response correctly focuses on planning rather than execution, includes dependency analysis concept, and structures milestones logically, though not exactly matching the expected M1-M4 pattern."
+        }
+      ]
+    },
+    "orchestrator": {
+      "context_chars": 66966,
+      "model": "opus",
+      "avg_scores": {
+        "role_adherence": 3.25,
+        "actionability": 3.5,
+        "quality": 3.25
+      },
+      "overall": 3.33,
+      "detail": [
+        {
+          "role_adherence": 2,
+          "actionability": 4,
+          "quality": 3,
+          "reasoning": "Failed role adherence by routing only to analyst\u2192implementer\u2192qa instead of required analyst+devops+qa in parallel for investigation, and missing severity classification as P0. Good actionability with specific investigation tasks and concrete next steps. Quality decent but contains some AI filler phrases like 'This is a revenue-impacting production issue' and could be more concise."
+        },
+        {
+          "role_adherence": 4,
+          "actionability": 3,
+          "quality": 4,
+          "reasoning": "Strong orchestration with proper task classification, agent sequencing, and dependency management. Correctly delegates to context-retrieval first. However, the specific prompt could be more actionable with concrete deliverables, and the response has some unnecessary verbose elements like confidence percentages."
+        },
+        {
+          "role_adherence": 2,
+          "actionability": 3,
+          "quality": 2,
+          "reasoning": "Agent fails to orchestrate according to expected behavior - should route security to security agent + implementer, feature to architect + qa, refactor to critic with proper priority ordering. Instead uses generic analyst \u2192 milestone-planner \u2192 implementer \u2192 qa sequence. Shows some concrete actions (bash commands, file creation) but misses key routing requirements. Contains unnecessary hedging and verbose classification that dilutes focus."
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 4,
+          "quality": 4,
+          "reasoning": "Perfect role adherence - classifies as Complex, doesn't jump to implementation, routes to analyst first via context-retrieval. High actionability with specific trace_id, clear agent sequence, and concrete focus areas for investigation. Good quality with structured format and specific details, though some minor verbosity in rationale section."
+        }
+      ]
+    },
+    "qa": {
+      "context_chars": 22788,
+      "model": "sonnet",
+      "avg_scores": {
+        "role_adherence": 5.0,
+        "actionability": 4.75,
+        "quality": 4.25
+      },
+      "overall": 4.67,
+      "detail": [
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 4,
+          "reasoning": "Perfect QA role adherence - creates comprehensive test strategy with detailed test cases, coverage targets, and specific validation criteria. Highly actionable with concrete test scenarios, data requirements, and mock strategies. Good quality with structured tables and specific details, though some incomplete code snippets at the end slightly reduce polish."
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 4,
+          "reasoning": "Perfect QA role adherence - focuses on testing strategies, test cases, and investigation methods rather than development solutions. Highly actionable with specific test commands, SQL queries, monitoring scripts, and detailed test matrices. Quality is strong with concrete examples and structured approach, though some sections could be more concise and have minor verbose elements."
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 5,
+          "reasoning": "Perfect QA role adherence with systematic diagnosis, specific code examples showing anti-patterns vs correct patterns, concrete bash commands for investigation, measurable metrics, and immediate action items. No hedging or filler - direct problem identification with evidence-based solutions."
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 4,
+          "quality": 4,
+          "reasoning": "Perfect QA role adherence with comprehensive testing strategy, specific criteria, and edge cases. High actionability with concrete test scenarios, measurable criteria (4.5:1 contrast, <100ms performance), and organized test matrix. Good quality with clear structure and specific details, though could be more concise in places."
+        }
+      ]
+    },
+    "quality-auditor": {
+      "context_chars": 3533,
+      "model": "sonnet",
+      "avg_scores": {
+        "role_adherence": 5.0,
+        "actionability": 4.0,
+        "quality": 4.25
+      },
+      "overall": 4.42,
+      "detail": [
+        {
+          "role_adherence": 5,
+          "actionability": 4,
+          "quality": 5,
+          "reasoning": "Perfect role adherence - delivers exactly what quality-auditor should: graded report A-F per layer, file counts, specific gaps (missing integration tests, etc.), and actionable improvements. High actionability with specific recommendations like 'Create test-runner agent' and 'Add comprehensive testing documentation', though could include more file paths/line numbers. Excellent quality with data-driven analysis, clear structure, no hedging or filler."
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 4,
+          "quality": 4,
+          "reasoning": "Perfect role adherence - acts as quality auditor with grades, scores, and gap analysis. High actionability with specific recommendations and concrete gaps identified, though could include more specific file names/locations. Good quality with clear structure, data-driven approach, and minimal filler, though some phrases like 'strong foundation' are slightly subjective."
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 4,
+          "quality": 4,
+          "reasoning": "Perfect role adherence - acts as quality auditor, grades A-F per agent, identifies redundancy/gaps, covers all audit axes. High actionability with specific file paths, concrete recommendations, and structured findings. Good quality with data-driven analysis and clear structure, though some minor verbose elements."
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 4,
+          "quality": 4,
+          "reasoning": "Perfect role adherence - acts as quality auditor with systematic grading, scoring, and gap analysis. High actionability with specific file references (.github/workflows/test.yml), concrete recommendations, and prioritized action items. Good quality with data-driven approach and clear structure, though some sections could be more concise."
+        }
+      ]
+    },
+    "retrospective": {
+      "context_chars": 43354,
+      "model": "sonnet",
+      "avg_scores": {
+        "role_adherence": 4.0,
+        "actionability": 3.25,
+        "quality": 3.25
+      },
+      "overall": 3.5,
+      "detail": [
+        {
+          "role_adherence": 5,
+          "actionability": 4,
+          "quality": 4,
+          "reasoning": "Strong role adherence with proper structured retrospective framework (4-step debrief, Start/Stop/Continue variant). Good actionability with specific tools like edge case checklist and requirements refinement step, though some actions could be more detailed. Quality is solid with data-driven analysis and clear formatting, though some sections are verbose and could be more concise."
+        },
+        {
+          "role_adherence": 4,
+          "actionability": 4,
+          "quality": 3,
+          "reasoning": "Strong role adherence with systematic retrospective methodology, structured analysis phases, and learning matrix. High actionability with specific recommendations like 'implement execution telemetry' and concrete priority classifications. Quality reduced by some verbose sections and incomplete final table, but overall follows data-driven approach with clear frameworks."
+        },
+        {
+          "role_adherence": 2,
+          "actionability": 1,
+          "quality": 2,
+          "reasoning": "Agent started data gathering but stopped mid-task without completing the retrospective analysis. No timeline analysis, trend identification, Five Whys, or pattern flagging was performed. The incomplete sprint-3 file read suggests technical issues, but the agent should have worked with available data to deliver retrospective insights. Response lacks concrete learnings, action items, or retrospective deliverables."
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 4,
+          "quality": 4,
+          "reasoning": "Excellent role adherence - performs systematic retrospective analysis with proper methodology (Five Whys, learning extraction, ROTI). Good actionability with specific data collection templates and concrete next steps, though limited by missing project data. Quality is strong with structured format, minimal hedging, and data-driven approach, though some sections are verbose."
+        }
+      ]
+    },
+    "roadmap": {
+      "context_chars": 12616,
+      "model": "opus",
+      "avg_scores": {
+        "role_adherence": 3.75,
+        "actionability": 3.25,
+        "quality": 3.5
+      },
+      "overall": 3.5,
+      "detail": [
+        {
+          "role_adherence": 4,
+          "actionability": 2,
+          "quality": 3,
+          "reasoning": "Good role adherence - correctly identifies security as P0 and mentions RICE/KANO frameworks as expected. However, low actionability as it requests more info instead of providing concrete prioritization with assumptions. Quality is mixed - good structure but includes unnecessary script execution and some hedging language."
+        },
+        {
+          "role_adherence": 4,
+          "actionability": 4,
+          "quality": 4,
+          "reasoning": "Strong role adherence - uses proper roadmap frameworks (KANO, RICE), challenges build instinct, considers buy/partner options as expected. High actionability with specific vendor recommendations, clear next steps, and concrete blocking status. Good quality with data-driven approach, active voice, and structured analysis. Minor deduction for some hedging language and could be more concise in places."
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 4,
+          "quality": 5,
+          "reasoning": "Perfect role adherence - acts as strategic roadmap owner, identifies strategic drift, provides investigation framework and response options with RICE scoring. High actionability with specific timelines, concrete next steps, and measurable success metrics. Excellent quality with no filler, active voice, data-driven approach, and proper strategic terminology."
+        },
+        {
+          "role_adherence": 2,
+          "actionability": 3,
+          "quality": 2,
+          "reasoning": "Response fails to follow expected roadmap behavior of challenging false dichotomy and interleaving debt with features. Instead creates analysis frameworks that belong to analyst role. Some actionable elements like hybrid approach, but lacks concrete prioritization. Heavy use of tables, brackets, and formal structure violates style standards for conciseness."
+        }
+      ]
+    },
+    "security": {
+      "context_chars": 31193,
+      "model": "opus",
+      "avg_scores": {
+        "role_adherence": 5.0,
+        "actionability": 5.0,
+        "quality": 4.25
+      },
+      "overall": 4.75,
+      "detail": [
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 4,
+          "reasoning": "Perfect security role adherence with comprehensive vulnerability assessment, CVSS scoring, and STRIDE analysis. Highly actionable with specific code examples, test cases, and step-by-step mitigation. Minor quality deduction for some verbose sections that could be more concise, but overall excellent technical depth and concrete recommendations."
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 4,
+          "reasoning": "Perfect security role adherence with comprehensive threat analysis, specific CWEs, and CVSS scoring. Highly actionable with exact code snippets, file paths, and implementation timelines. Quality is strong with technical depth and concrete recommendations, though slightly verbose in places and the response cuts off mid-sentence."
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 5,
+          "reasoning": "Perfect security role adherence with proper OWASP/CWE classifications, risk scoring, and STRIDE analysis. Highly actionable with specific code examples, file structure, test cases, and deployment timelines. Excellent quality with technical precision, clear structure, and no AI filler."
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 4,
+          "reasoning": "Perfect security role adherence with proper vulnerability classification, CWE/OWASP mappings, and mandatory PIV blocking. Highly actionable with specific code examples, implementation phases, and concrete checklists. Minor quality issues with some passive voice and slightly verbose sections, but overall follows professional security report standards."
+        }
+      ]
+    },
+    "skillbook": {
+      "context_chars": 14037,
+      "model": "sonnet",
+      "avg_scores": {
+        "role_adherence": 5.0,
+        "actionability": 4.75,
+        "quality": 4.25
+      },
+      "overall": 4.67,
+      "detail": [
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 5,
+          "reasoning": "Perfect skillbook behavior: ran deduplication checks, created three atomic skills with rule/why/how structure, validated atomicity scores, created domain indexes, and updated routing. Outputs are immediately usable with concrete code examples, specific file names, and clear patterns. Writing is direct with no hedging or filler."
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 4,
+          "reasoning": "Perfect role adherence - follows skillbook format exactly with deduplication, analysis, skill creation, and indexing. Highly actionable with specific file names, code examples, and clear implementation steps. Quality is strong with concrete evidence and specific patterns, though has some minor verbose elements in the summary section."
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 4,
+          "quality": 4,
+          "reasoning": "Perfect role adherence - correctly identifies insufficient evidence for skillbook entry and requests specific data rather than creating noise. Highly actionable with specific information requests and clear decision criteria. Good quality with concrete requirements, though could be slightly more concise."
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 4,
+          "reasoning": "Perfect role adherence - follows skillbook process (deduplication, atomicity analysis, evidence assessment) and creates actual skill entry with memory operations. Highly actionable with concrete code examples, specific indicators, and file operations. Quality is strong with clear structure and minimal filler, though some process verbosity could be trimmed."
+        }
+      ]
+    },
+    "spec-generator": {
+      "context_chars": 12718,
+      "model": "sonnet",
+      "avg_scores": {
+        "role_adherence": 3.75,
+        "actionability": 2.75,
+        "quality": 3.75
+      },
+      "overall": 3.42,
+      "detail": [
+        {
+          "role_adherence": 4,
+          "actionability": 3,
+          "quality": 4,
+          "reasoning": "Strong role adherence - acts as spec generator asking technical clarification questions. Actionability is moderate - questions are specific but doesn't provide concrete deliverables yet. Quality is good - clear structure, no hedging, specific technical questions, though could be more concise."
+        },
+        {
+          "role_adherence": 4,
+          "actionability": 3,
+          "quality": 4,
+          "reasoning": "Strong role adherence - asks the right spec-related questions about access levels, auth, expiry, etc. and promises proper requirements format. Actionability is moderate - questions are specific and well-structured but don't immediately produce usable spec outputs. Quality is good - concise, well-organized questions without AI filler, though could be more direct."
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 4,
+          "quality": 4,
+          "reasoning": "Perfect role adherence - pushes back on vague requirements and asks for measurable performance targets (LCP, TTI equivalents like page load <2s, API <500ms). High actionability with specific clarifying questions that lead to concrete specs. Good quality with direct questions, though could be more concise and has slight AI filler in the closing paragraph."
+        },
+        {
+          "role_adherence": 2,
+          "actionability": 1,
+          "quality": 3,
+          "reasoning": "Agent asks clarifying questions instead of generating a spec as expected from a spec-generator role. The response provides no concrete deliverables, specifications, or actionable outputs - just a list of questions. Quality is decent with clear structure and no AI filler, but fails to fulfill the core responsibility of actually creating specifications."
+        }
+      ]
+    },
+    "task-decomposer": {
+      "context_chars": 10355,
+      "model": "sonnet",
+      "avg_scores": {
+        "role_adherence": 4.5,
+        "actionability": 5.0,
+        "quality": 4.0
+      },
+      "overall": 4.5,
+      "detail": [
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 4,
+          "reasoning": "Excellent task decomposition with proper S/M/L sizing, atomic tasks with clear acceptance criteria, specific file names and technical details. Minor quality deduction for some verbose descriptions and incomplete final task, but overall follows decomposition role perfectly with highly actionable outputs."
+        },
+        {
+          "role_adherence": 4,
+          "actionability": 5,
+          "quality": 4,
+          "reasoning": "Strong task decomposition with clear breakdown structure, acceptance criteria, and dependencies. Slightly exceeds scope by including implementation details beyond pure decomposition. Highly actionable with specific file names, concrete acceptance criteria, and clear task relationships. Good quality with structured format and minimal filler, though some sentences could be shorter."
+        },
+        {
+          "role_adherence": 4,
+          "actionability": 5,
+          "quality": 4,
+          "reasoning": "Strong task decomposition with proper breakdown structure, dependencies, and complexity sizing. Very actionable with specific file names, acceptance criteria, and task IDs. Response was cut off mid-completion but shows excellent decomposition methodology. Minor role adherence issue with excessive initial searching that wasn't necessary for decomposition."
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 4,
+          "reasoning": "Perfect role adherence - pure task decomposition with proper sequencing, dependencies, and complexity sizing. Highly actionable with specific file paths, acceptance criteria, and technical implementation details. Minor quality deduction for some verbose descriptions that could be more concise, but overall follows good technical writing standards."
+        }
+      ]
+    }
+  }
+}
