@@ -103,7 +103,7 @@ def call_api(
 
     try:
         with urllib.request.urlopen(req, timeout=120) as resp:
-            result = json.loads(resp.read().decode())
+            result = json.loads(resp.read().decode(errors="replace"))
     except urllib.error.HTTPError as e:
         error_body = e.read().decode(errors="replace")
         raise RuntimeError(
@@ -132,25 +132,12 @@ def call_api(
 def load_custom_prompts(path: str) -> dict[str, list[dict[str, str]]]:
     """Load prompts from a JSON file.
 
-    Expected format:
-    {
-        "skill-name": [
-            {"prompt": "...", "expected": "..."},
-            ...
-        ]
-    }
-
-    Also supports a {"prompts": {...}} wrapper format.
-
-    Args:
-        path: Path to the JSON file containing prompts.
-
-    Returns:
-        Dictionary mapping names to lists of prompt dicts.
+    The file may either contain a top-level mapping of {name: [prompts]}
+    or wrap it under a ``prompts`` key. Used by both eval-agents.py and
+    eval-knowledge-integration.py.
     """
     with open(path) as f:
         data = json.load(f)
-
     if "prompts" in data and isinstance(data["prompts"], dict):
         return data["prompts"]
     return data
