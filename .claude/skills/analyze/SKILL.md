@@ -61,6 +61,19 @@ Use direct code reading instead when:
 
 ---
 
+## References
+
+- [Working with Legacy Code](references/design-legacy-code.md) - Bottom-up refactoring through the Software Hierarchy of Needs
+- [OODA Loop](references/strategy-ooda-loop.md) - Decision-making framework mapped to analyze phases
+- [Tell, Don't Ask](references/design-tell-dont-ask.md) - Detect feature envy and getter chain code smells
+- [Boy Scout Rule](references/quality-boy-scout-rule.md) - Scope improvement recommendations by size
+- [Observability Pillars](references/reliability-observability-pillars.md) - Logs, metrics, traces for investigation methodology
+- [Engineering Complexity Tiers](references/engineering-complexity-tiers.md) - Classify components by tier, evaluate pattern appropriateness
+- [Agent Architecture Patterns](references/agent-architecture-patterns.md) - Skill budget rule, structured prompt design, diagnostic signals for agent reliability
+- [Context Budget Management](references/context-budget-management.md) - Context flood prevention, Think in Code principle, hook architecture for session continuity
+
+---
+
 ## Scripts
 
 | Script | Purpose | Exit Codes |

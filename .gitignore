@@ -80,3 +80,4 @@ worktree--/
 .memory_sync_queue.json
 .memory_sync_state.json
 
+.claude/worktrees/

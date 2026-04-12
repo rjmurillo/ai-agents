@@ -403,6 +403,14 @@ After running style check:
 
 ---
 
+## References
+
+| File | Content |
+|------|---------|
+| [dotnet-monorepo-standards.md](references/dotnet-monorepo-standards.md) | .NET monorepo coding style, naming conventions, datetime, project layout, SDK-style projects |
+
+---
+
 ## Timelessness: 8/10
 
 EditorConfig is an industry standard (2012+) supported by all major editors and IDEs.

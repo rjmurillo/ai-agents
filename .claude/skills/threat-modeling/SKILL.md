@@ -428,6 +428,15 @@ mcp__forgetful__execute_forgetful_tool("create_memory", {
 
 ## References
 
+### Supplementary Knowledge
+
+- [Defense in Depth](references/security-defense-in-depth.md) - Layered protection architecture for mitigation strategy design
+- [Zero Trust](references/security-zero-trust.md) - Context-based verification model for trust boundary analysis
+- [OWASP Top 10](references/security-owasp-top-10.md) - Vulnerability category checklist with STRIDE mapping
+- [Least Privilege](references/security-least-privilege.md) - Permission scoping patterns for mitigation recommendations
+
+### External
+
 - [OWASP Threat Modeling](https://owasp.org/www-community/Threat_Modeling)
 - [Microsoft STRIDE](https://docs.microsoft.com/en-us/azure/security/develop/threat-modeling-tool-threats)
 - [Attack Trees (Schneier)](https://www.schneier.com/academic/archives/1999/12/attack_trees.html)

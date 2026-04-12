@@ -123,3 +123,11 @@ python3 scripts/investigate.py --target path/to/file.py --change "description" -
 ## Template
 
 Investigation reports use the template at `.agents/templates/chestertons-fence-investigation.md`.
+
+## References
+
+| File | Content |
+|------|---------|
+| `references/chestertons-fence-mental-model.md` | Core mental model, principle, investigation checklist, related models |
+| `references/boy-scout-rule.md` | Scoped improvement boundaries, connection to investigation workflow |
+| `references/legacy-code-techniques.md` | Bottom-up refactoring approach, inheritance vs composition, reading list |

@@ -333,6 +333,15 @@ Before executing any chaos experiment:
 4. **Metrics Sources**: Add integrations for Prometheus, Datadog, New Relic
 5. **Scheduling**: Add calendar integration for recurring game days
 
+## References
+
+Domain knowledge for chaos experiment design:
+
+| File | Content |
+|------|---------|
+| [chaos-engineering-principles.md](references/chaos-engineering-principles.md) | Core process, common experiments, anti-patterns, blast radius containment |
+| [slo-sli-sla-reference.md](references/slo-sli-sla-reference.md) | SLO/SLI/SLA definitions, error budget formula, chaos integration points |
+
 ## Related Resources
 
 - [Principles of Chaos Engineering](https://principlesofchaos.org/)

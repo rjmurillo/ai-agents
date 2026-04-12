@@ -381,6 +381,14 @@ For detailed scoring methodology and examples:
 
 ---
 
+## References
+
+| File | Content |
+|------|---------|
+| [dotnet-performance-patterns.md](references/dotnet-performance-patterns.md) | Allocation-free .NET patterns with quality scoring calibration |
+
+---
+
 ## Language Support
 
 | Support Level | Languages |

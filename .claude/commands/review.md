@@ -15,12 +15,16 @@ If no argument, review the current branch diff against the base branch. Detect t
 Run axes sequentially. Each axis produces findings categorized as Critical, Important, or Suggestion.
 
 1. Read the diff (git diff against detected base branch)
-2. **Architecture pass**: Task(subagent_type="architect")
-3. **Security pass**: Task(subagent_type="security")
-4. **Quality pass**: Invoke Skill(skill="code-qualities-assessment")
-5. **Test pass**: Task(subagent_type="qa")
-6. **Standards pass**: Invoke Skill(skill="golden-principles") and Skill(skill="taste-lints")
-7. Synthesize findings across all axes
+2. **Classify complexity tier**: Task(subagent_type="analyst"): Read `.claude/skills/analyze/references/engineering-complexity-tiers.md` and the diff (`git diff` against detected base). Assess the change as Tier 1-5 based on scope, cross-team impact, ambiguity, and reversibility. Return: tier number, rationale, and recommended review depth. Use this to calibrate remaining axes:
+   - Tier 1-2: Focus on correctness and standards. Single-pass review sufficient.
+   - Tier 3: All five axes. Flag missing design docs or SLO definitions.
+   - Tier 4-5: All five axes plus: challenge whether complexity can be driven out. Flag missing ADR, threat model, or stakeholder alignment. Ask "is this simpler than it needs to be?"
+3. **Architecture pass**: Task(subagent_type="architect")
+4. **Security pass**: Task(subagent_type="security")
+5. **Quality pass**: Invoke Skill(skill="code-qualities-assessment")
+6. **Test pass**: Task(subagent_type="qa")
+7. **Standards pass**: Invoke Skill(skill="golden-principles") and Skill(skill="taste-lints")
+8. Synthesize findings across all axes
 
 ## Axis 1: Architecture
 

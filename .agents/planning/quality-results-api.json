@@ -1,0 +1,563 @@
+{
+  "model": "claude-sonnet-4-20250514",
+  "skills_evaluated": [
+    "cva-analysis",
+    "decision-critic",
+    "golden-principles",
+    "threat-modeling",
+    "analyze"
+  ],
+  "total_prompts": 30,
+  "results": {
+    "cva-analysis": {
+      "context_chars": 86714,
+      "baseline_avg": {
+        "accuracy": 2.0,
+        "depth": 4.33,
+        "specificity": 4.83
+      },
+      "enhanced_avg": {
+        "accuracy": 5.0,
+        "depth": 5.0,
+        "specificity": 5.0
+      },
+      "baseline_detail": [
+        {
+          "accuracy": 1,
+          "depth": 4,
+          "specificity": 5,
+          "reasoning": "The response completely misunderstands the prompt, interpreting CVA as Credit Valuation Adjustment from finance rather than a software design pattern matrix. However, it demonstrates deep technical knowledge of financial systems and provides highly specific code examples with precise terminology for CVA calculations, currency handling, and risk management."
+        },
+        {
+          "accuracy": 3,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "The response demonstrates deep understanding with excellent code examples and detailed analysis, but doesn't directly address the core CVA concept from the expected answer about 'two independent variation axes' vs 'co-dependent column items'. It provides comprehensive guidance but misses the specific CVA terminology and framework referenced in the expected answer."
+        },
+        {
+          "accuracy": 2,
+          "depth": 4,
+          "specificity": 4,
+          "reasoning": "The response misses the key insight that empty cells indicate forcing unrelated concerns into one dimension and the need to split matrices. Instead, it focuses on data collection issues and treats empty cells as missing data rather than structural problems. However, it shows good depth in analyzing implications and provides specific, actionable recommendations with clear terminology."
+        },
+        {
+          "accuracy": 4,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "The response correctly identifies CVA as analyzing commonalities and variabilities, and connects it to design patterns through multi-paradigm approaches. While it doesn't explicitly mention the 'CVA-to-pattern pipeline' phrase, it demonstrates this concept through detailed process integration. The response shows exceptional depth with systematic analysis of how different paradigms handle different variation types, and provides highly specific examples including code-like mappings and a concrete graphics rendering case study."
+        },
+        {
+          "accuracy": 1,
+          "depth": 4,
+          "specificity": 5,
+          "reasoning": "The response completely misses the correct answer about removing the non-variable row from the matrix and making it a constant. Instead, it assumes CVA (Credit Valuation Adjustment) financial context and provides extensive troubleshooting for data issues. However, it demonstrates deep understanding of CVA matrices and uses highly specific financial terminology and concrete examples."
+        },
+        {
+          "accuracy": 1,
+          "depth": 4,
+          "specificity": 5,
+          "reasoning": "The response completely misinterprets CVA as Credit Valuation Adjustment instead of the intended software architecture concept (Conceptual/Specification/Implementation perspectives). While the financial CVA analysis is thoroughly and accurately explained with proper terminology and concrete examples, it addresses an entirely different domain than what was asked."
+        }
+      ],
+      "enhanced_detail": [
+        {
+          "accuracy": 5,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "Response perfectly matches expected answer by correctly identifying currencies as columns and tax/payment concepts as rows, mapping rows to Strategies and columns to Abstract Factory. Goes far beyond with complete CVA methodology, detailed matrix construction, pattern analysis explaining why Abstract Factory over Strategy, and comprehensive C# implementation with concrete factories for each currency. Uses precise design pattern terminology and provides specific, realistic examples for each currency's tax rules, limits, and compliance requirements."
+        },
+        {
+          "accuracy": 5,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "Response perfectly captures the core distinction (independent vs co-dependent axes) from the expected answer. Goes far beyond with detailed CVA matrix analysis, visual examples, and complete .NET implementations. Uses precise design pattern terminology and provides concrete, practical examples that clearly demonstrate when to use each pattern."
+        },
+        {
+          "accuracy": 5,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "Response perfectly captures all key concepts from expected answer: identifies forcing unrelated concerns, recommends splitting matrices, and explains empty cells as indicators of problems. Goes far beyond expected answer with detailed diagnosis framework, concrete examples, actionable fixes, and comprehensive analysis of causes. Uses precise CVA terminology and provides specific, actionable guidance with tables and examples."
+        },
+        {
+          "accuracy": 5,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "The response perfectly captures all expected concepts: commonality analysis discovering natural abstractions, variability analysis discovering differences, and the CVA-to-pattern pipeline. It goes far beyond the expected answer with detailed explanations of how CVA fits within Multi-Paradigm Design, provides concrete code examples in multiple paradigms, includes specific quotes from Coplien, and demonstrates deep understanding with systematic processes and visual frameworks. The terminology is precise throughout with specific pattern names, technical concepts, and concrete implementation examples."
+        },
+        {
+          "accuracy": 5,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "Response perfectly captures the expected answer (remove from matrix, make it a constant in base class) and significantly expands on it with comprehensive explanations, concrete code examples, decision frameworks, and edge cases. Uses precise CVA terminology and provides actionable guidance."
+        },
+        {
+          "accuracy": 5,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "Response perfectly captures all three perspectives from the expected answer (Conceptual, Specification, Implementation) and correctly identifies the core principle that mixing them produces wrong abstractions. Goes well beyond the expected answer with detailed explanations of why separation matters, common mistakes, and practical application phases. Uses precise CVA terminology, provides concrete mappings to matrix structure, and includes specific examples of how each perspective applies in practice."
+        }
+      ]
+    },
+    "decision-critic": {
+      "context_chars": 17164,
+      "baseline_avg": {
+        "accuracy": 3.17,
+        "depth": 4.5,
+        "specificity": 4.67
+      },
+      "enhanced_avg": {
+        "accuracy": 3.67,
+        "depth": 4.33,
+        "specificity": 4.5
+      },
+      "baseline_detail": [
+        {
+          "accuracy": 5,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "The response perfectly captures Chesterton's Fence principle through systematic investigation of why the cache exists before removal. It goes far beyond the expected answer with comprehensive methodology including usage auditing, dependency mapping, critical questioning, safe testing approaches, and risk mitigation strategies. The response uses precise technical terminology (cache hit rates, blast radius, feature flags) and provides concrete actionable steps throughout."
+        },
+        {
+          "accuracy": 3,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "The response doesn't mention Gall's Law specifically, but captures the same core principle through 'Monolith First' and related concepts. Shows excellent depth with comprehensive coverage of why starting simple matters, potential pitfalls, and practical alternatives. Uses precise technical terminology, specific principles (Conway's Law, DDD), and concrete implementation guidance."
+        },
+        {
+          "accuracy": 2,
+          "depth": 4,
+          "specificity": 5,
+          "reasoning": "The response provides comprehensive A/B testing guidance with precise terminology and concrete examples, but completely misses the key concept from the expected answer - survivorship bias and selection effects. While technically accurate about general A/B testing principles, it fails to address the specific bias mentioned in the expected answer."
+        },
+        {
+          "accuracy": 2,
+          "depth": 4,
+          "specificity": 3,
+          "reasoning": "The response misses key systems thinking concepts like feedback loops and second-order effects from the expected answer, but provides solid depth with structured decision-making frameworks. It offers some specific tools like checkpoints and pilot implementations, though lacks the precise systems terminology expected."
+        },
+        {
+          "accuracy": 4,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "The response accurately captures the core concept of limiting scope but takes a more conservative stance than the expected answer. It demonstrates exceptional depth by covering multiple angles (code review, deployment risk, version control) and provides highly specific terminology and concrete examples throughout. The nuanced exceptions and structured approach show comprehensive understanding beyond the basic Boy Scout Rule principle."
+        },
+        {
+          "accuracy": 3,
+          "depth": 4,
+          "specificity": 5,
+          "reasoning": "The response misses key concepts from the expected answer like 'decompose into assumptions,' 'verify independently,' 'hidden coupling,' and 'reversibility.' However, it demonstrates deep understanding of auth system testing with comprehensive coverage of security, performance, and operational dimensions. The specificity is excellent with concrete examples like '10k simultaneous logins,' specific test categories, weighted evaluation criteria, and actionable implementation steps."
+        }
+      ],
+      "enhanced_detail": [
+        {
+          "accuracy": 5,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "Response perfectly captures Chesterton's Fence principle (explicitly mentioned), systematically addresses usage verification, historical context, and edge cases. Goes far beyond expected answer with structured methodology, concrete verification questions, and specific technical considerations like cache hits/misses, performance contracts, and cascade failures."
+        },
+        {
+          "accuracy": 5,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "Perfect accuracy - correctly identifies Gall's Law and its core principle. Exceptional depth with detailed explanation of why microservices violate the principle, failure patterns, and better approaches. High specificity with precise Gall's Law quote, concrete examples (Amazon, Netflix, Uber), and specific technical concepts like service boundaries and distributed systems complexity."
+        },
+        {
+          "accuracy": 4,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "The response captures the core concept of survivorship bias and selection effects from the expected answer, though not as the primary focus. It demonstrates exceptional depth with systematic methodology, multiple analytical frameworks, and comprehensive coverage of A/B testing pitfalls. The specificity is outstanding with precise statistical terminology, concrete examples like novelty effect and Goodhart's Law, and actionable recommendations."
+        },
+        {
+          "accuracy": 2,
+          "depth": 3,
+          "specificity": 4,
+          "reasoning": "The response misses key concepts from the expected answer (systems thinking, feedback loops, second-order effects, delays, mapping systems vs components). It provides good analytical depth with structured decision decomposition but focuses on immediate decision analysis rather than systems-level thinking. Very specific with detailed methodology, concrete questions, and structured framework, though not addressing the core systems thinking approach requested."
+        },
+        {
+          "accuracy": 2,
+          "depth": 4,
+          "specificity": 3,
+          "reasoning": "The response misses the key Boy Scout Rule concept and 'blast radius' terminology from the expected answer, but demonstrates deep analytical thinking through systematic decomposition of claims, assumptions, and constraints. It shows good specificity with structured verification questions, though it's overly complex for the straightforward principle being asked about."
+        },
+        {
+          "accuracy": 4,
+          "depth": 4,
+          "specificity": 5,
+          "reasoning": "The response accurately covers key concepts from the expected answer - decomposing into assumptions, independent verification, and looking for failure points. It shows good depth with a structured 7-step framework and understanding of auth system complexities. Specificity is excellent with concrete examples like 'session fixation vulnerabilities', 'privilege escalation bugs', and specific verification areas. However, it doesn't explicitly mention 'hidden coupling' or 'reversibility' from the expected answer, slightly reducing accuracy."
+        }
+      ]
+    },
+    "golden-principles": {
+      "context_chars": 17030,
+      "baseline_avg": {
+        "accuracy": 3.5,
+        "depth": 4.5,
+        "specificity": 5.0
+      },
+      "enhanced_avg": {
+        "accuracy": 4.67,
+        "depth": 5.0,
+        "specificity": 5.0
+      },
+      "baseline_detail": [
+        {
+          "accuracy": 5,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "The response correctly identifies the core issues (SRP violation, low cohesion) from the expected answer and expands with related principles. It demonstrates deep understanding by providing multiple solution approaches with detailed code examples. The response uses precise SOLID principles terminology and includes concrete before/after code examples, specific method counts, and practical implementation patterns."
+        },
+        {
+          "accuracy": 4,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "The response accurately captures the core concept of programming by intention with well-named methods expressing intent rather than implementation. It provides exceptional depth with a complete workflow example, benefits analysis, and contrasting approach. The specificity is excellent with concrete Python code, detailed method implementations, and precise terminology. Minor deduction in accuracy as it doesn't explicitly mention 'sergeant methods' terminology from expected answer, though it demonstrates the concept perfectly."
+        },
+        {
+          "accuracy": 3,
+          "depth": 4,
+          "specificity": 5,
+          "reasoning": "Response correctly identifies need to extract duplication and follows DRY principle, but misses the critical caveat about verifying true duplication vs coincidental similarity. Shows good depth with multiple approaches and comprehensive benefits. Highly specific with detailed code examples across frameworks."
+        },
+        {
+          "accuracy": 5,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "Response perfectly captures the core concept that OCP violations occur when adding requirements forces modification of existing code rather than extension. Goes far beyond expected answer with comprehensive examples, multiple detection methods, concrete code samples showing violations and fixes, and practical assessment questions. Uses precise SOLID principles terminology and demonstrates deep understanding through strategy pattern implementation and dependency injection examples."
+        },
+        {
+          "accuracy": 2,
+          "depth": 4,
+          "specificity": 5,
+          "reasoning": "The response misses key concepts from the expected answer (Law of Demeter, tight coupling as design signals) and frames the relationship as a trade-off rather than testability being an indicator of encapsulation quality. However, it demonstrates deep understanding with comprehensive examples and uses precise terminology with detailed code samples showing various testing scenarios."
+        },
+        {
+          "accuracy": 2,
+          "depth": 4,
+          "specificity": 5,
+          "reasoning": "The response misses the key expected concepts (cross-cutting concerns, aspects/middleware, avoiding business logic violations) and instead focuses on different scenarios like performance optimization and prototyping. However, it demonstrates deep understanding of software architecture principles and provides excellent concrete examples with code snippets and detailed guidelines."
+        }
+      ],
+      "enhanced_detail": [
+        {
+          "accuracy": 5,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "Response perfectly identifies cohesion problem and SRP violation from expected answer. Goes far beyond surface level with detailed diagnosis, step-by-step refactoring approach, and complete code examples. Uses precise technical terminology (cohesion, SRP, Programming by Intention) and provides concrete C# implementation showing transformation from 15-method god class to 5 focused classes."
+        },
+        {
+          "accuracy": 5,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "Response perfectly captures the sergeant pattern concept with clear distinction between 'what' vs 'how'. Provides comprehensive before/after examples demonstrating how public methods should read like intent while private methods handle implementation. Uses precise terminology and concrete C# code examples that clearly illustrate the programming by intention principle."
+        },
+        {
+          "accuracy": 4,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "Response correctly identifies DRY violation and extraction need, but misses the critical caveat about verifying true duplication vs coincidental similarity. Excellent depth with comprehensive solution patterns, dependency injection, and alternatives. Very specific with complete code examples and concrete implementation details."
+        },
+        {
+          "accuracy": 5,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "Response perfectly captures the core concept that OCP violations occur when adding requirements forces modification of existing code rather than extension. Goes far beyond the expected answer with comprehensive examples, diagnostic questions, patterns, and practical guidance. Uses precise technical terminology with concrete C# code examples demonstrating violations and fixes through polymorphism, Strategy pattern, and dependency injection."
+        },
+        {
+          "accuracy": 5,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "Response accurately captures all key concepts from expected answer (tight coupling, testability as design signal, poor encapsulation indicators). Goes well beyond surface level by exploring the paradox, providing concrete diagnostic table, and connecting to design principles. Uses precise technical terminology throughout with specific examples of testing complaints and their underlying encapsulation problems."
+        },
+        {
+          "accuracy": 4,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "The response correctly identifies cross-cutting concerns and mentions logging and auth from the expected answer, though it misses aspects/middleware terminology. It demonstrates exceptional depth with comprehensive scenarios, performance trade-offs, and practical guidelines. The specificity is excellent with detailed code examples, concrete use cases, and precise technical terminology throughout."
+        }
+      ]
+    },
+    "threat-modeling": {
+      "context_chars": 42101,
+      "baseline_avg": {
+        "accuracy": 4.67,
+        "depth": 5.0,
+        "specificity": 5.0
+      },
+      "enhanced_avg": {
+        "accuracy": 4.83,
+        "depth": 5.0,
+        "specificity": 5.0
+      },
+      "baseline_detail": [
+        {
+          "accuracy": 5,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "Response perfectly covers all expected concepts (WAF, input validation, auth, authz, parameterized queries, encryption, network segmentation) with comprehensive detail. Goes significantly beyond expected answer with practical code examples, configuration snippets, and architectural diagrams. Uses precise security terminology and provides concrete implementation examples in Python/SQL."
+        },
+        {
+          "accuracy": 5,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "Response accurately covers all expected core principles (never trust/always verify, least privilege, assume breach) plus additional relevant ones. Shows deep understanding with detailed explanations, practical implementation details, and technical examples. Uses precise zero trust terminology and includes concrete YAML policy framework example."
+        },
+        {
+          "accuracy": 3,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "The response shows some accuracy issues - it maps Spoofing to Authentication Failures instead of Broken Auth, Tampering primarily to Software Integrity instead of Injection, and Information Disclosure to Cryptographic Failures instead of Sensitive Data Exposure. However, it demonstrates exceptional depth by covering all 6 STRIDE threats (not just 4), providing multiple mappings, analyzing coverage gaps, and offering strategic insights. The specificity is excellent with precise OWASP numbering, clear categorization, and concrete vulnerability relationships."
+        },
+        {
+          "accuracy": 5,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "Response perfectly captures all expected concepts: separate credentials per stage, stage-based permissions, no persistent admin access, and minimal necessary permissions. Goes far beyond expected answer with comprehensive implementation examples including GitLab CI, AWS IAM policies, and Kubernetes RBAC. Uses precise technical terminology and provides concrete, production-ready code examples that demonstrate deep understanding of security best practices."
+        },
+        {
+          "accuracy": 5,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "Response accurately captures all key concepts from expected answer: DiD's layered approach with assumption outer layers may fail, ZT's no-trust verification model, and their complementary nature. Goes well beyond surface level with detailed comparisons, structured analysis, and practical implementation details. Uses precise cybersecurity terminology (micro-segmentation, lateral movement, least privilege) and provides concrete examples of technologies and approaches."
+        },
+        {
+          "accuracy": 5,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "Response perfectly captures all core concepts from expected answer (zero trust, internal network breaches, defense in depth) and significantly expands with comprehensive attack vectors, real-world consequences, compliance considerations, and concrete implementation solutions. Uses precise security terminology and provides specific technical examples like SSRF, mTLS, and service mesh auth."
+        }
+      ],
+      "enhanced_detail": [
+        {
+          "accuracy": 5,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "Response comprehensively covers all expected concepts (WAF, input validation, auth, authz, parameterized queries, encryption, network segmentation) and adds valuable detail. Demonstrates deep understanding with layered architecture, timing analysis, and failure impact assessment. Uses precise technical terminology, concrete implementation examples, and structured presentation with tables and diagrams."
+        },
+        {
+          "accuracy": 5,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "Response perfectly captures all core principles from expected answer (verify explicitly, least privilege, assume breach, never trust always verify, no implicit network trust) and demonstrates exceptional depth with implementation details, code examples, architecture diagrams, and migration strategies. Uses precise technical terminology with concrete examples across multiple technologies (Istio, SPIFFE, OPA, Kubernetes)."
+        },
+        {
+          "accuracy": 4,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "The response correctly maps core STRIDE-OWASP relationships from the expected answer (Spoofing->Auth, Tampering->Injection, Repudiation->Logging, Info Disclosure->Crypto/Data). It goes far beyond the expected scope with comprehensive tables, cross-cutting analysis, threat modeling integration, and practical examples. Uses precise security terminology throughout with concrete examples like 'credential stuffing', 'IDOR', 'parameterized queries'. Minor accuracy deduction for some debatable secondary mappings, but overall demonstrates expert-level understanding."
+        },
+        {
+          "accuracy": 5,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "Response perfectly covers all expected elements (separate creds, time-limited tokens, no persistent admin, scoped permissions) plus extensive additional detail. Shows deep understanding with concrete implementation examples, specific tools/configurations, and practical roadmap. Uses precise technical terminology throughout."
+        },
+        {
+          "accuracy": 5,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "Response perfectly captures the core concepts from expected answer: DiD as multiple layers with potential failure, ZT as continuous verification without inherent trust, and their complementary nature. Goes far beyond surface level with detailed philosophical differences, implementation focuses, and decision-making models. Provides highly specific terminology (context-based decisions, identity as perimeter, continuous verification) and concrete banking API example demonstrating both approaches working together."
+        },
+        {
+          "accuracy": 5,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "Response perfectly captures all expected concepts (zero trust violation, internal network breach risk, defense in depth) with exceptional depth through STRIDE analysis, detailed attack scenarios, and comprehensive mitigation strategies. Uses precise security terminology and provides concrete code examples for implementation."
+        }
+      ]
+    },
+    "analyze": {
+      "context_chars": 24786,
+      "baseline_avg": {
+        "accuracy": 4.5,
+        "depth": 5.0,
+        "specificity": 5.0
+      },
+      "enhanced_avg": {
+        "accuracy": 4.17,
+        "depth": 4.5,
+        "specificity": 4.33
+      },
+      "baseline_detail": [
+        {
+          "accuracy": 5,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "The response perfectly captures all expected concepts (metrics/logs/traces, baseline comparison, hypothesis formation, targeted testing) and expands them comprehensively. It demonstrates deep understanding by structuring a complete investigation framework with practical considerations like team coordination and business impact. The response is highly specific with concrete examples, detailed implementation steps, and a realistic multi-cycle scenario showing iterative problem-solving."
+        },
+        {
+          "accuracy": 4,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "The response covers most key concepts from the expected answer including characterization tests, identifying change points, and gradual refactoring (similar to strangling). It misses explicit mention of 'Sprout Method/Class' but compensates with extensive practical detail. The depth is exceptional with strategic frameworks, tools, and methodology. Specificity is high with concrete code examples, practical tools, and structured approaches."
+        },
+        {
+          "accuracy": 4,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "Response correctly identifies Feature Envy and Tell Don't Ask violation from expected answer, though uses 'Information Envy' as alternative term. Demonstrates deep understanding with comprehensive problem analysis, multiple design issues identified, and clear before/after code examples. Uses precise OOP terminology and concrete Java examples that perfectly illustrate the concepts."
+        },
+        {
+          "accuracy": 5,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "The response perfectly captures the Boy Scout Rule concept (improve code you touch) and blast radius concern (scope to area of change) from the expected answer. It provides exceptional depth with a comprehensive framework, decision criteria, and best practices. The response includes highly specific examples with actual code snippets, git commands, and concrete scenarios that demonstrate practical application of the concepts."
+        },
+        {
+          "accuracy": 5,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "Response perfectly covers all three pillars with correct definitions matching the expected answer. Goes significantly beyond surface level with detailed use cases, practical examples, and clear explanations for each pillar. Uses precise technical terminology throughout and provides concrete, relevant examples like CPU/memory metrics, stack traces, and microservice request flows. The best practice section reinforces the key point about using all three together."
+        },
+        {
+          "accuracy": 4,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "The response covers the expected concepts of testing difficulty, cohesion/coupling (implied in 'blocks development'), and code clarity ('would a stranger understand' maps to 'confusing'). It goes much deeper with a comprehensive framework, priority matrix, and practical steps. It uses precise terminology like 'cohesion', 'performance bottleneck', 'boy scout rule' and provides concrete examples with checkboxes for different scenarios."
+        }
+      ],
+      "enhanced_detail": [
+        {
+          "accuracy": 5,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "Response perfectly maps OODA loop to performance regression investigation with all expected elements present. Goes far beyond expected answer with comprehensive framework including code examples, decision matrices, timeline analysis, and anti-patterns. Uses precise technical terminology throughout with concrete bash commands, specific metrics, and detailed investigation procedures."
+        },
+        {
+          "accuracy": 1,
+          "depth": 2,
+          "specificity": 1,
+          "reasoning": "The response completely misses the expected concepts (characterization tests, boundaries, Sprout Method/Class, strangler pattern). Instead of providing strategic guidance on testing legacy code, it launches into a generic codebase exploration script. While the exploration approach shows some depth in understanding codebases generally, it lacks the specific legacy code testing strategies requested and uses no precise terminology from the domain."
+        },
+        {
+          "accuracy": 5,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "Response perfectly identifies Tell Don't Ask violation and Feature Envy as expected. Goes far beyond surface level with detailed problem analysis, code examples, detection signals, fix strategies, and severity assessment. Uses precise OOP terminology throughout and provides concrete C# code examples that clearly illustrate the anti-pattern and solution."
+        },
+        {
+          "accuracy": 5,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "Response perfectly captures the Boy Scout Rule and scope limitation from the expected answer, then dramatically expands with practical decision frameworks, risk assessment criteria, concrete code examples, team context factors, and warning signs. Uses precise terminology throughout and provides actionable guidance with specific examples and structured decision-making tools."
+        },
+        {
+          "accuracy": 5,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "Response perfectly captures all three pillars (logs, metrics, traces) with correct use cases. Goes far beyond expected answer with detailed frameworks (USE/RED methods), investigation workflows, comparison tables, and practical implementation guidance. Uses precise technical terminology throughout with concrete examples like OpenTelemetry, correlation IDs, and specific metric types."
+        },
+        {
+          "accuracy": 4,
+          "depth": 5,
+          "specificity": 5,
+          "reasoning": "The response accurately captures the core concepts from the expected answer (testability, coupling/cohesion, understandability) but embeds them within a much more comprehensive framework. It demonstrates exceptional depth with systematic decision trees, risk assessment matrices, and contextual considerations. The specificity is outstanding with concrete examples, detailed tables, and actionable frameworks that go well beyond the basic expected criteria."
+        }
+      ]
+    }
+  },
+  "kill_gate": {
+    "passed": false,
+    "failures": [
+      "decision-critic: delta 0.05 < 0.5 threshold",
+      "threat-modeling: delta 0.05 < 0.5 threshold",
+      "analyze: delta -0.50 < 0.5 threshold"
+    ],
+    "summary": {
+      "cva-analysis": {
+        "baseline_avg": {
+          "accuracy": 2.0,
+          "depth": 4.33,
+          "specificity": 4.83
+        },
+        "enhanced_avg": {
+          "accuracy": 5.0,
+          "depth": 5.0,
+          "specificity": 5.0
+        },
+        "delta": {
+          "accuracy": 3.0,
+          "depth": 0.6699999999999999,
+          "specificity": 0.16999999999999993
+        },
+        "overall_delta": 1.28,
+        "passed": true
+      },
+      "decision-critic": {
+        "baseline_avg": {
+          "accuracy": 3.17,
+          "depth": 4.5,
+          "specificity": 4.67
+        },
+        "enhanced_avg": {
+          "accuracy": 3.67,
+          "depth": 4.33,
+          "specificity": 4.5
+        },
+        "delta": {
+          "accuracy": 0.5,
+          "depth": -0.16999999999999993,
+          "specificity": -0.16999999999999993
+        },
+        "overall_delta": 0.05,
+        "passed": false
+      },
+      "golden-principles": {
+        "baseline_avg": {
+          "accuracy": 3.5,
+          "depth": 4.5,
+          "specificity": 5.0
+        },
+        "enhanced_avg": {
+          "accuracy": 4.67,
+          "depth": 5.0,
+          "specificity": 5.0
+        },
+        "delta": {
+          "accuracy": 1.17,
+          "depth": 0.5,
+          "specificity": 0.0
+        },
+        "overall_delta": 0.56,
+        "passed": true
+      },
+      "threat-modeling": {
+        "baseline_avg": {
+          "accuracy": 4.67,
+          "depth": 5.0,
+          "specificity": 5.0
+        },
+        "enhanced_avg": {
+          "accuracy": 4.83,
+          "depth": 5.0,
+          "specificity": 5.0
+        },
+        "delta": {
+          "accuracy": 0.16000000000000014,
+          "depth": 0.0,
+          "specificity": 0.0
+        },
+        "overall_delta": 0.05,
+        "passed": false
+      },
+      "analyze": {
+        "baseline_avg": {
+          "accuracy": 4.5,
+          "depth": 5.0,
+          "specificity": 5.0
+        },
+        "enhanced_avg": {
+          "accuracy": 4.17,
+          "depth": 4.5,
+          "specificity": 4.33
+        },
+        "delta": {
+          "accuracy": -0.33000000000000007,
+          "depth": -0.5,
+          "specificity": -0.6699999999999999
+        },
+        "overall_delta": -0.5,
+        "passed": false
+      }
+    }
+  }
+}

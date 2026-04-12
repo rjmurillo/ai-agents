@@ -409,6 +409,7 @@ See `references/matrix-building-examples.md` for complete .NET examples:
 - [Matrix Building Examples](references/matrix-building-examples.md) - .NET examples with complete CVA workflows
 - [Multidimensional CVA](references/multidimensional-cva.md) - Advanced: handling multiple axes of variability
 - [Coplien Multi-Paradigm Design](references/coplien-multi-paradigm-design.md) - Academic foundation and further reading
+- [GoF Pattern Selection](references/gof-pattern-selection.md) - Decision table for mapping CVA results to GoF patterns
 
 ## Scripts
 
