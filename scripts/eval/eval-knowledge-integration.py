@@ -5,10 +5,10 @@ Loads SKILL.md + references/ for each skill, runs prompts against the Anthropic 
 scores responses on accuracy/depth/specificity, and compares baseline vs enhanced.
 
 Usage:
-    python3 .agents/planning/eval-knowledge-integration.py
-    python3 .agents/planning/eval-knowledge-integration.py --skill cva-analysis
-    python3 .agents/planning/eval-knowledge-integration.py --prompts-file custom.json
-    python3 .agents/planning/eval-knowledge-integration.py --dry-run
+    python3 scripts/eval/eval-knowledge-integration.py
+    python3 scripts/eval/eval-knowledge-integration.py --skill cva-analysis
+    python3 scripts/eval/eval-knowledge-integration.py --prompts-file custom.json
+    python3 scripts/eval/eval-knowledge-integration.py --dry-run
 """
 
 from __future__ import annotations

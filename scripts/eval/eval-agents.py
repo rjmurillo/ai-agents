@@ -20,11 +20,11 @@ Complexity classifications:
   - chaotic: Crisis/urgent. Expected: stabilize first, then ask, then produce.
 
 Usage:
-    python3 .agents/planning/eval-agents.py
-    python3 .agents/planning/eval-agents.py --agent analyst
-    python3 .agents/planning/eval-agents.py --prompts-file custom-agent-prompts.json
-    python3 .agents/planning/eval-agents.py --dry-run
-    python3 .agents/planning/eval-agents.py --output results.json
+    python3 scripts/eval/eval-agents.py
+    python3 scripts/eval/eval-agents.py --agent analyst
+    python3 scripts/eval/eval-agents.py --prompts-file custom-agent-prompts.json
+    python3 scripts/eval/eval-agents.py --dry-run
+    python3 scripts/eval/eval-agents.py --output results.json
 """
 
 from __future__ import annotations

@@ -28,7 +28,7 @@ The `.claude/agents/` directory has 23 agent definitions totaling 441KB. The lar
 
 ### Eval Framework
 
-- AC-9: New eval framework `.agents/planning/eval-agents.py` scores agents on 4 dimensions (role_adherence, actionability, quality, **appropriateness**) with Cynefin complexity tagging.
+- AC-9: New eval framework `scripts/eval/eval-agents.py` scores agents on 4 dimensions (role_adherence, actionability, quality, **appropriateness**) with Cynefin complexity tagging.
 - AC-10: Baseline (v1 and v2) and post-review eval results are committed under `.agents/planning/agent-*-results.json`.
 - AC-11: Post-optimization eval confirms all 11 slim targets are above 4.0 overall (no regressions).
 - AC-12: Average score across all 23 agents improved from 4.24 → 4.57 (+0.33) in the post-review eval.
