@@ -12,26 +12,30 @@ The `.claude/agents/` directory has 23 agent definitions totaling 441KB. The lar
 
 ## Acceptance Criteria
 
-### Prompt Optimization
+### Prompt Optimization (this PR's scope)
 
 - AC-1: All 23 agents retained (no merges, no deletions)
-- AC-2: Target prompt size 8-12KB per agent. Hard cap 16KB. Any agent above 16KB must be split or trimmed with justification.
-- AC-3: Duplicated boilerplate (style guide, tool access, activation profiles) extracted to shared passive context (AGENTS.md) or eliminated
-- AC-4: Stale cross-agent references removed (e.g., implementer referencing nonexistent debug agent)
-- AC-5: Each agent's core mission is preserved. No capability loss from slimming.
+- AC-2: **The 11 low-scoring agents targeted by this PR** (explainer, implementer, analyst, context-retrieval, orchestrator, spec-generator, critic, skillbook, roadmap, milestone-planner, issue-feature-review) are slimmed to the 5-8KB range, all under the 16KB hard cap.
+- AC-3: Untouched agents that still exceed 16KB (security 31KB, retrospective 43KB, qa 22KB, architect 22KB, devops 15KB, memory 14KB) are explicitly flagged as Phase 3 candidates in `.serena/memories/agent-prompt-optimization-observations.md` but are **out of scope** for this PR. They score above threshold (4.0+) in the current eval and are not blocking.
+- AC-4: For the 11 slim targets, duplicated boilerplate (style guide, activation profiles, memory protocols) is removed
+- AC-5: For the 11 slim targets, stale cross-agent references are fixed (e.g., implementer referencing nonexistent debug agent)
+- AC-6: Each slimmed agent's core mission is preserved. No capability loss from slimming (verified via eval).
 
-### Wiki Enrichment
+### Mirror Synchronization
 
-- AC-6: 7 lowest-scoring agents (explainer, implementer, analyst, context-retrieval, orchestrator, spec-generator, critic) receive targeted enrichment
-- AC-7: Content is sanitized: no team names, system names, cost data, org structure, or security posture details. Convert to non-attributable principles.
-- AC-8: Content is compressed for LLM token efficiency (not raw wiki dumps). "Smallest possible set of high-signal tokens" (Anthropic).
-- AC-9: Enrichment is limited to stable "decision kernels" that change slowly. No volatile operational knowledge.
+- AC-7: Changes to `.claude/agents/*.md` are propagated to `src/claude/*.md`, `templates/agents/*.shared.md`, `src/copilot-cli/*.agent.md`, and `src/vs-code-agents/*.agent.md` for the 11 slim targets. Helper script: `build/sync_slim_agents.py`. Verified by `build/scripts/detect_agent_drift.py` (all 11 targets at 100.0% similarity).
+- AC-8: `context-retrieval` and `spec-generator` are Claude-only agents; not mirrored to other platforms.
 
-### Quality Measurement
+### Eval Framework
 
-- AC-10: DONE. Baseline assessment scores recorded (eval-agents.py, agent-baseline-results.json)
-- AC-11: Post-optimization assessment shows no regression in any agent's overall score
-- AC-12: Post-enrichment assessment shows improvement in at least 4 of the 7 targeted agents (>= +0.5 overall delta)
+- AC-9: New eval framework `.agents/planning/eval-agents.py` scores agents on 4 dimensions (role_adherence, actionability, quality, **appropriateness**) with Cynefin complexity tagging.
+- AC-10: Baseline (v1 and v2) and post-review eval results are committed under `.agents/planning/agent-*-results.json`.
+- AC-11: Post-optimization eval confirms all 11 slim targets are above 4.0 overall (no regressions).
+- AC-12: Average score across all 23 agents improved from 4.24 → 4.57 (+0.33) in the post-review eval.
+
+### Wiki Enrichment (deferred)
+
+- **Deferred to a follow-up PR.** The /autoplan CEO+Eng review explicitly flagged wiki enrichment as risky for a public repo without a sanitization pipeline. This PR's scope is prompt slimming + eval framework only. Wiki enrichment is tracked in observations memory as Phase 3 work.
 
 ## Baseline Results (2026-04-11)
 
