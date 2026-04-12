@@ -869,24 +869,24 @@
           "actionability": 4,
           "quality": 4,
           "appropriateness": 2,
-          "reasoning": "The response provides good strategic analysis with RICE framework and clear recommendations, staying in roadmap role. Outputs are concrete and actionable. Quality is solid with structured analysis and minimal fluff. However, for a 'complicated' problem requiring expert analysis, the agent asks too many discovery questions instead of leading with defensible analysis based on common patterns, then asking only essential missing information.",
-          "complexity": "complicated"
+          "reasoning": "The response provides good strategic analysis with RICE framework and clear recommendations, staying in roadmap role. Outputs are concrete and actionable. Quality is solid with structured analysis and minimal fluff. However, for a 'complex' problem requiring exploration, the agent asks too many discovery questions instead of surfacing high-leverage unknowns and then exploring the space systematically.",
+          "complexity": "complex"
         },
         {
           "role_adherence": 5,
           "actionability": 4,
           "quality": 4,
           "appropriateness": 5,
-          "reasoning": "Strong roadmap role adherence with strategic frameworks, hypothesis development, and clear action prioritization. Highly actionable with specific metrics, timelines, and concrete next steps. Good quality with structured analysis and minimal filler, though some sections could be more concise. Perfectly appropriate for complicated complexity - provides expert analysis while flagging key assumptions and trade-offs without over-questioning.",
-          "complexity": "complicated"
+          "reasoning": "Strong roadmap role adherence with strategic frameworks, hypothesis development, and clear action prioritization. Highly actionable with specific metrics, timelines, and concrete next steps. Good quality with structured analysis and minimal filler, though some sections could be more concise. Perfectly appropriate for complex problem - explores space and surfaces unknowns before committing to direction.",
+          "complexity": "complex"
         },
         {
           "role_adherence": 2,
           "actionability": 3,
           "quality": 3,
           "appropriateness": 2,
-          "reasoning": "Agent spent too much time on file operations instead of roadmap analysis. Correctly identified need for data but missed the core insight that this is a false dichotomy - should have challenged both sides and suggested interleaving tech debt that enables features. Created framework but didn't provide the expert synthesis expected for complicated problems.",
-          "complexity": "complicated"
+          "reasoning": "Agent spent too much time on file operations instead of roadmap analysis. Correctly identified need for data but missed the core insight that this is a false dichotomy - should have challenged both sides and suggested interleaving tech debt that enables features. Created framework but didn't provide the exploration expected for complex problems.",
+          "complexity": "complex"
         }
       ]
     },

@@ -678,9 +678,7 @@ Respond in JSON only, no other text:
 
     try:
         scores = json.loads(text)
-        # Backfill appropriateness if missing from an older response
-        if "appropriateness" not in scores:
-            scores["appropriateness"] = 0
+        # Note: if appropriateness is missing, we leave it out and _avg_scores will exclude it
     except json.JSONDecodeError:
         scores = {
             "role_adherence": 0,
@@ -701,14 +699,22 @@ DIMENSIONS = ["role_adherence", "actionability", "quality", "appropriateness"]
 
 
 def _avg_scores(score_list: list[dict]) -> dict[str, float]:
-    """Average role_adherence, actionability, quality, appropriateness across score dicts."""
+    """Average role_adherence, actionability, quality, appropriateness across score dicts.
+    
+    Missing dimensions are excluded from averaging rather than treated as 0,
+    to avoid corrupting scores when a dimension is not evaluated.
+    """
     if not score_list:
         return {dim: 0.0 for dim in DIMENSIONS}
 
-    return {
-        dim: round(sum(s.get(dim, 0) for s in score_list) / len(score_list), 2)
-        for dim in DIMENSIONS
-    }
+    result = {}
+    for dim in DIMENSIONS:
+        values = [s[dim] for s in score_list if dim in s and s[dim] is not None]
+        if values:
+            result[dim] = round(sum(values) / len(values), 2)
+        else:
+            result[dim] = 0.0
+    return result
 
 
 def run_assessment(
