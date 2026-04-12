@@ -38,15 +38,17 @@ Use the classification to pick delegation depth. A clear, reversible, P3 task ne
 
 ## Agent Capability Matrix
 
+Model assignments in this matrix follow `.agents/AGENT-SYSTEM.md` Section 10.
+
 | Agent | Use For | Model | Avoid When |
 |-------|---------|-------|-----------|
 | **analyst** | Research, root cause, feasibility | sonnet | Already have enough context |
-| **architect** | ADRs, design review, patterns | opus | Implementation details |
+| **architect** | ADRs, design review, patterns | sonnet | Implementation details |
 | **critic** | Plan validation, pre-merge review | sonnet | No plan to review |
 | **devops** | CI/CD, deployment, infra | sonnet | Business logic changes |
 | **explainer** | PRDs, documentation, onboarding | sonnet | Technical decisions |
 | **high-level-advisor** | Strategy, priorities, ruthless clarity | opus | Tactical work |
-| **implementer** | Code changes, tests | opus | Design decisions still open |
+| **implementer** | Code changes, tests | sonnet | Design decisions still open |
 | **independent-thinker** | Challenge consensus, devil's advocate | opus | Need validation, not challenge |
 | **issue-feature-review** | Triage feature requests | sonnet | Already prioritized |
 | **memory** | Cross-session retrieval and storage | sonnet | Within-session state |
