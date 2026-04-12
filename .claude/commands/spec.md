@@ -20,10 +20,10 @@ If $ARGUMENTS is empty, ask the user what problem to solve. Do not proceed witho
    - Tier 5 (Principal): Governance review. Multi-org consensus. Explicit "why not simpler?" challenge. If complexity can be driven out, do it before specifying.
 3. Search for existing solutions in the codebase (grep for related patterns)
 4. Invoke Skill(skill="cva-analysis"): identify commonalities across use cases, then variabilities, then relationships
-4. Write requirements as testable acceptance criteria
-5. Task(subagent_type="analyst"): You are a requirements analyst. Your job is to find gaps, ambiguities, and untestable requirements. For each requirement, ask: can this be verified pass/fail? Flag anything vague.
-6. Invoke Skill(skill="decision-critic"): challenge assumptions before committing
-7. Task(subagent_type="critic"): You are a skeptical reviewer. Run a pre-mortem: assume this spec ships and fails. What broke first? What was missing?
+5. Write requirements as testable acceptance criteria
+6. Task(subagent_type="analyst"): You are a requirements analyst. Your job is to find gaps, ambiguities, and untestable requirements. For each requirement, ask: can this be verified pass/fail? Flag anything vague.
+7. Invoke Skill(skill="decision-critic"): challenge assumptions before committing
+8. Task(subagent_type="critic"): You are a skeptical reviewer. Run a pre-mortem: assume this spec ships and fails. What broke first? What was missing?
 
 ## Evaluation Axes
 

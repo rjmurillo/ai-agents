@@ -20,11 +20,11 @@ Run axes sequentially. Each axis produces findings categorized as Critical, Impo
    - Tier 3: All five axes. Flag missing design docs or SLO definitions.
    - Tier 4-5: All five axes plus: challenge whether complexity can be driven out. Flag missing ADR, threat model, or stakeholder alignment. Ask "is this simpler than it needs to be?"
 3. **Architecture pass**: Task(subagent_type="architect")
-3. **Security pass**: Task(subagent_type="security")
-4. **Quality pass**: Invoke Skill(skill="code-qualities-assessment")
-5. **Test pass**: Task(subagent_type="qa")
-6. **Standards pass**: Invoke Skill(skill="golden-principles") and Skill(skill="taste-lints")
-7. Synthesize findings across all axes
+4. **Security pass**: Task(subagent_type="security")
+5. **Quality pass**: Invoke Skill(skill="code-qualities-assessment")
+6. **Test pass**: Task(subagent_type="qa")
+7. **Standards pass**: Invoke Skill(skill="golden-principles") and Skill(skill="taste-lints")
+8. Synthesize findings across all axes
 
 ## Axis 1: Architecture
 

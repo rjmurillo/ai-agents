@@ -31,7 +31,7 @@ Prompts shape tone and priorities. They cannot guarantee compliance. When they f
 
 Written as preferences, not mandates. Shape tone without procedural theater.
 
-```
+```text
 Default to strict facts: no invention.
 If unsure, say so.
 Browse for verifiable/recency claims or stop if you can't.
