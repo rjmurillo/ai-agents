@@ -1,0 +1,61 @@
+{
+  "assessment_type": "agent-definitions",
+  "model": "claude-sonnet-4-20250514",
+  "agents_assessed": [
+    "task-decomposer"
+  ],
+  "total_prompts": 4,
+  "dimensions": [
+    "role_adherence",
+    "actionability",
+    "quality",
+    "appropriateness"
+  ],
+  "results": {
+    "task-decomposer": {
+      "context_chars": 10355,
+      "model": "sonnet",
+      "avg_scores": {
+        "role_adherence": 5.0,
+        "actionability": 5.0,
+        "quality": 4.25,
+        "appropriateness": 5.0
+      },
+      "overall": 4.81,
+      "detail": [
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 4,
+          "appropriateness": 5,
+          "reasoning": "Agent correctly decomposed the task into 6 atomic, independently verifiable tasks with proper sizing (S/M complexity), clear acceptance criteria, and dependency chains. Demonstrated expert analysis by considering implementation patterns, error handling, and technical constraints without asking unnecessary questions. Output is immediately actionable with specific file names and concrete acceptance criteria. Minor quality deduction for some verbose explanatory text, but overall follows active voice and clear structure.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 5,
+          "appropriateness": 5,
+          "reasoning": "Perfect task decomposition. Agent properly analyzed existing codebase, created concrete work items with specific file paths and acceptance criteria, included proper sizing (XS-L), structured tasks in logical milestones, and provided exactly the expert analysis expected for complicated problems without unnecessary questions.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 4,
+          "appropriateness": 5,
+          "reasoning": "Excellent task decomposition with 11 well-structured tasks covering all expected components (audit schema, middleware, log format, query API, retention). Each task has specific IDs, clear acceptance criteria, dependencies, and exact file paths. Response demonstrates expert analysis appropriate for complicated complexity with proper milestone organization. Minor quality deduction for some verbose descriptions, but overall maintains professional technical writing standards.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 4,
+          "appropriateness": 5,
+          "reasoning": "Perfect task decomposition with clear breakdown into 10 atomic tasks with proper IDs, dependencies, acceptance criteria, and file paths. Shows expert domain knowledge of React theming patterns. Structured output with dependency graph and risk analysis. Minor quality deduction for some verbose sections, but overall excellent adherence to complicated-level expert analysis without unnecessary questions.",
+          "complexity": "complicated"
+        }
+      ]
+    }
+  }
+}
