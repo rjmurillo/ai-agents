@@ -62,7 +62,7 @@ Atomicity penalties (reject if score < 80%):
 [What NOT to do, concrete]
 ```
 
-Name: `{domain}-{short-descriptor}.md` (kebab-case, lowercase).
+Skill files live at `.serena/memories/{domain}/{domain}-{NNN}-{short-descriptor}.md` (kebab-case, lowercase, numbered within each domain). Example: `.serena/memories/pr-review/pr-review-001-reviewer-enumeration.md`. The domain index at `.serena/memories/skills-{domain}-index.md` links to these using the relative path `{domain}/{filename}`.
 
 Note: the "pure lookup table" / no-title restriction in ADR-017 applies only to domain `*-index.md` files in `.serena/memories/`, not to individual skill files. Regular skill files retain their `# Title` header.
 
@@ -99,16 +99,30 @@ Update flow:
 
 ## Domain-to-Index Mapping
 
+Existing domain indexes in `.serena/memories/`. Consult `.serena/memories/skills-index.md` for the canonical list before adding a new one.
+
 | Domain | Index File |
 |--------|------------|
-| Agent behavior | `skills-agent-behavior-index.md` |
-| Code review | `skills-code-review-index.md` |
-| Security | `skills-security-index.md` |
-| Testing | `skills-testing-index.md` |
+| Agent workflow | `skills-agent-workflow-index.md` |
+| Analysis / investigation | `skills-analysis-index.md` |
+| Architecture | `skills-architecture-index.md` |
+| CI infrastructure | `skills-ci-infrastructure-index.md` |
+| Design | `skills-design-index.md` |
 | Documentation | `skills-documentation-index.md` |
-| Git workflow | `skills-git-workflow-index.md` |
+| Git workflow | `skills-git-index.md` |
+| Git hooks | `skills-git-hooks-index.md` |
+| Implementation | `skills-implementation-index.md` |
+| Orchestration | `skills-orchestration-index.md` |
+| Planning | `skills-planning-index.md` |
+| PowerShell | `skills-powershell-index.md` |
+| PR review | `skills-pr-review-index.md` |
+| Pester testing | `skills-pester-testing-index.md` |
+| Quality | `skills-quality-index.md` |
+| Retrospective | `skills-retrospective-index.md` |
+| Security | `skills-security-index.md` |
+| Validation | `skills-validation-index.md` |
 
-Create new domain index only if 5+ skills will exist in it.
+Create a new domain index only if 5+ skills will exist in it, and register it in `.serena/memories/skills-index.md`.
 
 ## Memory Protocol
 
