@@ -37,6 +37,15 @@ The `.claude/agents/` directory has 23 agent definitions totaling 441KB. The lar
 
 - **Deferred to a follow-up PR.** The /autoplan CEO+Eng review explicitly flagged wiki enrichment as risky for a public repo without a sanitization pipeline. This PR's scope is prompt slimming + eval framework only. Wiki enrichment is tracked in observations memory as Phase 3 work.
 
+## Final Totals (canonical)
+
+- **Slim target set**: 11 agents (explainer, implementer, issue-feature-review, roadmap, milestone-planner, spec-generator, analyst, context-retrieval, critic, orchestrator, skillbook)
+- **Size**: 230KB → 71KB (**69% reduction**). Measured with `wc -c` against `.claude/agents/<name>.md` before/after slim.
+- **Average score**: 4.24 → 4.57 across all 23 agents (+0.33). Delta across the 11 slim targets: +1.20.
+- Source of truth for deltas: `.agents/planning/agent-baseline-results.json` (before) and `.agents/planning/agent-post-review-results.json` (after).
+
+Any number that does not match this section is stale.
+
 ## Baseline Results (2026-04-11)
 
 | Agent | Model | Role | Action | Quality | Overall |
