@@ -34,9 +34,14 @@ from scripts.validation.models import ValidationResult
 # Valid model identifiers (from .agents/analysis/claude-code-skill-frontmatter-2026.md)
 VALID_MODEL_ALIASES: frozenset[str] = frozenset(
     {
+        # Current (Claude 4.6 family, per environment as of 2026-04-13)
+        "claude-opus-4-6",
+        "claude-sonnet-4-6",
+        "claude-haiku-4-5",  # Haiku stayed at 4.5; current Haiku alias
+        # Back-compat (Claude 4.5 family)
         "claude-opus-4-5",
         "claude-sonnet-4-5",
-        "claude-haiku-4-5",
+        # Older back-compat
         "claude-sonnet-4-0",
         "claude-3-7-sonnet-latest",
         # CLI shortcuts
@@ -48,7 +53,7 @@ VALID_MODEL_ALIASES: frozenset[str] = frozenset(
 
 # Dated snapshot pattern: claude-{tier}-4-5-YYYYMMDD
 DATED_SNAPSHOT_PATTERN: re.Pattern[str] = re.compile(
-    r"^claude-(opus|sonnet|haiku)-4-5-\d{8}$"
+    r"^claude-(opus|sonnet|haiku)-4-(5|6)-\d{8}$"
 )
 
 # Known Claude Code tools (partial list)
@@ -249,8 +254,8 @@ def validate_model(model: str | None) -> list[str]:
 
     errors.append(
         f"Invalid model identifier: '{model}' "
-        "(use aliases like 'claude-sonnet-4-5' or "
-        "dated snapshots like 'claude-sonnet-4-5-20250929')"
+        "(use aliases like 'claude-sonnet-4-6' or "
+        "dated snapshots like 'claude-sonnet-4-6-20251015')"
     )
     return errors
 
