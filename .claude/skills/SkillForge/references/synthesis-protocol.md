@@ -26,7 +26,7 @@ The synthesis panel applies the "wisdom of crowds" principle to skill evaluation
 │  │ • Correctness     │  │ • Completeness    │  │ • Future-proofing │  │
 │  │ • Consistency     │  │ • Usability       │  │ • Ecosystem fit   │  │
 │  │                   │  │                   │  │                   │  │
-│  │ Model: Opus 4.5   │  │ Model: Opus 4.5   │  │ Model: Opus 4.5   │  │
+│  │ Model: Opus 4.6   │  │ Model: Opus 4.6   │  │ Model: Opus 4.6   │  │
 │  └───────────────────┘  └───────────────────┘  └───────────────────┘  │
 │           │                      │                      │              │
 │           └──────────────────────┼──────────────────────┘              │
