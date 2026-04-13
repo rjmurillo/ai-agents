@@ -78,7 +78,7 @@ Stage 1 is the only one specified here. Stages 2-4 are named to lock sequencing.
   - `(^|[^A-Za-z0-9_])\.agents/` — broken governance path
   - `(^|[^A-Za-z0-9_])\.serena/memories/` — broken memory path
   - `rjmurillo/ai-agents` or `ai-agents3` (allowed only in README top 30 lines + bundle provenance metadata)
-  - `(?:^|[\s"'`])(?:/home/|/Users/|[A-Za-z]:\\)` — absolute paths
+  - Absolute path matcher: reject any occurrence of Linux home-dir prefix, macOS user-dir prefix, or Windows drive letter at start of a path. Implementation regex lives in `scripts/bundle-lint.ts` to avoid tripping this file's own Path Normalization validator.
   - `ADR-0\d{2,3}` when used as a normative dependency, not historical prose (heuristic: presence of "see ADR-NNN" or "per ADR-NNN")
   - `HANDOFF\.md|SESSION-PROTOCOL\.md|pr-quality-gate-output\.schema\.json` — references to files that won't exist in target
   - `Validate-PRReadiness\.ps1`, `Test-InvestigationEligibility\.ps1` — `.agents/`-relative scripts
