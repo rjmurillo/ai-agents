@@ -110,6 +110,13 @@ def call_api(
             f"Anthropic API returned HTTP {e.code}: {error_body[:500]}"
         ) from e
     except urllib.error.URLError as e:
+        # urllib often wraps socket.timeout in URLError.reason; classify it
+        # as a timeout so the error message is actionable.
+        if isinstance(e.reason, (TimeoutError, socket.timeout)):
+            raise RuntimeError(
+                "Anthropic API request timed out after 120s. "
+                "The service may be slow or unreachable."
+            ) from e
         raise RuntimeError(
             f"Anthropic API network error: {e.reason}. "
             "Check connectivity and DNS resolution."
@@ -149,4 +156,9 @@ def load_custom_prompts(path: str) -> dict[str, list[dict[str, Any]]]:
             raise RuntimeError(
                 f"Invalid prompts file {path}: entry '{name}' must map to a list of prompt objects."
             )
+        for index, entry in enumerate(items):
+            if not isinstance(entry, dict):
+                raise RuntimeError(
+                    f"Invalid prompts file {path}: entry '{name}' item {index} must be an object."
+                )
     return prompts
