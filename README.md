@@ -1,6 +1,6 @@
 # AI Agent System
 
-> A coordinated multi-agent framework for AI-powered software development workflows.
+For platform teams, engineering managers, and orgs that want AI-assisted development with real governance. 57 ADRs, session protocol, review gates built in.
 
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/rjmurillo/ai-agents)
 
@@ -14,18 +14,36 @@
 ![Pester Tests](https://github.com/rjmurillo/ai-agents/actions/workflows/pester-tests.yml/badge.svg)
 ![CodeQL Analysis](https://github.com/rjmurillo/ai-agents/actions/workflows/codeql-analysis.yml/badge.svg)
 
+![Fastest Start demo](https://github.com/rjmurillo/ai-agents/assets/TODO-record-gif-before-v0.2)
+
 ---
 
-## TL;DR
+## Fastest Start
 
-1. **Install:** `/install-plugin rjmurillo/ai-agents` (Claude Code or GitHub Copilot CLI)
-2. **Use:** Ask the orchestrator to coordinate tasks, or call agents directly by name
-3. **Result:** 21 specialized agents handle research → planning → implementation → QA → deployment
-
-```text
-# Example: End-to-end feature development
-> orchestrator: implement user authentication with OAuth2, including tests and security review
+```bash
+npx @rjmurillo/ai-agents init
+cd your-repo
+claude   # start coding with 21 agents, 62 skills, and 57 ADRs
 ```
+
+That's it. The `init` command vendors a curated `.claude/` kit into your repo. You get agents, skills, commands, and governance on first launch.
+
+### What You Get
+
+| Component | Count | What it does |
+|-----------|-------|--------------|
+| Agents | 21 | Specialized roles: analyst, architect, implementer, QA, security, and more |
+| Skills | 62 | Reusable workflows: git, PR management, testing, linting, session protocol |
+| Commands | 15+ | Slash commands for lifecycle phases: /spec, /plan, /build, /test, /review, /ship |
+| ADRs | 57 | Architectural Decision Records that steer agent behavior |
+| Session protocol | 1 | Structured session logs with commit gates and evidence tracking |
+| Review gates | 5 | Pre-PR validation across architecture, security, quality, tests, standards |
+
+### Troubleshooting
+
+- **`npx` command not found:** Install [Node.js](https://nodejs.org/) (LTS). npm and npx ship with it.
+- **Agents not responding after init:** Restart your editor to reload agent definitions. Then run `analyst: Hello, are you available?` to verify.
+- **`/install-plugin` not recognized:** You are in a regular terminal, not inside Claude Code or Copilot CLI. Run the command inside your AI tool.
 
 ---
 
@@ -33,47 +51,31 @@
 
 | I want to... | Go to |
 |--------------|-------|
-| **Use the agents right now** | [Quick Install](#quick-install-recommended) → [Quick Start](#quick-start) |
-| **Understand how it works** | [Key Concepts](#key-concepts) → [How Agents Work Together](#how-agents-work-together) |
-| **Contribute or modify agents** | [Developer Setup](#developer-setup) → [CONTRIBUTING.md](CONTRIBUTING.md) |
+| **Use the agents right now** | [Fastest Start](#fastest-start) (above) |
+| **Understand how it works** | [Key Concepts](#key-concepts) |
+| **Contribute or modify agents** | [Developer Setup](#developer-setup) |
 | **See all available agents** | [Agent Catalog](#agent-catalog) |
-| **Troubleshoot issues** | [Troubleshooting](#troubleshooting) |
-
----
-
-## Is This For You?
-
-✅ **Good fit if:**
-
-- You use Claude Code, GitHub Copilot CLI, or VS Code with Copilot
-- You want structured, multi-step AI workflows with clear accountability
-- You need audit trails and consistent output formats
-- You prefer specialized agents over generic prompting
-
-❌ **Not ideal if:**
-
-- You prefer single-prompt interactions without agent orchestration
-- You're not using one of the supported platforms (Claude Code, Copilot CLI, VS Code)
-- You need real-time streaming responses for all interactions
+| **Full installation options** | [Alternative: Full Installation](#alternative-full-installation) |
 
 ---
 
 ## Table of Contents
 
 - [AI Agent System](#ai-agent-system)
-  - [TL;DR](#tldr)
+  - [Fastest Start](#fastest-start)
+    - [What You Get](#what-you-get)
+    - [Troubleshooting](#troubleshooting)
   - [Where to Start](#where-to-start)
-  - [Is This For You?](#is-this-for-you)
   - [Table of Contents](#table-of-contents)
   - [Purpose and Scope](#purpose-and-scope)
     - [What is AI Agents?](#what-is-ai-agents)
     - [Core Capabilities](#core-capabilities)
     - [Key Concepts](#key-concepts)
-  - [Installation](#installation)
+  - [Alternative: Full Installation](#alternative-full-installation)
     - [Quick Install (Recommended)](#quick-install-recommended)
     - [Verify Installation](#verify-installation)
     - [Supported Platforms](#supported-platforms)
-    - [Alternative: Install via skill-installer](#alternative-install-via-skill-installer)
+    - [Install via skill-installer](#install-via-skill-installer)
   - [Quick Start](#quick-start)
     - [Examples](#examples)
       - [Simple Scenarios](#simple-scenarios)
@@ -83,7 +85,7 @@
     - [How Agents Work Together](#how-agents-work-together)
     - [Agent Catalog](#agent-catalog)
     - [Directory Structure](#directory-structure)
-  - [Troubleshooting](#troubleshooting)
+  - [Additional Troubleshooting](#additional-troubleshooting)
   - [Contributing](#contributing)
     - [Developer Setup](#developer-setup)
     - [Agent Development](#agent-development)
@@ -128,7 +130,9 @@ The agents themselves use the platform specific handoffs to invoke subagents, ke
 
 ---
 
-## Installation
+## Alternative: Full Installation
+
+If you prefer the existing plugin marketplace or TUI installer over `npx ai-agents init`, use one of the methods below.
 
 > **Requirements:** Python 3.10+ and [UV](https://docs.astral.sh/uv/) package manager (for skill-installer method only). The `/install-plugin` method has no prerequisites.
 >
@@ -188,7 +192,7 @@ copilot --list-agents
 | **GitHub Copilot CLI** | `src/copilot-cli/` | Use `--agent` flag, `/agent` to select, or call out agent by name |
 | **VS Code / GitHub Copilot** | `src/vs-code-agents/` | Use `@agent` syntax in Copilot Chat |
 
-### Alternative: Install via skill-installer
+### Install via skill-installer
 
 For a TUI-based interactive installation experience, use [skill-installer](https://github.com/rjmurillo/skill-installer).
 
@@ -429,7 +433,7 @@ ai-agents/
 
 ---
 
-## Troubleshooting
+## Additional Troubleshooting
 
 <details>
 <summary><strong>Agent not responding or not found</strong></summary>
