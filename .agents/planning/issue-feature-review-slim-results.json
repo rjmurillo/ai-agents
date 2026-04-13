@@ -1,0 +1,61 @@
+{
+  "assessment_type": "agent-definitions",
+  "model": "claude-sonnet-4-20250514",
+  "agents_assessed": [
+    "issue-feature-review"
+  ],
+  "total_prompts": 4,
+  "dimensions": [
+    "role_adherence",
+    "actionability",
+    "quality",
+    "appropriateness"
+  ],
+  "results": {
+    "issue-feature-review": {
+      "context_chars": 6469,
+      "model": "sonnet",
+      "avg_scores": {
+        "role_adherence": 5.0,
+        "actionability": 4.5,
+        "quality": 4.25,
+        "appropriateness": 5.0
+      },
+      "overall": 4.69,
+      "detail": [
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 4,
+          "appropriateness": 5,
+          "reasoning": "Excellent role adherence with proper feature assessment structure and recommendation. Very actionable with specific next steps, team assignments, and technical implementation details. Good quality with clear data-driven analysis, though some minor hedging present. Perfect appropriateness for complicated complexity - provides expert analysis with clear assumptions/unknowns flagged and considers alternatives/trade-offs without unnecessary questioning.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 4,
+          "quality": 4,
+          "appropriateness": 5,
+          "reasoning": "Strong role adherence with proper feature assessment structure and clear recommendation. High actionability with specific next steps and assignees. Good quality with minimal filler, though some hedging present. Excellent appropriateness - provides expert analysis for complicated problem, surfaces key unknowns without over-questioning, and considers build vs buy trade-offs as expected.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 5,
+          "appropriateness": 5,
+          "reasoning": "Perfect role adherence - systematically evaluates feature request with structured analysis. Highly actionable with specific next steps, assignees, and concrete questions. Excellent quality with clear structure, no filler, and direct language. Appropriate complexity handling - provides expert analysis while flagging key assumptions and unknowns, correctly identifies this as low-signal internal request requiring evidence.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 4,
+          "quality": 4,
+          "appropriateness": 5,
+          "reasoning": "Strong role adherence with proper severity/priority assessment and structured evaluation. Actionable recommendations with specific next steps and team assignments. Good quality with clear structure, though some minor AI-style phrases present. Excellent appropriateness - provides expert analysis while properly flagging unknowns like intended file size limits and missing technical details, matching complicated complexity expectations.",
+          "complexity": "complicated"
+        }
+      ]
+    }
+  }
+}

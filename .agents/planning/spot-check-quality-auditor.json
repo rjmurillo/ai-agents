@@ -1,0 +1,61 @@
+{
+  "assessment_type": "agent-definitions",
+  "model": "claude-sonnet-4-20250514",
+  "agents_assessed": [
+    "quality-auditor"
+  ],
+  "total_prompts": 4,
+  "dimensions": [
+    "role_adherence",
+    "actionability",
+    "quality",
+    "appropriateness"
+  ],
+  "results": {
+    "quality-auditor": {
+      "context_chars": 3533,
+      "model": "sonnet",
+      "avg_scores": {
+        "role_adherence": 5.0,
+        "actionability": 4.5,
+        "quality": 4.0,
+        "appropriateness": 5.0
+      },
+      "overall": 4.62,
+      "detail": [
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 4,
+          "appropriateness": 5,
+          "reasoning": "Perfect role adherence - systematic audit with graded report (A-F per layer), file counts, specific gaps, and actionable improvements. Highly actionable with concrete file paths, configuration examples, and structured recommendations with timelines. High quality with data-driven analysis and clear structure, though some minor hedging language. Appropriately matches 'complicated' complexity with expert analysis, surfacing key assumptions about test coverage targets and flagging trade-offs between immediate fixes vs long-term strategy.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 4,
+          "quality": 4,
+          "appropriateness": 5,
+          "reasoning": "Perfect role adherence - acts as quality auditor with systematic grading across all layers. High actionability with specific grades, scores, and prioritized recommendations, though could include more file-level details. Good quality with data-driven analysis and clear structure, minimal hedging. Excellent appropriateness - provides expert analysis with concrete grades while flagging key assumptions about missing infrastructure.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 4,
+          "appropriateness": 5,
+          "reasoning": "Agent performed comprehensive quality audit exactly as specified, reading all 10 agent files and grading A-F on requested axes (prompt clarity, role overlap, style compliance, tool consistency, model appropriateness). Produced actionable findings with specific file names, concrete grades, and prioritized recommendations. Output follows standards with minimal hedging and data-driven analysis. Correctly applied expert analysis pattern for complicated problem complexity.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 4,
+          "quality": 4,
+          "appropriateness": 5,
+          "reasoning": "Perfect role adherence - acts as quality auditor scanning CI/CD configs with systematic approach. High actionability with specific file references, graded layers, and prioritized recommendations. Good quality with structured output and data-driven analysis, though some formatting could be tighter. Excellent appropriateness - provides expert analysis for complicated problem with clear assumptions about missing elements and comprehensive coverage of requested areas.",
+          "complexity": "complicated"
+        }
+      ]
+    }
+  }
+}
