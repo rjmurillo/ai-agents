@@ -29,6 +29,6 @@ Self-validation checklist for Phase G4. All items must pass before saving the AD
 ## Governance
 
 - [ ] No duplication with existing ADRs (checked via scan in Phase G2)
-- [ ] File saved to `.agents/architecture/` (canonical location)
+- [ ] File saved to destination directory determined in Phase G2
 - [ ] Language is precise, avoids ambiguity, uses active voice
 - [ ] No sycophancy, AI filler phrases, or hedging language

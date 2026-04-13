@@ -175,7 +175,7 @@ Before delivering, confirm all items in the [quality checklist](references/quali
 - [ ] Context explains the problem, not the solution
 - [ ] At least 2 alternatives with pros/cons
 - [ ] At least 1 negative consequence documented
-- [ ] File saved to `.agents/architecture/`
+- [ ] File saved to destination directory determined in Phase G2
 
 ---
 
