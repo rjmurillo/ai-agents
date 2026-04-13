@@ -2,9 +2,18 @@
 
 **Purpose**: Document local modifications for reapplication after upstream updates
 
-**Date**: 2026-01-03
-**Session**: 372
-**Reason**: Token efficiency, skill-creator compliance
+**Initial sync**: 2026-01-03 (Session 372) — v4.x content extraction + policy deletions
+**Latest sync**: 2026-04-13 — upstream v5.1.0 @ `f07042f`
+**Upstream**: https://github.com/tripleyak/SkillForge
+
+## Sync Log
+
+| Date | Upstream ver | Commit | Notes |
+|------|--------------|--------|-------|
+| 2026-01-03 | v4.1.0 (pre-slim) | unknown | Initial vendoring + local content extraction to references/ |
+| 2026-04-13 | v5.1.0 | `f07042f` | Added 3 new scripts, 1 new test, 9 new references; kept local extras and script enhancements |
+
+**Reason (original)**: Token efficiency, skill-creator compliance
 
 ---
 
@@ -175,3 +184,83 @@ Expected results:
 - **Conflict risk**: High if upstream adds back README/LICENSE
 - **Reapplication time**: ~15 minutes (automated with scripts if frequent)
 - **Alternative**: Propose upstream accepts progressive disclosure pattern
+
+---
+
+## 2026-04-13 Sync: Upstream v5.1.0 (commit f07042f)
+
+### Upstream changes applied
+
+**Scripts added (3 new files from upstream):**
+- `scripts/check_docs_safety.py` (83 lines) — docs safety checker for unsafe command interpolation patterns (v5.1 addition)
+- `scripts/discover_skills.py` (468 lines) — skill discovery utility (v5.0/v5.1)
+- `scripts/init_skill.py` (393 lines) — skill scaffolder (v5.0/v5.1)
+
+**Tests added:**
+- `scripts/tests/test_package_skill_ignore.py` (upstream v5.1 — tests `.skillignore` enforcement in packaging)
+
+**References added (9 new files from upstream v5.x architecture):**
+- `degrees-of-freedom.md`
+- `evolution-scoring.md`
+- `iteration-guide.md`
+- `multi-lens-framework.md`
+- `regression-questions.md`
+- `script-integration-framework.md`
+- `script-patterns-catalog.md`
+- `specification-template.md`
+- `synthesis-protocol.md`
+
+### Local preservation (NOT touched by sync)
+
+**SKILL.md**: NO CHANGE. The only diff vs upstream is the intentional local model override (`claude-opus-4-6` instead of upstream's `claude-opus-4-5-20251101`). Upstream has not updated past 4-5 dated snapshots. Our 4-6 bump tracks the current Claude model family (per PR #1613 + #1634).
+
+**Scripts NOT updated (local versions are larger, may have local improvements):**
+- `scripts/_constants.py` (vendored +46 bytes)
+- `scripts/package_skill.py` (vendored +712 bytes)
+- `scripts/quick_validate.py` (vendored +382 bytes)
+- `scripts/triage_skill_request.py` (vendored +110 bytes)
+- `scripts/validate-skill.py` (vendored +1317 bytes)
+- **Flagged for follow-up review.** Upstream simplified these in v5.0/v5.1; we need to confirm whether our enhancements are worth keeping, whether upstream replaced them with equivalent functionality elsewhere, or whether the upstream versions are now preferred.
+
+**Local-only scripts preserved:**
+- `scripts/frontmatter.py` — local utility
+- `scripts/skill_modularity_audit.py` — local utility
+
+**Local-only references preserved (v4.x content extractions, may now be orphaned by v5.x architecture):**
+- `references/architecture-patterns.md`
+- `references/configuration.md`
+- `references/evolution-timelessness.md`
+- `references/modularity-guidelines.md`
+- `references/phase1-analysis-deep-dive.md`
+- `references/phase2-specification-deep-dive.md`
+- `references/phase3-generation-deep-dive.md`
+- `references/phase4-synthesis-deep-dive.md`
+- **Flagged for follow-up review.** These were extracted from the pre-v5 SKILL.md as our own progressive-disclosure transformation (Session 372, 2026-01-03). Upstream v5.0 did its own slim with different file names. Both sets now coexist. Consolidation needs a separate session.
+
+**Local tests preserved:**
+- `tests/test_skill_modularity_audit.py` — local test for local audit script
+
+**Local deletions preserved:**
+- `README.md` — still deleted per skill-creator "no auxiliary files" rule
+- `LICENSE` — still deleted per same rule
+- `SESSION_HANDOFF.md` — still deleted
+
+### Verification (post-sync)
+
+```bash
+# Assets identical with upstream
+diff -rq /tmp/upstream/assets .claude/skills/SkillForge/assets  # empty = identical
+
+# SKILL.md differs only in model field
+diff .claude/skills/SkillForge/SKILL.md /tmp/upstream/SKILL.md  # 6 lines changed, all model/subagent_model
+
+# Total vendored files: 49 (up from 35 pre-sync)
+find .claude/skills/SkillForge -type f | wc -l
+```
+
+### Known TODO for next sync
+
+1. **Script diff triage** — run a 3-way merge on the 5 shared scripts where vendored is larger. Decide per-script: keep local, adopt upstream, or cherry-pick specific improvements.
+2. **References consolidation** — decide fate of 8 v4.x legacy reference files. Either rename to `references/_v4-legacy/` to mark deprecated, delete if fully superseded by upstream's 9 new files, or merge content.
+3. **Consider rebasing on upstream** — if local enhancements matter, propose them upstream. If not, do a clean overwrite on the next sync and only preserve intentional policy deletions (README/LICENSE).
+4. **Upstream still on 4-5 models** — our 4-6 override will stay as a local fork until upstream bumps.
