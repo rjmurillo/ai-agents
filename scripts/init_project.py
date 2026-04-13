@@ -136,6 +136,178 @@ _COPILOT_INSTRUCTIONS_TEMPLATE = """\
 See AGENTS.md for cross-platform agent instructions.
 """
 
+_STARTER_AGENTS: dict[str, str] = {
+    "orchestrator": """\
+---
+name: orchestrator
+description: >-
+  Task coordinator that routes work to specialized agents,
+  manages handoffs, and synthesizes results.
+model: sonnet
+---
+# Orchestrator Agent
+
+Coordinate multi-step tasks by delegating to specialized agents.
+Classify complexity, sequence workflows, and synthesize results.
+
+## Workflow
+
+1. Analyze the request and identify required capabilities.
+2. Delegate to the appropriate specialist agent.
+3. Verify outputs meet acceptance criteria.
+4. Synthesize results into a coherent response.
+""",
+    "implementer": """\
+---
+name: implementer
+description: >-
+  Engineering expert that implements plans with production-quality code.
+  Enforces testability, encapsulation, and intentional coupling.
+model: sonnet
+---
+# Implementer Agent
+
+Implement approved plans with production-quality code.
+Write tests alongside code. Commit atomically with conventional messages.
+
+## Standards
+
+- Cyclomatic complexity <=10, methods <=60 lines
+- SOLID, DRY, YAGNI
+- Programming by intention: sergeant methods direct workflow
+""",
+    "analyst": """\
+---
+name: analyst
+description: >-
+  Research specialist that investigates root causes, surfaces unknowns,
+  and gathers evidence before implementation.
+model: sonnet
+---
+# Analyst Agent
+
+Investigate before implementing. Gather evidence, evaluate feasibility,
+identify dependencies and risks. Document findings with sources.
+
+## Process
+
+1. Define the question precisely.
+2. Search code, docs, and history for evidence.
+3. Evaluate feasibility and identify risks.
+4. Report findings with confidence levels.
+""",
+    "architect": """\
+---
+name: architect
+description: >-
+  System design authority that guards architectural coherence,
+  enforces patterns, and maintains boundaries.
+model: sonnet
+---
+# Architect Agent
+
+Guard architectural coherence. Create ADRs, conduct design reviews,
+ensure decisions align with separation, extensibility, and consistency.
+
+## Responsibilities
+
+- Review proposed changes for architectural impact.
+- Create Architecture Decision Records for significant decisions.
+- Enforce module boundaries and dependency direction.
+""",
+    "qa": """\
+---
+name: qa
+description: >-
+  Quality assurance specialist that verifies implementations work
+  correctly for real users, not just passing tests.
+model: sonnet
+---
+# QA Agent
+
+Verify implementations work for real users. Design test strategies,
+validate coverage against acceptance criteria, report results with evidence.
+
+## Approach
+
+1. Identify acceptance criteria and edge cases.
+2. Design test scenarios covering happy path and failure modes.
+3. Execute tests and document results.
+4. Report gaps between expected and actual behavior.
+""",
+    "security": """\
+---
+name: security
+description: >-
+  Security specialist fluent in threat modeling, vulnerability assessment,
+  and OWASP Top 10.
+model: sonnet
+---
+# Security Agent
+
+Defense-first security analysis. Scan for CWE patterns, detect secrets,
+audit dependencies, map attack surfaces.
+
+## Focus Areas
+
+- OWASP Top 10 vulnerability patterns
+- Secret and credential detection
+- Dependency supply chain risks
+- Input validation and output encoding
+""",
+    "devops": """\
+---
+name: devops
+description: >-
+  CI/CD specialist that designs pipelines, configures build systems,
+  and manages deployment workflows.
+model: sonnet
+---
+# DevOps Agent
+
+Design and maintain CI/CD pipelines. Configure build systems,
+manage secrets, optimize caching, ensure reliable deployments.
+
+## Capabilities
+
+- GitHub Actions workflow design
+- Build optimization and caching
+- Environment and secrets management
+- Deployment strategy and rollback planning
+""",
+    "critic": """\
+---
+name: critic
+description: >-
+  Constructive reviewer that stress-tests plans before implementation.
+  Validates completeness, identifies gaps, catches ambiguity.
+model: sonnet
+---
+# Critic Agent
+
+Stress-test plans before implementation. Challenge assumptions,
+check alignment, block approval when risks are not mitigated.
+
+## Review Checklist
+
+1. Are acceptance criteria complete and testable?
+2. Are edge cases and failure modes addressed?
+3. Are dependencies identified and risks mitigated?
+4. Is the scope appropriately bounded?
+""",
+}
+
+_NEXT_STEPS_MESSAGE = """\
+Next steps:
+
+  1. Review the generated files and customize for your project.
+  2. Edit AGENTS.md to add project-specific conventions.
+  3. Customize agent definitions in .claude/agents/ as needed.
+  4. Start working: agents are ready to use immediately.
+
+Documentation: https://github.com/rjmurillo/ai-agents
+"""
+
 
 class ProjectInitializer:
     """Scaffolds ai-agents directory structure for a project."""
@@ -146,11 +318,13 @@ class ProjectInitializer:
         minimal: bool = False,
         force: bool = False,
         dry_run: bool = False,
+        no_agents: bool = False,
     ) -> None:
         self.target_dir = target_dir.resolve()
         self.minimal = minimal
         self.force = force
         self.dry_run = dry_run
+        self.no_agents = no_agents
         self.created_dirs: list[Path] = []
         self.created_files: list[Path] = []
         self.skipped_files: list[Path] = []
@@ -245,6 +419,20 @@ class ProjectInitializer:
             _TEAM_YAML_TEMPLATE,
         )
 
+    def scaffold_starter_agents(self) -> bool:
+        """Create .claude/agents/ with starter agent definitions."""
+        if self.no_agents or self.minimal:
+            return True
+
+        agents_dir = self.target_dir / ".claude" / "agents"
+        if not self._make_dir(agents_dir):
+            return False
+
+        for name, content in _STARTER_AGENTS.items():
+            if not self._write_file(agents_dir / f"{name}.md", content):
+                return False
+        return True
+
     def scaffold_copilot_instructions(self) -> bool:
         """Create .github/copilot-instructions.md."""
         if self.minimal:
@@ -298,6 +486,7 @@ class ProjectInitializer:
             self.scaffold_claude_md,
             self.scaffold_serena,
             self.scaffold_team_manifest,
+            self.scaffold_starter_agents,
             self.scaffold_copilot_instructions,
             self.update_gitignore,
         ]
@@ -311,7 +500,7 @@ class ProjectInitializer:
         return 0
 
     def _print_summary(self) -> None:
-        """Print a summary of actions taken."""
+        """Print a summary of actions taken and next steps."""
         if self.dry_run:
             logger.info(
                 "Dry run complete. %d files and %d directories would be created.",
@@ -325,6 +514,8 @@ class ProjectInitializer:
                 len(self.created_dirs),
                 len(self.skipped_files),
             )
+            logger.info("")
+            logger.info(_NEXT_STEPS_MESSAGE)
 
 
 def _add_init_args(parser: argparse.ArgumentParser) -> None:
@@ -350,6 +541,11 @@ def _add_init_args(parser: argparse.ArgumentParser) -> None:
         action="store_true",
         help="Preview changes without writing files",
     )
+    parser.add_argument(
+        "--no-agents",
+        action="store_true",
+        help="Skip scaffolding starter agent definitions in .claude/agents/",
+    )
 
 
 def _run_init(args: argparse.Namespace) -> int:
@@ -359,6 +555,7 @@ def _run_init(args: argparse.Namespace) -> int:
         minimal=args.minimal,
         force=args.force,
         dry_run=args.dry_run,
+        no_agents=args.no_agents,
     )
     return initializer.run()
 

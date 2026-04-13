@@ -16,6 +16,7 @@ from scripts.init_project import (
     _CLAUDE_MD_TEMPLATE,
     _COPILOT_INSTRUCTIONS_TEMPLATE,
     _GITIGNORE_ENTRIES,
+    _STARTER_AGENTS,
     ProjectInitializer,
     main,
 )
@@ -194,6 +195,58 @@ class TestScaffoldTeamManifest:
         assert content == existing
 
 
+class TestScaffoldStarterAgents:
+    """Tests for .claude/agents/ starter agent creation."""
+
+    def test_creates_all_starter_agents(self, tmp_path: Path) -> None:
+        init = ProjectInitializer(target_dir=tmp_path)
+        assert init.scaffold_starter_agents() is True
+
+        agents_dir = tmp_path / ".claude" / "agents"
+        assert agents_dir.is_dir()
+
+        for name in _STARTER_AGENTS:
+            agent_file = agents_dir / f"{name}.md"
+            assert agent_file.exists(), f"Missing agent: {name}"
+            content = agent_file.read_text(encoding="utf-8")
+            assert content.startswith("---")
+            assert f"name: {name}" in content
+
+    def test_minimal_skips_starter_agents(self, tmp_path: Path) -> None:
+        init = ProjectInitializer(target_dir=tmp_path, minimal=True)
+        assert init.scaffold_starter_agents() is True
+        assert not (tmp_path / ".claude" / "agents").exists()
+
+    def test_no_agents_flag_skips_starter_agents(self, tmp_path: Path) -> None:
+        init = ProjectInitializer(target_dir=tmp_path, no_agents=True)
+        assert init.scaffold_starter_agents() is True
+        assert not (tmp_path / ".claude" / "agents").exists()
+
+    def test_skips_existing_agents_without_force(self, tmp_path: Path) -> None:
+        agents_dir = tmp_path / ".claude" / "agents"
+        agents_dir.mkdir(parents=True)
+        existing = "# My custom orchestrator"
+        (agents_dir / "orchestrator.md").write_text(existing)
+
+        init = ProjectInitializer(target_dir=tmp_path)
+        init.scaffold_starter_agents()
+
+        content = (agents_dir / "orchestrator.md").read_text(encoding="utf-8")
+        assert content == existing
+        assert len(init.skipped_files) == 1
+
+    def test_overwrites_agents_with_force(self, tmp_path: Path) -> None:
+        agents_dir = tmp_path / ".claude" / "agents"
+        agents_dir.mkdir(parents=True)
+        (agents_dir / "orchestrator.md").write_text("# old")
+
+        init = ProjectInitializer(target_dir=tmp_path, force=True)
+        init.scaffold_starter_agents()
+
+        content = (agents_dir / "orchestrator.md").read_text(encoding="utf-8")
+        assert "name: orchestrator" in content
+
+
 class TestDryRun:
     """Tests for --dry-run mode."""
 
@@ -263,6 +316,9 @@ class TestFullRun:
         assert (tmp_path / ".serena" / "project.yml").exists()
         assert (tmp_path / ".serena" / "memories").is_dir()
         assert (tmp_path / ".github" / "copilot-instructions.md").exists()
+        assert (tmp_path / ".claude" / "agents").is_dir()
+        for name in _STARTER_AGENTS:
+            assert (tmp_path / ".claude" / "agents" / f"{name}.md").exists()
 
     def test_minimal_run_succeeds(self, tmp_path: Path) -> None:
         init = ProjectInitializer(target_dir=tmp_path, minimal=True)
@@ -276,6 +332,7 @@ class TestFullRun:
         assert not (tmp_path / ".agents" / "governance").exists()
         assert not (tmp_path / ".agents" / "team.yaml").exists()
         assert not (tmp_path / ".github" / "copilot-instructions.md").exists()
+        assert not (tmp_path / ".claude" / "agents").exists()
 
     def test_invalid_target_returns_exit_code_2(self, tmp_path: Path) -> None:
         init = ProjectInitializer(target_dir=tmp_path / "nonexistent")
@@ -325,3 +382,13 @@ class TestMainEntryPoint:
         assert result == 0
         assert not (tmp_path / ".agents" / "governance").exists()
         assert (tmp_path / ".serena" / "project.yml").exists()
+
+    def test_main_no_agents(self, tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+        monkeypatch.setattr(
+            "sys.argv",
+            ["ai-agents", "init", "--target-dir", str(tmp_path), "--no-agents"],
+        )
+        result = main()
+        assert result == 0
+        assert (tmp_path / "CLAUDE.md").exists()
+        assert not (tmp_path / ".claude" / "agents").exists()
