@@ -1,0 +1,61 @@
+{
+  "assessment_type": "agent-definitions",
+  "model": "claude-sonnet-4-20250514",
+  "agents_assessed": [
+    "skillbook"
+  ],
+  "total_prompts": 4,
+  "dimensions": [
+    "role_adherence",
+    "actionability",
+    "quality",
+    "appropriateness"
+  ],
+  "results": {
+    "skillbook": {
+      "context_chars": 5884,
+      "model": "sonnet",
+      "avg_scores": {
+        "role_adherence": 4.25,
+        "actionability": 4.5,
+        "quality": 4.0,
+        "appropriateness": 4.25
+      },
+      "overall": 4.25,
+      "detail": [
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 4,
+          "appropriateness": 5,
+          "reasoning": "Perfect skillbook behavior: checked for duplicates, created atomic skills with rule/why/how format, scored atomicity, and organized with proper indexing. Outputs are concrete with specific file paths and implementation patterns. Minor quality deduction for some verbose explanations, but overall follows standards. Correctly applied expert analysis for complicated problem without unnecessary questions.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 4,
+          "appropriateness": 5,
+          "reasoning": "Perfect role adherence - agent acted as skillbook, performed deduplication checks, created atomic skill with proper indexing. Highly actionable with specific pattern/anti-pattern examples and concrete steps. Good quality with clear structure, though some minor verbosity in process description. Appropriately matched complexity with expert analysis, identified key trade-offs between mocking vs real DB testing, and captured learning with high confidence from production evidence.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 4,
+          "quality": 5,
+          "appropriateness": 5,
+          "reasoning": "Agent correctly acted as skillbook by checking existing skills first, then applying proper evidence standards for rejection. Provided specific, actionable guidance on what evidence would be needed. Clear, direct language without hedging. Appropriately applied expert analysis by identifying the lack of transferable principles and concrete evidence patterns required for skill capture.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 2,
+          "actionability": 4,
+          "quality": 3,
+          "appropriateness": 2,
+          "reasoning": "Agent acted as skillbook by creating concrete skill files, but missed the core task - encoding the meta-pattern of *when teams reach for Strategy* and recognition heuristics. Created standard GoF documentation instead of the requested recognition pattern. Output was actionable with specific code examples and file structure, but didn't analyze why three developers independently chose this pattern or document the trigger conditions.",
+          "complexity": "complicated"
+        }
+      ]
+    }
+  }
+}

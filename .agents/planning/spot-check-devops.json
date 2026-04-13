@@ -1,0 +1,61 @@
+{
+  "assessment_type": "agent-definitions",
+  "model": "claude-sonnet-4-20250514",
+  "agents_assessed": [
+    "devops"
+  ],
+  "total_prompts": 4,
+  "dimensions": [
+    "role_adherence",
+    "actionability",
+    "quality",
+    "appropriateness"
+  ],
+  "results": {
+    "devops": {
+      "context_chars": 15572,
+      "model": "sonnet",
+      "avg_scores": {
+        "role_adherence": 5.0,
+        "actionability": 5.0,
+        "quality": 4.25,
+        "appropriateness": 5.0
+      },
+      "overall": 4.81,
+      "detail": [
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 4,
+          "appropriateness": 5,
+          "reasoning": "Strong devops response with concrete GitHub Actions workflows, proper matrix strategy, path-based triggers, and caching. Includes security best practices and monitoring metrics. Expert analysis appropriate for complicated problem complexity. Minor quality deduction for incomplete YAML file at end.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 5,
+          "appropriateness": 5,
+          "reasoning": "Perfect DevOps response: provides expert technical analysis with concrete Dockerfile examples, specific optimization strategies, quantified performance targets (8min->3min), and implementation-ready code snippets. Matches complicated problem complexity with comprehensive solutions while flagging trade-offs and providing measurable outcomes.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 4,
+          "appropriateness": 5,
+          "reasoning": "Strong DevOps response with proper CI/CD pipeline design, environment-specific configs via secrets/env vars, build-once-deploy-many approach, and GitHub environments with approval gates. Provides complete, immediately usable workflow files with specific implementation details. Shows expert analysis with clear trade-offs between environments and proper security considerations. Minor style issue with some verbose explanatory text, but overall excellent technical depth and practicality.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 4,
+          "appropriateness": 5,
+          "reasoning": "Response demonstrates expert DevOps knowledge with immediate action plan, comprehensive tooling (BFG, git filter-repo, pre-commit hooks), and production-ready scripts. Covers all expected elements: key rotation, git history cleanup, prevention measures, and audit procedures. Maintains incident response structure appropriate for critical security events. Minor deduction on quality for some verbose formatting, but overall excellent technical depth and actionability.",
+          "complexity": "complicated"
+        }
+      ]
+    }
+  }
+}

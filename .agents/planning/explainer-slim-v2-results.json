@@ -1,0 +1,61 @@
+{
+  "assessment_type": "agent-definitions",
+  "model": "claude-sonnet-4-20250514",
+  "agents_assessed": [
+    "explainer"
+  ],
+  "total_prompts": 4,
+  "dimensions": [
+    "role_adherence",
+    "actionability",
+    "quality",
+    "appropriateness"
+  ],
+  "results": {
+    "explainer": {
+      "context_chars": 4808,
+      "model": "sonnet",
+      "avg_scores": {
+        "role_adherence": 2.75,
+        "actionability": 1.75,
+        "quality": 3.25,
+        "appropriateness": 2.0
+      },
+      "overall": 2.44,
+      "detail": [
+        {
+          "role_adherence": 2,
+          "actionability": 1,
+          "quality": 3,
+          "appropriateness": 1,
+          "reasoning": "Agent should have directly produced the PRD as an explainer for a clear problem, but instead asked 9 clarifying questions. This is over-engineering for a standard 2FA implementation. The questions are well-structured but completely inappropriate for the complexity level. No actionable PRD was delivered.",
+          "complexity": "clear"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 4,
+          "quality": 4,
+          "appropriateness": 5,
+          "reasoning": "Perfect role adherence - explains concepts clearly for beginners. High actionability with concrete examples (banking, club access) and specific guidance. Good quality with clear structure and minimal filler, though some sections could be more concise. Perfect appropriateness - directly provides explanation without unnecessary questions for this clear problem.",
+          "complexity": "clear"
+        },
+        {
+          "role_adherence": 2,
+          "actionability": 1,
+          "quality": 3,
+          "appropriateness": 1,
+          "reasoning": "The agent was asked to document API rate limiting but instead asked 7 clarifying questions. For an explainer role on a clear problem, this should have been direct documentation output. The questions show understanding but provide zero immediate value - no documentation was produced. This is classic over-engineering for a standard, well-defined task.",
+          "complexity": "clear"
+        },
+        {
+          "role_adherence": 2,
+          "actionability": 1,
+          "quality": 3,
+          "appropriateness": 1,
+          "reasoning": "Agent failed to fulfill explainer role by asking questions instead of explaining/writing criteria. Provided no usable output - just questions. Writing is clear but doesn't match expected direct output behavior for this clear, standard problem.",
+          "complexity": "clear"
+        }
+      ]
+    }
+  }
+}

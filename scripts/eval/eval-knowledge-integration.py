@@ -5,10 +5,10 @@ Loads SKILL.md + references/ for each skill, runs prompts against the Anthropic 
 scores responses on accuracy/depth/specificity, and compares baseline vs enhanced.
 
 Usage:
-    python3 .agents/planning/eval-knowledge-integration.py
-    python3 .agents/planning/eval-knowledge-integration.py --skill cva-analysis
-    python3 .agents/planning/eval-knowledge-integration.py --prompts-file custom.json
-    python3 .agents/planning/eval-knowledge-integration.py --dry-run
+    python3 scripts/eval/eval-knowledge-integration.py
+    python3 scripts/eval/eval-knowledge-integration.py --skill cva-analysis
+    python3 scripts/eval/eval-knowledge-integration.py --prompts-file custom.json
+    python3 scripts/eval/eval-knowledge-integration.py --dry-run
 """
 
 from __future__ import annotations
@@ -16,51 +16,31 @@ from __future__ import annotations
 import argparse
 import json
 import math
-import os
 import sys
 import time
 from pathlib import Path
 from typing import Any
 
 # ---------------------------------------------------------------------------
-# API key loading
+# API utilities (shared module)
 # ---------------------------------------------------------------------------
 
-def _load_api_key() -> str:
-    """Load ANTHROPIC_API_KEY from environment or .env file. Never prints the key."""
-    key = os.environ.get("ANTHROPIC_API_KEY")
-    if key:
-        return key.strip()
-
-    # Walk up from script location to find .env
-    search = Path(__file__).resolve().parent
-    for _ in range(10):
-        env_path = search / ".env"
-        if env_path.exists():
-            for line in env_path.read_text().splitlines():
-                line = line.strip()
-                if line.startswith("#") or "=" not in line:
-                    continue
-                k, v = line.split("=", 1)
-                if k.strip() == "ANTHROPIC_API_KEY":
-                    v = v.strip()
-                    # Strip matching surrounding quotes (single or double)
-                    if len(v) >= 2 and v[0] == v[-1] and v[0] in ('"', "'"):
-                        v = v[1:-1]
-                    return v
-        search = search.parent
-
-    print("ERROR: ANTHROPIC_API_KEY not found in environment or .env", file=sys.stderr)
-    sys.exit(1)
+from _anthropic_api import call_api as _call_api, load_api_key as _load_api_key, load_custom_prompts
 
 
 # ---------------------------------------------------------------------------
 # Skill context loading
 # ---------------------------------------------------------------------------
 
+RATE_LIMIT_SLEEP_SEC = 1.0  # fixed inter-call delay; no 429 backoff (dev tool)
+
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
 SKILLS_DIR = REPO_ROOT / ".claude" / "skills"
+if not SKILLS_DIR.is_dir():
+    raise RuntimeError(
+        f"SKILLS_DIR miscomputed: {SKILLS_DIR} (is this script still at scripts/eval/?)"
+    )
 
 
 def _get_skill_dir(skill_name: str) -> Path | None:
@@ -79,13 +59,13 @@ def load_skill_context(skill_name: str) -> str:
 
     skill_md = skill_dir / "SKILL.md"
     if skill_md.exists():
-        parts.append(f"# SKILL.md\n\n{skill_md.read_text()}")
+        parts.append(f"# SKILL.md\n\n{skill_md.read_text(encoding='utf-8')}")
 
     refs_dir = skill_dir / "references"
     if refs_dir.is_dir():
         for ref_file in sorted(refs_dir.iterdir()):
             if ref_file.is_file():
-                parts.append(f"# Reference: {ref_file.name}\n\n{ref_file.read_text()}")
+                parts.append(f"# Reference: {ref_file.name}\n\n{ref_file.read_text(encoding='utf-8')}")
 
     return "\n\n---\n\n".join(parts)
 
@@ -168,49 +148,6 @@ PROMPTS: dict[str, list[dict[str, str]]] = {
 }
 
 SKILLS = list(PROMPTS.keys())
-
-
-# ---------------------------------------------------------------------------
-# Anthropic API interaction
-# ---------------------------------------------------------------------------
-
-def _call_api(api_key: str, messages: list[dict], system: str = "", model: str = "claude-sonnet-4-20250514") -> str:
-    """Call the Anthropic Messages API. Returns the assistant text response."""
-    import urllib.error
-    import urllib.request
-
-    body: dict[str, Any] = {
-        "model": model,
-        "max_tokens": 1024,
-        "messages": messages,
-    }
-    if system:
-        body["system"] = system
-
-    data = json.dumps(body).encode()
-    req = urllib.request.Request(
-        "https://api.anthropic.com/v1/messages",
-        data=data,
-        headers={
-            "Content-Type": "application/json",
-            "x-api-key": api_key,
-            "anthropic-version": "2023-06-01",
-        },
-        method="POST",
-    )
-
-    try:
-        with urllib.request.urlopen(req, timeout=120) as resp:
-            result = json.loads(resp.read().decode())
-    except urllib.error.HTTPError as e:
-        error_body = e.read().decode(errors="replace")
-        raise RuntimeError(
-            f"Anthropic API returned {e.code}: {error_body[:500]}"
-        ) from e
-
-    # Extract text from content blocks
-    text_parts = [block["text"] for block in result.get("content", []) if block.get("type") == "text"]
-    return "\n".join(text_parts)
 
 
 def run_prompt(api_key: str, prompt: str, system_context: str = "", model: str = "claude-sonnet-4-20250514") -> str:
@@ -303,6 +240,10 @@ def apply_kill_gate(results: dict[str, Any]) -> dict[str, Any]:
 
     proceed_threshold = max(1, math.ceil(total_skills * 0.8))
     conditional_threshold = max(1, math.ceil(total_skills * 0.6))
+    gate["total_skills"] = total_skills
+    gate["proceed_threshold"] = proceed_threshold
+    gate["conditional_threshold"] = conditional_threshold
+    gate["skills_passing"] = skills_passing
 
     if skills_passing >= proceed_threshold:
         if has_regressions:
@@ -337,10 +278,10 @@ def _avg_scores(score_list: list[dict]) -> dict[str, float]:
 # Main eval runner
 # ---------------------------------------------------------------------------
 
-def run_eval(
+def run_assessment(
     api_key: str,
     skills: list[str],
-    prompts: dict[str, list[dict[str, str]]],
+    prompts: dict[str, list[dict[str, Any]]],
     model: str = "claude-sonnet-4-20250514",
     dry_run: bool = False,
 ) -> dict[str, Any]:
@@ -382,7 +323,7 @@ def run_eval(
             print(f"    Baseline: A={baseline_score.get('accuracy',0)} D={baseline_score.get('depth',0)} S={baseline_score.get('specificity',0)}", file=sys.stderr)
 
             # Rate limit pause
-            time.sleep(1)
+            time.sleep(RATE_LIMIT_SLEEP_SEC)
 
             # Enhanced: with skill context
             system_ctx = f"You are a software engineering expert. Use the following skill knowledge to answer:\n\n{context}"
@@ -391,7 +332,7 @@ def run_eval(
             enhanced_scores.append(enhanced_score)
             print(f"    Enhanced: A={enhanced_score.get('accuracy',0)} D={enhanced_score.get('depth',0)} S={enhanced_score.get('specificity',0)}", file=sys.stderr)
 
-            time.sleep(1)
+            time.sleep(RATE_LIMIT_SLEEP_SEC)
 
         results[skill] = {
             "baseline": baseline_scores,
@@ -400,26 +341,6 @@ def run_eval(
         }
 
     return results
-
-
-def load_custom_prompts(path: str) -> dict[str, list[dict[str, str]]]:
-    """Load prompts from a JSON file.
-
-    Expected format:
-    {
-        "skill-name": [
-            {"prompt": "...", "expected": "..."},
-            ...
-        ]
-    }
-    """
-    with open(path) as f:
-        data = json.load(f)
-
-    # Support both {"prompts": {...}} wrapper and direct dict
-    if "prompts" in data and isinstance(data["prompts"], dict):
-        return data["prompts"]
-    return data
 
 
 def main() -> None:
@@ -435,8 +356,11 @@ def main() -> None:
     if args.dry_run:
         api_key = ""
     else:
-        api_key = _load_api_key()
-        print(f"API key loaded (length: {len(api_key)})", file=sys.stderr)
+        try:
+            api_key = _load_api_key()
+        except RuntimeError as e:
+            print(f"ERROR: {e}", file=sys.stderr)
+            sys.exit(1)
 
     # Determine which skills to eval
     if args.skill:
@@ -465,7 +389,11 @@ def main() -> None:
     if not args.dry_run:
         print(f"Starting eval (est. {api_calls * 2}s with rate limiting)...", file=sys.stderr)
 
-    results = run_eval(api_key, skills, prompts, model=args.model, dry_run=args.dry_run)
+    try:
+        results = run_assessment(api_key, skills, prompts, model=args.model, dry_run=args.dry_run)
+    except RuntimeError as exc:
+        print(f"Error: assessment failed: {exc}", file=sys.stderr)
+        sys.exit(1)
 
     # Apply kill gate
     gate = apply_kill_gate(results)
@@ -492,15 +420,15 @@ def main() -> None:
     json_output = json.dumps(output, indent=2)
 
     if args.output:
-        Path(args.output).write_text(json_output)
+        Path(args.output).write_text(json_output, encoding="utf-8")
         print(f"Results written to {args.output}", file=sys.stderr)
     else:
         print(json_output)
 
-    # Print summary table
-    total_skills = len(skills)
-    proceed_threshold = max(1, math.ceil(total_skills * 0.8))
-    conditional_threshold = max(1, math.ceil(total_skills * 0.6))
+    # Print summary table (thresholds computed once by apply_kill_gate)
+    total_skills = gate.get("total_skills", len(skills))
+    proceed_threshold = gate.get("proceed_threshold", 0)
+    conditional_threshold = gate.get("conditional_threshold", 0)
     print(f"\n{'='*70}", file=sys.stderr)
     print(f"  KILL GATE: {gate['verdict']} ({'PASS' if gate['passed'] else 'FAIL'})", file=sys.stderr)
     print(f"  Criteria: PROCEED={proceed_threshold}/{total_skills} pass (no regression), CONDITIONAL={conditional_threshold}/{total_skills} (or regression downgrades PROCEED), STOP=<{conditional_threshold}", file=sys.stderr)

@@ -1,0 +1,61 @@
+{
+  "assessment_type": "agent-definitions",
+  "model": "claude-sonnet-4-20250514",
+  "agents_assessed": [
+    "critic"
+  ],
+  "total_prompts": 4,
+  "dimensions": [
+    "role_adherence",
+    "actionability",
+    "quality",
+    "appropriateness"
+  ],
+  "results": {
+    "critic": {
+      "context_chars": 5467,
+      "model": "sonnet",
+      "avg_scores": {
+        "role_adherence": 2.75,
+        "actionability": 3.0,
+        "quality": 3.25,
+        "appropriateness": 2.25
+      },
+      "overall": 2.81,
+      "detail": [
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 5,
+          "appropriateness": 5,
+          "reasoning": "Perfect critic role execution - delivers harsh but fair verdict with structured analysis. Highly actionable with specific fixes, clear approval conditions, and concrete recommendations. Excellent quality with data-driven scoring, no hedging, active voice. Appropriately matches complexity with expert analysis, identifies all expected issues plus additional ones, provides defensible assessment without asking unnecessary questions.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 2,
+          "actionability": 2,
+          "quality": 3,
+          "appropriateness": 1,
+          "reasoning": "Agent failed to perform expected critic role by refusing to analyze the provided plan and instead demanding more documentation. For a 'complicated' problem, it should have provided expert analysis identifying the missing elements (cleanup strategy, monitoring, success metrics, kill criteria) rather than blocking on documentation format. The response shows some structure but misses the core task of critiquing what was actually presented.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 2,
+          "actionability": 2,
+          "quality": 3,
+          "appropriateness": 2,
+          "reasoning": "Agent correctly identifies as critic but fails to provide the expected expert analysis. Instead of delivering the pre-mortem critique with specific technical concerns (missing characterization tests, API contracts, token handling), it requests more documentation. The response does flag some red flags but lacks the domain expertise depth expected for 'complicated' complexity. Quality is adequate but actionability is low due to the conditional nature of the critique.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 2,
+          "actionability": 3,
+          "quality": 2,
+          "appropriateness": 1,
+          "reasoning": "Agent failed to provide expert analysis despite having sufficient information to critique the proposal. Instead of analyzing the obvious scope/timeline mismatch and missing elements (log schema, correlation IDs, etc.), it demanded more documentation. The response included unnecessary filesystem searches and hedging language. For a 'complicated' problem, it should have provided expert analysis while flagging assumptions, not blocked on missing documents.",
+          "complexity": "complicated"
+        }
+      ]
+    }
+  }
+}

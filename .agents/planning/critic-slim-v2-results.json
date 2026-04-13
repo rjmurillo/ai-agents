@@ -1,0 +1,61 @@
+{
+  "assessment_type": "agent-definitions",
+  "model": "claude-sonnet-4-20250514",
+  "agents_assessed": [
+    "critic"
+  ],
+  "total_prompts": 4,
+  "dimensions": [
+    "role_adherence",
+    "actionability",
+    "quality",
+    "appropriateness"
+  ],
+  "results": {
+    "critic": {
+      "context_chars": 5926,
+      "model": "sonnet",
+      "avg_scores": {
+        "role_adherence": 4.25,
+        "actionability": 4.25,
+        "quality": 4.5,
+        "appropriateness": 4.0
+      },
+      "overall": 4.25,
+      "detail": [
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 5,
+          "appropriateness": 5,
+          "reasoning": "Perfect critic role execution: decisively blocked the plan with HIGH confidence, identified all major gaps from the expected output (rollback, validation, query compatibility, performance testing) plus additional expert insights. Provided concrete, actionable fixes for each issue. Writing is crisp and direct without hedging. Matches complicated complexity perfectly with expert analysis while flagging key assumptions and trade-offs without unnecessary questions.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 5,
+          "appropriateness": 5,
+          "reasoning": "Perfect critic response: stays in role with clear BLOCKED verdict, provides specific actionable findings with concrete approval conditions, uses clean professional language without hedging, and delivers expert analysis appropriate for complicated problem complexity by identifying key gaps and trade-offs without over-questioning.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 2,
+          "actionability": 2,
+          "quality": 3,
+          "appropriateness": 1,
+          "reasoning": "The agent failed to match the complexity level - this is a 'complicated' problem requiring expert analysis with defensible answers, but the agent treated it like a 'complex' problem by demanding more information instead of providing expert critique. While it identified some valid concerns (no tests, tight timeline), it should have delivered a comprehensive pre-mortem analysis rather than asking for more documentation. The response has decent structure but lacks the actionable specificity expected from a critic role.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 5,
+          "appropriateness": 5,
+          "reasoning": "Perfect critic role execution. Provided expert analysis with structured critique, specific scores, concrete blocking conditions, and actionable recommendations. Identified all key issues (timeline/scope mismatch, missing schema standardization, correlation IDs, backward compatibility, rollback strategy) while maintaining professional critic tone. Matched complicated complexity with domain expertise and clear trade-off analysis.",
+          "complexity": "complicated"
+        }
+      ]
+    }
+  }
+}

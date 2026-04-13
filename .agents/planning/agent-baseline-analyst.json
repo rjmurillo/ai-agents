@@ -1,0 +1,51 @@
+{
+  "assessment_type": "agent-definitions",
+  "model": "claude-sonnet-4-20250514",
+  "agents_assessed": [
+    "analyst"
+  ],
+  "total_prompts": 4,
+  "dimensions": [
+    "role_adherence",
+    "actionability",
+    "quality"
+  ],
+  "results": {
+    "analyst": {
+      "context_chars": 17295,
+      "model": "sonnet",
+      "avg_scores": {
+        "role_adherence": 4.25,
+        "actionability": 3.5,
+        "quality": 3.25
+      },
+      "overall": 3.67,
+      "detail": [
+        {
+          "role_adherence": 4,
+          "actionability": 3,
+          "quality": 3,
+          "reasoning": "Strong analyst behavior with systematic investigation and structured analysis document. However, used many bash commands that couldn't execute properly, reducing actionability. Writing is mostly clear but contains some hedging language and incomplete sections."
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 4,
+          "quality": 4,
+          "reasoning": "Perfect analyst role - systematically researched codebase, gathered evidence, used proper tools. High actionability with specific findings (no polling detected, .NET 8 stack, file analysis). Quality strong with data-driven approach and structured analysis, though response was cut off mid-sentence."
+        },
+        {
+          "role_adherence": 4,
+          "actionability": 4,
+          "quality": 3,
+          "reasoning": "Strong analyst role adherence with systematic investigation, proper cache consistency analysis, and distinction between root cause vs symptoms. High actionability with specific Redis pub/sub recommendations, priority matrix, and concrete implementation steps. Quality reduced by some verbose sections and minor hedging language, but overall follows analytical structure well."
+        },
+        {
+          "role_adherence": 4,
+          "actionability": 3,
+          "quality": 3,
+          "reasoning": "Strong analyst behavior with systematic investigation and research methodology. Creates concrete deliverables (analysis documents, cost structures) but gets cut off mid-sentence. Uses some unnecessary hedging language and could be more direct in recommendations."
+        }
+      ]
+    }
+  }
+}

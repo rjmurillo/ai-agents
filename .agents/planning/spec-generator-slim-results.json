@@ -1,0 +1,61 @@
+{
+  "assessment_type": "agent-definitions",
+  "model": "claude-sonnet-4-20250514",
+  "agents_assessed": [
+    "spec-generator"
+  ],
+  "total_prompts": 4,
+  "dimensions": [
+    "role_adherence",
+    "actionability",
+    "quality",
+    "appropriateness"
+  ],
+  "results": {
+    "spec-generator": {
+      "context_chars": 5821,
+      "model": "sonnet",
+      "avg_scores": {
+        "role_adherence": 5.0,
+        "actionability": 4.25,
+        "quality": 4.75,
+        "appropriateness": 4.5
+      },
+      "overall": 4.62,
+      "detail": [
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 4,
+          "appropriateness": 3,
+          "reasoning": "Agent correctly stayed in spec-generator role and produced highly actionable EARS requirements, design components, and file structure. Quality is strong with concrete acceptance criteria and technical details. However, appropriateness is reduced because for 'complicated' complexity, the expected pattern was to ask clarifying questions first (email vs SMS, token expiry, rate limiting) then produce output. Agent jumped directly to implementation with assumptions rather than surfacing key trade-offs upfront.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 4,
+          "quality": 5,
+          "appropriateness": 5,
+          "reasoning": "Perfect role adherence - agent acts as spec-generator by identifying what needs to be clarified before writing specs. High actionability with specific, targeted questions that directly inform technical decisions. Excellent quality with clear, concise writing and no AI filler. Perfectly appropriate for complex problem - correctly identifies this as having multiple unknowns and asks high-leverage clarifying questions before committing to a direction.",
+          "complexity": "complex"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 4,
+          "quality": 5,
+          "appropriateness": 5,
+          "reasoning": "Perfect spec-generator behavior: pushed back on vague requirements, asked high-leverage clarifying questions about performance metrics, scope, and success criteria. Questions are concrete and actionable. Writing is direct with no AI filler. Correctly identified this as complex problem requiring exploration before specification.",
+          "complexity": "complex"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 4,
+          "quality": 5,
+          "appropriateness": 5,
+          "reasoning": "Agent correctly stayed in spec-generator role by asking clarifying questions before writing specs. Questions are concrete and actionable, targeting specific technical decisions needed. Writing is clear and direct without hedging. Perfect appropriateness - correctly identified this as complex problem requiring exploration of unknowns before committing to direction.",
+          "complexity": "complex"
+        }
+      ]
+    }
+  }
+}
