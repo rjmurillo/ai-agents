@@ -80,10 +80,9 @@ Discover the ADR destination, naming convention, numbering, and template by insp
 Search for existing ADRs in common locations (in priority order):
 
 1. `.agents/architecture/` (this project's canonical location)
-2. `docs/adr/`, `docs/architecture/`, `docs/decisions/`
-3. `architecture/decisions/`, `adr/`
+2. `docs/architecture/`
 
-Use the first directory that contains existing `ADR-*.md` or `adr-*.md` files. If the user specifies a location, use that instead.
+These two directories are monitored by the `adr-review` skill for auto-triggered review. Other locations (`docs/adr/`, `docs/decisions/`, `architecture/decisions/`) are also supported but require manual `adr-review` invocation.
 
 #### Step 2: Detect template from existing ADRs
 
@@ -91,7 +90,8 @@ If the directory contains existing ADRs:
 
 - Read 2-3 existing ADRs to infer the template in use (section headings, frontmatter style, naming convention, case convention)
 - Match against known templates in the [ADR templates catalog](references/adr-templates-catalog.md)
-- Adopt the detected template, naming convention (e.g., `ADR-NNN-slug.md` vs `adr-NNN-slug.md`), and section structure
+- Adopt the detected template, naming convention (e.g., `ADR-NNN-slug.md` vs `0NNN-slug.md`), and section structure
+- Note: `adr-review` auto-triggers only match uppercase `ADR-*.md` patterns. If existing ADRs use lowercase, warn the user that auto-review will not trigger
 - Check for a template file (e.g., `ADR-TEMPLATE.md`, `template.md`) in the same directory or a parent
 
 #### Step 3: Handle no existing ADRs

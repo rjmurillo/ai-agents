@@ -1,6 +1,6 @@
 # ADR Templates Catalog
 
-Reference catalog of well-known ADR template formats. Choose a template based on the decision's complexity and team needs. This project's [canonical template](../../.agents/architecture/ADR-TEMPLATE.md) is the default.
+Reference catalog of well-known ADR template formats. Choose a template based on the decision's complexity and team needs. This project's canonical template (`.agents/architecture/ADR-TEMPLATE.md`) is the default.
 
 ## Template Comparison
 

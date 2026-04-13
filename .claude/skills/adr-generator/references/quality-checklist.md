@@ -7,7 +7,7 @@ Self-validation checklist for Phase G4. All items must pass before saving the AD
 - [ ] All required sections present (Status, Date, Context, Decision, Rationale, Consequences)
 - [ ] ADR number is unique (no collision with existing files in `.agents/architecture/`)
 - [ ] Title is descriptive and kebab-slug matches filename
-- [ ] File follows naming convention: `ADR-NNN-title-slug.md`
+- [ ] File follows naming convention detected in Phase G2 (e.g., `ADR-NNN-title-slug.md` or `0NNN-title-slug.md`)
 - [ ] Status is `Proposed` (not `Accepted` — that requires `adr-review`)
 - [ ] Date is in YYYY-MM-DD format
 
