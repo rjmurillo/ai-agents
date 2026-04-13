@@ -52,7 +52,10 @@ RATE_LIMIT_SLEEP_SEC = 1.0  # fixed inter-call delay; no 429 backoff (dev tool)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 AGENTS_DIR = REPO_ROOT / ".claude" / "agents"
-assert AGENTS_DIR.is_dir(), f"AGENTS_DIR miscomputed: {AGENTS_DIR} (is this script still at scripts/eval/?)"
+if not AGENTS_DIR.is_dir():
+    raise RuntimeError(
+        f"AGENTS_DIR miscomputed: {AGENTS_DIR} (is this script still at scripts/eval/?)"
+    )
 
 
 def list_agents() -> list[str]:
@@ -681,7 +684,7 @@ def _avg_scores(score_list: list[dict]) -> dict[str, float]:
 def run_assessment(
     api_key: str,
     agents: list[str],
-    prompts: dict[str, list[dict[str, str]]],
+    prompts: dict[str, list[dict[str, Any]]],
     model: str = "claude-sonnet-4-20250514",
     dry_run: bool = False,
 ) -> dict[str, Any]:

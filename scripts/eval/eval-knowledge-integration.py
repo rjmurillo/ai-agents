@@ -37,7 +37,10 @@ RATE_LIMIT_SLEEP_SEC = 1.0  # fixed inter-call delay; no 429 backoff (dev tool)
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
 SKILLS_DIR = REPO_ROOT / ".claude" / "skills"
-assert SKILLS_DIR.is_dir(), f"SKILLS_DIR miscomputed: {SKILLS_DIR} (is this script still at scripts/eval/?)"
+if not SKILLS_DIR.is_dir():
+    raise RuntimeError(
+        f"SKILLS_DIR miscomputed: {SKILLS_DIR} (is this script still at scripts/eval/?)"
+    )
 
 
 def _get_skill_dir(skill_name: str) -> Path | None:
@@ -278,7 +281,7 @@ def _avg_scores(score_list: list[dict]) -> dict[str, float]:
 def run_assessment(
     api_key: str,
     skills: list[str],
-    prompts: dict[str, list[dict[str, str]]],
+    prompts: dict[str, list[dict[str, Any]]],
     model: str = "claude-sonnet-4-20250514",
     dry_run: bool = False,
 ) -> dict[str, Any]:
