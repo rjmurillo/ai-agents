@@ -17,7 +17,7 @@ The strategic reframe (per Richard, 2026-04-12): the "working team" already exis
 
 Four-stage ladder:
 
-1. **Stage 1 (this plan):** Claude version. `npx @rjmurillo/ai-agents init` vendors a curated `.claude/` kit into a target repo. Works with Claude Code immediately. Days.
+1. **Stage 1 (this plan):** Claude version. `npx @rjmurillo/ai-agents init` vendors the full `.claude/` tree (minus github skill, hooks, lib, settings.json per Eng phase exclusions) into a target repo. Works with Claude Code immediately. Days.
 2. Stage 2: Copilot infrastructure. Translator `.claude/*` → Copilot format. Weeks.
 3. Stage 3: Squad-compete Copilot version. Includes `--from squad` importer. Weeks.
 4. Stage 4: Evangelize. Blog, HN, Squad community outreach, benchmarks. Ongoing.
