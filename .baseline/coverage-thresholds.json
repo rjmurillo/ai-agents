@@ -1,0 +1,5 @@
+{
+  "$schema": "./coverage-thresholds.schema.json",
+  "description": "Code coverage thresholds for regression detection. Add new test files with their minimum acceptable coverage percentage.",
+  "thresholds": {}
+}

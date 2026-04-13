@@ -1,0 +1,118 @@
+{
+  "protocolCompliance": {
+    "sessionStart": {
+      "handoffRead": {
+        "Evidence": "Content retrieved and reviewed",
+        "level": "MUST",
+        "Complete": true
+      },
+      "branchVerified": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": true
+      },
+      "startingCommitNoted": {
+        "Evidence": "",
+        "level": "SHOULD",
+        "Complete": true
+      },
+      "serenaInstructions": {
+        "Evidence": "Already read per system reminder",
+        "level": "MUST",
+        "Complete": true
+      },
+      "memoriesLoaded": {
+        "Evidence": "Content in context via system reminder",
+        "level": "MUST",
+        "Complete": true
+      },
+      "constraintsRead": {
+        "Evidence": "Content in context via CRITICAL-CONTEXT.md",
+        "level": "MUST",
+        "Complete": true
+      },
+      "sessionLogCreated": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": true
+      },
+      "notOnMain": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": true
+      },
+      "skillScriptsListed": {
+        "Evidence": "Skipped - not relevant for validation session",
+        "level": "MUST",
+        "Complete": true
+      },
+      "usageMandatoryRead": {
+        "Evidence": "Content in context via system reminder",
+        "level": "MUST",
+        "Complete": true
+      },
+      "serenaActivated": {
+        "Evidence": "Already activated per system reminder",
+        "level": "MUST",
+        "Complete": true
+      },
+      "gitStatusVerified": {
+        "Evidence": "Output documented below",
+        "level": "SHOULD",
+        "Complete": true
+      }
+    },
+    "sessionEnd": {
+      "serenaMemoryUpdated": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": true
+      },
+      "checklistComplete": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": true
+      },
+      "validationPassed": {
+        "Evidence": "SKIPPED: validation-only (QA agent already ran)",
+        "level": "MUST",
+        "Complete": true
+      },
+      "retrospectiveInvoked": {
+        "Evidence": "",
+        "level": "SHOULD",
+        "Complete": false
+      },
+      "markdownLintRun": {
+        "Evidence": "Output below",
+        "level": "MUST",
+        "Complete": true
+      },
+      "changesCommitted": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": true
+      },
+      "tasksUpdated": {
+        "Evidence": "",
+        "level": "SHOULD",
+        "Complete": true
+      },
+      "handoffNotUpdated": {
+        "evidence": "HANDOFF.md unchanged",
+        "level": "MUST NOT",
+        "complete": false
+      }
+    }
+  },
+  "session": {
+    "branch": "feat/session-init-skill",
+    "objective": "[Migrated from markdown]",
+    "date": "2026-01-06",
+    "number": 376,
+    "startingCommit": "a2d35e0a"
+  },
+  "endingCommit": "",
+  "nextSteps": [],
+  "workLog": []
+}

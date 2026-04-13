@@ -1,0 +1,61 @@
+{
+  "assessment_type": "agent-definitions",
+  "model": "claude-sonnet-4-20250514",
+  "agents_assessed": [
+    "context-retrieval"
+  ],
+  "total_prompts": 4,
+  "dimensions": [
+    "role_adherence",
+    "actionability",
+    "quality",
+    "appropriateness"
+  ],
+  "results": {
+    "context-retrieval": {
+      "context_chars": 5046,
+      "model": "haiku",
+      "avg_scores": {
+        "role_adherence": 4.75,
+        "actionability": 4.0,
+        "quality": 4.25,
+        "appropriateness": 4.75
+      },
+      "overall": 4.44,
+      "detail": [
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 5,
+          "appropriateness": 5,
+          "reasoning": "Perfect context-retrieval execution. Agent systematically searched all expected sources (memories, semantic search, Context7), retrieved concrete artifacts with specific file names and PRs, surfaced key constraints and prior decisions, and flagged assumptions/gaps. Output is immediately actionable with specific recommendations while appropriately surfacing trade-offs for this complicated-level problem.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 4,
+          "actionability": 3,
+          "quality": 4,
+          "appropriateness": 4,
+          "reasoning": "Agent correctly focused on context retrieval using multiple search tools and memory systems. Provided specific next steps (git log, git diff, check README/comments) but lacked concrete outputs like actual git commands or file paths. Good structure and clear writing without AI filler. Appropriately handled the complexity by analyzing what was found/missing and flagging assumptions, though could have been more systematic about checking expected sources like HANDOFF.md.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 4,
+          "quality": 4,
+          "appropriateness": 5,
+          "reasoning": "Perfect role adherence - systematically gathered context from memories, code search, and documentation as expected. Highly actionable with specific search patterns, file globs, and concrete gaps identified. Good quality with structured output and minimal hedging. Appropriate expert analysis that surfaced key assumptions (greenfield project) and provided defensible recommendations based on findings.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 4,
+          "quality": 4,
+          "appropriateness": 5,
+          "reasoning": "Agent correctly performed context-retrieval role by systematically searching multiple sources (Serena memories, session logs, ADRs). Provided concrete search results with timestamps and source attribution as required. Clearly flagged that nothing was found. Response demonstrates expert analysis by considering multiple search strategies and providing actionable recommendation with appropriate confidence flagging for this complexity level.",
+          "complexity": "complicated"
+        }
+      ]
+    }
+  }
+}

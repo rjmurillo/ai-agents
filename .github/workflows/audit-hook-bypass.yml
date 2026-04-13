@@ -1,0 +1,78 @@
+# Audit Hook Bypass Detection
+#
+# CI backstop that detects commits likely made with --no-verify.
+# Analyzes PR commits for indicators that pre-commit hooks were bypassed.
+# Non-blocking: reports findings for audit trail, does not block merge.
+#
+# Detection heuristics:
+#   - Commits modifying .agents/ without session log
+#   - HANDOFF.md modifications on feature branches
+#   - Bash scripts added under .github/scripts/ (ADR-042)
+#
+# Related: Issue #664 (--no-verify bypass logging)
+# Related: .githooks/pre-commit (local enforcement)
+
+name: Audit Hook Bypass
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  detect-bypass:
+    name: Detect Hook Bypass
+    # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.14"
+
+      - name: Run bypass detection
+        id: detect
+        run: |
+          python3 scripts/detect_hook_bypass.py \
+            --base-ref origin/main \
+            --output artifacts/hook-bypass-audit.json \
+            || true
+
+          if [ -f artifacts/hook-bypass-audit.json ]; then
+            count=$(python3 -c "
+          import json
+          with open('artifacts/hook-bypass-audit.json') as f:
+              data = json.load(f)
+          print(len(data.get('bypass_indicators', [])))
+          ")
+            echo "indicator_count=$count" >> "$GITHUB_OUTPUT"
+          else
+            echo "indicator_count=0" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Report findings
+        if: steps.detect.outputs.indicator_count != '0'
+        run: |
+          echo "::warning::Hook bypass indicators detected. See audit report."
+          python3 scripts/detect_hook_bypass.py --base-ref origin/main || true
+
+      - name: Upload audit report
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: hook-bypass-audit
+          path: artifacts/hook-bypass-audit.json
+          retention-days: 90

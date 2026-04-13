@@ -1,0 +1,316 @@
+# CodeQL Analysis
+#
+# Performs static security analysis using CodeQL for PowerShell, Python,
+# and GitHub Actions workflows. Uses GitHub's native CodeQL action for
+# optimal performance and integrates with the GitHub Security tab via SARIF.
+#
+# IMPORTANT: This workflow runs on ALL PRs to satisfy required status checks,
+# but skips actual analysis when no scannable files are changed.
+#
+# Scannable paths are defined ONCE in the check-paths job filters block.
+# See the 'scannable' filter for the authoritative list.
+#
+# Local developers and AI agents can run equivalent scans using:
+#   python3 .codeql/scripts/invoke_codeql_scan.py
+#   python3 .codeql/scripts/test_codeql_config.py
+#
+# Configuration: Uses shared config at .github/codeql/codeql-config.yml
+# Query packs: security-extended for PowerShell, Actions, and Python
+# Severity filtering: Medium+ (excludes low severity and recommendations)
+
+name: CodeQL Analysis
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  schedule:
+    # Weekly scan on Monday at 9 AM UTC
+    - cron: '0 9 * * 1'
+  workflow_dispatch: # Allow manual triggering
+
+# Concurrency control: Cancels in-progress runs when new runs start
+# NOTE: GitHub Actions does NOT guarantee run coalescing - race conditions can occur
+# See ADR-026 for architectural decision on workflow-level concurrency control
+concurrency:
+  group: codeql-analysis-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check-paths:
+    name: Check Changed Paths
+    # ADR-055: ARM runner for cost optimization (37.5% savings vs x64)
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+    outputs:
+      # For workflow_dispatch or schedule, always run analysis; otherwise use paths-filter result
+      # Parentheses added for explicit operator precedence (&&  has higher precedence than ||)
+      should-run-analysis: ${{ (github.event_name == 'workflow_dispatch' && 'true') || (github.event_name == 'schedule' && 'true') || steps.filter.outputs.scannable }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Check for scannable file changes
+        uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4
+        id: filter
+        # Skip paths-filter for workflow_dispatch/schedule as they may not have proper context
+        if: github.event_name != 'workflow_dispatch' && github.event_name != 'schedule'
+        with:
+          # SINGLE SOURCE OF TRUTH: All scannable paths defined here only
+          # Categories:
+          #   - scripts/**              : PowerShell installation scripts
+          #   - build/**                : Build automation
+          #   - .github/workflows/**    : GitHub Actions workflows
+          #   - .github/actions/**      : Composite actions
+          #   - .github/scripts/**      : GitHub Actions helpers
+          #   - .claude/skills/**       : Claude skills
+          #   - .github/codeql/**       : CodeQL configuration
+          #   - .codeql/**              : CodeQL scripts and databases
+          #   - **/*.py                 : Python files
+          filters: |
+            scannable:
+              - 'scripts/**'
+              - 'build/**'
+              - '.github/workflows/**'
+              - '.github/actions/**'
+              - '.github/scripts/**'
+              - '.claude/skills/**'
+              - '.github/codeql/**'
+              - '.codeql/**'
+              - '**/*.py'
+
+      - name: Report path check result
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "Manual trigger - running full analysis"
+          elif [ "${{ github.event_name }}" = "schedule" ]; then
+            echo "Scheduled trigger - running full analysis"
+          else
+            echo "Scannable files changed: ${{ steps.filter.outputs.scannable }}"
+          fi
+
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    needs: check-paths
+    # CodeQL CLI does not provide ARM64 Linux binaries, must use x64
+    # IMPORTANT: This job ALWAYS runs to satisfy required status checks,
+    # but short-circuits steps when no scannable files are changed.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      security-events: write  # Required for SARIF upload to GitHub Security tab
+      actions: read           # Required for CodeQL action
+      contents: read          # Required for checkout
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Note: PowerShell is not a supported CodeQL language
+          - language: actions
+            build-mode: none
+          - language: python
+            build-mode: none
+
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Skip analysis (no scannable files changed)
+        if: needs.check-paths.outputs.should-run-analysis != 'true'
+        run: |
+          echo "No scannable files changed - skipping CodeQL analysis for ${{ matrix.language }}"
+          echo "Job runs unconditionally to satisfy required status check."
+          echo "See the 'scannable' filter in check-paths job for paths that trigger analysis."
+
+      - name: Initialize CodeQL
+        if: needs.check-paths.outputs.should-run-analysis == 'true'
+        uses: github/codeql-action/init@c10b8064de6f491fea524254123dbe5e09572f13 # v4
+        with:
+          languages: ${{ matrix.language }}
+          config-file: .github/codeql/codeql-config.yml
+          build-mode: ${{ matrix.build-mode }}
+
+      - name: Perform CodeQL Analysis
+        if: needs.check-paths.outputs.should-run-analysis == 'true'
+        uses: github/codeql-action/analyze@c10b8064de6f491fea524254123dbe5e09572f13 # v4
+        with:
+          category: '/language:${{ matrix.language }}'
+          upload: true
+          output: .codeql/results/${{ matrix.language }}.sarif
+
+      - name: Upload SARIF artifact
+        if: always() && needs.check-paths.outputs.should-run-analysis == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: codeql-results-${{ matrix.language }}
+          path: .codeql/results/${{ matrix.language }}.sarif
+          # Optimized retention per .agents/devops/artifact-retention-policy.md
+          retention-days: 7
+
+  skip-analysis:
+    name: Skip CodeQL Analysis (No Changes)
+    needs: check-paths
+    if: needs.check-paths.outputs.should-run-analysis != 'true'
+    # ADR-055: ARM runner for cost optimization
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+      checks: write
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Skip analysis (no scannable files changed)
+        run: |
+          echo "No scannable files changed - skipping CodeQL analysis"
+          echo ""
+          echo "See the 'scannable' filter in check-paths job for paths that trigger analysis."
+          echo "Reference: .github/workflows/codeql-analysis.yml"
+
+      - name: Create empty analysis result for required check
+        shell: python3 {0}
+        run: |
+          import sys
+          import os
+          sys.path.insert(0, os.getcwd())
+          from scripts.test_result_helpers.helpers import create_skipped_test_result
+
+          create_skipped_test_result(
+              output_path="./artifacts/codeql-results.xml",
+              test_suite_name="CodeQL Analysis (Skipped)",
+              skip_reason="No scannable files changed - analysis skipped"
+          )
+
+      - name: Publish Analysis Report (skipped)
+        uses: dorny/test-reporter@a43b3a5f7366b97d083190328d2c652e1a8b6aa2 # v3
+        if: always()
+        with:
+          name: CodeQL Analysis Report
+          path: ./artifacts/codeql-results.xml
+          reporter: java-junit
+          fail-on-error: false
+
+  check-blocking-issues:
+    name: Check for Blocking Issues
+    needs: [check-paths, analyze]
+    if: always() && needs.check-paths.outputs.should-run-analysis == 'true'
+    # ADR-055: ARM runner for cost optimization
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+      security-events: read
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Download all SARIF artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          pattern: codeql-results-*
+          path: ./sarif-results
+          merge-multiple: true
+
+      - name: Check for critical findings
+        shell: pwsh
+        run: |
+          $sarifFiles = Get-ChildItem -Path "./sarif-results" -Filter "*.sarif" -Recurse -ErrorAction SilentlyContinue
+
+          if (-not $sarifFiles) {
+            Write-Host "No SARIF files found - analysis may have failed"
+            exit 0
+          }
+
+          $criticalCount = 0
+          $highCount = 0
+          $totalFindings = 0
+
+          foreach ($file in $sarifFiles) {
+            Write-Host "Analyzing: $($file.Name)"
+            $sarif = Get-Content $file.FullName -Raw | ConvertFrom-Json
+
+            foreach ($run in $sarif.runs) {
+              foreach ($result in $run.results) {
+                $totalFindings++
+                $level = $result.level
+
+                # Map CodeQL levels to severity
+                # error = critical/high, warning = medium, note = low
+                switch ($level) {
+                  "error" {
+                    # Check rule metadata for actual severity
+                    $ruleId = $result.ruleId
+                    $rule = $run.tool.driver.rules | Where-Object { $_.id -eq $ruleId }
+
+                    if ($rule.properties.'security-severity' -ge 9.0) {
+                      $criticalCount++
+                      Write-Host "  CRITICAL: $ruleId - $($result.message.text)" -ForegroundColor Red
+                    } elseif ($rule.properties.'security-severity' -ge 7.0) {
+                      $highCount++
+                      Write-Host "  HIGH: $ruleId - $($result.message.text)" -ForegroundColor Yellow
+                    } else {
+                      $highCount++
+                      Write-Host "  HIGH: $ruleId - $($result.message.text)" -ForegroundColor Yellow
+                    }
+                  }
+                  "warning" {
+                    Write-Host "  MEDIUM: $($result.ruleId) - $($result.message.text)" -ForegroundColor Gray
+                  }
+                }
+              }
+            }
+          }
+
+          # Generate summary
+          $summary = @"
+          ## CodeQL Analysis Summary
+
+          | Severity | Count |
+          |----------|-------|
+          | Critical | $criticalCount |
+          | High | $highCount |
+          | **Total** | **$totalFindings** |
+
+          "@
+
+          if ($criticalCount -gt 0) {
+            $summary += "`n> [!CAUTION]`n> Critical security findings detected! Merge blocked.`n"
+          } elseif ($highCount -gt 0) {
+            $summary += "`n> [!WARNING]`n> High severity findings detected. Review before merging.`n"
+          } else {
+            $summary += "`n> [!TIP]`n> No critical or high severity findings.`n"
+          }
+
+          $summary | Add-Content $env:GITHUB_STEP_SUMMARY
+
+          # Block on critical findings only
+          if ($criticalCount -gt 0) {
+            Write-Error "CodeQL analysis detected $criticalCount critical security findings. Merge blocked."
+            exit 1
+          }
+
+          Write-Host ""
+          Write-Host "CodeQL analysis complete: $totalFindings findings ($criticalCount critical, $highCount high)"

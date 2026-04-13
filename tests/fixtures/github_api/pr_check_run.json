@@ -1,0 +1,14 @@
+{
+  "_description": "Canonical GitHub REST API check run shape (GET /repos/{owner}/{repo}/commits/{ref}/check-runs). Used for mock fidelity validation.",
+  "id": 5001,
+  "name": "CI / build",
+  "status": "completed",
+  "conclusion": "success",
+  "started_at": "2025-01-01T10:00:00Z",
+  "completed_at": "2025-01-01T10:05:00Z",
+  "html_url": "https://github.com/owner/repo/runs/5001",
+  "output": {
+    "title": "Build succeeded",
+    "summary": "All checks passed"
+  }
+}

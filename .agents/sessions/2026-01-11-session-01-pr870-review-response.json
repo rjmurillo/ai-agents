@@ -1,0 +1,173 @@
+{
+  "session": {
+    "number": 1,
+    "date": "2026-01-11",
+    "branch": "copilot/document-exit-codes-scripts",
+    "startingCommit": "3ba94ae",
+    "objective": "Address 2 unresolved review threads on PR #870 (exit code documentation)",
+    "pr": 870
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Called mcp__serena__activate_project"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Called mcp__serena__initial_instructions"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Read .agents/HANDOFF.md: 'Activated Serena project, Read HANDOFF.md and usage-mandatory memory'"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Created session log documenting objectives, context, and actions"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Read usage-mandatory memory via mcp__serena__read_memory"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Read CRITICAL-CONTEXT.md via CLAUDE.md auto-import"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "git branch --show-current: copilot/document-exit-codes-scripts"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Branch is copilot/document-exit-codes-scripts, not main"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Used .claude/skills/github/ scripts: Get-PRContext.ps1, Test-PRMerged.ps1, etc."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Read usage-mandatory memory at session start"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "complete": true,
+        "evidence": "Verified clean working tree before operations"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "complete": true,
+        "evidence": "Starting commit: 3ba94ae documented"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "All tasks completed: both review threads addressed and resolved"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Called mcp__serena__write_memory with memory_file_name: pr870-review-response-learnings"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "npx markdownlint-cli2 --fix: 0 errors, 185 files"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Commits 9eb9daa (fix) and de5eea2 (session log) pushed to origin"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Markdown linting passed with 0 errors"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "complete": true,
+        "evidence": "TodoWrite tracked 6 tasks through completion"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "complete": false,
+        "evidence": ""
+      },
+      "handoffNotUpdated": {
+        "level": "MUST NOT",
+        "complete": false,
+        "evidence": "HANDOFF.md not modified (read-only per ADR-014)"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Verified PR #870 not merged",
+      "outcome": "Test-PRMerged.ps1 confirmed OPEN state, safe to proceed"
+    },
+    {
+      "action": "Retrieved comprehensive PR status",
+      "outcome": "Found 2 unresolved threads (PRRT_kwDOQoWRls5o3y89, PRRT_kwDOQoWRls5o3z6a), 4 CI checks passing"
+    },
+    {
+      "action": "Verified Thread 1 fix in Test-RateLimitForWorkflow.ps1",
+      "outcome": "Confirmed .NOTES correctly placed before .OUTPUTS per commits eb04e93, 3ba94ae"
+    },
+    {
+      "action": "Read Get-PullRequests.ps1 to analyze exit codes",
+      "outcome": "Identified script uses exit codes 3 (API error) and 4 (auth error) but only documents code 0"
+    },
+    {
+      "action": "Fixed Get-PullRequests.ps1 documentation",
+      "outcome": "Restored exit codes 3 and 4 to .NOTES section per ADR-035"
+    },
+    {
+      "action": "Posted reply to Thread 2",
+      "outcome": "Reply comment #2680117763 acknowledging reviewer feedback with fix details"
+    },
+    {
+      "action": "Resolved both review threads",
+      "outcome": "Resolve-PRReviewThread.ps1: PRRT_kwDOQoWRls5o3y89 and PRRT_kwDOQoWRls5o3z6a resolved via GraphQL"
+    },
+    {
+      "action": "Committed and pushed changes",
+      "outcome": "Commit 9eb9daa (fix) and de5eea2 (session log) pushed to origin/copilot/document-exit-codes-scripts"
+    }
+  ],
+  "endingCommit": "de5eea2",
+  "nextSteps": [
+    "Monitor CI checks completion (11 checks in progress)",
+    "PR ready for merge once all checks pass"
+  ],
+  "decisions": [
+    {
+      "decision": "Fix Thread 2 by restoring error exit codes documentation",
+      "rationale": "ChatGPT reviewer correctly identified incomplete documentation - script uses codes 3 and 4 but only documented 0",
+      "outcome": "Documentation now matches actual script behavior per ADR-035"
+    },
+    {
+      "decision": "Verify Thread 1 fix before resolving",
+      "rationale": "Copilot SWE agent claimed fix was applied, needed verification before resolution",
+      "outcome": "Confirmed fix correct: .NOTES before .OUTPUTS, redundant text removed"
+    }
+  ],
+  "learnings": [
+    "ChatGPT reviewer correctly identified incomplete exit code documentation that other reviewers missed",
+    "PowerShell help structure validation was already fixed by Copilot SWE agent in earlier commits",
+    "Thread resolution requires explicit GraphQL mutation after replying - replies don't auto-resolve",
+    "Exit code documentation must match actual script behavior per ADR-035 - document what the code does, not what you wish it did"
+  ]
+}

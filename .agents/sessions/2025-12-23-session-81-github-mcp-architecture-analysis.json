@@ -1,0 +1,118 @@
+{
+  "protocolCompliance": {
+    "sessionStart": {
+      "handoffRead": {
+        "Evidence": "HANDOFF.md unchanged",
+        "level": "MUST",
+        "Complete": true
+      },
+      "branchVerified": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": false
+      },
+      "startingCommitNoted": {
+        "Evidence": "",
+        "level": "SHOULD",
+        "Complete": false
+      },
+      "serenaInstructions": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": false
+      },
+      "memoriesLoaded": {
+        "Evidence": "ADR-016 contains key decisions",
+        "level": "MUST",
+        "Complete": true
+      },
+      "constraintsRead": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": false
+      },
+      "sessionLogCreated": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": false
+      },
+      "notOnMain": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": false
+      },
+      "skillScriptsListed": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": false
+      },
+      "usageMandatoryRead": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": false
+      },
+      "serenaActivated": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": false
+      },
+      "gitStatusVerified": {
+        "Evidence": "Clean after commit",
+        "level": "SHOULD",
+        "Complete": true
+      }
+    },
+    "sessionEnd": {
+      "serenaMemoryUpdated": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": true
+      },
+      "checklistComplete": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": true
+      },
+      "validationPassed": {
+        "Evidence": "`.agents/qa/pr-285-session-81-architecture.md`",
+        "level": "MUST",
+        "Complete": true
+      },
+      "retrospectiveInvoked": {
+        "Evidence": "N/A - will be part of larger retrospective",
+        "level": "SHOULD",
+        "Complete": true
+      },
+      "markdownLintRun": {
+        "Evidence": "Lint output clean",
+        "level": "MUST",
+        "Complete": true
+      },
+      "changesCommitted": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": true
+      },
+      "tasksUpdated": {
+        "Evidence": "",
+        "level": "SHOULD",
+        "Complete": true
+      },
+      "handoffNotUpdated": {
+        "evidence": "HANDOFF.md unchanged",
+        "level": "MUST NOT",
+        "complete": false
+      }
+    }
+  },
+  "session": {
+    "branch": "feat/skill-leverage",
+    "objective": "Conduct comprehensive architectural analysis comparing four approaches to GitHub operations in Claude Code:",
+    "date": "2025-12-23",
+    "number": 81,
+    "startingCommit": ""
+  },
+  "endingCommit": "",
+  "nextSteps": [],
+  "workLog": []
+}

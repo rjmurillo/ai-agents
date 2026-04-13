@@ -1,0 +1,102 @@
+# CI backstop for investigation-only QA skip claims per ADR-034 Phase 3 (Issue #652)
+#
+# Validates that commits claiming "SKIPPED: investigation-only" only contain
+# files from the investigation allowlist. Flags violations for manual review.
+
+name: Investigation Claim Backstop
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.agents/sessions/**'
+      - '.agents/analysis/**'
+      - '.agents/retrospective/**'
+      - '.serena/memories/**'
+      - '.agents/security/**'
+      - '.agents/memory/**'
+      - '.agents/architecture/REVIEW-*'
+      - '.agents/critique/**'
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: investigation-backstop-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  validate-claims:
+    name: Validate Investigation Claims
+    # ADR-025: ARM runner for cost optimization
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 5
+    if: github.actor != 'dependabot[bot]' && github.actor != 'github-actions[bot]'
+
+    steps:
+      - name: Checkout repository
+        # SHA-pin with version comment per AGENTS.md
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        with:
+          fetch-depth: 0  # Need full history for commit analysis
+
+      - name: Setup environment
+        uses: ./.github/actions/setup-code-env
+        with:
+          gh-token: ${{ github.token }}
+          enable-pester: 'false'
+
+      - name: Get PR commits
+        id: pr-commits
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          COMMITS=$(git log --format=%H "origin/$BASE_REF"..HEAD | paste -sd, -)
+          echo "shas=$COMMITS" >> "$GITHUB_OUTPUT"
+
+      - name: Validate Investigation Claims
+        id: validate
+        env:
+          PR_COMMITS: ${{ steps.pr-commits.outputs.shas }}
+        run: |
+          python3 .github/scripts/validate_investigation_claims.py \
+            --session-dir .agents/sessions \
+            --mode session \
+            --commits "$PR_COMMITS" \
+            --output-format text
+
+      - name: Post Warning on Violations
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          cat <<'EOF' > comment.md
+          ## Investigation-Only Claim Violation
+
+          This PR contains session logs claiming `SKIPPED: investigation-only` but the
+          associated commits include files outside the investigation allowlist.
+
+          **Per ADR-034**, investigation-only sessions may only commit:
+          - `.agents/sessions/` (session logs)
+          - `.agents/analysis/` (investigation outputs)
+          - `.agents/retrospective/` (learnings)
+          - `.serena/memories/` (cross-session context)
+          - `.agents/security/` (security assessments)
+          - `.agents/memory/` (memory infrastructure)
+          - `.agents/architecture/REVIEW-*` (review documents)
+          - `.agents/critique/` (critic debate logs)
+
+          **Action Required**: Either:
+          1. Remove non-investigation files from the commit, or
+          2. Remove the `SKIPPED: investigation-only` claim and obtain proper QA validation
+
+          See [ADR-034](.agents/architecture/ADR-034-investigation-session-qa-exemption.md) for details.
+          EOF
+
+          python3 .github/scripts/run_with_retry.py -- \
+            python3 .github/scripts/post_issue_comment.py \
+            --issue "$PR_NUMBER" \
+            --body-file comment.md \
+            --marker "INVESTIGATION-CLAIM-BACKSTOP"

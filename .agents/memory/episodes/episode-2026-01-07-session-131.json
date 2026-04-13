@@ -1,0 +1,51 @@
+{
+  "timestamp": "2026-01-08T00:00:00.0000000",
+  "decisions": null,
+  "events": [
+    {
+      "leads_to": [],
+      "caused_by": [],
+      "id": "e001",
+      "type": "milestone",
+      "timestamp": "2026-01-08T11:44:19.6379919-06:00",
+      "content": "*Status**: [COMPLETED]"
+    },
+    {
+      "leads_to": [],
+      "caused_by": [],
+      "id": "e002",
+      "type": "error",
+      "timestamp": "2026-01-08T11:44:19.6429435-06:00",
+      "content": "| MUST | Run markdown lint | [x] | markdownlint-cli2: 0 error(s) |"
+    },
+    {
+      "leads_to": [],
+      "caused_by": [],
+      "id": "e003",
+      "type": "error",
+      "timestamp": "2026-01-08T11:44:19.6432878-06:00",
+      "content": "- Error (not prompt) when extraction fails during autonomous execution"
+    },
+    {
+      "leads_to": [],
+      "caused_by": [],
+      "id": "e004",
+      "type": "test",
+      "timestamp": "2026-01-08T11:44:19.6434817-06:00",
+      "content": "- Includes Pester tests for all extraction patterns"
+    }
+  ],
+  "id": "episode-2026-01-07-session-131",
+  "metrics": {
+    "duration_minutes": 15,
+    "errors": 2,
+    "files_changed": 0,
+    "recoveries": 0,
+    "tool_calls": 0,
+    "commits": 0
+  },
+  "task": "Analysis Session: PR Number Extraction Gap",
+  "session": "2026-01-07-session-131",
+  "lessons": null,
+  "outcome": "success"
+}

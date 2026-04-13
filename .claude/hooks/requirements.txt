@@ -1,0 +1,7 @@
+# Python dependencies for Claude Code hooks
+#
+# Install with: pip install -r .claude/hooks/requirements.txt
+
+# Anthropic SDK for LLM fallback in skill learning hook
+# Used by: Stop/invoke_skill_learning.py
+anthropic>=0.39.0

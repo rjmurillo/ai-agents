@@ -1,0 +1,179 @@
+# Python Tests
+#
+# Runs pytest and security checks for Python code in the repository.
+# Uses dorny/paths-filter to determine if tests should run or be skipped.
+#
+# IMPORTANT: This workflow runs on ALL PRs to satisfy required status checks,
+# but skips actual test execution when no Python files are changed.
+#
+# Testable paths are defined in the check-paths job filters block.
+#
+# Local developers and AI agents can run the same tests using:
+#   uv run pytest
+#   uv run pip-audit
+#   uv run bandit -r .claude/ scripts/
+
+name: Python Tests
+
+on:
+  push:
+    branches:
+      - main
+      - 'feat/**'
+      - 'fix/**'
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch: # Allow manual triggering
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check-paths:
+    name: Check Changed Paths
+    # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+    outputs:
+      python-changed: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.python }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Check for Python file changes
+        uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
+        id: filter
+        if: github.event_name != 'workflow_dispatch'
+        with:
+          filters: |
+            python:
+              - '**/*.py'
+              - 'pyproject.toml'
+              - 'uv.lock'
+              - 'tests/conftest.py'
+              - 'scripts/memory_enhancement/**'
+              - '.github/workflows/pytest.yml'
+
+      - name: Report path check result
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "Manual trigger - running all tests"
+          else
+            echo "Python files changed: ${{ steps.filter.outputs.python }}"
+          fi
+
+  test:
+    name: Run Python Tests
+    needs: check-paths
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write
+
+    steps:
+      - name: Check if tests needed
+        id: should-run
+        env:
+          PYTHON_CHANGED: ${{ needs.check-paths.outputs.python-changed }}
+        run: |
+          if [ "$PYTHON_CHANGED" != "true" ]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "No Python files changed - skipping tests"
+          fi
+
+      - name: Harden Runner
+        if: steps.should-run.outputs.skip != 'true'
+        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        if: steps.should-run.outputs.skip != 'true'
+
+      - name: Setup code environment
+        if: steps.should-run.outputs.skip != 'true'
+        uses: ./.github/actions/setup-code-env
+        with:
+          gh-token: ${{ secrets.GITHUB_TOKEN }}
+          enable-pester: false
+          enable-git-hooks: false
+
+      - name: Run pytest
+        if: steps.should-run.outputs.skip != 'true'
+        run: |
+          mkdir -p artifacts
+          pytest --cov --cov-report=xml:artifacts/coverage.xml --junitxml=artifacts/pytest-results.xml
+
+      - name: Upload test results
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always() && steps.should-run.outputs.skip != 'true'
+        with:
+          name: pytest-results
+          path: artifacts/
+          retention-days: 7
+
+  security:
+    name: Python Security Checks
+    needs: check-paths
+    if: needs.check-paths.outputs.python-changed == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup code environment
+        uses: ./.github/actions/setup-code-env
+        with:
+          gh-token: ${{ secrets.GITHUB_TOKEN }}
+          enable-pester: false
+          enable-git-hooks: false
+
+      - name: Run pip-audit
+        run: |
+          pip-audit --ignore-vuln CVE-2026-4539  # pygments 2.19.2, no fix available
+
+      - name: Run Bandit
+        run: |
+          mkdir -p artifacts
+          bandit -r .claude/ scripts/ -f sarif -o artifacts/bandit-results.sarif || true
+
+      - name: Upload Bandit results
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: bandit-results
+          path: artifacts/bandit-results.sarif
+          retention-days: 7
+
+  # Pass-through job: satisfies required "Run Python Tests" check when no Python files changed.
+  # GitHub branch protection requires SUCCESS (not SKIPPED) for required checks.
+  # See: Issue #1168
+  skip-tests:
+    name: Run Python Tests
+    needs: check-paths
+    if: needs.check-paths.outputs.python-changed != 'true'
+    # ADR-025: ARM runner for cost optimization
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
+        with:
+          egress-policy: audit
+
+      - name: Skip tests (no Python files changed)
+        run: |
+          echo "No Python files changed - skipping tests"
+          echo ""
+          echo "See the 'python' filter in check-paths job for paths that trigger tests."
+          echo "Reference: .github/workflows/pytest.yml"

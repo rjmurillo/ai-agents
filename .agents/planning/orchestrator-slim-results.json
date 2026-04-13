@@ -1,0 +1,61 @@
+{
+  "assessment_type": "agent-definitions",
+  "model": "claude-sonnet-4-20250514",
+  "agents_assessed": [
+    "orchestrator"
+  ],
+  "total_prompts": 4,
+  "dimensions": [
+    "role_adherence",
+    "actionability",
+    "quality",
+    "appropriateness"
+  ],
+  "results": {
+    "orchestrator": {
+      "context_chars": 7566,
+      "model": "opus",
+      "avg_scores": {
+        "role_adherence": 4.25,
+        "actionability": 4.25,
+        "quality": 4.0,
+        "appropriateness": 4.25
+      },
+      "overall": 4.19,
+      "detail": [
+        {
+          "role_adherence": 5,
+          "actionability": 4,
+          "quality": 4,
+          "appropriateness": 5,
+          "reasoning": "Perfect orchestrator behavior - delegates to right roles (analyst, devops) with clear tasks and doesn't do their work. Very actionable with specific timeboxes, tasks, and success criteria. Good quality with minimal filler and clear structure. Excellent appropriateness - correctly identifies P0 urgency, prioritizes immediate stabilization, and follows the chaotic complexity pattern of stabilize-first with focused investigation.",
+          "complexity": "chaotic"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 4,
+          "appropriateness": 5,
+          "reasoning": "Perfect orchestrator behavior - routes to correct specialists in proper sequence, maintains context between handoffs, and provides concrete delegation tasks. Adds security phase appropriately. Quality slightly reduced due to some verbose explanatory text, but overall excellent execution matching complicated problem complexity with expert analysis approach.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 2,
+          "actionability": 3,
+          "quality": 3,
+          "appropriateness": 2,
+          "reasoning": "Agent misrouted all PRs to critic instead of proper specialists (security to security agent, feature to architect+qa). Missing key routing requirements and merge coordination strategy. Actionable delegation format but wrong recipients. Quality decent but some AI filler. Complexity handling adequate but missed domain expertise requirements.",
+          "complexity": "complicated"
+        },
+        {
+          "role_adherence": 5,
+          "actionability": 5,
+          "quality": 5,
+          "appropriateness": 5,
+          "reasoning": "Perfect orchestrator behavior: correctly classified complexity as Complex, avoided jumping to solutions, delegated to analyst with specific task/constraints/success criteria, established clear routing plan, and maintained status tracking. Response is concrete and actionable with no AI filler.",
+          "complexity": "complex"
+        }
+      ]
+    }
+  }
+}

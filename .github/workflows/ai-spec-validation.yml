@@ -1,0 +1,331 @@
+name: Spec-to-Implementation Validation
+
+# AI-powered requirements traceability using GitHub Copilot CLI
+
+# Verifies that PR changes implement requirements from linked specs
+
+# Warns if requirements are not covered by the implementation
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    # No path filter - workflow runs on ALL PRs to satisfy required check
+    # Path filtering done at job level using dorny/paths-filter
+
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to validate'
+        required: true
+        type: number
+      enable_debouncing:
+        description: 'Enable debouncing delay to reduce race conditions (adds 10s latency)'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  pull-requests: write
+
+# Concurrency control: Attempts to cancel in-progress runs when new runs start
+
+# NOTE: GitHub Actions does NOT guarantee run coalescing - race conditions can occur
+
+# where multiple runs start before cancellation takes effect. This is best-effort
+
+# See ADR-026 (../.agents/architecture/ADR-026-pr-automation-concurrency-and-safety.md)
+
+# for architectural decision on workflow-level concurrency control
+
+# Mitigation: Path filtering, timeouts, and PR-specific temp files reduce impact
+
+concurrency:
+  group: spec-validation-${{ github.event.pull_request.number || inputs.pr_number }}
+  cancel-in-progress: true
+
+env:
+  GH_TOKEN: ${{ secrets.BOT_PAT }}
+  PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
+
+jobs:
+  # Optional debouncing job - runs only when enable_debouncing=true
+  debounce:
+    name: Debounce Workflow
+    if: (github.event_name == 'workflow_dispatch' && inputs.enable_debouncing == true) || (github.event_name == 'pull_request' && vars.ENABLE_DEBOUNCE == 'true')
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
+      
+      - name: Apply debouncing delay
+        uses: ./.github/actions/workflow-debounce
+        with:
+          delay-seconds: '10'
+          workflow-name: 'Spec-to-Implementation Validation'
+          concurrency-group: ${{ github.event.pull_request.number || inputs.pr_number }}
+
+  check-paths:
+    name: Check Changed Paths
+    runs-on: ubuntu-24.04-arm
+    needs: debounce
+    if: always() && (needs.debounce.result == 'success' || needs.debounce.result == 'skipped')
+    outputs:
+      has-code-changes: ${{ steps.filter.outputs.code }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
+
+      - name: Check for code changes
+        id: filter
+        uses: dorny/paths-filter@61f87a10cd2c304679af17bb73ef192addf33c1c
+        with:
+          filters: |
+            code:
+              - 'src/**'
+              - 'templates/**'
+              - 'scripts/**'
+              - 'build/**'
+              - '.claude/skills/**'
+
+  validate-spec:
+    name: Validate Spec Coverage
+    needs: check-paths
+    # always() required: transitive dependency on debounce (which may be SKIPPED)
+    # would otherwise cause this job to be skipped even when check-paths succeeds
+    if: always() && needs.check-paths.result == 'success'
+    # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 15
+
+    steps:
+      - name: Check if validation needed
+        id: should-run
+        env:
+          HAS_CODE_CHANGES: ${{ needs.check-paths.outputs.has-code-changes }}
+        run: |
+          if [ "$HAS_CODE_CHANGES" != "true" ]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "Skipped - no code changes detected"
+          fi
+
+      - name: Checkout repository
+        if: steps.should-run.outputs.skip != 'true'
+        uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
+        with:
+          fetch-depth: 0
+
+      - name: Extract Spec References
+        if: steps.should-run.outputs.skip != 'true'
+        id: spec-ref
+        env:
+          PR_TITLE_INPUT: ${{ github.event.pull_request.title }}
+          PR_BODY_INPUT: ${{ github.event.pull_request.body }}
+        run: |
+          # PR context passed via env vars to avoid shell injection from
+          # backticks and other special characters in PR title/body
+          if [ -z "$PR_TITLE_INPUT" ] && [ -z "$PR_BODY_INPUT" ]; then
+            PR_TITLE_INPUT=$(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json title -q .title 2>/dev/null || true)
+            PR_BODY_INPUT=$(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json body -q .body 2>/dev/null || true)
+          fi
+
+          # Save PR context to files safely (avoids shell expansion)
+          printf '%s\n' "$PR_TITLE_INPUT" > /tmp/pr-title.txt
+          printf '%s\n' "$PR_BODY_INPUT" > /tmp/pr-body.txt
+
+          # Read from files (now safe from injection)
+          PR_TITLE=$(cat /tmp/pr-title.txt)
+          PR_BODY=$(cat /tmp/pr-body.txt)
+
+          # Look for spec references in PR body and title
+          # Patterns: REQ-NNN, DESIGN-NNN, TASK-NNN, .agents/specs/..., #issue
+          COMBINED="$PR_BODY $PR_TITLE"
+          SPEC_REFS=""
+
+          # Check for requirement IDs (use grep -E for POSIX portability)
+          REQ_IDS=$(echo "$COMBINED" | grep -oE '(REQ|DESIGN|TASK)-[0-9]+' | sort -u | tr '\n' ' ' || true)
+          if [ -n "$REQ_IDS" ]; then
+            SPEC_REFS="$REQ_IDS"
+          fi
+
+          # Check for spec file paths (use grep -E for POSIX portability)
+          # Supports both .agents/specs/ and .agents/planning/ directories
+          SPEC_PATHS=$(echo "$COMBINED" | grep -oE '\.agents/(specs|planning)/[^[:space:]]+\.md' | sort -u | tr '\n' ' ' || true)
+          if [ -n "$SPEC_PATHS" ]; then
+            SPEC_REFS="$SPEC_REFS $SPEC_PATHS"
+          fi
+
+          # Check for linked issues (use grep -E for POSIX portability)
+          # Matches both simple (#123) and cross-repo (owner/repo#123) issue references
+          # Preserves full format for cross-repo refs (needed by gh issue view)
+          # Note: Requires space after keyword (GitHub standard format: "Fixes #123")
+          ISSUE_REFS=$(echo "$COMBINED" | grep -oE '(Closes|Fixes|Resolves|Implements)[[:space:]]+([[:alnum:]_-]+/[[:alnum:]_-]+)?#[0-9]+' | sed -E 's/^(Closes|Fixes|Resolves|Implements)[[:space:]]+//; s/^#//' | sort -u | tr '\n' ' ' || true)
+
+          echo "spec_refs=$SPEC_REFS" >> $GITHUB_OUTPUT
+          echo "issue_refs=$ISSUE_REFS" >> $GITHUB_OUTPUT
+
+          if [ -z "$SPEC_REFS" ] && [ -z "$ISSUE_REFS" ]; then
+            echo "No spec references found in PR"
+            echo "has_specs=false" >> $GITHUB_OUTPUT
+          else
+            echo "Found spec references: $SPEC_REFS"
+            echo "Found issue references: $ISSUE_REFS"
+            echo "has_specs=true" >> $GITHUB_OUTPUT
+          fi
+
+          # Cleanup temp files
+          rm -f /tmp/pr-title.txt /tmp/pr-body.txt
+
+      - name: Load Spec Content
+        if: steps.should-run.outputs.skip != 'true' && steps.spec-ref.outputs.has_specs == 'true'
+        id: load-spec
+        env:
+          SPEC_REFS: ${{ steps.spec-ref.outputs.spec_refs }}
+          ISSUE_REFS: ${{ steps.spec-ref.outputs.issue_refs }}
+        run: |
+          SPEC_CONTENT=""
+
+          # Load from spec files
+          for ref in $SPEC_REFS; do
+            # If it's a path, load directly
+            if [[ "$ref" == *.md ]]; then
+              if [ -f "$ref" ]; then
+                SPEC_CONTENT="$SPEC_CONTENT"$'\n\n'"## Spec: $ref"$'\n\n'"$(cat "$ref")"
+              fi
+            else
+              # Search for spec file by ID
+              SPEC_FILE=$(find .agents/specs -name "*${ref}*" -type f 2>/dev/null | head -1 || true)
+              if [ -n "$SPEC_FILE" ] && [ -f "$SPEC_FILE" ]; then
+                SPEC_CONTENT="$SPEC_CONTENT"$'\n\n'"## Spec: $SPEC_FILE"$'\n\n'"$(cat "$SPEC_FILE")"
+              fi
+            fi
+          done
+
+          # Load from linked issues
+          for issue in $ISSUE_REFS; do
+            # Parse cross-repo format (owner/repo#123) vs simple format (123)
+            if [[ "$issue" == *"/"* ]]; then
+              # Cross-repo: extract owner/repo and issue number
+              REPO=$(echo "$issue" | sed -E 's|^([^#]+)#.*|\1|')
+              ISSUE_NUM=$(echo "$issue" | sed -E 's|^[^#]+#([0-9]+)|\1|')
+              ISSUE_BODY=$(gh issue view "$ISSUE_NUM" --repo "$REPO" --json title,body -q '.title + "\n\n" + .body' 2>/dev/null || true)
+              ISSUE_REF="$issue"  # Already has # in format
+            else
+              # Simple ref: use default repo
+              ISSUE_BODY=$(gh issue view "$issue" --json title,body -q '.title + "\n\n" + .body' 2>/dev/null || true)
+              ISSUE_REF="#$issue"  # Add # for display
+            fi
+
+            if [ -n "$ISSUE_BODY" ]; then
+              SPEC_CONTENT="$SPEC_CONTENT"$'\n\n'"## Issue $ISSUE_REF"$'\n\n'"$ISSUE_BODY"
+            fi
+          done
+
+          if [ -z "$SPEC_CONTENT" ]; then
+            echo "Warning: Could not load any spec content"
+            SPEC_CONTENT="No spec content found for references: $SPEC_REFS $ISSUE_REFS"
+          fi
+
+          # Save to file for later steps
+          echo "$SPEC_CONTENT" > /tmp/spec-content.md
+          echo "spec_file=/tmp/spec-content.md" >> $GITHUB_OUTPUT
+
+      - name: Prepare Spec Context
+        if: steps.should-run.outputs.skip != 'true' && steps.spec-ref.outputs.has_specs == 'true'
+        id: prepare-context
+        run: |
+          # Create spec context string for additional-context input
+          if [ -f /tmp/spec-content.md ]; then
+            SPEC_CONTENT=$(cat /tmp/spec-content.md)
+            {
+              echo "spec_context<<EOF_SPEC"
+              echo "## Specification Content"
+              echo ""
+              echo "$SPEC_CONTENT"
+              echo "EOF_SPEC"
+            } >> $GITHUB_OUTPUT
+          else
+            echo "spec_context=No spec content loaded" >> $GITHUB_OUTPUT
+          fi
+
+      - name: 🔗 Requirements Traceability Check (Analyst Agent)
+        if: steps.should-run.outputs.skip != 'true' && steps.spec-ref.outputs.has_specs == 'true'
+        id: trace
+        continue-on-error: true
+        uses: ./.github/actions/ai-review
+        with:
+          agent: analyst
+          context-type: pr-diff
+          pr-number: ${{ env.PR_NUMBER }}
+          additional-context: ${{ steps.prepare-context.outputs.spec_context }}
+          prompt-file: .github/prompts/spec-trace-requirements.md
+          timeout-minutes: 3
+          bot-pat: ${{ secrets.BOT_PAT }}
+          copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+
+      - name: ✅ Completeness Check (Critic Agent)
+        if: steps.should-run.outputs.skip != 'true' && steps.spec-ref.outputs.has_specs == 'true'
+        id: completeness
+        continue-on-error: true
+        uses: ./.github/actions/ai-review
+        with:
+          agent: critic
+          context-type: pr-diff
+          pr-number: ${{ env.PR_NUMBER }}
+          additional-context: ${{ steps.prepare-context.outputs.spec_context }}
+          prompt-file: .github/prompts/spec-check-completeness.md
+          timeout-minutes: 3
+          bot-pat: ${{ secrets.BOT_PAT }}
+          copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+
+      - name: Generate Validation Report
+        if: steps.should-run.outputs.skip != 'true'
+        id: report
+        env:
+          HAS_SPECS: ${{ steps.spec-ref.outputs.has_specs }}
+          SPEC_REFS: ${{ steps.spec-ref.outputs.spec_refs }}
+          ISSUE_REFS: ${{ steps.spec-ref.outputs.issue_refs }}
+          TRACE_VERDICT: ${{ steps.trace.outputs.verdict }}
+          TRACE_FINDINGS: ${{ steps.trace.outputs.findings }}
+          COMPLETENESS_VERDICT: ${{ steps.completeness.outputs.verdict }}
+          COMPLETENESS_FINDINGS: ${{ steps.completeness.outputs.findings }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          SERVER_URL: ${{ github.server_url }}
+          RUN_ID: ${{ github.run_id }}
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+        run: python3 .github/scripts/generate_spec_report.py
+
+      - name: Post PR Comment
+        if: steps.should-run.outputs.skip != 'true'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ env.PR_NUMBER }}
+          REPORT_FILE: ${{ steps.report.outputs.report_file }}
+        run: |
+          python3 .github/scripts/run_with_retry.py -- \
+            python3 .github/scripts/post_issue_comment.py \
+            --issue "$PR_NUMBER" \
+            --body-file "$REPORT_FILE" \
+            --marker "AI-SPEC-VALIDATION"
+
+      - name: Set Job Summary
+        if: steps.should-run.outputs.skip != 'true'
+        shell: pwsh -NoProfile -Command "& '{0}'"
+        env:
+          REPORT_FILE: ${{ steps.report.outputs.report_file }}
+        run: |
+          Get-Content $env:REPORT_FILE | Add-Content $env:GITHUB_STEP_SUMMARY
+
+      - name: Check for Failures
+        if: steps.should-run.outputs.skip != 'true' && steps.spec-ref.outputs.has_specs == 'true'
+        env:
+          TRACE_VERDICT: ${{ steps.trace.outputs.verdict }}
+          COMPLETENESS_VERDICT: ${{ steps.completeness.outputs.verdict }}
+          TRACE_INFRA_FAILURE: ${{ steps.trace.outputs['infrastructure-failure'] }}
+          COMPLETENESS_INFRA_FAILURE: ${{ steps.completeness.outputs['infrastructure-failure'] }}
+          TRACE_FINDINGS: ${{ steps.trace.outputs.findings }}
+          COMPLETENESS_FINDINGS: ${{ steps.completeness.outputs.findings }}
+        run: python3 .github/scripts/check_spec_failures.py

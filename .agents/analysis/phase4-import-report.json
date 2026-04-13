@@ -1,0 +1,87 @@
+{
+  "phase": 4,
+  "title": "Forgetful Migration - Bulk Import Phase",
+  "date": "2026-01-18",
+  "status": "COMPLETED",
+  "summary": {
+    "memoriesImported": 30,
+    "idRange": "315-344",
+    "projectsCreated": 5,
+    "domainsProcessed": 7,
+    "errors": 0
+  },
+  "dryRunPrediction": {
+    "totalLearnings": 87,
+    "filesProcessed": 35
+  },
+  "actualImport": {
+    "newProjectsCreated": [
+      {"id": 17, "name": "ai-agents-enforcement-patterns", "memories": 12},
+      {"id": 18, "name": "ai-agents-pr-comment-responder", "memories": 10},
+      {"id": 19, "name": "ai-agents-prompting", "memories": 2},
+      {"id": 20, "name": "ai-agents-qa", "memories": 2},
+      {"id": 21, "name": "ai-agents-performance", "memories": 2}
+    ],
+    "existingProjectsUpdated": [
+      {"id": 12, "name": "ai-agents-skills", "newMemories": 2}
+    ],
+    "byDomain": {
+      "enforcement-patterns": 12,
+      "pr-comment-responder": 10,
+      "prompting": 2,
+      "qa": 2,
+      "performance": 2,
+      "skills": 2
+    },
+    "memoryIdsCreated": [
+      315, 316, 317, 318, 319, 320, 321, 322, 323, 324, 325, 326,
+      327, 328, 329, 330, 331, 332, 333, 334, 335, 336,
+      337, 338, 339, 340, 341, 342, 343, 344
+    ]
+  },
+  "qualityMetrics": {
+    "autoLinkingWorking": true,
+    "provenanceTracking": true,
+    "semanticSearchValidated": true,
+    "confidenceMapping": {
+      "HIGH": 1.0,
+      "importanceRange": "9-10"
+    }
+  },
+  "validation": {
+    "queries": [
+      {
+        "query": "enforcement verification blocking gates trust based compliance",
+        "resultsFound": 5,
+        "topResultId": 323,
+        "linkedMemoriesIncluded": true
+      },
+      {
+        "query": "PR comment review bot thread resolution",
+        "resultsFound": 5,
+        "topResultId": 254,
+        "linkedMemoriesIncluded": true
+      },
+      {
+        "query": "scope explosion prompting constraints minimal change",
+        "resultsFound": 3,
+        "topResultId": 337,
+        "linkedMemoriesIncluded": true
+      }
+    ]
+  },
+  "cumulativeProgress": {
+    "phase1Memories": 33,
+    "phase2Memories": 30,
+    "phase3Memories": 30,
+    "phase4Memories": 30,
+    "totalMemoriesInForgetful": 344,
+    "totalProjects": 21
+  },
+  "notes": [
+    "Dry-run predicted 87 HIGH learnings but many were already imported in Phases 1-3",
+    "Auto-linking correctly identified semantically related memories",
+    "Provenance tracking (source_repo, source_files) populated for all imports",
+    "Skills sub-domain observations imported to existing skills project (ID 12)"
+  ]
+}

@@ -1,0 +1,118 @@
+{
+  "protocolCompliance": {
+    "sessionStart": {
+      "handoffRead": {
+        "Evidence": "Read-only reference loaded",
+        "level": "MUST",
+        "Complete": true
+      },
+      "branchVerified": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": true
+      },
+      "startingCommitNoted": {
+        "Evidence": "",
+        "level": "SHOULD",
+        "Complete": true
+      },
+      "serenaInstructions": {
+        "Evidence": "Manual confirmed",
+        "level": "MUST",
+        "Complete": true
+      },
+      "memoriesLoaded": {
+        "Evidence": "Memory content loaded",
+        "level": "MUST",
+        "Complete": true
+      },
+      "constraintsRead": {
+        "Evidence": "Constraints understood",
+        "level": "MUST",
+        "Complete": true
+      },
+      "sessionLogCreated": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": true
+      },
+      "notOnMain": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": true
+      },
+      "skillScriptsListed": {
+        "Evidence": "22 PR scripts, 7 issue scripts",
+        "level": "MUST",
+        "Complete": true
+      },
+      "usageMandatoryRead": {
+        "Evidence": "Memory content loaded",
+        "level": "MUST",
+        "Complete": true
+      },
+      "serenaActivated": {
+        "Evidence": "Project ai-agents activated",
+        "level": "MUST",
+        "Complete": true
+      },
+      "gitStatusVerified": {
+        "Evidence": "Clean working tree",
+        "level": "SHOULD",
+        "Complete": true
+      }
+    },
+    "sessionEnd": {
+      "serenaMemoryUpdated": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": true
+      },
+      "checklistComplete": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": true
+      },
+      "validationPassed": {
+        "Evidence": "SKIPPED: PR review session - QA agent ran in CI, tests added",
+        "level": "MUST",
+        "Complete": true
+      },
+      "retrospectiveInvoked": {
+        "Evidence": "",
+        "level": "SHOULD",
+        "Complete": false
+      },
+      "markdownLintRun": {
+        "Evidence": "`npx markdownlint-cli2 --fix \"**/*.md\"` executed - clean",
+        "level": "MUST",
+        "Complete": true
+      },
+      "changesCommitted": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": true
+      },
+      "tasksUpdated": {
+        "Evidence": "",
+        "level": "SHOULD",
+        "Complete": true
+      },
+      "handoffNotUpdated": {
+        "evidence": "",
+        "level": "MUST NOT",
+        "complete": false
+      }
+    }
+  },
+  "session": {
+    "branch": "feat/701-update-issue-comment-403-handling (via worktree)",
+    "objective": "[Migrated from markdown]",
+    "date": "2025-12-31",
+    "number": 112,
+    "startingCommit": ""
+  },
+  "endingCommit": "",
+  "nextSteps": [],
+  "workLog": []
+}

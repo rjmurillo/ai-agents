@@ -1,0 +1,143 @@
+rules:
+  - id: git_no_verify_prohibited
+    agent: quality
+    title: "Never use --no-verify to bypass hooks"
+    description: |
+      Using --no-verify bypasses ALL quality gates (linting, security,
+      protocol validation). Fix the root cause instead of bypassing checks.
+    importance: 10
+
+    match:
+      file_glob:
+        - "**/*.ps1"
+        - "**/*.sh"
+        - "**/*.md"
+        - ".github/workflows/*.yml"
+      content_regex:
+        - "(^|\\s)--no-verify($|\\s)"
+
+    checklist:
+      - "Flag any --no-verify usage in scripts or docs"
+      - "Verify this isn't legitimate documentation of the flag"
+      - "Suggest fixing root cause (create session log, fix lint errors)"
+      - "Reference git-hooks-fix-hook-errors-never-bypass memory"
+
+    examples:
+      bad: |
+        # WRONG: Bypass pre-commit checks
+        git commit --no-verify -m "Quick fix"
+        
+        # WRONG: Document bypassing as solution
+        If hooks fail, use: git commit --no-verify
+      good: |
+        # RIGHT: Fix the root cause
+        # 1. Create session log at .agents/sessions/YYYY-MM-DD-session-NN.json
+        # 2. Fix markdown linting: npx markdownlint-cli2 --fix "**/*.md"
+        # 3. Commit normally (hooks will pass)
+        git commit -m "fix: some change"
+
+    tags:
+      - git
+      - quality
+      - process
+
+    why_important: |
+      Pre-commit hooks enforce protocol requirements. Bypassing them
+      creates protocol violations that waste reviewer time and require
+      manual cleanup.
+
+    link: .serena/memories/git-hooks-fix-hook-errors-never-bypass.md
+
+
+  - id: git_branch_verification_required
+    agent: quality
+    title: "Missing branch verification before commit"
+    description: |
+      Before ANY mutating git operation (commit, push, reset), must verify
+      current branch with git branch --show-current.
+    importance: 9
+
+    match:
+      file_glob:
+        - "**/*.ps1"
+        - "**/*.sh"
+        - "**/*.md"
+      content_regex:
+        - "\\bgit\\s+commit\\b"
+        - "\\bgit\\s+push\\b"
+        - "\\bgit\\s+reset\\b"
+
+    checklist:
+      - "Find git commit/push/reset commands"
+      - "Check if git branch --show-current precedes the operation"
+      - "Verify documentation includes branch verification step"
+      - "Suggest adding verification as first step"
+
+    examples:
+      bad: |
+        # WRONG: No branch verification
+        git add .
+        git commit -m "Fix issue #123"
+      good: |
+        # RIGHT: Verify branch first
+        git branch --show-current
+        # Confirm output matches intended branch (feat/issue-123)
+        git add .
+        git commit -m "Fix issue #123"
+
+    tags:
+      - git
+      - quality
+      - co-mingling-prevention
+
+    why_important: |
+      Wrong-branch commits cause PR co-mingling and require force-push
+      fixes. Verification prevents 100% of these errors.
+
+    link: .serena/memories/git-004-branch-verification-before-commit.md
+
+
+  - id: git_commit_count_threshold
+    agent: general
+    title: "PR has 10+ commits without merge (stuck pattern)"
+    description: |
+      PRs with 10+ commits signal the agent is stuck in a pattern.
+      Trigger retrospective to identify what's stuck before continuing.
+    importance: 7
+
+    always_run: true
+    match:
+      file_glob:
+        - '**/*'
+
+    checklist:
+      - "Use git log to count commits on PR branch"
+      - "If 10+ commits, check commit patterns"
+      - "Look for repeated fix/rollback cycles"
+      - "Suggest mini-retrospective to break pattern"
+
+    examples:
+      bad: |
+        # Pattern indicating stuck:
+        commit 10: fix: correct syntax error
+        commit 9: fix: revert previous approach
+        commit 8: fix: try different method
+        commit 7: fix: address linting
+        ... (repeated fixes)
+      good: |
+        # At commit 10, stop and retrospect:
+        - Why are commits failing repeatedly?
+        - What pattern is repeating?
+        - Do I need expert review?
+        - What would break this pattern?
+
+    tags:
+      - git
+      - quality
+      - process
+
+    why_important: |
+      10+ commits without merge indicates pattern blindness or fundamental
+      misunderstanding. Early retrospective prevents wasted effort.
+
+    link: .serena/memories/retrospective-commit-trigger.md

@@ -1,0 +1,129 @@
+rules:
+  - id: ufc_no_internal_pr_refs
+    agent: consistency
+    title: "Internal PR reference in user-facing file"
+    description: |
+      User-facing files (src/, templates/) must not contain internal
+      PR #NNN references. End users don't know our internal PRs.
+    importance: 9
+
+    match:
+      file_glob:
+        - "src/claude/**/*.md"
+        - "src/vs-code-agents/**/*.md"
+        - "src/copilot-cli/**/*.md"
+        - "templates/agents/**/*.md"
+      content_regex:
+        - "PR #\\d+"
+        - "pull request #\\d+"
+
+    checklist:
+      - "Find PR #NNN references in user-facing files"
+      - "Check if reference is generic documentation or internal reference"
+      - "Suggest generic description of pattern instead"
+      - "Reference user-facing-content-restrictions memory"
+
+    examples:
+      bad: |
+        # In src/claude/security.md:
+        Security issues can cause critical damage; CWE-20/CWE-78
+        introduced in PR #60 went undetected until PR #211.
+      good: |
+        # In src/claude/security.md:
+        Security issues can cause critical damage if missed during review.
+        Use static analysis tools to catch CWE-20 and CWE-78 vulnerabilities.
+
+    tags:
+      - consistency
+      - documentation
+      - user-facing
+
+    why_important: |
+      Internal PR references are meaningless to users and leak
+      internal development details unnecessarily.
+
+    link: .serena/memories/user-facing-content-restrictions.md
+
+
+  - id: ufc_no_internal_issue_refs
+    agent: consistency
+    title: "Internal issue reference in user-facing file"
+    description: |
+      User-facing files must not contain internal Issue #NNN references.
+      Use generic descriptions or link to public documentation instead.
+    importance: 9
+
+    match:
+      file_glob:
+        - "src/claude/**/*.md"
+        - "src/vs-code-agents/**/*.md"
+        - "src/copilot-cli/**/*.md"
+        - "templates/agents/**/*.md"
+      content_regex:
+        - "Issue #\\d+"
+        - "issue #\\d+"
+
+    checklist:
+      - "Find Issue #NNN references"
+      - "Verify this isn't documenting issue tracking in general"
+      - "Suggest removing internal issue numbers"
+      - "Use generic pattern description instead"
+
+    examples:
+      bad: |
+        This bug was fixed in Issue #183.
+        See Issue #16 for background.
+      good: |
+        This pattern is now handled correctly.
+        See documentation for background on this approach.
+
+    tags:
+      - consistency
+      - documentation
+      - user-facing
+
+    link: .serena/memories/user-facing-content-restrictions.md
+
+
+  - id: ufc_no_internal_paths
+    agent: consistency
+    title: "Internal directory paths in user-facing file"
+    description: |
+      User-facing files should not reference internal directories
+      (.agents/, .serena/) as users may have different structures.
+    importance: 8
+
+    match:
+      file_glob:
+        - "src/claude/**/*.md"
+        - "src/vs-code-agents/**/*.md"
+        - "src/copilot-cli/**/*.md"
+        - "templates/agents/**/*.md"
+      content_regex:
+        - "\\.agents/"
+        - "\\.serena/"
+        - "See Session \\d+ for"
+        - "See session \\d+ for"
+
+    checklist:
+      - "Find references to .agents/, .serena/, or Session numbers"
+      - "Check if explaining internal architecture or giving instructions"
+      - "Suggest removing internal implementation details"
+      - "Use generic descriptions for patterns"
+
+    examples:
+      bad: |
+        Store learnings in .serena/memories/
+        See Session 44 for implementation details
+        Check .agents/architecture/ for ADRs
+      good: |
+        Store learnings in your project memory system
+        See implementation documentation for details
+        Check architecture documentation for decisions
+
+    tags:
+      - consistency
+      - documentation
+      - user-facing
+
+    link: .serena/memories/user-facing-content-restrictions.md

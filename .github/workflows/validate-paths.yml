@@ -1,0 +1,106 @@
+# Validate Path Normalization
+#
+# Ensures documentation files use relative paths only.
+# Prevents environment-specific absolute paths from contaminating documentation.
+#
+# IMPORTANT: This workflow runs on ALL PRs to satisfy required status checks,
+# but skips actual validation when no relevant files are changed.
+#
+# Relevant paths:
+# - All markdown files (**.md)
+# - Validation script (build/scripts/Validate-PathNormalization.ps1)
+# - This workflow file (.github/workflows/validate-paths.yml)
+#
+# Related: Issue rjmurillo/ai-agents#I3 (Environment Contamination)
+# CodeRabbit PR rjmurillo/ai-agents#43 finding
+
+name: Validate Path Normalization
+
+on:
+  push:
+    branches:
+      - main
+      - 'feat/**'
+      - 'fix/**'
+      - 'copilot/**'
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch: # Allow manual triggering
+
+jobs:
+  check-paths:
+    name: Check Changed Paths
+    # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+    outputs:
+      # For workflow_dispatch, always run validation; otherwise use paths-filter result
+      should-validate: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.paths }}
+    steps:
+      - uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
+
+      - name: Check for validatable file changes
+        uses: dorny/paths-filter@61f87a10cd2c304679af17bb73ef192addf33c1c
+        id: filter
+        # Skip paths-filter for workflow_dispatch as it may not have proper context
+        if: github.event_name != 'workflow_dispatch'
+        with:
+          filters: |
+            paths:
+              - '**.md'
+              - 'build/scripts/validate_path_normalization.py'
+              - '.github/workflows/validate-paths.yml'
+
+      - name: Report path check result
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "Manual trigger - running validation"
+          else
+            echo "Validatable files changed: ${{ steps.filter.outputs.paths }}"
+          fi
+
+  validate:
+    name: Validate Path Normalization
+    needs: check-paths
+    # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check if validation needed
+        id: should-run
+        env:
+          SHOULD_VALIDATE: ${{ needs.check-paths.outputs.should-validate }}
+        run: |
+          if [ "$SHOULD_VALIDATE" != "true" ]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "No relevant files changed - skipping path validation"
+          fi
+
+      - name: Checkout repository
+        if: steps.should-run.outputs.skip != 'true'
+        uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
+
+      - name: Validate documentation paths
+        if: steps.should-run.outputs.skip != 'true'
+        run: |
+          echo "Validating path normalization in documentation..."
+          python3 build/scripts/validate_path_normalization.py --fail-on-violation
+
+      - name: Show violations on failure
+        if: failure() && steps.should-run.outputs.skip != 'true'
+        run: |
+          echo ""
+          echo "=== Path Normalization Failed ==="
+          echo ""
+          echo "Documentation contains absolute paths that must be converted to relative paths."
+          echo ""
+          echo "To fix:"
+          echo "  1. Review the violations reported above"
+          echo "  2. Replace absolute paths with relative paths"
+          echo "  3. Use forward slashes (/) for cross-platform compatibility"
+          echo "  4. See src/claude/explainer.md for path normalization guidelines"
+          echo ""

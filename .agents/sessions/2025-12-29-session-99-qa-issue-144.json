@@ -1,0 +1,118 @@
+{
+  "protocolCompliance": {
+    "sessionStart": {
+      "handoffRead": {
+        "Evidence": "Content in context",
+        "level": "MUST",
+        "Complete": true
+      },
+      "branchVerified": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": true
+      },
+      "startingCommitNoted": {
+        "Evidence": "",
+        "level": "SHOULD",
+        "Complete": true
+      },
+      "serenaInstructions": {
+        "Evidence": "Tool output present",
+        "level": "MUST",
+        "Complete": true
+      },
+      "memoriesLoaded": {
+        "Evidence": "Content in context",
+        "level": "MUST",
+        "Complete": true
+      },
+      "constraintsRead": {
+        "Evidence": "Content in context",
+        "level": "MUST",
+        "Complete": true
+      },
+      "sessionLogCreated": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": true
+      },
+      "notOnMain": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": false
+      },
+      "skillScriptsListed": {
+        "Evidence": "Skills available",
+        "level": "MUST",
+        "Complete": true
+      },
+      "usageMandatoryRead": {
+        "Evidence": "Content in context",
+        "level": "MUST",
+        "Complete": true
+      },
+      "serenaActivated": {
+        "Evidence": "Tool output present (or N/A if unavailable)",
+        "level": "MUST",
+        "Complete": true
+      },
+      "gitStatusVerified": {
+        "Evidence": "Clean",
+        "level": "SHOULD",
+        "Complete": true
+      }
+    },
+    "sessionEnd": {
+      "serenaMemoryUpdated": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": true
+      },
+      "checklistComplete": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": true
+      },
+      "validationPassed": {
+        "Evidence": "This IS the QA session - report at `.agents/qa/144-pester-path-deduplication-test-report.md`",
+        "level": "MUST",
+        "Complete": true
+      },
+      "retrospectiveInvoked": {
+        "Evidence": "",
+        "level": "SHOULD",
+        "Complete": false
+      },
+      "markdownLintRun": {
+        "Evidence": "Lint output clean",
+        "level": "MUST",
+        "Complete": true
+      },
+      "changesCommitted": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": true
+      },
+      "tasksUpdated": {
+        "Evidence": "",
+        "level": "SHOULD",
+        "Complete": true
+      },
+      "handoffNotUpdated": {
+        "evidence": "HANDOFF.md unchanged",
+        "level": "MUST NOT",
+        "complete": false
+      }
+    }
+  },
+  "session": {
+    "branch": "refactor/144-pester-path-deduplication",
+    "objective": "QA verification of workflow refactoring for issue",
+    "date": "2025-12-29",
+    "number": 99,
+    "startingCommit": ""
+  },
+  "endingCommit": "",
+  "nextSteps": [],
+  "workLog": []
+}

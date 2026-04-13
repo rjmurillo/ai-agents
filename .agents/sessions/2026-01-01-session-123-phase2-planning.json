@@ -1,0 +1,118 @@
+{
+  "protocolCompliance": {
+    "sessionStart": {
+      "handoffRead": {
+        "Evidence": "Read-only dashboard reviewed",
+        "level": "MUST",
+        "Complete": true
+      },
+      "branchVerified": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": true
+      },
+      "startingCommitNoted": {
+        "Evidence": "",
+        "level": "SHOULD",
+        "Complete": true
+      },
+      "serenaInstructions": {
+        "Evidence": "Via check_onboarding_performed",
+        "level": "MUST",
+        "Complete": true
+      },
+      "memoriesLoaded": {
+        "Evidence": "Content reviewed",
+        "level": "MUST",
+        "Complete": true
+      },
+      "constraintsRead": {
+        "Evidence": "ADR-005, ADR-006 constraints noted",
+        "level": "MUST",
+        "Complete": true
+      },
+      "sessionLogCreated": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": true
+      },
+      "notOnMain": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": true
+      },
+      "skillScriptsListed": {
+        "Evidence": "Directories: issue/, pr/, reactions/",
+        "level": "MUST",
+        "Complete": true
+      },
+      "usageMandatoryRead": {
+        "Evidence": "Content reviewed",
+        "level": "MUST",
+        "Complete": true
+      },
+      "serenaActivated": {
+        "Evidence": "Serena onboarding confirmed",
+        "level": "MUST",
+        "Complete": true
+      },
+      "gitStatusVerified": {
+        "Evidence": "Clean before work",
+        "level": "SHOULD",
+        "Complete": true
+      }
+    },
+    "sessionEnd": {
+      "serenaMemoryUpdated": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": true
+      },
+      "checklistComplete": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": true
+      },
+      "validationPassed": {
+        "Evidence": ".agents/qa/session-123-phase2a-qa.md",
+        "level": "MUST",
+        "Complete": true
+      },
+      "retrospectiveInvoked": {
+        "Evidence": "",
+        "level": "SHOULD",
+        "Complete": false
+      },
+      "markdownLintRun": {
+        "Evidence": "Lint output clean",
+        "level": "MUST",
+        "Complete": true
+      },
+      "changesCommitted": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": true
+      },
+      "tasksUpdated": {
+        "Evidence": "",
+        "level": "SHOULD",
+        "Complete": true
+      },
+      "handoffNotUpdated": {
+        "evidence": "",
+        "level": "MUST NOT",
+        "complete": false
+      }
+    }
+  },
+  "session": {
+    "branch": "feat/phase-2",
+    "objective": "Determine next steps for Phase 2 continuation and begin implementation.",
+    "date": "2026-01-01",
+    "number": 123,
+    "startingCommit": ""
+  },
+  "endingCommit": "",
+  "nextSteps": [],
+  "workLog": []
+}

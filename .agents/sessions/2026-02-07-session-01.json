@@ -1,0 +1,55 @@
+{
+  "session": {
+    "number": 1,
+    "date": "2026-02-07",
+    "branch": "fix/hooks",
+    "startingCommit": "568af677",
+    "objective": "Fix SessionStart hooks using incorrect exit code 2 (cannot block)"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": { "complete": true, "Evidence": "mcp__serena__read_memory, mcp__serena__write_memory" },
+      "handoffRead": { "complete": true, "Evidence": "Read HANDOFF.md context from system reminders" },
+      "memoriesLoaded": { "complete": true, "Evidence": "git-hooks-observations created with learnings" },
+      "branchVerification": { "complete": true, "Evidence": "fix/hooks branch confirmed" }
+    },
+    "sessionEnd": {
+      "complete": true,
+      "memoryUpdated": true,
+      "sessionLogValidated": true
+    }
+  },
+  "outcomes": [
+    "Fixed Invoke-SessionInitializationEnforcer.ps1: exit 2 -> exit 0 on protected branch",
+    "Fixed Invoke-MemoryFirstEnforcer.ps1: exit 2 -> exit 0 after education threshold",
+    "Updated ADR-035 hook exit code table with per-hook-type semantics",
+    "Updated Pester tests: 25 tests passing",
+    "Created git-hooks-observations Serena memory with learnings"
+  ],
+  "decisions": [
+    "SessionStart hooks must always exit 0 because exit 2 does not block and suppresses stdout",
+    "Branch protection on main is redundant in SessionStart since PreToolUse hooks enforce at commit time",
+    "ADR-035 documentation updated to distinguish blockable vs non-blockable hook types"
+  ],
+  "adrReview": {
+    "adr": "ADR-035-exit-code-standardization.md",
+    "amendment": "Hook exit code per-type semantics",
+    "verdicts": {
+      "architect": "ACCEPT",
+      "critic": "ACCEPT",
+      "security": "ACCEPT",
+      "independent-thinker": "DISAGREE-AND-COMMIT",
+      "analyst": "PASS",
+      "high-level-advisor": "ACCEPT"
+    },
+    "consensus": "5 ACCEPT + 1 D&C = CONSENSUS",
+    "dcResolution": "Independent-thinker feedback incorporated: expanded blocking hook list",
+    "debateLog": ".agents/critique/ADR-035-amendment-debate-log.md"
+  },
+  "verification": {
+    "testsRun": true,
+    "testsPassed": 25,
+    "testsFailed": 0,
+    "exitCode": 0
+  }
+}

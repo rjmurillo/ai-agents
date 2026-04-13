@@ -1,0 +1,32 @@
+name: Droid Auto Review
+
+on:
+  pull_request:
+    types: [opened, ready_for_review, reopened]
+
+permissions:
+  contents: write  # Required by Factory droid-action to push code changes (https://docs.factory.ai/integrations/github-app#github-app-permissions)
+  pull-requests: write
+  issues: write
+  id-token: write
+  actions: read
+
+jobs:
+  droid-review:
+    # ADR-024 Exception: Factory droid-action lacks documented ARM64 support
+    # Official examples use ubuntu-latest: https://github.com/Factory-AI/droid-action
+    # Will migrate when Factory confirms ARM64 compatibility
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 1
+
+      # Pin to v1 - https://github.com/Factory-AI/droid-action
+      - name: Run Droid Auto Review
+        uses: Factory-AI/droid-action@e3f8be9f34bb41b11e852e836cb64e81f13fba59 # v1
+        with:
+          factory_api_key: ${{ secrets.FACTORY_API_KEY }}
+          automatic_review: true

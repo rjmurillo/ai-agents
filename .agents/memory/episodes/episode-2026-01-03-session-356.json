@@ -1,0 +1,91 @@
+{
+  "decisions": null,
+  "lessons": null,
+  "timestamp": "2026-01-04T01:30:29.6547700-06:00",
+  "task": "Session 356 - 2026-01-03",
+  "metrics": {
+    "files_changed": 0,
+    "commits": 3,
+    "recoveries": 0,
+    "duration_minutes": 0,
+    "errors": 4,
+    "tool_calls": 0
+  },
+  "id": "episode-2026-01-03-session-356",
+  "events": [
+    {
+      "timestamp": "2026-01-04T01:30:29.6082250-06:00",
+      "caused_by": [],
+      "id": "e001",
+      "leads_to": [],
+      "type": "milestone",
+      "content": "*Status**: Complete"
+    },
+    {
+      "timestamp": "2026-01-04T01:30:29.6170134-06:00",
+      "caused_by": [],
+      "id": "e002",
+      "leads_to": [],
+      "type": "milestone",
+      "content": "Assess implementation completeness"
+    },
+    {
+      "timestamp": "2026-01-04T01:30:29.6176235-06:00",
+      "caused_by": [],
+      "id": "e003",
+      "leads_to": [],
+      "type": "commit",
+      "content": "Commit: 303c6d2"
+    },
+    {
+      "timestamp": "2026-01-04T01:30:29.6180016-06:00",
+      "caused_by": [],
+      "id": "e004",
+      "leads_to": [],
+      "type": "error",
+      "content": "1. Distribution count error: Table 92 shows 12 Sonnet, actual is 11"
+    },
+    {
+      "timestamp": "2026-01-04T01:30:29.6182765-06:00",
+      "caused_by": [],
+      "id": "e005",
+      "leads_to": [],
+      "type": "error",
+      "content": "- Problem correctly identified: Mixed model identifier formats causing 404 errors"
+    },
+    {
+      "timestamp": "2026-01-04T01:30:29.6187023-06:00",
+      "caused_by": [],
+      "id": "e007",
+      "leads_to": [],
+      "type": "milestone",
+      "content": "Implementation: Complete and verified (commit 303c6d2)"
+    },
+    {
+      "timestamp": "2026-01-04T01:30:29.6189757-06:00",
+      "caused_by": [],
+      "id": "e008",
+      "leads_to": [],
+      "type": "error",
+      "content": "- 404 errors are eliminated?"
+    },
+    {
+      "timestamp": "2026-01-04T01:30:29.6192444-06:00",
+      "caused_by": [],
+      "id": "e009",
+      "leads_to": [],
+      "type": "commit",
+      "content": "Commit: 303c6d2"
+    },
+    {
+      "timestamp": "2026-01-04T01:30:29.6194577-06:00",
+      "caused_by": [],
+      "id": "e010",
+      "leads_to": [],
+      "type": "error",
+      "content": "4. Metrics Gap: No baseline error rates or success criteria defined"
+    }
+  ],
+  "session": "2026-01-03-session-356",
+  "outcome": "success"
+}

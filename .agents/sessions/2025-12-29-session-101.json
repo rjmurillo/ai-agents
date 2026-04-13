@@ -1,0 +1,118 @@
+{
+  "protocolCompliance": {
+    "sessionStart": {
+      "handoffRead": {
+        "Evidence": "Content in context",
+        "level": "MUST",
+        "Complete": true
+      },
+      "branchVerified": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": false
+      },
+      "startingCommitNoted": {
+        "Evidence": "",
+        "level": "SHOULD",
+        "Complete": true
+      },
+      "serenaInstructions": {
+        "Evidence": "Tool output present",
+        "level": "MUST",
+        "Complete": true
+      },
+      "memoriesLoaded": {
+        "Evidence": "Content in context",
+        "level": "MUST",
+        "Complete": true
+      },
+      "constraintsRead": {
+        "Evidence": "Content in context",
+        "level": "MUST",
+        "Complete": true
+      },
+      "sessionLogCreated": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": true
+      },
+      "notOnMain": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": false
+      },
+      "skillScriptsListed": {
+        "Evidence": "Output documented below",
+        "level": "MUST",
+        "Complete": true
+      },
+      "usageMandatoryRead": {
+        "Evidence": "Content in context",
+        "level": "MUST",
+        "Complete": true
+      },
+      "serenaActivated": {
+        "Evidence": "Tool output present",
+        "level": "MUST",
+        "Complete": true
+      },
+      "gitStatusVerified": {
+        "Evidence": "Output documented below",
+        "level": "SHOULD",
+        "Complete": true
+      }
+    },
+    "sessionEnd": {
+      "serenaMemoryUpdated": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": true
+      },
+      "checklistComplete": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": true
+      },
+      "validationPassed": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": false
+      },
+      "retrospectiveInvoked": {
+        "Evidence": "",
+        "level": "SHOULD",
+        "Complete": false
+      },
+      "markdownLintRun": {
+        "Evidence": "Via pre-commit",
+        "level": "MUST",
+        "Complete": true
+      },
+      "changesCommitted": {
+        "Evidence": "",
+        "level": "MUST",
+        "Complete": true
+      },
+      "tasksUpdated": {
+        "Evidence": "",
+        "level": "SHOULD",
+        "Complete": true
+      },
+      "handoffNotUpdated": {
+        "evidence": "Unchanged",
+        "level": "MUST NOT",
+        "complete": false
+      }
+    }
+  },
+  "session": {
+    "branch": "feat/97-review-thread-management",
+    "objective": "[Migrated from markdown]",
+    "date": "2025-12-29",
+    "number": 101,
+    "startingCommit": "bb006de"
+  },
+  "endingCommit": "",
+  "nextSteps": [],
+  "workLog": []
+}
