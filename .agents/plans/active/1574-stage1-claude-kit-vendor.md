@@ -144,8 +144,8 @@ Stage 1 is the only one specified here. Stages 2-4 are named to lock sequencing.
 
 ### REQ-6 — Docs positioning
 
-- **REQ-6.1:** `README.md` adds "Fastest Start (Zero Config)" as the first section after the header. **Pass/fail:** section order check.
-- **REQ-6.2:** Existing install-plugin + skill-installer docs preserved unchanged, demoted to "Alternative: Full Installation" beneath Fastest Start. **Pass/fail:** section order + unchanged content hash.
+- **REQ-6.1 (revised 2026-04-12 post /devex-review baseline):** `README.md` adds "Terminal Start (no AI tool needed yet)" as the first section after the header. The renamed section is framed as the onramp for developers who have NOT yet installed Claude Code or Copilot CLI — the audience Stage 1 actually serves. Section includes a contextual note: *"Already using Claude Code or GitHub Copilot CLI? The `/install-plugin` path below is faster for you — no Node required."* **Pass/fail:** section title grep; contextual note present; `npx @rjmurillo/ai-agents init` 3-step quickstart present.
+- **REQ-6.2:** Existing install-plugin + skill-installer docs preserved unchanged, positioned as co-equal alternatives under "Install options" heading. `/install-plugin` is the recommended path for developers already inside Claude Code or Copilot CLI (zero prereqs, runs inside tool). `npx` is the recommended path for developers outside any AI coding tool (terminal-first, Node-native discovery). Neither is framed as inferior to the other. **Pass/fail:** section order + unchanged content hash for install-plugin/skill-installer text.
 - **REQ-6.3:** `AGENTS.md` generic stub (bundled in kit) frames `.claude/` as a harness spec other tools can read/write. **Pass/fail:** grep for "harness" + "spec" + "interop" in the stub.
 
 ### REQ-7 — Review gates
@@ -744,7 +744,13 @@ Data pulled from github.com/bradygaster/squad + npm/@bradygaster/squad-cli v0.9.
 
 ### Positioning update to REQ-6.1
 
-- **REQ-6.6 (NEW):** README Fastest Start section includes positioning 1-liner: *"For platform teams, engineering managers, and orgs that want AI-assisted development with real governance. 57 ADRs, session protocol, review gates built in."* **Pass/fail:** README grep.
+- **REQ-6.6 (NEW):** README Terminal Start section includes positioning 1-liner: *"For platform teams, engineering managers, and orgs that want AI-assisted development with real governance. 57 ADRs, session protocol, review gates built in."* **Pass/fail:** README grep.
+
+### Why REQ-6.1 was revised (2026-04-12 /devex-review finding)
+
+The `/devex-review` live baseline audit of the EXISTING install paths (scoring `/install-plugin` at ~8/10 on getting-started, ~9/10 on CLI ergonomics, ~30 second TTHW) surfaced that Stage 1's `npx init` is NOT the universally-fastest path for everyone. For developers already inside Claude Code or Copilot CLI, `/install-plugin` beats `npx` because it skips the Node install and runs inside the tool they already have open. Stage 1's real positioning is **top-of-funnel for developers not yet in any AI coding tool** — blog readers, HN visitors, terminal-first devs evaluating AI tooling for the first time. Renaming "Fastest Start" to "Terminal Start (no AI tool needed yet)" is honest audience targeting, not a demotion. `/install-plugin` serves existing users; `npx init` serves acquisition from the terminal; both are first-class.
+
+Cross-phase coherence: this resolves the Phase 3.5 DX review's "plan scores below existing baseline on most dimensions" alert by clarifying that Stage 1 competes on audience segment, not on dimension-by-dimension parity.
 
 ---
 
