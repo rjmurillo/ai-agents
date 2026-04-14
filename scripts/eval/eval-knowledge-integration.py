@@ -151,7 +151,7 @@ PROMPTS: dict[str, list[dict[str, str]]] = {
         {"prompt": "The docs/adr/ directory has 5 existing ADRs using lowercase 0001-slug.md naming and Nygard template. What should I do?",
          "expected": "Explore codebase to find ADR locations. Detect Nygard template from existing ADRs in docs/adr/. Adopt 0NNN-slug.md naming convention. Warn that auto-review will not trigger because docs/adr/ is not in adr-review file_triggers and 0NNN pattern does not match ADR-*.md. Generate using Nygard sections (Status, Context, Decision, Consequences)."},
         {"prompt": "No ADR directory exists in this project. How do I proceed?",
-         "expected": "Search broadly first: glob for ADR-*.md, adr-*.md, 0*-*.md across the codebase. Check for .adr-dir config. If nothing found, prompt user to choose template from catalog. Suggest MADR as widely-adopted default. Ask user to confirm target directory. Start numbering at 001."},
+         "expected": "Search broadly first: glob for ADR-*.md, adr-*.md, 0*-*.md across the codebase. Check for .adr-dir config. If nothing found, prompt user to choose template from catalog. Suggest MADR as widely-adopted default. Ask user to confirm target directory. Start numbering per chosen convention (e.g., 001, 0001, ADR-001)."},
         {"prompt": "A developer wants to document choosing a logging library. Is that worth an ADR?",
          "expected": "Apply ASR Test: business value/risk, stakeholder concern, cross-cutting impact, FOAK. Logging is cross-cutting (criterion 5). If it affects multiple services, yes. If purely local to one module, probably not."},
         {"prompt": "I wrote an ADR with only one alternative and no negative consequences. What's wrong?",
