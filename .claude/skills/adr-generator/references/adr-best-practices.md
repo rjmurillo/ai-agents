@@ -7,7 +7,7 @@ Writing guidance adapted from [Joel Parker Henderson's ADR collection](https://g
 - **Rationale**: Explain the reasons for the decision. Include context, pros and cons, feature comparisons, cost/benefit discussions.
 - **Specific**: Each ADR addresses one decision, not multiple.
 - **Timestamped**: Identify when each item is written. Important for aspects that change over time (costs, schedules, scaling).
-- **Immutable**: Do not alter existing information. Amend by adding new information with a date stamp, or supersede by creating a new ADR.
+- **Immutable**: Do not alter existing information in a finalized ADR. Instead, amend with dated additions or supersede by creating a new ADR. In practice, teams often treat ADRs as living documents with dated amendments — this is acceptable provided each change includes a date stamp and preserves the original reasoning.
 
 ## Writing Good Context Sections
 
@@ -74,7 +74,7 @@ Skip an ADR when:
 
 - Talk about the "why", do not mandate the "what"
 - Some teams prefer the directory name "decisions" over the abbreviation "ADRs"
-- In practice, "living documents" with dated amendments work better than strict immutability
+- In practice, teams treat ADRs as living documents with dated amendments rather than strict immutability — this works well when each change includes a date stamp
 - Typical updates: new teammates, new offerings, real-world results, vendor changes
 
 ## References

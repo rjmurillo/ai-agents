@@ -73,16 +73,18 @@ If the decision changes an existing system, trigger **Prior Art Investigation** 
 
 ### Phase G2: Research
 
-Discover the ADR destination, naming convention, numbering, and template by inspecting the target location.
+Discover the ADR destination, naming convention, numbering, and template by exploring the codebase.
 
 #### Step 1: Locate ADR directory
 
-Search for existing ADRs in common locations (in priority order):
+Explore the codebase to find where ADRs live. Do not assume a fixed location.
 
-1. `.agents/architecture/` (this project's canonical location)
-2. `docs/architecture/`
+1. **Search broadly**: Use glob/grep to find files matching ADR patterns (`ADR-*.md`, `adr-*.md`, `0*-*.md` in directories named `decisions`, `adr`, `architecture`)
+2. **Check common locations**: `.agents/architecture/`, `docs/adr/`, `docs/architecture/`, `docs/decisions/`, `architecture/decisions/`
+3. **Check for ADR tooling config**: Look for `.adr-dir` files (used by `adr-tools`) or ADR references in README, CONTRIBUTING, or project documentation
+4. **If user specifies a location**: Use that, regardless of what exists elsewhere
 
-These two directories are monitored by the `adr-review` skill for auto-triggered review. Other locations (`docs/adr/`, `docs/decisions/`, `architecture/decisions/`) are also supported but require manual `adr-review` invocation.
+Note: `.agents/architecture/` and `docs/architecture/` are monitored by `adr-review` for auto-triggered review. ADRs in other directories require manual `adr-review` invocation.
 
 #### Step 2: Detect template from existing ADRs
 
@@ -96,7 +98,7 @@ If the directory contains existing ADRs:
 
 #### Step 3: Handle no existing ADRs
 
-If no ADRs or template files exist at the destination:
+If no ADRs or template files exist anywhere in the codebase:
 
 - Prompt the user to choose a template from the [catalog](references/adr-templates-catalog.md)
 - Suggest the **Project Canonical** template as the default (if `.agents/architecture/ADR-TEMPLATE.md` exists) or **MADR** as a widely-adopted alternative
@@ -104,9 +106,9 @@ If no ADRs or template files exist at the destination:
 
 #### Step 4: Determine next number
 
-- Scan files matching the detected naming pattern
+- Scan files matching the detected naming pattern in the destination directory
 - Determine the next sequential number (zero-padded to match existing convention)
-- Verify no collision with existing files
+- Verify no collision with existing files in that directory
 
 ### Phase G3: Generate
 
