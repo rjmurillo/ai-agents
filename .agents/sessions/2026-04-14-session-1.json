@@ -1,0 +1,23 @@
+{
+  "session_id": "2026-04-14-session-1",
+  "date": "2026-04-14",
+  "agent": "rjmurillo-bot",
+  "branch": "feat/1631-autonomous",
+  "objective": "Implement npm publish workflow with OIDC provenance and release documentation (issue #1631, M8 tasks T8.2, T8.4)",
+  "status": "completed",
+  "commits": [],
+  "tasks_completed": [
+    "T8.2: Created .github/workflows/publish.yml with OIDC provenance, tag-push trigger, validation job, and dry-run support",
+    "T8.4: Created RELEASING.md with copy-paste-ready commands for publish, deprecate, rollback, yank, OIDC setup, and troubleshooting"
+  ],
+  "tasks_deferred": [
+    "T8.1: publishConfig in package.json (blocked on M1 package scaffold)",
+    "T8.3: One-time npm UI scope linking (manual step, documented in RELEASING.md)",
+    "T8.5: Tag v0.1.0 and verify publish (blocked on M7 CI green)"
+  ],
+  "evidence": {
+    "yamllint": "pass (0 errors, 0 warnings)",
+    "yaml_parse": "pass"
+  },
+  "notes": "packages/ai-agents-cli does not exist on main yet (M1 dependency). Workflow and docs are forward-compatible and ready for when the package scaffold lands."
+}
