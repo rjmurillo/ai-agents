@@ -88,6 +88,7 @@ jobs:
           echo "Version match: $TAG_VERSION"
 
       - name: Measure pack size
+        id: pack-size
         working-directory: packages/ai-agents-cli
         run: |
           SIZE=$(npm pack --dry-run 2>&1 | tail -1)

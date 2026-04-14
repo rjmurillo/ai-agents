@@ -23,8 +23,10 @@ environment secret (automation token from npm).
 ### 4. Verify OIDC
 
 OIDC provenance uses GitHub Actions' built-in `id-token: write` permission.
-No npm token is needed when publishing from CI with `--provenance`.
-The `publish.yml` workflow already requests this permission on the publish job.
+When OIDC provenance is active, the GitHub Actions runtime exchanges a
+short-lived token with npm. The `NPM_TOKEN` secret is still required as a
+fallback for environments where OIDC is unavailable.
+The `publish.yml` workflow already requests `id-token: write` on the publish job.
 
 If OIDC is not configured, set `NPM_TOKEN` in the `npm` environment and
 the workflow falls back to token-based auth.
@@ -52,7 +54,7 @@ The `publish.yml` workflow triggers on `v*` tags and publishes automatically.
 
 ### Manual dry-run
 
-Go to [Actions > npm Publish > Run workflow](../../actions/workflows/publish.yml)
+Go to [Actions > npm Publish > Run workflow](https://github.com/rjmurillo/ai-agents/actions/workflows/publish.yml)
 and select `dry-run: true`. This validates the package without publishing.
 
 ## Rollback procedures
@@ -117,6 +119,6 @@ linking back to this repository's publish workflow.
 |---------|-------|-----|
 | `ENEEDAUTH` | Missing npm token or OIDC not configured | Add `NPM_TOKEN` to `npm` environment, or verify OIDC setup |
 | `E403 Forbidden` | 2FA not enabled or scope not linked | Enable 2FA, link scope to repo in npm UI |
-| `ENOSPC` provenance error | `id-token: write` missing | Verify `publish.yml` has `id-token: write` on publish job |
+| OIDC provenance error | `id-token: write` missing | `publish.yml` contains `id-token: write` on publish job |
 | Tag/version mismatch | Tag `vX.Y.Z` does not match `package.json` version | Update `package.json` version before tagging |
 | Pack size warning | Bundle exceeds 50MB | Review `files` allowlist in `package.json`, exclude unnecessary assets |
