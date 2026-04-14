@@ -155,7 +155,7 @@ PROMPTS: dict[str, list[dict[str, str]]] = {
         {"prompt": "A developer wants to document choosing a logging library. Is that worth an ADR?",
          "expected": "Apply ASR Test: business value/risk, stakeholder concern, cross-cutting impact, FOAK. Logging is cross-cutting (criterion 5). If it affects multiple services, yes. If purely local to one module, probably not."},
         {"prompt": "I wrote an ADR with only one alternative and no negative consequences. What's wrong?",
-         "expected": "Two anti-patterns: Free Lunch Coupon (no consequences documented) and Sprint/Rush (only one option). Quality checklist requires at least 2 alternatives with pros/cons and at least 1 negative consequence. ecADR criterion 'c' (Criteria) also fails."},
+         "expected": "Two anti-patterns: Free Lunch Coupon (no negative consequences documented) and Sprint/Rush (only one option considered). Quality checklist requires at least 2 alternatives with pros/cons and at least 1 negative consequence. ecADR criterion 'c' (Criteria) also fails."},
         {"prompt": "When should I use MADR vs Nygard vs the project canonical template?",
          "expected": "Nygard: quick capture, single decision-maker, low ceremony. MADR: multiple stakeholders, formal evaluation, per-option pros/cons. Project canonical: this project's governance, Prior Art Investigation, coded consequences, agent-specific fields."},
     ],
