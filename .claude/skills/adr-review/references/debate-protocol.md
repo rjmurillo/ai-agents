@@ -119,7 +119,7 @@ After all 6 reviews complete:
 
 1. List consensus points (agents agree)
 2. List conflicts (agents disagree)
-3. **Flag review anti-patterns**: Check each agent's output for Pass Through (no substantive findings), Copy Edit (editorial only), Siding (topic drift), Self Promotion, or Groundhog Day. Request re-review from flagged agents with explicit instruction to address the Zimmermann 7 questions
+3. **Flag review anti-patterns**: Check each agent's output for Pass Through (no substantive findings), Copy Edit (editorial only), Siding/Dead End (topic drift), Self Promotion, Power Game (authority claims over evidence), Offended Reaction (subjective defense), or Groundhog Day. Request re-review from flagged agents with explicit instruction to address the Zimmermann 7 questions
 4. Route conflicts to high-level-advisor for resolution
 5. Categorize all issues by priority after rulings
 6. Draft consolidated change recommendations

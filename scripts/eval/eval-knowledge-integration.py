@@ -149,7 +149,7 @@ PROMPTS: dict[str, list[dict[str, str]]] = {
         {"prompt": "I want to create an ADR for switching from REST to gRPC for internal services. Walk me through the process.",
          "expected": "Phase G1: gather context, alternatives, stakeholders. ASR Test significance check. START readiness gate. Phase G2: scan destination for existing ADRs, detect template. Phase G3: generate. Phase G4: validate against checklist. Phase G5: save with correct naming."},
         {"prompt": "The docs/adr/ directory has 5 existing ADRs using lowercase 0001-slug.md naming and Nygard template. What should I do?",
-         "expected": "Explore codebase to find ADR locations. Detect Nygard template from existing ADRs in docs/adr/. Adopt 0NNN-slug.md naming convention. Warn that lowercase naming bypasses adr-review auto-trigger. Generate using Nygard sections (Status, Context, Decision, Consequences)."},
+         "expected": "Explore codebase to find ADR locations. Detect Nygard template from existing ADRs in docs/adr/. Adopt 0NNN-slug.md naming convention. Warn that auto-review will not trigger because docs/adr/ is not in adr-review file_triggers and 0NNN pattern does not match ADR-*.md. Generate using Nygard sections (Status, Context, Decision, Consequences)."},
         {"prompt": "No ADR directory exists in this project. How do I proceed?",
          "expected": "Search broadly first: glob for ADR-*.md, adr-*.md, 0*-*.md across the codebase. Check for .adr-dir config. If nothing found, prompt user to choose template from catalog. Suggest MADR as widely-adopted default. Ask user to confirm target directory. Start numbering at 001."},
         {"prompt": "A developer wants to document choosing a logging library. Is that worth an ADR?",
