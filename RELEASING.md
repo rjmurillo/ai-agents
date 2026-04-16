@@ -23,13 +23,14 @@ environment secret (automation token from npm).
 ### 4. Verify OIDC
 
 OIDC provenance uses GitHub Actions' built-in `id-token: write` permission.
-When OIDC provenance is active, the GitHub Actions runtime exchanges a
-short-lived token with npm. The `NPM_TOKEN` secret is still required as a
-fallback for environments where OIDC is unavailable.
-The `publish.yml` workflow already requests `id-token: write` on the publish job.
+When OIDC is active, the Actions runtime exchanges a short-lived token with
+npm. This replaces the need for a long-lived `NPM_TOKEN` secret for
+authentication. The `publish.yml` workflow already requests `id-token: write`
+on the publish job.
 
-If OIDC is not configured, set `NPM_TOKEN` in the `npm` environment and
-the workflow falls back to token-based auth.
+The workflow still references `NPM_TOKEN` as a fallback. If OIDC is active,
+the token is ignored. If OIDC is unavailable (self-hosted runners, forks),
+set `NPM_TOKEN` in the `npm` environment for token-based auth.
 
 ## Publishing a release
 
