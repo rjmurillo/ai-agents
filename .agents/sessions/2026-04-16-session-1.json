@@ -1,0 +1,107 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 1,
+    "date": "2026-04-16",
+    "branch": "feat/1145-readme-installer-url-pitfall",
+    "startingCommit": "432cd7d8",
+    "objective": "Autonomous run for issue #1145: add README troubleshooting entry documenting skill-installer short-name vs full-URL pitfall, addressing a specific onboarding friction called out in the issue body"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Autonomous worktree run; Serena init via AGENTS.md loaded at start"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md and CLAUDE.md loaded at session start"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md location checked; autonomous run context reviewed"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file: .agents/sessions/2026-04-16-session-1.json"
+      },
+      "memorySearched": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Memory index hook queried at session start per ADR-007"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Branch feat/1145-readme-installer-url-pitfall created from main (432cd7d8); original worktree branch feat/1631-autonomous was already claimed by open PR #1660"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Branch feat/1145-readme-installer-url-pitfall, not main"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All session end checks reviewed"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified; change scoped to README.md plus session log"
+      },
+      "serenaMemoryUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "No net-new cross-session knowledge to persist; diff is narrow README doc fix"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdownlint-cli2 README.md returned 0 README.md errors (26 pre-existing repo errors unrelated to this change)"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "README.md change and session log committed and pushed to origin"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Session JSON schema mirrors 2026-04-10-session-2.json"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Selected issue #1145 (P1) from candidates; other P1/P2 candidates were either in Refining or already had open PRs",
+      "result": "Minimal-diff README improvement targeting specific friction point in issue body",
+      "files": []
+    },
+    {
+      "action": "Added Troubleshooting entry for skill-installer short-name clone failure",
+      "result": "+10 lines to README.md Troubleshooting section",
+      "files": ["README.md"]
+    }
+  ],
+  "outcomes": {
+    "deliverables": [
+      {
+        "type": "docs",
+        "path": "README.md",
+        "description": "Troubleshooting entry documenting uvx --from full-URL requirement for skill-installer"
+      }
+    ]
+  },
+  "endingCommit": "",
+  "nextSteps": [
+    "Open PR referencing #1145",
+    "Enable auto-merge"
+  ]
+}
