@@ -161,14 +161,18 @@ jobs:
           github.event_name == 'push' ||
           (github.event_name == 'workflow_dispatch' &&
           github.event.inputs.dry-run == 'false')
+        working-directory: packages/ai-agents-cli
         run: |
+          EXPECTED=$(node -p "require('./package.json').version")
+          echo "Expecting @rjmurillo/ai-agents@${EXPECTED}"
           for i in 1 2 3 4 5; do
             sleep 10
-            if npm view @rjmurillo/ai-agents version 2>/dev/null; then
-              echo "Package published successfully"
+            PUBLISHED=$(npm view "@rjmurillo/ai-agents@${EXPECTED}" version 2>/dev/null || true)
+            if [ "$PUBLISHED" = "$EXPECTED" ]; then
+              echo "Verified: @rjmurillo/ai-agents@${EXPECTED} is live on npm"
               exit 0
             fi
-            echo "Attempt $i: package not yet visible, retrying..."
+            echo "Attempt $i: version ${EXPECTED} not yet visible, retrying..."
           done
-          echo "::warning::Package not visible after 50s; registry may be slow"
+          echo "::error::Version ${EXPECTED} not visible on npm after 50s"
           exit 1
