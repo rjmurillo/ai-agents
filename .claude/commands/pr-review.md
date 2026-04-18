@@ -33,7 +33,7 @@ When `--dry-run` is specified, gather read-only context and output planned actio
 
 ### Step 1: Parse and Validate PRs
 
-For `all-open`, query open PRs. For each PR number, validate using `scripts.claude_code.get_pr_context` from config.
+For `all-open`, query open PRs and cap the list at `invocation_limits.all_open_max_prs` (default 5). If additional PRs remain, record the skipped count and apply `invocation_limits.all_open_overflow_action` in Step 6. For each selected PR number, validate using `scripts.claude_code.get_pr_context` from config.
 
 Verify PR merge state using `scripts.claude_code.test_pr_merged`. Exit code 0 = not merged (safe), 1 = merged (skip). This avoids stale state from `gh pr view`.
 
@@ -64,7 +64,7 @@ Push any changes per worktree. Clean up worktrees if `--cleanup`. Check `worktre
 
 ### Step 6: Generate Summary
 
-Report per-PR status table: PR, Branch, Comments, Acknowledged, Implemented, Commit, Status.
+Report per-PR status using `output_constraints.summary_format` (table) with columns from `output_constraints.summary_required_columns`: PR, Branch, Comments, Acknowledged, Implemented, Commit, Status. Truncate per-PR agent output exceeding `output_constraints.per_pr_max_response_lines` (default 120) and persist full detail per `output_constraints.per_pr_overflow_action`. If `all-open` skipped PRs in Step 1, append a row noting the skipped count and direct the user to re-run.
 
 ## Thread Resolution
 
@@ -72,7 +72,7 @@ Replying does NOT resolve threads. Use `add_thread_reply_resolve` or separate `r
 
 ## Completion Gate
 
-ALL criteria from `completion_criteria` in config must pass before claiming completion. If ANY fails, loop back. See `failure_handling` and `error_recovery` in config for recovery actions.
+ALL criteria from `completion_criteria` in config must pass before claiming completion. If ANY fails, loop back. Enforce `invocation_limits.completion_gate_max_retries` (default 3) as the maximum number of loop iterations. After the cap, apply `invocation_limits.completion_gate_overflow_action`: halt the loop, record which criteria still fail, and escalate to the user. See `failure_handling` and `error_recovery` in config for recovery actions.
 
 ## Related Memories
 
