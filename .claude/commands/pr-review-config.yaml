@@ -108,6 +108,25 @@ related_memories:
   - name: "session-log-fixer"
     purpose: "Diagnose and fix session protocol failures"
 
+invocation_limits:
+  all_open_max_prs: 5
+  all_open_overflow_action: "Report count of skipped PRs in summary and instruct user to re-run to process remaining PRs"
+  completion_gate_max_retries: 3
+  completion_gate_overflow_action: "After 3 failed retries, halt loop, record which criteria still fail, and escalate to user for manual resolution"
+
+output_constraints:
+  per_pr_max_response_lines: 120
+  per_pr_overflow_action: "Truncate with '... (N lines omitted, see .agents/pr-comments/PR-{pr}/ for full detail)' and persist full detail to session file"
+  summary_format: "table"
+  summary_required_columns:
+    - "PR"
+    - "Branch"
+    - "Comments"
+    - "Acknowledged"
+    - "Implemented"
+    - "Commit"
+    - "Status"
+
 thread_resolution:
   note: "Replying to a review comment does NOT automatically resolve the thread. Thread resolution requires a separate GraphQL mutation."
   batch_graphql_template: |

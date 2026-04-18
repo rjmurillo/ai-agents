@@ -145,6 +145,28 @@ Ask Claude to use Serena's get_symbols_overview on a file in your project
 Ask about a framework: "How does FastAPI dependency injection work?"
 ```
 
+## Completion Criteria
+
+Setup is complete when ALL of the following are verified. If any item fails, stop and report which criterion failed; do not retry silently.
+
+| Criterion | Verification |
+|-----------|--------------|
+| Forgetful MCP configured | `claude mcp list` lists `forgetful` with status healthy |
+| Serena plugin installed (if required) | `claude plugins list` contains a Serena entry |
+| Context7 plugin installed (if recommended) | `claude plugins list` contains a Context7 entry, or user explicitly opted out |
+| Setup status reported | Step 3 status block printed to the user |
+
+### Task Budget
+
+- Maximum 2 retry attempts per setup step (plugin install, MCP registration) before surfacing the failure to the user.
+- Maximum 1 prompt per setup option; do not re-ask after a decision.
+- Do not run the Step 4 optional tests unless the user confirms.
+
+### Output Constraints
+
+- Status block in Step 3 MUST use the three-line `Component: State` format shown above. No additional commentary.
+- On failure, report only: component name, detected state, and the single next command to run.
+
 ## Troubleshooting
 
 **Forgetful issues:**
