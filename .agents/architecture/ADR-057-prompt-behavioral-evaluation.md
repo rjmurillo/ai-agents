@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-04-19
 decision-makers: ["architect", "user"]
 consulted: ["qa", "security", "critic"]
