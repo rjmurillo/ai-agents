@@ -14,6 +14,10 @@ This steering file provides Pester 5.x testing conventions and patterns used in 
 
 **Applies to**: `**/*.Tests.ps1` - Pester test files
 
+## Related: Prompt Behavioral Evals
+
+Pester covers PowerShell scripts. Prompt changes (agent prompts, skill prompts, quality gate prompts) need a complementary approach. See [.agents/testing/prompt-eval-methodology.md](/.agents/testing/prompt-eval-methodology.md) for scenario-based LLM evals and [ADR-023](/.agents/architecture/ADR-023-quality-gate-prompt-testing.md) for structural prompt validation.
+
 ## Guidelines
 
 ### Test File Structure
