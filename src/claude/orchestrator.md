@@ -123,6 +123,34 @@ At session end, verify before closing:
 
 Never close a session with pending delegations.
 
+### Stop Criteria: Session-End Is Mandatory
+
+**Do NOT close the session until the session-end checklist is complete.** Attempting to
+close without running session-end is a protocol violation. Trust-based compliance has a
+documented 95.8% failure rate (see `.agents/retrospective/`), so this gate is enforced,
+not advisory.
+
+Before closing:
+
+1. Run `/session-end` or execute `python3 .claude/skills/session-end/scripts/complete_session_log.py`.
+2. Verify the session log was updated in `.agents/sessions/` (ending commit SHA set, MUST items complete).
+3. Verify HANDOFF.md was updated with outcomes and next steps.
+4. Verify all changes were committed to git (`git status` clean or only session-log updates).
+5. Verify validation passes (`validate_session_json.py` exit code 0).
+
+If any step fails, call `work_finish(blocked, "Session-end protocol failure: [specific error]")`.
+Do NOT close the session. Do NOT mark the session complete in the log.
+
+If you skip session-end, log the skip for observability:
+
+```bash
+python3 scripts/log_session_end_skip.py --reason "<why session-end was not run>"
+```
+
+This appends a structured event to `.agents/sessions/session-end-skips.jsonl` so
+compliance drift can be tracked across sessions. Logging a skip does not authorize
+skipping, it only preserves evidence of the failure.
+
 ## Reliability Principles
 
 - **Idempotent delegations**: re-delegating the same task to the same agent should be safe
