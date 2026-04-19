@@ -60,8 +60,8 @@ Complete within 50k output tokens. If approaching the limit, summarize findings 
 
 Stop when any of the following is true:
 
-- All required phases completed (an intentional skip of the Memory Phase under a Fallback Rule counts as completed, not incomplete).
-- 3 phases have failed (an intentional skip of the Memory Phase under a Fallback Rule counts as neither failed nor incomplete).
+- All 5 phases completed or intentionally skipped under a Fallback Rule.
+- 3 phases have failed (intentional skips under Fallback Rules do not count as failures).
 - The 50k output-token budget is reached.
 
 ## Output
