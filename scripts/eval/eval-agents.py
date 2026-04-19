@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 """Agent Definition Quality Assessment: Measure agent prompt quality against role expectations.
 
+NOTE: This script is a quality assessment tool, not an ADR-057 prompt change validator.
+It scores agent definitions as-is (no before/after comparison). For prompt change
+validation with before/after comparison, use eval-prompt-change.py (ADR-057 compliant).
+The eval-suite.py orchestrator routes to the correct evaluator automatically.
+
 Unlike skill assessments (baseline vs enhanced), agent assessments score how well the agent
 definition performs its stated job. Each agent is scored on four dimensions:
   - Role adherence: stays in character, does what the definition says
@@ -681,17 +686,60 @@ def _avg_scores(score_list: list[dict]) -> dict[str, float]:
     return result
 
 
+def _aggregate_multi_run_scores(run_scores: list[dict]) -> dict:
+    """Aggregate scores across multiple runs per ADR-057 flakiness protocol.
+
+    Returns averaged scores plus flakiness metadata (pass rate, variance).
+    """
+    if len(run_scores) == 1:
+        return run_scores[0]
+
+    aggregated: dict[str, Any] = {}
+    for dim in DIMENSIONS:
+        values = [s[dim] for s in run_scores if dim in s and s[dim] is not None]
+        if values:
+            aggregated[dim] = round(sum(values) / len(values), 2)
+            aggregated[f"{dim}_variance"] = round(
+                sum((v - aggregated[dim]) ** 2 for v in values) / len(values), 2
+            )
+        else:
+            aggregated[dim] = 0.0
+
+    # Flakiness detection: a scenario is flaky if any dimension varies by > 1 point
+    max_variance = max(
+        (aggregated.get(f"{d}_variance", 0) for d in DIMENSIONS), default=0
+    )
+    aggregated["runs"] = len(run_scores)
+    aggregated["flaky"] = max_variance > 1.0
+    aggregated["max_variance"] = round(max_variance, 2)
+
+    # Preserve non-score fields from first run
+    for key in ("complexity", "model_used", "reasoning"):
+        if key in run_scores[0]:
+            aggregated[key] = run_scores[0][key]
+
+    aggregated["per_run_detail"] = run_scores
+    return aggregated
+
+
 def run_assessment(
     api_key: str,
     agents: list[str],
     prompts: dict[str, list[dict[str, Any]]],
     model: str = "claude-sonnet-4-20250514",
     dry_run: bool = False,
+    runs: int = 1,
 ) -> dict[str, Any]:
-    """Run the agent assessment: load agent definition as system prompt, score responses."""
+    """Run the agent assessment: load agent definition as system prompt, score responses.
+
+    Args:
+        runs: Number of runs per scenario. Per ADR-057, use 3+ for flakiness detection.
+              A scenario passes if it succeeds in at least 2 of 3 runs.
+    """
     results: dict[str, Any] = {}
     total = sum(len(prompts.get(a, [])) for a in agents)
     current = 0
+    api_call_count = 0
 
     for agent_name in agents:
         agent_prompts = prompts.get(agent_name, [])
@@ -709,7 +757,8 @@ def run_assessment(
         meta = extract_agent_meta(agent_name)
         print(f"\n{'='*60}", file=sys.stderr)
         print(f"  Agent: {agent_name} (model: {meta.get('model', 'unspecified')}, "
-              f"{len(agent_prompts)} prompts, context: {context_size} chars)", file=sys.stderr)
+              f"{len(agent_prompts)} prompts, context: {context_size} chars, "
+              f"runs: {runs})", file=sys.stderr)
         print(f"{'='*60}", file=sys.stderr)
 
         scores: list[dict] = []
@@ -732,35 +781,51 @@ def run_assessment(
                 })
                 continue
 
-            # Run prompt with agent definition as system context
-            system_ctx = (
-                f"You are the {agent_name} agent. Follow your agent definition exactly.\n\n"
-                f"{agent_context}"
-            )
-            response = _call_api_for_agents(api_key, [{"role": "user", "content": prompt_text}],
-                                 system=system_ctx, model=model)
+            run_scores: list[dict] = []
+            for run_idx in range(runs):
+                if runs > 1:
+                    print(f"    Run {run_idx + 1}/{runs}...", file=sys.stderr)
 
-            # Score the response with complexity context
-            score = score_agent_response(
-                api_key, prompt_text, response, expected, agent_name,
-                complexity=complexity, model=model
-            )
-            score["complexity"] = complexity
-            scores.append(score)
+                # Run prompt with agent definition as system context
+                system_ctx = (
+                    f"You are the {agent_name} agent. Follow your agent definition exactly.\n\n"
+                    f"{agent_context}"
+                )
+                response = _call_api_for_agents(api_key, [{"role": "user", "content": prompt_text}],
+                                     system=system_ctx, model=model)
+                api_call_count += 1
 
-            r = score.get("role_adherence", 0)
-            a = score.get("actionability", 0)
-            q = score.get("quality", 0)
-            ap = score.get("appropriateness", 0)
-            print(f"    R={r} A={a} Q={q} Ap={ap}", file=sys.stderr)
+                # Score the response with complexity context
+                score = score_agent_response(
+                    api_key, prompt_text, response, expected, agent_name,
+                    complexity=complexity, model=model
+                )
+                score["complexity"] = complexity
+                score["model_used"] = model
+                run_scores.append(score)
+                api_call_count += 1
 
-            time.sleep(RATE_LIMIT_SLEEP_SEC)
+                time.sleep(RATE_LIMIT_SLEEP_SEC)
+
+            aggregated = _aggregate_multi_run_scores(run_scores)
+            scores.append(aggregated)
+
+            r = aggregated.get("role_adherence", 0)
+            a = aggregated.get("actionability", 0)
+            q = aggregated.get("quality", 0)
+            ap = aggregated.get("appropriateness", 0)
+            flaky_tag = " [FLAKY]" if aggregated.get("flaky") else ""
+            print(f"    R={r} A={a} Q={q} Ap={ap}{flaky_tag}", file=sys.stderr)
 
         results[agent_name] = {
             "scores": scores,
             "context_chars": context_size,
             "model": meta.get("model", "unspecified"),
         }
+
+    # Cost estimate per ADR-057
+    est_tokens = api_call_count * 3500  # ~2000-5000 tokens per call, use midpoint
+    print(f"\n  Cost estimate: {api_call_count} API calls, ~{est_tokens:,} tokens", file=sys.stderr)
 
     return results
 
@@ -777,6 +842,8 @@ def main() -> None:
                         help="Model to use for assessment")
     parser.add_argument("--dry-run", action="store_true",
                         help="Print prompts without calling the API")
+    parser.add_argument("--runs", type=int, default=1,
+                        help="Number of runs per scenario for flakiness detection (ADR-057)")
     parser.add_argument("--output", type=str, help="Write results to file")
     args = parser.parse_args()
 
@@ -810,7 +877,7 @@ def main() -> None:
         prompts = PROMPTS
 
     prompt_count = sum(len(prompts.get(a, [])) for a in agents)
-    api_calls = prompt_count * 2 if not args.dry_run else 0  # 1 run + 1 score per prompt
+    api_calls = prompt_count * 2 * args.runs if not args.dry_run else 0  # (1 run + 1 score) * runs per prompt
     print(f"Agents: {agents}", file=sys.stderr)
     print(f"Prompts: {prompt_count}, API calls: {api_calls}", file=sys.stderr)
 
@@ -819,7 +886,8 @@ def main() -> None:
               file=sys.stderr)
 
     try:
-        results = run_assessment(api_key, agents, prompts, model=args.model, dry_run=args.dry_run)
+        results = run_assessment(api_key, agents, prompts, model=args.model,
+                                dry_run=args.dry_run, runs=args.runs)
     except RuntimeError as exc:
         print(f"Error: assessment failed: {exc}", file=sys.stderr)
         sys.exit(1)
@@ -894,6 +962,18 @@ def main() -> None:
         print(f"\n  BELOW THRESHOLD (<3.5):", file=sys.stderr)
         for name, data in weak:
             print(f"    {name}: {data['overall']:.2f}", file=sys.stderr)
+
+    # Report flaky scenarios (ADR-057 flakiness protocol)
+    if args.runs > 1:
+        flaky_scenarios = []
+        for name, data in sorted_agents:
+            for i, detail in enumerate(data.get("detail", [])):
+                if detail.get("flaky"):
+                    flaky_scenarios.append((name, i, detail.get("max_variance", 0)))
+        if flaky_scenarios:
+            print(f"\n  FLAKY SCENARIOS ({len(flaky_scenarios)}):", file=sys.stderr)
+            for name, idx, var in flaky_scenarios:
+                print(f"    {name} scenario {idx}: variance={var:.2f}", file=sys.stderr)
 
     sys.exit(1 if weak else 0)
 
