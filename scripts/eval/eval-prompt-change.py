@@ -114,7 +114,7 @@ def load_prompt_from_ref(prompt_path: str, ref: str) -> str:
     try:
         result = subprocess.run(
             ["git", "show", f"{ref}:{prompt_path}"],
-            capture_output=True, text=True, check=True,
+            capture_output=True, text=True, check=True, timeout=30,
         )
         return result.stdout
     except subprocess.CalledProcessError as e:
@@ -170,8 +170,8 @@ def judge_scenario(
         if match:
             text = match.group(1).strip()
 
-    # Try to find JSON object in response
-    json_match = re.search(r"\{[^{}]*\}", text)
+    # Try to find JSON object in response (handles nested objects)
+    json_match = re.search(r"\{.*\}", text, re.DOTALL)
     if json_match:
         try:
             parsed = json.loads(json_match.group())
