@@ -31,6 +31,7 @@ from typing import Any
 # ---------------------------------------------------------------------------
 
 from _anthropic_api import call_api as _call_api, load_api_key as _load_api_key, load_custom_prompts
+from _eval_common import EST_TOKENS_PER_CALL, aggregate_multi_run_scores
 
 
 # ---------------------------------------------------------------------------
@@ -221,6 +222,7 @@ Respond in JSON only, no other text:
     try:
         scores = json.loads(text)
     except json.JSONDecodeError:
+        print(f"WARNING: Failed to parse LLM response: {text[:100]}", file=sys.stderr)
         scores = {"accuracy": 0, "depth": 0, "specificity": 0, "reasoning": f"Failed to parse: {text[:200]}"}
 
     return scores
@@ -311,34 +313,12 @@ def _avg_scores(score_list: list[dict]) -> dict[str, float]:
 # Main eval runner
 # ---------------------------------------------------------------------------
 
+_KNOWLEDGE_DIMENSIONS = ["accuracy", "depth", "specificity"]
+
+
 def _aggregate_multi_run_scores(run_scores: list[dict]) -> dict:
     """Aggregate scores across multiple runs per ADR-057 flakiness protocol."""
-    if len(run_scores) == 1:
-        return run_scores[0]
-
-    dims = ["accuracy", "depth", "specificity"]
-    aggregated: dict[str, Any] = {}
-    for dim in dims:
-        values = [s.get(dim, 0) for s in run_scores]
-        aggregated[dim] = round(sum(values) / len(values), 2)
-        aggregated[f"{dim}_variance"] = round(
-            sum((v - aggregated[dim]) ** 2 for v in values) / len(values), 2
-        )
-
-    max_variance = max(
-        (aggregated.get(f"{d}_variance", 0) for d in dims), default=0
-    )
-    aggregated["runs"] = len(run_scores)
-    aggregated["flaky"] = max_variance > 1.0
-    aggregated["max_variance"] = round(max_variance, 2)
-
-    for key in ("model_used", "reasoning"):
-        if key in run_scores[0]:
-            aggregated[key] = run_scores[0][key]
-
-    if len(run_scores) > 1:
-        aggregated["per_run_detail"] = run_scores
-    return aggregated
+    return aggregate_multi_run_scores(run_scores, _KNOWLEDGE_DIMENSIONS)
 
 
 def run_assessment(
@@ -431,7 +411,7 @@ def run_assessment(
         }
 
     # Cost estimate per ADR-057
-    est_tokens = api_call_count * 3500  # ~2000-5000 tokens per call, use midpoint
+    est_tokens = api_call_count * EST_TOKENS_PER_CALL
     print(f"\n  Cost estimate: {api_call_count} API calls, ~{est_tokens:,} tokens", file=sys.stderr)
 
     return results

@@ -40,6 +40,8 @@ if _lib_dir not in sys.path:
 from hook_utilities import get_project_directory  # noqa: E402
 from hook_utilities.guards import skip_if_consumer_repo  # noqa: E402
 
+_EVAL_FRESHNESS_HOURS = 24
+
 # Patterns for files that require behavioral eval per ADR-057
 _PROMPT_PATTERNS = [
     re.compile(r"^\.claude/commands/.*\.md$"),
@@ -79,14 +81,21 @@ def classify_staged_behavioral(files: list[str]) -> dict[str, list[str]]:
     classified = {"prompts": [], "agents": [], "skills": []}
 
     for f in files:
+        matched = False
         for pattern in _PROMPT_PATTERNS:
             if pattern.match(f):
                 classified["prompts"].append(f)
+                matched = True
                 break
+        if matched:
+            continue
         for pattern in _AGENT_PATTERNS:
             if pattern.match(f):
                 classified["agents"].append(f)
+                matched = True
                 break
+        if matched:
+            continue
         for pattern in _SKILL_PATTERNS:
             if pattern.match(f):
                 classified["skills"].append(f)
@@ -129,7 +138,7 @@ def has_eval_evidence(project_dir: str, staged_files: list[str]) -> bool:
                 age_hours = (
                     datetime.now(tz=UTC).timestamp() - stat.st_mtime
                 ) / 3600
-                if age_hours < 24:
+                if age_hours < _EVAL_FRESHNESS_HOURS:
                     return True
         except OSError:
             pass

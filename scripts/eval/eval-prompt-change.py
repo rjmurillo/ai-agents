@@ -56,6 +56,7 @@ from pathlib import Path
 from typing import Any
 
 from _anthropic_api import call_api, load_api_key
+from _eval_common import EST_TOKENS_PER_CALL
 
 RATE_LIMIT_SLEEP_SEC = 1.0
 DEFAULT_RUNS = 3
@@ -287,7 +288,7 @@ def run_comparison(
     before_score = sum(1 for r in before_results if r["passed"]) / total
     after_score = sum(1 for r in after_results if r["passed"]) / total
 
-    est_tokens = api_call_count * 3500
+    est_tokens = api_call_count * EST_TOKENS_PER_CALL
     print(f"\n  Cost: {api_call_count} API calls, ~{est_tokens:,} tokens", file=sys.stderr)
 
     return {
@@ -386,12 +387,12 @@ def acceptance_gate(
 # Main
 # ---------------------------------------------------------------------------
 
-def main() -> None:
+def _parse_args() -> argparse.Namespace:
+    """Parse and validate command-line arguments."""
     parser = argparse.ArgumentParser(
         description="ADR-057 prompt change evaluator (before/after behavioral comparison)"
     )
 
-    # Prompt source (either --prompt + --base-ref, or --before + --after)
     prompt_group = parser.add_argument_group("prompt source")
     prompt_group.add_argument(
         "--prompt", type=str,
@@ -404,13 +405,7 @@ def main() -> None:
     prompt_group.add_argument("--before", type=str, help="Explicit 'before' prompt file")
     prompt_group.add_argument("--after", type=str, help="Explicit 'after' prompt file")
 
-    # Scenarios
-    parser.add_argument(
-        "--scenarios", type=str, required=True,
-        help="Path to scenario JSON file"
-    )
-
-    # Eval options
+    parser.add_argument("--scenarios", type=str, required=True, help="Path to scenario JSON file")
     parser.add_argument(
         "--runs", type=int, default=DEFAULT_RUNS,
         help=f"Runs per scenario (default: {DEFAULT_RUNS}, security: {SECURITY_RUNS})"
@@ -419,19 +414,14 @@ def main() -> None:
         "--security-critical", action="store_true",
         help=f"Security-critical tier: {SECURITY_RUNS} runs, 100%% pass required"
     )
-    parser.add_argument(
-        "--model", type=str, default="claude-sonnet-4-20250514",
-        help="Model for evaluation"
-    )
+    parser.add_argument("--model", type=str, default="claude-sonnet-4-20250514", help="Model for evaluation")
     parser.add_argument("--dry-run", action="store_true", help="Validate inputs, no API calls")
     parser.add_argument("--output", type=str, help="Write results to file")
 
     args = parser.parse_args()
 
-    # Validate prompt source args
     has_explicit = args.before and args.after
     has_git = args.prompt is not None
-
     if not has_explicit and not has_git:
         parser.error("Provide either --prompt or both --before and --after")
     if has_explicit and has_git:
@@ -439,80 +429,43 @@ def main() -> None:
     if (args.before and not args.after) or (args.after and not args.before):
         parser.error("--before and --after must be used together")
 
-    # Override runs for security-critical
     if args.security_critical and args.runs < SECURITY_RUNS:
         args.runs = SECURITY_RUNS
         print(f"  Security-critical: overriding runs to {SECURITY_RUNS}", file=sys.stderr)
 
-    # Load scenarios
-    try:
-        scenarios = load_scenarios(args.scenarios)
-    except RuntimeError as e:
-        print(f"ERROR: {e}", file=sys.stderr)
-        sys.exit(2)
+    return args
 
-    print(f"  Scenarios: {len(scenarios)} loaded from {args.scenarios}", file=sys.stderr)
-    print(f"  Runs per scenario: {args.runs}", file=sys.stderr)
-    print(f"  Security-critical: {args.security_critical}", file=sys.stderr)
-    print(f"  Model: {args.model}", file=sys.stderr)
 
-    # Load before/after prompt text
-    try:
-        if has_explicit:
-            before_text = load_prompt_from_file(args.before)
-            after_text = load_prompt_from_file(args.after)
-            source = f"explicit: {args.before} -> {args.after}"
-        else:
-            before_text = load_prompt_from_ref(args.prompt, args.base_ref)
-            after_text = load_prompt_from_file(args.prompt)
-            source = f"git: {args.base_ref}:{args.prompt} -> working copy"
-    except RuntimeError as e:
-        print(f"ERROR: {e}", file=sys.stderr)
-        sys.exit(2)
+def _load_prompts(args: argparse.Namespace) -> tuple[str, str, str]:
+    """Load before/after prompt text and return (before_text, after_text, source)."""
+    has_explicit = args.before and args.after
+    if has_explicit:
+        before_text = load_prompt_from_file(args.before)
+        after_text = load_prompt_from_file(args.after)
+        source = f"explicit: {args.before} -> {args.after}"
+    else:
+        before_text = load_prompt_from_ref(args.prompt, args.base_ref)
+        after_text = load_prompt_from_file(args.prompt)
+        source = f"git: {args.base_ref}:{args.prompt} -> working copy"
+    return before_text, after_text, source
 
-    print(f"  Source: {source}", file=sys.stderr)
-    print(f"  Before: {len(before_text)} chars, After: {len(after_text)} chars", file=sys.stderr)
 
-    if before_text == after_text:
-        print("  WARNING: before and after prompt text are identical", file=sys.stderr)
-
-    if args.dry_run:
-        print("\n  DRY RUN: inputs validated, no API calls made", file=sys.stderr)
-        print(json.dumps({
-            "dry_run": True,
-            "scenarios": len(scenarios),
-            "before_chars": len(before_text),
-            "after_chars": len(after_text),
-            "runs": args.runs,
-            "security_critical": args.security_critical,
-            "est_api_calls": len(scenarios) * 2 * args.runs,
-        }, indent=2))
-        sys.exit(0)
-
-    # Load API key
-    try:
-        api_key = load_api_key()
-    except RuntimeError as e:
-        print(f"ERROR: {e}", file=sys.stderr)
-        sys.exit(1)
-
-    # Run comparison
+def _run_and_report(
+    api_key: str,
+    before_text: str,
+    after_text: str,
+    scenarios: list[dict[str, Any]],
+    args: argparse.Namespace,
+    source: str,
+) -> None:
+    """Run comparison, apply gate, and output results."""
     print(f"\n{'='*60}", file=sys.stderr)
     print(f"  RUNNING BEHAVIORAL EVAL ({len(scenarios)} scenarios x {args.runs} runs)", file=sys.stderr)
     print(f"{'='*60}", file=sys.stderr)
 
-    try:
-        comparison = run_comparison(
-            api_key, before_text, after_text, scenarios, args.model, args.runs
-        )
-    except RuntimeError as e:
-        print(f"ERROR: eval failed: {e}", file=sys.stderr)
-        sys.exit(3)
-
-    # Apply acceptance gate
+    comparison = run_comparison(api_key, before_text, after_text, scenarios, args.model, args.runs)
     gate = acceptance_gate(comparison, security_critical=args.security_critical)
 
-    # Build output
     output = {
         "eval_type": "prompt-change",
         "adr": "ADR-057",
@@ -529,21 +482,22 @@ def main() -> None:
             "est_tokens": comparison["est_tokens"],
         },
         "gate": gate,
-        "detail": {
-            "before": comparison["before_results"],
-            "after": comparison["after_results"],
-        },
+        "detail": {"before": comparison["before_results"], "after": comparison["after_results"]},
     }
 
     json_output = json.dumps(output, indent=2)
-
     if args.output:
         Path(args.output).write_text(json_output, encoding="utf-8")
         print(f"\n  Results written to {args.output}", file=sys.stderr)
     else:
         print(json_output)
 
-    # Summary
+    _print_gate_summary(gate)
+    sys.exit(0 if gate["passed"] else 1)
+
+
+def _print_gate_summary(gate: dict[str, Any]) -> None:
+    """Print acceptance gate summary to stderr."""
     print(f"\n{'='*60}", file=sys.stderr)
     print(f"  ACCEPTANCE GATE: {gate['verdict']}", file=sys.stderr)
     print(f"{'='*60}", file=sys.stderr)
@@ -560,10 +514,56 @@ def main() -> None:
         print(f"  Regressions: {gate['regressions']}", file=sys.stderr)
     if gate["flaky_scenarios"]:
         print(f"  Flaky: {gate['flaky_scenarios']}", file=sys.stderr)
-
     print(f"{'='*60}", file=sys.stderr)
 
-    sys.exit(0 if gate["passed"] else 1)
+
+def main() -> None:
+    args = _parse_args()
+
+    try:
+        scenarios = load_scenarios(args.scenarios)
+    except RuntimeError as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        sys.exit(2)
+
+    print(f"  Scenarios: {len(scenarios)} loaded from {args.scenarios}", file=sys.stderr)
+    print(f"  Runs per scenario: {args.runs}", file=sys.stderr)
+    print(f"  Security-critical: {args.security_critical}", file=sys.stderr)
+    print(f"  Model: {args.model}", file=sys.stderr)
+
+    try:
+        before_text, after_text, source = _load_prompts(args)
+    except RuntimeError as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        sys.exit(2)
+
+    print(f"  Source: {source}", file=sys.stderr)
+    print(f"  Before: {len(before_text)} chars, After: {len(after_text)} chars", file=sys.stderr)
+
+    if before_text == after_text:
+        print("  WARNING: before and after prompt text are identical", file=sys.stderr)
+
+    if args.dry_run:
+        print("\n  DRY RUN: inputs validated, no API calls made", file=sys.stderr)
+        print(json.dumps({
+            "dry_run": True, "scenarios": len(scenarios),
+            "before_chars": len(before_text), "after_chars": len(after_text),
+            "runs": args.runs, "security_critical": args.security_critical,
+            "est_api_calls": len(scenarios) * 2 * args.runs,
+        }, indent=2))
+        sys.exit(0)
+
+    try:
+        api_key = load_api_key()
+    except RuntimeError as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        _run_and_report(api_key, before_text, after_text, scenarios, args, source)
+    except RuntimeError as e:
+        print(f"ERROR: eval failed: {e}", file=sys.stderr)
+        sys.exit(3)
 
 
 if __name__ == "__main__":

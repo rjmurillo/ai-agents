@@ -47,6 +47,7 @@ from typing import Any
 # ---------------------------------------------------------------------------
 
 from _anthropic_api import call_api as _call_api, load_api_key as _load_api_key, load_custom_prompts
+from _eval_common import EST_TOKENS_PER_CALL, aggregate_multi_run_scores
 
 
 # ---------------------------------------------------------------------------
@@ -649,6 +650,7 @@ Respond in JSON only, no other text:
         scores = json.loads(text)
         # Note: if appropriateness is missing, we leave it out and _avg_scores will exclude it
     except json.JSONDecodeError:
+        print(f"WARNING: Failed to parse LLM response: {text[:100]}", file=sys.stderr)
         scores = {
             "role_adherence": 0,
             "actionability": 0,
@@ -687,39 +689,8 @@ def _avg_scores(score_list: list[dict]) -> dict[str, float]:
 
 
 def _aggregate_multi_run_scores(run_scores: list[dict]) -> dict:
-    """Aggregate scores across multiple runs per ADR-057 flakiness protocol.
-
-    Returns averaged scores plus flakiness metadata (pass rate, variance).
-    """
-    if len(run_scores) == 1:
-        return run_scores[0]
-
-    aggregated: dict[str, Any] = {}
-    for dim in DIMENSIONS:
-        values = [s[dim] for s in run_scores if dim in s and s[dim] is not None]
-        if values:
-            aggregated[dim] = round(sum(values) / len(values), 2)
-            aggregated[f"{dim}_variance"] = round(
-                sum((v - aggregated[dim]) ** 2 for v in values) / len(values), 2
-            )
-        else:
-            aggregated[dim] = 0.0
-
-    # Flakiness detection: a scenario is flaky if any dimension varies by > 1 point
-    max_variance = max(
-        (aggregated.get(f"{d}_variance", 0) for d in DIMENSIONS), default=0
-    )
-    aggregated["runs"] = len(run_scores)
-    aggregated["flaky"] = max_variance > 1.0
-    aggregated["max_variance"] = round(max_variance, 2)
-
-    # Preserve non-score fields from first run
-    for key in ("complexity", "model_used", "reasoning"):
-        if key in run_scores[0]:
-            aggregated[key] = run_scores[0][key]
-
-    aggregated["per_run_detail"] = run_scores
-    return aggregated
+    """Aggregate scores across multiple runs per ADR-057 flakiness protocol."""
+    return aggregate_multi_run_scores(run_scores, DIMENSIONS)
 
 
 def run_assessment(
@@ -824,7 +795,7 @@ def run_assessment(
         }
 
     # Cost estimate per ADR-057
-    est_tokens = api_call_count * 3500  # ~2000-5000 tokens per call, use midpoint
+    est_tokens = api_call_count * EST_TOKENS_PER_CALL
     print(f"\n  Cost estimate: {api_call_count} API calls, ~{est_tokens:,} tokens", file=sys.stderr)
 
     return results

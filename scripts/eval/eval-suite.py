@@ -64,7 +64,8 @@ def detect_changed_files(base_ref: str) -> list[str]:
             cwd=str(REPO_ROOT),
         )
         committed = result.stdout.strip().splitlines()
-    except subprocess.CalledProcessError:
+    except subprocess.CalledProcessError as e:
+        print(f"WARNING: git diff against {base_ref} failed: {e}", file=sys.stderr)
         committed = []
 
     try:
@@ -74,7 +75,8 @@ def detect_changed_files(base_ref: str) -> list[str]:
             cwd=str(REPO_ROOT),
         )
         staged = result.stdout.strip().splitlines()
-    except subprocess.CalledProcessError:
+    except subprocess.CalledProcessError as e:
+        print(f"WARNING: git diff --cached failed: {e}", file=sys.stderr)
         staged = []
 
     return sorted(set(committed + staged))
@@ -245,6 +247,7 @@ def run_behavioral_for_prompt(
         try:
             parsed = json.loads(result.stdout)
         except json.JSONDecodeError:
+            print(f"WARNING: Failed to parse JSON from eval-prompt-change for {prompt_path}", file=sys.stderr)
             parsed = {"raw_output": result.stdout[:1000]}
 
         return {
@@ -282,6 +285,7 @@ def run_agent_quality(
             try:
                 parsed = json.loads(result.stdout)
             except json.JSONDecodeError:
+                print(f"WARNING: Failed to parse JSON from eval-agents for {name}", file=sys.stderr)
                 parsed = {"raw_output": result.stdout[:500]}
 
             results["agents"][name] = {
@@ -327,6 +331,7 @@ def run_skill_knowledge(
             try:
                 parsed = json.loads(result.stdout)
             except json.JSONDecodeError:
+                print(f"WARNING: Failed to parse JSON from eval-knowledge-integration for {name}", file=sys.stderr)
                 parsed = {"raw_output": result.stdout[:500]}
 
             results["skills"][name] = {
@@ -345,64 +350,42 @@ def run_skill_knowledge(
 # Main orchestrator
 # ---------------------------------------------------------------------------
 
-def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Unified eval orchestrator for prompt, skill, and agent changes"
-    )
-    parser.add_argument("--base-ref", type=str, default="main",
-                        help="Git ref to compare against (default: main)")
-    parser.add_argument("--scope", type=str,
-                        choices=["prompts", "agents", "skills", "all"],
-                        default="all", help="Limit to specific scope")
-    parser.add_argument("--model", type=str, default="claude-sonnet-4-20250514",
-                        help="Model for LLM-based assessments")
-    parser.add_argument("--dry-run", action="store_true",
-                        help="Detect and classify only, no API calls")
-    parser.add_argument("--output", type=str, help="Write results to file")
-    args = parser.parse_args()
-
-    start_time = time.time()
-
-    # Phase 1: Detect
+def _detect_and_classify(base_ref: str) -> dict[str, list[str]]:
+    """Detect changed files and classify them by eval category."""
     print(f"{'='*60}", file=sys.stderr)
-    print(f"  EVAL SUITE: Detecting changes vs {args.base_ref}", file=sys.stderr)
+    print(f"  EVAL SUITE: Detecting changes vs {base_ref}", file=sys.stderr)
     print(f"{'='*60}", file=sys.stderr)
 
-    changed_files = detect_changed_files(args.base_ref)
+    changed_files = detect_changed_files(base_ref)
     if not changed_files:
         print("  No changes detected.", file=sys.stderr)
         sys.exit(0)
 
     print(f"  Changed files: {len(changed_files)}", file=sys.stderr)
 
-    # Phase 2: Classify
     classified = classify_changes(changed_files)
     for category, files in classified.items():
         if files:
             print(f"  {category}: {len(files)} files", file=sys.stderr)
 
-    # Phase 3: Route and run
-    output: dict[str, Any] = {
-        "suite_version": "1.0.0",
-        "base_ref": args.base_ref,
-        "model": args.model,
-        "scope": args.scope,
-        "changed_files": len(changed_files),
-        "classification": {k: v for k, v in classified.items() if v},
-        "results": {},
-    }
+    return classified
 
+
+def _run_evals(
+    classified: dict[str, list[str]],
+    args: argparse.Namespace,
+) -> tuple[dict[str, Any], bool]:
+    """Route classified files to evaluators and collect results."""
+    results: dict[str, Any] = {}
     any_failure = False
 
-    # 3a: Structural tests (ADR-023)
     if classified["structural_test_targets"] and args.scope in ("prompts", "all"):
         print(f"\n--- Structural Tests (ADR-023) ---", file=sys.stderr)
         result = run_structural_tests(classified["structural_test_targets"], args.dry_run)
-        output["results"]["structural"] = result
+        results["structural"] = result
         if not result.get("skipped") and not result.get("passed"):
             any_failure = True
 
-    # 3b: Behavioral (ADR-057)
     if classified["prompts"] and args.scope in ("prompts", "all"):
         print(f"\n--- Behavioral Assessment (ADR-057) ---", file=sys.stderr)
         behavioral_results = []
@@ -422,50 +405,40 @@ def main() -> None:
             else:
                 print(f"  {prompt_path}: no scenarios found (skipped)", file=sys.stderr)
                 behavioral_results.append({
-                    "skipped": True,
-                    "prompt": prompt_path,
+                    "skipped": True, "prompt": prompt_path,
                     "reason": "no scenario file found",
                 })
+        results["behavioral"] = behavioral_results
 
-        output["results"]["behavioral"] = behavioral_results
-
-    # 3c: Agent quality
     if classified["agents"] and args.scope in ("agents", "all"):
         print(f"\n--- Agent Quality Assessment ---", file=sys.stderr)
         result = run_agent_quality(classified["agents"], args.model, args.dry_run)
-        output["results"]["agents"] = result
+        results["agents"] = result
         if not result.get("passed"):
             any_failure = True
 
-    # 3d: Skill knowledge
     if classified["skills"] and args.scope in ("skills", "all"):
         print(f"\n--- Skill Knowledge Assessment ---", file=sys.stderr)
         result = run_skill_knowledge(classified["skills"], args.model, args.dry_run)
-        output["results"]["skills"] = result
+        results["skills"] = result
         if not result.get("passed"):
             any_failure = True
 
-    # Phase 4: Summary
-    elapsed = round(time.time() - start_time, 1)
-    output["elapsed_seconds"] = elapsed
-    output["passed"] = not any_failure
+    return results, any_failure
 
-    json_output = json.dumps(output, indent=2)
 
-    if args.output:
-        Path(args.output).write_text(json_output, encoding="utf-8")
-        print(f"\n  Results written to {args.output}", file=sys.stderr)
-    else:
-        print(json_output)
+def _print_summary(output: dict[str, Any]) -> None:
+    """Print summary table of eval results to stderr."""
+    elapsed = output.get("elapsed_seconds", 0)
+    any_failure = not output.get("passed", True)
 
-    # Summary table
     print(f"\n{'='*60}", file=sys.stderr)
     print(f"  EVAL SUITE RESULTS ({elapsed}s)", file=sys.stderr)
     print(f"{'='*60}", file=sys.stderr)
     print(f"  {'Category':<25} {'Status':>10}", file=sys.stderr)
     print(f"  {'-'*35}", file=sys.stderr)
 
-    for name, data in output["results"].items():
+    for name, data in output.get("results", {}).items():
         if isinstance(data, list):
             passed_count = sum(1 for r in data if r.get("passed"))
             skipped = sum(1 for r in data if r.get("skipped"))
@@ -479,13 +452,54 @@ def main() -> None:
             status = "PASS"
         else:
             status = "FAIL"
-
         print(f"  {name:<25} {status:>10}", file=sys.stderr)
 
     verdict = "PASS" if not any_failure else "FAIL"
     print(f"\n  Overall: {verdict}", file=sys.stderr)
     print(f"{'='*60}", file=sys.stderr)
 
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Unified eval orchestrator for prompt, skill, and agent changes"
+    )
+    parser.add_argument("--base-ref", type=str, default="main",
+                        help="Git ref to compare against (default: main)")
+    parser.add_argument("--scope", type=str,
+                        choices=["prompts", "agents", "skills", "all"],
+                        default="all", help="Limit to specific scope")
+    parser.add_argument("--model", type=str, default="claude-sonnet-4-20250514",
+                        help="Model for LLM-based assessments")
+    parser.add_argument("--dry-run", action="store_true",
+                        help="Detect and classify only, no API calls")
+    parser.add_argument("--output", type=str, help="Write results to file")
+    args = parser.parse_args()
+
+    start_time = time.time()
+    classified = _detect_and_classify(args.base_ref)
+    results, any_failure = _run_evals(classified, args)
+
+    elapsed = round(time.time() - start_time, 1)
+    output: dict[str, Any] = {
+        "suite_version": "1.0.0",
+        "base_ref": args.base_ref,
+        "model": args.model,
+        "scope": args.scope,
+        "changed_files": sum(len(v) for v in classified.values()),
+        "classification": {k: v for k, v in classified.items() if v},
+        "results": results,
+        "elapsed_seconds": elapsed,
+        "passed": not any_failure,
+    }
+
+    json_output = json.dumps(output, indent=2)
+    if args.output:
+        Path(args.output).write_text(json_output, encoding="utf-8")
+        print(f"\n  Results written to {args.output}", file=sys.stderr)
+    else:
+        print(json_output)
+
+    _print_summary(output)
     sys.exit(0 if not any_failure else 1)
 
 
