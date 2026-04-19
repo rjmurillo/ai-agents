@@ -49,6 +49,9 @@ _PROMPT_PATTERNS = [
 
 _AGENT_PATTERNS = [
     re.compile(r"^\.claude/agents/(?!CLAUDE\.md|README\.md|INDEX\.md).*\.md$"),
+    re.compile(r"^src/claude/(?!CLAUDE\.md|README\.md|AGENTS\.md)(?!.*\.template\.).*\.md$"),
+    re.compile(r"^src/copilot-cli/.*\.(?:md|agent\.md)$"),
+    re.compile(r"^src/vs-code-agents/.*\.md$"),
 ]
 
 _SKILL_PATTERNS = [

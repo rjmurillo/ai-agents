@@ -1748,7 +1748,7 @@ fi
 #
 
 STAGED_PROMPT_FILES=$(echo "$STAGED_FILES" | grep -E '^(\.claude/commands/.*\.md|\.github/prompts/.*\.md|\.agents/security/prompts/.*\.md)$' || true)
-STAGED_AGENT_DEFS=$(echo "$STAGED_FILES" | grep -E '^\.claude/agents/.*\.md$' | grep -v -E '(CLAUDE|README|INDEX)\.md$' || true)
+STAGED_AGENT_DEFS=$(echo "$STAGED_FILES" | grep -E '^(\.claude/agents/|src/claude/|src/copilot-cli/|src/vs-code-agents/).*\.md$' | grep -v -E '(CLAUDE|README|INDEX|AGENTS)\.md$' | grep -v '\.template\.' || true)
 STAGED_SKILL_DEFS=$(echo "$STAGED_FILES" | grep -E '^\.claude/skills/.*/SKILL\.md$' || true)
 
 BEHAVIORAL_FILES=""

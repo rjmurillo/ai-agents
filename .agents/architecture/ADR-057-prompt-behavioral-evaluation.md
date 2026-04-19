@@ -52,6 +52,19 @@ Issue #1688 requested formalizing this evaluation approach into a reusable metho
 
 Adopt scenario-based LLM evaluation as the standard method for validating behavioral correctness of prompt changes. This methodology is documented in `.agents/testing/prompt-eval-methodology.md` and is now elevated to architectural policy.
 
+### Scope: Files Requiring Behavioral Evaluation
+
+| Category | Path Patterns |
+|----------|---------------|
+| Commands | `.claude/commands/*.md` |
+| Quality gate prompts | `.github/prompts/*.md` |
+| Security prompts | `.agents/security/prompts/*.md` |
+| Agent definitions (Claude Code) | `.claude/agents/*.md` |
+| Agent definitions (published) | `src/claude/*.md`, `src/copilot-cli/*.md`, `src/vs-code-agents/*.md` |
+| Skill definitions | `.claude/skills/*/SKILL.md` |
+
+Excluded from behavioral eval: `CLAUDE.md`, `README.md`, `INDEX.md`, `AGENTS.md`, and `.template.` files.
+
 ### Core Pattern
 
 Each evaluation consists of:

@@ -75,8 +75,17 @@ def load_scenarios(path: str) -> list[dict[str, Any]]:
 
     Raises RuntimeError with actionable message on invalid input.
     """
-    with open(path, encoding="utf-8") as f:
-        data = json.load(f)
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+    except FileNotFoundError:
+        raise RuntimeError(f"Scenario file not found: {path}")
+    except json.JSONDecodeError as e:
+        raise RuntimeError(
+            f"Invalid JSON in scenario file {path}: {e.msg} at line {e.lineno}. "
+            f"Expected format: {{\"scenarios\": [{{\"id\": \"S1\", \"desc\": \"...\", "
+            f"\"input\": \"...\", \"expected_verdict\": \"...\"}}]}}"
+        )
 
     scenarios = data.get("scenarios", data) if isinstance(data, dict) else data
     if not isinstance(scenarios, list):

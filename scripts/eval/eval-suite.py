@@ -92,6 +92,9 @@ PROMPT_PATTERNS = [
 
 AGENT_PATTERNS = [
     ".claude/agents/",
+    "src/claude/",
+    "src/copilot-cli/",
+    "src/vs-code-agents/",
 ]
 
 SKILL_PATTERNS = [
@@ -128,7 +131,7 @@ def classify_changes(files: list[str]) -> dict[str, list[str]]:
             for pattern in AGENT_PATTERNS:
                 if f.startswith(pattern) and f.endswith(".md"):
                     name = Path(f).name
-                    if name not in ("CLAUDE.md", "README.md", "INDEX.md"):
+                    if name not in ("CLAUDE.md", "README.md", "INDEX.md", "AGENTS.md") and ".template." not in name:
                         classified["agents"].append(f)
                         matched = True
                     break
