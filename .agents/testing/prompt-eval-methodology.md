@@ -3,11 +3,11 @@
 Status: active
 Version: 1.0.0
 Date: 2026-04-19
-Related: [ADR-023](/.agents/architecture/ADR-023-quality-gate-prompt-testing.md), [testing-approach.md](/.agents/steering/testing-approach.md)
+Related: [ADR-023](../architecture/ADR-023-quality-gate-prompt-testing.md), [testing-approach.md](../steering/testing-approach.md)
 
 ## Purpose
 
-This document defines how to validate prompt changes for behavioral correctness. It complements [ADR-023](/.agents/architecture/ADR-023-quality-gate-prompt-testing.md), which covers structural validation only.
+This document defines how to validate prompt changes for behavioral correctness. It complements [ADR-023](../architecture/ADR-023-quality-gate-prompt-testing.md), which covers structural validation only.
 
 Structural tests prove a prompt has the right sections. They do not prove the LLM interprets the prompt correctly. Behavioral evals close that gap.
 
@@ -120,8 +120,8 @@ Run evals:
 
 ## References
 
-- [ADR-023](/.agents/architecture/ADR-023-quality-gate-prompt-testing.md): Structural validation for quality gate prompts. Behavioral evals are the complement, not a replacement.
+- [ADR-023](../architecture/ADR-023-quality-gate-prompt-testing.md): Structural validation for quality gate prompts. Behavioral evals are the complement, not a replacement.
 - [Issue #1686](https://github.com/rjmurillo/ai-agents/issues/1686): Stop-condition fix that motivated this methodology.
 - [Issue #1688](https://github.com/rjmurillo/ai-agents/issues/1688): Source issue for this document.
-- [.agents/security/benchmarks/test_agent_review_quality.py](/.agents/security/benchmarks/test_agent_review_quality.py): Scenario-based test template.
-- [.agents/steering/testing-approach.md](/.agents/steering/testing-approach.md): Pester testing conventions, cross-referenced from this doc.
+- [.agents/security/benchmarks/test_agent_review_quality.py](../security/benchmarks/test_agent_review_quality.py): Scenario-based test template.
+- [.agents/steering/testing-approach.md](../steering/testing-approach.md): Pester testing conventions, cross-referenced from this doc.

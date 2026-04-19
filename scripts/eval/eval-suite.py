@@ -380,14 +380,14 @@ def _run_evals(
     any_failure = False
 
     if classified["structural_test_targets"] and args.scope in ("prompts", "all"):
-        print(f"\n--- Structural Tests (ADR-023) ---", file=sys.stderr)
+        print("\n--- Structural Tests (ADR-023) ---", file=sys.stderr)
         result = run_structural_tests(classified["structural_test_targets"], args.dry_run)
         results["structural"] = result
         if not result.get("skipped") and not result.get("passed"):
             any_failure = True
 
     if classified["prompts"] and args.scope in ("prompts", "all"):
-        print(f"\n--- Behavioral Assessment (ADR-057) ---", file=sys.stderr)
+        print("\n--- Behavioral Assessment (ADR-057) ---", file=sys.stderr)
         behavioral_results = []
         for prompt_path in classified["prompts"]:
             scenario_path = find_scenarios_for_prompt(prompt_path)
@@ -411,14 +411,14 @@ def _run_evals(
         results["behavioral"] = behavioral_results
 
     if classified["agents"] and args.scope in ("agents", "all"):
-        print(f"\n--- Agent Quality Assessment ---", file=sys.stderr)
+        print("\n--- Agent Quality Assessment ---", file=sys.stderr)
         result = run_agent_quality(classified["agents"], args.model, args.dry_run)
         results["agents"] = result
         if not result.get("passed"):
             any_failure = True
 
     if classified["skills"] and args.scope in ("skills", "all"):
-        print(f"\n--- Skill Knowledge Assessment ---", file=sys.stderr)
+        print("\n--- Skill Knowledge Assessment ---", file=sys.stderr)
         result = run_skill_knowledge(classified["skills"], args.model, args.dry_run)
         results["skills"] = result
         if not result.get("passed"):

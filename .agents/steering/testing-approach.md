@@ -16,7 +16,7 @@ This steering file provides Pester 5.x testing conventions and patterns used in 
 
 ## Related: Prompt Behavioral Evals
 
-Pester covers PowerShell scripts. Prompt changes (agent prompts, skill prompts, quality gate prompts) need a complementary approach. See [.agents/testing/prompt-eval-methodology.md](/.agents/testing/prompt-eval-methodology.md) for scenario-based LLM evals and [ADR-023](/.agents/architecture/ADR-023-quality-gate-prompt-testing.md) for structural prompt validation.
+Pester covers PowerShell scripts. Prompt changes (agent prompts, skill prompts, quality gate prompts) need a complementary approach. See [.agents/testing/prompt-eval-methodology.md](../../.agents/testing/prompt-eval-methodology.md) for scenario-based LLM evals and [ADR-023](../../.agents/architecture/ADR-023-quality-gate-prompt-testing.md) for structural prompt validation.
 
 ## Guidelines
 
@@ -413,8 +413,8 @@ New tests default to `tests/` unless testing a self-contained skill module.
 
 ## References
 
-- [Test-PRMerged.Tests.ps1](/.claude/skills/github/scripts/pr/Test-PRMerged.Tests.ps1) - Comprehensive example
-- [Invoke-CopilotAssignment.Tests.ps1](/tests/Invoke-CopilotAssignment.Tests.ps1) - Mixed approach example
+- [Test-PRMerged.Tests.ps1](../../.claude/skills/github/scripts/pr/Test-PRMerged.Tests.ps1) - Comprehensive example
+- [Invoke-CopilotAssignment.Tests.ps1](../../tests/Invoke-CopilotAssignment.Tests.ps1) - Mixed approach example
 - Memory: `pester-testing-test-isolation`
 - Memory: `pester-testing-cross-platform`
 - Memory: `testing-007-contract-testing`

@@ -131,6 +131,11 @@ def load_prompt_from_ref(prompt_path: str, ref: str) -> str:
         raise RuntimeError(
             f"Cannot load {prompt_path} from ref '{ref}': {e.stderr.strip()}"
         ) from e
+    except subprocess.TimeoutExpired as e:
+        raise RuntimeError(
+            f"Timed out loading {prompt_path} from ref '{ref}' after {e.timeout}s. "
+            f"Check that the git ref exists and the repository is accessible."
+        ) from e
 
 
 def load_prompt_from_file(path: str) -> str:
@@ -332,7 +337,7 @@ def acceptance_gate(
     regressions = []
     flaky_scenarios = []
 
-    for b, a in zip(before_results, after_results):
+    for b, a in zip(before_results, after_results, strict=True):
         sid = b["scenario_id"]
         if not b["passed"] and a["passed"]:
             improvements.append(sid)
@@ -429,6 +434,9 @@ def _parse_args() -> argparse.Namespace:
     if (args.before and not args.after) or (args.after and not args.before):
         parser.error("--before and --after must be used together")
 
+    if args.runs < 1:
+        parser.error("--runs must be at least 1")
+
     if args.security_critical and args.runs < SECURITY_RUNS:
         args.runs = SECURITY_RUNS
         print(f"  Security-critical: overriding runs to {SECURITY_RUNS}", file=sys.stderr)
@@ -503,7 +511,7 @@ def _print_gate_summary(gate: dict[str, Any]) -> None:
     print(f"{'='*60}", file=sys.stderr)
     print(f"  Before: {gate['before_score']:.0%}  After: {gate['after_score']:.0%}  "
           f"Delta: {gate['delta']:+.0%}", file=sys.stderr)
-    print(f"  Criteria:", file=sys.stderr)
+    print("  Criteria:", file=sys.stderr)
     for criterion, passed in gate["criteria"].items():
         mark = "PASS" if passed else "FAIL"
         print(f"    {criterion}: {mark}", file=sys.stderr)
@@ -557,7 +565,7 @@ def main() -> None:
         api_key = load_api_key()
     except RuntimeError as e:
         print(f"ERROR: {e}", file=sys.stderr)
-        sys.exit(1)
+        sys.exit(2)
 
     try:
         _run_and_report(api_key, before_text, after_text, scenarios, args, source)

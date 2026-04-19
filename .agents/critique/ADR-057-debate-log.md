@@ -52,6 +52,8 @@
 - ADR is warranted vs methodology doc alone (6/6 agree)
 - Additive to ADR-023, no conflicts (6/6 agree)
 
+## Phase 3: Resolution
+
 ### Conflict Points (Resolved in Phase 3)
 - P0: 80/20 claim removed, replaced with honest uncertainty
 - P0: Security-critical prompt tier added with 5-run, 100% pass requirement
