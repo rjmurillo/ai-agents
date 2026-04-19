@@ -359,7 +359,20 @@ def acceptance_gate(
                 security_pass = False
                 break
 
-    passed = no_regression and has_improvement and no_unexplained_regressions
+    # Criterion 4: flakiness threshold (ADR-057 enforced)
+    # Any scenario with > 40% flakiness rate blocks the gate
+    FLAKINESS_BLOCK_THRESHOLD = 0.4
+    high_flakiness_scenarios = []
+    for a in after_results:
+        if a.get("flaky") and a["runs"] > 1:
+            fail_rate = 1.0 - a["pass_rate"]
+            if fail_rate > FLAKINESS_BLOCK_THRESHOLD:
+                high_flakiness_scenarios.append(a["scenario_id"])
+
+    no_high_flakiness = len(high_flakiness_scenarios) == 0
+
+    passed = (no_regression and has_improvement
+              and no_unexplained_regressions and no_high_flakiness)
     if security_critical:
         passed = passed and security_pass
 
@@ -373,10 +386,12 @@ def acceptance_gate(
             "no_regression": no_regression,
             "has_improvement": has_improvement,
             "no_unexplained_regressions": no_unexplained_regressions,
+            "no_high_flakiness": no_high_flakiness,
         },
         "improvements": improvements,
         "regressions": regressions,
         "flaky_scenarios": flaky_scenarios,
+        "high_flakiness_scenarios": high_flakiness_scenarios,
         "before_score": comparison["before_score"],
         "after_score": comparison["after_score"],
         "delta": comparison["delta"],
@@ -522,6 +537,8 @@ def _print_gate_summary(gate: dict[str, Any]) -> None:
         print(f"  Regressions: {gate['regressions']}", file=sys.stderr)
     if gate["flaky_scenarios"]:
         print(f"  Flaky: {gate['flaky_scenarios']}", file=sys.stderr)
+    if gate.get("high_flakiness_scenarios"):
+        print(f"  BLOCKED (>40% flaky): {gate['high_flakiness_scenarios']}", file=sys.stderr)
     print(f"{'='*60}", file=sys.stderr)
 
 

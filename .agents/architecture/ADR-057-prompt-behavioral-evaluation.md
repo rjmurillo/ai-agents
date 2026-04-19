@@ -85,37 +85,37 @@ A prompt change passes behavioral evaluation when all three criteria hold:
 
 Prompts in the security domain (security agent, quality gate security prompts) require a stricter gate:
 
-- Run each scenario a minimum of 5 times
-- Require 100% pass rate across all runs (no flakiness tolerance)
-- Scenario files must be reviewed by a CODEOWNERS-designated reviewer before merge
+- MUST: Run each scenario a minimum of 5 times. Enforced by `--security-critical` flag in eval-prompt-change.py.
+- MUST: Require 100% pass rate across all runs. Enforced by acceptance gate in eval-prompt-change.py.
+- SHOULD: Scenario files reviewed by a CODEOWNERS-designated reviewer before merge. Enforced by code review (not automated).
 
 #### Flakiness Protocol
 
 For non-security prompts, when a scenario produces inconsistent results across runs:
 
-- Run the scenario 3 times minimum
-- A scenario passes if it succeeds in at least 2 of 3 runs
-- Document the flaky scenario in the PR with observed pass/fail ratio
-- If flakiness rate exceeds 40% on any scenario, investigate before merging
+- MUST: Run the scenario 3 times minimum. Enforced by `DEFAULT_RUNS = 3` in eval-prompt-change.py.
+- MUST: A scenario passes if it succeeds in at least 2 of 3 runs. Enforced by `(runs * 2) // 3` threshold in run_scenario_multi().
+- MUST: If flakiness rate exceeds 40% on any scenario, the gate fails. Enforced by `FLAKINESS_BLOCK_THRESHOLD = 0.4` in acceptance_gate().
+- SHOULD: Document the flaky scenario in the PR with observed pass/fail ratio. Enforced by code review.
 
 ### When to Run
 
-| Trigger | Required? | Rationale |
-|---------|-----------|-----------|
-| Prompt change alters instructions, thresholds, or decision logic | Yes | Direct behavioral impact |
-| Prompt change alters text structure only | No (structural tests suffice) | No behavioral risk |
-| Ambiguous (rewording that may shift semantics) | Yes (tiebreaker: run evals) | When in doubt, treat as behavioral |
-| Monthly for prompts under active iteration (modified in last 30 days or with open linked issues) | Recommended | Detect model drift |
-| After Anthropic model version bump | Yes | Catch interpretation shifts |
+| Trigger | Level | Enforced By | Rationale |
+|---------|-------|-------------|-----------|
+| Prompt change alters instructions, thresholds, or decision logic | MUST | invoke_prompt_eval_gate.py (blocks commit) | Direct behavioral impact |
+| Prompt change alters text structure only | N/A | N/A (structural tests suffice) | No behavioral risk |
+| Ambiguous (rewording that may shift semantics) | MUST | invoke_prompt_eval_gate.py (blocks commit) | When in doubt, treat as behavioral |
+| Monthly for prompts under active iteration | SHOULD | Not automated (manual cadence) | Detect model drift |
+| After Anthropic model version bump | SHOULD | Not automated (manual trigger) | Catch interpretation shifts |
 
 ### Scenario Adequacy
 
 Minimum requirements for scenario coverage:
 
-- At least one scenario per decision branch the prompt change introduces or modifies
-- At least one regression scenario for existing behavior the change could affect
-- Scenario coverage is reviewed as part of the PR review process
-- A prompt with 0 scenarios does not satisfy the gate, even if no behavioral change is claimed
+- MUST: A prompt with 0 scenarios does not satisfy the gate. Enforced by load_scenarios() which rejects empty scenario files.
+- SHOULD: At least one scenario per decision branch the prompt change introduces or modifies. Enforced by code review.
+- SHOULD: At least one regression scenario for existing behavior the change could affect. Enforced by code review.
+- SHOULD: Scenario coverage reviewed as part of the PR review process. Enforced by code review.
 
 ### Cost Expectations
 
@@ -203,20 +203,36 @@ Define targeted scenarios with expected verdicts. Run before/after comparison on
 
 ## Confirmation
 
-Compliance verified by:
+### Enforced (automated gates)
 
-1. PR description includes before/after eval scores when the change modifies prompt instructions or decision logic
-2. Scenarios are committed to version control before the PR merges
-3. No scenario flips from pass to fail without explicit justification in the PR description
-4. Monthly eval runs are logged for prompts under active iteration (modified in last 30 days or with open linked issues)
+| Rule | Enforced By | Mechanism |
+|------|-------------|-----------|
+| Prompt/skill/agent changes require eval evidence before commit | invoke_prompt_eval_gate.py | Claude Code PreToolUse hook, blocks `git commit` |
+| Scenario file must contain >= 1 scenario | eval-prompt-change.py load_scenarios() | RuntimeError on empty file |
+| after_score >= before_score (no regression) | eval-prompt-change.py acceptance_gate() | Gate returns FAIL |
+| No scenario flips pass to fail | eval-prompt-change.py acceptance_gate() | Gate returns FAIL |
+| Flakiness > 40% blocks gate | eval-prompt-change.py acceptance_gate() | FLAKINESS_BLOCK_THRESHOLD = 0.4 |
+| Security prompts: 5 runs, 100% pass | eval-prompt-change.py --security-critical | Overrides runs, requires 100% pass_rate |
+| Non-security: 3 runs, 2/3 pass | eval-prompt-change.py DEFAULT_RUNS | (runs * 2) // 3 threshold |
+| --runs >= 1 | eval-prompt-change.py _parse_args() | parser.error on invalid value |
+| API keys from environment variables | _anthropic_api.py load_api_key() | Reads env var, never hardcoded |
+
+### Not enforced (code review only)
+
+| Rule | Why Not Automated | Mitigation |
+|------|-------------------|------------|
+| >= 1 scenario per decision branch | Requires understanding prompt semantics | PR reviewer checks scenario adequacy |
+| >= 1 regression scenario | Same | PR reviewer checks |
+| Monthly drift reruns | Scheduling concern, not commit-time | Manual cadence, future cron job |
+| Model-bump reruns | No model version detection mechanism | Manual trigger after model updates |
+| Cost ceiling ($50/month) | No cost aggregation across runs | Track manually, reassess if exceeded |
+| Flaky scenario documentation in PR | Free-text in PR description | PR reviewer checks |
 
 ### Enforcement Path
 
-- **Immediate (this ADR)**: PR reviewers check for eval scores in PR descriptions. Code review is the enforcement mechanism.
-- **Near-term**: Update PR template to include an eval score section with checkboxes for behavioral prompt changes.
-- **Future (explicit non-goal for now)**: CI automation of eval runs. Deferred until eval runner stabilizes and cost model is validated.
-
-API keys for eval runners MUST be loaded from environment variables. Hardcoded keys in scenario files or runner scripts are prohibited.
+- **Current**: Claude Code hook blocks commits. Acceptance gate enforces regression, flakiness, and security-critical rules automatically.
+- **Not automated**: Scenario adequacy, monthly cadence, cost tracking. These require human judgment or scheduling infrastructure not yet built.
+- **Future**: CI automation of eval runs. Deferred until eval runner stabilizes and cost model is validated.
 
 ## Reversibility Assessment
 
