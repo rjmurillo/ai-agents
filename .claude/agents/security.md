@@ -70,6 +70,7 @@ If the PR modifies `.github/workflows/`, `.gitlab-ci.yml`, or other CI/CD automa
 ### Stop Criteria
 
 Do NOT approve a PR that:
+
 - Introduces shell command execution without input validation (CWE-78)
 - Bypasses existing hardened utilities without justification
 - Modifies workflow files without security review
