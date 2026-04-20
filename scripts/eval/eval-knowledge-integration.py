@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""M3 Kill Gate Eval: Evaluate skill knowledge integration quality.
+"""Skill Knowledge Integration Assessment: Evaluate how skill context improves responses.
+
+NOTE: This script compares "no context" vs "with context" for skill definitions.
+It is a knowledge value assessment, not an ADR-057 prompt change validator.
+For prompt change validation with before/after comparison, use eval-prompt-change.py.
+The eval-suite.py orchestrator routes to the correct evaluator automatically.
 
 Loads SKILL.md + references/ for each skill, runs prompts against the Anthropic API,
 scores responses on accuracy/depth/specificity, and compares baseline vs enhanced.
@@ -24,9 +29,10 @@ from typing import Any
 # ---------------------------------------------------------------------------
 # API utilities (shared module)
 # ---------------------------------------------------------------------------
-
-from _anthropic_api import call_api as _call_api, load_api_key as _load_api_key, load_custom_prompts
-
+from _anthropic_api import call_api as _call_api
+from _anthropic_api import load_api_key as _load_api_key
+from _anthropic_api import load_custom_prompts
+from _eval_common import EST_TOKENS_PER_CALL, aggregate_multi_run_scores
 
 # ---------------------------------------------------------------------------
 # Skill context loading
@@ -181,7 +187,8 @@ SKILLS = list(PROMPTS.keys())
 def run_prompt(api_key: str, prompt: str, system_context: str = "", model: str = "claude-sonnet-4-20250514") -> str:
     """Run a single prompt with optional system context."""
     messages = [{"role": "user", "content": prompt}]
-    return _call_api(api_key, messages, system=system_context, model=model)
+    result: str = _call_api(api_key, messages, system=system_context, model=model)
+    return result
 
 
 def score_response(api_key: str, prompt: str, response: str, expected: str, model: str = "claude-sonnet-4-20250514") -> dict[str, Any]:
@@ -214,8 +221,9 @@ Respond in JSON only, no other text:
             text = match.group(1).strip()
 
     try:
-        scores = json.loads(text)
+        scores: dict[str, Any] = json.loads(text)
     except json.JSONDecodeError:
+        print(f"WARNING: Failed to parse LLM response: {text[:100]}", file=sys.stderr)
         scores = {"accuracy": 0, "depth": 0, "specificity": 0, "reasoning": f"Failed to parse: {text[:200]}"}
 
     return scores
@@ -231,7 +239,7 @@ def apply_kill_gate(results: dict[str, Any]) -> dict[str, Any]:
     - CONDITIONAL: 60% of skills improve >= 0.5, proceed only for improving skills
     - STOP: fewer than 60% of skills improve >= 0.5
     """
-    gate = {"passed": True, "verdict": "PROCEED", "failures": [], "summary": {}}
+    gate: dict[str, Any] = {"passed": True, "verdict": "PROCEED", "failures": [], "summary": {}}
 
     skills_passing = 0
     skills_regressing = []
@@ -290,7 +298,7 @@ def apply_kill_gate(results: dict[str, Any]) -> dict[str, Any]:
     return gate
 
 
-def _avg_scores(score_list: list[dict]) -> dict[str, float]:
+def _avg_scores(score_list: list[dict[str, Any]]) -> dict[str, float]:
     """Average accuracy, depth, specificity across a list of score dicts."""
     if not score_list:
         return {"accuracy": 0.0, "depth": 0.0, "specificity": 0.0}
@@ -306,17 +314,32 @@ def _avg_scores(score_list: list[dict]) -> dict[str, float]:
 # Main eval runner
 # ---------------------------------------------------------------------------
 
+_KNOWLEDGE_DIMENSIONS = ["accuracy", "depth", "specificity"]
+
+
+def _aggregate_multi_run_scores(run_scores: list[dict[str, Any]]) -> dict[str, Any]:
+    """Aggregate scores across multiple runs per ADR-057 flakiness protocol."""
+    result: dict[str, Any] = aggregate_multi_run_scores(run_scores, _KNOWLEDGE_DIMENSIONS)
+    return result
+
+
 def run_assessment(
     api_key: str,
     skills: list[str],
     prompts: dict[str, list[dict[str, Any]]],
     model: str = "claude-sonnet-4-20250514",
     dry_run: bool = False,
+    runs: int = 1,
 ) -> dict[str, Any]:
-    """Run the full eval: baseline (no context) vs enhanced (with skill context)."""
+    """Run the full eval: baseline (no context) vs enhanced (with skill context).
+
+    Args:
+        runs: Number of runs per scenario. Per ADR-057, use 3+ for flakiness detection.
+    """
     results: dict[str, Any] = {}
     total = sum(len(prompts.get(s, [])) for s in skills)
     current = 0
+    api_call_count = 0
 
     for skill in skills:
         skill_prompts = prompts.get(skill, [])
@@ -327,13 +350,14 @@ def run_assessment(
         context = load_skill_context(skill)
         context_size = len(context)
         print(f"\n{'='*60}", file=sys.stderr)
-        print(f"  Skill: {skill} ({len(skill_prompts)} prompts, context: {context_size} chars)", file=sys.stderr)
+        print(f"  Skill: {skill} ({len(skill_prompts)} prompts, context: {context_size} chars, "
+              f"runs: {runs})", file=sys.stderr)
         print(f"{'='*60}", file=sys.stderr)
 
-        baseline_scores: list[dict] = []
-        enhanced_scores: list[dict] = []
+        baseline_scores: list[dict[str, Any]] = []
+        enhanced_scores: list[dict[str, Any]] = []
 
-        for i, item in enumerate(skill_prompts):
+        for _i, item in enumerate(skill_prompts):
             current += 1
             prompt_text = item["prompt"]
             expected = item["expected"]
@@ -344,29 +368,53 @@ def run_assessment(
                 enhanced_scores.append({"accuracy": 0, "depth": 0, "specificity": 0, "reasoning": "dry-run"})
                 continue
 
-            # Baseline: no skill context
-            baseline_resp = run_prompt(api_key, prompt_text, model=model)
-            baseline_score = score_response(api_key, prompt_text, baseline_resp, expected, model=model)
-            baseline_scores.append(baseline_score)
-            print(f"    Baseline: A={baseline_score.get('accuracy',0)} D={baseline_score.get('depth',0)} S={baseline_score.get('specificity',0)}", file=sys.stderr)
+            baseline_runs: list[dict[str, Any]] = []
+            enhanced_runs: list[dict[str, Any]] = []
 
-            # Rate limit pause
-            time.sleep(RATE_LIMIT_SLEEP_SEC)
+            for run_idx in range(runs):
+                if runs > 1:
+                    print(f"    Run {run_idx + 1}/{runs}...", file=sys.stderr)
 
-            # Enhanced: with skill context
-            system_ctx = f"You are a software engineering expert. Use the following skill knowledge to answer:\n\n{context}"
-            enhanced_resp = run_prompt(api_key, prompt_text, system_context=system_ctx, model=model)
-            enhanced_score = score_response(api_key, prompt_text, enhanced_resp, expected, model=model)
-            enhanced_scores.append(enhanced_score)
-            print(f"    Enhanced: A={enhanced_score.get('accuracy',0)} D={enhanced_score.get('depth',0)} S={enhanced_score.get('specificity',0)}", file=sys.stderr)
+                # Baseline: no skill context
+                baseline_resp = run_prompt(api_key, prompt_text, model=model)
+                baseline_score = score_response(api_key, prompt_text, baseline_resp, expected, model=model)
+                baseline_score["model_used"] = model
+                baseline_runs.append(baseline_score)
+                api_call_count += 2  # 1 run + 1 score
 
-            time.sleep(RATE_LIMIT_SLEEP_SEC)
+                time.sleep(RATE_LIMIT_SLEEP_SEC)
+
+                # Enhanced: with skill context
+                system_ctx = f"You are a software engineering expert. Use the following skill knowledge to answer:\n\n{context}"
+                enhanced_resp = run_prompt(api_key, prompt_text, system_context=system_ctx, model=model)
+                enhanced_score = score_response(api_key, prompt_text, enhanced_resp, expected, model=model)
+                enhanced_score["model_used"] = model
+                enhanced_runs.append(enhanced_score)
+                api_call_count += 2  # 1 run + 1 score
+
+                time.sleep(RATE_LIMIT_SLEEP_SEC)
+
+            baseline_agg = _aggregate_multi_run_scores(baseline_runs)
+            enhanced_agg = _aggregate_multi_run_scores(enhanced_runs)
+            baseline_scores.append(baseline_agg)
+            enhanced_scores.append(enhanced_agg)
+
+            flaky_tag = ""
+            if baseline_agg.get("flaky") or enhanced_agg.get("flaky"):
+                flaky_tag = " [FLAKY]"
+
+            print(f"    Baseline: A={baseline_agg.get('accuracy',0)} D={baseline_agg.get('depth',0)} S={baseline_agg.get('specificity',0)}", file=sys.stderr)
+            print(f"    Enhanced: A={enhanced_agg.get('accuracy',0)} D={enhanced_agg.get('depth',0)} S={enhanced_agg.get('specificity',0)}{flaky_tag}", file=sys.stderr)
 
         results[skill] = {
             "baseline": baseline_scores,
             "enhanced": enhanced_scores,
             "context_chars": context_size,
         }
+
+    # Cost estimate per ADR-057
+    est_tokens = api_call_count * EST_TOKENS_PER_CALL
+    print(f"\n  Cost estimate: {api_call_count} API calls, ~{est_tokens:,} tokens", file=sys.stderr)
 
     return results
 
@@ -377,6 +425,8 @@ def main() -> None:
     parser.add_argument("--prompts-file", type=str, help="Load custom prompts from a JSON file")
     parser.add_argument("--model", type=str, default="claude-sonnet-4-20250514", help="Model to use for eval")
     parser.add_argument("--dry-run", action="store_true", help="Print prompts without calling the API")
+    parser.add_argument("--runs", type=int, default=1,
+                        help="Number of runs per scenario for flakiness detection (ADR-057)")
     parser.add_argument("--output", type=str, help="Write results to file instead of stdout")
     args = parser.parse_args()
 
@@ -410,7 +460,7 @@ def main() -> None:
         prompts = PROMPTS
 
     prompt_count = sum(len(prompts.get(s, [])) for s in skills)
-    api_calls = prompt_count * 4 if not args.dry_run else 0  # 2 runs + 2 scores per prompt
+    api_calls = prompt_count * 4 * args.runs if not args.dry_run else 0  # (2 runs + 2 scores) * runs per prompt
     print(f"Skills: {skills}", file=sys.stderr)
     print(f"Prompts: {prompt_count}, API calls: {api_calls}", file=sys.stderr)
 
@@ -418,7 +468,8 @@ def main() -> None:
         print(f"Starting eval (est. {api_calls * 2}s with rate limiting)...", file=sys.stderr)
 
     try:
-        results = run_assessment(api_key, skills, prompts, model=args.model, dry_run=args.dry_run)
+        results = run_assessment(api_key, skills, prompts, model=args.model,
+                                dry_run=args.dry_run, runs=args.runs)
     except RuntimeError as exc:
         print(f"Error: assessment failed: {exc}", file=sys.stderr)
         sys.exit(1)
@@ -465,7 +516,7 @@ def main() -> None:
     print(f"  {'-'*58}", file=sys.stderr)
     for skill, summary in gate.get("summary", {}).items():
         b = sum(summary["baseline_avg"].values()) / 3
-        e = sum(summary["enhanced_avg"].values()) / 3
+        enhanced_val = sum(summary["enhanced_avg"].values()) / 3
         d = summary["overall_delta"]
         if summary.get("regressed"):
             status = "REGRESS"
@@ -473,7 +524,7 @@ def main() -> None:
             status = "PASS"
         else:
             status = "BELOW"
-        print(f"  {skill:<20} {b:>10.2f} {e:>10.2f} {d:>10.2f} {status:>8}", file=sys.stderr)
+        print(f"  {skill:<20} {b:>10.2f} {enhanced_val:>10.2f} {d:>10.2f} {status:>8}", file=sys.stderr)
     print(f"{'='*70}", file=sys.stderr)
 
     if gate.get("failures"):
