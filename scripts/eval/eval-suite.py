@@ -240,6 +240,8 @@ def run_behavioral_for_prompt(
         cmd.append("--dry-run")
 
     try:
+        # nosemgrep: dangerous-subprocess-use-tainted-env-args
+        # Justification: cmd built from sys.executable + fixed script path + argparse args (not user input)
         result = subprocess.run(
             cmd, capture_output=True, text=True, timeout=600,
             cwd=str(REPO_ROOT),
@@ -278,6 +280,8 @@ def run_agent_quality(
             cmd.append("--dry-run")
 
         try:
+            # nosemgrep: dangerous-subprocess-use-tainted-env-args
+            # Justification: cmd built from sys.executable + fixed script path + argparse args
             result = subprocess.run(
                 cmd, capture_output=True, text=True, timeout=300,
                 cwd=str(REPO_ROOT),
@@ -324,6 +328,8 @@ def run_skill_knowledge(
             cmd.append("--dry-run")
 
         try:
+            # nosemgrep: dangerous-subprocess-use-tainted-env-args
+            # Justification: cmd built from sys.executable + fixed script path + argparse args
             result = subprocess.run(
                 cmd, capture_output=True, text=True, timeout=300,
                 cwd=str(REPO_ROOT),
