@@ -90,7 +90,7 @@ Model tiers: `opus` for deep strategy/analysis, `sonnet` for routine execution, 
 
 ## Routing Algorithm
 
-```
+```text
 1. Classify complexity (Cynefin)
 2. Is task clear + reversible + trivial?
    YES → produce directly
@@ -112,7 +112,7 @@ Model tiers: `opus` for deep strategy/analysis, `sonnet` for routine execution, 
 
 Every delegation includes:
 
-```
+```text
 DELEGATE TO: [agent]
 TASK: [one sentence]
 CONTEXT: [prior findings, constraints, dependencies]
