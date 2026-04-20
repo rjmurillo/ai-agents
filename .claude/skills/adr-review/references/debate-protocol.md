@@ -6,7 +6,7 @@ Detailed phases for multi-agent ADR validation.
 
 Before launching independent reviews, use analyst agent to search for related work:
 
-```text
+````text
 Task(subagent_type="analyst", prompt="""
 ADR Related Work Research
 
@@ -54,8 +54,7 @@ Key topics: [Extract 3-5 keywords from ADR]
 - [Should any issues be linked?]
 - [Are any PRs already implementing this?]
 """)
-
-```
+````
 
 Include related work findings in each Phase 1 agent prompt as context.
 
@@ -96,11 +95,19 @@ ADR Review Request (Phase 1: Independent Review)
 [Full ADR text]
 
 ## Instructions
-1. Review for structural compliance with MADR 4.0
-2. Check alignment with existing ADRs in .agents/architecture/ and docs/architecture/
+1. Review for structural compliance with the detected ADR template format
+2. Check alignment with existing ADRs in the project
 3. Identify scope concerns (should this be split?)
 4. Classify all issues as P0/P1/P2
-5. Return structured review per Phase 1 format
+5. Answer all 7 Zimmermann review questions (mandatory):
+   Q1. Is the problem relevant enough for an ADR?
+   Q2. Do the options solve the problem? Are valid options missing?
+   Q3. Are decision drivers (criteria) mutually exclusive and collectively exhaustive?
+   Q4. If criteria conflict, are they prioritized?
+   Q5. Does the chosen solution solve the problem? Is the rationale convincing?
+   Q6. Are consequences reported as objectively as possible?
+   Q7. Is the solution described actionably? Traceable to requirements? Has a review date?
+6. Return structured review per Phase 1 format
 """)
 ```
 
@@ -112,9 +119,10 @@ After all 6 reviews complete:
 
 1. List consensus points (agents agree)
 2. List conflicts (agents disagree)
-3. Route conflicts to high-level-advisor for resolution
-4. Categorize all issues by priority after rulings
-5. Draft consolidated change recommendations
+3. **Flag review anti-patterns**: Check each agent's output for Pass Through (no substantive findings), Copy Edit (editorial only), Siding/Dead End (topic drift), Self Promotion, Power Game (authority claims over evidence), Offended Reaction (subjective defense), or Groundhog Day. Request re-review from flagged agents with explicit instruction to address the Zimmermann 7 questions
+4. Route conflicts to high-level-advisor for resolution
+5. Categorize all issues by priority after rulings
+6. Draft consolidated change recommendations
 
 **Conflict Resolution Pattern:**
 

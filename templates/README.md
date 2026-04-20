@@ -88,7 +88,7 @@ The generation script applies platform-specific transformations:
 
 | Feature | VS Code | Copilot CLI |
 |---------|---------|-------------|
-| Model field | `Claude Opus 4.5 (anthropic)` | Not included |
+| Model field | `Claude Opus 4.6 (anthropic)` | Not included |
 | Name field | Not included | Required |
 | Handoff syntax | `#runSubagent` | `/agent` |
 | File extension | `.agent.md` | `.agent.md` |

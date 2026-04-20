@@ -35,7 +35,7 @@ description: What the skill does and when to use it  # max 1024 chars
 ---
 name: skill-identifier
 version: 1.0.0
-model: claude-sonnet-4-5
+model: claude-sonnet-4-6
 description: What the skill does and when to use it
 license: MIT
 ---
@@ -47,8 +47,8 @@ Use **aliases** for automatic improvements:
 
 ```yaml
 model: claude-haiku-4-5    # Speed, pattern matching (<1s, minimal cost)
-model: claude-sonnet-4-5   # Standard workflows (<5s, standard cost)
-model: claude-opus-4-5     # Orchestration, reasoning (<30s, premium justified)
+model: claude-sonnet-4-6   # Standard workflows (<5s, standard cost)
+model: claude-opus-4-6     # Orchestration, reasoning (<30s, premium justified)
 ```
 
 ## Validation Rules
