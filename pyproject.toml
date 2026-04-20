@@ -7,7 +7,7 @@ requires-python = ">=3.10"
 license = {text = "MIT"}
 
 dependencies = [
-    "anthropic==0.94.0",
+    "anthropic==0.95.0",
     "markdown-it-py>=3.0.0",
     "python-frontmatter==1.1.0",
     "PyYAML==6.0.3",
@@ -68,6 +68,9 @@ select = ["E", "F", "W", "I", "N", "UP", "B", "ANN"]
 ignore = []
 
 [tool.ruff.lint.per-file-ignores]
+# Eval scripts contain embedded prompt text that exceeds 100 chars by design
+"scripts/eval/eval-agents.py" = ["E501"]
+"scripts/eval/eval-knowledge-integration.py" = ["E501"]
 # sys.path manipulation required before imports for plugin-context path resolution
 ".claude/skills/github/scripts/**/*.py" = ["E402"]
 # Test files use sys.path.insert() before importing modules under test

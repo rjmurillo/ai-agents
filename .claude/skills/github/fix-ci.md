@@ -5,7 +5,7 @@ description: Autonomously inspect failing GitHub Actions CI checks, fetch logs, 
   for log retrieval. Use for "fix ci", "why is ci failing", "debug ci failures".
 license: MIT
 version: 1.0.0
-model: claude-sonnet-4-5
+model: claude-sonnet-4-6
 metadata:
   domains:
     - github
@@ -173,7 +173,7 @@ After all fixes implemented:
 git add -A
 git commit -m "fix: resolve CI failures" \
   -m "- [List each fix made]" \
-  -m "Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>"
+  -m "Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
 git push
 ```
 
