@@ -33,10 +33,11 @@ DEFAULT_LOG_PATH = Path(".agents/sessions/session-end-skips.jsonl")
 
 def build_event(reason: str, session_id: str | None = None) -> dict[str, str]:
     """Build the skip event payload."""
+    resolved_id: str = session_id if session_id else os.getenv("OPENCLAW_SESSION_ID", "unknown")
     return {
         "timestamp": datetime.now(UTC).isoformat(),
         "event": "session_closed_without_session_end",
-        "sessionId": session_id or os.getenv("OPENCLAW_SESSION_ID", "unknown"),
+        "sessionId": resolved_id,
         "reason": reason,
     }
 
