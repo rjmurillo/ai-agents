@@ -51,6 +51,12 @@
             "command": "python3 -u .claude/hooks/PreToolUse/invoke_security_commit_gate.py",
             "timeout": 10,
             "statusMessage": "Checking security gate for staged auth files (ADR-033)"
+          },
+          {
+            "type": "command",
+            "command": "python3 -u .claude/hooks/PreToolUse/invoke_prompt_eval_gate.py",
+            "timeout": 10,
+            "statusMessage": "Checking ADR-057 behavioral eval evidence for prompt changes"
           }
         ]
       },

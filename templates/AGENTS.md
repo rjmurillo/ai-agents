@@ -223,7 +223,7 @@ tools_copilot:
 |---------|-------|-------------|
 | `outputDir` | `src/vs-code-agents` | Output directory |
 | `fileExtension` | `.agent.md` | File suffix |
-| `model` | `Claude Opus 4.5 (anthropic)` | Model field in frontmatter |
+| `model` | `Claude Opus 4.6 (anthropic)` | Model field in frontmatter |
 | `handoffSyntax` | `#runSubagent` | Agent invocation syntax |
 
 ### Copilot CLI (`platforms/copilot-cli.yaml`)

@@ -144,11 +144,76 @@ When migrating a PowerShell script:
 
 ---
 
+## Amendment 1: Scope Python-First to Internal Automation
+
+### Date
+
+2026-04-13
+
+### Status
+
+Proposed
+
+### Context
+
+Stage 1 of the Claude Kit Vendor initiative (#1574, #1619) delivers `npx @rjmurillo/ai-agents init`, an npm CLI that vendors the `.claude/` kit into target repositories. The target audience lives in the npm/Node.js ecosystem. Requiring Python (`pipx`) for a tool consumed via `npx` creates unnecessary friction.
+
+ADR-042 was written when all project tooling was internal automation: CI scripts, GitHub skill scripts, hooks, session tooling. The decision to standardize on Python remains correct for that surface. However, the project now has a second surface: user-facing distribution packages published to npm, consumed by developers who may not have Python installed.
+
+Premise P4 from the Stage 1 plan: "ADR-042 (Python first) can be amended to scope 'Python first' to internal automation. User-facing distribution surfaces may use TypeScript when the target audience demands it."
+
+### Decision
+
+Scope the Python-first mandate to **internal automation**. Permit TypeScript (or other languages native to the target ecosystem) for **user-facing distribution surfaces**.
+
+**Internal automation** (Python-first applies):
+
+- CI/CD scripts and workflow helpers
+- GitHub skill scripts (`.claude/skills/github/scripts/`)
+- Claude Code hooks (`.claude/hooks/`)
+- Session protocol tooling
+- Build and test infrastructure
+- Any script executed within this repository's development workflow
+
+**User-facing distribution surfaces** (TypeScript permitted):
+
+- npm packages published under `@rjmurillo/ai-agents`
+- CLI entry points consumed via `npx`
+- Any artifact whose primary consumers install it from a non-Python package registry
+
+### Rationale
+
+| Factor | Internal automation | User-facing distribution |
+|--------|-------------------|--------------------------|
+| Consumer | Repository maintainers | External developers |
+| Runtime guarantee | Python 3.10+ via UV | Node.js via npx |
+| Ecosystem alignment | AI/ML libraries, Anthropic SDK | npm, Claude Code, Copilot |
+| Correct language | Python | TypeScript |
+
+Forcing Python on npm consumers violates the Pit of Success principle: developers should fall into the correct pattern without extra setup. A `pipx` prerequisite for an `npx` workflow is the opposite of that.
+
+### Consequences
+
+1. The `ai-agents-cli` package (Stage 1) is written in TypeScript, bundled with bun, published to npm.
+2. All internal automation continues under Python-first per the original ADR-042 decision.
+3. If a future distribution surface targets PyPI, Python is the correct choice for that surface.
+4. The language choice follows the consumer's ecosystem, not the producer's preference.
+
+### What Does Not Change
+
+- ADR-042's core decision for internal automation remains intact.
+- The phased PowerShell-to-Python migration continues as planned.
+- ADR-006 (thin workflows, testable modules) still applies.
+- UV remains the Python package manager for internal tooling.
+
+---
+
 ## Amendment Log
 
 | Date | Change | Approved By |
 |------|--------|-------------|
 | 2026-01-17 | Initial adoption | Repository owner (PR #963) |
+| 2026-04-13 | Amendment 1: Scope Python-first to internal automation, permit TypeScript for user-facing distribution | Pending adr-review |
 
 ---
 

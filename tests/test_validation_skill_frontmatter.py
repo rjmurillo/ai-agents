@@ -207,6 +207,20 @@ class TestValidateModel:
     def test_valid_dated_snapshot(self) -> None:
         assert validate_model("claude-sonnet-4-5-20250929") == []
 
+    def test_valid_dated_snapshot_sonnet_4_6(self) -> None:
+        assert validate_model("claude-sonnet-4-6-20251015") == []
+
+    def test_valid_dated_snapshot_opus_4_6(self) -> None:
+        assert validate_model("claude-opus-4-6-20251015") == []
+
+    def test_valid_dated_snapshot_haiku_4_5(self) -> None:
+        assert validate_model("claude-haiku-4-5-20250801") == []
+
+    def test_invalid_dated_snapshot_haiku_4_6(self) -> None:
+        # Haiku is pinned to 4.5; 4.6 snapshots must not validate.
+        errors = validate_model("claude-haiku-4-6-20251015")
+        assert any("Invalid model identifier" in e for e in errors)
+
     def test_none_model_optional(self) -> None:
         assert validate_model(None) == []
 
