@@ -19,6 +19,7 @@
 | Naming conventions | [`.agents/governance/naming-conventions.md`](../.agents/governance/naming-conventions.md) |
 | PR template | [`.github/PULL_REQUEST_TEMPLATE.md`](../.github/PULL_REQUEST_TEMPLATE.md) |
 | Documentation links | [`.agents/governance/DOCUMENTATION-LINK-REQUIREMENTS.md`](../.agents/governance/DOCUMENTATION-LINK-REQUIREMENTS.md) |
+| Prompt behavioral eval | [`ADR-057`](../.agents/architecture/ADR-057-prompt-behavioral-evaluation.md) - Run `scripts/eval/eval-suite.py` before merging prompt/skill/command changes |
 
 ---
 

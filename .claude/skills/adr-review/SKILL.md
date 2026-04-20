@@ -89,8 +89,8 @@ Multi-agent debate pattern for rigorous ADR validation. Orchestrates 6 specializ
 | Phase | Purpose | Details |
 |-------|---------|---------|
 | **Phase 0** | Related work research | Search issues/PRs for context |
-| **Phase 1** | Independent review | Each agent reviews ADR |
-| **Phase 2** | Consolidation | Identify consensus and conflicts |
+| **Phase 1** | Independent review | Each agent reviews ADR using [Zimmermann 7-question checklist](references/zimmermann-review-guidance.md) |
+| **Phase 2** | Consolidation | Identify consensus and conflicts; flag [review anti-patterns](references/zimmermann-review-guidance.md) |
 | **Phase 3** | Resolution | Propose updates for P0/P1 issues |
 | **Phase 4** | Convergence check | Agents vote: Accept/D&C/Block |
 
@@ -197,6 +197,8 @@ After skill invocation:
 
 ## Anti-Patterns
 
+### Process Anti-Patterns
+
 | Avoid | Why | Instead |
 |-------|-----|---------|
 | Single-agent ADR review | Misses domain expertise | Use full 6-agent debate |
@@ -204,6 +206,22 @@ After skill invocation:
 | Ignoring D&C dissent | Loses important context | Document all reservations |
 | Manual ADR monitoring | Error-prone | Use detect_adr_changes.py |
 | Deleting accepted ADRs without archive | Loses knowledge | Always archive accepted ADRs |
+
+### Review Anti-Patterns (Zimmermann)
+
+Each agent should self-check against these. Phase 2 consolidation flags violations.
+
+| Anti-Pattern | Problem | Detection |
+|-------------|---------|-----------|
+| **Pass Through** | Few/no comments, document barely read | Agent produces no substantive findings |
+| **Copy Edit** | Focuses on wording, ignores content | All findings editorial, none architectural |
+| **Siding/Dead End** | Comments switch topic, deviate from ADR | Agent drifts from decision at hand |
+| **Self Promotion** | Recommends reviewer's preferred solution | Agent pushes technology without objective rationale |
+| **Power Game** | Authority claims instead of technical arguments | Agent uses position over evidence |
+| **Offended Reaction** | Defends criticized position subjectively | Agent reacts emotionally to rationale |
+| **Groundhog Day** | Same message repeated across rounds | Agent re-raises resolved issues |
+
+See [zimmermann-review-guidance.md](references/zimmermann-review-guidance.md) for full practices and pledges.
 
 ## References
 
@@ -214,3 +232,4 @@ After skill invocation:
 | [issue-resolution.md](references/issue-resolution.md) | P0/P1/P2 handling and deferral |
 | [artifacts.md](references/artifacts.md) | Output formats and templates |
 | [agent-prompts.md](references/agent-prompts.md) | Detailed agent prompt templates |
+| [zimmermann-review-guidance.md](references/zimmermann-review-guidance.md) | Review practices, 7 anti-patterns, checklist, reviewer pledge (Zimmermann 2023) |
