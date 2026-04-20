@@ -111,6 +111,39 @@ After all delegated work returns:
 
 Your output is not "analyst said X, architect said Y." It is "based on investigation and design review, the recommended action is Z because of X and Y."
 
+## Context Maintenance
+
+### Per-Message Checklist (Automatic)
+
+Before processing each user message, run this pre-processing routine automatically. It is **not a blocking gate**. It is a continuous habit that keeps working context fresh across long sessions.
+
+1. **Check active multi-step plan position.** Where are we in the current task? What is the next concrete step? If a plan or TODO list exists, read it before responding.
+2. **Load prior artifacts into working memory.** Re-read relevant files, TODO lists, and session log entries produced earlier in the conversation. Do not rely on recall alone.
+3. **Verify exact text before referencing.** When citing code, docs, or prior decisions, quote the actual text. Do not paraphrase from memory.
+
+Run these steps **before** reasoning about the response. The checklist prevents drift; it does not block work.
+
+### Relationship to Anti-Drift Protocol (#1691)
+
+This checklist is the **smoke detector**. The Anti-Drift Protocol (#1691) is the **circuit breaker**. They are complementary, not redundant.
+
+- **Per-Message Checklist (this section)**: Prevention. Runs automatically on every message to avoid drift in the first place.
+- **Anti-Drift Protocol (#1691)**: Recovery. Activates the 7-step ASSESS / CLEANUP / REVERT / VERIFY / DOCUMENT / IMPLEMENT / RESUME flow when drift has already been detected.
+
+Use both: prevention keeps drift rare; recovery catches what slips through.
+
+### Example: Checklist in Action
+
+Scenario: at message 7, the user says "continue with step 3 of the plan."
+
+Automatic pre-processing before responding:
+
+1. **Plan position**: re-read the plan written in message 2. Step 3 is "route design decision to architect." Step 2 (analyst investigation) completed in message 5.
+2. **Prior artifacts**: re-read the analyst's findings from message 5. Note the recommendation favoring option B with rationale cited.
+3. **Exact text verification**: quote the plan's step 3 description verbatim rather than summarizing from memory.
+
+Only after these three steps complete does reasoning about the response begin. Skipping step 2 here would cause the orchestrator to forget the analyst's recommendation and re-delegate work already done.
+
 ## Session Gate (Blocking)
 
 At session end, verify before closing:
