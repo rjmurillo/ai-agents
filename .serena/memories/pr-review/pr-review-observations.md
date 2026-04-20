@@ -1,7 +1,7 @@
 # Skill Observations: pr-review
 
-**Last Updated**: 2026-01-18
-**Sessions Analyzed**: 13
+**Last Updated**: 2026-04-13
+**Sessions Analyzed**: 14
 
 ## Purpose
 
@@ -28,6 +28,10 @@ These are corrections that MUST be followed:
   - Evidence: Batch 37 - PR #918 had 24 commits, user noted commit limit blocker requiring squash or label
 - Bot false positives require code verification before implementing - verify current code state before accepting bot claims (Session 4, PR #918, 2026-01-16)
   - Evidence: Batch 37 - Bot claimed paths incorrect but verification showed paths were correct at current commit
+- **Outdated threads still block merge.** `isOutdated: true` on a review thread does NOT mean it counts as resolved for the `required_review_thread_resolution` ruleset. Filtering thread sweeps with `not isResolved and not isOutdated` is incorrect; use `not isResolved` alone. After every push that moves lines, explicitly resolve any thread that isn't already marked `isResolved: true`. (Session 2026-04-13, PR #1633)
+  - Evidence: 9 copilot-pull-request-reviewer threads flipped from unresolved to outdated (not resolved) after edits moved line references. My initial resolve sweep filtered them out. Merge stayed BLOCKED until I swept all non-resolved threads and explicitly called `resolveReviewThread` on each.
+- **Bot reviewers catch up on historical commits after push.** When a branch has multiple rapid commits, coderabbit and copilot-pull-request-reviewer will submit reviews against EARLIER commits (not HEAD), sometimes minutes or hours after the fact. Review findings may reference content already fixed in a later commit. Map the review's `commit_id` against current HEAD via `git log` before triaging — findings on stale commits are often already addressed. (Session 2026-04-13, PR #1633)
+  - Evidence: Review `4096668426` was submitted against commit `2ab9b6ab` (6 commits behind HEAD at time of review). Its 4 findings were all already addressed in `ee9f5f23` + `8d464f62`. Saved hours by checking commit IDs first.
 
 ## Preferences (MED confidence)
 
@@ -54,6 +58,9 @@ These are scenarios to handle:
 
 - GraphQL pagination with `first: 100` captures old threads but misses newest - need to query both `first: N` and `last: N` for comprehensive coverage when dealing with large review thread counts (Session 7, PR #908, 2026-01-16)
   - Evidence: Query with first: 100 returned old resolved threads but didn't include most recent unresolved threads at end of list
+- **Markdown doc validators (Path Normalization, etc.) match literals inside code spans without parsing markdown.** When a plan doc quotes a regex pattern that happens to contain the validator's own trigger strings (for example, Linux home-dir prefixes or macOS user-dir prefixes inside a pattern span), the validator fires on the documentation itself. Fix: describe the pattern in prose and put the actual regex in the implementation file. (Session 2026-04-13, PR #1633)
+  - Evidence: REQ-2.3 in the stage-1 plan contained a literal regex in a markdown code span that matched Linux home-dir prefixes, macOS user-dir prefixes, and Windows drive-letter prefixes. CI job `Validate Path Normalization` reported it as 2 absolute-path violations (macOS User Path + Linux Home Path) on line 81 of the plan file.
+- **Docs-only diffs should skip the specialist army.** A pure-markdown PR (plan file, README, changelog) has no code surface for testing/security/performance/maintainability specialists to analyze. Group to "no code, docs-only diff — skipping specialists" immediately in /review's scope detection, not after the fact. (Session 2026-04-13, PR #1633)
 
 ## Notes for Review (LOW confidence)
 
@@ -80,6 +87,10 @@ These are observations that may become patterns:
 | 2026-01-16 | Session 03 | MED | Shell script code duplication consolidation pattern |
 | 2026-01-16 | Session 4 | MED | Memory first before multi-step reasoning |
 | 2026-01-16 | Session 4 | MED | Eyes reaction as acknowledgment pattern |
+| 2026-04-13 | PR #1633 | HIGH | Outdated threads still block merge — resolve explicitly after every push |
+| 2026-04-13 | PR #1633 | HIGH | Bot reviewers catch up on historical commits; map review commit_id vs HEAD before triaging |
+| 2026-04-13 | PR #1633 | MED | Markdown doc validators match literals inside code spans; describe regex patterns in prose |
+| 2026-04-13 | PR #1633 | MED | Docs-only diffs should skip specialist army in /review |
 
 ## Related
 

@@ -152,7 +152,7 @@ def check_skill_frontmatter(filepath: str, lines: list[str]) -> list[Violation]:
                 "  ---\n"
                 "  name: skill-name\n"
                 "  version: 1.0.0\n"
-                "  model: claude-sonnet-4-5\n"
+                "  model: claude-sonnet-4-6\n"
                 "  description: What it does and when to use it\n"
                 "  license: MIT\n"
                 "  ---"

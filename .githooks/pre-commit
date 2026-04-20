@@ -1736,6 +1736,53 @@ else
 fi
 
 #
+# Prompt Behavioral Eval Reminder (Non-blocking, ADR-057)
+#
+# Detects prompt, command, and skill definition changes and reminds
+# developers to run behavioral evals before merging.
+# The Claude Code hook (invoke_prompt_eval_gate.py) provides the
+# blocking enforcement for AI agents. This git hook provides a
+# non-blocking reminder for human developers.
+#
+# Related: ADR-057, eval-suite.py, eval-prompt-change.py
+#
+
+STAGED_PROMPT_FILES=$(echo "$STAGED_FILES" | grep -E '^(\.claude/commands/.*\.md|\.github/prompts/.*\.md|\.agents/security/prompts/.*\.md)$' || true)
+STAGED_AGENT_DEFS=$(echo "$STAGED_FILES" | grep -E '^(\.claude/agents/|src/claude/|src/copilot-cli/|src/vs-code-agents/).*\.md$' | grep -v -E '(CLAUDE|README|INDEX|AGENTS)\.md$' | grep -v '\.template\.' || true)
+STAGED_SKILL_DEFS=$(echo "$STAGED_FILES" | grep -E '^\.claude/skills/.*/SKILL\.md$' || true)
+
+BEHAVIORAL_FILES=""
+if [ -n "$STAGED_PROMPT_FILES" ]; then
+    BEHAVIORAL_FILES="${BEHAVIORAL_FILES}${STAGED_PROMPT_FILES}"$'\n'
+fi
+if [ -n "$STAGED_AGENT_DEFS" ]; then
+    BEHAVIORAL_FILES="${BEHAVIORAL_FILES}${STAGED_AGENT_DEFS}"$'\n'
+fi
+if [ -n "$STAGED_SKILL_DEFS" ]; then
+    BEHAVIORAL_FILES="${BEHAVIORAL_FILES}${STAGED_SKILL_DEFS}"$'\n'
+fi
+
+# Trim trailing newline
+BEHAVIORAL_FILES=$(echo "$BEHAVIORAL_FILES" | sed '/^$/d')
+
+if [ -n "$BEHAVIORAL_FILES" ]; then
+    echo_warning "ADR-057: Prompt/agent/skill behavioral changes detected"
+    echo_info ""
+    echo_info "  Files requiring behavioral eval:"
+    echo "$BEHAVIORAL_FILES" | while IFS= read -r bf; do
+        [ -z "$bf" ] && continue
+        echo_info "    - $bf"
+    done
+    echo_info ""
+    echo_info "  Run before merging:"
+    echo_info "    python3 scripts/eval/eval-suite.py"
+    echo_info "    python3 scripts/eval/eval-prompt-change.py --prompt <file> --scenarios <file> --base-ref main"
+    echo_info ""
+    echo_info "  See: .agents/architecture/ADR-057-prompt-behavioral-evaluation.md"
+    # Non-blocking: reminder only, Claude hook provides enforcement
+fi
+
+#
 # Skill Format Validation (BLOCKING for new files)
 #
 # Enforces ADR-017 atomic format: ONE skill per file. No bundled skills.

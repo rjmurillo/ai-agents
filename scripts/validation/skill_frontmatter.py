@@ -31,12 +31,23 @@ from pathlib import Path
 
 from scripts.validation.models import ValidationResult
 
-# Valid model identifiers (from .agents/analysis/claude-code-skill-frontmatter-2026.md)
+# Valid model identifiers.
+# Source: .agents/analysis/claude-code-skill-frontmatter-2026.md
+# Note: the analysis doc enumerates the 4.5-era aliases that shipped with the
+# original research; this allowlist is intentionally ahead of that snapshot
+# because the 4.6 family is the current supported tier for Opus and Sonnet
+# while Haiku remains at 4.5. Refresh the analysis doc before removing the
+# back-compat entries.
 VALID_MODEL_ALIASES: frozenset[str] = frozenset(
     {
+        # Current (Claude 4.6 family for Opus and Sonnet, per environment as of 2026-04-13)
+        "claude-opus-4-6",
+        "claude-sonnet-4-6",
+        "claude-haiku-4-5",  # Haiku stayed at 4.5; current Haiku alias
+        # Back-compat (Claude 4.5 family for Opus and Sonnet)
         "claude-opus-4-5",
         "claude-sonnet-4-5",
-        "claude-haiku-4-5",
+        # Older back-compat
         "claude-sonnet-4-0",
         "claude-3-7-sonnet-latest",
         # CLI shortcuts
@@ -46,9 +57,10 @@ VALID_MODEL_ALIASES: frozenset[str] = frozenset(
     }
 )
 
-# Dated snapshot pattern: claude-{tier}-4-5-YYYYMMDD
+# Dated snapshot pattern: claude-{opus|sonnet}-4-{5|6}-YYYYMMDD or claude-haiku-4-5-YYYYMMDD.
+# Haiku is pinned to 4.5; only Opus and Sonnet have 4.6 snapshots.
 DATED_SNAPSHOT_PATTERN: re.Pattern[str] = re.compile(
-    r"^claude-(opus|sonnet|haiku)-4-5-\d{8}$"
+    r"^claude-((opus|sonnet)-4-(5|6)|haiku-4-5)-\d{8}$"
 )
 
 # Known Claude Code tools (partial list)
@@ -249,8 +261,8 @@ def validate_model(model: str | None) -> list[str]:
 
     errors.append(
         f"Invalid model identifier: '{model}' "
-        "(use aliases like 'claude-sonnet-4-5' or "
-        "dated snapshots like 'claude-sonnet-4-5-20250929')"
+        "(use aliases like 'claude-sonnet-4-6' or "
+        "dated snapshots like 'claude-sonnet-4-6-20251015')"
     )
     return errors
 

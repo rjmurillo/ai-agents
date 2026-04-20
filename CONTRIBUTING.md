@@ -9,6 +9,7 @@ Thank you for your interest in contributing to this project. This guide explains
 - [Agent Template System](#agent-template-system)
 - [How to Modify an Agent](#how-to-modify-an-agent)
 - [How to Add a New Agent](#how-to-add-a-new-agent)
+- [Validating Prompt, Skill, and Agent Changes (ADR-057)](#validating-prompt-skill-and-agent-changes-adr-057)
 - [Platform Configuration](#platform-configuration)
 - [Pre-Commit Hooks](#pre-commit-hooks)
 - [Pre-Push Hooks](#pre-push-hooks)
@@ -271,6 +272,92 @@ Add the new agent to:
 - `README.md` (Agents table)
 - `CLAUDE.md` (Agent Catalog table)
 - `USING-AGENTS.md` (if it exists)
+
+## Validating Prompt, Skill, and Agent Changes (ADR-057)
+
+Changes to prompts, skills, and agent definitions can alter LLM behavior. ADR-057 requires behavioral evaluation before merging changes to these files.
+
+### What Requires Behavioral Evaluation
+
+| Category | File Patterns |
+|----------|---------------|
+| Commands | `.claude/commands/*.md` |
+| Quality gate prompts | `.github/prompts/*.md` |
+| Security prompts | `.agents/security/prompts/*.md` |
+| Agent definitions (Claude Code) | `.claude/agents/*.md` |
+| Agent definitions (published) | `src/claude/*.md`, `src/copilot-cli/*.md`, `src/vs-code-agents/*.md` |
+| Skill definitions | `.claude/skills/*/SKILL.md` |
+
+### When to Run Evals
+
+- **Structural changes only** (sections added, renamed, moved): Run structural tests (ADR-023). No behavioral eval needed.
+- **Behavioral changes** (instructions, thresholds, decision logic): Run behavioral evals (ADR-057). Required before merge.
+- **Both structural and behavioral**: Run both.
+- **Ambiguous**: When in doubt, run behavioral evals.
+
+### How to Run
+
+```bash
+# Auto-detect changes and route to correct evaluator:
+python3 scripts/eval/eval-suite.py --dry-run   # Preview what would run
+python3 scripts/eval/eval-suite.py              # Full run (requires ANTHROPIC_API_KEY)
+
+# Evaluate a specific prompt change (before/after comparison):
+python3 scripts/eval/eval-prompt-change.py \
+  --prompt .claude/commands/research.md \
+  --scenarios tests/evals/research-scenarios.json \
+  --base-ref main
+
+# Security-critical prompts (5 runs, 100% pass required):
+python3 scripts/eval/eval-prompt-change.py \
+  --prompt .agents/security/prompts/security-review.md \
+  --scenarios tests/evals/security-review-scenarios.json \
+  --base-ref main --security-critical
+```
+
+### Writing Scenario Files
+
+Scenarios define expected LLM behavior. See `scripts/eval/examples/example-scenarios.json` for a template.
+
+```json
+{
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "What this scenario tests",
+      "input": "Simulated context the LLM receives",
+      "expected_verdict": "STOP",
+      "expected_reason_contains": "budget"
+    }
+  ]
+}
+```
+
+**Minimum requirements (ADR-057):**
+
+- At least one scenario per decision branch the change introduces or modifies
+- At least one regression scenario for existing behavior the change could affect
+- Store scenarios in `tests/evals/` (general) or `.agents/security/benchmarks/` (security)
+
+### Acceptance Gate
+
+A prompt change passes when all three criteria hold:
+
+1. `after_score >= before_score` (no regression)
+2. Targeted scenarios move from fail to pass
+3. No scenario flips pass to fail without justification in the PR
+
+### Enforcement
+
+- **Claude Code hook**: Blocks `git commit` when prompt/skill/agent files are staged without eval evidence
+- **Git pre-commit hook**: Non-blocking warning for human developers
+- **Bypass**: Set `SKIP_PROMPT_EVAL=1` and document justification in the PR
+
+### References
+
+- [ADR-057](.agents/architecture/ADR-057-prompt-behavioral-evaluation.md): Full methodology
+- [ADR-023](.agents/architecture/ADR-023-quality-gate-prompt-testing.md): Structural validation (complement)
+- [scripts/eval/README.md](scripts/eval/README.md): Script reference and quick start
 
 ## Platform Configuration
 
@@ -876,7 +963,7 @@ semgrep --version
 
 semgrep is recommended but not required. The pre-push hook skips the scan gracefully if semgrep is not installed, matching existing patterns for optional tools (ruff, mypy, actionlint).
 
-### How It Works
+### Security Scan Process
 
 The pre-push hook delegates to `scripts/security/run_semgrep.py`, which:
 
