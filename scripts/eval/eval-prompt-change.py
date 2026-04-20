@@ -452,6 +452,9 @@ def _parse_args() -> argparse.Namespace:
     if args.runs < 1:
         parser.error("--runs must be at least 1")
 
+    if not args.security_critical and args.runs < DEFAULT_RUNS:
+        parser.error(f"--runs must be >= {DEFAULT_RUNS} for non-security prompts (flakiness protocol)")
+
     if args.security_critical and args.runs < SECURITY_RUNS:
         args.runs = SECURITY_RUNS
         print(f"  Security-critical: overriding runs to {SECURITY_RUNS}", file=sys.stderr)
