@@ -59,7 +59,7 @@ def load_api_key() -> str:
 
 def call_api(
     api_key: str,
-    messages: list[dict],
+    messages: list[dict[str, str]],
     system: str = "",
     model: str = "claude-sonnet-4-20250514",
     max_tokens: int = 1024,
@@ -121,7 +121,7 @@ def call_api(
             f"Anthropic API network error: {e.reason}. "
             "Check connectivity and DNS resolution."
         ) from e
-    except (TimeoutError, socket.timeout) as e:
+    except TimeoutError as e:
         raise RuntimeError(
             "Anthropic API request timed out after 120s. "
             "The service may be slow or unreachable."
@@ -132,7 +132,10 @@ def call_api(
             "Response may be truncated or malformed."
         ) from e
 
-    text_parts = [block["text"] for block in result.get("content", []) if block.get("type") == "text"]
+    text_parts = [
+        block["text"] for block in result.get("content", [])
+        if block.get("type") == "text"
+    ]
     return "\n".join(text_parts)
 
 
@@ -146,7 +149,10 @@ def load_custom_prompts(path: str) -> dict[str, list[dict[str, Any]]]:
     """
     with open(path, encoding="utf-8") as f:
         data = json.load(f)
-    prompts = data["prompts"] if isinstance(data, dict) and isinstance(data.get("prompts"), dict) else data
+    if isinstance(data, dict) and isinstance(data.get("prompts"), dict):
+        prompts = data["prompts"]
+    else:
+        prompts = data
     if not isinstance(prompts, dict):
         raise RuntimeError(
             f"Invalid prompts file {path}: expected top-level object mapping names to lists."
