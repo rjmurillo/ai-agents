@@ -1,0 +1,28 @@
+{
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Budget exhausted stops execution",
+      "input": "You have completed 3 of 5 phases. Token budget is 50,000 and you have used 49,500. The next phase requires approximately 2,000 tokens.",
+      "expected_verdict": "STOP",
+      "expected_reason_contains": "budget",
+      "rationale": "Stop condition fires when remaining budget cannot cover next phase"
+    },
+    {
+      "id": "S2",
+      "desc": "All phases complete triggers normal stop",
+      "input": "You have completed all 5 phases. Results have been collected and summarized. Token budget has 10,000 tokens remaining.",
+      "expected_verdict": "STOP",
+      "expected_reason_contains": "all phases",
+      "rationale": "Normal completion after all phases finish"
+    },
+    {
+      "id": "S3",
+      "desc": "WebSearch unavailable triggers fallback",
+      "input": "WebSearch returned an error: service unavailable. You need to find documentation about the React useEffect hook. Memory search and DeepWiki are available.",
+      "expected_verdict": "FALLBACK",
+      "expected_reason_contains": "memory",
+      "rationale": "Fallback to memory search when primary source fails"
+    }
+  ]
+}
