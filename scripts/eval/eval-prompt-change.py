@@ -61,6 +61,7 @@ from _eval_common import EST_TOKENS_PER_CALL
 RATE_LIMIT_SLEEP_SEC = 1.0
 DEFAULT_RUNS = 3
 SECURITY_RUNS = 5
+FLAKINESS_BLOCK_THRESHOLD = 0.4
 
 
 # ---------------------------------------------------------------------------
@@ -79,14 +80,14 @@ def load_scenarios(path: str) -> list[dict[str, Any]]:
     try:
         with open(path, encoding="utf-8") as f:
             data = json.load(f)
-    except FileNotFoundError:
-        raise RuntimeError(f"Scenario file not found: {path}")
-    except json.JSONDecodeError as e:
+    except FileNotFoundError as exc:
+        raise RuntimeError(f"Scenario file not found: {path}") from exc
+    except json.JSONDecodeError as exc:
         raise RuntimeError(
-            f"Invalid JSON in scenario file {path}: {e.msg} at line {e.lineno}. "
+            f"Invalid JSON in scenario file {path}: {exc.msg} at line {exc.lineno}. "
             f"Expected format: {{\"scenarios\": [{{\"id\": \"S1\", \"desc\": \"...\", "
             f"\"input\": \"...\", \"expected_verdict\": \"...\"}}]}}"
-        )
+        ) from exc
 
     scenarios = data.get("scenarios", data) if isinstance(data, dict) else data
     if not isinstance(scenarios, list):
@@ -201,7 +202,7 @@ def judge_scenario(
     return {"verdict": "PARSE_ERROR", "reason": f"Could not parse: {text[:200]}", "raw": raw}
 
 
-def check_scenario_pass(result: dict, scenario: dict) -> bool:
+def check_scenario_pass(result: dict[str, Any], scenario: dict[str, Any]) -> bool:
     """Check if a single scenario result matches expectations."""
     verdict_match = result["verdict"] == scenario["expected_verdict"].upper()
 
@@ -360,8 +361,6 @@ def acceptance_gate(
                 break
 
     # Criterion 4: flakiness threshold (ADR-057 enforced)
-    # Any scenario with > 40% flakiness rate blocks the gate
-    FLAKINESS_BLOCK_THRESHOLD = 0.4
     high_flakiness_scenarios = []
     for a in after_results:
         if a.get("flaky") and a["runs"] > 1:
@@ -434,7 +433,10 @@ def _parse_args() -> argparse.Namespace:
         "--security-critical", action="store_true",
         help=f"Security-critical tier: {SECURITY_RUNS} runs, 100%% pass required"
     )
-    parser.add_argument("--model", type=str, default="claude-sonnet-4-20250514", help="Model for evaluation")
+    parser.add_argument(
+        "--model", type=str, default="claude-sonnet-4-20250514",
+        help="Model for evaluation"
+    )
     parser.add_argument("--dry-run", action="store_true", help="Validate inputs, no API calls")
     parser.add_argument("--output", type=str, help="Write results to file")
 
@@ -453,7 +455,10 @@ def _parse_args() -> argparse.Namespace:
         parser.error("--runs must be at least 1")
 
     if not args.security_critical and args.runs < DEFAULT_RUNS:
-        parser.error(f"--runs must be >= {DEFAULT_RUNS} for non-security prompts (flakiness protocol)")
+        parser.error(
+            f"--runs must be >= {DEFAULT_RUNS} for non-security "
+            f"prompts (flakiness protocol)"
+        )
 
     if args.security_critical and args.runs < SECURITY_RUNS:
         args.runs = SECURITY_RUNS
@@ -486,7 +491,8 @@ def _run_and_report(
 ) -> None:
     """Run comparison, apply gate, and output results."""
     print(f"\n{'='*60}", file=sys.stderr)
-    print(f"  RUNNING BEHAVIORAL EVAL ({len(scenarios)} scenarios x {args.runs} runs)", file=sys.stderr)
+    msg = f"  RUNNING BEHAVIORAL EVAL ({len(scenarios)} scenarios x {args.runs} runs)"
+    print(msg, file=sys.stderr)
     print(f"{'='*60}", file=sys.stderr)
 
     comparison = run_comparison(api_key, before_text, after_text, scenarios, args.model, args.runs)

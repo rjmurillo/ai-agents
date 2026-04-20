@@ -78,7 +78,7 @@ def get_staged_files() -> list[str]:
 
 def classify_staged_behavioral(files: list[str]) -> dict[str, list[str]]:
     """Classify staged files into behavioral change categories."""
-    classified = {"prompts": [], "agents": [], "skills": []}
+    classified: dict[str, list[str]] = {"prompts": [], "agents": [], "skills": []}
 
     for f in files:
         matched = False

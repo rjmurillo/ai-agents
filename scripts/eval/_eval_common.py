@@ -17,9 +17,9 @@ FLAKINESS_VARIANCE_THRESHOLD = 1.0
 
 
 def aggregate_multi_run_scores(
-    run_scores: list[dict],
+    run_scores: list[dict[str, Any]],
     dimensions: list[str],
-) -> dict:
+) -> dict[str, Any]:
     """Aggregate scores across multiple runs per ADR-057 flakiness protocol.
 
     Returns averaged scores plus flakiness metadata (pass rate, variance).

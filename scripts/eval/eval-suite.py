@@ -133,7 +133,8 @@ def classify_changes(files: list[str]) -> dict[str, list[str]]:
             for pattern in AGENT_PATTERNS:
                 if f.startswith(pattern) and f.endswith(".md"):
                     name = Path(f).name
-                    if name not in ("CLAUDE.md", "README.md", "INDEX.md", "AGENTS.md") and ".template." not in name:
+                    skip = ("CLAUDE.md", "README.md", "INDEX.md", "AGENTS.md")
+                    if name not in skip and ".template." not in name:
                         classified["agents"].append(f)
                         matched = True
                     break
@@ -241,7 +242,7 @@ def run_behavioral_for_prompt(
 
     try:
         # nosemgrep: dangerous-subprocess-use-tainted-env-args
-        # Justification: cmd built from sys.executable + fixed script path + argparse args (not user input)
+        # Justification: cmd from sys.executable + fixed script path + argparse
         result = subprocess.run(
             cmd, capture_output=True, text=True, timeout=600,
             cwd=str(REPO_ROOT),
@@ -249,7 +250,7 @@ def run_behavioral_for_prompt(
         try:
             parsed = json.loads(result.stdout)
         except json.JSONDecodeError:
-            print(f"WARNING: Failed to parse JSON from eval-prompt-change for {prompt_path}", file=sys.stderr)
+            print(f"WARNING: JSON parse failed for {prompt_path}", file=sys.stderr)
             parsed = {"raw_output": result.stdout[:1000]}
 
         return {
@@ -337,7 +338,7 @@ def run_skill_knowledge(
             try:
                 parsed = json.loads(result.stdout)
             except json.JSONDecodeError:
-                print(f"WARNING: Failed to parse JSON from eval-knowledge-integration for {name}", file=sys.stderr)
+                print(f"WARNING: JSON parse failed for skill {name}", file=sys.stderr)
                 parsed = {"raw_output": result.stdout[:500]}
 
             results["skills"][name] = {

@@ -21,7 +21,8 @@ unnecessary questions on Clear problems where direct output is expected.
 Complexity classifications:
   - clear: Standard problem, known pattern. Expected: direct output, minimal questions.
   - complicated: Requires expert analysis. Expected: produce with trade-offs and assumptions.
-  - complex: Multiple unknowns, no clear right answer. Expected: ask clarifying questions, explore space.
+  - complex: Multiple unknowns, no clear right answer.
+    Expected: ask clarifying questions, explore space.
   - chaotic: Crisis/urgent. Expected: stabilize first, then ask, then produce.
 
 Usage:
@@ -45,10 +46,10 @@ from typing import Any
 # ---------------------------------------------------------------------------
 # API utilities (shared module)
 # ---------------------------------------------------------------------------
-
-from _anthropic_api import call_api as _call_api, load_api_key as _load_api_key, load_custom_prompts
+from _anthropic_api import call_api as _call_api
+from _anthropic_api import load_api_key as _load_api_key
+from _anthropic_api import load_custom_prompts
 from _eval_common import EST_TOKENS_PER_CALL, aggregate_multi_run_scores
-
 
 # ---------------------------------------------------------------------------
 # Agent context loading
@@ -573,9 +574,10 @@ PROMPTS: dict[str, list[dict[str, Any]]] = {
 _AGENT_MAX_TOKENS = 2048
 
 
-def _call_api_for_agents(api_key: str, messages: list[dict], system: str = "", model: str = "claude-sonnet-4-20250514") -> str:
+def _call_api_for_agents(api_key: str, messages: list[dict[str, str]], system: str = "", model: str = "claude-sonnet-4-20250514") -> str:
     """Call the Anthropic API with agent-specific max_tokens."""
-    return _call_api(api_key, messages, system=system, model=model, max_tokens=_AGENT_MAX_TOKENS)
+    result: str = _call_api(api_key, messages, system=system, model=model, max_tokens=_AGENT_MAX_TOKENS)
+    return result
 
 
 COMPLEXITY_BEHAVIOR = {
@@ -647,7 +649,7 @@ Respond in JSON only, no other text:
             text = match.group(1).strip()
 
     try:
-        scores = json.loads(text)
+        scores: dict[str, Any] = json.loads(text)
         # Note: if appropriateness is missing, we leave it out and _avg_scores will exclude it
     except json.JSONDecodeError:
         print(f"WARNING: Failed to parse LLM response: {text[:100]}", file=sys.stderr)
@@ -669,9 +671,9 @@ Respond in JSON only, no other text:
 DIMENSIONS = ["role_adherence", "actionability", "quality", "appropriateness"]
 
 
-def _avg_scores(score_list: list[dict]) -> dict[str, float]:
+def _avg_scores(score_list: list[dict[str, Any]]) -> dict[str, float]:
     """Average role_adherence, actionability, quality, appropriateness across score dicts.
-    
+
     Missing dimensions are excluded from averaging rather than treated as 0,
     to avoid corrupting scores when a dimension is not evaluated.
     """
@@ -688,9 +690,10 @@ def _avg_scores(score_list: list[dict]) -> dict[str, float]:
     return result
 
 
-def _aggregate_multi_run_scores(run_scores: list[dict]) -> dict:
+def _aggregate_multi_run_scores(run_scores: list[dict[str, Any]]) -> dict[str, Any]:
     """Aggregate scores across multiple runs per ADR-057 flakiness protocol."""
-    return aggregate_multi_run_scores(run_scores, DIMENSIONS)
+    result: dict[str, Any] = aggregate_multi_run_scores(run_scores, DIMENSIONS)
+    return result
 
 
 def run_assessment(
@@ -732,9 +735,9 @@ def run_assessment(
               f"runs: {runs})", file=sys.stderr)
         print(f"{'='*60}", file=sys.stderr)
 
-        scores: list[dict] = []
+        scores: list[dict[str, Any]] = []
 
-        for i, item in enumerate(agent_prompts):
+        for _i, item in enumerate(agent_prompts):
             current += 1
             prompt_text = item["prompt"]
             expected = item["expected"]
@@ -752,7 +755,7 @@ def run_assessment(
                 })
                 continue
 
-            run_scores: list[dict] = []
+            run_scores: list[dict[str, Any]] = []
             for run_idx in range(runs):
                 if runs > 1:
                     print(f"    Run {run_idx + 1}/{runs}...", file=sys.stderr)
@@ -896,7 +899,7 @@ def main() -> None:
 
     # Print summary table
     print(f"\n{'='*92}", file=sys.stderr)
-    print(f"  AGENT QUALITY RESULTS (4-dimensional, Cynefin-aware)", file=sys.stderr)
+    print("  AGENT QUALITY RESULTS (4-dimensional, Cynefin-aware)", file=sys.stderr)
     print(f"{'='*92}", file=sys.stderr)
     print(f"  {'Agent':<22} {'Model':<8} {'Role':>6} {'Action':>7} {'Qual':>6} {'Approp':>7} {'Overall':>8}",
           file=sys.stderr)
@@ -930,7 +933,7 @@ def main() -> None:
         if data["overall"] < 3.5
     ]
     if weak:
-        print(f"\n  BELOW THRESHOLD (<3.5):", file=sys.stderr)
+        print("\n  BELOW THRESHOLD (<3.5):", file=sys.stderr)
         for name, data in weak:
             print(f"    {name}: {data['overall']:.2f}", file=sys.stderr)
 

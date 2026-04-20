@@ -29,10 +29,10 @@ from typing import Any
 # ---------------------------------------------------------------------------
 # API utilities (shared module)
 # ---------------------------------------------------------------------------
-
-from _anthropic_api import call_api as _call_api, load_api_key as _load_api_key, load_custom_prompts
+from _anthropic_api import call_api as _call_api
+from _anthropic_api import load_api_key as _load_api_key
+from _anthropic_api import load_custom_prompts
 from _eval_common import EST_TOKENS_PER_CALL, aggregate_multi_run_scores
-
 
 # ---------------------------------------------------------------------------
 # Skill context loading
@@ -187,7 +187,8 @@ SKILLS = list(PROMPTS.keys())
 def run_prompt(api_key: str, prompt: str, system_context: str = "", model: str = "claude-sonnet-4-20250514") -> str:
     """Run a single prompt with optional system context."""
     messages = [{"role": "user", "content": prompt}]
-    return _call_api(api_key, messages, system=system_context, model=model)
+    result: str = _call_api(api_key, messages, system=system_context, model=model)
+    return result
 
 
 def score_response(api_key: str, prompt: str, response: str, expected: str, model: str = "claude-sonnet-4-20250514") -> dict[str, Any]:
@@ -220,7 +221,7 @@ Respond in JSON only, no other text:
             text = match.group(1).strip()
 
     try:
-        scores = json.loads(text)
+        scores: dict[str, Any] = json.loads(text)
     except json.JSONDecodeError:
         print(f"WARNING: Failed to parse LLM response: {text[:100]}", file=sys.stderr)
         scores = {"accuracy": 0, "depth": 0, "specificity": 0, "reasoning": f"Failed to parse: {text[:200]}"}
@@ -238,7 +239,7 @@ def apply_kill_gate(results: dict[str, Any]) -> dict[str, Any]:
     - CONDITIONAL: 60% of skills improve >= 0.5, proceed only for improving skills
     - STOP: fewer than 60% of skills improve >= 0.5
     """
-    gate = {"passed": True, "verdict": "PROCEED", "failures": [], "summary": {}}
+    gate: dict[str, Any] = {"passed": True, "verdict": "PROCEED", "failures": [], "summary": {}}
 
     skills_passing = 0
     skills_regressing = []
@@ -297,7 +298,7 @@ def apply_kill_gate(results: dict[str, Any]) -> dict[str, Any]:
     return gate
 
 
-def _avg_scores(score_list: list[dict]) -> dict[str, float]:
+def _avg_scores(score_list: list[dict[str, Any]]) -> dict[str, float]:
     """Average accuracy, depth, specificity across a list of score dicts."""
     if not score_list:
         return {"accuracy": 0.0, "depth": 0.0, "specificity": 0.0}
@@ -316,9 +317,10 @@ def _avg_scores(score_list: list[dict]) -> dict[str, float]:
 _KNOWLEDGE_DIMENSIONS = ["accuracy", "depth", "specificity"]
 
 
-def _aggregate_multi_run_scores(run_scores: list[dict]) -> dict:
+def _aggregate_multi_run_scores(run_scores: list[dict[str, Any]]) -> dict[str, Any]:
     """Aggregate scores across multiple runs per ADR-057 flakiness protocol."""
-    return aggregate_multi_run_scores(run_scores, _KNOWLEDGE_DIMENSIONS)
+    result: dict[str, Any] = aggregate_multi_run_scores(run_scores, _KNOWLEDGE_DIMENSIONS)
+    return result
 
 
 def run_assessment(
@@ -352,10 +354,10 @@ def run_assessment(
               f"runs: {runs})", file=sys.stderr)
         print(f"{'='*60}", file=sys.stderr)
 
-        baseline_scores: list[dict] = []
-        enhanced_scores: list[dict] = []
+        baseline_scores: list[dict[str, Any]] = []
+        enhanced_scores: list[dict[str, Any]] = []
 
-        for i, item in enumerate(skill_prompts):
+        for _i, item in enumerate(skill_prompts):
             current += 1
             prompt_text = item["prompt"]
             expected = item["expected"]
@@ -366,8 +368,8 @@ def run_assessment(
                 enhanced_scores.append({"accuracy": 0, "depth": 0, "specificity": 0, "reasoning": "dry-run"})
                 continue
 
-            baseline_runs: list[dict] = []
-            enhanced_runs: list[dict] = []
+            baseline_runs: list[dict[str, Any]] = []
+            enhanced_runs: list[dict[str, Any]] = []
 
             for run_idx in range(runs):
                 if runs > 1:
@@ -514,7 +516,7 @@ def main() -> None:
     print(f"  {'-'*58}", file=sys.stderr)
     for skill, summary in gate.get("summary", {}).items():
         b = sum(summary["baseline_avg"].values()) / 3
-        e = sum(summary["enhanced_avg"].values()) / 3
+        enhanced_val = sum(summary["enhanced_avg"].values()) / 3
         d = summary["overall_delta"]
         if summary.get("regressed"):
             status = "REGRESS"
@@ -522,7 +524,7 @@ def main() -> None:
             status = "PASS"
         else:
             status = "BELOW"
-        print(f"  {skill:<20} {b:>10.2f} {e:>10.2f} {d:>10.2f} {status:>8}", file=sys.stderr)
+        print(f"  {skill:<20} {b:>10.2f} {enhanced_val:>10.2f} {d:>10.2f} {status:>8}", file=sys.stderr)
     print(f"{'='*70}", file=sys.stderr)
 
     if gate.get("failures"):

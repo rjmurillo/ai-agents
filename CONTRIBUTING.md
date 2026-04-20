@@ -963,7 +963,7 @@ semgrep --version
 
 semgrep is recommended but not required. The pre-push hook skips the scan gracefully if semgrep is not installed, matching existing patterns for optional tools (ruff, mypy, actionlint).
 
-### How It Works
+### Security Scan Process
 
 The pre-push hook delegates to `scripts/security/run_semgrep.py`, which:
 
