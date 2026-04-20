@@ -22,6 +22,6 @@ SKILLCREATOR_CONFIG:
     require_temporal_projection: true
 
   model:
-    primary: claude-opus-4-5-20251101
-    subagents: claude-opus-4-5-20251101
+    primary: claude-opus-4-6
+    subagents: claude-opus-4-6
 ```
