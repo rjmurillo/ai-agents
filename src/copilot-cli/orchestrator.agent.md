@@ -53,7 +53,7 @@ Use the classification to pick delegation depth. A clear, reversible, P3 task ne
 
 ## Agent Capability Matrix
 
-Model assignments in this matrix follow `.agents/AGENT-SYSTEM.md` Section 10.
+Model tiers: `opus` for deep strategy/analysis, `sonnet` for routine execution, `haiku` for lightweight operations. The Model column below is authoritative.
 
 | Agent | Use For | Model | Avoid When |
 |-------|---------|-------|-----------|
