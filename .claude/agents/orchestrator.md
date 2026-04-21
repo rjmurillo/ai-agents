@@ -64,7 +64,7 @@ Model tiers: `opus` for deep strategy/analysis, `sonnet` for routine execution, 
 
 ## Routing Algorithm
 
-```
+```text
 1. Classify complexity (Cynefin)
 2. Is task clear + reversible + trivial?
    YES → produce directly
@@ -86,7 +86,7 @@ Model tiers: `opus` for deep strategy/analysis, `sonnet` for routine execution, 
 
 Every delegation includes:
 
-```
+```text
 DELEGATE TO: [agent]
 TASK: [one sentence]
 CONTEXT: [prior findings, constraints, dependencies]
@@ -150,14 +150,12 @@ Only after these three steps complete does reasoning about the response begin. S
 
 ### Pre-Close Sequence (ordered, all BLOCKING)
 
-1. Verify all delegations have returned or been explicitly abandoned
-2. Verify synthesis is complete and TODOs logged for deferred work
-3. Run `python3 .claude/skills/session-end/scripts/complete_session_log.py`
-4. Verify `protocolCompliance.sessionEnd` fields are all `Complete: true` in the session JSON
-5. Verify HANDOFF.md was **not** modified (read-only per ADR-014)
-6. Verify all changes are committed to git
-7. Verify session log updated with handoff decisions
-8. If work is incomplete, create next-session handoff document
+1. Verify all delegations have returned or been explicitly abandoned.
+2. Verify synthesis is complete and TODOs logged for deferred work.
+3. Run `python3 .claude/skills/session-end/scripts/complete_session_log.py`.
+4. Verify `protocolCompliance.sessionEnd` fields are all `Complete: true` in the session JSON.
+5. Verify HANDOFF.md was preserved (read-only per ADR-014). Outcomes and next steps recorded in the session log.
+6. Verify all changes are committed to git (`git status` clean).
 
 ### Failure Path
 

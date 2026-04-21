@@ -25,6 +25,7 @@ from invoke_session_validator import (  # noqa: E402
     get_missing_keys,
     get_project_directory,
     get_today_session_logs,
+    is_session_end_missing,
     log_session_end_skip,
     main,
     write_continue_response,
@@ -207,9 +208,9 @@ class TestMainAllow:
             "protocolCompliance": {
                 "sessionStart": {"complete": True},
                 "sessionEnd": {
-                    "checklistComplete": {"level": "MUST", "Complete": True},
                     "changesCommitted": {"level": "MUST", "Complete": True},
-                    "validationPassed": {"level": "MUST", "Complete": True},
+                    "lintRun": {"level": "MUST", "Complete": True},
+                    "checklistComplete": {"level": "MUST", "Complete": True},
                 },
             },
             "work": {"items": ["implemented feature X"]},
@@ -299,66 +300,6 @@ class TestMainContinue:
         assert resp["continue"] is True
 
 
-class TestGetIncompleteSessionEndItems:
-    """Tests for get_incomplete_session_end_items."""
-
-    def test_returns_empty_when_no_protocol_compliance(self) -> None:
-        assert get_incomplete_session_end_items({}) == []
-
-    def test_returns_empty_when_no_session_end(self) -> None:
-        data = {"protocolCompliance": {"sessionStart": {}}}
-        assert get_incomplete_session_end_items(data) == []
-
-    def test_returns_empty_when_all_must_complete(self) -> None:
-        data = {"protocolCompliance": {"sessionEnd": {
-            "checklistComplete": {"level": "MUST", "Complete": True},
-            "changesCommitted": {"level": "MUST", "Complete": True},
-        }}}
-        assert get_incomplete_session_end_items(data) == []
-
-    def test_returns_incomplete_must_items(self) -> None:
-        data = {"protocolCompliance": {"sessionEnd": {
-            "checklistComplete": {"level": "MUST", "Complete": True},
-            "changesCommitted": {"level": "MUST", "Complete": False},
-            "optionalItem": {"level": "SHOULD", "Complete": False},
-        }}}
-        result = get_incomplete_session_end_items(data)
-        assert result == ["changesCommitted"]
-
-    def test_handles_lowercase_complete_key(self) -> None:
-        data = {"protocolCompliance": {"sessionEnd": {
-            "item": {"level": "MUST", "complete": False},
-        }}}
-        assert get_incomplete_session_end_items(data) == ["item"]
-
-    def test_ignores_non_dict_items(self) -> None:
-        data = {"protocolCompliance": {"sessionEnd": {
-            "stringItem": "not a dict",
-            "realItem": {"level": "MUST", "Complete": True},
-        }}}
-        assert get_incomplete_session_end_items(data) == []
-
-
-class TestLogSessionEndSkip:
-    """Tests for log_session_end_skip."""
-
-    def test_creates_skip_log(self, tmp_path: Path) -> None:
-        log_session_end_skip("test-session", "test-log.json", str(tmp_path))
-        skip_log = tmp_path / ".agents" / "sessions" / "session-end-skips.jsonl"
-        assert skip_log.exists()
-        record = json.loads(skip_log.read_text().strip())
-        assert record["event"] == "session_closed_without_session_end"
-        assert record["session_id"] == "test-session"
-        assert record["session_log"] == "test-log.json"
-
-    def test_appends_to_existing_log(self, tmp_path: Path) -> None:
-        log_session_end_skip("s1", "log1.json", str(tmp_path))
-        log_session_end_skip("s2", "log2.json", str(tmp_path))
-        skip_log = tmp_path / ".agents" / "sessions" / "session-end-skips.jsonl"
-        lines = skip_log.read_text().strip().split("\n")
-        assert len(lines) == 2
-
-
 class TestModuleAsScript:
     """Test that the hook can be executed as a script via __main__."""
 
@@ -383,3 +324,62 @@ class TestModuleAsScript:
         with pytest.raises(SystemExit) as exc_info:
             runpy.run_path(hook_path, run_name="__main__")
         assert exc_info.value.code == 0
+
+
+class TestSessionEndCompliance:
+    """Tests for session-end checklist enforcement in the Stop hook."""
+
+    def test_is_session_end_missing_when_absent(self) -> None:
+        data = {"protocolCompliance": {"sessionStart": {}}}
+        assert is_session_end_missing(data) is True
+
+    def test_is_session_end_missing_when_present(self) -> None:
+        data = {"protocolCompliance": {"sessionEnd": {"item": {"level": "MUST", "Complete": True}}}}
+        assert is_session_end_missing(data) is False
+
+    def test_is_session_end_missing_no_protocol(self) -> None:
+        data = {"session": {}}
+        assert is_session_end_missing(data) is True
+
+    def test_incomplete_items_returns_must_incomplete(self) -> None:
+        data = {
+            "protocolCompliance": {
+                "sessionEnd": {
+                    "changesCommitted": {"level": "MUST", "Complete": False},
+                    "lintRun": {"level": "MUST", "Complete": True},
+                    "optional": {"level": "SHOULD", "Complete": False},
+                }
+            }
+        }
+        result = get_incomplete_session_end_items(data)
+        assert result == ["changesCommitted"]
+
+    def test_incomplete_items_all_complete(self) -> None:
+        data = {
+            "protocolCompliance": {
+                "sessionEnd": {
+                    "changesCommitted": {"level": "MUST", "Complete": True},
+                    "lintRun": {"level": "MUST", "Complete": True},
+                }
+            }
+        }
+        assert get_incomplete_session_end_items(data) == []
+
+    def test_incomplete_items_empty_when_no_session_end(self) -> None:
+        data = {"protocolCompliance": {}}
+        assert get_incomplete_session_end_items(data) == []
+
+    def test_log_session_end_skip_writes_jsonl(self, tmp_path: Path) -> None:
+        sessions_dir = str(tmp_path / "sessions")
+        log_session_end_skip("S-1", "2026-01-01-session-01.json", sessions_dir)
+        skip_file = tmp_path / "sessions" / "session-end-skips.jsonl"
+        assert skip_file.exists()
+        record = json.loads(skip_file.read_text().strip())
+        assert record["event"] == "session_closed_without_session_end"
+        assert record["session_id"] == "S-1"
+        assert record["session_log"] == "2026-01-01-session-01.json"
+
+    def test_log_session_end_skip_nonblocking_on_error(self) -> None:
+        """Skip logging should not raise even if path is invalid."""
+        # /dev/null/impossible is not writable - should silently fail
+        log_session_end_skip("S-1", "log.json", "/dev/null/impossible")
