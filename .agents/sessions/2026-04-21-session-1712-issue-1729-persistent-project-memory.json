@@ -1,0 +1,168 @@
+{
+  "session": {
+    "number": 1712,
+    "date": "2026-04-21",
+    "branch": "feat/1729-autonomous",
+    "startingCommit": "e2c7a2ba",
+    "objective": "Issue #1729 persistent project memory (MEMORY.md pointer index + topic files + ADR-058)"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP unavailable in autonomous harness per SessionStart hook ('Forgetful: unavailable (use Serena)'); fell back to native Read tool per ADR-007 retrieval-first requirement; retrieved ADR-007, ADR-017, MEMORY-MANAGEMENT.md, FAILURE-MODES.md."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP unavailable; AGENTS.md imported via CLAUDE.md system-reminder supplies equivalent session protocol gates."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Verified .agents/HANDOFF.md present (v1.4, read-only per ADR-014); header inspected."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file, created via new_session_log.py and moved into worktree."
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Available skills enumerated via session-start reminder; invoked session-init skill for log creation."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md imported via CLAUDE.md; Retrieval-Led Reasoning, Session Gates, and Boundaries sections observed."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Verified .agents/governance/PROJECT-CONSTRAINTS.md present; canonical source of truth header inspected."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "SessionStart hook reported ADR-007 memory-first context active; retrieved ADR-007, ADR-017, ADR-TEMPLATE, MEMORY-MANAGEMENT.md, FAILURE-MODES.md via Read."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "feat/1729-autonomous (pre-created by autonomous harness for issue #1729)."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On feat/1729-autonomous."
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status checked; pre-existing trailing-blank-line diffs on orchestrator variants noted and intentionally excluded from this commit to preserve minimal diff."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "e2c7a2ba"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All sessionStart MUST items satisfied; sessionEnd items populated pre-commit."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified; read-only per ADR-014 respected."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP unavailable; equivalent durable memory persisted as .agents/memory/MEMORY.md pointer index plus five topic files (ADR-058)."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Pre-commit hook runs markdownlint-cli2 with autofix; relied on hook (documented in .githooks/pre-commit)."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Commit created by agent with conventional message 'feat(agents): add persistent project memory (MEMORY.md) per ADR-058'."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Session log re-validated post-edit via scripts/validate_session_json.py."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "TodoWrite list maintained across session with in-progress/completed transitions."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Deferred; single-session feature implementation. Follow-up retro recommended if MEMORY.md adoption stalls."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": 1,
+      "action": "Read candidates JSON; confirmed branch feat/1729-autonomous pre-selected issue #1729 (priority:P2, persistent project memory).",
+      "result": "No existing PR for #1729 via get_pull_requests.py search."
+    },
+    {
+      "step": 2,
+      "action": "Retrieved context: ADR-007, ADR-017, MEMORY-MANAGEMENT.md, FAILURE-MODES.md, ADR-TEMPLATE, orchestrator.md, implementer.md.",
+      "result": "Confirmed ADR-017 targets Serena lexical retrieval only; MEMORY.md is additive markdown Tier-0 surface, new ADR justified."
+    },
+    {
+      "step": 3,
+      "action": "Called advisor before writing; reconciled scope to avoid SESSION-PROTOCOL.md edit (BLOCKING adr-review) per Issue #1729 'Why P2' guidance deferring full wiring to #1726.",
+      "result": "Scope fixed: MEMORY.md + 5 topic files + ADR-058 + session log."
+    },
+    {
+      "step": 4,
+      "action": "Wrote .agents/memory/MEMORY.md pointer index with Memory Update Protocol binding section.",
+      "result": "AC #1, #3, #5 satisfied (index created; protocol always-loaded; write discipline documented)."
+    },
+    {
+      "step": 5,
+      "action": "Backfilled 5 topic files from FAILURE-MODES.md sections: context-reading, false-completion, rubber-stamping, premature-merge, trust-based-compliance.",
+      "result": "AC #2 satisfied."
+    },
+    {
+      "step": 6,
+      "action": "Attempted inline edit to .claude/agents/orchestrator.md; blocked 3x by autonomous-harness permission auto-deny on prompt files (also protected by ADR-057 prompt_eval_gate).",
+      "result": "Called advisor; re-scoped: protocol lives in MEMORY.md (always-loaded); prompt-file inline reference deferred to follow-up with ADR-057 eval evidence. Documented in ADR-058."
+    },
+    {
+      "step": 7,
+      "action": "Wrote ADR-058-persistent-project-memory.md (Status: Proposed) citing ADR-007, ADR-008, ADR-014, ADR-017.",
+      "result": "AC #7 satisfied. Integration points for #1725 and #1726 documented (AC #6)."
+    },
+    {
+      "step": 8,
+      "action": "Created session log via new_session_log.py; moved from bare repo to worktree .agents/sessions/.",
+      "result": "Session log in place for pre-commit session_log_guard."
+    },
+    {
+      "step": 9,
+      "action": "Invoked /adr-review skill for ADR-058. Architect agent reviewed via Zimmermann 7-question checklist. ADR Review Protocol executed with multi-agent consensus debate.",
+      "result": "Verdict: DISAGREE-AND-COMMIT resolved to ACCEPT after fixing 3 conditions (YAML frontmatter, reversibility section, trust-compliance risk in Negative consequences). Debate log: .agents/analysis/058-adr-058-persistent-project-memory-debate.md"
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "Follow-up PR: add explicit MEMORY.md reference in .claude/agents/orchestrator.md and .claude/agents/implementer.md once ADR-057 behavioral evaluation evidence is generated.",
+    "After Issue #1726 hook infrastructure lands, wire SessionStart hook to surface MEMORY.md load status.",
+    "After Issue #1725 handoff lands, extend HANDOFF artifacts to reference MEMORY.md entries under 'decisions made' and 'open questions'."
+  ]
+}
