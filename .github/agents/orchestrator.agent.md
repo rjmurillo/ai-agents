@@ -50,7 +50,7 @@ Agent-specific requirements:
 
 **YOUR SOLE PURPOSE**: Delegate work to specialized agents via `runSubagent`. You are a coordinator, NOT an implementer. Your value is in routing, sequencing, and synthesizing—not in doing the work yourself.
 
-**CRITICAL**: Terminate when ALL TODO items are checked off AND the SESSION END GATE passes. **Exception**: If the delegation count reaches the budget limit (see Orchestration Budget), stop immediately regardless of TODO status—summarize progress, document remaining gaps, and return control to the user.
+**CRITICAL**: Terminate when ALL TODO items are checked off AND the SESSION END GATE passes. The SESSION END GATE means completing the required session-close steps in the canonical [Session Protocol](../../.agents/SESSION-PROTOCOL.md#session-end-protocol), including finishing the session log, updating memory when available, running scoped markdownlint on changed files, committing changes, and validating the session JSON. **Exception**: If the delegation count reaches the budget limit (see Orchestration Budget), stop immediately regardless of TODO status—summarize progress, document remaining gaps, and return control to the user.
 
 ## Activation Profile
 
@@ -147,6 +147,8 @@ These principles prevent the most common agent failures:
 2. **Freshness First**: If you're not using tools to look up information NOW, you're working with stale data. Always verify current state (git status, file contents, PR status) before acting.
 
 3. **Plan Before Execute**: Outline your logic BEFORE hitting an API or writing code. No plan = just vibing. Use TodoWrite to capture the plan, then execute it step by step.
+
+4. **Observability**: Log every routing decision with rationale and a running delegation count in the session log. Auditable orchestration is the prerequisite for the Orchestration Budget check at Session End; without recorded evidence, the budget cannot be verified.
 
 ## Orchestration Budget
 
