@@ -22,8 +22,41 @@ import json
 import os
 import re
 import sys
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
+
+_plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+if _plugin_root:
+    _lib_dir = str(Path(_plugin_root).resolve() / "lib")
+else:
+    _lib_dir = str(Path(__file__).resolve().parents[2] / "lib")
+if _lib_dir not in sys.path:
+    sys.path.insert(0, _lib_dir)
+
+try:
+    from hook_utilities import get_project_directory as _get_project_directory
+    from hook_utilities import get_today_session_log
+
+    def get_project_directory() -> Path | None:
+        """Wrap shared utility returning Path for backward compat."""
+        result = _get_project_directory()
+        return Path(result) if result else None
+
+except ImportError:
+    # Fallback if hook_utilities not available
+    def get_project_directory() -> Path | None:
+        """Resolve project root from env or git."""
+        env_dir = os.environ.get("CLAUDE_PROJECT_DIR")
+        if env_dir:
+            return Path(env_dir)
+        current = Path.cwd()
+        while current != current.parent:
+            if (current / ".git").exists():
+                return current
+            current = current.parent
+        return None
+
+    get_today_session_log = None  # type: ignore[assignment]
 
 # Regex for false-completion signals in commands
 COMPLETION_SIGNALS = re.compile(
@@ -46,26 +79,18 @@ COMPLETION_COMMANDS = re.compile(
 )
 
 
-def get_project_directory() -> Path | None:
-    """Resolve project root from env or git."""
-    env_dir = os.environ.get("CLAUDE_PROJECT_DIR")
-    if env_dir:
-        return Path(env_dir)
-    current = Path.cwd()
-    while current != current.parent:
-        if (current / ".git").exists():
-            return current
-        current = current.parent
-    return None
-
-
 def find_session_log(project_dir: Path) -> Path | None:
-    """Find today's session log."""
+    """Find today's session log using UTC date."""
     sessions_dir = project_dir / ".agents" / "sessions"
     if not sessions_dir.is_dir():
         return None
 
-    today = datetime.now().strftime("%Y-%m-%d")
+    # Use shared utility if available (uses UTC)
+    if get_today_session_log is not None:
+        return get_today_session_log(str(sessions_dir))
+
+    # Fallback: use UTC explicitly
+    today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
     candidates = sorted(
         sessions_dir.glob(f"{today}-session-*.json"),
         key=lambda f: f.stat().st_mtime,
@@ -92,7 +117,7 @@ def has_verification_evidence(project_dir: Path) -> bool:
     # keywords like "pytest" that would falsely match)
     hook_state_dir = project_dir / ".agents" / ".hook-state"
     if hook_state_dir.is_dir():
-        today = datetime.now().strftime("%Y-%m-%d")
+        today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
         checkpoints = list(hook_state_dir.glob(f"*{today}*"))
         if checkpoints:
             for cp in checkpoints:
@@ -113,10 +138,10 @@ def write_audit_log(project_dir: Path, command: str, decision: str, reason: str)
     try:
         audit_dir = project_dir / ".agents" / ".hook-state"
         audit_dir.mkdir(parents=True, exist_ok=True)
-        today = datetime.now().strftime("%Y-%m-%d")
+        today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
         audit_file = audit_dir / f"audit-{today}.jsonl"
         entry = json.dumps({
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": datetime.now(tz=UTC).isoformat(),
             "hook": "invoke_false_completion_gate",
             "command": command[:200],
             "decision": decision,
