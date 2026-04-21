@@ -62,9 +62,13 @@ python3 .claude/skills/session-end/scripts/complete_session_log.py --dry-run
 
 ## When to Use
 
+**REQUIRED** before closing any session. The Stop hook enforces this — sessions will not close until the session-end checklist is complete.
+
+The `Stop` hook at `.claude/hooks/Stop/invoke_session_validator.py` will force continuation if `protocolCompliance.sessionEnd` MUST items are incomplete or if the session-end skill was never invoked.
+
 Use this skill when:
 
-- Finishing a work session and ready to commit
+- Finishing a work session (mandatory — enforced by Stop hook)
 - Session log needs end-of-session evidence populated
 - Want to verify session compliance before pushing
 

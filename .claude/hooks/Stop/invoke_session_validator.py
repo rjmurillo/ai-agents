@@ -128,6 +128,56 @@ def get_missing_keys(log_content: str) -> list[str]:
     return missing
 
 
+def get_incomplete_session_end_items(data: dict) -> list[str]:
+    """Check for incomplete MUST items in protocolCompliance.sessionEnd.
+
+    Returns a list of incomplete MUST item names, or an empty list if all
+    MUST items are complete (or sessionEnd key is absent).
+    """
+    protocol = data.get("protocolCompliance")
+    if not isinstance(protocol, dict):
+        return []
+
+    session_end = protocol.get("sessionEnd")
+    if not isinstance(session_end, dict):
+        return []
+
+    incomplete: list[str] = []
+    for item_name, item_data in session_end.items():
+        if not isinstance(item_data, dict):
+            continue
+        level = item_data.get("level", item_data.get("Level", ""))
+        if str(level).upper() != "MUST":
+            continue
+        complete = item_data.get("Complete", item_data.get("complete", False))
+        if complete is not True:
+            incomplete.append(item_name)
+
+    return incomplete
+
+
+def log_session_end_skip(
+    session_id: str, session_log_name: str, project_dir: str
+) -> None:
+    """Log that a session closed without session-end being run.
+
+    Non-blocking: errors are written to stderr only.
+    """
+    try:
+        skip_log = os.path.join(project_dir, ".agents", "sessions", "session-end-skips.jsonl")
+        os.makedirs(os.path.dirname(skip_log), exist_ok=True)
+        record = json.dumps({
+            "timestamp": datetime.now(tz=UTC).isoformat(),
+            "event": "session_closed_without_session_end",
+            "session_id": session_id,
+            "session_log": session_log_name,
+        })
+        with open(skip_log, "a", encoding="utf-8") as f:
+            f.write(record + "\n")
+    except Exception as exc:
+        print(f"Skip logging error: {exc}", file=sys.stderr)
+
+
 def main() -> int:
     """Main hook entry point. Returns exit code."""
     if skip_if_consumer_repo("session-validator"):
@@ -178,6 +228,39 @@ def main() -> int:
                 f"Session log incomplete in {log_path.name}. "
                 f"Missing or incomplete keys: {missing_list}. "
                 f"MUST complete{protocol_ref}"
+            )
+            return 0
+
+        # Phase 2: Validate session-end checklist completion
+        try:
+            data = json.loads(log_content)
+        except (json.JSONDecodeError, ValueError):
+            return 0
+
+        if not isinstance(data, dict):
+            return 0
+
+        protocol = data.get("protocolCompliance")
+        if isinstance(protocol, dict) and "sessionEnd" not in protocol:
+            # session-end was never invoked — log skip and force continuation
+            session_id = hook_input.get("session_id", "unknown")
+            log_session_end_skip(
+                str(session_id), log_path.name, project_dir
+            )
+            write_continue_response(
+                f"Session-end skill was never run for {log_path.name}. "
+                f"MUST run: python3 .claude/skills/session-end/scripts/complete_session_log.py "
+                f"before closing the session."
+            )
+            return 0
+
+        incomplete = get_incomplete_session_end_items(data)
+        if incomplete:
+            items_list = ", ".join(incomplete)
+            write_continue_response(
+                f"Session-end checklist incomplete in {log_path.name}. "
+                f"Incomplete MUST items: {items_list}. "
+                f"MUST run: python3 .claude/skills/session-end/scripts/complete_session_log.py"
             )
 
         return 0

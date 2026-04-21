@@ -146,15 +146,22 @@ Only after these three steps complete does reasoning about the response begin. S
 
 ## Session Gate (Blocking)
 
-At session end, verify before closing:
+**Stop criteria**: You MUST NOT close the session until ALL items below are complete. Attempting to close without running session-end is a protocol violation. The Stop hook enforces this — sessions will not close until `protocolCompliance.sessionEnd` MUST items pass.
 
-- [ ] All delegations have returned or been explicitly abandoned
-- [ ] Synthesis is complete
-- [ ] TODOs logged for deferred work
-- [ ] Session log updated with handoff decisions
-- [ ] Next-session handoff document created if work is incomplete
+### Pre-Close Sequence (ordered, all BLOCKING)
 
-Never close a session with pending delegations.
+1. Verify all delegations have returned or been explicitly abandoned
+2. Verify synthesis is complete and TODOs logged for deferred work
+3. Run `python3 .claude/skills/session-end/scripts/complete_session_log.py`
+4. Verify `protocolCompliance.sessionEnd` fields are all `Complete: true` in the session JSON
+5. Verify HANDOFF.md was **not** modified (read-only per ADR-014)
+6. Verify all changes are committed to git
+7. Verify session log updated with handoff decisions
+8. If work is incomplete, create next-session handoff document
+
+### Failure Path
+
+If session-end fails or any MUST item is incomplete, do **not** close the session. Surface the specific failure reason in the session log and continue working to resolve it. If unresolvable, document the blocker and call `work_finish(blocked, "Session-end protocol failure: [specific error]")`.
 
 When drift or context loss is detected at session start or mid-session, run the Anti-Drift Protocol below before resuming routing.
 
