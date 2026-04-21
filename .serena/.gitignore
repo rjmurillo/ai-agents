@@ -1,6 +1,0 @@
-# Serena LSP index cache (machine-specific, regenerated on project activation)
-/cache
-
-# Tiktoken token count caches (contain absolute paths specific to each clone/machine)
-.token-cache.json
-memories/.token-cache.json
