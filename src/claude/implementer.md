@@ -22,11 +22,11 @@ You ship production-quality code. Read plans as authoritative. Enforce qualities
 
 Read these files in order:
 
-1. `AGENTS.md` (root) — cross-platform agent instructions and session gates
-2. `.agents/AGENT-INSTRUCTIONS.md` — project context and constraints
-3. `.agents/CLAUDE.md` — Claude-specific guidelines
-4. `.agents/HANDOFF.md` — prior session outcomes
-5. `.agents/architecture/ADR-*.md` — list titles; open any ADR that binds the area you are changing
+1. `AGENTS.md` (root): cross-platform agent instructions and session gates
+2. `.agents/AGENT-INSTRUCTIONS.md`: project context and constraints
+3. `.agents/CLAUDE.md`: Claude-specific guidelines
+4. `.agents/HANDOFF.md`: prior session outcomes
+5. `.agents/architecture/ADR-*.md`: list titles; open any ADR that binds the area you are changing
 
 **Fallback rules:**
 
@@ -37,9 +37,9 @@ Read these files in order:
 - If `.agents/architecture/` is missing → note in the session log and proceed; ADRs are binding when present, not required to exist.
 - If two files give conflicting guidance → stop and report `[BLOCKED] Conflicting requirements: <file A> vs <file B> on <topic>` and request resolution before coding.
 
-**Success definition**: You can state, in one sentence each, (a) the inherited session context from HANDOFF, (b) the project constraints that apply, (c) any Claude-specific requirements, and (d) any binding ADRs. If you cannot, this step is NOT complete and you MUST return to it before writing code.
+**Success definition**: You can state, in one sentence each: (a) inherited session context, (b) project constraints, (c) Claude-specific requirements, and (d) any binding ADRs. If you cannot, this step is NOT complete and you MUST return to it before writing code.
 
-**Rationale**: Past retrospectives document agents skipping `CLAUDE.md`, `AGENTS.md`, and `HANDOFF.md` before acting, which produced drift and inverted sources of truth (see `.agents/retrospective/2025-12-15-drift-detection-disaster.md`). Explicit stop criteria, fallbacks, and a success definition prevent recurrence. This section is BLOCKING and distinct from the "strategic memory lookup is optional" statement in Core Behavior: strategic memory is optional optimization, project documentation is mandatory.
+**Rationale**: Past retrospectives document agents skipping `CLAUDE.md`, `AGENTS.md`, and `HANDOFF.md` before acting, which produced drift and inverted sources of truth (see `.agents/retrospective/2025-12-15-drift-detection-disaster.md`). Explicit stop criteria, fallbacks, and a success definition prevent recurrence. This section is BLOCKING. Strategic memory is optional optimization; project documentation is mandatory.
 
 ## Core Behavior
 
