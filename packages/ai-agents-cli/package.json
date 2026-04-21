@@ -1,0 +1,33 @@
+{
+  "name": "@rjmurillo/ai-agents",
+  "version": "0.1.0",
+  "description": "Vendor the ai-agents Claude kit into any repo",
+  "type": "module",
+  "bin": {
+    "ai-agents": "dist/cli.js"
+  },
+  "files": [
+    "dist/",
+    "bundle/assets/",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "bun build src/cli.ts --outdir dist --target node",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "claude",
+    "ai-agents",
+    "cli"
+  ],
+  "author": "Richard Murillo",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "@types/node": "^25.0.0"
+  }
+}
