@@ -241,7 +241,10 @@ def main() -> int:
             return 0
 
         protocol = data.get("protocolCompliance")
-        if isinstance(protocol, dict) and "sessionEnd" not in protocol:
+        session_end = protocol.get("sessionEnd") if isinstance(protocol, dict) else None
+        # Treat missing, non-dict, or empty dict sessionEnd as "never invoked"
+        session_end_valid = isinstance(session_end, dict) and bool(session_end)
+        if isinstance(protocol, dict) and not session_end_valid:
             # session-end was never invoked — log skip and force continuation
             session_id = hook_input.get("session_id", "unknown")
             log_session_end_skip(
