@@ -623,6 +623,7 @@ The agent MUST update documentation before ending.
    - Decisions made with rationale
    - Challenges encountered and resolutions
    - Link reference for next session handoff
+   - See `wiki/concepts/Session Capture Protocol.md` for the behavioral vs background distinction and example session log entries
 3. The agent SHOULD update PROJECT-PLAN.md if tasks were completed
 4. The agent MAY read `.agents/HANDOFF.md` for historical context (read-only reference)
 

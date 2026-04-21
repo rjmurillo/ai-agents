@@ -156,6 +156,15 @@ At session end, verify before closing:
 
 Never close a session with pending delegations.
 
+### Session Capture Protocol
+
+Capture behavioral signal, not background noise. Record decisions made (architecture choices, approach pivots), blockers hit (what stopped progress, workarounds tried), state changes (files modified, branches created, issues filed), open questions (unresolved ambiguities), and next steps (concrete continuation plan). Skip tool invocations, background research that didn't change the plan, and routine operations.
+
+**Decision rule**: If removing this entry would leave the next session unable to reproduce a decision or continue the work, keep it. Otherwise, skip it.
+
+See `wiki/concepts/Session Capture Protocol.md` for the full protocol, behavioral vs background distinction, and example session log entries.
+
+
 When drift or context loss is detected at session start or mid-session, run the Anti-Drift Protocol below before resuming routing.
 
 ## Anti-Drift Protocol
