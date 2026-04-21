@@ -116,7 +116,7 @@ invocation_limits:
 
 output_constraints:
   per_pr_max_response_lines: 120
-  per_pr_overflow_action: "Truncate with '... (N lines omitted, see .agents/pr-comments/PR-{pr}/ for full detail)' and persist full detail to session file"
+  per_pr_overflow_action: "Truncate with '... (N lines omitted, see .agents/pr-comments/PR-{number}/ for full detail)' and persist full detail to session file"
   summary_format: "table"
   summary_required_columns:
     - "PR"
