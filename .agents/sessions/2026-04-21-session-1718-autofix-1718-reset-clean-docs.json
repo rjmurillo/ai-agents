@@ -132,10 +132,21 @@
       "step": 4,
       "action": "Pushed claude/autofix-pr-1718-KHe1Y to origin",
       "finding": "Pushed clean state. The PR (#1718) still tracks feature/1673-implementer-blocking-gate; user/orchestrator must decide whether to (a) force-push 86832d6 to feature/1673-implementer-blocking-gate, or (b) close PR 1718 and open a new PR from claude/autofix-pr-1718-KHe1Y."
+    },
+    {
+      "step": 5,
+      "action": "Attempted ADR-057 behavioral eval via scripts/eval/eval-suite.py",
+      "finding": "Framework detected the change correctly as an agent-definition change. Execution failed because ANTHROPIC_API_KEY is not available in this environment. Pre-commit hook invoke_prompt_eval_gate.py is fail-open on infrastructure errors. No eval evidence exists for today."
+    },
+    {
+      "step": 6,
+      "action": "Authored tests/evals/implementer-scenarios.json",
+      "finding": "6 scenarios covering each decision branch in the new BLOCKING section: S1 missing AGENT-INSTRUCTIONS.md (BLOCKED/Project configuration incomplete), S2 missing HANDOFF.md (BLOCKED/No prior session context available), S3 missing non-critical CLAUDE.md (PROCEED with note), S4 conflicting guidance (BLOCKED/Conflicting requirements detected), S5 all-files-present regression check (PROCEED), S6 files-read-but-success-definition-unmet (BLOCKED). Dry-run validation passed: 36 estimated API calls (6 scenarios x 3 runs x before+after)."
     }
   ],
   "endingCommit": "TBD-after-commit",
   "nextSteps": [
+    "Run eval in a env with ANTHROPIC_API_KEY: python3 scripts/eval/eval-prompt-change.py --prompt .claude/agents/implementer.md --scenarios tests/evals/implementer-scenarios.json --base-ref origin/main",
     "Decide remediation path: force-push autofix branch contents to feature/1673-implementer-blocking-gate (requires explicit user approval) OR open new PR from claude/autofix-pr-1718-KHe1Y and close PR 1718",
     "Investigate root cause of orchestrator generating 'init'/'update readme' commits authored as Test <test@test.com> on a feature branch (likely test fixture leak into production branch)"
   ]
