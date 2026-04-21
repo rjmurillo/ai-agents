@@ -163,3 +163,20 @@ Ask about a framework: "How does FastAPI dependency injection work?"
 - Forgetful MCP config stored in `~/.claude.json` (persists across updates)
 - Serena and Context7 are plugins, not MCPs - install via `claude plugins install`
 - SQLite database location: `~/.forgetful/forgetful.db`
+
+## Completion Criteria
+
+The Context Hub setup is **complete** when ALL of the following are true:
+
+| Criterion | Verification |
+|-----------|------------|
+| Forgetful MCP configured | `claude mcp list \| grep -i forgetful` returns a result |
+| Serena plugin status reported | Output shows "Installed" or explicit "Not installed" message |
+| Context7 plugin status reported | Output shows "Installed" or explicit "Not installed" message |
+| Setup status table printed | Step 3 status block has been emitted to the user |
+
+### Stop Condition
+
+After printing the Step 3 status table, the command is complete. Do not continue polling, re-checking, or offering additional tests unless the user explicitly requests a re-run with `/context-hub-setup` again.
+
+If the user chooses to run the optional Step 4 quick tests, those are supplementary and do not affect completion status.

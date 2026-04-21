@@ -116,6 +116,17 @@ thread_resolution:
       t2: resolveReviewThread(input: {threadId: "THREAD_ID_2"}) { thread { id isResolved } }
     }
 
+invocation_limits:
+  all_open_max_prs: 5
+  all_open_overflow_action: "Report count of remaining open PRs and instruct user to re-run command"
+  completion_gate_max_retries: 3
+  completion_gate_overflow_action: "Escalate to user with summary of which criteria are still failing and recommended fixes"
+
+output_constraints:
+  per_pr_max_response_tokens: 4096
+  summary_format: "table"
+  summary_required_columns: ["PR", "Branch", "Comments", "Acknowledged", "Implemented", "Commit", "Status"]
+
 dry_run:
   description: "Preview planned actions without executing any GitHub mutations"
   behavior:
