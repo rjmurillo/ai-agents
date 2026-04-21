@@ -249,8 +249,136 @@ function Get-RepoInfoLocal {
 
 #region GitHub API Helpers
 
-# Get-AllPRsWithComments is now provided by GitHubCore.psm1 (imported above).
-# See: .claude/skills/github/modules/GitHubCore.psm1
+function Get-AllPRsWithCommentsLocal {
+    <#
+    .SYNOPSIS
+        Query PRs with review comments using GitHub GraphQL API with pagination.
+    .NOTES
+        If GitHubCore module is loaded, uses Get-AllPRsWithComments from there.
+        Otherwise falls back to local implementation.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$Owner,
+
+        [Parameter(Mandatory)]
+        [string]$Repo,
+
+        [Parameter(Mandatory)]
+        [datetime]$Since,
+
+        [Parameter()]
+        [int]$MaxPages = 50
+    )
+
+    # Use shared function if GitHubCore module is loaded
+    if (Get-Command -Name Get-AllPRsWithComments -ErrorAction SilentlyContinue) {
+        try {
+            return Get-AllPRsWithComments -Owner $Owner -Repo $Repo -Since $Since -MaxPages $MaxPages
+        }
+        catch {
+            Write-Log "Failed to get PRs via GitHubCore: $_" -Level WARN
+            # Fall through to local implementation
+        }
+    }
+
+    # Local fallback
+    $allPRs = [System.Collections.ArrayList]::new()
+    $cursor = $null
+    $hasNextPage = $true
+    $pageCount = 0
+
+    Write-Log "Fetching PRs updated since $($Since.ToString('yyyy-MM-dd'))..." -Level DEBUG
+
+    $query = @'
+query($owner: String!, $repo: String!, $cursor: String) {
+  repository(owner: $owner, name: $repo) {
+    pullRequests(first: 50, orderBy: {field: UPDATED_AT, direction: DESC}, after: $cursor) {
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+      nodes {
+        number
+        title
+        state
+        author { login }
+        createdAt
+        updatedAt
+        mergedAt
+        closedAt
+        reviewThreads(first: 100) {
+          nodes {
+            isResolved
+            isOutdated
+            comments(first: 50) {
+              nodes {
+                id
+                body
+                author { login }
+                createdAt
+                path
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+'@
+
+    while ($hasNextPage -and $pageCount -lt $MaxPages) {
+        $pageCount++
+
+        $ghArgs = @('api', 'graphql', '-f', "query=$query", '-f', "owner=$Owner", '-f', "repo=$Repo")
+        if ($cursor) {
+            $ghArgs += @('-f', "cursor=$cursor")
+        }
+
+        $result = & gh @ghArgs 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            Write-Log "GraphQL query failed: $result" -Level ERROR
+            throw "Failed to fetch PRs: $result"
+        }
+
+        $parsed = $result | ConvertFrom-Json
+        if ($parsed.errors) {
+            $errorMessages = $parsed.errors | ForEach-Object { $_.message }
+            throw "GraphQL errors: $($errorMessages -join '; ')"
+        }
+
+        $prData = $parsed.data.repository.pullRequests
+
+        foreach ($pr in $prData.nodes) {
+            $updatedAt = [datetime]::Parse($pr.updatedAt)
+            if ($updatedAt -lt $Since) {
+                $hasNextPage = $false
+                break
+            }
+
+            $hasComments = $pr.reviewThreads.nodes | Where-Object { $_.comments.nodes.Count -gt 0 }
+            if ($hasComments) {
+                $null = $allPRs.Add($pr)
+            }
+        }
+
+        if ($hasNextPage) {
+            $hasNextPage = $prData.pageInfo.hasNextPage
+            $cursor = $prData.pageInfo.endCursor
+        }
+
+        Write-Log "Page $pageCount processed, total PRs with comments: $($allPRs.Count)" -Level DEBUG
+    }
+
+    if ($pageCount -ge $MaxPages) {
+        Write-Log "Reached maximum page limit ($MaxPages)" -Level WARN
+    }
+
+    Write-Log "Found $($allPRs.Count) PRs with review comments" -Level DEBUG
+    return , $allPRs.ToArray()
+}
 
 function Get-CommentsByReviewer {
     <#
@@ -628,7 +756,7 @@ try {
     $since = (Get-Date).AddDays(-$DaysBack)
 
     # Fetch PRs with comments
-    $prs = Get-AllPRsWithComments -Owner $Owner -Repo $Repo -Since $since
+    $prs = Get-AllPRsWithCommentsLocal -Owner $Owner -Repo $Repo -Since $since
 
     if ($prs.Count -eq 0) {
         Write-Log "No PRs with review comments found in the last $DaysBack days" -Level WARN
