@@ -95,8 +95,15 @@ class TestMain:
             raise OSError("disk full")
 
         monkeypatch.setattr(mod, "append_event", _raise)
+        # Use /tmp path which is allowed by path validation
         rc = mod.main(["--reason", "x", "--log-path", str(tmp_path / "s.jsonl")])
         assert rc == 3
+
+    def test_rejects_path_traversal(self, tmp_path: Path):
+        mod = _load_module()
+        # Attempt to write outside project root and /tmp
+        rc = mod.main(["--reason", "x", "--log-path", "/etc/evil.jsonl"])
+        assert rc == 2
 
     def test_reason_required(self):
         mod = _load_module()

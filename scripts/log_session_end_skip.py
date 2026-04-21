@@ -80,14 +80,27 @@ def main(argv: list[str] | None = None) -> int:
         print("error: --reason must be non-empty", file=sys.stderr)
         return 2
 
+    try:
+        project_root = Path(__file__).resolve().parent.parent
+        log_path = Path(args.log_path).resolve()
+        # Validate path safety using is_relative_to (CWE-22)
+        # Allow project root or /tmp for CI use cases
+        if not (log_path.is_relative_to(project_root) or log_path.is_relative_to("/tmp")):
+            print(f"error: path traversal detected or unauthorized path: {args.log_path}", file=sys.stderr)
+            return 2
+    except Exception as e:
+        print(f"error: invalid path: {e}", file=sys.stderr)
+        return 2
+
     event = build_event(reason=reason, session_id=args.session_id)
     try:
-        append_event(event, args.log_path)
+        # Use the fully resolved path
+        append_event(event, log_path)
     except OSError as exc:
         print(f"error: could not write skip log: {exc}", file=sys.stderr)
         return 3
 
-    print(f"logged session-end skip to {args.log_path}")
+    print(f"logged session-end skip to {log_path}")
     return 0
 
 
