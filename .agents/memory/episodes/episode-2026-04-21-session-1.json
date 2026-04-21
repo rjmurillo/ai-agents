@@ -1,0 +1,43 @@
+{
+  "id": "episode-2026-04-21-session-1",
+  "session": "2026-04-21-session-1",
+  "timestamp": "2026-04-21T04:38:09.037353+00:00",
+  "outcome": "failure",
+  "task": "",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-04-21T04:38:09.033553+00:00",
+      "type": "error",
+      "content": "\"Evidence\": \"markdownlint-cli2 ran via pre-commit hook on staged .md files; no errors\"",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-04-21T04:38:09.033553+00:00",
+      "type": "commit",
+      "content": "Commit: efbabaf",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-04-21T04:38:09.033553+00:00",
+      "type": "test",
+      "content": "\"finding\": \"44 tests passed (tests/hooks/test_session_validator.py + tests/test_log_session_end_skip.py)\"",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 1,
+    "recoveries": 0,
+    "commits": 5,
+    "files_changed": 0
+  },
+  "lessons": []
+}
