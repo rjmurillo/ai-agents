@@ -124,7 +124,7 @@
       }
     ]
   },
-  "endingCommit": "pending",
+  "endingCommit": "a1dbf38b",
   "nextSteps": [
     "Commit and push changes",
     "Open PR with 'Fixes #1711'",
