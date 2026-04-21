@@ -149,6 +149,33 @@ At session end, verify before closing:
 
 Never close a session with pending delegations.
 
+When drift or context loss is detected at session start or mid-session, run the Anti-Drift Protocol below before resuming routing.
+
+## Anti-Drift Protocol
+
+Use when drift is detected: wrong approach, lost context after compaction, experimental changes that did not land, or the user flags divergence from intent. The session-start gate tells you to check state; this protocol tells you what to do when the check fails.
+
+### 7-Step Recovery
+
+1. **ASSESS**: Is the approach fundamentally flawed? If yes, stop and re-plan before touching code.
+2. **CLEANUP**: Delete temp files, scratch scripts, and experimental code.
+3. **REVERT**: Restore to the last known working state (git stash, checkout, or targeted revert).
+4. **VERIFY**: `git status` clean, only intended changes remain, no stray artifacts.
+5. **DOCUMENT**: Log the failed pattern to `memory/feedback-log.md` (or Serena memory) so it does not recur.
+6. **IMPLEMENT**: Try the researched alternative informed by steps 1 and 5.
+7. **RESUME**: Continue the original task with the corrected plan.
+
+### Event-Driven TODO Review
+
+Re-read the TODO list and plan after any of these events, not on a fixed cadence:
+
+- Phase completion (a delegated agent returned, a subtask finished)
+- Major transitions (switching workstreams, handing off, changing tiers)
+- Interruptions or pauses (context compaction, tool failure, external wait)
+- **Before asking the user anything** (most important; prevents stale questions and re-work)
+
+If the TODO list no longer matches the plan, update the plan first, then the TODO list, then act.
+
 ## Reliability Principles
 
 - **Idempotent delegations**: re-delegating the same task to the same agent should be safe
