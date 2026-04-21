@@ -139,7 +139,7 @@ Your output is not "analyst said X, architect said Y." It is "based on investiga
 
 ## Session Gate (Blocking)
 
-**Stop criteria**: You MUST NOT close the session until ALL items below are complete. Attempting to close without running session-end is a protocol violation. The Stop hook enforces this — sessions will not close until `protocolCompliance.sessionEnd` MUST items pass.
+**Stop criteria**: You MUST NOT close the session until ALL items below are complete. Attempting to close without running session-end is a protocol violation. The Stop hook enforces this - sessions will not close until `protocolCompliance.sessionEnd` MUST items pass.
 
 ### Pre-Close Sequence (ordered, all BLOCKING)
 
