@@ -1,7 +1,7 @@
 {
   "name": "@rjmurillo/ai-agents",
   "version": "0.1.0",
-  "description": "Vendor a curated Claude Code kit into any repo",
+  "description": "Vendor the ai-agents Claude kit into any repo",
   "type": "module",
   "bin": {
     "ai-agents": "dist/cli.js"
@@ -13,26 +13,21 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "bun build src/cli.ts --outdir dist --target node --format esm && bun run scripts/build-bundle.ts",
-    "test": "bun test",
-    "lint": "bun run scripts/bundle-lint.ts"
-  },
-  "devDependencies": {
-    "bun-types": "latest"
-  },
-  "engines": {
-    "node": ">=20"
-  },
-  "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/rjmurillo/ai-agents.git",
-    "directory": "packages/ai-agents-cli"
+    "build": "bun build src/cli.ts --outdir dist --target node",
+    "typecheck": "tsc --noEmit"
   },
   "keywords": [
     "claude",
     "ai-agents",
-    "claude-code",
-    "developer-tools"
-  ]
+    "cli"
+  ],
+  "author": "Richard Murillo",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "@types/node": "^22.0.0"
+  }
 }

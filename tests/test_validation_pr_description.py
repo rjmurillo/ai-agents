@@ -117,6 +117,26 @@ class TestExtractMentionedFiles:
         assert "src/bar.cs" in result
         assert "lib/baz.js" in result
 
+    def test_list_items_with_backtick_wrapped_paths(self) -> None:
+        r"""Autonomous PR template wraps list-item file paths in backticks.
+
+        Regression coverage for issue #1711: the file mention regex must
+        extract paths from `- \`path/file.ext\`: description` just like it
+        does from `- path/file.ext`.
+        """
+        desc = (
+            "## Changes\n"
+            "- `packages/ai-agents-cli/package.json`: Updated configuration\n"
+            "- `scripts/foo.py`: Refactored entry point\n"
+            "- `src/index.ts`: Fixed bug\n"
+        )
+        result = extract_mentioned_files(desc)
+        assert "packages/ai-agents-cli/package.json" in result
+        assert "scripts/foo.py" in result
+        assert "src/index.ts" in result
+        # Backticks must be fully stripped from the extracted paths.
+        assert not any("`" in path for path in result)
+
     def test_markdown_links(self) -> None:
         desc = "See [config.json] for details"
         result = extract_mentioned_files(desc)

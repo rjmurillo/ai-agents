@@ -146,6 +146,25 @@ Read, Grep, Glob, Write, Edit, Bash. Memory via `mcp__serena__read_memory`, `mcp
 
 Prefer existing skill scripts (`.claude/skills/`) over raw commands. Use `github` skill for PR/issue operations.
 
+## Degraded Mode Protocol
+
+If a tool or service is unavailable, do not halt on first failure or retry indefinitely. Follow this protocol:
+
+1. **Log** which tool failed, the error message, and the step attempted
+2. **Apply** the fallback from the table below
+3. **Continue** remaining steps where possible
+4. **Document** all skipped steps and degraded behavior in handoff
+
+| Primary Tool | Fallback | If Fallback Also Fails |
+|--------------|----------|------------------------|
+| Memory Router (`search_memory.py`) | Read `.serena/memories/` directly with Read tool | Proceed without memory context, note gap in handoff |
+| Serena write (`mcp__serena__write_memory`, `mcp__serena__edit_memory`) | Write to `.agents/notes/` as temp markdown with intended memory name | Note in handoff that memory was not persisted |
+| MCP servers (Context7, DeepWiki, Forgetful) | Use WebSearch or WebFetch as alternative | Proceed with available information, document unverified claims |
+| External CLIs (`dotnet`, `gh`, `python3`) | Report error with exit code and failing command | Return to orchestrator as [BLOCKED] with reproduction steps |
+| Partial tool availability | Use working tools, note unavailable ones | Continue with reduced scope, flag in handoff |
+
+**Do not** silently skip steps. **Do not** retry the same tool more than twice. **Do not** halt when a documented fallback exists.
+
 ## Handoff
 
 You cannot delegate. Return to orchestrator with:

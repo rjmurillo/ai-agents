@@ -6,13 +6,10 @@
     "outDir": "dist",
     "rootDir": "src",
     "strict": true,
+    "declaration": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "declaration": true,
-    "sourceMap": true,
-    "resolveJsonModule": true,
-    "types": ["bun-types"]
+    "forceConsistentCasingInFileNames": true
   },
-  "include": ["src/**/*.ts"],
-  "exclude": ["tests", "dist", "bundle"]
+  "include": ["src"]
 }

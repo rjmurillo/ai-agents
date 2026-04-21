@@ -1,12 +1,11 @@
 export interface BundleEntry {
-  relativePath: string;
-  size: number;
+  readonly relativePath: string;
+  readonly size: number;
 }
 
 export interface TargetContext {
-  targetDir: string;
-  force: boolean;
-  dryRun: boolean;
+  readonly targetDir: string;
+  readonly force: boolean;
 }
 
 export interface BundleSource {
@@ -23,17 +22,3 @@ export type Transform = (
   entry: BundleEntry,
   target: TargetContext,
 ) => BundleEntry | null;
-
-export interface VersionPin {
-  version: string;
-  manifestHash: string;
-  installedAt: string;
-  source: string;
-}
-
-export interface InitResult {
-  commands: number;
-  agents: number;
-  skills: number;
-  filesWritten: string[];
-}

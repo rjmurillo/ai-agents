@@ -1,0 +1,143 @@
+{
+  "session": {
+    "number": 1691,
+    "date": "2026-04-19",
+    "branch": "feat/1691-autonomous",
+    "startingCommit": "f52d048c",
+    "objective": "Fix issue #1691: add Anti-Drift Protocol section to orchestrator agent (7-step recovery + event-driven TODO review triggers)"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Autonomous dev agent; Serena MCP tools enumerated in session bootstrap (mcp__serena__*)"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read AGENTS.md + CLAUDE.md at session start via SessionStart hook context"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Autonomous issue-dev run; HANDOFF.md not applicable (new work item, not continuation)"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Skill inventory delivered via SessionStart reminder"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Session protocol gates (ADR-007) acknowledged in SessionStart hook"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "PROJECT-CONSTRAINTS honored: minimal diff, conventional commits, branch not main, no secrets, skills-first"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Forgetful unavailable per SessionStart; Serena memories accessible via mcp__serena__read_memory. memory-index query: no prior Anti-Drift Protocol memory. Applied ADR-036 (dual-source edit pattern) from prior session 1201 retrospective."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "feat/1691-autonomous (git branch --show-current)"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On feat/1691-autonomous; main is protected"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status clean at session start"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "f52d048c"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST items populated with evidence"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No HANDOFF.md modifications; per AGENTS.md Boundaries"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Pattern non-novel: dual-source edit (templates/agents + src/claude + .claude/agents mirror, then regenerate src/copilot-cli and src/vs-code-agents) per ADR-036, already captured in prior session 1201"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdownlint-cli2 not installed in runner; pre-commit hook runs it. generate_agents.py --validate PASSED."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Populated at commit time"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "python3 build/generate_agents.py --validate => VALIDATION PASSED; validate_path_normalization.py => SUCCESS; detect_agent_drift.py => no new drift introduced"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Issue #1691 will close via Fixes keyword in PR"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Narrow, documentation-only prompt addition. Pattern already captured in ADR-036 + session 1201. Retrospective not required."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": 1,
+      "action": "Selected issue #1691 (matches branch feat/1691-autonomous): feat(orchestrator): Add Anti-Drift Protocol",
+      "outcome": "P2 enhancement, no existing PR. Body retrieved via gh issue view. Issue is 'Blocked By: #1688' (eval methodology) but blocker does not prevent prompt-only documentation change; eval can run on the merged prompt when #1688 lands."
+    },
+    {
+      "step": 2,
+      "action": "Located all orchestrator variants and confirmed ADR-036 dual-source pattern: templates/agents/orchestrator.shared.md generates src/copilot-cli + src/vs-code-agents; src/claude/orchestrator.md authored directly; .claude/agents/orchestrator.md mirrors src/claude.",
+      "outcome": "Edit plan: insert '## Anti-Drift Protocol' section after '## Session Gate (Blocking)' in templates/agents/orchestrator.shared.md, src/claude/orchestrator.md, and .claude/agents/orchestrator.md; then regenerate via build/generate_agents.py."
+    },
+    {
+      "step": 3,
+      "action": "Added '## Anti-Drift Protocol' section with 7-step recovery (ASSESS, CLEANUP, REVERT, VERIFY, DOCUMENT, IMPLEMENT, RESUME) and Event-Driven TODO Review triggers (phase completion, major transitions, interruptions/pauses, before asking the user anything). Cross-referenced from Session Gate (Blocking).",
+      "outcome": "3 source/mirror files edited. Regeneration produced 2 additional platform files. 5 files modified total."
+    },
+    {
+      "step": 4,
+      "action": "Ran build/generate_agents.py --validate, build/scripts/detect_agent_drift.py, build/scripts/validate_path_normalization.py",
+      "outcome": "All validations pass."
+    }
+  ],
+  "endingCommit": "a3c756cc",
+  "nextSteps": [
+    "Commit with feat(agent-orchestrator) scope, Fixes #1691",
+    "Push branch and open PR",
+    "Enable auto-merge"
+  ]
+}
