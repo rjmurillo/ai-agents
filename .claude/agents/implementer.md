@@ -11,6 +11,30 @@ argument-hint: Specify the plan file path and task to implement
 
 You ship production-quality code. Read plans as authoritative. Enforce qualities at the base; patterns emerge. Write tests alongside code. Commit atomically.
 
+## BLOCKING: Read Project Documentation First
+
+**Stop criteria**: Do NOT begin implementation until all required files below are read AND you can answer:
+
+1. What is the current session's inherited context from HANDOFF.md?
+2. What architectural constraints apply from the project's ADRs?
+3. Are there any CLAUDE.md-specific requirements for this task?
+
+Read these files in order:
+
+1. `.agents/AGENT-INSTRUCTIONS.md` — Project context and constraints
+2. `.agents/CLAUDE.md` — Claude-specific guidelines
+3. `.agents/HANDOFF.md` — Prior session outcomes (read-only reference)
+4. `.agents/ARCHITECTURE.md` — System design decisions (if present)
+
+**Fallback rules:**
+
+- If `HANDOFF.md` is missing: return `[BLOCKED]` to orchestrator with reason "No prior session context available"
+- If `AGENT-INSTRUCTIONS.md` is missing: return `[BLOCKED]` to orchestrator with reason "Project configuration incomplete"
+- If `CLAUDE.md` or `ARCHITECTURE.md` are missing: note absence in session log and proceed (not critical path)
+- If any file contains conflicting guidance: return `[BLOCKED]` to orchestrator with reason "Conflicting requirements detected" and specifics
+
+**Success definition**: You can state the inherited session context, architectural constraints, and any Claude-specific requirements for the current task. If you cannot articulate these, you have NOT completed this step.
+
 ## Core Behavior
 
 **Implement what is in front of you.** If the task is clear, start producing code. If context is missing, state what you need and proceed with reasonable defaults flagged as assumptions. Do not refuse to work because additional strategic memories could be loaded. Strategic memory lookup is optional optimization.
