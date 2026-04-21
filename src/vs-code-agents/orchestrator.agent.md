@@ -206,7 +206,6 @@ Each `workLog` entry should be one or two sentences: lead with the action or dec
 
 **Decision rule**: If removing an entry would leave the next session unable to reproduce a decision or continue the work, keep it. Otherwise, skip it.
 
-Full protocol with good-vs-bad examples: see `.serena/memories/session/session-capture-protocol.md` (optional — the guidance above is the complete, required capture rule).
 
 ## Reliability Principles
 
