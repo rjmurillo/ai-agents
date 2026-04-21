@@ -53,7 +53,7 @@ Read these files in order:
 
 **Success definition**: You can state, in one sentence each: (a) inherited session context, (b) project constraints, (c) Claude-specific requirements, and (d) any binding ADRs. If you cannot, this step is NOT complete and you MUST return to it before writing code.
 
-**Rationale**: Past retrospectives document agents skipping CLAUDE.md, AGENTS.md, and HANDOFF.md before acting, which produced drift and inverted sources of truth (see .agents/retrospective/2025-12-15-drift-detection-disaster.md). Explicit stop criteria, fallbacks, and a success definition prevent recurrence. This section is BLOCKING. Strategic memory is optional optimization; project documentation is mandatory.
+**Rationale**: Past retrospectives document agents skipping CLAUDE.md, AGENTS.md, and HANDOFF.md before acting. This produced drift and inverted sources of truth (see .agents/retrospective/2025-12-15-drift-detection-disaster.md). Explicit stop criteria, fallbacks, and a success definition prevent recurrence. This section is BLOCKING. Strategic memory is optional optimization; project documentation is mandatory.
 
 ## Core Behavior
 
