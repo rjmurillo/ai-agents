@@ -43,10 +43,17 @@ SIGNIFICANT_DIRS_PATTERN: re.Pattern[str] = re.compile(
 _EXT_GROUP = r"ps1|md|yml|yaml|json|cs|ts|js|py|sh|bash"
 
 # Patterns to extract file paths from PR description text
+# List item pattern accepts both unwrapped paths (`- path/file.ext`) and
+# backtick-wrapped paths (`- \`path/file.ext\`: description`). The autonomous
+# PR template uses backtick-wrapped paths; using [^\s`]+ stops cleanly at the
+# trailing backtick instead of relying on normalize_path to strip it.
 FILE_MENTION_PATTERNS: list[re.Pattern[str]] = [
     re.compile(rf"`([^`]+\.({_EXT_GROUP}))`"),  # inline code
     re.compile(rf"\*\*([^*]+\.({_EXT_GROUP}))\*\*"),  # bold
-    re.compile(rf"^\s*[-*+]\s+(\S+\.({_EXT_GROUP}))", re.MULTILINE),  # list items
+    re.compile(
+        rf"^\s*[-*+]\s+`?([^\s`]+\.({_EXT_GROUP}))`?",
+        re.MULTILINE,
+    ),  # list items (optionally backtick-wrapped)
     re.compile(rf"\[([^\]]+\.({_EXT_GROUP}))\]"),  # markdown links
 ]
 

@@ -1,12 +1,11 @@
 export interface BundleEntry {
-  relativePath: string;
-  mode: number;
+  readonly relativePath: string;
+  readonly size: number;
 }
 
 export interface TargetContext {
-  root: string;
-  force: boolean;
-  dryRun: boolean;
+  readonly targetDir: string;
+  readonly force: boolean;
 }
 
 export interface BundleSource {
@@ -16,10 +15,10 @@ export interface BundleSource {
 
 export interface TargetEmitter {
   canEmit(target: TargetContext): boolean;
-  emit(entry: BundleEntry, target: TargetContext): Promise<void>;
+  emit(entry: BundleEntry, content: Buffer, target: TargetContext): Promise<void>;
 }
 
 export type Transform = (
   entry: BundleEntry,
-  target: TargetContext
+  target: TargetContext,
 ) => BundleEntry | null;

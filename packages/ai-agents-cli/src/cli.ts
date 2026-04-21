@@ -1,31 +1,44 @@
 #!/usr/bin/env node
 
-import { Command } from "commander";
-import type {
-  BundleEntry,
-  BundleSource,
-  TargetContext,
-  TargetEmitter,
-  Transform,
-} from "./types.js";
+import { parseArgs } from "node:util";
 
-const program = new Command();
+const { values, positionals } = parseArgs({
+  args: process.argv.slice(2),
+  options: {
+    force: { type: "boolean", default: false },
+    help: { type: "boolean", short: "h", default: false },
+  },
+  allowPositionals: true,
+  strict: true,
+});
 
-program
-  .name("ai-agents")
-  .description("Vendor a curated .claude/ kit into any repository")
-  .version("0.1.0");
+if (values.help || positionals.length === 0) {
+  process.stdout.write(
+    [
+      "Usage: ai-agents <command> [path] [options]",
+      "",
+      "Commands:",
+      "  init [path]   Vendor the ai-agents Claude kit into a repo",
+      "",
+      "Options:",
+      "  --force       Overwrite existing files that diverge from snapshot",
+      "  -h, --help    Show this help message",
+      "",
+    ].join("\n"),
+  );
+  process.exit(values.help ? 0 : 1);
+}
 
-program
-  .command("init")
-  .description("Initialize .claude/ kit in the current directory")
-  .option("-f, --force", "Overwrite existing files", false)
-  .option("-n, --dry-run", "Show what would be done without making changes", false)
-  .action((options: { force: boolean; dryRun: boolean }) => {
-    console.log("init stub");
-    console.log(`Options: force=${options.force}, dryRun=${options.dryRun}`);
-  });
+const command = positionals[0];
 
-program.parse();
+if (command !== "init") {
+  process.stderr.write(`Unknown command: ${command}\n`);
+  process.exit(1);
+}
 
-export type { BundleEntry, BundleSource, TargetContext, TargetEmitter, Transform };
+const targetDir = positionals[1] ?? ".";
+
+process.stdout.write(
+  `ai-agents init: target=${targetDir} force=${values.force ?? false}\n`,
+);
+process.stdout.write("Concrete BundleSource and TargetEmitter ship in M3.\n");
