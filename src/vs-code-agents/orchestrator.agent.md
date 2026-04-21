@@ -139,6 +139,37 @@ After all delegated work returns:
 
 Your output is not "analyst said X, architect said Y." It is "based on investigation and design review, the recommended action is Z because of X and Y."
 
+## Budget Estimation and Pre-Splitting
+
+Before dispatching, estimate the context budget each task needs and pick the model accordingly. Tasks whose estimated budget exceeds the target model's effective context window MUST be pre-split into independent sub-tasks before dispatch; do not hand a too-large task to a sub-agent and hope.
+
+| Task Complexity | Estimated Budget | Recommended Model / Context | Orchestrator Action |
+|-----------------|------------------|-----------------------------|---------------------|
+| Typo fix, config tweak | 5-10K tokens | Haiku, standard context | Dispatch directly |
+| Single-file change | 20-50K tokens | Sonnet, standard context | Dispatch directly |
+| Multi-file feature | 50-150K tokens | Sonnet extended or Opus | Consider split if >100K |
+| Architecture change | 150K+ tokens | Opus extended | MUST split into sub-tasks before dispatch |
+
+Every dispatch MUST include the estimate in the `DELEGATE TO` block under `CONSTRAINTS`, so the sub-agent can refuse or signal early if the estimate is wrong.
+
+### Worked Example: Pre-Splitting an Architecture Change
+
+**Incoming task** (too large for one session): "Replace the prompt-based session gate with a hook-based enforcement mechanism, update all 23 agent templates, regenerate platform files, and add tests."
+
+**Estimate**: touches 23 templates + 23 generated files + new hook module + tests ≈ 200K+ tokens. Exceeds single-session budget.
+
+**Pre-split before dispatch**:
+
+1. Sub-task A  -  `implementer`: scaffold the hook module and unit-test framework (≈40K, single commit).
+2. Sub-task B  -  `implementer`: wire the first hook (`PreCompact`) end-to-end with 1 template as proof-of-concept (≈50K).
+3. Sub-task C  -  `implementer`: roll the shared section across remaining 22 templates, regenerate, verify no drift (≈60K, mechanical).
+4. Sub-task D  -  `qa`: integration tests across representative agents (≈40K).
+5. Sub-task E  -  `retrospective`: extract learnings, update ADRs (≈15K).
+
+Each sub-task receives: the parent task summary, its own acceptance criteria, the budget estimate, the preceding sub-task's artifacts, and a cap to return `CONTEXT_PRESSURE: HIGH` if it approaches budget rather than silently degrading. Sub-tasks run sequentially when they share state; in parallel when independent.
+
+This splitting is the orchestrator's job, not the sub-agent's. A sub-agent that receives a too-large task should refuse with `CONTEXT_PRESSURE: REJECT  -  budget exceeds window` and return to the orchestrator for re-planning.
+
 ## Session Gate (Blocking)
 
 **Stop criteria**: You MUST NOT close the session until ALL items below are complete. Attempting to close without running session-end is a protocol violation. The Stop hook enforces this - sessions will not close until `protocolCompliance.sessionEnd` MUST items pass.
@@ -206,7 +237,6 @@ Each `workLog` entry should be one or two sentences: lead with the action or dec
 
 **Decision rule**: If removing an entry would leave the next session unable to reproduce a decision or continue the work, keep it. Otherwise, skip it.
 
-
 ## Reliability Principles
 
 - **Idempotent delegations**: re-delegating the same task to the same agent should be safe
@@ -226,6 +256,31 @@ Each `workLog` entry should be one or two sentences: lead with the action or dec
 Read, Grep, Glob, Bash, TodoWrite, Task (for delegation). Memory via `mcp__serena__read_memory` and `mcp__serena__write_memory` for cross-session context and handoff persistence.
 
 Investigation tools (WebSearch, WebFetch) are intentionally not included. If a task needs external research, delegate to the analyst agent. Orchestrator coordinates; it does not investigate.
+
+## Context Budget Management
+
+You operate in a finite context window. As the session grows, quality degrades unless you manage budget explicitly.
+
+**Track progress.** After each major step, update `.agents/sessions/state/{issue-number}.md` (see `.agents/templates/SESSION-STATE.md`). Before any multi-file change, commit current progress.
+
+**Estimate cost.** Simple fix ≈ 10K tokens. Multi-file feature ≈ 50K. Architecture change ≈ 100K+. If the task exceeds your remaining budget, split it into sub-tasks rather than starting.
+
+**Watch for degradation signals.** If you notice any of these, stop and hand off:
+
+- Writing placeholder code (`TODO: implement later`, stubs, `...`)
+- Skipping steps you know you should do
+- Losing track of which files you have modified
+- Repeating work you already completed
+- Summarizing instead of producing the deliverable
+
+**Graceful degradation protocol.** When context pressure reaches HIGH (≈70-90% of budget) or any signal above appears:
+
+1. **Commit** current work: `git add -A && git commit -m "wip: checkpoint at step {N}/{total}"`.
+2. **Update state**: write `.agents/sessions/state/{issue-number}.md` and `.agents/HANDOFF.md` with what remains.
+3. **Signal** the orchestrator by returning the structured line `CONTEXT_PRESSURE: HIGH  -  checkpointed at step {N}, {remaining} steps left`.
+4. **Split** remaining work into independent sub-issues if possible, so each gets a fresh context window.
+
+Future enforcement: once the hook infrastructure in issue #1726 lands, `PreCompact` and `PostToolUse` hooks will auto-checkpoint. Until then, this protocol is prompt-driven and your responsibility. See `.claude/skills/analyze/references/context-budget-management.md` for background.
 
 ## Anti-Patterns
 
