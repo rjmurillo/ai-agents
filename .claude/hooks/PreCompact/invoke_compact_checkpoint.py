@@ -19,21 +19,38 @@ import json
 import os
 import subprocess
 import sys
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
+_plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+if _plugin_root:
+    _lib_dir = str(Path(_plugin_root).resolve() / "lib")
+else:
+    _lib_dir = str(Path(__file__).resolve().parents[2] / "lib")
+if _lib_dir not in sys.path:
+    sys.path.insert(0, _lib_dir)
 
-def get_project_directory() -> Path | None:
-    """Resolve project root from env or git."""
-    env_dir = os.environ.get("CLAUDE_PROJECT_DIR")
-    if env_dir:
-        return Path(env_dir)
-    current = Path.cwd()
-    while current != current.parent:
-        if (current / ".git").exists():
-            return current
-        current = current.parent
-    return None
+try:
+    from hook_utilities import get_project_directory as _get_project_directory
+
+    def get_project_directory() -> Path | None:
+        """Wrap shared utility returning Path for backward compat."""
+        result = _get_project_directory()
+        return Path(result) if result else None
+
+except ImportError:
+    # Fallback if hook_utilities not available
+    def get_project_directory() -> Path | None:
+        """Resolve project root from env or git."""
+        env_dir = os.environ.get("CLAUDE_PROJECT_DIR")
+        if env_dir:
+            return Path(env_dir)
+        current = Path.cwd()
+        while current != current.parent:
+            if (current / ".git").exists():
+                return current
+            current = current.parent
+        return None
 
 
 def get_current_branch() -> str:
@@ -58,7 +75,7 @@ def get_session_info(project_dir: Path) -> dict:
     if not sessions_dir.is_dir():
         return {}
 
-    today = datetime.now().strftime("%Y-%m-%d")
+    today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
     session_files = sorted(
         sessions_dir.glob(f"{today}-session-*.json"),
         key=lambda f: f.stat().st_mtime,
@@ -107,7 +124,7 @@ def main() -> int:
     if not project_dir:
         return 0
 
-    now = datetime.now()
+    now = datetime.now(tz=UTC)
     today = now.strftime("%Y-%m-%d")
     timestamp = now.strftime("%H%M%S")
     branch = get_current_branch()
