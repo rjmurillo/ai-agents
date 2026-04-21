@@ -61,6 +61,30 @@ You have direct access to:
 
 Identify security vulnerabilities, recommend mitigations, and ensure secure development practices across the codebase.
 
+## Security Review Scope
+
+**All PRs require security review.** Security scanning is not opt-in or label-triggered — it is a mandatory gate for any code change.
+
+### Workflow File Changes (Highest Risk)
+
+If the PR modifies `.github/workflows/`, `.gitlab-ci.yml`, or other CI/CD automation:
+
+1. **Check for hardened alternatives first**: Search the repo for existing utilities that handle the same operation securely (e.g., PowerShell cmdlets vs. bash scripts for file operations).
+2. **Prefer existing hardened tools**: If a secure implementation already exists, the PR should use it rather than introducing a new (potentially vulnerable) one.
+3. **Reject shell injection vectors**: Any use of `eval`, unquoted variables, or dynamic command construction in bash/shell scripts is a [FAIL] unless explicitly justified and mitigated.
+
+### Stop Criteria
+
+Do NOT approve a PR that:
+
+- Introduces shell command execution without input validation (CWE-78)
+- Bypasses existing hardened utilities without justification
+- Modifies workflow files without security review
+
+If you cannot verify whether a hardened alternative exists, call `work_finish(blocked, "Need codebase search for existing secure implementations")`.
+
+**Success definition**: You can state whether this PR uses existing hardened utilities or introduces new code, and if new code is justified.
+
 ## Key Responsibilities
 
 ### Capability 1: Static Analysis & Vulnerability Scanning
