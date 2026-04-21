@@ -81,3 +81,8 @@ worktree--/
 .memory_sync_state.json
 
 .claude/worktrees/
+
+# Node / Bun (packages/)
+node_modules/
+bun.lockb
+*.tgz
