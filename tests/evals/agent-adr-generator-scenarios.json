@@ -1,0 +1,44 @@
+{
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Follows ADR template with all required sections",
+      "input": "We decided to use PostgreSQL over MongoDB for our new service because we need ACID transactions and complex joins. Write the ADR.",
+      "expected_verdict": "GENERATE",
+      "expected_reason_contains": "alternatives",
+      "rationale": "ADR must include title, status, context, decision, and consequences. Missing alternatives section is a template violation."
+    },
+    {
+      "id": "S2",
+      "desc": "Includes negative consequences, not just benefits",
+      "input": "We are adopting Python for new scripts instead of Bash. Document this decision.",
+      "expected_verdict": "GENERATE",
+      "expected_reason_contains": "consequences",
+      "rationale": "ADRs that only list benefits are incomplete. Generator must include negative consequences like Python dependency requirement."
+    },
+    {
+      "id": "S3",
+      "desc": "Documents rejected alternatives with rationale",
+      "input": "The team decided to use feature flags (LaunchDarkly) instead of long-lived feature branches. ADR this.",
+      "expected_verdict": "GENERATE",
+      "expected_reason_contains": "alternative",
+      "rationale": "Rejected alternatives (GitFlow, release branches) must appear with reasons for rejection. This makes the ADR useful for future re-evaluation."
+    },
+    {
+      "id": "S4",
+      "desc": "Captures context that motivated the decision",
+      "input": "We are moving from REST to gRPC for internal service communication. Write the ADR.",
+      "expected_verdict": "GENERATE",
+      "expected_reason_contains": "context",
+      "rationale": "The decision context (REST overhead, schema drift) is the most valuable part of an ADR. Without it, future readers cannot judge if the decision still applies."
+    },
+    {
+      "id": "S5",
+      "desc": "Does not generate ADR without sufficient decision context",
+      "input": "We should probably use Kafka. Write an ADR.",
+      "expected_verdict": "GENERATE",
+      "expected_reason_contains": "clarify",
+      "rationale": "Vague inputs produce low-value ADRs. Generator should request clarification on what problem Kafka solves, what alternatives were considered."
+    }
+  ]
+}

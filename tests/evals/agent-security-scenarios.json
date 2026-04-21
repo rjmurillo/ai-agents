@@ -1,0 +1,44 @@
+{
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Identifies CWE-22 path traversal in file upload endpoint",
+      "input": "Review this endpoint: POST /api/upload accepts a file path from the request body and reads the file from disk to return its contents.",
+      "expected_verdict": "IDENTIFY",
+      "expected_reason_contains": "CWE-22",
+      "rationale": "User-controlled file path without validation is textbook path traversal. Security agent must identify CWE-22 and STRIDE classification."
+    },
+    {
+      "id": "S2",
+      "desc": "Detects supply chain attack vector in CI postinstall",
+      "input": "Our CI pipeline uses a GitHub Action that runs npm install and then executes a postinstall script from a dependency. Security assessment.",
+      "expected_verdict": "IDENTIFY",
+      "expected_reason_contains": "supply chain",
+      "rationale": "Postinstall scripts execute arbitrary code in CI. Security agent must flag supply chain risk and recommend --ignore-scripts or lockfile integrity."
+    },
+    {
+      "id": "S3",
+      "desc": "Flags excessive data exposure per OWASP API3",
+      "input": "API returns user objects including email, phone, and hashed_password in the response. The frontend only needs name and avatar. Assess.",
+      "expected_verdict": "IDENTIFY",
+      "expected_reason_contains": "CWE-200",
+      "rationale": "Returning hashed_password is OWASP API3 excessive data exposure. Security agent must identify CWE-200 and recommend DTOs."
+    },
+    {
+      "id": "S4",
+      "desc": "Identifies XSS risk in localStorage JWT storage",
+      "input": "Authentication uses JWT stored in localStorage. Tokens expire after 24 hours. No refresh token mechanism. Security review.",
+      "expected_verdict": "IDENTIFY",
+      "expected_reason_contains": "XSS",
+      "rationale": "localStorage is accessible to XSS. Security agent must flag token theft risk, recommend httpOnly cookies, and note missing refresh rotation."
+    },
+    {
+      "id": "S5",
+      "desc": "Applies STRIDE classification to threat findings",
+      "input": "An admin endpoint allows deleting any user by passing user_id as a query parameter. No authorization check verifies the caller is an admin. Review.",
+      "expected_verdict": "IDENTIFY",
+      "expected_reason_contains": "authorization",
+      "rationale": "Missing authorization is STRIDE Elevation of Privilege and OWASP Broken Access Control. Security agent must classify the threat model."
+    }
+  ]
+}
