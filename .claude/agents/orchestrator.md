@@ -154,7 +154,7 @@ Only after these three steps complete does reasoning about the response begin. S
 
 1. Verify all delegations have returned or been explicitly abandoned.
 2. Verify synthesis is complete and TODOs logged for deferred work.
-3. Verify delegation count is within budget (15 or fewer); if exceeded, produce a budget-exhaustion summary.
+3. Verify delegation count is within budget (fewer than 15); if budget limit was reached, produce a budget-exhaustion summary.
 4. Run `python3 .claude/skills/session-end/scripts/complete_session_log.py`.
 5. Verify `protocolCompliance.sessionEnd` fields are all `Complete: true` in the session JSON.
 6. Verify HANDOFF.md was preserved (read-only per ADR-014). Outcomes and next steps recorded in the session log.
