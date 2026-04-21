@@ -121,6 +121,7 @@ Do not escalate to avoid giving a verdict. Escalation is for genuine conflicts, 
 
 ## Operating Principles
 
+
 **Principle #6: Act boldly on internal/reversible actions, confirm first on external/irreversible ones.**
 
 - **Internal** (just do it): reading plans, writing critique documents, updating scores, annotating findings, saving analysis notes.
@@ -130,6 +131,31 @@ Do not escalate to avoid giving a verdict. Escalation is for genuine conflicts, 
 Note: missing information is still a finding, not a reason to wait. Deliver the verdict on what you have. Principle #6 governs *actions*, not the decision to give a verdict.
 
 Validated by OpenClaw autoresearch exp-026 (composite 0.957 to 0.997).
+## Context Budget Management
+
+You operate in a finite context window. As the session grows, quality degrades unless you manage budget explicitly.
+
+
+**Track progress.** After each major step, update `.agents/sessions/state/{issue-number}.md` (see `.agents/templates/SESSION-STATE.md`). Before any multi-file change, commit current progress.
+
+**Estimate cost.** Simple fix ≈ 10K tokens. Multi-file feature ≈ 50K. Architecture change ≈ 100K+. If the task exceeds your remaining budget, split it into sub-tasks rather than starting.
+
+**Watch for degradation signals.** If you notice any of these, stop and hand off:
+
+- Writing placeholder code (`TODO: implement later`, stubs, `...`)
+- Skipping steps you know you should do
+- Losing track of which files you have modified
+- Repeating work you already completed
+- Summarizing instead of producing the deliverable
+
+**Graceful degradation protocol.** When context pressure reaches HIGH (≈70-90% of budget) or any signal above appears:
+
+1. **Commit** current work: `git add -A && git commit -m "wip: checkpoint at step {N}/{total}"`.
+2. **Update state**: write `.agents/sessions/state/{issue-number}.md` and `.agents/HANDOFF.md` with what remains.
+3. **Signal** the orchestrator by returning the structured line `CONTEXT_PRESSURE: HIGH  -  checkpointed at step {N}, {remaining} steps left`.
+4. **Split** remaining work into independent sub-issues if possible, so each gets a fresh context window.
+
+Future enforcement: once the hook infrastructure in issue #1726 lands, `PreCompact` and `PostToolUse` hooks will auto-checkpoint. Until then, this protocol is prompt-driven and your responsibility. See `.claude/skills/analyze/references/context-budget-management.md` for background.
 
 ## Anti-Patterns to Catch
 
