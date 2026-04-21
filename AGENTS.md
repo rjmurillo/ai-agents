@@ -19,10 +19,10 @@ Read first, reason second. Pre-training is last resort.
 
 ## Session Gates
 
-**Start**: Init Serena|Read HANDOFF.md|Create session log|Search memories|Verify git
+**Start**: Init Serena|Read HANDOFF.md|Read latest `.agents/sessions/handoffs/*-{issue}-handoff.md` + run Verify-on-Resume|Create session log|Search memories|Verify git
 **Mid**: Display `Commit X/20 (ADR-008)`|Warn at 15+
 **Pre-PR**: `Validate-PRReadiness.ps1`|No BLOCKING verdicts|Security scan
-**End**: Complete log|Preserve HANDOFF.md|Update Serena|Lint|Commit|Validate JSON
+**End**: Complete log|Preserve HANDOFF.md (read-only)|Write `.agents/sessions/handoffs/{date}-{issue}-handoff.md` from `.agents/templates/HANDOFF.md` if issue open|Update Serena|Lint|Commit|Validate JSON
 
 ## Boundaries
 
