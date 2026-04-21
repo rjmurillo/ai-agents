@@ -468,6 +468,16 @@ ai-agents/
 </details>
 
 <details>
+<summary><strong>skill-installer clone fails with short name (e.g., <code>rjmurillo/skill-installer</code>)</strong></summary>
+
+- Pass the **full GitHub URL** to `uvx --from`, not the shorthand `owner/repo` form
+- Correct: `uvx --from git+https://github.com/rjmurillo/skill-installer skill-installer interactive`
+- Incorrect: `uvx --from rjmurillo/skill-installer skill-installer interactive`
+- `uvx` resolves `git+<url>` specifiers; bare `owner/repo` is not a valid source
+
+</details>
+
+<details>
 <summary><strong>Orchestrator not routing to agents correctly</strong></summary>
 
 - Be explicit: prefix prompts with the agent name (e.g., `analyst: ...`)
