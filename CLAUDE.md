@@ -32,6 +32,14 @@ For any non-trivial task: `Task(subagent_type="orchestrator", prompt="...")`
 
 Start with the cheapest option. Escalate only when the cheaper option lacks capability.
 
+## Path-scoped instructions
+
+Before editing any file, read matching rules in `.agents/instructions/*.instructions.md`.
+
+Each file has YAML frontmatter with an `applyTo` glob. Match the glob against the file you are about to edit. Universal rules live in `.agents/instructions/universal.instructions.md` (`applyTo: "**"`) and apply to every change.
+
+Why this matters: governance, security, templates, and CI scripts have different approval gates and downstream effects. Path-scoped instructions consolidate these rules so the relevant ones load only when needed. See `.agents/instructions/README.md` for the full index and authoring rules.
+
 ## Skill routing
 
 When the user's request matches an available skill, ALWAYS invoke it using the Skill
