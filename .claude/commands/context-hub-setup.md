@@ -147,7 +147,7 @@ Ask about a framework: "How does FastAPI dependency injection work?"
 
 ## Completion Criteria
 
-Setup is complete when ALL of the following are verified. If any item fails, stop and report which criterion failed; do not retry silently.
+Setup is complete when ALL of the following are verified. If any item fails after exhausting the task budget, report which criterion failed. Notify the user of each retry attempt; do not retry silently.
 
 | Criterion | Verification |
 |-----------|--------------|
@@ -164,7 +164,8 @@ Setup is complete when ALL of the following are verified. If any item fails, sto
 
 ### Output Constraints
 
-- Status block in Step 3 MUST use the three-line `Component: State` format shown above. No additional commentary.
+- Status block in Step 3 MUST include the three `Component: State` lines shown above (Forgetful MCP, Serena Plugin, Context7 Plugin).
+- The `Commands available` subsection is supplementary and MUST appear as a separate block after the status lines.
 - On failure, report only: component name, detected state, and the single next command to run.
 
 ## Troubleshooting

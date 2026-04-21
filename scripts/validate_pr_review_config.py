@@ -33,6 +33,22 @@ REQUIRED_TOP_LEVEL_KEYS = [
     "worktree_constraints",
     "related_memories",
     "thread_resolution",
+    "invocation_limits",
+    "output_constraints",
+]
+
+INVOCATION_LIMIT_FIELDS = [
+    "all_open_max_prs",
+    "all_open_overflow_action",
+    "completion_gate_max_retries",
+    "completion_gate_overflow_action",
+]
+
+OUTPUT_CONSTRAINT_FIELDS = [
+    "per_pr_max_response_lines",
+    "per_pr_overflow_action",
+    "summary_format",
+    "summary_required_columns",
 ]
 
 REQUIRED_SCRIPT_KEYS = [
@@ -138,6 +154,23 @@ def validate_config(config: dict) -> list[str]:
         if "batch_graphql_template" not in tr:
             errors.append(
                 "thread_resolution missing field: batch_graphql_template"
+            )
+
+    if "invocation_limits" in config:
+        il = config["invocation_limits"]
+        for field in INVOCATION_LIMIT_FIELDS:
+            if field not in il:
+                errors.append(f"invocation_limits missing field: {field}")
+
+    if "output_constraints" in config:
+        oc = config["output_constraints"]
+        for field in OUTPUT_CONSTRAINT_FIELDS:
+            if field not in oc:
+                errors.append(f"output_constraints missing field: {field}")
+        cols = oc.get("summary_required_columns")
+        if not isinstance(cols, list) or len(cols) == 0:
+            errors.append(
+                "output_constraints.summary_required_columns must be a non-empty list"
             )
 
     return errors
