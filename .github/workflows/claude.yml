@@ -116,7 +116,7 @@ jobs:
 
       # Pin to SHA - https://github.com/anthropics/claude-code-action/releases/tag/v1.0.80
       # Fixes orphaned installer processes causing race conditions (Issue #804)
-      - uses: anthropics/claude-code-action@b47fd721da662d48c5680e154ad16a73ed74d2e0
+      - uses: anthropics/claude-code-action@38ec876110f9fbf8b950c79f534430740c3ac009
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
 
