@@ -14,13 +14,17 @@ It is invoked from the `## Session Gate (Blocking)` section of the orchestrator
 agent prompt and from `.agents/SESSION-PROTOCOL.md` Phase 1 documentation
 update.
 
+> **Location**: This file lives in `.serena/memories/session/` because Serena
+> memories are the project's concept store. The `wiki/concepts/` path referenced
+> in earlier issues has been superseded.
+
 ## What to Capture (Behavioral, Not Background)
 
 | Category | Description | Example |
 |----------|-------------|---------|
 | **Decisions made** | Architecture choices, approach changes, agent routing changes that altered the plan | "Routed to analyst before architect because the requirement was ambiguous; analyst clarification was needed before architect could proceed" |
 | **Blockers hit** | What stopped progress, workarounds attempted, escalations needed | "QA agent timed out; routed to critic as fallback per graceful-degradation principle" |
-| **State changes** | Files modified, branches created, issues filed, PRs opened | "Created `wiki/concepts/Session Capture Protocol.md`; updated 5 orchestrator files; filed issue #1692" |
+| **State changes** | Files modified, branches created, issues filed, PRs opened | "Created `.serena/memories/session/session-capture-protocol.md`; updated 5 orchestrator files; filed issue #1692" |
 | **Open questions** | Unresolved ambiguities requiring human input or a follow-up session | "Unclear whether eval methodology (#1688) must land before this change can be validated" |
 | **Next steps** | Concrete continuation plan with enough context for a cold-start | "Session 2: add cross-reference from SESSION-PROTOCOL.md Phase 1 doc-update step" |
 
@@ -94,11 +98,11 @@ Vague decision, vague rationale, no information for a future agent.
 ## Cross-References
 
 - `templates/agents/orchestrator.shared.md` — Session Gate (Blocking) section
-  references this protocol from the session-log checklist item.
+  embeds the protocol inline; this file provides full examples.
 - `.agents/SESSION-PROTOCOL.md` — Phase 1: Documentation Update references
   this protocol when defining what session-log content is required.
-- `.agents/sessions/2025-12-17-session-01-mcp-config-research.json` — Example
-  session log using the `workLog` / `decisions` / `nextSteps` schema.
+- `.agents/schemas/session-log.schema.json` — Defines the `workLog`,
+  `decisions`, and `nextSteps` fields this protocol targets.
 
 ## Why This Exists
 
