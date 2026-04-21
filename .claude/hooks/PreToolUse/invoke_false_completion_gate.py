@@ -39,12 +39,6 @@ VERIFICATION_PATTERNS = re.compile(
     re.IGNORECASE,
 )
 
-# Commands that are documentation-only (never block)
-DOC_ONLY_PATTERNS = re.compile(
-    r"(markdownlint|mdformat|prettier.*\.md|echo|cat|less|head|tail|grep)",
-    re.IGNORECASE,
-)
-
 # Commands that trigger completion detection
 COMPLETION_COMMANDS = re.compile(
     r"(git\s+commit|gh\s+pr\s+create|gh\s+pr\s+merge)",
@@ -93,12 +87,16 @@ def has_verification_evidence(project_dir: Path) -> bool:
             pass
 
     # Check hook state for plan checkpoints (indicates active work)
+    # Exclude audit files to prevent self-poisoning (audit log reasons contain
+    # verification pattern keywords like "pytest" that would falsely match)
     hook_state_dir = project_dir / ".agents" / ".hook-state"
     if hook_state_dir.is_dir():
         today = datetime.now().strftime("%Y-%m-%d")
         checkpoints = list(hook_state_dir.glob(f"*{today}*"))
         if checkpoints:
             for cp in checkpoints:
+                if cp.name.startswith("audit-"):
+                    continue
                 try:
                     content = cp.read_text(encoding="utf-8")
                     if VERIFICATION_PATTERNS.search(content):
@@ -157,10 +155,6 @@ def main() -> int:
 
     # Only check completion-relevant commands (commits, PRs)
     if not COMPLETION_COMMANDS.search(command):
-        return 0
-
-    # Skip documentation-only commands
-    if DOC_ONLY_PATTERNS.search(command):
         return 0
 
     # Check for completion signals in the command

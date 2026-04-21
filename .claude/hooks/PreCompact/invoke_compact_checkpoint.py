@@ -79,7 +79,11 @@ def get_session_info(project_dir: Path) -> dict:
             ).isoformat(),
             "open_items_count": len(work_items),
             "work_items": [
-                (item if isinstance(item, str) else item.get("description", str(item)))
+                (
+                    item if isinstance(item, str)
+                    else item.get("description", str(item)) if isinstance(item, dict)
+                    else str(item)
+                )
                 for item in work_items[:5]
             ],
         }
