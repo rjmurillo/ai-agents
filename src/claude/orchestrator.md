@@ -39,6 +39,8 @@ Use the classification to pick delegation depth. A clear, reversible, P3 task ne
 
 **Never skip synthesis.** After agents return, combine findings into a single coherent output. Raw concatenation of agent responses is failure.
 
+**CRITICAL**: Terminate only when ALL TODO items are checked off AND the SESSION END GATE passes. If the delegation count reaches the budget limit (see Orchestration Budget), summarize progress, document remaining gaps, and stop.
+
 ## When to Produce vs When to Route
 
 | Situation | Behavior |
@@ -165,10 +167,11 @@ Only after these three steps complete does reasoning about the response begin. S
 
 1. Verify all delegations have returned or been explicitly abandoned.
 2. Verify synthesis is complete and TODOs logged for deferred work.
-3. Run `python3 .claude/skills/session-end/scripts/complete_session_log.py`.
-4. Verify `protocolCompliance.sessionEnd` fields are all `Complete: true` in the session JSON.
-5. Verify HANDOFF.md was preserved (read-only per ADR-014). Outcomes and next steps recorded in the session log.
-6. Verify all changes are committed to git (`git status` clean).
+3. Verify delegation count is within budget (15 or fewer); if exceeded, produce a budget-exhaustion summary.
+4. Run `python3 .claude/skills/session-end/scripts/complete_session_log.py`.
+5. Verify `protocolCompliance.sessionEnd` fields are all `Complete: true` in the session JSON.
+6. Verify HANDOFF.md was preserved (read-only per ADR-014). Outcomes and next steps recorded in the session log.
+7. Verify all changes are committed to git (`git status` clean).
 
 ### Failure Path
 
@@ -207,6 +210,12 @@ If the TODO list no longer matches the plan, update the plan first, then the TOD
 - **Explicit handoffs**: never let context decay across agents
 - **Graceful degradation**: if an agent fails, route to a fallback (e.g., analyst → context-retrieval if analyst errors)
 - **Observability**: log routing decisions with rationale
+
+## Orchestration Budget
+
+- **Max agent delegations per task**: 15. Log a warning in the session log when 10 delegations have been made.
+- **Budget-exhausted behavior**: When the limit is reached, stop delegating, synthesize all work completed so far, list remaining unresolved items, and return control to the user with a clear summary of what was done and what was not.
+- **Delegation counter**: Track the running count in the session log entry for each routing decision (already required by the Observability reliability principle).
 
 ## Constraints
 
