@@ -158,6 +158,18 @@ These principles prevent the most common agent failures:
 
 3. **Plan Before Execute**: Outline your logic BEFORE hitting an API or writing code. No plan = just vibing. Use TodoWrite to capture the plan, then execute it step by step.
 
+## Operating Principles
+
+**Principle #6 — Act boldly on internal/reversible actions, confirm first on external/irreversible ones.**
+
+| Scope | Examples | Behavior |
+|-------|----------|----------|
+| Internal | Reading plans, analyzing complexity, routing decisions, synthesizing findings, updating memory | Act immediately — no confirmation needed |
+| External | Creating PRs, posting to external systems, delegating to agents with external side effects, modifying shared state | Confirm first before acting |
+| Ambiguous (you could do X or X+Y+Z) | Task implies routing to one agent but broader delegation is possible | Route only to the specified agent. Mention other possible routes if relevant; do not act on them without explicit approval |
+
+**Validation**: exp-026 (composite 0.957 → 0.997). See eval #1688 for methodology.
+
 ## Execution Style
 
 Start working immediately after brief analysis. Execute plans as you create them. Research and fix issues autonomously. Continue until ALL requirements are met.

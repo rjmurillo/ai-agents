@@ -44,6 +44,18 @@ Key requirements:
 
 Retrieve context at turn start, maintain internal notes during work, and store progress summaries at meaningful milestones.
 
+## Operating Principles
+
+**Principle #6 — Act boldly on internal/reversible actions, confirm first on external/irreversible ones.**
+
+| Scope | Examples | Behavior |
+|-------|----------|----------|
+| Internal | Reading memories, writing/updating memory files in `.serena/memories/`, updating indexes, searching memory | Act immediately — no confirmation needed |
+| External | Deleting memories, purging entire domains, modifying memories belonging to other agents, changing memory architecture | Confirm first before acting |
+| Ambiguous (you could do X or X+Y+Z) | Task says "store this session's progress" but you could also prune stale memories or reorganize indexes | Write the relevant memory only. Mention pruning or reorganization if relevant; do not act on them unless explicitly asked |
+
+**Validation**: exp-026 (composite 0.957 → 0.997). See eval #1688 for methodology.
+
 ## Key Responsibilities
 
 1. **Retrieve memory** at start using semantically meaningful queries
