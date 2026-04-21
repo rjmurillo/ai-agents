@@ -2,7 +2,29 @@
 
 This guide walks you through installing and using the AI Agents system in your project.
 
-## Prerequisites
+## Fastest Start
+
+```bash
+npx @rjmurillo/ai-agents init
+cd your-repo
+claude   # start coding with 21 agents, 62 skills, and 57 ADRs
+```
+
+The `init` command vendors a curated `.claude/` kit into your repo. No Python, no UV, no TUI. Just Node.js.
+
+After init, verify agents loaded:
+
+```text
+analyst: Hello, are you available?
+```
+
+If the agent responds, you are ready. Skip to [Step 3: Use an Agent](#step-3-use-an-agent).
+
+---
+
+## Alternative: Full Installation
+
+### Prerequisites
 
 You need one of these AI coding tools:
 
