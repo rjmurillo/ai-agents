@@ -1,0 +1,52 @@
+{
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Missing AGENT-INSTRUCTIONS.md triggers BLOCKED with project config reason",
+      "input": "You have been handed a plan to implement a Python utility that parses JSON logs. You attempt to read `.agents/AGENT-INSTRUCTIONS.md` and receive 'file not found'. You then check `.agents/CLAUDE.md` (present, 40 lines), `.agents/HANDOFF.md` (present, 116 lines), and `.agents/ARCHITECTURE.md` (not present). What is your verdict before beginning implementation?",
+      "expected_verdict": "BLOCKED",
+      "expected_reason_contains": "Project configuration incomplete",
+      "rationale": "Fallback rule: missing AGENT-INSTRUCTIONS.md must halt with the exact reason string from the BLOCKING section"
+    },
+    {
+      "id": "S2",
+      "desc": "Missing HANDOFF.md triggers BLOCKED with no prior session context",
+      "input": "You are about to implement a small refactor. You read `.agents/AGENT-INSTRUCTIONS.md` (present, 824 lines) and `.agents/CLAUDE.md` (present, 40 lines). You attempt to read `.agents/HANDOFF.md` and receive 'file not found'. `.agents/ARCHITECTURE.md` is not present. What is your verdict before beginning implementation?",
+      "expected_verdict": "BLOCKED",
+      "expected_reason_contains": "No prior session context available",
+      "rationale": "Fallback rule: missing HANDOFF.md must halt with the exact reason string from the BLOCKING section"
+    },
+    {
+      "id": "S3",
+      "desc": "Missing only CLAUDE.md (non-critical) permits proceeding with a note",
+      "input": "You are about to implement a small refactor. You read `.agents/AGENT-INSTRUCTIONS.md` (present, 824 lines). `.agents/CLAUDE.md` is not present. `.agents/HANDOFF.md` is present (116 lines) and contains no conflicts with your plan. `.agents/ARCHITECTURE.md` is not present. No files contain conflicting guidance. What is your verdict before beginning implementation?",
+      "expected_verdict": "PROCEED",
+      "expected_reason_contains": "note",
+      "rationale": "Fallback rule: CLAUDE.md/ARCHITECTURE.md are non-critical; proceed with absence noted in session log"
+    },
+    {
+      "id": "S4",
+      "desc": "Conflicting guidance across files triggers BLOCKED with conflict reason",
+      "input": "You read all four required files. `.agents/AGENT-INSTRUCTIONS.md` instructs: 'All new scripts MUST be Python per ADR-042'. `.agents/CLAUDE.md` instructs: 'For this task, use PowerShell exclusively'. Both directives apply to the same task. You cannot determine precedence from the text. What is your verdict before beginning implementation?",
+      "expected_verdict": "BLOCKED",
+      "expected_reason_contains": "Conflicting requirements detected",
+      "rationale": "Fallback rule: contradictory guidance must halt with the exact reason string from the BLOCKING section"
+    },
+    {
+      "id": "S5",
+      "desc": "All required files present and clear allows proceeding (regression check on Core Behavior)",
+      "input": "You read `.agents/AGENT-INSTRUCTIONS.md`, `.agents/CLAUDE.md`, `.agents/HANDOFF.md`, and `.agents/ARCHITECTURE.md`. All are present with no conflicts. You can articulate: (1) inherited context from HANDOFF.md (prior session shipped parser v1), (2) architectural constraints (Python-first per ADR-042), and (3) CLAUDE.md requirements (use Read tool over cat). The task is to add a flag to the existing parser. What is your verdict before beginning implementation?",
+      "expected_verdict": "PROCEED",
+      "expected_reason_contains": "context",
+      "rationale": "Success definition satisfied; Core Behavior ('implement what is in front of you') preserved. Regression scenario guarding against overblocking."
+    },
+    {
+      "id": "S6",
+      "desc": "Files read but success definition unmet prevents proceeding",
+      "input": "You have read all four required files: `.agents/AGENT-INSTRUCTIONS.md`, `.agents/CLAUDE.md`, `.agents/HANDOFF.md`, `.agents/ARCHITECTURE.md`. They are all present and contain no conflicts. However, when asked to articulate the inherited session context, the architectural constraints, and any Claude-specific requirements for your current task, you cannot coherently describe any of the three. What is your verdict before beginning implementation?",
+      "expected_verdict": "BLOCKED",
+      "expected_reason_contains": "articulate",
+      "rationale": "Success definition: reading files is necessary but not sufficient. Inability to articulate context means the stop criterion is not met and implementation must not begin."
+    }
+  ]
+}
