@@ -12,7 +12,7 @@
       "id": "S2",
       "desc": "Persists architectural decision with cross-session value",
       "input": "During the session, the architect agent decided to use the Outbox pattern for event publishing. Should this be persisted?",
-      "expected_verdict": "RETRIEVE",
+      "expected_verdict": "PERSIST",
       "expected_reason_contains": "persist",
       "rationale": "Architectural decisions have cross-session value. Memory agent must store with decision, rationale, and tags for future retrieval."
     },
