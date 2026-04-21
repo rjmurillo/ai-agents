@@ -181,6 +181,30 @@ Re-read the TODO list and plan after any of these events, not on a fixed cadence
 
 If the TODO list no longer matches the plan, update the plan first, then the TODO list, then act.
 
+### Session Capture Protocol
+
+When updating the session log at session end, capture **behavioral signal**, not background noise. The session log is for cold-start recovery, not a tool transcript.
+
+**Capture (signal):**
+
+- **Decisions made**: architecture choices, approach changes, agent routing changes that altered the plan
+- **Blockers hit**: what stopped progress, workarounds attempted, escalations needed
+- **State changes**: files modified, branches created, issues filed, PRs opened
+- **Open questions**: unresolved ambiguities requiring human input or a follow-up session
+- **Next steps**: concrete continuation plan with enough context for a cold-start
+
+**Skip (noise):**
+
+- Tool invocations (already in transcript logs)
+- Background research that did not change the plan
+- Routine operations: file reads, status checks, lint runs
+- Intermediate agent responses that were superseded or rejected
+
+Each `workLog` entry should be one or two sentences: lead with the action or decision, then the result or rationale. A future agent reading the log must be able to reconstruct *why* a choice was made, not just *what* happened.
+
+**Decision rule**: If removing an entry would leave the next session unable to reproduce a decision or continue the work, keep it. Otherwise, skip it.
+
+
 ## Reliability Principles
 
 - **Idempotent delegations**: re-delegating the same task to the same agent should be safe
