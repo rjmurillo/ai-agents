@@ -3,6 +3,11 @@
   "extends": [
     "config:recommended"
   ],
-  "automerge": true,
+  "minor": {
+    "automerge": true
+  },
+  "patch": {
+    "automerge": true
+  },
   "platformAutomerge": true
 }
