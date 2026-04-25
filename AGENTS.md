@@ -8,7 +8,7 @@ Cross-platform agent instructions for Claude Code, Copilot CLI, Cortex, Factory 
 
 ## Retrieval-Led Reasoning
 
-Read first, reason second. Pre-training is last resort.
+Read first, reason second. Pre-training last resort.
 
 |APIs: Context7, DeepWiki, WebSearch
 |Constraints: `.agents/governance/PROJECT-CONSTRAINTS.md`
@@ -32,7 +32,7 @@ Read first, reason second. Pre-training is last resort.
 
 ## Context Type Decision
 
-Knowledge goes in passive context (@imported docs). Actions stay as skills. Passive context eliminates decision points. See `.agents/analysis/vercel-passive-context-vs-skills-research.md`.
+Knowledge → passive context (@imported docs). Actions → skills. Passive context kills decision points. See `.agents/analysis/vercel-passive-context-vs-skills-research.md`.
 
 |Passive context: reference knowledge every turn, content outside training data, <8KB compressed
 |Skills: tool access needed, vertical workflows, user-triggered, file mutation or API calls
@@ -46,7 +46,7 @@ Knowledge goes in passive context (@imported docs). Actions stay as skills. Pass
 
 ### ADR Review (BLOCKING)
 
-Any `.agents/architecture/ADR-*.md` or `.agents/SESSION-PROTOCOL.md` create/edit triggers mandatory adr-review skill.
+Any `.agents/architecture/ADR-*.md` or `.agents/SESSION-PROTOCOL.md` create/edit fires mandatory adr-review skill.
 
 ## Agents
 
@@ -64,7 +64,7 @@ Tests: `tests/`|`.claude/skills/<name>/tests/`|`.agents/security/benchmarks/`
 
 ## Testing Rigor (BLOCKING for code changes)
 
-**Every new function MUST have positive AND negative tests.** Happy path alone is insufficient. Don't ship "the change works" with only success-case tests; bots will catch what tests missed (whitespace, type validation, error paths, conditional branches).
+**Every new function MUST have positive AND negative tests.** Happy path alone insufficient. No ship "change works" with only success-case tests; bots catch what tests missed (whitespace, type validation, error paths, conditional branches).
 
 |Cases: pos (valid input → expected output) + neg (invalid → idiomatic error) + edge (whitespace, empty, null/None, type-mismatch)
 |Error paths: every `raise`/`throw`/error-return branch exercised
@@ -72,16 +72,16 @@ Tests: `tests/`|`.claude/skills/<name>/tests/`|`.agents/security/benchmarks/`
 |External I/O: mock subprocess, API calls, file reads (no live deps in unit tests)
 |CLI: test argv-failure exits, exit codes, stdout vs --output
 
-**Pattern checklist** (apply per function):
+**Pattern checklist** (per function):
 
 - [ ] pos test for happy path
-- [ ] neg test asserts the language's idiomatic error on bad input
+- [ ] neg test asserts language's idiomatic error on bad input
 - [ ] edge tests: whitespace, empty, null/None, wrong type
 - [ ] every error-emitting branch exercised
 - [ ] every conditional branch exercised
-- [ ] external dependencies mocked
+- [ ] external deps mocked
 
-**Verify before commit** with the stack's coverage tool, gated to the project target. Examples (use the right one for the file you changed):
+**Verify before commit** with stack's coverage tool, gated to project target. Examples (use right one for file changed):
 
 - **Python**: `python3 -m coverage run --source=<dir> -m pytest && python3 -m coverage report -m --include='<file>' --fail-under=<target>`
 - **PowerShell**: `Invoke-Pester -CodeCoverage <files> -CodeCoverageOutputFile cov.xml` then assert `(Import-Clixml cov.xml).CoveragePercent -ge <target>`
