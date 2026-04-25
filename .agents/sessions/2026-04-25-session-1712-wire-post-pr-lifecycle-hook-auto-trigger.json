@@ -138,7 +138,7 @@
       "action": "Validated: yamllint exit 0, bash -n syntax ok, prompt heredoc expands correctly, YAML parses round-trip."
     }
   ],
-  "endingCommit": "PENDING_COMMIT",
+  "endingCommit": "4cca78b1",
   "nextSteps": [
     "Commit workflow + session log on feat/1758-autonomous.",
     "Open PR with Fixes #1758 and enable auto-merge.",
