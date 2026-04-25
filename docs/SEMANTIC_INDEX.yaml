@@ -1,6 +1,33 @@
 version: '2.0'
 project: ai-agents
 index:
+  templates/agents/negotiation.shared.md:
+    tags:
+      - negotiation
+      - deal-intelligence
+      - offers
+      - behavioral-frameworks
+      - influence
+    concepts:
+      - RADAR protocol (Read, Analyze, Design, Assess, Review)
+      - ZOPA and BATNA analysis
+      - PCP influence framing
+      - Value gap quantification
+      - Invisible disadvantage (Project Deal)
+      - Model tier routing for negotiation
+      - Written communication signal detection
+    questions:
+      - How do I analyze an offer?
+      - How do I draft a counter-proposal?
+      - What is the value gap in this deal?
+      - How do I detect manipulation patterns?
+      - Which model should handle negotiation tasks?
+    use_cases:
+      - real_estate_negotiation
+      - compensation_negotiation
+      - vendor_contract_review
+      - resource_allocation
+      - offer_analysis
   README.md:
     tags:
       - readme
