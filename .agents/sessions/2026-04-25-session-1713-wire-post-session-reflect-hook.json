@@ -134,7 +134,7 @@
       "evidence": "See validations command output."
     }
   ],
-  "endingCommit": "TO_BE_FILLED_AT_COMMIT_TIME",
+  "endingCommit": "0c6b34db",
   "nextSteps": [
     "Once merged, the workflow auto-fires on next PR open and persists reflect learnings to .serena/memories/{skill}-observations.md.",
     "Monitor first 2-3 invocations for false-positive learnings; tune confidence thresholds in .claude/skills/reflect/SKILL.md if needed.",
