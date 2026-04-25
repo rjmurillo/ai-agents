@@ -88,6 +88,25 @@ Bottom-up. Design emerges from qualities, not from pattern selection.
 
 **Testability as leverage**: If it is hard to test, that signals poor encapsulation, tight coupling, weak cohesion, or procedural thinking. Always ask "how would I test this?" even without writing tests.
 
+**Test rigor (BLOCKING for code changes)**: Every new function MUST have positive AND negative tests. Happy path alone is insufficient; bots and reviewers will catch what tests missed (whitespace, type validation, error paths, conditional branches). Pattern checklist for every function in any language:
+
+- [ ] pos test exercises happy path with valid input
+- [ ] neg test asserts the language-idiomatic error (exception, error return, exit code) on bad input
+- [ ] edge tests: whitespace, empty, null/nil/None, wrong type
+- [ ] every error-emitting branch exercised
+- [ ] every conditional branch exercised
+- [ ] external dependencies mocked or stubbed (no live API/subprocess/DB in unit tests)
+
+Measure block coverage with the stack's idiomatic tool, gated to the project target (100% for security-critical, 80% for business, 60% for docs/glue). Examples per stack — adapt to the language at hand:
+
+- **Python**: `coverage run --source=<dir> -m pytest && coverage report -m --fail-under=<target>`
+- **Go**: `go test -cover -coverprofile=cover.out ./...` then `go tool cover -func=cover.out` and gate via `--coverpkg` thresholds in CI
+- **Node/JS/TS**: `c8 --100 npm test` or `jest --coverage --coverageThreshold='{"global":{"lines":<target>}}'`
+- **C#/.NET**: `dotnet test --collect:"XPlat Code Coverage"` then enforce thresholds via `coverlet.runsettings`
+- **PowerShell**: `Invoke-Pester -CodeCoverage <files> -CodeCoverageOutputFile cov.xml` and assert min coverage on the result
+
+Exclude only language-equivalent unreachable defensive branches (Python `# pragma: no cover` on `if __name__ == "__main__":`; Go untested `default:` panic guards; etc.) with written justification. See AGENTS.md Testing Rigor section.
+
 **Programming by Intention**: Sergeant methods direct workflow via private methods. Single purpose, clear names, separation of concerns.
 
 ## Implementation Process

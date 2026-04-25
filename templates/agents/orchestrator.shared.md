@@ -204,7 +204,6 @@ Each `workLog` entry should be one or two sentences: lead with the action or dec
 
 **Decision rule**: If removing an entry would leave the next session unable to reproduce a decision or continue the work, keep it. Otherwise, skip it.
 
-
 ## Reliability Principles
 
 - **Idempotent delegations**: re-delegating the same task to the same agent should be safe
