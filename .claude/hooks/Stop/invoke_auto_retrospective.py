@@ -136,9 +136,9 @@ def _extract_session_summary(session_log: Path) -> dict[str, str]:
 
 def _generate_retrospective(today: str, session_summary: dict[str, str]) -> str:
     """Generate a structured retrospective template."""
-    objective = session_summary.get("objective", "(no objective recorded)")
-    outcomes = session_summary.get("outcomes", "(no outcomes recorded)")
-    work_items = session_summary.get("work_items", "(no work items recorded)")
+    objective = session_summary.get("objective") or "(no objective recorded)"
+    outcomes = session_summary.get("outcomes") or "(no outcomes recorded)"
+    work_items = session_summary.get("work_items") or "(no work items recorded)"
 
     return f"""# Auto-Retrospective: {today}
 
