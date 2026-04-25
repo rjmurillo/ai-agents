@@ -136,15 +136,60 @@ def _is_completion_claim(command: str) -> bool:
     return COMPLETION_SIGNALS.search(command) is not None
 
 
-def _is_documentation_only() -> bool:
-    """Check if staged changes are documentation-only."""
+def _is_documentation_only(is_pr_create: bool) -> bool:
+    """Check if changes are documentation-only.
+
+    Args:
+        is_pr_create: True if this is a `gh pr create` command, False for `git commit`.
+                      For commits, checks staged changes (git diff --cached).
+                      For PRs, checks branch diff against the merge base.
+    """
     try:
-        result = subprocess.run(
-            ["git", "diff", "--cached", "--name-only"],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
+        if is_pr_create:
+            # For PR create, get the branch diff against the merge base
+            # First, find the merge base with the default branch
+            base_result = subprocess.run(
+                ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if base_result.returncode != 0:
+                return False
+
+            # Try to find merge-base with common default branches
+            for default_branch in ["main", "master", "develop"]:
+                merge_base_result = subprocess.run(
+                    ["git", "merge-base", default_branch, "HEAD"],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                if merge_base_result.returncode == 0:
+                    merge_base = merge_base_result.stdout.strip()
+                    result = subprocess.run(
+                        ["git", "diff", "--name-only", merge_base, "HEAD"],
+                        capture_output=True,
+                        text=True,
+                        check=False,
+                    )
+                    break
+            else:
+                # No default branch found, fall back to staged changes
+                result = subprocess.run(
+                    ["git", "diff", "--cached", "--name-only"],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+        else:
+            # For commits, check staged changes
+            result = subprocess.run(
+                ["git", "diff", "--cached", "--name-only"],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
         if result.returncode != 0:
             return False
         files = [f.strip() for f in result.stdout.strip().split("\n") if f.strip()]
@@ -155,13 +200,12 @@ def _is_documentation_only() -> bool:
         return False
 
 
-def _has_verification_evidence(project_dir: str) -> bool:
-    """Check session log for test/build verification evidence."""
-    sessions_dir = str(Path(project_dir) / ".agents" / "sessions")
-    session_log = get_today_session_log(sessions_dir)
-    if session_log is None:
-        return False  # No log = no evidence, but we'll fail-open below
+def _has_verification_evidence(session_log: Path) -> bool:
+    """Check session log for test/build verification evidence.
 
+    Args:
+        session_log: Path to the session log file. Caller must ensure this is not None.
+    """
     try:
         content = session_log.read_text(encoding="utf-8", errors="replace")
     except OSError:
@@ -222,7 +266,7 @@ def main() -> None:
     project_dir = get_project_directory()
 
     # Bypass for documentation-only changes
-    if _is_documentation_only():
+    if _is_documentation_only(is_pr_create=bool(is_pr_create)):
         _write_audit_log(project_dir, command, "ALLOW", "documentation-only changes")
         sys.exit(0)
 
@@ -235,7 +279,7 @@ def main() -> None:
         _write_audit_log(project_dir, command, "ALLOW", "no session log (fail-open)")
         sys.exit(0)
 
-    if _has_verification_evidence(project_dir):
+    if _has_verification_evidence(session_log):
         _write_audit_log(project_dir, command, "ALLOW", "verification evidence found")
         sys.exit(0)
 
