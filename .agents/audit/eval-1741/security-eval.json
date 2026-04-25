@@ -1,0 +1,491 @@
+{
+  "eval_type": "prompt-change",
+  "adr": "ADR-057",
+  "model": "claude-sonnet-4-20250514",
+  "source": "explicit: .claude/agents/security.md -> /tmp/security.compressed.md",
+  "runs_per_scenario": 5,
+  "security_critical": true,
+  "comparison": {
+    "before_score": 0.0,
+    "after_score": 0.0,
+    "delta": 0.0,
+    "scenario_count": 5,
+    "api_calls": 50,
+    "est_tokens": 175000
+  },
+  "gate": {
+    "verdict": "FAIL",
+    "passed": false,
+    "security_critical": true,
+    "criteria": {
+      "no_regression": true,
+      "has_improvement": false,
+      "no_unexplained_regressions": true,
+      "no_high_flakiness": true,
+      "security_all_runs_pass": false
+    },
+    "improvements": [],
+    "regressions": [],
+    "flaky_scenarios": [],
+    "high_flakiness_scenarios": [],
+    "before_score": 0.0,
+    "after_score": 0.0,
+    "delta": 0.0
+  },
+  "detail": {
+    "before": [
+      {
+        "scenario_id": "S1",
+        "passes": 0,
+        "runs": 5,
+        "pass_rate": 0.0,
+        "passed": false,
+        "flaky": false,
+        "per_run": [
+          {
+            "verdict": "FAIL",
+            "reason": "CWE-22 Path Traversal vulnerability. Endpoint accepts user-controlled file path without validation, enabling directory traversal attacks to read arbitrary files outside intended directory.",
+            "raw": "```json\n{\n  \"verdict\": \"FAIL\",\n  \"reason\": \"CWE-22 Path Traversal vulnerability. Endpoint accepts user-controlled file path without validation, enabling directory traversal attacks to read arbitrary files outside intended directory.\"\n}\n```\n\nThis is a textbook CWE-22 violation. The endpoint accepts a file path directly from user input and uses it to read files from disk. An attacker can use `../` sequences to traverse directories and access sensitive files like:\n\n- `../../etc/passwd` (Linux)\n- `..\\..\\Windows\\System32\\config\\SAM` (Windows)\n- Application config files with credentials\n- Source code with hardcoded secrets\n\n**Required mitigation:**\n1. Use `[System.IO.Path]::GetFullPath()` to normalize the path\n2. Validate the resolved path stays within an allowed directory\n3. Use a whitelist of allowed file names/extensions\n4. Never trust user input for file system operations\n\nThis is a **Critical** severity finding that must be fixed before deployment.",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "CRITICAL VULNERABILITY - BLOCK DEPLOYMENT",
+            "reason": "CWE-22 Path Traversal detected. Endpoint accepts arbitrary file paths without validation, enabling attackers to read sensitive files (../../../etc/passwd, config files, source code). Risk Score: 9/10. Requires immediate input validation and path containment controls before deployment.",
+            "raw": "```json\n{\n  \"verdict\": \"CRITICAL VULNERABILITY - BLOCK DEPLOYMENT\",\n  \"reason\": \"CWE-22 Path Traversal detected. Endpoint accepts arbitrary file paths without validation, enabling attackers to read sensitive files (../../../etc/passwd, config files, source code). Risk Score: 9/10. Requires immediate input validation and path containment controls before deployment.\"\n}\n```",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "FAIL",
+            "reason": "CWE-22 path traversal vulnerability - endpoint accepts user-controlled file path without validation, allowing access to arbitrary files outside intended directory via ../ sequences",
+            "raw": "```json\n{\n  \"verdict\": \"FAIL\",\n  \"reason\": \"CWE-22 path traversal vulnerability - endpoint accepts user-controlled file path without validation, allowing access to arbitrary files outside intended directory via ../ sequences\"\n}\n```\n\nThis is a critical security vulnerability. The endpoint allows attackers to read any file on the system by providing paths like `../../../etc/passwd` or `..\\..\\windows\\system32\\config\\sam`. Required mitigations:\n\n1. Validate file path within allowed directory using `[System.IO.Path]::GetFullPath()` normalization\n2. Implement allowlist of permitted file extensions\n3. Use file upload directory restriction with proper containment checks\n4. Add authentication/authorization controls for file access\n\nRisk Score: 9/10 (Critical) - Direct file system access with potential for data exfiltration.",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "FAIL",
+            "reason": "Critical CWE-22 path traversal vulnerability. Endpoint accepts user-controlled file path without validation, allowing attackers to read arbitrary files using '../' sequences to escape intended directory (e.g., '../../etc/passwd'). Risk Score: 9/10. Requires input validation with GetFullPath() normalization and containment check before file operations.",
+            "raw": "Looking at this endpoint description, I can immediately identify a critical path traversal vulnerability (CWE-22).\n\n```json\n{\n  \"verdict\": \"FAIL\", \n  \"reason\": \"Critical CWE-22 path traversal vulnerability. Endpoint accepts user-controlled file path without validation, allowing attackers to read arbitrary files using '../' sequences to escape intended directory (e.g., '../../etc/passwd'). Risk Score: 9/10. Requires input validation with GetFullPath() normalization and containment check before file operations.\"\n}\n```\n\nThe endpoint design violates fundamental security principles by:\n\n1. **Direct file path acceptance** - User input controls file system access\n2. **Missing path validation** - No containment within allowed directories  \n3. **Arbitrary file disclosure** - Can read sensitive system files, configuration, credentials\n\n**Immediate remediation required**:\n- Validate all file paths with `[System.IO.Path]::GetFullPath()` normalization\n- Enforce containment within approved upload directory\n- Use allowlist of permitted file extensions\n- Implement proper access controls\n\nThis is a **blocking security issue** that must be resolved before any deployment.",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "FAIL",
+            "reason": "CWE-22 path traversal vulnerability. File path from request body can contain '../' sequences to escape intended directory and access arbitrary files on disk. Risk Score: 9/10 Critical. Requires input validation with GetFullPath() normalization and directory containment checks before file operations.",
+            "raw": "```json\n{\n  \"verdict\": \"FAIL\",\n  \"reason\": \"CWE-22 path traversal vulnerability. File path from request body can contain '../' sequences to escape intended directory and access arbitrary files on disk. Risk Score: 9/10 Critical. Requires input validation with GetFullPath() normalization and directory containment checks before file operations.\"\n}\n```",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          }
+        ]
+      },
+      {
+        "scenario_id": "S2",
+        "passes": 0,
+        "runs": 5,
+        "pass_rate": 0.0,
+        "passed": false,
+        "flaky": false,
+        "per_run": [
+          {
+            "verdict": "CRITICAL - BLOCK IMMEDIATELY",
+            "reason": "Postinstall scripts execute arbitrary code from external dependencies during CI with elevated privileges. This is CWE-426 (Untrusted Search Path) + ASI04 (Supply Chain). High-value target for supply chain attacks. Immediate containment required.",
+            "raw": "```json\n{\n  \"verdict\": \"CRITICAL - BLOCK IMMEDIATELY\", \n  \"reason\": \"Postinstall scripts execute arbitrary code from external dependencies during CI with elevated privileges. This is CWE-426 (Untrusted Search Path) + ASI04 (Supply Chain). High-value target for supply chain attacks. Immediate containment required.\"\n}\n```\n\n**Risk Score: 9/10** - Critical supply chain vulnerability\n\n**Evidence**: \n- **CWE-426**: Loading executable code from untrusted npm packages\n- **ASI04**: Unvalidated supply chain component execution  \n- **Attack Vector**: Compromised dependency can execute malicious code in CI environment\n- **Blast Radius**: Full CI environment access, potential secret extraction, code injection\n\n**Required Actions**:\n1. **IMMEDIATE**: Disable postinstall scripts: `npm ci --ignore-scripts`\n2. **AUDIT**: Review all dependencies with postinstall hooks\n3. **ISOLATE**: Run dependency installs in sandboxed environment\n4. **VERIFY**: Package integrity with lock files and checksums\n5. **MONITOR**: Dependency update alerts for security patches\n\n**Containment Strategy**: Replace with explicit script execution only for verified, essential postinstall operations.",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "CRITICAL SECURITY RISK - IMMEDIATE REMEDIATION REQUIRED",
+            "reason": "Postinstall scripts execute arbitrary code during npm install with full CI permissions. This is ASI04 Supply Chain + CWE-426 Untrusted Search Path. Attack vector: Compromised dependency injects malicious postinstall script that exfiltrates secrets, modifies source code, or establishes persistence in CI environment. MITIGATION: Disable postinstall scripts (npm install --ignore-scripts), audit all dependencies with postinstall hooks, implement dependency pinning with lock files, use npm audit + Snyk scanning.",
+            "raw": "```json\n{\n  \"verdict\": \"CRITICAL SECURITY RISK - IMMEDIATE REMEDIATION REQUIRED\",\n  \"reason\": \"Postinstall scripts execute arbitrary code during npm install with full CI permissions. This is ASI04 Supply Chain + CWE-426 Untrusted Search Path. Attack vector: Compromised dependency injects malicious postinstall script that exfiltrates secrets, modifies source code, or establishes persistence in CI environment. MITIGATION: Disable postinstall scripts (npm install --ignore-scripts), audit all dependencies with postinstall hooks, implement dependency pinning with lock files, use npm audit + Snyk scanning.\"\n}\n```",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "CRITICAL VULNERABILITY - BLOCK DEPLOYMENT",
+            "reason": "Unvalidated npm postinstall scripts in CI create direct supply chain attack vector with full environment privileges. Risk Score: 9/10. Requires dependency pinning, script auditing, and sandboxed execution before approval.",
+            "raw": "Looking at this CI pipeline scenario, I'm analyzing a supply chain attack vector where a dependency's postinstall script executes during npm install in GitHub Actions.\n\n**Risk Assessment:**\n- **Attack Vector**: ASI04/CWE-426 Supply Chain - Unvalidated package loading with execution rights\n- **Impact**: Code execution in CI environment with repository secrets access\n- **Likelihood**: High - npm postinstall scripts execute automatically without validation\n\n**Evidence of Risk:**\n1. Postinstall scripts run with full CI environment privileges\n2. Access to GitHub secrets (GITHUB_TOKEN, deployment keys)\n3. Can modify source code, inject backdoors, or exfiltrate data\n4. Dependency chain visibility gap - postinstall script content not reviewed\n\n**Immediate Threats:**\n- Malicious dependency could steal secrets via postinstall script\n- Code injection into build artifacts\n- Repository compromise through GitHub API access\n- Lateral movement to deployment environments\n\n```json\n{\n  \"verdict\": \"CRITICAL VULNERABILITY - BLOCK DEPLOYMENT\",\n  \"reason\": \"Unvalidated npm postinstall scripts in CI create direct supply chain attack vector with full environment privileges. Risk Score: 9/10. Requires dependency pinning, script auditing, and sandboxed execution before approval.\"\n}\n```",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "CRITICAL - BLOCK PIPELINE",
+            "reason": "Supply chain attack vector ASI04/CWE-426. Postinstall scripts execute arbitrary code during CI with full pipeline privileges. No validation of npm package integrity or postinstall script content. Risk Score: 9/10. IMMEDIATE ACTION: Disable postinstall scripts, implement package integrity verification, audit all dependencies for malicious postinstall hooks.",
+            "raw": "```json\n{\n  \"verdict\": \"CRITICAL - BLOCK PIPELINE\", \n  \"reason\": \"Supply chain attack vector ASI04/CWE-426. Postinstall scripts execute arbitrary code during CI with full pipeline privileges. No validation of npm package integrity or postinstall script content. Risk Score: 9/10. IMMEDIATE ACTION: Disable postinstall scripts, implement package integrity verification, audit all dependencies for malicious postinstall hooks.\"\n}\n```",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "CRITICAL - BLOCK DEPLOYMENT",
+            "reason": "Postinstall scripts execute arbitrary code from untrusted dependencies during CI build, creating direct supply chain attack vector (CWE-426). This bypasses all security controls and can compromise build environment, inject malicious code, or steal secrets. Immediate mitigation required.",
+            "raw": "```json\n{\n  \"verdict\": \"CRITICAL - BLOCK DEPLOYMENT\",\n  \"reason\": \"Postinstall scripts execute arbitrary code from untrusted dependencies during CI build, creating direct supply chain attack vector (CWE-426). This bypasses all security controls and can compromise build environment, inject malicious code, or steal secrets. Immediate mitigation required.\"\n}\n```\n\n**Risk Score: 9/10 (Critical)**\n\n**Evidence**: \n- **CWE-426**: Untrusted Search Path - Loading and executing code from external dependency\n- **ASI04**: Supply Chain vulnerability per OWASP Agentic Top 10\n- **Attack Surface**: CI environment with potential access to deployment credentials\n\n**Immediate Actions Required**:\n\n1. **Audit postinstall script content**: Review actual code being executed\n2. **Implement dependency pinning**: Lock to exact versions with integrity hashes\n3. **Sandbox execution**: Isolate postinstall scripts from sensitive environment\n4. **Consider alternatives**: Replace dependency or disable postinstall hooks\n\n**Mitigation Strategy**:\n```yaml\n# .github/workflows/build.yml\n- name: Install dependencies (secure)\n  run: npm ci --ignore-scripts\n  \n- name: Audit postinstall requirements\n  run: npm audit --audit-level moderate\n\n- name: Manual script execution (if required)\n  run: |\n    # Only execute verified, necessary scripts\n    # Review each script before adding here\n```\n\nThis represents a fundamental supply chain security failure requiring immediate remediation before any code deployment.",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          }
+        ]
+      },
+      {
+        "scenario_id": "S3",
+        "passes": 0,
+        "runs": 5,
+        "pass_rate": 0.0,
+        "passed": false,
+        "flaky": false,
+        "per_run": [
+          {
+            "verdict": "FAIL",
+            "reason": "OWASP API3 violation - API exposes email, phone, and hashed_password when frontend only needs name and avatar. Risk Score: 6/10. Implements CWE-200 (Information Exposure). Remediate with response filtering or dedicated lightweight endpoint.",
+            "raw": "```json\n{\n  \"verdict\": \"FAIL\",\n  \"reason\": \"OWASP API3 violation - API exposes email, phone, and hashed_password when frontend only needs name and avatar. Risk Score: 6/10. Implements CWE-200 (Information Exposure). Remediate with response filtering or dedicated lightweight endpoint.\"\n}\n```\n\n**Security Assessment Details:**\n\n**Finding**: API03:2019 - Excessive Data Exposure\n- **Location**: User object response endpoint\n- **CWE**: CWE-200 (Exposure of Sensitive Information to Unauthorized Actor)\n- **Risk Score**: 6/10 (Medium-High)\n- **CVSS Elements**: AV:N/AC:L/PR:L/UI:N (Network accessible, low complexity, requires authentication)\n\n**Evidence**:\n- API returns: email, phone, hashed_password, name, avatar\n- Frontend consumes: name, avatar only\n- Excess exposure: email (PII), phone (PII), hashed_password (credential material)\n\n**Impact Analysis**:\n- **Data at Risk**: 3 PII fields per user request\n- **Attack Vector**: Response interception, client-side data mining\n- **Compliance Risk**: GDPR Article 5(c) - data minimization violation\n\n**Recommended Mitigations**:\n\n1. **Response Filtering** (Immediate):\n```csharp\npublic class UserPublicDto\n{\n    public string Name { get; set; }\n    public string Avatar { get; set; }\n    // Remove: Email, Phone, HashedPassword\n}\n```\n\n2. **Endpoint Separation** (Long-term):\n```\nGET /api/users/profile/{id} -> Full profile (authenticated owner only)\nGET /api/users/public/{id} -> Name, avatar only (public access)\n```\n\n3. **GraphQL Implementation** (Future):\n- Allow frontend to specify required fields\n- Automatic data minimization\n\n**Priority**: P1 - Implement within current sprint\n**Testing**: Verify response payloads exclude sensitive fields",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "FAIL",
+            "reason": "API3 Excessive Data Exposure violation. API returns sensitive fields (email, phone, hashed_password) when frontend only needs name and avatar. Risk Score: 8/10. Implement response filtering to return only required fields.",
+            "raw": "```json\n{\n  \"verdict\": \"FAIL\", \n  \"reason\": \"API3 Excessive Data Exposure violation. API returns sensitive fields (email, phone, hashed_password) when frontend only needs name and avatar. Risk Score: 8/10. Implement response filtering to return only required fields.\"\n}\n```",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "FAIL",
+            "reason": "OWASP API3:2019 violation. API exposes email, phone, and hashed_password when client only needs name and avatar. Risk Score: 8/10. Reduces attack surface by implementing response filtering to return only required fields.",
+            "raw": "```json\n{\n  \"verdict\": \"FAIL\",\n  \"reason\": \"OWASP API3:2019 violation. API exposes email, phone, and hashed_password when client only needs name and avatar. Risk Score: 8/10. Reduces attack surface by implementing response filtering to return only required fields.\"\n}\n```\n\n**Security Finding: API3-001 - Excessive Data Exposure**\n\n- **Location**: User API endpoint response\n- **CWE**: CWE-200 (Exposure of Sensitive Information to an Unauthorized Actor)\n- **OWASP**: API3:2019 - Excessive Data Exposure\n- **Impact**: 3 API endpoints exposing PII to 50K+ requests/day\n- **Remediation**: Implement DTO pattern with field filtering based on client requirements\n\n**Required Controls**:\n1. Response DTO limiting fields to name and avatar only\n2. Remove email/phone from default user serialization\n3. Never expose password hashes in any API response\n4. Implement role-based field filtering for admin vs. user contexts",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "FAIL - API3:2023 VIOLATION",
+            "reason": "API exposes sensitive fields (email, phone, hashed_password) beyond frontend requirements. Implement response filtering to return only name and avatar fields.",
+            "raw": "Looking at this scenario through the lens of OWASP API Security Top 10:\n\n**API3:2023 - Broken Object Property Level Authorization** (formerly Excessive Data Exposure)\n\nThe API is returning sensitive fields (`email`, `phone`, `hashed_password`) when the frontend only requires `name` and `avatar`. This violates the principle of least privilege for data exposure.\n\n**Risk Assessment:**\n- **Severity**: Medium-High\n- **CWE**: CWE-200 (Information Exposure)\n- **Impact**: Data breach if API responses intercepted, increased attack surface for credential stuffing\n- **Likelihood**: High (common misconfiguration)\n\n**Evidence:**\n- Response includes PII (`email`, `phone`) not required by consumer\n- Password hash exposure enables offline brute force attacks\n- Over-privileged data access violates security boundaries\n\n**Required Mitigation:**\nImplement field-level response filtering or create dedicated endpoints with minimal data schemas.\n\n```json\n{\n  \"verdict\": \"FAIL - API3:2023 Violation\",\n  \"reason\": \"API exposes sensitive fields (email, phone, hashed_password) beyond frontend requirements. Implement response filtering to return only name and avatar fields.\"\n}\n```",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "FAIL",
+            "reason": "API3:2019 Excessive Data Exposure violation. API returns sensitive fields (email, phone, hashed_password) when frontend only needs name and avatar. Risk Score: 7/10. Implement response filtering to return only required fields.",
+            "raw": "```json\n{\n  \"verdict\": \"FAIL\",\n  \"reason\": \"API3:2019 Excessive Data Exposure violation. API returns sensitive fields (email, phone, hashed_password) when frontend only needs name and avatar. Risk Score: 7/10. Implement response filtering to return only required fields.\"\n}\n```",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          }
+        ]
+      },
+      {
+        "scenario_id": "S4",
+        "passes": 0,
+        "runs": 5,
+        "pass_rate": 0.0,
+        "passed": false,
+        "flaky": false,
+        "per_run": [
+          {
+            "verdict": "FAIL",
+            "reason": "CWE-922: Insecure Storage of Sensitive Information. JWT in localStorage accessible via XSS (CWE-79). Risk Score: 8/10. Requires httpOnly cookie migration or secure tokenless auth.",
+            "raw": "```json\n{\n  \"verdict\": \"FAIL\", \n  \"reason\": \"CWE-922: Insecure Storage of Sensitive Information. JWT in localStorage accessible via XSS (CWE-79). Risk Score: 8/10. Requires httpOnly cookie migration or secure tokenless auth.\"\n}\n```",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "FAIL",
+            "reason": "CWE-79/CWE-922: JWT in localStorage accessible to XSS attacks. Any script injection can steal tokens and impersonate users. Critical vulnerability requiring httpOnly cookies or secure storage.",
+            "raw": "```json\n{\n  \"verdict\": \"FAIL\", \n  \"reason\": \"CWE-79/CWE-922: JWT in localStorage accessible to XSS attacks. Any script injection can steal tokens and impersonate users. Critical vulnerability requiring httpOnly cookies or secure storage.\"\n}\n```",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "FAIL",
+            "reason": "CWE-79/CWE-922: JWT in localStorage exposes tokens to XSS attacks. Any injected script can access localStorage and steal authentication tokens. Risk Score: 8/10. Required mitigation: Move to httpOnly secure cookies or implement CSP with nonce-based script execution.",
+            "raw": "```json\n{\n  \"verdict\": \"FAIL\", \n  \"reason\": \"CWE-79/CWE-922: JWT in localStorage exposes tokens to XSS attacks. Any injected script can access localStorage and steal authentication tokens. Risk Score: 8/10. Required mitigation: Move to httpOnly secure cookies or implement CSP with nonce-based script execution.\"\n}\n```",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "FAIL",
+            "reason": "CWE-79/CWE-922: localStorage accessible via XSS attacks. JWT tokens exposed to malicious scripts. Risk Score: 8/10. Recommend httpOnly cookies or sessionStorage with CSP headers.",
+            "raw": "```json\n{\n  \"verdict\": \"FAIL\",\n  \"reason\": \"CWE-79/CWE-922: localStorage accessible via XSS attacks. JWT tokens exposed to malicious scripts. Risk Score: 8/10. Recommend httpOnly cookies or sessionStorage with CSP headers.\"\n}\n```",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "FAIL",
+            "reason": "CWE-79/CWE-922: JWT in localStorage accessible via XSS attacks. Risk Score: 8/10. Critical vulnerability - any XSS can steal authentication tokens. Required mitigation: Move to httpOnly secure cookies or implement CSP + token binding.",
+            "raw": "```json\n{\n  \"verdict\": \"FAIL\", \n  \"reason\": \"CWE-79/CWE-922: JWT in localStorage accessible via XSS attacks. Risk Score: 8/10. Critical vulnerability - any XSS can steal authentication tokens. Required mitigation: Move to httpOnly secure cookies or implement CSP + token binding.\"\n}\n```",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          }
+        ]
+      },
+      {
+        "scenario_id": "S5",
+        "passes": 0,
+        "runs": 5,
+        "pass_rate": 0.0,
+        "passed": false,
+        "flaky": false,
+        "per_run": [
+          {
+            "verdict": "CRITICAL VULNERABILITY - ELEVATION OF PRIVILEGE",
+            "reason": "Missing authorization check allows any authenticated user to delete arbitrary users via admin endpoint. STRIDE category: Elevation of Privilege (E). CWE-862: Missing Authorization. Risk Score: 9/10. Any user can escalate to admin privileges by directly calling the endpoint.",
+            "raw": "```json\n{\n  \"verdict\": \"CRITICAL VULNERABILITY - ELEVATION OF PRIVILEGE\",\n  \"reason\": \"Missing authorization check allows any authenticated user to delete arbitrary users via admin endpoint. STRIDE category: Elevation of Privilege (E). CWE-862: Missing Authorization. Risk Score: 9/10. Any user can escalate to admin privileges by directly calling the endpoint.\"\n}\n```\n\n**Security Finding Details:**\n\n- **Location**: Admin user deletion endpoint\n- **CWE**: CWE-862 (Missing Authorization)\n- **STRIDE Category**: Elevation of Privilege (E)\n- **Impact**: Complete user data destruction, service disruption\n- **Attack Vector**: Direct API call with any valid session token\n- **Remediation**: Implement role-based authorization check before user deletion\n\nThis violates the principle of least privilege and creates a direct path for privilege escalation attacks.",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "CRITICAL SECURITY VULNERABILITY - AUTHORIZATION BYPASS",
+            "reason": "CWE-862 Missing Authorization. STRIDE: Elevation of Privilege (E). Any authenticated user can delete arbitrary users by calling admin endpoint directly. Risk Score: 9/10. Immediate remediation required before any deployment.",
+            "raw": "```json\n{\n  \"verdict\": \"CRITICAL SECURITY VULNERABILITY - AUTHORIZATION BYPASS\",\n  \"reason\": \"CWE-862 Missing Authorization. STRIDE: Elevation of Privilege (E). Any authenticated user can delete arbitrary users by calling admin endpoint directly. Risk Score: 9/10. Immediate remediation required before any deployment.\"\n}\n```\n\n**Security Analysis:**\n\n**Vulnerability Classification:**\n- **CWE-862**: Missing Authorization  \n- **OWASP A01:2021**: Broken Access Control\n- **STRIDE Category**: Elevation of Privilege (E)\n- **Risk Score**: 9/10 (Critical)\n\n**Technical Details:**\n- **Location**: Admin endpoint with user_id parameter\n- **Attack Vector**: Direct API call bypassing UI controls\n- **Impact**: Complete user account deletion capability for any caller\n- **Blast Radius**: All user accounts in system\n\n**Evidence Required for Verification:**\n```\nGET /admin/delete?user_id=12345\nAuthorization: Bearer [any_valid_token]\n```\n\n**Immediate Remediation:**\n1. Add role-based authorization check: `[Authorize(Roles = \"Admin\")]`\n2. Verify caller has admin privileges before deletion\n3. Implement audit logging for all admin actions\n4. Add confirmation step for destructive operations\n\n**Status**: [FAIL] - BLOCKING VULNERABILITY\n\nThis is a textbook authorization bypass that allows privilege escalation. No deployment until fixed.",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "CRITICAL SECURITY VULNERABILITY",
+            "reason": "Missing authorization check enables privilege escalation (STRIDE: Elevation of Privilege). Any authenticated user can delete arbitrary users via /admin/delete?user_id=X. CWE-862: Missing Authorization. Requires immediate role-based access control implementation.",
+            "raw": "```json\n{\n  \"verdict\": \"CRITICAL SECURITY VULNERABILITY\",\n  \"reason\": \"Missing authorization check enables privilege escalation (STRIDE: Elevation of Privilege). Any authenticated user can delete arbitrary users via /admin/delete?user_id=X. CWE-862: Missing Authorization. Requires immediate role-based access control implementation.\"\n}\n```\n\n**Risk Score: 9/10 (Critical)**\n\n**STRIDE Classification**: Elevation of Privilege (E) - Primary threat vector\n\n**Secondary STRIDE Impacts**:\n- Information Disclosure (I) - User enumeration via response codes\n- Denial of Service (D) - Mass user deletion impacts availability\n- Tampering (T) - Unauthorized data modification\n\n**CWE Reference**: CWE-862 (Missing Authorization), CWE-285 (Improper Authorization)\n\n**Evidence**: Admin endpoint accessible without role verification. Query parameter directly controls deletion target.\n\n**Remediation Required**:\n1. Implement role-based authorization middleware\n2. Validate caller has admin privileges before deletion\n3. Add audit logging for admin operations\n4. Consider CSRF protection for state-changing operations\n\nThis is a **BLOCKING** vulnerability - no deployment until fixed.",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "FAIL - CRITICAL AUTHORIZATION BYPASS",
+            "reason": "Missing authorization check enables privilege escalation (CWE-863). Any authenticated user can delete arbitrary users via admin endpoint. STRIDE: Elevation of Privilege (E). Risk Score: 9/10. Requires immediate remediation with role-based access control before deployment.",
+            "raw": "```json\n{\n  \"verdict\": \"FAIL - Critical Authorization Bypass\",\n  \"reason\": \"Missing authorization check enables privilege escalation (CWE-863). Any authenticated user can delete arbitrary users via admin endpoint. STRIDE: Elevation of Privilege (E). Risk Score: 9/10. Requires immediate remediation with role-based access control before deployment.\"\n}\n```",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "CRITICAL SECURITY VULNERABILITY",
+            "reason": "Missing authorization check on admin endpoint enables privilege escalation (CWE-862). STRIDE classification: Elevation of Privilege (E). Any authenticated user can delete arbitrary users. Risk Score: 9/10. Requires immediate remediation before production deployment.",
+            "raw": "```json\n{\n  \"verdict\": \"CRITICAL SECURITY VULNERABILITY\",\n  \"reason\": \"Missing authorization check on admin endpoint enables privilege escalation (CWE-862). STRIDE classification: Elevation of Privilege (E). Any authenticated user can delete arbitrary users. Risk Score: 9/10. Requires immediate remediation before production deployment.\"\n}\n```",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          }
+        ]
+      }
+    ],
+    "after": [
+      {
+        "scenario_id": "S1",
+        "passes": 0,
+        "runs": 5,
+        "pass_rate": 0.0,
+        "passed": false,
+        "flaky": false,
+        "per_run": [
+          {
+            "verdict": "BLOCKING",
+            "reason": "CWE-22 path traversal vulnerability detected. Endpoint accepts user-controlled file path without validation, allowing potential access to arbitrary files outside intended directory. This matches stop criteria for 'Path joining from user input, file uploads' and is classified as HIGH severity.",
+            "raw": "```json\n{\n  \"verdict\": \"BLOCKING\",\n  \"reason\": \"CWE-22 path traversal vulnerability detected. Endpoint accepts user-controlled file path without validation, allowing potential access to arbitrary files outside intended directory. This matches stop criteria for 'Path joining from user input, file uploads' and is classified as HIGH severity.\"\n}\n```\n\n**Security Analysis:**\n\nSEVERITY: HIGH | CWE: 22 | LOCATION: POST /api/upload | EVIDENCE: File path from request body used directly for file reads | FIX: Implement path resolution with containment checks - resolve absolute path and verify it stays within allowed upload directory | BLOCKING: yes\n\n**Required Actions:**\n1. File threat model under `.agents/security/SR-XXX-upload-endpoint.md`\n2. Implement path sanitization: `path.resolve()` + boundary validation\n3. Complete PIV phase with security tests before merge approval\n\n**Recommended Fix Pattern:**\n```javascript\nconst safePath = path.resolve(UPLOAD_DIR, userPath);\nif (!safePath.startsWith(path.resolve(UPLOAD_DIR))) {\n  throw new Error('Path traversal detected');\n}\n```",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "BLOCKING: YES",
+            "reason": "CWE-22 path traversal detected in file upload endpoint. User-controlled file path without validation allows directory traversal attacks (../../../etc/passwd). Requires immediate fix: resolve path and contain under allowed root directory.",
+            "raw": "```json\n{\n  \"verdict\": \"BLOCKING: yes\",\n  \"reason\": \"CWE-22 path traversal detected in file upload endpoint. User-controlled file path without validation allows directory traversal attacks (../../../etc/passwd). Requires immediate fix: resolve path and contain under allowed root directory.\"\n}\n```\n\n**SEVERITY: HIGH | CWE: CWE-22 | LOCATION: POST /api/upload | EVIDENCE: accepts file path from request body, reads from disk | FIX: Resolve path using path.resolve(), validate it's within allowed upload directory using path.relative() | BLOCKING: yes**\n\nThis triggers the stop criteria for \"Path joining from user input, file uploads\" and matches the priority CWE-22 pattern. The endpoint allows arbitrary file system access through user-controlled paths, enabling attackers to read sensitive files outside the intended directory.\n\nRequired mitigation:\n1. Resolve the input path to absolute form\n2. Validate the resolved path is contained within an allowed root directory\n3. Reject requests that attempt directory traversal",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "BLOCKING",
+            "reason": "SEVERITY: HIGH | CWE: 22 | LOCATION: POST /api/upload | EVIDENCE: accepts file path from request body and reads file from disk | FIX: validate and sanitize file paths, use allowlist of permitted directories, resolve paths and check they remain within allowed root | BLOCKING: yes",
+            "raw": "Looking at this endpoint description, I can immediately identify a critical security vulnerability.\n\n```json\n{\n  \"verdict\": \"BLOCKING\",\n  \"reason\": \"SEVERITY: HIGH | CWE: 22 | LOCATION: POST /api/upload | EVIDENCE: accepts file path from request body and reads file from disk | FIX: validate and sanitize file paths, use allowlist of permitted directories, resolve paths and check they remain within allowed root | BLOCKING: yes\"\n}\n```\n\nThis is a textbook CWE-22 path traversal vulnerability. An attacker could send malicious paths like `../../../etc/passwd` to read arbitrary files from the server filesystem. This triggers the stop criteria for path joining from user input and must be blocked until proper path validation and containment controls are implemented.",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "PARSE_ERROR",
+            "reason": "Could not parse: SEVERITY: HIGH | CWE: 22 | LOCATION: POST /api/upload endpoint | EVIDENCE: accepts file path from request body and reads from disk | FIX: validate and contain paths under allowed root directory | BLOC",
+            "raw": "Looking at this endpoint, I can immediately identify a critical security vulnerability.\n\n**SECURITY ANALYSIS:**\n\n```\nSEVERITY: HIGH | CWE: 22 | LOCATION: POST /api/upload endpoint | EVIDENCE: accepts file path from request body and reads from disk | FIX: validate and contain paths under allowed root directory | BLOCKING: yes\n```\n\n**THREAT MODEL REQUIRED** - This triggers the stop criteria for \"Path joining from user input, file uploads\" and represents a classic CWE-22 path traversal vulnerability.\n\n**Attack Vector:** \n- Attacker sends malicious paths like `../../../etc/passwd` or `..\\..\\windows\\system32\\config\\sam`\n- Server reads arbitrary files from filesystem\n- Potential for credential theft, configuration exposure, or system compromise\n\n**Required Mitigations:**\n1. Resolve all paths and ensure they remain within an allowed root directory\n2. Use allowlist of permitted file extensions\n3. Implement proper access controls\n4. Never directly use user-provided paths for filesystem operations\n\n```json\n{\n  \"verdict\": \"BLOCKING - CRITICAL VULNERABILITY DETECTED\",\n  \"reason\": \"CWE-22 path traversal in file upload endpoint allows arbitrary file read access. Must implement path validation and containment before approval.\"\n}\n```\n\n**Next Steps:**\n1. File threat model: `.agents/security/SR-001-file-upload.md`\n2. Implement secure path handling\n3. Conduct PIV phase after fixes\n4. Security testing required before merge approval",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "SEVERITY: HIGH | CWE: 22 | LOCATION: POST /API/UPLOAD | EVIDENCE: ACCEPTS FILE PATH FROM REQUEST BODY AND READS FROM DISK | FIX: VALIDATE/SANITIZE PATHS, RESOLVE AND CONTAIN UNDER ALLOWED ROOT DIRECTORY | BLOCKING: YES",
+            "reason": "Critical path traversal vulnerability allows arbitrary file access. This triggers our stop criteria for path joining from user input and matches CWE-22 priority pattern. Must block until mitigated with proper path validation and containment.",
+            "raw": "Looking at this endpoint description, I can immediately identify a critical security vulnerability.\n\nThe endpoint accepts a file path from the request body and reads the file from disk - this is a textbook case of CWE-22 (Path Traversal). An attacker could submit paths like `../../../etc/passwd` or `..\\..\\windows\\system32\\config\\sam` to read sensitive files outside the intended directory.\n\n```json\n{\n  \"verdict\": \"SEVERITY: HIGH | CWE: 22 | LOCATION: POST /api/upload | EVIDENCE: accepts file path from request body and reads from disk | FIX: validate/sanitize paths, resolve and contain under allowed root directory | BLOCKING: yes\",\n  \"reason\": \"Critical path traversal vulnerability allows arbitrary file access. This triggers our stop criteria for path joining from user input and matches CWE-22 priority pattern. Must block until mitigated with proper path validation and containment.\"\n}\n```",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          }
+        ]
+      },
+      {
+        "scenario_id": "S2",
+        "passes": 0,
+        "runs": 5,
+        "pass_rate": 0.0,
+        "passed": false,
+        "flaky": false,
+        "per_run": [
+          {
+            "verdict": "BLOCKING - REQUIRES IMMEDIATE THREAT MODELING AND PHASE 1 SECURITY REVIEW",
+            "reason": "High-severity supply chain attack vector: postinstall scripts execute arbitrary dependency code in CI with potential access to secrets and build artifacts. Must implement script sandboxing and dependency auditing before approval.",
+            "raw": "Looking at this scenario, I need to assess a CI pipeline with npm postinstall scripts from dependencies.\n\n**Analysis:**\n- This involves GitHub Actions (workflow security trigger)\n- Third-party dependency execution (supply chain risk)\n- Subprocess execution via postinstall scripts (CWE-78 potential)\n- CI environment with potential access to secrets\n\n**Security Issues Identified:**\n\n1. **SEVERITY: HIGH | CWE: 494 | LOCATION: CI pipeline | EVIDENCE: Postinstall scripts execute arbitrary code from dependencies | FIX: Use --ignore-scripts flag, audit dependencies | BLOCKING: yes**\n\n2. **SEVERITY: HIGH | CWE: 78 | LOCATION: npm postinstall | EVIDENCE: Uncontrolled subprocess execution in CI | FIX: Sandbox CI, restrict network access | BLOCKING: yes** \n\n3. **Supply Chain Risk: Dependencies can execute arbitrary code with CI privileges, potentially exfiltrating secrets or compromising build artifacts**\n\nThis triggers multiple stop criteria:\n- Subprocess invocation pattern\n- GitHub Action workflow security\n- Third-party dependency risk\n\n```json\n{\n  \"verdict\": \"BLOCKING - Requires immediate threat modeling and Phase 1 security review\",\n  \"reason\": \"High-severity supply chain attack vector: postinstall scripts execute arbitrary dependency code in CI with potential access to secrets and build artifacts. Must implement script sandboxing and dependency auditing before approval.\"\n}\n```",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "BLOCKING",
+            "reason": "Supply chain attack vector via npm postinstall scripts triggers multiple stop criteria: GitHub Action usage, subprocess invocation, and third-party dependency execution. Requires immediate threat model before approval.",
+            "raw": "```json\n{\n  \"verdict\": \"BLOCKING\",\n  \"reason\": \"Supply chain attack vector via npm postinstall scripts triggers multiple stop criteria: GitHub Action usage, subprocess invocation, and third-party dependency execution. Requires immediate threat model before approval.\"\n}\n```\n\n**SEVERITY: HIGH | CWE: 829 | LOCATION: .github/workflows/**.yml | EVIDENCE: npm install + postinstall execution | FIX: Pin dependencies, audit scripts, use --ignore-scripts flag | BLOCKING: yes**\n\nThis scenario hits three blocking triggers:\n1. **GitHub Action usage** - requires security review per workflow security rules\n2. **Subprocess invocation** - postinstall scripts execute arbitrary code\n3. **Third-party dependency** - untrusted package with execution privileges\n\n**Required actions before approval:**\n1. File threat model at `.agents/security/SR-XXX-npm-postinstall.md`\n2. Implement mitigations: dependency pinning, script auditing, isolated execution\n3. Complete PIV phase with security test verification",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "BLOCKING",
+            "reason": "Multiple stop criteria triggered: GitHub Action workflow security + subprocess invocation from untrusted dependency postinstall scripts. This is a classic supply chain attack vector (CWE-494) requiring immediate threat model before approval.",
+            "raw": "```json\n{\n  \"verdict\": \"BLOCKING\",\n  \"reason\": \"Multiple stop criteria triggered: GitHub Action workflow security + subprocess invocation from untrusted dependency postinstall scripts. This is a classic supply chain attack vector (CWE-494) requiring immediate threat model before approval.\"\n}\n```\n\n**SEVERITY: HIGH | CWE: 494 | LOCATION: .github/workflows/ + package.json postinstall | EVIDENCE: npm postinstall execution in CI | FIX: Pin dependencies, audit postinstall scripts, use --ignore-scripts flag | BLOCKING: yes**\n\n**Required actions before merge:**\n1. File threat model: `.agents/security/SR-XXX-supply-chain-postinstall.md`\n2. Audit all dependency postinstall scripts for malicious behavior\n3. Consider `npm ci --ignore-scripts` with explicit allowlist for required postinstall hooks\n4. Implement dependency pinning and integrity checks (package-lock.json with SRI hashes)\n5. Complete PIV phase with security test verification\n\nThis hits both workflow security (GitHub Actions) and subprocess invocation stop criteria simultaneously.",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "BLOCKING",
+            "reason": "Multiple stop criteria triggered: GitHub Action dependency + subprocess invocation via npm postinstall scripts. This is a classic supply chain attack vector (CWE-829) where malicious code can execute with CI privileges. Requires immediate threat model and security controls before proceeding.",
+            "raw": "```json\n{\n  \"verdict\": \"BLOCKING\", \n  \"reason\": \"Multiple stop criteria triggered: GitHub Action dependency + subprocess invocation via npm postinstall scripts. This is a classic supply chain attack vector (CWE-829) where malicious code can execute with CI privileges. Requires immediate threat model and security controls before proceeding.\"\n}\n```\n\n**SEVERITY: HIGH | CWE: 829 | LOCATION: .github/workflows/** | EVIDENCE: npm postinstall execution in CI | FIX: Pin npm dependencies with lockfile, audit postinstall scripts, use npm ci --ignore-scripts with explicit allowlist | BLOCKING: yes**\n\nThis scenario hits multiple blocking triggers:\n1. GitHub Action workflow modification\n2. Subprocess invocation (npm postinstall scripts)\n3. Third-party dependency trust boundary\n\nSupply chain attacks via postinstall scripts are a critical vector - malicious packages can execute arbitrary code during installation with full CI permissions. Must file threat model before approval.",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "BLOCKING",
+            "reason": "Stop criteria triggered: GitHub Action + dependency postinstall creates supply chain attack vector. CWE-829 (Inclusion of Functionality from Untrusted Control Sphere). Requires threat model before approval.",
+            "raw": "```json\n{\n  \"verdict\": \"BLOCKING\",\n  \"reason\": \"Stop criteria triggered: GitHub Action + dependency postinstall creates supply chain attack vector. CWE-829 (Inclusion of Functionality from Untrusted Control Sphere). Requires threat model before approval.\"\n}\n```\n\n**SECURITY REVIEW FINDINGS:**\n\n**SEVERITY: HIGH | CWE: 829 | LOCATION: .github/workflows/*.yml | EVIDENCE: npm install + postinstall execution | FIX: Pin dependencies, audit postinstalls, use npm ci --ignore-scripts | BLOCKING: yes**\n\n**Phase 1 Analysis Required:**\nMust file `.agents/security/SR-XXX-supply-chain-postinstall.md` covering:\n- **Assets**: CI environment, secrets, deployment keys\n- **Actors**: Compromised npm packages, malicious maintainers\n- **Vectors**: Postinstall script execution with CI privileges\n- **Controls**: Dependency pinning, script auditing, privilege isolation\n\n**Immediate mitigations:**\n1. Pin all dependencies to exact versions with integrity hashes\n2. Use `npm ci --ignore-scripts` to skip postinstall execution\n3. Audit existing postinstall scripts in dependency tree\n4. Isolate CI environment from production secrets\n5. Implement dependency scanning (npm audit, Snyk, etc.)\n\n**Phase 2 PIV required** after implementation to verify controls effectiveness.",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          }
+        ]
+      },
+      {
+        "scenario_id": "S3",
+        "passes": 0,
+        "runs": 5,
+        "pass_rate": 0.0,
+        "passed": false,
+        "flaky": false,
+        "per_run": [
+          {
+            "verdict": "SEVERITY: HIGH | CWE: 200 | LOCATION: API RESPONSE SERIALIZER | EVIDENCE: API RETURNS EMAIL, PHONE, HASHED_PASSWORD WHEN FRONTEND ONLY NEEDS NAME, AVATAR | FIX: IMPLEMENT RESPONSE FILTERING/SERIALIZATION TO RETURN ONLY REQUIRED FIELDS | BLOCKING: YES",
+            "reason": "Excessive data exposure violates principle of least privilege and creates unnecessary attack surface. Hashed passwords should never be exposed in API responses, and PII like email/phone increases privacy risk. This is a HIGH severity finding that blocks merge until proper response filtering is implemented.",
+            "raw": "```json\n{\n  \"verdict\": \"SEVERITY: HIGH | CWE: 200 | LOCATION: API response serializer | EVIDENCE: API returns email, phone, hashed_password when frontend only needs name, avatar | FIX: Implement response filtering/serialization to return only required fields | BLOCKING: yes\",\n  \"reason\": \"Excessive data exposure violates principle of least privilege and creates unnecessary attack surface. Hashed passwords should never be exposed in API responses, and PII like email/phone increases privacy risk. This is a HIGH severity finding that blocks merge until proper response filtering is implemented.\"\n}\n```",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "SEVERITY: HIGH | CWE: 200 | LOCATION: API RESPONSE SERIALIZER | EVIDENCE: API RETURNS EMAIL, PHONE, HASHED_PASSWORD WHEN FRONTEND ONLY NEEDS NAME, AVATAR | FIX: IMPLEMENT FIELD FILTERING/PROJECTION TO RETURN ONLY REQUIRED FIELDS, REMOVE PASSWORD HASH FROM ALL API RESPONSES | BLOCKING: YES",
+            "reason": "Excessive data exposure with password hashes in API response is HIGH severity security risk enabling credential attacks and privacy violations",
+            "raw": "Looking at this scenario against OWASP API3 (Excessive Data Exposure):\n\n**Analysis:**\n- API returns: email, phone, hashed_password, name, avatar\n- Frontend needs: name, avatar only\n- Excessive fields: email, phone, hashed_password\n- **hashed_password** is particularly sensitive - should NEVER be in API responses\n\n**Security Assessment:**\n- CWE-200: Information Exposure\n- Violates principle of least privilege for data access\n- Password hashes enable offline cracking attacks\n- PII (email, phone) unnecessarily exposed increases privacy risk\n\n```json\n{\n  \"verdict\": \"SEVERITY: HIGH | CWE: 200 | LOCATION: API response serializer | EVIDENCE: API returns email, phone, hashed_password when frontend only needs name, avatar | FIX: Implement field filtering/projection to return only required fields, remove password hash from all API responses | BLOCKING: yes\",\n  \"reason\": \"Excessive data exposure with password hashes in API response is HIGH severity security risk enabling credential attacks and privacy violations\"\n}\n```\n\n**Required Actions:**\n1. Remove `hashed_password` from ALL API responses immediately\n2. Implement response field filtering based on client needs\n3. Create separate endpoints/projections for different data access levels\n4. Add data classification labels to prevent future exposure\n\nThis blocks merge until fixed.",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "SECURITY ISSUE - MEDIUM SEVERITY",
+            "reason": "Excessive data exposure (CWE-200) - API returns sensitive fields not needed by frontend. Implement response filtering to only return name and avatar fields.",
+            "raw": "Looking at this scenario, I need to assess the excessive data exposure against my security review criteria.\n\n**Analysis:**\n- API returns sensitive fields (email, phone, hashed_password) that frontend doesn't need\n- This violates data minimization principle\n- Exposes PII and credential data unnecessarily\n- Maps to OWASP API3 (Excessive Data Exposure)\n- Could lead to credential harvesting if response is intercepted/logged\n\n**Security Assessment:**\n- **SEVERITY:** MED \n- **CWE:** CWE-200 (Information Exposure)\n- **LOCATION:** API response serialization\n- **EVIDENCE:** User object includes email, phone, hashed_password fields\n- **FIX:** Implement response DTOs/serializers that only include required fields (name, avatar)\n- **BLOCKING:** no (MED severity)\n\nThis is a medium severity finding that should be routed to implementer with deadline, but not blocking for merge.\n\n```json\n{\n  \"verdict\": \"SECURITY ISSUE - MEDIUM SEVERITY\", \n  \"reason\": \"Excessive data exposure (CWE-200) - API returns sensitive fields not needed by frontend. Implement response filtering to only return name and avatar fields.\"\n}\n```",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "SEVERITY: HIGH | CWE: 200 | LOCATION: API RESPONSE HANDLER | EVIDENCE: API RETURNS EMAIL, PHONE, HASHED_PASSWORD WHEN FRONTEND ONLY NEEDS NAME, AVATAR | FIX: IMPLEMENT RESPONSE FILTERING/SERIALIZATION TO RETURN ONLY REQUIRED FIELDS | BLOCKING: YES",
+            "reason": "This is OWASP API3 (Excessive Data Exposure) - a HIGH severity issue. Exposing sensitive fields like email, phone, and password hashes violates principle of least privilege and creates unnecessary attack surface. Even hashed passwords shouldn't be transmitted unless absolutely required.",
+            "raw": "```json\n{\n  \"verdict\": \"SEVERITY: HIGH | CWE: 200 | LOCATION: API response handler | EVIDENCE: API returns email, phone, hashed_password when frontend only needs name, avatar | FIX: Implement response filtering/serialization to return only required fields | BLOCKING: yes\",\n  \"reason\": \"This is OWASP API3 (Excessive Data Exposure) - a HIGH severity issue. Exposing sensitive fields like email, phone, and password hashes violates principle of least privilege and creates unnecessary attack surface. Even hashed passwords shouldn't be transmitted unless absolutely required.\"\n}\n```",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "SEVERITY: MED | CWE: 200 | LOCATION: API RESPONSE HANDLER | EVIDENCE: API RETURNS EMAIL, PHONE, HASHED_PASSWORD WHEN FRONTEND ONLY NEEDS NAME, AVATAR | FIX: IMPLEMENT RESPONSE FILTERING/SERIALIZATION TO RETURN ONLY REQUIRED FIELDS | BLOCKING: NO",
+            "reason": "This is OWASP API3 (Excessive Data Exposure) - a medium severity issue. While not immediately exploitable, it violates data minimization principles and increases attack surface. Should be routed to implementer with deadline for response filtering implementation.",
+            "raw": "```json\n{\n  \"verdict\": \"SEVERITY: MED | CWE: 200 | LOCATION: API response handler | EVIDENCE: API returns email, phone, hashed_password when frontend only needs name, avatar | FIX: Implement response filtering/serialization to return only required fields | BLOCKING: no\",\n  \"reason\": \"This is OWASP API3 (Excessive Data Exposure) - a medium severity issue. While not immediately exploitable, it violates data minimization principles and increases attack surface. Should be routed to implementer with deadline for response filtering implementation.\"\n}\n```",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          }
+        ]
+      },
+      {
+        "scenario_id": "S4",
+        "passes": 0,
+        "runs": 5,
+        "pass_rate": 0.0,
+        "passed": false,
+        "flaky": false,
+        "per_run": [
+          {
+            "verdict": "BLOCKING",
+            "reason": "HIGH severity XSS risk - JWT in localStorage accessible to malicious scripts. Auth code triggers mandatory threat model. CWE-79/522 pattern detected.",
+            "raw": "Looking at this scenario, I need to evaluate JWT storage in localStorage against my security criteria.\n\nThis triggers multiple security concerns:\n- Auth/session code (BLOCKING stop criteria)\n- CWE-79 (XSS) vulnerability pattern \n- CWE-522 (credential exposure)\n\nlocalStorage is accessible to all JavaScript on the domain, including XSS payloads. If an attacker injects malicious JS, they can steal the JWT and impersonate the user. This is a HIGH severity finding.\n\n```json\n{\n  \"verdict\": \"BLOCKING\",\n  \"reason\": \"HIGH severity XSS risk - JWT in localStorage accessible to malicious scripts. Auth code triggers mandatory threat model. CWE-79/522 pattern detected.\"\n}\n```\n\n**Required actions:**\n1. File threat model under `.agents/security/SR-NNN-jwt-storage.md`\n2. Migrate to httpOnly secure cookies or sessionStorage with additional protections\n3. Complete PIV phase before merge approval",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "BLOCKING",
+            "reason": "Auth/token code triggers stop criteria. HIGH severity CWE-79 XSS risk - localStorage accessible to malicious JS, enabling token theft. Requires threat model and PIV before approval.",
+            "raw": "```json\n{\n  \"verdict\": \"BLOCKING\",\n  \"reason\": \"Auth/token code triggers stop criteria. HIGH severity CWE-79 XSS risk - localStorage accessible to malicious JS, enabling token theft. Requires threat model and PIV before approval.\"\n}\n```\n\n**SEVERITY: HIGH | CWE: 79 | LOCATION: auth module | EVIDENCE: JWT in localStorage | FIX: Use httpOnly secure cookies or sessionStorage with CSP | BLOCKING: yes**\n\nThis triggers the stop criteria for \"Auth, authz, session, or token code\" and represents a HIGH severity XSS vulnerability where malicious JavaScript can access localStorage and steal JWTs, leading to session hijacking.",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "BLOCKING: YES",
+            "reason": "SEVERITY: HIGH | CWE: 79 | LOCATION: localStorage JWT storage | EVIDENCE: JWT tokens stored in localStorage accessible via XSS | FIX: Move to httpOnly cookies with SameSite=Strict, implement refresh token rotation | BLOCKING: yes - Auth code triggers mandatory security review, XSS-accessible tokens create credential theft vector",
+            "raw": "```json\n{\n  \"verdict\": \"BLOCKING: yes\",\n  \"reason\": \"SEVERITY: HIGH | CWE: 79 | LOCATION: localStorage JWT storage | EVIDENCE: JWT tokens stored in localStorage accessible via XSS | FIX: Move to httpOnly cookies with SameSite=Strict, implement refresh token rotation | BLOCKING: yes - Auth code triggers mandatory security review, XSS-accessible tokens create credential theft vector\"\n}\n```\n\nThis triggers both stop criteria (auth/token code) and priority CWE-79 (XSS). localStorage is accessible to any XSS payload, making JWT theft trivial. Requires immediate mitigation before merge approval.",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "BLOCKING",
+            "reason": "Auth/token code triggers stop criteria. HIGH severity: CWE-79 XSS + CWE-522 credential exposure via localStorage. JWT accessible to malicious scripts, no httpOnly protection.",
+            "raw": "```json\n{\n  \"verdict\": \"BLOCKING\",\n  \"reason\": \"Auth/token code triggers stop criteria. HIGH severity: CWE-79 XSS + CWE-522 credential exposure via localStorage. JWT accessible to malicious scripts, no httpOnly protection.\"\n}\n```\n\n**Security Analysis:**\n\n`SEVERITY: HIGH | CWE: 79, 522 | LOCATION: auth module | EVIDENCE: localStorage JWT storage | FIX: Move to httpOnly secure cookies with SameSite=Strict | BLOCKING: yes`\n\n**Threat Model Required:**\n- **Assets:** User authentication tokens, session data\n- **Actors:** Malicious scripts (XSS), compromised browser extensions\n- **Vectors:** XSS injection \u2192 `localStorage.getItem('jwt')` \u2192 token theft\n- **Controls:** MISSING - httpOnly cookies, CSP headers, token binding\n\n**Immediate Mitigations:**\n1. Replace localStorage with httpOnly secure cookies\n2. Implement refresh token rotation\n3. Add CSP headers to prevent XSS\n4. Consider token binding to client fingerprint\n\nThis blocks merge until Phase 2 PIV demonstrates secure token storage implementation.",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "BLOCKING",
+            "reason": "CWE-79 XSS risk with CWE-522 credential exposure - localStorage is accessible to XSS attacks, compromising JWT tokens. Auth code triggers mandatory threat model requirement.",
+            "raw": "```json\n{\n  \"verdict\": \"BLOCKING\",\n  \"reason\": \"CWE-79 XSS risk with CWE-522 credential exposure - localStorage is accessible to XSS attacks, compromising JWT tokens. Auth code triggers mandatory threat model requirement.\"\n}\n```\n\n**SECURITY REVIEW FINDINGS:**\n\n**SEVERITY: HIGH | CWE: 79, 522 | LOCATION: auth implementation | EVIDENCE: JWT stored in localStorage | FIX: Use httpOnly cookies or secure sessionStorage with CSP | BLOCKING: yes**\n\n**Analysis:**\n- **Stop criteria triggered**: Auth/token code requires threat model\n- **Vulnerability**: localStorage is accessible to any JavaScript, including XSS payloads\n- **Impact**: Token theft enables full account takeover for 24-hour window\n- **Attack vector**: Any XSS vulnerability can extract tokens via `localStorage.getItem()`\n\n**Required Actions:**\n1. **Phase 1**: File threat model at `.agents/security/SR-XXX-jwt-storage.md`\n2. **Immediate fix**: Migrate to httpOnly cookies with Secure/SameSite flags\n3. **Phase 2 PIV**: Verify XSS protection post-implementation\n\n**Alternative mitigations** (if httpOnly cookies blocked):\n- Implement refresh token rotation in httpOnly cookies\n- Add CSP headers blocking inline scripts\n- Use secure sessionStorage (still XSS vulnerable but better than localStorage)\n\nThis is a **BLOCKING** security issue that must be resolved before merge approval.",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          }
+        ]
+      },
+      {
+        "scenario_id": "S5",
+        "passes": 0,
+        "runs": 5,
+        "pass_rate": 0.0,
+        "passed": false,
+        "flaky": false,
+        "per_run": [
+          {
+            "verdict": "PARSE_ERROR",
+            "reason": "Could not parse: SEVERITY: HIGH | CWE: 862 | LOCATION: admin_endpoint:delete_user | EVIDENCE: user_id query param with no authz check | FIX: Add role-based access control before user deletion | BLOCKING: yes",
+            "raw": "Looking at this scenario, I need to apply the security review process to an admin endpoint with missing authorization checks.\n\n**Analysis:**\n- **Trigger**: Auth/authz code - BLOCKING criteria met\n- **CWE Match**: CWE-862 (Missing Authorization) - Priority CWE\n- **STRIDE Classification**:\n  - **S**poofing: Any user can impersonate admin\n  - **T**ampering: Unauthorized data deletion\n  - **R**epudiation: No audit trail of who deleted users\n  - **I**nformation Disclosure: Potential enumeration of user IDs\n  - **D**enial of Service: Mass user deletion possible\n  - **E**levation of Privilege: Regular users gain admin capabilities\n\n**Security Finding:**\n```\nSEVERITY: HIGH | CWE: 862 | LOCATION: admin_endpoint:delete_user | EVIDENCE: user_id query param with no authz check | FIX: Add role-based access control before user deletion | BLOCKING: yes\n```\n\n**Required Actions:**\n1. Phase 1: Create threat model in `.agents/security/SR-NNN-admin-endpoints.md`\n2. Phase 2: PIV required before merge approval\n\n```json\n{\n  \"verdict\": \"BLOCKING - Security review required\",\n  \"reason\": \"HIGH severity CWE-862 (Missing Authorization) in admin endpoint. Triggers mandatory threat modeling and PIV process. Any user can delete any other user without admin verification.\"\n}\n```",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "SEVERITY: HIGH | CWE: 862 | LOCATION: ADMIN ENDPOINT | EVIDENCE: NO AUTHORIZATION CHECK ON USER DELETION | FIX: ADD ADMIN ROLE VERIFICATION BEFORE ALLOWING DELETION | BLOCKING: YES",
+            "reason": "Missing authorization check allows any user to delete any other user, representing complete elevation of privilege vulnerability requiring immediate blocking and threat model",
+            "raw": "Looking at this admin endpoint scenario, I need to apply STRIDE classification and assess the security implications.\n\n**STRIDE Analysis:**\n- **S**poofing: Not directly applicable here\n- **T**ampering: User could tamper with user_id parameter to delete unintended users\n- **R**epudiation: Deletion actions may not be properly logged/auditable\n- **I**nformation Disclosure: Not the primary concern\n- **D**enial of Service: Could delete critical users, causing service disruption\n- **E**levation of Privilege: **PRIMARY THREAT** - Any authenticated user can perform admin actions\n\n**Security Assessment:**\n- **CWE-862**: Missing Authorization (any user can delete any other user)\n- **CWE-284**: Improper Access Control \n- This is a classic broken access control vulnerability\n\n**Severity**: HIGH - Complete bypass of admin authorization\n**Blocking**: YES - This meets the \"Auth, authz\" stop criteria\n\n```json\n{\n  \"verdict\": \"SEVERITY: HIGH | CWE: 862 | LOCATION: admin endpoint | EVIDENCE: No authorization check on user deletion | FIX: Add admin role verification before allowing deletion | BLOCKING: yes\",\n  \"reason\": \"Missing authorization check allows any user to delete any other user, representing complete elevation of privilege vulnerability requiring immediate blocking and threat model\"\n}\n```\n\nThis requires a full threat model before approval and immediate remediation with proper admin role verification.",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "BLOCKING: HIGH SEVERITY AUTHORIZATION BYPASS. STRIDE CLASSIFICATION: ELEVATION OF PRIVILEGE (PRIMARY), DENIAL OF SERVICE (SECONDARY). CWE-862: MISSING AUTHORIZATION ON ADMIN ENDPOINT. ANY USER CAN DELETE ANY OTHER USER WITHOUT ADMIN VERIFICATION. REQUIRES IMMEDIATE THREAT MODEL AND PIV BEFORE APPROVAL.",
+            "reason": "Missing authorization check allows privilege escalation - any user gains admin delete capabilities. This is a HIGH severity CWE-862 violation that must be blocked until proper authorization controls are implemented and verified through PIV process.",
+            "raw": "Looking at this scenario, I need to apply STRIDE classification to the threat findings for an admin endpoint with missing authorization checks.\n\nLet me analyze this:\n\n**STRIDE Classification:**\n- **S**poofing: Not directly applicable here\n- **T**ampering: Not the primary concern\n- **R**epudiation: Secondary concern (no audit trail mentioned)\n- **I**nformation Disclosure: Not the main issue\n- **D**enial of Service: Could delete all users, causing DoS\n- **E**levation of Privilege: **PRIMARY THREAT** - any user can perform admin functions\n\n**Security Analysis:**\n- **CWE-862**: Missing Authorization (primary)\n- **CWE-284**: Improper Access Control \n- **Severity**: HIGH - Complete authorization bypass\n- **STRIDE**: Elevation of Privilege + potential Denial of Service\n\nThis triggers my stop criteria: \"Auth, authz, session, or token code\" - requires threat model before approval.\n\n```json\n{\n  \"verdict\": \"BLOCKING: HIGH severity authorization bypass. STRIDE classification: Elevation of Privilege (primary), Denial of Service (secondary). CWE-862: Missing Authorization on admin endpoint. Any user can delete any other user without admin verification. Requires immediate threat model and PIV before approval.\",\n  \"reason\": \"Missing authorization check allows privilege escalation - any user gains admin delete capabilities. This is a HIGH severity CWE-862 violation that must be blocked until proper authorization controls are implemented and verified through PIV process.\"\n}\n```",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "PARSE_ERROR",
+            "reason": "Could not parse: SEVERITY: HIGH | CWE: CWE-862 (Missing Authorization) | LOCATION: admin endpoint | EVIDENCE: user deletion via query param without authz check | FIX: Add role-based authorization check before deletion",
+            "raw": "Looking at this scenario, I need to apply my security review protocol to an admin endpoint with missing authorization checks.\n\n**Security Analysis:**\n\nThis is a classic authorization bypass vulnerability. The endpoint allows deletion of any user based solely on a `user_id` parameter without verifying the caller has admin privileges.\n\n**STRIDE Classification:**\n- **S**poofing: Not directly applicable here\n- **T**ampering: Users can tamper with user_id parameter to target any user\n- **R**epudiation: Admin actions without proper authz make audit trails unreliable  \n- **I**nformation Disclosure: Not the primary concern here\n- **D**enial of Service: Deleting users constitutes service denial\n- **E**levation of Privilege: \u2705 **PRIMARY THREAT** - Any authenticated user can perform admin functions\n\n**Verdict:**\n```\nSEVERITY: HIGH | CWE: CWE-862 (Missing Authorization) | LOCATION: admin endpoint | EVIDENCE: user deletion via query param without authz check | FIX: Add role-based authorization check before deletion | BLOCKING: yes\n```\n\nThis triggers my stop criteria for \"Auth, authz, session, or token code\" and maps to priority CWE-862 (Missing Authorization). \n\n```json\n{\n  \"verdict\": \"BLOCKING - HIGH SEVERITY\", \n  \"reason\": \"CWE-862 elevation of privilege vulnerability allows any user to delete others without admin verification. Requires immediate authz fix before merge.\"\n}\n```",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "PARSE_ERROR",
+            "reason": "Could not parse: SEVERITY: HIGH | CWE: 862 | LOCATION: admin endpoint | EVIDENCE: user_id query param with no admin check | FIX: Add role-based authorization before deletion | BLOCKING: yes",
+            "raw": "Looking at this admin endpoint scenario, I need to apply STRIDE classification and my security review criteria.\n\n**Analysis:**\n- **STRIDE Classification**: This is primarily **Elevation of Privilege (E)** - any authenticated user can perform admin-only actions\n- **CWE Match**: CWE-862 (Missing Authorization) - critical pattern from my priority list\n- **Stop Criteria**: Auth/authz code triggers BLOCKING review requirement\n- **Severity**: HIGH - any user can delete any other user\n\n**Security Findings:**\n```\nSEVERITY: HIGH | CWE: 862 | LOCATION: admin endpoint | EVIDENCE: user_id query param with no admin check | FIX: Add role-based authorization before deletion | BLOCKING: yes\n```\n\n**STRIDE Threat Model Required:**\n- **S**poofing: Not applicable here\n- **T**ampering: Not the primary issue  \n- **R**epudiation: Secondary concern (audit logs)\n- **I**nformation Disclosure: Not applicable\n- **D**enial of Service: Secondary (mass deletion possible)\n- **E**levation of Privilege: **PRIMARY THREAT** - non-admin users gain admin capabilities\n\n```json\n{\n  \"verdict\": \"BLOCKING - Threat model required\",\n  \"reason\": \"HIGH severity CWE-862 (Missing Authorization) triggers stop criteria. STRIDE classification shows Elevation of Privilege threat. Must file threat model before approval.\"\n}\n```",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          }
+        ]
+      }
+    ]
+  }
+}

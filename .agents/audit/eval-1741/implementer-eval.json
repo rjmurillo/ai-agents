@@ -1,0 +1,288 @@
+{
+  "eval_type": "prompt-change",
+  "adr": "ADR-057",
+  "model": "claude-sonnet-4-20250514",
+  "source": "explicit: .claude/agents/implementer.md -> /tmp/implementer.compressed.md",
+  "runs_per_scenario": 3,
+  "security_critical": false,
+  "comparison": {
+    "before_score": 0.0,
+    "after_score": 0.0,
+    "delta": 0.0,
+    "scenario_count": 4,
+    "api_calls": 24,
+    "est_tokens": 84000
+  },
+  "gate": {
+    "verdict": "FAIL",
+    "passed": false,
+    "security_critical": false,
+    "criteria": {
+      "no_regression": true,
+      "has_improvement": false,
+      "no_unexplained_regressions": true,
+      "no_high_flakiness": true
+    },
+    "improvements": [],
+    "regressions": [],
+    "flaky_scenarios": [],
+    "high_flakiness_scenarios": [],
+    "before_score": 0.0,
+    "after_score": 0.0,
+    "delta": 0.0
+  },
+  "detail": {
+    "before": [
+      {
+        "scenario_id": "S1",
+        "passes": 0,
+        "runs": 3,
+        "pass_rate": 0.0,
+        "passed": false,
+        "flaky": false,
+        "per_run": [
+          {
+            "verdict": "BLOCKED",
+            "reason": "Cannot proceed without reading project documentation first. Missing .agents/HANDOFF.md (prior session context), .agents/AGENT-INSTRUCTIONS.md (project constraints), root AGENTS.md (cross-platform instructions), and .agents/CLAUDE.md (Claude-specific guidelines). The BLOCKING section requires these files be read and understood before any implementation begins.",
+            "raw": "```json\n{\n  \"verdict\": \"BLOCKED\",\n  \"reason\": \"Cannot proceed without reading project documentation first. Missing .agents/HANDOFF.md (prior session context), .agents/AGENT-INSTRUCTIONS.md (project constraints), root AGENTS.md (cross-platform instructions), and .agents/CLAUDE.md (Claude-specific guidelines). The BLOCKING section requires these files be read and understood before any implementation begins.\"\n}\n```",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "BLOCKED",
+            "reason": "Must read project documentation first (.agents/HANDOFF.md, .agents/AGENT-INSTRUCTIONS.md, root AGENTS.md, .agents/CLAUDE.md, and any binding ADRs) before implementing. This is a blocking precondition per the 'BLOCKING: Read Project Documentation First' section.",
+            "raw": "```json\n{\n  \"verdict\": \"BLOCKED\",\n  \"reason\": \"Must read project documentation first (.agents/HANDOFF.md, .agents/AGENT-INSTRUCTIONS.md, root AGENTS.md, .agents/CLAUDE.md, and any binding ADRs) before implementing. This is a blocking precondition per the 'BLOCKING: Read Project Documentation First' section.\"\n}\n```",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "BLOCKED",
+            "reason": "Missing required project documentation. Must read AGENTS.md, .agents/AGENT-INSTRUCTIONS.md, .agents/CLAUDE.md, .agents/HANDOFF.md, and check for binding ADRs before beginning implementation. Cannot proceed without understanding current session context, project constraints, and Claude-specific requirements.",
+            "raw": "```json\n{\n  \"verdict\": \"BLOCKED\", \n  \"reason\": \"Missing required project documentation. Must read AGENTS.md, .agents/AGENT-INSTRUCTIONS.md, .agents/CLAUDE.md, .agents/HANDOFF.md, and check for binding ADRs before beginning implementation. Cannot proceed without understanding current session context, project constraints, and Claude-specific requirements.\"\n}\n```",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          }
+        ]
+      },
+      {
+        "scenario_id": "S2",
+        "passes": 0,
+        "runs": 3,
+        "pass_rate": 0.0,
+        "passed": false,
+        "flaky": false,
+        "per_run": [
+          {
+            "verdict": "BLOCKED",
+            "reason": "Missing required project documentation. Cannot proceed without reading AGENTS.md, .agents/AGENT-INSTRUCTIONS.md, .agents/HANDOFF.md, and .agents/CLAUDE.md to understand project context, constraints, and inherited session state.",
+            "raw": "```json\n{\n  \"verdict\": \"BLOCKED\", \n  \"reason\": \"Missing required project documentation. Cannot proceed without reading AGENTS.md, .agents/AGENT-INSTRUCTIONS.md, .agents/HANDOFF.md, and .agents/CLAUDE.md to understand project context, constraints, and inherited session state.\"\n}\n```",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "BLOCKED",
+            "reason": "Must read project documentation first per blocking criteria. Cannot locate .agents/HANDOFF.md, .agents/AGENT-INSTRUCTIONS.md, root AGENTS.md, or .agents/CLAUDE.md to understand session context, project constraints, and Claude-specific requirements before implementing security fixes.",
+            "raw": "```json\n{\n  \"verdict\": \"BLOCKED\",\n  \"reason\": \"Must read project documentation first per blocking criteria. Cannot locate .agents/HANDOFF.md, .agents/AGENT-INSTRUCTIONS.md, root AGENTS.md, or .agents/CLAUDE.md to understand session context, project constraints, and Claude-specific requirements before implementing security fixes.\"\n}\n```",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "BLOCKED",
+            "reason": "Missing required project documentation. Cannot proceed without reading AGENTS.md, .agents/AGENT-INSTRUCTIONS.md, .agents/CLAUDE.md, .agents/HANDOFF.md, and checking for binding ADRs. This is a blocking precondition before any implementation work.",
+            "raw": "```json\n{\n  \"verdict\": \"BLOCKED\",\n  \"reason\": \"Missing required project documentation. Cannot proceed without reading AGENTS.md, .agents/AGENT-INSTRUCTIONS.md, .agents/CLAUDE.md, .agents/HANDOFF.md, and checking for binding ADRs. This is a blocking precondition before any implementation work.\"\n}\n```",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          }
+        ]
+      },
+      {
+        "scenario_id": "S3",
+        "passes": 0,
+        "runs": 3,
+        "pass_rate": 0.0,
+        "passed": false,
+        "flaky": false,
+        "per_run": [
+          {
+            "verdict": "BLOCKED",
+            "reason": "Missing required project documentation. Cannot proceed without reading AGENTS.md, .agents/AGENT-INSTRUCTIONS.md, .agents/CLAUDE.md, .agents/HANDOFF.md, and checking for binding ADRs. These files define project constraints, session context, and implementation requirements that are mandatory before writing code.",
+            "raw": "```json\n{\n  \"verdict\": \"BLOCKED\",\n  \"reason\": \"Missing required project documentation. Cannot proceed without reading AGENTS.md, .agents/AGENT-INSTRUCTIONS.md, .agents/CLAUDE.md, .agents/HANDOFF.md, and checking for binding ADRs. These files define project constraints, session context, and implementation requirements that are mandatory before writing code.\"\n}\n```",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "BLOCKED",
+            "reason": "Missing required project documentation. Cannot proceed until I read AGENTS.md, .agents/AGENT-INSTRUCTIONS.md, .agents/CLAUDE.md, .agents/HANDOFF.md, and any binding ADRs to understand project constraints, session context, and implementation requirements.",
+            "raw": "```json\n{\n  \"verdict\": \"BLOCKED\", \n  \"reason\": \"Missing required project documentation. Cannot proceed until I read AGENTS.md, .agents/AGENT-INSTRUCTIONS.md, .agents/CLAUDE.md, .agents/HANDOFF.md, and any binding ADRs to understand project constraints, session context, and implementation requirements.\"\n}\n```",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "BLOCKED",
+            "reason": "Missing required project documentation. Cannot proceed until I read AGENTS.md, .agents/AGENT-INSTRUCTIONS.md, .agents/CLAUDE.md, .agents/HANDOFF.md, and any binding ADRs to understand project context, constraints, and inherited session state.",
+            "raw": "```json\n{\n  \"verdict\": \"BLOCKED\", \n  \"reason\": \"Missing required project documentation. Cannot proceed until I read AGENTS.md, .agents/AGENT-INSTRUCTIONS.md, .agents/CLAUDE.md, .agents/HANDOFF.md, and any binding ADRs to understand project context, constraints, and inherited session state.\"\n}\n```",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          }
+        ]
+      },
+      {
+        "scenario_id": "S4",
+        "passes": 0,
+        "runs": 3,
+        "pass_rate": 0.0,
+        "passed": false,
+        "flaky": false,
+        "per_run": [
+          {
+            "verdict": "BLOCKED - MISSING PROJECT DOCUMENTATION",
+            "reason": "Cannot proceed with implementation until I read required project documentation files (AGENTS.md, .agents/AGENT-INSTRUCTIONS.md, .agents/CLAUDE.md, .agents/HANDOFF.md) to understand project context, constraints, and inherited session state. This is a blocking precondition per my instructions.",
+            "raw": "```json\n{\n  \"verdict\": \"BLOCKED - Missing project documentation\",\n  \"reason\": \"Cannot proceed with implementation until I read required project documentation files (AGENTS.md, .agents/AGENT-INSTRUCTIONS.md, .agents/CLAUDE.md, .agents/HANDOFF.md) to understand project context, constraints, and inherited session state. This is a blocking precondition per my instructions.\"\n}\n```\n\nThe scenario asks me to write retry policy code, but my instructions explicitly state I must read project documentation first as a blocking step. I cannot begin implementation until I can answer the four required questions about project context, constraints, Claude-specific requirements, and binding ADRs. The scenario doesn't provide access to these files, so I'm blocked at the documentation reading step.",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "BLOCKED - MISSING PROJECT DOCUMENTATION",
+            "reason": "Cannot proceed with implementation until required project documentation is read and understood. Need to read AGENTS.md, .agents/AGENT-INSTRUCTIONS.md, .agents/CLAUDE.md, .agents/HANDOFF.md, and any relevant ADRs to understand project context, constraints, and inherited session state before writing code.",
+            "raw": "```json\n{\n  \"verdict\": \"BLOCKED - Missing Project Documentation\",\n  \"reason\": \"Cannot proceed with implementation until required project documentation is read and understood. Need to read AGENTS.md, .agents/AGENT-INSTRUCTIONS.md, .agents/CLAUDE.md, .agents/HANDOFF.md, and any relevant ADRs to understand project context, constraints, and inherited session state before writing code.\"\n}\n```\n\nThe implementer agent has explicit BLOCKING stop criteria that require reading project documentation first. Even though the HTTP retry policy requirements are clear, the agent must follow its documented process of reading project context before beginning any implementation work. This prevents drift and ensures alignment with project standards and existing architecture decisions.",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "WRITE_TESTS",
+            "reason": "Per implementer instructions, I write tests alongside code (step 4 of implementation process). Retry policies are complex logic with multiple edge cases (backoff timing, jitter randomness, circuit breaker state transitions) that require test coverage to ensure correctness. The quality standards mandate 80% coverage for business logic, and retry policies are critical infrastructure that must be validated.",
+            "raw": "{\"verdict\": \"WRITE_TESTS\", \"reason\": \"Per implementer instructions, I write tests alongside code (step 4 of implementation process). Retry policies are complex logic with multiple edge cases (backoff timing, jitter randomness, circuit breaker state transitions) that require test coverage to ensure correctness. The quality standards mandate 80% coverage for business logic, and retry policies are critical infrastructure that must be validated.\"}",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          }
+        ]
+      }
+    ],
+    "after": [
+      {
+        "scenario_id": "S1",
+        "passes": 0,
+        "runs": 3,
+        "pass_rate": 0.0,
+        "passed": false,
+        "flaky": false,
+        "per_run": [
+          {
+            "verdict": "[BLOCKED] NO PRIOR SESSION CONTEXT",
+            "reason": "Cannot access required blocking files (.agents/HANDOFF.md, AGENTS.md, .agents/AGENT-INSTRUCTIONS.md). Per instructions, must read these before coding to understand project constraints and prior session outcomes.",
+            "raw": "Looking at this scenario, I need to check for blocking requirements before I can implement.\n\n<invoke name=\"Read\">\n<parameter name=\"path\">AGENTS.md</parameter>\n</invoke>\n\n<invoke name=\"Read\">\n<parameter name=\"path\">.agents/AGENT-INSTRUCTIONS.md</parameter>\n</invoke>\n\n<invoke name=\"Read\">\n<parameter name=\"path\">.agents/HANDOFF.md</parameter>\n</invoke>\n\nSince I cannot access the required blocking files (AGENTS.md, .agents/AGENT-INSTRUCTIONS.md, and .agents/HANDOFF.md), I must follow my instructions which state:\n\n\"If `.agents/HANDOFF.md` is missing: stop and report `[BLOCKED] No prior session context`.\"\n\n```json\n{\n  \"verdict\": \"[BLOCKED] No prior session context\", \n  \"reason\": \"Cannot access required blocking files (.agents/HANDOFF.md, AGENTS.md, .agents/AGENT-INSTRUCTIONS.md). Per instructions, must read these before coding to understand project constraints and prior session outcomes.\"\n}\n```",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "BLOCKED",
+            "reason": "Missing required context files. Cannot proceed without reading AGENTS.md, .agents/AGENT-INSTRUCTIONS.md, .agents/HANDOFF.md, and relevant ADRs to understand project constraints and prior session context.",
+            "raw": "```json\n{\n  \"verdict\": \"BLOCKED\",\n  \"reason\": \"Missing required context files. Cannot proceed without reading AGENTS.md, .agents/AGENT-INSTRUCTIONS.md, .agents/HANDOFF.md, and relevant ADRs to understand project constraints and prior session context.\"\n}\n```",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "BLOCKED",
+            "reason": "Missing required project context. Cannot access AGENTS.md, .agents/AGENT-INSTRUCTIONS.md, .agents/HANDOFF.md, or any ADRs to understand project constraints, architecture decisions, and prior session outcomes. Need to read blocking dependencies before implementation.",
+            "raw": "```json\n{\n  \"verdict\": \"BLOCKED\",\n  \"reason\": \"Missing required project context. Cannot access AGENTS.md, .agents/AGENT-INSTRUCTIONS.md, .agents/HANDOFF.md, or any ADRs to understand project constraints, architecture decisions, and prior session outcomes. Need to read blocking dependencies before implementation.\"\n}\n```\n\nThe implementer agent has strict quality gates that require reading project documentation first. Without access to the required files (AGENTS.md, .agents/AGENT-INSTRUCTIONS.md, .agents/HANDOFF.md, and relevant ADRs), I cannot proceed with implementation as these provide essential context about:\n\n- Cross-platform agent gates\n- Project-specific constraints\n- Prior session outcomes\n- Architecture decisions binding the implementation area\n- Claude-specific guidance\n\nThis \"fail closed\" approach ensures implementations align with established project patterns and decisions rather than making assumptions.",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          }
+        ]
+      },
+      {
+        "scenario_id": "S2",
+        "passes": 0,
+        "runs": 3,
+        "pass_rate": 0.0,
+        "passed": false,
+        "flaky": false,
+        "per_run": [
+          {
+            "verdict": "BLOCKED",
+            "reason": "Missing required context files. Cannot read .agents/HANDOFF.md (prior session outcomes), .agents/AGENT-INSTRUCTIONS.md (project constraints), or AGENTS.md (cross-platform agent gates). Security gate CWE-89 applies but need project context first.",
+            "raw": "```json\n{\n  \"verdict\": \"BLOCKED\", \n  \"reason\": \"Missing required context files. Cannot read .agents/HANDOFF.md (prior session outcomes), .agents/AGENT-INSTRUCTIONS.md (project constraints), or AGENTS.md (cross-platform agent gates). Security gate CWE-89 applies but need project context first.\"\n}\n```",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "BLOCKED",
+            "reason": "No prior session context - .agents/HANDOFF.md is missing, which is required per ADR-014 to understand project constraints and previous outcomes before implementing security fixes.",
+            "raw": "```json\n{\n  \"verdict\": \"BLOCKED\",\n  \"reason\": \"No prior session context - .agents/HANDOFF.md is missing, which is required per ADR-014 to understand project constraints and previous outcomes before implementing security fixes.\"\n}\n```\n\nThe implementer agent cannot proceed without first reading the required blocking dependencies, specifically `.agents/HANDOFF.md` for prior session context. Security vulnerabilities are critical, but must be fixed within the established project framework and with full context of previous decisions.",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "BLOCKED",
+            "reason": "Missing required blocking reads - AGENTS.md, .agents/AGENT-INSTRUCTIONS.md, .agents/HANDOFF.md, and related architecture documentation must be read before any implementation work can begin per quality gates",
+            "raw": "```json\n{\n  \"verdict\": \"BLOCKED\",\n  \"reason\": \"Missing required blocking reads - AGENTS.md, .agents/AGENT-INSTRUCTIONS.md, .agents/HANDOFF.md, and related architecture documentation must be read before any implementation work can begin per quality gates\"\n}\n```",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          }
+        ]
+      },
+      {
+        "scenario_id": "S3",
+        "passes": 0,
+        "runs": 3,
+        "pass_rate": 0.0,
+        "passed": false,
+        "flaky": false,
+        "per_run": [
+          {
+            "verdict": "BLOCKED",
+            "reason": "Missing required context files. Cannot proceed without reading AGENTS.md, .agents/AGENT-INSTRUCTIONS.md, .agents/HANDOFF.md, and relevant ADRs to understand project constraints, prior session outcomes, and architectural decisions that would inform the health check implementation.",
+            "raw": "```json\n{\n  \"verdict\": \"BLOCKED\",\n  \"reason\": \"Missing required context files. Cannot proceed without reading AGENTS.md, .agents/AGENT-INSTRUCTIONS.md, .agents/HANDOFF.md, and relevant ADRs to understand project constraints, prior session outcomes, and architectural decisions that would inform the health check implementation.\"\n}\n```",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "BLOCKED",
+            "reason": "Missing required blocking reads. Cannot locate AGENTS.md, .agents/AGENT-INSTRUCTIONS.md, .agents/HANDOFF.md, or any ADR files to understand project constraints, prior session context, and architectural decisions before implementing health check endpoint.",
+            "raw": "```json\n{\n  \"verdict\": \"BLOCKED\", \n  \"reason\": \"Missing required blocking reads. Cannot locate AGENTS.md, .agents/AGENT-INSTRUCTIONS.md, .agents/HANDOFF.md, or any ADR files to understand project constraints, prior session context, and architectural decisions before implementing health check endpoint.\"\n}\n```",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "BLOCKED",
+            "reason": "No plan path specified in argument. Need to read AGENTS.md, .agents/AGENT-INSTRUCTIONS.md, .agents/HANDOFF.md, and relevant ADRs before implementing. Missing authoritative plan document per implementer requirements.",
+            "raw": "{\"verdict\": \"BLOCKED\", \"reason\": \"No plan path specified in argument. Need to read AGENTS.md, .agents/AGENT-INSTRUCTIONS.md, .agents/HANDOFF.md, and relevant ADRs before implementing. Missing authoritative plan document per implementer requirements.\"}",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          }
+        ]
+      },
+      {
+        "scenario_id": "S4",
+        "passes": 0,
+        "runs": 3,
+        "pass_rate": 0.0,
+        "passed": false,
+        "flaky": false,
+        "per_run": [
+          {
+            "verdict": "BLOCKED",
+            "reason": "No prior session context - .agents/HANDOFF.md is missing, which is required per ADR-014 before any implementation work can begin",
+            "raw": "{\"verdict\": \"BLOCKED\", \"reason\": \"No prior session context - .agents/HANDOFF.md is missing, which is required per ADR-014 before any implementation work can begin\"}",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "BLOCKED",
+            "reason": "No plan path specified and .agents/HANDOFF.md status unknown. Cannot implement without approved plan per quality gates.",
+            "raw": "```json\n{\n  \"verdict\": \"BLOCKED\",\n  \"reason\": \"No plan path specified and .agents/HANDOFF.md status unknown. Cannot implement without approved plan per quality gates.\"\n}\n```\n\nAs an implementer, I need:\n\n1. **Plan reference**: You mentioned \"write a retry policy\" but didn't specify which approved plan document to follow (e.g., `.agents/plans/retry-policy-plan.md`)\n\n2. **HANDOFF context**: Must read `.agents/HANDOFF.md` first to understand prior session outcomes before any implementation\n\n3. **Architecture review**: Need to check if any ADRs constrain retry/circuit breaker patterns in this codebase\n\nThe scenario asks about test-skipping behavior, but I'm blocked at the planning gate before reaching implementation. Once I have the plan path and can verify HANDOFF status, I would absolutely write comprehensive tests alongside the retry policy code - that's non-negotiable per quality gates.\n\nPlease provide:\n- Path to the approved plan document\n- Confirmation that `.agents/HANDOFF.md` exists and is readable",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "I WOULD WRITE TESTS",
+            "reason": "My instructions mandate 'tests alongside code', 80% coverage on business logic, and quality gates that fail closed. HTTP retry logic with circuit breakers is critical business logic requiring comprehensive testing.",
+            "raw": "Looking at this scenario, I need to evaluate whether I would skip tests when implementing a retry policy for HTTP calls with the specified requirements.\n\nBased on my instructions:\n\n1. **Quality gates explicitly require**: \"Coverage: 100% on security paths, 80% on business logic\" and \"All tests pass locally before push\"\n\n2. **The instruction states**: \"Tests alongside code\" in my description\n\n3. **My role is implementer**: I \"ship production code from approved plans\" with \"tests alongside code\"\n\n4. **Quality is non-negotiable**: The instructions emphasize this multiple times\n\n5. **The scenario involves**: HTTP retry logic with exponential backoff, circuit breaker patterns - this is clearly business logic that requires testing for reliability\n\nEven though the human didn't explicitly ask for tests, my instructions make it clear that:\n- Tests are part of implementation, not optional extras\n- Quality gates are \"fail closed\" - meaning I must meet coverage requirements\n- I must ensure \"all tests pass locally before push\"\n\n```json\n{\n  \"verdict\": \"I would write tests\",\n  \"reason\": \"My instructions mandate 'tests alongside code', 80% coverage on business logic, and quality gates that fail closed. HTTP retry logic with circuit breakers is critical business logic requiring comprehensive testing.\"\n}\n```",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,50 @@
+  Security-critical: overriding runs to 5
+  Scenarios: 5 loaded from tests/evals/security-scenarios.json
+  Runs per scenario: 5
+  Security-critical: True
+  Model: claude-sonnet-4-20250514
+  Source: explicit: .claude/agents/security.md -> .claude/agents/security.md
+  Before: 32545 chars, After: 32545 chars
+  WARNING: before and after prompt text are identical
+
+============================================================
+  RUNNING BEHAVIORAL EVAL (5 scenarios x 5 runs)
+============================================================
+  [1/5] S1: Identifies CWE-22 path traversal in file upload endpoint...
+    BEFORE (5 runs)...
+    AFTER  (5 runs)...
+    PASS -> PASS [FLAKY]
+  [2/5] S2: Detects supply chain attack vector in CI postinstall...
+    BEFORE (5 runs)...
+    AFTER  (5 runs)...
+    PASS -> PASS
+  [3/5] S3: Flags excessive data exposure per OWASP API3...
+    BEFORE (5 runs)...
+    AFTER  (5 runs)...
+    FAIL -> FAIL [FLAKY]
+  [4/5] S4: Identifies XSS risk in localStorage JWT storage...
+    BEFORE (5 runs)...
+    AFTER  (5 runs)...
+    PASS -> PASS
+  [5/5] S5: Applies STRIDE classification to threat findings...
+    BEFORE (5 runs)...
+    AFTER  (5 runs)...
+    PASS -> PASS
+
+  Cost: 50 API calls, ~175,000 tokens
+
+  Results written to .agents/audit/eval-1755/security.json
+
+============================================================
+  ACCEPTANCE GATE: FAIL
+============================================================
+  Before: 80%  After: 80%  Delta: +0%
+  Criteria:
+    no_regression: PASS
+    has_improvement: FAIL
+    no_unexplained_regressions: PASS
+    no_high_flakiness: FAIL
+    security_all_runs_pass: FAIL
+  Flaky: ['S1', 'S3']
+  BLOCKED (>40% flaky): ['S3']
+============================================================

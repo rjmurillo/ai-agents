@@ -1,0 +1,350 @@
+{
+  "eval_type": "prompt-change",
+  "adr": "ADR-057",
+  "model": "claude-sonnet-4-20250514",
+  "source": "explicit: .claude/agents/orchestrator.md -> /tmp/orchestrator.compressed.md",
+  "runs_per_scenario": 3,
+  "security_critical": false,
+  "comparison": {
+    "before_score": 0.0,
+    "after_score": 0.0,
+    "delta": 0.0,
+    "scenario_count": 5,
+    "api_calls": 30,
+    "est_tokens": 105000
+  },
+  "gate": {
+    "verdict": "FAIL",
+    "passed": false,
+    "security_critical": false,
+    "criteria": {
+      "no_regression": true,
+      "has_improvement": false,
+      "no_unexplained_regressions": true,
+      "no_high_flakiness": true
+    },
+    "improvements": [],
+    "regressions": [],
+    "flaky_scenarios": [],
+    "high_flakiness_scenarios": [],
+    "before_score": 0.0,
+    "after_score": 0.0,
+    "delta": 0.0
+  },
+  "detail": {
+    "before": [
+      {
+        "scenario_id": "S1",
+        "passes": 0,
+        "runs": 3,
+        "pass_rate": 0.0,
+        "passed": false,
+        "flaky": false,
+        "per_run": [
+          {
+            "verdict": "CORRECT",
+            "reason": "This is a chaotic incident (P0, unknown root cause) requiring investigation before action. Routing to analyst first follows the triage protocol - must understand the problem before delegating to implementer for fixes.",
+            "raw": "```json\n{\n  \"verdict\": \"CORRECT\",\n  \"reason\": \"This is a chaotic incident (P0, unknown root cause) requiring investigation before action. Routing to analyst first follows the triage protocol - must understand the problem before delegating to implementer for fixes.\"\n}\n```",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "CORRECT",
+            "reason": "This is a P0 incident (orders failing) in the chaotic complexity tier (production outage with unknown root cause). Per the Cynefin classification, chaotic situations require investigation first to establish facts before action. Routing to analyst before implementer follows the correct triage \u2192 investigate \u2192 act sequence for incidents.",
+            "raw": "```json\n{\n  \"verdict\": \"CORRECT\",\n  \"reason\": \"This is a P0 incident (orders failing) in the chaotic complexity tier (production outage with unknown root cause). Per the Cynefin classification, chaotic situations require investigation first to establish facts before action. Routing to analyst before implementer follows the correct triage \u2192 investigate \u2192 act sequence for incidents.\"\n}\n```",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "CORRECT",
+            "reason": "Incident is chaotic complexity (unknown root cause, 500 errors) requiring investigation before action. Routing to analyst first to gather facts and determine root cause before delegating to implementer is the proper triage sequence.",
+            "raw": "```json\n{\n  \"verdict\": \"correct\",\n  \"reason\": \"Incident is chaotic complexity (unknown root cause, 500 errors) requiring investigation before action. Routing to analyst first to gather facts and determine root cause before delegating to implementer is the proper triage sequence.\"\n}\n```",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          }
+        ]
+      },
+      {
+        "scenario_id": "S2",
+        "passes": 0,
+        "runs": 3,
+        "pass_rate": 0.0,
+        "passed": false,
+        "flaky": false,
+        "per_run": [
+          {
+            "verdict": "PASS",
+            "reason": "Correctly classified 'API is slow. Fix it.' as complex due to vagueness, multiple potential root causes, and need for investigation before solution path becomes clear. Proper triage prevents premature delegation to implementer.",
+            "raw": "```json\n{\n  \"verdict\": \"PASS\",\n  \"reason\": \"Correctly classified 'API is slow. Fix it.' as complex due to vagueness, multiple potential root causes, and need for investigation before solution path becomes clear. Proper triage prevents premature delegation to implementer.\"\n}\n```",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "CORRECT - ROUTE TO ANALYST FIRST",
+            "reason": "Vague performance complaint with no specifics (which endpoints, what latency, under what load) is complex/chaotic tier requiring investigation before solution. Should delegate to analyst to gather metrics, identify bottlenecks, and establish baseline before routing to implementer.",
+            "raw": "```json\n{\n  \"verdict\": \"CORRECT - Route to analyst first\",\n  \"reason\": \"Vague performance complaint with no specifics (which endpoints, what latency, under what load) is complex/chaotic tier requiring investigation before solution. Should delegate to analyst to gather metrics, identify bottlenecks, and establish baseline before routing to implementer.\"\n}\n```",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "CORRECT",
+            "reason": "A vague performance complaint ('API is slow') lacks clear problem definition, root cause, metrics, or success criteria. This is complex/chaotic in Cynefin terms, requiring investigation before solution. Should route to analyst first to gather specifics (which endpoints, how slow, under what conditions, baseline metrics) rather than attempting direct fixes.",
+            "raw": "```json\n{\n  \"verdict\": \"correct\",\n  \"reason\": \"A vague performance complaint ('API is slow') lacks clear problem definition, root cause, metrics, or success criteria. This is complex/chaotic in Cynefin terms, requiring investigation before solution. Should route to analyst first to gather specifics (which endpoints, how slow, under what conditions, baseline metrics) rather than attempting direct fixes.\"\n}\n```",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          }
+        ]
+      },
+      {
+        "scenario_id": "S3",
+        "passes": 0,
+        "runs": 3,
+        "pass_rate": 0.0,
+        "passed": false,
+        "flaky": false,
+        "per_run": [
+          {
+            "verdict": "ROUTE THROUGH STANDARD LIFECYCLE",
+            "reason": "This is a complex, multi-step feature requiring spec \u2192 design \u2192 implementation \u2192 testing \u2192 review. Needs sequential routing: spec-generator \u2192 architect \u2192 implementer \u2192 qa \u2192 critic, with synthesis at each handoff to ensure coherent end-to-end delivery.",
+            "raw": "```json\n{\n  \"verdict\": \"Route through standard lifecycle\",\n  \"reason\": \"This is a complex, multi-step feature requiring spec \u2192 design \u2192 implementation \u2192 testing \u2192 review. Needs sequential routing: spec-generator \u2192 architect \u2192 implementer \u2192 qa \u2192 critic, with synthesis at each handoff to ensure coherent end-to-end delivery.\"\n}\n```",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "ROUTE SEQUENTIALLY THROUGH LIFECYCLE SPECIALISTS",
+            "reason": "Multi-step feature work requiring spec \u2192 plan \u2192 build \u2192 test \u2192 review lifecycle. Classify as complicated/multi-step, then route: spec-generator \u2192 milestone-planner \u2192 implementer \u2192 qa \u2192 critic. Synthesize at end.",
+            "raw": "```json\n{\n  \"verdict\": \"Route sequentially through lifecycle specialists\", \n  \"reason\": \"Multi-step feature work requiring spec \u2192 plan \u2192 build \u2192 test \u2192 review lifecycle. Classify as complicated/multi-step, then route: spec-generator \u2192 milestone-planner \u2192 implementer \u2192 qa \u2192 critic. Synthesize at end.\"\n}\n```",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "ROUTE TO SPEC-GENERATOR THEN MILESTONE-PLANNER THEN IMPLEMENTER",
+            "reason": "Multi-step feature work requiring spec-first approach. Webhook system needs requirements clarification, architectural planning, then implementation. This fits the standard lifecycle pattern (spec \u2192 plan \u2192 build) mentioned in the routing algorithm.",
+            "raw": "```json\n{\n  \"verdict\": \"Route to spec-generator then milestone-planner then implementer\",\n  \"reason\": \"Multi-step feature work requiring spec-first approach. Webhook system needs requirements clarification, architectural planning, then implementation. This fits the standard lifecycle pattern (spec \u2192 plan \u2192 build) mentioned in the routing algorithm.\"\n}\n```",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          }
+        ]
+      },
+      {
+        "scenario_id": "S4",
+        "passes": 0,
+        "runs": 3,
+        "pass_rate": 0.0,
+        "passed": false,
+        "flaky": false,
+        "per_run": [
+          {
+            "verdict": "CORRECT PRIORITIZATION",
+            "reason": "Security fix (P0) must take precedence over feature (P2) and refactor (P3) work. This follows proper incident response and risk management - security vulnerabilities are one-way doors with potential for significant damage if left unaddressed. Feature and refactor work can wait.",
+            "raw": "{\"verdict\": \"Correct prioritization\", \"reason\": \"Security fix (P0) must take precedence over feature (P2) and refactor (P3) work. This follows proper incident response and risk management - security vulnerabilities are one-way doors with potential for significant damage if left unaddressed. Feature and refactor work can wait.\"}",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "ROUTE TO ISSUE-FEATURE-REVIEW FOR PR PRIORITIZATION, THEN COORDINATE SEQUENTIAL REVIEW: SECURITY FIX FIRST (P0), FEATURE SECOND (P2), REFACTOR LAST (P3). DELEGATE TO CRITIC FOR SECURITY PR REVIEW TO ENSURE QUALITY, THEN MANAGE HANDOFFS FOR REMAINING PRS BASED ON PRIORITY.",
+            "reason": "Security fixes are P0 and must be prioritized. Standard workflow coordination falls within orchestrator scope - classify by priority, route to specialists for review, synthesize results, and coordinate sequential merge order.",
+            "raw": "Looking at this scenario, I need to triage the complexity and route appropriately.\n\n**Classification:**\n- Complexity: Clear (standard PR prioritization)\n- Scope: Multi-step (coordinate review and merge of 3 PRs)\n- Urgency: P0 security fix present\n- Reversibility: Two-way door (merge order can be adjusted)\n\nThis is a standard prioritization and coordination task. The security fix is P0 and should be fast-tracked. I would route to the appropriate specialists to handle review coordination and merge sequencing.\n\n```json\n{\n  \"verdict\": \"Route to issue-feature-review for PR prioritization, then coordinate sequential review: security fix first (P0), feature second (P2), refactor last (P3). Delegate to critic for security PR review to ensure quality, then manage handoffs for remaining PRs based on priority.\",\n  \"reason\": \"Security fixes are P0 and must be prioritized. Standard workflow coordination falls within orchestrator scope - classify by priority, route to specialists for review, synthesize results, and coordinate sequential merge order.\"\n}\n```",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "ROUTE TO ISSUE-FEATURE-REVIEW AGENT TO ESTABLISH MERGE SEQUENCE BASED ON PRIORITY (P0 SECURITY FIX FIRST, THEN P2 FEATURE, THEN P3 REFACTOR), THEN COORDINATE REVIEWS ACCORDINGLY",
+            "reason": "Clear prioritization task requiring specialist triage. Security P0 obviously takes precedence, but proper coordination workflow needed for sequencing reviews and managing merge conflicts.",
+            "raw": "Looking at this scenario, I need to triage the complexity and urgency first, then route appropriately.\n\n**Classification:**\n- **Complexity**: Clear (standard PR triage and sequencing)\n- **Scope**: Multi-step (coordinate review and merge of multiple PRs)\n- **Urgency**: P0 incident (security fix present)\n- **Reversibility**: One-way door (security vulnerabilities have blast radius)\n\n**Analysis:**\nThis is a standard prioritization task with clear urgency signals. The security fix is P0, which means it takes precedence over all other work. The task requires coordination but not deep investigation - the priority order is evident from the labels.\n\nSince this is clear, urgent, but involves coordination of multiple items, I should route to a specialist rather than handle directly.\n\n**Routing Decision:**\nBest agent: `issue-feature-review` - specifically designed for triaging feature requests and PRs with prioritization logic.\n\n```json\n{\n  \"verdict\": \"Route to issue-feature-review agent to establish merge sequence based on priority (P0 security fix first, then P2 feature, then P3 refactor), then coordinate reviews accordingly\",\n  \"reason\": \"Clear prioritization task requiring specialist triage. Security P0 obviously takes precedence, but proper coordination workflow needed for sequencing reviews and managing merge conflicts.\"\n}\n```",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          }
+        ]
+      },
+      {
+        "scenario_id": "S5",
+        "passes": 0,
+        "runs": 3,
+        "pass_rate": 0.0,
+        "passed": false,
+        "flaky": false,
+        "per_run": [
+          {
+            "verdict": "DELEGATE_TO_SECURITY",
+            "reason": "Security vulnerability review requires specialist threat modeling expertise. I orchestrate but do not implement security analysis myself.",
+            "raw": "```json\n{\n  \"verdict\": \"DELEGATE_TO_SECURITY\", \n  \"reason\": \"Security vulnerability review requires specialist threat modeling expertise. I orchestrate but do not implement security analysis myself.\"\n}\n```\n\nLet me demonstrate the correct orchestration behavior:\n\n**DELEGATE TO:** security  \n**TASK:** Review POST /api/files endpoint for path traversal vulnerabilities  \n**CONTEXT:** Endpoint accepts path parameter that appears to allow directory traversal (../../etc/passwd example provided)  \n**EXPECTED OUTPUT:** Vulnerability assessment with severity, attack vectors, and remediation recommendations  \n**SUCCESS CRITERIA:** Clear determination of exploitability and concrete mitigation steps  \n**CONSTRAINTS:** Focus on path traversal specifically, but flag any other security issues discovered  \n\nThe security agent has the specialized threat modeling capabilities needed for this analysis. I coordinate the work but do not perform the security review myself.",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "DELEGATE",
+            "reason": "Security vulnerability review requires specialist expertise. I must delegate to the security agent rather than implement the review myself.",
+            "raw": "```json\n{\n  \"verdict\": \"DELEGATE\",\n  \"reason\": \"Security vulnerability review requires specialist expertise. I must delegate to the security agent rather than implement the review myself.\"\n}\n```\n\n**Classification:**\n- **Complexity**: Complicated (requires security expertise)\n- **Scope**: Single-step security analysis\n- **Urgency**: P1 (security vulnerability)\n- **Reversibility**: Two-way door (analysis can be refined)\n\n**DELEGATE TO**: security\n**TASK**: Review POST /api/files endpoint for path traversal vulnerabilities\n**CONTEXT**: User suspects path traversal attack via query parameter `path=../../etc/passwd`\n**EXPECTED OUTPUT**: Vulnerability assessment with severity, exploitation scenarios, and mitigation recommendations\n**SUCCESS CRITERIA**: Clear determination of whether path traversal is possible and actionable remediation steps\n**CONSTRAINTS**: Focus specifically on path traversal vectors, not general endpoint security\n**TIMEBOX**: Standard analysis depth\n\nAs orchestrator, I coordinate specialists rather than performing the security analysis myself. The security agent has the specialized knowledge to properly assess path traversal vulnerabilities and recommend appropriate mitigations.",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "DELEGATE",
+            "reason": "Security vulnerability assessment requires specialized expertise. This task needs routing to the security agent for proper threat modeling and vulnerability analysis rather than self-implementation.",
+            "raw": "```json\n{\n  \"verdict\": \"DELEGATE\",\n  \"reason\": \"Security vulnerability assessment requires specialized expertise. This task needs routing to the security agent for proper threat modeling and vulnerability analysis rather than self-implementation.\"\n}\n```\n\n**DELEGATE TO**: security  \n**TASK**: Assess path traversal vulnerability in POST /api/files endpoint  \n**CONTEXT**: Endpoint accepts path parameter that could allow directory traversal (example: `path=../../etc/passwd`)  \n**EXPECTED OUTPUT**: Vulnerability assessment with severity rating, exploitation scenarios, and remediation recommendations  \n**SUCCESS CRITERIA**: Clear determination of exploitability and concrete mitigation steps  \n**CONSTRAINTS**: Focus on path traversal specifically, include both detection and prevention measures",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          }
+        ]
+      }
+    ],
+    "after": [
+      {
+        "scenario_id": "S1",
+        "passes": 0,
+        "runs": 3,
+        "pass_rate": 0.0,
+        "passed": false,
+        "flaky": false,
+        "per_run": [
+          {
+            "verdict": "CORRECT",
+            "reason": "Chaotic incident (unknown root cause) requires analyst first to gather facts and diagnose before implementer can fix. This follows the routing rule 'Unknowns: analyst first, then re-evaluate' and prevents implementer from coding blindly.",
+            "raw": "```json\n{\n  \"verdict\": \"correct\",\n  \"reason\": \"Chaotic incident (unknown root cause) requires analyst first to gather facts and diagnose before implementer can fix. This follows the routing rule 'Unknowns: analyst first, then re-evaluate' and prevents implementer from coding blindly.\"\n}\n```",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "CORRECT",
+            "reason": "Chaotic incident (500 errors, unclear root cause) requires analyst first to understand the problem before implementer can fix it. Classic unknown-unknowns scenario per routing rules.",
+            "raw": "```json\n{\n  \"verdict\": \"CORRECT\",\n  \"reason\": \"Chaotic incident (500 errors, unclear root cause) requires analyst first to understand the problem before implementer can fix it. Classic unknown-unknowns scenario per routing rules.\"\n}\n```",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "CORRECT",
+            "reason": "Chaotic incident with unknown root cause requires analyst investigation before implementer can fix. Triage: chaotic scope, P0 urgency, one-way door. Route to analyst first per 'Unknowns: analyst first, then re-evaluate' rule.",
+            "raw": "```json\n{\n  \"verdict\": \"CORRECT\", \n  \"reason\": \"Chaotic incident with unknown root cause requires analyst investigation before implementer can fix. Triage: chaotic scope, P0 urgency, one-way door. Route to analyst first per 'Unknowns: analyst first, then re-evaluate' rule.\"\n}\n```",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          }
+        ]
+      },
+      {
+        "scenario_id": "S2",
+        "passes": 0,
+        "runs": 3,
+        "pass_rate": 0.0,
+        "passed": false,
+        "flaky": false,
+        "per_run": [
+          {
+            "verdict": "CORRECT",
+            "reason": "This is a textbook complex problem requiring analysis before implementation. 'API is slow' lacks specificity (which endpoints, under what conditions, how slow), has multiple potential root causes (database, network, code efficiency, infrastructure), and needs investigation before any solution can be designed. Should route to analyst first per routing rules.",
+            "raw": "```json\n{\n  \"verdict\": \"correct\",\n  \"reason\": \"This is a textbook complex problem requiring analysis before implementation. 'API is slow' lacks specificity (which endpoints, under what conditions, how slow), has multiple potential root causes (database, network, code efficiency, infrastructure), and needs investigation before any solution can be designed. Should route to analyst first per routing rules.\"\n}\n```",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "CORRECT",
+            "reason": "Vague performance complaint lacks specifics (which endpoints, what latency, under what conditions). Without clear problem definition, this is complex domain requiring investigation before solutions can be determined.",
+            "raw": "```json\n{\n  \"verdict\": \"correct\",\n  \"reason\": \"Vague performance complaint lacks specifics (which endpoints, what latency, under what conditions). Without clear problem definition, this is complex domain requiring investigation before solutions can be determined.\"\n}\n```",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "CORRECT",
+            "reason": "Vague performance complaint with no specific metrics, root cause, or scope definitively falls into 'complex' domain requiring investigation and analysis before solution can be determined.",
+            "raw": "```json\n{\n  \"verdict\": \"correct\",\n  \"reason\": \"Vague performance complaint with no specific metrics, root cause, or scope definitively falls into 'complex' domain requiring investigation and analysis before solution can be determined.\"\n}\n```\n\nThe complaint \"Our API is slow. Fix it.\" lacks:\n- Specific performance metrics\n- Affected endpoints/operations\n- Root cause analysis\n- Environmental context\n- Success criteria\n\nThis requires `analyst` delegation first to gather data, identify bottlenecks, and scope the actual problem before any solution can be architected or implemented.",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          }
+        ]
+      },
+      {
+        "scenario_id": "S3",
+        "passes": 0,
+        "runs": 3,
+        "pass_rate": 0.0,
+        "passed": false,
+        "flaky": false,
+        "per_run": [
+          {
+            "verdict": "ROUTE TO SPEC-GENERATOR THEN FOLLOW LIFECYCLE CHAIN",
+            "reason": "Complex multi-step feature requiring specification before implementation. Cynefin=complicated, scope=multi-step/cross-domain, not trivial or reversible. Must follow lifecycle: spec-generator -> milestone-planner -> implementer -> qa -> critic.",
+            "raw": "```json\n{\n  \"verdict\": \"Route to spec-generator then follow lifecycle chain\",\n  \"reason\": \"Complex multi-step feature requiring specification before implementation. Cynefin=complicated, scope=multi-step/cross-domain, not trivial or reversible. Must follow lifecycle: spec-generator -> milestone-planner -> implementer -> qa -> critic.\"\n}\n```",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "ROUTE TO SPEC-GENERATOR THEN MILESTONE-PLANNER",
+            "reason": "Complex multi-step cross-domain task requiring specification before implementation. Cynefin: complicated (known unknowns). Scope: multi-step. Not reversible (one-way door). Follows lifecycle pattern: spec -> plan -> implement -> qa -> review.",
+            "raw": "```json\n{\n  \"verdict\": \"Route to spec-generator then milestone-planner\",\n  \"reason\": \"Complex multi-step cross-domain task requiring specification before implementation. Cynefin: complicated (known unknowns). Scope: multi-step. Not reversible (one-way door). Follows lifecycle pattern: spec -> plan -> implement -> qa -> review.\"\n}\n```",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "DELEGATE",
+            "reason": "Complex multi-step feature requiring spec-generator -> architect -> implementer sequence. Cross-domain (API design + infrastructure + security). Not clear/trivial - needs proper coordination.",
+            "raw": "```json\n{\n  \"verdict\": \"delegate\",\n  \"reason\": \"Complex multi-step feature requiring spec-generator -> architect -> implementer sequence. Cross-domain (API design + infrastructure + security). Not clear/trivial - needs proper coordination.\"\n}\n```\n\nLet me orchestrate this webhook system implementation:\n\n## Triage Assessment\n- **Cynefin**: Complex (emergent patterns, security considerations, integration points)\n- **Scope**: Multi-step, cross-domain (API, infrastructure, security)\n- **Urgency**: P2 (feature work, not urgent)\n- **Reversibility**: One-way door (API contract changes affect consumers)\n\n## Execution Plan\n\n**Phase 1: Specification**\n- Delegate to `spec-generator`: Define webhook system requirements, event types, payload schemas, delivery guarantees\n\n**Phase 2: Architecture** \n- Delegate to `architect`: Design webhook infrastructure, storage, retry mechanisms, security model\n\n**Phase 3: Security Review**\n- Delegate to `security`: Review authentication, authorization, payload validation, rate limiting\n\n**Phase 4: Implementation**\n- Delegate to `implementer`: Build webhook system based on approved spec and architecture\n\n**Phase 5: Quality Assurance**\n- Delegate to `qa`: Test event delivery, failure scenarios, performance under load\n\n**Phase 6: Final Review**\n- Delegate to `critic`: Overall system review before deployment\n\nProceeding with Phase 1...\n\n<invoke name=\"Task\">\n<parameter name=\"agent\">spec-generator</parameter>\n<parameter name=\"task\">Generate comprehensive specification for webhook system</parameter>\n<parameter name=\"context\">API webhook system for event notifications to external consumers. Need to define event types, delivery mechanisms, retry policies, and security model.</parameter>\n<parameter name=\"output_format\">Structured specification document with: 1) Event schema definitions 2) Delivery guarantees 3) Authentication/security requirements 4) Error handling 5) Rate limiting 6) Consumer registration process</parameter>\n<parameter name=\"success_criteria\">Complete spec that architect can design from and implementer can build from</parameter>\n<parameter name=\"constraints\">Must be RESTful, secure by default, and scalable to 10k+ webhooks</parameter>\n</invoke>",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          }
+        ]
+      },
+      {
+        "scenario_id": "S4",
+        "passes": 0,
+        "runs": 3,
+        "pass_rate": 0.0,
+        "passed": false,
+        "flaky": false,
+        "per_run": [
+          {
+            "verdict": "SECURITY FIX MERGES FIRST, FEATURE AND REFACTOR WAIT",
+            "reason": "P0 security fix takes absolute priority per routing rules. Feature (P2) can proceed after security merge. Refactor (P3) waits until both complete to avoid conflicts.",
+            "raw": "```json\n{\n  \"verdict\": \"Security fix merges first, feature and refactor wait\",\n  \"reason\": \"P0 security fix takes absolute priority per routing rules. Feature (P2) can proceed after security merge. Refactor (P3) waits until both complete to avoid conflicts.\"\n}\n```",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "PRIORITIZE SECURITY FIX FOR IMMEDIATE REVIEW AND MERGE, BLOCK OTHER PRS UNTIL COMPLETE",
+            "reason": "P0 security issues take absolute priority per routing rules. One-way door risk of vulnerability exposure outweighs feature delivery timeline. Sequential processing prevents merge conflicts.",
+            "raw": "Looking at this scenario, I need to triage and coordinate the PR review/merge process.\n\n**Triage:**\n- Security fix: P0 (critical), one-way door (security vulnerabilities compound), clear scope\n- Feature: P2 (normal), likely two-way door (can be rolled back), complicated scope  \n- Refactor: P3 (low), two-way door (code changes), complicated scope\n\n**Routing decision:**\nPer routing rules, security wins ties and P0 takes absolute priority. The security fix should be fast-tracked through the review pipeline while other PRs wait to avoid merge conflicts and ensure the vulnerability is patched immediately.\n\n**Coordination plan:**\n1. Route security PR to `security` agent for specialized review, then `qa` for testing\n2. Block feature and refactor PRs until security fix merges\n3. Sequence remaining PRs by priority (feature, then refactor)\n\n```json\n{\n  \"verdict\": \"Prioritize security fix for immediate review and merge, block other PRs until complete\",\n  \"reason\": \"P0 security issues take absolute priority per routing rules. One-way door risk of vulnerability exposure outweighs feature delivery timeline. Sequential processing prevents merge conflicts.\"\n}\n```",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "SECURITY FIX MERGES FIRST, THEN FEATURE, THEN REFACTOR",
+            "reason": "P0 security fix takes absolute priority per routing rules (security wins ties). Clear sequence: review security PR immediately, merge if passes, then process P2 feature, finally P3 refactor. One-way door decisions (security) cannot wait for lower priority items.",
+            "raw": "{\"verdict\": \"Security fix merges first, then feature, then refactor\", \"reason\": \"P0 security fix takes absolute priority per routing rules (security wins ties). Clear sequence: review security PR immediately, merge if passes, then process P2 feature, finally P3 refactor. One-way door decisions (security) cannot wait for lower priority items.\"}",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          }
+        ]
+      },
+      {
+        "scenario_id": "S5",
+        "passes": 0,
+        "runs": 3,
+        "pass_rate": 0.0,
+        "passed": false,
+        "flaky": false,
+        "per_run": [
+          {
+            "verdict": "DELEGATE_TO_SECURITY_AGENT",
+            "reason": "Security vulnerability assessment requires specialized security expertise per routing rules - delegating to security agent rather than self-implementing",
+            "raw": "Looking at this task, I need to triage and route appropriately:\n\n**Triage:**\n- Cynefin: Complicated (security analysis requires specialized knowledge)\n- Scope: Single-step security review\n- Urgency: P1 (security vulnerability assessment)\n- Reversibility: Two-way door (analysis, not implementation)\n\n**Routing Decision:**\nThis is a security vulnerability assessment task that requires specialist knowledge of path traversal attacks, input validation, and security best practices. Per my constraints, I must delegate security analysis to the `security` agent rather than implement myself.\n\n**Delegation:**\n\nTASK: Analyze POST /api/files endpoint for path traversal vulnerabilities with path parameter \"../../etc/passwd\"\n\nCONTEXT: Security review of API endpoint that accepts file paths as query parameters\n\nOUTPUT FORMAT: JSON with vulnerability assessment including risk level, attack vectors, and mitigation recommendations\n\nSUCCESS CRITERIA: Complete security analysis covering path traversal risks, input validation gaps, and actionable remediation steps\n\nCONSTRAINTS: Focus specifically on path traversal attack vectors and related security issues\n\n```json\n{\n  \"verdict\": \"delegate_to_security_agent\",\n  \"reason\": \"Security vulnerability assessment requires specialized security expertise per routing rules - delegating to security agent rather than self-implementing\"\n}\n```",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "ROUTE TO SECURITY AGENT",
+            "reason": "Security vulnerability assessment requires specialized expertise in threat analysis and attack patterns, not orchestration",
+            "raw": "Looking at this task through my triage framework:\n\n1. **Cynefin**: Clear - this is a specific security vulnerability assessment\n2. **Scope**: Single-step - focused security review task\n3. **Urgency**: P1 - security vulnerability assessment\n4. **Reversibility**: Two-way door - assessment can be refined\n\nThis requires specialized security expertise, not general coordination. Per my routing rules: \"Threats: `security`\" and constraint: \"Delegate... review to `critic`\".\n\nI should route this to the `security` agent who has the specialized knowledge of vulnerability patterns, attack vectors, and security best practices needed for proper path traversal assessment.\n\n```json\n{\n  \"verdict\": \"Route to security agent\",\n  \"reason\": \"Security vulnerability assessment requires specialized expertise in threat analysis and attack patterns, not orchestration\"\n}\n```",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "CORRECTLY ROUTED TO SECURITY SPECIALIST",
+            "reason": "Security vulnerability assessment requires specialized expertise per routing rules - delegated to security agent rather than self-implementing",
+            "raw": "Looking at this scenario, I need to classify and route appropriately.\n\n**Triage:**\n- Cynefin: Complicated (requires security expertise)\n- Scope: Single-step but specialized\n- Domain: Security vulnerability assessment\n- This is NOT a clear/trivial task that I should handle directly\n\n**Routing Decision:**\nThis is a security assessment task that requires specialist knowledge of path traversal attacks, input validation, and security best practices. According to my routing rules, security threats go to the `security` agent.\n\n**Delegation:**\n\n<Task>\nTASK: Assess POST /api/files endpoint for path traversal vulnerabilities with path parameter \"../../etc/passwd\"\n\nCONTEXT: Security review of API endpoint that accepts file path parameters. Need to identify if the endpoint is vulnerable to directory traversal attacks.\n\nOUTPUT FORMAT: JSON object with vulnerability assessment including severity, exploitability, and remediation recommendations.\n\nSUCCESS CRITERIA: Clear identification of whether vulnerability exists, risk level, and specific mitigation steps.\n\nCONSTRAINTS: Focus specifically on path traversal/directory traversal attack vectors.\n</Task>\n\n```json\n{\n  \"verdict\": \"Correctly routed to security specialist\", \n  \"reason\": \"Security vulnerability assessment requires specialized expertise per routing rules - delegated to security agent rather than self-implementing\"\n}\n```",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          }
+        ]
+      }
+    ]
+  }
+}

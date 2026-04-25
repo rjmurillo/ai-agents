@@ -1,0 +1,496 @@
+{
+  "eval_type": "prompt-change",
+  "adr": "ADR-057",
+  "model": "claude-sonnet-4-20250514",
+  "source": "explicit: .claude/agents/security.md -> .claude/agents/security.md",
+  "runs_per_scenario": 5,
+  "security_critical": true,
+  "comparison": {
+    "before_score": 0.8,
+    "after_score": 0.8,
+    "delta": 0.0,
+    "scenario_count": 5,
+    "api_calls": 50,
+    "est_tokens": 175000
+  },
+  "gate": {
+    "verdict": "FAIL",
+    "passed": false,
+    "security_critical": true,
+    "criteria": {
+      "no_regression": true,
+      "has_improvement": false,
+      "no_unexplained_regressions": true,
+      "no_high_flakiness": false,
+      "security_all_runs_pass": false
+    },
+    "improvements": [],
+    "regressions": [],
+    "flaky_scenarios": [
+      "S1",
+      "S3"
+    ],
+    "high_flakiness_scenarios": [
+      "S3"
+    ],
+    "before_score": 0.8,
+    "after_score": 0.8,
+    "delta": 0.0
+  },
+  "detail": {
+    "before": [
+      {
+        "scenario_id": "S1",
+        "passes": 5,
+        "runs": 5,
+        "pass_rate": 1.0,
+        "passed": true,
+        "flaky": false,
+        "per_run": [
+          {
+            "verdict": "IDENTIFY",
+            "reason": "CWE-22 path traversal vulnerability detected - endpoint accepts user-controlled file path without validation, enabling access to arbitrary files outside intended directory",
+            "raw": "{\"verdict\": \"IDENTIFY\", \"reason\": \"CWE-22 path traversal vulnerability detected - endpoint accepts user-controlled file path without validation, enabling access to arbitrary files outside intended directory\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "IDENTIFY",
+            "reason": "CWE-22 path traversal vulnerability detected in file upload endpoint - user-controlled file path can access arbitrary files outside intended directory",
+            "raw": "{\"verdict\": \"IDENTIFY\", \"reason\": \"CWE-22 path traversal vulnerability detected in file upload endpoint - user-controlled file path can access arbitrary files outside intended directory\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "IDENTIFY",
+            "reason": "Classic CWE-22 path traversal vulnerability - endpoint accepts file path from user input without validation, enabling directory traversal attacks to read arbitrary files",
+            "raw": "```json\n{\"verdict\": \"IDENTIFY\", \"reason\": \"Classic CWE-22 path traversal vulnerability - endpoint accepts file path from user input without validation, enabling directory traversal attacks to read arbitrary files\"}\n```",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "IDENTIFY",
+            "reason": "Path traversal vulnerability (CWE-22) detected in file upload endpoint - user-controlled file path without validation allows directory escape attacks",
+            "raw": "{\"verdict\": \"IDENTIFY\", \"reason\": \"Path traversal vulnerability (CWE-22) detected in file upload endpoint - user-controlled file path without validation allows directory escape attacks\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "IDENTIFY",
+            "reason": "POST /api/upload endpoint accepting user-controlled file paths is a classic CWE-22 path traversal vulnerability. This allows attackers to read arbitrary files outside intended directory using ../ sequences. Requires immediate remediation with path validation and sandboxing.",
+            "raw": "{\"verdict\": \"IDENTIFY\", \"reason\": \"POST /api/upload endpoint accepting user-controlled file paths is a classic CWE-22 path traversal vulnerability. This allows attackers to read arbitrary files outside intended directory using ../ sequences. Requires immediate remediation with path validation and sandboxing.\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          }
+        ]
+      },
+      {
+        "scenario_id": "S2",
+        "passes": 5,
+        "runs": 5,
+        "pass_rate": 1.0,
+        "passed": true,
+        "flaky": false,
+        "per_run": [
+          {
+            "verdict": "IDENTIFY",
+            "reason": "Supply chain attack via postinstall scripts is ASI04 (Supply Chain) vulnerability requiring immediate assessment and mitigation recommendations",
+            "raw": "{\"verdict\": \"IDENTIFY\", \"reason\": \"Supply chain attack via postinstall scripts is ASI04 (Supply Chain) vulnerability requiring immediate assessment and mitigation recommendations\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "IDENTIFY",
+            "reason": "Supply chain attack vector via npm postinstall scripts requires immediate vulnerability assessment and mitigation recommendations",
+            "raw": "{\"verdict\": \"IDENTIFY\", \"reason\": \"Supply chain attack vector via npm postinstall scripts requires immediate vulnerability assessment and mitigation recommendations\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "IDENTIFY",
+            "reason": "Postinstall scripts execute arbitrary code during npm install with same privileges as CI runner - classic supply chain attack vector requiring immediate vulnerability assessment and mitigation recommendations",
+            "raw": "{\"verdict\": \"IDENTIFY\", \"reason\": \"Postinstall scripts execute arbitrary code during npm install with same privileges as CI runner - classic supply chain attack vector requiring immediate vulnerability assessment and mitigation recommendations\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "IDENTIFY",
+            "reason": "Supply chain attack via npm postinstall script execution in CI pipeline - potential for malicious code execution during build process",
+            "raw": "{\"verdict\": \"IDENTIFY\", \"reason\": \"Supply chain attack via npm postinstall script execution in CI pipeline - potential for malicious code execution during build process\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "IDENTIFY",
+            "reason": "Supply chain attack vector detected - postinstall scripts execute arbitrary code during npm install in CI environment, creating attack surface for compromised dependencies to inject malicious code",
+            "raw": "{\"verdict\": \"IDENTIFY\", \"reason\": \"Supply chain attack vector detected - postinstall scripts execute arbitrary code during npm install in CI environment, creating attack surface for compromised dependencies to inject malicious code\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          }
+        ]
+      },
+      {
+        "scenario_id": "S3",
+        "passes": 0,
+        "runs": 5,
+        "pass_rate": 0.0,
+        "passed": false,
+        "flaky": false,
+        "per_run": [
+          {
+            "verdict": "IDENTIFY",
+            "reason": "API3 Excessive Data Exposure - sensitive fields (email, phone, hashed_password) returned unnecessarily, violating principle of least privilege",
+            "raw": "{\"verdict\": \"IDENTIFY\", \"reason\": \"API3 Excessive Data Exposure - sensitive fields (email, phone, hashed_password) returned unnecessarily, violating principle of least privilege\"}",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "IDENTIFY",
+            "reason": "OWASP API3:2023 Excessive Data Exposure violation - API returns sensitive PII (email, phone, hashed_password) when client only needs name and avatar. This is a High severity finding requiring immediate remediation.",
+            "raw": "{\"verdict\": \"IDENTIFY\", \"reason\": \"OWASP API3:2023 Excessive Data Exposure violation - API returns sensitive PII (email, phone, hashed_password) when client only needs name and avatar. This is a High severity finding requiring immediate remediation.\"}",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "IDENTIFY",
+            "reason": "OWASP API3:2023 Excessive Data Exposure - API returns sensitive fields (email, phone, hashed_password) when frontend only needs name and avatar. Violates principle of least privilege for data access.",
+            "raw": "{\"verdict\": \"IDENTIFY\", \"reason\": \"OWASP API3:2023 Excessive Data Exposure - API returns sensitive fields (email, phone, hashed_password) when frontend only needs name and avatar. Violates principle of least privilege for data access.\"}",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "IDENTIFY",
+            "reason": "OWASP API3:2023 excessive data exposure - API returns email, phone, hashed_password but frontend only needs name, avatar. PII leak violates principle of least privilege",
+            "raw": "{\"verdict\": \"IDENTIFY\", \"reason\": \"OWASP API3:2023 excessive data exposure - API returns email, phone, hashed_password but frontend only needs name, avatar. PII leak violates principle of least privilege\"}",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "IDENTIFY",
+            "reason": "OWASP API3 violation detected - API returns sensitive PII (email, phone, hashed_password) when client only needs name/avatar, creating unnecessary data exposure attack surface",
+            "raw": "```json\n{\"verdict\": \"IDENTIFY\", \"reason\": \"OWASP API3 violation detected - API returns sensitive PII (email, phone, hashed_password) when client only needs name/avatar, creating unnecessary data exposure attack surface\"}\n```",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          }
+        ]
+      },
+      {
+        "scenario_id": "S4",
+        "passes": 5,
+        "runs": 5,
+        "pass_rate": 1.0,
+        "passed": true,
+        "flaky": false,
+        "per_run": [
+          {
+            "verdict": "IDENTIFY",
+            "reason": "localStorage JWT storage vulnerable to XSS attacks (CWE-79). JavaScript can access tokens, enabling session hijacking. Requires mitigation recommendation.",
+            "raw": "{\"verdict\": \"IDENTIFY\", \"reason\": \"localStorage JWT storage vulnerable to XSS attacks (CWE-79). JavaScript can access tokens, enabling session hijacking. Requires mitigation recommendation.\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "IDENTIFY",
+            "reason": "XSS vulnerability - localStorage JWT accessible to malicious scripts, requires httpOnly cookie migration",
+            "raw": "{\"verdict\": \"IDENTIFY\", \"reason\": \"XSS vulnerability - localStorage JWT accessible to malicious scripts, requires httpOnly cookie migration\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "IDENTIFY",
+            "reason": "Critical XSS vulnerability detected - localStorage JWT accessible to malicious scripts enables session hijacking (CWE-79, CWE-922). Requires immediate mitigation with httpOnly secure cookies.",
+            "raw": "{\"verdict\": \"IDENTIFY\", \"reason\": \"Critical XSS vulnerability detected - localStorage JWT accessible to malicious scripts enables session hijacking (CWE-79, CWE-922). Requires immediate mitigation with httpOnly secure cookies.\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "IDENTIFY",
+            "reason": "XSS vulnerability in JWT localStorage storage - CWE-79/CWE-922. Critical security flaw requiring immediate remediation with httpOnly cookies or secure storage mechanism.",
+            "raw": "{\"verdict\": \"IDENTIFY\", \"reason\": \"XSS vulnerability in JWT localStorage storage - CWE-79/CWE-922. Critical security flaw requiring immediate remediation with httpOnly cookies or secure storage mechanism.\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "IDENTIFY",
+            "reason": "XSS vulnerability detected - JWT in localStorage accessible via document.cookie/localStorage, enabling token theft. CWE-79/CWE-922 violation requiring httpOnly cookie mitigation.",
+            "raw": "```json\n{\"verdict\": \"IDENTIFY\", \"reason\": \"XSS vulnerability detected - JWT in localStorage accessible via document.cookie/localStorage, enabling token theft. CWE-79/CWE-922 violation requiring httpOnly cookie mitigation.\"}\n```",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          }
+        ]
+      },
+      {
+        "scenario_id": "S5",
+        "passes": 5,
+        "runs": 5,
+        "pass_rate": 1.0,
+        "passed": true,
+        "flaky": false,
+        "per_run": [
+          {
+            "verdict": "IDENTIFY",
+            "reason": "Critical authorization vulnerability (CWE-862) in admin endpoint - any authenticated user can delete other users without privilege check",
+            "raw": "{\"verdict\": \"IDENTIFY\", \"reason\": \"Critical authorization vulnerability (CWE-862) in admin endpoint - any authenticated user can delete other users without privilege check\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "IDENTIFY",
+            "reason": "Critical authorization bypass vulnerability requiring STRIDE analysis and immediate remediation - Missing Authentication (CWE-306) and Improper Authorization (CWE-863)",
+            "raw": "{\"verdict\": \"IDENTIFY\", \"reason\": \"Critical authorization bypass vulnerability requiring STRIDE analysis and immediate remediation - Missing Authentication (CWE-306) and Improper Authorization (CWE-863)\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "IDENTIFY",
+            "reason": "Critical authorization vulnerability (CWE-862) in admin endpoint - missing access control allows privilege escalation. STRIDE category: Elevation of Privilege.",
+            "raw": "{\"verdict\": \"IDENTIFY\", \"reason\": \"Critical authorization vulnerability (CWE-862) in admin endpoint - missing access control allows privilege escalation. STRIDE category: Elevation of Privilege.\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "IDENTIFY",
+            "reason": "Critical authorization vulnerability - missing admin privilege check allows any authenticated user to delete arbitrary users via CWE-862/CWE-285 with STRIDE classification: Elevation of Privilege",
+            "raw": "{\"verdict\": \"IDENTIFY\", \"reason\": \"Critical authorization vulnerability - missing admin privilege check allows any authenticated user to delete arbitrary users via CWE-862/CWE-285 with STRIDE classification: Elevation of Privilege\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "IDENTIFY",
+            "reason": "Critical authorization bypass vulnerability - admin endpoint accessible without role verification, enabling privilege escalation and unauthorized data deletion",
+            "raw": "{\"verdict\": \"IDENTIFY\", \"reason\": \"Critical authorization bypass vulnerability - admin endpoint accessible without role verification, enabling privilege escalation and unauthorized data deletion\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          }
+        ]
+      }
+    ],
+    "after": [
+      {
+        "scenario_id": "S1",
+        "passes": 4,
+        "runs": 5,
+        "pass_rate": 0.8,
+        "passed": true,
+        "flaky": true,
+        "per_run": [
+          {
+            "verdict": "IDENTIFY",
+            "reason": "CWE-22 path traversal vulnerability detected in file upload endpoint - user-controlled file path parameter allows directory traversal attacks to read arbitrary files from disk",
+            "raw": "{\"verdict\": \"IDENTIFY\", \"reason\": \"CWE-22 path traversal vulnerability detected in file upload endpoint - user-controlled file path parameter allows directory traversal attacks to read arbitrary files from disk\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "IDENTIFY",
+            "reason": "Classic CWE-22 path traversal vulnerability - endpoint accepts user-controlled file path without validation, allowing access to arbitrary files via '../' sequences",
+            "raw": "{\"verdict\": \"IDENTIFY\", \"reason\": \"Classic CWE-22 path traversal vulnerability - endpoint accepts user-controlled file path without validation, allowing access to arbitrary files via '../' sequences\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "IDENTIFY",
+            "reason": "Path traversal vulnerability detected - endpoint accepts user-controlled file path without validation, enabling access to arbitrary files via ../../../etc/passwd patterns",
+            "raw": "{\"verdict\": \"IDENTIFY\", \"reason\": \"Path traversal vulnerability detected - endpoint accepts user-controlled file path without validation, enabling access to arbitrary files via ../../../etc/passwd patterns\"}",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "IDENTIFY",
+            "reason": "Classic CWE-22 path traversal vulnerability - user-controlled file path without validation enables directory escape attacks",
+            "raw": "{\"verdict\": \"IDENTIFY\", \"reason\": \"Classic CWE-22 path traversal vulnerability - user-controlled file path without validation enables directory escape attacks\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "IDENTIFY",
+            "reason": "CWE-22 path traversal vulnerability detected - endpoint accepts file path from user input without validation, enabling arbitrary file access",
+            "raw": "```json\n{\"verdict\": \"IDENTIFY\", \"reason\": \"CWE-22 path traversal vulnerability detected - endpoint accepts file path from user input without validation, enabling arbitrary file access\"}\n```",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          }
+        ]
+      },
+      {
+        "scenario_id": "S2",
+        "passes": 5,
+        "runs": 5,
+        "pass_rate": 1.0,
+        "passed": true,
+        "flaky": false,
+        "per_run": [
+          {
+            "verdict": "IDENTIFY",
+            "reason": "Supply chain attack via postinstall script execution (ASI04/CWE-426) requires immediate vulnerability assessment and mitigation",
+            "raw": "```json\n{\"verdict\": \"IDENTIFY\", \"reason\": \"Supply chain attack via postinstall script execution (ASI04/CWE-426) requires immediate vulnerability assessment and mitigation\"}\n```",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "IDENTIFY",
+            "reason": "Supply chain attack via postinstall scripts is ASI04/CWE-426 - unvalidated dependency execution in CI. This is a critical vulnerability requiring immediate assessment and mitigation recommendations.",
+            "raw": "{\"verdict\": \"IDENTIFY\", \"reason\": \"Supply chain attack via postinstall scripts is ASI04/CWE-426 - unvalidated dependency execution in CI. This is a critical vulnerability requiring immediate assessment and mitigation recommendations.\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "IDENTIFY",
+            "reason": "Supply chain attack vector through dependency postinstall script requires immediate vulnerability assessment - matches ASI04/CWE-426 Supply Chain and CWE-94 Code Execution patterns",
+            "raw": "{\"verdict\": \"IDENTIFY\", \"reason\": \"Supply chain attack vector through dependency postinstall script requires immediate vulnerability assessment - matches ASI04/CWE-426 Supply Chain and CWE-94 Code Execution patterns\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "IDENTIFY",
+            "reason": "Supply chain vulnerability detected - postinstall scripts execute arbitrary code during CI with elevated privileges, creating attack vector for dependency compromise (CWE-506/ASI04)",
+            "raw": "{\"verdict\": \"IDENTIFY\", \"reason\": \"Supply chain vulnerability detected - postinstall scripts execute arbitrary code during CI with elevated privileges, creating attack vector for dependency compromise (CWE-506/ASI04)\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "IDENTIFY",
+            "reason": "Supply chain attack via postinstall script execution - CWE-426 untrusted search path, requires immediate dependency audit and script sandboxing",
+            "raw": "```json\n{\"verdict\": \"IDENTIFY\", \"reason\": \"Supply chain attack via postinstall script execution - CWE-426 untrusted search path, requires immediate dependency audit and script sandboxing\"}\n```",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          }
+        ]
+      },
+      {
+        "scenario_id": "S3",
+        "passes": 1,
+        "runs": 5,
+        "pass_rate": 0.2,
+        "passed": false,
+        "flaky": true,
+        "per_run": [
+          {
+            "verdict": "IDENTIFY",
+            "reason": "OWASP API3:2023 Excessive Data Exposure - API returns sensitive fields (email, phone, hashed_password) that frontend doesn't need, violating principle of least privilege and creating unnecessary attack surface",
+            "raw": "{\"verdict\": \"IDENTIFY\", \"reason\": \"OWASP API3:2023 Excessive Data Exposure - API returns sensitive fields (email, phone, hashed_password) that frontend doesn't need, violating principle of least privilege and creating unnecessary attack surface\"}",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "IDENTIFY",
+            "reason": "OWASP API3:2023 Excessive Data Exposure detected - API returns sensitive fields (email, phone, hashed_password) not required by frontend consumer",
+            "raw": "{\"verdict\": \"IDENTIFY\", \"reason\": \"OWASP API3:2023 Excessive Data Exposure detected - API returns sensitive fields (email, phone, hashed_password) not required by frontend consumer\"}",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "IDENTIFY",
+            "reason": "OWASP API3 violation - API exposing PII (email, phone) and sensitive data (hashed_password) when frontend only requires name and avatar",
+            "raw": "{\"verdict\": \"IDENTIFY\", \"reason\": \"OWASP API3 violation - API exposing PII (email, phone) and sensitive data (hashed_password) when frontend only requires name and avatar\"}",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "IDENTIFY",
+            "reason": "OWASP API3:2019 Excessive Data Exposure - API returns sensitive fields (email, phone, hashed_password) when frontend only needs name and avatar. Risk Score: 8/10. CWE-200 Information Exposure.",
+            "raw": "{\"verdict\": \"IDENTIFY\", \"reason\": \"OWASP API3:2019 Excessive Data Exposure - API returns sensitive fields (email, phone, hashed_password) when frontend only needs name and avatar. Risk Score: 8/10. CWE-200 Information Exposure.\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "IDENTIFY",
+            "reason": "OWASP API3:2023 violation - API exposes sensitive data (email, phone, hashed_password) not required by frontend, creating unnecessary attack surface and privacy risk",
+            "raw": "{\"verdict\": \"IDENTIFY\", \"reason\": \"OWASP API3:2023 violation - API exposes sensitive data (email, phone, hashed_password) not required by frontend, creating unnecessary attack surface and privacy risk\"}",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          }
+        ]
+      },
+      {
+        "scenario_id": "S4",
+        "passes": 5,
+        "runs": 5,
+        "pass_rate": 1.0,
+        "passed": true,
+        "flaky": false,
+        "per_run": [
+          {
+            "verdict": "IDENTIFY",
+            "reason": "XSS vulnerability in localStorage JWT storage requires immediate remediation - tokens accessible to malicious scripts",
+            "raw": "{\"verdict\": \"IDENTIFY\", \"reason\": \"XSS vulnerability in localStorage JWT storage requires immediate remediation - tokens accessible to malicious scripts\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "IDENTIFY",
+            "reason": "localStorage JWT storage vulnerable to XSS attacks (CWE-79). Tokens accessible via JavaScript, no httpOnly protection. Risk Score: 8/10. Requires secure cookie migration or additional XSS mitigations.",
+            "raw": "{\"verdict\": \"IDENTIFY\", \"reason\": \"localStorage JWT storage vulnerable to XSS attacks (CWE-79). Tokens accessible via JavaScript, no httpOnly protection. Risk Score: 8/10. Requires secure cookie migration or additional XSS mitigations.\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "IDENTIFY",
+            "reason": "localStorage JWT storage creates XSS vulnerability (CWE-79/CWE-922) - malicious scripts can access tokens, no HttpOnly protection, requires migration to secure storage mechanism",
+            "raw": "{\"verdict\": \"IDENTIFY\", \"reason\": \"localStorage JWT storage creates XSS vulnerability (CWE-79/CWE-922) - malicious scripts can access tokens, no HttpOnly protection, requires migration to secure storage mechanism\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "IDENTIFY",
+            "reason": "XSS vulnerability allows malicious scripts to access localStorage JWT tokens, enabling session hijacking. CWE-79 (XSS) combined with CWE-522 (insufficient protection of credentials). Requires immediate mitigation to httpOnly cookies or secure storage mechanism.",
+            "raw": "{\"verdict\": \"IDENTIFY\", \"reason\": \"XSS vulnerability allows malicious scripts to access localStorage JWT tokens, enabling session hijacking. CWE-79 (XSS) combined with CWE-522 (insufficient protection of credentials). Requires immediate mitigation to httpOnly cookies or secure storage mechanism.\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "IDENTIFY",
+            "reason": "XSS vulnerability in localStorage JWT storage requires immediate remediation - tokens accessible to malicious scripts, violating secure storage practices",
+            "raw": "{\"verdict\": \"IDENTIFY\", \"reason\": \"XSS vulnerability in localStorage JWT storage requires immediate remediation - tokens accessible to malicious scripts, violating secure storage practices\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          }
+        ]
+      },
+      {
+        "scenario_id": "S5",
+        "passes": 5,
+        "runs": 5,
+        "pass_rate": 1.0,
+        "passed": true,
+        "flaky": false,
+        "per_run": [
+          {
+            "verdict": "IDENTIFY",
+            "reason": "Authorization vulnerability found - admin endpoint accessible without role verification, enabling privilege escalation and unauthorized user deletion",
+            "raw": "```json\n{\"verdict\": \"IDENTIFY\", \"reason\": \"Authorization vulnerability found - admin endpoint accessible without role verification, enabling privilege escalation and unauthorized user deletion\"}\n```",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "IDENTIFY",
+            "reason": "Critical authorization bypass vulnerability - CWE-862 Missing Authorization. Admin endpoint lacks privilege verification, allowing any authenticated user to delete arbitrary users. STRIDE category: Elevation of Privilege.",
+            "raw": "```json\n{\n  \"verdict\": \"IDENTIFY\",\n  \"reason\": \"Critical authorization bypass vulnerability - CWE-862 Missing Authorization. Admin endpoint lacks privilege verification, allowing any authenticated user to delete arbitrary users. STRIDE category: Elevation of Privilege.\"\n}\n```",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "IDENTIFY",
+            "reason": "Critical authorization vulnerability (CWE-862) enabling privilege escalation - any authenticated user can delete any other user without admin role verification",
+            "raw": "{\"verdict\": \"IDENTIFY\", \"reason\": \"Critical authorization vulnerability (CWE-862) enabling privilege escalation - any authenticated user can delete any other user without admin role verification\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "IDENTIFY",
+            "reason": "Critical authorization bypass vulnerability (CWE-862) - admin endpoint accessible to any authenticated user, enabling elevation of privilege attack",
+            "raw": "{\"verdict\": \"IDENTIFY\", \"reason\": \"Critical authorization bypass vulnerability (CWE-862) - admin endpoint accessible to any authenticated user, enabling elevation of privilege attack\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "IDENTIFY",
+            "reason": "Critical authorization bypass vulnerability - endpoint allows privilege escalation without admin verification, enabling unauthorized user deletion",
+            "raw": "{\"verdict\": \"IDENTIFY\", \"reason\": \"Critical authorization bypass vulnerability - endpoint allows privilege escalation without admin verification, enabling unauthorized user deletion\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          }
+        ]
+      }
+    ]
+  }
+}

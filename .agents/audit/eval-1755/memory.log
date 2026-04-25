@@ -1,0 +1,42 @@
+  Scenarios: 4 loaded from tests/evals/memory-scenarios.json
+  Runs per scenario: 3
+  Security-critical: False
+  Model: claude-sonnet-4-20250514
+  Source: explicit: .claude/agents/memory.md -> .claude/agents/memory.md
+  Before: 14123 chars, After: 14123 chars
+  WARNING: before and after prompt text are identical
+
+============================================================
+  RUNNING BEHAVIORAL EVAL (4 scenarios x 3 runs)
+============================================================
+  [1/4] S1: Retrieves relevant context for new session on known feature...
+    BEFORE (3 runs)...
+    AFTER  (3 runs)...
+    PASS [FLAKY] -> PASS
+  [2/4] S2: Persists architectural decision with cross-session value...
+    BEFORE (3 runs)...
+    AFTER  (3 runs)...
+    FAIL -> FAIL
+  [3/4] S3: Detects stale memory and flags for verification...
+    BEFORE (3 runs)...
+    AFTER  (3 runs)...
+    FAIL -> FAIL
+  [4/4] S4: Synthesizes across multiple sources with attribution...
+    BEFORE (3 runs)...
+    AFTER  (3 runs)...
+    PASS -> PASS
+
+  Cost: 24 API calls, ~84,000 tokens
+
+  Results written to .agents/audit/eval-1755/memory.json
+
+============================================================
+  ACCEPTANCE GATE: FAIL
+============================================================
+  Before: 50%  After: 50%  Delta: +0%
+  Criteria:
+    no_regression: PASS
+    has_improvement: FAIL
+    no_unexplained_regressions: PASS
+    no_high_flakiness: PASS
+============================================================

@@ -1,0 +1,356 @@
+{
+  "eval_type": "prompt-change",
+  "adr": "ADR-057",
+  "model": "claude-sonnet-4-20250514",
+  "source": "explicit: .claude/agents/architect.md -> .claude/agents/architect.md",
+  "runs_per_scenario": 3,
+  "security_critical": false,
+  "comparison": {
+    "before_score": 0.4,
+    "after_score": 0.2,
+    "delta": -0.2,
+    "scenario_count": 5,
+    "api_calls": 30,
+    "est_tokens": 105000
+  },
+  "gate": {
+    "verdict": "FAIL",
+    "passed": false,
+    "security_critical": false,
+    "criteria": {
+      "no_regression": false,
+      "has_improvement": false,
+      "no_unexplained_regressions": false,
+      "no_high_flakiness": false
+    },
+    "improvements": [],
+    "regressions": [
+      "S4"
+    ],
+    "flaky_scenarios": [
+      "S1"
+    ],
+    "high_flakiness_scenarios": [
+      "S1"
+    ],
+    "before_score": 0.4,
+    "after_score": 0.2,
+    "delta": -0.2
+  },
+  "detail": {
+    "before": [
+      {
+        "scenario_id": "S1",
+        "passes": 1,
+        "runs": 3,
+        "pass_rate": 0.3333333333333333,
+        "passed": false,
+        "flaky": true,
+        "per_run": [
+          {
+            "verdict": "NEEDS_ADR",
+            "reason": "Adding GraphQL layer is an architecturally significant decision that introduces new technology, changes API strategy, and has high abstraction impact requiring formal ADR process",
+            "raw": "{\"verdict\": \"NEEDS_ADR\", \"reason\": \"Adding GraphQL layer is an architecturally significant decision that introduces new technology, changes API strategy, and has high abstraction impact requiring formal ADR process\"}",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "CHALLENGE",
+            "reason": "Adding GraphQL layer introduces significant architectural complexity without clear evidence of necessity. Requires formal ADR with alternatives analysis, vendor lock-in assessment, and performance impact evaluation before approval.",
+            "raw": "{\"verdict\": \"CHALLENGE\", \"reason\": \"Adding GraphQL layer introduces significant architectural complexity without clear evidence of necessity. Requires formal ADR with alternatives analysis, vendor lock-in assessment, and performance impact evaluation before approval.\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "NEEDS_ADR",
+            "reason": "Adding GraphQL is architecturally significant with high abstraction level, vendor dependencies, performance implications, and team training requirements - meets ADR criteria for significance, investment, and complexity",
+            "raw": "{\"verdict\": \"NEEDS_ADR\", \"reason\": \"Adding GraphQL is architecturally significant with high abstraction level, vendor dependencies, performance implications, and team training requirements - meets ADR criteria for significance, investment, and complexity\"}",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          }
+        ]
+      },
+      {
+        "scenario_id": "S2",
+        "passes": 3,
+        "runs": 3,
+        "pass_rate": 1.0,
+        "passed": true,
+        "flaky": false,
+        "per_run": [
+          {
+            "verdict": "CHALLENGE",
+            "reason": "Shared package coupling risk requires evaluation of abstraction boundaries, dependency direction, and alternative decoupling patterns before approval",
+            "raw": "{\"verdict\": \"CHALLENGE\", \"reason\": \"Shared package coupling risk requires evaluation of abstraction boundaries, dependency direction, and alternative decoupling patterns before approval\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "CHALLENGE",
+            "reason": "Shared package proposal lacks coupling risk analysis, abstraction level definition, and deployment/versioning strategy. Multiple architectural concerns require deeper evaluation before approval.",
+            "raw": "{\"verdict\": \"CHALLENGE\", \"reason\": \"Shared package proposal lacks coupling risk analysis, abstraction level definition, and deployment/versioning strategy. Multiple architectural concerns require deeper evaluation before approval.\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "CHALLENGE",
+            "reason": "Shared packages create coupling risk between web and mobile apps, potentially violating separation of concerns and introducing deployment dependencies that compromise system boundaries",
+            "raw": "{\"verdict\": \"CHALLENGE\", \"reason\": \"Shared packages create coupling risk between web and mobile apps, potentially violating separation of concerns and introducing deployment dependencies that compromise system boundaries\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          }
+        ]
+      },
+      {
+        "scenario_id": "S3",
+        "passes": 1,
+        "runs": 3,
+        "pass_rate": 0.3333333333333333,
+        "passed": false,
+        "flaky": true,
+        "per_run": [
+          {
+            "verdict": "CHALLENGE",
+            "reason": "Big-bang microservices migration introduces massive coordination complexity, deployment risk, and operational overhead without evidence of modular boundaries or team autonomy constraints that justify the architectural shift",
+            "raw": "```json\n{\"verdict\": \"CHALLENGE\", \"reason\": \"Big-bang microservices migration introduces massive coordination complexity, deployment risk, and operational overhead without evidence of modular boundaries or team autonomy constraints that justify the architectural shift\"}\n```",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "CHALLENGE",
+            "reason": "Big-bang microservices migration from 500K LOC monolith introduces significant architectural risks including distributed system complexity, data consistency challenges, and operational overhead without evidence of clear business drivers or proper decomposition strategy",
+            "raw": "{\"verdict\": \"CHALLENGE\", \"reason\": \"Big-bang microservices migration from 500K LOC monolith introduces significant architectural risks including distributed system complexity, data consistency challenges, and operational overhead without evidence of clear business drivers or proper decomposition strategy\"}",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "CHALLENGE",
+            "reason": "Big-bang microservices migration introduces massive operational complexity, distributed system fallacies, and team coordination overhead without proven benefit justification",
+            "raw": "{\"verdict\": \"CHALLENGE\", \"reason\": \"Big-bang microservices migration introduces massive operational complexity, distributed system fallacies, and team coordination overhead without proven benefit justification\"}",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          }
+        ]
+      },
+      {
+        "scenario_id": "S4",
+        "passes": 2,
+        "runs": 3,
+        "pass_rate": 0.6666666666666666,
+        "passed": true,
+        "flaky": true,
+        "per_run": [
+          {
+            "verdict": "CHALLENGE",
+            "reason": "Dual-write pattern creates atomicity problem - database write and Kafka publish can fail independently, leading to data inconsistency. This violates consistency principle and requires architectural solution like transactional outbox pattern or event sourcing.",
+            "raw": "{\"verdict\": \"CHALLENGE\", \"reason\": \"Dual-write pattern creates atomicity problem - database write and Kafka publish can fail independently, leading to data inconsistency. This violates consistency principle and requires architectural solution like transactional outbox pattern or event sourcing.\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "CHALLENGE",
+            "reason": "Dual-write pattern creates atomicity risk between PostgreSQL and Kafka - if database commit succeeds but Kafka publish fails, system state becomes inconsistent with no guaranteed recovery mechanism",
+            "raw": "{\"verdict\": \"CHALLENGE\", \"reason\": \"Dual-write pattern creates atomicity risk between PostgreSQL and Kafka - if database commit succeeds but Kafka publish fails, system state becomes inconsistent with no guaranteed recovery mechanism\"}",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "CHALLENGE",
+            "reason": "Classic dual-write problem - database write + Kafka publish cannot be atomic without additional patterns like outbox or saga, creating data consistency risks",
+            "raw": "{\"verdict\": \"CHALLENGE\", \"reason\": \"Classic dual-write problem - database write + Kafka publish cannot be atomic without additional patterns like outbox or saga, creating data consistency risks\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          }
+        ]
+      },
+      {
+        "scenario_id": "S5",
+        "passes": 0,
+        "runs": 3,
+        "pass_rate": 0.0,
+        "passed": false,
+        "flaky": false,
+        "per_run": [
+          {
+            "verdict": "NEEDS_ADR",
+            "reason": "Database technology choice is architecturally significant with high impact on system design, performance, and operational complexity. This decision requires formal documentation with trade-off analysis, vendor lock-in assessment, and comparison of alternatives including rationale for rejecting NoSQL approach.",
+            "raw": "{\"verdict\": \"NEEDS_ADR\", \"reason\": \"Database technology choice is architecturally significant with high impact on system design, performance, and operational complexity. This decision requires formal documentation with trade-off analysis, vendor lock-in assessment, and comparison of alternatives including rationale for rejecting NoSQL approach.\"}",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "NEEDS_ADR",
+            "reason": "Database technology choice is architecturally significant, affects multiple concerns (data consistency, query patterns, operational complexity), and requires formal decision documentation with alternatives analysis",
+            "raw": "{\"verdict\": \"NEEDS_ADR\", \"reason\": \"Database technology choice is architecturally significant, affects multiple concerns (data consistency, query patterns, operational complexity), and requires formal decision documentation with alternatives analysis\"}",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "NEEDS_ADR",
+            "reason": "Database technology choice is architecturally significant decision requiring formal documentation with alternatives analysis, vendor lock-in assessment, and reversibility evaluation",
+            "raw": "{\"verdict\": \"NEEDS_ADR\", \"reason\": \"Database technology choice is architecturally significant decision requiring formal documentation with alternatives analysis, vendor lock-in assessment, and reversibility evaluation\"}",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          }
+        ]
+      }
+    ],
+    "after": [
+      {
+        "scenario_id": "S1",
+        "passes": 1,
+        "runs": 3,
+        "pass_rate": 0.3333333333333333,
+        "passed": false,
+        "flaky": true,
+        "per_run": [
+          {
+            "verdict": "NEEDS_ADR",
+            "reason": "Adding GraphQL layer is architecturally significant decision requiring systematic evaluation of alternatives, vendor lock-in assessment, and documented rationale per ADR criteria",
+            "raw": "{\"verdict\": \"NEEDS_ADR\", \"reason\": \"Adding GraphQL layer is architecturally significant decision requiring systematic evaluation of alternatives, vendor lock-in assessment, and documented rationale per ADR criteria\"}",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "NEEDS_ADR",
+            "reason": "Adding GraphQL is architecturally significant with high abstraction, integration complexity, vendor dependencies, and long execution time. Requires formal ADR with alternatives analysis and stakeholder agreement before proceeding.",
+            "raw": "{\"verdict\": \"NEEDS_ADR\", \"reason\": \"Adding GraphQL is architecturally significant with high abstraction, integration complexity, vendor dependencies, and long execution time. Requires formal ADR with alternatives analysis and stakeholder agreement before proceeding.\"}",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "CHALLENGE",
+            "reason": "Adding GraphQL layer introduces significant architectural complexity, potential performance issues, and vendor lock-in without clear evidence that simpler solutions (API aggregation, BFF pattern) were evaluated. Requires thorough alternatives analysis and ADR.",
+            "raw": "```json\n{\"verdict\": \"CHALLENGE\", \"reason\": \"Adding GraphQL layer introduces significant architectural complexity, potential performance issues, and vendor lock-in without clear evidence that simpler solutions (API aggregation, BFF pattern) were evaluated. Requires thorough alternatives analysis and ADR.\"}\n```",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          }
+        ]
+      },
+      {
+        "scenario_id": "S2",
+        "passes": 3,
+        "runs": 3,
+        "pass_rate": 1.0,
+        "passed": true,
+        "flaky": false,
+        "per_run": [
+          {
+            "verdict": "CHALLENGE",
+            "reason": "Shared npm package between web and mobile creates coupling risk and violates separation of concerns - need analysis of alternatives like API layer or platform-specific implementations",
+            "raw": "{\"verdict\": \"CHALLENGE\", \"reason\": \"Shared npm package between web and mobile creates coupling risk and violates separation of concerns - need analysis of alternatives like API layer or platform-specific implementations\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "CHALLENGE",
+            "reason": "Shared package creates coupling risk between web and mobile apps - needs analysis of abstraction boundaries, deployment independence, and alternative patterns before approval",
+            "raw": "{\"verdict\": \"CHALLENGE\", \"reason\": \"Shared package creates coupling risk between web and mobile apps - needs analysis of abstraction boundaries, deployment independence, and alternative patterns before approval\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "CHALLENGE",
+            "reason": "Shared package creates coupling risk between web and mobile apps, violating separation of concerns principle and potentially creating deployment dependencies that compromise architectural boundaries",
+            "raw": "{\"verdict\": \"CHALLENGE\", \"reason\": \"Shared package creates coupling risk between web and mobile apps, violating separation of concerns principle and potentially creating deployment dependencies that compromise architectural boundaries\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          }
+        ]
+      },
+      {
+        "scenario_id": "S3",
+        "passes": 0,
+        "runs": 3,
+        "pass_rate": 0.0,
+        "passed": false,
+        "flaky": false,
+        "per_run": [
+          {
+            "verdict": "CHALLENGE",
+            "reason": "Big-bang microservices migration violates strangler fig pattern and introduces distributed system complexity without proven domain boundaries. Team boundaries are not service boundaries.",
+            "raw": "{\"verdict\": \"CHALLENGE\", \"reason\": \"Big-bang microservices migration violates strangler fig pattern and introduces distributed system complexity without proven domain boundaries. Team boundaries are not service boundaries.\"}",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "CHALLENGE",
+            "reason": "Big-bang microservices migration violates strangler fig pattern, introduces distributed system complexity without proven need, and lacks evidence that team boundaries align with domain boundaries",
+            "raw": "{\"verdict\": \"CHALLENGE\", \"reason\": \"Big-bang microservices migration violates strangler fig pattern, introduces distributed system complexity without proven need, and lacks evidence that team boundaries align with domain boundaries\"}",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "CHALLENGE",
+            "reason": "Big-bang microservices migration violates architectural principles of incremental evolution and introduces massive risk without proven benefit. Team boundaries are not architectural boundaries. Requires phased approach assessment.",
+            "raw": "{\"verdict\": \"CHALLENGE\", \"reason\": \"Big-bang microservices migration violates architectural principles of incremental evolution and introduces massive risk without proven benefit. Team boundaries are not architectural boundaries. Requires phased approach assessment.\"}",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          }
+        ]
+      },
+      {
+        "scenario_id": "S4",
+        "passes": 0,
+        "runs": 3,
+        "pass_rate": 0.0,
+        "passed": false,
+        "flaky": false,
+        "per_run": [
+          {
+            "verdict": "CHALLENGE",
+            "reason": "Dual-write pattern creates atomicity violation - database and Kafka updates can become inconsistent if service fails between operations, violating data consistency guarantees",
+            "raw": "{\"verdict\": \"CHALLENGE\", \"reason\": \"Dual-write pattern creates atomicity violation - database and Kafka updates can become inconsistent if service fails between operations, violating data consistency guarantees\"}",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "CHALLENGE",
+            "reason": "Dual-write pattern creates atomicity risk - database write can succeed while Kafka publish fails, causing data inconsistency between systems",
+            "raw": "{\"verdict\": \"CHALLENGE\", \"reason\": \"Dual-write pattern creates atomicity risk - database write can succeed while Kafka publish fails, causing data inconsistency between systems\"}",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "CHALLENGE",
+            "reason": "Dual-write pattern creates atomicity problem between database write and Kafka publish - if either fails, system enters inconsistent state without transaction boundary spanning both operations",
+            "raw": "{\"verdict\": \"CHALLENGE\", \"reason\": \"Dual-write pattern creates atomicity problem between database write and Kafka publish - if either fails, system enters inconsistent state without transaction boundary spanning both operations\"}",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          }
+        ]
+      },
+      {
+        "scenario_id": "S5",
+        "passes": 0,
+        "runs": 3,
+        "pass_rate": 0.0,
+        "passed": false,
+        "flaky": false,
+        "per_run": [
+          {
+            "verdict": "NEEDS_ADR",
+            "reason": "Database selection is architecturally significant with long-term implications. Requires formal ADR documenting alternatives, trade-offs, vendor lock-in assessment, and reversibility strategy.",
+            "raw": "```json\n{\"verdict\": \"NEEDS_ADR\", \"reason\": \"Database selection is architecturally significant with long-term implications. Requires formal ADR documenting alternatives, trade-offs, vendor lock-in assessment, and reversibility strategy.\"}\n```",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "NEEDS_ADR",
+            "reason": "Database choice between PostgreSQL and MongoDB is an architecturally significant decision that affects data consistency, query patterns, scaling approach, and team expertise requirements. This warrants formal documentation as ADR with proper evaluation of alternatives, decision drivers, and consequences.",
+            "raw": "{\"verdict\": \"NEEDS_ADR\", \"reason\": \"Database choice between PostgreSQL and MongoDB is an architecturally significant decision that affects data consistency, query patterns, scaling approach, and team expertise requirements. This warrants formal documentation as ADR with proper evaluation of alternatives, decision drivers, and consequences.\"}",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "NEEDS_ADR",
+            "reason": "Database technology choice is architecturally significant and requires formal ADR to document decision drivers, alternatives considered, and consequences for future reference",
+            "raw": "{\"verdict\": \"NEEDS_ADR\", \"reason\": \"Database technology choice is architecturally significant and requires formal ADR to document decision drivers, alternatives considered, and consequences for future reference\"}",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          }
+        ]
+      }
+    ]
+  }
+}
