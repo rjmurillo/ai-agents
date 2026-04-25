@@ -37,11 +37,23 @@ Scenario file format (JSON):
                 "desc": "Budget exhausted stops execution",
                 "input": "...simulated context...",
                 "expected_verdict": "STOP",
+                "verdict_options": ["STOP", "CONTINUE", "ESCALATE"],
                 "expected_reason_contains": "budget",
                 "rationale": "Stop condition fires before next phase"
             }
         ]
     }
+
+Verdict matching contract:
+    - The judge prompt instructs the LLM to emit a verdict from a fixed set of
+      canonical labels (the controlled vocabulary).
+    - If `verdict_options` is supplied, those are the allowed labels; the LLM
+      is told to pick exactly one. `expected_verdict` MUST appear in the list.
+    - If `verdict_options` is omitted, the labels default to
+      `[expected_verdict, "OTHER"]`. This forces a binary classification when
+      the scenario only cares about one outcome.
+    - Verdicts are uppercased before comparison; `check_scenario_pass` does an
+      exact match against `expected_verdict`.
 """
 
 from __future__ import annotations
@@ -69,7 +81,8 @@ FLAKINESS_BLOCK_THRESHOLD = 0.4
 # ---------------------------------------------------------------------------
 
 REQUIRED_SCENARIO_FIELDS = {"id", "desc", "input", "expected_verdict"}
-OPTIONAL_SCENARIO_FIELDS = {"expected_reason_contains", "rationale"}
+OPTIONAL_SCENARIO_FIELDS = {"expected_reason_contains", "rationale", "verdict_options"}
+DEFAULT_FALLBACK_VERDICT = "OTHER"
 
 
 def load_scenarios(path: str) -> list[dict[str, Any]]:
@@ -109,8 +122,37 @@ def load_scenarios(path: str) -> list[dict[str, Any]]:
                 f"Scenario {i} in {path} missing required fields: {missing}. "
                 f"Required: {REQUIRED_SCENARIO_FIELDS}"
             )
+        opts = s.get("verdict_options")
+        if opts is not None:
+            if not isinstance(opts, list) or not opts:
+                raise RuntimeError(
+                    f"Scenario {s['id']} in {path}: 'verdict_options' must be a "
+                    f"non-empty list when present."
+                )
+            opts_upper = [str(o).upper() for o in opts]
+            if str(s["expected_verdict"]).upper() not in opts_upper:
+                raise RuntimeError(
+                    f"Scenario {s['id']} in {path}: expected_verdict "
+                    f"{s['expected_verdict']!r} is not in verdict_options "
+                    f"{opts}. Add it or remove verdict_options."
+                )
 
     return scenarios
+
+
+def _verdict_options(scenario: dict[str, Any]) -> list[str]:
+    """Return the controlled vocabulary for a scenario, uppercased.
+
+    Uses `verdict_options` if present; otherwise falls back to
+    `[expected_verdict, DEFAULT_FALLBACK_VERDICT]` to force binary classification.
+    """
+    raw = scenario.get("verdict_options")
+    if raw:
+        return [str(o).upper() for o in raw]
+    expected = str(scenario["expected_verdict"]).upper()
+    if expected == DEFAULT_FALLBACK_VERDICT:
+        return [expected]
+    return [expected, DEFAULT_FALLBACK_VERDICT]
 
 
 # ---------------------------------------------------------------------------
@@ -162,13 +204,18 @@ def judge_scenario(
     Returns parsed verdict dict with verdict, reason, and raw response.
     """
     system_prompt = prompt_text
+    options = _verdict_options(scenario)
+    options_str = ", ".join(options)
 
     user_message = (
         f"Scenario: {scenario['desc']}\n\n"
         f"Context:\n{scenario['input']}\n\n"
-        "Based on your instructions, what is your verdict? "
-        "Respond with a JSON object: "
-        '{"verdict": "<your verdict>", "reason": "<brief explanation>"}'
+        "Based on your instructions, classify your action.\n"
+        f"Your verdict MUST be exactly one of these labels (uppercase, "
+        f"no extra words): {options_str}.\n"
+        f"Use {DEFAULT_FALLBACK_VERDICT} only if no other label fits.\n"
+        "Respond with a JSON object only, no surrounding prose: "
+        '{"verdict": "<one of the labels>", "reason": "<brief explanation>"}'
     )
 
     raw = call_api(
@@ -203,12 +250,23 @@ def judge_scenario(
 
 
 def check_scenario_pass(result: dict[str, Any], scenario: dict[str, Any]) -> bool:
-    """Check if a single scenario result matches expectations."""
-    verdict_match = result["verdict"] == scenario["expected_verdict"].upper()
+    """Check if a single scenario result matches expectations.
+
+    Match rules (controlled vocabulary; see module docstring):
+        - Verdict matches if `result["verdict"]` equals `expected_verdict`
+          (uppercased).
+        - If `expected_reason_contains` is set, the substring must appear in
+          `result["reason"]` (case-insensitive).
+        - Both checks must pass.
+    """
+    expected_upper = str(scenario["expected_verdict"]).upper()
+    actual_upper = str(result.get("verdict", "")).upper()
+    verdict_match = actual_upper == expected_upper
 
     reason_match = True
-    if "expected_reason_contains" in scenario and scenario["expected_reason_contains"]:
-        reason_match = scenario["expected_reason_contains"].lower() in result["reason"].lower()
+    expected_substr = scenario.get("expected_reason_contains")
+    if expected_substr:
+        reason_match = str(expected_substr).lower() in str(result.get("reason", "")).lower()
 
     return verdict_match and reason_match
 
