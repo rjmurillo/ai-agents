@@ -105,6 +105,35 @@ Specifically:
 - [claude-flow hooks architecture](https://github.com/ruvnet/claude-flow)
 - `.agents/analysis/claude-flow-architecture-analysis.md`
 
+## Implementation Status (2026)
+
+Implemented via Issue #1703. Five new hooks added to `.claude/hooks/`:
+
+| Hook | File | Type | Status |
+|------|------|------|--------|
+| **SessionStart: Context Loader** | `SessionStart/invoke_context_loader.py` | SessionStart | ✅ Implemented |
+| **PreToolUse: False Completion Gate** | `PreToolUse/invoke_false_completion_gate.py` | PreToolUse | ✅ Implemented |
+| **Stop: Auto-Retrospective** | `Stop/invoke_auto_retrospective.py` | Stop | ✅ Implemented |
+| **PostToolUse: Plan State Sync** | `PostToolUse/invoke_plan_state_sync.py` | PostToolUse | ✅ Implemented |
+| **PreCompact: Compact Checkpoint** | `PreCompact/invoke_compact_checkpoint.py` | PreCompact | ✅ Implemented |
+
+### Acceptance Criteria Mapping
+
+| Criteria | Hook | Evidence |
+|----------|------|----------|
+| SessionStart loads context | Context Loader | Auto-injects HANDOFF.md + latest retro |
+| PreToolUse blocks false completion | False Completion Gate | Blocks commit/PR without test evidence |
+| Stop generates retros | Auto-Retrospective | Creates `.agents/retrospective/{date}-auto-retro.md` |
+| Hook execution logged | All hooks | Audit trail in `.agents/.hook-state/` |
+| Zero context reading failures | Context Loader | Eliminates manual context loading requirement |
+
+### Design Principles
+
+- **Fail-open**: Non-blocking hooks (SessionStart, PostToolUse, Stop, PreCompact) always exit 0
+- **Typed memory lanes**: Each hook writes to its own state (per hilyfux feedback on #1703)
+- **Idempotent**: Stop retro skips if one already exists for today
+- **Bypass-friendly**: Environment variables for all gates (SKIP_COMPLETION_GATE, SKIP_AUTO_RETRO)
+
 ---
 
 *Template Version: 1.0*
