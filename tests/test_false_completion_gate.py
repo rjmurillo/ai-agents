@@ -69,16 +69,7 @@ class TestVerificationEvidence:
             encoding="utf-8",
         )
 
-        with patch.object(
-            invoke_false_completion_gate,
-            "get_project_directory",
-            return_value=str(tmp_path),
-        ), patch.object(
-            invoke_false_completion_gate,
-            "get_today_session_log",
-            return_value=log,
-        ):
-            assert invoke_false_completion_gate._has_verification_evidence(str(tmp_path)) is True
+        assert invoke_false_completion_gate._has_verification_evidence(log) is True
 
     def test_no_evidence_without_tests(self, tmp_path: Path) -> None:
         sessions_dir = tmp_path / ".agents" / "sessions"
@@ -89,20 +80,11 @@ class TestVerificationEvidence:
             encoding="utf-8",
         )
 
-        with patch.object(
-            invoke_false_completion_gate,
-            "get_today_session_log",
-            return_value=log,
-        ):
-            assert invoke_false_completion_gate._has_verification_evidence(str(tmp_path)) is False
+        assert invoke_false_completion_gate._has_verification_evidence(log) is False
 
-    def test_no_evidence_without_session_log(self, tmp_path: Path) -> None:
-        with patch.object(
-            invoke_false_completion_gate,
-            "get_today_session_log",
-            return_value=None,
-        ):
-            assert invoke_false_completion_gate._has_verification_evidence(str(tmp_path)) is False
+    def test_no_evidence_when_log_missing(self, tmp_path: Path) -> None:
+        nonexistent_log = tmp_path / "nonexistent-session.json"
+        assert invoke_false_completion_gate._has_verification_evidence(nonexistent_log) is False
 
 
 class TestMain:
