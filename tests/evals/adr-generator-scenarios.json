@@ -34,11 +34,11 @@
     },
     {
       "id": "S5",
-      "desc": "Does not generate ADR without sufficient decision context",
+      "desc": "Requests clarification when decision context is insufficient",
       "input": "We should probably use Kafka. Write an ADR.",
       "expected_verdict": "CLARIFY",
       "expected_reason_contains": "clarify",
-      "rationale": "Vague inputs produce low-value ADRs. Generator should request clarification on what problem Kafka solves, what alternatives were considered."
+      "rationale": "Vague inputs produce low-value ADRs. Generator should request clarification on what problem Kafka solves, what alternatives were considered, rather than generating an incomplete ADR."
     }
   ]
 }
