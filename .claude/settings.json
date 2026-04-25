@@ -28,6 +28,12 @@
         "hooks": [
           {
             "type": "command",
+            "command": "python3 -u .claude/hooks/PreToolUse/invoke_false_completion_gate.py",
+            "timeout": 5,
+            "statusMessage": "Checking for false completion claims without verification (#1703)"
+          },
+          {
+            "type": "command",
             "command": "python3 -u .claude/hooks/PreToolUse/invoke_session_log_guard.py",
             "statusMessage": "Verifying session log exists before commit (BLOCKING)"
           },
@@ -63,6 +69,12 @@
       {
         "matcher": "Bash(gh pr create*)",
         "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -u .claude/hooks/PreToolUse/invoke_false_completion_gate.py",
+            "timeout": 5,
+            "statusMessage": "Checking for false completion claims without verification (#1703)"
+          },
           {
             "type": "command",
             "command": "python3 -u .claude/hooks/PreToolUse/invoke_session_log_guard.py",
@@ -133,6 +145,11 @@
             "type": "command",
             "command": "python3 -u .claude/hooks/invoke_adr_change_detection.py",
             "statusMessage": "Checking for ADR changes"
+          },
+          {
+            "type": "command",
+            "command": "python3 -u .claude/hooks/SessionStart/invoke_context_loader.py",
+            "statusMessage": "Auto-loading HANDOFF.md and latest retrospective (#1703)"
           }
         ]
       }
@@ -172,6 +189,11 @@
             "type": "command",
             "command": "python3 -u .claude/hooks/PostToolUse/invoke_adr_lifecycle_hook.py",
             "statusMessage": "Checking for ADR changes"
+          },
+          {
+            "type": "command",
+            "command": "python3 -u .claude/hooks/PostToolUse/invoke_plan_state_sync.py",
+            "statusMessage": "Checkpointing plan/TODO state (#1703)"
           }
         ]
       },
@@ -209,6 +231,11 @@
             "type": "command",
             "command": "python3 -u .claude/hooks/Stop/invoke_session_validator.py",
             "statusMessage": "Validating session completeness"
+          },
+          {
+            "type": "command",
+            "command": "python3 -u .claude/hooks/Stop/invoke_auto_retrospective.py",
+            "statusMessage": "Auto-generating session retrospective (#1703)"
           }
         ]
       }
@@ -220,6 +247,17 @@
             "type": "command",
             "command": "python3 -u .claude/hooks/SubagentStop/invoke_qa_agent_validator.py",
             "statusMessage": "Validating QA agent output"
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -u .claude/hooks/PreCompact/invoke_compact_checkpoint.py",
+            "statusMessage": "Checkpointing state before compaction (#1703)"
           }
         ]
       }
