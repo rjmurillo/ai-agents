@@ -154,7 +154,7 @@
       "evidence": "PR description and follow-up issue (filed separately)"
     }
   ],
-  "endingCommit": "<filled-by-session-end>",
+  "endingCommit": "",
   "nextSteps": [
     "File follow-up issue: scenario content tuning (verdict choice review per agent + expected_reason_contains keyword updates)",
     "PR #1741 / PR #1742 prototype evals can now run against fixed rubric to give real parity signal",

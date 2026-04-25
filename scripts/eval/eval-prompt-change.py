@@ -116,6 +116,12 @@ def load_scenarios(path: str) -> list[dict[str, Any]]:
         )
 
     for i, s in enumerate(scenarios):
+        if not isinstance(s, dict):
+            raise RuntimeError(
+                f"Scenario at index {i} in {path} is not a JSON object "
+                f"(got {type(s).__name__}). Each scenario must be an object "
+                f"with at least these fields: {REQUIRED_SCENARIO_FIELDS}."
+            )
         missing = REQUIRED_SCENARIO_FIELDS - set(s.keys())
         if missing:
             raise RuntimeError(
@@ -129,8 +135,8 @@ def load_scenarios(path: str) -> list[dict[str, Any]]:
                     f"Scenario {s['id']} in {path}: 'verdict_options' must be a "
                     f"non-empty list when present."
                 )
-            opts_upper = [str(o).upper() for o in opts]
-            if str(s["expected_verdict"]).upper() not in opts_upper:
+            opts_upper = [str(o).strip().upper() for o in opts]
+            if str(s["expected_verdict"]).strip().upper() not in opts_upper:
                 raise RuntimeError(
                     f"Scenario {s['id']} in {path}: expected_verdict "
                     f"{s['expected_verdict']!r} is not in verdict_options "
@@ -141,15 +147,16 @@ def load_scenarios(path: str) -> list[dict[str, Any]]:
 
 
 def _verdict_options(scenario: dict[str, Any]) -> list[str]:
-    """Return the controlled vocabulary for a scenario, uppercased.
+    """Return the controlled vocabulary for a scenario, uppercased and stripped.
 
     Uses `verdict_options` if present; otherwise falls back to
     `[expected_verdict, DEFAULT_FALLBACK_VERDICT]` to force binary classification.
+    Whitespace is stripped from labels to keep the LLM-facing vocabulary clean.
     """
     raw = scenario.get("verdict_options")
     if raw:
-        return [str(o).upper() for o in raw]
-    expected = str(scenario["expected_verdict"]).upper()
+        return [str(o).strip().upper() for o in raw]
+    expected = str(scenario["expected_verdict"]).strip().upper()
     if expected == DEFAULT_FALLBACK_VERDICT:
         return [expected]
     return [expected, DEFAULT_FALLBACK_VERDICT]
@@ -207,13 +214,19 @@ def judge_scenario(
     options = _verdict_options(scenario)
     options_str = ", ".join(options)
 
+    fallback_hint = ""
+    if DEFAULT_FALLBACK_VERDICT in options:
+        fallback_hint = (
+            f"Use {DEFAULT_FALLBACK_VERDICT} only if no other label fits.\n"
+        )
+
     user_message = (
         f"Scenario: {scenario['desc']}\n\n"
         f"Context:\n{scenario['input']}\n\n"
         "Based on your instructions, classify your action.\n"
         f"Your verdict MUST be exactly one of these labels (uppercase, "
         f"no extra words): {options_str}.\n"
-        f"Use {DEFAULT_FALLBACK_VERDICT} only if no other label fits.\n"
+        f"{fallback_hint}"
         "Respond with a JSON object only, no surrounding prose: "
         '{"verdict": "<one of the labels>", "reason": "<brief explanation>"}'
     )
@@ -259,8 +272,8 @@ def check_scenario_pass(result: dict[str, Any], scenario: dict[str, Any]) -> boo
           `result["reason"]` (case-insensitive).
         - Both checks must pass.
     """
-    expected_upper = str(scenario["expected_verdict"]).upper()
-    actual_upper = str(result.get("verdict", "")).upper()
+    expected_upper = str(scenario["expected_verdict"]).strip().upper()
+    actual_upper = str(result.get("verdict", "")).strip().upper()
     verdict_match = actual_upper == expected_upper
 
     reason_match = True
@@ -658,5 +671,5 @@ def main() -> None:
         sys.exit(3)
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     main()
