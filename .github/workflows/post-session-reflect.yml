@@ -1,0 +1,230 @@
+name: Post-Session Reflect
+
+# Auto-trigger the reflect skill when a session ends — signaled by PR creation.
+#
+# Issue: #1757
+# Related: ADR-007 (Memory-First Architecture), ADR-008 (Protocol Automation via Lifecycle Hooks)
+# Companion: #1758 / PR #1760 (post-PR retrospective) — complementary, not sequential.
+#
+# Behavior:
+#   - Runs when a PR is opened or moved out of draft. PR creation is the canonical
+#     "session end" signal in this repo: a session produces commits and a PR.
+#   - Invokes the reflect skill to extract HIGH/MED/LOW learnings from the PR's
+#     commit messages, diff, and any session-log artifacts on the branch.
+#   - Persists learnings via Serena memory at .serena/memories/{skill-name}-observations.md
+#     (per the reflect skill's contract). Opens a follow-up PR with memory updates.
+#   - Asynchronous and non-blocking: this never gates the source PR's checks.
+#
+# Why this exists alongside the local Stop hook (.claude/hooks/Stop/invoke_skill_learning.py):
+#   The Stop hook is a per-response, pattern-based heuristic extractor that runs
+#   only when Claude Code is driving locally. Cloud-runner agent sessions
+#   (rjmurillo-bot, claude-code-action runs) do not benefit from the local Stop
+#   hook. This workflow guarantees that every session that produces a PR gets
+#   a reflect pass, regardless of where the session ran.
+#
+# Why pull_request opened/ready_for_review and NOT synchronize:
+#   Re-running reflect on every push would burn LLM tokens for marginal value;
+#   the local Stop hook covers within-session learnings. PR open is the
+#   organizational session boundary. If a contributor force-pushes after open,
+#   the Stop hook handles intra-session capture; this workflow runs once per PR.
+#
+# Skips (cost and security):
+#   - Bot-authored PRs (dependabot, renovate, copilot, github-actions, coderabbitai).
+#     Their PRs produce no first-party learnings and would burn LLM budget.
+#     rjmurillo-bot is NOT skipped: it is the primary learner.
+#   - Fork PRs (head repo differs from base). Fork PRs do not receive secrets,
+#     so the action cannot authenticate.
+#
+# Security:
+#   - Untrusted PR fields (title, body, branch names) never flow into shell
+#     commands. Only numeric PR_NUMBER traverses step outputs. Claude fetches
+#     PR metadata itself via gh CLI inside the agent run.
+
+on:
+  pull_request:
+    types: [opened, ready_for_review]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to reflect on'
+        required: true
+        type: number
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+  id-token: write
+
+# Per-PR concurrency. Do not cancel in flight: a partial reflect leaves stale
+# observation memory and is worse than no reflect at all. ADR-026.
+concurrency:
+  group: post-session-reflect-${{ github.event.pull_request.number || inputs.pr_number }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Prepare reflect context
+    # ADR-025: ARM runner for cost optimization
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 5
+    outputs:
+      should_run: ${{ steps.gate.outputs.should_run }}
+      pr_number: ${{ steps.gate.outputs.pr_number }}
+
+    steps:
+      - name: Determine eligibility
+        id: gate
+        env:
+          # Untrusted user input is read into env vars and never embedded in shell
+          # strings via ${{ ... }} — mitigates GitHub Actions workflow injection.
+          EVENT_NAME: ${{ github.event_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          PR_HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          PR_BASE_REPO: ${{ github.repository }}
+          PR_DRAFT: ${{ github.event.pull_request.draft }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # workflow_dispatch path: trust caller and run unconditionally.
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            {
+              echo "should_run=true"
+              echo "pr_number=$PR_NUMBER"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Skip drafts. ready_for_review will fire when promoted out of draft.
+          if [ "$PR_DRAFT" = "true" ]; then
+            echo "::notice::Skipping reflect for draft PR"
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Skip bot-authored PRs. rjmurillo-bot is NOT in this list (primary learner).
+          case "$PR_AUTHOR" in
+            dependabot\[bot\]|renovate\[bot\]|github-actions\[bot\]|copilot\[bot\]|coderabbitai\[bot\])
+              echo "::notice::Skipping reflect for bot author: $PR_AUTHOR"
+              echo "should_run=false" >> "$GITHUB_OUTPUT"
+              exit 0
+              ;;
+          esac
+
+          # Skip fork PRs (no secrets available for the action).
+          if [ "$PR_HEAD_REPO" != "$PR_BASE_REPO" ]; then
+            echo "::notice::Skipping reflect for fork PR head=$PR_HEAD_REPO"
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          {
+            echo "should_run=true"
+            echo "pr_number=$PR_NUMBER"
+          } >> "$GITHUB_OUTPUT"
+
+  reflect:
+    name: Run reflect skill
+    needs: prepare
+    if: needs.prepare.outputs.should_run == 'true'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          # Need branch history for commit-trace and session-log discovery.
+          fetch-depth: 0
+
+      - name: Setup code environment
+        uses: ./.github/actions/setup-code-env
+        with:
+          gh-token: ${{ github.token }}
+          enable-git-hooks: false
+          skip-autofix: 1
+
+      # Build the reflect prompt. Only numeric PR_NUMBER is interpolated. Claude
+      # fetches all untrusted PR metadata (title, body, comments, commit messages)
+      # via gh CLI inside the agent run; nothing untrusted enters the shell here.
+      - name: Build reflect prompt
+        id: prompt
+        env:
+          PR_NUMBER: ${{ needs.prepare.outputs.pr_number }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo 'PROMPT<<REFLECT_EOF'
+            cat <<INSTRUCTIONS
+          You are running the reflect skill at session end (PR creation).
+
+          Step 1. Read \`.claude/skills/reflect/SKILL.md\` and adopt its workflow:
+          HIGH / MEDIUM / LOW confidence triggers, the four-phase process
+          (identify target skill, analyze conversation, propose learnings,
+          persist to Serena memory), and the confidence-threshold table.
+
+          Step 2. Reconstruct session context for PR #${PR_NUMBER}:
+            - \`gh pr view ${PR_NUMBER} --json title,body,commits,comments,reviews,changedFiles,additions,deletions,labels,closingIssuesReferences\`
+            - \`gh pr diff ${PR_NUMBER}\` for diff context
+            - Read any session-log JSON under \`.agents/sessions/\` whose
+              filename or content matches the PR's branch name. The session log
+              is the canonical conversation transcript signal.
+            - List skills exercised in the session by scanning commit messages
+              and changed file paths under \`.claude/skills/\`.
+
+          Step 3. Apply the reflect skill's analysis:
+            - HIGH: explicit user corrections, "no", "wrong", strong directives,
+              Chesterton's-fence violations.
+            - MEDIUM: explicit praise, edge cases discovered, tool/workflow
+              preferences shown twice or more.
+            - LOW: repeated patterns that need more evidence before formalizing.
+            - Apply the confidence-threshold table:
+              ≥1 HIGH, or ≥2 MED, or ≥3 LOW signals to propose a change.
+
+          Step 4. Persist learnings via Serena memory.
+            - For each affected skill, update or create
+              \`.serena/memories/{skill-name}-observations.md\` using
+              \`mcp__serena__write_memory\` (canonical) or direct file write
+              (contingency). Append; never delete prior learnings without
+              explicit instruction.
+            - Use the memory format defined in the reflect skill's Phase 4
+              section. Include session reference, ISO date, and source quote
+              for each learning.
+
+          Step 5. Open a follow-up PR with the memory updates. Branch prefix is
+          configured by the action. Do not push to main directly. Post a concise
+          summary comment on PR #${PR_NUMBER} listing the affected skills and
+          the HIGH / MED / LOW counts. If no learnings meet thresholds, post
+          "No learnings extracted for PR #${PR_NUMBER} — session was clean."
+          and exit successfully without opening a PR.
+
+          Inputs for this run:
+            - PR_NUMBER: ${PR_NUMBER}
+
+          Hard constraints:
+            - Async by design. Do not gate, comment-block, or fail PR #${PR_NUMBER}.
+            - Fire-and-forget: if no learnings meet the confidence threshold,
+              exit cleanly with the "no learnings" comment.
+            - Do not edit HANDOFF.md (read-only per ADR-014).
+            - Conventional commit messages with \`chore(memory): ...\` scope.
+            - Quote source evidence for every learning. Replace adjectives with
+              data.
+          INSTRUCTIONS
+            echo 'REFLECT_EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      # Pin to SHA matches claude.yml, rjmurillo-bot.yml, and post-pr-retrospective.yml.
+      # https://github.com/anthropics/claude-code-action/releases/tag/v1.0.103
+      - name: Run reflect via Claude Code
+        uses: anthropics/claude-code-action@4e5d8b13ca281a6d163cdb287d8917b216e00d6f # v1.0.103
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: ${{ steps.prompt.outputs.PROMPT }}
+          base_branch: "main"
+          branch_prefix: "reflect/"
+          use_commit_signing: true
+          # Headless invocation: no trigger phrase, prompt is supplied directly.
+          track_progress: "false"
