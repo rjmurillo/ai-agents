@@ -224,6 +224,14 @@ Contrarian analyst. Challenges assumptions with evidence, presents alternative v
 
 **Output:** Counter-arguments with alternatives and evidence.
 
+### negotiation
+
+Deal intelligence specialist. Analyzes offers, maps ZOPA/BATNA, detects anchoring and manipulation patterns, and drafts counter-proposals using behavioral influence frameworks. Always quantifies the value gap. Routes to senior-tier models only (Project Deal finding: weaker models extract ~13% less value and the loss is invisible to the human).
+
+**Use when:** Reviewing any offer (real estate, compensation, vendor, resource allocation), drafting a counter-proposal, detecting information asymmetry, or when you need to know what value is being left on the table.
+
+**Output:** RADAR analysis (Read, Analyze, Design, Assess, Review), ZOPA/BATNA map, value gap in dollar terms, DRAFT counter-proposal for human approval.
+
 ## Documentation
 
 ### explainer
