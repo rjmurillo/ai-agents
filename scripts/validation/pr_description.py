@@ -170,9 +170,21 @@ def _strip_informational_sections(description: str) -> str:
     Strips <details> blocks and "Detected Package Files" sections that list
     files for informational purposes (e.g. Renovate onboarding PRs) rather
     than claiming those files were changed.
+
+    Also masks fenced code blocks before any heading-based stripping so a
+    sample heading inside a fenced ```markdown block does not cause the
+    contextual-section regex to over-strip across the real document
+    structure.
     """
+    # Mask fenced code blocks (```...```) so headings or filenames inside
+    # samples do not interact with the contextual-section regex below. Without
+    # this, an AI-generated description containing `## Design Decisions`
+    # inside a markdown sample would over-strip everything up to the next
+    # real `^##` heading, exposing a phantom `## Changes` block from inside
+    # the fence as an apparent change claim.
+    text = re.sub(r"```.*?```", "<CODE_BLOCK>", description, flags=re.DOTALL)
     # Strip <details>...</details> blocks (used by Renovate, Dependabot, etc.)
-    text = re.sub(r"<details>.*?</details>", "", description, flags=re.DOTALL)
+    text = re.sub(r"<details>.*?</details>", "", text, flags=re.DOTALL)
     # Strip "Detected Package Files" section up to the next heading or <hr>
     text = re.sub(
         r"###\s*Detected Package Files.*?(?=^###|\n---|\Z)",

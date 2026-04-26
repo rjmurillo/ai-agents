@@ -338,6 +338,48 @@ class TestExtractMentionedFiles:
         result = extract_mentioned_files(desc)
         assert "kept.py" in result
 
+    def test_fenced_contextual_heading_does_not_overstrip(self) -> None:
+        """A `## Design Decisions` heading INSIDE a fenced code block must not
+        anchor the contextual-section regex. Without code-block masking, the
+        strip would consume across the fence boundary and expose phantom
+        change claims from inside the sample."""
+        desc = (
+            "## Summary\n"
+            "Changed `summary.py`.\n\n"
+            "```markdown\n"
+            "example template snippet:\n"
+            "## Design Decisions\n"
+            "- `inside_fence_phantom.py`\n"
+            "```\n\n"
+            "## Changes\n"
+            "- `actual.py`\n"
+        )
+        result = extract_mentioned_files(desc)
+        assert "summary.py" in result
+        assert "actual.py" in result
+        # Filenames inside fenced samples are not change claims.
+        assert "inside_fence_phantom.py" not in result
+
+    def test_fenced_filename_under_contextual_section_masked(self) -> None:
+        """When a real `## Design Decisions` section contains a fenced sample
+        with a filename, neither the sample filename nor the surrounding
+        contextual references leak into extraction."""
+        desc = (
+            "## Summary\n"
+            "Changed `real.py`.\n\n"
+            "## Design Decisions\n"
+            "Pattern from earlier work:\n\n"
+            "```python\n"
+            "# example using template.py\n"
+            "import os\n"
+            "```\n"
+            "Adopted from `pattern.py`.\n"
+        )
+        result = extract_mentioned_files(desc)
+        assert "real.py" in result
+        assert "pattern.py" not in result
+        assert "template.py" not in result
+
 
 # ---------------------------------------------------------------------------
 # _strip_informational_sections
@@ -432,6 +474,23 @@ class TestStripInformationalSections:
         text = "Changed `scripts/foo.py` and **bar.yml**"
         result = _strip_informational_sections(text)
         assert result == text
+
+    def test_masks_fenced_code_blocks_before_section_strip(self) -> None:
+        """Fenced code blocks must be masked before contextual-section
+        stripping so a sample heading inside a fence does not anchor the
+        regex and over-strip across the real document structure."""
+        text = (
+            "## Summary\nChanged `real.py`.\n\n"
+            "```\n## Design Decisions\nphantom\n```\n\n"
+            "## Changes\n- `actual.py`\n"
+        )
+        result = _strip_informational_sections(text)
+        # The `## Changes` heading must survive intact.
+        assert "## Changes" in result
+        assert "actual.py" in result
+        # The fenced sample is masked, so its `## Design Decisions` heading
+        # cannot anchor the contextual-section regex.
+        assert "phantom" not in result
 
 
 # ---------------------------------------------------------------------------
