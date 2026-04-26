@@ -8,7 +8,7 @@ Cross-platform agent instructions.
 
 ## Retrieval-Led Reasoning
 
-Read first, reason second. Pre-training last resort.
+Read first, reason second. Pre-training as last resort.
 
 |APIs: Context7, DeepWiki, WebSearch
 |Constraints: `.agents/governance/PROJECT-CONSTRAINTS.md`
@@ -34,7 +34,7 @@ Read first, reason second. Pre-training last resort.
 
 Knowledge → passive context (@imports). Actions → skills.
 
-|Passive: reference every turn, outside training, <8KB
+|Passive: ref every turn, outside training, <8KB
 |Skills: tool access, workflows, user-triggered, file mutation
 
 ## Skill-First
