@@ -21,43 +21,6 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
-# Cross-platform file locking
-# Windows: msvcrt.locking is byte-position-aware and only locks 1 byte at the
-# CURRENT file position. For files opened in append mode, each process has its
-# own EOF, so locking "at the current position" locks DIFFERENT bytes per
-# process and provides no mutual exclusion. Always lock byte 0 (a fixed point
-# all processes can contend for), then restore the original write position.
-_win_lock_positions: dict[int, int] = {}
-
-if sys.platform == "win32":
-    import msvcrt
-
-    def _lock_file(f):
-        fd = f.fileno()
-        _win_lock_positions[fd] = f.tell()
-        f.seek(0)
-        msvcrt.locking(fd, msvcrt.LK_LOCK, 1)
-        # Restore to original (append-EOF) position so f.write goes to the right place.
-        pos = _win_lock_positions.get(fd, 0)
-        f.seek(pos)
-
-    def _unlock_file(f):
-        fd = f.fileno()
-        write_pos = f.tell()
-        f.seek(0)
-        msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
-        # Drop the stored lock-time position; restore the post-write position.
-        _win_lock_positions.pop(fd, None)
-        f.seek(write_pos)
-else:
-    import fcntl
-
-    def _lock_file(f):
-        fcntl.flock(f.fileno(), fcntl.LOCK_EX)
-
-    def _unlock_file(f):
-        fcntl.flock(f.fileno(), fcntl.LOCK_UN)
-
 _plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
 if _plugin_root:
     _lib_dir = str(Path(_plugin_root).resolve() / "lib")
@@ -71,6 +34,8 @@ if _lib_dir not in sys.path:
 
 try:
     from hook_utilities import get_project_directory as _get_project_directory
+    from hook_utilities import lock_file as _lock_file
+    from hook_utilities import unlock_file as _unlock_file
 
     def get_project_directory() -> Path | None:
         """Wrap shared utility returning Path for backward compat."""
@@ -90,6 +55,9 @@ except ImportError:
                 return current
             current = current.parent
         return None
+
+    _lock_file = None  # type: ignore[assignment]
+    _unlock_file = None  # type: ignore[assignment]
 
 # Files that trigger checkpointing
 PLAN_PATTERNS = [
@@ -123,7 +91,8 @@ def write_checkpoint(project_dir: Path, file_path: str, content: str) -> None:
     # Use os.open with O_CREAT to atomically create if missing, then lock before any I/O
     fd = os.open(checkpoint_file, os.O_RDWR | os.O_CREAT)
     with os.fdopen(fd, "r+", encoding="utf-8") as f:
-        _lock_file(f)
+        if _lock_file is not None:
+            _lock_file(f)
         try:
             # Read existing checkpoint data
             f.seek(0)
@@ -154,7 +123,8 @@ def write_checkpoint(project_dir: Path, file_path: str, content: str) -> None:
             f.truncate()
             json.dump(existing, f, indent=2, ensure_ascii=False)
         finally:
-            _unlock_file(f)
+            if _unlock_file is not None:
+                _unlock_file(f)
 
 
 def main() -> int:
