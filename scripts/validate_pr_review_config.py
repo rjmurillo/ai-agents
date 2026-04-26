@@ -18,6 +18,13 @@ import argparse
 import sys
 from pathlib import Path
 
+# Add project root to path for imports
+_SCRIPT_DIR = Path(__file__).resolve().parent
+_PROJECT_ROOT = _SCRIPT_DIR.parent
+sys.path.insert(0, str(_PROJECT_ROOT))
+
+from scripts.utils.path_validation import validate_safe_path  # noqa: E402
+
 try:
     import yaml
 except ImportError:
@@ -188,7 +195,13 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    config_path = Path(args.config_path)
+    # CWE-22: Validate path stays within project root before opening.
+    try:
+        config_path = validate_safe_path(args.config_path, _PROJECT_ROOT)
+    except (ValueError, FileNotFoundError) as e:
+        print(f"ERROR: Invalid config path: {e}", file=sys.stderr)
+        return 2
+
     if not config_path.exists():
         print(f"ERROR: Config file not found: {config_path}", file=sys.stderr)
         return 2

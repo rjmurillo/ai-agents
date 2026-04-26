@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import copy
+import subprocess
+import sys
 from pathlib import Path
 
-import pytest
-
 from scripts.validate_pr_review_config import validate_config
+
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+_VALIDATOR = _REPO_ROOT / "scripts" / "validate_pr_review_config.py"
 
 VALID_CONFIG: dict = {
     "scripts": {
@@ -185,3 +188,30 @@ class TestValidateConfig:
         del config["output_constraints"]
         errors = validate_config(config)
         assert any("Missing required top-level key: output_constraints" in e for e in errors)
+
+
+class TestCliPathSafety:
+    """CWE-22 path-traversal guards on the CLI entry point."""
+
+    def _run(self, *argv: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [sys.executable, str(_VALIDATOR), *argv],
+            capture_output=True,
+            text=True,
+            cwd=str(_REPO_ROOT),
+        )
+
+    def test_path_traversal_rejected(self) -> None:
+        result = self._run("../../etc/passwd")
+        assert result.returncode == 2
+        assert "Invalid config path" in result.stderr
+
+    def test_absolute_outside_root_rejected(self) -> None:
+        result = self._run("/etc/passwd")
+        assert result.returncode == 2
+        assert "Invalid config path" in result.stderr
+
+    def test_default_path_accepted(self) -> None:
+        result = self._run()
+        assert result.returncode == 0
+        assert "valid" in result.stdout
