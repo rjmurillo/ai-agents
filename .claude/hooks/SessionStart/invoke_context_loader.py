@@ -64,16 +64,24 @@ AUDIT_DIR_NAME = ".agents/.hook-state"
 
 
 def get_latest_retrospective(retro_dir: Path) -> Path | None:
-    """Find the most recent retrospective file by modification time."""
+    """Find the most recent readable retrospective file by modification time."""
     if not retro_dir.is_dir():
         return None
 
-    retro_files = sorted(
-        retro_dir.glob("*.md"),
-        key=lambda f: f.stat().st_mtime,
-        reverse=True,
-    )
-    return retro_files[0] if retro_files else None
+    latest_file: Path | None = None
+    latest_mtime: float | None = None
+
+    for retro_file in retro_dir.glob("*.md"):
+        try:
+            mtime = retro_file.stat().st_mtime
+        except OSError:
+            continue  # Skip unreadable files (race with deletion, perms, etc.)
+
+        if latest_mtime is None or mtime > latest_mtime:
+            latest_file = retro_file
+            latest_mtime = mtime
+
+    return latest_file
 
 
 def write_audit_log(project_dir: Path, event: str, details: str) -> None:
