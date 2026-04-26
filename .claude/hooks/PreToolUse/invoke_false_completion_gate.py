@@ -171,15 +171,14 @@ def _run_git(args: list[str]) -> subprocess.CompletedProcess[str] | None:
 def _resolve_pr_base_branch() -> str | None:
     """Discover the base branch a ``gh pr create`` would target.
 
-    Tries upstream tracking, then ``origin/HEAD`` symbolic ref, then the
-    common default-branch names as a last resort. Returns ``None`` if
-    nothing resolves so the caller can fall back to staged changes.
+    Tries ``origin/HEAD`` symbolic ref first, then common default-branch
+    names as a fallback. Returns ``None`` if nothing resolves so the
+    caller can fall back to staged changes.
+
+    Note: We intentionally skip ``@{u}`` (upstream tracking) because after
+    ``git push -u origin feature-branch``, it resolves to ``origin/feature-branch``
+    — the push target, not the PR merge target (e.g., ``main``).
     """
-    upstream = _run_git(["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"])
-    if upstream and upstream.returncode == 0:
-        ref = upstream.stdout.strip()
-        if ref and ref != "HEAD":
-            return ref
 
     head_ref = _run_git(["symbolic-ref", "refs/remotes/origin/HEAD"])
     if head_ref and head_ref.returncode == 0:
