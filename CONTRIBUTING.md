@@ -525,7 +525,7 @@ Refer to `.githooks/pre-push` for the authoritative, up-to-date list of all chec
 
 ## Lifecycle Hooks (Claude Code)
 
-Claude Code runs lifecycle hooks at session boundaries. They are registered in `.claude/settings.json` and live in `.claude/hooks/`. All are non-blocking (fail-open) except `invoke_false_completion_gate` which exits 2 to block on missing test evidence. Each hook has a 5-second timeout.
+Claude Code runs lifecycle hooks at session boundaries. They are registered in `.claude/settings.json` and live in `.claude/hooks/`. The five lifecycle hooks introduced by issue #1703 are non-blocking (fail-open) with one exception: `invoke_false_completion_gate` exits 2 to block `git commit` / `gh pr create` claiming "done" without test evidence. Each of the five lifecycle hooks is registered with a 5-second timeout. Other (older) hooks registered in `.claude/settings.json` may have different timeouts and blocking semantics; check the relevant hook file for its contract.
 
 | Hook | File | Purpose | Bypass env var |
 |------|------|---------|----------------|
