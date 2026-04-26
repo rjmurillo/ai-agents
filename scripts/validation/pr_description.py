@@ -528,5 +528,5 @@ def _emit_bypass_audit(
             pass
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     raise SystemExit(main())

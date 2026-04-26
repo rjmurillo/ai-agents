@@ -685,6 +685,14 @@ class TestPrintResults:
         code = print_results(issues, ci=False)
         assert code == 0
 
+    def test_unrecognized_severity_returns_zero(self) -> None:
+        """Defensive: an Issue with severity outside CRITICAL/WARNING does
+        not block, and the printer does not crash. validate_pr_description
+        never produces such issues today, but a future caller might."""
+        issues = [Issue("INFO", "Note", "f.py", "msg")]
+        code = print_results(issues, ci=True)
+        assert code == 0
+
 
 # ---------------------------------------------------------------------------
 # get_repo_info
@@ -835,6 +843,42 @@ class TestMain:
         code = main(["--pr-number", "1", "--owner", "org", "--repo", "proj"])
         assert code == 0
         mock_fetch.assert_called_once_with(1, "org", "proj")
+
+    @patch("scripts.validation.pr_description.fetch_pr_data")
+    @patch("scripts.validation.pr_description.get_repo_info")
+    def test_owner_provided_repo_resolved_from_git(
+        self,
+        mock_repo: MagicMock,
+        mock_fetch: MagicMock,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """`--owner` set, `--repo` omitted: git remote fills repo only."""
+        monkeypatch.delenv("CI", raising=False)
+        monkeypatch.delenv("REPO_NAME", raising=False)
+        monkeypatch.delenv("REPO_OWNER", raising=False)
+        mock_repo.return_value = RepoInfo(owner="git_owner", repo="git_repo")
+        mock_fetch.return_value = {"title": "T", "body": "", "files": []}
+        code = main(["--pr-number", "1", "--owner", "cli_owner"])
+        assert code == 0
+        mock_fetch.assert_called_once_with(1, "cli_owner", "git_repo")
+
+    @patch("scripts.validation.pr_description.fetch_pr_data")
+    @patch("scripts.validation.pr_description.get_repo_info")
+    def test_repo_provided_owner_resolved_from_git(
+        self,
+        mock_repo: MagicMock,
+        mock_fetch: MagicMock,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """`--repo` set, `--owner` omitted: git remote fills owner only."""
+        monkeypatch.delenv("CI", raising=False)
+        monkeypatch.delenv("REPO_NAME", raising=False)
+        monkeypatch.delenv("REPO_OWNER", raising=False)
+        mock_repo.return_value = RepoInfo(owner="git_owner", repo="git_repo")
+        mock_fetch.return_value = {"title": "T", "body": "", "files": []}
+        code = main(["--pr-number", "1", "--repo", "cli_repo"])
+        assert code == 0
+        mock_fetch.assert_called_once_with(1, "git_owner", "cli_repo")
 
     @patch(
         "scripts.validation.pr_description.get_repo_info",
@@ -1097,3 +1141,60 @@ class TestBypassLabel:
         body = output.read_text()
         assert "bypass_used" not in body
         assert "bypass_label" not in body
+
+    @patch("scripts.validation.pr_description.fetch_pr_data")
+    @patch("scripts.validation.pr_description.get_repo_info")
+    def test_bypass_audit_swallows_summary_oserror(
+        self,
+        mock_repo: MagicMock,
+        mock_fetch: MagicMock,
+        tmp_path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """A filesystem failure on GITHUB_STEP_SUMMARY write must NOT block
+        the bypass return path. Defensive coverage for the audit emitter."""
+        # Point GITHUB_STEP_SUMMARY at a directory; open(..., 'a') raises
+        # IsADirectoryError (an OSError subclass). The bypass must still
+        # exit 0 and the GITHUB_OUTPUT signal must still be emitted.
+        bad_summary = tmp_path / "summary_dir"
+        bad_summary.mkdir()
+        good_output = tmp_path / "outputs.txt"
+        good_output.write_text("")
+        monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(bad_summary))
+        monkeypatch.setenv("GITHUB_OUTPUT", str(good_output))
+        mock_repo.return_value = RepoInfo(owner="o", repo="r")
+        mock_fetch.return_value = {
+            "title": "T",
+            "body": "Changed `ghost.py`",
+            "files": [{"path": "real.py"}],
+            "labels": [{"name": "description-validation-bypass"}],
+        }
+        code = main(["--pr-number", "1", "--ci"])
+        assert code == 0
+        # Output signal still landed despite summary failure.
+        assert "bypass_used=true" in good_output.read_text()
+
+    @patch("scripts.validation.pr_description.fetch_pr_data")
+    @patch("scripts.validation.pr_description.get_repo_info")
+    def test_bypass_audit_swallows_output_oserror(
+        self,
+        mock_repo: MagicMock,
+        mock_fetch: MagicMock,
+        tmp_path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """A filesystem failure on GITHUB_OUTPUT write must NOT block the
+        bypass return path. Defensive coverage for the audit emitter."""
+        bad_output = tmp_path / "output_dir"
+        bad_output.mkdir()
+        monkeypatch.setenv("GITHUB_OUTPUT", str(bad_output))
+        monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
+        mock_repo.return_value = RepoInfo(owner="o", repo="r")
+        mock_fetch.return_value = {
+            "title": "T",
+            "body": "Changed `ghost.py`",
+            "files": [{"path": "real.py"}],
+            "labels": [{"name": "description-validation-bypass"}],
+        }
+        code = main(["--pr-number", "1", "--ci"])
+        assert code == 0
