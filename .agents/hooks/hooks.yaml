@@ -1,0 +1,106 @@
+# Harness-agnostic hook manifest
+#
+# This file is the source of truth for ai-agents' deterministic hook
+# contract. Harness adapters (Claude Code, Copilot CLI, etc.) read the
+# manifest and register each entry against the harness-native hook
+# mechanism.
+#
+# Contract:
+#   - event:     SessionStart | PreToolUse | PostToolUse | Stop | PreCompact
+#   - tool:      Optional tool-name matcher (regex). Omit = any tool.
+#   - path:      Optional file path glob. Applies to file-mutating tools.
+#   - script:    Path to the executable, relative to the repo root.
+#   - on_fail:   "block" (exit 2) or "warn" (fail open). Default: "block".
+#
+# Exit codes:
+#   0  = Allow
+#   2  = Block
+#   *  = Fail open with warning
+#
+# Context source: Issue #1726. See README.md in this directory.
+
+version: 1
+manifest_id: ai-agents-hooks-v1
+
+hooks:
+
+  # --- SessionStart ---------------------------------------------------------
+  # Auto-load context on session start. Prevents 95.8% failure mode where
+  # the model "forgets" to read CLAUDE.md / AGENTS.md / HANDOFF.md after
+  # a context compaction.
+  - id: session-start.memory-first
+    event: SessionStart
+    script: .claude/hooks/SessionStart/invoke_memory_first_enforcer.py
+    on_fail: warn
+
+  - id: session-start.initialization-enforcer
+    event: SessionStart
+    script: .claude/hooks/SessionStart/invoke_session_initialization_enforcer.py
+    on_fail: block
+
+  # --- PreToolUse -----------------------------------------------------------
+  # Verify preconditions before mutating state. Each entry blocks on
+  # violation so the model cannot bypass a gate by narrating compliance.
+
+  - id: pre-tool-use.session-log-exists
+    event: PreToolUse
+    tool: "Bash(git commit*)"
+    script: .claude/hooks/PreToolUse/invoke_session_log_guard.py
+    on_fail: block
+
+  - id: pre-tool-use.branch-context-matches
+    event: PreToolUse
+    tool: "Bash(git (commit|push)*)"
+    script: .claude/hooks/PreToolUse/invoke_branch_context_guard.py
+    on_fail: block
+
+  - id: pre-tool-use.branch-is-not-main
+    event: PreToolUse
+    tool: "Bash(git (commit|push)*)"
+    script: .claude/hooks/PreToolUse/invoke_branch_protection_guard.py
+    on_fail: block
+
+  - id: pre-tool-use.adr-review-required
+    event: PreToolUse
+    tool: "^(Write|Edit)$"
+    path: "**/ADR-*.md"
+    script: .claude/hooks/PreToolUse/invoke_adr_architect_gate.py
+    on_fail: block
+
+  - id: pre-tool-use.retrospective-before-push
+    event: PreToolUse
+    tool: "Bash(git push*)"
+    script: .claude/hooks/PreToolUse/invoke_retrospective_gate.py
+    on_fail: block
+
+  # Portable reference hook (for harnesses without a pre-commit ecosystem).
+  # Runs the project test command; blocks commit if tests fail.
+  - id: pre-tool-use.tests-pass-before-commit
+    event: PreToolUse
+    tool: "Bash(git commit*)"
+    script: .agents/hooks/examples/pre-commit-verify-tests.sh
+    on_fail: block
+
+  # --- PostToolUse ----------------------------------------------------------
+  # Persist state after mutating tools so compaction cannot destroy it.
+
+  - id: post-tool-use.markdown-auto-lint
+    event: PostToolUse
+    tool: "^(Write|Edit)$"
+    script: .claude/hooks/PostToolUse/invoke_markdown_auto_lint.py
+    on_fail: warn
+
+  # --- Stop -----------------------------------------------------------------
+  # Session end: validate log and generate handoff.
+
+  - id: stop.session-validator
+    event: Stop
+    script: .claude/hooks/Stop/invoke_session_validator.py
+    on_fail: warn  # Stop hooks are non-blocking per Claude hook semantics
+
+  # --- PreCompact -----------------------------------------------------------
+  # Deferred for a follow-up PR. Placeholder entry documents intent.
+  # - id: pre-compact.checkpoint-state
+  #   event: PreCompact
+  #   script: .agents/hooks/examples/pre-compact-checkpoint.sh
+  #   on_fail: warn
