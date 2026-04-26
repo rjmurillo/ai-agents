@@ -1,6 +1,6 @@
 # Agent Catalog
 
-This document describes all 21 specialized agents in the AI Agents system. Each agent has a defined role, specific outputs, and recommended use cases.
+This document describes all 22 specialized agents in the AI Agents system. Each agent has a defined role, specific outputs, and recommended use cases.
 
 ## Agent Overview
 
@@ -28,6 +28,7 @@ This document describes all 21 specialized agents in the AI Agents system. Each 
 | [retrospective](#retrospective) | Knowledge | Claude, Copilot CLI, VS Code |
 | [skillbook](#skillbook) | Knowledge | Claude, Copilot CLI, VS Code |
 | [pr-comment-responder](#pr-comment-responder) | Collaboration | Claude, Copilot CLI, VS Code |
+| [negotiation](#negotiation) | Strategy | Claude, Copilot CLI, VS Code |
 
 ## Coordination
 

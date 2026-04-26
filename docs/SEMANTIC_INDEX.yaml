@@ -55,10 +55,10 @@ index:
     use_cases:
       - skill_development
       - skill_validation
-total_docs_indexed: 2
-last_updated: '2026-02-21'
+total_docs_indexed: 3
+last_updated: '2026-04-26'
 coverage:
-  core_concepts: 2
+  core_concepts: 3
   quickstart: 0
   architecture: 0
   api: 0

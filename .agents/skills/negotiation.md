@@ -12,7 +12,7 @@ Category: Deal Intelligence and Offer Analysis
 - **Tags**: negotiation, value-gap, deal-intelligence
 
 **Implementation**:
-```
+```text
 INVISIBLE DISADVANTAGE CHECK:
   Offer net value: $[X]
   Achievable value: $[Y]
@@ -160,7 +160,7 @@ rationale: >
 - **Tags**: negotiation, BATNA, walkaway, pre-commitment
 
 **Pre-commitment artifact**:
-```
+```text
 BATNA WORKSHEET (complete before first counter):
   Walkaway price: $[X]
   Walkaway conditions: [list non-negotiables]
