@@ -131,6 +131,29 @@ The `memory-index` maps task keywords to essential memories. Example workflow:
 
 **Rationale:** Agents are expert amnesiacs. Without reading HANDOFF.md, they will repeat completed work or contradict prior decisions. Note: HANDOFF.md is a read-only reference; do not modify it during sessions. Without loading relevant memories, agents repeat solved problems or miss established patterns.
 
+### Phase 2.5: Per-Issue Handoff Read (BLOCKING when issue context exists)
+
+The agent MUST read the latest per-issue handoff before modifying any file when the session resumes work on a known issue. This is a **blocking gate** distinct from `.agents/HANDOFF.md` (which is the read-only project dashboard).
+
+See: [`.agents/sessions/handoffs/README.md`](sessions/handoffs/README.md) and template at [`.agents/templates/HANDOFF.md`](templates/HANDOFF.md). Governed by [ADR-014](architecture/ADR-014-distributed-handoff-architecture.md).
+
+**Requirements:**
+
+1. The agent MUST list `.agents/sessions/handoffs/` for files matching the active issue number (pattern `*-{ISSUE_NUMBER}-handoff.md`)
+2. If a match exists, the agent MUST read the most recent file (by ISO date in filename) before running any `Edit` or `Write` tool
+3. The agent MUST execute the handoff's **Verification on Resume** checklist and record the result in the session log
+4. If verification fails (branch drift, missing files, resolved blockers), the agent MUST reconcile state before proceeding (update the handoff, resolve drift, or stop)
+5. The agent MUST NOT modify `.agents/HANDOFF.md` (per ADR-014). The per-issue handoff under `.agents/sessions/handoffs/` is the writable artifact
+6. The agent MAY skip this phase only when no issue number is associated with the session (e.g., exploratory investigation, standalone retrospective)
+
+**Verification:**
+
+- Directory listing output appears in session transcript
+- Handoff file content appears in session context before first `Edit`/`Write` call
+- Session log records the Verification on Resume results (pass / reconciled / stopped)
+
+**Rationale:** Issue #1725 documents 95.8% session-protocol failure rate and a 5.67/10 benchmark score (only FAIL in the 16-benchmark suite) traced to mental-model gates rather than concrete file-based ones. Reading a structured document on resume forces cold-start continuity that "run it in your head" cannot.
+
 ### Phase 3: Import Shared Memories (RECOMMENDED)
 
 The agent SHOULD import shared memories at session start.
@@ -263,6 +286,8 @@ Copy this checklist to each session log and verify completion:
 | MUST | Initialize Serena: `mcp__serena__activate_project` | [ ] | Tool output present |
 | MUST | Initialize Serena: `mcp__serena__initial_instructions` | [ ] | Tool output present |
 | MUST | Read `.agents/HANDOFF.md` | [ ] | Content in context |
+| MUST | List `.agents/sessions/handoffs/` for `*-{issue}-handoff.md` | [ ] | Matches documented below |
+| MUST | Read latest per-issue handoff (if match found) | [ ] | Content in context + Verify-on-Resume run |
 | MUST | Create this session log | [ ] | This file exists |
 | MUST | List skill scripts in `.claude/skills/github/scripts/` | [ ] | Output documented below |
 | MUST | Read usage-mandatory memory | [ ] | Content in context |
@@ -636,6 +661,33 @@ The agent MUST update documentation before ending.
 - PROJECT-PLAN.md checkboxes updated if applicable
 - HANDOFF.md is NOT modified (unless explicitly approved by architect)
 
+### Phase 1.5: Per-Issue Handoff Write (BLOCKING when issue is incomplete)
+
+The agent MUST write a per-issue handoff document when the session ends with an associated issue still incomplete. This is a **blocking gate** and writes to `.agents/sessions/handoffs/`, not to `.agents/HANDOFF.md` (which remains read-only per ADR-014).
+
+See: [`.agents/sessions/handoffs/README.md`](sessions/handoffs/README.md) and template at [`.agents/templates/HANDOFF.md`](templates/HANDOFF.md).
+
+**Requirements:**
+
+1. The agent MUST write the handoff to `.agents/sessions/handoffs/{YYYY-MM-DD}-{ISSUE_NUMBER}-handoff.md`
+   - `{YYYY-MM-DD}` is the session end date (ISO 8601, UTC)
+   - `{ISSUE_NUMBER}` is the integer issue number (no `#` prefix)
+2. The agent MUST copy [`.agents/templates/HANDOFF.md`](templates/HANDOFF.md) as the starting structure
+3. The agent MUST fill every section: Status, Files Modified, Decisions Made, Blocked Items, Next Steps, Context for Next Session, Verification on Resume, Related
+4. The agent MUST NOT leave placeholder tokens (`{...}`) in the committed file
+5. The agent MAY skip the write only when:
+   - No issue number is associated with the session, OR
+   - The issue was closed (merged / resolved) in this same session, with evidence in the session log
+
+**Verification:**
+
+- File exists at `.agents/sessions/handoffs/{date}-{issue}-handoff.md`
+- File content contains no `{placeholder}` tokens
+- File referenced from the session log `workLog` or `Related Sessions`
+- Session log records the handoff path and the issue number
+
+**Rationale:** Issue #1725: without a structured, file-based handoff written at session end, the next session starts cold and re-discovers what was already known. 95.8% session-protocol failure rate was the documented consequence before this gate existed.
+
 ### Phase 2: Quality Checks (REQUIRED)
 
 The agent MUST run quality checks before ending.
@@ -867,6 +919,7 @@ Copy this checklist to each session log and verify completion:
 | MUST | Run pre-PR validation: `pwsh .agents/scripts/Validate-PRReadiness.ps1` | [ ] | Exit code 0 |
 | MUST | Commit all changes (including .serena/memories) | [ ] | Commit SHA: _______ |
 | MUST | Preserve `.agents/HANDOFF.md` (read-only) | [ ] | HANDOFF.md unchanged |
+| MUST | Write per-issue handoff to `.agents/sessions/handoffs/{date}-{issue}-handoff.md` (if issue incomplete) | [ ] | File path: _______ (or "SKIPPED: issue closed / no issue") |
 | SHOULD | Update PROJECT-PLAN.md | [ ] | Tasks checked off |
 | SHOULD | Invoke retrospective (significant sessions) | [ ] | Doc: _______ |
 | SHOULD | Check memory sizes (if memories modified) | [ ] | `python3 .claude/skills/memory/scripts/test_memory_size.py` |
