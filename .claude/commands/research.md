@@ -46,6 +46,24 @@ URLs: https://fs.blog/chestertons-fence/, https://en.wikipedia.org/wiki/G._K._Ch
 4. **Memory Phase**: Create Serena memory + 5-10 atomic Forgetful memories
 5. **Action Phase**: Create GitHub issue if implementation work identified
 
+## Budget
+
+Complete within 50k output tokens. If approaching the limit, summarize findings so far, persist partial analysis, and stop. Prefer completing fewer phases well over partial work across all phases.
+
+## Fallback Rules
+
+- If `WebSearch` returns no results for a query, try 2 alternative phrasings, then proceed with available information.
+- If a `WebFetch` URL is unreachable or returns a non-success status, note it as unavailable in the analysis and continue with other sources.
+- If memory systems (Serena or Forgetful) are unavailable, skip the Memory Phase and record the skip in the Action Phase output.
+
+## Stop Conditions
+
+Stop when any of the following is true:
+
+- All 5 phases completed or intentionally skipped under a Fallback Rule.
+- 3 phases have failed (intentional skips under Fallback Rules do not count as failures).
+- The 50k output-token budget is reached.
+
 ## Output
 
 | Artifact | Location |

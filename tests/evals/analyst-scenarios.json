@@ -1,0 +1,40 @@
+{
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Investigates intermittent failure with structured plan before solutions",
+      "input": "A deployment pipeline started failing intermittently 3 days ago. No code changes were deployed. The failure rate is ~15% and only affects the build step. Investigate.",
+      "expected_verdict": "INVESTIGATE",
+      "verdict_options": ["INVESTIGATE", "PRODUCE", "ESCALATE"],
+      "expected_reason_contains": "environment",
+      "rationale": "Intermittent failures with no code changes point to environment drift. Analyst must structure an investigation plan, not jump to fixes."
+    },
+    {
+      "id": "S2",
+      "desc": "Structures feasibility analysis with concrete trade-offs",
+      "input": "Product wants to add real-time notifications. We currently use polling. Research the feasibility and trade-offs.",
+      "expected_verdict": "INVESTIGATE",
+      "verdict_options": ["INVESTIGATE", "PRODUCE", "ESCALATE"],
+      "expected_reason_contains": "trade-off",
+      "rationale": "Feasibility research must compare WebSocket vs SSE vs long-polling with concrete criteria, not recommend a single solution."
+    },
+    {
+      "id": "S3",
+      "desc": "Distinguishes root cause from symptoms in cache analysis",
+      "input": "We have 3 microservices that each maintain their own user cache. Users report stale data after profile updates. What are we dealing with?",
+      "expected_verdict": "INVESTIGATE",
+      "verdict_options": ["INVESTIGATE", "PRODUCE", "ESCALATE"],
+      "expected_reason_contains": "invalidation",
+      "rationale": "Stale data is a symptom. Analyst must identify cache consistency model and propagation gaps as the root cause."
+    },
+    {
+      "id": "S4",
+      "desc": "Asks clarifying questions on complex ambiguous request",
+      "input": "A feature request asks for 'AI-powered search'. Before anyone writes code, what do I need to know?",
+      "expected_verdict": "INVESTIGATE",
+      "verdict_options": ["INVESTIGATE", "PRODUCE", "ESCALATE"],
+      "expected_reason_contains": "requirements",
+      "rationale": "Vague feature requests require requirements discovery. Analyst must surface unknowns like semantic search vs RAG, data volume, cost."
+    }
+  ]
+}

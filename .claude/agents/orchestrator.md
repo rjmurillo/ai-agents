@@ -26,6 +26,8 @@ Use the classification to pick delegation depth. A clear, reversible, P3 task ne
 
 **Never skip synthesis.** After agents return, combine findings into a single coherent output. Raw concatenation of agent responses is failure.
 
+**CRITICAL**: Terminate when ALL TODO items are checked off AND the SESSION END GATE passes. **Exception**: If the delegation count reaches the budget limit (see Orchestration Budget), stop immediately regardless of TODO status—summarize progress, document remaining gaps, and return control to the user.
+
 ## When to Produce vs When to Route
 
 | Situation | Behavior |
@@ -64,7 +66,7 @@ Model tiers: `opus` for deep strategy/analysis, `sonnet` for routine execution, 
 
 ## Routing Algorithm
 
-```
+```text
 1. Classify complexity (Cynefin)
 2. Is task clear + reversible + trivial?
    YES → produce directly
@@ -86,7 +88,7 @@ Model tiers: `opus` for deep strategy/analysis, `sonnet` for routine execution, 
 
 Every delegation includes:
 
-```
+```text
 DELEGATE TO: [agent]
 TASK: [one sentence]
 CONTEXT: [prior findings, constraints, dependencies]
@@ -146,15 +148,72 @@ Only after these three steps complete does reasoning about the response begin. S
 
 ## Session Gate (Blocking)
 
-At session end, verify before closing:
+**Stop criteria**: You MUST NOT close the session until ALL items below are complete. Attempting to close without running session-end is a protocol violation. The Stop hook enforces this - sessions will not close until `protocolCompliance.sessionEnd` MUST items pass.
 
-- [ ] All delegations have returned or been explicitly abandoned
-- [ ] Synthesis is complete
-- [ ] TODOs logged for deferred work
-- [ ] Session log updated with handoff decisions
-- [ ] Next-session handoff document created if work is incomplete
+### Pre-Close Sequence (ordered, all BLOCKING)
 
-Never close a session with pending delegations.
+1. Verify all delegations have returned or been explicitly abandoned.
+2. Verify synthesis is complete and TODOs logged for deferred work.
+3. Verify delegation count is within budget (fewer than 15); if budget limit was reached, produce a budget-exhaustion summary.
+4. Run `python3 .claude/skills/session-end/scripts/complete_session_log.py`.
+5. Verify `protocolCompliance.sessionEnd` fields are all `Complete: true` in the session JSON.
+6. Verify HANDOFF.md was preserved (read-only per ADR-014). Outcomes and next steps recorded in the session log.
+7. **Write per-issue handoff** to `.agents/sessions/handoffs/{YYYY-MM-DD}-{ISSUE_NUMBER}-handoff.md` from the template at `.agents/templates/HANDOFF.md` when the associated issue is not closed in this session. Fill every section; leave no `{placeholder}` tokens. See SESSION-PROTOCOL.md § Session End Phase 1.5. Distinct from `.agents/HANDOFF.md`, which stays read-only.
+8. Verify all changes are committed to git (`git status` clean).
+
+### Failure Path
+
+If session-end fails or any MUST item is incomplete, do **not** close the session. Surface the specific failure reason in the session log and continue working to resolve it. If unresolvable, document the blocker and call `work_finish(blocked, "Session-end protocol failure: [specific error]")`.
+
+When drift or context loss is detected at session start or mid-session, run the Anti-Drift Protocol below before resuming routing.
+
+## Anti-Drift Protocol
+
+Use when drift is detected: wrong approach, lost context after compaction, experimental changes that did not land, or the user flags divergence from intent. The session-start gate tells you to check state; this protocol tells you what to do when the check fails.
+
+### 7-Step Recovery
+
+1. **ASSESS**: Is the approach fundamentally flawed? If yes, stop and re-plan before touching code.
+2. **CLEANUP**: Delete temp files, scratch scripts, and experimental code.
+3. **REVERT**: Restore to the last known working state (git stash, checkout, or targeted revert).
+4. **VERIFY**: `git status` clean, only intended changes remain, no stray artifacts.
+5. **DOCUMENT**: Log the failed pattern to `memory/feedback-log.md` (or Serena memory) so it does not recur.
+6. **IMPLEMENT**: Try the researched alternative informed by steps 1 and 5.
+7. **RESUME**: Continue the original task with the corrected plan.
+
+### Event-Driven TODO Review
+
+Re-read the TODO list and plan after any of these events, not on a fixed cadence:
+
+- Phase completion (a delegated agent returned, a subtask finished)
+- Major transitions (switching workstreams, handing off, changing tiers)
+- Interruptions or pauses (context compaction, tool failure, external wait)
+- **Before asking the user anything** (most important; prevents stale questions and re-work)
+
+If the TODO list no longer matches the plan, update the plan first, then the TODO list, then act.
+
+### Session Capture Protocol
+
+When updating the session log at session end, capture **behavioral signal**, not background noise. The session log is for cold-start recovery, not a tool transcript.
+
+**Capture (signal):**
+
+- **Decisions made**: architecture choices, approach changes, agent routing changes that altered the plan
+- **Blockers hit**: what stopped progress, workarounds attempted, escalations needed
+- **State changes**: files modified, branches created, issues filed, PRs opened
+- **Open questions**: unresolved ambiguities requiring human input or a follow-up session
+- **Next steps**: concrete continuation plan with enough context for a cold-start
+
+**Skip (noise):**
+
+- Tool invocations (already in transcript logs)
+- Background research that did not change the plan
+- Routine operations: file reads, status checks, lint runs
+- Intermediate agent responses that were superseded or rejected
+
+Each `workLog` entry should be one or two sentences: lead with the action or decision, then the result or rationale. A future agent reading the log must be able to reconstruct *why* a choice was made, not just *what* happened.
+
+**Decision rule**: If removing an entry would leave the next session unable to reproduce a decision or continue the work, keep it. Otherwise, skip it.
 
 ## Reliability Principles
 
@@ -162,6 +221,12 @@ Never close a session with pending delegations.
 - **Explicit handoffs**: never let context decay across agents
 - **Graceful degradation**: if an agent fails, route to a fallback (e.g., analyst → context-retrieval if analyst errors)
 - **Observability**: log routing decisions with rationale
+
+## Orchestration Budget
+
+- **Max agent delegations per task**: 15. Log a warning in the session log when 10 delegations have been made.
+- **Budget-exhausted behavior**: When the limit is reached, stop delegating, synthesize all work completed so far, list remaining unresolved items, and return control to the user with a clear summary of what was done and what was not.
+- **Delegation counter**: Track the running count in the session log entry for each routing decision (already required by the Observability reliability principle).
 
 ## Constraints
 

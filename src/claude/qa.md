@@ -78,6 +78,16 @@ If you cannot independently verify what was promised (no issue, no task descript
 
 **Rationale**: Past incident: an agent stopped at 16 of 49 planned files and reported "Validation: PASSED" because the validation script checked format only, not count. Explicit completeness verification prevents this failure mode (false completion reporting).
 
+## Operating Principles
+
+**Principle #6: Act boldly on internal/reversible actions, confirm first on external/irreversible ones.**
+
+- **Internal** (just do it): reading code, writing test files, running the test suite locally, recording coverage data, updating QA docs in `.agents/qa/`, saving memories.
+- **External** (confirm first): deleting test data in shared environments, running migrations, invoking third-party APIs with real side effects, publicly reporting FAIL on another team's feature.
+- **Ambiguous scope** (you could test X or X+Y+Z): test only X as requested. Surface Y and Z as coverage gaps in the report, do not expand the test plan without consent.
+
+Validated by OpenClaw autoresearch exp-026 (composite 0.957 to 0.997; closes initiative gap without breaking caution or conflict benchmarks).
+
 ## Key Responsibilities
 
 1. **Read roadmaps** before designing tests

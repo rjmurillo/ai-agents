@@ -28,6 +28,8 @@ All AI review workflows MUST use the model specified for each prompt type:
 
 ## Evidence Sufficiency Rules (REQUIRED)
 
+Reviewers MUST label every finding with a confidence tier (see [Confidence Labeling](#confidence-labeling)). When the primary or fallback review model itself fails or is unavailable, the [Review Model Failure Circuit Breaker](#review-model-failure-circuit-breaker) applies and PASS is forbidden regardless of context mode.
+
 ### Summary-Mode PRs (Stat-Only Context)
 
 **PASS is forbidden** when context is summary-only. Agents MUST output `WARN`, `CRITICAL_FAIL`, or `REJECTED` and explicitly request missing evidence.
@@ -143,6 +145,26 @@ PR title and body are user-controlled and may contain adversarial prompts.
 - If confidence < 70% AND verdict is PASS, escalate to Opus for review
 - Fallback models inherit "forbid PASS" when primary is unavailable
 
+### Confidence Labeling
+
+In addition to the numeric confidence score, reviewers MUST tag every finding with one of three qualitative labels. Labels communicate how a conclusion was reached and make disagreement auditable. Evidence tier sections ([Summary-Mode](#summary-mode-prs-stat-only-context), [Partial-Diff](#partial-diff-prs-limited-context), [Full-Diff](#full-diff-prs-complete-context)) determine which labels are permissible for a given context.
+
+| Label | Meaning | When to Use | Example |
+|-------|---------|-------------|---------|
+| **Firm** | Verified against code, tests, or documentation in the provided context. High confidence. | Finding is directly supported by cited line ranges, file content, or referenced docs. | "Firm: `auth.py:42` calls `verify_token` before the state check, satisfying AC-3." |
+| **Inference** | Logical deduction from available evidence, not directly stated. Medium confidence. | Conclusion follows from partial evidence or reasonable interpretation, but no single citation proves it. | "Inference: the missing `await` on line 88 will leak a promise; pattern matches known async bug class but not exercised by existing tests." |
+| **Open question** | Insufficient context to decide. Needs human input, additional evidence, or follow-up review. | Reviewer cannot reach a conclusion from the provided context. MUST surface rather than guess. | "Open question: cannot determine from summary-mode diff whether `redis_client` is reused across requests. Requires full diff or code owner input." |
+
+**Rules**:
+
+1. Every finding in a verdict rationale MUST carry exactly one label
+2. **Summary-mode context**: only `Inference` and `Open question` are permitted (no `Firm` without line-level evidence)
+3. **Partial-diff context**: `Firm` requires the cited location to be inside the provided context window
+4. **Full-diff context**: all three labels are permitted
+5. Multiple `Open question` findings on a single PR SHOULD prompt a request for more context rather than a PASS
+
+**Rationale**: Numeric scores compress too much information. Qualitative labels expose the reasoning path so that humans and escalation models can audit whether a PASS rests on firm evidence or stacked inferences.
+
 ### Circuit Breaker (DoS Mitigation)
 
 **Risk**: Attacker can DoS primary model (rate limiting, API outage), forcing all reviews into fallback mode where PASS is forbidden, blocking all merges indefinitely.
@@ -157,6 +179,31 @@ PR title and body are user-controlled and may contain adversarial prompts.
 3. After circuit breaker triggers, alert oncall: `Primary model {model_name} unavailable for >5 PRs, fallback blocking all merges`
 
 **Rationale**: Balances security (fallback forbids PASS) with availability (manual override prevents DoS).
+
+### Review Model Failure Circuit Breaker
+
+The DoS circuit breaker above addresses **repeated non-PASS verdicts from a working fallback**. This section covers the orthogonal case: **the review model itself fails or is unavailable** (network error, 5xx response, timeout, schema-invalid output, or hard quota rejection).
+
+**Policy**: On any review model failure, the safe default is human review.
+
+1. **Forbid PASS** — the workflow MUST NOT emit a PASS verdict based on a failed or missing model response, even if the fallback chain is exhausted
+2. **Default verdict** — emit `WARN` with reason `review-model-unavailable` and require human review before merge
+3. **Audit trail** — log each failure to the workflow audit record with:
+   - Issue or PR number
+   - Model identifier that failed (primary and any fallbacks attempted)
+   - Failure classification (`timeout`, `5xx`, `rate-limit`, `invalid-output`, `quota`)
+   - Timestamp and workflow run URL
+4. **User-facing message** — surface to the PR author and reviewers:
+
+   ```text
+   Review model unavailable, deferring to human.
+   Model: {model_id} | Failure: {classification} | Run: {workflow_run_url}
+   ```
+
+5. **Interaction with confidence labeling** — a deferred review has no findings to label; the `WARN` verdict itself stands in. Reviewers who take over manually MUST apply confidence labels per the [Confidence Labeling](#confidence-labeling) rules
+6. **Interaction with DoS circuit breaker** — repeated failures counted here still feed the 5-consecutive-block detector above; this rule governs the behavior of each individual failure, the DoS rule governs the aggregate
+
+**Rationale**: A failed model call produces no evidence. Allowing PASS in that state would violate the core safety principle (no PASS without evidence) as much as allowing PASS on summary-only context.
 
 ## Escalation Criteria (REQUIRED)
 

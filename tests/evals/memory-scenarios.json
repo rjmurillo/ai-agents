@@ -1,0 +1,40 @@
+{
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Retrieves relevant context for new session on known feature",
+      "input": "It is a new session. The user is working on a payment refund feature. What context should you retrieve?",
+      "expected_verdict": "RETRIEVE",
+      "verdict_options": ["RETRIEVE", "PERSIST", "SKIP"],
+      "expected_reason_contains": "payment",
+      "rationale": "Memory agent must search payment-related memories, ADRs, and prior session context. Missing relevant retrieval degrades all downstream agents."
+    },
+    {
+      "id": "S2",
+      "desc": "Persists architectural decision with cross-session value",
+      "input": "During the session, the architect agent decided to use the Outbox pattern for event publishing. Should this be persisted?",
+      "expected_verdict": "PERSIST",
+      "verdict_options": ["RETRIEVE", "PERSIST", "SKIP"],
+      "expected_reason_contains": "persist",
+      "rationale": "Architectural decisions have cross-session value. Memory agent must store with decision, rationale, and tags for future retrieval."
+    },
+    {
+      "id": "S3",
+      "desc": "Detects stale memory and flags for verification",
+      "input": "A memory from 3 months ago says 'the user table has 50K rows'. The table now has 2M rows. How do you handle this?",
+      "expected_verdict": "RETRIEVE",
+      "verdict_options": ["RETRIEVE", "PERSIST", "SKIP"],
+      "expected_reason_contains": "stale",
+      "rationale": "Memories are point-in-time claims. Memory agent must detect staleness and verify against current state before acting on old data."
+    },
+    {
+      "id": "S4",
+      "desc": "Synthesizes across multiple sources with attribution",
+      "input": "The user asks 'what did we decide about caching last month?' Search and synthesize.",
+      "expected_verdict": "RETRIEVE",
+      "verdict_options": ["RETRIEVE", "PERSIST", "SKIP"],
+      "expected_reason_contains": "search",
+      "rationale": "Cross-source synthesis requires searching Serena, session logs, ADRs, and git history. Memory agent must attribute findings to sources."
+    }
+  ]
+}

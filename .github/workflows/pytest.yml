@@ -85,7 +85,7 @@ jobs:
 
       - name: Harden Runner
         if: steps.should-run.outputs.skip != 'true'
-        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
+        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
         with:
           egress-policy: audit
 
@@ -124,7 +124,7 @@ jobs:
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
+        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
         with:
           egress-policy: audit
 
@@ -139,7 +139,17 @@ jobs:
 
       - name: Run pip-audit
         run: |
-          pip-audit --ignore-vuln CVE-2026-4539  # pygments 2.19.2, no fix available
+          # Ignored CVEs (re-evaluate when upstream releases a fix):
+          #   CVE-2026-4539: pygments 2.19.2, no fix available.
+          #   CVE-2026-3219: pip 26.0/26.0.1 mishandles concatenated tar/ZIP
+          #     archives (CWE-434, CVSS 4.6, local + user interaction).
+          #     Fix is merged on pip main (PR pypa/pip#13870), pending pip 26.1
+          #     release. CI installs trusted deps from PyPI via uv lockfile, so
+          #     the local-only attack surface does not apply. Remove this ignore
+          #     once pip 26.1 ships.
+          pip-audit \
+            --ignore-vuln CVE-2026-4539 \
+            --ignore-vuln CVE-2026-3219
 
       - name: Run Bandit
         run: |
@@ -167,7 +177,7 @@ jobs:
       contents: read
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
+        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
         with:
           egress-policy: audit
 
