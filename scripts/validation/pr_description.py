@@ -514,16 +514,22 @@ def main(argv: list[str] | None = None) -> int:
     return print_results(issues, ci=args.ci)
 
 
+# ASCII control characters (NUL through US, plus DEL) and `=` are unsafe for
+# GITHUB_OUTPUT keys=value lines. Replacing all of them defends against any
+# line-delimited or heredoc-style injection vector regardless of which
+# GitHub Actions runner version processes the file.
+_OUTPUT_UNSAFE_CHARS: re.Pattern[str] = re.compile(r"[\x00-\x1f\x7f=]")
+
+
 def _safe_label_for_output(label: str) -> str:
     """Return a label safe to embed in GITHUB_OUTPUT key=value lines.
 
     GitHub Actions parses `GITHUB_OUTPUT` as `name=value` pairs. A value
     containing `\\n` injects a new key (CWE-117 log injection / CVE-2023-32700
-    class). Reject such labels by replacing newline, carriage return, and
-    `=` with `_`. Bypass label names should never contain these characters,
-    but defense-in-depth.
+    class). Replace every ASCII control character and `=` with `_` so no
+    delimiter, heredoc, or escape sequence survives.
     """
-    return label.replace("\n", "_").replace("\r", "_").replace("=", "_")
+    return _OUTPUT_UNSAFE_CHARS.sub("_", label)
 
 
 def _safe_label_for_markdown(label: str) -> str:
@@ -536,6 +542,23 @@ def _safe_label_for_markdown(label: str) -> str:
     return label.replace("`", "'")
 
 
+def _warn_if_mutated(name: str, original: str, sanitized: str) -> None:
+    """Emit a stderr warning when a sanitizer changed its input.
+
+    Without this, a label or file path containing dangerous characters is
+    silently rewritten in the audit record. Auditors grepping for the
+    original value would not find it. The warning is one-shot per call
+    site and never blocks execution.
+    """
+    if original != sanitized:
+        print(
+            f"[pr-description] WARNING: {name} sanitized "
+            f"(unsafe characters replaced); wrote {sanitized!r} "
+            f"instead of original {original!r}",
+            file=sys.stderr,
+        )
+
+
 def _write_step_summary(
     summary_path: str, pr_number: int, label: str, issues: list[Issue]
 ) -> None:
@@ -546,13 +569,19 @@ def _write_step_summary(
     machinery exists to prevent. The bypass return path is unaffected.
     """
     safe_label = _safe_label_for_markdown(label)
+    _warn_if_mutated("bypass_label (markdown)", label, safe_label)
     critical_files = [i.file for i in issues if i.severity == "CRITICAL"]
+    safe_files = [
+        (f, _safe_label_for_markdown(f)) for f in critical_files
+    ]
+    for original, sanitized in safe_files:
+        _warn_if_mutated("file path (markdown)", original, sanitized)
     record = (
         "\n### PR Description Validation Bypass\n\n"
         f"PR #{pr_number} bypassed CRITICAL description-validation "
         f"failures via `{safe_label}` label.\n\n"
         f"Suppressed CRITICAL files ({len(critical_files)}): "
-        f"{', '.join(f'`{_safe_label_for_markdown(f)}`' for f in critical_files) or '(none)'}\n\n"
+        f"{', '.join(f'`{s}`' for _, s in safe_files) or '(none)'}\n\n"
         "<!-- DESCRIPTION-VALIDATION-BYPASS -->\n"
     )
     try:
@@ -578,6 +607,7 @@ def _write_step_output(
     here turns the audit machinery into a no-op.
     """
     safe_label = _safe_label_for_output(label)
+    _warn_if_mutated("bypass_label (GITHUB_OUTPUT)", label, safe_label)
     try:
         with open(output_path, "a", encoding="utf-8") as fh:
             fh.write(

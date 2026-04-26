@@ -1299,6 +1299,76 @@ class TestBypassLabel:
         assert _safe_label_for_output("a=b") == "a_b"
         assert _safe_label_for_output("clean-label") == "clean-label"
 
+    def test_safe_label_for_output_replaces_all_control_chars(self) -> None:
+        """Defense-in-depth: every ASCII control char (NUL through US plus
+        DEL) must be replaced, not only the GHA line delimiters. Prevents
+        future runner versions or heredoc parsers from being abused."""
+        assert _safe_label_for_output("a\x00b") == "a_b"  # NUL
+        assert _safe_label_for_output("a\x0bb") == "a_b"  # VT
+        assert _safe_label_for_output("a\x0cb") == "a_b"  # FF
+        assert _safe_label_for_output("a\x1bb") == "a_b"  # ESC
+        assert _safe_label_for_output("a\x7fb") == "a_b"  # DEL
+        assert _safe_label_for_output("a\tb") == "a_b"  # TAB also <0x20
+
+    @patch("scripts.validation.pr_description.fetch_pr_data")
+    @patch("scripts.validation.pr_description.get_repo_info")
+    def test_label_sanitization_logs_warning_when_mutated(
+        self,
+        mock_repo: MagicMock,
+        mock_fetch: MagicMock,
+        tmp_path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """When a sanitizer changes its input, stderr must record the
+        mutation so auditors grepping for the original label name know
+        why the value differs."""
+        output = tmp_path / "outputs.txt"
+        output.write_text("")
+        monkeypatch.setenv("GITHUB_OUTPUT", str(output))
+        monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
+        mock_repo.return_value = RepoInfo(owner="o", repo="r")
+        mock_fetch.return_value = {
+            "title": "T",
+            "body": "Changed `ghost.py`",
+            "files": [{"path": "real.py"}],
+            "labels": [{"name": "weird=label"}],
+        }
+        code = main(
+            ["--pr-number", "1", "--ci", "--bypass-label", "weird=label"]
+        )
+        assert code == 0
+        err = capsys.readouterr().err
+        assert "sanitized" in err
+        assert "weird=label" in err
+        assert "weird_label" in err
+
+    @patch("scripts.validation.pr_description.fetch_pr_data")
+    @patch("scripts.validation.pr_description.get_repo_info")
+    def test_clean_label_does_not_log_sanitization_warning(
+        self,
+        mock_repo: MagicMock,
+        mock_fetch: MagicMock,
+        tmp_path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """No false-positive warning when label needed no sanitization."""
+        output = tmp_path / "outputs.txt"
+        output.write_text("")
+        monkeypatch.setenv("GITHUB_OUTPUT", str(output))
+        monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
+        mock_repo.return_value = RepoInfo(owner="o", repo="r")
+        mock_fetch.return_value = {
+            "title": "T",
+            "body": "Changed `ghost.py`",
+            "files": [{"path": "real.py"}],
+            "labels": [{"name": "description-validation-bypass"}],
+        }
+        code = main(["--pr-number", "1", "--ci"])
+        assert code == 0
+        assert "sanitized" not in capsys.readouterr().err
+
     def test_safe_label_for_markdown_replaces_backticks(self) -> None:
         assert _safe_label_for_markdown("a`b") == "a'b"
         assert _safe_label_for_markdown("clean") == "clean"

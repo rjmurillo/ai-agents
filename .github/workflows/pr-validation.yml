@@ -204,7 +204,17 @@ jobs:
           $overallStatus = "PASS"
           $blockingIssues = @()
           $warnings = @()
-          
+
+          # Treat an empty DESCRIPTION_RESULT as ERROR. The validate-description
+          # step writes PASS/FAIL only on its two explicit branches; if the
+          # runner is interrupted (timeout, OOM, signal) between the python
+          # call and the bash echo, the output is empty. Without this guard,
+          # downstream BYPASS_USED checks could render BYPASSED for a PR that
+          # never actually completed validation.
+          if ([string]::IsNullOrEmpty($env:DESCRIPTION_RESULT)) {
+            $env:DESCRIPTION_RESULT = "ERROR"
+          }
+
           # Check description validation
           if ($env:DESCRIPTION_RESULT -eq "FAIL") {
             $overallStatus = "FAIL"
