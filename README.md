@@ -559,3 +559,11 @@ This project uses a **template-based generation system**. To modify agents:
 ## License
 
 MIT
+
+## 💰 Bounty Contribution
+
+- **Task:** feat(skills): Add business-strategy skill pack (Founder Playbook pattern)
+- **Reward:** $100
+- **Source:** GitHub-Paid
+- **Date:** 2026-04-27
+
