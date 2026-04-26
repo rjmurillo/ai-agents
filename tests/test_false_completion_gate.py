@@ -69,8 +69,11 @@ class TestFalseCompletionGate(unittest.TestCase):
             from datetime import UTC, datetime
             today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
             session_file = sessions_dir / f"{today}-session-01.json"
+            # Use the current schema (workLog) and a realistic verification marker
+            # that matches both VERIFICATION_PATTERNS (command name) and
+            # VERIFICATION_RESULT_PATTERNS (pass/fail count).
             session_file.write_text(json.dumps({
-                "work": ["ran pytest, all green"]
+                "workLog": ["ran pytest: 32 passed in 0.21s"]
             }))
 
             with patch("sys.stdin", StringIO(json.dumps(hook_input))):
