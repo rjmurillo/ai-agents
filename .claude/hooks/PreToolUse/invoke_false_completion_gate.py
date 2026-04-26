@@ -112,16 +112,21 @@ def has_verification_evidence(project_dir: Path) -> bool:
             pass
 
     # Check hook state for plan checkpoints (indicates active work)
-    # Exclude audit files and plan-checkpoint files to prevent self-poisoning
-    # (audit log reasons and plan file summaries contain verification pattern
-    # keywords like "pytest" that would falsely match)
+    # Exclude audit files, plan-checkpoint files, and pre-compact files to prevent
+    # self-poisoning (audit log reasons, plan file summaries, and pre-compact work
+    # item descriptions contain verification pattern keywords like "pytest" that
+    # would falsely match without any test ever having run)
     hook_state_dir = project_dir / ".agents" / ".hook-state"
     if hook_state_dir.is_dir():
         today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
         checkpoints = list(hook_state_dir.glob(f"*{today}*"))
         if checkpoints:
             for cp in checkpoints:
-                if cp.name.startswith("audit-") or cp.name.startswith("plan-checkpoint-"):
+                if (
+                    cp.name.startswith("audit-")
+                    or cp.name.startswith("plan-checkpoint-")
+                    or cp.name.startswith("pre-compact-")
+                ):
                     continue
                 try:
                     content = cp.read_text(encoding="utf-8")
