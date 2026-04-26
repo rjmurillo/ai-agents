@@ -89,11 +89,19 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           echo "Validating PR description..."
-          if python3 scripts/validation/pr_description.py --pr-number "$PR_NUMBER" --ci; then
-            echo "validation_result=PASS" >> "$GITHUB_OUTPUT"
-          else
-            echo "validation_result=FAIL" >> "$GITHUB_OUTPUT"
-          fi
+          set +e
+          python3 scripts/validation/pr_description.py --pr-number "$PR_NUMBER" --ci
+          rc=$?
+          set -e
+          # Map ADR-035 exit codes to workflow validation_result so a config
+          # error (exit 2: missing dependency, gh failure, RuntimeError in
+          # fetch_pr_data) is not misreported as a content-validation FAIL.
+          case "$rc" in
+            0) echo "validation_result=PASS" >> "$GITHUB_OUTPUT" ;;
+            1) echo "validation_result=FAIL" >> "$GITHUB_OUTPUT" ;;
+            2) echo "validation_result=ERROR" >> "$GITHUB_OUTPUT" ;;
+            *) echo "validation_result=ERROR" >> "$GITHUB_OUTPUT" ;;
+          esac
 
       - name: Validate PR Description Standards
         if: steps.should-run.outputs.skip != 'true'
@@ -188,6 +196,9 @@ jobs:
         shell: pwsh
         env:
           DESCRIPTION_RESULT: ${{ steps.validate-description.outputs.validation_result }}
+          BYPASS_USED: ${{ steps.validate-description.outputs.bypass_used }}
+          BYPASS_LABEL: ${{ steps.validate-description.outputs.bypass_label }}
+          BYPASS_COUNT: ${{ steps.validate-description.outputs.bypass_count }}
           UNRESOLVED_COUNT: ${{ steps.check-comments.outputs.unresolved_count }}
           SECURITY_UNRESOLVED: ${{ steps.check-comments.outputs.security_unresolved }}
           HAS_CODE_CHANGES: ${{ steps.check-qa.outputs.has_code_changes }}
@@ -201,7 +212,17 @@ jobs:
           $overallStatus = "PASS"
           $blockingIssues = @()
           $warnings = @()
-          
+
+          # Treat an empty DESCRIPTION_RESULT as ERROR. The validate-description
+          # step writes PASS/FAIL only on its two explicit branches; if the
+          # runner is interrupted (timeout, OOM, signal) between the python
+          # call and the bash echo, the output is empty. Without this guard,
+          # downstream BYPASS_USED checks could render BYPASSED for a PR that
+          # never actually completed validation.
+          if ([string]::IsNullOrEmpty($env:DESCRIPTION_RESULT)) {
+            $env:DESCRIPTION_RESULT = "ERROR"
+          }
+
           # Check description validation
           if ($env:DESCRIPTION_RESULT -eq "FAIL") {
             $overallStatus = "FAIL"
@@ -209,6 +230,12 @@ jobs:
           } elseif ($env:DESCRIPTION_RESULT -eq "ERROR") {
             $overallStatus = "ERROR"
             $blockingIssues += "Description validation error"
+          } elseif ($env:BYPASS_USED -eq "true") {
+            # Description validation found CRITICAL mismatches but the bypass
+            # label suppressed the failing exit. Surface this as BYPASSED so
+            # reviewers see the override in the PR comment, not a clean PASS.
+            $overallStatus = "BYPASSED"
+            $warnings += "Description validation BYPASSED via '$env:BYPASS_LABEL' label ($env:BYPASS_COUNT CRITICAL files suppressed). See job summary for details."
           }
           
           # Check PR standards (issue keywords + template compliance)
@@ -225,12 +252,15 @@ jobs:
           }
           
           # Build report
-          $alertType = if ($overallStatus -eq "FAIL") { "CAUTION" } 
+          $alertType = if ($overallStatus -eq "FAIL") { "CAUTION" }
                       elseif ($overallStatus -eq "ERROR") { "WARNING" }
+                      elseif ($overallStatus -eq "BYPASSED") { "WARNING" }
                       elseif ($warnings.Count -gt 0) { "NOTE" }
                       else { "TIP" }
-          
-          $emoji = if ($overallStatus -eq "PASS") { "✅" } else { "❌" }
+
+          $emoji = if ($overallStatus -eq "PASS") { "✅" }
+                   elseif ($overallStatus -eq "BYPASSED") { "⚠️" }
+                   else { "❌" }
           
           $report = @"
           <!-- PR-VALIDATION -->
@@ -244,7 +274,7 @@ jobs:
 
           | Check | Status |
           |:------|:-------|
-          | Description matches diff | $env:DESCRIPTION_RESULT |
+          | Description matches diff | $(if ($env:BYPASS_USED -eq 'true' -and $env:DESCRIPTION_RESULT -ne 'ERROR') { 'BYPASSED (label override)' } else { $env:DESCRIPTION_RESULT }) |
 
           ### PR Standards
 

@@ -22,7 +22,10 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
+
+Severity = Literal["CRITICAL", "WARNING"]
+_VALID_SEVERITIES: frozenset[str] = frozenset({"CRITICAL", "WARNING"})
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(_PROJECT_ROOT))
@@ -42,6 +45,26 @@ SIGNIFICANT_DIRS_PATTERN: re.Pattern[str] = re.compile(
 # File extension pattern for extracting file references from description
 _EXT_GROUP = r"ps1|md|yml|yaml|json|cs|ts|js|py|sh|bash"
 
+# Default label name that bypasses CRITICAL description-validation failures.
+# Mirrors the existing 'commit-limit-bypass' pattern in pr-validation.yml.
+DEFAULT_BYPASS_LABEL = "description-validation-bypass"
+
+# Section names whose file mentions are contextual references, not change
+# claims. Matches `## Heading` (h2) at the start of a line, case-insensitive.
+# Each entry is a regex fragment for the heading text only.
+_CONTEXTUAL_SECTION_NAMES: tuple[str, ...] = (
+    r"Test\s*Plan",
+    r"Design\s*Decisions?",
+    r"Related",
+    r"References?",
+    r"See\s*Also",
+    r"Notes?",
+    r"Background",
+    r"Inspired\s*By",
+    r"Pattern\s*From",
+    r"Prior\s*Art",
+)
+
 # Patterns to extract file paths from PR description text
 # List item pattern accepts both unwrapped paths (`- path/file.ext`) and
 # backtick-wrapped paths (`- \`path/file.ext\`: description`). The autonomous
@@ -60,12 +83,24 @@ FILE_MENTION_PATTERNS: list[re.Pattern[str]] = [
 
 @dataclass
 class Issue:
-    """A validation issue found during PR description checking."""
+    """A validation issue found during PR description checking.
 
-    severity: str
+    `severity` MUST be one of `CRITICAL` or `WARNING`. The CRITICAL gate at
+    `validate_pr_description` and the audit emitter both branch on the exact
+    string; a typo (`"critical"` lowercase) silently slips past the gate.
+    """
+
+    severity: Severity
     issue_type: str
     file: str
     message: str
+
+    def __post_init__(self) -> None:
+        if self.severity not in _VALID_SEVERITIES:
+            raise ValueError(
+                f"Issue.severity must be one of {sorted(_VALID_SEVERITIES)}, "
+                f"got {self.severity!r}"
+            )
 
 
 def get_repo_info() -> RepoInfo:
@@ -100,7 +135,7 @@ def get_repo_info() -> RepoInfo:
 def fetch_pr_data(
     pr_number: int, owner: str, repo: str
 ) -> dict[str, Any]:
-    """Fetch PR data (title, body, files) via gh CLI.
+    """Fetch PR data (title, body, files, labels) via gh CLI.
 
     Returns parsed JSON dict. Raises RuntimeError on failure.
     """
@@ -108,7 +143,7 @@ def fetch_pr_data(
         result = subprocess.run(
             [
                 "gh", "pr", "view", str(pr_number),
-                "--json", "title,body,files",
+                "--json", "title,body,files,labels",
                 "--repo", f"{owner}/{repo}",
             ],
             capture_output=True,
@@ -150,9 +185,47 @@ def _strip_informational_sections(description: str) -> str:
     Strips <details> blocks and "Detected Package Files" sections that list
     files for informational purposes (e.g. Renovate onboarding PRs) rather
     than claiming those files were changed.
+
+    Also masks fenced code blocks before any heading-based stripping so a
+    sample heading inside a fenced ```markdown block does not cause the
+    contextual-section regex to over-strip across the real document
+    structure.
     """
+    # Mask fenced code blocks so headings or filenames inside samples do not
+    # interact with the contextual-section regex below. Without this, an
+    # AI-generated description containing `## Design Decisions` inside a
+    # markdown sample would over-strip across real document structure and
+    # either expose phantom file claims from inside the fence or silently
+    # consume real change claims that follow it.
+    #
+    # Three fence styles are masked:
+    #   1. Triple backticks (```...```)            - GitHub-flavored Markdown
+    #   2. Triple tildes   (~~~...~~~)             - CommonMark alternative
+    #   3. HTML <pre>...</pre>                     - PR templates copy raw HTML
+    #
+    # NOTE: 4-space-indented code blocks are NOT masked. They are
+    # indistinguishable from indented list items via regex alone. Authors
+    # should prefer fenced blocks in PR descriptions.
+    # Triple-backtick: keep unanchored — GFM permits inline ```code``` spans
+    # and we want those treated as code regardless of position.
+    text = re.sub(r"```.*?```", "<CODE_BLOCK>", description, flags=re.DOTALL)
+    # Tilde fence: anchor to start of line (CommonMark requires fences in
+    # column 0..3). Without the anchor, prose like `~~~strikethrough~~~`
+    # masks any `## Test Plan` heading appearing between two `~~~` tokens.
+    text = re.sub(
+        r"^[ ]{0,3}~~~.*?^[ ]{0,3}~~~",
+        "<CODE_BLOCK>",
+        text,
+        flags=re.DOTALL | re.MULTILINE,
+    )
+    text = re.sub(
+        r"<pre\b[^>]*>.*?</pre>",
+        "<CODE_BLOCK>",
+        text,
+        flags=re.DOTALL | re.IGNORECASE,
+    )
     # Strip <details>...</details> blocks (used by Renovate, Dependabot, etc.)
-    text = re.sub(r"<details>.*?</details>", "", description, flags=re.DOTALL)
+    text = re.sub(r"<details>.*?</details>", "", text, flags=re.DOTALL)
     # Strip "Detected Package Files" section up to the next heading or <hr>
     text = re.sub(
         r"###\s*Detected Package Files.*?(?=^###|\n---|\Z)",
@@ -168,13 +241,40 @@ def _strip_informational_sections(description: str) -> str:
         text,
         flags=re.DOTALL | re.MULTILINE,
     )
-    # Strip "Test plan" sections. Files mentioned there are validation targets,
-    # not claims that those files were changed.
+    # Strip contextual h2 sections (Test Plan, Design Decisions, Related,
+    # References, See Also, Notes, Background, Inspired By, Pattern From,
+    # Prior Art). Files mentioned in these sections are references or
+    # validation targets, not claims that those files were modified by the PR.
+    #
+    # The heading name must occupy the entire `## ...` line (modulo trailing
+    # whitespace). Without the `\s*$` anchor, `## Notes on the rollout` would
+    # also match and silently drop a section that contains real change claims.
+    # We accept the tradeoff that `## Notes:` (trailing punctuation) no longer
+    # strips: those rare cases can use a contextual-prefix word like
+    # `## Notes` (no suffix) or apply the bypass label.
+    #
+    # The terminating lookahead `(?=^#{1,2}(?!#)|\Z)` matches the next H1
+    # or H2 heading (exactly `#` or `##`, not `###` or deeper). Two failure
+    # modes this guards against:
+    #
+    # 1. Without the `(?!#)` negative lookahead, an H3 sub-heading inside a
+    #    contextual section (e.g., `### Trade-offs` under `## Design
+    #    Decisions`) terminates the strip early and exposes its contents as
+    #    phantom change claims.
+    # 2. Without H1 (`#{1,2}`) in the heading-class, an H1 that follows a
+    #    contextual section is treated as still inside the section and
+    #    silently dropped. Per CommonMark, an H2 section ends at the next
+    #    heading of equal-or-higher level, so H1 must terminate H2.
+    contextual_pattern = (
+        r"^##\s+(?:"
+        + "|".join(_CONTEXTUAL_SECTION_NAMES)
+        + r")\s*$.*?(?=^#{1,2}(?!#)|\Z)"
+    )
     text = re.sub(
-        r"##\s*Test\s*[Pp]lan.*?(?=^##|\Z)",
+        contextual_pattern,
         "",
         text,
-        flags=re.DOTALL | re.MULTILINE,
+        flags=re.DOTALL | re.MULTILINE | re.IGNORECASE,
     )
     return text
 
@@ -292,7 +392,7 @@ def print_results(issues: list[Issue], ci: bool) -> int:
         print("CRITICAL issues found. Update PR description to match actual changes.")
         if ci:
             return 1
-    elif warning_count > 0:
+    elif warning_count > 0:  # pragma: no branch
         print(
             "Warnings found. Consider mentioning significant files in PR description."
         )
@@ -332,6 +432,17 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         default=os.environ.get("CI", "").lower() in ("true", "1"),
         help="CI mode: exit non-zero on CRITICAL failures (env: CI)",
+    )
+    parser.add_argument(
+        "--bypass-label",
+        default=os.environ.get(
+            "DESCRIPTION_VALIDATION_BYPASS_LABEL", DEFAULT_BYPASS_LABEL
+        ),
+        help=(
+            "PR label that suppresses CRITICAL failures in CI mode "
+            f"(env: DESCRIPTION_VALIDATION_BYPASS_LABEL, "
+            f"default: {DEFAULT_BYPASS_LABEL})"
+        ),
     )
     return parser
 
@@ -375,8 +486,167 @@ def main(argv: list[str] | None = None) -> int:
 
     # Validate
     issues = validate_pr_description(pr_files, mentioned_files)
+
+    # Honor the bypass label only when CI mode would otherwise fail. The label
+    # is the documented escape hatch for false-positive contextual references
+    # that the section allowlist does not cover. The issues are still printed
+    # for visibility, but the script exits 0 so the workflow's overall_status
+    # propagates as PASS.
+    #
+    # Label name comparison is case-insensitive. GitHub renders labels case-
+    # insensitively in the UI but returns canonical case via the API; a
+    # maintainer creating `Description-Validation-Bypass` (Title Case) would
+    # otherwise silently miss the bypass against the lowercase default.
+    pr_labels: list[str] = [
+        label.get("name", "")
+        for label in (pr_data.get("labels") or [])
+        if isinstance(label, dict)
+    ]
+    bypass_label_lower = args.bypass_label.lower()
+    pr_labels_lower = {label.lower() for label in pr_labels}
+    has_critical = any(i.severity == "CRITICAL" for i in issues)
+    if args.ci and has_critical and bypass_label_lower in pr_labels_lower:
+        print_results(issues, ci=False)
+        print(
+            f"\nCRITICAL issues bypassed by '{args.bypass_label}' label. "
+            "Exiting 0."
+        )
+        # Emit a structured marker so audit tooling (Audit-Hook-Bypass
+        # workflow, weekly review) can detect bypass usage without parsing
+        # stdout. Writes to GITHUB_STEP_SUMMARY when the env var is set
+        # (CI context); silently skipped locally.
+        _emit_bypass_audit(args.pr_number, args.bypass_label, issues)
+        return 0
+
     return print_results(issues, ci=args.ci)
 
 
-if __name__ == "__main__":
+# ASCII control characters (NUL through US, plus DEL) and `=` are unsafe for
+# GITHUB_OUTPUT keys=value lines. Replacing all of them defends against any
+# line-delimited or heredoc-style injection vector regardless of which
+# GitHub Actions runner version processes the file.
+_OUTPUT_UNSAFE_CHARS: re.Pattern[str] = re.compile(r"[\x00-\x1f\x7f=]")
+
+
+def _safe_label_for_output(label: str) -> str:
+    """Return a label safe to embed in GITHUB_OUTPUT key=value lines.
+
+    GitHub Actions parses `GITHUB_OUTPUT` as `name=value` pairs. A value
+    containing `\\n` injects a new key (CWE-117 log injection / CVE-2023-32700
+    class). Replace every ASCII control character and `=` with `_` so no
+    delimiter, heredoc, or escape sequence survives.
+    """
+    return _OUTPUT_UNSAFE_CHARS.sub("_", label)
+
+
+def _safe_label_for_markdown(label: str) -> str:
+    """Return a label safe to embed in markdown inline code spans.
+
+    A label containing a backtick closes the inline `code` span and breaks
+    the audit marker block, defeating downstream `<!-- ... -->` parsers.
+    Replace backticks with `'` (visually similar, no markdown semantics).
+    """
+    return label.replace("`", "'")
+
+
+def _warn_if_mutated(name: str, original: str, sanitized: str) -> None:
+    """Emit a stderr warning when a sanitizer changed its input.
+
+    Without this, a label or file path containing dangerous characters is
+    silently rewritten in the audit record. Auditors grepping for the
+    original value would not find it. The warning is one-shot per call
+    site and never blocks execution.
+    """
+    if original != sanitized:
+        print(
+            f"[pr-description] WARNING: {name} sanitized "
+            f"(unsafe characters replaced); wrote {sanitized!r} "
+            f"instead of original {original!r}",
+            file=sys.stderr,
+        )
+
+
+def _write_step_summary(
+    summary_path: str, pr_number: int, label: str, issues: list[Issue]
+) -> None:
+    """Append the human-readable bypass record to `GITHUB_STEP_SUMMARY`.
+
+    OSError is logged to stderr (not silently swallowed): a disk-full or
+    permission failure here means the audit trail is lost, which the audit
+    machinery exists to prevent. The bypass return path is unaffected.
+    """
+    safe_label = _safe_label_for_markdown(label)
+    _warn_if_mutated("bypass_label (markdown)", label, safe_label)
+    critical_files = [i.file for i in issues if i.severity == "CRITICAL"]
+    safe_files = [
+        (f, _safe_label_for_markdown(f)) for f in critical_files
+    ]
+    for original, sanitized in safe_files:
+        _warn_if_mutated("file path (markdown)", original, sanitized)
+    record = (
+        "\n### PR Description Validation Bypass\n\n"
+        f"PR #{pr_number} bypassed CRITICAL description-validation "
+        f"failures via `{safe_label}` label.\n\n"
+        f"Suppressed CRITICAL files ({len(critical_files)}): "
+        f"{', '.join(f'`{s}`' for _, s in safe_files) or '(none)'}\n\n"
+        "<!-- DESCRIPTION-VALIDATION-BYPASS -->\n"
+    )
+    try:
+        with open(summary_path, "a", encoding="utf-8") as fh:
+            fh.write(record)
+    except OSError as exc:
+        print(
+            f"[pr-description] WARNING: failed to write bypass audit "
+            f"to GITHUB_STEP_SUMMARY ({summary_path}): {exc}",
+            file=sys.stderr,
+        )
+
+
+def _write_step_output(
+    output_path: str, label: str, critical_count: int
+) -> None:
+    """Append the workflow signal triple to `GITHUB_OUTPUT`.
+
+    Label is sanitized via `_safe_label_for_output` before write to prevent
+    newline injection from synthesizing arbitrary output keys. OSError is
+    logged to stderr instead of swallowed: the workflow report relies on
+    `bypass_used=true` to render BYPASSED instead of PASS; a silent failure
+    here turns the audit machinery into a no-op.
+    """
+    safe_label = _safe_label_for_output(label)
+    _warn_if_mutated("bypass_label (GITHUB_OUTPUT)", label, safe_label)
+    try:
+        with open(output_path, "a", encoding="utf-8") as fh:
+            fh.write(
+                f"bypass_used=true\n"
+                f"bypass_label={safe_label}\n"
+                f"bypass_count={critical_count}\n"
+            )
+    except OSError as exc:
+        print(
+            f"[pr-description] WARNING: failed to write bypass audit "
+            f"to GITHUB_OUTPUT ({output_path}): {exc}",
+            file=sys.stderr,
+        )
+
+
+def _emit_bypass_audit(
+    pr_number: int, label: str, issues: list[Issue]
+) -> None:
+    """Emit structured bypass signals.
+
+    Distinguishes a bypassed PASS from a clean PASS so the workflow PR
+    comment and audit tooling can detect override usage. No-ops when the
+    respective env vars are unset (local runs).
+    """
+    critical_files = [i.file for i in issues if i.severity == "CRITICAL"]
+    summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+    if summary_path:
+        _write_step_summary(summary_path, pr_number, label, issues)
+    output_path = os.environ.get("GITHUB_OUTPUT")
+    if output_path:
+        _write_step_output(output_path, label, len(critical_files))
+
+
+if __name__ == "__main__":  # pragma: no cover
     raise SystemExit(main())
