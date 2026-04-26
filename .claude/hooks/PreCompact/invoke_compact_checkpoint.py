@@ -53,7 +53,7 @@ except ImportError:
         return None
 
 
-def get_current_branch() -> str:
+def get_current_branch(project_dir: Path | None = None) -> str:
     """Get current git branch name."""
     try:
         result = subprocess.run(
@@ -61,6 +61,7 @@ def get_current_branch() -> str:
             capture_output=True,
             text=True,
             timeout=5,
+            cwd=str(project_dir) if project_dir else None,
         )
         if result.returncode == 0:
             return result.stdout.strip()
@@ -127,7 +128,7 @@ def main() -> int:
     now = datetime.now(tz=UTC)
     today = now.strftime("%Y-%m-%d")
     timestamp = now.strftime("%H%M%S")
-    branch = get_current_branch()
+    branch = get_current_branch(project_dir)
     session_info = get_session_info(project_dir)
 
     # Build checkpoint

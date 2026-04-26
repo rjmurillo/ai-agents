@@ -53,11 +53,11 @@ except ImportError:
 
 # Files that trigger checkpointing
 PLAN_PATTERNS = [
-    re.compile(r"\.agents/sessions/.*\.json$"),
-    re.compile(r"TODO\.md$", re.IGNORECASE),
-    re.compile(r"PLAN\.md$", re.IGNORECASE),
-    re.compile(r"\.agents/plan.*\.md$", re.IGNORECASE),
-    re.compile(r"PROJECT-PLAN\.md$", re.IGNORECASE),
+    re.compile(r"(^|/)\.agents/sessions/.*\.json$"),
+    re.compile(r"(^|/)TODO\.md$", re.IGNORECASE),
+    re.compile(r"(^|/)PLAN\.md$", re.IGNORECASE),
+    re.compile(r"(^|/)\.agents/plan.*\.md$", re.IGNORECASE),
+    re.compile(r"(^|/)PROJECT-PLAN\.md$", re.IGNORECASE),
 ]
 
 
