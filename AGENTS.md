@@ -21,7 +21,7 @@ Read first, reason second. Pre-training last resort.
 
 **Start**: Init Serena|Read HANDOFF.md|Read latest issue handoff + Verify-on-Resume|Session log|Search memories|Verify git
 **Mid**: `Commit X/20 (ADR-008)`|Warn at 15+
-**Pre-PR**: `Validate-PRReadiness.ps1`|No BLOCKING|Security scan
+**Pre-PR**: `python3 scripts/validation/pre_pr.py`|No BLOCKING|Security scan
 **End**: Complete log|Preserve HANDOFF.md|Write issue handoff from template if open|Update Serena|Lint|Commit|Validate JSON
 
 ## Boundaries
