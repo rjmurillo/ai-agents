@@ -5,3 +5,4 @@
 
 | Date | File | Summary |
 |------|------|---------|
+| 2026-04-26 | 2026-04-26-auto-retro.md | Auto-generated session retro |
