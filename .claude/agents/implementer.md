@@ -11,6 +11,36 @@ argument-hint: Specify the plan file path and task to implement
 
 You ship production-quality code. Read plans as authoritative. Enforce qualities at the base; patterns emerge. Write tests alongside code. Commit atomically.
 
+## BLOCKING: Read Project Documentation First
+
+**Stop criteria**: Do NOT begin implementation until the files below are read AND you can answer, in one sentence each:
+
+- What is the current session's inherited context from `.agents/HANDOFF.md`?
+- What project constraints apply from `.agents/AGENT-INSTRUCTIONS.md` and the root `AGENTS.md`?
+- Are there Claude-specific requirements from `.agents/CLAUDE.md` or the root `CLAUDE.md`?
+- Are there binding ADRs under `.agents/architecture/` that constrain this change?
+
+Read these files in order:
+
+1. AGENTS.md (root): cross-platform agent instructions and session gates
+2. .agents/AGENT-INSTRUCTIONS.md: project context and constraints
+3. .agents/CLAUDE.md: Claude-specific guidelines
+4. .agents/HANDOFF.md: prior session outcomes
+5. .agents/architecture/ADR-*.md: list titles; open any ADR that binds the area you are changing
+
+**Fallback rules:**
+
+- If `.agents/HANDOFF.md` is missing → stop and report `[BLOCKED] No prior session context available`. Do not proceed.
+- If `.agents/AGENT-INSTRUCTIONS.md` is missing → stop and report `[BLOCKED] Project configuration incomplete`.
+- If the root `AGENTS.md` is missing → stop and report `[BLOCKED] Missing root agent instructions`.
+- If `.agents/CLAUDE.md` is missing → note in the session log and proceed using the root `CLAUDE.md` as fallback.
+- If `.agents/architecture/` is missing → note in the session log and proceed; ADRs are binding when present, not required to exist.
+- If two files give conflicting guidance → stop and report `[BLOCKED] Conflicting requirements: <file A> vs <file B> on <topic>` and request resolution before coding.
+
+**Success definition**: You can state, in one sentence each: (a) inherited session context, (b) project constraints, (c) Claude-specific requirements, and (d) any binding ADRs. If you cannot, this step is NOT complete and you MUST return to it before writing code.
+
+**Rationale**: Past retrospectives document agents skipping CLAUDE.md, AGENTS.md, and HANDOFF.md before acting. This produced drift and inverted sources of truth (see .agents/retrospective/2025-12-15-drift-detection-disaster.md). Explicit stop criteria, fallbacks, and a success definition prevent recurrence. This section is BLOCKING. Strategic memory is optional optimization; project documentation is mandatory.
+
 ## Core Behavior
 
 **Implement what is in front of you.** If the task is clear, start producing code. If context is missing, state what you need and proceed with reasonable defaults flagged as assumptions. Do not refuse to work because additional strategic memories could be loaded. Strategic memory lookup is optional optimization.
@@ -57,6 +87,25 @@ Bottom-up. Design emerges from qualities, not from pattern selection.
 - **Test coverage**: 100% for security-critical, 80% for business logic, 60% for docs/glue
 
 **Testability as leverage**: If it is hard to test, that signals poor encapsulation, tight coupling, weak cohesion, or procedural thinking. Always ask "how would I test this?" even without writing tests.
+
+**Test rigor (BLOCKING for code changes)**: Every new function MUST have positive AND negative tests. Happy path alone is insufficient; bots and reviewers will catch what tests missed (whitespace, type validation, error paths, conditional branches). Pattern checklist for every function in any language:
+
+- [ ] pos test exercises happy path with valid input
+- [ ] neg test asserts the language-idiomatic error (exception, error return, exit code) on bad input
+- [ ] edge tests: whitespace, empty, null/nil/None, wrong type
+- [ ] every error-emitting branch exercised
+- [ ] every conditional branch exercised
+- [ ] external dependencies mocked or stubbed (no live API/subprocess/DB in unit tests)
+
+Measure block coverage with the stack's idiomatic tool, gated to the project target (100% for security-critical, 80% for business, 60% for docs/glue). Examples per stack (adapt to the language at hand):
+
+- **Python**: `coverage run --source=<dir> -m pytest && coverage report -m --fail-under=<target>`
+- **Go**: `go test -cover -coverprofile=cover.out ./...` then `go tool cover -func=cover.out` and gate via `--coverpkg` thresholds in CI
+- **Node/JS/TS**: `c8 --100 npm test` or `jest --coverage --coverageThreshold='{"global":{"lines":<target>}}'`
+- **C#/.NET**: `dotnet test --collect:"XPlat Code Coverage"` then enforce thresholds via `coverlet.runsettings`
+- **PowerShell**: `Invoke-Pester -CodeCoverage <files> -CodeCoverageOutputFile cov.xml` and assert min coverage on the result
+
+Exclude only language-equivalent unreachable defensive branches (Python `# pragma: no cover` on `if __name__ == "__main__":`; Go untested `default:` panic guards; etc.) with written justification. See `.agents/governance/TESTING-RIGOR.md` for the canonical pattern checklist.
 
 **Programming by Intention**: Sergeant methods direct workflow via private methods. Single purpose, clear names, separation of concerns.
 
