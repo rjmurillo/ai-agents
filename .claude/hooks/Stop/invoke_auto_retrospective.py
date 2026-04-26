@@ -15,12 +15,29 @@ Related:
 - ADR-008 (protocol automation lifecycle hooks)
 """
 
-import fcntl
 import json
 import os
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
+
+# Cross-platform file locking
+if sys.platform == "win32":
+    import msvcrt
+
+    def _lock_file(f):
+        msvcrt.locking(f.fileno(), msvcrt.LK_LOCK, 1)
+
+    def _unlock_file(f):
+        msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, 1)
+else:
+    import fcntl
+
+    def _lock_file(f):
+        fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+
+    def _unlock_file(f):
+        fcntl.flock(f.fileno(), fcntl.LOCK_UN)
 
 _plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
 if _plugin_root:
@@ -168,12 +185,18 @@ def update_retro_index(project_dir: Path, today: str, filename: str) -> None:
 
     # Append new row (advisory lock to prevent interleaved writes from parallel sessions)
     row = f"| {today} | {filename} | Auto-generated session retro |"
-    with open(index_path, "a", encoding="utf-8") as f:
-        fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+    with open(index_path, "r+", encoding="utf-8") as f:
+        _lock_file(f)
         try:
+            f.seek(0, os.SEEK_END)
+            if f.tell() > 0:
+                f.seek(f.tell() - 1, os.SEEK_SET)
+                last_char = f.read(1)
+                if last_char != "\n":
+                    f.write("\n")
             f.write(row + "\n")
         finally:
-            fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+            _unlock_file(f)
 
 
 def main() -> int:
