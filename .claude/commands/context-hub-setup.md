@@ -170,13 +170,13 @@ The Context Hub setup is **complete** when ALL of the following are true:
 
 | Criterion | Verification |
 |-----------|------------|
-| Forgetful MCP configured | `claude mcp list \| grep -i forgetful` returns a result |
+| Forgetful MCP configured | Run `claude mcp list` and pipe to `grep -i forgetful`; expect a non-empty result |
 | Serena plugin status reported | Output shows "Installed" or explicit "Not installed" message |
 | Context7 plugin status reported | Output shows "Installed" or explicit "Not installed" message |
-| Setup status table printed | Step 3 status block has been emitted to the user |
+| Setup status block printed | Step 3 status block has been emitted to the user |
 
 ### Stop Condition
 
-After printing the Step 3 status table, the command is complete. Do not continue polling, re-checking, or offering additional tests unless the user explicitly requests a re-run with `/context-hub-setup` again.
+After printing the Step 3 status block, the command is complete. Do not continue polling, re-checking, or offering additional tests unless the user explicitly requests a re-run with `/context-hub-setup` again.
 
 If the user chooses to run the optional Step 4 quick tests, those are supplementary and do not affect completion status.

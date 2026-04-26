@@ -68,7 +68,7 @@ Push any changes per worktree. Clean up worktrees if `--cleanup`. Check `worktre
 
 ### Step 6: Generate Summary
 
-Report per-PR status table using `output_constraints.summary_format` from config. Required columns: `output_constraints.summary_required_columns`. Format as a markdown table with one row per PR.
+Report per-PR status using `output_constraints.summary_format` from config. Required columns: `output_constraints.summary_required_columns`. The only currently supported value of `summary_format` is `table`, so render a markdown table with one row per PR. If a future config introduces another value, update both this step and the allowed values in `output_constraints.summary_format` together.
 
 ## Thread Resolution
 
