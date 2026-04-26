@@ -4,7 +4,7 @@
 
 ## Agent Delegation for Complex Tasks
 
-Multi-step tasks, specialized expertise, big context → delegate via `#runSubagent`. No inline.
+Multi-step tasks, specialized expertise, big context → prefer delegation via `#runSubagent` rather than inline handling.
 
 | When to Delegate | Agent | Example Prompt |
 |------------------|-------|----------------|

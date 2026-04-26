@@ -4,7 +4,7 @@
 
 ## Claude Code Specifics
 
-Non-trivial task, delegate to specialized agents via Task tool:
+For non-trivial tasks, delegate to specialized agents via Task tool:
 
 - `Task(subagent_type="orchestrator")` for multi-step coordination
 - `Task(subagent_type="Explore")` for codebase exploration
@@ -19,7 +19,7 @@ Non-trivial task, delegate to specialized agents via Task tool:
 
 ### Default Behavior
 
-Non-trivial task: `Task(subagent_type="orchestrator", prompt="...")`
+For non-trivial tasks: `Task(subagent_type="orchestrator", prompt="...")`
 
 ## Memory Interface Decision Matrix
 
@@ -30,17 +30,17 @@ Non-trivial task: `Task(subagent_type="orchestrator", prompt="...")`
 | Script automation | `Search-Memory.ps1` | PowerShell, testable, structured output |
 | Direct MCP (last resort) | `mcp__serena__read_memory` | Full control when abstractions fail |
 
-Start cheapest. Escalate only when cheaper lack capability.
+Start with cheapest option. Escalate only when cheaper option lacks capability.
 
 ## Path-scoped instructions
 
-Before edit any file, read matching rules in `.claude/rules/*.md`. Each file `applyTo` frontmatter target path glob. Universal rules live in `.claude/rules/universal.md`.
+Before editing any file, read matching rules in `.claude/rules/*.md`. Each file's `applyTo` frontmatter targets a path glob. Universal rules live in `.claude/rules/universal.md`.
 
-Planned build extension ship Copilot-compatible copies to `.github/instructions/` from same source.
+Planned build extension ships Copilot-compatible copies to `.github/instructions/` from same source.
 
 ## Skill routing
 
-User request match available skill, ALWAYS invoke via Skill tool as FIRST action. No answer direct, no other tools first. Skill have specialized workflows beat ad-hoc answers.
+If user request matches available skill, ALWAYS invoke via Skill tool as FIRST action. Do not answer directly, do not use other tools first. Skills have specialized workflows that beat ad-hoc answers.
 
 Key routing rules:
 - Bugs, errors, "why is this broken" → invoke analyze skill

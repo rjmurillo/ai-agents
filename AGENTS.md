@@ -8,7 +8,7 @@ Cross-platform agent instructions.
 
 ## Retrieval-Led Reasoning
 
-Read first, reason second. Pre-training last.
+Read first, reason second. Pre-training as last resort.
 
 |APIs: Context7, DeepWiki, WebSearch
 |Constraints: `.agents/governance/PROJECT-CONSTRAINTS.md`
