@@ -144,7 +144,7 @@
       "step": "Live repro: CI=true python3 scripts/validation/pr_description.py --pr-number 1724 -> 0 CRITICAL, exit 0 (PR #1724 unblocked)"
     }
   ],
-  "endingCommit": "TBD",
+  "endingCommit": "ca24183f",
   "nextSteps": [
     "Create PR with Fixes #1780, enable auto-merge, let required checks gate the squash merge",
     "After merge: monitor next autonomous PR run to confirm contextual references no longer trip the validator"
