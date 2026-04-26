@@ -1,0 +1,152 @@
+{
+  "session": {
+    "number": 1754,
+    "date": "2026-04-26",
+    "branch": "feat/1782-autonomous",
+    "startingCommit": "55ae79c6",
+    "objective": "Issue #1782: stop pr_description.py from silently dropping change claims inside human-authored <details> blocks. Replace unconditional <details> strip with bot-summary allowlist (chore(deps), fix(deps), renovate, dependabot, bump). Cover bot-strip, human-preserve, and no-summary-preserve in tests."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Boot context loaded skills+AGENTS.md via system-reminders; Forgetful unavailable per startup hook so Serena is the active memory store"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md, CLAUDE.md, and skills list received via session-start system-reminders"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md treated read-only per ADR-014; not modified this session"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file (created via .claude/skills/session-init/scripts/new_session_log_json.py)"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Available skills enumerated via system-reminder at session start"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md and CLAUDE.md loaded into context; ADR-007/ADR-035 cited via startup hook"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Hard constraints from autonomous wrapper enforced (minimal diff, no unrelated refactors, no test changes without evidence, conventional commits, run validations before push)"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "MEMORY.md auto-loaded; user CLAUDE.md (engineering context) and project CLAUDE.md/AGENTS.md applied"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "feat/1782-autonomous (created by autonomous wrapper from main)"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On feat/1782-autonomous, not main"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status clean at session start; only intended files modified before commit"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "55ae79c6 fix(eval): use controlled-vocab verdicts in ADR-057 rubric (#1756)"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST gates resolved before commit and PR creation"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md not modified this session"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Bug-fix scope is narrow and documented in this session log + PR description; no new persistent memory required (per AGENTS.md, debugging recipes are not memory-worthy)"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Diff touches only Python files (scripts/validation/pr_description.py, tests/test_validation_pr_description.py) and this session JSON; no markdown changed"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Atomic commit with conventional message + Co-Authored-By trailer; PR opened against main with Fixes #1782"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "python3.14 -m pytest tests/test_pr_description.py tests/test_validation_pr_description.py -q -> 91 passed in 1.47s; ruff check on touched files -> All checks passed (ruff format diff is pre-existing on main, unchanged)"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "TodoWrite list synchronized with progress through commit step"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Skipped: small, well-scoped bug fix with passing tests; retrospective deferred unless review surfaces gaps"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": 1,
+      "action": "Selected issue #1782 from candidates JSON. Branch name feat/1782-autonomous + clear acceptance criteria + bounded change in scripts/validation/pr_description.py made it the highest-ROI single-PR fit. Verified no existing PR for the branch.",
+      "evidence": "candidates-rjmurillo__ai-agents.json contained 45 entries; gh pr list --head feat/1782-autonomous returned []."
+    },
+    {
+      "step": 2,
+      "action": "Read scripts/validation/pr_description.py and confirmed _strip_informational_sections strips every <details>...</details> block unconditionally (line ~155 pre-fix). Read tests/test_validation_pr_description.py to map existing coverage.",
+      "evidence": "Existing test test_strips_details_blocks encoded the buggy behavior (block with no summary stripped). test_details_blocks_ignored covered the chore(deps) bot path."
+    },
+    {
+      "step": 3,
+      "action": "Implemented the bot-summary allowlist: added _BOT_DETAILS_SUMMARY_PATTERN matching chore(deps)|fix(deps)|renovate|dependabot|^bump (case-insensitive) and a new _strip_bot_details_blocks helper. Routed _strip_informational_sections through it so the default behavior preserves <details> blocks.",
+      "evidence": "Diff in scripts/validation/pr_description.py: +44/-3 lines. Behavior change: bot summaries -> stripped; human summaries -> preserved; no <summary> -> preserved (conservative)."
+    },
+    {
+      "step": 4,
+      "action": "Updated tests/test_validation_pr_description.py. Replaced test_strips_details_blocks (which encoded the bug) with three tests: test_preserves_details_block_without_summary, test_strips_renovate_details_block, test_strips_dependabot_details_block, and test_preserves_human_details_block_with_file_claims. Added an end-to-end test_human_details_block_surfaces_file_claims through extract_mentioned_files.",
+      "evidence": "Test file diff: +66/-7 lines. All five new tests cover positive/negative/edge per AGENTS.md TESTING-RIGOR."
+    },
+    {
+      "step": 5,
+      "action": "Validated. python3.14 -m pytest tests/test_pr_description.py tests/test_validation_pr_description.py -> 91 passed. python3.14 -m ruff check on the two touched files -> All checks passed. ruff format would reformat both files, but the diff is entirely pre-existing code on main (verified by stashing and re-running), so no unrelated reformat was applied per the no-refactor constraint.",
+      "evidence": "pytest output: 91 passed in 1.47s. ruff check exit 0. git stash + ruff format --check on stashed state reproduced the same 'Would reformat' output before any of this session's edits were present."
+    },
+    {
+      "step": 6,
+      "action": "Committed, pushed, and opened a PR against main with Fixes #1782. Enabled auto-merge so required checks gate the merge.",
+      "evidence": "See endingCommit and the PR URL printed at the end of the session."
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "If review identifies additional bot generators (e.g. release-please summaries), extend _BOT_DETAILS_SUMMARY_PATTERN.",
+    "Consider documenting in CONTRIBUTING.md that <details> blocks now carry change claims unless the summary matches a known bot prefix (deferred per acceptance criterion 'if relevant')."
+  ]
+}
