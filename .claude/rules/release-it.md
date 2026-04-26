@@ -37,7 +37,7 @@ Rules:
 - Wrap integration points in a small adapter. The adapter owns timeouts, retries, error translation, and logging. Domain code calls the adapter, not the raw client.
 - Translate remote errors into domain errors at the boundary. Do not leak transport-shaped exceptions into business logic.
 - Assume the integration point can hang, return malformed data, or return success-shaped failure responses. Validate the response before trusting it.
-- Log enough at the boundary to reconstruct the call without touching the remote service: method, target, attempt number, latency, outcome.
+- Log enough at the boundary to reconstruct the call without touching the remote service: method, target, attempt number, latency, outcome. Redact or exclude secrets, tokens, and PII; never log request bodies, headers, or error payloads without a redaction pass.
 
 Smell: HTTP clients, MCP calls, or queue producers used directly inside orchestration logic, with try/except as the only safety net.
 
@@ -114,7 +114,7 @@ Rules:
 
 - Bound the retry count. Two or three attempts is usually enough; more rarely helps.
 - Use exponential backoff with jitter. A fixed-interval retry storm synchronizes clients and amplifies the outage.
-- Do not retry on 4xx responses. Most are not retryable, and retrying them masks bugs.
+- Do not retry on 4xx responses, except 408 (Request Timeout) and 429 (Too Many Requests). The rest signal client errors and retrying them masks bugs. Honor `Retry-After` when the server provides it.
 - Pair retries with a circuit breaker. Otherwise the retry loop keeps a dying dependency on its knees.
 - Include an idempotency key on every retried mutating call. Without it, "exactly once" is wishful thinking.
 - Surface retry counts and outcomes in structured logs and metrics. Hidden retries hide capacity problems.
