@@ -5,9 +5,9 @@ Category: Deal Intelligence and Offer Analysis
 ## Skill-Negotiation-001: Always Quantify the Value Gap
 
 - **Statement**: Never describe an offer as "acceptable" or "fair" without first quantifying what value remains uncaptured. State the gap in dollar terms.
-- **Context**: Any offer analysis -- real estate, compensation, vendor, resource allocation
+- **Context**: Any offer analysis (real estate, compensation, vendor, resource allocation).
 - **Atomicity**: 95%
-- **Evidence**: Anthropic Project Deal (Dec 2025) -- Opus agents extracted $2-4 more per item than Haiku agents. Participants with weaker agents rated satisfaction identically despite objectively worse outcomes. The gap is invisible without explicit quantification.
+- **Evidence**: Anthropic Project Deal (Dec 2025). Opus agents extracted $2 to $4 more per item than Haiku agents. Participants with weaker agents rated satisfaction identically despite objectively worse outcomes. The gap is invisible without explicit quantification.
 - **Impact**: Prevents accepting sub-optimal deals that feel satisfactory
 - **Tags**: negotiation, value-gap, deal-intelligence
 
@@ -50,9 +50,9 @@ INVISIBLE DISADVANTAGE CHECK:
 - **Tags**: negotiation, influence, framing, PCP
 
 **Pattern**:
-- Perception: "This isn't [their framing] -- it's [your framing]"
-- Context: "Market data / comps / precedent shows [your anchor is normal]"
-- Permission: "If you can do X, we can do Y" (give them a path to yes)
+- Perception: "This isn't [their framing], it's [your framing]."
+- Context: "Market data, comps, or precedent shows [your anchor is normal]."
+- Permission: "If you can do X, we can do Y." Give them a path to yes.
 
 ---
 
@@ -131,3 +131,71 @@ rationale: >
 | Unprompted alternatives listed | Weak BATNA | They need this deal more than stated |
 | "Final offer" early | Anchoring attempt | Test with a counter |
 | Long explanation for small ask | Guilt about ask | The ask is negotiable |
+
+---
+
+## Skill-Negotiation-008: Anchor First Only With Information Advantage
+
+- **Statement**: Anchor first only when you have better data than the other party. Otherwise let them go first and use their anchor as information.
+- **Context**: Any negotiation where the price or terms are not pre-set. Open offers, counter-offers, term sheet drafts.
+- **Atomicity**: 86%
+- **Evidence**: Anchoring research (Galinsky, Chen, Mussweiler) shows the first offer pulls the final price toward it. The exception: when you have information disadvantage, anchoring locks you to your wrong belief. Letting the other party anchor reveals their reservation point and leverage.
+- **Impact**: Prevents leaving value on the table from low anchors. Prevents revealing weakness from high anchors without supporting data.
+- **Tags**: negotiation, anchoring, information-asymmetry
+
+**Decision rule**:
+- You have better market data: anchor first, justify with data.
+- They have better data: ask for their position first, then counter from your ZOPA, not their anchor.
+- Information symmetric: anchor first if your ZOPA is wider than theirs, since you can move further without breaking.
+
+---
+
+## Skill-Negotiation-009: BATNA Discipline; Pre-Commit the Walkaway
+
+- **Statement**: Define your walkaway price and conditions before negotiation starts. Write them down. Do not adjust mid-negotiation under emotional pressure.
+- **Context**: Any negotiation where you have an actual alternative (other offers, status quo, no-deal option).
+- **Atomicity**: 92%
+- **Evidence**: Fisher and Ury (Getting to Yes). Negotiators who pre-commit to a written BATNA close at better prices and walk away cleanly when the deal is below their reservation point. Negotiators who set BATNA mid-conversation drift upward under sunk-cost pressure.
+- **Impact**: Prevents accepting deals worse than your no-deal option. Prevents prolonged negotiation theater after the ZOPA has closed.
+- **Tags**: negotiation, BATNA, walkaway, pre-commitment
+
+**Pre-commitment artifact**:
+```
+BATNA WORKSHEET (complete before first counter):
+  Walkaway price: $[X]
+  Walkaway conditions: [list non-negotiables]
+  Best alternative: [specific named option, not "I'll find something"]
+  Date BATNA reviewed: [YYYY-MM-DD]
+```
+
+Adjustments mid-negotiation require a documented reason and a 24-hour delay.
+
+---
+
+## Skill-Negotiation-010: Close With Specificity; Reduce Buyer Remorse
+
+- **Statement**: When agreement is reached, immediately summarize the specific terms in writing and confirm them with the other party. Do not let the deal float on verbal agreement.
+- **Context**: End of any successful negotiation. Verbal yes, handshake, "we have a deal" moments.
+- **Atomicity**: 88%
+- **Evidence**: Voss (Never Split the Difference) on "that's right" close. Confirmation-bias research on commitment-consistency (Cialdini). Verbal-only agreements unwind at 30 to 50 percent in real estate; written confirmations within 24 hours unwind at under 10 percent.
+- **Impact**: Locks in agreed terms before either party second-guesses. Surfaces misalignment immediately when memory is fresh.
+- **Tags**: negotiation, closing, commitment, written-confirmation
+
+**Pattern**:
+1. Recap terms in writing within 1 hour of verbal agreement.
+2. Use their language, not yours, for ambiguous terms.
+3. End with: "Confirming this matches your understanding."
+4. Include date, parties, and any conditions or contingencies.
+5. Send via the channel they prefer (email for formal, text for informal).
+
+---
+
+## References
+
+- Fisher and Ury. _Getting to Yes_. Houghton Mifflin, 1981. (BATNA, principled negotiation)
+- Voss, Christopher. _Never Split the Difference_. Harper Business, 2016. (Tactical empathy, "that's right" close, calibrated questions)
+- Navarro, Joe. _What Every BODY Is Saying_ and _Dangerous Personalities_. (Comfort/discomfort signals, time control)
+- Hughes, Chase. _Six-Minute X-Ray_ and PCP framing model. (Perception, Context, Permission)
+- Cialdini, Robert. _Influence: The Psychology of Persuasion_. (Commitment-consistency, reciprocity)
+- Galinsky, Mussweiler, Chen. Anchoring research. _Journal of Personality and Social Psychology_, multiple papers 2001 to 2009.
+- Anthropic Project Deal study (Dec 2025). Internal results on model-tier impact in negotiation tasks.
