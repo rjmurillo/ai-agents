@@ -5,7 +5,7 @@ import json
 import sys
 import tempfile
 import unittest
-from datetime import datetime
+from datetime import UTC, datetime
 from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
@@ -31,7 +31,7 @@ class TestCompactCheckpoint(unittest.TestCase):
             (tmp_path / ".git").mkdir()
             sessions_dir = tmp_path / ".agents" / "sessions"
             sessions_dir.mkdir(parents=True)
-            today = datetime.now().strftime("%Y-%m-%d")
+            today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
             session = sessions_dir / f"{today}-session-01.json"
             session.write_text(json.dumps({"work": ["task A", "task B"]}))
 
