@@ -119,7 +119,7 @@ def get_session_info(project_dir: Path) -> dict:
         return {
             "session_log": session_file.name,
             "last_modified": datetime.fromtimestamp(
-                session_file.stat().st_mtime
+                session_file.stat().st_mtime, tz=UTC
             ).isoformat(),
             "open_items_count": len(work_items),
             "work_items": [
