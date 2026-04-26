@@ -89,6 +89,8 @@ def get_session_info(project_dir: Path) -> dict:
     session_file = session_files[0]
     try:
         data = json.loads(session_file.read_text(encoding="utf-8"))
+        if not isinstance(data, dict):
+            return {"session_log": session_file.name}
         work_items = data.get("work", [])
         return {
             "session_log": session_file.name,
