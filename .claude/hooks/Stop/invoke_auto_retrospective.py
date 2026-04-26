@@ -94,11 +94,16 @@ def _retro_exists_today(retro_dir: Path, today: str) -> bool:
 
 
 def _is_trivial_session(session_log: Path | None) -> bool:
-    """Check if session was trivial (too short to warrant retrospective)."""
+    """Check if session was trivial (too short to warrant retrospective).
+
+    Streams only the bytes needed instead of loading the whole file, so
+    large session logs do not balloon hook memory.
+    """
     if session_log is None:
         return True
     try:
-        content = session_log.read_text(encoding="utf-8", errors="replace")
+        with session_log.open(encoding="utf-8", errors="replace") as handle:
+            content = handle.read(TRIVIAL_SESSION_THRESHOLD)
         return len(content) < TRIVIAL_SESSION_THRESHOLD
     except OSError:
         return True
