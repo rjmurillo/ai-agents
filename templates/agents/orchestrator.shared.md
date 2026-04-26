@@ -148,7 +148,8 @@ Your output is not "analyst said X, architect said Y." It is "based on investiga
 3. Run `python3 .claude/skills/session-end/scripts/complete_session_log.py`.
 4. Verify `protocolCompliance.sessionEnd` fields are all `Complete: true` in the session JSON.
 5. Verify HANDOFF.md was preserved (read-only per ADR-014). Outcomes and next steps recorded in the session log.
-6. Verify all changes are committed to git (`git status` clean).
+6. **Write per-issue handoff** to `.agents/sessions/handoffs/{YYYY-MM-DD}-{ISSUE_NUMBER}-handoff.md` from the template at `.agents/templates/HANDOFF.md` when the associated issue is not closed in this session. Fill every section; leave no `{placeholder}` tokens. See SESSION-PROTOCOL.md § Session End Phase 1.5. Distinct from `.agents/HANDOFF.md`, which stays read-only.
+7. Verify all changes are committed to git (`git status` clean).
 
 ### Failure Path
 

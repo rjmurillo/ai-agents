@@ -116,6 +116,19 @@ thread_resolution:
       t2: resolveReviewThread(input: {threadId: "THREAD_ID_2"}) { thread { id isResolved } }
     }
 
+invocation_limits:
+  all_open_max_prs: 5
+  all_open_overflow_action: "Report the PR numbers of the remaining open PRs and instruct the user to process them by specifying those numbers explicitly in a new command (re-running with all-open will re-process the same first N PRs)"
+  completion_gate_max_retries: 3
+  completion_gate_overflow_action: "Escalate to user with summary of which criteria are still failing and recommended fixes"
+
+output_constraints:
+  per_pr_max_response_tokens: 4096
+  # Only "table" is supported today. To add another value, update pr-review.md Step 6 in the same change.
+  summary_format: "table"
+  summary_format_allowed_values: ["table"]
+  summary_required_columns: ["PR", "Branch", "Comments", "Acknowledged", "Implemented", "Commit", "Status"]
+
 dry_run:
   description: "Preview planned actions without executing any GitHub mutations"
   behavior:
