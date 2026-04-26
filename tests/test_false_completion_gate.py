@@ -66,8 +66,8 @@ class TestFalseCompletionGate(unittest.TestCase):
             (tmp_path / ".git").mkdir()
             sessions_dir = tmp_path / ".agents" / "sessions"
             sessions_dir.mkdir(parents=True)
-            from datetime import datetime
-            today = datetime.now().strftime("%Y-%m-%d")
+            from datetime import UTC, datetime
+            today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
             session_file = sessions_dir / f"{today}-session-01.json"
             session_file.write_text(json.dumps({
                 "work": ["ran pytest, all green"]
