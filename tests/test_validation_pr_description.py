@@ -218,6 +218,24 @@ class TestExtractMentionedFiles:
         assert "renovate.json" in result
         assert not any("actions/cache" in f for f in result)
 
+    def test_human_details_block_surfaces_file_claims(self) -> None:
+        # Regression for #1782: human-authored <details> blocks must not
+        # silently drop change claims. The validator needs to see the
+        # files inside so CRITICAL "mentioned but not in diff" still fires
+        # for genuine mismatches.
+        desc = (
+            "## Summary\n"
+            "Refactor of order processing.\n\n"
+            "<details>\n"
+            "<summary>Files changed (2)</summary>\n\n"
+            "- `packages/orders/processor.py`\n"
+            "- `packages/orders/queue.py`\n\n"
+            "</details>"
+        )
+        result = extract_mentioned_files(desc)
+        assert "packages/orders/processor.py" in result
+        assert "packages/orders/queue.py" in result
+
     def test_test_plan_section_ignored(self) -> None:
         desc = (
             "## Summary\n"
@@ -237,12 +255,54 @@ class TestExtractMentionedFiles:
 
 
 class TestStripInformationalSections:
-    def test_strips_details_blocks(self) -> None:
-        text = "before\n<details>\nhidden\n</details>\nafter"
+    def test_preserves_details_block_without_summary(self) -> None:
+        # Bug #1782: a <details> block without a <summary> carries no bot
+        # marker, so contents are preserved (default: do not strip).
+        text = "before\n<details>\nkept\n</details>\nafter"
         result = _strip_informational_sections(text)
-        assert "hidden" not in result
+        assert "kept" in result
         assert "before" in result
         assert "after" in result
+
+    def test_strips_renovate_details_block(self) -> None:
+        text = (
+            "before\n"
+            "<details>\n"
+            "<summary>chore(deps): update actions/cache</summary>\n"
+            "body\n"
+            "</details>\n"
+            "after"
+        )
+        result = _strip_informational_sections(text)
+        assert "body" not in result
+        assert "before" in result
+        assert "after" in result
+
+    def test_strips_dependabot_details_block(self) -> None:
+        text = (
+            "<details>\n"
+            "<summary>Bump pytest from 8.0.0 to 8.1.0</summary>\n"
+            "changelog body\n"
+            "</details>"
+        )
+        result = _strip_informational_sections(text)
+        assert "changelog body" not in result
+
+    def test_preserves_human_details_block_with_file_claims(self) -> None:
+        # Bug #1782: human-authored <details> blocks carry real change
+        # claims that must reach the validator.
+        text = (
+            "## Summary\n"
+            "Refactor.\n\n"
+            "<details>\n"
+            "<summary>Files changed (2)</summary>\n\n"
+            "- `packages/orders/processor.py`\n"
+            "- `packages/orders/queue.py`\n\n"
+            "</details>"
+        )
+        result = _strip_informational_sections(text)
+        assert "packages/orders/processor.py" in result
+        assert "packages/orders/queue.py" in result
 
     def test_strips_detected_package_files_section(self) -> None:
         text = (
