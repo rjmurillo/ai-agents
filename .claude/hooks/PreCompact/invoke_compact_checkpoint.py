@@ -34,7 +34,9 @@ if _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
 
 try:
+    from hook_utilities import coerce_to_list as _coerce_to_list
     from hook_utilities import get_project_directory as _get_project_directory
+    from hook_utilities import get_recent_session_log as _get_recent_session_log
 
     def get_project_directory() -> Path | None:
         """Wrap shared utility returning Path for backward compat."""
@@ -54,6 +56,9 @@ except ImportError:
                 return current
             current = current.parent
         return None
+
+    _get_recent_session_log = None  # type: ignore[assignment]
+    _coerce_to_list = None  # type: ignore[assignment]
 
 
 def get_current_branch(project_dir: Path | None = None) -> str:
@@ -76,8 +81,8 @@ def get_current_branch(project_dir: Path | None = None) -> str:
     return "unknown"
 
 
-def _coerce_to_list(value) -> list:
-    """Normalize work to a list across legacy and current session schema shapes."""
+def _coerce_to_list_fallback(value) -> list:
+    """Fallback normalizer when hook_utilities is unavailable."""
     if value is None:
         return []
     if isinstance(value, list):
@@ -96,32 +101,49 @@ def _coerce_to_list(value) -> list:
     return []
 
 
+def coerce_to_list(value) -> list:
+    """Normalize work to a list across legacy and current session schema shapes."""
+    if _coerce_to_list is not None:
+        return _coerce_to_list(value)
+    return _coerce_to_list_fallback(value)
+
+
+def _find_recent_session_fallback(sessions_dir: Path) -> Path | None:
+    """Fallback session lookup when hook_utilities is unavailable."""
+    from datetime import timedelta
+
+    now = datetime.now(tz=UTC)
+    today = now.strftime("%Y-%m-%d")
+    yesterday = (now - timedelta(days=1)).strftime("%Y-%m-%d")
+
+    candidates = []
+    for date_prefix in (today, yesterday):
+        candidates.extend(sessions_dir.glob(f"{date_prefix}-session-*.json"))
+
+    if not candidates:
+        return None
+
+    return max(candidates, key=lambda f: f.stat().st_mtime)
+
+
 def get_session_info(project_dir: Path) -> dict:
     """Get current session log info.
 
     Checks both today's and yesterday's session files (UTC) to handle sessions
     that span midnight.
     """
-    from datetime import timedelta
-
     sessions_dir = project_dir / ".agents" / "sessions"
     if not sessions_dir.is_dir():
         return {}
 
-    now = datetime.now(tz=UTC)
-    today = now.strftime("%Y-%m-%d")
-    yesterday = (now - timedelta(days=1)).strftime("%Y-%m-%d")
+    # Use shared utility if available (handles cross-midnight)
+    if _get_recent_session_log is not None:
+        session_file = _get_recent_session_log(str(sessions_dir))
+    else:
+        session_file = _find_recent_session_fallback(sessions_dir)
 
-    # Collect session files from today and yesterday to handle cross-midnight sessions
-    candidates = []
-    for date_prefix in (today, yesterday):
-        candidates.extend(sessions_dir.glob(f"{date_prefix}-session-*.json"))
-
-    if not candidates:
+    if not session_file:
         return {}
-
-    # Return the most recently modified
-    session_file = max(candidates, key=lambda f: f.stat().st_mtime)
     try:
         data = json.loads(session_file.read_text(encoding="utf-8"))
         if not isinstance(data, dict):
@@ -130,7 +152,7 @@ def get_session_info(project_dir: Path) -> dict:
         work_raw = data.get("workLog")
         if work_raw is None:
             work_raw = data.get("work", [])
-        work_items = _coerce_to_list(work_raw)
+        work_items = coerce_to_list(work_raw)
         return {
             "session_log": session_file.name,
             "last_modified": datetime.fromtimestamp(

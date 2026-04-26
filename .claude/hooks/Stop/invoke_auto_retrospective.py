@@ -33,7 +33,9 @@ if _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
 
 try:
+    from hook_utilities import coerce_to_list as _coerce_to_list
     from hook_utilities import get_project_directory as _get_project_directory
+    from hook_utilities import get_recent_session_log as _get_recent_session_log
     from hook_utilities import lock_file as _lock_file
     from hook_utilities import unlock_file as _unlock_file
 
@@ -56,6 +58,8 @@ except ImportError:
             current = current.parent
         return None
 
+    _get_recent_session_log = None  # type: ignore[assignment]
+    _coerce_to_list = None  # type: ignore[assignment]
     _lock_file = None  # type: ignore[assignment]
     _unlock_file = None  # type: ignore[assignment]
 
@@ -67,19 +71,14 @@ def has_retro_today(retro_dir: Path, today: str) -> bool:
     return any(retro_dir.glob(f"{today}*.md"))
 
 
-def find_recent_session_file(sessions_dir: Path) -> Path | None:
-    """Find the most recent session file, checking today and yesterday (UTC).
-
-    Sessions that span midnight may have logs dated yesterday, so we check both
-    dates and return the most recently modified file.
-    """
+def _find_recent_session_fallback(sessions_dir: Path) -> Path | None:
+    """Fallback session lookup when hook_utilities is unavailable."""
     from datetime import timedelta
 
     now = datetime.now(tz=UTC)
     today = now.strftime("%Y-%m-%d")
     yesterday = (now - timedelta(days=1)).strftime("%Y-%m-%d")
 
-    # Collect session files from today and yesterday
     candidates = []
     for date_prefix in (today, yesterday):
         candidates.extend(sessions_dir.glob(f"{date_prefix}-session-*.json"))
@@ -87,19 +86,23 @@ def find_recent_session_file(sessions_dir: Path) -> Path | None:
     if not candidates:
         return None
 
-    # Return the most recently modified
     return max(candidates, key=lambda f: f.stat().st_mtime)
 
 
-def _coerce_to_list(value) -> list:
-    """Normalize work/outcomes to a list, regardless of session schema shape.
+def find_recent_session_file(sessions_dir: Path) -> Path | None:
+    """Find the most recent session file, checking today and yesterday (UTC).
 
-    Session logs in this repo have used several shapes over time:
-    - `work: [...]` (legacy flat list)
-    - `work: {tasks: [...]}` / `{items: [...]}` (dict wrapper)
-    - `workLog: [...]` (current schema)
-    - bare strings (rare)
+    Sessions that span midnight may have logs dated yesterday, so we check both
+    dates and return the most recently modified file.
     """
+    # Use shared utility if available
+    if _get_recent_session_log is not None:
+        return _get_recent_session_log(str(sessions_dir))
+    return _find_recent_session_fallback(sessions_dir)
+
+
+def _coerce_to_list_fallback(value) -> list:
+    """Fallback normalizer when hook_utilities is unavailable."""
     if value is None:
         return []
     if isinstance(value, list):
@@ -118,6 +121,20 @@ def _coerce_to_list(value) -> list:
     return []
 
 
+def coerce_to_list(value) -> list:
+    """Normalize work/outcomes to a list, regardless of session schema shape.
+
+    Session logs in this repo have used several shapes over time:
+    - ``work: [...]`` (legacy flat list)
+    - ``work: {tasks: [...]}`` / ``{items: [...]}`` (dict wrapper)
+    - ``workLog: [...]`` (current schema)
+    - bare strings (rare)
+    """
+    if _coerce_to_list is not None:
+        return _coerce_to_list(value)
+    return _coerce_to_list_fallback(value)
+
+
 def _extract_work_outcomes(data) -> tuple[list, list]:
     """Pull work and outcomes from session data, supporting workLog and work shapes."""
     if not isinstance(data, dict):
@@ -126,7 +143,7 @@ def _extract_work_outcomes(data) -> tuple[list, list]:
     if work_raw is None:
         work_raw = data.get("work", [])
     outcomes_raw = data.get("outcomes", [])
-    return _coerce_to_list(work_raw), _coerce_to_list(outcomes_raw)
+    return coerce_to_list(work_raw), coerce_to_list(outcomes_raw)
 
 
 def is_trivial_session(project_dir: Path) -> bool:
