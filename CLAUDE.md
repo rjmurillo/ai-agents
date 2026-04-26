@@ -34,11 +34,11 @@ Start with the cheapest option. Escalate only when the cheaper option lacks capa
 
 ## Path-scoped instructions
 
-Before editing any file, read matching rules in `.agents/instructions/*.instructions.md`.
+Before editing any file, read matching rules in `.claude/rules/*.md`. The Copilot CLI quick-reference entry points under `.github/instructions/*.instructions.md` cover a narrower set of paths and link back into `.agents/steering/`.
 
-Each file has YAML frontmatter with an `applyTo` glob. Match the glob against the file you are about to edit. Universal rules live in `.agents/instructions/universal.instructions.md` (`applyTo: "**"`) and apply to every change.
+Each `.claude/rules/` file with `applyTo` frontmatter targets a specific path glob. Match the glob against the file you are about to edit. Universal rules live in `.claude/rules/universal.md` and apply to every change.
 
-Why this matters: governance, security, templates, and CI scripts have different approval gates and downstream effects. Path-scoped instructions consolidate these rules so the relevant ones load only when needed. See `.agents/instructions/README.md` for the full index and authoring rules.
+Why this matters: governance, security, templates, and CI scripts have different approval gates and downstream effects. Path-scoped rules consolidate these so the relevant ones load only when needed. A planned build extension will ship Copilot-compatible copies to `.github/instructions/` from the same source (see issue tracker for the build extension).
 
 ## Skill routing
 

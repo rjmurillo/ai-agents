@@ -145,29 +145,6 @@ Ask Claude to use Serena's get_symbols_overview on a file in your project
 Ask about a framework: "How does FastAPI dependency injection work?"
 ```
 
-## Completion Criteria
-
-Setup is complete when ALL of the following are verified. If any item fails after exhausting the task budget, report which criterion failed. Notify the user of each retry attempt; do not retry silently.
-
-| Criterion | Verification |
-|-----------|--------------|
-| Forgetful MCP configured | `claude mcp list` lists `forgetful` with status healthy |
-| Serena plugin installed (if required) | `claude plugins list` contains a Serena entry |
-| Context7 plugin installed (if recommended) | `claude plugins list` contains a Context7 entry, or user explicitly opted out |
-| Setup status reported | Step 3 status block printed to the user |
-
-### Task Budget
-
-- Maximum 2 retry attempts per setup step (plugin install, MCP registration) before surfacing the failure to the user.
-- Maximum 1 prompt per setup option; do not re-ask after a decision.
-- Do not run the Step 4 optional tests unless the user confirms.
-
-### Output Constraints
-
-- Status block in Step 3 MUST include the three `Component: State` lines shown above (Forgetful MCP, Serena Plugin, Context7 Plugin).
-- The `Commands available` subsection is supplementary and MUST appear as a separate block after the status lines.
-- On failure, report only: component name, detected state, and the single next command to run.
-
 ## Troubleshooting
 
 **Forgetful issues:**
@@ -186,3 +163,20 @@ Setup is complete when ALL of the following are verified. If any item fails afte
 - Forgetful MCP config stored in `~/.claude.json` (persists across updates)
 - Serena and Context7 are plugins, not MCPs - install via `claude plugins install`
 - SQLite database location: `~/.forgetful/forgetful.db`
+
+## Completion Criteria
+
+The Context Hub setup is **complete** when ALL of the following are true:
+
+| Criterion | Verification |
+|-----------|------------|
+| Forgetful MCP configured | Run `claude mcp list` and pipe to `grep -i forgetful`; expect a non-empty result |
+| Serena plugin status reported | Output shows "Installed" or explicit "Not installed" message |
+| Context7 plugin status reported | Output shows "Installed" or explicit "Not installed" message |
+| Setup status block printed | Step 3 status block has been emitted to the user |
+
+### Stop Condition
+
+After printing the Step 3 status block, the command is complete. Do not continue polling, re-checking, or offering additional tests unless the user explicitly requests a re-run with `/context-hub-setup` again.
+
+If the user chooses to run the optional Step 4 quick tests, those are supplementary and do not affect completion status.

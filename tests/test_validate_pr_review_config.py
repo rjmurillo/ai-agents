@@ -65,9 +65,9 @@ VALID_CONFIG: dict = {
         "completion_gate_overflow_action": "Escalate to user",
     },
     "output_constraints": {
-        "per_pr_max_response_lines": 120,
-        "per_pr_overflow_action": "Truncate and persist",
+        "per_pr_max_response_tokens": 4096,
         "summary_format": "table",
+        "summary_format_allowed_values": ["table"],
         "summary_required_columns": ["PR", "Branch", "Status"],
     },
 }
@@ -175,7 +175,11 @@ class TestValidateConfig:
         config = copy.deepcopy(VALID_CONFIG)
         config["output_constraints"]["summary_required_columns"] = []
         errors = validate_config(config)
-        assert any("summary_required_columns must be a non-empty list" in e for e in errors)
+        assert any(
+            "summary_required_columns must be a non-empty list of non-empty strings"
+            in e
+            for e in errors
+        )
 
     def test_missing_invocation_limits_top_level(self) -> None:
         config = copy.deepcopy(VALID_CONFIG)
@@ -188,6 +192,108 @@ class TestValidateConfig:
         del config["output_constraints"]
         errors = validate_config(config)
         assert any("Missing required top-level key: output_constraints" in e for e in errors)
+
+    # --- Hardening: type guards and value-range checks (CodeRabbit feedback) ---
+
+    def test_invocation_limits_must_be_mapping(self) -> None:
+        config = copy.deepcopy(VALID_CONFIG)
+        config["invocation_limits"] = None
+        errors = validate_config(config)
+        assert any("invocation_limits must be a mapping" in e for e in errors)
+
+    def test_output_constraints_must_be_mapping(self) -> None:
+        config = copy.deepcopy(VALID_CONFIG)
+        config["output_constraints"] = None
+        errors = validate_config(config)
+        assert any("output_constraints must be a mapping" in e for e in errors)
+
+    def test_all_open_max_prs_must_be_positive_int(self) -> None:
+        config = copy.deepcopy(VALID_CONFIG)
+        config["invocation_limits"]["all_open_max_prs"] = 0
+        errors = validate_config(config)
+        assert any("all_open_max_prs must be an integer >= 1" in e for e in errors)
+
+    def test_all_open_max_prs_rejects_string(self) -> None:
+        config = copy.deepcopy(VALID_CONFIG)
+        config["invocation_limits"]["all_open_max_prs"] = "5"
+        errors = validate_config(config)
+        assert any("all_open_max_prs must be an integer >= 1" in e for e in errors)
+
+    def test_completion_gate_max_retries_rejects_negative(self) -> None:
+        config = copy.deepcopy(VALID_CONFIG)
+        config["invocation_limits"]["completion_gate_max_retries"] = -1
+        errors = validate_config(config)
+        assert any("completion_gate_max_retries must be an integer >= 0" in e for e in errors)
+
+    def test_overflow_action_must_be_nonempty_string(self) -> None:
+        config = copy.deepcopy(VALID_CONFIG)
+        config["invocation_limits"]["all_open_overflow_action"] = "  "
+        errors = validate_config(config)
+        assert any(
+            "all_open_overflow_action must be a non-empty string" in e for e in errors
+        )
+
+    def test_per_pr_max_response_tokens_rejects_zero(self) -> None:
+        config = copy.deepcopy(VALID_CONFIG)
+        config["output_constraints"]["per_pr_max_response_tokens"] = 0
+        errors = validate_config(config)
+        assert any("per_pr_max_response_tokens must be an integer >= 1" in e for e in errors)
+
+    def test_summary_format_rejects_empty_string(self) -> None:
+        config = copy.deepcopy(VALID_CONFIG)
+        config["output_constraints"]["summary_format"] = ""
+        errors = validate_config(config)
+        assert any("summary_format must be a non-empty string" in e for e in errors)
+
+    def test_summary_format_allowed_values_rejects_empty_list(self) -> None:
+        config = copy.deepcopy(VALID_CONFIG)
+        config["output_constraints"]["summary_format_allowed_values"] = []
+        errors = validate_config(config)
+        assert any(
+            "summary_format_allowed_values must be a non-empty list of non-empty strings"
+            in e
+            for e in errors
+        )
+
+    def test_summary_format_allowed_values_rejects_non_string_entry(self) -> None:
+        config = copy.deepcopy(VALID_CONFIG)
+        config["output_constraints"]["summary_format_allowed_values"] = ["table", 42]
+        errors = validate_config(config)
+        assert any(
+            "summary_format_allowed_values must be a non-empty list of non-empty strings"
+            in e
+            for e in errors
+        )
+
+    def test_summary_format_must_be_in_allowed_values(self) -> None:
+        config = copy.deepcopy(VALID_CONFIG)
+        config["output_constraints"]["summary_format"] = "json"
+        config["output_constraints"]["summary_format_allowed_values"] = ["table"]
+        errors = validate_config(config)
+        assert any(
+            "summary_format must be one of summary_format_allowed_values" in e
+            for e in errors
+        )
+
+    def test_summary_required_columns_rejects_non_string_entry(self) -> None:
+        config = copy.deepcopy(VALID_CONFIG)
+        config["output_constraints"]["summary_required_columns"] = ["PR", 0, "Branch"]
+        errors = validate_config(config)
+        assert any(
+            "summary_required_columns must be a non-empty list of non-empty strings"
+            in e
+            for e in errors
+        )
+
+    def test_summary_required_columns_rejects_blank_entry(self) -> None:
+        config = copy.deepcopy(VALID_CONFIG)
+        config["output_constraints"]["summary_required_columns"] = ["PR", "  ", "Branch"]
+        errors = validate_config(config)
+        assert any(
+            "summary_required_columns must be a non-empty list of non-empty strings"
+            in e
+            for e in errors
+        )
 
 
 class TestCliPathSafety:

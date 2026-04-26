@@ -33,7 +33,9 @@ When `--dry-run` is specified, gather read-only context and output planned actio
 
 ### Step 1: Parse and Validate PRs
 
-For `all-open`, query open PRs and cap the list at `invocation_limits.all_open_max_prs` from config. If additional PRs remain, record the skipped count and apply `invocation_limits.all_open_overflow_action` in Step 6. For each selected PR number, validate using `scripts.claude_code.get_pr_context` from config.
+For `all-open`, query open PRs. Cap the list to `invocation_limits.all_open_max_prs` from config (default: 5). If more open PRs exist, report the overflow count and execute `invocation_limits.all_open_overflow_action`.
+
+For each PR number, validate using `scripts.claude_code.get_pr_context` from config.
 
 Verify PR merge state using `scripts.claude_code.test_pr_merged`. Exit code 0 = not merged (safe), 1 = merged (skip). This avoids stale state from `gh pr view`.
 
@@ -58,13 +60,15 @@ git worktree add "./.worktrees/pr-{number}" "$branch"
 
 **Parallel**: Launch background Task agents per PR. Wait for all with `TaskOutput`.
 
+Each agent's intermediate output is subject to `output_constraints.per_pr_max_response_tokens` from config. If an agent approaches the token limit, summarize findings and move to the next PR.
+
 ### Step 5: Verify, Push, and Cleanup
 
 Push any changes per worktree. Clean up worktrees if `--cleanup`. Check `worktree_constraints` in config for isolation rules.
 
 ### Step 6: Generate Summary
 
-Report per-PR status using `output_constraints.summary_format` from config with columns from `output_constraints.summary_required_columns`. Truncate per-PR agent output exceeding `output_constraints.per_pr_max_response_lines` and persist full detail per `output_constraints.per_pr_overflow_action`. If `all-open` skipped PRs in Step 1, append a row noting the skipped count and direct the user to re-run.
+Report per-PR status using `output_constraints.summary_format` from config. Required columns: `output_constraints.summary_required_columns`. The only currently supported value of `summary_format` is `table`, so render a markdown table with one row per PR. If a future config introduces another value, update both this step and the allowed values in `output_constraints.summary_format` together.
 
 ## Thread Resolution
 
@@ -72,7 +76,7 @@ Replying does NOT resolve threads. Use `add_thread_reply_resolve` or separate `r
 
 ## Completion Gate
 
-ALL criteria from `completion_criteria` in config must pass before claiming completion. If ANY fails, loop back. Enforce `invocation_limits.completion_gate_max_retries` as the maximum number of retries after the initial failed completion check (i.e., initial check + N retries = N+1 total attempts). After the retry cap is exhausted, apply `invocation_limits.completion_gate_overflow_action`: halt the loop, record which criteria still fail, and escalate to the user. See `failure_handling` and `error_recovery` in config for recovery actions.
+ALL criteria from `completion_criteria` in config must pass before claiming completion. If ANY fails, loop back up to `invocation_limits.completion_gate_max_retries` times (default: 3) from config. If criteria still fail after the maximum retries, execute `invocation_limits.completion_gate_overflow_action` and halt. See `failure_handling` and `error_recovery` in config for recovery actions.
 
 ## Related Memories
 
