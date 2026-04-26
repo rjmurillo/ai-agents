@@ -61,6 +61,7 @@ class TestPlanStateSync(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
             (tmp_path / ".git").mkdir()
+            (tmp_path / ".agents").mkdir()
             todo = tmp_path / "TODO.md"
             todo.write_text("- [ ] Fix bug")
 
@@ -79,6 +80,7 @@ class TestPlanStateSync(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
             (tmp_path / ".git").mkdir()
+            (tmp_path / ".agents").mkdir()
             todo = tmp_path / "TODO.md"
             todo.write_text("Important task details here")
 

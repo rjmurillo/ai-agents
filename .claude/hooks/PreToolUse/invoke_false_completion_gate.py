@@ -191,7 +191,10 @@ def write_audit_log(
     - schema: 1 for forward-compat
     """
     try:
-        audit_dir = project_dir / ".agents" / ".hook-state"
+        agents_dir = project_dir / ".agents"
+        if not agents_dir.is_dir():
+            return  # Consumer repo: skip silently to avoid creating .agents/
+        audit_dir = agents_dir / ".hook-state"
         audit_dir.mkdir(parents=True, exist_ok=True)
         today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
         audit_file = audit_dir / f"audit-{today}.jsonl"

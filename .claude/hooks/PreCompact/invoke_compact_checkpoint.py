@@ -189,9 +189,12 @@ def main() -> int:
         ),
     }
 
-    # Write checkpoint file
+    # Write checkpoint file (skip silently in consumer repos that lack .agents/)
     try:
-        hook_state_dir = project_dir / ".agents" / ".hook-state"
+        agents_dir = project_dir / ".agents"
+        if not agents_dir.is_dir():
+            return 0
+        hook_state_dir = agents_dir / ".hook-state"
         hook_state_dir.mkdir(parents=True, exist_ok=True)
         checkpoint_file = hook_state_dir / f"pre-compact-{today}-{timestamp}.json"
         checkpoint_file.write_text(
