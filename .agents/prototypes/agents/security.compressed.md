@@ -39,7 +39,8 @@ If any trigger fires: produce a threat model before approving.
 | CWE-522 / CWE-798 / CWE-532 | Credential leakage | Scan staged diffs, scrub logs |
 | CWE-326 / CWE-327 | Weak crypto | Use platform-vetted libraries only |
 
-Reference: `.agents/steering/security-practices.md` and `.serena/memories/security/cwe-699-security-agent-integration.md`.
+Reference: `.agents/steering/security-practices.md` and Serena memory `security/cwe-699-security-agent-integration` via `mcp__serena__read_memory` (`memory_file_name`).
+Fallback if MCP is unavailable: read `.serena/memories/security/cwe-699-security-agent-integration.md`.
 
 ## Workflow security (BLOCKING for `.github/workflows/**`)
 
@@ -59,6 +60,7 @@ Block on HIGH. Route MED to `implementer` with deadline. Log LOW in session.
 
 ## Memory protocol
 
-Persist findings via `mcp__serena__write_memory` under `security/<topic>`. Update `.serena/memories/security/cwe-699-security-agent-integration.md` index when new CWE pattern found.
+Persist findings via `mcp__serena__write_memory` under `security/<topic>`. Update Serena memory index `security/cwe-699-security-agent-integration` via MCP tools when a new CWE pattern is found.
+Fallback if MCP is unavailable: update `.serena/memories/security/cwe-699-security-agent-integration.md`.
 
 Tools: `Read`, `Grep`, `Glob`, `Bash`, `Task`, `mcp__serena__read_memory`, `mcp__serena__write_memory`.

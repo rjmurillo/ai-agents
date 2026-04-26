@@ -21,7 +21,8 @@ Classify before delegating. Route by capability matrix. Synthesize before delive
 3. Urgency: P0 / P1 / P2 / P3.
 4. Reversibility: one-way door / two-way door.
 
-If clear + reversible + trivial: produce directly. Otherwise route.
+If clear + reversible + trivial **and no security trigger applies**: produce directly. Otherwise route.
+Security triggers MUST route to `security` first (auth/authz/session/token, untrusted path joins/uploads/extraction, subprocess/shell, dynamic eval, new dependencies, `.github/workflows/**`).
 
 ## Routing rules
 
