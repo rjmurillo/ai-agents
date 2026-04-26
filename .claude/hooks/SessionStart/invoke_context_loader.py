@@ -21,14 +21,26 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 # Cross-platform file locking
+# Windows: msvcrt.locking is byte-position-aware. The audit log is opened in
+# append mode and f.write advances the position, so an unlock at the post-write
+# position would target a different byte range than the original lock and raise
+# OSError. Save the position taken at lock time and restore it before unlocking.
+_win_lock_positions: dict[int, int] = {}
+
 if sys.platform == "win32":
     import msvcrt
 
     def _lock_file(f):
-        msvcrt.locking(f.fileno(), msvcrt.LK_LOCK, 1)
+        fd = f.fileno()
+        _win_lock_positions[fd] = f.tell()
+        msvcrt.locking(fd, msvcrt.LK_LOCK, 1)
 
     def _unlock_file(f):
-        msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, 1)
+        fd = f.fileno()
+        pos = _win_lock_positions.pop(fd, None)
+        if pos is not None:
+            f.seek(pos)
+        msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
 else:
     import fcntl
 
@@ -92,8 +104,11 @@ def write_audit_log(project_dir: Path, event: str, details: str) -> None:
                 f.write(entry + "\n")
             finally:
                 _unlock_file(f)
-    except OSError:
-        pass  # Fail-open
+    except OSError as e:
+        print(
+            f"[hook-error] invoke_context_loader audit: {type(e).__name__}: {e}",
+            file=sys.stderr,
+        )
 
 
 def main() -> int:
@@ -102,16 +117,21 @@ def main() -> int:
     if sys.stdin.isatty():
         return 0
 
-    # Read stdin (Claude provides JSON context)
+    # Drain stdin so the harness pipe closes cleanly. Contents are unused;
+    # the hook injects context based on filesystem state, not stdin.
     try:
-        stdin_data = sys.stdin.read()
+        sys.stdin.read()
     except Exception as e:
         print(f"[hook-error] invoke_context_loader stdin: {type(e).__name__}: {e}", file=sys.stderr)
-        stdin_data = ""
 
     project_dir = get_project_directory()
     if not project_dir:
         return 0  # Fail-open
+
+    # Consumer-repo guard: if .agents/ does not exist, this is not an
+    # ai-agents-bearing repo. Skip silently rather than create surprise files.
+    if not (project_dir / ".agents").is_dir():
+        return 0
 
     loaded_files = []
     output_parts = []

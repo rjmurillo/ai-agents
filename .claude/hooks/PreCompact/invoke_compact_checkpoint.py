@@ -70,6 +70,26 @@ def get_current_branch(project_dir: Path | None = None) -> str:
     return "unknown"
 
 
+def _coerce_to_list(value) -> list:
+    """Normalize work to a list across legacy and current session schema shapes."""
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return value
+    if isinstance(value, dict):
+        for key in ("tasks", "items", "log", "entries"):
+            inner = value.get(key)
+            if isinstance(inner, list):
+                return inner
+        for v in value.values():
+            if isinstance(v, list):
+                return v
+        return [value]
+    if isinstance(value, str):
+        return [value] if value.strip() else []
+    return []
+
+
 def get_session_info(project_dir: Path) -> dict:
     """Get current session log info."""
     sessions_dir = project_dir / ".agents" / "sessions"
@@ -89,7 +109,13 @@ def get_session_info(project_dir: Path) -> dict:
     session_file = session_files[0]
     try:
         data = json.loads(session_file.read_text(encoding="utf-8"))
-        work_items = data.get("work", [])
+        if not isinstance(data, dict):
+            return {"session_log": session_file.name}
+        # Modern schema is workLog; legacy is work (sometimes a dict wrapper).
+        work_raw = data.get("workLog")
+        if work_raw is None:
+            work_raw = data.get("work", [])
+        work_items = _coerce_to_list(work_raw)
         return {
             "session_log": session_file.name,
             "last_modified": datetime.fromtimestamp(
@@ -153,8 +179,11 @@ def main() -> int:
             json.dumps(checkpoint, indent=2, ensure_ascii=False),
             encoding="utf-8",
         )
-    except OSError:
-        pass  # Fail-open
+    except OSError as e:
+        print(
+            f"[hook-error] invoke_compact_checkpoint checkpoint write: {type(e).__name__}: {e}",
+            file=sys.stderr,
+        )
 
     # Print resume context to stdout (injected into compacted context)
     print(checkpoint["resume_context"])

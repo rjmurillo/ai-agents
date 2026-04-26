@@ -172,22 +172,42 @@ def main() -> int:
     if not project_dir:
         return 0
 
-    # Read the file content for summary
+    # Resolve and validate the file path stays within project_dir.
+    # The file_path comes from hook_input which is harness-controlled but may
+    # be tainted; reject paths that escape the project root to prevent
+    # unintended reads (CWE-22 path traversal).
     try:
+        project_dir_resolved = project_dir.resolve()
         full_path = Path(file_path)
         if not full_path.is_absolute():
-            full_path = project_dir / file_path
-        if full_path.is_file():
-            content = full_path.read_text(encoding="utf-8")
-        else:
-            content = ""
-    except OSError:
+            full_path = project_dir_resolved / file_path
+        full_path = full_path.resolve()
+        full_path.relative_to(project_dir_resolved)  # raises ValueError if outside
+        normalized_file_path = str(full_path.relative_to(project_dir_resolved))
+    except (OSError, ValueError) as e:
+        print(
+            f"[hook-error] invoke_plan_state_sync path-validate: {type(e).__name__}: {e}",
+            file=sys.stderr,
+        )
+        return 0
+
+    # Read the file content for summary
+    try:
+        content = full_path.read_text(encoding="utf-8") if full_path.is_file() else ""
+    except OSError as e:
+        print(
+            f"[hook-error] invoke_plan_state_sync read: {type(e).__name__}: {e}",
+            file=sys.stderr,
+        )
         content = ""
 
     try:
-        write_checkpoint(project_dir, file_path, content)
-    except OSError:
-        pass  # Fail-open
+        write_checkpoint(project_dir, normalized_file_path, content)
+    except OSError as e:
+        print(
+            f"[hook-error] invoke_plan_state_sync checkpoint: {type(e).__name__}: {e}",
+            file=sys.stderr,
+        )
 
     return 0
 
