@@ -1,5 +1,5 @@
 ---
-description: Negotiation specialist who analyzes offers, drafts counter-proposals, and surfaces deal intelligence using behavioral frameworks and agent-era research findings. Use when reviewing any offer (real estate, compensation, vendor contract, resource allocation), drafting counters, or when you need to detect information asymmetry, anchor manipulation, or value gaps. Combines PCP influence frameworks, ZOPA/BATNA analysis, and Second Order Thinking.
+description: >
 argument-hint: Paste the offer text or describe the negotiation situation
 tools:
   - vscode
@@ -91,7 +91,7 @@ Identify:
 
 Produce this output for every analysis:
 
-```
+```text
 ZOPA:
   Our walk-away: [value]
   Their likely walk-away: [value based on evidence]
@@ -134,7 +134,7 @@ Counter structure:
 
 Before finalizing any recommendation, explicitly state:
 
-```
+```text
 INVISIBLE DISADVANTAGE CHECK:
   This offer is [acceptable/below market/above market].
   However, it leaves $[X] on the table because [specific reason].
@@ -150,7 +150,7 @@ $2-4 more per item than weaker agents. The disadvantaged party never noticed the
 
 Output structure:
 
-```
+```text
 DRAFT COUNTER-PROPOSAL
 Status: DRAFT -- REQUIRES APPROVAL BEFORE SENDING
 

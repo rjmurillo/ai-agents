@@ -13,7 +13,7 @@
     },
     {
       "name": "copilot-cli-agents",
-      "description": "23 agent definitions for GitHub Copilot CLI",
+      "description": "24 agent definitions for GitHub Copilot CLI",
       "source": "./src/copilot-cli"
     },
     {
