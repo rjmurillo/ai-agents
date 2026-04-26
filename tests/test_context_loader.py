@@ -108,10 +108,10 @@ class TestGetLatestRetrospective(unittest.TestCase):
             new = tmp_path / "2026-04-20-retro.md"
             old.write_text("old")
             new.write_text("new")
-            # Touch new to ensure it's newer
-            import time
-            time.sleep(0.01)
-            new.write_text("new")
+            # Set mtimes explicitly so ordering is deterministic across filesystems
+            import os
+            os.utime(old, (1_000_000_000, 1_000_000_000))
+            os.utime(new, (1_000_000_100, 1_000_000_100))
 
             result = invoke_context_loader.get_latest_retrospective(tmp_path)
             self.assertEqual(result, new)

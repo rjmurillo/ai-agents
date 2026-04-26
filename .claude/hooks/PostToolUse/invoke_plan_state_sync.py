@@ -110,7 +110,10 @@ def is_plan_file(file_path: str) -> bool:
 
 def write_checkpoint(project_dir: Path, file_path: str, content: str) -> None:
     """Write a lightweight checkpoint for the modified plan file."""
-    hook_state_dir = project_dir / ".agents" / ".hook-state"
+    agents_dir = project_dir / ".agents"
+    if not agents_dir.is_dir():
+        return  # Consumer repo: skip silently to avoid creating .agents/
+    hook_state_dir = agents_dir / ".hook-state"
     hook_state_dir.mkdir(parents=True, exist_ok=True)
 
     today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
