@@ -14,12 +14,29 @@ Related:
 - .agents/SESSION-PROTOCOL.md
 """
 
-import fcntl
 import json
 import os
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
+
+# Cross-platform file locking
+if sys.platform == "win32":
+    import msvcrt
+
+    def _lock_file(f):
+        msvcrt.locking(f.fileno(), msvcrt.LK_LOCK, 1)
+
+    def _unlock_file(f):
+        msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, 1)
+else:
+    import fcntl
+
+    def _lock_file(f):
+        fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+
+    def _unlock_file(f):
+        fcntl.flock(f.fileno(), fcntl.LOCK_UN)
 
 # Maximum characters to inject per file to avoid context bloat
 MAX_CHARS_PER_FILE = 4000
@@ -70,11 +87,11 @@ def write_audit_log(project_dir: Path, event: str, details: str) -> None:
             "details": details,
         })
         with open(audit_file, "a", encoding="utf-8") as f:
-            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+            _lock_file(f)
             try:
                 f.write(entry + "\n")
             finally:
-                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+                _unlock_file(f)
     except OSError:
         pass  # Fail-open
 
