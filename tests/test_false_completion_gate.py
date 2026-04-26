@@ -226,15 +226,22 @@ class TestMain:
 
 
 class TestFailOpen:
-    """Test fail-open behavior on unexpected errors."""
+    """Test fail-open behavior of the script wrapper on unexpected errors."""
 
     def test_exception_exits_zero(self) -> None:
-        with patch.object(
-            invoke_false_completion_gate,
-            "skip_if_consumer_repo",
-            side_effect=RuntimeError("boom"),
-        ):
-            try:
-                invoke_false_completion_gate.main()
-            except (SystemExit, RuntimeError):
-                pass  # Expected - fail-open in __main__ block
+        """The ``__main__`` wrapper must catch errors and exit 0.
+
+        The previous version only confirmed ``main()`` raised, not that
+        the wrapper was fail-open. A blocking exit (code 2) or unhandled
+        raise from the wrapper would have passed silently.
+        """
+        from tests.hook_test_helpers import run_main_wrapper
+
+        def raising_main() -> None:
+            raise RuntimeError("boom")
+
+        code, _stdout, stderr = run_main_wrapper(
+            invoke_false_completion_gate, raising_main
+        )
+        assert code == 0
+        assert "boom" in stderr

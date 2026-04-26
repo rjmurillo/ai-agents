@@ -206,15 +206,23 @@ class TestMain:
 
 
 class TestFailOpen:
-    """Test fail-open behavior."""
+    """Test fail-open behavior of the script wrapper."""
 
     def test_exception_exits_zero(self) -> None:
-        with patch.object(
-            invoke_compact_checkpoint,
-            "skip_if_consumer_repo",
-            side_effect=RuntimeError("boom"),
-        ):
-            try:
-                invoke_compact_checkpoint.main()
-            except (SystemExit, RuntimeError):
-                pass
+        """The wrapper must swallow internal errors and exit 0.
+
+        Patching ``main()`` to raise lets us assert the ``__main__`` block
+        catches the exception, prints a warning, and exits 0. Testing
+        ``main()`` directly would only validate ``main`` itself, not the
+        fail-open contract Claude Code relies on.
+        """
+        from tests.hook_test_helpers import run_main_wrapper
+
+        def raising_main() -> None:
+            raise RuntimeError("boom")
+
+        code, _stdout, stderr = run_main_wrapper(
+            invoke_compact_checkpoint, raising_main
+        )
+        assert code == 0
+        assert "boom" in stderr

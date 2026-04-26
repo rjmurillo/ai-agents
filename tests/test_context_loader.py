@@ -66,16 +66,25 @@ class TestFindLatestRetrospective:
     """Test _find_latest_retrospective helper."""
 
     def test_finds_most_recent(self, tmp_path: Path) -> None:
+        """Sort retros by mtime and pick the newest.
+
+        Use ``os.utime`` instead of ``time.sleep`` to set mtimes
+        explicitly; coarse-grained file system timestamp resolution
+        (e.g. 1s on some FAT/NTFS variants) makes sleep-based ordering
+        flaky.
+        """
+        import os
+
         retro_dir = tmp_path / "retros"
         retro_dir.mkdir()
         old = retro_dir / "2025-01-01-retro.md"
         old.write_text("old retro", encoding="utf-8")
         new = retro_dir / "2025-06-15-retro.md"
-        new.write_text("new retro", encoding="utf-8")
-        # Touch new file to ensure it's newer
-        import time
-        time.sleep(0.01)
         new.write_text("new retro updated", encoding="utf-8")
+
+        # Set mtimes deterministically: old at t=1000s, new at t=2000s.
+        os.utime(old, (1000, 1000))
+        os.utime(new, (2000, 2000))
 
         result = invoke_context_loader._find_latest_retrospective(retro_dir)
         assert result is not None
@@ -169,15 +178,23 @@ class TestMain:
 
 
 class TestFailOpen:
-    """Test that hook fails open on all errors."""
+    """Test that the script wrapper fails open on all errors."""
 
     def test_exception_in_main_exits_zero(self) -> None:
-        with patch.object(
-            invoke_context_loader, "skip_if_consumer_repo", side_effect=RuntimeError("boom")
-        ):
-            # The if __name__ == "__main__" block catches all exceptions
-            # We test the try/except pattern directly
-            try:
-                invoke_context_loader.main()
-            except (SystemExit, RuntimeError):
-                pass  # Expected
+        """The ``__main__`` wrapper must catch internal errors and exit 0.
+
+        Calling ``main()`` directly only proves the function raises; it
+        cannot prove the wrapper around it is fail-open. We exercise the
+        wrapper with a patched ``main`` to verify the contract Claude Code
+        depends on.
+        """
+        from tests.hook_test_helpers import run_main_wrapper
+
+        def raising_main() -> None:
+            raise RuntimeError("boom")
+
+        code, _stdout, stderr = run_main_wrapper(
+            invoke_context_loader, raising_main
+        )
+        assert code == 0
+        assert "boom" in stderr

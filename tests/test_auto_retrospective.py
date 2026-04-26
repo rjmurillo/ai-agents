@@ -186,8 +186,8 @@ class TestMain:
             invoke_auto_retrospective, "skip_if_consumer_repo", return_value=False
         ), patch.object(
             invoke_auto_retrospective,
-            "get_project_directory",
-            return_value=str(project_tree),
+            "_resolve_safe_project_path",
+            return_value=project_tree,
         ), patch.object(
             invoke_auto_retrospective,
             "get_today_session_log",
@@ -211,8 +211,8 @@ class TestMain:
             invoke_auto_retrospective, "skip_if_consumer_repo", return_value=False
         ), patch.object(
             invoke_auto_retrospective,
-            "get_project_directory",
-            return_value=str(project_tree),
+            "_resolve_safe_project_path",
+            return_value=project_tree,
         ), patch.object(
             invoke_auto_retrospective,
             "get_today_session_log",
@@ -227,15 +227,21 @@ class TestMain:
 
 
 class TestFailOpen:
-    """Test fail-open behavior."""
+    """Test fail-open behavior of the script wrapper."""
 
     def test_exception_exits_zero(self) -> None:
-        with patch.object(
-            invoke_auto_retrospective,
-            "skip_if_consumer_repo",
-            side_effect=RuntimeError("boom"),
-        ):
-            try:
-                invoke_auto_retrospective.main()
-            except (SystemExit, RuntimeError):
-                pass
+        """The ``__main__`` wrapper must catch errors and exit 0.
+
+        Validates the contract Claude Code relies on: even when ``main()``
+        raises, the Stop hook must not block session stop.
+        """
+        from tests.hook_test_helpers import run_main_wrapper
+
+        def raising_main() -> None:
+            raise RuntimeError("boom")
+
+        code, _stdout, stderr = run_main_wrapper(
+            invoke_auto_retrospective, raising_main
+        )
+        assert code == 0
+        assert "boom" in stderr

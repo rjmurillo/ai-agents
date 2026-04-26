@@ -150,6 +150,13 @@ class TestMain:
             assert exc_info.value.code == 0
 
     def test_checkpoints_todo_file(self, tmp_path: Path) -> None:
+        """Hook writes a JSON checkpoint reflecting the TODO contents.
+
+        Asserts the checkpoint records the file name and a summary that
+        contains the TODO contents. Without these checks the test would
+        pass even if the hook checkpointed ``(file not found)`` due to
+        a CWD-relative resolve bug.
+        """
         todo = tmp_path / "TODO.md"
         todo.write_text("# TODO\n- Item 1", encoding="utf-8")
         (tmp_path / ".agents").mkdir()
@@ -169,17 +176,33 @@ class TestMain:
         checkpoint_dir = tmp_path / ".agents" / ".hook-state"
         assert checkpoint_dir.exists()
 
+        checkpoint_files = list(checkpoint_dir.glob("plan-checkpoint-*.json"))
+        assert checkpoint_files, "Expected a JSON checkpoint file to be created"
+
+        checkpoint_data = json.loads(checkpoint_files[0].read_text(encoding="utf-8"))
+        checkpoint_text = json.dumps(checkpoint_data)
+
+        assert "TODO.md" in checkpoint_text
+        assert "# TODO" in checkpoint_text
+        assert "Item 1" in checkpoint_text
+
 
 class TestFailOpen:
-    """Test fail-open behavior."""
+    """Test fail-open behavior of the script wrapper."""
 
     def test_exception_exits_zero(self) -> None:
-        with patch.object(
-            invoke_plan_state_sync,
-            "skip_if_consumer_repo",
-            side_effect=RuntimeError("boom"),
-        ):
-            try:
-                invoke_plan_state_sync.main()
-            except (SystemExit, RuntimeError):
-                pass
+        """The ``__main__`` wrapper must catch errors and exit 0.
+
+        Validates the contract Claude Code relies on: even when
+        ``main()`` raises, the script must not block tool use.
+        """
+        from tests.hook_test_helpers import run_main_wrapper
+
+        def raising_main() -> None:
+            raise RuntimeError("boom")
+
+        code, _stdout, stderr = run_main_wrapper(
+            invoke_plan_state_sync, raising_main
+        )
+        assert code == 0
+        assert "boom" in stderr
