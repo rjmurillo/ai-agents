@@ -30,10 +30,7 @@ if _plugin_root:
     _lib_dir = str(Path(_plugin_root).resolve() / "lib")
 else:
     _lib_dir = str(Path(__file__).resolve().parents[2] / "lib")
-if not os.path.isdir(_lib_dir):
-    print(f"Plugin lib directory not found: {_lib_dir}", file=sys.stderr)
-    sys.exit(2)  # Config error per ADR-035
-if _lib_dir not in sys.path:
+if os.path.isdir(_lib_dir) and _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
 
 try:
@@ -125,7 +122,10 @@ def find_session_log(project_dir: Path) -> Path | None:
     if not candidates:
         return None
 
-    return max(candidates, key=lambda f: f.stat().st_mtime)
+    try:
+        return max(candidates, key=lambda f: f.stat().st_mtime)
+    except OSError:
+        return None
 
 
 def has_verification_evidence(project_dir: Path) -> bool:
