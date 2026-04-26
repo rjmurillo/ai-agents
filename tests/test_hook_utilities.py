@@ -240,13 +240,17 @@ class TestModuleExports:
         import scripts.hook_utilities as mod
 
         expected = {
+            "coerce_to_list",
             "get_project_directory",
+            "get_recent_session_log",
             "get_today_session_log",
             "get_today_session_logs",
             "is_git_commit_command",
             "is_git_commit_or_push_command",
             "is_git_push_command",
             "is_project_repo",
+            "lock_file",
             "skip_if_consumer_repo",
+            "unlock_file",
         }
         assert set(mod.__all__) == expected
