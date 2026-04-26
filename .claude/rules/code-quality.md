@@ -217,5 +217,6 @@ Before you mark work complete, walk this list:
 - [ ] Variables live in the narrowest scope that satisfies their use.
 - [ ] Comments explain _why_; the code explains _what_.
 - [ ] Errors are typed, traced, and logged without secrets.
+- [ ] Mandatory security patterns (CWE-22 path traversal, CWE-78 command injection, authentication and authorization boundaries, secret handling) are checked. See the [security-detection](../skills/security-detection/SKILL.md) and [security-scan](../skills/security-scan/SKILL.md) skills for the full list.
 
 If you cannot check a box, fix it before requesting review. The cost of a fix grows after the merge.
