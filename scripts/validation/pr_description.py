@@ -220,8 +220,17 @@ def _strip_informational_sections(description: str) -> str:
     # References, See Also, Notes, Background, Inspired By, Pattern From,
     # Prior Art). Files mentioned in these sections are references or
     # validation targets, not claims that those files were modified by the PR.
+    #
+    # The heading name must occupy the entire `## ...` line (modulo trailing
+    # whitespace). Without the `\s*$` anchor, `## Notes on the rollout` would
+    # also match and silently drop a section that contains real change claims.
+    # We accept the tradeoff that `## Notes:` (trailing punctuation) no longer
+    # strips: those rare cases can use a contextual-prefix word like
+    # `## Notes` (no suffix) or apply the bypass label.
     contextual_pattern = (
-        r"^##\s*(?:" + "|".join(_CONTEXTUAL_SECTION_NAMES) + r")\b.*?(?=^##|\Z)"
+        r"^##\s+(?:"
+        + "|".join(_CONTEXTUAL_SECTION_NAMES)
+        + r")\s*$.*?(?=^##|\Z)"
     )
     text = re.sub(
         contextual_pattern,
@@ -477,30 +486,46 @@ def main(argv: list[str] | None = None) -> int:
 def _emit_bypass_audit(
     pr_number: int, label: str, issues: list[Issue]
 ) -> None:
-    """Append a structured bypass record to GITHUB_STEP_SUMMARY when set.
+    """Emit structured bypass signals so the workflow report and audit tools
+    can distinguish a bypassed PASS from a clean PASS.
 
-    Used so audit tooling can count bypass-label uses without parsing
-    stdout. No-op when GITHUB_STEP_SUMMARY is not set (local runs).
+    Two emissions:
+      1. GITHUB_STEP_SUMMARY append (human-readable + audit marker comment).
+      2. GITHUB_OUTPUT append (`bypass_used=true`, `bypass_label=<name>`,
+         `bypass_count=<N>`) so downstream workflow steps can change the PR
+         comment alert from PASS to BYPASSED.
+
+    Both are no-ops when their respective env vars are unset (local runs).
+    Filesystem failures are best-effort and never block the bypass exit.
     """
-    summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
-    if not summary_path:
-        return
     critical_files = [i.file for i in issues if i.severity == "CRITICAL"]
-    record = (
-        "\n### PR Description Validation Bypass\n\n"
-        f"PR #{pr_number} bypassed CRITICAL description-validation failures "
-        f"via `{label}` label.\n\n"
-        f"Suppressed CRITICAL files ({len(critical_files)}): "
-        f"{', '.join(f'`{f}`' for f in critical_files) or '(none)'}\n\n"
-        "<!-- DESCRIPTION-VALIDATION-BYPASS -->\n"
-    )
-    try:
-        with open(summary_path, "a", encoding="utf-8") as fh:
-            fh.write(record)
-    except OSError:
-        # Audit emission is best-effort; never block the bypass on a
-        # filesystem failure inside the runner.
-        pass
+    summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+    if summary_path:
+        record = (
+            "\n### PR Description Validation Bypass\n\n"
+            f"PR #{pr_number} bypassed CRITICAL description-validation "
+            f"failures via `{label}` label.\n\n"
+            f"Suppressed CRITICAL files ({len(critical_files)}): "
+            f"{', '.join(f'`{f}`' for f in critical_files) or '(none)'}\n\n"
+            "<!-- DESCRIPTION-VALIDATION-BYPASS -->\n"
+        )
+        try:
+            with open(summary_path, "a", encoding="utf-8") as fh:
+                fh.write(record)
+        except OSError:
+            pass
+
+    output_path = os.environ.get("GITHUB_OUTPUT")
+    if output_path:
+        try:
+            with open(output_path, "a", encoding="utf-8") as fh:
+                fh.write(
+                    f"bypass_used=true\n"
+                    f"bypass_label={label}\n"
+                    f"bypass_count={len(critical_files)}\n"
+                )
+        except OSError:
+            pass
 
 
 if __name__ == "__main__":

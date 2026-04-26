@@ -327,6 +327,44 @@ class TestExtractMentionedFiles:
         assert "pattern.py" not in result
         assert "real_change.py" in result
 
+    def test_notes_with_trailing_text_not_stripped(self) -> None:
+        """Heading must be the WHOLE `## ...` line. `## Notes on iteration 2`
+        is a section title that may contain real change claims; treating
+        every prefix-match as informational silently drops real claims.
+        Codex P1 finding from PR #1781 review."""
+        desc = (
+            "## Summary\n"
+            "Refactor.\n\n"
+            "## Notes on iteration 2\n"
+            "- Added `new_module.py`\n"
+            "- Removed `legacy.py`\n"
+        )
+        result = extract_mentioned_files(desc)
+        assert "new_module.py" in result
+        assert "legacy.py" in result
+
+    def test_design_decisions_with_trailing_text_not_stripped(self) -> None:
+        """Same protection for `## Design Decisions for X` style headings."""
+        desc = (
+            "## Summary\n"
+            "Edit.\n\n"
+            "## Design Decisions for the cache layer\n"
+            "- `cache.py` rewritten\n"
+        )
+        result = extract_mentioned_files(desc)
+        assert "cache.py" in result
+
+    def test_bare_heading_with_trailing_whitespace_still_strips(self) -> None:
+        """Trailing whitespace on a bare heading line must still strip."""
+        desc = (
+            "## Summary\n"
+            "Changed `real.py`.\n\n"
+            "## Design Decisions   \n"
+            "- See `pattern.py`\n"
+        )
+        result = extract_mentioned_files(desc)
+        assert "pattern.py" not in result
+
     def test_h3_design_decisions_not_stripped(self) -> None:
         """Only `##` (h2) sections strip. `### Design Decisions` stays so we
         do not silently swallow file claims under nested headings."""
@@ -1003,3 +1041,59 @@ class TestBypassLabel:
         }
         code = main(["--pr-number", "1", "--ci"])
         assert code == 0
+
+    @patch("scripts.validation.pr_description.fetch_pr_data")
+    @patch("scripts.validation.pr_description.get_repo_info")
+    def test_bypass_emits_github_output_signal(
+        self,
+        mock_repo: MagicMock,
+        mock_fetch: MagicMock,
+        tmp_path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Bypass must signal the workflow via GITHUB_OUTPUT so the report
+        step can render BYPASSED instead of a clean PASS in the PR comment.
+        Codex P2 finding from PR #1781 review."""
+        output = tmp_path / "outputs.txt"
+        output.write_text("")
+        monkeypatch.setenv("GITHUB_OUTPUT", str(output))
+        mock_repo.return_value = RepoInfo(owner="o", repo="r")
+        mock_fetch.return_value = {
+            "title": "T",
+            "body": "Changed `ghost.py` and `phantom.py`",
+            "files": [{"path": "real.py"}],
+            "labels": [{"name": "description-validation-bypass"}],
+        }
+        code = main(["--pr-number", "1", "--ci"])
+        assert code == 0
+        body = output.read_text()
+        assert "bypass_used=true" in body
+        assert "bypass_label=description-validation-bypass" in body
+        assert "bypass_count=2" in body
+
+    @patch("scripts.validation.pr_description.fetch_pr_data")
+    @patch("scripts.validation.pr_description.get_repo_info")
+    def test_clean_pass_does_not_emit_bypass_output(
+        self,
+        mock_repo: MagicMock,
+        mock_fetch: MagicMock,
+        tmp_path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """A clean PASS must NOT write any bypass_* keys to GITHUB_OUTPUT;
+        otherwise the report would falsely flag every clean PR as bypassed."""
+        output = tmp_path / "outputs.txt"
+        output.write_text("")
+        monkeypatch.setenv("GITHUB_OUTPUT", str(output))
+        mock_repo.return_value = RepoInfo(owner="o", repo="r")
+        mock_fetch.return_value = {
+            "title": "T",
+            "body": "Changed `foo.py`",
+            "files": [{"path": "foo.py"}],
+            "labels": [{"name": "description-validation-bypass"}],
+        }
+        code = main(["--pr-number", "1", "--ci"])
+        assert code == 0
+        body = output.read_text()
+        assert "bypass_used" not in body
+        assert "bypass_label" not in body
