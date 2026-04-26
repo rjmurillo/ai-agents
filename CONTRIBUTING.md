@@ -523,6 +523,127 @@ The pre-push hook runs comprehensive branch-wide validation before each push. Un
 
 Refer to `.githooks/pre-push` for the authoritative, up-to-date list of all checks.
 
+## Lifecycle Hooks (Claude Code)
+
+Claude Code runs lifecycle hooks at session boundaries. They are registered in `.claude/settings.json` and live in `.claude/hooks/`. The five lifecycle hooks introduced by issue #1703 are non-blocking (fail-open) with one exception: `invoke_false_completion_gate` exits 2 to block `git commit` / `gh pr create` claiming "done" without test evidence. Each of the five lifecycle hooks is registered with a 5-second timeout. Other (older) hooks registered in `.claude/settings.json` may have different timeouts and blocking semantics; check the relevant hook file for its contract.
+
+| Hook | File | Purpose | Bypass env var |
+|------|------|---------|----------------|
+| SessionStart | `invoke_context_loader.py` | Auto-loads HANDOFF.md + latest retrospective into context | none (fail-open) |
+| PreToolUse | `invoke_false_completion_gate.py` | Blocks `git commit`/`gh pr create` claiming "done/fixed" without test evidence in session log | `SKIP_COMPLETION_GATE=true` |
+| PostToolUse | `invoke_plan_state_sync.py` | Checkpoints plan/TODO state after Write/Edit | none (fail-open) |
+| PreCompact | `invoke_compact_checkpoint.py` | Snapshots WIP state before context compaction | none (always runs) |
+| Stop | `invoke_auto_retrospective.py` | Auto-generates session retrospective on stop | `SKIP_AUTO_RETRO=true` |
+
+**Audit trail:** `invoke_false_completion_gate` logs every terminal decision (block, allow_verified, bypass_env, error_parse, allow_not_completion) to `.agents/.hook-state/audit-{YYYY-MM-DD}.jsonl` (UTC date) with `schema: 1`, `session_id`, and `tool_use_id` correlation IDs. The other lifecycle hooks write narrower audit entries (`invoke_context_loader` logs context-load events) without correlation IDs. Use the audit trail when diagnosing why the completion gate blocked or allowed; for the other hooks, prefer stderr.
+
+**Diagnosability:** Hook errors print to stderr (visible in the harness output) tagged `[hook-error] {hook_name} {context}: {ExceptionClass}: {message}`. The five lifecycle hooks aim to surface every recoverable failure to stderr rather than swallow it silently; if you find a silent fail-open path, treat it as a bug and add the `[hook-error]` line.
+
+Refer to `.agents/architecture/ADR-008-protocol-automation-lifecycle-hooks.md` for the design rationale.
+
+### Adding a New Lifecycle Hook
+
+The 5 existing hooks share a deliberate shape. A 6th hook should match it.
+
+**1. Pick the event.** Claude Code lifecycle events: `SessionStart`, `PreToolUse`, `PostToolUse`, `PreCompact`, `Stop`. One file per hook, one event per file.
+
+**2. Create the file.** Path: `.claude/hooks/<EventName>/invoke_<purpose>.py`. Example: `.claude/hooks/PreToolUse/invoke_my_gate.py`.
+
+**3. Use the boilerplate.** Every hook follows this skeleton:
+
+```python
+#!/usr/bin/env python3
+"""<EventName> hook: <one-line purpose>.
+
+Hook Type: <EventName> (blocking | non-blocking)
+Exit Codes: 0 = allow, 2 = block (only if blocking)
+Bypass: SKIP_<NAME>=true (or "none" if always-runs)
+
+Related:
+- Issue #<n>
+- ADR-008 (lifecycle hooks)
+"""
+
+import fcntl  # only if appending to JSONL/INDEX
+import json
+import os
+import sys
+from datetime import UTC, datetime
+from pathlib import Path
+
+_plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+_lib_dir = str(Path(_plugin_root).resolve() / "lib") if _plugin_root \
+           else str(Path(__file__).resolve().parents[2] / "lib")
+if _lib_dir not in sys.path:
+    sys.path.insert(0, _lib_dir)
+
+try:
+    from hook_utilities import get_project_directory as _get_project_directory
+
+    def get_project_directory() -> Path | None:
+        result = _get_project_directory()
+        return Path(result) if result else None
+except ImportError:
+    def get_project_directory() -> Path | None:
+        env_dir = os.environ.get("CLAUDE_PROJECT_DIR")
+        if env_dir:
+            return Path(env_dir)
+        current = Path.cwd()
+        while current != current.parent:
+            if (current / ".git").exists():
+                return current
+            current = current.parent
+        return None
+
+
+def main() -> int:
+    if sys.stdin.isatty():
+        return 0
+    try:
+        stdin_data = sys.stdin.read()
+        if not stdin_data.strip():
+            return 0
+        hook_input = json.loads(stdin_data)
+    except Exception as e:
+        print(f"[hook-error] invoke_<purpose> stdin: {type(e).__name__}: {e}", file=sys.stderr)
+        return 0  # fail-open
+
+    # Correlation IDs for audit
+    session_id = str(hook_input.get("session_id", ""))
+    tool_use_id = str(hook_input.get("tool_use_id", ""))
+
+    # ... your logic here ...
+
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+```
+
+**4. Audit every terminal.** If your hook makes a decision (allow/block/bypass), log it. Use the `write_audit_log` pattern from `invoke_false_completion_gate.py`. Include `decision`, `reason`, `session_id`, `tool_use_id`, `schema: 1`. Wrap append-mode opens in `fcntl.flock(LOCK_EX)` to survive parallel sessions. Silent fail-open is a bug.
+
+**5. UTC dates only.** Use `datetime.now(tz=UTC).strftime("%Y-%m-%d")` for any date-derived path or timestamp. Naive `datetime.now()` will mismatch hooks running at UTC and split audit/session files across days.
+
+**6. Stderr on broad except.** Every `except Exception:` block must `print(f"[hook-error] <hook> <ctx>: {type(e).__name__}: {e}", file=sys.stderr)` before returning 0.
+
+**7. Register in `.claude/settings.json`.** Add an entry under the matching event with `timeout: 5` (seconds). A hung hook without a timeout blocks the session, defeating fail-open.
+
+```json
+{
+  "type": "command",
+  "command": "python3 -u .claude/hooks/<EventName>/invoke_<purpose>.py",
+  "timeout": 5,
+  "statusMessage": "<one-line description>"
+}
+```
+
+**8. Document the bypass env var.** Add a row to the Lifecycle Hooks table in this file. If your hook always runs (no bypass), say "none" explicitly.
+
+**9. Write tests.** Path: `tests/test_<purpose>.py`. Cover at minimum: TTY-stdin returns 0 silently, empty stdin returns 0 silently, happy path returns expected exit code, fail-open path returns 0 on internal error. Use `datetime.now(tz=UTC)` in test fixtures so they don't TZ-flake.
+
+**10. Update ADR-008's Implementation Status table** with a row for the new hook, and bump the count of hooks in CONTRIBUTING.md and the PR description.
+
 ## Session Protocol
 
 This project uses a session-based workflow for tracking work. Session logs are required for all significant work.

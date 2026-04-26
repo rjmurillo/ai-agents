@@ -20,6 +20,12 @@
             "command": "python3 -u .claude/hooks/PreToolUse/invoke_correction_applier.py",
             "timeout": 3,
             "statusMessage": "Checking correction memories (Self-Improving Agent)"
+          },
+          {
+            "type": "command",
+            "command": "python3 -u .claude/hooks/PreToolUse/invoke_false_completion_gate.py",
+            "timeout": 5,
+            "statusMessage": "Verifying completion claims have test evidence (BLOCKING)"
           }
         ]
       },
@@ -133,6 +139,12 @@
             "type": "command",
             "command": "python3 -u .claude/hooks/invoke_adr_change_detection.py",
             "statusMessage": "Checking for ADR changes"
+          },
+          {
+            "type": "command",
+            "command": "python3 -u .claude/hooks/SessionStart/invoke_context_loader.py",
+            "timeout": 5,
+            "statusMessage": "Loading HANDOFF.md and latest retrospective into context"
           }
         ]
       }
@@ -172,6 +184,12 @@
             "type": "command",
             "command": "python3 -u .claude/hooks/PostToolUse/invoke_adr_lifecycle_hook.py",
             "statusMessage": "Checking for ADR changes"
+          },
+          {
+            "type": "command",
+            "command": "python3 -u .claude/hooks/PostToolUse/invoke_plan_state_sync.py",
+            "timeout": 5,
+            "statusMessage": "Checkpointing plan/TODO state"
           }
         ]
       },
@@ -209,6 +227,12 @@
             "type": "command",
             "command": "python3 -u .claude/hooks/Stop/invoke_session_validator.py",
             "statusMessage": "Validating session completeness"
+          },
+          {
+            "type": "command",
+            "command": "python3 -u .claude/hooks/Stop/invoke_auto_retrospective.py",
+            "timeout": 5,
+            "statusMessage": "Auto-generating session retrospective"
           }
         ]
       }
@@ -232,6 +256,18 @@
             "type": "command",
             "command": "python3 -u .claude/hooks/PermissionRequest/invoke_test_auto_approval.py",
             "statusMessage": "Auto-approving test execution"
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -u .claude/hooks/PreCompact/invoke_compact_checkpoint.py",
+            "timeout": 5,
+            "statusMessage": "Checkpointing state before compaction"
           }
         ]
       }

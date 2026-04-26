@@ -11,21 +11,29 @@ from scripts.hook_utilities.guards import (
     skip_if_consumer_repo,
 )
 from scripts.hook_utilities.utilities import (
+    coerce_to_list,
     get_project_directory,
+    get_recent_session_log,
     get_today_session_log,
     get_today_session_logs,
     is_git_commit_command,
     is_git_commit_or_push_command,
     is_git_push_command,
+    lock_file,
+    unlock_file,
 )
 
 __all__ = [
+    "coerce_to_list",
     "get_project_directory",
+    "get_recent_session_log",
     "get_today_session_log",
     "get_today_session_logs",
     "is_git_commit_command",
     "is_git_commit_or_push_command",
     "is_git_push_command",
     "is_project_repo",
+    "lock_file",
     "skip_if_consumer_repo",
+    "unlock_file",
 ]
