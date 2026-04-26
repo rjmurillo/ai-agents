@@ -65,9 +65,14 @@ HOOK_NAME = "context-loader"
 
 
 def _read_file_truncated(path: Path, max_chars: int) -> str | None:
-    """Read a file, truncating to max_chars if necessary."""
+    """Read a file, truncating to max_chars if necessary.
+
+    Streams only the bytes needed instead of loading the whole file, so
+    large files do not balloon hook memory.
+    """
     try:
-        content = path.read_text(encoding="utf-8", errors="replace")
+        with path.open(encoding="utf-8", errors="replace") as handle:
+            content = handle.read(max_chars + 1)
     except OSError:
         return None
 
