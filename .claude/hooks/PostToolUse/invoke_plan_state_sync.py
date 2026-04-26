@@ -104,23 +104,23 @@ def write_checkpoint(project_dir: Path, file_path: str, content: str) -> None:
     today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
     checkpoint_file = hook_state_dir / f"plan-checkpoint-{today}.json"
 
-    # Create file if it doesn't exist
-    if not checkpoint_file.exists():
-        checkpoint_file.write_text("[]", encoding="utf-8")
-
     # Locked read-modify-write to prevent race conditions
-    with open(checkpoint_file, "r+", encoding="utf-8") as f:
+    # Use os.open with O_CREAT to atomically create if missing, then lock before any I/O
+    fd = os.open(checkpoint_file, os.O_RDWR | os.O_CREAT)
+    with os.fdopen(fd, "r+", encoding="utf-8") as f:
         _lock_file(f)
         try:
             # Read existing checkpoint data
             f.seek(0)
+            file_content = f.read()
             existing = []
-            try:
-                existing = json.load(f)
-                if not isinstance(existing, list):
-                    existing = [existing]
-            except (json.JSONDecodeError, OSError):
-                existing = []
+            if file_content.strip():
+                try:
+                    existing = json.loads(file_content)
+                    if not isinstance(existing, list):
+                        existing = [existing]
+                except json.JSONDecodeError:
+                    existing = []
 
             # Append new checkpoint entry
             entry = {

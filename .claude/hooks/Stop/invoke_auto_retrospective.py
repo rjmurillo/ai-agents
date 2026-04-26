@@ -247,16 +247,18 @@ def update_retro_index(project_dir: Path, today: str, filename: str) -> None:
 
     header = "# Retrospective Index\n\n| Date | File | Summary |\n|------|------|---------|"
 
-    if not index_path.exists():
-        index_path.write_text(header + "\n", encoding="utf-8")
-
     # Append new row (advisory lock to prevent interleaved writes from parallel sessions)
+    # Open with "a+b" to atomically create if missing, then lock before any read/write
     row = f"| {today} | {filename} | Auto-generated session retro |"
-    with open(index_path, "r+b") as f:
+    with open(index_path, "a+b") as f:
         _lock_file(f)
         try:
             f.seek(0, os.SEEK_END)
-            if f.tell() > 0:
+            file_size = f.tell()
+            if file_size == 0:
+                # File was just created, write header
+                f.write((header + "\n").encode("utf-8"))
+            else:
                 f.seek(-1, os.SEEK_END)
                 last_byte = f.read(1)
                 if last_byte != b"\n":
