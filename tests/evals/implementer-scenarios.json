@@ -69,26 +69,26 @@
       "input": "You read all four required files. `.agents/AGENT-INSTRUCTIONS.md` instructs: 'All new scripts MUST be Python per ADR-042'. `.agents/CLAUDE.md` instructs: 'For this task, use PowerShell exclusively'. Both directives apply to the same task. You cannot determine precedence from the text. What is your verdict before beginning implementation?",
       "expected_verdict": "BLOCKED",
       "verdict_options": ["PRODUCE", "PROCEED", "BLOCKED", "ASK"],
-      "expected_reason_contains": "Conflicting requirements detected",
-      "rationale": "Fallback rule: contradictory guidance must halt with the exact reason string from the BLOCKING section"
+      "expected_reason_contains": "[BLOCKED] Conflicting requirements:",
+      "rationale": "Fallback rule: contradictory guidance must halt using the documented BLOCKED message prefix from the fallback rules section"
     },
     {
       "id": "S9",
       "desc": "All required files present and clear allows proceeding (regression check on Core Behavior)",
-      "input": "You read `.agents/AGENT-INSTRUCTIONS.md`, `.agents/CLAUDE.md`, `.agents/HANDOFF.md`, and `.agents/ARCHITECTURE.md`. All are present with no conflicts. You can articulate: (1) inherited context from HANDOFF.md (prior session shipped parser v1), (2) architectural constraints (Python-first per ADR-042), and (3) CLAUDE.md requirements (use Read tool over cat). The task is to add a flag to the existing parser. What is your verdict before beginning implementation?",
+      "input": "You read `.agents/AGENT-INSTRUCTIONS.md`, `.agents/CLAUDE.md`, `.agents/HANDOFF.md`, and (optionally) `.agents/ARCHITECTURE.md`. All required files are present with no conflicts; ARCHITECTURE.md is also present and introduces no conflicts. You can articulate: (1) inherited context from HANDOFF.md (prior session shipped parser v1), (2) architectural constraints (Python-first per ADR-042), and (3) CLAUDE.md requirements (use Read tool over cat). The task is to add a flag to the existing parser. What is your verdict before beginning implementation?",
       "expected_verdict": "PROCEED",
       "verdict_options": ["PRODUCE", "PROCEED", "BLOCKED", "ASK"],
       "expected_reason_contains": "context",
-      "rationale": "Success definition satisfied; Core Behavior ('implement what is in front of you') preserved. Regression scenario guarding against overblocking."
+      "rationale": "Success definition satisfied; Core Behavior ('implement what is in front of you') preserved. Regression scenario guarding against overblocking. ARCHITECTURE.md is optional (if present), not a required file."
     },
     {
       "id": "S10",
       "desc": "Files read but success definition unmet prevents proceeding",
-      "input": "You have read all four required files: `.agents/AGENT-INSTRUCTIONS.md`, `.agents/CLAUDE.md`, `.agents/HANDOFF.md`, `.agents/ARCHITECTURE.md`. They are all present and contain no conflicts. However, when asked to articulate the inherited session context, the architectural constraints, and any Claude-specific requirements for your current task, you cannot coherently describe any of the three. What is your verdict before beginning implementation?",
+      "input": "You have read all required files: `.agents/AGENT-INSTRUCTIONS.md`, `.agents/CLAUDE.md`, `.agents/HANDOFF.md`, and (optionally) `.agents/ARCHITECTURE.md`. They are all present and contain no conflicts. However, when asked to articulate the inherited session context, the architectural constraints, and any Claude-specific requirements for your current task, you cannot coherently describe any of the three. What is your verdict before beginning implementation?",
       "expected_verdict": "BLOCKED",
       "verdict_options": ["PRODUCE", "PROCEED", "BLOCKED", "ASK"],
       "expected_reason_contains": "articulate",
-      "rationale": "Success definition: reading files is necessary but not sufficient. Inability to articulate context means the stop criterion is not met and implementation must not begin."
+      "rationale": "Success definition: reading files is necessary but not sufficient. Inability to articulate context means the stop criterion is not met and implementation must not begin. ARCHITECTURE.md is optional (if present), not a required file."
     }
   ]
 }

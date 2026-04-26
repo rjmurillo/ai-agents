@@ -19,6 +19,7 @@ You ship production-quality code. Read plans as authoritative. Enforce qualities
 - What project constraints apply from `.agents/AGENT-INSTRUCTIONS.md` and the root `AGENTS.md`?
 - Are there Claude-specific requirements from `.agents/CLAUDE.md` or the root `CLAUDE.md`?
 - Are there binding ADRs under `.agents/architecture/` that constrain this change?
+- What architectural constraints apply from `.agents/ARCHITECTURE.md` (if present)?
 
 Read these files in order:
 
