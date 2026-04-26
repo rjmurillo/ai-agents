@@ -47,7 +47,7 @@ Rules:
 
 - Measure the interface as everything a caller must know: arguments, return shape, side effects, ordering, retries, error modes. Not just the function signature.
 - Push complexity downward. The caller pays for every option, flag, callback, and corner case you expose. The implementation pays once.
-- Eliminate options whose right value is obvious. A parameter that 95 percent of callers set the same way is a leak; bake the answer in and provide an escape hatch only if the remaining 5 percent need one.
+- Eliminate options whose right value is obvious. A parameter that 95 percent of callers set the same way is a leak. Bake the answer in. Provide an escape hatch only if the remaining 5 percent need one.
 - Let the common case drive the interface. Optimize for what the typical caller writes. Tolerate the rare case being slightly more verbose.
 - General-purpose tends to be deeper than special-purpose. A module that solves the broader problem usually has a smaller interface than a stack of narrow ones.
 
@@ -67,7 +67,7 @@ Apply when:
 
 Rules:
 
-- Decisions that change together belong together. If editing a format requires editing both a writer and a reader, they share information; collapse to one owner or define the format once and depend on that definition from both sides.
+- Decisions that change together belong together. If editing a format requires editing both a writer and a reader, they share information. Collapse to one owner or define the format once and depend on that definition from both sides.
 - Leaked decisions show up as parallel switch statements, mirrored constants, or "remember to also update X" comments. Treat each as a bug, not a style issue.
 - Temporal decomposition leaks information. Splitting a module by "first do A, then do B" tends to expose B's data structure to A. Split by what changes together, not by execution order.
 - Pass-through methods leak by widening the interface. If A.foo just calls B.foo, callers depend on both A and B, not one. Either hide B behind A entirely or let callers talk to B directly.
@@ -167,7 +167,7 @@ Rules:
 
 - Default to strategic on shared code: agent prompts, orchestrator hooks, public skill interfaces, anything imported in more than one place. Spend the extra design time.
 - Tactical is appropriate for one-off scripts, throwaway analyses, and code with a known short life. Mark it as such; do not let it accumulate.
-- The cost of a tactical fix is paid by the next reader, not by you. If the next reader is you in a month, you will still pay it; you will just have forgotten why.
+- The next reader pays the cost of a tactical fix, not you. If you are that reader in a month, you will still pay it. You will just have forgotten why.
 
 ## Anti-Patterns
 
@@ -188,10 +188,10 @@ ai-agents already applies several of these rules implicitly. Reuse, do not dupli
 - **Agent prompts**: prompts are interfaces between the orchestrator and an agent. Treat input fields as interface surface; every required field raises cognitive load on every caller. Default to fewer, wider, well-named fields over many narrow ones.
 - **Plugin seams**: when you add a plugin extension point, design it twice and prefer the deeper version. The seam will outlive the first plugin that uses it.
 - **Hooks**: hooks are an information-hiding mechanism. Logic that belongs inside the hook should not be re-implemented in the calling code. If callers feel they must "duplicate the hook's logic just in case," the hook's interface is too narrow.
-- **Memory systems**: Serena and Forgetful are deep modules. Reach for the named operation rather than threading raw reads through your code; if a named operation is missing, add it to the module rather than working around it at the call site.
+- **Memory systems**: Serena and Forgetful are deep modules. Reach for the named operation rather than threading raw reads through your code. If a named operation is missing, add it to the module rather than working around it at the call site.
 - **Session and orchestrator seams**: keep them deep. New cross-cutting behavior (telemetry, retries, idempotency) belongs inside, not duplicated in every entry point.
 
-When you find a place where this rule and the code disagree, prefer a small, focused refactor on the path you are already touching over a sweeping rewrite. Note the deviation in the PR description so future readers can follow your reasoning.
+If this rule and the code disagree, prefer a small, focused refactor on the path you are touching. Avoid sweeping rewrites. Note the deviation in the PR description so future readers can follow your reasoning.
 
 ## Quick Self-Review
 
