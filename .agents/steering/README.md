@@ -10,12 +10,17 @@ Steering files contain domain-specific guidance that gets injected into agent co
 
 ### Unified Steering Architecture
 
-The steering system uses a **single source of truth** approach:
+The system uses a **three-tier** split so each location has a distinct role:
 
-- **Authoritative Source**: `.agents/steering/` - Full steering content for all platforms
-- **Copilot Entry Points**: `.github/instructions/` - Lightweight pointers with quick reference
+| Location | Role | Content |
+|----------|------|---------|
+| `.agents/steering/` | Authoritative reference | Code patterns, conventions, standards |
+| `.claude/rules/` | Path-scoped operational rules (canonical) | `applyTo` globs; MUST / SHOULD / MUST NOT enforcement; approval gates, downstream effects, required follow-ups |
+| `.github/instructions/` | Copilot CLI entry points | Lightweight quick-reference shims auto-loaded by Copilot CLI via `applyTo:` glob; link back to `.agents/steering/` |
 
-This design avoids content duplication while supporting both Claude-based agents (via orchestrator injection) and GitHub Copilot (via `applyTo:` directive). The `.github/instructions/` files contain:
+Steering explains *how to write* code for a domain. Path-scoped rules in `.claude/rules/` explain *what rules apply* when touching a path. Claude Code reads `.claude/rules/*.md` via the directive in root `CLAUDE.md`. Copilot CLI auto-loads `.github/instructions/*.instructions.md`. A planned build extension will generate the `.github/instructions/` set from `.claude/rules/` so both harnesses see the same path-scoped rules.
+
+The `.github/instructions/` files contain:
 1. Front matter with `applyTo:` glob patterns
 2. Links to authoritative `.agents/steering/` content  
 3. Quick reference snippets for immediate context
