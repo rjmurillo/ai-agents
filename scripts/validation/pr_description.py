@@ -227,10 +227,16 @@ def _strip_informational_sections(description: str) -> str:
     # We accept the tradeoff that `## Notes:` (trailing punctuation) no longer
     # strips: those rare cases can use a contextual-prefix word like
     # `## Notes` (no suffix) or apply the bypass label.
+    #
+    # The terminating lookahead `(?=^##(?!#)|\Z)` matches the next H2
+    # heading (exactly `##`, not `###` or deeper). Without `(?!#)`, an H3
+    # sub-heading inside a contextual section (e.g., `### Trade-offs` under
+    # `## Design Decisions`) would terminate the strip early and expose its
+    # contents as phantom change claims.
     contextual_pattern = (
         r"^##\s+(?:"
         + "|".join(_CONTEXTUAL_SECTION_NAMES)
-        + r")\s*$.*?(?=^##|\Z)"
+        + r")\s*$.*?(?=^##(?!#)|\Z)"
     )
     text = re.sub(
         contextual_pattern,

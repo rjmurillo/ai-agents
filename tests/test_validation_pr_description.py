@@ -365,6 +365,45 @@ class TestExtractMentionedFiles:
         result = extract_mentioned_files(desc)
         assert "pattern.py" not in result
 
+    def test_h3_subheading_inside_contextual_section_is_stripped(self) -> None:
+        """A `### Sub-heading` inside a stripped `## Design Decisions` block
+        must NOT terminate the strip. Without `(?!#)` in the lookahead, the
+        regex matches `###` (since it starts with `##`) and the H3 body leaks
+        as phantom claims. Self-finding from /review iteration."""
+        desc = (
+            "## Summary\n"
+            "Changed `real.py`.\n\n"
+            "## Design Decisions\n"
+            "- Pattern from `pattern.py`\n\n"
+            "### Trade-offs\n"
+            "- Considered `alt.py`\n"
+            "- Rejected because slow\n\n"
+            "## Changes\n"
+            "- `real.py`\n"
+        )
+        result = extract_mentioned_files(desc)
+        assert "real.py" in result
+        assert "pattern.py" not in result
+        assert "alt.py" not in result
+
+    def test_deeply_nested_subheadings_inside_contextual_section_stripped(
+        self,
+    ) -> None:
+        """H4 and H5 sub-headings inside a contextual section must also stay
+        within the strip range (only `^##` exactly terminates)."""
+        desc = (
+            "## Notes\n"
+            "- ref `a.py`\n"
+            "#### Deep\n"
+            "- `b.py`\n"
+            "##### Deeper\n"
+            "- `c.py`\n"
+            "## Changes\n"
+            "- `real.py`\n"
+        )
+        result = extract_mentioned_files(desc)
+        assert result == ["real.py"]
+
     def test_h3_design_decisions_not_stripped(self) -> None:
         """Only `##` (h2) sections strip. `### Design Decisions` stays so we
         do not silently swallow file claims under nested headings."""
