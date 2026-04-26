@@ -126,9 +126,8 @@ def find_recent_session_file(sessions_dir: Path, today_only: bool = False) -> Pa
     if today_only or _get_recent_session_log is None:
         return _find_recent_session_fallback(sessions_dir, today_only=today_only)
 
-    # For non-today_only case, we still need to implement the "prefer today" logic
-    # since the shared utility doesn't do this
-    return _find_recent_session_fallback(sessions_dir, today_only=False)
+    # Use shared utility for standard "prefer today, fall back to yesterday" logic
+    return _get_recent_session_log(str(sessions_dir))
 
 
 def _coerce_to_list_fallback(value) -> list:
@@ -201,7 +200,7 @@ def _extract_work_outcomes(data) -> tuple[list, list]:
     return coerce_to_list(work_raw), coerce_to_list(outcomes_raw)
 
 
-def is_trivial_session(project_dir: Path, today: str) -> bool:
+def is_trivial_session(project_dir: Path) -> bool:
     """Check if session is trivial (no meaningful work done today).
 
     Only considers today's session to avoid attributing yesterday's work to today.
@@ -358,7 +357,7 @@ def main() -> int:
         return 0
 
     # Skip trivial sessions (only considers today's work to avoid misattribution)
-    if is_trivial_session(project_dir, today):
+    if is_trivial_session(project_dir):
         return 0
 
     try:

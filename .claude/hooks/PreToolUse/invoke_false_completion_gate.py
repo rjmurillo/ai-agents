@@ -35,7 +35,7 @@ if os.path.isdir(_lib_dir) and _lib_dir not in sys.path:
 
 try:
     from hook_utilities import get_project_directory as _get_project_directory
-    from hook_utilities import get_recent_session_log
+    from hook_utilities import get_recent_session_log as _get_recent_session_log
     from hook_utilities import lock_file as _lock_file
     from hook_utilities import unlock_file as _unlock_file
 
@@ -58,7 +58,7 @@ except ImportError:
             current = current.parent
         return None
 
-    get_recent_session_log = None  # type: ignore[assignment]
+    _get_recent_session_log = None  # type: ignore[assignment]
     _lock_file = None  # type: ignore[assignment]
     _unlock_file = None  # type: ignore[assignment]
 
@@ -94,17 +94,13 @@ COMPLETION_COMMANDS = re.compile(
 )
 
 
-def find_session_log(project_dir: Path) -> Path | None:
-    """Find the most recent session log for the current session.
+def _find_session_log_fallback(sessions_dir: Path) -> Path | None:
+    """Fallback session lookup when hook_utilities is unavailable.
 
     Only falls back to yesterday's session if NO today-prefixed session exists.
     This prevents stale verification evidence from yesterday being used to
     satisfy the completion gate for a brand-new session today.
     """
-    sessions_dir = project_dir / ".agents" / "sessions"
-    if not sessions_dir.is_dir():
-        return None
-
     from datetime import timedelta
 
     now = datetime.now(tz=UTC)
@@ -128,6 +124,23 @@ def find_session_log(project_dir: Path) -> Path | None:
             return None
 
     return None
+
+
+def find_session_log(project_dir: Path) -> Path | None:
+    """Find the most recent session log for the current session.
+
+    Only falls back to yesterday's session if NO today-prefixed session exists.
+    This prevents stale verification evidence from yesterday being used to
+    satisfy the completion gate for a brand-new session today.
+    """
+    sessions_dir = project_dir / ".agents" / "sessions"
+    if not sessions_dir.is_dir():
+        return None
+
+    if _get_recent_session_log is None:
+        return _find_session_log_fallback(sessions_dir)
+
+    return _get_recent_session_log(str(sessions_dir))
 
 
 def has_verification_evidence(project_dir: Path) -> bool:
