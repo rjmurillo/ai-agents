@@ -1,0 +1,236 @@
+name: Post-PR Retrospective
+
+# Auto-trigger the retrospective agent after PR closure (merge or close-without-merge).
+#
+# Issue: #1758
+# Related: ADR-008 (Protocol Automation via Lifecycle Hooks), ADR-026 (PR Concurrency)
+# Companion: #1757 (post-session reflect skill hook) - complementary, not sequential.
+#
+# Behavior:
+#   - Runs on PR close. Merged PRs capture "what worked"; unmerged closures capture
+#     "what went wrong". Both produce structured retrospective artifacts.
+#   - Escalates retrospective depth for "to improve" cycles, detected from heuristics
+#     (unmerged close, rework markers in title, high review-comment density). No new
+#     labels are required by this workflow.
+#   - Asynchronous: this workflow runs after `closed` fires and never blocks merge.
+#
+# Skips (cost and security):
+#   - Bot-authored PRs (dependabot, renovate, copilot, github-actions, coderabbitai).
+#     Their merges produce no learnings and would burn LLM budget.
+#   - Fork PRs (head repository differs from base). PR closure events from forks do not
+#     receive repository secrets, so the action cannot authenticate.
+#
+# Security:
+#   - Untrusted PR fields (title, body) never flow into shell commands. Only numeric
+#     PR_NUMBER and boolean flags traverse step outputs. Claude fetches PR metadata
+#     itself via gh CLI inside the agent run.
+
+on:
+  pull_request:
+    types: [closed]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to analyze'
+        required: true
+        type: number
+      escalate_depth:
+        description: 'Force escalated (deeper) retrospective'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+  id-token: write
+
+# Per-PR concurrency. Do not cancel in flight: each retrospective is a single shot
+# and cancelling mid-run would leave partial artifacts. ADR-026.
+concurrency:
+  group: post-pr-retrospective-${{ github.event.pull_request.number || inputs.pr_number }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Prepare retrospective context
+    # ADR-025: ARM runner for cost optimization
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 5
+    outputs:
+      should_run: ${{ steps.gate.outputs.should_run }}
+      pr_number: ${{ steps.gate.outputs.pr_number }}
+      merged: ${{ steps.gate.outputs.merged }}
+      escalate_depth: ${{ steps.gate.outputs.escalate_depth }}
+
+    steps:
+      - name: Determine eligibility and escalation
+        id: gate
+        env:
+          # Untrusted user input is read into env vars and never embedded in shell strings
+          # via ${{ ... }} - mitigates GitHub Actions workflow injection.
+          EVENT_NAME: ${{ github.event_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          PR_MERGED: ${{ github.event.pull_request.merged }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          PR_BASE_REPO: ${{ github.repository }}
+          REVIEW_COMMENTS: ${{ github.event.pull_request.review_comments }}
+          DISPATCH_ESCALATE: ${{ inputs.escalate_depth }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # workflow_dispatch path: trust caller and run unconditionally.
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            {
+              echo "should_run=true"
+              echo "pr_number=$PR_NUMBER"
+              echo "merged=unknown"
+              echo "escalate_depth=${DISPATCH_ESCALATE:-false}"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Skip bot-authored PRs.
+          case "$PR_AUTHOR" in
+            dependabot\[bot\]|renovate\[bot\]|github-actions\[bot\]|copilot\[bot\]|coderabbitai\[bot\])
+              echo "::notice::Skipping retrospective for bot author: $PR_AUTHOR"
+              echo "should_run=false" >> "$GITHUB_OUTPUT"
+              exit 0
+              ;;
+          esac
+
+          # Skip fork PRs (no secrets available for the action).
+          if [ "$PR_HEAD_REPO" != "$PR_BASE_REPO" ]; then
+            echo "::notice::Skipping retrospective for fork PR head=$PR_HEAD_REPO"
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Escalation heuristics:
+          #   1. Unmerged close (failure case).
+          #   2. Title contains rework / fix-cycle markers.
+          #   3. Review-comment density indicates rework friction.
+          escalate=false
+          if [ "$PR_MERGED" != "true" ]; then
+            escalate=true
+          fi
+          # Title comparison done in shell against env var; never interpolated into a command.
+          if printf '%s' "$PR_TITLE" | grep -Eqi '\b(rework|retry|fix-cycle|to.improve|hotfix)\b'; then
+            escalate=true
+          fi
+          if [ "${REVIEW_COMMENTS:-0}" -ge 10 ]; then
+            escalate=true
+          fi
+
+          {
+            echo "should_run=true"
+            echo "pr_number=$PR_NUMBER"
+            echo "merged=$PR_MERGED"
+            echo "escalate_depth=$escalate"
+          } >> "$GITHUB_OUTPUT"
+
+  retrospective:
+    name: Run retrospective agent
+    needs: prepare
+    if: needs.prepare.outputs.should_run == 'true'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          # Need history for commit-trace analysis.
+          fetch-depth: 0
+
+      - name: Setup code environment
+        uses: ./.github/actions/setup-code-env
+        with:
+          gh-token: ${{ github.token }}
+          enable-git-hooks: false
+          skip-autofix: 1
+
+      # Build the retrospective prompt. Only numeric PR_NUMBER and boolean flags
+      # are interpolated. Claude fetches all untrusted PR metadata (title, body,
+      # comments, commit messages) via gh CLI inside the agent run; nothing
+      # untrusted enters the shell here.
+      - name: Build retrospective prompt
+        id: prompt
+        env:
+          PR_NUMBER: ${{ needs.prepare.outputs.pr_number }}
+          MERGED: ${{ needs.prepare.outputs.merged }}
+          ESCALATE: ${{ needs.prepare.outputs.escalate_depth }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo 'PROMPT<<RETRO_EOF'
+            cat <<INSTRUCTIONS
+          You are running as the retrospective agent for a closed pull request.
+
+          Step 1. Read \`.github/agents/retrospective.agent.md\` and adopt its persona,
+          style guide, and 6-phase framework (Data Gathering, Insight Generation,
+          Diagnosis, Action Planning, Learning Extraction, Meta-Retrospective).
+
+          Step 2. Gather PR execution trace using gh CLI:
+            - \`gh pr view ${PR_NUMBER} --json title,body,state,merged,commits,reviews,comments,labels,closingIssuesReferences,statusCheckRollup,additions,deletions,changedFiles\`
+            - \`gh pr diff ${PR_NUMBER} --name-only\` for file scope
+            - \`gh run list --branch <head_ref_from_above> --limit 20\` for CI history
+
+          Step 3. Apply the 6-phase framework:
+            - Phase 0 (Data Gathering): 4-step debrief, execution trace, outcome classification.
+            - Phase 1 (Insights): Five Whys on every failure, rework, or CI red. Fishbone if multiple causes.
+            - Phase 2 (Diagnosis): Critical errors, success patterns, near misses.
+            - Phase 3 (Actions): Concrete process or skill changes with owner and verification.
+            - Phase 4 (Learning Extraction): Atomic skills with execution evidence. Score atomicity 0-100%.
+            - Phase 5 (Meta-Retrospective): ROTI score for this retrospective itself.
+
+          Step 4. Delegate skill persistence to the skillbook agent. Read
+          \`.github/agents/skillbook.agent.md\`, adopt the persona, and:
+            - Score every extracted skill for atomicity, evidence, and uniqueness.
+            - Reject vague learnings; update existing skills before adding new ones.
+            - Persist accepted skills as Serena memories under \`.serena/memories/retrospective/\`.
+
+          Step 5. Write the retrospective artifact to
+          \`.agents/retrospective/<YYYY-MM-DD>-PR${PR_NUMBER}-retrospective.md\` using the
+          structure of existing files in that directory.
+
+          Step 6. Open a follow-up PR with the new artifact and any memory updates.
+          Branch prefix is configured by the action. Do not push to main directly.
+          Post a concise summary comment on PR #${PR_NUMBER} linking to the artifact.
+
+          Inputs for this run:
+            - PR_NUMBER: ${PR_NUMBER}
+            - MERGED: ${MERGED}
+            - ESCALATE_DEPTH: ${ESCALATE}
+
+          When ESCALATE_DEPTH is true, expand Phase 1 with fishbone and force-field
+          analysis, and include a dedicated "What we would do differently" section
+          tied to specific failure points.
+
+          Hard constraints:
+            - Async by design. Do not gate or modify the merged state of PR #${PR_NUMBER}.
+            - Do not edit HANDOFF.md (read-only per ADR-014).
+            - Conventional commit messages with \`chore(retrospective): ...\` scope.
+            - Quantify every learning. Replace adjectives with data.
+          INSTRUCTIONS
+            echo 'RETRO_EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      # Pin to SHA matches claude.yml and rjmurillo-bot.yml.
+      # https://github.com/anthropics/claude-code-action/releases/tag/v1.0.103
+      - name: Run retrospective via Claude Code
+        uses: anthropics/claude-code-action@4e5d8b13ca281a6d163cdb287d8917b216e00d6f # v1.0.103
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: ${{ steps.prompt.outputs.PROMPT }}
+          base_branch: "main"
+          branch_prefix: "retrospective/"
+          use_commit_signing: true
+          # Headless invocation: no trigger phrase, prompt is supplied directly.
+          # Disable progress-tracking comments because the source PR is already closed.
+          track_progress: "false"
