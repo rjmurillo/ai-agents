@@ -14,10 +14,11 @@ Related:
 - .agents/SESSION-PROTOCOL.md
 """
 
+import fcntl
 import json
 import os
 import sys
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 # Maximum characters to inject per file to avoid context bloat
@@ -60,16 +61,20 @@ def write_audit_log(project_dir: Path, event: str, details: str) -> None:
     try:
         audit_dir = project_dir / AUDIT_DIR_NAME
         audit_dir.mkdir(parents=True, exist_ok=True)
-        today = datetime.now().strftime("%Y-%m-%d")
+        today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
         audit_file = audit_dir / f"audit-{today}.jsonl"
         entry = json.dumps({
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": datetime.now(tz=UTC).isoformat(),
             "hook": "invoke_context_loader",
             "event": event,
             "details": details,
         })
         with open(audit_file, "a", encoding="utf-8") as f:
-            f.write(entry + "\n")
+            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+            try:
+                f.write(entry + "\n")
+            finally:
+                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
     except OSError:
         pass  # Fail-open
 
@@ -83,7 +88,8 @@ def main() -> int:
     # Read stdin (Claude provides JSON context)
     try:
         stdin_data = sys.stdin.read()
-    except Exception:
+    except Exception as e:
+        print(f"[hook-error] invoke_context_loader stdin: {type(e).__name__}: {e}", file=sys.stderr)
         stdin_data = ""
 
     project_dir = get_project_directory()

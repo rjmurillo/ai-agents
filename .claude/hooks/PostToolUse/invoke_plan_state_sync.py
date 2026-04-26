@@ -116,7 +116,8 @@ def main() -> int:
         if not stdin_data.strip():
             return 0
         hook_input = json.loads(stdin_data)
-    except (json.JSONDecodeError, Exception):
+    except Exception as e:
+        print(f"[hook-error] invoke_plan_state_sync stdin: {type(e).__name__}: {e}", file=sys.stderr)
         return 0  # Fail-open
 
     # Extract file path from tool input

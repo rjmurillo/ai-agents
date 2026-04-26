@@ -18,6 +18,7 @@ Related:
 - ADR-008 (protocol automation lifecycle hooks)
 """
 
+import fcntl
 import json
 import os
 import re
@@ -133,67 +134,106 @@ def has_verification_evidence(project_dir: Path) -> bool:
     return False
 
 
-def write_audit_log(project_dir: Path, command: str, decision: str, reason: str) -> None:
-    """Log blocked events to audit trail."""
+def write_audit_log(
+    project_dir: Path,
+    command: str,
+    decision: str,
+    reason: str,
+    session_id: str = "",
+    tool_use_id: str = "",
+) -> None:
+    """Log every terminal decision to audit trail.
+
+    Logs include:
+    - decision: 'block', 'allow_verified', 'allow_no_project', 'bypass_env',
+                'error_parse', 'allow_no_command', 'allow_not_completion'
+    - session_id, tool_use_id: correlation IDs from hook stdin
+    - schema: 1 for forward-compat
+    """
     try:
         audit_dir = project_dir / ".agents" / ".hook-state"
         audit_dir.mkdir(parents=True, exist_ok=True)
         today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
         audit_file = audit_dir / f"audit-{today}.jsonl"
         entry = json.dumps({
+            "schema": 1,
             "timestamp": datetime.now(tz=UTC).isoformat(),
             "hook": "invoke_false_completion_gate",
             "command": command[:200],
             "decision": decision,
             "reason": reason,
+            "session_id": session_id,
+            "tool_use_id": tool_use_id,
         })
         with open(audit_file, "a", encoding="utf-8") as f:
-            f.write(entry + "\n")
-    except OSError:
-        pass
+            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+            try:
+                f.write(entry + "\n")
+            finally:
+                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+    except OSError as e:
+        print(f"[hook-error] invoke_false_completion_gate audit: {type(e).__name__}: {e}", file=sys.stderr)
 
 
 def main() -> int:
-    """Check for false completion claims without verification."""
-    # Bypass env var
+    """Check for false completion claims without verification.
+
+    Audits every terminal decision so SRE can prove the gate ran.
+    """
+    project_dir = get_project_directory()
+    session_id = ""
+    tool_use_id = ""
+
+    # Bypass env var (audited so operators see when gate was disabled)
     if os.environ.get("SKIP_COMPLETION_GATE", "").lower() == "true":
+        if project_dir:
+            write_audit_log(project_dir, "", "bypass_env", "SKIP_COMPLETION_GATE=true", session_id, tool_use_id)
         return 0
 
-    # Skip if stdin is TTY
+    # Skip if stdin is TTY (interactive shell, not a hook invocation)
     if sys.stdin.isatty():
         return 0
 
-    # Read stdin JSON
+    # Read stdin JSON; extract correlation IDs even on parse-failure path
     try:
         stdin_data = sys.stdin.read()
         if not stdin_data.strip():
             return 0
         hook_input = json.loads(stdin_data)
-    except (json.JSONDecodeError, Exception):
+    except (json.JSONDecodeError, ValueError) as e:
+        if project_dir:
+            write_audit_log(project_dir, "", "error_parse", f"{type(e).__name__}: {e}", session_id, tool_use_id)
         return 0  # Fail-open
+
+    # Correlation IDs from harness
+    session_id = str(hook_input.get("session_id", ""))
+    tool_use_id = str(hook_input.get("tool_use_id", ""))
 
     # Extract command from tool input
     tool_input = hook_input.get("tool_input", {})
     command = tool_input.get("command", "")
 
     if not command:
-        return 0
+        return 0  # Not a Bash invocation we care about; do not flood audit
 
     # Only check completion-relevant commands (commits, PRs)
     if not COMPLETION_COMMANDS.search(command):
-        return 0
+        return 0  # Out of scope; do not flood audit
 
     # Check for completion signals in the command
     if not COMPLETION_SIGNALS.search(command):
+        if project_dir:
+            write_audit_log(project_dir, command, "allow_not_completion", "no completion keyword", session_id, tool_use_id)
         return 0
 
     # Completion signal detected — check for verification evidence
-    project_dir = get_project_directory()
     if not project_dir:
-        return 0  # Fail-open: can't verify
+        # Fail-open without project dir; cannot audit either
+        return 0
 
     if has_verification_evidence(project_dir):
-        return 0  # Verification found — allow
+        write_audit_log(project_dir, command, "allow_verified", "verification evidence found", session_id, tool_use_id)
+        return 0
 
     # BLOCK: False completion without verification
     reason = (
@@ -203,7 +243,7 @@ def main() -> int:
     # Output deny decision (Claude hook protocol)
     print(json.dumps({"decision": "block", "reason": reason}))
 
-    write_audit_log(project_dir, command, "block", reason)
+    write_audit_log(project_dir, command, "block", reason, session_id, tool_use_id)
 
     return 2  # Exit code 2 = BLOCK
 

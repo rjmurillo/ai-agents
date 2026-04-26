@@ -117,8 +117,8 @@ def main() -> int:
     # Consume stdin
     try:
         sys.stdin.read()
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"[hook-error] invoke_compact_checkpoint stdin: {type(e).__name__}: {e}", file=sys.stderr)
 
     project_dir = get_project_directory()
     if not project_dir:
