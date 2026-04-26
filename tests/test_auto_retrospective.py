@@ -151,8 +151,8 @@ class TestMain:
             invoke_auto_retrospective, "skip_if_consumer_repo", return_value=False
         ), patch.object(
             invoke_auto_retrospective,
-            "get_project_directory",
-            return_value=str(project_tree),
+            "_resolve_safe_project_path",
+            return_value=project_tree,
         ):
             with pytest.raises(SystemExit) as exc_info:
                 invoke_auto_retrospective.main()
@@ -168,8 +168,8 @@ class TestMain:
             invoke_auto_retrospective, "skip_if_consumer_repo", return_value=False
         ), patch.object(
             invoke_auto_retrospective,
-            "get_project_directory",
-            return_value=str(tmp_path),
+            "_resolve_safe_project_path",
+            return_value=tmp_path,
         ), patch.object(
             invoke_auto_retrospective, "get_today_session_log", return_value=None,
         ):
