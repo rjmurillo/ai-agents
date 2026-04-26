@@ -8,6 +8,9 @@ coverage.xml
 .coverage
 testResults.xml
 
+# Transient eval artifacts (ADR-057): re-runnable, not source of truth
+.agents/audit/eval-*/
+
 # Runtime caches
 .cache/
 
