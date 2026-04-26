@@ -135,7 +135,25 @@ def load_scenarios(path: str) -> list[dict[str, Any]]:
                     f"Scenario {s['id']} in {path}: 'verdict_options' must be a "
                     f"non-empty list when present."
                 )
-            opts_upper = [str(o).strip().upper() for o in opts]
+            opts_upper: list[str] = []
+            seen_opts: set[str] = set()
+            for opt in opts:
+                normalized_opt = str(opt).strip().upper()
+                if not normalized_opt:
+                    raise RuntimeError(
+                        f"Scenario {s['id']} in {path}: 'verdict_options' contains "
+                        f"an empty label after normalization. Remove blank or "
+                        f"whitespace-only entries."
+                    )
+                if normalized_opt in seen_opts:
+                    raise RuntimeError(
+                        f"Scenario {s['id']} in {path}: 'verdict_options' contains "
+                        f"duplicate label {normalized_opt!r} after normalization. "
+                        f"Ensure labels are unique ignoring case and surrounding "
+                        f"whitespace."
+                    )
+                seen_opts.add(normalized_opt)
+                opts_upper.append(normalized_opt)
             if str(s["expected_verdict"]).strip().upper() not in opts_upper:
                 raise RuntimeError(
                     f"Scenario {s['id']} in {path}: expected_verdict "
@@ -215,7 +233,7 @@ def judge_scenario(
     options_str = ", ".join(options)
 
     fallback_hint = ""
-    if DEFAULT_FALLBACK_VERDICT in options:
+    if len(options) > 1 and DEFAULT_FALLBACK_VERDICT in options:
         fallback_hint = (
             f"Use {DEFAULT_FALLBACK_VERDICT} only if no other label fits.\n"
         )

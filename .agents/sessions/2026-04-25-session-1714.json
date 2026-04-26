@@ -4,7 +4,7 @@
     "date": "2026-04-25",
     "branch": "fix/1755-eval-rubric",
     "startingCommit": "027b585a",
-    "objective": "Issue #1755: fix ADR-057 eval rubric to use controlled-vocab verdicts; update 8 scenario files with verdict_options; add 20 unit tests; validate via baseline-vs-baseline runs on all 8 agents"
+    "objective": "Issue #1755: fix ADR-057 eval rubric to use controlled-vocab verdicts; update 8 scenario files with verdict_options; add a comprehensive eval prompt-change unit test suite; validate via baseline-vs-baseline runs on all 8 agents"
   },
   "protocolCompliance": {
     "sessionStart": {
@@ -98,7 +98,7 @@
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "pytest tests/eval/test_eval_prompt_change.py: 20 passed; baseline eval verified rubric works (critic gate PASS, others reveal real signal)"
+        "Evidence": "pytest tests/eval/test_eval_prompt_change.py: 89 passed (test suite expanded across PR #1756 review rounds); baseline eval verified rubric works (critic gate PASS, others reveal real signal)"
       },
       "tasksUpdated": {
         "level": "SHOULD",

@@ -216,6 +216,46 @@ class TestLoadScenariosValidation:
         scenarios = eval_mod.load_scenarios(path)
         assert scenarios[0]["expected_verdict"] == "  ROUTE  "  # raw preserved
 
+    def test_rejects_empty_verdict_option_after_strip(self, tmp_path):
+        # PR #1756 review (Copilot): whitespace-only entries must not produce
+        # blank labels in the judge prompt.
+        path = self._write(tmp_path, {
+            "scenarios": [{
+                "id": "S1", "desc": "x", "input": "y",
+                "expected_verdict": "ROUTE",
+                "verdict_options": ["ROUTE", "   "],
+            }]
+        })
+        with pytest.raises(RuntimeError, match="empty label after normalization"):
+            eval_mod.load_scenarios(path)
+
+    def test_rejects_duplicate_verdict_options_after_normalization(self, tmp_path):
+        # PR #1756 review (Copilot): duplicates differing only in case or
+        # surrounding whitespace must be rejected so the judge prompt does
+        # not emit duplicated labels.
+        path = self._write(tmp_path, {
+            "scenarios": [{
+                "id": "S1", "desc": "x", "input": "y",
+                "expected_verdict": "ROUTE",
+                "verdict_options": ["ROUTE", " route "],
+            }]
+        })
+        with pytest.raises(RuntimeError, match="duplicate label 'ROUTE'"):
+            eval_mod.load_scenarios(path)
+
+    def test_accepts_unique_normalized_verdict_options(self, tmp_path):
+        # Pos counterpart: case-different but logically distinct labels remain
+        # accepted as long as their normalized forms are unique.
+        path = self._write(tmp_path, {
+            "scenarios": [{
+                "id": "S1", "desc": "x", "input": "y",
+                "expected_verdict": "ROUTE",
+                "verdict_options": ["ROUTE", "DELEGATE", "EXECUTE"],
+            }]
+        })
+        scenarios = eval_mod.load_scenarios(path)
+        assert scenarios[0]["verdict_options"] == ["ROUTE", "DELEGATE", "EXECUTE"]
+
 
 # ---------------------------------------------------------------------------
 # Whitespace and prompt-construction edge cases (PR #1756 review)
@@ -254,7 +294,7 @@ class TestJudgePromptConstruction:
         options = eval_mod._verdict_options(scenario)
         options_str = ", ".join(options)
         fallback_hint = ""
-        if eval_mod.DEFAULT_FALLBACK_VERDICT in options:
+        if len(options) > 1 and eval_mod.DEFAULT_FALLBACK_VERDICT in options:
             fallback_hint = (
                 f"Use {eval_mod.DEFAULT_FALLBACK_VERDICT} only if no other "
                 f"label fits.\n"
@@ -294,6 +334,18 @@ class TestJudgePromptConstruction:
         }
         msg = self._build_user_message(scenario)
         assert "Use OTHER only if no other label fits" in msg
+
+    def test_other_hint_absent_when_only_option_is_other(self):
+        # PR #1756 review (Copilot): single-option vocabularies (e.g. ["OTHER"])
+        # must not emit the "Use OTHER only if no other label fits" hint, since
+        # there are no other labels for the LLM to choose between.
+        scenario = {
+            "id": "S", "desc": "d", "input": "i",
+            "expected_verdict": "OTHER",
+            "verdict_options": ["OTHER"],
+        }
+        msg = self._build_user_message(scenario)
+        assert "Use OTHER only if no other label fits" not in msg
 
 
 # ---------------------------------------------------------------------------
@@ -960,8 +1012,8 @@ class TestMainCLI:
         ])
         with pytest.raises(SystemExit) as exc:
             eval_mod.main()
-        # Gate fails because before==after==1.0 satisfies has_improvement
-        # via before_score==1.0 clause
+        # Gate passes because before==after==1.0 satisfies has_improvement
+        # via the before_score==1.0 clause
         assert exc.value.code == 0
         result = json.loads(out_path.read_text())
         assert result["gate"]["verdict"] == "PASS"
