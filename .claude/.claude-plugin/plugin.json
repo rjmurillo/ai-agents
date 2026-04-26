@@ -1,0 +1,18 @@
+{
+  "name": "project-toolkit",
+  "description": "Complete project development toolkit: 23 agents, 24 slash commands, 29 lifecycle hooks, and 62 reusable skills for Claude Code workflows",
+  "version": "0.3.0",
+  "author": { "name": "rjmurillo" },
+  "agents": ["./agents"],
+  "skills": ["./skills"],
+  "commands": ["./commands"],
+  "hooks": {
+    "PreToolUse": "./hooks/PreToolUse",
+    "PostToolUse": "./hooks/PostToolUse",
+    "Stop": "./hooks/Stop",
+    "SessionStart": "./hooks/SessionStart",
+    "UserPromptSubmit": "./hooks/UserPromptSubmit",
+    "SubagentStop": "./hooks/SubagentStop",
+    "PermissionRequest": "./hooks/PermissionRequest"
+  }
+}
