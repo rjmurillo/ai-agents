@@ -55,6 +55,18 @@ VALID_CONFIG: dict = {
         "note": "Replying does not resolve threads.",
         "batch_graphql_template": "mutation { ... }",
     },
+    "invocation_limits": {
+        "all_open_max_prs": 5,
+        "all_open_overflow_action": "Report count of skipped PRs",
+        "completion_gate_max_retries": 3,
+        "completion_gate_overflow_action": "Escalate to user",
+    },
+    "output_constraints": {
+        "per_pr_max_response_lines": 120,
+        "per_pr_overflow_action": "Truncate and persist",
+        "summary_format": "table",
+        "summary_required_columns": ["PR", "Branch", "Status"],
+    },
 }
 
 
@@ -143,3 +155,33 @@ class TestValidateConfig:
         assert any("add_thread_reply_resolve" in e for e in errors)
         # Copilot section doesn't need this key
         assert not any("copilot" in e and "add_thread_reply_resolve" in e for e in errors)
+
+    def test_missing_invocation_limits_field(self) -> None:
+        config = copy.deepcopy(VALID_CONFIG)
+        del config["invocation_limits"]["all_open_max_prs"]
+        errors = validate_config(config)
+        assert any("invocation_limits missing field: all_open_max_prs" in e for e in errors)
+
+    def test_missing_output_constraints_field(self) -> None:
+        config = copy.deepcopy(VALID_CONFIG)
+        del config["output_constraints"]["summary_format"]
+        errors = validate_config(config)
+        assert any("output_constraints missing field: summary_format" in e for e in errors)
+
+    def test_output_constraints_columns_must_be_nonempty_list(self) -> None:
+        config = copy.deepcopy(VALID_CONFIG)
+        config["output_constraints"]["summary_required_columns"] = []
+        errors = validate_config(config)
+        assert any("summary_required_columns must be a non-empty list" in e for e in errors)
+
+    def test_missing_invocation_limits_top_level(self) -> None:
+        config = copy.deepcopy(VALID_CONFIG)
+        del config["invocation_limits"]
+        errors = validate_config(config)
+        assert any("Missing required top-level key: invocation_limits" in e for e in errors)
+
+    def test_missing_output_constraints_top_level(self) -> None:
+        config = copy.deepcopy(VALID_CONFIG)
+        del config["output_constraints"]
+        errors = validate_config(config)
+        assert any("Missing required top-level key: output_constraints" in e for e in errors)
