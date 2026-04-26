@@ -18,13 +18,40 @@ Related:
 - ADR-008 (protocol automation lifecycle hooks)
 """
 
-import fcntl
 import json
 import os
 import re
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
+
+# Cross-platform file locking
+# On Windows, msvcrt.locking operates on bytes at the current file position,
+# so we must save/restore position around lock/unlock operations.
+_win_lock_positions: dict[int, int] = {}
+
+if sys.platform == "win32":
+    import msvcrt
+
+    def _lock_file(f):
+        fd = f.fileno()
+        _win_lock_positions[fd] = f.tell()
+        f.seek(_win_lock_positions[fd])
+        msvcrt.locking(fd, msvcrt.LK_LOCK, 1)
+
+    def _unlock_file(f):
+        fd = f.fileno()
+        pos = _win_lock_positions.pop(fd, 0)
+        f.seek(pos)
+        msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+else:
+    import fcntl
+
+    def _lock_file(f):
+        fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+
+    def _unlock_file(f):
+        fcntl.flock(f.fileno(), fcntl.LOCK_UN)
 
 _plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
 if _plugin_root:
@@ -147,11 +174,11 @@ def write_audit_log(
             "tool_use_id": tool_use_id,
         })
         with open(audit_file, "a", encoding="utf-8") as f:
-            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+            _lock_file(f)
             try:
                 f.write(entry + "\n")
             finally:
-                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+                _unlock_file(f)
     except OSError as e:
         print(f"[hook-error] invoke_false_completion_gate audit: {type(e).__name__}: {e}", file=sys.stderr)
 
