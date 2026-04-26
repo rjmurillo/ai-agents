@@ -61,7 +61,7 @@ Commits: `<type>(<scope>): <desc>` + `Co-Authored-By:`
 Exit codes: 0=ok|1=logic|2=config|3=external|4=auth
 Coverage: 100% security|80% business|60% docs
 Tests: `tests/`|`.claude/skills/<name>/tests/`|`.agents/security/benchmarks/`
-Test rigor (BLOCKING): pos+neg+edge|every branch|mock I/O|CLI argv-failure. Detail: `.agents/governance/TESTING-ANTI-PATTERNS.md`.
+Test rigor (BLOCKING): pos+neg+edge|every branch|mock I/O|CLI argv-failure. Detail: `.agents/governance/TESTING-RIGOR.md`.
 
 ## Stack
 

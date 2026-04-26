@@ -139,7 +139,9 @@ jobs:
 
       - name: Run pip-audit
         run: |
-          pip-audit --ignore-vuln CVE-2026-4539  # pygments 2.19.2, no fix available
+          pip-audit \
+            --ignore-vuln CVE-2026-4539 \
+            --ignore-vuln CVE-2026-3219  # pygments 2.19.2 + pip 26.0, no fix available upstream
 
       - name: Run Bandit
         run: |

@@ -105,7 +105,7 @@ Measure block coverage with the stack's idiomatic tool, gated to the project tar
 - **C#/.NET**: `dotnet test --collect:"XPlat Code Coverage"` then enforce thresholds via `coverlet.runsettings`
 - **PowerShell**: `Invoke-Pester -CodeCoverage <files> -CodeCoverageOutputFile cov.xml` and assert min coverage on the result
 
-Exclude only language-equivalent unreachable defensive branches (Python `# pragma: no cover` on `if __name__ == "__main__":`; Go untested `default:` panic guards; etc.) with written justification. See AGENTS.md Testing Rigor section.
+Exclude only language-equivalent unreachable defensive branches (Python `# pragma: no cover` on `if __name__ == "__main__":`; Go untested `default:` panic guards; etc.) with written justification. See `.agents/governance/TESTING-RIGOR.md` for the canonical pattern checklist.
 
 **Programming by Intention**: Sergeant methods direct workflow via private methods. Single purpose, clear names, separation of concerns.
 
