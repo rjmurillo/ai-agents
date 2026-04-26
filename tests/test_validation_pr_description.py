@@ -612,6 +612,36 @@ class TestStripInformationalSections:
         assert "packages/orders/processor.py" in result
         assert "packages/orders/queue.py" in result
 
+    def test_strips_renovate_details_block_with_attributes(self) -> None:
+        # PR #1783 review: bots may emit `<details open>` or
+        # `<summary class="...">`; attribute-bearing tags must still match.
+        text = (
+            "before\n"
+            '<details open id="x">\n'
+            '<summary class="bot">chore(deps): bump foo</summary>\n'
+            "body\n"
+            "</details>\n"
+            "after"
+        )
+        result = _strip_informational_sections(text)
+        assert "body" not in result
+        assert "before" in result
+        assert "after" in result
+
+    def test_preserves_human_summary_mentioning_renovate(self) -> None:
+        # PR #1783 review: a human summary that merely mentions a bot
+        # keyword (e.g. "Renovate migration") must NOT be stripped. The
+        # _BOT_DETAILS_SUMMARY_PATTERN is anchored to summary start so
+        # only true bot summaries match.
+        text = (
+            "<details>\n"
+            "<summary>Files changed for Renovate migration</summary>\n\n"
+            "- `packages/orders/queue.py`\n\n"
+            "</details>"
+        )
+        result = _strip_informational_sections(text)
+        assert "packages/orders/queue.py" in result
+
     def test_strips_detected_package_files_section(self) -> None:
         text = (
             "Intro\n\n"

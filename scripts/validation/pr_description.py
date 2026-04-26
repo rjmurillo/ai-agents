@@ -87,8 +87,14 @@ FILE_MENTION_PATTERNS: list[re.Pattern[str]] = [
 # and stripped before file extraction. Otherwise the block is preserved so
 # human-authored file claims (e.g. "<summary>Files changed</summary>")
 # survive into validation.
+#
+# Patterns are anchored to the start of the summary (after optional
+# whitespace) so a human summary like
+# ``<summary>Files changed for Renovate migration</summary>`` is preserved.
+# Without the anchor, mid-string `renovate` or `dependabot` would strip
+# legitimate human summaries that happen to mention those words.
 _BOT_DETAILS_SUMMARY_PATTERN: re.Pattern[str] = re.compile(
-    r"chore\(deps\)|fix\(deps\)|renovate|dependabot|^\s*bump\s",
+    r"^\s*(?:chore\(deps\)|fix\(deps\)|renovate\b|dependabot\b|bump\s)",
     re.IGNORECASE,
 )
 
@@ -203,7 +209,7 @@ def _strip_bot_details_blocks(text: str) -> str:
     def _replace(match: re.Match[str]) -> str:
         block = match.group(0)
         summary_match = re.search(
-            r"<summary>(.*?)</summary>",
+            r"<summary\b[^>]*>(.*?)</summary\s*>",
             block,
             flags=re.DOTALL | re.IGNORECASE,
         )
@@ -214,7 +220,7 @@ def _strip_bot_details_blocks(text: str) -> str:
         return block
 
     return re.sub(
-        r"<details>.*?</details>",
+        r"<details\b[^>]*>.*?</details\s*>",
         _replace,
         text,
         flags=re.DOTALL | re.IGNORECASE,
