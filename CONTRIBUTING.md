@@ -763,10 +763,11 @@ The validator strips these sections before extracting file mentions, so any inli
 
 For PRs where the contextual section allowlist does not fit (e.g. inline pattern reference inside `## Summary`), apply the `description-validation-bypass` label.
 
-1. A human maintainer MUST add the `description-validation-bypass` label
+1. A human maintainer MUST add the `description-validation-bypass` label (case-insensitive match)
 2. The validator still runs and prints all issues for visibility, but exits 0
 3. The bypass is visible in the PR labels and auditable
-4. Use this sparingly; prefer rewriting the description to use a contextual section
+4. When run in CI, the bypass also appends a structured record to `GITHUB_STEP_SUMMARY` (marker: `<!-- DESCRIPTION-VALIDATION-BYPASS -->`) so audit tooling can count usage without parsing logs
+5. Use this sparingly; prefer rewriting the description to use a contextual section
 
 ### Spec Reference Best Practices
 
