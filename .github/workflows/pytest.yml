@@ -139,7 +139,17 @@ jobs:
 
       - name: Run pip-audit
         run: |
-          pip-audit --ignore-vuln CVE-2026-4539  # pygments 2.19.2, no fix available
+          # Ignored CVEs (re-evaluate when upstream releases a fix):
+          #   CVE-2026-4539: pygments 2.19.2, no fix available.
+          #   CVE-2026-3219: pip 26.0/26.0.1 mishandles concatenated tar/ZIP
+          #     archives (CWE-434, CVSS 4.6, local + user interaction).
+          #     Fix is merged on pip main (PR pypa/pip#13870), pending pip 26.1
+          #     release. CI installs trusted deps from PyPI via uv lockfile, so
+          #     the local-only attack surface does not apply. Remove this ignore
+          #     once pip 26.1 ships.
+          pip-audit \
+            --ignore-vuln CVE-2026-4539 \
+            --ignore-vuln CVE-2026-3219
 
       - name: Run Bandit
         run: |

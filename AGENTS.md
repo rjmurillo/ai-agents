@@ -8,7 +8,7 @@ Cross-platform agent instructions for Claude Code, Copilot CLI, Cortex, Factory 
 
 ## Retrieval-Led Reasoning
 
-Read first, reason second. Pre-training is last resort.
+Read first, reason second. Pre-training last resort.
 
 |APIs: Context7, DeepWiki, WebSearch
 |Constraints: `.agents/governance/PROJECT-CONSTRAINTS.md`
@@ -21,7 +21,7 @@ Read first, reason second. Pre-training is last resort.
 
 **Start**: Init Serena|Read HANDOFF.md|Create session log|Search memories|Verify git
 **Mid**: Display `Commit X/20 (ADR-008)`|Warn at 15+
-**Pre-PR**: `Validate-PRReadiness.ps1`|No BLOCKING verdicts|Security scan
+**Pre-PR**: `Validate-PRReadiness.ps1`|No BLOCKING|Security scan
 **End**: Complete log|Preserve HANDOFF.md|Update Serena|Lint|Commit|Validate JSON
 
 ## Boundaries
@@ -32,7 +32,7 @@ Read first, reason second. Pre-training is last resort.
 
 ## Context Type Decision
 
-Knowledge goes in passive context (@imported docs). Actions stay as skills. Passive context eliminates decision points. See `.agents/analysis/vercel-passive-context-vs-skills-research.md`.
+Knowledge → passive context (@imported docs). Actions → skills. Passive context kills decision points. See `.agents/analysis/vercel-passive-context-vs-skills-research.md`.
 
 |Passive context: reference knowledge every turn, content outside training data, <8KB compressed
 |Skills: tool access needed, vertical workflows, user-triggered, file mutation or API calls
@@ -46,7 +46,7 @@ Knowledge goes in passive context (@imported docs). Actions stay as skills. Pass
 
 ### ADR Review (BLOCKING)
 
-Any `.agents/architecture/ADR-*.md` or `.agents/SESSION-PROTOCOL.md` create/edit triggers mandatory adr-review skill.
+Any `ADR-*.md` or `SESSION-PROTOCOL.md` create/edit fires adr-review skill.
 
 ## Agents
 
@@ -61,6 +61,7 @@ Commits: `<type>(<scope>): <desc>` + `Co-Authored-By:`
 Exit codes: 0=ok|1=logic|2=config|3=external|4=auth
 Coverage: 100% security|80% business|60% docs
 Tests: `tests/`|`.claude/skills/<name>/tests/`|`.agents/security/benchmarks/`
+Tests (BLOCKING): pos+neg+edge|every branch|mock I/O|CLI argv exits. See `.agents/governance/TESTING-RIGOR.md`.
 
 ## Stack
 
