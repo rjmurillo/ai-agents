@@ -22,8 +22,11 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 # Cross-platform file locking
-# On Windows, msvcrt.locking operates on bytes at the current file position,
-# so we must save/restore position around lock/unlock operations.
+# Windows: msvcrt.locking is byte-position-aware and only locks 1 byte at the
+# CURRENT file position. For files opened in append mode, each process has its
+# own EOF, so locking "at the current position" locks DIFFERENT bytes per
+# process and provides no mutual exclusion. Always lock byte 0 (a fixed point
+# all processes can contend for), then restore the original write position.
 _win_lock_positions: dict[int, int] = {}
 
 if sys.platform == "win32":
@@ -32,14 +35,20 @@ if sys.platform == "win32":
     def _lock_file(f):
         fd = f.fileno()
         _win_lock_positions[fd] = f.tell()
-        f.seek(_win_lock_positions[fd])
+        f.seek(0)
         msvcrt.locking(fd, msvcrt.LK_LOCK, 1)
+        # Restore to original (append-EOF) position so f.write goes to the right place.
+        pos = _win_lock_positions.get(fd, 0)
+        f.seek(pos)
 
     def _unlock_file(f):
         fd = f.fileno()
-        pos = _win_lock_positions.pop(fd, 0)
-        f.seek(pos)
+        write_pos = f.tell()
+        f.seek(0)
         msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+        # Drop the stored lock-time position; restore the post-write position.
+        _win_lock_positions.pop(fd, None)
+        f.seek(write_pos)
 else:
     import fcntl
 
