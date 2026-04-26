@@ -623,8 +623,7 @@ The agent MUST update documentation before ending.
    - Decisions made with rationale
    - Challenges encountered and resolutions
    - Link reference for next session handoff
-   - Capture content per **Session Capture Protocol** (see [`.serena/memories/session/session-capture-protocol.md`](../.serena/memories/session/session-capture-protocol.md)): record behavioral signal (decisions, blockers, state changes, open questions, next steps); skip noise (tool invocations, routine reads, background research that did not change the plan)
-   - See `wiki/concepts/Session Capture Protocol.md` for the behavioral vs background distinction and example session log entries
+   - Capture content per the [Session Capture Protocol](../wiki/concepts/Session%20Capture%20Protocol.md) (also available via `mcp__serena__read_memory` for the `session/session-capture-protocol` memory): record behavioral signal (decisions, blockers, state changes, open questions, next steps); skip noise (tool invocations, routine reads, background research that did not change the plan)
 3. The agent SHOULD update PROJECT-PLAN.md if tasks were completed
 4. The agent MAY read `.agents/HANDOFF.md` for historical context (read-only reference)
 

@@ -156,14 +156,6 @@ Your output is not "analyst said X, architect said Y." It is "based on investiga
 
 If session-end fails or any MUST item is incomplete, do **not** close the session. Surface the specific failure reason in the session log and continue working to resolve it. If unresolvable, document the blocker and call `work_finish(blocked, "Session-end protocol failure: [specific error]")`.
 
-### Session Capture Protocol
-
-Capture behavioral signal, not background noise. Record decisions made (architecture choices, approach pivots), blockers hit (what stopped progress, workarounds tried), state changes (files modified, branches created, issues filed), open questions (unresolved ambiguities), and next steps (concrete continuation plan). Skip tool invocations, background research that didn't change the plan, and routine operations.
-
-**Decision rule**: If removing this entry would leave the next session unable to reproduce a decision or continue the work, keep it. Otherwise, skip it.
-
-See `wiki/concepts/Session Capture Protocol.md` for the full protocol, behavioral vs background distinction, and example session log entries.
-
 When drift or context loss is detected at session start or mid-session, run the Anti-Drift Protocol below before resuming routing.
 
 ## Anti-Drift Protocol
@@ -192,6 +184,8 @@ Re-read the TODO list and plan after any of these events, not on a fixed cadence
 If the TODO list no longer matches the plan, update the plan first, then the TODO list, then act.
 
 ### Session Capture Protocol
+
+See [Session Capture Protocol](../../wiki/concepts/Session%20Capture%20Protocol.md) for the canonical reference, including good and bad capture examples.
 
 When updating the session log at session end, capture **behavioral signal**, not background noise. The session log is for cold-start recovery, not a tool transcript.
 

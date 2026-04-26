@@ -14,9 +14,9 @@ The Session Capture Protocol defines what an orchestrator records in the session
 
 ## What to Skip
 
-- **Tool invocations** — already in transcript logs
+- **Tool invocations**: already in transcript logs
 - **Background research** that did not change the plan
-- **Routine operations** — file reads, status checks, lint runs
+- **Routine operations**: file reads, status checks, lint runs
 - **Intermediate agent responses** that were superseded by synthesis
 
 ## Decision Rule
@@ -25,7 +25,7 @@ The Session Capture Protocol defines what an orchestrator records in the session
 
 ## Example: Good vs Bad `workLog` Entries
 
-### ✅ Good Capture (behavioral signal)
+### [GOOD] Good Capture (behavioral signal)
 
 ```json
 {
@@ -33,12 +33,12 @@ The Session Capture Protocol defines what an orchestrator records in the session
     {
       "action": "Decided to use graph traversal over flat iteration for memory relationships",
       "result": "Memory relationships form cycles; flat iteration would miss connected memories",
-      "files": ["memory_enhancement/graph.py"]
+      "files": ["scripts/memory_enhancement/graph.py"]
     },
     {
       "action": "Hit blocker: existing schema lacks 'importance' field",
       "result": "Added optional 'importance' to schema with backward-compatible migration path",
-      "files": ["memory_enhancement/schema.py", ".agents/schemas/memory.schema.json"]
+      "files": ["scripts/memory_enhancement/models.py", ".agents/schemas/session-log.schema.json"]
     }
   ],
   "nextSteps": [
@@ -48,13 +48,13 @@ The Session Capture Protocol defines what an orchestrator records in the session
 }
 ```
 
-### ❌ Bad Capture (background noise)
+### [BAD] Bad Capture (background noise)
 
 ```json
 {
   "workLog": [
     {
-      "action": "Read file memory_enhancement/graph.py",
+      "action": "Read file scripts/memory_enhancement/graph.py",
       "result": "File contents loaded"
     },
     {
@@ -66,7 +66,7 @@ The Session Capture Protocol defines what an orchestrator records in the session
 }
 ```
 
-### ❌ Worst Case (empty)
+### [BAD] Worst Case (empty)
 
 ```json
 {
@@ -79,5 +79,5 @@ Sessions ending with empty `workLog` have failed to capture behavioral context. 
 
 ## Cross-References
 
-- [Session Gate (Blocking)](../../templates/agents/orchestrator.shared.md) — orchestrator checklist that triggers this protocol
-- [SESSION-PROTOCOL.md Phase 1: Documentation Update](../../.agents/SESSION-PROTOCOL.md) — canonical session end requirements
+- [Session Gate (Blocking)](../../templates/agents/orchestrator.shared.md): orchestrator checklist that triggers this protocol
+- [SESSION-PROTOCOL.md Phase 1: Documentation Update](../../.agents/SESSION-PROTOCOL.md): canonical session end requirements
