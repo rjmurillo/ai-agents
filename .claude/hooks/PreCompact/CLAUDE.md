@@ -22,6 +22,7 @@ seamless session resumption after context is compressed.
 ### Output (stdout)
 
 A single-line resume context string, e.g.:
-```
+
+```text
 Compaction occurred at 14:32:15. Branch: feature/1703-hooks. Session: 2026-04-20-session-01.json. Open items: 3
 ```
