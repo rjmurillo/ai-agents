@@ -68,8 +68,11 @@ def get_current_branch(project_dir: Path | None = None) -> str:
         )
         if result.returncode == 0:
             return result.stdout.strip()
-    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
-        pass
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError) as e:
+        print(
+            f"[hook-error] invoke_compact_checkpoint get_current_branch: {type(e).__name__}: {e}",
+            file=sys.stderr,
+        )
     return "unknown"
 
 
@@ -94,22 +97,31 @@ def _coerce_to_list(value) -> list:
 
 
 def get_session_info(project_dir: Path) -> dict:
-    """Get current session log info."""
+    """Get current session log info.
+
+    Checks both today's and yesterday's session files (UTC) to handle sessions
+    that span midnight.
+    """
+    from datetime import timedelta
+
     sessions_dir = project_dir / ".agents" / "sessions"
     if not sessions_dir.is_dir():
         return {}
 
-    today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
-    session_files = sorted(
-        sessions_dir.glob(f"{today}-session-*.json"),
-        key=lambda f: f.stat().st_mtime,
-        reverse=True,
-    )
+    now = datetime.now(tz=UTC)
+    today = now.strftime("%Y-%m-%d")
+    yesterday = (now - timedelta(days=1)).strftime("%Y-%m-%d")
 
-    if not session_files:
+    # Collect session files from today and yesterday to handle cross-midnight sessions
+    candidates = []
+    for date_prefix in (today, yesterday):
+        candidates.extend(sessions_dir.glob(f"{date_prefix}-session-*.json"))
+
+    if not candidates:
         return {}
 
-    session_file = session_files[0]
+    # Return the most recently modified
+    session_file = max(candidates, key=lambda f: f.stat().st_mtime)
     try:
         data = json.loads(session_file.read_text(encoding="utf-8"))
         if not isinstance(data, dict):
@@ -134,7 +146,11 @@ def get_session_info(project_dir: Path) -> dict:
                 for item in work_items[:5]
             ],
         }
-    except (json.JSONDecodeError, OSError):
+    except (json.JSONDecodeError, OSError) as e:
+        print(
+            f"[hook-error] invoke_compact_checkpoint get_session_info: {type(e).__name__}: {e}",
+            file=sys.stderr,
+        )
         return {"session_log": session_file.name}
 
 
