@@ -92,11 +92,22 @@ COMPLETION_SIGNALS = re.compile(
     re.IGNORECASE,
 )
 
-# Evidence patterns indicating verification was performed
+# Evidence patterns indicating a test/build command was named
 VERIFICATION_PATTERNS = re.compile(
     r"(pytest|python\s+-m\s+pytest|tsc\s+--noEmit|npm\s+test|npm\s+run\s+test|"
     r"pnpm\s+test|yarn\s+test|dotnet\s+test|go\s+test|"
     r"gh\s+pr\s+checks|Invoke-Pester|uv\s+run\s+pytest|make\s+test)",
+    re.IGNORECASE,
+)
+
+# Patterns indicating a test/build was actually executed (not merely mentioned).
+# Requires command-output-style evidence: result counts, status verbs, exit codes.
+# Without this dual-check, "I plan to run pytest" satisfies the gate.
+VERIFICATION_RESULT_PATTERNS = re.compile(
+    r"(\b\d+\s+passed\b|\b\d+\s+failed\b|\bPASSED\b|\bFAILED\b|"
+    r"\bok\s*=?\s*\d+\b|\bfailures?\s*=\s*\d+\b|"
+    r"\b(test\s+suite|test\s+run|tests?)\s+(passed|failed|complete[d]?)\b|"
+    r"\bexit(\s+code)?\s*[:=]?\s*0\b)",
     re.IGNORECASE,
 )
 
@@ -128,18 +139,27 @@ def find_session_log(project_dir: Path) -> Path | None:
 
 
 def has_verification_evidence(project_dir: Path) -> bool:
-    """Check session log for evidence of test/build runs."""
-    # Check session log
-    session_log = find_session_log(project_dir)
-    if session_log:
-        try:
-            content = session_log.read_text(encoding="utf-8")
-            if VERIFICATION_PATTERNS.search(content):
-                return True
-        except OSError:
-            pass
+    """Check session log for evidence that tests/builds were actually executed.
 
-    return False
+    Requires BOTH a known test-command name AND a result-shaped marker (exit
+    code, pass/fail count, status verb). Mention alone (e.g. "need to run
+    pytest") does not satisfy the gate.
+    """
+    session_log = find_session_log(project_dir)
+    if not session_log:
+        return False
+    try:
+        content = session_log.read_text(encoding="utf-8")
+    except OSError as e:
+        print(
+            f"[hook-error] invoke_false_completion_gate session-read: {type(e).__name__}: {e}",
+            file=sys.stderr,
+        )
+        return False
+    return bool(
+        VERIFICATION_PATTERNS.search(content)
+        and VERIFICATION_RESULT_PATTERNS.search(content)
+    )
 
 
 def write_audit_log(
@@ -186,7 +206,11 @@ def write_audit_log(
 def main() -> int:
     """Check for false completion claims without verification.
 
-    Audits every terminal decision so SRE can prove the gate ran.
+    Audits every decision that involves a completion-relevant command (commit,
+    PR create/merge), plus the bypass and parse-error paths. Non-completion
+    Bash invocations return 0 silently to avoid flooding the audit log; SRE
+    can verify the gate ran on a given commit by looking for an audit entry
+    keyed by the commit's session_id/tool_use_id.
     """
     project_dir = get_project_directory()
     session_id = ""
