@@ -89,7 +89,7 @@ def write_checkpoint(project_dir: Path, file_path: str, content: str) -> None:
 
     # Locked read-modify-write to prevent race conditions
     # Use os.open with O_CREAT to atomically create if missing, then lock before any I/O
-    fd = os.open(checkpoint_file, os.O_RDWR | os.O_CREAT)
+    fd = os.open(checkpoint_file, os.O_RDWR | os.O_CREAT, 0o600)
     with os.fdopen(fd, "r+", encoding="utf-8") as f:
         if _lock_file is not None:
             _lock_file(f)
