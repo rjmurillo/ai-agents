@@ -738,6 +738,36 @@ To bypass the 20-commit block:
 2. The bypass is visible in the PR labels and auditable
 3. Use this sparingly for genuinely large, atomic changes that cannot be split
 
+### PR Description Validation
+
+The `Validate PR` workflow runs `scripts/validation/pr_description.py` to compare files mentioned in the PR description against files in the diff. Inline-code filenames (`` `path/file.py` ``) in `## Summary` and similar sections are treated as change claims; if those files are not in the diff the validator emits a `CRITICAL` issue and the workflow fails.
+
+#### Contextual Reference Sections
+
+To reference an existing file as context (a pattern source, a related spec, prior art) without it being treated as a change claim, place the mention under one of these h2 sections:
+
+- `## Test Plan`
+- `## Design Decisions`
+- `## Related`
+- `## References`
+- `## See Also`
+- `## Notes`
+- `## Background`
+- `## Inspired By`
+- `## Pattern From`
+- `## Prior Art`
+
+The validator strips these sections before extracting file mentions, so any inline-code filenames inside them are ignored.
+
+#### Bypassing Description Validation
+
+For PRs where the contextual section allowlist does not fit (e.g. inline pattern reference inside `## Summary`), apply the `description-validation-bypass` label.
+
+1. A human maintainer MUST add the `description-validation-bypass` label
+2. The validator still runs and prints all issues for visibility, but exits 0
+3. The bypass is visible in the PR labels and auditable
+4. Use this sparingly; prefer rewriting the description to use a contextual section
+
 ### Spec Reference Best Practices
 
 For traceability and AI-assisted validation:

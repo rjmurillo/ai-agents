@@ -230,6 +230,114 @@ class TestExtractMentionedFiles:
         assert "skill.md" in result
         assert ".claude/skills/CLAUDE.md" not in result
 
+    def test_design_decisions_section_ignored(self) -> None:
+        """Issue #1780 repro: PR #1724 'Design Decisions' references a sibling
+        file as a pattern source. The validator must not treat that as a
+        change claim."""
+        desc = (
+            "## Summary\n"
+            "Adds five new lifecycle hooks.\n\n"
+            "## Design Decisions\n"
+            "- **Existing patterns** - follows same structure as "
+            "`invoke_skill_learning.py`\n"
+            "- **Python-first** (ADR-042)\n"
+        )
+        result = extract_mentioned_files(desc)
+        assert "invoke_skill_learning.py" not in result
+
+    def test_related_section_ignored(self) -> None:
+        desc = (
+            "## Summary\n"
+            "Refactor of `scripts/foo.py`.\n\n"
+            "## Related\n"
+            "- See `scripts/legacy.py` for the prior approach\n"
+            "- ADR-008\n"
+        )
+        result = extract_mentioned_files(desc)
+        assert "scripts/foo.py" in result
+        assert "scripts/legacy.py" not in result
+
+    def test_references_section_ignored(self) -> None:
+        desc = (
+            "## Summary\nChanged `a.py`.\n\n"
+            "## References\n- `b.py` documents the spec\n"
+        )
+        result = extract_mentioned_files(desc)
+        assert "a.py" in result
+        assert "b.py" not in result
+
+    def test_see_also_section_ignored(self) -> None:
+        desc = (
+            "## Summary\nChanged `a.py`.\n\n"
+            "## See Also\n- `b.py`\n"
+        )
+        result = extract_mentioned_files(desc)
+        assert "b.py" not in result
+
+    def test_notes_section_ignored(self) -> None:
+        desc = (
+            "## Summary\nChanged `a.py`.\n\n"
+            "## Notes\nInspired by approach in `b.py`.\n"
+        )
+        result = extract_mentioned_files(desc)
+        assert "b.py" not in result
+
+    def test_background_section_ignored(self) -> None:
+        desc = (
+            "## Summary\nChanged `a.py`.\n\n"
+            "## Background\nBuilds on work in `b.py`.\n"
+        )
+        result = extract_mentioned_files(desc)
+        assert "b.py" not in result
+
+    def test_inspired_by_section_ignored(self) -> None:
+        desc = (
+            "## Summary\nChanged `a.py`.\n\n"
+            "## Inspired By\n- `b.py`\n"
+        )
+        result = extract_mentioned_files(desc)
+        assert "b.py" not in result
+
+    def test_pattern_from_section_ignored(self) -> None:
+        desc = (
+            "## Summary\nChanged `a.py`.\n\n"
+            "## Pattern From\n- `b.py`\n"
+        )
+        result = extract_mentioned_files(desc)
+        assert "b.py" not in result
+
+    def test_contextual_section_case_insensitive(self) -> None:
+        desc = (
+            "## Summary\nChanged `a.py`.\n\n"
+            "## DESIGN DECISIONS\n- See `b.py`\n"
+        )
+        result = extract_mentioned_files(desc)
+        assert "b.py" not in result
+
+    def test_contextual_section_terminates_at_next_h2(self) -> None:
+        """Stripping must stop at the next `##` heading so files mentioned in
+        a later section (e.g. ## Changes) are still extracted."""
+        desc = (
+            "## Design Decisions\n"
+            "- See `pattern.py`\n\n"
+            "## Changes\n"
+            "- `real_change.py`: the actual edit\n"
+        )
+        result = extract_mentioned_files(desc)
+        assert "pattern.py" not in result
+        assert "real_change.py" in result
+
+    def test_h3_design_decisions_not_stripped(self) -> None:
+        """Only `##` (h2) sections strip. `### Design Decisions` stays so we
+        do not silently swallow file claims under nested headings."""
+        desc = (
+            "## Summary\n"
+            "### Design Decisions\n"
+            "- Modified `kept.py`\n"
+        )
+        result = extract_mentioned_files(desc)
+        assert "kept.py" in result
+
 
 # ---------------------------------------------------------------------------
 # _strip_informational_sections
@@ -285,19 +393,40 @@ class TestStripInformationalSections:
         assert ".claude/skills/CLAUDE.md" not in result
         assert "foo.py" in result
 
+    def test_strips_design_decisions_section(self) -> None:
+        text = (
+            "## Summary\nChanged `foo.py`.\n\n"
+            "## Design Decisions\n- follows `pattern.py`\n"
+        )
+        result = _strip_informational_sections(text)
+        assert "pattern.py" not in result
+        assert "foo.py" in result
+
+    def test_strips_related_section(self) -> None:
+        text = (
+            "## Summary\nChanged `foo.py`.\n\n"
+            "## Related\n- `prior.py`\n"
+        )
+        result = _strip_informational_sections(text)
+        assert "prior.py" not in result
+        assert "foo.py" in result
+
     def test_strips_test_plan_with_next_heading(self) -> None:
+        """Test plan strip terminates at the next h2 heading. Uses `## Changes`
+        (not `## Notes`, which is now in the contextual allowlist) as the
+        terminating heading."""
         text = (
             "## Summary\n"
             "Changed `foo.py`.\n\n"
             "## Test Plan\n"
             "- Check `conventions.md` compliance\n\n"
-            "## Notes\n"
-            "Some notes here."
+            "## Changes\n"
+            "- Updated `bar.py`."
         )
         result = _strip_informational_sections(text)
         assert "conventions.md" not in result
         assert "foo.py" in result
-        assert "Some notes here" in result
+        assert "bar.py" in result
 
     def test_preserves_non_informational_content(self) -> None:
         text = "Changed `scripts/foo.py` and **bar.yml**"
@@ -480,6 +609,17 @@ class TestFetchPRData:
         assert data["title"] == "Test"
 
     @patch("scripts.validation.pr_description.subprocess.run")
+    def test_requests_labels_field(self, mock_run: MagicMock) -> None:
+        """Bypass-label support requires labels in the gh JSON request."""
+        mock_run.return_value = MagicMock(
+            returncode=0, stdout=json.dumps({"title": "T", "files": []})
+        )
+        fetch_pr_data(1, "owner", "repo")
+        args = mock_run.call_args[0][0]
+        json_idx = args.index("--json")
+        assert "labels" in args[json_idx + 1].split(",")
+
+    @patch("scripts.validation.pr_description.subprocess.run")
     def test_nonzero_exit_raises(self, mock_run: MagicMock) -> None:
         mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="err")
         with pytest.raises(RuntimeError, match="Failed to fetch"):
@@ -590,6 +730,108 @@ class TestMain:
             "title": "T",
             "body": None,
             "files": [{"path": "foo.py"}],
+        }
+        code = main(["--pr-number", "1"])
+        assert code == 0
+
+
+# ---------------------------------------------------------------------------
+# Bypass label
+# ---------------------------------------------------------------------------
+
+
+class TestBypassLabel:
+    @patch("scripts.validation.pr_description.fetch_pr_data")
+    @patch("scripts.validation.pr_description.get_repo_info")
+    def test_bypass_label_present_returns_zero_on_critical(
+        self, mock_repo: MagicMock, mock_fetch: MagicMock,
+    ) -> None:
+        """CRITICAL + bypass label → exit 0 in CI mode."""
+        mock_repo.return_value = RepoInfo(owner="o", repo="r")
+        mock_fetch.return_value = {
+            "title": "T",
+            "body": "Changed `ghost.py`",
+            "files": [{"path": "real.py"}],
+            "labels": [{"name": "description-validation-bypass"}],
+        }
+        code = main(["--pr-number", "1", "--ci"])
+        assert code == 0
+
+    @patch("scripts.validation.pr_description.fetch_pr_data")
+    @patch("scripts.validation.pr_description.get_repo_info")
+    def test_bypass_label_absent_still_blocks_critical(
+        self, mock_repo: MagicMock, mock_fetch: MagicMock,
+    ) -> None:
+        mock_repo.return_value = RepoInfo(owner="o", repo="r")
+        mock_fetch.return_value = {
+            "title": "T",
+            "body": "Changed `ghost.py`",
+            "files": [{"path": "real.py"}],
+            "labels": [{"name": "some-other-label"}],
+        }
+        code = main(["--pr-number", "1", "--ci"])
+        assert code == 1
+
+    @patch("scripts.validation.pr_description.fetch_pr_data")
+    @patch("scripts.validation.pr_description.get_repo_info")
+    def test_custom_bypass_label_honored(
+        self, mock_repo: MagicMock, mock_fetch: MagicMock,
+    ) -> None:
+        mock_repo.return_value = RepoInfo(owner="o", repo="r")
+        mock_fetch.return_value = {
+            "title": "T",
+            "body": "Changed `ghost.py`",
+            "files": [{"path": "real.py"}],
+            "labels": [{"name": "skip-pr-desc"}],
+        }
+        code = main(["--pr-number", "1", "--ci", "--bypass-label", "skip-pr-desc"])
+        assert code == 0
+
+    @patch("scripts.validation.pr_description.fetch_pr_data")
+    @patch("scripts.validation.pr_description.get_repo_info")
+    def test_bypass_label_does_not_affect_clean_pr(
+        self, mock_repo: MagicMock, mock_fetch: MagicMock,
+    ) -> None:
+        """When there are no CRITICAL issues, the bypass path is not taken."""
+        mock_repo.return_value = RepoInfo(owner="o", repo="r")
+        mock_fetch.return_value = {
+            "title": "T",
+            "body": "Changed `foo.py`",
+            "files": [{"path": "foo.py"}],
+            "labels": [{"name": "description-validation-bypass"}],
+        }
+        code = main(["--pr-number", "1", "--ci"])
+        assert code == 0
+
+    @patch("scripts.validation.pr_description.fetch_pr_data")
+    @patch("scripts.validation.pr_description.get_repo_info")
+    def test_missing_labels_field_does_not_crash(
+        self, mock_repo: MagicMock, mock_fetch: MagicMock,
+    ) -> None:
+        """Old gh responses without labels must still validate cleanly."""
+        mock_repo.return_value = RepoInfo(owner="o", repo="r")
+        mock_fetch.return_value = {
+            "title": "T",
+            "body": "Changed `ghost.py`",
+            "files": [{"path": "real.py"}],
+        }
+        code = main(["--pr-number", "1", "--ci"])
+        assert code == 1
+
+    @patch("scripts.validation.pr_description.fetch_pr_data")
+    @patch("scripts.validation.pr_description.get_repo_info")
+    def test_bypass_label_ignored_outside_ci(
+        self, mock_repo: MagicMock, mock_fetch: MagicMock,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Without --ci, CRITICAL never blocks regardless of label state."""
+        monkeypatch.delenv("CI", raising=False)
+        mock_repo.return_value = RepoInfo(owner="o", repo="r")
+        mock_fetch.return_value = {
+            "title": "T",
+            "body": "Changed `ghost.py`",
+            "files": [{"path": "real.py"}],
+            "labels": [],
         }
         code = main(["--pr-number", "1"])
         assert code == 0

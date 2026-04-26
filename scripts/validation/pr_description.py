@@ -42,6 +42,26 @@ SIGNIFICANT_DIRS_PATTERN: re.Pattern[str] = re.compile(
 # File extension pattern for extracting file references from description
 _EXT_GROUP = r"ps1|md|yml|yaml|json|cs|ts|js|py|sh|bash"
 
+# Default label name that bypasses CRITICAL description-validation failures.
+# Mirrors the existing 'commit-limit-bypass' pattern in pr-validation.yml.
+DEFAULT_BYPASS_LABEL = "description-validation-bypass"
+
+# Section names whose file mentions are contextual references, not change
+# claims. Matches `## Heading` (h2) at the start of a line, case-insensitive.
+# Each entry is a regex fragment for the heading text only.
+_CONTEXTUAL_SECTION_NAMES: tuple[str, ...] = (
+    r"Test\s*Plan",
+    r"Design\s*Decisions?",
+    r"Related",
+    r"References?",
+    r"See\s*Also",
+    r"Notes?",
+    r"Background",
+    r"Inspired\s*By",
+    r"Pattern\s*From",
+    r"Prior\s*Art",
+)
+
 # Patterns to extract file paths from PR description text
 # List item pattern accepts both unwrapped paths (`- path/file.ext`) and
 # backtick-wrapped paths (`- \`path/file.ext\`: description`). The autonomous
@@ -100,7 +120,7 @@ def get_repo_info() -> RepoInfo:
 def fetch_pr_data(
     pr_number: int, owner: str, repo: str
 ) -> dict[str, Any]:
-    """Fetch PR data (title, body, files) via gh CLI.
+    """Fetch PR data (title, body, files, labels) via gh CLI.
 
     Returns parsed JSON dict. Raises RuntimeError on failure.
     """
@@ -108,7 +128,7 @@ def fetch_pr_data(
         result = subprocess.run(
             [
                 "gh", "pr", "view", str(pr_number),
-                "--json", "title,body,files",
+                "--json", "title,body,files,labels",
                 "--repo", f"{owner}/{repo}",
             ],
             capture_output=True,
@@ -168,13 +188,18 @@ def _strip_informational_sections(description: str) -> str:
         text,
         flags=re.DOTALL | re.MULTILINE,
     )
-    # Strip "Test plan" sections. Files mentioned there are validation targets,
-    # not claims that those files were changed.
+    # Strip contextual h2 sections (Test Plan, Design Decisions, Related,
+    # References, See Also, Notes, Background, Inspired By, Pattern From,
+    # Prior Art). Files mentioned in these sections are references or
+    # validation targets, not claims that those files were modified by the PR.
+    contextual_pattern = (
+        r"^##\s*(?:" + "|".join(_CONTEXTUAL_SECTION_NAMES) + r")\b.*?(?=^##|\Z)"
+    )
     text = re.sub(
-        r"##\s*Test\s*[Pp]lan.*?(?=^##|\Z)",
+        contextual_pattern,
         "",
         text,
-        flags=re.DOTALL | re.MULTILINE,
+        flags=re.DOTALL | re.MULTILINE | re.IGNORECASE,
     )
     return text
 
@@ -333,6 +358,17 @@ def build_parser() -> argparse.ArgumentParser:
         default=os.environ.get("CI", "").lower() in ("true", "1"),
         help="CI mode: exit non-zero on CRITICAL failures (env: CI)",
     )
+    parser.add_argument(
+        "--bypass-label",
+        default=os.environ.get(
+            "DESCRIPTION_VALIDATION_BYPASS_LABEL", DEFAULT_BYPASS_LABEL
+        ),
+        help=(
+            "PR label that suppresses CRITICAL failures in CI mode "
+            f"(env: DESCRIPTION_VALIDATION_BYPASS_LABEL, "
+            f"default: {DEFAULT_BYPASS_LABEL})"
+        ),
+    )
     return parser
 
 
@@ -375,6 +411,26 @@ def main(argv: list[str] | None = None) -> int:
 
     # Validate
     issues = validate_pr_description(pr_files, mentioned_files)
+
+    # Honor the bypass label only when CI mode would otherwise fail. The label
+    # is the documented escape hatch for false-positive contextual references
+    # that the section allowlist does not cover. The issues are still printed
+    # for visibility, but the script exits 0 so the workflow's overall_status
+    # propagates as PASS.
+    pr_labels: list[str] = [
+        label.get("name", "")
+        for label in (pr_data.get("labels") or [])
+        if isinstance(label, dict)
+    ]
+    has_critical = any(i.severity == "CRITICAL" for i in issues)
+    if args.ci and has_critical and args.bypass_label in pr_labels:
+        print_results(issues, ci=False)
+        print(
+            f"\nCRITICAL issues bypassed by '{args.bypass_label}' label. "
+            "Exiting 0."
+        )
+        return 0
+
     return print_results(issues, ci=args.ci)
 
 
