@@ -195,3 +195,32 @@ def get_recent_session_log(sessions_dir: str) -> Path | None:
             stacklevel=2,
         )
         return None
+
+
+def coerce_to_list(value) -> list:
+    """Normalize work/outcomes to a list, regardless of session schema shape.
+
+    Session logs in this repo have used several shapes over time:
+    - ``work: [...]`` (legacy flat list)
+    - ``work: {tasks: [...]}`` / ``{items: [...]}`` (dict wrapper)
+    - ``workLog: [...]`` (current schema)
+    - bare strings (rare)
+
+    Returns an empty list for None or unrecognized types.
+    """
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return value
+    if isinstance(value, dict):
+        for key in ("tasks", "items", "log", "entries"):
+            inner = value.get(key)
+            if isinstance(inner, list):
+                return inner
+        for v in value.values():
+            if isinstance(v, list):
+                return v
+        return [value]
+    if isinstance(value, str):
+        return [value] if value.strip() else []
+    return []

@@ -11,6 +11,7 @@ from .guards import (
     skip_if_consumer_repo,
 )
 from .utilities import (
+    coerce_to_list,
     get_project_directory,
     get_recent_session_log,
     get_today_session_log,
@@ -23,6 +24,7 @@ from .utilities import (
 )
 
 __all__ = [
+    "coerce_to_list",
     "get_project_directory",
     "get_recent_session_log",
     "get_today_session_log",
