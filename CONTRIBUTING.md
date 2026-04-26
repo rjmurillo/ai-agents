@@ -523,6 +523,24 @@ The pre-push hook runs comprehensive branch-wide validation before each push. Un
 
 Refer to `.githooks/pre-push` for the authoritative, up-to-date list of all checks.
 
+## Lifecycle Hooks (Claude Code)
+
+Claude Code runs lifecycle hooks at session boundaries. They are registered in `.claude/settings.json` and live in `.claude/hooks/`. All are non-blocking (fail-open) except `invoke_false_completion_gate` which exits 2 to block on missing test evidence. Each hook has a 5-second timeout.
+
+| Hook | File | Purpose | Bypass env var |
+|------|------|---------|----------------|
+| SessionStart | `invoke_context_loader.py` | Auto-loads HANDOFF.md + latest retrospective into context | none (fail-open) |
+| PreToolUse | `invoke_false_completion_gate.py` | Blocks `git commit`/`gh pr create` claiming "done/fixed" without test evidence in session log | `SKIP_COMPLETION_GATE=true` |
+| PostToolUse | `invoke_plan_state_sync.py` | Checkpoints plan/TODO state after Write/Edit | none (fail-open) |
+| PreCompact | `invoke_compact_checkpoint.py` | Snapshots WIP state before context compaction | none (always runs) |
+| Stop | `invoke_auto_retrospective.py` | Auto-generates session retrospective on stop | `SKIP_AUTO_RETRO=true` |
+
+**Audit trail:** Every terminal decision is logged to `.agents/.hook-state/audit-{YYYY-MM-DD}.jsonl` (UTC date) with `session_id` and `tool_use_id` correlation IDs. Use this to debug why a gate blocked or allowed.
+
+**Diagnosability:** Hook errors print to stderr (visible in the harness output) tagged `[hook-error] {hook_name} {context}: {ExceptionClass}: {message}`. A silent fail-open is a bug.
+
+Refer to `.agents/architecture/ADR-008-protocol-automation-lifecycle-hooks.md` for the design rationale.
+
 ## Session Protocol
 
 This project uses a session-based workflow for tracking work. Session logs are required for all significant work.
