@@ -21,7 +21,7 @@ All code generation, edits, and reviews must optimize for:
 
 This file is a binding engineering policy for Claude.
 
-For the broader engineering hierarchy of needs and per-quality references (cohesion, coupling, encapsulation, testability, non-redundancy), defer to `.claude/skills/golden-principles/` when a specific design decision needs more depth than this rule provides.
+For deeper design decisions, apply the same engineering qualities directly: maximize cohesion, minimize coupling, preserve encapsulation, prioritize testability, and avoid redundant knowledge.
 
 ---
 
@@ -114,7 +114,7 @@ Anti-patterns:
 
 ## Prototyping Rules
 
-1. Use prototypes to learn, not to pretend you are done.
+1. Use prototypes to learn, not as a substitute for finished work.
 2. Be explicit about what a prototype proves and what it does not.
 3. Do not let experimental shortcuts silently become production defaults.
 4. Carry forward only the lessons or code that still deserve to survive.
