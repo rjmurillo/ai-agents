@@ -183,8 +183,6 @@ If the TODO list no longer matches the plan, update the plan first, then the TOD
 
 ### Session Capture Protocol
 
-See [Session Capture Protocol](../../wiki/concepts/Session%20Capture%20Protocol.md) for the canonical reference, including good and bad capture examples.
-
 When updating the session log at session end, capture **behavioral signal**, not background noise. The session log is for cold-start recovery, not a tool transcript.
 
 **Capture (signal):**
