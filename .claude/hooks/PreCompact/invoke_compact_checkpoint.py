@@ -69,7 +69,9 @@ def get_current_branch(project_dir: Path | None = None) -> str:
             cwd=str(project_dir) if project_dir else None,
         )
         if result.returncode == 0:
-            return result.stdout.strip()
+            branch = result.stdout.strip()
+            if branch:
+                return branch
     except (subprocess.TimeoutExpired, FileNotFoundError, OSError) as e:
         print(
             f"[hook-error] invoke_compact_checkpoint get_current_branch: {type(e).__name__}: {e}",
