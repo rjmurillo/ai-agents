@@ -234,12 +234,28 @@ def main() -> int:
             write_audit_log(project_dir, "", "error_parse", f"{type(e).__name__}: {e}", session_id, tool_use_id)
         return 0  # Fail-open
 
+    # Valid JSON whose root is not an object would crash the .get() calls
+    # below and break the fail-open contract. Treat that as a parse failure.
+    if not isinstance(hook_input, dict):
+        if project_dir:
+            write_audit_log(
+                project_dir,
+                "",
+                "error_parse",
+                f"non-dict hook_input: {type(hook_input).__name__}",
+                session_id,
+                tool_use_id,
+            )
+        return 0  # Fail-open
+
     # Correlation IDs from harness
     session_id = str(hook_input.get("session_id", ""))
     tool_use_id = str(hook_input.get("tool_use_id", ""))
 
-    # Extract command from tool input
+    # Extract command from tool input (tolerate non-dict tool_input as no-op)
     tool_input = hook_input.get("tool_input", {})
+    if not isinstance(tool_input, dict):
+        return 0  # Not a tool input we recognize; preserve fail-open
     command = tool_input.get("command", "")
 
     if not command:

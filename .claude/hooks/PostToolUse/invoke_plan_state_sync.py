@@ -141,8 +141,19 @@ def main() -> int:
         print(f"[hook-error] invoke_plan_state_sync stdin: {type(e).__name__}: {e}", file=sys.stderr)
         return 0  # Fail-open
 
-    # Extract file path from tool input
+    # Valid JSON whose root is not an object would crash the .get() calls
+    # below and break the fail-open contract.
+    if not isinstance(hook_input, dict):
+        print(
+            f"[hook-error] invoke_plan_state_sync non-dict hook_input: {type(hook_input).__name__}",
+            file=sys.stderr,
+        )
+        return 0  # Fail-open
+
+    # Extract file path from tool input (tolerate non-dict tool_input)
     tool_input = hook_input.get("tool_input", {})
+    if not isinstance(tool_input, dict):
+        return 0  # Fail-open
     file_path = tool_input.get("file_path", "") or tool_input.get("path", "")
 
     if not file_path:

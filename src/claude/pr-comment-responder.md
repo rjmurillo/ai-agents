@@ -694,7 +694,9 @@ ids=$(echo "$comments" | jq -r '.Comments[].id')
 total_ids=$(echo "$comments" | jq '.Comments | length')
 
 if [ "$total_ids" -gt 0 ]; then
-  echo "$ids" | xargs -r -I{} python3 "$SCRIPTS_DIR/reactions/add_comment_reaction.py" --comment-id {} --reaction "eyes"
+  # Note: drop GNU `xargs -r`; the `total_ids -gt 0` guard above already
+  # handles the empty-input case, and `-r` is not portable to macOS/BSD xargs.
+  echo "$ids" | xargs -I{} python3 "$SCRIPTS_DIR/reactions/add_comment_reaction.py" --comment-id {} --reaction "eyes"
   if [ $? -ne 0 ]; then
     echo "[BLOCKED] One or more comment acknowledgments failed"
     exit 1

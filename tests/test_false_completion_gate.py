@@ -28,6 +28,19 @@ class TestFalseCompletionGate(unittest.TestCase):
             result = invoke_false_completion_gate.main()
             self.assertEqual(result, 0)
 
+    def test_non_dict_root_json_exits_zero(self):
+        """Valid JSON whose root is not an object must not break fail-open."""
+        with patch("sys.stdin", StringIO("[1, 2, 3]")):
+            result = invoke_false_completion_gate.main()
+            self.assertEqual(result, 0)
+
+    def test_non_dict_tool_input_exits_zero(self):
+        """tool_input that is a list/string must not break fail-open."""
+        hook_input = {"tool_input": ["not", "a", "dict"]}
+        with patch("sys.stdin", StringIO(json.dumps(hook_input))):
+            result = invoke_false_completion_gate.main()
+            self.assertEqual(result, 0)
+
     def test_non_completion_command_passes(self):
         """Regular commands should not be blocked."""
         hook_input = {"tool_input": {"command": "ls -la"}}

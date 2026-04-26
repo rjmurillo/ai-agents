@@ -28,6 +28,19 @@ class TestPlanStateSync(unittest.TestCase):
             result = invoke_plan_state_sync.main()
             self.assertEqual(result, 0)
 
+    def test_non_dict_root_json_exits_zero(self):
+        """Valid JSON whose root is not an object must not break fail-open."""
+        with patch("sys.stdin", StringIO('"just-a-string"')):
+            result = invoke_plan_state_sync.main()
+            self.assertEqual(result, 0)
+
+    def test_non_dict_tool_input_exits_zero(self):
+        """tool_input that is a list/string must not break fail-open."""
+        hook_input = {"tool_input": "not-a-dict"}
+        with patch("sys.stdin", StringIO(json.dumps(hook_input))):
+            result = invoke_plan_state_sync.main()
+            self.assertEqual(result, 0)
+
     def test_non_plan_file_passes_through(self):
         """Regular files should not trigger checkpointing."""
         hook_input = {"tool_input": {"file_path": "src/main.py"}}
