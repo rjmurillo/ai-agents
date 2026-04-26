@@ -108,6 +108,31 @@ def coerce_to_list(value) -> list:
     return _coerce_to_list_fallback(value)
 
 
+def _format_work_item(item: dict) -> str:
+    """Format a work item dict into a human-readable string.
+
+    Supports multiple session schemas:
+    - Current: {'step': N, 'action': '...', 'outcome': '...'}
+    - Legacy: {'description': '...'} or {'task': '...'}
+    """
+    # Try current schema (step/action/outcome)
+    if "action" in item:
+        parts = []
+        if "step" in item:
+            parts.append(f"Step {item['step']}:")
+        parts.append(item["action"])
+        if "outcome" in item:
+            parts.append(f"→ {item['outcome']}")
+        return " ".join(parts)
+    # Try legacy schemas
+    if "description" in item:
+        return item["description"]
+    if "task" in item:
+        return item["task"]
+    # Fallback to repr
+    return str(item)
+
+
 def _find_recent_session_fallback(sessions_dir: Path) -> Path | None:
     """Fallback session lookup when hook_utilities is unavailable."""
     from datetime import timedelta
@@ -150,7 +175,7 @@ def get_session_info(project_dir: Path) -> dict:
             return {"session_log": session_file.name}
         # Modern schema is workLog; legacy is work (sometimes a dict wrapper).
         work_raw = data.get("workLog")
-        if work_raw is None:
+        if not work_raw:
             work_raw = data.get("work", [])
         work_items = coerce_to_list(work_raw)
         return {
@@ -162,7 +187,7 @@ def get_session_info(project_dir: Path) -> dict:
             "work_items": [
                 (
                     item if isinstance(item, str)
-                    else item.get("description", str(item)) if isinstance(item, dict)
+                    else _format_work_item(item) if isinstance(item, dict)
                     else str(item)
                 )
                 for item in work_items[:5]

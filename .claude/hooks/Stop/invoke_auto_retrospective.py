@@ -135,12 +135,37 @@ def coerce_to_list(value) -> list:
     return _coerce_to_list_fallback(value)
 
 
+def _format_work_item(item: dict) -> str:
+    """Format a work item dict into a human-readable string.
+
+    Supports multiple session schemas:
+    - Current: {'step': N, 'action': '...', 'outcome': '...'}
+    - Legacy: {'description': '...'} or {'task': '...'}
+    """
+    # Try current schema (step/action/outcome)
+    if "action" in item:
+        parts = []
+        if "step" in item:
+            parts.append(f"Step {item['step']}:")
+        parts.append(item["action"])
+        if "outcome" in item:
+            parts.append(f"→ {item['outcome']}")
+        return " ".join(parts)
+    # Try legacy schemas
+    if "description" in item:
+        return item["description"]
+    if "task" in item:
+        return item["task"]
+    # Fallback to repr
+    return str(item)
+
+
 def _extract_work_outcomes(data) -> tuple[list, list]:
     """Pull work and outcomes from session data, supporting workLog and work shapes."""
     if not isinstance(data, dict):
         return [], []
     work_raw = data.get("workLog")
-    if work_raw is None:
+    if not work_raw:
         work_raw = data.get("work", [])
     outcomes_raw = data.get("outcomes", [])
     return coerce_to_list(work_raw), coerce_to_list(outcomes_raw)
@@ -193,7 +218,7 @@ def generate_retrospective(project_dir: Path, today: str) -> Path | None:
                         if isinstance(item, str):
                             session_context += f"- {item}\n"
                         elif isinstance(item, dict):
-                            session_context += f"- {item.get('description', item.get('task', str(item)))}\n"
+                            session_context += f"- {_format_work_item(item)}\n"
                 if outcomes:
                     session_context += "\n### Outcomes\n"
                     for outcome in outcomes[:10]:
