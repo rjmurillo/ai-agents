@@ -4,7 +4,7 @@
 
 ## Claude Code Specifics
 
-For non-trivial tasks, delegate to specialized agents using the Task tool:
+For non-trivial tasks, delegate to specialized agents via Task tool:
 
 - `Task(subagent_type="orchestrator")` for multi-step coordination
 - `Task(subagent_type="Explore")` for codebase exploration
@@ -19,7 +19,7 @@ For non-trivial tasks, delegate to specialized agents using the Task tool:
 
 ### Default Behavior
 
-For any non-trivial task: `Task(subagent_type="orchestrator", prompt="...")`
+For non-trivial tasks: `Task(subagent_type="orchestrator", prompt="...")`
 
 ## Memory Interface Decision Matrix
 
@@ -30,21 +30,17 @@ For any non-trivial task: `Task(subagent_type="orchestrator", prompt="...")`
 | Script automation | `Search-Memory.ps1` | PowerShell, testable, structured output |
 | Direct MCP (last resort) | `mcp__serena__read_memory` | Full control when abstractions fail |
 
-Start with the cheapest option. Escalate only when the cheaper option lacks capability.
+Start with cheapest option. Escalate only when cheaper option lacks capability.
 
 ## Path-scoped instructions
 
-Before editing any file, read matching rules in `.agents/instructions/*.instructions.md`.
+Before editing any file, read matching rules in `.claude/rules/*.md`. Each file's `applyTo` frontmatter targets a path glob. Universal rules live in `.claude/rules/universal.md`.
 
-Each file has YAML frontmatter with an `applyTo` glob. Match the glob against the file you are about to edit. Universal rules live in `.agents/instructions/universal.instructions.md` (`applyTo: "**"`) and apply to every change.
-
-Why this matters: governance, security, templates, and CI scripts have different approval gates and downstream effects. Path-scoped instructions consolidate these rules so the relevant ones load only when needed. See `.agents/instructions/README.md` for the full index and authoring rules.
+Planned build extension ships Copilot-compatible copies to `.github/instructions/` from same source.
 
 ## Skill routing
 
-When the user's request matches an available skill, ALWAYS invoke it using the Skill
-tool as your FIRST action. Do NOT answer directly, do NOT use other tools first.
-The skill has specialized workflows that produce better results than ad-hoc answers.
+If user request matches available skill, ALWAYS invoke via Skill tool as FIRST action. Do not answer directly, do not use other tools first. Skills have specialized workflows that beat ad-hoc answers.
 
 Key routing rules:
 - Bugs, errors, "why is this broken" → invoke analyze skill
@@ -56,7 +52,7 @@ Key routing rules:
 
 ## Lifecycle commands
 
-For development lifecycle phases, use these slash commands (not skills):
+Dev lifecycle phases, use slash commands (not skills):
 - Define requirements, "what should we build" → /spec
 - Plan work, break down tasks, estimate → /plan
 - Implement, code, build features → /build
