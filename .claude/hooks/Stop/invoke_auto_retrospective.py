@@ -15,6 +15,7 @@ Related:
 - ADR-008 (protocol automation lifecycle hooks)
 """
 
+import fcntl
 import json
 import os
 import sys
@@ -165,10 +166,14 @@ def update_retro_index(project_dir: Path, today: str, filename: str) -> None:
     if not index_path.exists():
         index_path.write_text(header + "\n", encoding="utf-8")
 
-    # Append new row
+    # Append new row (advisory lock to prevent interleaved writes from parallel sessions)
     row = f"| {today} | {filename} | Auto-generated session retro |"
     with open(index_path, "a", encoding="utf-8") as f:
-        f.write(row + "\n")
+        fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+        try:
+            f.write(row + "\n")
+        finally:
+            fcntl.flock(f.fileno(), fcntl.LOCK_UN)
 
 
 def main() -> int:
@@ -184,8 +189,8 @@ def main() -> int:
     # Read stdin (consume it)
     try:
         sys.stdin.read()
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"[hook-error] invoke_auto_retrospective stdin: {type(e).__name__}: {e}", file=sys.stderr)
 
     project_dir = get_project_directory()
     if not project_dir:
