@@ -97,7 +97,7 @@ Bottom-up. Design emerges from qualities, not from pattern selection.
 - [ ] every conditional branch exercised
 - [ ] external dependencies mocked or stubbed (no live API/subprocess/DB in unit tests)
 
-Measure block coverage with the stack's idiomatic tool, gated to the project target (100% for security-critical, 80% for business, 60% for docs/glue). Examples per stack — adapt to the language at hand:
+Measure block coverage with the stack's idiomatic tool, gated to the project target (100% for security-critical, 80% for business, 60% for docs/glue). Examples per stack (adapt to the language at hand):
 
 - **Python**: `coverage run --source=<dir> -m pytest && coverage report -m --fail-under=<target>`
 - **Go**: `go test -cover -coverprofile=cover.out ./...` then `go tool cover -func=cover.out` and gate via `--coverpkg` thresholds in CI

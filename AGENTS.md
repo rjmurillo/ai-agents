@@ -61,35 +61,7 @@ Commits: `<type>(<scope>): <desc>` + `Co-Authored-By:`
 Exit codes: 0=ok|1=logic|2=config|3=external|4=auth
 Coverage: 100% security|80% business|60% docs
 Tests: `tests/`|`.claude/skills/<name>/tests/`|`.agents/security/benchmarks/`
-
-## Testing Rigor (BLOCKING for code changes)
-
-**Every new function MUST have positive AND negative tests.** Happy path alone insufficient. No ship "change works" with only success-case tests; bots catch what tests missed (whitespace, type validation, error paths, conditional branches).
-
-|Cases: pos (valid input → expected output) + neg (invalid → idiomatic error) + edge (whitespace, empty, null/None, type-mismatch)
-|Error paths: every `raise`/`throw`/error-return branch exercised
-|Conditional output: every if/else branch in user-facing strings exercised
-|External I/O: mock subprocess, API calls, file reads (no live deps in unit tests)
-|CLI: test argv-failure exits, exit codes, stdout vs --output
-
-**Pattern checklist** (per function):
-
-- [ ] pos test for happy path
-- [ ] neg test asserts language's idiomatic error on bad input
-- [ ] edge tests: whitespace, empty, null/None, wrong type
-- [ ] every error-emitting branch exercised
-- [ ] every conditional branch exercised
-- [ ] external deps mocked
-
-**Verify before commit** with stack's coverage tool, gated to project target. Examples (use right one for file changed):
-
-- **Python**: `python3 -m coverage run --source=<dir> -m pytest && python3 -m coverage report -m --include='<file>' --fail-under=<target>`
-- **PowerShell**: `Invoke-Pester -CodeCoverage <files> -CodeCoverageOutputFile cov.xml` then assert `(Import-Clixml cov.xml).CoveragePercent -ge <target>`
-- **Node/TS**: `c8 --100 npm test` or `jest --coverage --coverageThreshold`
-- **Go**: `go test -cover -coverprofile=cov.out ./... && go tool cover -func=cov.out`
-- **C#/.NET**: `dotnet test --collect:"XPlat Code Coverage"` with `coverlet.runsettings` thresholds
-
-100% block coverage on changed files. Exclude only language-equivalent unreachable defensive branches (Python `# pragma: no cover`, Go `default:` panic guards, etc.) with written justification.
+Test rigor (BLOCKING): pos+neg+edge|every branch|mock I/O|CLI argv-failure. Detail: `.agents/governance/TESTING-ANTI-PATTERNS.md`.
 
 ## Stack
 
