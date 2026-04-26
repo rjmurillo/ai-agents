@@ -176,13 +176,29 @@ def _strip_informational_sections(description: str) -> str:
     contextual-section regex to over-strip across the real document
     structure.
     """
-    # Mask fenced code blocks (```...```) so headings or filenames inside
-    # samples do not interact with the contextual-section regex below. Without
-    # this, an AI-generated description containing `## Design Decisions`
-    # inside a markdown sample would over-strip everything up to the next
-    # real `^##` heading, exposing a phantom `## Changes` block from inside
-    # the fence as an apparent change claim.
+    # Mask fenced code blocks so headings or filenames inside samples do not
+    # interact with the contextual-section regex below. Without this, an
+    # AI-generated description containing `## Design Decisions` inside a
+    # markdown sample would over-strip across real document structure and
+    # either expose phantom file claims from inside the fence or silently
+    # consume real change claims that follow it.
+    #
+    # Three fence styles are masked:
+    #   1. Triple backticks (```...```)            - GitHub-flavored Markdown
+    #   2. Triple tildes   (~~~...~~~)             - CommonMark alternative
+    #   3. HTML <pre>...</pre>                     - PR templates copy raw HTML
+    #
+    # NOTE: 4-space-indented code blocks are NOT masked. They are
+    # indistinguishable from indented list items via regex alone. Authors
+    # should prefer fenced blocks in PR descriptions.
     text = re.sub(r"```.*?```", "<CODE_BLOCK>", description, flags=re.DOTALL)
+    text = re.sub(r"~~~.*?~~~", "<CODE_BLOCK>", text, flags=re.DOTALL)
+    text = re.sub(
+        r"<pre\b[^>]*>.*?</pre>",
+        "<CODE_BLOCK>",
+        text,
+        flags=re.DOTALL | re.IGNORECASE,
+    )
     # Strip <details>...</details> blocks (used by Renovate, Dependabot, etc.)
     text = re.sub(r"<details>.*?</details>", "", text, flags=re.DOTALL)
     # Strip "Detected Package Files" section up to the next heading or <hr>

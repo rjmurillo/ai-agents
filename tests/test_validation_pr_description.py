@@ -380,6 +380,49 @@ class TestExtractMentionedFiles:
         assert "pattern.py" not in result
         assert "template.py" not in result
 
+    def test_tilde_fenced_block_masked(self) -> None:
+        """CommonMark allows `~~~` as a fence delimiter. AI-generated PR
+        descriptions sometimes use it. The mask must cover both styles or
+        a sample heading inside `~~~` over-strips the surrounding document."""
+        desc = (
+            "## Summary\n"
+            "Changed `real.py`.\n\n"
+            "~~~markdown\n"
+            "## Design Decisions\n"
+            "- `phantom.py`\n\n"
+            "## Changes\n"
+            "- `fakelink_inside_fence.py`\n"
+            "~~~\n\n"
+            "## Changes\n"
+            "- `actual.py`\n"
+        )
+        result = extract_mentioned_files(desc)
+        assert "real.py" in result
+        assert "actual.py" in result
+        assert "phantom.py" not in result
+        assert "fakelink_inside_fence.py" not in result
+
+    def test_html_pre_block_masked(self) -> None:
+        """PR templates and bot-generated descriptions sometimes embed `<pre>`
+        blocks. The mask must cover them or a sample heading inside `<pre>`
+        over-strips the surrounding document."""
+        desc = (
+            "## Summary\n"
+            "Changed `real.py`.\n\n"
+            "<pre lang=\"markdown\">\n"
+            "## Design Decisions\n"
+            "sample\n"
+            "## Changes\n"
+            "- `fakelink_inside_pre.py`\n"
+            "</pre>\n\n"
+            "## Changes\n"
+            "- `actual.py`\n"
+        )
+        result = extract_mentioned_files(desc)
+        assert "real.py" in result
+        assert "actual.py" in result
+        assert "fakelink_inside_pre.py" not in result
+
 
 # ---------------------------------------------------------------------------
 # _strip_informational_sections
