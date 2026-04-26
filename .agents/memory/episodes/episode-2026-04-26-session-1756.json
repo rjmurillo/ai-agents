@@ -1,0 +1,35 @@
+{
+  "id": "episode-2026-04-26-session-1756",
+  "session": "2026-04-26-session-1756",
+  "timestamp": "2026-04-26T22:39:33.928851+00:00",
+  "outcome": "failure",
+  "task": "",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-04-26T22:39:33.925948+00:00",
+      "type": "error",
+      "content": "\"Evidence\": \"npx markdownlint-cli2 AGENTS.md: 0 errors\"",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-04-26T22:39:33.925948+00:00",
+      "type": "commit",
+      "content": "Commit: a333cb70",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 1,
+    "recoveries": 0,
+    "commits": 3,
+    "files_changed": 0
+  },
+  "lessons": []
+}
