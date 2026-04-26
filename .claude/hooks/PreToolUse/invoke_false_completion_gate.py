@@ -100,7 +100,7 @@ def find_session_log(project_dir: Path) -> Path | None:
 
 
 def has_verification_evidence(project_dir: Path) -> bool:
-    """Check session log and hook state for evidence of test/build runs."""
+    """Check session log for evidence of test/build runs."""
     # Check session log
     session_log = find_session_log(project_dir)
     if session_log:
@@ -110,30 +110,6 @@ def has_verification_evidence(project_dir: Path) -> bool:
                 return True
         except OSError:
             pass
-
-    # Check hook state for plan checkpoints (indicates active work)
-    # Exclude audit files, plan-checkpoint files, and pre-compact files to prevent
-    # self-poisoning (audit log reasons, plan file summaries, and pre-compact work
-    # item descriptions contain verification pattern keywords like "pytest" that
-    # would falsely match without any test ever having run)
-    hook_state_dir = project_dir / ".agents" / ".hook-state"
-    if hook_state_dir.is_dir():
-        today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
-        checkpoints = list(hook_state_dir.glob(f"*{today}*"))
-        if checkpoints:
-            for cp in checkpoints:
-                if (
-                    cp.name.startswith("audit-")
-                    or cp.name.startswith("plan-checkpoint-")
-                    or cp.name.startswith("pre-compact-")
-                ):
-                    continue
-                try:
-                    content = cp.read_text(encoding="utf-8")
-                    if VERIFICATION_PATTERNS.search(content):
-                        return True
-                except OSError:
-                    pass
 
     return False
 
