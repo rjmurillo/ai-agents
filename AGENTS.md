@@ -21,7 +21,7 @@ Read first, reason second. Pre-training last resort.
 
 **Start**: Init Serena|Read HANDOFF.md|Create session log|Search memories|Verify git
 **Mid**: Display `Commit X/20 (ADR-008)`|Warn at 15+
-**Pre-PR**: `Validate-PRReadiness.ps1`|No BLOCKING verdicts|Security scan
+**Pre-PR**: `Validate-PRReadiness.ps1`|No BLOCKING|Security scan
 **End**: Complete log|Preserve HANDOFF.md|Update Serena|Lint|Commit|Validate JSON
 
 ## Boundaries
@@ -46,7 +46,7 @@ Knowledge → passive context (@imported docs). Actions → skills. Passive cont
 
 ### ADR Review (BLOCKING)
 
-Any `.agents/architecture/ADR-*.md` or `.agents/SESSION-PROTOCOL.md` create/edit fires mandatory adr-review skill.
+Any `ADR-*.md` or `SESSION-PROTOCOL.md` create/edit fires adr-review skill.
 
 ## Agents
 
@@ -61,7 +61,7 @@ Commits: `<type>(<scope>): <desc>` + `Co-Authored-By:`
 Exit codes: 0=ok|1=logic|2=config|3=external|4=auth
 Coverage: 100% security|80% business|60% docs
 Tests: `tests/`|`.claude/skills/<name>/tests/`|`.agents/security/benchmarks/`
-Test rigor (BLOCKING): pos+neg+edge|every branch|mock I/O|CLI argv-failure. Detail: `.agents/governance/TESTING-RIGOR.md`.
+Tests (BLOCKING): pos+neg+edge|every branch|mock I/O|CLI argv exits. See `.agents/governance/TESTING-RIGOR.md`.
 
 ## Stack
 
