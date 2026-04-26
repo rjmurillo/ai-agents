@@ -95,37 +95,39 @@ COMPLETION_COMMANDS = re.compile(
 
 
 def find_session_log(project_dir: Path) -> Path | None:
-    """Find the most recent session log, checking today and yesterday (UTC).
+    """Find the most recent session log for the current session.
 
-    Sessions that span midnight may have logs dated yesterday, so we check both
-    dates and return the most recently modified file to avoid false negatives.
+    Only falls back to yesterday's session if NO today-prefixed session exists.
+    This prevents stale verification evidence from yesterday being used to
+    satisfy the completion gate for a brand-new session today.
     """
     sessions_dir = project_dir / ".agents" / "sessions"
     if not sessions_dir.is_dir():
         return None
 
-    # Use shared utility if available (handles cross-midnight)
-    if get_recent_session_log is not None:
-        return get_recent_session_log(str(sessions_dir))
-
-    # Fallback: check both today and yesterday
     from datetime import timedelta
 
     now = datetime.now(tz=UTC)
     today = now.strftime("%Y-%m-%d")
     yesterday = (now - timedelta(days=1)).strftime("%Y-%m-%d")
 
-    candidates = []
-    for date_prefix in (today, yesterday):
-        candidates.extend(sessions_dir.glob(f"{date_prefix}-session-*.json"))
+    # First, check for today's sessions
+    today_candidates = list(sessions_dir.glob(f"{today}-session-*.json"))
+    if today_candidates:
+        try:
+            return max(today_candidates, key=lambda f: f.stat().st_mtime)
+        except OSError:
+            return None
 
-    if not candidates:
-        return None
+    # Only fall back to yesterday if no today session exists (cross-midnight continuation)
+    yesterday_candidates = list(sessions_dir.glob(f"{yesterday}-session-*.json"))
+    if yesterday_candidates:
+        try:
+            return max(yesterday_candidates, key=lambda f: f.stat().st_mtime)
+        except OSError:
+            return None
 
-    try:
-        return max(candidates, key=lambda f: f.stat().st_mtime)
-    except OSError:
-        return None
+    return None
 
 
 def has_verification_evidence(project_dir: Path) -> bool:

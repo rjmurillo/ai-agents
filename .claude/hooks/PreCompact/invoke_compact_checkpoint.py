@@ -133,24 +133,34 @@ def _format_work_item(item: dict) -> str:
 
 
 def _find_recent_session_fallback(sessions_dir: Path) -> Path | None:
-    """Fallback session lookup when hook_utilities is unavailable."""
+    """Fallback session lookup when hook_utilities is unavailable.
+
+    Only falls back to yesterday if no today session exists, preventing stale
+    data from yesterday being used in a new session's checkpoint.
+    """
     from datetime import timedelta
 
     now = datetime.now(tz=UTC)
     today = now.strftime("%Y-%m-%d")
+
+    # First, check for today's sessions
+    today_candidates = list(sessions_dir.glob(f"{today}-session-*.json"))
+    if today_candidates:
+        try:
+            return max(today_candidates, key=lambda f: f.stat().st_mtime)
+        except OSError:
+            return None
+
+    # Only fall back to yesterday if no today session exists (cross-midnight continuation)
     yesterday = (now - timedelta(days=1)).strftime("%Y-%m-%d")
+    yesterday_candidates = list(sessions_dir.glob(f"{yesterday}-session-*.json"))
+    if yesterday_candidates:
+        try:
+            return max(yesterday_candidates, key=lambda f: f.stat().st_mtime)
+        except OSError:
+            return None
 
-    candidates = []
-    for date_prefix in (today, yesterday):
-        candidates.extend(sessions_dir.glob(f"{date_prefix}-session-*.json"))
-
-    if not candidates:
-        return None
-
-    try:
-        return max(candidates, key=lambda f: f.stat().st_mtime)
-    except OSError:
-        return None
+    return None
 
 
 def get_session_info(project_dir: Path) -> dict:
@@ -195,7 +205,7 @@ def get_session_info(project_dir: Path) -> dict:
                 for item in work_items[:5]
             ],
         }
-    except (json.JSONDecodeError, OSError) as e:
+    except (json.JSONDecodeError, OSError, ValueError) as e:
         print(
             f"[hook-error] invoke_compact_checkpoint get_session_info: {type(e).__name__}: {e}",
             file=sys.stderr,

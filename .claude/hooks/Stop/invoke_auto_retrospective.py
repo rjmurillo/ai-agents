@@ -77,37 +77,58 @@ def has_retro_today(retro_dir: Path, today: str) -> bool:
     return any(retro_dir.glob(f"{today}*.md"))
 
 
-def _find_recent_session_fallback(sessions_dir: Path) -> Path | None:
-    """Fallback session lookup when hook_utilities is unavailable."""
+def _find_recent_session_fallback(sessions_dir: Path, today_only: bool = False) -> Path | None:
+    """Fallback session lookup when hook_utilities is unavailable.
+
+    Args:
+        sessions_dir: Directory containing session logs.
+        today_only: If True, only return today's sessions (no yesterday fallback).
+    """
     from datetime import timedelta
 
     now = datetime.now(tz=UTC)
     today = now.strftime("%Y-%m-%d")
+
+    # First, check for today's sessions
+    today_candidates = list(sessions_dir.glob(f"{today}-session-*.json"))
+    if today_candidates:
+        try:
+            return max(today_candidates, key=lambda f: f.stat().st_mtime)
+        except OSError:
+            return None
+
+    if today_only:
+        return None
+
+    # Only fall back to yesterday if no today session exists (cross-midnight continuation)
     yesterday = (now - timedelta(days=1)).strftime("%Y-%m-%d")
+    yesterday_candidates = list(sessions_dir.glob(f"{yesterday}-session-*.json"))
+    if yesterday_candidates:
+        try:
+            return max(yesterday_candidates, key=lambda f: f.stat().st_mtime)
+        except OSError:
+            return None
 
-    candidates = []
-    for date_prefix in (today, yesterday):
-        candidates.extend(sessions_dir.glob(f"{date_prefix}-session-*.json"))
-
-    if not candidates:
-        return None
-
-    try:
-        return max(candidates, key=lambda f: f.stat().st_mtime)
-    except OSError:
-        return None
+    return None
 
 
-def find_recent_session_file(sessions_dir: Path) -> Path | None:
-    """Find the most recent session file, checking today and yesterday (UTC).
+def find_recent_session_file(sessions_dir: Path, today_only: bool = False) -> Path | None:
+    """Find the most recent session file for the current session.
 
-    Sessions that span midnight may have logs dated yesterday, so we check both
-    dates and return the most recently modified file.
+    Only falls back to yesterday's session if NO today-prefixed session exists,
+    preventing stale data from yesterday being attributed to today.
+
+    Args:
+        sessions_dir: Directory containing session logs.
+        today_only: If True, only return today's sessions (no yesterday fallback).
     """
-    # Use shared utility if available
-    if _get_recent_session_log is not None:
-        return _get_recent_session_log(str(sessions_dir))
-    return _find_recent_session_fallback(sessions_dir)
+    # The shared utility doesn't support today_only, so use fallback for that case
+    if today_only or _get_recent_session_log is None:
+        return _find_recent_session_fallback(sessions_dir, today_only=today_only)
+
+    # For non-today_only case, we still need to implement the "prefer today" logic
+    # since the shared utility doesn't do this
+    return _find_recent_session_fallback(sessions_dir, today_only=False)
 
 
 def _coerce_to_list_fallback(value) -> list:
@@ -180,13 +201,17 @@ def _extract_work_outcomes(data) -> tuple[list, list]:
     return coerce_to_list(work_raw), coerce_to_list(outcomes_raw)
 
 
-def is_trivial_session(project_dir: Path) -> bool:
-    """Check if session is trivial (no meaningful work done)."""
+def is_trivial_session(project_dir: Path, today: str) -> bool:
+    """Check if session is trivial (no meaningful work done today).
+
+    Only considers today's session to avoid attributing yesterday's work to today.
+    """
     sessions_dir = project_dir / ".agents" / "sessions"
     if not sessions_dir.is_dir():
         return True
 
-    session_file = find_recent_session_file(sessions_dir)
+    # Only look at today's sessions to avoid misattributing yesterday's work
+    session_file = find_recent_session_file(sessions_dir, today_only=True)
     if not session_file:
         return True
 
@@ -212,11 +237,11 @@ def generate_retrospective(project_dir: Path, today: str) -> Path | None:
     filename = f"{today}-auto-retro.md"
     retro_path = retro_dir / filename
 
-    # Try to pull context from the most recent session log (may be yesterday's for cross-midnight sessions)
+    # Only pull context from today's session log to avoid misattributing yesterday's work
     session_context = ""
     sessions_dir = project_dir / ".agents" / "sessions"
     if sessions_dir.is_dir():
-        session_file = find_recent_session_file(sessions_dir)
+        session_file = find_recent_session_file(sessions_dir, today_only=True)
         if session_file:
             try:
                 data = json.loads(session_file.read_text(encoding="utf-8"))
@@ -332,8 +357,8 @@ def main() -> int:
     if has_retro_today(retro_dir, today):
         return 0
 
-    # Skip trivial sessions
-    if is_trivial_session(project_dir):
+    # Skip trivial sessions (only considers today's work to avoid misattribution)
+    if is_trivial_session(project_dir, today):
         return 0
 
     try:

@@ -159,10 +159,11 @@ def get_today_session_logs(sessions_dir: str) -> list[Path]:
 
 
 def get_recent_session_log(sessions_dir: str) -> Path | None:
-    """Find the most recent session log, checking today and yesterday (UTC).
+    """Find the most recent session log for the current session.
 
-    Sessions that span midnight may have logs dated yesterday, so we check both
-    dates and return the most recently modified file.
+    Only falls back to yesterday's session if NO today-prefixed session exists.
+    This prevents stale data from yesterday being used when a new session starts
+    today, while still supporting sessions that span midnight.
     """
     sessions_path = Path(sessions_dir)
     if not sessions_path.is_dir():
@@ -171,12 +172,10 @@ def get_recent_session_log(sessions_dir: str) -> Path | None:
 
     now = datetime.now(tz=UTC)
     today = now.strftime("%Y-%m-%d")
-    yesterday = (now - timedelta(days=1)).strftime("%Y-%m-%d")
 
-    candidates: list[Path] = []
+    # First, check for today's sessions
     try:
-        for date_prefix in (today, yesterday):
-            candidates.extend(sessions_path.glob(f"{date_prefix}-session-*.json"))
+        today_candidates = list(sessions_path.glob(f"{today}-session-*.json"))
     except OSError as exc:
         warnings.warn(
             f"Failed to read session logs from {sessions_dir}: {exc}",
@@ -184,17 +183,38 @@ def get_recent_session_log(sessions_dir: str) -> Path | None:
         )
         return None
 
-    if not candidates:
-        return None
+    if today_candidates:
+        try:
+            return max(today_candidates, key=lambda f: f.stat().st_mtime)
+        except OSError as exc:
+            warnings.warn(
+                f"Failed to stat session logs: {exc}",
+                stacklevel=2,
+            )
+            return None
 
+    # Only fall back to yesterday if no today session exists (cross-midnight continuation)
+    yesterday = (now - timedelta(days=1)).strftime("%Y-%m-%d")
     try:
-        return max(candidates, key=lambda f: f.stat().st_mtime)
+        yesterday_candidates = list(sessions_path.glob(f"{yesterday}-session-*.json"))
     except OSError as exc:
         warnings.warn(
-            f"Failed to stat session logs: {exc}",
+            f"Failed to read session logs from {sessions_dir}: {exc}",
             stacklevel=2,
         )
         return None
+
+    if yesterday_candidates:
+        try:
+            return max(yesterday_candidates, key=lambda f: f.stat().st_mtime)
+        except OSError as exc:
+            warnings.warn(
+                f"Failed to stat session logs: {exc}",
+                stacklevel=2,
+            )
+            return None
+
+    return None
 
 
 def coerce_to_list(value) -> list:
