@@ -119,6 +119,7 @@ def write_checkpoint(project_dir: Path, file_path: str, content: str) -> None:
             f.seek(0)
             f.truncate()
             json.dump(existing, f, indent=2, ensure_ascii=False)
+            f.flush()  # Ensure data is on disk before releasing lock
         finally:
             if _unlock_file is not None:
                 _unlock_file(f)
