@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Cross-platform agent instructions for Claude Code, Copilot CLI, Cortex, Factory Droid.
+Cross-platform agent instructions.
 
 ## Serena Init (BLOCKING)
 
@@ -19,10 +19,10 @@ Read first, reason second. Pre-training last resort.
 
 ## Session Gates
 
-**Start**: Init Serena|Read HANDOFF.md|Read latest `.agents/sessions/handoffs/*-{issue}-handoff.md` + run Verify-on-Resume|Create session log|Search memories|Verify git
-**Mid**: Display `Commit X/20 (ADR-008)`|Warn at 15+
-**Pre-PR**: `Validate-PRReadiness.ps1`|No BLOCKING|Security scan
-**End**: Complete log|Preserve HANDOFF.md (read-only)|Write `.agents/sessions/handoffs/{date}-{issue}-handoff.md` from `.agents/templates/HANDOFF.md` if issue open|Update Serena|Lint|Commit|Validate JSON
+**Start**: Init Serena|Read HANDOFF.md|Read latest issue handoff + Verify-on-Resume|Session log|Search memories|Verify git
+**Mid**: `Commit X/20 (ADR-008)`|Warn at 15+
+**Pre-PR**: `python3 scripts/validation/pre_pr.py`|No BLOCKING|Security scan
+**End**: Complete log|Preserve HANDOFF.md|Write issue handoff from template if open|Update Serena|Lint|Commit|Validate JSON
 
 ## Boundaries
 
@@ -32,10 +32,10 @@ Read first, reason second. Pre-training last resort.
 
 ## Context Type Decision
 
-Knowledge → passive context (@imported docs). Actions → skills. Passive context kills decision points. See `.agents/analysis/vercel-passive-context-vs-skills-research.md`.
+Knowledge → passive context (@imports). Actions → skills.
 
-|Passive context: reference knowledge every turn, content outside training data, <8KB compressed
-|Skills: tool access needed, vertical workflows, user-triggered, file mutation or API calls
+|Passive: reference every turn, outside training, <8KB
+|Skills: tool access, workflows, user-triggered, file mutation
 
 ## Skill-First
 
