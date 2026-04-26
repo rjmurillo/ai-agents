@@ -253,15 +253,22 @@ def _strip_informational_sections(description: str) -> str:
     # strips: those rare cases can use a contextual-prefix word like
     # `## Notes` (no suffix) or apply the bypass label.
     #
-    # The terminating lookahead `(?=^##(?!#)|\Z)` matches the next H2
-    # heading (exactly `##`, not `###` or deeper). Without `(?!#)`, an H3
-    # sub-heading inside a contextual section (e.g., `### Trade-offs` under
-    # `## Design Decisions`) would terminate the strip early and expose its
-    # contents as phantom change claims.
+    # The terminating lookahead `(?=^#{1,2}(?!#)|\Z)` matches the next H1
+    # or H2 heading (exactly `#` or `##`, not `###` or deeper). Two failure
+    # modes this guards against:
+    #
+    # 1. Without the `(?!#)` negative lookahead, an H3 sub-heading inside a
+    #    contextual section (e.g., `### Trade-offs` under `## Design
+    #    Decisions`) terminates the strip early and exposes its contents as
+    #    phantom change claims.
+    # 2. Without H1 (`#{1,2}`) in the heading-class, an H1 that follows a
+    #    contextual section is treated as still inside the section and
+    #    silently dropped. Per CommonMark, an H2 section ends at the next
+    #    heading of equal-or-higher level, so H1 must terminate H2.
     contextual_pattern = (
         r"^##\s+(?:"
         + "|".join(_CONTEXTUAL_SECTION_NAMES)
-        + r")\s*$.*?(?=^##(?!#)|\Z)"
+        + r")\s*$.*?(?=^#{1,2}(?!#)|\Z)"
     )
     text = re.sub(
         contextual_pattern,

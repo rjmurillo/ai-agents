@@ -367,6 +367,21 @@ class TestExtractMentionedFiles:
         result = extract_mentioned_files(desc)
         assert "pattern.py" not in result
 
+    def test_h1_terminates_contextual_section_strip(self) -> None:
+        """Per CommonMark, an H2 section ends at the next heading of equal-
+        or-higher level. An H1 (`# ...`) following `## Design Decisions`
+        must terminate the strip; otherwise content under the H1 is
+        silently dropped. Gemini bot finding on PR #1781."""
+        desc = (
+            "## Design Decisions\n"
+            "- See `pattern.py`\n\n"
+            "# Major Section Reset\n"
+            "- Modified `real.py`\n"
+        )
+        result = extract_mentioned_files(desc)
+        assert "pattern.py" not in result
+        assert "real.py" in result
+
     def test_h3_subheading_inside_contextual_section_is_stripped(self) -> None:
         """A `### Sub-heading` inside a stripped `## Design Decisions` block
         must NOT terminate the strip. Without `(?!#)` in the lookahead, the
