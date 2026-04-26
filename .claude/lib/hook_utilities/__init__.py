@@ -12,20 +12,26 @@ from .guards import (
 )
 from .utilities import (
     get_project_directory,
+    get_recent_session_log,
     get_today_session_log,
     get_today_session_logs,
     is_git_commit_command,
     is_git_commit_or_push_command,
     is_git_push_command,
+    lock_file,
+    unlock_file,
 )
 
 __all__ = [
     "get_project_directory",
+    "get_recent_session_log",
     "get_today_session_log",
     "get_today_session_logs",
     "is_git_commit_command",
     "is_git_commit_or_push_command",
     "is_git_push_command",
     "is_project_repo",
+    "lock_file",
     "skip_if_consumer_repo",
+    "unlock_file",
 ]

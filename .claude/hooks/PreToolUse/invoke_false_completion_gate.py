@@ -25,43 +25,6 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
-# Cross-platform file locking
-# Windows: msvcrt.locking is byte-position-aware and only locks 1 byte at the
-# CURRENT file position. For files opened in append mode, each process has its
-# own EOF, so locking "at the current position" locks DIFFERENT bytes per
-# process and provides no mutual exclusion. Always lock byte 0 (a fixed point
-# all processes can contend for), then restore the original write position.
-_win_lock_positions: dict[int, int] = {}
-
-if sys.platform == "win32":
-    import msvcrt
-
-    def _lock_file(f):
-        fd = f.fileno()
-        _win_lock_positions[fd] = f.tell()
-        f.seek(0)
-        msvcrt.locking(fd, msvcrt.LK_LOCK, 1)
-        # Restore to original (append-EOF) position so f.write goes to the right place.
-        pos = _win_lock_positions.get(fd, 0)
-        f.seek(pos)
-
-    def _unlock_file(f):
-        fd = f.fileno()
-        write_pos = f.tell()
-        f.seek(0)
-        msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
-        # Drop the stored lock-time position; restore the post-write position.
-        _win_lock_positions.pop(fd, None)
-        f.seek(write_pos)
-else:
-    import fcntl
-
-    def _lock_file(f):
-        fcntl.flock(f.fileno(), fcntl.LOCK_EX)
-
-    def _unlock_file(f):
-        fcntl.flock(f.fileno(), fcntl.LOCK_UN)
-
 _plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
 if _plugin_root:
     _lib_dir = str(Path(_plugin_root).resolve() / "lib")
@@ -75,7 +38,9 @@ if _lib_dir not in sys.path:
 
 try:
     from hook_utilities import get_project_directory as _get_project_directory
-    from hook_utilities import get_today_session_log
+    from hook_utilities import get_recent_session_log
+    from hook_utilities import lock_file as _lock_file
+    from hook_utilities import unlock_file as _unlock_file
 
     def get_project_directory() -> Path | None:
         """Wrap shared utility returning Path for backward compat."""
@@ -96,7 +61,9 @@ except ImportError:
             current = current.parent
         return None
 
-    get_today_session_log = None  # type: ignore[assignment]
+    get_recent_session_log = None  # type: ignore[assignment]
+    _lock_file = None  # type: ignore[assignment]
+    _unlock_file = None  # type: ignore[assignment]
 
 # Regex for false-completion signals in commands
 COMPLETION_SIGNALS = re.compile(
@@ -131,23 +98,34 @@ COMPLETION_COMMANDS = re.compile(
 
 
 def find_session_log(project_dir: Path) -> Path | None:
-    """Find today's session log using UTC date."""
+    """Find the most recent session log, checking today and yesterday (UTC).
+
+    Sessions that span midnight may have logs dated yesterday, so we check both
+    dates and return the most recently modified file to avoid false negatives.
+    """
     sessions_dir = project_dir / ".agents" / "sessions"
     if not sessions_dir.is_dir():
         return None
 
-    # Use shared utility if available (uses UTC)
-    if get_today_session_log is not None:
-        return get_today_session_log(str(sessions_dir))
+    # Use shared utility if available (handles cross-midnight)
+    if get_recent_session_log is not None:
+        return get_recent_session_log(str(sessions_dir))
 
-    # Fallback: use UTC explicitly
-    today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
-    candidates = sorted(
-        sessions_dir.glob(f"{today}-session-*.json"),
-        key=lambda f: f.stat().st_mtime,
-        reverse=True,
-    )
-    return candidates[0] if candidates else None
+    # Fallback: check both today and yesterday
+    from datetime import timedelta
+
+    now = datetime.now(tz=UTC)
+    today = now.strftime("%Y-%m-%d")
+    yesterday = (now - timedelta(days=1)).strftime("%Y-%m-%d")
+
+    candidates = []
+    for date_prefix in (today, yesterday):
+        candidates.extend(sessions_dir.glob(f"{date_prefix}-session-*.json"))
+
+    if not candidates:
+        return None
+
+    return max(candidates, key=lambda f: f.stat().st_mtime)
 
 
 def has_verification_evidence(project_dir: Path) -> bool:
@@ -209,11 +187,13 @@ def write_audit_log(
             "tool_use_id": tool_use_id,
         })
         with open(audit_file, "a", encoding="utf-8") as f:
-            _lock_file(f)
+            if _lock_file is not None:
+                _lock_file(f)
             try:
                 f.write(entry + "\n")
             finally:
-                _unlock_file(f)
+                if _unlock_file is not None:
+                    _unlock_file(f)
     except OSError as e:
         print(f"[hook-error] invoke_false_completion_gate audit: {type(e).__name__}: {e}", file=sys.stderr)
 
