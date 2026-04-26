@@ -5,7 +5,7 @@ alwaysApply: false
 
 # Domain-Driven Design
 
-This rule consolidates the Domain-Driven Design patterns from Eric Evans's _Domain-Driven Design_ (the "Blue Book"), Vaughn Vernon's _Domain-Driven Design Distilled_, and _Implementing Domain-Driven Design_ that recur in this codebase. Use it when you change agent definitions, session lifecycle, orchestration boundaries, memory and handoff contracts, or any place where two parts of the system speak different languages and have to translate.
+This rule consolidates the Domain-Driven Design patterns from Eric Evans's _Domain-Driven Design_ (the "Blue Book"), Vaughn Vernon's _Domain-Driven Design Distilled_, and _Implementing Domain-Driven Design_. These patterns recur in this codebase. Use it when you change agent definitions, session lifecycle, orchestration boundaries, or memory and handoff contracts. Apply it where two parts of the system speak different languages and must translate.
 
 The codebase already has implicit bounded contexts (the agent runtime, the session log, the memory systems, the skill catalog). When you add a new concept, find the context it belongs in and use that context's language. Do not invent a parallel model.
 
@@ -13,7 +13,7 @@ For persistence and transactional concerns (Repository, Unit of Work, Service La
 
 ## Core Vocabulary
 
-Use these terms consistently in code, comments, agent prompts, and PR descriptions. Mixing terms across the team makes the design harder to reason about and is the single most reliable indicator that two people are talking about different concepts.
+Use these terms consistently in code, comments, agent prompts, and PR descriptions. Mixing terms makes the design harder to reason about. It is the single most reliable indicator that two people are talking about different concepts.
 
 - **Domain**: the problem space the system addresses (orchestrating AI agents to land changes in a repository).
 - **Subdomain**: a coherent slice of the domain. **Core** is what differentiates the product, **Supporting** is necessary but not differentiating, **Generic** is commodity that any team would solve the same way.
@@ -33,7 +33,7 @@ Use a Bounded Context to draw a hard line around one model and one language.
 
 Apply when:
 
-- Two parts of the system use the same word for different concepts (a "session" in the agent runtime is not a "session" in the chat transcript layer).
+- Two parts of the system use the same word for different concepts. For example, "session" in the agent runtime is not "session" in the chat transcript layer.
 - A model that started simple is acquiring conditional logic to handle "the case for module X" and "the case for module Y."
 - You need to evolve one part of the system without coordinating every change with the rest.
 
@@ -103,7 +103,7 @@ Rules:
 - Reference other aggregates by identity, not by direct object reference. Holding a pointer across aggregate boundaries makes the boundary meaningless and invites partial loads.
 - Keep aggregates small. A large aggregate locks more, loads more, and is more likely to violate invariants quietly.
 - Invariants live on the root. Anything that must be true about the aggregate is enforced when the root accepts a change.
-- Eventual consistency between aggregates is normal. Prefer a Domain Event from one aggregate to a handler that updates another, rather than a single transaction that spans both.
+- Eventual consistency between aggregates is normal. Prefer a Domain Event to a handler that updates another aggregate. Avoid a single transaction that spans both.
 
 Smell: a method on a child entity that mutates a sibling under another root. Move the operation to the root or split the operation into two events.
 
@@ -182,7 +182,7 @@ Rules:
 - Translation is explicit. Map fields by name, transform values, drop concepts that have no meaning on this side.
 - The ACL is symmetric when both sides write. Outbound translation is its own piece of code, even if the foreign model "looks similar."
 - Failures of the foreign system surface as failures in this context's terms. Do not propagate raw HTTP errors or driver exceptions through the domain.
-- An ACL is built to be removed. When the foreign model dies or the migration completes, delete the ACL with the model it served.
+- Build an ACL to be removed. When the foreign model dies or the migration completes, delete the ACL.
 
 Smell: domain code that imports a third-party SDK type. The SDK is leaking. Wrap it.
 
@@ -213,7 +213,7 @@ Rules:
 - Shared Kernels rot. Review them every release; either keep them small and disciplined or break them apart.
 - An Open Host Service is a commitment. Once you publish, breaking changes have a cost; plan for versioning.
 
-Smell: two services in the same codebase calling each other through five layers of generic plumbing. Draw the context map and decide what relationship you actually want.
+Smell: two services call each other through five layers of generic plumbing. Draw the context map. Decide what relationship you actually want.
 
 ## Pattern Selection
 
@@ -238,7 +238,7 @@ These shapes appear in greenfield code more often than they should. Reject them 
 - **Single Database, Single Model**: every team writes to one schema and shares one set of types. Boundaries are imaginary. Introduce contexts and translate at the seam.
 - **Generic Subdomain Glamour**: investing core-level effort in JSON parsing, retry, or HTTP plumbing. Use a library; spend the time on the core.
 - **Leaky Boundary**: returning third-party SDK types or ORM entities from a domain method. The boundary exists in name only. Wrap.
-- **Past-Tense Command**: an "event" called `SaveSession` whose handler can refuse. That is a command. Rename or restructure.
+- **Command Disguised as Event**: an "event" called `SaveSession` whose handler can refuse. That is a command. Rename or restructure.
 - **Pattern Stacking**: every read goes through five layers because "DDD says so." If a layer never varies and never gets tested in isolation, delete it.
 
 ## Boundaries with Existing Codebase
@@ -251,7 +251,7 @@ ai-agents already has implicit bounded contexts. Reuse, do not duplicate.
 - **Skills and hooks**: entry points that translate between user or harness input and the agent runtime. Treat them as ACLs from the harness to the agent runtime. Keep them thin: parse, call a service, format output.
 - **GitHub integration**: a supporting subdomain. Reuse the established `gh` CLI patterns and PR template; do not invent a parallel issue model.
 
-When you find a place where the codebase deviates from this rule, prefer a small focused refactor on the path you are already touching over a large rewrite. Note the deviation in the PR description so future readers see your reasoning.
+When you find a place where the codebase deviates from this rule, prefer a small focused refactor on the path you are already touching. Avoid a large rewrite. Note the deviation in the PR description so future readers see your reasoning.
 
 ## Quick Self-Review
 
@@ -265,4 +265,4 @@ Before opening a PR that touches agent definitions, session protocol, memory, or
 - Did you add a new aggregate, service, or event when an existing one would have done?
 - Are entry points (skills, hooks, handlers) thin, or are they making domain decisions?
 
-If any answer is "no" or "not sure," fix the design before review.
+If any answer is "no" or "not sure," fix the design before review. Doing so keeps quality and consistency high.
