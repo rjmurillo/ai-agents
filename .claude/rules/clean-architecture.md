@@ -5,7 +5,7 @@ alwaysApply: false
 
 # Clean Architecture
 
-This rule encodes Robert C. Martin's Clean Architecture for use in this codebase. Read it before you add code that touches more than one layer, before you introduce a new dependency between existing components, and before you import a framework or external client into a module that holds business rules.
+This rule encodes Robert C. Martin's Clean Architecture for use in this codebase. Read this rule before adding code that touches multiple layers or introducing new dependencies. Also consult it before importing frameworks into modules containing business rules.
 
 The goal is one constraint that everything else falls out of: the dependency rule. When that rule holds, the codebase stays testable, replaceable at the edges, and free of accidental coupling. When it breaks, frameworks and storage details bleed into the parts of the system that should be most stable.
 
@@ -21,6 +21,25 @@ The four canonical layers, from outer to inner:
 2. **Interface Adapters**. Code that converts data between the form most convenient for the inner layers and the form most convenient for some outer detail. Controllers, presenters, gateways, mappers, serializers.
 3. **Use Cases** (also called application services). Application-specific business rules. Each use case is one named operation the system performs on behalf of a caller.
 4. **Entities** (innermost). Enterprise-wide business rules. The objects, invariants, and policies that would still be true if you replaced the database, the UI, and the framework tomorrow.
+
+```mermaid
+graph TD
+    subgraph "Frameworks and Drivers (Outer)"
+        A[Web, DB, CLI, API Clients]
+    end
+    subgraph "Interface Adapters"
+        B[Controllers, Presenters, Gateways]
+    end
+    subgraph "Use Cases"
+        C[Application Business Rules]
+    end
+    subgraph "Entities (Inner)"
+        D[Enterprise Business Rules]
+    end
+    A --> B
+    B --> C
+    C --> D
+```
 
 Concrete consequences:
 
@@ -86,7 +105,7 @@ Smell: a controller method that builds a SQL query, calls the database, formats 
 
 ## Frameworks and Drivers
 
-The outermost layer holds the things you would replace if a vendor disappeared or a protocol changed: web frameworks, database engines, the GitHub API, the Serena and Forgetful MCP transports, file system access, environment configuration, process and signal handling.
+The outermost layer contains components that change when vendors or protocols are replaced. This includes web frameworks, database engines, the GitHub API, MCP transports, and file system access.
 
 Rules:
 
@@ -95,7 +114,7 @@ Rules:
 - Configuration values (timeouts, retry counts, feature flags) are loaded at the edge and passed inward as plain values. The domain does not read environment variables.
 - Concurrency primitives (threads, async runtimes, background workers) are framework concerns. Use cases run in a sequential, transactional style; the framework decides how many of them run at once.
 
-If a framework's idioms are leaking inward (decorators on entities, ORM types in repositories' public methods, `request.headers` referenced from a use case), draw a new adapter and route the call through it.
+If framework idioms leak inward, draw a new adapter and route the call through it. This prevents decorators or ORM types from polluting the domain layer.
 
 ## Boundary Protection
 
@@ -104,7 +123,7 @@ Every boundary in the system is a place where dependencies could leak. The rules
 - **Direction by name**: when an inner module wants to call an outer one, define an interface in the inner module and let the outer module implement it. Outer modules import the interface; inner modules never import the implementation.
 - **Plain types at the seam**: data that crosses a boundary is plain. Primitives, dataclasses, typed identifiers, value objects. No SQLAlchemy rows, no Pydantic models tied to an HTTP schema, no framework futures.
 - **One owner per concept**: each concept (Session, Agent, Run) has exactly one canonical type in the inner layer. Adapters map to and from that type. Two competing types for the same concept across layers is a sign the boundary is missing.
-- **Explicit ports**: if a use case needs the current time, a random ID, or an external HTTP call, it depends on a `Clock`, `IdSource`, or `XClient` port defined alongside the use case. Concrete implementations live in adapter or framework layers.
+- **Explicit ports**: use cases depend on abstract ports for external needs like time, IDs, or HTTP calls. Define these ports alongside the use case. Concrete implementations live in adapter or framework layers.
 - **No ambient access**: no module reaches a global database handle, environment variable, or singleton client to do its work. Dependencies arrive as constructor or function parameters.
 - **Tests respect direction**: a test that needs to fake the database does so by substituting an adapter implementation, not by patching a use case to skip a step.
 
@@ -159,4 +178,4 @@ Before opening a PR that crosses or creates a layer boundary, walk this list.
 - Could you replace one framework or external service in the outermost layer without changing entity or use case code?
 - If you added a new layer or class, does it carry behavior, vary independently, and get tested in isolation? If not, delete it.
 
-If any answer is "no" or "not sure," fix the design before review.
+If any answer is "no" or "not sure," fix the design before review. Adhering to these checks ensures architectural integrity.
