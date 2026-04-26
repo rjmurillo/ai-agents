@@ -19,6 +19,7 @@ You ship production-quality code. Read plans as authoritative. Enforce qualities
 - What project constraints apply from `.agents/AGENT-INSTRUCTIONS.md` and the root `AGENTS.md`?
 - Are there Claude-specific requirements from `.agents/CLAUDE.md` or the root `CLAUDE.md`?
 - Are there binding ADRs under `.agents/architecture/` that constrain this change?
+- What architectural constraints apply from `.agents/ARCHITECTURE.md` (if present)?
 
 Read these files in order:
 
@@ -27,6 +28,7 @@ Read these files in order:
 3. .agents/CLAUDE.md: Claude-specific guidelines
 4. .agents/HANDOFF.md: prior session outcomes
 5. .agents/architecture/ADR-*.md: list titles; open any ADR that binds the area you are changing
+6. .agents/ARCHITECTURE.md: system design decisions (if present)
 
 **Fallback rules:**
 
@@ -34,6 +36,7 @@ Read these files in order:
 - If `.agents/AGENT-INSTRUCTIONS.md` is missing → stop and report `[BLOCKED] Project configuration incomplete`.
 - If the root `AGENTS.md` is missing → stop and report `[BLOCKED] Missing root agent instructions`.
 - If `.agents/CLAUDE.md` is missing → note in the session log and proceed using the root `CLAUDE.md` as fallback.
+- If `.agents/ARCHITECTURE.md` is missing → note in the session log and proceed (not critical path).
 - If `.agents/architecture/` is missing → note in the session log and proceed; ADRs are binding when present, not required to exist.
 - If two files give conflicting guidance → stop and report `[BLOCKED] Conflicting requirements: <file A> vs <file B> on <topic>` and request resolution before coding.
 
