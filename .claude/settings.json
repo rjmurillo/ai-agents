@@ -143,6 +143,7 @@
           {
             "type": "command",
             "command": "python3 -u .claude/hooks/SessionStart/invoke_context_loader.py",
+            "timeout": 5,
             "statusMessage": "Loading HANDOFF.md and latest retrospective into context"
           }
         ]
@@ -187,6 +188,7 @@
           {
             "type": "command",
             "command": "python3 -u .claude/hooks/PostToolUse/invoke_plan_state_sync.py",
+            "timeout": 5,
             "statusMessage": "Checkpointing plan/TODO state"
           }
         ]
@@ -229,6 +231,7 @@
           {
             "type": "command",
             "command": "python3 -u .claude/hooks/Stop/invoke_auto_retrospective.py",
+            "timeout": 5,
             "statusMessage": "Auto-generating session retrospective"
           }
         ]
@@ -263,6 +266,7 @@
           {
             "type": "command",
             "command": "python3 -u .claude/hooks/PreCompact/invoke_compact_checkpoint.py",
+            "timeout": 5,
             "statusMessage": "Checkpointing state before compaction"
           }
         ]
