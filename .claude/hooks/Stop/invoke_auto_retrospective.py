@@ -22,14 +22,24 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 # Cross-platform file locking
+# On Windows, msvcrt.locking operates on bytes at the current file position,
+# so we must save/restore position around lock/unlock operations.
+_win_lock_positions: dict[int, int] = {}
+
 if sys.platform == "win32":
     import msvcrt
 
     def _lock_file(f):
-        msvcrt.locking(f.fileno(), msvcrt.LK_LOCK, 1)
+        fd = f.fileno()
+        _win_lock_positions[fd] = f.tell()
+        f.seek(_win_lock_positions[fd])
+        msvcrt.locking(fd, msvcrt.LK_LOCK, 1)
 
     def _unlock_file(f):
-        msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, 1)
+        fd = f.fileno()
+        pos = _win_lock_positions.pop(fd, 0)
+        f.seek(pos)
+        msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
 else:
     import fcntl
 
@@ -77,24 +87,42 @@ def has_retro_today(retro_dir: Path, today: str) -> bool:
     return any(retro_dir.glob(f"{today}*.md"))
 
 
+def find_recent_session_file(sessions_dir: Path) -> Path | None:
+    """Find the most recent session file, checking today and yesterday (UTC).
+
+    Sessions that span midnight may have logs dated yesterday, so we check both
+    dates and return the most recently modified file.
+    """
+    from datetime import timedelta
+
+    now = datetime.now(tz=UTC)
+    today = now.strftime("%Y-%m-%d")
+    yesterday = (now - timedelta(days=1)).strftime("%Y-%m-%d")
+
+    # Collect session files from today and yesterday
+    candidates = []
+    for date_prefix in (today, yesterday):
+        candidates.extend(sessions_dir.glob(f"{date_prefix}-session-*.json"))
+
+    if not candidates:
+        return None
+
+    # Return the most recently modified
+    return max(candidates, key=lambda f: f.stat().st_mtime)
+
+
 def is_trivial_session(project_dir: Path) -> bool:
     """Check if session is trivial (no meaningful work done)."""
     sessions_dir = project_dir / ".agents" / "sessions"
     if not sessions_dir.is_dir():
         return True
 
-    today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
-    session_files = sorted(
-        sessions_dir.glob(f"{today}-session-*.json"),
-        key=lambda f: f.stat().st_mtime,
-        reverse=True,
-    )
-
-    if not session_files:
+    session_file = find_recent_session_file(sessions_dir)
+    if not session_file:
         return True
 
     try:
-        content = session_files[0].read_text(encoding="utf-8")
+        content = session_file.read_text(encoding="utf-8")
         data = json.loads(content)
         # Trivial if no work items or outcomes recorded
         work = data.get("work", [])
@@ -112,18 +140,14 @@ def generate_retrospective(project_dir: Path, today: str) -> Path | None:
     filename = f"{today}-auto-retro.md"
     retro_path = retro_dir / filename
 
-    # Try to pull context from today's session log
+    # Try to pull context from the most recent session log (may be yesterday's for cross-midnight sessions)
     session_context = ""
     sessions_dir = project_dir / ".agents" / "sessions"
     if sessions_dir.is_dir():
-        session_files = sorted(
-            sessions_dir.glob(f"{today}-session-*.json"),
-            key=lambda f: f.stat().st_mtime,
-            reverse=True,
-        )
-        if session_files:
+        session_file = find_recent_session_file(sessions_dir)
+        if session_file:
             try:
-                data = json.loads(session_files[0].read_text(encoding="utf-8"))
+                data = json.loads(session_file.read_text(encoding="utf-8"))
                 work_items = data.get("work", [])
                 outcomes = data.get("outcomes", [])
                 if work_items:

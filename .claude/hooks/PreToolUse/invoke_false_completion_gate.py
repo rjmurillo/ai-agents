@@ -26,14 +26,24 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 # Cross-platform file locking
+# On Windows, msvcrt.locking operates on bytes at the current file position,
+# so we must save/restore position around lock/unlock operations.
+_win_lock_positions: dict[int, int] = {}
+
 if sys.platform == "win32":
     import msvcrt
 
     def _lock_file(f):
-        msvcrt.locking(f.fileno(), msvcrt.LK_LOCK, 1)
+        fd = f.fileno()
+        _win_lock_positions[fd] = f.tell()
+        f.seek(_win_lock_positions[fd])
+        msvcrt.locking(fd, msvcrt.LK_LOCK, 1)
 
     def _unlock_file(f):
-        msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, 1)
+        fd = f.fileno()
+        pos = _win_lock_positions.pop(fd, 0)
+        f.seek(pos)
+        msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
 else:
     import fcntl
 
