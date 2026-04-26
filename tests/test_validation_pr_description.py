@@ -937,3 +937,69 @@ class TestBypassLabel:
         }
         code = main(["--pr-number", "1"])
         assert code == 0
+
+    @patch("scripts.validation.pr_description.fetch_pr_data")
+    @patch("scripts.validation.pr_description.get_repo_info")
+    def test_bypass_label_case_insensitive(
+        self, mock_repo: MagicMock, mock_fetch: MagicMock,
+    ) -> None:
+        """GitHub label names render case-insensitively. A maintainer who
+        creates the label with different casing must still get the bypass."""
+        mock_repo.return_value = RepoInfo(owner="o", repo="r")
+        mock_fetch.return_value = {
+            "title": "T",
+            "body": "Changed `ghost.py`",
+            "files": [{"path": "real.py"}],
+            "labels": [{"name": "Description-Validation-Bypass"}],
+        }
+        code = main(["--pr-number", "1", "--ci"])
+        assert code == 0
+
+    @patch("scripts.validation.pr_description.fetch_pr_data")
+    @patch("scripts.validation.pr_description.get_repo_info")
+    def test_bypass_emits_step_summary_audit_record(
+        self,
+        mock_repo: MagicMock,
+        mock_fetch: MagicMock,
+        tmp_path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """When GITHUB_STEP_SUMMARY is set, bypass writes a structured marker
+        so audit tooling can detect bypass-label use without parsing stdout."""
+        summary = tmp_path / "summary.md"
+        summary.write_text("")
+        monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary))
+        mock_repo.return_value = RepoInfo(owner="o", repo="r")
+        mock_fetch.return_value = {
+            "title": "T",
+            "body": "Changed `ghost.py`",
+            "files": [{"path": "real.py"}],
+            "labels": [{"name": "description-validation-bypass"}],
+        }
+        code = main(["--pr-number", "1", "--ci"])
+        assert code == 0
+        body = summary.read_text()
+        assert "PR Description Validation Bypass" in body
+        assert "DESCRIPTION-VALIDATION-BYPASS" in body
+        assert "ghost.py" in body
+
+    @patch("scripts.validation.pr_description.fetch_pr_data")
+    @patch("scripts.validation.pr_description.get_repo_info")
+    def test_no_bypass_audit_when_no_summary_env(
+        self,
+        mock_repo: MagicMock,
+        mock_fetch: MagicMock,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Local runs (no GITHUB_STEP_SUMMARY) must not crash and must
+        not require a writable audit path."""
+        monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
+        mock_repo.return_value = RepoInfo(owner="o", repo="r")
+        mock_fetch.return_value = {
+            "title": "T",
+            "body": "Changed `ghost.py`",
+            "files": [{"path": "real.py"}],
+            "labels": [{"name": "description-validation-bypass"}],
+        }
+        code = main(["--pr-number", "1", "--ci"])
+        assert code == 0

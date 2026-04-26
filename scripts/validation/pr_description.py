@@ -445,21 +445,62 @@ def main(argv: list[str] | None = None) -> int:
     # that the section allowlist does not cover. The issues are still printed
     # for visibility, but the script exits 0 so the workflow's overall_status
     # propagates as PASS.
+    #
+    # Label name comparison is case-insensitive. GitHub renders labels case-
+    # insensitively in the UI but returns canonical case via the API; a
+    # maintainer creating `Description-Validation-Bypass` (Title Case) would
+    # otherwise silently miss the bypass against the lowercase default.
     pr_labels: list[str] = [
         label.get("name", "")
         for label in (pr_data.get("labels") or [])
         if isinstance(label, dict)
     ]
+    bypass_label_lower = args.bypass_label.lower()
+    pr_labels_lower = {label.lower() for label in pr_labels}
     has_critical = any(i.severity == "CRITICAL" for i in issues)
-    if args.ci and has_critical and args.bypass_label in pr_labels:
+    if args.ci and has_critical and bypass_label_lower in pr_labels_lower:
         print_results(issues, ci=False)
         print(
             f"\nCRITICAL issues bypassed by '{args.bypass_label}' label. "
             "Exiting 0."
         )
+        # Emit a structured marker so audit tooling (Audit-Hook-Bypass
+        # workflow, weekly review) can detect bypass usage without parsing
+        # stdout. Writes to GITHUB_STEP_SUMMARY when the env var is set
+        # (CI context); silently skipped locally.
+        _emit_bypass_audit(args.pr_number, args.bypass_label, issues)
         return 0
 
     return print_results(issues, ci=args.ci)
+
+
+def _emit_bypass_audit(
+    pr_number: int, label: str, issues: list[Issue]
+) -> None:
+    """Append a structured bypass record to GITHUB_STEP_SUMMARY when set.
+
+    Used so audit tooling can count bypass-label uses without parsing
+    stdout. No-op when GITHUB_STEP_SUMMARY is not set (local runs).
+    """
+    summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+    if not summary_path:
+        return
+    critical_files = [i.file for i in issues if i.severity == "CRITICAL"]
+    record = (
+        "\n### PR Description Validation Bypass\n\n"
+        f"PR #{pr_number} bypassed CRITICAL description-validation failures "
+        f"via `{label}` label.\n\n"
+        f"Suppressed CRITICAL files ({len(critical_files)}): "
+        f"{', '.join(f'`{f}`' for f in critical_files) or '(none)'}\n\n"
+        "<!-- DESCRIPTION-VALIDATION-BYPASS -->\n"
+    )
+    try:
+        with open(summary_path, "a", encoding="utf-8") as fh:
+            fh.write(record)
+    except OSError:
+        # Audit emission is best-effort; never block the bypass on a
+        # filesystem failure inside the runner.
+        pass
 
 
 if __name__ == "__main__":
