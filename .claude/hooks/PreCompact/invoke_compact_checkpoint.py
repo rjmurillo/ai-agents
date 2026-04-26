@@ -119,7 +119,7 @@ def _format_work_item(item: dict) -> str:
         parts = []
         if "step" in item:
             parts.append(f"Step {item['step']}:")
-        parts.append(item["action"])
+        parts.append(str(item["action"]))
         if "outcome" in item:
             parts.append(f"→ {item['outcome']}")
         return " ".join(parts)
