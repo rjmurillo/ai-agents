@@ -22,7 +22,10 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
+
+Severity = Literal["CRITICAL", "WARNING"]
+_VALID_SEVERITIES: frozenset[str] = frozenset({"CRITICAL", "WARNING"})
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(_PROJECT_ROOT))
@@ -80,12 +83,24 @@ FILE_MENTION_PATTERNS: list[re.Pattern[str]] = [
 
 @dataclass
 class Issue:
-    """A validation issue found during PR description checking."""
+    """A validation issue found during PR description checking.
 
-    severity: str
+    `severity` MUST be one of `CRITICAL` or `WARNING`. The CRITICAL gate at
+    `validate_pr_description` and the audit emitter both branch on the exact
+    string; a typo (`"critical"` lowercase) silently slips past the gate.
+    """
+
+    severity: Severity
     issue_type: str
     file: str
     message: str
+
+    def __post_init__(self) -> None:
+        if self.severity not in _VALID_SEVERITIES:
+            raise ValueError(
+                f"Issue.severity must be one of {sorted(_VALID_SEVERITIES)}, "
+                f"got {self.severity!r}"
+            )
 
 
 def get_repo_info() -> RepoInfo:
@@ -191,8 +206,18 @@ def _strip_informational_sections(description: str) -> str:
     # NOTE: 4-space-indented code blocks are NOT masked. They are
     # indistinguishable from indented list items via regex alone. Authors
     # should prefer fenced blocks in PR descriptions.
+    # Triple-backtick: keep unanchored — GFM permits inline ```code``` spans
+    # and we want those treated as code regardless of position.
     text = re.sub(r"```.*?```", "<CODE_BLOCK>", description, flags=re.DOTALL)
-    text = re.sub(r"~~~.*?~~~", "<CODE_BLOCK>", text, flags=re.DOTALL)
+    # Tilde fence: anchor to start of line (CommonMark requires fences in
+    # column 0..3). Without the anchor, prose like `~~~strikethrough~~~`
+    # masks any `## Test Plan` heading appearing between two `~~~` tokens.
+    text = re.sub(
+        r"^[ ]{0,3}~~~.*?^[ ]{0,3}~~~",
+        "<CODE_BLOCK>",
+        text,
+        flags=re.DOTALL | re.MULTILINE,
+    )
     text = re.sub(
         r"<pre\b[^>]*>.*?</pre>",
         "<CODE_BLOCK>",
@@ -360,7 +385,7 @@ def print_results(issues: list[Issue], ci: bool) -> int:
         print("CRITICAL issues found. Update PR description to match actual changes.")
         if ci:
             return 1
-    elif warning_count > 0:
+    elif warning_count > 0:  # pragma: no branch
         print(
             "Warnings found. Consider mentioning significant files in PR description."
         )
@@ -489,49 +514,101 @@ def main(argv: list[str] | None = None) -> int:
     return print_results(issues, ci=args.ci)
 
 
+def _safe_label_for_output(label: str) -> str:
+    """Return a label safe to embed in GITHUB_OUTPUT key=value lines.
+
+    GitHub Actions parses `GITHUB_OUTPUT` as `name=value` pairs. A value
+    containing `\\n` injects a new key (CWE-117 log injection / CVE-2023-32700
+    class). Reject such labels by replacing newline, carriage return, and
+    `=` with `_`. Bypass label names should never contain these characters,
+    but defense-in-depth.
+    """
+    return label.replace("\n", "_").replace("\r", "_").replace("=", "_")
+
+
+def _safe_label_for_markdown(label: str) -> str:
+    """Return a label safe to embed in markdown inline code spans.
+
+    A label containing a backtick closes the inline `code` span and breaks
+    the audit marker block, defeating downstream `<!-- ... -->` parsers.
+    Replace backticks with `'` (visually similar, no markdown semantics).
+    """
+    return label.replace("`", "'")
+
+
+def _write_step_summary(
+    summary_path: str, pr_number: int, label: str, issues: list[Issue]
+) -> None:
+    """Append the human-readable bypass record to `GITHUB_STEP_SUMMARY`.
+
+    OSError is logged to stderr (not silently swallowed): a disk-full or
+    permission failure here means the audit trail is lost, which the audit
+    machinery exists to prevent. The bypass return path is unaffected.
+    """
+    safe_label = _safe_label_for_markdown(label)
+    critical_files = [i.file for i in issues if i.severity == "CRITICAL"]
+    record = (
+        "\n### PR Description Validation Bypass\n\n"
+        f"PR #{pr_number} bypassed CRITICAL description-validation "
+        f"failures via `{safe_label}` label.\n\n"
+        f"Suppressed CRITICAL files ({len(critical_files)}): "
+        f"{', '.join(f'`{_safe_label_for_markdown(f)}`' for f in critical_files) or '(none)'}\n\n"
+        "<!-- DESCRIPTION-VALIDATION-BYPASS -->\n"
+    )
+    try:
+        with open(summary_path, "a", encoding="utf-8") as fh:
+            fh.write(record)
+    except OSError as exc:
+        print(
+            f"[pr-description] WARNING: failed to write bypass audit "
+            f"to GITHUB_STEP_SUMMARY ({summary_path}): {exc}",
+            file=sys.stderr,
+        )
+
+
+def _write_step_output(
+    output_path: str, label: str, critical_count: int
+) -> None:
+    """Append the workflow signal triple to `GITHUB_OUTPUT`.
+
+    Label is sanitized via `_safe_label_for_output` before write to prevent
+    newline injection from synthesizing arbitrary output keys. OSError is
+    logged to stderr instead of swallowed: the workflow report relies on
+    `bypass_used=true` to render BYPASSED instead of PASS; a silent failure
+    here turns the audit machinery into a no-op.
+    """
+    safe_label = _safe_label_for_output(label)
+    try:
+        with open(output_path, "a", encoding="utf-8") as fh:
+            fh.write(
+                f"bypass_used=true\n"
+                f"bypass_label={safe_label}\n"
+                f"bypass_count={critical_count}\n"
+            )
+    except OSError as exc:
+        print(
+            f"[pr-description] WARNING: failed to write bypass audit "
+            f"to GITHUB_OUTPUT ({output_path}): {exc}",
+            file=sys.stderr,
+        )
+
+
 def _emit_bypass_audit(
     pr_number: int, label: str, issues: list[Issue]
 ) -> None:
-    """Emit structured bypass signals so the workflow report and audit tools
-    can distinguish a bypassed PASS from a clean PASS.
+    """Emit structured bypass signals.
 
-    Two emissions:
-      1. GITHUB_STEP_SUMMARY append (human-readable + audit marker comment).
-      2. GITHUB_OUTPUT append (`bypass_used=true`, `bypass_label=<name>`,
-         `bypass_count=<N>`) so downstream workflow steps can change the PR
-         comment alert from PASS to BYPASSED.
-
-    Both are no-ops when their respective env vars are unset (local runs).
-    Filesystem failures are best-effort and never block the bypass exit.
+    Distinguishes a bypassed PASS from a clean PASS so the workflow PR
+    comment and audit tooling can detect override usage. No-ops when the
+    respective env vars are unset (local runs).
     """
     critical_files = [i.file for i in issues if i.severity == "CRITICAL"]
     summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
     if summary_path:
-        record = (
-            "\n### PR Description Validation Bypass\n\n"
-            f"PR #{pr_number} bypassed CRITICAL description-validation "
-            f"failures via `{label}` label.\n\n"
-            f"Suppressed CRITICAL files ({len(critical_files)}): "
-            f"{', '.join(f'`{f}`' for f in critical_files) or '(none)'}\n\n"
-            "<!-- DESCRIPTION-VALIDATION-BYPASS -->\n"
-        )
-        try:
-            with open(summary_path, "a", encoding="utf-8") as fh:
-                fh.write(record)
-        except OSError:
-            pass
-
+        _write_step_summary(summary_path, pr_number, label, issues)
     output_path = os.environ.get("GITHUB_OUTPUT")
     if output_path:
-        try:
-            with open(output_path, "a", encoding="utf-8") as fh:
-                fh.write(
-                    f"bypass_used=true\n"
-                    f"bypass_label={label}\n"
-                    f"bypass_count={len(critical_files)}\n"
-                )
-        except OSError:
-            pass
+        _write_step_output(output_path, label, len(critical_files))
 
 
 if __name__ == "__main__":  # pragma: no cover

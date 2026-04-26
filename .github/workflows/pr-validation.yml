@@ -256,7 +256,7 @@ jobs:
 
           | Check | Status |
           |:------|:-------|
-          | Description matches diff | $(if ($env:BYPASS_USED -eq 'true') { 'BYPASSED (label override)' } else { $env:DESCRIPTION_RESULT }) |
+          | Description matches diff | $(if ($env:BYPASS_USED -eq 'true' -and $env:DESCRIPTION_RESULT -ne 'ERROR') { 'BYPASSED (label override)' } else { $env:DESCRIPTION_RESULT }) |
 
           ### PR Standards
 

@@ -11,6 +11,8 @@ import pytest
 from scripts.validation.pr_description import (
     Issue,
     RepoInfo,
+    _safe_label_for_markdown,
+    _safe_label_for_output,
     _strip_informational_sections,
     extract_mentioned_files,
     fetch_pr_data,
@@ -479,6 +481,27 @@ class TestExtractMentionedFiles:
         assert "phantom.py" not in result
         assert "fakelink_inside_fence.py" not in result
 
+    def test_tilde_fence_unanchored_strikethrough_does_not_mask_real_h2(
+        self,
+    ) -> None:
+        """Mid-prose `~~~strike~~~` must NOT mask between two such tokens.
+        Without the start-of-line anchor, the regex would match
+        `~~~strike~~~ ... ~~~something~~~` and silently swallow any
+        contextual heading appearing between them."""
+        desc = (
+            "## Summary\n"
+            "Text with ~~~strike~~~ and another ~~~thing~~~ inline.\n\n"
+            "## Test Plan\n"
+            "- ref `validation_target.md`\n"
+        )
+        # Test Plan section MUST still be stripped (validation target is
+        # informational). If the unanchored tilde regex matched the inline
+        # `~~~strike~~~ ... ~~~thing~~~` and masked across the boundary,
+        # the `## Test Plan` heading would be inside a CODE_BLOCK token and
+        # would NOT be stripped, causing `validation_target.md` to leak.
+        result = extract_mentioned_files(desc)
+        assert "validation_target.md" not in result
+
     def test_html_pre_block_masked(self) -> None:
         """PR templates and bot-generated descriptions sometimes embed `<pre>`
         blocks. The mask must cover them or a sample heading inside `<pre>`
@@ -724,13 +747,14 @@ class TestPrintResults:
         code = print_results(issues, ci=False)
         assert code == 0
 
-    def test_unrecognized_severity_returns_zero(self) -> None:
-        """Defensive: an Issue with severity outside CRITICAL/WARNING does
-        not block, and the printer does not crash. validate_pr_description
-        never produces such issues today, but a future caller might."""
-        issues = [Issue("INFO", "Note", "f.py", "msg")]
-        code = print_results(issues, ci=True)
-        assert code == 0
+    def test_unrecognized_severity_rejected_at_construction(self) -> None:
+        """Issue.severity is a closed Literal["CRITICAL","WARNING"]. A typo
+        like "critical" or "INFO" must raise at construction time, not
+        silently slip past the CRITICAL gate at validate_pr_description."""
+        with pytest.raises(ValueError, match="must be one of"):
+            Issue("INFO", "Note", "f.py", "msg")
+        with pytest.raises(ValueError, match="must be one of"):
+            Issue("critical", "Note", "f.py", "msg")  # case matters
 
 
 # ---------------------------------------------------------------------------
@@ -1221,9 +1245,11 @@ class TestBypassLabel:
         mock_fetch: MagicMock,
         tmp_path,
         monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
     ) -> None:
         """A filesystem failure on GITHUB_OUTPUT write must NOT block the
-        bypass return path. Defensive coverage for the audit emitter."""
+        bypass return path. Failure must log to stderr (not silently
+        swallow)."""
         bad_output = tmp_path / "output_dir"
         bad_output.mkdir()
         monkeypatch.setenv("GITHUB_OUTPUT", str(bad_output))
@@ -1237,3 +1263,74 @@ class TestBypassLabel:
         }
         code = main(["--pr-number", "1", "--ci"])
         assert code == 0
+        assert "WARNING: failed to write bypass audit" in capsys.readouterr().err
+
+    @patch("scripts.validation.pr_description.fetch_pr_data")
+    @patch("scripts.validation.pr_description.get_repo_info")
+    def test_bypass_label_with_newline_does_not_inject_output_keys(
+        self,
+        mock_repo: MagicMock,
+        mock_fetch: MagicMock,
+        tmp_path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """CWE-117 / CVE-2023-32700 class: a bypass label containing `\\n`
+        could inject arbitrary GITHUB_OUTPUT keys (e.g.,
+        `bypass\\nvalidation_result=PASS`). The sanitizer must replace
+        newlines so only the intended bypass_used/label/count keys are
+        emitted."""
+        output = tmp_path / "outputs.txt"
+        output.write_text("")
+        monkeypatch.setenv("GITHUB_OUTPUT", str(output))
+        # Note: argparse/env doesn't easily allow a real newline; the
+        # sanitizer must be applied unconditionally even if a future
+        # caller passes one. We invoke the helper directly:
+        from scripts.validation.pr_description import _write_step_output
+        _write_step_output(str(output), "bypass\nvalidation_result=PASS", 1)
+        body = output.read_text()
+        assert "bypass_used=true" in body
+        # Newline replaced; injection prevented.
+        assert "\nvalidation_result=PASS" not in body
+        assert "bypass_label=bypass_validation_result_PASS" in body
+
+    def test_safe_label_for_output_replaces_dangerous_chars(self) -> None:
+        assert _safe_label_for_output("a\nb") == "a_b"
+        assert _safe_label_for_output("a\rb") == "a_b"
+        assert _safe_label_for_output("a=b") == "a_b"
+        assert _safe_label_for_output("clean-label") == "clean-label"
+
+    def test_safe_label_for_markdown_replaces_backticks(self) -> None:
+        assert _safe_label_for_markdown("a`b") == "a'b"
+        assert _safe_label_for_markdown("clean") == "clean"
+
+    @patch("scripts.validation.pr_description.fetch_pr_data")
+    @patch("scripts.validation.pr_description.get_repo_info")
+    def test_bypass_label_with_backtick_does_not_break_markdown(
+        self,
+        mock_repo: MagicMock,
+        mock_fetch: MagicMock,
+        tmp_path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """A label containing a backtick must not close the inline code
+        span in the audit summary, which would defeat the
+        `<!-- DESCRIPTION-VALIDATION-BYPASS -->` parse contract."""
+        summary = tmp_path / "summary.md"
+        summary.write_text("")
+        monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary))
+        mock_repo.return_value = RepoInfo(owner="o", repo="r")
+        mock_fetch.return_value = {
+            "title": "T",
+            "body": "Changed `ghost.py`",
+            "files": [{"path": "real.py"}],
+            "labels": [{"name": "weird`label"}],
+        }
+        code = main(
+            ["--pr-number", "1", "--ci", "--bypass-label", "weird`label"]
+        )
+        assert code == 0
+        body = summary.read_text()
+        # Backtick replaced with single quote in the rendered label.
+        assert "`weird'label`" in body
+        # Audit marker still intact.
+        assert "<!-- DESCRIPTION-VALIDATION-BYPASS -->" in body
