@@ -21,6 +21,24 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
+# Cross-platform file locking
+if sys.platform == "win32":
+    import msvcrt
+
+    def _lock_file(f):
+        msvcrt.locking(f.fileno(), msvcrt.LK_LOCK, 1)
+
+    def _unlock_file(f):
+        msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, 1)
+else:
+    import fcntl
+
+    def _lock_file(f):
+        fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+
+    def _unlock_file(f):
+        fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+
 _plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
 if _plugin_root:
     _lib_dir = str(Path(_plugin_root).resolve() / "lib")
@@ -76,32 +94,42 @@ def write_checkpoint(project_dir: Path, file_path: str, content: str) -> None:
     today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
     checkpoint_file = hook_state_dir / f"plan-checkpoint-{today}.json"
 
-    # Read existing checkpoint data or start fresh
-    existing = []
-    if checkpoint_file.exists():
+    # Create file if it doesn't exist
+    if not checkpoint_file.exists():
+        checkpoint_file.write_text("[]", encoding="utf-8")
+
+    # Locked read-modify-write to prevent race conditions
+    with open(checkpoint_file, "r+", encoding="utf-8") as f:
+        _lock_file(f)
         try:
-            existing = json.loads(checkpoint_file.read_text(encoding="utf-8"))
-            if not isinstance(existing, list):
-                existing = [existing]
-        except (json.JSONDecodeError, OSError):
+            # Read existing checkpoint data
+            f.seek(0)
             existing = []
+            try:
+                existing = json.load(f)
+                if not isinstance(existing, list):
+                    existing = [existing]
+            except (json.JSONDecodeError, OSError):
+                existing = []
 
-    # Append new checkpoint entry
-    entry = {
-        "file": file_path,
-        "timestamp": datetime.now(tz=UTC).isoformat(),
-        "summary": content[:500],
-    }
-    existing.append(entry)
+            # Append new checkpoint entry
+            entry = {
+                "file": file_path,
+                "timestamp": datetime.now(tz=UTC).isoformat(),
+                "summary": content[:500],
+            }
+            existing.append(entry)
 
-    # Keep only last 20 entries to avoid unbounded growth
-    if len(existing) > 20:
-        existing = existing[-20:]
+            # Keep only last 20 entries to avoid unbounded growth
+            if len(existing) > 20:
+                existing = existing[-20:]
 
-    checkpoint_file.write_text(
-        json.dumps(existing, indent=2, ensure_ascii=False),
-        encoding="utf-8",
-    )
+            # Write back
+            f.seek(0)
+            f.truncate()
+            json.dump(existing, f, indent=2, ensure_ascii=False)
+        finally:
+            _unlock_file(f)
 
 
 def main() -> int:

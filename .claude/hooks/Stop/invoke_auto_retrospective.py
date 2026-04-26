@@ -185,16 +185,16 @@ def update_retro_index(project_dir: Path, today: str, filename: str) -> None:
 
     # Append new row (advisory lock to prevent interleaved writes from parallel sessions)
     row = f"| {today} | {filename} | Auto-generated session retro |"
-    with open(index_path, "r+", encoding="utf-8") as f:
+    with open(index_path, "r+b") as f:
         _lock_file(f)
         try:
             f.seek(0, os.SEEK_END)
             if f.tell() > 0:
-                f.seek(f.tell() - 1, os.SEEK_SET)
-                last_char = f.read(1)
-                if last_char != "\n":
-                    f.write("\n")
-            f.write(row + "\n")
+                f.seek(-1, os.SEEK_END)
+                last_byte = f.read(1)
+                if last_byte != b"\n":
+                    f.write(b"\n")
+            f.write((row + "\n").encode("utf-8"))
         finally:
             _unlock_file(f)
 
