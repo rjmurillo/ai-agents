@@ -59,8 +59,11 @@ export async function mergeClaudeMd(
     const raw = await readFile(filePath);
     existing = raw.toString("utf-8");
     detectedCrlf = existing.includes("\r\n");
-  } catch {
-    // File does not exist yet
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
+      throw err;
+    }
+    // File does not exist yet, proceed with empty existing content
   }
 
   if (existing.includes(BEGIN_MARKER) && existing.includes(END_MARKER)) {

@@ -14,7 +14,8 @@
   ],
   "scripts": {
     "build": "bun build src/cli.ts --outdir dist --target node",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "bun test"
   },
   "keywords": [
     "claude",

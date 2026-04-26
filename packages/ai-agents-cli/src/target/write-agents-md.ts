@@ -38,8 +38,11 @@ export async function writeAgentsMd(
   try {
     await readFile(filePath);
     return false;
-  } catch {
-    // File does not exist, create it
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
+      throw err;
+    }
+    // File does not exist, fall through and create it
   }
 
   await writeFile(filePath, AGENTS_STUB, "utf-8");
