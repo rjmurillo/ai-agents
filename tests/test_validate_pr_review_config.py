@@ -7,6 +7,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 from scripts.validate_pr_review_config import validate_config
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -293,6 +295,85 @@ class TestValidateConfig:
             "summary_required_columns must be a non-empty list of non-empty strings"
             in e
             for e in errors
+        )
+
+    # --- bool-as-int regression guards ---
+    # Python's `bool` is a subclass of `int`, so `isinstance(True, int)` is
+    # True. The validator excludes `bool` explicitly; these tests pin that.
+
+    def test_all_open_max_prs_rejects_bool(self) -> None:
+        config = copy.deepcopy(VALID_CONFIG)
+        config["invocation_limits"]["all_open_max_prs"] = True
+        errors = validate_config(config)
+        assert any("all_open_max_prs must be an integer >= 1" in e for e in errors)
+
+    def test_completion_gate_max_retries_rejects_bool(self) -> None:
+        config = copy.deepcopy(VALID_CONFIG)
+        config["invocation_limits"]["completion_gate_max_retries"] = False
+        errors = validate_config(config)
+        assert any(
+            "completion_gate_max_retries must be an integer >= 0" in e for e in errors
+        )
+
+    def test_per_pr_max_response_tokens_rejects_bool(self) -> None:
+        config = copy.deepcopy(VALID_CONFIG)
+        config["output_constraints"]["per_pr_max_response_tokens"] = True
+        errors = validate_config(config)
+        assert any(
+            "per_pr_max_response_tokens must be an integer >= 1" in e for e in errors
+        )
+
+
+class TestPathValidationHardening:
+    """CWE-22 / null-byte / control-character coverage on the safe-path helper.
+
+    Subprocess argv cannot carry an embedded null byte (the OS rejects it
+    before Python sees it), so null-byte and control-character cases call
+    ``validate_safe_path`` directly. Path traversal and absolute-outside-root
+    cases are covered by ``TestCliPathSafety`` below, which exercises the CLI
+    end to end.
+    """
+
+    def test_null_byte_in_path_rejected(self) -> None:
+        from scripts.utils.path_validation import validate_safe_path
+
+        with pytest.raises(ValueError):
+            validate_safe_path("config\x00.yaml", _REPO_ROOT)
+
+    def test_null_byte_in_subdirectory_rejected(self) -> None:
+        from scripts.utils.path_validation import validate_safe_path
+
+        with pytest.raises(ValueError):
+            validate_safe_path("scripts/\x00config.yaml", _REPO_ROOT)
+
+    def test_traversal_via_validate_safe_path_rejected(self) -> None:
+        from scripts.utils.path_validation import validate_safe_path
+
+        with pytest.raises(ValueError):
+            validate_safe_path("../../etc/passwd", _REPO_ROOT)
+
+    def test_absolute_outside_root_via_validate_safe_path_rejected(self) -> None:
+        from scripts.utils.path_validation import validate_safe_path
+
+        with pytest.raises(ValueError):
+            validate_safe_path("/etc/passwd", _REPO_ROOT)
+
+    def test_control_chars_rejected_by_cli(self) -> None:
+        """Control chars resolve to a path that does not exist; CLI returns 2."""
+        # newline-bearing input: validate_safe_path resolves it, but the
+        # resulting file does not exist, so the CLI rejects with exit 2.
+        result = subprocess.run(
+            [sys.executable, str(_VALIDATOR), "config\r.yaml"],
+            capture_output=True,
+            text=True,
+            cwd=str(_REPO_ROOT),
+        )
+        assert result.returncode == 2
+        # Either "Invalid config path" (from validate_safe_path) or
+        # "Config file not found" is acceptable; both signal rejection.
+        assert (
+            "Invalid config path" in result.stderr
+            or "Config file not found" in result.stderr
         )
 
 
