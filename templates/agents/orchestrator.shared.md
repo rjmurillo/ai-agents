@@ -154,7 +154,14 @@ Your output is not "analyst said X, architect said Y." It is "based on investiga
 
 If session-end fails or any MUST item is incomplete, do **not** close the session. Surface the specific failure reason in the session log and continue working to resolve it. If unresolvable, document the blocker and call `work_finish(blocked, "Session-end protocol failure: [specific error]")`.
 
-When drift or context loss is detected at session start or mid-session, run the Anti-Drift Protocol below before resuming routing.
+### Session Capture Protocol
+
+Capture behavioral signal, not background noise. Record decisions made (architecture choices, approach pivots), blockers hit (what stopped progress, workarounds tried), state changes (files modified, branches created, issues filed), open questions (unresolved ambiguities), and next steps (concrete continuation plan). Skip tool invocations, background research that didn't change the plan, and routine operations.
+
+**Decision rule**: If removing this entry would leave the next session unable to reproduce a decision or continue the work, keep it. Otherwise, skip it.
+
+See `wiki/concepts/Session Capture Protocol.md` for the full protocol, behavioral vs background distinction, and example session log entries.
+
 
 ## Anti-Drift Protocol
 
@@ -205,7 +212,6 @@ Each `workLog` entry should be one or two sentences: lead with the action or dec
 **Decision rule**: If removing an entry would leave the next session unable to reproduce a decision or continue the work, keep it. Otherwise, skip it.
 
 ## Reliability Principles
-
 - **Idempotent delegations**: re-delegating the same task to the same agent should be safe
 - **Explicit handoffs**: never let context decay across agents
 - **Graceful degradation**: if an agent fails, route to a fallback (e.g., analyst → context-retrieval if analyst errors)
