@@ -8,6 +8,7 @@ Targets the controlled-vocabulary verdict matching introduced for issue #1755:
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import sys
 from pathlib import Path
@@ -16,16 +17,25 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 EVAL_DIR = REPO_ROOT / "scripts" / "eval"
-sys.path.insert(0, str(EVAL_DIR))
 
-import importlib.util
-
-_spec = importlib.util.spec_from_file_location(
-    "eval_prompt_change", EVAL_DIR / "eval-prompt-change.py"
-)
-assert _spec and _spec.loader
-eval_mod = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(eval_mod)
+# eval-prompt-change.py imports sibling modules (_anthropic_api, _eval_common)
+# via plain `from X import Y` statements, so EVAL_DIR must be on sys.path
+# while the module is loaded. Scope the mutation to the load itself and
+# remove it afterward so the test file does not change import resolution
+# for any other test module in the run.
+_path_added = str(EVAL_DIR) not in sys.path
+if _path_added:
+    sys.path.insert(0, str(EVAL_DIR))
+try:
+    _spec = importlib.util.spec_from_file_location(
+        "eval_prompt_change", EVAL_DIR / "eval-prompt-change.py"
+    )
+    assert _spec and _spec.loader
+    eval_mod = importlib.util.module_from_spec(_spec)
+    _spec.loader.exec_module(eval_mod)
+finally:
+    if _path_added and str(EVAL_DIR) in sys.path:
+        sys.path.remove(str(EVAL_DIR))
 
 
 # ---------------------------------------------------------------------------
