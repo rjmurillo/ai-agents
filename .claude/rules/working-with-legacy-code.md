@@ -13,7 +13,7 @@ The point of these techniques is not to refactor for its own sake. The point is 
 
 Activate the techniques in this rule when any of the following holds for the file you are about to change.
 
-- The file has low test coverage. There are no characterization tests, or coverage is below the project floor for the area you are touching.
+- The file has low test coverage. There are no characterization tests, or coverage is below the AGENTS.md floor for the area you are touching (100% security, 80% business logic, 60% docs/glue).
 - The file is older than six months and has not been substantively edited in that time. Behavior has solidified through use; an unguarded change is more likely to surprise a downstream caller than a recent file would be.
 - The change is part of a To Improve fix cycle. A previous worker (junior or medior, in the auto-escalation ladder) attempted this change and the attempt failed or regressed. The escalated worker MUST add tests around the surface area before reproducing or extending the prior attempt.
 - The class or function is hard to instantiate in a test (large constructor graph, hidden singletons, file or network access in the constructor).
