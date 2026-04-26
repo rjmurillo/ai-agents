@@ -126,8 +126,18 @@ def _read_stdin_json() -> dict | None:
 
 
 def _extract_command(hook_input: dict) -> str:
-    """Extract the command string from hook input."""
+    """Extract the command string from hook input.
+
+    Defends against malformed input where ``hook_input`` or
+    ``tool_input`` is not a mapping. Returning an empty string lets the
+    caller fall through to the no-op path instead of raising and being
+    swallowed by the top-level fail-open handler.
+    """
+    if not isinstance(hook_input, dict):
+        return ""
     tool_input = hook_input.get("tool_input", {})
+    if not isinstance(tool_input, dict):
+        return ""
     return tool_input.get("command", "")
 
 
@@ -136,68 +146,115 @@ def _is_completion_claim(command: str) -> bool:
     return COMPLETION_SIGNALS.search(command) is not None
 
 
-def _is_documentation_only(is_pr_create: bool) -> bool:
-    """Check if changes are documentation-only.
+_GIT_TIMEOUT_SECONDS = 5
 
-    Args:
-        is_pr_create: True if this is a `gh pr create` command, False for `git commit`.
-                      For commits, checks staged changes (git diff --cached).
-                      For PRs, checks branch diff against the merge base.
+
+def _run_git(args: list[str]) -> subprocess.CompletedProcess[str] | None:
+    """Run a git subcommand bound to the project directory with a timeout.
+
+    Returns ``None`` when git fails to launch or exceeds the timeout so
+    callers can choose how to fall back instead of stalling the gate.
     """
+    project_dir = get_project_directory()
     try:
-        if is_pr_create:
-            # For PR create, get the branch diff against the merge base
-            # First, find the merge base with the default branch
-            base_result = subprocess.run(
-                ["git", "rev-parse", "--abbrev-ref", "HEAD"],
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-            if base_result.returncode != 0:
-                return False
+        return subprocess.run(
+            ["git", "-C", project_dir, *args],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=_GIT_TIMEOUT_SECONDS,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
 
-            # Try to find merge-base with common default branches
-            for default_branch in ["main", "master", "develop"]:
-                merge_base_result = subprocess.run(
-                    ["git", "merge-base", default_branch, "HEAD"],
-                    capture_output=True,
-                    text=True,
-                    check=False,
-                )
-                if merge_base_result.returncode == 0:
-                    merge_base = merge_base_result.stdout.strip()
-                    result = subprocess.run(
-                        ["git", "diff", "--name-only", merge_base, "HEAD"],
-                        capture_output=True,
-                        text=True,
-                        check=False,
-                    )
-                    break
-            else:
-                # No default branch found, fall back to staged changes
-                result = subprocess.run(
-                    ["git", "diff", "--cached", "--name-only"],
-                    capture_output=True,
-                    text=True,
-                    check=False,
-                )
-        else:
-            # For commits, check staged changes
-            result = subprocess.run(
-                ["git", "diff", "--cached", "--name-only"],
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-        if result.returncode != 0:
+
+def _resolve_pr_base_branch() -> str | None:
+    """Discover the base branch a ``gh pr create`` would target.
+
+    Tries upstream tracking, then ``origin/HEAD`` symbolic ref, then the
+    common default-branch names as a last resort. Returns ``None`` if
+    nothing resolves so the caller can fall back to staged changes.
+    """
+    upstream = _run_git(["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"])
+    if upstream and upstream.returncode == 0:
+        ref = upstream.stdout.strip()
+        if ref and ref != "HEAD":
+            return ref
+
+    head_ref = _run_git(["symbolic-ref", "refs/remotes/origin/HEAD"])
+    if head_ref and head_ref.returncode == 0:
+        ref = head_ref.stdout.strip()
+        if ref:
+            return ref.removeprefix("refs/remotes/")
+
+    for default_branch in ("origin/main", "origin/master", "origin/develop",
+                           "main", "master", "develop"):
+        rev = _run_git(["rev-parse", "--verify", "--quiet", default_branch])
+        if rev and rev.returncode == 0:
+            return default_branch
+    return None
+
+
+def _changed_files_for_pr(current_branch: str) -> list[str] | None:
+    """Return files changed against the resolved PR base, or None if unresolved.
+
+    When the user is already on the default branch the merge-base degenerates
+    to HEAD and produces an empty diff, which would falsely classify normal
+    changes as non-documentation-only. The caller treats ``None`` as
+    "fall through to staged diff."
+    """
+    base_branch = _resolve_pr_base_branch()
+    if base_branch is None:
+        return None
+
+    # If we are sitting on the same ref as the resolved base, skip the
+    # merge-base dance: comparing main..HEAD on main returns nothing.
+    base_short = base_branch.removeprefix("origin/")
+    if current_branch and current_branch == base_short:
+        return None
+
+    merge_base = _run_git(["merge-base", base_branch, "HEAD"])
+    if not merge_base or merge_base.returncode != 0:
+        return None
+
+    diff = _run_git(
+        ["diff", "--name-only", merge_base.stdout.strip(), "HEAD"]
+    )
+    if not diff or diff.returncode != 0:
+        return None
+    return [f.strip() for f in diff.stdout.strip().split("\n") if f.strip()]
+
+
+def _is_documentation_only(is_pr_create: bool) -> bool:
+    """Check if the relevant changed files are documentation-only.
+
+    For ``git commit`` we look at the index. For ``gh pr create`` we
+    resolve the actual base branch (upstream / origin/HEAD / common
+    defaults) and diff the branch against the merge base. If no base
+    can be resolved we fall back to the staged diff so docs-only PRs
+    keep their bypass when possible.
+    """
+    if is_pr_create:
+        head_branch_result = _run_git(["rev-parse", "--abbrev-ref", "HEAD"])
+        if head_branch_result is None or head_branch_result.returncode != 0:
             return False
-        files = [f.strip() for f in result.stdout.strip().split("\n") if f.strip()]
-        if not files:
+        current_branch = head_branch_result.stdout.strip()
+
+        files = _changed_files_for_pr(current_branch)
+        if files is None:
+            staged = _run_git(["diff", "--cached", "--name-only"])
+            if staged is None or staged.returncode != 0:
+                return False
+            files = [f.strip() for f in staged.stdout.strip().split("\n") if f.strip()]
+    else:
+        staged = _run_git(["diff", "--cached", "--name-only"])
+        if staged is None or staged.returncode != 0:
             return False
-        return all(f.endswith(".md") for f in files)
-    except OSError:
+        files = [f.strip() for f in staged.stdout.strip().split("\n") if f.strip()]
+
+    if not files:
         return False
+    return all(f.endswith(".md") for f in files)
 
 
 def _has_verification_evidence(session_log: Path) -> bool:
@@ -253,9 +310,11 @@ def main() -> None:
     if not command:
         sys.exit(0)
 
-    # Only gate on git commit and gh pr create commands
-    is_commit = re.search(r"(?:^|\s)git\s+(commit|ci)", command)
-    is_pr_create = re.search(r"gh\s+pr\s+create", command)
+    # Only gate on `git commit`/`git ci` and `gh pr create` commands.
+    # The trailing boundary keeps neighbours like `git commit-tree` or
+    # `gh pr create-checkout` from accidentally matching.
+    is_commit = re.search(r"(?:^|\s)git\s+(commit|ci)(?:\s|$)", command)
+    is_pr_create = re.search(r"(?:^|\s)gh\s+pr\s+create(?:\s|$)", command)
     if not is_commit and not is_pr_create:
         sys.exit(0)
 

@@ -78,40 +78,67 @@ HOOK_NAME = "compact-checkpoint"
 
 
 def _get_current_branch() -> str:
-    """Get the current git branch name."""
+    """Get the current git branch name.
+
+    Uses ``git -C`` to bind the call to the project directory rather
+    than relying on the hook process CWD, and applies a short timeout
+    so a stuck git index lock cannot hang the PreCompact gate.
+    """
+    project_dir = get_project_directory()
     try:
         result = subprocess.run(
-            ["git", "branch", "--show-current"],
+            ["git", "-C", project_dir, "branch", "--show-current"],
             capture_output=True,
             text=True,
             check=False,
+            timeout=5,
         )
         if result.returncode == 0:
             return result.stdout.strip()
-    except OSError:
+    except (OSError, subprocess.TimeoutExpired):
         pass
     return "(unknown)"
 
 
 def _extract_open_items(session_log: Path) -> list[str]:
-    """Extract open/incomplete work items from session log."""
+    """Extract open/incomplete work items from a session log.
+
+    Supports the legacy ``work: [{description, status}, ...]`` shape, the
+    current ``workLog`` schema, and the observed ``work: { tasks: [...] }``
+    shape (see ``.agents/sessions/2026-02-08-session-1194.json``).
+    Items whose ``status`` is done/complete/completed are excluded.
+    """
     items: list[str] = []
+
+    def _append_open_items(entries: object) -> None:
+        if not isinstance(entries, list):
+            return
+        for entry in entries:
+            if isinstance(entry, dict):
+                status = str(entry.get("status", "")).lower()
+                if status in ("done", "complete", "completed"):
+                    continue
+                desc = entry.get("description", entry.get("task", str(entry)))
+                items.append(str(desc))
+            elif isinstance(entry, str):
+                items.append(entry)
+
     try:
         content = session_log.read_text(encoding="utf-8", errors="replace")
         data = json.loads(content)
-
-        work = data.get("work", [])
-        if isinstance(work, list):
-            for w in work:
-                if isinstance(w, dict):
-                    status = w.get("status", "").lower()
-                    if status not in ("done", "complete", "completed"):
-                        desc = w.get("description", w.get("task", str(w)))
-                        items.append(str(desc))
-                elif isinstance(w, str):
-                    items.append(w)
     except (json.JSONDecodeError, OSError):
-        pass
+        return items
+
+    if not isinstance(data, dict):
+        return items
+
+    work = data.get("work", [])
+    if isinstance(work, list):
+        _append_open_items(work)
+    elif isinstance(work, dict):
+        _append_open_items(work.get("tasks", []))
+
+    _append_open_items(data.get("workLog", []))
     return items
 
 

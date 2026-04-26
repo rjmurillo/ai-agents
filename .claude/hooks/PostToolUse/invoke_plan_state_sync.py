@@ -87,8 +87,17 @@ def _read_stdin_json() -> dict | None:
 
 
 def _extract_file_path(hook_input: dict) -> str | None:
-    """Extract the file path from hook input."""
+    """Extract the file path from hook input.
+
+    Defends against malformed hook input where ``hook_input`` or
+    ``tool_input`` is not a mapping. Returning ``None`` lets the caller
+    skip checkpointing without disabling the hook silently.
+    """
+    if not isinstance(hook_input, dict):
+        return None
     tool_input = hook_input.get("tool_input", {})
+    if not isinstance(tool_input, dict):
+        return None
     # Write tool uses 'file_path', Edit tool may use 'file_path' or 'path'
     return tool_input.get("file_path") or tool_input.get("path")
 
@@ -109,12 +118,17 @@ def _is_checkpointable_file(file_path: str) -> bool:
 
 
 def _read_file_summary(file_path: str) -> str:
-    """Read first N chars of a file as a summary."""
+    """Read first SUMMARY_MAX_CHARS of a file as a summary.
+
+    Streams only the bytes needed instead of loading the whole file, so
+    large session logs do not balloon hook memory.
+    """
     try:
         path = Path(file_path)
         if not path.exists():
             return "(file not found)"
-        content = path.read_text(encoding="utf-8", errors="replace")
+        with path.open(encoding="utf-8", errors="replace") as handle:
+            content = handle.read(SUMMARY_MAX_CHARS + 1)
         if len(content) > SUMMARY_MAX_CHARS:
             return content[:SUMMARY_MAX_CHARS] + "..."
         return content
@@ -176,11 +190,27 @@ def main() -> None:
         sys.exit(0)
 
     project_dir = get_project_directory()
+    project_root = Path(project_dir).resolve()
 
-    # Resolve to absolute path if relative
-    abs_path = str(Path(file_path).resolve()) if not Path(file_path).is_absolute() else file_path
+    # Anchor relative paths to the project root so a hook process whose
+    # CWD is a subdirectory still resolves to the file Claude wrote, and
+    # reject paths that escape the repo (CWE-22 path traversal).
+    candidate = Path(file_path)
+    resolved = (
+        candidate.resolve()
+        if candidate.is_absolute()
+        else (project_root / candidate).resolve()
+    )
+    try:
+        resolved.relative_to(project_root)
+    except ValueError:
+        print(
+            f"[WARNING] {HOOK_NAME}: ignoring out-of-root path: {file_path}",
+            file=sys.stderr,
+        )
+        sys.exit(0)
 
-    summary = _read_file_summary(abs_path)
+    summary = _read_file_summary(str(resolved))
     _write_checkpoint(project_dir, file_path, summary)
 
     print(f"[INFO] {HOOK_NAME}: Checkpointed state for {file_path}", file=sys.stderr)

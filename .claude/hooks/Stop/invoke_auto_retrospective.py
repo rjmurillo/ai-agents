@@ -104,32 +104,116 @@ def _is_trivial_session(session_log: Path | None) -> bool:
         return True
 
 
+def _extract_text_items(value: object) -> list[str]:
+    """Pull human-readable strings from a JSON value of any supported shape.
+
+    Supports the legacy ``outcomes: [str, ...]`` shape, the current
+    ``outcomes: { ... }`` shape, and the observed ``work: { tasks: [...] }``
+    shape (see ``.agents/sessions/2026-02-08-session-1194.json``). Returns
+    an ordered list with empty strings filtered out.
+    """
+    items: list[str] = []
+    if isinstance(value, str):
+        if value.strip():
+            items.append(value)
+    elif isinstance(value, list):
+        for entry in value:
+            items.extend(_extract_text_items(entry))
+    elif isinstance(value, dict):
+        preferred_keys = (
+            "description",
+            "task",
+            "summary",
+            "result",
+            "status",
+            "outcome",
+            "title",
+            "name",
+            "detail",
+            "details",
+        )
+        for key in preferred_keys:
+            text = value.get(key)
+            if isinstance(text, str) and text.strip():
+                items.append(text)
+                break
+    return items
+
+
 def _extract_session_summary(session_log: Path) -> dict[str, str]:
-    """Extract summary info from session log JSON."""
+    """Extract summary info from session log JSON.
+
+    Tolerates non-dict roots, the legacy list shapes for ``outcomes`` and
+    ``work``, and the current schema where ``outcomes`` is an object and
+    work is recorded under ``workLog`` or ``work.tasks``/``work.filesChanged``.
+    """
     result = {"objective": "", "outcomes": "", "work_items": ""}
     try:
         content = session_log.read_text(encoding="utf-8", errors="replace")
         data = json.loads(content)
-
-        result["objective"] = data.get("objective", "")
-
-        # Extract outcomes
-        outcomes = data.get("outcomes", [])
-        if isinstance(outcomes, list):
-            result["outcomes"] = "\n".join(f"- {o}" for o in outcomes if isinstance(o, str))
-
-        # Extract work items
-        work = data.get("work", [])
-        if isinstance(work, list):
-            items = []
-            for w in work:
-                if isinstance(w, dict):
-                    items.append(f"- {w.get('description', w.get('task', str(w)))}")
-                elif isinstance(w, str):
-                    items.append(f"- {w}")
-            result["work_items"] = "\n".join(items)
     except (json.JSONDecodeError, OSError):
-        pass
+        return result
+
+    if not isinstance(data, dict):
+        return result
+
+    objective = data.get("objective", "")
+    result["objective"] = objective if isinstance(objective, str) else ""
+
+    def _as_bullets(values: list[str]) -> str:
+        return "\n".join(
+            f"- {value}" for value in values if isinstance(value, str) and value.strip()
+        )
+
+    # Outcomes: support legacy list shape and current object shape.
+    outcomes = data.get("outcomes", [])
+    outcome_items: list[str] = []
+    if isinstance(outcomes, list):
+        outcome_items.extend(_extract_text_items(outcomes))
+    elif isinstance(outcomes, dict):
+        for key in ("completed", "achieved", "results", "items", "summary"):
+            if key in outcomes:
+                outcome_items.extend(_extract_text_items(outcomes[key]))
+        if not outcome_items:
+            for value in outcomes.values():
+                outcome_items.extend(_extract_text_items(value))
+    elif isinstance(outcomes, str):
+        outcome_items.extend(_extract_text_items(outcomes))
+    result["outcomes"] = _as_bullets(outcome_items)
+
+    # Work: legacy list, current ``workLog``, and observed object-shaped
+    # ``work`` with ``tasks``/``filesChanged`` keys.
+    work_items: list[str] = []
+    work_log = data.get("workLog", [])
+    work = data.get("work", [])
+
+    if isinstance(work_log, (str, list, dict)):
+        work_items.extend(_extract_text_items(work_log))
+
+    if isinstance(work, list):
+        work_items.extend(_extract_text_items(work))
+    elif isinstance(work, dict):
+        if "tasks" in work:
+            work_items.extend(_extract_text_items(work.get("tasks")))
+        if "filesChanged" in work:
+            files_changed = work.get("filesChanged")
+            if isinstance(files_changed, list):
+                for file_path in files_changed:
+                    if isinstance(file_path, str) and file_path.strip():
+                        work_items.append(f"Changed {file_path}")
+            else:
+                work_items.extend(_extract_text_items(files_changed))
+        remaining_work = {
+            key: value
+            for key, value in work.items()
+            if key not in {"tasks", "filesChanged"}
+        }
+        if remaining_work:
+            work_items.extend(_extract_text_items(remaining_work))
+    elif isinstance(work, str):
+        work_items.extend(_extract_text_items(work))
+
+    result["work_items"] = _as_bullets(work_items)
 
     return result
 
@@ -207,6 +291,28 @@ def _update_retro_index(project_dir: str, today: str, filename: str) -> None:
         print(f"[WARNING] {HOOK_NAME}: Failed to update INDEX.md: {exc}", file=sys.stderr)
 
 
+def _resolve_safe_project_path() -> Path | None:
+    """Resolve the project directory and require it to live under the repo root.
+
+    Defends against a misconfigured ``CLAUDE_PROJECT_DIR`` pointing outside
+    the repository, which would otherwise let this hook write retro files
+    anywhere on disk.
+    """
+    # Repository root from script location:
+    # .claude/hooks/Stop/invoke_auto_retrospective.py -> repo root is parents[3]
+    repo_root = Path(__file__).resolve().parents[3]
+    candidate = Path(get_project_directory()).resolve()
+    try:
+        candidate.relative_to(repo_root)
+    except ValueError:
+        print(
+            f"[WARNING] {HOOK_NAME}: project_dir outside repo root: {candidate}",
+            file=sys.stderr,
+        )
+        return None
+    return candidate
+
+
 def main() -> None:
     """Generate retrospective if one doesn't exist for today."""
     if skip_if_consumer_repo(HOOK_NAME):
@@ -215,8 +321,10 @@ def main() -> None:
     if os.environ.get("SKIP_AUTO_RETRO", "").lower() == "true":
         sys.exit(0)
 
-    project_dir = get_project_directory()
-    project_path = Path(project_dir)
+    project_path = _resolve_safe_project_path()
+    if project_path is None:
+        sys.exit(0)
+    project_dir = str(project_path)
     today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
 
     retro_dir = project_path / ".agents" / "retrospective"
