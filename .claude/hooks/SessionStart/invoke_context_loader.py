@@ -21,10 +21,11 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 # Cross-platform file locking
-# Windows: msvcrt.locking is byte-position-aware. The audit log is opened in
-# append mode and f.write advances the position, so an unlock at the post-write
-# position would target a different byte range than the original lock and raise
-# OSError. Save the position taken at lock time and restore it before unlocking.
+# Windows: msvcrt.locking is byte-position-aware and only locks 1 byte at the
+# CURRENT file position. For files opened in append mode, each process has its
+# own EOF, so locking "at the current position" locks DIFFERENT bytes per
+# process and provides no mutual exclusion. Always lock byte 0 (a fixed point
+# all processes can contend for), then restore the original write position.
 _win_lock_positions: dict[int, int] = {}
 
 if sys.platform == "win32":
@@ -33,14 +34,20 @@ if sys.platform == "win32":
     def _lock_file(f):
         fd = f.fileno()
         _win_lock_positions[fd] = f.tell()
+        f.seek(0)
         msvcrt.locking(fd, msvcrt.LK_LOCK, 1)
+        # Restore to original (append-EOF) position so f.write goes to the right place.
+        pos = _win_lock_positions.get(fd, 0)
+        f.seek(pos)
 
     def _unlock_file(f):
         fd = f.fileno()
-        pos = _win_lock_positions.pop(fd, None)
-        if pos is not None:
-            f.seek(pos)
+        write_pos = f.tell()
+        f.seek(0)
         msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+        # Drop the stored lock-time position; restore the post-write position.
+        _win_lock_positions.pop(fd, None)
+        f.seek(write_pos)
 else:
     import fcntl
 
@@ -145,8 +152,11 @@ def main() -> int:
                 f"--- HANDOFF.md (auto-loaded by context_loader hook) ---\n{content}\n"
             )
             loaded_files.append("HANDOFF.md")
-        except OSError:
-            pass  # Fail-open
+        except OSError as e:
+            print(
+                f"[hook-error] invoke_context_loader handoff_read: {type(e).__name__}: {e}",
+                file=sys.stderr,
+            )
 
     # Load latest retrospective
     retro_dir = project_dir / ".agents" / "retrospective"
@@ -158,8 +168,11 @@ def main() -> int:
                 f"--- Latest Retro: {latest_retro.name} (auto-loaded) ---\n{content}\n"
             )
             loaded_files.append(latest_retro.name)
-        except OSError:
-            pass  # Fail-open
+        except OSError as e:
+            print(
+                f"[hook-error] invoke_context_loader retro_read: {type(e).__name__}: {e}",
+                file=sys.stderr,
+            )
 
     # Print to stdout (injected into Claude's context)
     if output_parts:

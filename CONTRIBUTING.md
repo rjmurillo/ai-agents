@@ -535,9 +535,9 @@ Claude Code runs lifecycle hooks at session boundaries. They are registered in `
 | PreCompact | `invoke_compact_checkpoint.py` | Snapshots WIP state before context compaction | none (always runs) |
 | Stop | `invoke_auto_retrospective.py` | Auto-generates session retrospective on stop | `SKIP_AUTO_RETRO=true` |
 
-**Audit trail:** Every terminal decision is logged to `.agents/.hook-state/audit-{YYYY-MM-DD}.jsonl` (UTC date) with `session_id` and `tool_use_id` correlation IDs. Use this to debug why a gate blocked or allowed.
+**Audit trail:** `invoke_false_completion_gate` logs every terminal decision (block, allow_verified, bypass_env, error_parse, allow_not_completion) to `.agents/.hook-state/audit-{YYYY-MM-DD}.jsonl` (UTC date) with `schema: 1`, `session_id`, and `tool_use_id` correlation IDs. The other lifecycle hooks write narrower audit entries (`invoke_context_loader` logs context-load events) without correlation IDs. Use the audit trail when diagnosing why the completion gate blocked or allowed; for the other hooks, prefer stderr.
 
-**Diagnosability:** Hook errors print to stderr (visible in the harness output) tagged `[hook-error] {hook_name} {context}: {ExceptionClass}: {message}`. A silent fail-open is a bug.
+**Diagnosability:** Hook errors print to stderr (visible in the harness output) tagged `[hook-error] {hook_name} {context}: {ExceptionClass}: {message}`. The five lifecycle hooks aim to surface every recoverable failure to stderr rather than swallow it silently; if you find a silent fail-open path, treat it as a bug and add the `[hook-error]` line.
 
 Refer to `.agents/architecture/ADR-008-protocol-automation-lifecycle-hooks.md` for the design rationale.
 
