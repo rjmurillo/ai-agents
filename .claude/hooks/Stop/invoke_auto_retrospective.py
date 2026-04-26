@@ -35,6 +35,7 @@ try:
     from hook_utilities import get_recent_session_log as _get_recent_session_log
     from hook_utilities import lock_file as _lock_file
     from hook_utilities import unlock_file as _unlock_file
+    from hook_utilities.guards import skip_if_consumer_repo
 
     def get_project_directory() -> Path | None:
         """Wrap shared utility returning Path for backward compat."""
@@ -54,6 +55,14 @@ except ImportError:
                 return current
             current = current.parent
         return None
+
+    def skip_if_consumer_repo(hook_name: str) -> bool:  # type: ignore[misc]
+        """Fallback guard when hook_utilities is unavailable."""
+        project_dir = get_project_directory()
+        if not project_dir or not (project_dir / ".agents").is_dir():
+            print(f"[SKIP] {hook_name}: .agents/ not found (consumer repo)", file=sys.stderr)
+            return True
+        return False
 
     _get_recent_session_log = None  # type: ignore[assignment]
     _coerce_to_list = None  # type: ignore[assignment]
@@ -294,6 +303,10 @@ def update_retro_index(project_dir: Path, today: str, filename: str) -> None:
 
 def main() -> int:
     """Generate retrospective on session stop."""
+    # Skip for consumer repos (avoid creating directories outside .agents/)
+    if skip_if_consumer_repo("auto-retrospective"):
+        return 0
+
     # Bypass
     if os.environ.get("SKIP_AUTO_RETRO", "").lower() == "true":
         return 0
