@@ -1,0 +1,221 @@
+"""Tests for build/scripts/validate_plugin_manifests.py.
+
+Covers the regression class from PR #1773 (broken plugin install for
+all consumers due to invalid `agents`/`hooks` shapes in plugin.json),
+plus positive cases that match real-world working plugins (caveman).
+"""
+
+from __future__ import annotations
+
+import json
+import sys
+from pathlib import Path
+
+import pytest
+
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+sys.path.insert(0, str(REPO_ROOT / "build" / "scripts"))
+
+import validate_plugin_manifests as vpm  # noqa: E402
+
+
+def _write(tmp_path: Path, manifest: dict) -> Path:
+    plugin_dir = tmp_path / ".claude-plugin"
+    plugin_dir.mkdir()
+    target = plugin_dir / "plugin.json"
+    target.write_text(json.dumps(manifest), encoding="utf-8")
+    return target
+
+
+# --- Positive cases ---------------------------------------------------------
+
+
+def test_minimal_valid_manifest(tmp_path: Path) -> None:
+    target = _write(tmp_path, {"name": "test-plugin"})
+    assert vpm.validate_manifest(target) == []
+
+
+def test_caveman_shaped_manifest_passes(tmp_path: Path) -> None:
+    """Real-world working plugin shape from caveman/plugin.json."""
+    target = _write(
+        tmp_path,
+        {
+            "name": "caveman",
+            "description": "Compressed mode",
+            "author": {"name": "Julius"},
+            "hooks": {
+                "SessionStart": [
+                    {
+                        "hooks": [
+                            {
+                                "type": "command",
+                                "command": "node hooks/activate.js",
+                                "timeout": 5,
+                            }
+                        ]
+                    }
+                ]
+            },
+        },
+    )
+    assert vpm.validate_manifest(target) == []
+
+
+def test_path_field_as_string_valid(tmp_path: Path) -> None:
+    target = _write(tmp_path, {"name": "p", "agents": "./agents"})
+    assert vpm.validate_manifest(target) == []
+
+
+def test_path_field_as_array_of_strings_valid(tmp_path: Path) -> None:
+    target = _write(tmp_path, {"name": "p", "agents": ["./agents", "./more"]})
+    assert vpm.validate_manifest(target) == []
+
+
+def test_hooks_as_string_path_to_json_valid(tmp_path: Path) -> None:
+    target = _write(tmp_path, {"name": "p", "hooks": "./hooks/hooks.json"})
+    assert vpm.validate_manifest(target) == []
+
+
+# --- Regression: PR #1773 bug -----------------------------------------------
+
+
+def test_regression_hooks_as_dict_of_strings_rejected(tmp_path: Path) -> None:
+    """PR #1773 bug: pointing hook events at directories breaks plugin install."""
+    target = _write(
+        tmp_path,
+        {
+            "name": "project-toolkit",
+            "hooks": {
+                "PreToolUse": "./hooks/PreToolUse",
+                "SessionStart": "./hooks/SessionStart",
+            },
+        },
+    )
+    errors = vpm.validate_manifest(target)
+    assert errors
+    assert any("PR #1773" in e for e in errors)
+    assert any("PreToolUse" in e for e in errors)
+
+
+def test_regression_agents_array_with_dot_slash_rejected_when_not_string(
+    tmp_path: Path,
+) -> None:
+    """`agents` must be string or list of strings, not a dict or other shape."""
+    target = _write(tmp_path, {"name": "p", "agents": {"path": "./agents"}})
+    errors = vpm.validate_manifest(target)
+    assert any("`agents`" in e for e in errors)
+
+
+def test_hooks_string_must_end_with_json(tmp_path: Path) -> None:
+    target = _write(tmp_path, {"name": "p", "hooks": "./hooks"})
+    errors = vpm.validate_manifest(target)
+    assert any(".json" in e for e in errors)
+
+
+def test_unknown_hook_event_rejected(tmp_path: Path) -> None:
+    target = _write(
+        tmp_path,
+        {"name": "p", "hooks": {"NotAnEvent": [{"hooks": [{"type": "command", "command": "x"}]}]}},
+    )
+    errors = vpm.validate_manifest(target)
+    assert any("NotAnEvent" in e for e in errors)
+
+
+def test_hook_command_missing_rejected(tmp_path: Path) -> None:
+    target = _write(
+        tmp_path,
+        {"name": "p", "hooks": {"PreToolUse": [{"hooks": [{"type": "command"}]}]}},
+    )
+    errors = vpm.validate_manifest(target)
+    assert any("command" in e.lower() for e in errors)
+
+
+def test_hook_type_must_be_command(tmp_path: Path) -> None:
+    target = _write(
+        tmp_path,
+        {
+            "name": "p",
+            "hooks": {
+                "PreToolUse": [{"hooks": [{"type": "script", "command": "x"}]}]
+            },
+        },
+    )
+    errors = vpm.validate_manifest(target)
+    assert any("'command'" in e for e in errors)
+
+
+# --- Schema basics ----------------------------------------------------------
+
+
+def test_missing_name_rejected(tmp_path: Path) -> None:
+    target = _write(tmp_path, {"description": "no name"})
+    errors = vpm.validate_manifest(target)
+    assert any("name" in e for e in errors)
+
+
+def test_unknown_top_level_key_rejected(tmp_path: Path) -> None:
+    target = _write(tmp_path, {"name": "p", "garbage": True})
+    errors = vpm.validate_manifest(target)
+    assert any("garbage" in e for e in errors)
+
+
+def test_invalid_json_rejected(tmp_path: Path) -> None:
+    plugin_dir = tmp_path / ".claude-plugin"
+    plugin_dir.mkdir()
+    target = plugin_dir / "plugin.json"
+    target.write_text("{not json", encoding="utf-8")
+    errors = vpm.validate_manifest(target)
+    assert any("JSON parse error" in e for e in errors)
+
+
+def test_top_level_must_be_object(tmp_path: Path) -> None:
+    plugin_dir = tmp_path / ".claude-plugin"
+    plugin_dir.mkdir()
+    target = plugin_dir / "plugin.json"
+    target.write_text("[]", encoding="utf-8")
+    assert any("object" in e for e in vpm.validate_manifest(target))
+
+
+# --- Discovery + CLI --------------------------------------------------------
+
+
+def test_find_manifests_skips_worktrees(tmp_path: Path) -> None:
+    (tmp_path / "a" / ".claude-plugin").mkdir(parents=True)
+    (tmp_path / "a" / ".claude-plugin" / "plugin.json").write_text("{}")
+    (tmp_path / "worktrees" / "b" / ".claude-plugin").mkdir(parents=True)
+    (tmp_path / "worktrees" / "b" / ".claude-plugin" / "plugin.json").write_text("{}")
+    found = vpm.find_manifests(tmp_path)
+    assert len(found) == 1
+    assert "worktrees" not in str(found[0])
+
+
+def test_main_returns_zero_when_all_valid(tmp_path: Path, capsys) -> None:
+    target = _write(tmp_path, {"name": "p"})
+    assert vpm.main(["--manifest", str(target), "--root", str(tmp_path)]) == 0
+
+
+def test_main_returns_one_on_failure(tmp_path: Path, capsys) -> None:
+    target = _write(tmp_path, {"name": "p", "hooks": {"PreToolUse": "./d"}})
+    assert vpm.main(["--manifest", str(target), "--root", str(tmp_path)]) == 1
+
+
+def test_main_returns_two_when_no_manifests(tmp_path: Path) -> None:
+    assert vpm.main(["--root", str(tmp_path)]) == 2
+
+
+# --- Real repo manifests ----------------------------------------------------
+
+
+def test_actual_repo_manifests_are_valid() -> None:
+    """All committed plugin.json files in the repo must validate.
+
+    This is the regression gate that prevents shipping broken manifests
+    to plugin consumers (the PR #1773 incident).
+    """
+    manifests = vpm.find_manifests(REPO_ROOT)
+    failures: list[str] = []
+    for manifest in manifests:
+        errors = vpm.validate_manifest(manifest)
+        if errors:
+            failures.append(f"{manifest}: {errors}")
+    assert not failures, "Invalid manifests:\n" + "\n".join(failures)
