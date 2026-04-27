@@ -219,6 +219,11 @@ def validate_manifest(path: Path) -> list[str]:
     missing = REQUIRED_KEYS - data.keys()
     if missing:
         errors.append(f"Missing required keys: {sorted(missing)}")
+    elif not isinstance(data.get("name"), str) or not data["name"].strip():
+        errors.append(
+            "`name`: must be a non-empty string "
+            f"(got {type(data.get('name')).__name__})"
+        )
 
     unknown = set(data.keys()) - ALLOWED_KEYS
     if unknown:

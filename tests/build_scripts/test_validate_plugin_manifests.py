@@ -280,6 +280,18 @@ def test_missing_name_rejected(tmp_path: Path) -> None:
     assert any("name" in e for e in errors)
 
 
+def test_name_must_be_non_empty_string(tmp_path: Path) -> None:
+    """`name` value must be a non-empty string, not int/null/whitespace."""
+    for idx, bad in enumerate((123, None, "", "   ")):
+        sub = tmp_path / f"case-{idx}"
+        sub.mkdir()
+        target = _write(sub, {"name": bad})
+        errors = vpm.validate_manifest(target)
+        assert any("`name`" in e and "non-empty string" in e for e in errors), (
+            f"bad value {bad!r} should be rejected, got errors={errors}"
+        )
+
+
 def test_unknown_top_level_key_rejected(tmp_path: Path) -> None:
     target = _write(tmp_path, {"name": "p", "garbage": True})
     errors = vpm.validate_manifest(target)
