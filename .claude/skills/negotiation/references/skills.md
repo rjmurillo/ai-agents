@@ -12,6 +12,7 @@ Category: Deal Intelligence and Offer Analysis
 - **Tags**: negotiation, value-gap, deal-intelligence
 
 **Implementation**:
+
 ```text
 INVISIBLE DISADVANTAGE CHECK:
   Offer net value: $[X]
@@ -32,6 +33,7 @@ INVISIBLE DISADVANTAGE CHECK:
 - **Tags**: negotiation, protocol, analysis
 
 **Step sequence**:
+
 1. Read: extract every term; identify anchors, hedging, urgency signals, omissions
 2. Analyze: ZOPA, BATNA, information asymmetry, value gap
 3. Design: PCP framing (Perception, Context, Permission) before counter
@@ -50,6 +52,7 @@ INVISIBLE DISADVANTAGE CHECK:
 - **Tags**: negotiation, influence, framing, PCP
 
 **Pattern**:
+
 - Perception: "This isn't [their framing], it's [your framing]."
 - Context: "Market data, comps, or precedent shows [your anchor is normal]."
 - Permission: "If you can do X, we can do Y." Give them a path to yes.
@@ -66,6 +69,7 @@ INVISIBLE DISADVANTAGE CHECK:
 - **Tags**: negotiation, time-control, pressure-tactics
 
 **Test for genuine vs. tactical urgency**:
+
 - Genuine: the deadline has a concrete external cause (closing date, board meeting, offer expiry)
 - Tactical: the deadline serves only the other party's interest with no external anchor
 - Response to tactical urgency: slow down, become methodical, request justification
@@ -82,6 +86,7 @@ INVISIBLE DISADVANTAGE CHECK:
 - **Tags**: negotiation, bundling, concessions
 
 **Pattern**:
+
 - Identify all open dimensions (price, timeline, contingencies, concessions)
 - When conceding on one: "We can do [X on dimension A] if you can do [Y on dimension B]"
 - Never say "we can reduce the price" without extracting something in return
@@ -98,6 +103,7 @@ INVISIBLE DISADVANTAGE CHECK:
 - **Tags**: negotiation, model-routing, agent-design, capability-tiers
 
 **Routing rule**:
+
 ```yaml
 task: negotiation-analysis
 minimum_tier: senior
@@ -144,6 +150,7 @@ rationale: >
 - **Tags**: negotiation, anchoring, information-asymmetry
 
 **Decision rule**:
+
 - You have better market data: anchor first, justify with data.
 - They have better data: ask for their position first, then counter from your ZOPA, not their anchor.
 - Information symmetric: anchor first if your ZOPA is wider than theirs, since you can move further without breaking.
@@ -160,6 +167,7 @@ rationale: >
 - **Tags**: negotiation, BATNA, walkaway, pre-commitment
 
 **Pre-commitment artifact**:
+
 ```text
 BATNA WORKSHEET (complete before first counter):
   Walkaway price: $[X]
@@ -182,6 +190,7 @@ Adjustments mid-negotiation require a documented reason and a 24-hour delay.
 - **Tags**: negotiation, closing, commitment, written-confirmation
 
 **Pattern**:
+
 1. Recap terms in writing within 1 hour of verbal agreement.
 2. Use their language, not yours, for ambiguous terms.
 3. End with: "Confirming this matches your understanding."
