@@ -100,7 +100,6 @@ def build_system_prompt(mechanism: str, rule: dict[str, str], rule_id: str) -> s
     if mechanism == "description":
         if not rule["description"]:
             return ""
-        rule_id = rule.get("id", "rule")
         return (
             "Project rules apply to your work. Available rule:\n\n"
             f"  - {rule_id}: {rule['description']}\n\n"
@@ -476,7 +475,7 @@ def _process_one_rule(
 ) -> tuple[str, dict[str, Any] | None, int]:
     """Run all scenarios for one rule. Return (rule_id, result_dict_or_none, n_calls)."""
     rule_id = scenarios_data.get("rule_id", rule_path.stem)
-    rule = {**parse_rule(rule_path), "id": rule_id}
+    rule = parse_rule(rule_path)
     scenarios = scenarios_data.get("scenarios", [])
     n_calls = len(scenarios) * len(MECHANISMS) * 2  # call + judge
 
