@@ -103,7 +103,8 @@ def build_system_prompt(mechanism: str, rule: dict[str, str]) -> str:
         return (
             "Project rules apply to your work. Available rule:\n\n"
             f"  - working-with-legacy-code: {rule['description']}\n\n"
-            "Decide whether to apply rules based on the user's request and apply them when relevant."
+            "Decide whether to apply rules based on the user's request "
+            "and apply them when relevant."
         )
     if mechanism == "full":
         return (
@@ -131,14 +132,37 @@ def score_response(
     rationale = scenario.get("rationale", "")
 
     is_negative = expected_gate == "skip-rule-not-applicable"
+    signals_str = ", ".join(expected_signals) if expected_signals else "none"
+    negative_flag = "YES" if is_negative else "no"
+
+    activation_doc = (
+        "did the response apply guidance specific to the scenario's rule, "
+        "or only generic advice? "
+        "(negative case: 5 means the response correctly did NOT activate "
+        "the rule and gave generic advice instead)"
+    )
+    citation_doc = (
+        "did the response use the expected vocabulary or cite specific "
+        "concepts? (negative case: 5 means absence of these concepts)"
+    )
+    behavior_doc = (
+        "did the response gate the behavior on the rule's preconditions "
+        "(e.g., write tests first, separate commits, refuse deletion)? "
+        "(negative case: 5 means the response correctly proceeded without "
+        "the unnecessary gate)"
+    )
+    json_schema = (
+        '{"activation_score": <int>, "citation_score": <int>, '
+        '"behavior_score": <int>, "reasoning": "<one sentence>"}'
+    )
 
     judge_prompt = f"""Score this response on three dimensions (1-5 each).
 
 **Scenario**: {scenario.get("desc", "")}
 **Rationale**: {rationale}
-**Expected signals (vocabulary the rule prescribes)**: {", ".join(expected_signals) if expected_signals else "none"}
+**Expected signals (vocabulary the rule prescribes)**: {signals_str}
 **Expected behavior gate**: {expected_gate or "none"}
-**Negative case (rule should NOT activate)**: {"YES" if is_negative else "no"}
+**Negative case (rule should NOT activate)**: {negative_flag}
 
 **User prompt**: {scenario.get("input", "")}
 
@@ -147,12 +171,12 @@ def score_response(
 
 Score on these dimensions (1=absent, 5=clearly present):
 
-- **activation_score**: did the response apply guidance specific to the scenario's rule, or only generic advice? (negative case: 5 means the response correctly DID NOT activate the rule and gave generic advice instead)
-- **citation_score**: did the response use the expected vocabulary or cite specific concepts? (negative case: 5 means absence of these concepts)
-- **behavior_score**: did the response gate the behavior on the rule's preconditions (e.g., write tests first, separate commits, refuse deletion)? (negative case: 5 means the response correctly proceeded without the unnecessary gate)
+- **activation_score**: {activation_doc}
+- **citation_score**: {citation_doc}
+- **behavior_score**: {behavior_doc}
 
 Respond in JSON only, no other text:
-{{"activation_score": <int>, "citation_score": <int>, "behavior_score": <int>, "reasoning": "<one sentence>"}}"""
+{json_schema}"""
 
     raw = _call_api(api_key, [{"role": "user", "content": judge_prompt}], model=model)
 
@@ -331,8 +355,10 @@ def render_table(rule_id: str, summary: dict[str, Any]) -> str:
     return "\n".join(rows)
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser(description="Eval rule activation across loading mechanisms.")
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Eval rule activation across loading mechanisms."
+    )
     parser.add_argument(
         "--scenarios",
         nargs="+",
@@ -341,72 +367,107 @@ def main() -> int:
     )
     parser.add_argument("--model", default=DEFAULT_MODEL, help="Model identifier.")
     parser.add_argument("--output", help="Write detailed JSON results to this path.")
-    parser.add_argument("--dry-run", action="store_true", help="Skip API calls, print plan.")
-    args = parser.parse_args()
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Skip API calls, print plan.",
+    )
+    return parser.parse_args()
 
-    if not args.dry_run:
+
+def _load_scenarios_file(scenario_file: str) -> tuple[dict[str, Any], Path] | int:
+    """Return (scenarios_data, rule_path) on success, exit code on error."""
+    spath = Path(scenario_file)
+    if not spath.is_file():
+        print(f"ERROR: scenario file not found: {spath}", file=sys.stderr)
+        return 2
+    scenarios_data = json.loads(spath.read_text(encoding="utf-8"))
+
+    rule_path_str = scenarios_data.get("rule_path")
+    if not rule_path_str:
+        print(f"ERROR: missing rule_path in {spath}", file=sys.stderr)
+        return 2
+    rule_path = REPO_ROOT / rule_path_str
+    if not rule_path.is_file():
+        print(f"ERROR: rule not found: {rule_path}", file=sys.stderr)
+        return 2
+    return scenarios_data, rule_path
+
+
+def _process_one_rule(
+    api_key: str,
+    scenarios_data: dict[str, Any],
+    rule_path: Path,
+    args: argparse.Namespace,
+) -> tuple[str, dict[str, Any] | None, int]:
+    """Run all scenarios for one rule. Return (rule_id, result_dict_or_none, n_calls)."""
+    rule_id = scenarios_data.get("rule_id", rule_path.stem)
+    rule = parse_rule(rule_path)
+    scenarios = scenarios_data.get("scenarios", [])
+    n_calls = len(scenarios) * len(MECHANISMS) * 2  # call + judge
+
+    if args.dry_run:
+        print(
+            f"[DRY-RUN] {rule_id}: {len(scenarios)} scenarios x "
+            f"{len(MECHANISMS)} mechanisms = {n_calls} calls"
+        )
+        print(f"  description present: {bool(rule['description'])}")
+        print(f"  body chars: {len(rule['body'])}")
+        return rule_id, None, n_calls
+
+    scenario_results: list[dict[str, Any]] = []
+    for sc in scenarios:
+        preview = sc.get("desc", "")[:60]
+        print(f"  scenario {sc['id']}: {preview}...", file=sys.stderr)
+        r = eval_one_scenario(api_key, rule, sc, args.model, dry_run=False)
+        scenario_results.append(r)
+
+    summary = aggregate(scenario_results)
+    print(render_table(rule_id, summary))
+    return rule_id, {
+        "rule_path": str(rule_path.relative_to(REPO_ROOT)),
+        "summary": summary,
+        "scenarios": scenario_results,
+    }, n_calls
+
+
+def main() -> int:
+    args = _parse_args()
+
+    if args.dry_run:
+        api_key = ""
+    else:
         try:
             api_key = _load_api_key()
         except RuntimeError as e:
             print(f"ERROR: {e}", file=sys.stderr)
             return 4
-    else:
-        api_key = ""
 
     all_results: dict[str, Any] = {"rules": {}}
     overall_pass = True
     total_calls = 0
 
     for scenario_file in args.scenarios:
-        spath = Path(scenario_file)
-        if not spath.is_file():
-            print(f"ERROR: scenario file not found: {spath}", file=sys.stderr)
-            return 2
-        scenarios_data = json.loads(spath.read_text(encoding="utf-8"))
+        loaded = _load_scenarios_file(scenario_file)
+        if isinstance(loaded, int):
+            return loaded
+        scenarios_data, rule_path = loaded
 
-        rule_path_str = scenarios_data.get("rule_path")
-        if not rule_path_str:
-            print(f"ERROR: missing rule_path in {spath}", file=sys.stderr)
-            return 2
-        rule_path = REPO_ROOT / rule_path_str
-        if not rule_path.is_file():
-            print(f"ERROR: rule not found: {rule_path}", file=sys.stderr)
-            return 2
-
-        rule_id = scenarios_data.get("rule_id", rule_path.stem)
-        rule = parse_rule(rule_path)
-
-        scenarios = scenarios_data.get("scenarios", [])
-        n_scenarios = len(scenarios)
-        n_calls = n_scenarios * len(MECHANISMS) * 2  # call + judge
+        rule_id, result, n_calls = _process_one_rule(
+            api_key, scenarios_data, rule_path, args
+        )
         total_calls += n_calls
 
-        if args.dry_run:
-            print(f"[DRY-RUN] {rule_id}: {n_scenarios} scenarios x {len(MECHANISMS)} mechanisms = {n_calls} calls")
-            print(f"  description present: {bool(rule['description'])}")
-            print(f"  body chars: {len(rule['body'])}")
-            continue
-
-        scenario_results: list[dict[str, Any]] = []
-        for sc in scenarios:
-            print(f"  scenario {sc['id']}: {sc.get('desc','')[:60]}...", file=sys.stderr)
-            r = eval_one_scenario(api_key, rule, sc, args.model, dry_run=False)
-            scenario_results.append(r)
-
-        summary = aggregate(scenario_results)
-        all_results["rules"][rule_id] = {
-            "rule_path": rule_path_str,
-            "summary": summary,
-            "scenarios": scenario_results,
-        }
-        print(render_table(rule_id, summary))
-        if summary["verdict"] not in ("PASS", "NO_POSITIVE_CASES"):
-            overall_pass = False
+        if result is not None:
+            all_results["rules"][rule_id] = result
+            if result["summary"]["verdict"] not in ("PASS", "NO_POSITIVE_CASES"):
+                overall_pass = False
 
     if args.dry_run:
         est_tokens = total_calls * EST_TOKENS_PER_CALL
+        est_cost = est_tokens / 1_000_000 * 3
         print(f"\nTotal calls planned: {total_calls}")
-        print(f"Estimated tokens: ~{est_tokens:,} (~${est_tokens / 1_000_000 * 3:.2f} sonnet input rate)")
+        print(f"Estimated tokens: ~{est_tokens:,} (~${est_cost:.2f} sonnet input rate)")
         return 0
 
     if args.output:
