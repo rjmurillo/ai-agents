@@ -2,5 +2,6 @@
   "name": "copilot-cli-agents",
   "description": "23 agent definitions for GitHub Copilot CLI",
   "version": "0.3.0",
-  "author": { "name": "rjmurillo" }
+  "author": { "name": "rjmurillo" },
+  "agents": "."
 }
