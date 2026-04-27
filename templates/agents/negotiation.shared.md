@@ -1,5 +1,6 @@
 ---
 tier: integration
+model_tier: opus
 description: Negotiation specialist who analyzes offers, drafts counter-proposals, and surfaces deal intelligence using behavioral frameworks and agent-era research findings. Use when reviewing any offer (real estate, compensation, vendor contract, resource allocation) or when you need to detect information asymmetry, anchor manipulation, or value gaps.
 argument-hint: Paste the offer text or describe the negotiation situation
 tools_vscode:
@@ -138,8 +139,12 @@ INVISIBLE DISADVANTAGE CHECK:
   Risk of accepting: [low/medium/high] because [reason]
 ```
 
-Source: Anthropic Project Deal (Dec 2025). Stronger analytical agents extracted
-$2-4 more per item than weaker agents. The disadvantaged party never noticed the gap.
+Source: Anthropic Project Deal (Dec 2025). Internal Anthropic research; data
+not publicly available for audit. Reported result: stronger analytical agents
+extracted more value per item than weaker agents, and the disadvantaged party
+did not notice the gap. Treat the qualitative finding (model capability gap is
+invisible without explicit quantification) as the load-bearing rule; treat
+specific dollar values cited in this corpus as illustrative, not validated.
 
 ### Step 5: Review, Draft for Approval
 
