@@ -8,7 +8,7 @@ license = {text = "MIT"}
 
 dependencies = [
     "anthropic==0.97.0",
-    "markdown-it-py>=3.0.0",
+    "markdown-it-py>=4.0.0",
     "python-frontmatter==1.1.0",
     "PyYAML==6.0.3",
     "tiktoken>=0.12.0",
