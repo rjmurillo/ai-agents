@@ -1,6 +1,6 @@
 ---
 name: stuck-detection
-version: 1.0.0
+version: 1.1.0
 model: claude-haiku-4-5
 description: "Detect agent conversation loops via topic-signature similarity and emit a self-reflection nudge. Use when an orchestrator needs a guard against repetitive responses, redundant status updates, or token-burning loops."
 license: MIT
@@ -59,7 +59,9 @@ Use a richer evaluation instead when:
 
 1. Run `python3 .claude/skills/stuck-detection/stuck_detection.py check "<text>"`
 2. If the JSON result has `"stuck": true`, inject the `nudge` field into the
-   next prompt or surface it to the user.
+   orchestrator's next system prompt so the model self-corrects on its next
+   turn. The `nudge` is internal control text wrapped in `<stuck-detection>`
+   tags. Do not render it directly to the end user.
 3. After a confirmed topic change, call `reset` to clear stale history.
 
 ## Usage
@@ -108,9 +110,16 @@ in `stuck_detection.py`:
 Resolution order:
 
 1. `--history <path>` CLI flag
-2. `STUCK_DETECTION_HISTORY` environment variable
-3. `$XDG_STATE_HOME/claude-stuck-detection/history.json`
-4. `~/.local/state/claude-stuck-detection/history.json`
+2. `STUCK_DETECTION_HISTORY` environment variable (full path)
+3. `STUCK_DETECTION_SESSION` environment variable (per-session file under the
+   XDG state dir, e.g. `history-<session>.json`); use this when running
+   multiple concurrent sessions to prevent cross-session contamination
+4. `$XDG_STATE_HOME/claude-stuck-detection/history.json`
+5. `~/.local/state/claude-stuck-detection/history.json`
+
+Paths are expanded and resolved before use. Avoid relative `..` segments in
+`--history` or `STUCK_DETECTION_HISTORY` if you need the resolved location to
+match the input.
 
 ## Verification
 
@@ -120,7 +129,9 @@ After integrating, confirm the following before relying on the guard:
 - [ ] Three calls to `check` with the same long input return `"stuck": true` on the third call
 - [ ] A call to `reset` zeroes `history_length` on the next `status` check
 - [ ] The history file lives outside the repository working tree (XDG state dir or env-overridden path)
-- [ ] Generated `nudge` text contains no environment-specific names, paths, or branding
+- [ ] Generated `nudge` text is forwarded into the orchestrator system prompt, not rendered to the end user
+- [ ] Concurrent `check` calls never produce truncated JSON (atomic write via temp file + replace)
+- [ ] A malformed history file (non-list, missing keys, non-string values) is treated as empty and not propagated to callers
 - [ ] Tests in `tests/skills/stuck-detection/` pass under `uv run pytest`
 
 ## Anti-Patterns

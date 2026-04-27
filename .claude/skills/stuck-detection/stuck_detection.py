@@ -17,9 +17,10 @@ import json
 import os
 import re
 import sys
+import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 DEFAULT_MAX_HISTORY = 10
 DEFAULT_STUCK_THRESHOLD = 3
@@ -50,9 +51,15 @@ STOP_WORDS: frozenset[str] = frozenset({
 def default_history_path() -> Path:
     """Resolve the default history file path.
 
-    Honors STUCK_DETECTION_HISTORY env var. Falls back to XDG state dir
-    (`$XDG_STATE_HOME/claude-stuck-detection/history.json`), then
-    `~/.local/state/claude-stuck-detection/history.json`.
+    Resolution order:
+      1. `STUCK_DETECTION_HISTORY` env var (full path).
+      2. `STUCK_DETECTION_SESSION` env var (per-session file under XDG dir).
+      3. `$XDG_STATE_HOME/claude-stuck-detection/history.json`.
+      4. `~/.local/state/claude-stuck-detection/history.json` (global fallback).
+
+    Callers running multiple concurrent sessions should set
+    `STUCK_DETECTION_SESSION` to a unique identifier to avoid cross-session
+    contamination of signatures.
     """
     override = os.environ.get("STUCK_DETECTION_HISTORY")
     if override:
@@ -60,7 +67,14 @@ def default_history_path() -> Path:
 
     xdg = os.environ.get("XDG_STATE_HOME")
     base = Path(xdg).expanduser() if xdg else Path.home() / ".local" / "state"
-    return base / "claude-stuck-detection" / "history.json"
+    base = base / "claude-stuck-detection"
+
+    session = os.environ.get("STUCK_DETECTION_SESSION")
+    if session:
+        safe = re.sub(r"[^A-Za-z0-9._-]", "_", session)
+        return base / f"history-{safe}.json"
+
+    return base / "history.json"
 
 
 def extract_topic_signature(text: str) -> str | None:
@@ -93,8 +107,8 @@ def extract_topic_signature(text: str) -> str | None:
 
 def jaccard_similarity(sig_a: str, sig_b: str) -> float:
     """Compute Jaccard similarity between two comma-joined signatures."""
-    set_a = set(sig_a.split(","))
-    set_b = set(sig_b.split(","))
+    set_a = {tok for tok in sig_a.split(",") if tok}
+    set_b = {tok for tok in sig_b.split(",") if tok}
     union = set_a | set_b
     if not union:
         return 0.0
@@ -102,19 +116,57 @@ def jaccard_similarity(sig_a: str, sig_b: str) -> float:
 
 
 def load_history(path: Path) -> list[dict[str, str]]:
-    """Read history; return empty list on missing or unreadable file."""
+    """Read history; return empty list on missing, unreadable, or malformed file.
+
+    Validates that the persisted JSON is a list of `{signature, timestamp}`
+    string-keyed string-valued entries. A wrong-shaped payload is treated as
+    corrupt and discarded so callers always see a clean list.
+    """
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
         return []
-    return cast("list[dict[str, str]]", data)
+    if not isinstance(data, list):
+        return []
+    history: list[dict[str, str]] = []
+    for entry in data:
+        if not isinstance(entry, dict):
+            return []
+        signature = entry.get("signature")
+        timestamp = entry.get("timestamp")
+        if not isinstance(signature, str) or not isinstance(timestamp, str):
+            return []
+        history.append({"signature": signature, "timestamp": timestamp})
+    return history
 
 
 def save_history(path: Path, history: list[dict[str, str]], max_history: int) -> None:
-    """Persist the most recent `max_history` entries atomically."""
+    """Persist the most recent `max_history` entries atomically.
+
+    Writes to a sibling temp file then `os.replace`s it onto the target.
+    The replace is atomic on POSIX and Windows, so a crash mid-write leaves
+    either the prior file or the new file, never a truncated one.
+    Concurrent writers can still race for last-writer-wins on `replace`,
+    but neither outcome is corrupt.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
     trimmed = history[-max_history:]
-    path.write_text(json.dumps(trimmed, indent=2), encoding="utf-8")
+    payload = json.dumps(trimmed, indent=2)
+    fd, tmp_name = tempfile.mkstemp(
+        prefix=path.name + ".",
+        suffix=".tmp",
+        dir=str(path.parent),
+    )
+    tmp_path = Path(tmp_name)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(payload)
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(tmp_path, path)
+    except OSError:
+        tmp_path.unlink(missing_ok=True)
+        raise
 
 
 def build_nudge(signature: str) -> str:
@@ -145,6 +197,13 @@ def check_stuck(
     now: datetime | None = None,
 ) -> dict[str, Any]:
     """Append the signature for `text` and report whether the agent is stuck."""
+    if max_history < stuck_threshold:
+        raise ValueError(
+            f"max_history ({max_history}) must be >= stuck_threshold "
+            f"({stuck_threshold}) so the persisted window can hold enough "
+            "entries to evaluate."
+        )
+
     signature = extract_topic_signature(text)
     if signature is None:
         return {"stuck": False, "signature": None, "reason": "no-signature"}
@@ -152,6 +211,7 @@ def check_stuck(
     history = load_history(history_path)
     timestamp = (now or datetime.now(UTC)).isoformat()
     history.append({"signature": signature, "timestamp": timestamp})
+    history = history[-max_history:]
     save_history(history_path, history, max_history)
 
     if len(history) < stuck_threshold:
@@ -220,7 +280,8 @@ def main(argv: list[str] | None = None) -> int:
     extract_parser.add_argument("text", nargs="*", help="Text to analyze (or stdin).")
 
     args = parser.parse_args(argv)
-    history_path = args.history or default_history_path()
+    raw_path = args.history or default_history_path()
+    history_path = Path(raw_path).expanduser().resolve()
 
     if args.command == "check":
         result = check_stuck(_read_text(args.text), history_path)

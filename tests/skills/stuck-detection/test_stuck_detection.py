@@ -92,7 +92,7 @@ class TestJaccardSimilarity:
         assert result == pytest.approx(2 / 4)
 
     def test_empty_signatures(self) -> None:
-        assert jaccard_similarity("", "") == 1.0  # union of {""} == 1
+        assert jaccard_similarity("", "") == 0.0
 
 
 class TestCheckStuck:
@@ -168,6 +168,91 @@ class TestCheckStuck:
         assert data[0]["timestamp"] == fixed.isoformat()
 
 
+class TestLoadHistorySchema:
+    """Schema-validation tests for load_history."""
+
+    def _write(self, path: Path, content: str) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+
+    def test_dict_payload_returns_empty(self, history_path: Path) -> None:
+        from claude_skills_import import import_skill_script
+        load_history = import_skill_script(
+            ".claude/skills/stuck-detection/stuck_detection.py"
+        ).load_history
+        self._write(history_path, '{"signature": "a,b", "timestamp": "t"}')
+        assert load_history(history_path) == []
+
+    def test_non_dict_entries_returns_empty(self, history_path: Path) -> None:
+        from claude_skills_import import import_skill_script
+        load_history = import_skill_script(
+            ".claude/skills/stuck-detection/stuck_detection.py"
+        ).load_history
+        self._write(history_path, '["just a string"]')
+        assert load_history(history_path) == []
+
+    def test_missing_keys_returns_empty(self, history_path: Path) -> None:
+        from claude_skills_import import import_skill_script
+        load_history = import_skill_script(
+            ".claude/skills/stuck-detection/stuck_detection.py"
+        ).load_history
+        self._write(history_path, '[{"signature": "a,b"}]')
+        assert load_history(history_path) == []
+
+    def test_non_string_values_returns_empty(self, history_path: Path) -> None:
+        from claude_skills_import import import_skill_script
+        load_history = import_skill_script(
+            ".claude/skills/stuck-detection/stuck_detection.py"
+        ).load_history
+        self._write(history_path, '[{"signature": 1, "timestamp": "t"}]')
+        assert load_history(history_path) == []
+
+    def test_corrupt_history_does_not_propagate(self, history_path: Path) -> None:
+        text = (
+            "Deployment pipeline collapsed when canary rollout exceeded queue "
+            "capacity overnight during the regional failover drill."
+        )
+        self._write(history_path, '{"corrupt": true}')
+        result = check_stuck(text, history_path)
+        assert result["stuck"] is False
+        assert result.get("reason") == "warming-up"
+
+
+class TestSaveHistoryAtomicity:
+    """Verify save_history leaves no partial files behind."""
+
+    def test_no_temp_files_after_write(self, history_path: Path) -> None:
+        from claude_skills_import import import_skill_script
+        save_history = import_skill_script(
+            ".claude/skills/stuck-detection/stuck_detection.py"
+        ).save_history
+        save_history(history_path, [{"signature": "a", "timestamp": "t"}], 10)
+        leftovers = [p for p in history_path.parent.iterdir() if ".tmp" in p.name]
+        assert leftovers == []
+
+    def test_overwrite_preserves_prior_on_replace(self, history_path: Path) -> None:
+        from claude_skills_import import import_skill_script
+        save_history = import_skill_script(
+            ".claude/skills/stuck-detection/stuck_detection.py"
+        ).save_history
+        save_history(history_path, [{"signature": "a", "timestamp": "t"}], 10)
+        save_history(history_path, [{"signature": "b", "timestamp": "t"}], 10)
+        data = json.loads(history_path.read_text())
+        assert data == [{"signature": "b", "timestamp": "t"}]
+
+
+class TestCheckStuckArgValidation:
+    """check_stuck must reject incoherent threshold/max_history combinations."""
+
+    def test_max_history_below_threshold_raises(self, history_path: Path) -> None:
+        text = (
+            "Deployment pipeline collapsed when canary rollout exceeded queue "
+            "capacity overnight during the regional failover drill."
+        )
+        with pytest.raises(ValueError, match="max_history"):
+            check_stuck(text, history_path, stuck_threshold=5, max_history=3)
+
+
 class TestResetHistory:
     """Tests for reset_history."""
 
@@ -210,12 +295,23 @@ class TestDefaultHistoryPath:
 
     def test_xdg_state_home(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
         monkeypatch.delenv("STUCK_DETECTION_HISTORY", raising=False)
+        monkeypatch.delenv("STUCK_DETECTION_SESSION", raising=False)
         monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path))
         result = default_history_path()
         assert result == tmp_path / "claude-stuck-detection" / "history.json"
 
+    def test_session_scoped_path(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        monkeypatch.delenv("STUCK_DETECTION_HISTORY", raising=False)
+        monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path))
+        monkeypatch.setenv("STUCK_DETECTION_SESSION", "session-A/42")
+        result = default_history_path()
+        assert result == tmp_path / "claude-stuck-detection" / "history-session-A_42.json"
+
     def test_home_fallback(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv("STUCK_DETECTION_HISTORY", raising=False)
+        monkeypatch.delenv("STUCK_DETECTION_SESSION", raising=False)
         monkeypatch.delenv("XDG_STATE_HOME", raising=False)
         result = default_history_path()
         assert ".local/state/claude-stuck-detection/history.json" in str(result)
@@ -286,5 +382,6 @@ class TestMain:
         assert "pipeline" in captured.out
 
     def test_missing_command_errors(self) -> None:
-        with pytest.raises(SystemExit):
+        with pytest.raises(SystemExit) as excinfo:
             main([])
+        assert excinfo.value.code == 2
