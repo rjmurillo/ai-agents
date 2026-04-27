@@ -7,7 +7,6 @@ metadata:
 argument-hint: Paste the offer text or describe the negotiation situation
 ---
 
-
 # Negotiation Agent
 
 ## Style Guide Compliance
@@ -153,6 +152,8 @@ To: [party]
 Re: [deal description]
 
 [Counter text]
+
+---
 
 ANALYSIS NOTES:
 - Key lever used: [anchor/PCP/bundling/time control]

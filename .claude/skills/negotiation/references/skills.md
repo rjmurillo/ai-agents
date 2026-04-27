@@ -185,7 +185,7 @@ Adjustments mid-negotiation require a documented reason and a 24-hour delay.
 - **Statement**: When agreement is reached, immediately summarize the specific terms in writing and confirm them with the other party. Do not let the deal float on verbal agreement.
 - **Context**: End of any successful negotiation. Verbal yes, handshake, "we have a deal" moments.
 - **Atomicity**: 88%
-- **Evidence**: Voss (Never Split the Difference) on "that's right" close. Confirmation-bias research on commitment-consistency (Cialdini). Verbal-only agreements unwind at 30 to 50 percent in real estate; written confirmations within 24 hours unwind at under 10 percent.
+- **Evidence**: Voss (Never Split the Difference) on the "that's right" close. Cialdini's commitment-consistency research. Practitioner guidance across negotiation and transaction settings commonly treats prompt written confirmation as reducing ambiguity and lowering the chance that a verbal agreement later unravels; specific unwind-rate figures vary by source and are not asserted here without citation.
 - **Impact**: Locks in agreed terms before either party second-guesses. Surfaces misalignment immediately when memory is fresh.
 - **Tags**: negotiation, closing, commitment, written-confirmation
 
