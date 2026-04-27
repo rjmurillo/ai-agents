@@ -38,36 +38,21 @@ ALLOWED_KEYS = {
     "mcpServers",
 }
 
+# Documented in Anthropic plugin hooks reference and observed in production
+# plugins (caveman, context-mode, security-guidance). Speculative/undocumented
+# events are deliberately excluded so an obvious typo (e.g. SessionStarted)
+# fails CI rather than silently never firing. Re-extend only with citation.
 VALID_HOOK_EVENTS = {
     "PreToolUse",
     "PostToolUse",
-    "PostToolUseFailure",
     "Stop",
-    "StopFailure",
     "SessionStart",
     "SessionEnd",
     "UserPromptSubmit",
-    "UserPromptExpansion",
-    "SubagentStart",
     "SubagentStop",
     "PermissionRequest",
-    "PermissionDenied",
     "Notification",
     "PreCompact",
-    "PostCompact",
-    "TaskCreated",
-    "TaskCompleted",
-    "TeammateIdle",
-    "WorktreeCreate",
-    "WorktreeRemove",
-    "ConfigChange",
-    "CwdChanged",
-    "FileChanged",
-    "InstructionsLoaded",
-    "Elicitation",
-    "ElicitationResult",
-    "Setup",
-    "PostToolBatch",
 }
 
 
