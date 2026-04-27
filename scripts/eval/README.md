@@ -20,6 +20,10 @@ python3 scripts/eval/eval-agents.py --agent analyst --dry-run
 
 # Assess skill knowledge integration:
 python3 scripts/eval/eval-knowledge-integration.py --skill cva-analysis --dry-run
+
+# Eval rule activation (does the rule fire when conditions hold?):
+python3 scripts/eval/eval-rule-activation.py \
+  --scenarios tests/evals/rule-scenarios/working-with-legacy-code.json --dry-run
 ```
 
 ## Scripts
@@ -30,7 +34,55 @@ python3 scripts/eval/eval-knowledge-integration.py --skill cva-analysis --dry-ru
 | `eval-prompt-change.py` | Before/after behavioral comparison for prompt changes. | ADR-057 |
 | `eval-agents.py` | Agent definition quality assessment (standalone). | Complementary |
 | `eval-knowledge-integration.py` | Skill context value measurement (baseline vs enhanced). | Complementary |
+| `eval-rule-activation.py` | `.claude/rules/*.md` activation across baseline / description / full mechanisms. | Complementary |
 | `_anthropic_api.py` | Shared API utilities (key loading, API calls). | N/A |
+
+## Rule Activation Eval
+
+`eval-rule-activation.py` measures whether a `.claude/rules/*.md` file actually
+changes agent behavior across three loading mechanisms:
+
+1. **baseline** — empty system prompt (control)
+2. **description** — only the rule's frontmatter `description` is in the system prompt (mimics agent reading `.claude/rules/` directory and matching descriptions)
+3. **full** — entire rule body in the system prompt (mimics `@import` from CLAUDE.md or `alwaysApply: true`)
+
+Each scenario × mechanism produces a response that is graded by an LLM judge on
+three 1-5 dimensions: `activation_score`, `citation_score`, `behavior_score`.
+The eval passes when the best mechanism averages ≥3.5 and beats baseline by ≥0.5.
+
+Per-rule scenario files live in `tests/evals/rule-scenarios/{rule}.json`:
+
+```json
+{
+  "rule_path": ".claude/rules/working-with-legacy-code.md",
+  "rule_id": "working-with-legacy-code",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Refactor untested legacy function",
+      "input": "Simulated user prompt that should trigger the rule.",
+      "expected_signals": ["characterization", "tests before", "seam"],
+      "expected_gate": "characterization-tests-first",
+      "rationale": "Why the rule must activate here."
+    },
+    {
+      "id": "Sn",
+      "desc": "Negative case: well-tested recent code",
+      "input": "...",
+      "expected_signals": ["existing tests"],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "Rule should NOT fire."
+    }
+  ]
+}
+```
+
+Adding a new rule eval:
+
+1. Write `tests/evals/rule-scenarios/{rule-id}.json` with 3-5 positive scenarios and at least one negative case.
+2. Run `python3 scripts/eval/eval-rule-activation.py --scenarios tests/evals/rule-scenarios/{rule-id}.json --dry-run` to confirm the script can parse the rule.
+3. Run live (without `--dry-run`) to score. Cost is ~$0.25 per rule (24 calls × ~3500 tokens).
+4. Iterate on the rule's `description` field until the `description` mechanism scores within 0.5 of `full`. That is the signal the rule is activatable from frontmatter alone.
 
 ## Scenario File Format
 
