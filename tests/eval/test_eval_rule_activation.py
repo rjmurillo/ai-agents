@@ -148,6 +148,13 @@ class TestLoadScenariosFile:
         result = eval_mod._load_scenarios_file(str(bad))
         assert result == 2
 
+    def test_rejects_non_dict_json(self, tmp_path: Path):
+        # JSON parses but is a list, not an object: must reject before .get() crashes.
+        f = tmp_path / "list.json"
+        f.write_text(json.dumps(["not", "a", "dict"]), encoding="utf-8")
+        result = eval_mod._load_scenarios_file(str(f))
+        assert result == 2
+
     def test_rejects_missing_rule_path(self, tmp_path: Path):
         f = tmp_path / "no_rule_path.json"
         f.write_text(json.dumps({"scenarios": []}), encoding="utf-8")

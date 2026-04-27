@@ -446,9 +446,21 @@ def _load_scenarios_file(scenario_file: str) -> tuple[dict[str, Any], Path] | in
         return 2
 
     try:
-        scenarios_data = json.loads(spath.read_text(encoding="utf-8"))
+        raw = spath.read_text(encoding="utf-8")
+    except (UnicodeDecodeError, OSError) as exc:
+        print(f"ERROR: cannot read scenario file {spath}: {exc}", file=sys.stderr)
+        return 2
+    try:
+        scenarios_data = json.loads(raw)
     except json.JSONDecodeError as exc:
         print(f"ERROR: invalid JSON in {spath}: {exc}", file=sys.stderr)
+        return 2
+
+    if not isinstance(scenarios_data, dict):
+        print(
+            f"ERROR: scenario file must contain a JSON object: {spath}",
+            file=sys.stderr,
+        )
         return 2
 
     rule_path_str = scenarios_data.get("rule_path")

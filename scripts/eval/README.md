@@ -48,7 +48,12 @@ changes agent behavior across three loading mechanisms:
 
 Each scenario × mechanism produces a response that is graded by an LLM judge on
 three 1-5 dimensions: `activation_score`, `citation_score`, `behavior_score`.
-The eval passes when the best mechanism averages ≥3.5 and beats baseline by ≥0.5.
+The eval passes when the best non-baseline mechanism averages ≥3.5 and beats
+baseline by ≥0.5. Any judge/API failure forces verdict `FAIL_JUDGE_ERRORS`,
+overriding the score-based gate. A scenarios file that contains no positive
+cases (only `skip-rule-not-applicable` scenarios) yields `NO_POSITIVE_CASES`,
+also a failing verdict because activation cannot be validated by negative
+cases alone.
 
 Per-rule scenario files live in `tests/evals/rule-scenarios/{rule}.json`:
 
