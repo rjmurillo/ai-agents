@@ -1,0 +1,83 @@
+name: 'Validate Plugin Manifests'
+description: 'Deterministic schema check for every .claude-plugin/plugin.json. Catches PR #1773-class regressions that break plugin install for all consumers.'
+
+# Composite action so any workflow can invoke the same conformance check.
+# Schema rules enforced here (build/scripts/validate_plugin_manifests.py):
+#   - `name` required, top-level must be object
+#   - Only Anthropic-documented top-level keys allowed
+#   - `agents`/`skills`/`commands` must be string or array of strings
+#   - `hooks` must be inline matcher-group object OR string ref to *.json file
+#     (rejects the dict-of-directories shape from PR #1773)
+#   - Hook event names must be from the documented set
+#   - Each hook entry must have type=command + command string
+
+inputs:
+  root:
+    description: 'Repository root to scan (default: GITHUB_WORKSPACE)'
+    required: false
+    default: ''
+  run-tests:
+    description: 'Also run the validator unit tests (default: true)'
+    required: false
+    default: 'true'
+
+outputs:
+  manifests-found:
+    description: 'Number of plugin.json files validated'
+    value: ${{ steps.validate.outputs.manifests-found }}
+  failures:
+    description: 'Number of manifests that failed validation'
+    value: ${{ steps.validate.outputs.failures }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+      with:
+        python-version: '3.12'
+
+    - name: Install pytest (pinned for deterministic CI)
+      if: inputs.run-tests == 'true'
+      shell: bash
+      run: pip install 'pytest==8.3.3'
+
+    - name: Run validator unit tests
+      if: inputs.run-tests == 'true'
+      shell: bash
+      env:
+        ROOT: ${{ inputs.root || github.workspace }}
+      run: |
+        cd "$ROOT"
+        pytest tests/build_scripts/test_validate_plugin_manifests.py -v
+
+    - name: Validate every plugin.json in repo
+      id: validate
+      shell: bash
+      env:
+        ROOT: ${{ inputs.root || github.workspace }}
+      run: |
+        cd "$ROOT"
+        set +e
+        OUTPUT=$(python3 build/scripts/validate_plugin_manifests.py 2>&1)
+        EXIT=$?
+        echo "$OUTPUT"
+        FOUND=$(echo "$OUTPUT" | grep -cE '^(OK|FAIL) ' || true)
+        FAILED=$(echo "$OUTPUT" | grep -cE '^FAIL ' || true)
+        echo "manifests-found=$FOUND" >> "$GITHUB_OUTPUT"
+        echo "failures=$FAILED" >> "$GITHUB_OUTPUT"
+        exit "$EXIT"
+
+    - name: Show fix instructions on failure
+      if: failure()
+      shell: bash
+      run: |
+        echo "=== Plugin Manifest Schema Validation Failed ==="
+        echo "One or more .claude-plugin/plugin.json files violate the Anthropic schema."
+        echo "This blocks plugin install for all consumers (see PR #1773 incident)."
+        echo "Common causes:"
+        echo "  - hooks declared as { EventName: ./path/to/dir }"
+        echo "    Fix: omit hooks from plugin.json; use hooks/hooks.json instead"
+        echo "  - agents/skills/commands declared with invalid shape"
+        echo "    Fix: omit these keys; auto-discovery handles ./agents/, ./skills/, ./commands/"
+        echo "Reproduce locally: python3 build/scripts/validate_plugin_manifests.py"
