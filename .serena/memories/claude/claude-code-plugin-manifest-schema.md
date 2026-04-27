@@ -48,7 +48,7 @@ cursor[bot] suggested adding 19 more (`PostToolUseFailure`, `SubagentStart`, `Us
 
 ## Validator + CI gate
 
-Lives at `build/scripts/validate_plugin_manifests.py` + `.github/actions/validate-plugin-manifests/action.yml`. Catches all 4 bug patterns above. 26 unit tests in `tests/build_scripts/test_validate_plugin_manifests.py`. Workflow `.github/workflows/validate-plugin-manifests.yml` gates PRs touching plugin.json.
+Lives at `build/scripts/validate_plugin_manifests.py` + `.github/actions/validate-plugin-manifests/action.yml`. Catches all 4 bug patterns above. Unit tests in `tests/build_scripts/test_validate_plugin_manifests.py` (run `pytest` for current count). Workflow `.github/workflows/validate-plugin-manifests.yml` gates PRs touching plugin.json.
 
 ## References
 

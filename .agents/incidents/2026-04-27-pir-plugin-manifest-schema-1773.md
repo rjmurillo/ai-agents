@@ -33,10 +33,10 @@ The two sibling plugins (`claude-agents`, `copilot-cli-agents`) carried the same
 | 2026-04-27 ~10:05 | Triage: read `~/.claude/plugins/cache/ai-agents/project-toolkit/.claude-plugin/plugin.json`, confirmed invalid `hooks` and `agents` shapes |
 | 2026-04-27 ~10:10 | Compared against working plugin (`caveman`) to confirm correct schema |
 | 2026-04-27 ~10:15 | Consulted Claude Code plugin docs via `claude-code-guide` agent for authoritative schema |
-| 2026-04-27 ~10:25 | Wrote validator `build/scripts/validate_plugin_manifests.py` + 20 pytest tests |
+| 2026-04-27 ~10:25 | Wrote validator `build/scripts/validate_plugin_manifests.py` + initial pytest suite |
 | 2026-04-27 ~10:35 | Created composite action `.github/actions/validate-plugin-manifests/` and workflow `.github/workflows/validate-plugin-manifests.yml` |
 | 2026-04-27 ~10:45 | Stripped invalid keys from all 3 manifests; ported `.claude/settings.json` hooks to `.claude/hooks/hooks.json` so consumers receive the hooks the repo uses internally |
-| 2026-04-27 ~11:00 | All 20 tests pass; validator green on all 3 manifests; opened PR #1795 |
+| 2026-04-27 ~11:00 | All tests pass; validator green on all 3 manifests; opened PR #1795 |
 
 ## Root cause
 
@@ -89,7 +89,7 @@ The terminal cause is **gap in CI coverage for a new artifact class**. The proxi
 
 ### Shipped in PR #1795
 
-- `build/scripts/validate_plugin_manifests.py`: deterministic schema check with 20 unit tests.
+- `build/scripts/validate_plugin_manifests.py`: deterministic schema check with extensive unit-test coverage (positive cases, regressions, edge cases).
 - `.github/actions/validate-plugin-manifests/action.yml`: reusable composite action.
 - `.github/workflows/validate-plugin-manifests.yml`: CI gate triggered by changes to any `plugin.json`, `hooks.json`, the validator, or its tests.
 - All 3 plugin manifests fixed.
@@ -120,7 +120,7 @@ OK   src/copilot-cli/.claude-plugin/plugin.json
 All 3 manifest(s) valid
 
 $ uv run python -m pytest tests/build_scripts/test_validate_plugin_manifests.py
-============================== 20 passed in 1.37s ==============================
+============================== all tests pass ==============================
 ```
 
 Post-merge verification (manual): run `/reload-plugins`, expect zero "Invalid input" errors. Open follow-up issue if any consumer still reports the failure.

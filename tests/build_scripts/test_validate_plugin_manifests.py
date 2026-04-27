@@ -143,6 +143,39 @@ def test_hooks_string_ref_rejects_invalid_referenced_file(tmp_path: Path) -> Non
     assert any("NotARealEvent" in e for e in errors)
 
 
+def test_manifest_decode_error_returns_clean_message(tmp_path: Path) -> None:
+    """Non-UTF8 manifest must surface as validation error, not crash."""
+    plugin_dir = tmp_path / ".claude-plugin"
+    plugin_dir.mkdir()
+    target = plugin_dir / "plugin.json"
+    target.write_bytes(b"\xff\xfe\x00invalid utf8")
+    errors = vpm.validate_manifest(target)
+    assert any("decode error" in e.lower() for e in errors)
+
+
+def test_referenced_hooks_decode_error_caught(tmp_path: Path) -> None:
+    """Non-UTF8 referenced hooks.json must surface error, not crash."""
+    plugin_root = tmp_path
+    plugin_dir = plugin_root / ".claude-plugin"
+    plugin_dir.mkdir()
+    manifest = plugin_dir / "plugin.json"
+    manifest.write_text(json.dumps({"name": "p", "hooks": "./hooks.json"}))
+    (plugin_root / "hooks.json").write_bytes(b"\xff\xfe\x00")
+    errors = vpm.validate_manifest(manifest)
+    assert any("unreadable" in e.lower() for e in errors)
+
+
+def test_find_manifests_prunes_node_modules(tmp_path: Path) -> None:
+    """Walk must not descend into excluded dirs (perf: avoid huge node_modules)."""
+    (tmp_path / "node_modules" / "deep" / ".claude-plugin").mkdir(parents=True)
+    (tmp_path / "node_modules" / "deep" / ".claude-plugin" / "plugin.json").write_text("{}")
+    (tmp_path / "real" / ".claude-plugin").mkdir(parents=True)
+    (tmp_path / "real" / ".claude-plugin" / "plugin.json").write_text("{}")
+    found = vpm.find_manifests(tmp_path)
+    assert len(found) == 1
+    assert "node_modules" not in str(found[0])
+
+
 def test_hooks_string_ref_skipped_when_file_missing(tmp_path: Path) -> None:
     """Missing referenced file does not crash; path-shape check still applied."""
     plugin_root = tmp_path

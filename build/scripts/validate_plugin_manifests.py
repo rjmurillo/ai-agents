@@ -145,7 +145,7 @@ def _validate_hooks(value: object, manifest_dir: Path | None = None) -> list[str
             return errors  # Don't fail if path is just unresolvable here.
         try:
             inner = json.loads(referenced.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as exc:
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
             return [f"`hooks`: referenced file '{value}' is unreadable: {exc}"]
         if not isinstance(inner, dict):
             return [f"`hooks`: referenced file '{value}' must be a JSON object"]
@@ -195,6 +195,8 @@ def validate_manifest(path: Path) -> list[str]:
         raw = path.read_text(encoding="utf-8")
     except OSError as exc:
         return [f"Manifest read error for '{path}': {exc}"]
+    except UnicodeDecodeError as exc:
+        return [f"Manifest decode error for '{path}': {exc}"]
     try:
         data = json.loads(raw)
     except json.JSONDecodeError as exc:
@@ -224,13 +226,21 @@ def validate_manifest(path: Path) -> list[str]:
 
 
 def find_manifests(root: Path) -> list[Path]:
-    """Find all plugin.json files under .claude-plugin/ directories."""
-    excluded_parts = {"worktrees", "node_modules", ".git", "cache"}
+    """Find all plugin.json files under `.claude-plugin/` directories.
+
+    Uses an os.walk-based traversal that prunes excluded directories
+    BEFORE descending. This avoids the rglob trap of walking through
+    `node_modules/`, `.git/`, etc. just to discard the candidates after.
+    """
+    import os
+
+    excluded_dirs = {"worktrees", "node_modules", ".git", "cache"}
     results: list[Path] = []
-    for candidate in root.rglob(".claude-plugin/plugin.json"):
-        if any(part in excluded_parts for part in candidate.relative_to(root).parts):
-            continue
-        results.append(candidate)
+    for dirpath, dirnames, filenames in os.walk(root):
+        # Prune excluded directories in-place so os.walk does not descend.
+        dirnames[:] = [d for d in dirnames if d not in excluded_dirs]
+        if Path(dirpath).name == ".claude-plugin" and "plugin.json" in filenames:
+            results.append(Path(dirpath) / "plugin.json")
     return sorted(results)
 
 
