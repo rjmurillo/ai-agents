@@ -1,0 +1,45 @@
+{
+  "rule_path": ".claude/rules/philosophy-of-software-design.md",
+  "rule_id": "philosophy-of-software-design",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Adding boolean flag argument to existing function",
+      "input": "We have a renderReport(data) function. I need to add HTML output support. The simplest path is renderReport(data, html=True). Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "flag argument",
+        "two things",
+        "split",
+        "shallow",
+        "deep module"
+      ],
+      "expected_gate": "split-by-purpose",
+      "rationale": "Flag arguments mean function does two things. Rule mandates splitting into intent-revealing operations."
+    },
+    {
+      "id": "S2",
+      "desc": "Pass-through wrapper class",
+      "input": "I want to add a UserManager class that wraps UserRepository. Each method on UserManager just calls the same method on UserRepository. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "pass-through",
+        "shallow",
+        "delete",
+        "no value"
+      ],
+      "expected_gate": "remove-shallow-layer",
+      "rationale": "Pass-through wrappers are shallow modules. Rule mandates removing layers that add no value."
+    },
+    {
+      "id": "S3",
+      "desc": "Genuine deep abstraction over an external API (negative case)",
+      "input": "I want to wrap the boto3 S3 client behind a small ObjectStore interface so we can swap to GCS later. Three methods: put, get, delete. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "interface",
+        "swap",
+        "wrap"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "Genuine deep module: small interface hides large variation. Not pass-through. Rule should not flag."
+    }
+  ]
+}
