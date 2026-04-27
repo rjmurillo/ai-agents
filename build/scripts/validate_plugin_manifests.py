@@ -149,13 +149,22 @@ def _validate_hooks(value: object, manifest_dir: Path | None = None) -> list[str
             return [f"`hooks`: referenced file '{value}' is unreadable: {exc}"]
         if not isinstance(inner, dict):
             return [f"`hooks`: referenced file '{value}' must be a JSON object"]
-        # The referenced file may either be the bare events object, or wrap
-        # it under "hooks" (the canonical hooks.json shape). Both work.
-        events_obj = inner.get("hooks") if "hooks" in inner else inner
+        # The canonical hooks.json shape (per production plugins
+        # context-mode and security-guidance) wraps event names under
+        # a top-level "hooks" key. Without the wrapper, Claude Code
+        # does not load the events. Enforce strictly.
+        if "hooks" not in inner:
+            return [
+                f"`hooks`: referenced file '{value}' must contain a top-level "
+                f"`hooks` key wrapping the event names "
+                f"(e.g. {{\"hooks\": {{\"PreToolUse\": [...]}}}}). "
+                f"Without the wrapper, Claude Code does not load the events."
+            ]
+        events_obj = inner["hooks"]
         if not isinstance(events_obj, dict):
             return [
-                f"`hooks`: referenced file '{value}' must contain an object "
-                f"of event names, optionally wrapped under 'hooks' key"
+                f"`hooks`: referenced file '{value}' top-level `hooks` value "
+                f"must be an object of event names"
             ]
         nested_errors: list[str] = []
         for event, entries in events_obj.items():

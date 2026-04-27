@@ -121,10 +121,11 @@ def test_hooks_string_ref_validates_referenced_file(tmp_path: Path) -> None:
     plugin_dir = plugin_root / ".claude-plugin"
     plugin_dir.mkdir()
     manifest = plugin_dir / "plugin.json"
-    manifest.write_text(json.dumps({"name": "p", "hooks": "./hooks.json"}))
+    manifest.write_text(json.dumps({"name": "p", "hooks": "./hooks.json"}), encoding="utf-8")
     # Valid wrapped hooks.json
     (plugin_root / "hooks.json").write_text(
-        json.dumps({"hooks": {"PreToolUse": [{"hooks": [{"type": "command", "command": "x"}]}]}})
+        json.dumps({"hooks": {"PreToolUse": [{"hooks": [{"type": "command", "command": "x"}]}]}}),
+        encoding="utf-8",
     )
     assert vpm.validate_manifest(manifest) == []
 
@@ -135,12 +136,29 @@ def test_hooks_string_ref_rejects_invalid_referenced_file(tmp_path: Path) -> Non
     plugin_dir = plugin_root / ".claude-plugin"
     plugin_dir.mkdir()
     manifest = plugin_dir / "plugin.json"
-    manifest.write_text(json.dumps({"name": "p", "hooks": "./hooks.json"}))
+    manifest.write_text(json.dumps({"name": "p", "hooks": "./hooks.json"}), encoding="utf-8")
     (plugin_root / "hooks.json").write_text(
-        json.dumps({"hooks": {"NotARealEvent": [{"hooks": [{"type": "command", "command": "x"}]}]}})
+        json.dumps({"hooks": {"NotARealEvent": [{"hooks": [{"type": "command", "command": "x"}]}]}}),
+        encoding="utf-8",
     )
     errors = vpm.validate_manifest(manifest)
     assert any("NotARealEvent" in e for e in errors)
+
+
+def test_referenced_hooks_must_have_top_level_wrapper(tmp_path: Path) -> None:
+    """Bare events object (no `hooks` wrapper) is rejected — Claude Code does not load events without it."""
+    plugin_root = tmp_path
+    plugin_dir = plugin_root / ".claude-plugin"
+    plugin_dir.mkdir()
+    manifest = plugin_dir / "plugin.json"
+    manifest.write_text(json.dumps({"name": "p", "hooks": "./hooks.json"}), encoding="utf-8")
+    # Bare events shape — INVALID per production plugin examples
+    (plugin_root / "hooks.json").write_text(
+        json.dumps({"PreToolUse": [{"hooks": [{"type": "command", "command": "x"}]}]}),
+        encoding="utf-8",
+    )
+    errors = vpm.validate_manifest(manifest)
+    assert any("top-level" in e and "hooks" in e for e in errors)
 
 
 def test_manifest_decode_error_returns_clean_message(tmp_path: Path) -> None:
@@ -159,7 +177,7 @@ def test_referenced_hooks_decode_error_caught(tmp_path: Path) -> None:
     plugin_dir = plugin_root / ".claude-plugin"
     plugin_dir.mkdir()
     manifest = plugin_dir / "plugin.json"
-    manifest.write_text(json.dumps({"name": "p", "hooks": "./hooks.json"}))
+    manifest.write_text(json.dumps({"name": "p", "hooks": "./hooks.json"}), encoding="utf-8")
     (plugin_root / "hooks.json").write_bytes(b"\xff\xfe\x00")
     errors = vpm.validate_manifest(manifest)
     assert any("unreadable" in e.lower() for e in errors)
@@ -168,9 +186,9 @@ def test_referenced_hooks_decode_error_caught(tmp_path: Path) -> None:
 def test_find_manifests_prunes_node_modules(tmp_path: Path) -> None:
     """Walk must not descend into excluded dirs (perf: avoid huge node_modules)."""
     (tmp_path / "node_modules" / "deep" / ".claude-plugin").mkdir(parents=True)
-    (tmp_path / "node_modules" / "deep" / ".claude-plugin" / "plugin.json").write_text("{}")
+    (tmp_path / "node_modules" / "deep" / ".claude-plugin" / "plugin.json").write_text("{}", encoding="utf-8")
     (tmp_path / "real" / ".claude-plugin").mkdir(parents=True)
-    (tmp_path / "real" / ".claude-plugin" / "plugin.json").write_text("{}")
+    (tmp_path / "real" / ".claude-plugin" / "plugin.json").write_text("{}", encoding="utf-8")
     found = vpm.find_manifests(tmp_path)
     assert len(found) == 1
     assert "node_modules" not in str(found[0])
@@ -182,7 +200,7 @@ def test_hooks_string_ref_skipped_when_file_missing(tmp_path: Path) -> None:
     plugin_dir = plugin_root / ".claude-plugin"
     plugin_dir.mkdir()
     manifest = plugin_dir / "plugin.json"
-    manifest.write_text(json.dumps({"name": "p", "hooks": "./missing-hooks.json"}))
+    manifest.write_text(json.dumps({"name": "p", "hooks": "./missing-hooks.json"}), encoding="utf-8")
     # No referenced file written. Should pass (path shape OK, content check skipped).
     assert vpm.validate_manifest(manifest) == []
 
@@ -290,9 +308,9 @@ def test_top_level_must_be_object(tmp_path: Path) -> None:
 
 def test_find_manifests_skips_worktrees(tmp_path: Path) -> None:
     (tmp_path / "a" / ".claude-plugin").mkdir(parents=True)
-    (tmp_path / "a" / ".claude-plugin" / "plugin.json").write_text("{}")
+    (tmp_path / "a" / ".claude-plugin" / "plugin.json").write_text("{}", encoding="utf-8")
     (tmp_path / "worktrees" / "b" / ".claude-plugin").mkdir(parents=True)
-    (tmp_path / "worktrees" / "b" / ".claude-plugin" / "plugin.json").write_text("{}")
+    (tmp_path / "worktrees" / "b" / ".claude-plugin" / "plugin.json").write_text("{}", encoding="utf-8")
     found = vpm.find_manifests(tmp_path)
     assert len(found) == 1
     assert "worktrees" not in str(found[0])
