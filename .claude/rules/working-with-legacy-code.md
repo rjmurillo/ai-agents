@@ -171,7 +171,7 @@ Before opening a PR that touches legacy code (low coverage, old file, or a To Im
 - Can you point to the seam, the enabling point, and the test that uses it?
 - Is your change isolated through a sprout or a wrap, or did you edit deep into the legacy function?
 - If you applied a dependency-breaking technique, is the refactor in its own commit, with the existing test suite passing on both sides?
-- Did you keep every failing test? If you removed one, did you explain why in the commit?
+- Did you keep every failing test intact? If any failing test was removed, stop and restore it before review.
 - Could a future worker on a To Improve cycle for this same file rerun your tests and trust the result?
 
 If any answer is "no" or "not sure," fix the change before review.
