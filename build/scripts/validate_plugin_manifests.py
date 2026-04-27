@@ -173,7 +173,7 @@ def find_manifests(root: Path) -> list[Path]:
     excluded_parts = {"worktrees", "node_modules", ".git", "cache"}
     results: list[Path] = []
     for candidate in root.rglob(".claude-plugin/plugin.json"):
-        if any(part in excluded_parts for part in candidate.parts):
+        if any(part in excluded_parts for part in candidate.relative_to(root).parts):
             continue
         results.append(candidate)
     return sorted(results)

@@ -213,6 +213,7 @@ def test_actual_repo_manifests_are_valid() -> None:
     to plugin consumers (the PR #1773 incident).
     """
     manifests = vpm.find_manifests(REPO_ROOT)
+    assert manifests, "Expected at least 1 manifest in the repo"
     failures: list[str] = []
     for manifest in manifests:
         errors = vpm.validate_manifest(manifest)
