@@ -1,6 +1,6 @@
 # Agent Catalog
 
-This document describes all 22 specialized agents in the AI Agents system. Each agent has a defined role, specific outputs, and recommended use cases.
+This document describes all 23 specialized agents in the AI Agents system. Each agent has a defined role, specific outputs, and recommended use cases.
 
 ## Agent Overview
 
@@ -28,7 +28,7 @@ This document describes all 22 specialized agents in the AI Agents system. Each 
 | [retrospective](#retrospective) | Knowledge | Claude, Copilot CLI, VS Code |
 | [skillbook](#skillbook) | Knowledge | Claude, Copilot CLI, VS Code |
 | [pr-comment-responder](#pr-comment-responder) | Collaboration | Claude, Copilot CLI, VS Code |
-| [negotiation](#negotiation) | Strategy | Claude, Copilot CLI, VS Code |
+| [negotiation](#negotiation) | Strategy | Copilot CLI, VS Code |
 
 ## Coordination
 
@@ -227,7 +227,7 @@ Contrarian analyst. Challenges assumptions with evidence, presents alternative v
 
 ### negotiation
 
-Deal intelligence specialist. Analyzes offers, maps ZOPA/BATNA, detects anchoring and manipulation patterns, and drafts counter-proposals using behavioral influence frameworks. Always quantifies the value gap. Routes to senior-tier models only (Project Deal finding: weaker models extract ~13% less value and the loss is invisible to the human).
+Deal intelligence specialist. Analyzes offers, maps ZOPA/BATNA, detects anchoring and manipulation patterns, and drafts counter-proposals using behavioral influence frameworks. Always quantifies the value gap. Routes to senior-tier models only (Anthropic Project Deal finding, internal research, data not publicly auditable: weaker models extract materially less value per item and the loss is invisible to the human without explicit quantification; ~13% figure cited in source material is illustrative).
 
 **Use when:** Reviewing any offer (real estate, compensation, vendor, resource allocation), drafting a counter-proposal, detecting information asymmetry, or when you need to know what value is being left on the table.
 

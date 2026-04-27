@@ -1,0 +1,27 @@
+{
+  "id": "episode-2026-04-27-session-1766",
+  "session": "2026-04-27-session-1766",
+  "timestamp": "2026-04-27T04:16:51.328859+00:00",
+  "outcome": "failure",
+  "task": "",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-04-27T04:16:51.325866+00:00",
+      "type": "error",
+      "content": "\"Evidence\": \"Pre-commit markdownlint auto-fixed staged files; 0 errors\"",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 1,
+    "recoveries": 0,
+    "commits": 3,
+    "files_changed": 0
+  },
+  "lessons": []
+}

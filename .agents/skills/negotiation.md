@@ -7,7 +7,7 @@ Category: Deal Intelligence and Offer Analysis
 - **Statement**: Never describe an offer as "acceptable" or "fair" without first quantifying what value remains uncaptured. State the gap in dollar terms.
 - **Context**: Any offer analysis (real estate, compensation, vendor, resource allocation).
 - **Atomicity**: 95%
-- **Evidence**: Anthropic Project Deal (Dec 2025). Opus agents extracted $2 to $4 more per item than Haiku agents. Participants with weaker agents rated satisfaction identically despite objectively worse outcomes. The gap is invisible without explicit quantification.
+- **Evidence**: Anthropic Project Deal (Dec 2025). Internal Anthropic research; data not publicly available for audit. Reported pattern: Opus agents extracted more value per item than Haiku agents, and participants with weaker agents rated satisfaction identically despite objectively worse outcomes. Treat the qualitative finding (capability gap is invisible without quantification) as the load-bearing rule; specific dollar values are illustrative, not validated.
 - **Impact**: Prevents accepting sub-optimal deals that feel satisfactory
 - **Tags**: negotiation, value-gap, deal-intelligence
 
@@ -93,8 +93,8 @@ INVISIBLE DISADVANTAGE CHECK:
 - **Statement**: Route negotiation analysis and counter-drafting to senior-tier models. Never route to junior.
 - **Context**: Any agentic system where negotiation analysis is delegated
 - **Atomicity**: 93%
-- **Evidence**: Anthropic Project Deal (Dec 2025): model capability gap produced $2.68 more per item as seller, $2.45 less as buyer. Prompting style (aggressive vs. friendly) had no statistically significant effect. Only model capability mattered.
-- **Impact**: Approximately 13% better outcome per item vs. weaker model
+- **Evidence**: Anthropic Project Deal (Dec 2025). Internal Anthropic research; data not publicly available for audit. Reported pattern: model capability gap produced a measurable per-item value difference (cited as ~$2.45 to $2.68 in source material), while prompting style (aggressive vs. friendly) showed no statistically significant effect. Treat "only model capability mattered" as the qualitative rule; specific dollar values are illustrative.
+- **Impact**: Materially better outcome per item vs. weaker model (cited as ~13% in source material; treat as illustrative magnitude)
 - **Tags**: negotiation, model-routing, agent-design, capability-tiers
 
 **Routing rule**:
@@ -198,4 +198,4 @@ Adjustments mid-negotiation require a documented reason and a 24-hour delay.
 - Hughes, Chase. _Six-Minute X-Ray_ and PCP framing model. (Perception, Context, Permission)
 - Cialdini, Robert. _Influence: The Psychology of Persuasion_. (Commitment-consistency, reciprocity)
 - Galinsky, Mussweiler, Chen. Anchoring research. _Journal of Personality and Social Psychology_, multiple papers 2001 to 2009.
-- Anthropic Project Deal study (Dec 2025). Internal results on model-tier impact in negotiation tasks.
+- Anthropic Project Deal study (Dec 2025). Internal Anthropic results on model-tier impact in negotiation tasks. Data not publicly available for audit; specific dollar values cited in this corpus are illustrative, not validated. The load-bearing finding is qualitative: model capability gap is invisible to participants without explicit quantification.
