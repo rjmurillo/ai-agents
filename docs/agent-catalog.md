@@ -28,7 +28,7 @@ This document describes all 23 specialized agents in the AI Agents system. Each 
 | [retrospective](#retrospective) | Knowledge | Claude, Copilot CLI, VS Code |
 | [skillbook](#skillbook) | Knowledge | Claude, Copilot CLI, VS Code |
 | [pr-comment-responder](#pr-comment-responder) | Collaboration | Claude, Copilot CLI, VS Code |
-| [negotiation](#negotiation) | Strategy | Copilot CLI, VS Code |
+| [negotiation](#negotiation) | Strategy | Claude, Copilot CLI, VS Code |
 
 ## Coordination
 
