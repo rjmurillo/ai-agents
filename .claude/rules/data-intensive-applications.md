@@ -144,8 +144,10 @@ Smell: an architecture diagram with an arrow labeled "exactly once." Replace it 
 
 The codebase already has implicit consistency contracts. Make them explicit; do not invent parallel ones.
 
-- **Session logs** are the system of record for protocol compliance and per-session work history. Memory entries that summarize a session are derived data. Rebuild from the log; do not write to the summary independently.
-- **Agent memory (Serena, Forgetful)** is an indexed projection of decisions and patterns. Treat memory as a cache of long-lived knowledge; the source artifacts (ADRs, code, session logs) are the SoR. When memory and source disagree, source wins, and the memory entry is stale.
+- **Session logs** are the system of record for protocol compliance and per-session work history. The narrative summary inside a memory entry that describes "what happened in session N" is derived data from that log; if the summary disagrees with the log, the log wins and the summary is stale.
+- **Agent memory (Serena, Forgetful)** has two data streams that follow different consistency models. Track them separately when reasoning about correctness.
+  - **Memory content** (the entry's summary, observations, decisions) is an indexed projection of source artifacts (ADRs, code, session logs). Source wins on disagreement; the memory entry is stale and should be rebuilt or invalidated.
+  - **Memory operational metadata** (confidence scores, link counts, freshness timestamps, citation-validity flags as written by `scripts/memory_enhancement/reflection.py::reinforce_memories`) is its own SoR. It accumulates over time from usage signals that are not present in any log, so rebuild-from-log does not apply. Updates are at-least-once and must use idempotency keys (entry id + timestamp) so retries do not double-count reinforcement.
 - **Workspace state** (files in the working tree, scratch directories) is process-local. Do not assume another agent or another session sees it. Either commit, push, or persist through a known store.
 - **Inter-agent messaging via hooks, skills, and orchestrator handoffs** is at-least-once. Idempotency keys belong on every handler that mutates state outside its own process. Issue numbers, branch names, and PR numbers are good natural keys.
 - **Git** is the durable, content-addressed event log. Treat the commit graph as the canonical event ordering for code and config. Anything that needs durable order should be written through git or anchored to a commit SHA.
