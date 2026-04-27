@@ -1,8 +1,11 @@
 ---
 name: stuck-detection
-version: 1.1.0
+version: 1.2.0
 model: claude-haiku-4-5
-description: "Detect agent conversation loops via topic-signature similarity and emit a self-reflection nudge. Use when an orchestrator needs a guard against repetitive responses, redundant status updates, or token-burning loops."
+description: >-
+  Detect agent conversation loops via topic-signature similarity and emit a
+  self-reflection nudge. Use as an orchestrator guard against repetitive
+  responses and token-burning loops.
 license: MIT
 ---
 

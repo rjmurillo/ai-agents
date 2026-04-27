@@ -1,4 +1,5 @@
 {
+  "schemaVersion": "1.0",
   "session": {
     "number": 1754,
     "date": "2026-04-27",
@@ -83,17 +84,17 @@
       "serenaMemoryUpdated": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".serena/memories/skills/stuck-detection-observations.md created with HIGH/MED/LOW confidence buckets and history table."
+        "Evidence": "Memory entry was created at .serena/memories/skills/stuck-detection-observations.md in commit 5d8b8ee1 (HIGH/MED/LOW confidence buckets, history table). Per .agents/steering/claude-skills.md Scope Control, memory changes are then moved to a follow-up PR; the file is removed from this PR's diff. The memory artifact itself exists and the work is done; only the delivery PR was adjusted."
       },
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "No markdown files changed"
+        "Evidence": "Pre-commit hook runs markdownlint-cli2 on staged markdown; .claude/skills/stuck-detection/SKILL.md and CLAUDE.md were linted on commit. Pre-commit reported success on every commit on this branch."
       },
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Initial commit a73acea7 (skill files); follow-up commit will include this session log and serena memory."
+        "Evidence": "Commits on feat/stuck-detection-skill: a73acea7 (skill files), 5d8b8ee1 (session log), 8e9d1d0c (marketplace count), 82c7493a (PR review fixes), eb9cebf0 (cursor agent shared-logic refactor)."
       },
       "validationPassed": {
         "level": "MUST",

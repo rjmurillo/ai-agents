@@ -24,7 +24,7 @@ import sys
 import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 DEFAULT_MAX_HISTORY = 10
 DEFAULT_STUCK_THRESHOLD = 3
@@ -37,16 +37,24 @@ MIN_WORD_LENGTH = 4
 # Try to import from semantic_hooks to use shared implementation.
 # Falls back to local implementation when semantic-hooks is not installed.
 _USE_SEMANTIC_HOOKS = False
+_sh_extract_signature_fn: Any = None
+_sh_jaccard_similarity_fn: Any = None
+_imported_stop_words: frozenset[str] | None = None
 try:
-    from semantic_hooks.guards import (
-        _STOP_WORDS as STOP_WORDS,
-        extract_topic_signature as _sh_extract_topic_signature,
-        jaccard_similarity as _sh_jaccard_similarity,
-    )
+    import semantic_hooks.guards as _sh
+
+    _sh_extract_signature_fn = _sh.extract_topic_signature
+    _sh_jaccard_similarity_fn = _sh.jaccard_similarity
+    _imported_stop_words = _sh._STOP_WORDS
     _USE_SEMANTIC_HOOKS = True
 except ImportError:
-    # Fallback: Define stop words locally, kept in sync with semantic_hooks.guards._STOP_WORDS
-    STOP_WORDS: frozenset[str] = frozenset([
+    pass
+
+if _imported_stop_words is not None:
+    STOP_WORDS: frozenset[str] = _imported_stop_words
+else:
+    # Fallback: kept in sync with semantic_hooks.guards._STOP_WORDS
+    STOP_WORDS = frozenset([
         "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
         "have", "has", "had", "do", "does", "did", "will", "would", "could",
         "should", "may", "might", "shall", "can", "need", "dare", "ought",
@@ -81,18 +89,18 @@ def default_history_path() -> Path:
     """
     override = os.environ.get("STUCK_DETECTION_HISTORY")
     if override:
-        return Path(override).expanduser()
+        return Path(override).expanduser().resolve()
 
     xdg = os.environ.get("XDG_STATE_HOME")
     base = Path(xdg).expanduser() if xdg else Path.home() / ".local" / "state"
-    base = base / "claude-stuck-detection"
+    base = (base / "claude-stuck-detection").resolve()
 
     session = os.environ.get("STUCK_DETECTION_SESSION")
     if session:
         safe = re.sub(r"[^A-Za-z0-9._-]", "_", session)
-        return base / f"history-{safe}.json"
+        return (base / f"history-{safe}.json").resolve()
 
-    return base / "history.json"
+    return (base / "history.json").resolve()
 
 
 def _local_extract_topic_signature(text: str) -> str | None:
@@ -129,8 +137,8 @@ def extract_topic_signature(text: str) -> str | None:
     Returns None for short or low-content text.
     Uses semantic_hooks implementation when available, local fallback otherwise.
     """
-    if _USE_SEMANTIC_HOOKS:
-        return _sh_extract_topic_signature(text, MIN_SIGNIFICANT_WORDS)
+    if _USE_SEMANTIC_HOOKS and _sh_extract_signature_fn is not None:
+        return cast("str | None", _sh_extract_signature_fn(text, MIN_SIGNIFICANT_WORDS))
     return _local_extract_topic_signature(text)
 
 
@@ -149,8 +157,8 @@ def jaccard_similarity(sig_a: str, sig_b: str) -> float:
 
     Uses semantic_hooks implementation when available, local fallback otherwise.
     """
-    if _USE_SEMANTIC_HOOKS:
-        return _sh_jaccard_similarity(sig_a, sig_b)
+    if _USE_SEMANTIC_HOOKS and _sh_jaccard_similarity_fn is not None:
+        return cast("float", _sh_jaccard_similarity_fn(sig_a, sig_b))
     return _local_jaccard_similarity(sig_a, sig_b)
 
 
@@ -332,9 +340,6 @@ def main(argv: list[str] | None = None) -> int:
     elif args.command == "extract":
         signature = extract_topic_signature(_read_text(args.text))
         print(signature if signature else "(no signature)")
-    else:
-        parser.error(f"unknown command: {args.command}")
-        return 2
     return 0
 
 
