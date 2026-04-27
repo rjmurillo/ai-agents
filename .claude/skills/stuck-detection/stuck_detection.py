@@ -8,6 +8,10 @@ the orchestrator can break the loop.
 EXIT CODES (ADR-035):
     0 - Success (regardless of stuck/not-stuck)
     2 - Invalid command or arguments
+
+NOTE: Core stuck detection logic is shared with semantic_hooks.guards to avoid
+duplication. When semantic-hooks is installed, functions are imported from there.
+When running standalone (no install), a local fallback is used with identical logic.
 """
 
 from __future__ import annotations
@@ -30,22 +34,36 @@ MIN_TEXT_LENGTH = 50
 SIGNATURE_SIZE = 5
 MIN_WORD_LENGTH = 4
 
-STOP_WORDS: frozenset[str] = frozenset({
-    "the", "and", "but", "for", "are", "was", "were", "been", "being",
-    "have", "has", "had", "does", "did", "will", "would", "could",
-    "should", "may", "might", "shall", "can", "need", "ought", "used",
-    "into", "through", "during", "before", "after", "above", "below",
-    "between", "out", "off", "over", "under", "again", "further", "then",
-    "once", "here", "there", "when", "where", "why", "how", "all", "both",
-    "each", "few", "more", "most", "other", "some", "such", "nor",
-    "not", "only", "own", "same", "than", "too", "very", "just",
-    "don", "now", "this", "that", "these", "those", "with", "from",
-    "your", "yours", "their", "theirs", "ours", "what", "which", "who",
-    "whom", "okay", "yes", "thanks", "thank", "please", "sorry", "hello",
-    "hey", "sure", "right", "well", "also", "still", "already",
-    "done", "going", "want", "like", "know", "think", "make", "take",
-    "get", "see", "come", "look", "use", "find", "give", "tell", "work",
-})
+# Try to import from semantic_hooks to use shared implementation.
+# Falls back to local implementation when semantic-hooks is not installed.
+_USE_SEMANTIC_HOOKS = False
+try:
+    from semantic_hooks.guards import (
+        _STOP_WORDS as STOP_WORDS,
+        extract_topic_signature as _sh_extract_topic_signature,
+        jaccard_similarity as _sh_jaccard_similarity,
+    )
+    _USE_SEMANTIC_HOOKS = True
+except ImportError:
+    # Fallback: Define stop words locally, kept in sync with semantic_hooks.guards._STOP_WORDS
+    STOP_WORDS: frozenset[str] = frozenset([
+        "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
+        "have", "has", "had", "do", "does", "did", "will", "would", "could",
+        "should", "may", "might", "shall", "can", "need", "dare", "ought",
+        "used", "to", "of", "in", "for", "on", "with", "at", "by", "from",
+        "as", "into", "through", "during", "before", "after", "above", "below",
+        "between", "out", "off", "over", "under", "again", "further", "then",
+        "once", "here", "there", "when", "where", "why", "how", "all", "both",
+        "each", "few", "more", "most", "other", "some", "such", "no", "nor",
+        "not", "only", "own", "same", "so", "than", "too", "very", "just",
+        "don", "now", "and", "but", "or", "if", "while", "that", "this",
+        "it", "i", "you", "we", "they", "he", "she", "my", "your", "his",
+        "her", "its", "our", "their", "what", "which", "who", "whom",
+        "okay", "yes", "no", "thanks", "thank", "please", "sorry", "hello",
+        "hi", "hey", "sure", "right", "well", "also", "still", "already",
+        "done", "going", "want", "like", "know", "think", "make", "take",
+        "get", "see", "come", "look", "use", "find", "give", "tell", "work",
+    ])
 
 
 def default_history_path() -> Path:
@@ -77,8 +95,8 @@ def default_history_path() -> Path:
     return base / "history.json"
 
 
-def extract_topic_signature(text: str) -> str | None:
-    """Extract a sorted, comma-joined signature of the top significant words.
+def _local_extract_topic_signature(text: str) -> str | None:
+    """Local fallback: Extract a sorted, comma-joined signature of top significant words.
 
     Returns None for short or low-content text.
     """
@@ -105,14 +123,35 @@ def extract_topic_signature(text: str) -> str | None:
     return ",".join(words)
 
 
-def jaccard_similarity(sig_a: str, sig_b: str) -> float:
-    """Compute Jaccard similarity between two comma-joined signatures."""
+def extract_topic_signature(text: str) -> str | None:
+    """Extract a sorted, comma-joined signature of the top significant words.
+
+    Returns None for short or low-content text.
+    Uses semantic_hooks implementation when available, local fallback otherwise.
+    """
+    if _USE_SEMANTIC_HOOKS:
+        return _sh_extract_topic_signature(text, MIN_SIGNIFICANT_WORDS)
+    return _local_extract_topic_signature(text)
+
+
+def _local_jaccard_similarity(sig_a: str, sig_b: str) -> float:
+    """Local fallback: Compute Jaccard similarity between two comma-joined signatures."""
     set_a = {tok for tok in sig_a.split(",") if tok}
     set_b = {tok for tok in sig_b.split(",") if tok}
     union = set_a | set_b
     if not union:
         return 0.0
     return len(set_a & set_b) / len(union)
+
+
+def jaccard_similarity(sig_a: str, sig_b: str) -> float:
+    """Compute Jaccard similarity between two comma-joined signatures.
+
+    Uses semantic_hooks implementation when available, local fallback otherwise.
+    """
+    if _USE_SEMANTIC_HOOKS:
+        return _sh_jaccard_similarity(sig_a, sig_b)
+    return _local_jaccard_similarity(sig_a, sig_b)
 
 
 def load_history(path: Path) -> list[dict[str, str]]:
