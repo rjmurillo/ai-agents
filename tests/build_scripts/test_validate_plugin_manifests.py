@@ -115,6 +115,45 @@ def test_manifest_read_error_returns_clean_message(tmp_path: Path) -> None:
     assert any("read error" in e.lower() for e in errors)
 
 
+def test_hooks_string_ref_validates_referenced_file(tmp_path: Path) -> None:
+    """When `hooks` is a string ref and the file exists, its content is checked."""
+    plugin_root = tmp_path
+    plugin_dir = plugin_root / ".claude-plugin"
+    plugin_dir.mkdir()
+    manifest = plugin_dir / "plugin.json"
+    manifest.write_text(json.dumps({"name": "p", "hooks": "./hooks.json"}))
+    # Valid wrapped hooks.json
+    (plugin_root / "hooks.json").write_text(
+        json.dumps({"hooks": {"PreToolUse": [{"hooks": [{"type": "command", "command": "x"}]}]}})
+    )
+    assert vpm.validate_manifest(manifest) == []
+
+
+def test_hooks_string_ref_rejects_invalid_referenced_file(tmp_path: Path) -> None:
+    """Referenced hooks.json with unknown event must surface error."""
+    plugin_root = tmp_path
+    plugin_dir = plugin_root / ".claude-plugin"
+    plugin_dir.mkdir()
+    manifest = plugin_dir / "plugin.json"
+    manifest.write_text(json.dumps({"name": "p", "hooks": "./hooks.json"}))
+    (plugin_root / "hooks.json").write_text(
+        json.dumps({"hooks": {"NotARealEvent": [{"hooks": [{"type": "command", "command": "x"}]}]}})
+    )
+    errors = vpm.validate_manifest(manifest)
+    assert any("NotARealEvent" in e for e in errors)
+
+
+def test_hooks_string_ref_skipped_when_file_missing(tmp_path: Path) -> None:
+    """Missing referenced file does not crash; path-shape check still applied."""
+    plugin_root = tmp_path
+    plugin_dir = plugin_root / ".claude-plugin"
+    plugin_dir.mkdir()
+    manifest = plugin_dir / "plugin.json"
+    manifest.write_text(json.dumps({"name": "p", "hooks": "./missing-hooks.json"}))
+    # No referenced file written. Should pass (path shape OK, content check skipped).
+    assert vpm.validate_manifest(manifest) == []
+
+
 # --- Regression: PR #1773 bug -----------------------------------------------
 
 

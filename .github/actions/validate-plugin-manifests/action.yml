@@ -37,10 +37,10 @@ runs:
       with:
         python-version: '3.12'
 
-    - name: Install pytest
+    - name: Install pytest (pinned for deterministic CI)
       if: inputs.run-tests == 'true'
       shell: bash
-      run: pip install pytest
+      run: pip install 'pytest==8.3.3'
 
     - name: Run validator unit tests
       if: inputs.run-tests == 'true'
