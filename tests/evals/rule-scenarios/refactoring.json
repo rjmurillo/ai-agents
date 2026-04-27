@@ -42,13 +42,14 @@
     },
     {
       "id": "S4",
-      "desc": "Greenfield code with full test coverage (negative case)",
-      "input": "I have a new module written this week with 100% test coverage. I want to rename a method for clarity. Plan in 5 short bullets. Do not modify any files.",
+      "desc": "Pure feature addition with no restructuring (negative case)",
+      "input": "I want to add a brand-new endpoint to export invoices as CSV. There is no existing export path to refactor. Plan in 5 short bullets. Do not modify any files.",
       "expected_signals": [
-        "rename"
+        "new behavior",
+        "feature"
       ],
       "expected_gate": "skip-rule-not-applicable",
-      "rationale": "Greenfield well-tested code, simple rename. Heavy refactoring discipline (characterization tests, two-hat separation) does not need to fire."
+      "rationale": "Net-new behavior change, not a behavior-preserving structural change. Refactoring rule should not activate."
     }
   ]
 }

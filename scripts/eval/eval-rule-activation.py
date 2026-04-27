@@ -100,6 +100,7 @@ def build_system_prompt(mechanism: str, rule: dict[str, str], rule_id: str) -> s
     if mechanism == "description":
         if not rule["description"]:
             return ""
+        rule_id = rule.get("id", "rule")
         return (
             "Project rules apply to your work. Available rule:\n\n"
             f"  - {rule_id}: {rule['description']}\n\n"
@@ -187,15 +188,31 @@ Respond in JSON only, no other text:
             text = m.group(1).strip()
 
     try:
-        scores: dict[str, Any] = json.loads(text)
+        parsed: dict[str, Any] = json.loads(text)
     except json.JSONDecodeError:
         return {
             "activation_score": 0,
             "citation_score": 0,
             "behavior_score": 0,
             "reasoning": f"judge parse error: {text[:200]}",
+            "judge_failed": True,
         }
-    return scores
+    return {
+        "activation_score": _clamp_score(parsed.get("activation_score")),
+        "citation_score": _clamp_score(parsed.get("citation_score")),
+        "behavior_score": _clamp_score(parsed.get("behavior_score")),
+        "reasoning": str(parsed.get("reasoning", ""))[:300],
+        "judge_failed": False,
+    }
+
+
+def _clamp_score(value: object) -> int:
+    """Coerce a judge-supplied score to int in [0, 5]. Strings/None/out-of-range -> 0 or clamped."""
+    try:
+        n = int(value)
+    except (TypeError, ValueError):
+        return 0
+    return max(0, min(5, n))
 
 
 # ---------------------------------------------------------------------------
@@ -263,77 +280,104 @@ def eval_one_scenario(
     return result
 
 
+def _scenario_score_triple(scenario: dict[str, Any], mech: str) -> tuple[float, bool]:
+    """Return (mean_score, judge_failed) for one scenario at one mechanism.
+
+    Every scenario contributes to the average, including failed evaluations.
+    A failed judge or API call yields mean=0 and judge_failed=True so callers
+    can surface failures rather than silently filtering them.
+    """
+    mech_data = scenario["mechanisms"].get(mech, {})
+    sc = mech_data.get("scores", {})
+    triple = [
+        sc.get("activation_score", 0),
+        sc.get("citation_score", 0),
+        sc.get("behavior_score", 0),
+    ]
+    failed = bool(sc.get("judge_failed")) or "error" in mech_data
+    return sum(triple) / 3, failed
+
+
+def _mechanism_summary(
+    pool: list[dict[str, Any]], mech: str
+) -> dict[str, Any]:
+    """Compute avg_score across every scenario for one mechanism."""
+    scores: list[float] = []
+    failures = 0
+    for s in pool:
+        score, failed = _scenario_score_triple(s, mech)
+        scores.append(score)
+        if failed:
+            failures += 1
+    avg = round(sum(scores) / len(scores), 2) if scores else 0.0
+    return {
+        "avg_score": avg,
+        "scenario_count": len(scores),
+        "judge_failures": failures,
+    }
+
+
 def aggregate(scenarios: list[dict[str, Any]]) -> dict[str, Any]:
-    """Aggregate per-mechanism averages across scenarios (positive cases only)."""
-    summary: dict[str, Any] = {"per_mechanism": {}}
+    """Aggregate per-mechanism averages across scenarios.
+
+    Counts every scenario in the average. Failed evaluations contribute their
+    zero scores rather than being filtered, preventing false PASS verdicts when
+    the judge or API breaks. The summary exposes per-mechanism judge_failures
+    so the caller can fail loudly when failures are non-zero.
+    """
+    summary: dict[str, Any] = {"per_mechanism": {}, "negative_case_per_mechanism": {}}
     pos_scenarios = [s for s in scenarios if not s["negative_case"]]
     neg_scenarios = [s for s in scenarios if s["negative_case"]]
 
     for mech in MECHANISMS:
-        all_scores: list[float] = []
-        for s in pos_scenarios:
-            sc = s["mechanisms"].get(mech, {}).get("scores", {})
-            triple = [
-                sc.get("activation_score", 0),
-                sc.get("citation_score", 0),
-                sc.get("behavior_score", 0),
-            ]
-            if any(triple):
-                all_scores.append(sum(triple) / 3)
-        avg = round(sum(all_scores) / len(all_scores), 2) if all_scores else 0.0
-        summary["per_mechanism"][mech] = {
-            "avg_score": avg,
-            "scenario_count": len(all_scores),
-        }
+        summary["per_mechanism"][mech] = _mechanism_summary(pos_scenarios, mech)
+        summary["negative_case_per_mechanism"][mech] = _mechanism_summary(
+            neg_scenarios, mech
+        )
 
-    # Negative case (rule should NOT fire). Higher score = response correctly stayed generic.
-    summary["negative_case_per_mechanism"] = {}
-    for mech in MECHANISMS:
-        all_scores = []
-        for s in neg_scenarios:
-            sc = s["mechanisms"].get(mech, {}).get("scores", {})
-            triple = [
-                sc.get("activation_score", 0),
-                sc.get("citation_score", 0),
-                sc.get("behavior_score", 0),
-            ]
-            if any(triple):
-                all_scores.append(sum(triple) / 3)
-        avg = round(sum(all_scores) / len(all_scores), 2) if all_scores else 0.0
-        summary["negative_case_per_mechanism"][mech] = {
-            "avg_score": avg,
-            "scenario_count": len(all_scores),
-        }
-
-    # Verdict: full and description should beat baseline by MIN_DELTA on positive cases,
-    # and at least one mechanism must clear MIN_ACTIVATION_SCORE.
     baseline_avg = summary["per_mechanism"]["baseline"]["avg_score"]
     desc_avg = summary["per_mechanism"]["description"]["avg_score"]
     full_avg = summary["per_mechanism"]["full"]["avg_score"]
 
-    best_mech = max(MECHANISMS, key=lambda m: summary["per_mechanism"][m]["avg_score"])
+    # `best_mechanism` is what the rule author should ship. Baseline is the
+    # control; selecting it as best would say "the rule is not needed" and
+    # mask a real activation failure as FAIL_NO_DELTA. Pick from rule-enhanced
+    # mechanisms only.
+    rule_enhanced = [m for m in MECHANISMS if m != "baseline"]
+    best_mech = max(
+        rule_enhanced, key=lambda m: summary["per_mechanism"][m]["avg_score"]
+    )
     best_avg = summary["per_mechanism"][best_mech]["avg_score"]
+
+    total_judge_failures = sum(
+        summary["per_mechanism"][m]["judge_failures"] for m in MECHANISMS
+    ) + sum(
+        summary["negative_case_per_mechanism"][m]["judge_failures"]
+        for m in MECHANISMS
+    )
 
     summary["best_mechanism"] = best_mech
     summary["best_avg_score"] = best_avg
     summary["baseline_avg"] = baseline_avg
     summary["delta_full_vs_baseline"] = round(full_avg - baseline_avg, 2)
     summary["delta_description_vs_baseline"] = round(desc_avg - baseline_avg, 2)
+    summary["total_judge_failures"] = total_judge_failures
 
-    if pos_scenarios:
+    if total_judge_failures > 0:
+        summary["verdict"] = "FAIL_JUDGE_ERRORS"
+    elif not pos_scenarios:
+        summary["verdict"] = "NO_POSITIVE_CASES"
+    else:
         passes_threshold = best_avg >= MIN_ACTIVATION_SCORE
         beats_baseline = (full_avg - baseline_avg) >= MIN_DELTA_VS_BASELINE or (
             desc_avg - baseline_avg
         ) >= MIN_DELTA_VS_BASELINE
-        summary["verdict"] = (
-            "PASS"
-            if passes_threshold and beats_baseline
-            else "FAIL_THRESHOLD"
-            if not passes_threshold
-            else "FAIL_NO_DELTA"
-        )
-    else:
-        summary["verdict"] = "NO_POSITIVE_CASES"
+        if passes_threshold and beats_baseline:
+            summary["verdict"] = "PASS"
+        elif not passes_threshold:
+            summary["verdict"] = "FAIL_THRESHOLD"
+        else:
+            summary["verdict"] = "FAIL_NO_DELTA"
 
     return summary
 
@@ -385,18 +429,37 @@ def _parse_args() -> argparse.Namespace:
 
 
 def _load_scenarios_file(scenario_file: str) -> tuple[dict[str, Any], Path] | int:
-    """Return (scenarios_data, rule_path) on success, exit code on error."""
+    """Return (scenarios_data, resolved rule_path) on success, exit code on error.
+
+    Validates that rule_path stays inside the repository root so a crafted
+    scenario file cannot exfiltrate files outside `.claude/rules/`.
+    """
     spath = Path(scenario_file)
     if not spath.is_file():
         print(f"ERROR: scenario file not found: {spath}", file=sys.stderr)
         return 2
-    scenarios_data = json.loads(spath.read_text(encoding="utf-8"))
+
+    try:
+        scenarios_data = json.loads(spath.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        print(f"ERROR: invalid JSON in {spath}: {exc}", file=sys.stderr)
+        return 2
 
     rule_path_str = scenarios_data.get("rule_path")
     if not rule_path_str:
         print(f"ERROR: missing rule_path in {spath}", file=sys.stderr)
         return 2
-    rule_path = REPO_ROOT / rule_path_str
+
+    repo_root_resolved = REPO_ROOT.resolve()
+    rule_path = (REPO_ROOT / rule_path_str).resolve()
+    try:
+        rule_path.relative_to(repo_root_resolved)
+    except ValueError:
+        print(
+            f"ERROR: rule_path escapes repository root: {rule_path_str}",
+            file=sys.stderr,
+        )
+        return 2
     if not rule_path.is_file():
         print(f"ERROR: rule not found: {rule_path}", file=sys.stderr)
         return 2
@@ -411,7 +474,7 @@ def _process_one_rule(
 ) -> tuple[str, dict[str, Any] | None, int]:
     """Run all scenarios for one rule. Return (rule_id, result_dict_or_none, n_calls)."""
     rule_id = scenarios_data.get("rule_id", rule_path.stem)
-    rule = parse_rule(rule_path)
+    rule = {**parse_rule(rule_path), "id": rule_id}
     scenarios = scenarios_data.get("scenarios", [])
     n_calls = len(scenarios) * len(MECHANISMS) * 2  # call + judge
 

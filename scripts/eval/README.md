@@ -42,9 +42,9 @@ python3 scripts/eval/eval-rule-activation.py \
 `eval-rule-activation.py` measures whether a `.claude/rules/*.md` file actually
 changes agent behavior across three loading mechanisms:
 
-1. **baseline** — empty system prompt (control)
-2. **description** — only the rule's frontmatter `description` is in the system prompt (mimics agent reading `.claude/rules/` directory and matching descriptions)
-3. **full** — entire rule body in the system prompt (mimics `@import` from CLAUDE.md or `alwaysApply: true`)
+1. **baseline**. Empty system prompt (control).
+2. **description**. Only the rule's frontmatter `description` is in the system prompt. Mimics an agent reading `.claude/rules/` and matching descriptions.
+3. **full**. Entire rule body in the system prompt. Mimics `@import` from CLAUDE.md or `alwaysApply: true`.
 
 Each scenario × mechanism produces a response that is graded by an LLM judge on
 three 1-5 dimensions: `activation_score`, `citation_score`, `behavior_score`.
