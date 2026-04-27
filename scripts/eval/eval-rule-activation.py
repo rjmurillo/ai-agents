@@ -441,51 +441,32 @@ def _parse_args() -> argparse.Namespace:
 RULES_DIR = (REPO_ROOT / ".claude" / "rules").resolve()
 
 
-def _load_scenarios_file(scenario_file: str) -> tuple[dict[str, Any], Path] | int:
-    """Return (scenarios_data, resolved rule_path) on success, exit code on error.
-
-    `rule_path` MUST resolve to a `.md` file under `.claude/rules/`. A crafted
-    scenario file cannot point at config, secrets, or any other repository
-    file: the `full` mechanism would otherwise send that content to the LLM API.
-    """
-    spath = Path(scenario_file)
-    if not spath.is_file():
-        print(f"ERROR: scenario file not found: {spath}", file=sys.stderr)
-        return 2
-
+def _read_scenarios_json(spath: Path) -> dict[str, Any] | int:
+    """Read and parse a scenarios JSON file. Return parsed dict or exit code 2."""
     try:
         raw = spath.read_text(encoding="utf-8")
     except (UnicodeDecodeError, OSError) as exc:
         print(f"ERROR: cannot read scenario file {spath}: {exc}", file=sys.stderr)
         return 2
     try:
-        scenarios_data = json.loads(raw)
+        data = json.loads(raw)
     except json.JSONDecodeError as exc:
         print(f"ERROR: invalid JSON in {spath}: {exc}", file=sys.stderr)
         return 2
-
-    if not isinstance(scenarios_data, dict):
+    if not isinstance(data, dict):
         print(
             f"ERROR: scenario file must contain a JSON object: {spath}",
             file=sys.stderr,
         )
         return 2
+    return data
 
-    rule_path_str = scenarios_data.get("rule_path")
-    if not isinstance(rule_path_str, str) or not rule_path_str.strip():
-        print(
-            f"ERROR: rule_path must be a non-empty string in {spath}",
-            file=sys.stderr,
-        )
-        return 2
-    rule_path_str = rule_path_str.strip()
 
-    scenarios = scenarios_data.get("scenarios")
+def _validate_scenarios_shape(data: dict[str, Any], spath: Path) -> int | None:
+    """Validate scenarios array shape. Return exit code 2 on error, None on ok."""
+    scenarios = data.get("scenarios")
     if not isinstance(scenarios, list):
-        print(
-            f"ERROR: scenarios must be a list in {spath}",
-            file=sys.stderr,
-        )
+        print(f"ERROR: scenarios must be a list in {spath}", file=sys.stderr)
         return 2
     for idx, sc in enumerate(scenarios):
         if not isinstance(sc, dict):
@@ -495,14 +476,19 @@ def _load_scenarios_file(scenario_file: str) -> tuple[dict[str, Any], Path] | in
             )
             return 2
         for required in ("id", "input"):
-            if not isinstance(sc.get(required), str) or not sc.get(required, "").strip():
+            value = sc.get(required)
+            if not isinstance(value, str) or not value.strip():
                 print(
                     f"ERROR: scenarios[{idx}].{required} must be a non-empty "
                     f"string in {spath}",
                     file=sys.stderr,
                 )
                 return 2
+    return None
 
+
+def _resolve_rule_path(rule_path_str: str) -> Path | int:
+    """Resolve and validate rule_path stays under .claude/rules/ as a .md file."""
     rule_path = (REPO_ROOT / rule_path_str).resolve()
     try:
         rule_path.relative_to(RULES_DIR)
@@ -521,7 +507,42 @@ def _load_scenarios_file(scenario_file: str) -> tuple[dict[str, Any], Path] | in
     if not rule_path.is_file():
         print(f"ERROR: rule not found: {rule_path}", file=sys.stderr)
         return 2
-    return scenarios_data, rule_path
+    return rule_path
+
+
+def _load_scenarios_file(scenario_file: str) -> tuple[dict[str, Any], Path] | int:
+    """Return (scenarios_data, resolved rule_path) on success, exit code on error.
+
+    `rule_path` MUST resolve to a `.md` file under `.claude/rules/`. A crafted
+    scenario file cannot point at config, secrets, or any other repository
+    file: the `full` mechanism would otherwise send that content to the LLM API.
+    """
+    spath = Path(scenario_file)
+    if not spath.is_file():
+        print(f"ERROR: scenario file not found: {spath}", file=sys.stderr)
+        return 2
+
+    parsed = _read_scenarios_json(spath)
+    if isinstance(parsed, int):
+        return parsed
+    scenarios_data = parsed
+
+    rule_path_str = scenarios_data.get("rule_path")
+    if not isinstance(rule_path_str, str) or not rule_path_str.strip():
+        print(
+            f"ERROR: rule_path must be a non-empty string in {spath}",
+            file=sys.stderr,
+        )
+        return 2
+
+    shape_err = _validate_scenarios_shape(scenarios_data, spath)
+    if shape_err is not None:
+        return shape_err
+
+    resolved = _resolve_rule_path(rule_path_str.strip())
+    if isinstance(resolved, int):
+        return resolved
+    return scenarios_data, resolved
 
 
 def _process_one_rule(
@@ -574,51 +595,81 @@ def main() -> int:
             return 4
 
     all_results: dict[str, Any] = {"rules": {}}
-    overall_pass = True
-    external_failure = False
-    total_calls = 0
+    state = _RunState()
 
     for scenario_file in args.scenarios:
-        loaded = _load_scenarios_file(scenario_file)
-        if isinstance(loaded, int):
-            return loaded
-        scenarios_data, rule_path = loaded
-
-        rule_id, result, n_calls = _process_one_rule(
-            api_key, scenarios_data, rule_path, args
+        exit_code = _process_scenario_file(
+            scenario_file, api_key, args, all_results, state
         )
-        total_calls += n_calls
-
-        if result is not None:
-            all_results["rules"][rule_id] = result
-            verdict = result["summary"]["verdict"]
-            # NO_POSITIVE_CASES means the scenario file has no scenarios that
-            # exercise activation (e.g., all scenarios are negative cases).
-            # Treat as a failure: a rule cannot be validated by negative cases
-            # alone, and CI/automation must not report green for an untested rule.
-            if verdict != "PASS":
-                overall_pass = False
-            # FAIL_JUDGE_ERRORS signals an API/judge failure during scoring.
-            # Surface as exit code 3 (external failure) so CI can distinguish
-            # transient infrastructure problems from logic failures (exit 1)
-            # and from config errors (exit 2).
-            if verdict == "FAIL_JUDGE_ERRORS":
-                external_failure = True
+        if exit_code is not None:
+            return exit_code
 
     if args.dry_run:
-        est_tokens = total_calls * EST_TOKENS_PER_CALL
-        est_cost = est_tokens / 1_000_000 * 3
-        print(f"\nTotal calls planned: {total_calls}")
-        print(f"Estimated tokens: ~{est_tokens:,} (~${est_cost:.2f} sonnet input rate)")
+        _print_dry_run_summary(state.total_calls)
         return 0
 
     if args.output:
         Path(args.output).write_text(json.dumps(all_results, indent=2), encoding="utf-8")
         print(f"\nWrote results: {args.output}")
 
-    if external_failure:
+    if state.external_failure:
         return 3
-    return 0 if overall_pass else 1
+    return 0 if state.overall_pass else 1
+
+
+class _RunState:
+    """Mutable accumulator for the main loop."""
+
+    def __init__(self) -> None:
+        self.overall_pass = True
+        self.external_failure = False
+        self.total_calls = 0
+
+
+def _process_scenario_file(
+    scenario_file: str,
+    api_key: str,
+    args: argparse.Namespace,
+    all_results: dict[str, Any],
+    state: _RunState,
+) -> int | None:
+    """Process one scenarios file. Return exit code on hard failure, None on ok."""
+    loaded = _load_scenarios_file(scenario_file)
+    if isinstance(loaded, int):
+        return loaded
+    scenarios_data, rule_path = loaded
+
+    rule_id, result, n_calls = _process_one_rule(
+        api_key, scenarios_data, rule_path, args
+    )
+    state.total_calls += n_calls
+
+    if result is not None:
+        all_results["rules"][rule_id] = result
+        ok, judge_failed = _classify_verdict(result["summary"]["verdict"])
+        if not ok:
+            state.overall_pass = False
+        if judge_failed:
+            state.external_failure = True
+    return None
+
+
+def _classify_verdict(verdict: str) -> tuple[bool, bool]:
+    """Return (ok, judge_failed). ok=True only for PASS; judge_failed only for FAIL_JUDGE_ERRORS.
+
+    NO_POSITIVE_CASES is a config error (no positive scenarios = activation
+    cannot be validated). FAIL_JUDGE_ERRORS is an external/API failure that
+    surfaces as exit code 3 so CI can distinguish transient infrastructure
+    problems from genuine activation failures.
+    """
+    return verdict == "PASS", verdict == "FAIL_JUDGE_ERRORS"
+
+
+def _print_dry_run_summary(total_calls: int) -> None:
+    est_tokens = total_calls * EST_TOKENS_PER_CALL
+    est_cost = est_tokens / 1_000_000 * 3
+    print(f"\nTotal calls planned: {total_calls}")
+    print(f"Estimated tokens: ~{est_tokens:,} (~${est_cost:.2f} sonnet input rate)")
 
 
 if __name__ == "__main__":
