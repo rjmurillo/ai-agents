@@ -188,13 +188,21 @@ Respond in JSON only, no other text:
             text = m.group(1).strip()
 
     try:
-        parsed: dict[str, Any] = json.loads(text)
+        parsed = json.loads(text)
     except json.JSONDecodeError:
         return {
             "activation_score": 0,
             "citation_score": 0,
             "behavior_score": 0,
             "reasoning": f"judge parse error: {text[:200]}",
+            "judge_failed": True,
+        }
+    if not isinstance(parsed, dict):
+        return {
+            "activation_score": 0,
+            "citation_score": 0,
+            "behavior_score": 0,
+            "reasoning": f"judge returned non-object JSON: {text[:200]}",
             "judge_failed": True,
         }
     return {
