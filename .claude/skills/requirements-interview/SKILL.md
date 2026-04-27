@@ -1,0 +1,105 @@
+---
+name: requirements-interview
+version: 0.1.0
+description: Adversarial requirements interview that walks the design tree to elicit testable requirements before any code is written. Implements the grill-me pattern - ask relentlessly, recommend an answer for every question, and resolve dependencies between decisions one branch at a time. Skip any question the codebase can already answer.
+model: claude-sonnet-4-6
+license: MIT
+user-invocable: true
+triggers:
+  - "interview me on this"
+  - "grill me on the requirements"
+  - "walk the design tree"
+  - "stress-test this idea"
+---
+
+# Requirements Interview (grill-me pattern)
+
+When this skill activates, you become an adversarial requirements interviewer. The goal is shared understanding before any code or design work. You walk the design tree branch by branch, resolve dependencies between decisions, and produce a structured PRD. Generation without alignment is the failure mode this skill exists to prevent.
+
+## Triggers
+
+| Phrase | Context |
+|--------|---------|
+| `interview me on this` | New feature or task |
+| `grill me on the requirements` | Refining a vague spec |
+| `walk the design tree` | Surfacing dependent decisions |
+| `stress-test this idea` | Pre-implementation validation |
+| Auto-invoked from `/spec` | Default front door for new work |
+
+## Inputs
+
+- Free-form problem statement, issue body, or feature title.
+- Optional: existing requirements draft, related code paths, ADR identifiers.
+
+## Outputs
+
+| Artifact | Location | Purpose |
+|----------|----------|---------|
+| Interview transcript | `.agents/specs/interviews/INTERVIEW-<slug>.md` | Audit trail of decisions and rationale |
+| Structured requirements | Returned to caller for `/spec` to format as REQ-NNN | Acceptance criteria, edge cases, data model decisions, out-of-scope list |
+
+## Method
+
+1. **Restate the problem** in one sentence. Confirm with the user before continuing.
+2. **Build the design tree.** Identify the top-level branches: user stories, data model, integrations, failure modes, security, scope boundaries, observability.
+3. **Walk one branch at a time, depth first.** Resolve dependencies before siblings. A storage decision constrains the consistency model; ask the storage question first.
+4. **For every question, propose your recommended answer.** Cite the source: code path, ADR, prior art, or stated assumption. The user confirms or corrects. Do not ask open-ended questions without a default.
+5. **If the codebase can answer it, answer it.** Grep before you ask. Cite the file and line. The user confirms ownership of the answer.
+6. **Surface unknown unknowns.** For each branch, ask "what would have to be true for this to fail in production?" Capture failure modes, not just happy paths.
+7. **Stop when the design tree has no unresolved leaves.** Every branch ends with either a confirmed decision, an explicit deferral, or an out-of-scope marker.
+8. **Emit the structured output** in the format below.
+
+## Question Discipline
+
+- Numbered, specific, never open-ended.
+- One decision per question. Do not bundle.
+- Recommended answer in the same turn as the question.
+- Cite the evidence for the recommended answer (file path, ADR, external source).
+- Mark each question with one of: `CONFIRMED`, `OVERRIDDEN`, `DEFERRED`, `OUT_OF_SCOPE`.
+- Prefer questions that close a branch over questions that open a new one.
+
+## Branch Checklist
+
+Walk these in order. Skip a branch only with explicit justification.
+
+1. **User stories.** Who triggers the behavior? What outcome do they observe? What measurable success condition closes the story?
+2. **Data model.** What entities exist? What identity, invariants, and lifecycle do they have? What persists, what is derived?
+3. **Integrations.** Which external systems does this touch? What are their failure modes and idempotency guarantees?
+4. **Failure modes.** Retries, partial failures, conflicting writes, replay, schema evolution. Each gets an explicit answer.
+5. **Security.** Authentication, authorization, secrets, PII, input validation. Cite the relevant rule under `.claude/rules/security.md` or `.agents/governance/SECURITY-REVIEW-PROTOCOL.md`.
+6. **Observability.** What signals prove the feature works in production? Logs, metrics, traces, alerts.
+7. **Scope boundaries.** What is explicitly out of scope? What is deferred to a follow-up? What is rejected and why?
+
+## Anti-Patterns
+
+| Anti-pattern | Why it fails |
+|--------------|--------------|
+| Asking "what do you want?" without a recommended answer | Pushes synthesis to the user; defeats the skill |
+| Bundling several decisions into one question | Hides which one the user actually answered |
+| Asking the user a question the codebase already answers | Wastes user time; trust drops |
+| Producing requirements before the tree is walked | Generation without alignment, the very failure mode this skill prevents |
+| Stopping at the happy path | Misses unknown unknowns; production surprises follow |
+
+## Quality Gates
+
+The interview is complete when:
+
+- Every branch in the checklist has a recorded decision.
+- Every requirement is testable as pass/fail.
+- Every "we will figure it out later" has been promoted to either a deferred decision with an owner or a documented out-of-scope marker.
+- The user has confirmed the final problem restatement and the acceptance criteria list.
+
+## Structured Output
+
+Return to the caller as Markdown with the sections below. Each section uses the headings `Problem`, `User stories`, `Data model`, `Integrations`, `Failure modes`, `Security`, `Observability`, `Acceptance criteria`, `Out of scope`, `Deferred`, and `Open questions`. Acceptance criteria use EARS syntax (`WHEN ... THE SYSTEM SHALL ... SO THAT ...`).
+
+## Handoff
+
+After the interview, the caller (typically `/spec`) takes the structured output and formats it into REQ-NNN documents using the spec-generator agent. This skill does not write final REQ files; it produces the input the formatter needs.
+
+## References
+
+- Source: <https://www.aihero.dev/my-grill-me-skill-has-gone-viral>
+- Upstream: <https://github.com/mattpocock/skills>
+- Related skills: `decision-critic`, `pre-mortem`, `cynefin-classifier`
+- Related rules: `.claude/rules/clean-architecture.md`, `.claude/rules/domain-driven-design.md`, `.claude/rules/security.md`
