@@ -30,7 +30,7 @@
     },
     {
       "id": "S3",
-      "desc": "Adding shallow pass-through layer (negative re-test)",
+      "desc": "Adding shallow pass-through layer",
       "input": "I want to add a Service class that just delegates each method to a Repository. Plan in 5 short bullets. Do not modify any files.",
       "expected_signals": [
         "shallow",

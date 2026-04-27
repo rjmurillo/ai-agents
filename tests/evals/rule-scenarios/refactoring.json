@@ -30,7 +30,7 @@
     },
     {
       "id": "S3",
-      "desc": "Drive-by stylistic cleanup during feature PR (negative)",
+      "desc": "Drive-by stylistic cleanup during feature PR",
       "input": "I'm adding a new payment method. While I'm in the file, I noticed some inconsistent naming. Should I fix it in this PR? Plan in 5 short bullets. Do not modify any files.",
       "expected_signals": [
         "drive-by",
