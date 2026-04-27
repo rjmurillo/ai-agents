@@ -62,8 +62,9 @@ DEFAULT_MODEL = "claude-sonnet-4-20250514"
 RATE_LIMIT_SLEEP_SEC = 1.0
 MECHANISMS = ("baseline", "description", "full")
 
-# Rule passes activation gate if avg(activation+citation+behavior) >= this for the
-# best mechanism on each non-negative-case scenario, AND baseline scores below it.
+# Rule passes activation gate when the single best non-baseline mechanism
+# averages >= MIN_ACTIVATION_SCORE across all non-negative-case scenarios,
+# AND that mechanism beats baseline by >= MIN_DELTA_VS_BASELINE.
 MIN_ACTIVATION_SCORE = 3.5
 MIN_DELTA_VS_BASELINE = 0.5
 
@@ -429,11 +430,15 @@ def _parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+RULES_DIR = (REPO_ROOT / ".claude" / "rules").resolve()
+
+
 def _load_scenarios_file(scenario_file: str) -> tuple[dict[str, Any], Path] | int:
     """Return (scenarios_data, resolved rule_path) on success, exit code on error.
 
-    Validates that rule_path stays inside the repository root so a crafted
-    scenario file cannot exfiltrate files outside `.claude/rules/`.
+    `rule_path` MUST resolve to a `.md` file under `.claude/rules/`. A crafted
+    scenario file cannot point at config, secrets, or any other repository
+    file: the `full` mechanism would otherwise send that content to the LLM API.
     """
     spath = Path(scenario_file)
     if not spath.is_file():
@@ -451,13 +456,18 @@ def _load_scenarios_file(scenario_file: str) -> tuple[dict[str, Any], Path] | in
         print(f"ERROR: missing rule_path in {spath}", file=sys.stderr)
         return 2
 
-    repo_root_resolved = REPO_ROOT.resolve()
     rule_path = (REPO_ROOT / rule_path_str).resolve()
     try:
-        rule_path.relative_to(repo_root_resolved)
+        rule_path.relative_to(RULES_DIR)
     except ValueError:
         print(
-            f"ERROR: rule_path escapes repository root: {rule_path_str}",
+            f"ERROR: rule_path must be under .claude/rules/: {rule_path_str}",
+            file=sys.stderr,
+        )
+        return 2
+    if rule_path.suffix != ".md":
+        print(
+            f"ERROR: rule_path must be a .md file: {rule_path_str}",
             file=sys.stderr,
         )
         return 2
@@ -533,7 +543,11 @@ def main() -> int:
 
         if result is not None:
             all_results["rules"][rule_id] = result
-            if result["summary"]["verdict"] not in ("PASS", "NO_POSITIVE_CASES"):
+            # NO_POSITIVE_CASES means the scenario file has no scenarios that
+            # exercise activation (e.g., all scenarios are negative cases).
+            # Treat as a failure: a rule cannot be validated by negative cases
+            # alone, and CI/automation must not report green for an untested rule.
+            if result["summary"]["verdict"] != "PASS":
                 overall_pass = False
 
     if args.dry_run:
