@@ -40,6 +40,14 @@
       ],
       "expected_gate": "reject-shallow-layer",
       "rationale": "Cross-references philosophy-of-software-design. Unified rule should still reject shallow layers."
+    },
+    {
+      "id": "S4",
+      "desc": "Pure CSS styling question (negative case)",
+      "input": "What's the best way to center a div vertically and horizontally using CSS flexbox? Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "Pure CSS styling question has no relevance to software engineering principles like DRY, aggregates, or layer design. Rule should not activate."
     }
   ]
 }

@@ -93,7 +93,7 @@ def parse_rule(rule_path: Path) -> dict[str, str]:
     }
 
 
-def build_system_prompt(mechanism: str, rule: dict[str, str]) -> str:
+def build_system_prompt(mechanism: str, rule: dict[str, str], rule_id: str) -> str:
     """Construct the system prompt for a given activation mechanism."""
     if mechanism == "baseline":
         return ""
@@ -102,7 +102,7 @@ def build_system_prompt(mechanism: str, rule: dict[str, str]) -> str:
             return ""
         return (
             "Project rules apply to your work. Available rule:\n\n"
-            f"  - working-with-legacy-code: {rule['description']}\n\n"
+            f"  - {rule_id}: {rule['description']}\n\n"
             "Decide whether to apply rules based on the user's request "
             "and apply them when relevant."
         )
@@ -206,6 +206,7 @@ Respond in JSON only, no other text:
 def eval_one_scenario(
     api_key: str,
     rule: dict[str, str],
+    rule_id: str,
     scenario: dict[str, Any],
     model: str,
     dry_run: bool,
@@ -219,7 +220,7 @@ def eval_one_scenario(
     }
 
     for mechanism in MECHANISMS:
-        system = build_system_prompt(mechanism, rule)
+        system = build_system_prompt(mechanism, rule, rule_id)
         if dry_run:
             result["mechanisms"][mechanism] = {
                 "response_preview": "(dry-run, no API call)",
@@ -346,11 +347,11 @@ def render_table(rule_id: str, summary: dict[str, Any]) -> str:
     for mech in MECHANISMS:
         pos = summary["per_mechanism"][mech]["avg_score"]
         neg = summary["negative_case_per_mechanism"][mech]["avg_score"]
-        delta = (
-            ""
-            if mech == "baseline"
-            else f"+{round(pos - summary['baseline_avg'], 2)}"
-        )
+        if mech == "baseline":
+            delta = ""
+        else:
+            delta_val = round(pos - summary["baseline_avg"], 2)
+            delta = f"{delta_val:+}"
         rows.append(f"| {mech:<12} | {pos:>7} | {neg:>7} | {delta:>13} |")
     return "\n".join(rows)
 
@@ -419,7 +420,7 @@ def _process_one_rule(
     for sc in scenarios:
         preview = sc.get("desc", "")[:60]
         print(f"  scenario {sc['id']}: {preview}...", file=sys.stderr)
-        r = eval_one_scenario(api_key, rule, sc, args.model, dry_run=False)
+        r = eval_one_scenario(api_key, rule, rule_id, sc, args.model, dry_run=False)
         scenario_results.append(r)
 
     summary = aggregate(scenario_results)
