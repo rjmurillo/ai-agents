@@ -119,9 +119,13 @@
     "Comment 3 (Copilot, templates/agents/negotiation.shared.md:4): added model_tier: opus to enforce senior-tier routing via configuration (matches sibling pattern in issue-feature-review.shared.md)",
     "Comment 4 (Copilot, .agents/skills/negotiation.md:10): PR description claimed 7 crystallized skills but file contains 10 (Skill-Negotiation-001 through 010); updated PR description from 7 to 10",
     "Comment 5 (Copilot, docs/agent-catalog.md:3): intro said '22 specialized agents' but table enumerates 23; updated to 23",
-    "Regenerated platform files via build/generate_agents.py (model_tier is template-only metadata; not propagated to vscode/copilot-cli output by design)"
+    "Regenerated platform files via build/generate_agents.py (model_tier is template-only metadata; not propagated to vscode/copilot-cli output by design)",
+    "Round 2 (rjmurillo flagged): added src/claude/negotiation.md by hand per templates/README.md:131 (src/claude/ is not auto-generated); restored Claude in catalog row",
+    "Round 3 (user request): migrated skill from .agents/skills/negotiation.md to .claude/skills/negotiation/SKILL.md per .claude/skills/CLAUDE.md schema; full 10 skills moved to references/skills.md (progressive disclosure under 500-line limit)",
+    "Round 4 (Copilot follow-up): removed double blank line + added missing --- separator in src/claude/negotiation.md; replaced unsourced unwind percentages in references/skills.md; bumped SEMANTIC_INDEX.yaml last_updated to 2026-04-27",
+    "Round 5 (Copilot): bumped marketplace.json claude-agents and project-toolkit agent counts 23->24; corrected episode files_changed 0->8"
   ],
-  "endingCommit": "ec951e2a",
+  "endingCommit": "a6b252f9",
   "prUrl": "https://github.com/rjmurillo/ai-agents/pull/1766",
   "nextSteps": []
 }

@@ -8,7 +8,7 @@
   "plugins": [
     {
       "name": "claude-agents",
-      "description": "23 specialized agent definitions with templates and governance for Claude Code",
+      "description": "24 specialized agent definitions with templates and governance for Claude Code",
       "source": "./src/claude"
     },
     {
@@ -18,7 +18,7 @@
     },
     {
       "name": "project-toolkit",
-      "description": "Complete project development toolkit: 23 agents, 24 slash commands, 29 lifecycle hooks, and 62 reusable skills for Claude Code workflows",
+      "description": "Complete project development toolkit: 24 agents, 24 slash commands, 29 lifecycle hooks, and 62 reusable skills for Claude Code workflows",
       "source": "./.claude"
     }
   ]
