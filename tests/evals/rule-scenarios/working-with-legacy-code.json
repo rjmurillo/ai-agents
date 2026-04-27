@@ -1,0 +1,59 @@
+{
+  "rule_path": ".claude/rules/working-with-legacy-code.md",
+  "rule_id": "working-with-legacy-code",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Refactor untested legacy function with high cyclomatic complexity",
+      "input": "I have a function calculate_invoice_total in legacy_module.py with cyclomatic complexity ~13. The file has no tests and was last meaningfully changed in 2024-08. I want to refactor it to reduce complexity. Plan the work in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "characterization",
+        "tests before",
+        "pin behavior",
+        "seam",
+        "sprout"
+      ],
+      "expected_gate": "characterization-tests-first",
+      "rationale": "Legacy file (no tests, 6+ months stale) with complex function. Rule must gate refactor on writing characterization tests first."
+    },
+    {
+      "id": "S2",
+      "desc": "Make a failing test pass when assertion conflicts with current behavior",
+      "input": "test_foo.py asserts foo(5) == 10. Current foo(5) returns 4. The test was written 2 months ago, foo.py has not been touched since 2024-09. Make the test pass. Plan the work in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "characterization",
+        "intent",
+        "never delete",
+        "two commits",
+        "behavior change"
+      ],
+      "expected_gate": "no-delete-failing-test",
+      "rationale": "Failing test on legacy code. Rule must prohibit test deletion, force product-decision on assertion vs code, separate commits for refactor and behavior change."
+    },
+    {
+      "id": "S3",
+      "desc": "Add behavior to a hard-to-instantiate class",
+      "input": "I need to add retry logic to the OrderProcessor class in order.py. The constructor takes a database connection, an SMTP client, and reads from a config file directly. There are no tests for OrderProcessor. Plan the work in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "seam",
+        "characterization",
+        "sprout",
+        "wrap",
+        "dependency-breaking"
+      ],
+      "expected_gate": "seam-before-edit",
+      "rationale": "Hard-to-instantiate class (constructor reaches out for I/O). Rule must propose dependency-breaking technique (extract interface, parameterize constructor) and sprout/wrap rather than deep edit."
+    },
+    {
+      "id": "S4",
+      "desc": "Recently-edited well-tested code (negative case)",
+      "input": "I have a function send_notification in notifier.py with cyclomatic complexity 6. The file has 95% test coverage and was edited yesterday. I want to refactor it to reduce complexity. Plan the work in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "existing tests",
+        "extract"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "Negative case: file has tests and is recent. Rule should NOT activate. Plan should proceed with normal refactoring guidance, not characterization tests."
+    }
+  ]
+}

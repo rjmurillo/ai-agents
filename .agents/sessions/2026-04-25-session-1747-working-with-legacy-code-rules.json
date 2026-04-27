@@ -1,0 +1,153 @@
+{
+  "session": {
+    "number": 1747,
+    "date": "2026-04-25",
+    "branch": "feat/1747-autonomous",
+    "startingCommit": "065e374d",
+    "objective": "Implement issue #1747: add .claude/rules/working-with-legacy-code.md encoding Michael Feathers' techniques (characterization tests, seams, sprout/wrap, dependency-breaking) with conditional activation for low-coverage, old, or To-Improve files."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Autonomous dev agent; Serena MCP available via SessionStart hook; tools accessible"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read AGENTS.md and CLAUDE.md at session start via SessionStart hook context"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md treated as read-only per AGENTS.md Boundaries; no continuation expected for autonomous issue-dev run"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Skill inventory delivered via SessionStart reminder; gh CLI used directly per existing project pattern (sibling PRs #1759, #1762)"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Session protocol gates (ADR-007) acknowledged; AGENTS.md gates honored"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "PROJECT-CONSTRAINTS honored: minimal diff, conventional commits, branch not main, no secrets, skills-first, no logic-in-YAML, single new file plus session log"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Forgetful unavailable per SessionStart hook (use Serena); reviewed merged PR #1762 (issue #1753, enterprise-patterns.md) as the structural template; matched frontmatter conventions and session log schema"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "feat/1747-autonomous (verified via git branch --show-current)"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On feat/1747-autonomous"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status clean at session start; HEAD at 065e374d matching origin/main"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "065e374d"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST items populated with evidence below"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No HANDOFF.md modifications; per AGENTS.md Boundaries (Never update HANDOFF.md)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Content-only addition (single new rules markdown file matching established .claude/rules/ pattern from sibling PRs #1759, #1762). No new skill, abstraction, or memory pattern to record."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Authored in line with .markdownlint-cli2.yaml: H1 present after frontmatter (MD041 + MD025 with front_matter_title accommodation), dash list markers (MD004), no inline HTML (MD033). Pre-commit hook runs markdownlint-cli2; PostToolUse Write hook auto-lints."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "feat(rules) commit covering .claude/rules/working-with-legacy-code.md plus this session log; recorded in endingCommit"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "File 14240 bytes; covers characterization tests, seams, sprout method/class, wrap method/class, dependency-breaking techniques (extract interface, parameterize constructor, introduce instance delegator, subclass and override, pull up dependency); explicit Never-Delete-Failing-Tests section per issue spec; conditional activation enumerated (low coverage, files >6 months old, To Improve cycles); quick self-review checklist."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Issue #1747 will close via Fixes keyword in PR body"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Narrow, low-risk new-file documentation change. No retrospective needed; pattern matches sibling PR #1762 exactly."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": 1,
+      "action": "Read candidates file and confirmed branch context. Issue #1747 (priority:P2, area-prompts, agent-qa, assignee rjmurillo-bot) selected by wrapper-created branch feat/1747-autonomous. Confirmed no existing PR for #1747 via gh pr list search.",
+      "outcome": "Issue body specifies: create .claude/rules/working-with-legacy-code.md from Feathers' Working Effectively with Legacy Code; cover characterization tests, seams, sprout/wrap, dependency-breaking, never-delete-failing-tests; conditional activation."
+    },
+    {
+      "step": 2,
+      "action": "Reviewed merged sibling PR #1762 (issue #1753, enterprise-patterns.md). Adopted identical frontmatter convention (description + alwaysApply: false), H1, sectioned content, accompanying session log schema.",
+      "outcome": "Established structural template. Set alwaysApply: false because the rule is conditional (only activates for low-coverage, old, or To-Improve files), mirroring enterprise-patterns.md."
+    },
+    {
+      "step": 3,
+      "action": "Authored .claude/rules/working-with-legacy-code.md with frontmatter and 11 sections: When To Apply This Rule, Core Vocabulary, Step Order (tests before edits), Characterization Tests, Seams, Sprout Method And Sprout Class, Wrap Method And Wrap Class, Dependency-Breaking Techniques, Never Delete Failing Tests, Boundaries With Existing Codebase, Quick Self-Review.",
+      "outcome": "14240 bytes single file. All issue spec patterns present. Step Order section makes the tests-before-edits sequence explicit. Boundaries section ties rule to ai-agents seams (sessions, hooks, skills, memory, orchestrator) and to the auto-escalation ladder."
+    },
+    {
+      "step": 4,
+      "action": "Created session log at .agents/sessions/2026-04-25-session-1747-working-with-legacy-code-rules.json mirroring the schema used in PR #1762.",
+      "outcome": "Session log present for session-log guard before commit."
+    },
+    {
+      "step": 5,
+      "action": "Committed feat(rules): add working-with-legacy-code rule covering Feathers techniques (#1747).",
+      "outcome": "Commit SHA recorded in endingCommit."
+    },
+    {
+      "step": 6,
+      "action": "Pushed feat/1747-autonomous, opened PR with Fixes #1747, enabled auto-merge.",
+      "outcome": "PR URL recorded below."
+    }
+  ],
+  "endingCommit": "pending",
+  "prUrl": "pending",
+  "nextSteps": [
+    "Auto-merge will land once required checks pass.",
+    "If markdownlint flags any rule violation, follow up in a fix commit on the same branch."
+  ]
+}
