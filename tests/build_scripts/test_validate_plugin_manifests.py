@@ -71,9 +71,48 @@ def test_path_field_as_array_of_strings_valid(tmp_path: Path) -> None:
     assert vpm.validate_manifest(target) == []
 
 
+def test_path_field_root_dot_slash_valid(tmp_path: Path) -> None:
+    """`./` (plugin root) is a valid path; src/claude and src/copilot-cli use this."""
+    target = _write(tmp_path, {"name": "p", "agents": "./"})
+    assert vpm.validate_manifest(target) == []
+
+
+def test_path_field_without_dot_slash_prefix_rejected(tmp_path: Path) -> None:
+    """Per Anthropic plugin rules, paths must start with './'."""
+    target = _write(tmp_path, {"name": "p", "agents": "agents"})
+    errors = vpm.validate_manifest(target)
+    assert any("must start with './'" in e for e in errors)
+
+
+def test_path_field_with_traversal_rejected(tmp_path: Path) -> None:
+    """`..` traversal is forbidden in plugin manifest paths."""
+    target = _write(tmp_path, {"name": "p", "agents": "./../agents"})
+    errors = vpm.validate_manifest(target)
+    assert any("'..'" in e for e in errors)
+
+
 def test_hooks_as_string_path_to_json_valid(tmp_path: Path) -> None:
     target = _write(tmp_path, {"name": "p", "hooks": "./hooks/hooks.json"})
     assert vpm.validate_manifest(target) == []
+
+
+def test_hooks_string_path_must_have_dot_slash(tmp_path: Path) -> None:
+    target = _write(tmp_path, {"name": "p", "hooks": "hooks/hooks.json"})
+    errors = vpm.validate_manifest(target)
+    assert any("must start with './'" in e for e in errors)
+
+
+def test_hooks_string_path_no_traversal(tmp_path: Path) -> None:
+    target = _write(tmp_path, {"name": "p", "hooks": "./../hooks.json"})
+    errors = vpm.validate_manifest(target)
+    assert any("'..'" in e for e in errors)
+
+
+def test_manifest_read_error_returns_clean_message(tmp_path: Path) -> None:
+    """Missing file must return clean error, not crash with FileNotFoundError."""
+    missing = tmp_path / "nope.json"
+    errors = vpm.validate_manifest(missing)
+    assert any("read error" in e.lower() for e in errors)
 
 
 # --- Regression: PR #1773 bug -----------------------------------------------
@@ -97,9 +136,7 @@ def test_regression_hooks_as_dict_of_strings_rejected(tmp_path: Path) -> None:
     assert any("PreToolUse" in e for e in errors)
 
 
-def test_regression_agents_array_with_dot_slash_rejected_when_not_string(
-    tmp_path: Path,
-) -> None:
+def test_regression_agents_dict_shape_rejected(tmp_path: Path) -> None:
     """`agents` must be string or list of strings, not a dict or other shape."""
     target = _write(tmp_path, {"name": "p", "agents": {"path": "./agents"}})
     errors = vpm.validate_manifest(target)

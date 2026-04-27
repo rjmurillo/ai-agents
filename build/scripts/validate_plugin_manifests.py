@@ -71,12 +71,27 @@ VALID_HOOK_EVENTS = {
 }
 
 
+def _validate_relative_path(field: str, item: str) -> list[str]:
+    """Plugin manifest paths must be relative, prefixed with ./, no `..` traversal."""
+    errors: list[str] = []
+    if not item.startswith("./"):
+        errors.append(
+            f"`{field}`: path '{item}' must start with './' (relative to plugin root)"
+        )
+    if ".." in Path(item).parts:
+        errors.append(f"`{field}`: path '{item}' must not contain '..' traversal")
+    return errors
+
+
 def _validate_path_field(name: str, value: object) -> list[str]:
-    """A path field must be a string or list of strings."""
+    """A path field must be a string or list of strings, each rooted with './'."""
     if isinstance(value, str):
-        return []
+        return _validate_relative_path(name, value)
     if isinstance(value, list) and all(isinstance(item, str) for item in value):
-        return []
+        errors: list[str] = []
+        for item in value:
+            errors.extend(_validate_relative_path(name, item))
+        return errors
     return [
         f"`{name}`: must be a string or array of strings (got {type(value).__name__}). "
         f"Omit this key to auto-discover from default `./{name}/` directory."
@@ -133,7 +148,7 @@ def _validate_hooks(value: object) -> list[str]:
                 "`hooks`: string value must reference a `.json` file "
                 f"(got '{value}'). Pointing to a directory is invalid."
             ]
-        return []
+        return _validate_relative_path("hooks", value)
     if not isinstance(value, dict):
         return [
             f"`hooks`: must be an object or string path (got {type(value).__name__})"
@@ -160,7 +175,11 @@ def _validate_hooks(value: object) -> list[str]:
 def validate_manifest(path: Path) -> list[str]:
     """Validate a single plugin.json file. Returns list of error messages."""
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
+        raw = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        return [f"Manifest read error for '{path}': {exc}"]
+    try:
+        data = json.loads(raw)
     except json.JSONDecodeError as exc:
         return [f"JSON parse error: {exc}"]
 
