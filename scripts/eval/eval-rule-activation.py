@@ -245,7 +245,15 @@ def eval_one_scenario(
             continue
 
         time.sleep(RATE_LIMIT_SLEEP_SEC)
-        scores = score_response(api_key, scenario, response, model=model)
+        try:
+            scores = score_response(api_key, scenario, response, model=model)
+        except RuntimeError as e:
+            result["mechanisms"][mechanism] = {
+                "error": f"judge API failure: {e}",
+                "response_preview": response[:400] + ("..." if len(response) > 400 else ""),
+                "scores": {"activation_score": 0, "citation_score": 0, "behavior_score": 0},
+            }
+            continue
         time.sleep(RATE_LIMIT_SLEEP_SEC)
         result["mechanisms"][mechanism] = {
             "response_preview": response[:400] + ("..." if len(response) > 400 else ""),
@@ -410,7 +418,7 @@ def _process_one_rule(
     if args.dry_run:
         print(
             f"[DRY-RUN] {rule_id}: {len(scenarios)} scenarios x "
-            f"{len(MECHANISMS)} mechanisms = {n_calls} calls"
+            f"{len(MECHANISMS)} mechanisms x 2 (call + judge) = {n_calls} calls"
         )
         print(f"  description present: {bool(rule['description'])}")
         print(f"  body chars: {len(rule['body'])}")
