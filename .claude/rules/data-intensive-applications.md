@@ -1,5 +1,5 @@
 ---
-description: Data ownership, consistency, schema evolution, and idempotency rules from Kleppmann's Designing Data-Intensive Applications. Apply when changing how state is stored, replicated, or exchanged between agents, sessions, memory, or workspaces.
+description: System-of-record ownership, consistency models per boundary, schema evolution (backward and forward compatibility), event ordering and delivery semantics (at-least-once with idempotent receivers, no exactly-once wishful thinking) from Kleppmann's _Designing Data-Intensive Applications_. Apply when changing how state is stored, replicated, derived, or exchanged between agents, sessions, memory, workspaces, or external services.
 alwaysApply: false
 ---
 
