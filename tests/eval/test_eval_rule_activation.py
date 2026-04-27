@@ -155,6 +155,76 @@ class TestLoadScenariosFile:
         result = eval_mod._load_scenarios_file(str(f))
         assert result == 2
 
+    def test_rejects_non_string_rule_path(self, tmp_path: Path):
+        # rule_path must be a string. List/dict/int values must reject cleanly
+        # rather than crash at Path joining.
+        f = tmp_path / "non_string.json"
+        f.write_text(
+            json.dumps({"rule_path": ["a", "b"], "scenarios": []}),
+            encoding="utf-8",
+        )
+        assert eval_mod._load_scenarios_file(str(f)) == 2
+
+    def test_rejects_empty_string_rule_path(self, tmp_path: Path):
+        f = tmp_path / "empty.json"
+        f.write_text(
+            json.dumps({"rule_path": "   ", "scenarios": []}),
+            encoding="utf-8",
+        )
+        assert eval_mod._load_scenarios_file(str(f)) == 2
+
+    def test_rejects_scenarios_not_a_list(self, tmp_path: Path):
+        f = tmp_path / "scenarios_dict.json"
+        f.write_text(
+            json.dumps(
+                {
+                    "rule_path": ".claude/rules/working-with-legacy-code.md",
+                    "scenarios": {"id": "S1"},
+                }
+            ),
+            encoding="utf-8",
+        )
+        assert eval_mod._load_scenarios_file(str(f)) == 2
+
+    def test_rejects_scenario_missing_id(self, tmp_path: Path):
+        f = tmp_path / "missing_id.json"
+        f.write_text(
+            json.dumps(
+                {
+                    "rule_path": ".claude/rules/working-with-legacy-code.md",
+                    "scenarios": [{"input": "test"}],
+                }
+            ),
+            encoding="utf-8",
+        )
+        assert eval_mod._load_scenarios_file(str(f)) == 2
+
+    def test_rejects_scenario_missing_input(self, tmp_path: Path):
+        f = tmp_path / "missing_input.json"
+        f.write_text(
+            json.dumps(
+                {
+                    "rule_path": ".claude/rules/working-with-legacy-code.md",
+                    "scenarios": [{"id": "S1"}],
+                }
+            ),
+            encoding="utf-8",
+        )
+        assert eval_mod._load_scenarios_file(str(f)) == 2
+
+    def test_rejects_non_dict_scenario_item(self, tmp_path: Path):
+        f = tmp_path / "scalar_scenario.json"
+        f.write_text(
+            json.dumps(
+                {
+                    "rule_path": ".claude/rules/working-with-legacy-code.md",
+                    "scenarios": ["S1"],
+                }
+            ),
+            encoding="utf-8",
+        )
+        assert eval_mod._load_scenarios_file(str(f)) == 2
+
     def test_rejects_missing_rule_path(self, tmp_path: Path):
         f = tmp_path / "no_rule_path.json"
         f.write_text(json.dumps({"scenarios": []}), encoding="utf-8")

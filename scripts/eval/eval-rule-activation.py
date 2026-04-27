@@ -472,9 +472,36 @@ def _load_scenarios_file(scenario_file: str) -> tuple[dict[str, Any], Path] | in
         return 2
 
     rule_path_str = scenarios_data.get("rule_path")
-    if not rule_path_str:
-        print(f"ERROR: missing rule_path in {spath}", file=sys.stderr)
+    if not isinstance(rule_path_str, str) or not rule_path_str.strip():
+        print(
+            f"ERROR: rule_path must be a non-empty string in {spath}",
+            file=sys.stderr,
+        )
         return 2
+    rule_path_str = rule_path_str.strip()
+
+    scenarios = scenarios_data.get("scenarios")
+    if not isinstance(scenarios, list):
+        print(
+            f"ERROR: scenarios must be a list in {spath}",
+            file=sys.stderr,
+        )
+        return 2
+    for idx, sc in enumerate(scenarios):
+        if not isinstance(sc, dict):
+            print(
+                f"ERROR: scenarios[{idx}] must be an object in {spath}",
+                file=sys.stderr,
+            )
+            return 2
+        for required in ("id", "input"):
+            if not isinstance(sc.get(required), str) or not sc.get(required, "").strip():
+                print(
+                    f"ERROR: scenarios[{idx}].{required} must be a non-empty "
+                    f"string in {spath}",
+                    file=sys.stderr,
+                )
+                return 2
 
     rule_path = (REPO_ROOT / rule_path_str).resolve()
     try:
@@ -548,6 +575,7 @@ def main() -> int:
 
     all_results: dict[str, Any] = {"rules": {}}
     overall_pass = True
+    external_failure = False
     total_calls = 0
 
     for scenario_file in args.scenarios:
@@ -563,12 +591,19 @@ def main() -> int:
 
         if result is not None:
             all_results["rules"][rule_id] = result
+            verdict = result["summary"]["verdict"]
             # NO_POSITIVE_CASES means the scenario file has no scenarios that
             # exercise activation (e.g., all scenarios are negative cases).
             # Treat as a failure: a rule cannot be validated by negative cases
             # alone, and CI/automation must not report green for an untested rule.
-            if result["summary"]["verdict"] != "PASS":
+            if verdict != "PASS":
                 overall_pass = False
+            # FAIL_JUDGE_ERRORS signals an API/judge failure during scoring.
+            # Surface as exit code 3 (external failure) so CI can distinguish
+            # transient infrastructure problems from logic failures (exit 1)
+            # and from config errors (exit 2).
+            if verdict == "FAIL_JUDGE_ERRORS":
+                external_failure = True
 
     if args.dry_run:
         est_tokens = total_calls * EST_TOKENS_PER_CALL
@@ -581,6 +616,8 @@ def main() -> int:
         Path(args.output).write_text(json.dumps(all_results, indent=2), encoding="utf-8")
         print(f"\nWrote results: {args.output}")
 
+    if external_failure:
+        return 3
     return 0 if overall_pass else 1
 
 
