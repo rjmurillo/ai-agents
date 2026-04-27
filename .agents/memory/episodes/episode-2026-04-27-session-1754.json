@@ -1,0 +1,27 @@
+{
+  "id": "episode-2026-04-27-session-1754",
+  "session": "2026-04-27-session-1754",
+  "timestamp": "2026-04-27T03:54:06.632226+00:00",
+  "outcome": "partial",
+  "task": "",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-04-27T03:54:06.625650+00:00",
+      "type": "commit",
+      "content": "Commit: a73acea7",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 4,
+    "files_changed": 0
+  },
+  "lessons": []
+}
