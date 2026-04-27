@@ -5,13 +5,13 @@
 
 ## Statement
 
-**Act boldly on internal or reversible actions. Confirm first on external or irreversible actions.**
+**Act boldly on internal/reversible actions. Confirm first on external/irreversible actions.**
 
 ## Rule
 
 | Scope | Examples | Behavior |
 |-------|----------|----------|
-| Internal | Reading plans, analyzing complexity, routing decisions, synthesizing findings, updating internal notes | Act immediately, no confirmation needed. |
+| Internal | Reading plans, analyzing complexity, delegating to internal agents, synthesizing findings, updating internal notes | Act immediately, no confirmation needed. |
 | External | Creating PRs, posting to external systems, delegating to agents with external side effects, modifying shared state | Confirm first before acting. |
 | Irreversible | Permanently deleting files, overwriting without backup, destructive database operations, revoking access | Confirm first before acting—even if the action is internal. |
 | Ambiguous (you could do X or X+Y+Z) | Task implies routing to one agent but broader delegation is possible | Route only to the specified agent. Mention other possible routes if relevant. Do not act on them without explicit approval. |
