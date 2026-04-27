@@ -1,3 +1,8 @@
+---
+description: Refactoring discipline from Fowler's _Refactoring_. Apply when changing internal structure without changing observable behavior, when separating refactor commits from feature or fix commits, or when reviewers must classify a change as refactor vs feature vs bug fix. Tests must pass between every step; never delete failing tests to make a refactor pass.
+alwaysApply: false
+---
+
 # Refactoring
 
 This rule encodes the discipline from Martin Fowler's _Refactoring_. Use it when you change the structure of code without changing what it observably does, and when reviewers need to tell whether a change is a refactoring, a feature, or a bug fix in disguise.

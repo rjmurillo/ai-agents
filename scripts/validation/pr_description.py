@@ -80,6 +80,24 @@ FILE_MENTION_PATTERNS: list[re.Pattern[str]] = [
     re.compile(rf"\[([^\]]+\.({_EXT_GROUP}))\]"),  # markdown links
 ]
 
+# Summary text patterns that identify a <details> block as bot-generated
+# (Renovate, Dependabot). Matched case-insensitively against the inner text
+# of the <summary> tag. When a <details> block's summary matches any of these,
+# the block is informational (changelog, dependency lookup, branch metadata)
+# and stripped before file extraction. Otherwise the block is preserved so
+# human-authored file claims (e.g. "<summary>Files changed</summary>")
+# survive into validation.
+#
+# Patterns are anchored to the start of the summary (after optional
+# whitespace) so a human summary like
+# ``<summary>Files changed for Renovate migration</summary>`` is preserved.
+# Without the anchor, mid-string `renovate` or `dependabot` would strip
+# legitimate human summaries that happen to mention those words.
+_BOT_DETAILS_SUMMARY_PATTERN: re.Pattern[str] = re.compile(
+    r"^\s*(?:chore\(deps\)|fix\(deps\)|renovate\b|dependabot\b|bump\s)",
+    re.IGNORECASE,
+)
+
 
 @dataclass
 class Issue:
@@ -179,12 +197,43 @@ def normalize_path(path: str) -> str:
     return path
 
 
+def _strip_bot_details_blocks(text: str) -> str:
+    """Strip <details> blocks whose <summary> matches known bot patterns.
+
+    Preserves <details> blocks that look human-authored so any change claims
+    inside them (e.g. ``<details><summary>Files changed</summary>...``)
+    survive into file extraction. A block with no <summary> is also
+    preserved, since absent a bot marker we cannot assume the contents are
+    informational.
+    """
+    def _replace(match: re.Match[str]) -> str:
+        block = match.group(0)
+        summary_match = re.search(
+            r"<summary\b[^>]*>(.*?)</summary\s*>",
+            block,
+            flags=re.DOTALL | re.IGNORECASE,
+        )
+        if summary_match and _BOT_DETAILS_SUMMARY_PATTERN.search(
+            summary_match.group(1)
+        ):
+            return ""
+        return block
+
+    return re.sub(
+        r"<details\b[^>]*>.*?</details\s*>",
+        _replace,
+        text,
+        flags=re.DOTALL | re.IGNORECASE,
+    )
+
+
 def _strip_informational_sections(description: str) -> str:
     """Remove bot-generated informational sections before file extraction.
 
-    Strips <details> blocks and "Detected Package Files" sections that list
-    files for informational purposes (e.g. Renovate onboarding PRs) rather
-    than claiming those files were changed.
+    Strips bot-marked <details> blocks (Renovate, Dependabot) and "Detected
+    Package Files" sections that list files for informational purposes rather
+    than claiming those files were changed. Human-authored <details> blocks
+    are preserved so file claims inside them are still validated.
 
     Also masks fenced code blocks before any heading-based stripping so a
     sample heading inside a fenced ```markdown block does not cause the
@@ -224,8 +273,10 @@ def _strip_informational_sections(description: str) -> str:
         text,
         flags=re.DOTALL | re.IGNORECASE,
     )
-    # Strip <details>...</details> blocks (used by Renovate, Dependabot, etc.)
-    text = re.sub(r"<details>.*?</details>", "", text, flags=re.DOTALL)
+    # Strip bot-marked <details>...</details> blocks (Renovate, Dependabot,
+    # etc.). Human-authored blocks are preserved so file claims inside them
+    # (e.g. ``<summary>Files changed</summary>``) survive into validation.
+    text = _strip_bot_details_blocks(text)
     # Strip "Detected Package Files" section up to the next heading or <hr>
     text = re.sub(
         r"###\s*Detected Package Files.*?(?=^###|\n---|\Z)",

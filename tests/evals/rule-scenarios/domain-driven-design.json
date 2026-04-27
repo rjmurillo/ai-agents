@@ -1,0 +1,43 @@
+{
+  "rule_path": ".claude/rules/domain-driven-design.md",
+  "rule_id": "domain-driven-design",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Two parts of system disagree on what 'session' means",
+      "input": "We have an agent runtime that uses 'session' to mean a single agent execution. The chat layer uses 'session' to mean a user conversation. The same Session class is shared. Plan how to resolve in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "bounded context",
+        "ubiquitous language",
+        "translate",
+        "anti-corruption"
+      ],
+      "expected_gate": "extract-bounded-contexts",
+      "rationale": "Same word, different meanings = two contexts. Rule mandates explicit boundaries + translation layer."
+    },
+    {
+      "id": "S2",
+      "desc": "Anemic entity with all logic in service",
+      "input": "Our Order class has only getters and setters. All Order behavior (calculateTotal, applyDiscount, validate) lives in OrderService. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "anemic",
+        "behavior",
+        "entity",
+        "move logic"
+      ],
+      "expected_gate": "push-behavior-to-entity",
+      "rationale": "Anemic Domain Model anti-pattern. Rule mandates moving behavior onto the entity that owns the data."
+    },
+    {
+      "id": "S3",
+      "desc": "Plain CRUD endpoint (negative case)",
+      "input": "I want to add a REST endpoint to list all users with pagination. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "pagination",
+        "endpoint"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "Plain CRUD with no domain complexity. DDD ceremony does not apply."
+    }
+  ]
+}

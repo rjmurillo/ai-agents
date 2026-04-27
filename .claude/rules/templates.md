@@ -9,7 +9,7 @@ priority: high
 
 ## MUST
 
-1. **Regenerate after edits**. Changes MUST be followed by running `python3 build/generate_agents.py` (or the equivalent `Generate-Agents.ps1`) before commit. Uncommitted generator output is a protocol failure.
+1. **Regenerate after edits**. Changes MUST be followed by running `python3 build/generate_agents.py` before commit. Uncommitted generator output is a protocol failure.
 2. **Commit generated output**. Regenerated files under `src/claude/`, `.github/agents/`, and similar target directories MUST be committed in the same PR as the template change.
 3. **Toolset integrity**. Changes that add or remove tools MUST update `templates/toolsets.yaml` consistently.
 4. **Frontmatter fields**. Agent templates MUST keep required YAML frontmatter fields (`name`, `description`, `model`) present and valid per ADR-002.
@@ -19,7 +19,7 @@ priority: high
 
 1. **Minimal diff**. Template edits SHOULD make one logical change at a time; avoid bundling prompt rewrites with toolset changes.
 2. **Preview per platform**. SHOULD inspect the generated output for at least two platforms (e.g., `src/claude/<agent>.md` and `.github/agents/<agent>.md`) to confirm the change renders correctly.
-3. **Check drift detection**. SHOULD run the drift-detection script (`scripts/validation/agent_drift` if present) after generation.
+3. **Check drift detection**. SHOULD run `python3 build/scripts/detect_agent_drift.py` after generation to confirm the templates and generated files agree.
 
 ## MUST NOT
 
