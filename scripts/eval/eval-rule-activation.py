@@ -208,6 +208,8 @@ Respond in JSON only, no other text:
 
 def _clamp_score(value: object) -> int:
     """Coerce a judge-supplied score to int in [0, 5]. Strings/None/out-of-range -> 0 or clamped."""
+    if not isinstance(value, (int, float, str)):
+        return 0
     try:
         n = int(value)
     except (TypeError, ValueError):
