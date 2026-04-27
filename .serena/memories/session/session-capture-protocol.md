@@ -14,10 +14,6 @@ It is invoked from the `## Session Gate (Blocking)` section of the orchestrator
 agent prompt and from `.agents/SESSION-PROTOCOL.md` Phase 1 documentation
 update.
 
-> **Location**: This file lives in `.serena/memories/session/` because Serena
-> memories are the project's concept store. The `wiki/concepts/` path referenced
-> in earlier issues has been superseded.
-
 ## What to Capture (Behavioral, Not Background)
 
 | Category | Description | Example |

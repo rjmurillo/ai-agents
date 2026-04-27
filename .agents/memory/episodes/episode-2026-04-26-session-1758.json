@@ -1,0 +1,27 @@
+{
+  "id": "episode-2026-04-26-session-1758",
+  "session": "2026-04-26-session-1758",
+  "timestamp": "2026-04-26T23:58:55.750228+00:00",
+  "outcome": "failure",
+  "task": "",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-04-26T23:58:55.747524+00:00",
+      "type": "error",
+      "content": "\"Evidence\": \"npx markdownlint-cli2 on 7 changed files: 0 errors in changed files; 18 pre-existing errors in unrelated files (milestone-planner, roadmap, spec-generator, .gstack reports, README)\"",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 1,
+    "recoveries": 0,
+    "commits": 2,
+    "files_changed": 0
+  },
+  "lessons": []
+}
