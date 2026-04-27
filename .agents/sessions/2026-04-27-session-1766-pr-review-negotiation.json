@@ -121,9 +121,7 @@
     "Comment 5 (Copilot, docs/agent-catalog.md:3): intro said '22 specialized agents' but table enumerates 23; updated to 23",
     "Regenerated platform files via build/generate_agents.py (model_tier is template-only metadata; not propagated to vscode/copilot-cli output by design)"
   ],
-  "endingCommit": "pending",
+  "endingCommit": "ec951e2a",
   "prUrl": "https://github.com/rjmurillo/ai-agents/pull/1766",
-  "nextSteps": [
-    "Push commits + reply/resolve all 5 threads"
-  ]
+  "nextSteps": []
 }
