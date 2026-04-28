@@ -9,9 +9,9 @@ EXIT CODES (ADR-035):
     0 - Success (regardless of stuck/not-stuck)
     2 - Invalid command or arguments
 
-NOTE: Core stuck detection logic is shared with semantic_hooks.guards to avoid
-duplication. When semantic-hooks is installed, functions are imported from there.
-When running standalone (no install), a local fallback is used with identical logic.
+This module is intentionally stdlib-only and self-contained. It does not
+import from `semantic_hooks` so behavior stays deterministic regardless of
+which optional packages happen to be installed in the environment.
 """
 
 from __future__ import annotations
@@ -24,7 +24,7 @@ import sys
 import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 DEFAULT_MAX_HISTORY = 10
 DEFAULT_STUCK_THRESHOLD = 3
@@ -34,44 +34,24 @@ MIN_TEXT_LENGTH = 50
 SIGNATURE_SIZE = 5
 MIN_WORD_LENGTH = 4
 
-# Try to import from semantic_hooks to use shared implementation.
-# Falls back to local implementation when semantic-hooks is not installed.
-_USE_SEMANTIC_HOOKS = False
-_sh_extract_signature_fn: Any = None
-_sh_jaccard_similarity_fn: Any = None
-_imported_stop_words: frozenset[str] | None = None
-try:
-    import semantic_hooks.guards as _sh
-
-    _sh_extract_signature_fn = _sh.extract_topic_signature
-    _sh_jaccard_similarity_fn = _sh.jaccard_similarity
-    _imported_stop_words = _sh._STOP_WORDS
-    _USE_SEMANTIC_HOOKS = True
-except ImportError:
-    pass
-
-if _imported_stop_words is not None:
-    STOP_WORDS: frozenset[str] = _imported_stop_words
-else:
-    # Fallback: kept in sync with semantic_hooks.guards._STOP_WORDS
-    STOP_WORDS = frozenset([
-        "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
-        "have", "has", "had", "do", "does", "did", "will", "would", "could",
-        "should", "may", "might", "shall", "can", "need", "dare", "ought",
-        "used", "to", "of", "in", "for", "on", "with", "at", "by", "from",
-        "as", "into", "through", "during", "before", "after", "above", "below",
-        "between", "out", "off", "over", "under", "again", "further", "then",
-        "once", "here", "there", "when", "where", "why", "how", "all", "both",
-        "each", "few", "more", "most", "other", "some", "such", "no", "nor",
-        "not", "only", "own", "same", "so", "than", "too", "very", "just",
-        "don", "now", "and", "but", "or", "if", "while", "that", "this",
-        "it", "i", "you", "we", "they", "he", "she", "my", "your", "his",
-        "her", "its", "our", "their", "what", "which", "who", "whom",
-        "okay", "yes", "no", "thanks", "thank", "please", "sorry", "hello",
-        "hi", "hey", "sure", "right", "well", "also", "still", "already",
-        "done", "going", "want", "like", "know", "think", "make", "take",
-        "get", "see", "come", "look", "use", "find", "give", "tell", "work",
-    ])
+STOP_WORDS: frozenset[str] = frozenset([
+    "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
+    "have", "has", "had", "do", "does", "did", "will", "would", "could",
+    "should", "may", "might", "shall", "can", "need", "dare", "ought",
+    "used", "to", "of", "in", "for", "on", "with", "at", "by", "from",
+    "as", "into", "through", "during", "before", "after", "above", "below",
+    "between", "out", "off", "over", "under", "again", "further", "then",
+    "once", "here", "there", "when", "where", "why", "how", "all", "both",
+    "each", "few", "more", "most", "other", "some", "such", "no", "nor",
+    "not", "only", "own", "same", "so", "than", "too", "very", "just",
+    "don", "now", "and", "but", "or", "if", "while", "that", "this",
+    "it", "i", "you", "we", "they", "he", "she", "my", "your", "his",
+    "her", "its", "our", "their", "what", "which", "who", "whom",
+    "okay", "yes", "no", "thanks", "thank", "please", "sorry", "hello",
+    "hi", "hey", "sure", "right", "well", "also", "still", "already",
+    "done", "going", "want", "like", "know", "think", "make", "take",
+    "get", "see", "come", "look", "use", "find", "give", "tell", "work",
+])
 
 
 def default_history_path() -> Path:
@@ -103,8 +83,8 @@ def default_history_path() -> Path:
     return (base / "history.json").resolve()
 
 
-def _local_extract_topic_signature(text: str) -> str | None:
-    """Local fallback: Extract a sorted, comma-joined signature of top significant words.
+def extract_topic_signature(text: str) -> str | None:
+    """Extract a sorted, comma-joined signature of the top significant words.
 
     Returns None for short or low-content text.
     """
@@ -131,35 +111,18 @@ def _local_extract_topic_signature(text: str) -> str | None:
     return ",".join(words)
 
 
-def extract_topic_signature(text: str) -> str | None:
-    """Extract a sorted, comma-joined signature of the top significant words.
+def jaccard_similarity(sig_a: str, sig_b: str) -> float:
+    """Compute Jaccard similarity between two comma-joined signatures.
 
-    Returns None for short or low-content text.
-    Uses semantic_hooks implementation when available, local fallback otherwise.
+    Empty tokens (from leading/trailing/repeated commas, or empty inputs) are
+    filtered out so that two empty signatures return 0.0 rather than 1.0.
     """
-    if _USE_SEMANTIC_HOOKS and _sh_extract_signature_fn is not None:
-        return cast("str | None", _sh_extract_signature_fn(text, MIN_SIGNIFICANT_WORDS))
-    return _local_extract_topic_signature(text)
-
-
-def _local_jaccard_similarity(sig_a: str, sig_b: str) -> float:
-    """Local fallback: Compute Jaccard similarity between two comma-joined signatures."""
     set_a = {tok for tok in sig_a.split(",") if tok}
     set_b = {tok for tok in sig_b.split(",") if tok}
     union = set_a | set_b
     if not union:
         return 0.0
     return len(set_a & set_b) / len(union)
-
-
-def jaccard_similarity(sig_a: str, sig_b: str) -> float:
-    """Compute Jaccard similarity between two comma-joined signatures.
-
-    Uses semantic_hooks implementation when available, local fallback otherwise.
-    """
-    if _USE_SEMANTIC_HOOKS and _sh_jaccard_similarity_fn is not None:
-        return cast("float", _sh_jaccard_similarity_fn(sig_a, sig_b))
-    return _local_jaccard_similarity(sig_a, sig_b)
 
 
 def load_history(path: Path) -> list[dict[str, str]]:
