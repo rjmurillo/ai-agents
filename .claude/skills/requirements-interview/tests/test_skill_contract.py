@@ -47,6 +47,7 @@ REQUIRED_SECTIONS = {
 
 @pytest.fixture(scope="module")
 def skill_text() -> str:
+    assert SKILL_PATH.is_file(), f"SKILL.md missing at {SKILL_PATH}"
     return SKILL_PATH.read_text(encoding="utf-8")
 
 
