@@ -3,6 +3,11 @@ name: requirements-interview
 version: 0.1.0
 description: Adversarial requirements interview that walks the design tree to elicit testable requirements before any code is written. Implements the grill-me pattern - ask relentlessly, recommend an answer for every question, and resolve dependencies between decisions one branch at a time. Skip any question the codebase can already answer.
 model: claude-sonnet-4-6
+allowed-tools:
+  - Read
+  - Glob
+  - Grep
+  - Write
 license: MIT
 user-invocable: true
 ---
