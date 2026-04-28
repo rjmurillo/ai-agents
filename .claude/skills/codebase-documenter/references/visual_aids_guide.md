@@ -19,6 +19,7 @@ Do not use a diagram when:
 ## Mermaid Sequence Example
 
 ```mermaid
+%% Sequence Diagram Example
 sequenceDiagram
     participant Client
     participant API
@@ -65,9 +66,9 @@ Three columns plus a name column is a good ceiling. Past five columns, switch to
 Use callouts sparingly. Three styles cover most needs.
 
 > **Note**: Background a reader needs to interpret what follows.
-
+>
 > **Warning**: Action that produces irreversible or expensive effects.
-
+>
 > **Tip**: Optional shortcut for readers who already know the basics.
 
 ## Anti-Patterns

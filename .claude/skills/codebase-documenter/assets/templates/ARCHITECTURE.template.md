@@ -6,13 +6,13 @@
 
 ## Goals and Non-Goals
 
-**Goals**
+### Goals
 
 - [Goal one. State the outcome, not the implementation.]
 - [Goal two.]
 - [Goal three.]
 
-**Non-Goals**
+### Non-Goals
 
 - [What the system intentionally does not do. Reviewers cite this when feature creep appears.]
 - [Another non-goal.]
@@ -20,6 +20,7 @@
 ## System Diagram
 
 ```mermaid
+%% System Architecture
 flowchart LR
     Client[Client] --> API[API Layer]
     API --> Service[Service Layer]

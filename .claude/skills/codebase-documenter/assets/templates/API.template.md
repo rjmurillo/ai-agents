@@ -32,14 +32,14 @@ Base URL: `[https://api.example.com/v1]`
 - **Auth**: Required. [Scope or role.]
 - **Rate limit**: [Tier and per-window limit.]
 
-**Query parameters**
+#### Query parameters
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | `cursor` | string | No | Pagination cursor from a previous response |
 | `limit` | integer | No | Max items per page (1-100, default 20) |
 
-**Response 200**
+#### Response 200
 
 ```json
 {
@@ -54,7 +54,7 @@ Base URL: `[https://api.example.com/v1]`
 }
 ```
 
-**Errors**
+#### Error responses
 
 | Status | Code | Meaning |
 |--------|------|---------|
@@ -70,7 +70,7 @@ Base URL: `[https://api.example.com/v1]`
 - **Auth**: Required.
 - **Idempotency**: Send `Idempotency-Key` header to make retries safe.
 
-**Request body**
+#### Request body
 
 ```json
 {
@@ -79,7 +79,7 @@ Base URL: `[https://api.example.com/v1]`
 }
 ```
 
-**Response 201**
+#### Response 201
 
 ```json
 {
@@ -90,14 +90,14 @@ Base URL: `[https://api.example.com/v1]`
 }
 ```
 
-**Errors**
+#### Error codes
 
 | Status | Code | Meaning |
 |--------|------|---------|
 | 400 | `validation_error` | Body failed validation; see `errors` array |
 | 409 | `conflict` | Resource with the same identity exists |
 
-## Errors
+## Error Format
 
 All error responses share this shape:
 
@@ -122,17 +122,19 @@ Clients should respect the `X-RateLimit-Remaining` and `Retry-After` headers.
 
 ## Examples
 
-**curl**
+### curl
 
 ```bash
 curl -sS https://api.example.com/v1/resources \
   -H "Authorization: Bearer $API_TOKEN"
 ```
 
-**Python (`httpx`)**
+### Python (httpx)
 
 ```python
 import httpx
+
+api_token = "[token]"
 
 response = httpx.get(
     "https://api.example.com/v1/resources",

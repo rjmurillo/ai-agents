@@ -2,6 +2,12 @@
 name: codebase-documenter
 version: 1.0.0
 model: claude-sonnet-4-5
+allowed-tools:
+  - Read
+  - Write
+  - Edit
+  - Glob
+  - Grep
 description: "Scaffold project documentation (README, ARCHITECTURE, API, CODE_COMMENTS) from templates with documented standards. Use when bootstrapping docs for a new or under-documented codebase."
 license: MIT
 ---
@@ -41,7 +47,7 @@ Use a different skill when:
 - Placeholders use bracket convention `[Like this]` so a writer can search and replace.
 - Templates must be filled in by a human or downstream skill. The skill does not infer project specifics.
 
-## Workflow
+## Process
 
 1. Confirm the target directory and confirm no overwrite of existing docs without explicit user consent.
 2. Copy `assets/templates/README.template.md` to `README.md` (or path the user requests).
@@ -66,9 +72,10 @@ Use a different skill when:
 | `references/documentation_guidelines.md` | Voice, structure, audience framing, placeholder convention. |
 | `references/visual_aids_guide.md` | When and how to use diagrams, tables, callouts. |
 
-## Quality Checklist
+## Verification Checklist
 
 - [ ] No environment-specific paths in any template
+- [ ] All user-provided paths are validated against path traversal
 - [ ] Bracketed placeholders match the `[Word or short phrase]` convention
 - [ ] Code fences are balanced and use language identifiers on the opener only
 - [ ] Voice is active, audience is the project's reader (not the documenter)
