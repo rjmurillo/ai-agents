@@ -8,12 +8,12 @@
   "plugins": [
     {
       "name": "claude-agents",
-      "description": "23 specialized agent definitions with templates and governance for Claude Code",
+      "description": "24 specialized agent definitions with templates and governance for Claude Code",
       "source": "./src/claude"
     },
     {
       "name": "copilot-cli-agents",
-      "description": "23 agent definitions for GitHub Copilot CLI",
+      "description": "24 agent definitions for GitHub Copilot CLI",
       "source": "./src/copilot-cli"
     },
     {
