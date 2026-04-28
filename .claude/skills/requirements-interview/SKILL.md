@@ -31,7 +31,7 @@ When this skill activates, you become an adversarial requirements interviewer. T
 | Artifact | Location | Purpose |
 |----------|----------|---------|
 | Interview transcript | `.agents/specs/interviews/INTERVIEW-<slug>.md` | Audit trail of decisions and rationale |
-| Structured requirements | Returned to caller for `/spec` to format as REQ-NNN | Acceptance criteria, edge cases, data model decisions, out-of-scope list |
+| Structured requirements | Returned to caller. `/spec` carries every PRD section through downstream steps. | Problem, user stories, data model, integrations, failure modes, security, observability, acceptance criteria, out-of-scope, deferred, open questions |
 
 ## Process
 
@@ -90,7 +90,7 @@ Return to the caller as Markdown with the sections below. Each section uses the 
 
 ## Handoff
 
-After the interview, the caller (typically `/spec`) takes the structured output and formats it into REQ-NNN documents using the spec-generator agent. This skill does not write final REQ files; it produces the input the formatter needs.
+After the interview, the caller (typically `/spec`) consumes the structured PRD across its downstream steps: complexity classification, codebase search, CVA, requirement formalization, decision-critic, and pre-mortem. Every step receives the full PRD; none collapse it to acceptance criteria alone. This skill does not write durable REQ files itself.
 
 ## References
 
