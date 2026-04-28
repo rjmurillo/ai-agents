@@ -45,13 +45,14 @@ VALID_DESCRIPTION_VERBS = {
 FORBIDDEN_SUBSTRINGS = ["/home/", "Richard", "Microsoft", "openclaw"]
 
 
-def _read_skill_md_frontmatter() -> dict:
+def _read_skill_md_frontmatter() -> dict[str, object]:
     """Parse the YAML frontmatter at the top of SKILL.md."""
     content = (SKILL_ROOT / "SKILL.md").read_text(encoding="utf-8")
     if not content.startswith("---\n"):
         raise AssertionError("SKILL.md must start with '---' frontmatter delimiter")
     _, fm, _ = content.split("---\n", 2)
-    return yaml.safe_load(fm)
+    result: dict[str, object] = yaml.safe_load(fm)
+    return result
 
 
 class TestSkillFrontmatter:
