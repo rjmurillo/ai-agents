@@ -31,7 +31,7 @@ When this skill activates, you become an adversarial requirements interviewer. T
 | Artifact | Location | Purpose |
 |----------|----------|---------|
 | Interview transcript | `.agents/specs/interviews/INTERVIEW-<slug>.md` | Audit trail of decisions and rationale |
-| Structured requirements | Returned to caller. `/spec` carries every PRD section through downstream steps. | Problem, user stories, data model, integrations, failure modes, security, observability, acceptance criteria, out-of-scope, deferred, open questions |
+| Structured requirements | Returned to caller. `/spec` carries every PRD section through downstream steps and hands the full PRD to the spec-generator agent. | Problem, user stories, data model, integrations, failure modes, security, observability, acceptance criteria, out-of-scope, deferred, open questions |
 
 ## Process
 
@@ -90,7 +90,13 @@ Return to the caller as Markdown with the sections below. Each section uses the 
 
 ## Handoff
 
-After the interview, the caller (typically `/spec`) consumes the structured PRD across its downstream steps: complexity classification, codebase search, CVA, requirement formalization, decision-critic, and pre-mortem. Every step receives the full PRD; none collapse it to acceptance criteria alone. This skill does not write durable REQ files itself.
+After the interview, the caller (typically `/spec`) consumes the structured PRD across its downstream steps. The PRD is then handed to the spec-generator agent (`.claude/agents/spec-generator.md`), which formalizes it into durable artifacts:
+
+- `.agents/specs/requirements/REQ-NNN-{slug}.md` (one file per requirement, EARS syntax)
+- `.agents/specs/design/DESIGN-NNN-{slug}.md`
+- `.agents/specs/tasks/TASK-NNN-{slug}.md`
+
+Every PRD section reaches the spec-generator unchanged so it does not re-ask questions the interview already answered. This skill does not write the REQ/DESIGN/TASK files itself; it produces the structured input the formalizer needs.
 
 ## References
 

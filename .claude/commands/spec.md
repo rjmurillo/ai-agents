@@ -21,7 +21,11 @@ If $ARGUMENTS is empty, ask the user what problem to solve. Do not proceed witho
    - Tier 5 (Principal): Governance review. Multi-org consensus. Explicit "why not simpler?" challenge. If complexity can be driven out, do it before specifying.
 4. Search for existing solutions in the codebase (grep for related patterns). Use the PRD's Integrations and Data model sections to scope the search.
 5. Invoke Skill(skill="cva-analysis"): identify commonalities across the PRD's user stories, then variabilities, then relationships
-6. Carry forward every PRD section from step 2: Problem, User stories, Data model, Integrations, Failure modes, Security, Observability, Acceptance criteria, Out of scope, Deferred, Open questions. Acceptance criteria use EARS syntax (`WHEN ... THE SYSTEM SHALL ... SO THAT ...`). Do not collapse the PRD into acceptance criteria alone; downstream review needs the full schema.
+6. **Formalize the PRD into durable artifacts**: Task(subagent_type="spec-generator"). Pass every PRD section from step 2 (Problem, User stories, Data model, Integrations, Failure modes, Security, Observability, Acceptance criteria, Out of scope, Deferred, Open questions) plus the complexity tier from step 3 and the CVA summary from step 5. The spec-generator agent writes:
+   - `.agents/specs/requirements/REQ-NNN-{slug}.md` (one per requirement, EARS syntax)
+   - `.agents/specs/design/DESIGN-NNN-{slug}.md`
+   - `.agents/specs/tasks/TASK-NNN-{slug}.md`
+   The full PRD must be passed as input so spec-generator does not re-ask questions the interview already answered. Acceptance criteria use EARS syntax (`WHEN ... THE SYSTEM SHALL ... SO THAT ...`).
 7. Task(subagent_type="analyst"): You are a requirements analyst. Your job is to find gaps, ambiguities, and untestable requirements. Review every PRD section, not just acceptance criteria. For each requirement, ask: can this be verified pass/fail? Flag anything vague.
 8. Invoke Skill(skill="decision-critic"): challenge assumptions before committing
 9. Task(subagent_type="critic"): You are a skeptical reviewer. Run a pre-mortem: assume this spec ships and fails. What broke first? What was missing?
