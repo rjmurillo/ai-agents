@@ -1,0 +1,153 @@
+{
+  "session": {
+    "number": 1751,
+    "date": "2026-04-25",
+    "branch": "feat/1751-autonomous",
+    "startingCommit": "065e374d",
+    "objective": "Implement issue #1751: add .claude/rules/data-intensive-applications.md covering source-of-truth ownership, idempotency, consistency models, schema evolution, event ordering, and no exactly-once wishful thinking from Kleppmann's DDIA"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Autonomous dev agent; Serena MCP available via SessionStart hook; tools accessible"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read AGENTS.md and CLAUDE.md at session start via SessionStart hook context"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md header (status read-only); no continuation expected for autonomous issue-dev run"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Skill inventory delivered via SessionStart reminder; PR creation will go through .claude/skills/github/scripts/pr/new_pr.py per skill-first guard"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Session protocol gates (ADR-007) acknowledged; AGENTS.md gates honored"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "PROJECT-CONSTRAINTS honored: minimal diff, conventional commits, branch not main, no secrets, skills-first, no logic-in-YAML, single new file plus session log"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Forgetful unavailable per SessionStart hook (use Serena); reviewed sibling PR #1762 (issue #1753, enterprise-patterns.md) and its session log (.agents/sessions/2026-04-25-session-1753-enterprise-patterns-rules.json) for established .claude/rules/ pattern, frontmatter conventions, and session log schema"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "feat/1751-autonomous (verified via git branch --show-current)"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On feat/1751-autonomous"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status clean at session start; HEAD at 065e374d matching origin/main"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "065e374d"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST items populated with evidence below"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No HANDOFF.md modifications; per AGENTS.md Boundaries (Never update HANDOFF.md)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Content-only addition (single new rules markdown file matching established .claude/rules/ pattern from sibling PR #1762). No new skill, abstraction, or memory pattern to record."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Validated against .markdownlint-cli2.yaml: H1 present after frontmatter (MD041 + MD025 with front_matter_title accommodation), dash list markers (MD004 dash style), no inline HTML (MD033). PostToolUse Write hook auto-lints on file creation. File mirrors enterprise-patterns.md structure that already passes the same lint config."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "feat(rules) commit covering .claude/rules/data-intensive-applications.md plus this session log; recorded in endingCommit"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "File size ~13.8KB (close to 10KB issue target; richer Application section to tie patterns to ai-agents seams). Covers all six issue requirements: explicit source-of-truth ownership, schema evolution with backward/forward compatibility, idempotent handlers, explicit consistency model per boundary, event ordering documented not assumed, no exactly-once wishful thinking. Application section explicitly maps to agent memory, session state, inter-agent messaging, workspace persistence, and git as event log."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Issue #1751 will close via Fixes keyword in PR body"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Narrow, low-risk new-file documentation change. No retrospective needed; pattern matches sibling PR #1762 exactly."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": 1,
+      "action": "Read candidates file and confirmed branch context. Issue #1751 (priority:P2, area-prompts, agent-memory) selected by wrapper-created branch feat/1751-autonomous. Confirmed no existing PR for #1751 via gh pr list search.",
+      "outcome": "Issue body specifies: create .claude/rules/data-intensive-applications.md from Kleppmann DDIA source; cover SoR ownership, schema evolution, idempotent handlers, explicit consistency model per boundary, event ordering, no exactly-once wishful thinking; apply to agent memory, session state, inter-agent messaging, workspace persistence."
+    },
+    {
+      "step": 2,
+      "action": "Surveyed sibling rule (.claude/rules/enterprise-patterns.md, merged via PR #1762) and its session log to lock in the .claude/rules/ schema: frontmatter (description + alwaysApply), H1, sectioned content, accompanying session log mirroring this schema. Set alwaysApply: false to match the enterprise-patterns choice (pattern is conditional/situational; differs from code-quality which is everyday and uses alwaysApply: true).",
+      "outcome": "Frontmatter convention and session log schema reused. No new abstractions introduced."
+    },
+    {
+      "step": 3,
+      "action": "Authored .claude/rules/data-intensive-applications.md with frontmatter and 9 sections: Core Vocabulary, Source of Truth Ownership, Idempotency, Consistency Model per Boundary, Schema Evolution, Event Ordering and Delivery, No Exactly-Once Wishful Thinking, Application to ai-agents, Anti-Patterns, Quick Self-Review.",
+      "outcome": "13830 bytes single file. All six issue requirements present. Application section explicitly maps SoR / consistency / ordering rules onto session logs, agent memory, workspace state, inter-agent messaging, and git. Anti-Patterns section captures Two-writers-no-policy, Cache-as-SoR, Retry-without-idempotency, Schema-by-accident, Total-order-fantasy, Exactly-once labels, Wall-clock causality."
+    },
+    {
+      "step": 4,
+      "action": "Created session log at .agents/sessions/2026-04-25-session-1751-data-intensive-applications-rules.json mirroring the schema used in PR #1762.",
+      "outcome": "Session log present for session-log guard before commit."
+    },
+    {
+      "step": 5,
+      "action": "Committed feat(rules): add data-intensive-applications rule covering Kleppmann DDIA (#1751).",
+      "outcome": "Commit SHA recorded in endingCommit."
+    },
+    {
+      "step": 6,
+      "action": "Pushed feat/1751-autonomous, opened PR via .claude/skills/github/scripts/pr/new_pr.py with Fixes #1751, enabled auto-merge.",
+      "outcome": "PR URL recorded below."
+    }
+  ],
+  "endingCommit": "pending",
+  "prUrl": "pending",
+  "nextSteps": [
+    "Auto-merge will land once required checks pass.",
+    "If markdownlint flags any rule violation, follow up in a fix commit on the same branch."
+  ]
+}
