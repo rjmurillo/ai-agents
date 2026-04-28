@@ -94,7 +94,7 @@ if "error" in response_body:
 
 When an algorithm is non-obvious, annotate the invariant it preserves or the source of the technique.
 
-### Bad
+### Bad (vague annotation)
 
 ```python
 # Magic happens here
@@ -102,7 +102,7 @@ def reconcile(local, remote):
     ...
 ```
 
-### Good
+### Good (invariant documented)
 
 ```python
 # Last-writer-wins per field, with a tiebreaker on the (timestamp, replica_id)
@@ -115,13 +115,13 @@ def reconcile(local: State, remote: State) -> State:
 
 Track open items with an issue, an owner, or both. A bare `# TODO` rots fast.
 
-### Bad
+### Bad (bare TODO)
 
 ```python
 # TODO: fix this
 ```
 
-### Good
+### Good (TODO with issue link)
 
 ```python
 # TODO(#1234): replace with the new validator once the schema lands.
@@ -131,7 +131,7 @@ Track open items with an issue, an owner, or both. A bare `# TODO` rots fast.
 
 Mark deprecated symbols so callers see the replacement before they read the body.
 
-### Python
+### Python deprecation
 
 ```python
 import warnings
