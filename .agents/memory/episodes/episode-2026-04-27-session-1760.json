@@ -1,26 +1,17 @@
 {
   "id": "episode-2026-04-27-session-1760",
   "session": "2026-04-27-session-1760",
-  "timestamp": "2026-04-28T03:19:23.989827+00:00",
+  "timestamp": "2026-04-28T04:01:34.575023+00:00",
   "outcome": "partial",
   "task": "",
   "decisions": [],
-  "events": [
-    {
-      "id": "e001",
-      "timestamp": "2026-04-28T03:19:23.987449+00:00",
-      "type": "test",
-      "content": "\"Evidence\": \"20 pytest tests pass, SkillForge validation passes\"",
-      "caused_by": [],
-      "leads_to": []
-    }
-  ],
+  "events": [],
   "metrics": {
     "duration_minutes": 0,
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 5,
+    "commits": 4,
     "files_changed": 0
   },
   "lessons": []
