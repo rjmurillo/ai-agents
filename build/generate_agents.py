@@ -179,8 +179,12 @@ def generate_agents(
         body = parsed["body"]
 
         for platform in platforms:
-            platform_name = str(platform.get("platform", ""))
-            output_dir_relative = str(platform.get("outputDir", ""))
+            # Support both new schema (provider + legacy block) and old schema (platform + top-level keys)
+            platform_name = str(platform.get("provider", platform.get("platform", "")))
+            
+            # Look for outputDir in legacy block first, then top-level for backward compat
+            legacy = platform.get("legacy") if isinstance(platform.get("legacy"), dict) else {}
+            output_dir_relative = str(legacy.get("outputDir", platform.get("outputDir", "")))
 
             # Remove src/ prefix if present since output_root is already src/
             prefix_match = re.match(r"^src/(.*)$", output_dir_relative)
@@ -188,7 +192,7 @@ def generate_agents(
                 output_dir_relative = prefix_match.group(1)
 
             output_dir = output_root / output_dir_relative
-            file_ext = str(platform.get("fileExtension", ".md"))
+            file_ext = str(legacy.get("fileExtension", platform.get("fileExtension", ".md")))
             output_file = output_dir / f"{agent_name}{file_ext}"
 
             # Security check
@@ -207,7 +211,8 @@ def generate_agents(
             # Expand toolset references
             # Use toolsFrom alias if set (e.g., visual-studio reuses vscode tools)
             tools_value = transformed_fm.get("tools")
-            toolset_platform = str(platform.get("toolsFrom", platform_name))
+            tools_from_val = legacy.get("toolsFrom") if legacy.get("toolsFrom") else platform.get("toolsFrom")
+            toolset_platform = str(tools_from_val) if tools_from_val else platform_name
             if (
                 toolsets
                 and isinstance(tools_value, str)
@@ -218,8 +223,8 @@ def generate_agents(
                 )
 
             # Transform body
-            handoff_syntax = str(platform.get("handoffSyntax", ""))
-            memory_prefix = str(platform.get("memoryPrefix", "cloudmcp-manager/"))
+            handoff_syntax = str(legacy.get("handoffSyntax", platform.get("handoffSyntax", "")))
+            memory_prefix = str(legacy.get("memoryPrefix", platform.get("memoryPrefix", "cloudmcp-manager/")))
 
             transformed_body = convert_handoff_syntax(body, handoff_syntax)
             transformed_body = convert_memory_prefix(transformed_body, memory_prefix)

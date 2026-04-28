@@ -102,32 +102,6 @@ AUDIT_POLICY_KEYS = {"pathBlocklist", "output"}
 # --- Safe loader: forbid anchors/aliases ----------------------------------
 
 
-class _StrictSafeLoader(yaml.SafeLoader):
-    """SafeLoader that rejects YAML anchors and aliases.
-
-    safe_load already blocks Python tags. ADR-006 Amendment 2026-04-28
-    Condition 3 additionally forbids anchors so the YAML round-trips with
-    no surprise sharing across keys.
-    """
-
-
-def _no_anchor(loader, node):  # type: ignore[no-untyped-def]
-    if getattr(node, "anchor", None):
-        raise yaml.YAMLError(
-            f"YAML anchor '&{node.anchor}' rejected: anchors and aliases "
-            "are forbidden in templates/platforms/*.yaml "
-            "(ADR-006 Amendment 2026-04-28)."
-        )
-    return loader.construct_object(node, deep=True)  # pragma: no cover
-
-
-def _alias_rejector(loader, node):  # type: ignore[no-untyped-def]
-    raise yaml.YAMLError(
-        "YAML alias rejected: anchors and aliases are forbidden in "
-        "templates/platforms/*.yaml (ADR-006 Amendment 2026-04-28)."
-    )
-
-
 def _strict_safe_load(text: str) -> object:
     """safe_load with anchor/alias detection.
 
