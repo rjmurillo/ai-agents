@@ -5,11 +5,6 @@ description: Adversarial requirements interview that walks the design tree to el
 model: claude-sonnet-4-6
 license: MIT
 user-invocable: true
-triggers:
-  - "interview me on this"
-  - "grill me on the requirements"
-  - "walk the design tree"
-  - "stress-test this idea"
 ---
 
 # Requirements Interview (grill-me pattern)
@@ -38,7 +33,7 @@ When this skill activates, you become an adversarial requirements interviewer. T
 | Interview transcript | `.agents/specs/interviews/INTERVIEW-<slug>.md` | Audit trail of decisions and rationale |
 | Structured requirements | Returned to caller for `/spec` to format as REQ-NNN | Acceptance criteria, edge cases, data model decisions, out-of-scope list |
 
-## Method
+## Process
 
 1. **Restate the problem** in one sentence. Confirm with the user before continuing.
 2. **Build the design tree.** Identify the top-level branches: user stories, data model, integrations, failure modes, security, scope boundaries, observability.
@@ -80,14 +75,14 @@ Walk these in order. Skip a branch only with explicit justification.
 | Producing requirements before the tree is walked | Generation without alignment, the very failure mode this skill prevents |
 | Stopping at the happy path | Misses unknown unknowns; production surprises follow |
 
-## Quality Gates
+## Verification
 
 The interview is complete when:
 
-- Every branch in the checklist has a recorded decision.
-- Every requirement is testable as pass/fail.
-- Every "we will figure it out later" has been promoted to either a deferred decision with an owner or a documented out-of-scope marker.
-- The user has confirmed the final problem restatement and the acceptance criteria list.
+- [ ] Every branch in the checklist has a recorded decision.
+- [ ] Every requirement is testable as pass/fail.
+- [ ] Every "we will figure it out later" has been promoted to either a deferred decision with an owner or a documented out-of-scope marker.
+- [ ] The user has confirmed the final problem restatement and the acceptance criteria list.
 
 ## Structured Output
 
