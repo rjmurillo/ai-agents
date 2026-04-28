@@ -101,8 +101,8 @@ class TestStructure:
 class TestContent:
     """Content-level invariants."""
 
-    @pytest.mark.parametrize("path", TEMPLATE_FILES)
-    def test_templates_have_balanced_code_fences(self, path: Path) -> None:
+    @pytest.mark.parametrize("path", ALL_SKILL_FILES)
+    def test_skill_files_have_balanced_code_fences(self, path: Path) -> None:
         text = path.read_text(encoding="utf-8")
         fences = re.findall(r"^```", text, flags=re.MULTILINE)
         assert len(fences) % 2 == 0, (
@@ -117,7 +117,7 @@ class TestContent:
                 f"{path.name} contains forbidden substring: {needle!r}"
             )
 
-    @pytest.mark.parametrize("path", TEMPLATE_FILES)
-    def test_templates_have_unicode_safe_content(self, path: Path) -> None:
+    @pytest.mark.parametrize("path", ALL_SKILL_FILES)
+    def test_skill_files_have_unicode_safe_content(self, path: Path) -> None:
         # Reading as utf-8 with strict errors raises if anything is wrong.
         path.read_text(encoding="utf-8", errors="strict")

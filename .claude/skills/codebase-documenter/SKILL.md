@@ -52,9 +52,10 @@ Use a different skill when:
 1. Confirm the target directory and confirm no overwrite of existing docs without explicit user consent.
 2. Copy `assets/templates/README.template.md` to `README.md` (or path the user requests).
 3. Copy `assets/templates/ARCHITECTURE.template.md` to `ARCHITECTURE.md` if a separate architecture doc is wanted.
-4. Copy `assets/templates/API.template.md` to `docs/API.md` (or equivalent) if the project exposes an API.
-5. Copy `assets/templates/CODE_COMMENTS.template.md` to `docs/standards/CODE_COMMENTS.md` (or link from the README).
-6. Point the team at `references/documentation_guidelines.md` and `references/visual_aids_guide.md` for voice and visual standards.
+4. Create parent directories (`docs/`, `docs/standards/`, or any user-requested path) before any copy step that targets them.
+5. Copy `assets/templates/API.template.md` to `docs/API.md` (or equivalent) if the project exposes an API.
+6. Copy `assets/templates/CODE_COMMENTS.template.md` to `docs/standards/CODE_COMMENTS.md` (or link from the README).
+7. Point the team at `references/documentation_guidelines.md` and `references/visual_aids_guide.md` for voice and visual standards.
 
 ## Templates
 
