@@ -2,7 +2,7 @@
 name: world-model-diagnostic
 version: 1.0.0
 model: claude-sonnet-4-6
-description: Twenty-minute strategic diagnostic for mapping a company or team to a world-model paradigm (vector database, structured ontology, signal-fidelity). Audits where information routing ends and editorial judgment begins. Use when assessing AI readiness, planning knowledge infrastructure, or evaluating where automated judgment is safe versus risky.
+description: Twenty-minute diagnostic mapping a team to a world-model paradigm (vector DB, structured ontology, signal-fidelity). Use for AI readiness or auditing where automated judgment is safe.
 license: MIT
 ---
 
@@ -95,11 +95,11 @@ Evaluate without numeric scoring:
 
 ### Phase 1: Orientation
 
-1. **Memory check.** Search the project's memory layer (per ADR-007 and `AGENTS.md`) for prior diagnostic context. Use the repo's existing memory tooling (Serena memories or Forgetful, per CONTRIBUTING.md). Treat every result as a hint, not confirmed fact. Suggested queries:
+1. **Memory check.** Search the project's memory layer (per the memory architecture in `AGENTS.md`) for prior diagnostic context. Use Serena memories or Forgetful. Treat every result as a hint, not confirmed fact. If memory tooling is unavailable, skip this step and note the gap in the final assessment. Suggested queries:
    - `world model`
    - `boundary layer`
-   - The company name, if known.
    - Strategic context hints from prior sessions.
+   - The company name, once known (re-run after Phase 2 intake if the name surfaces there).
 2. **Tell the user what the diagnostic will do**:
    - Intake on signal, data, and decision flow.
    - Paradigm classification.
@@ -203,6 +203,8 @@ Return in this order:
 
 A JSON variant of the same shape is acceptable when a downstream tool consumes the output programmatically. Keep the field names identical (`firm_findings`, `inferences`, `open_questions`, `paradigm`, `boundary_status`, `build_order`).
 
+**Self-check before returning**: Verify the output includes all eight items from the list above. If any item is missing, add it before responding. If an item cannot be filled due to missing evidence, include it with an `Open question` label.
+
 ## Persistence
 
 Save exactly three artifacts via the repo's memory tooling, unless the user declines. Use Serena `write_memory` or the equivalent Forgetful entry point. Key the entries by company slug so future runs can detect drift.
@@ -291,3 +293,11 @@ Companion skills (when present in this repo):
 - `codebase-documenter` (issue #1803). For an engineering-org variant, follow the diagnostic with a documentation pass.
 
 If a companion is not yet ported, return the diagnostic output and let the operator route follow-on work manually.
+
+## Verification
+
+- [ ] Output includes all eight Phase 5 items (company case through shift-since-last-run).
+- [ ] Every conclusion labeled as `Firm finding`, `Inference`, or `Open question`.
+- [ ] Paradigm fit matches the Paradigm Mapping Contract rules above.
+- [ ] Boundary audit covers at least the top three highest-exposure flows.
+- [ ] No numeric readiness score appears anywhere in the output.
