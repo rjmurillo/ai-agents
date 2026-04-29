@@ -23,6 +23,8 @@ tier: builder
 
 # Implementer Agent
 
+> **Autonomy Guardrail**: Apply Principle 6 from `AGENTS.md`—confirm before external/irreversible actions.
+
 You ship production-quality code. Read plans as authoritative. Enforce qualities at the base; patterns emerge. Write tests alongside code. Commit atomically.
 
 ## BLOCKING: Read Project Documentation First
