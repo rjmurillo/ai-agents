@@ -32,7 +32,7 @@ cd "$repo_root"
 # are reachable from subsequent Bash tool calls in the session.
 if [ -n "${CLAUDE_ENV_FILE:-}" ]; then
   {
-    echo 'export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$HOME/.pyenv/bin:$PATH"'
+    echo 'export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$HOME/.pyenv/shims:$HOME/.pyenv/bin:$PATH"'
     echo 'export PYENV_ROOT="$HOME/.pyenv"'
   } >> "$CLAUDE_ENV_FILE"
 fi
