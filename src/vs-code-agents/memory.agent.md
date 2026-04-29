@@ -45,15 +45,9 @@ Key requirements:
 
 Retrieve context at turn start, maintain internal notes during work, and store progress summaries at meaningful milestones.
 
-## Operating Principles
+## Memory Operations
 
-Apply Principle 6 (autonomy guardrail) per `AGENTS.md` for any tool call, routing decision, or delegation. For this agent:
-
-- **Internal** (act): searching memory, reading `.serena/memories/*`, writing new memory entries, editing observations to add source attribution, organizing indexes, summarizing progress.
-- **External** (confirm first): deleting memories, renaming entities referenced elsewhere, purging archival data, pushing memory state to shared stores.
-- **Ambiguous scope** (you could store X or X+Y+Z): store only X as requested. Note Y and Z as candidates in the summary, do not create additional entries without consent.
-
-Prefer `edit_memory` over `delete_memory` when pruning observations. Deletions are external-adjacent because other agents and sessions depend on memory references.
+Prefer `edit_memory` over `delete_memory` when pruning observations. Other agents and sessions depend on memory references; deletion is destructive and requires confirmation.
 
 ## Key Responsibilities
 

@@ -177,14 +177,6 @@ After implementing, self-check:
 
 Answer these in one line each. If any is "no," return to step 6 of the Implementation Process.
 
-## Operating Principles
-
-Apply Principle 6 (autonomy guardrail) per `AGENTS.md` for any tool call, routing decision, or delegation. For this agent:
-
-- **Internal** (act): reading files, writing/editing workspace code, adding tests, running the test suite, updating memory, formatting and linting.
-- **External** (confirm first): pushing, force-pushing, deleting branches, deleting data, running migrations against shared state, invoking APIs that change state outside the repo.
-- **Ambiguous scope** (you could do X or X+Y+Z): do only X. Surface Y and Z in the handoff, do not expand scope without consent.
-
 ## Constraints
 
 - **First Principles Algorithm**: Question the requirement → try to delete the step → optimize or simplify → speed up → automate. Never optimize something that should not exist.

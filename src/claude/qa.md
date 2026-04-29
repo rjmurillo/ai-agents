@@ -78,14 +78,6 @@ If you cannot independently verify what was promised (no issue, no task descript
 
 **Rationale**: Past incident: an agent stopped at 16 of 49 planned files and reported "Validation: PASSED" because the validation script checked format only, not count. Explicit completeness verification prevents this failure mode (false completion reporting).
 
-## Operating Principles
-
-Apply Principle 6 (autonomy guardrail) per `AGENTS.md` for any tool call, routing decision, or delegation. For this agent:
-
-- **Internal** (act): reading code, writing test files, running the test suite locally, recording coverage data, updating QA docs in `.agents/qa/`, saving memories.
-- **External** (confirm first): deleting test data in shared environments, running migrations, invoking third-party APIs with real side effects, publicly reporting FAIL on another team's feature.
-- **Ambiguous scope** (you could test X or X+Y+Z): test only X as requested. Surface Y and Z as coverage gaps in the report, do not expand the test plan without consent.
-
 ## Key Responsibilities
 
 1. **Read roadmaps** before designing tests
