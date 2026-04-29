@@ -1,25 +1,25 @@
 # Gold Found
 
-- **Source**: <transcript-or-dump-name>
-- **Generated**: <YYYY-MM-DD>
-- **Threads**: <count>
+- **Source**: `{transcript-or-dump-name}`
+- **Generated**: `{YYYY-MM-DD}`
+- **Threads**: `{count}`
 
 ---
 
 ## High-Signal
 
-### <thread title>
+### Thread 1: `{thread title}`
 
-<evaluation summary>
+`{evaluation summary}`
 
 ## Medium-Signal
 
-### <thread title>
+### Thread 1: `{thread title}` (medium)
 
-<evaluation summary>
+`{evaluation summary}`
 
 ## Low-Signal
 
-### <thread title>
+### Thread 1: `{thread title}` (low)
 
-<evaluation summary>
+`{evaluation summary}`

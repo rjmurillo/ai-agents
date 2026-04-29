@@ -8,6 +8,16 @@
   },
   "protocolCompliance": {
     "sessionStart": {
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Branch feat/1802-autonomous (not main); verified via git rev-parse --abbrev-ref HEAD before authoring"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Feature branch feat/1802-autonomous matches issue #1802; verified via git status and git log before commit"
+      },
       "serenaActivated": {
         "level": "MUST",
         "Complete": true,
