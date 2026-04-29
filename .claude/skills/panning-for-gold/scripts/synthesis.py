@@ -12,6 +12,7 @@ EXIT CODES (ADR-035):
 
 from __future__ import annotations
 
+import hashlib
 import sys
 from datetime import date
 from pathlib import Path
@@ -35,6 +36,7 @@ class SynthesisError(ValueError):
 
 
 SLUG_MAX_LEN: int = 64
+_HASH_LEN: int = 8
 
 
 def _slugify(title: str) -> str:
@@ -59,11 +61,15 @@ def _slugify(title: str) -> str:
 def evaluation_filename(thread: Thread) -> str:
     """Return the conventional evaluation filename for a thread.
 
-    Filenames use the slug only (no number prefix) so they remain stable
-    across merges. Renumbering during merge no longer orphans evaluation
-    files keyed off the previous thread number.
+    Filenames are stable across merge renumbering and collision-resistant.
+    The slug is derived from the title (so it survives merges) and a short
+    SHA-256 digest of `thread.key` is appended so distinct titles that
+    slugify to the same string (e.g. "C" vs "C++") get distinct files.
     """
-    return f"{_slugify(thread.title)}.md"
+    base = _slugify(thread.title)
+    digest = hashlib.sha256(thread.key.encode("utf-8")).hexdigest()[:_HASH_LEN]
+    safe_base = base[: SLUG_MAX_LEN - _HASH_LEN - 1].rstrip("-") or "thread"
+    return f"{safe_base}-{digest}.md"
 
 
 def load_evaluation(thread: Thread, evaluations_dir: Path) -> str:
@@ -120,7 +126,8 @@ def build_gold_found(
             evaluation = load_evaluation(t, evaluations_dir)
             out.append(f"### Thread {t.number}: {t.title}")
             out.append("")
-            out.append(f'> {t.quote}')
+            for line in t.quote.splitlines() or [""]:
+                out.append(f"> {line}")
             out.append("")
             out.append(evaluation)
             out.append("")

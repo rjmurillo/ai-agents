@@ -140,6 +140,12 @@ def parse_inventory(content: str) -> list[Thread]:
             current_fields[current_field_name] = (
                 existing + "\n" + line.strip() if existing else line.strip()
             )
+            continue
+        offending = line.strip()
+        raise InventoryError(
+            f"Thread {current_header[0]} ({current_header[1]!r}) has "
+            f"unexpected content: {offending!r}"
+        )
 
     flush()
     return threads
@@ -148,12 +154,18 @@ def parse_inventory(content: str) -> list[Thread]:
 def read_inventory(path: Path) -> list[Thread]:
     """Read and parse an inventory file.
 
-    Raises MissingInventoryError if the file does not exist (config error).
-    Raises InventoryError on malformed content (logic error).
+    Raises MissingInventoryError if the path is not a regular file or cannot
+    be read (config error). Raises InventoryError on malformed content
+    (logic error). Using is_file rather than exists rejects directories so
+    OSError from read_text never escapes the contract.
     """
-    if not path.exists():
+    if not path.is_file():
         raise MissingInventoryError(f"Inventory not found: {path}")
-    return parse_inventory(path.read_text(encoding="utf-8"))
+    try:
+        content = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise MissingInventoryError(f"Inventory not readable: {path}") from exc
+    return parse_inventory(content)
 
 
 def merge(pass1: list[Thread], final: list[Thread]) -> list[Thread]:

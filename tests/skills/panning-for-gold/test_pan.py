@@ -110,6 +110,18 @@ class TestParseInventory:
         assert "stale data" in threads[0].title
         assert "invalidate" in threads[0].quote
 
+    def test_stray_content_in_block_raises(self):
+        bad = (
+            "## Thread 1: Stray\n\n"
+            "free text not a field\n"
+            "- **Signal**: high\n"
+            "- **Quote**: \"q\"\n"
+            "- **Context**: c\n"
+            "- **Initial take**: i\n"
+        )
+        with pytest.raises(InventoryError):
+            parse_inventory(bad)
+
     def test_multi_line_quote_and_context(self):
         text = (
             "## Thread 1: Long quote\n\n"
@@ -237,6 +249,25 @@ class TestSynthesis:
         text = build_gold_found(threads, evals, source="t.md")
         assert "Evaluation body for Topic 1." in text
 
+    def test_multiline_quote_renders_as_blockquote(self, tmp_path):
+        thread = Thread(
+            number=1,
+            title="Multiline",
+            signal="high",
+            quote="first line\nsecond line\nthird line",
+            context="c",
+            initial_take="i",
+        )
+        evals_dir = tmp_path / "evals"
+        evals_dir.mkdir()
+        (evals_dir / evaluation_filename(thread)).write_text(
+            "Body.", encoding="utf-8"
+        )
+        text = build_gold_found([thread], evals_dir, source="t.md")
+        assert "> first line" in text
+        assert "> second line" in text
+        assert "> third line" in text
+
 
 # ---- CLI: resolve_workspace ----
 
@@ -291,6 +322,14 @@ class TestSlugBounds:
         assert evaluation_filename(a) == evaluation_filename(b)
         assert "001" not in evaluation_filename(a)
 
+    def test_evaluation_filename_collision_resistant(self):
+        a = Thread(number=1, title="C", signal="low",
+                   quote="q", context="c", initial_take="i")
+        b = Thread(number=2, title="C++", signal="low",
+                   quote="q", context="c", initial_take="i")
+        assert slugify(a.title) == slugify(b.title)
+        assert evaluation_filename(a) != evaluation_filename(b)
+
 
 # ---- exit codes ----
 
@@ -299,6 +338,11 @@ class TestExitCodes:
     def test_validate_missing_inventory_returns_two(self, tmp_path):
         missing = tmp_path / "absent.md"
         assert main(["validate", "--inventory", str(missing)]) == 2
+
+    def test_validate_directory_returns_two(self, tmp_path):
+        d = tmp_path / "is_a_dir"
+        d.mkdir()
+        assert main(["validate", "--inventory", str(d)]) == 2
 
     def test_merge_missing_pass1_returns_two(self, tmp_path):
         fn = tmp_path / "final.md"
