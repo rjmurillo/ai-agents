@@ -10,6 +10,10 @@ The skill is prompt-only (no Python scripts). The contract test guards against
 silent regressions in frontmatter or required sections that the /spec command
 relies on. Allowlists and parsing live in the canonical validator so this test
 cannot drift from production validation.
+
+This module is a CI-only contract test. It does not run as part of the skill's
+runtime. It lives under tests/skills/ alongside the rest of the skill contract
+tests, not inside .claude/skills/, which is reserved for runtime artifacts.
 """
 
 from __future__ import annotations
@@ -27,7 +31,10 @@ from scripts.validation.skill_frontmatter import (
     parse_frontmatter,
 )
 
-SKILL_PATH = Path(__file__).resolve().parent.parent / "SKILL.md"
+REPO_ROOT = Path(__file__).resolve().parents[3]
+SKILL_PATH = (
+    REPO_ROOT / ".claude" / "skills" / "requirements-interview" / "SKILL.md"
+)
 
 SKILL_LINE_LIMIT = 500
 DESCRIPTION_MAX = 1024
