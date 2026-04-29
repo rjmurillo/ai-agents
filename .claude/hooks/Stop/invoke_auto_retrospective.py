@@ -31,6 +31,7 @@ if os.path.isdir(_lib_dir) and _lib_dir not in sys.path:
 
 try:
     from hook_utilities import coerce_to_list as _coerce_to_list
+    from hook_utilities import format_work_item as _format_work_item
     from hook_utilities import get_project_directory as _get_project_directory
     from hook_utilities import get_recent_session_log as _get_recent_session_log
     from hook_utilities import lock_file as _lock_file
@@ -66,6 +67,7 @@ except ImportError:
 
     _get_recent_session_log = None  # type: ignore[assignment]
     _coerce_to_list = None  # type: ignore[assignment]
+    _format_work_item = None  # type: ignore[assignment]
     _lock_file = None  # type: ignore[assignment]
     _unlock_file = None  # type: ignore[assignment]
 
@@ -166,29 +168,33 @@ def coerce_to_list(value) -> list:
     return _coerce_to_list_fallback(value)
 
 
-def _format_work_item(item: dict) -> str:
+def _format_work_item_fallback(item: dict) -> str:
+    """Fallback formatter when hook_utilities is unavailable."""
+    if "action" in item:
+        parts = []
+        if "step" in item:
+            parts.append(f"Step {item['step']}:")
+        parts.append(str(item["action"]))
+        if "outcome" in item:
+            parts.append(f"→ {item['outcome']}")
+        return " ".join(parts)
+    if "description" in item:
+        return str(item["description"])
+    if "task" in item:
+        return str(item["task"])
+    return str(item)
+
+
+def format_work_item(item: dict) -> str:
     """Format a work item dict into a human-readable string.
 
     Supports multiple session schemas:
     - Current: {'step': N, 'action': '...', 'outcome': '...'}
     - Legacy: {'description': '...'} or {'task': '...'}
     """
-    # Try current schema (step/action/outcome)
-    if "action" in item:
-        parts = []
-        if "step" in item:
-            parts.append(f"Step {item['step']}:")
-        parts.append(item["action"])
-        if "outcome" in item:
-            parts.append(f"→ {item['outcome']}")
-        return " ".join(parts)
-    # Try legacy schemas
-    if "description" in item:
-        return item["description"]
-    if "task" in item:
-        return item["task"]
-    # Fallback to repr
-    return str(item)
+    if _format_work_item is not None:
+        return _format_work_item(item)
+    return _format_work_item_fallback(item)
 
 
 def _extract_work_outcomes(data) -> tuple[list, list]:
@@ -253,7 +259,7 @@ def generate_retrospective(project_dir: Path, today: str) -> Path | None:
                         if isinstance(item, str):
                             session_context += f"- {item}\n"
                         elif isinstance(item, dict):
-                            session_context += f"- {_format_work_item(item)}\n"
+                            session_context += f"- {format_work_item(item)}\n"
                 if outcomes:
                     session_context += "\n### Outcomes\n"
                     for outcome in outcomes[:10]:

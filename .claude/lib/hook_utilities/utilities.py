@@ -248,3 +248,25 @@ def coerce_to_list(value) -> list:
     if isinstance(value, str):
         return [value] if value.strip() else []
     return []
+
+
+def format_work_item(item: dict) -> str:
+    """Format a work item dict into a human-readable string.
+
+    Supports multiple session schemas:
+    - Current: {'step': N, 'action': '...', 'outcome': '...'}
+    - Legacy: {'description': '...'} or {'task': '...'}
+    """
+    if "action" in item:
+        parts = []
+        if "step" in item:
+            parts.append(f"Step {item['step']}:")
+        parts.append(str(item["action"]))
+        if "outcome" in item:
+            parts.append(f"→ {item['outcome']}")
+        return " ".join(parts)
+    if "description" in item:
+        return str(item["description"])
+    if "task" in item:
+        return str(item["task"])
+    return str(item)

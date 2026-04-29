@@ -12,6 +12,7 @@ from scripts.hook_utilities.guards import (
 )
 from scripts.hook_utilities.utilities import (
     coerce_to_list,
+    format_work_item,
     get_project_directory,
     get_recent_session_log,
     get_today_session_log,
@@ -25,6 +26,7 @@ from scripts.hook_utilities.utilities import (
 
 __all__ = [
     "coerce_to_list",
+    "format_work_item",
     "get_project_directory",
     "get_recent_session_log",
     "get_today_session_log",

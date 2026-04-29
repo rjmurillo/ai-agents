@@ -32,6 +32,7 @@ if os.path.isdir(_lib_dir) and _lib_dir not in sys.path:
 
 try:
     from hook_utilities import coerce_to_list as _coerce_to_list
+    from hook_utilities import format_work_item as _format_work_item
     from hook_utilities import get_project_directory as _get_project_directory
     from hook_utilities import get_recent_session_log as _get_recent_session_log
 
@@ -56,6 +57,7 @@ except ImportError:
 
     _get_recent_session_log = None  # type: ignore[assignment]
     _coerce_to_list = None  # type: ignore[assignment]
+    _format_work_item = None  # type: ignore[assignment]
 
 
 def get_current_branch(project_dir: Path | None = None) -> str:
@@ -109,14 +111,8 @@ def coerce_to_list(value) -> list:
     return _coerce_to_list_fallback(value)
 
 
-def _format_work_item(item: dict) -> str:
-    """Format a work item dict into a human-readable string.
-
-    Supports multiple session schemas:
-    - Current: {'step': N, 'action': '...', 'outcome': '...'}
-    - Legacy: {'description': '...'} or {'task': '...'}
-    """
-    # Try current schema (step/action/outcome)
+def _format_work_item_fallback(item: dict) -> str:
+    """Fallback formatter when hook_utilities is unavailable."""
     if "action" in item:
         parts = []
         if "step" in item:
@@ -125,13 +121,23 @@ def _format_work_item(item: dict) -> str:
         if "outcome" in item:
             parts.append(f"→ {item['outcome']}")
         return " ".join(parts)
-    # Try legacy schemas
     if "description" in item:
-        return item["description"]
+        return str(item["description"])
     if "task" in item:
-        return item["task"]
-    # Fallback to repr
+        return str(item["task"])
     return str(item)
+
+
+def format_work_item(item: dict) -> str:
+    """Format a work item dict into a human-readable string.
+
+    Supports multiple session schemas:
+    - Current: {'step': N, 'action': '...', 'outcome': '...'}
+    - Legacy: {'description': '...'} or {'task': '...'}
+    """
+    if _format_work_item is not None:
+        return _format_work_item(item)
+    return _format_work_item_fallback(item)
 
 
 def _find_recent_session_fallback(sessions_dir: Path) -> Path | None:
@@ -201,7 +207,7 @@ def get_session_info(project_dir: Path) -> dict:
             "work_items": [
                 (
                     item if isinstance(item, str)
-                    else _format_work_item(item) if isinstance(item, dict)
+                    else format_work_item(item) if isinstance(item, dict)
                     else str(item)
                 )
                 for item in work_items[:5]
