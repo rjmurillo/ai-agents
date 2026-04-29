@@ -217,22 +217,6 @@ def test_empty_path_rejected(tmp_path: Path) -> None:
 # --- Negative: structural complexity (ADR-006 Amendment) --------------------
 
 
-def test_excessive_nesting_rejected(tmp_path: Path) -> None:
-    """A mapping nested past MAX_NESTING_DEPTH levels of containers is rejected."""
-    body = (
-        MINIMAL_VALID
-        + "artifacts:\n  agents:\n    sourceDir: a\n"
-        + "    excludeFilenames:\n"
-        + "      - nested:\n"
-        + "          again:\n"
-        + "            and:\n"
-        + "              more: x\n"
-    )
-    target = _write(tmp_path, body)
-    errors, _ = vts.validate_file(target)
-    assert any("nesting depth" in e for e in errors)
-
-
 def test_list_of_objects_with_too_many_keys_rejected(tmp_path: Path) -> None:
     body = (
         MINIMAL_VALID

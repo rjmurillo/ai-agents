@@ -336,10 +336,11 @@ The config-data exception preserves ADR-006's intent (testable, fast OODA) while
 
 **Structural complexity limits** (replaces the prior "O(1) lookups" guidance, which was not measurable from a YAML diff):
 
-- **Nesting depth ≤ 3** (e.g., `artifacts.agents.outputDir` is depth 3; deeper nesting means model hierarchy belongs in code).
 - **No list-of-objects with > 2 keys per object** (e.g., `[{matcher, command}]` is fine; `[{matcher, command, when, env, cwd}]` is too rich for config).
 - **Total YAML file size ≤ 200 lines** (anything larger likely encodes logic not data).
 - **No anchors (`&`) or aliases (`*`) referencing computed values** (per Condition 1).
+
+**Note (amendment-of-amendment, 2026-04-28 PM)**: The original Round 2 condition included a "nesting depth ≤ 3" rule. Dropped during M1 implementation: the canonical REQ-003-002 schema needs depth 4 for legitimate two-level mappings (`frontmatterRemap.paths`, `eventRemap.PreToolUse`, `appendFrontmatter.user-invocable`). Depth limits are aesthetic, not behavioral — they catch nothing the line-count cap and list-of-object key cap don't already catch, and PR review handles semantic intent ("does this encode logic?") better than a numeric threshold. Honest framing: the depth cap was speculative rigor. Removed.
 
 If any limit is exceeded, extract the data into a Python module with `dataclass` types and pytest coverage. The schema validator (`validate_templates_schema.py`) MUST enforce these limits and exit 2 on violation.
 

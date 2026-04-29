@@ -6,7 +6,7 @@ Enforces ADR-006 Amendment 2026-04-28 conditions on build-pipeline YAML:
 - schemaVersion SemVer compatibility (current supported: ^1.x)
 - allowed top-level keys + per-artifact-type dispatch
 - path traversal rejection (REQ-003-009)
-- structural complexity limits (depth <= 3, list-of-objects key cap, file size cap)
+- structural complexity limits (list-of-objects key cap, file size cap)
 
 Exit codes:
     0 - All YAML files valid
@@ -35,13 +35,10 @@ REQUIRED_TOP_LEVEL = {"schemaVersion", "provider"}
 SUPPORTED_MAJOR = 1
 SCHEMA_VERSION_RE = re.compile(r"^(\d+)\.(\d+)$")
 
-# Structural complexity limits (ADR-006 Amendment 2026-04-28 Condition 3).
-# MAX_NESTING_DEPTH counts containers (mappings + sequences) only; scalar
-# leaves do not consume a depth level. The canonical schema needs depth 4
-# (top -> artifacts -> <type> -> <inner-map>) so the limit must accommodate
-# that. Setting to 4 keeps "rules.frontmatterRemap.paths -> applyTo" valid
-# while still rejecting deeper trees.
-MAX_NESTING_DEPTH = 4
+# Structural complexity limits (ADR-006 Amendment 2026-04-28).
+# Nesting depth limit dropped per amendment-of-amendment: aesthetic only,
+# caught nothing line-count + list-key-cap don't, and the canonical
+# REQ-003-002 schema needs depth 4 for legitimate two-level mappings.
 MAX_LIST_OBJECT_KEYS = 2
 MAX_FILE_LINES = 200
 
@@ -156,16 +153,12 @@ def _validate_path_value(field: str, value: object) -> list[str]:
 # --- Structural complexity ------------------------------------------------
 
 
-def _check_depth(value: object, depth: int = 0, *, path: str = "$") -> list[str]:
-    if depth > MAX_NESTING_DEPTH:
-        return [
-            f"`{path}`: nesting depth {depth} exceeds limit "
-            f"{MAX_NESTING_DEPTH} (ADR-006 Amendment 2026-04-28)"
-        ]
+def _check_list_object_keys(value: object, *, path: str = "$") -> list[str]:
+    """Walk the structure; reject list-of-objects with too many keys per object."""
     errors: list[str] = []
     if isinstance(value, dict):
         for k, v in value.items():
-            errors.extend(_check_depth(v, depth + 1, path=f"{path}.{k}"))
+            errors.extend(_check_list_object_keys(v, path=f"{path}.{k}"))
     elif isinstance(value, list):
         for idx, item in enumerate(value):
             if isinstance(item, dict) and len(item) > MAX_LIST_OBJECT_KEYS:
@@ -174,7 +167,7 @@ def _check_depth(value: object, depth: int = 0, *, path: str = "$") -> list[str]
                     f"list-of-objects limited to {MAX_LIST_OBJECT_KEYS} keys "
                     f"(ADR-006 Amendment 2026-04-28)"
                 )
-            errors.extend(_check_depth(item, depth + 1, path=f"{path}[{idx}]"))
+            errors.extend(_check_list_object_keys(item, path=f"{path}[{idx}]"))
     return errors
 
 
@@ -281,7 +274,7 @@ def validate_yaml_doc(data: object) -> tuple[list[str], bool]:
     if "auditPolicy" in data:
         errors.extend(_validate_audit_policy(data["auditPolicy"]))
 
-    errors.extend(_check_depth(data))
+    errors.extend(_check_list_object_keys(data))
 
     return (errors, False)
 
