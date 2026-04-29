@@ -47,6 +47,8 @@ jobs:
               - '.claude/hooks/**'
               - '.claude/skills/**'
               - 'build/scripts/validate_marketplace_counts.py'
+              - 'build/scripts/yaml_loader.py'
+              - 'templates/marketplace-counters.yaml'
               - '.github/workflows/validate-marketplace-counts.yml'
 
   validate:

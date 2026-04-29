@@ -255,3 +255,56 @@ class TestZeroEditExtensibility:
             )
             == 1
         )
+
+
+class TestP1Fixes:
+    """Coverage for P1 fixes from /test gates 1+2."""
+
+    def test_missing_source_dir_yields_config_error_not_traceback(
+        self, tmp_path: Path
+    ) -> None:
+        """Gate-1 F-001: misconfigured sourceDir → exit 2 (ConfigError),
+        NOT a Python traceback. Hardened in _build_counter."""
+        counters_yaml = tmp_path / "marketplace-counters.yaml"
+        counters_yaml.write_text(
+            'schemaVersion: "1.0"\n'
+            "plugins:\n"
+            "  bad:\n"
+            "    agent:\n"
+            '      strategy: "md_agents"\n'
+            '      sourceDir: "does-not-exist"\n'
+        )
+        marketplace = tmp_path / "marketplace.json"
+        marketplace.write_text(json.dumps({"plugins": []}))
+        # Exit 2 is config error per ADR-035 contract.
+        assert (
+            validate(
+                fix=False,
+                counters_path=counters_yaml,
+                marketplace_path=marketplace,
+                repo_root=tmp_path,
+            )
+            == 2
+        )
+
+    def test_walk_files_prunes_excluded_dirs(self, tmp_path: Path) -> None:
+        """Gate-2 finding: rglob without pruning walks node_modules etc.
+
+        Counter must skip excluded dirs to prevent CI hang on vendored bloat.
+        """
+        from validate_marketplace_counts import _walk_files
+
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "real.py").write_text("# real\n")
+        # Vendored subtree that MUST be pruned
+        node_modules = src / "node_modules" / "deep" / "more"
+        node_modules.mkdir(parents=True)
+        (node_modules / "vendored.py").write_text("# vendored\n")
+        # .git dir also pruned
+        git_dir = src / ".git" / "objects"
+        git_dir.mkdir(parents=True)
+        (git_dir / "should-skip.py").write_text("# skip\n")
+
+        # Only real.py counted; node_modules + .git pruned during walk.
+        assert _walk_files(src, ".py", set()) == 1

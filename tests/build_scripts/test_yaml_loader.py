@@ -119,6 +119,42 @@ class TestLoadPlatformConfigErrors:
             load_platform_config(cfg)
 
 
+class TestLoadPlatformConfigEnhancements:
+    """P1 fixes from /test gate-5 critic review."""
+
+    def test_string_path_coerced(self, tmp_path: Path) -> None:
+        """Caller passing a str (not Path) gets clean ConfigError, not AttributeError."""
+        cfg = tmp_path / "ok.yaml"
+        cfg.write_text('schemaVersion: "1.0"\nprovider: "x"\n')
+        # Pass a STRING, not a Path. Should still work via internal coercion.
+        data = load_platform_config(str(cfg))
+        assert data["schemaVersion"] == "1.0"
+
+    def test_missing_file_string_path(self, tmp_path: Path) -> None:
+        """Missing file with str input also raises ConfigError, not AttributeError."""
+        with pytest.raises(ConfigError, match="missing file"):
+            load_platform_config(str(tmp_path / "nope.yaml"))
+
+    def test_schema_version_error_includes_file_path(self, tmp_path: Path) -> None:
+        """schemaVersion failures must name the file (gate-5 finding F2)."""
+        cfg = tmp_path / "v2.yaml"
+        cfg.write_text('schemaVersion: "2.0"\nprovider: x\n')
+        with pytest.raises(ConfigError) as exc_info:
+            load_platform_config(cfg)
+        # File path must be in the message so contributors know which file
+        assert str(cfg) in str(exc_info.value)
+
+    def test_anchor_error_includes_file_path(self, tmp_path: Path) -> None:
+        """Anchor rejection error must include file path."""
+        cfg = tmp_path / "anchor.yaml"
+        cfg.write_text(
+            'schemaVersion: "1.0"\nprovider: x\nfoo: &a 1\nbar: *a\n'
+        )
+        with pytest.raises(ConfigError) as exc_info:
+            load_platform_config(cfg)
+        assert str(cfg) in str(exc_info.value)
+
+
 # --- validate_relative_path ----------------------------------------------
 
 

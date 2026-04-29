@@ -76,23 +76,30 @@ def _strict_safe_load(text: str) -> object:
 # --- SchemaVersion --------------------------------------------------------
 
 
-def _check_schema_version(value: object, supported_major: int) -> None:
-    """Raise ConfigError if schemaVersion is missing or incompatible."""
+def _check_schema_version(
+    value: object, supported_major: int, *, source: str = ""
+) -> None:
+    """Raise ConfigError if schemaVersion is missing or incompatible.
+
+    ``source`` (file path string) is prefixed to every message so contributors
+    diagnosing a typo see which file triggered the failure.
+    """
+    prefix = f"{source}: " if source else ""
     if value is None:
-        raise ConfigError("missing required `schemaVersion`")
+        raise ConfigError(f"{prefix}missing required `schemaVersion`")
     if not isinstance(value, str):
         raise ConfigError(
-            f"`schemaVersion`: must be a string (got {type(value).__name__})"
+            f"{prefix}`schemaVersion`: must be a string (got {type(value).__name__})"
         )
     match = SCHEMA_VERSION_RE.match(value)
     if not match:
         raise ConfigError(
-            f"`schemaVersion`: '{value}' is not a valid SemVer 'MAJOR.MINOR'"
+            f"{prefix}`schemaVersion`: '{value}' is not a valid SemVer 'MAJOR.MINOR'"
         )
     major = int(match.group(1))
     if major != supported_major:
         raise ConfigError(
-            f"`schemaVersion`: major version {major} unsupported "
+            f"{prefix}`schemaVersion`: major version {major} unsupported "
             f"(this loader handles ^{supported_major}.x)"
         )
 
@@ -124,9 +131,12 @@ def validate_relative_path(field: str, value: object) -> list[str]:
 
 
 def load_platform_config(
-    path: Path, supported_major: int = DEFAULT_SUPPORTED_MAJOR
+    path: Path | str, supported_major: int = DEFAULT_SUPPORTED_MAJOR
 ) -> dict:
     """Load and minimally validate a build-pipeline YAML config.
+
+    Accepts ``str`` or ``Path``; coerces to ``Path`` so callers don't get
+    opaque ``AttributeError`` from passing a string.
 
     Performs the safety checks shared by every consumer:
     - file exists and is readable as UTF-8
@@ -138,10 +148,11 @@ def load_platform_config(
     strategies) belongs in the calling validator, not here.
 
     Raises:
-        ConfigError on any failure.
+        ConfigError on any failure (with file path in the message).
     Returns:
         The parsed YAML document as a dict.
     """
+    path = Path(path)
     try:
         raw = path.read_text(encoding="utf-8")
     except FileNotFoundError as exc:
@@ -151,9 +162,15 @@ def load_platform_config(
     except UnicodeDecodeError as exc:
         raise ConfigError(f"decode error for '{path}': {exc}") from exc
 
-    data = _strict_safe_load(raw)
+    try:
+        data = _strict_safe_load(raw)
+    except ConfigError as exc:
+        # Re-raise with file path prefixed for diagnosability.
+        raise ConfigError(f"{path}: {exc}") from exc.__cause__
     if not isinstance(data, dict):
         raise ConfigError(f"top-level value in '{path}' must be a mapping")
 
-    _check_schema_version(data.get("schemaVersion"), supported_major)
+    _check_schema_version(
+        data.get("schemaVersion"), supported_major, source=str(path)
+    )
     return data

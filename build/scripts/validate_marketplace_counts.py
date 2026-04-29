@@ -34,6 +34,30 @@ COUNTERS_YAML = REPO_ROOT / "templates" / "marketplace-counters.yaml"
 # --- Counter strategies (reusable building blocks) -----------------------
 
 
+# Directories pruned during recursive walks. Same set as
+# validate_plugin_manifests.py (PR #1795); prevents CI hang on
+# large vendored trees or symlink loops.
+_EXCLUDED_DIRS = frozenset({"node_modules", ".git", "worktrees", "cache", "__pycache__"})
+
+
+def _walk_files(directory: Path, suffix: str, exclude_names: set[str]) -> int:
+    """Count files matching suffix, pruning EXCLUDED_DIRS during descent.
+
+    Replaces ``directory.rglob('*.<suffix>')`` which walks excluded subtrees
+    before discarding matches. ``os.walk`` with in-place ``dirnames`` mutation
+    prunes BEFORE descending — safe against vendored bloat and symlink loops.
+    """
+    import os
+
+    count = 0
+    for dirpath, dirnames, filenames in os.walk(directory):
+        dirnames[:] = [d for d in dirnames if d not in _EXCLUDED_DIRS]
+        for name in filenames:
+            if name.endswith(suffix) and name not in exclude_names:
+                count += 1
+    return count
+
+
 def _count_md_agents(directory: Path, exclude: set[str] | None = None) -> int:
     """Count .md files in a directory, excluding specific filenames."""
     exclude = exclude or set()
@@ -53,17 +77,16 @@ def _count_agent_md(directory: Path, exclude: set[str] | None = None) -> int:
 
 
 def _count_commands(directory: Path, exclude: set[str] | None = None) -> int:
-    """Count command .md files recursively, excluding CLAUDE.md."""
-    return sum(
-        1
-        for f in directory.rglob("*.md")
-        if f.is_file() and f.name != "CLAUDE.md"
-    )
+    """Count command .md files recursively, excluding CLAUDE.md.
+
+    Walks pruning EXCLUDED_DIRS; safe against vendored subtrees.
+    """
+    return _walk_files(directory, ".md", {"CLAUDE.md"})
 
 
 def _count_hooks(directory: Path, exclude: set[str] | None = None) -> int:
-    """Count hook .py scripts (all levels)."""
-    return sum(1 for f in directory.rglob("*.py") if f.is_file())
+    """Count hook .py scripts (all levels), pruning EXCLUDED_DIRS."""
+    return _walk_files(directory, ".py", set())
 
 
 def _count_skill_dirs(directory: Path, exclude: set[str] | None = None) -> int:
@@ -110,6 +133,11 @@ def _build_counter(rule: dict, repo_root: Path) -> Callable[[], int]:
         exclude = set(exclude_raw)
     fn = STRATEGIES[strategy_name]
     target = repo_root / source_dir
+    if not target.exists():
+        raise ConfigError(
+            f"strategy '{strategy_name}': sourceDir '{source_dir}' "
+            f"does not exist (resolved to '{target}')"
+        )
     return lambda: fn(target, exclude)
 
 
