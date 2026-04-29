@@ -332,84 +332,106 @@ def inject_shim(original: str, matcher: str) -> str:
     return shim + "\n" + wrapped + "\n_shim_dispatch()\n"
 
 
-def strip_shim(source: str) -> str:
-    """Remove a previously-injected shim block. M5-T3 idempotency.
+def _find_shim_bounds(lines: list[str]) -> tuple[int, int] | None:
+    """Locate the ``(begin, end)`` line indices of a shim block.
 
-    Detection is by exact sentinel string match. If the begin sentinel
-    is at line 1 (or after a leading shebang/encoding line), strip from
-    that line through the first end sentinel inclusive; also strip the
-    ``def _original_main`` wrapper and trailing ``_shim_dispatch()``
-    call if present, restoring the original body.
+    Returns ``None`` when either sentinel is missing. Indices are inclusive
+    on both ends so the caller can slice ``lines[end+1:]`` to skip past
+    the shim header.
     """
-    if _SHIM_BEGIN not in source:
-        return source
-    lines = source.splitlines(keepends=True)
-    # Find begin sentinel.
-    begin_idx = None
+    begin_idx: int | None = None
     for i, line in enumerate(lines):
         if line.rstrip("\n") == _SHIM_BEGIN:
             begin_idx = i
             break
     if begin_idx is None:
-        return source
-    # Find end sentinel after begin.
-    end_idx = None
+        return None
     for i in range(begin_idx + 1, len(lines)):
         if lines[i].rstrip("\n") == _SHIM_END:
-            end_idx = i
-            break
-    if end_idx is None:
-        return source
-    # Anything before the begin sentinel is preserved (e.g. a shebang).
-    # Then drop shim header (begin..end inclusive) plus trailing
-    # blank lines, the ``def _original_main`` wrapper, and the final
-    # ``_shim_dispatch()`` call.
-    head = "".join(lines[:begin_idx])
-    after_shim = lines[end_idx + 1 :]
-    # Skip leading blank lines after the shim end.
+            return begin_idx, i
+    return None
+
+
+def _extract_original_body(after_shim: list[str]) -> str:
+    """Reconstruct the original script body from post-shim lines.
+
+    Expects the layout :func:`inject_shim` writes:
+    optional blank lines, ``def _original_main(stdin_bytes):``, an
+    optional ``# original script body begins below`` marker, the
+    indented body, a synthetic trailing ``return 0``, and the final
+    ``_shim_dispatch()`` invocation. Anything past the dispatch call is
+    returned verbatim as the tail.
+
+    When no wrapper is detected (shim block was present but the
+    function wrapper is not), the lines are returned as-is so callers
+    fall back to a strip-only behavior.
+    """
     j = 0
     while j < len(after_shim) and not after_shim[j].strip():
         j += 1
-    # Expect: ``def _original_main(stdin_bytes):`` then indented body
-    # then ``return 0`` and a final ``_shim_dispatch()`` call.
-    if j < len(after_shim) and after_shim[j].startswith("def _original_main("):
-        # Drop the def line and any leading body marker.
+    if j >= len(after_shim) or not after_shim[j].startswith("def _original_main("):
+        # No wrapper: caller will fall back to plain strip.
+        return "".join(after_shim[j:])
+
+    # Drop the def line and any leading body marker.
+    j += 1
+    if j < len(after_shim) and after_shim[j].lstrip().startswith(
+        "# original script body begins below"
+    ):
         j += 1
-        if j < len(after_shim) and after_shim[j].lstrip().startswith(
-            "# original script body begins below"
-        ):
+
+    body_lines: list[str] = []
+    while j < len(after_shim):
+        line = after_shim[j]
+        if not line.strip():
+            body_lines.append("\n")
             j += 1
-        body_lines: list[str] = []
-        while j < len(after_shim):
-            line = after_shim[j]
-            if not line.strip():
-                body_lines.append("\n")
-                j += 1
-                continue
-            if line.startswith("    "):
-                body_lines.append(line[4:])
-                j += 1
-                continue
-            # Non-indented line ends the function body.
-            break
-        # Trim the synthetic trailing ``return 0`` we appended.
+            continue
+        if line.startswith("    "):
+            body_lines.append(line[4:])
+            j += 1
+            continue
+        break  # Non-indented line ends the function body.
+
+    # Trim the synthetic trailing ``return 0`` we appended.
+    while body_lines and body_lines[-1].strip() == "":
+        body_lines.pop()
+    if body_lines and body_lines[-1].rstrip() == "return 0":
+        body_lines.pop()
         while body_lines and body_lines[-1].strip() == "":
             body_lines.pop()
-        if body_lines and body_lines[-1].rstrip() == "return 0":
-            body_lines.pop()
-            while body_lines and body_lines[-1].strip() == "":
-                body_lines.pop()
-        # Skip a single trailing ``_shim_dispatch()`` invocation if
-        # present.
-        while j < len(after_shim) and not after_shim[j].strip():
-            j += 1
-        if j < len(after_shim) and after_shim[j].strip() == "_shim_dispatch()":
-            j += 1
-        tail = "".join(after_shim[j:])
-        return head + "".join(body_lines) + ("\n" if not "".join(body_lines).endswith("\n") else "") + tail
-    # No wrapper detected (shim was injected but body left untouched);
-    # just remove the shim block.
-    return head + "".join(after_shim[j:])
+
+    # Skip a single trailing ``_shim_dispatch()`` invocation if present.
+    while j < len(after_shim) and not after_shim[j].strip():
+        j += 1
+    if j < len(after_shim) and after_shim[j].strip() == "_shim_dispatch()":
+        j += 1
+
+    body_text = "".join(body_lines)
+    tail = "".join(after_shim[j:])
+    if body_text and not body_text.endswith("\n"):
+        body_text += "\n"
+    return body_text + tail
+
+
+def strip_shim(source: str) -> str:
+    """Remove a previously-injected shim block. M5-T3 idempotency.
+
+    Detection is by exact sentinel string match (see :func:`_find_shim_bounds`).
+    The shim header, the ``def _original_main`` wrapper, and the trailing
+    ``_shim_dispatch()`` call are all removed; the original script body
+    is restored from the wrapper's indented lines.
+    """
+    if _SHIM_BEGIN not in source:
+        return source
+    lines = source.splitlines(keepends=True)
+    bounds = _find_shim_bounds(lines)
+    if bounds is None:
+        return source
+    begin_idx, end_idx = bounds
+    head = "".join(lines[:begin_idx])
+    body = _extract_original_body(lines[end_idx + 1 :])
+    return head + body
 
 
 @dataclass
