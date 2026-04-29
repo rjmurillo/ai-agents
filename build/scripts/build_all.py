@@ -40,6 +40,7 @@ _SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(_SCRIPT_DIR))
 
 import generate_commands  # noqa: E402
+import generate_hooks  # noqa: E402
 import generate_rules  # noqa: E402
 import generate_skills  # noqa: E402
 from yaml_loader import ConfigError, load_platform_config  # noqa: E402
@@ -190,15 +191,69 @@ def _build_rules(repo_root: Path, config_path: Path, platform: str) -> Generator
     return result
 
 
-# Order matters: agents → skills → commands → rules. The skills generator
-# copies .claude/skills/* first; the commands bridge layers user-invocable
-# skills beside them; rules write to a separate dir (.github/instructions/).
-# Hooks land in M5.
+def _build_hooks(repo_root: Path, config_path: Path, platform: str) -> GeneratorResult:
+    """Generate Copilot CLI hook config (REQ-003-007, M5-T6).
+
+    Mirrors :func:`_build_rules`: skips silently when the platform has
+    no ``artifacts.hooks`` stanza. Tallies inputs as the number of
+    Claude hook entries in ``settings.json`` (across all events) and
+    outputs as the number of entries written to the Copilot
+    ``hooks.json`` (post event-drop). ``skipped`` counts NO-REGEN
+    sentinel hits on copied scripts; ``dropped`` counts events landing
+    in ``eventDrop``.
+    """
+    try:
+        cfg = load_platform_config(config_path)
+    except ConfigError:
+        cfg = {}
+    artifacts = cfg.get("artifacts") if isinstance(cfg.get("artifacts"), dict) else {}
+    stanza = artifacts.get("hooks") if isinstance(artifacts, dict) else None
+    if not isinstance(stanza, dict):
+        result = GeneratorResult(artifact="hooks", platform=platform, exit_code=0)
+        result.notices.append(f"{platform}: no artifacts.hooks stanza; skipped")
+        return result
+
+    rc, run_result = generate_hooks.generate_hooks(config_path, repo_root)
+    result = GeneratorResult(artifact="hooks", platform=platform, exit_code=rc)
+    settings_source = stanza.get("settingsSource")
+    if isinstance(settings_source, str):
+        settings_path = repo_root / settings_source
+        if settings_path.is_file():
+            try:
+                import json as _json
+                data = _json.loads(settings_path.read_text(encoding="utf-8"))
+                hooks_obj = data.get("hooks", {}) if isinstance(data, dict) else {}
+                count = 0
+                for groups in hooks_obj.values() if isinstance(hooks_obj, dict) else []:
+                    if not isinstance(groups, list):
+                        continue
+                    for group in groups:
+                        if not isinstance(group, dict):
+                            continue
+                        count += len(group.get("hooks", []) or [])
+                result.inputs = count
+            except (OSError, ValueError):
+                result.inputs = 0
+    result.outputs = run_result.written
+    result.skipped = run_result.sentinel_skipped
+    if run_result.dropped:
+        result.notices.append(
+            f"{platform}: dropped {run_result.dropped} hook entr"
+            f"{'y' if run_result.dropped == 1 else 'ies'} (eventDrop)"
+        )
+    return result
+
+
+# Order matters: agents → skills → commands → rules → hooks. The skills
+# generator copies .claude/skills/* first; the commands bridge layers
+# user-invocable skills beside them; rules write to a separate dir
+# (.github/instructions/); hooks write src/copilot-cli/hooks/.
 GENERATORS: list[tuple[str, Callable[[Path, Path, str], GeneratorResult]]] = [
     ("agents", _build_agents),
     ("skills", _build_skills),
     ("commands", _build_commands),
     ("rules", _build_rules),
+    ("hooks", _build_hooks),
 ]
 
 
