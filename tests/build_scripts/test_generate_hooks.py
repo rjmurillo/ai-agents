@@ -826,6 +826,125 @@ def test_generator_fails_1_on_missing_settings_file(tmp_path: Path) -> None:
     assert rc == 1
 
 
+# --- P2-1 coverage gaps --------------------------------------------------
+
+
+def test_inject_shim_case_sensitive_tool_name():
+    """Bash matcher does NOT fire on lowercase 'bash' (P2-1).
+
+    Claude tool names are case-sensitive. Document and enforce it so
+    customer hooks cannot be silently bypassed by case differences.
+    """
+    transformed = inject_shim(_TRACE_SCRIPT, "Bash")
+    proc = _run_shim(transformed, {"toolName": "bash"})
+    assert proc.returncode == 0
+    assert "FIRED" not in proc.stdout
+
+
+def test_generator_unknown_event_emits_warn_and_drops(tmp_path: Path, capfd) -> None:
+    """A Claude event not in eventRemap and not in eventDrop drops with WARN.
+
+    Operator can extend the remap config; we do not crash the build.
+    Regression for the unknown-event handler path.
+    """
+    cfg = _write_config(tmp_path)
+    hooks_src = tmp_path / "hooks_src"
+    _write_script(hooks_src, "CustomEvent", "x.py")
+    settings = tmp_path / "settings.json"
+    _write_settings(
+        settings,
+        {
+            "CustomEvent": [
+                {
+                    "hooks": [
+                        {
+                            "type": "command",
+                            "command": "python3 -u .claude/hooks/CustomEvent/x.py",
+                        }
+                    ],
+                }
+            ],
+        },
+    )
+    rc, result = generate_hooks.generate_hooks(cfg, tmp_path)
+    captured = capfd.readouterr()
+    assert rc == 0
+    assert result.dropped == 1
+    assert "CustomEvent" in captured.err
+    out = json.loads((tmp_path / "out" / "hooks.json").read_text())
+    # No entry for unknown event.
+    assert "CustomEvent" not in out["hooks"]
+    assert "customEvent" not in out["hooks"]
+
+
+def test_main_returns_zero_on_happy_path(tmp_path: Path) -> None:
+    """``main(argv)`` happy path returns 0 (P2-1 main() coverage)."""
+    cfg, _ = _setup_full_fixture(tmp_path)
+    rc = generate_hooks.main(["--config", str(cfg), "--repo-root", str(tmp_path)])
+    assert rc == 0
+
+
+def test_main_returns_two_on_missing_config(tmp_path: Path) -> None:
+    """``main(argv)`` returns 2 (config error) when --config does not exist."""
+    missing = tmp_path / "does_not_exist.yaml"
+    rc = generate_hooks.main(
+        ["--config", str(missing), "--repo-root", str(tmp_path)]
+    )
+    assert rc == 2
+
+
+def test_main_what_if_runs_without_writing(tmp_path: Path) -> None:
+    """``main(argv)`` --what-if exits 0 and does not produce output files."""
+    cfg, _ = _setup_full_fixture(tmp_path)
+    rc = generate_hooks.main(
+        [
+            "--config",
+            str(cfg),
+            "--repo-root",
+            str(tmp_path),
+            "--what-if",
+        ]
+    )
+    assert rc == 0
+    assert not (tmp_path / "out" / "hooks.json").exists()
+
+
+def test_matcher_suffix_long_unicode_no_crash():
+    """A matcher with unicode + symbols + length >48 hashes cleanly."""
+    out = _matcher_suffix("Bash(café✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓)")
+    assert out  # non-empty
+    # Suffix is filesystem-safe (alnum + underscore only).
+    assert re.match(r"^[A-Za-z0-9_]+$", out)
+
+
+def test_matcher_suffix_all_symbols_returns_only_hash():
+    """A matcher of pure punctuation collapses to empty sanitization +
+    hash-only suffix.
+
+    Documented behavior: when the sanitization step yields an empty
+    string we return just the 6-char hash so the file still gets a
+    unique name.
+    """
+    out = _matcher_suffix("!!!---???")
+    assert len(out) == 6
+    assert re.match(r"^[a-f0-9]{6}$", out)
+
+
+def test_matcher_suffix_whitespace_padded_matcher_normalizes():
+    """A matcher with leading/trailing whitespace yields a non-empty suffix.
+
+    Sanitization collapses whitespace runs to ``_`` and strips ends, so
+    ``"  Bash  "`` and ``"Bash"`` produce the same SANITIZED form but
+    differ in the hash because the hash is computed on the raw input.
+    Documents the chosen behavior: distinct inputs -> distinct files.
+    """
+    a = _matcher_suffix(" Bash")
+    b = _matcher_suffix("Bash")
+    assert a and b
+    # Distinct inputs MUST yield distinct suffixes (collision-resistant).
+    assert a != b
+
+
 # --- live-corpus regression ----------------------------------------------
 
 
