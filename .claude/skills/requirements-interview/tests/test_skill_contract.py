@@ -14,6 +14,7 @@ cannot drift from production validation.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
@@ -102,26 +103,30 @@ def test_model_is_supported(skill_metadata):
 
 
 def test_required_sections_present(skill_text):
-    missing = sorted(s for s in REQUIRED_SECTIONS if s not in skill_text)
+    missing = sorted(
+        section
+        for section in REQUIRED_SECTIONS
+        if not re.search(rf"(?m)^{re.escape(section)}\s*$", skill_text)
+    )
     assert not missing, f"SKILL.md missing required sections: {missing}"
 
 
 def test_grill_me_pattern_referenced(skill_text):
-    assert "grill-me" in skill_text.lower(), (
+    assert re.search(r"\bgrill-me\b", skill_text, re.IGNORECASE), (
         "SKILL.md must reference the grill-me pattern (issue #1798 acceptance criterion)"
     )
-    assert "design tree" in skill_text.lower(), (
+    assert re.search(r"\bdesign tree\b", skill_text, re.IGNORECASE), (
         "SKILL.md must reference design tree traversal"
     )
 
 
 def test_recommended_answer_discipline(skill_text):
-    assert "recommended answer" in skill_text.lower(), (
+    assert re.search(r"\brecommended answer\b", skill_text, re.IGNORECASE), (
         "Question discipline must require a recommended answer per question"
     )
 
 
 def test_codebase_first_principle(skill_text):
-    assert "codebase" in skill_text.lower() and (
-        "grep" in skill_text.lower() or "explore" in skill_text.lower()
+    assert re.search(
+        r"\bcodebase\b.*\b(grep|explore)\b", skill_text, re.IGNORECASE | re.DOTALL
     ), "SKILL.md must instruct grepping the codebase before asking the user"
