@@ -137,6 +137,8 @@ def _coerce_to_list_fallback(value) -> list:
     if isinstance(value, list):
         return value
     if isinstance(value, dict):
+        if not value:
+            return []  # Empty dict: no items (matches canonical coerce_to_list)
         for key in ("tasks", "items", "log", "entries"):
             inner = value.get(key)
             if isinstance(inner, list):
