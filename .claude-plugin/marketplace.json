@@ -23,7 +23,7 @@
     },
     {
       "name": "claude-toolkit",
-      "description": "23 agents, 67 reusable skills, 23 slash commands, 29 lifecycle hooks, 18 rules - canonical Claude Code authoring source",
+      "description": "23 agents, 67 reusable skills, 23 slash commands, 29 lifecycle hooks - canonical Claude Code authoring source",
       "source": "./.claude"
     },
     {
