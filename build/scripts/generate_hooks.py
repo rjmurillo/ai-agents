@@ -100,6 +100,52 @@ def classify_matcher(pattern: str) -> tuple[str, dict[str, str]]:
     return MATCHER_BARE, {"toolName": pattern}
 
 
+# --- Shim algorithm helpers (mirrored from shim body) --------------------
+#
+# These helpers exist at module scope so the test suite can target the
+# whitespace-normalization and glob-OR-fold algorithms directly without
+# spawning a subprocess. The shim body emits the same algorithm inline
+# so generated scripts have zero import dependency on this module.
+
+
+def normalize_tool_args(tool_args: object) -> str:
+    r"""Stringify and collapse \s+ to a single space; strip ends.
+
+    REQ-003-007 step 5: applied to ``toolArgs`` at runtime, NOT to the
+    pattern. ``dict`` toolArgs that carry a ``command`` field (e.g.
+    ``{"command": "git commit -m foo"}`` from Bash) are reduced to that
+    string; other dicts are stringified via ``json.dumps`` for stable
+    comparison.
+    """
+    if isinstance(tool_args, dict):
+        cmd = tool_args.get("command")
+        if isinstance(cmd, str):
+            text = cmd
+        else:
+            text = json.dumps(tool_args, sort_keys=True)
+    elif isinstance(tool_args, str):
+        text = tool_args
+    elif tool_args is None:
+        text = ""
+    else:
+        text = str(tool_args)
+    return _re.sub(r"\s+", " ", text).strip()
+
+
+def glob_or_match(args_glob: str, tool_args_norm: str) -> bool:
+    """OR-fold an argsGlob with ``|`` alternation against tool_args_norm.
+
+    REQ-003-007 step 5: ``fnmatch`` treats ``|`` as a literal; authors
+    expect Claude semantics where each branch is a separate glob.
+    """
+    import fnmatch as _fn
+    branches = args_glob.split("|") if args_glob else [""]
+    for branch in branches:
+        if _fn.fnmatchcase(tool_args_norm, branch):
+            return True
+    return False
+
+
 # --- Shim source generation ----------------------------------------------
 
 
