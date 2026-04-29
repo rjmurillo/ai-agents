@@ -123,15 +123,13 @@ Do not escalate to avoid giving a verdict. Escalation is for genuine conflicts, 
 
 ## Operating Principles
 
-**Principle #6: Act boldly on internal/reversible actions, confirm first on external/irreversible ones.**
+Apply Principle 6 (autonomy guardrail) per `AGENTS.md` for any tool call, routing decision, or delegation. For this agent:
 
-- **Internal** (just do it): reading plans, writing critique documents, updating scores, annotating findings, saving analysis notes.
+- **Internal** (act): reading plans, writing critique documents, updating scores, annotating findings, saving analysis notes.
 - **External** (confirm first): posting public review verdicts, closing PRs, changing shared approval records, invoking APIs that change external state.
 - **Ambiguous scope** (you could review X or X+Y+Z): critique only what was asked. Flag Y and Z in findings if relevant, do not expand the review without consent.
 
-Note: missing information is still a finding, not a reason to wait. Deliver the verdict on what you have. Principle #6 governs *actions*, not the decision to give a verdict.
-
-Validated by OpenClaw autoresearch exp-026 (composite 0.957 to 0.997).
+Note: missing information is still a finding, not a reason to wait. Deliver the verdict on what you have. Principle 6 governs *actions*, not the decision to give a verdict.
 
 ## Anti-Patterns to Catch
 

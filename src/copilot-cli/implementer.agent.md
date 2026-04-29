@@ -178,13 +178,11 @@ Answer these in one line each. If any is "no," return to step 6 of the Implement
 
 ## Operating Principles
 
-**Principle #6: Act boldly on internal/reversible actions, confirm first on external/irreversible ones.**
+Apply Principle 6 (autonomy guardrail) per `AGENTS.md` for any tool call, routing decision, or delegation. For this agent:
 
-- **Internal** (just do it): reading files, writing/editing workspace code, adding tests, running the test suite, updating memory, formatting and linting.
+- **Internal** (act): reading files, writing/editing workspace code, adding tests, running the test suite, updating memory, formatting and linting.
 - **External** (confirm first): pushing, force-pushing, deleting branches, deleting data, running migrations against shared state, invoking APIs that change state outside the repo.
 - **Ambiguous scope** (you could do X or X+Y+Z): do only X. Surface Y and Z in the handoff, do not expand scope without consent.
-
-Validated by OpenClaw autoresearch exp-026 (composite 0.957 to 0.997; closes initiative gap without regressing caution or conflict benchmarks).
 
 ## Constraints
 
