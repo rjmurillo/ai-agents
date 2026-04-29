@@ -347,6 +347,61 @@ def test_inject_shim_exits_2_on_missing_tool_name():
     assert "matcher-shim" in proc.stderr
 
 
+def _run_shim_with_env(
+    transformed_source: str, payload: dict, env_extra: dict
+) -> subprocess.CompletedProcess:
+    """Run a shimmed script with extra environment variables.
+
+    Mirrors :func:`_run_shim` but threads through ``env_extra`` so tests
+    can flip ``COPILOT_HOOK_DEBUG`` without leaking into other tests.
+    """
+    with tempfile.NamedTemporaryFile(
+        "w", suffix=".py", delete=False
+    ) as handle:
+        handle.write(transformed_source)
+        path = handle.name
+    try:
+        merged = {**os.environ, **env_extra}
+        return subprocess.run(
+            ["python3", path],
+            input=json.dumps(payload),
+            capture_output=True,
+            text=True,
+            timeout=15,
+            env=merged,
+        )
+    finally:
+        os.unlink(path)
+
+
+def test_copilot_hook_debug_env_emits_trace():
+    """When COPILOT_HOOK_DEBUG=1, shim writes a kind/fired trace to stderr (P2-2)."""
+    transformed = inject_shim(_TRACE_SCRIPT, "Bash(git commit*)")
+    proc = _run_shim_with_env(
+        transformed,
+        {"toolName": "Bash", "toolArgs": {"command": "git commit -m foo"}},
+        env_extra={"COPILOT_HOOK_DEBUG": "1"},
+    )
+    assert proc.returncode == 0
+    assert "kind=tool-glob" in proc.stderr
+    assert "fired=True" in proc.stderr
+    assert "Bash(git commit*)" in proc.stderr
+
+
+def test_copilot_hook_debug_unset_emits_no_trace():
+    """When COPILOT_HOOK_DEBUG is unset, no trace appears in stderr (P2-2)."""
+    transformed = inject_shim(_TRACE_SCRIPT, "Bash(git commit*)")
+    # Explicitly clear the var via env_extra={"COPILOT_HOOK_DEBUG": ""}.
+    proc = _run_shim_with_env(
+        transformed,
+        {"toolName": "Bash", "toolArgs": {"command": "git commit -m foo"}},
+        env_extra={"COPILOT_HOOK_DEBUG": ""},
+    )
+    assert proc.returncode == 0
+    assert "kind=" not in proc.stderr
+    assert "fired=" not in proc.stderr
+
+
 def test_inject_shim_error_message_includes_matcher():
     """Shim crash messages MUST include the _MATCHER value (P1-4).
 
