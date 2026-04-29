@@ -298,6 +298,31 @@ class TestResolveWorkspace:
         with pytest.raises(PathValidationError):
             resolve_workspace(None)
 
+    def test_rejects_backslash_dotdot_in_arg(self, monkeypatch):
+        monkeypatch.delenv("PANNING_WORKSPACE", raising=False)
+        with pytest.raises(PathValidationError):
+            resolve_workspace(r"..\escape")
+
+    def test_rejects_backslash_in_env(self, monkeypatch):
+        monkeypatch.setenv("PANNING_WORKSPACE", r"foo\bar")
+        with pytest.raises(PathValidationError):
+            resolve_workspace(None)
+
+    def test_rejects_null_byte_in_arg(self, monkeypatch):
+        monkeypatch.delenv("PANNING_WORKSPACE", raising=False)
+        with pytest.raises(PathValidationError):
+            resolve_workspace("bad\x00path")
+
+    def test_rejects_control_chars_in_arg(self, monkeypatch):
+        monkeypatch.delenv("PANNING_WORKSPACE", raising=False)
+        with pytest.raises(PathValidationError):
+            resolve_workspace("bad\npath")
+
+    def test_rejects_control_chars_in_env(self, monkeypatch):
+        monkeypatch.setenv("PANNING_WORKSPACE", "bad\tpath")
+        with pytest.raises(PathValidationError):
+            resolve_workspace(None)
+
 
 # ---- security: slug bounds ----
 

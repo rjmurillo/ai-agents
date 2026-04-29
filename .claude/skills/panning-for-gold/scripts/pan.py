@@ -47,12 +47,25 @@ class PathValidationError(ValueError):
 
 
 def _reject_traversal(value: str, source: str) -> None:
-    """Reject path values that contain '..' components (CWE-22).
+    """Reject path values that could enable traversal (CWE-22).
 
-    Absolute paths and pure relative paths are allowed; only explicit parent
-    references are rejected so a hostile workspace value cannot escape the
-    intended root after Path.resolve() collapses the components.
+    Rejects null bytes, ASCII control characters, Windows-style backslash
+    separators, and explicit parent references (`..`). Backslashes are
+    rejected outright so that on POSIX hosts a Windows-style traversal
+    such as `..\\escape` cannot bypass the parts check (PosixPath would
+    treat it as a single filename and fail to detect the `..` segment).
+    Absolute paths and pure relative paths remain allowed.
     """
+    if "\x00" in value:
+        raise PathValidationError(f"{source} must not contain null bytes")
+    if any(ord(c) < 0x20 or ord(c) == 0x7F for c in value):
+        raise PathValidationError(
+            f"{source} must not contain control characters"
+        )
+    if "\\" in value:
+        raise PathValidationError(
+            f"{source} must not contain backslash separators: {value!r}"
+        )
     parts = Path(value).parts
     if any(p == ".." for p in parts):
         raise PathValidationError(
