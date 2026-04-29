@@ -26,6 +26,7 @@ if str(_THIS_DIR) not in sys.path:
 
 from inventory import (  # noqa: E402
     InventoryError,
+    MissingInventoryError,
     Thread,
     merge,
     read_inventory,
@@ -41,19 +42,47 @@ DEFAULT_WORKSPACE: str = "./.panning"
 SUBDIRS: tuple[str, ...] = ("transcripts", "inventories", "evaluations", "gold-found")
 
 
+class PathValidationError(ValueError):
+    """Raised when a user-supplied path violates the traversal policy."""
+
+
+def _reject_traversal(value: str, source: str) -> None:
+    """Reject path values that contain '..' components (CWE-22).
+
+    Absolute paths and pure relative paths are allowed; only explicit parent
+    references are rejected so a hostile workspace value cannot escape the
+    intended root after Path.resolve() collapses the components.
+    """
+    parts = Path(value).parts
+    if any(p == ".." for p in parts):
+        raise PathValidationError(
+            f"{source} must not contain '..' components: {value!r}"
+        )
+
+
 def resolve_workspace(arg_value: str | None) -> Path:
-    """Pick the workspace root from CLI arg, env var, or default."""
+    """Pick the workspace root from CLI arg, env var, or default.
+
+    Returns the fully resolved path. Rejects '..' components in user-supplied
+    inputs to prevent CWE-22 path traversal.
+    """
     if arg_value:
+        _reject_traversal(arg_value, "--workspace")
         return Path(arg_value).resolve()
     env_value = os.environ.get(WORKSPACE_ENV)
     if env_value:
+        _reject_traversal(env_value, f"${WORKSPACE_ENV}")
         return Path(env_value).resolve()
     return Path(DEFAULT_WORKSPACE).resolve()
 
 
 def cmd_init(args: argparse.Namespace) -> int:
     """Create workspace subdirectories. Idempotent."""
-    workspace = resolve_workspace(args.workspace)
+    try:
+        workspace = resolve_workspace(args.workspace)
+    except PathValidationError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 2
     workspace.mkdir(parents=True, exist_ok=True)
     for sub in SUBDIRS:
         (workspace / sub).mkdir(exist_ok=True)
@@ -65,6 +94,9 @@ def cmd_validate(args: argparse.Namespace) -> int:
     """Validate an inventory file."""
     try:
         threads = read_inventory(Path(args.inventory))
+    except MissingInventoryError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 2
     except InventoryError as exc:
         print(f"INVALID: {exc}", file=sys.stderr)
         return 1
@@ -77,6 +109,9 @@ def cmd_merge(args: argparse.Namespace) -> int:
     try:
         pass1 = read_inventory(Path(args.pass1))
         final = read_inventory(Path(args.final))
+    except MissingInventoryError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 2
     except InventoryError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
@@ -95,6 +130,9 @@ def cmd_synth(args: argparse.Namespace) -> int:
     """Build the gold-found markdown file."""
     try:
         threads = read_inventory(Path(args.inventory))
+    except MissingInventoryError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 2
     except InventoryError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1

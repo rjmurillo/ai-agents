@@ -34,8 +34,16 @@ class SynthesisError(ValueError):
     """Raised when synthesis cannot complete."""
 
 
+SLUG_MAX_LEN: int = 64
+
+
 def _slugify(title: str) -> str:
-    """Convert a thread title into a filesystem-safe slug."""
+    """Convert a thread title into a filesystem-safe slug.
+
+    The slug is truncated to SLUG_MAX_LEN characters to stay below typical
+    filesystem name limits (255 bytes). Trailing dashes from truncation are
+    stripped so the slug never ends in a separator.
+    """
     keep = []
     for ch in title.lower():
         if ch.isalnum():
@@ -45,12 +53,17 @@ def _slugify(title: str) -> str:
     slug = "".join(keep).strip("-")
     while "--" in slug:
         slug = slug.replace("--", "-")
-    return slug or "thread"
+    return slug[:SLUG_MAX_LEN].rstrip("-") or "thread"
 
 
 def evaluation_filename(thread: Thread) -> str:
-    """Return the conventional evaluation filename for a thread."""
-    return f"{thread.number:03d}-{_slugify(thread.title)}.md"
+    """Return the conventional evaluation filename for a thread.
+
+    Filenames use the slug only (no number prefix) so they remain stable
+    across merges. Renumbering during merge no longer orphans evaluation
+    files keyed off the previous thread number.
+    """
+    return f"{_slugify(thread.title)}.md"
 
 
 def load_evaluation(thread: Thread, evaluations_dir: Path) -> str:

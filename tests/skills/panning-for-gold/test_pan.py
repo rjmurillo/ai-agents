@@ -27,14 +27,18 @@ parse_inventory = inventory.parse_inventory
 merge = inventory.merge
 render_inventory = inventory.render_inventory
 InventoryError = inventory.InventoryError
+MissingInventoryError = inventory.MissingInventoryError
 
 build_gold_found = synthesis.build_gold_found
 SynthesisError = synthesis.SynthesisError
 evaluation_filename = synthesis.evaluation_filename
+slugify = synthesis._slugify
+SLUG_MAX_LEN = synthesis.SLUG_MAX_LEN
 
 main = pan.main
 resolve_workspace = pan.resolve_workspace
 SUBDIRS = pan.SUBDIRS
+PathValidationError = pan.PathValidationError
 
 
 SAMPLE_THREAD = """## Thread 1: Memory caching strategy
@@ -105,6 +109,24 @@ class TestParseInventory:
         threads = parse_inventory(text)
         assert "stale data" in threads[0].title
         assert "invalidate" in threads[0].quote
+
+    def test_multi_line_quote_and_context(self):
+        text = (
+            "## Thread 1: Long quote\n\n"
+            "- **Signal**: high\n"
+            "- **Quote**: \"first line of the quote\n"
+            "  second line continues\n"
+            "  third line ends here\"\n"
+            "- **Context**: starts here\n"
+            "  and explains in two lines\n"
+            "- **Initial take**: short\n"
+        )
+        threads = parse_inventory(text)
+        assert len(threads) == 1
+        assert "first line" in threads[0].quote
+        assert "second line continues" in threads[0].quote
+        assert "third line ends here" in threads[0].quote
+        assert "explains in two lines" in threads[0].context
 
 
 # ---- merge ----
@@ -234,6 +256,78 @@ class TestResolveWorkspace:
         monkeypatch.delenv("PANNING_WORKSPACE", raising=False)
         chosen = resolve_workspace(None)
         assert chosen.name == ".panning"
+
+    def test_rejects_dotdot_in_arg(self, monkeypatch):
+        monkeypatch.delenv("PANNING_WORKSPACE", raising=False)
+        with pytest.raises(PathValidationError):
+            resolve_workspace("../escape")
+
+    def test_rejects_dotdot_in_env(self, monkeypatch):
+        monkeypatch.setenv("PANNING_WORKSPACE", "foo/../bar")
+        with pytest.raises(PathValidationError):
+            resolve_workspace(None)
+
+
+# ---- security: slug bounds ----
+
+
+class TestSlugBounds:
+    def test_slug_truncated_to_64(self):
+        title = "x" * 200
+        slug = slugify(title)
+        assert len(slug) <= SLUG_MAX_LEN
+
+    def test_slug_truncation_strips_trailing_dash(self):
+        title = ("x " * 60).strip()
+        slug = slugify(title)
+        assert not slug.endswith("-")
+        assert len(slug) <= SLUG_MAX_LEN
+
+    def test_evaluation_filename_independent_of_number(self):
+        a = Thread(number=1, title="Topic A", signal="high",
+                   quote="q", context="c", initial_take="i")
+        b = Thread(number=42, title="Topic A", signal="high",
+                   quote="q", context="c", initial_take="i")
+        assert evaluation_filename(a) == evaluation_filename(b)
+        assert "001" not in evaluation_filename(a)
+
+
+# ---- exit codes ----
+
+
+class TestExitCodes:
+    def test_validate_missing_inventory_returns_two(self, tmp_path):
+        missing = tmp_path / "absent.md"
+        assert main(["validate", "--inventory", str(missing)]) == 2
+
+    def test_merge_missing_pass1_returns_two(self, tmp_path):
+        fn = tmp_path / "final.md"
+        fn.write_text(SAMPLE_THREAD, encoding="utf-8")
+        out = tmp_path / "merged.md"
+        rc = main([
+            "merge",
+            "--pass1", str(tmp_path / "absent-pass1.md"),
+            "--final", str(fn),
+            "--output", str(out),
+        ])
+        assert rc == 2
+
+    def test_synth_missing_inventory_returns_two(self, tmp_path):
+        evals = tmp_path / "evals"
+        evals.mkdir()
+        out = tmp_path / "gold.md"
+        rc = main([
+            "synth",
+            "--inventory", str(tmp_path / "absent.md"),
+            "--evaluations", str(evals),
+            "--output", str(out),
+        ])
+        assert rc == 2
+
+    def test_init_rejects_traversal_returns_two(self, tmp_path, monkeypatch):
+        monkeypatch.delenv("PANNING_WORKSPACE", raising=False)
+        rc = main(["init", "--workspace", "../escape"])
+        assert rc == 2
 
 
 # ---- CLI: end-to-end ----

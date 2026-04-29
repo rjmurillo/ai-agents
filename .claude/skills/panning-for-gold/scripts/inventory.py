@@ -57,6 +57,10 @@ class InventoryError(ValueError):
     """Raised when an inventory cannot be parsed or fails validation."""
 
 
+class MissingInventoryError(InventoryError):
+    """Raised when an inventory file does not exist (config error, exit 2)."""
+
+
 def normalize_lines(content: str) -> list[str]:
     """Normalize line endings and split into lines."""
     return content.replace("\r\n", "\n").replace("\r", "\n").split("\n")
@@ -74,6 +78,7 @@ def parse_inventory(content: str) -> list[Thread]:
     threads: list[Thread] = []
     current_header: tuple[int, str] | None = None
     current_fields: dict[str, str] = {}
+    current_field_name: str | None = None
 
     def flush() -> None:
         if current_header is None:
@@ -113,6 +118,7 @@ def parse_inventory(content: str) -> list[Thread]:
             flush()
             current_header = (int(header.group(1)), header.group(2).strip())
             current_fields = {}
+            current_field_name = None
             continue
         if current_header is None:
             continue
@@ -122,15 +128,31 @@ def parse_inventory(content: str) -> list[Thread]:
             value = field.group(2).strip()
             if name in REQUIRED_FIELDS:
                 current_fields[name] = value
+                current_field_name = name
+            else:
+                current_field_name = None
+            continue
+        if not line.strip():
+            current_field_name = None
+            continue
+        if current_field_name is not None:
+            existing = current_fields.get(current_field_name, "")
+            current_fields[current_field_name] = (
+                existing + "\n" + line.strip() if existing else line.strip()
+            )
 
     flush()
     return threads
 
 
 def read_inventory(path: Path) -> list[Thread]:
-    """Read and parse an inventory file."""
+    """Read and parse an inventory file.
+
+    Raises MissingInventoryError if the file does not exist (config error).
+    Raises InventoryError on malformed content (logic error).
+    """
     if not path.exists():
-        raise InventoryError(f"Inventory not found: {path}")
+        raise MissingInventoryError(f"Inventory not found: {path}")
     return parse_inventory(path.read_text(encoding="utf-8"))
 
 
