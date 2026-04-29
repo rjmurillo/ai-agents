@@ -39,6 +39,7 @@ if TYPE_CHECKING:
 _SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(_SCRIPT_DIR))
 
+import generate_commands  # noqa: E402
 import generate_skills  # noqa: E402
 from yaml_loader import ConfigError, load_platform_config  # noqa: E402
 
@@ -122,10 +123,50 @@ def _build_agents(repo_root: Path, _config_path: Path, _platform: str) -> Genera
     return GeneratorResult(artifact="agents", platform="*", exit_code=rc)
 
 
-# Order matters: agents → skills. Hooks/commands/rules land in M4-M5.
+def _build_commands(repo_root: Path, config_path: Path, platform: str) -> GeneratorResult:
+    """Bridge Claude commands to user-invocable skills (REQ-003-001, M4-T1).
+
+    Skips silently when the platform has no ``artifacts.commands`` stanza
+    (e.g. visual-studio, vscode platforms today). Tallies are read from
+    the configured directories so the audit row reflects on-disk state,
+    not generator internals.
+    """
+    try:
+        cfg = load_platform_config(config_path)
+    except ConfigError:
+        cfg = {}
+    artifacts = cfg.get("artifacts") if isinstance(cfg.get("artifacts"), dict) else {}
+    stanza = artifacts.get("commands") if isinstance(artifacts, dict) else None
+    if not isinstance(stanza, dict):
+        result = GeneratorResult(artifact="commands", platform=platform, exit_code=0)
+        result.notices.append(f"{platform}: no artifacts.commands stanza; skipped")
+        return result
+
+    rc = generate_commands.generate_commands(config_path, repo_root)
+    result = GeneratorResult(artifact="commands", platform=platform, exit_code=rc)
+    src = repo_root / str(stanza.get("sourceDir", ""))
+    out = repo_root / str(stanza.get("outputDir", ""))
+    if src.is_dir():
+        # Top-level *.md files only (sub-directories are namespaced sub-
+        # commands the generator skips). Mirrors generate_commands logic.
+        result.inputs = sum(
+            1 for p in src.glob("*.md") if p.is_file() and p.name != "CLAUDE.md"
+        )
+    if out.is_dir():
+        # We can't distinguish command-bridged skills from skills generator
+        # output by file alone, so report 0 and let the per-generator log
+        # carry the truth. Inputs is the load-bearing number for staleness.
+        result.outputs = 0
+    return result
+
+
+# Order matters: agents → skills → commands. The skills generator copies
+# .claude/skills/* first; the commands bridge layers user-invocable skills
+# beside them. Hooks/rules land in M4-T2/M5.
 GENERATORS: list[tuple[str, Callable[[Path, Path, str], GeneratorResult]]] = [
     ("agents", _build_agents),
     ("skills", _build_skills),
+    ("commands", _build_commands),
 ]
 
 
