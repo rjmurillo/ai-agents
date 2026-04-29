@@ -347,6 +347,19 @@ def test_inject_shim_exits_2_on_missing_tool_name():
     assert "matcher-shim" in proc.stderr
 
 
+def test_inject_shim_error_message_includes_matcher():
+    """Shim crash messages MUST include the _MATCHER value (P1-4).
+
+    Customer can't tell which of 28 generated scripts crashed without
+    the matcher in the error. Prove the rendered stderr carries
+    ``[<matcher>]`` so support tickets can identify the offending hook.
+    """
+    transformed = inject_shim(_TRACE_SCRIPT, "Bash(git commit*)")
+    proc = _run_shim(transformed, {"foo": "bar"})  # missing toolName
+    assert proc.returncode == 2
+    assert "[Bash(git commit*)]" in proc.stderr
+
+
 def test_inject_shim_exits_2_on_malformed_json_stdin():
     """A non-JSON stdin payload is a config error: exit 2 to stderr."""
     transformed = inject_shim(_TRACE_SCRIPT, "Bash")

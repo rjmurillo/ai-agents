@@ -255,7 +255,7 @@ def _shim_dispatch():
         _raw = _sys.stdin.buffer.read()
     except Exception as exc:  # pragma: no cover - defensive
         print(
-            "matcher-shim: failed to buffer stdin: {{}}".format(exc),
+            "matcher-shim [{{}}]: failed to buffer stdin: {{}}".format(_MATCHER, exc),
             file=_sys.stderr,
         )
         _sys.exit(2)
@@ -263,14 +263,17 @@ def _shim_dispatch():
         payload = _json.loads(_raw or b"{{}}")
     except _json.JSONDecodeError as exc:
         print(
-            "matcher-shim: malformed JSON on stdin: {{}}".format(exc),
+            "matcher-shim [{{}}]: malformed JSON on stdin: {{}}".format(_MATCHER, exc),
             file=_sys.stderr,
         )
         _sys.exit(2)
     try:
         fire = _shim_should_fire(payload)
     except Exception as exc:
-        print("matcher-shim: dispatch error: {{}}".format(exc), file=_sys.stderr)
+        print(
+            "matcher-shim [{{}}]: dispatch error: {{}}".format(_MATCHER, exc),
+            file=_sys.stderr,
+        )
         _sys.exit(2)
     if not fire:
         _sys.exit(0)
