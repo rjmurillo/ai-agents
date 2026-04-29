@@ -140,97 +140,58 @@ def test_globs_treated_as_path_scope(tmp_path: Path) -> None:
     assert (tmp_path / "instr_out" / "globsy.instructions.md").is_file()
 
 
-# Severity branches ----------------------------------------------------------
+# Round 3 amendment: rules are universal across providers ----------------
+# Round 2 severity gate (high/medium/low + governance-keyword scan) was
+# removed. Every rule emits; unscoped rules synthesize applyTo: "**".
 
 
-def test_unscoped_high_severity_returns_1(tmp_path: Path) -> None:
+def test_unscoped_rule_emits_with_universal_apply_to(tmp_path: Path) -> None:
+    """Round 3: unscoped rule emits to .github/instructions/ with applyTo: '**'."""
     _write_rule(
         tmp_path / "rules_src",
-        "danger",
-        frontmatter="severity: high\n",
-        body="body\n",
+        "philosophy",
+        frontmatter="description: A design rule.\n",
+        body="A neutral architectural musing.\n",
     )
     cfg = _write_config(tmp_path)
     rc, result = generate_rules.generate_rules(cfg, tmp_path)
-    assert rc == 1
-    assert result.high_severity_errors
-    assert "danger" in result.high_severity_errors[0]
-    assert not (tmp_path / "instr_out").exists()
+    assert rc == 0
+    assert result.written == 1
+    out = tmp_path / "instr_out" / "philosophy.instructions.md"
+    assert out.is_file()
+    content = out.read_text(encoding="utf-8")
+    assert "applyTo: \"**\"" in content or "applyTo: '**'" in content or "applyTo: **" in content
 
 
-def test_unscoped_medium_severity_skips_with_warn(
-    tmp_path: Path, capsys: object
-) -> None:
+def test_unscoped_rule_with_governance_keyword_still_ships(tmp_path: Path) -> None:
+    """Round 3: governance-keyword scan removed; rule mentioning 'secrets' still ships."""
     _write_rule(
         tmp_path / "rules_src",
-        "med",
+        "security_advice",
+        frontmatter="description: Security guidance.\n",
+        body="Do not commit secrets or credentials.\n",
+    )
+    cfg = _write_config(tmp_path)
+    rc, result = generate_rules.generate_rules(cfg, tmp_path)
+    assert rc == 0
+    assert result.written == 1
+
+
+def test_severity_field_in_source_is_passed_through(tmp_path: Path) -> None:
+    """Round 3: severity is no longer interpreted by generator; preserved as data."""
+    _write_rule(
+        tmp_path / "rules_src",
+        "any_rule",
         frontmatter="severity: medium\n",
         body="body\n",
     )
     cfg = _write_config(tmp_path)
     rc, result = generate_rules.generate_rules(cfg, tmp_path)
     assert rc == 0
-    assert result.skipped_warn == 1
-    assert result.written == 0
-    captured = capsys.readouterr()  # type: ignore[attr-defined]
-    assert "WARN" in captured.err
-    assert "med" in captured.err
-
-
-def test_unscoped_low_severity_skips_silently(tmp_path: Path, capsys: object) -> None:
-    _write_rule(
-        tmp_path / "rules_src",
-        "noisy",
-        frontmatter="severity: low\n",
-        body="body\n",
-    )
-    cfg = _write_config(tmp_path)
-    rc, result = generate_rules.generate_rules(cfg, tmp_path)
-    assert rc == 0
-    assert result.skipped_silent == 1
-    captured = capsys.readouterr()  # type: ignore[attr-defined]
-    assert "WARN" not in captured.err
-
-
-def test_unset_severity_with_governance_keyword_treated_as_high(tmp_path: Path) -> None:
-    """`secret`, `credential`, `license`, `GP-001..008` escalate to high."""
-    _write_rule(
-        tmp_path / "rules_src",
-        "leaky",
-        frontmatter="description: 'has keyword'\n",
-        body="Do not commit secrets in code.\n",
-    )
-    cfg = _write_config(tmp_path)
-    rc, result = generate_rules.generate_rules(cfg, tmp_path)
-    assert rc == 1
-    assert any("leaky" in m for m in result.high_severity_errors)
-
-
-def test_unset_severity_with_GP_keyword_treated_as_high(tmp_path: Path) -> None:
-    """`GP-001` etc. are governance principle anchors and must escalate."""
-    _write_rule(
-        tmp_path / "rules_src",
-        "gp",
-        frontmatter=None,
-        body="Implement GP-003 enforcement.\n",
-    )
-    cfg = _write_config(tmp_path)
-    assert generate_rules.generate_rules(cfg, tmp_path)[0] == 1
-
-
-def test_unset_severity_no_keyword_treated_as_medium(tmp_path: Path) -> None:
-    """The default for unscoped + unset severity + no governance keyword is medium."""
-    _write_rule(
-        tmp_path / "rules_src",
-        "philosophy",
-        frontmatter=None,
-        body="A neutral architectural musing.\n",
-    )
-    cfg = _write_config(tmp_path)
-    rc, result = generate_rules.generate_rules(cfg, tmp_path)
-    assert rc == 0
-    assert result.skipped_warn == 1
-    assert result.written == 0
+    assert result.written == 1
+    out_text = (tmp_path / "instr_out" / "any_rule.instructions.md").read_text(encoding="utf-8")
+    assert "severity: medium" in out_text  # preserved verbatim
+    assert "applyTo:" in out_text  # universal default synthesized
 
 
 # NO-REGEN sentinel ----------------------------------------------------------

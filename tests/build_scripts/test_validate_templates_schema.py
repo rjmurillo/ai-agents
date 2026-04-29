@@ -54,7 +54,6 @@ artifacts:
     frontmatterDrop:
       - alwaysApply
       - priority
-    skipIfNoPathScope: true
   hooks:
     settingsSource: ".claude/settings.json"
     scriptSource: ".claude/hooks"
