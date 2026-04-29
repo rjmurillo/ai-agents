@@ -12,7 +12,7 @@ locked disambiguation rules before implementing the shim injector
 1. Pattern starts with `^` AND ends with `$` -> **regex** (`re.fullmatch`)
 2. Pattern matches `^[A-Za-z_][A-Za-z0-9_]*\(.*\)$` (e.g.
    `Bash(git commit*)`) -> **tool-glob** (`toolName` exact +
-   `fnmatch.fnmatchcase(argsGlob, normalizedToolArgs)`)
+   `fnmatch.fnmatchcase(normalizedToolArgs, argsGlob)`)
 3. Otherwise -> **bare tool name** (exact `toolName`, no args check)
 
 ## Classification table
