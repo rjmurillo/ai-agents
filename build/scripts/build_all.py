@@ -40,6 +40,7 @@ _SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(_SCRIPT_DIR))
 
 import generate_commands  # noqa: E402
+import generate_rules  # noqa: E402
 import generate_skills  # noqa: E402
 from yaml_loader import ConfigError, load_platform_config  # noqa: E402
 
@@ -160,13 +161,47 @@ def _build_commands(repo_root: Path, config_path: Path, platform: str) -> Genera
     return result
 
 
-# Order matters: agents → skills → commands. The skills generator copies
-# .claude/skills/* first; the commands bridge layers user-invocable skills
-# beside them. Hooks/rules land in M4-T2/M5.
+def _build_rules(repo_root: Path, config_path: Path, platform: str) -> GeneratorResult:
+    """Generate path-scoped instruction files (REQ-003-006, M4-T2).
+
+    Universal rules without path scope are gated by severity:
+    high → exit 1, medium → WARN skip, low → silent skip,
+    unset+keyword → high (exit 1), unset+no-keyword → medium (skip).
+    Skipped silently when the platform has no ``artifacts.rules`` stanza.
+    """
+    try:
+        cfg = load_platform_config(config_path)
+    except ConfigError:
+        cfg = {}
+    artifacts = cfg.get("artifacts") if isinstance(cfg.get("artifacts"), dict) else {}
+    stanza = artifacts.get("rules") if isinstance(artifacts, dict) else None
+    if not isinstance(stanza, dict):
+        result = GeneratorResult(artifact="rules", platform=platform, exit_code=0)
+        result.notices.append(f"{platform}: no artifacts.rules stanza; skipped")
+        return result
+
+    rc, run_result = generate_rules.generate_rules(config_path, repo_root)
+    result = GeneratorResult(artifact="rules", platform=platform, exit_code=rc)
+    src = repo_root / str(stanza.get("sourceDir", ""))
+    if src.is_dir():
+        result.inputs = sum(1 for _ in src.glob("*.md"))
+    result.outputs = run_result.written
+    result.skipped = run_result.skipped_warn + run_result.skipped_silent + run_result.sentinel_skipped
+    for entry in run_result.entries:
+        if entry.action in ("warn-skipped", "high-error") and entry.reason:
+            result.notices.append(entry.reason)
+    return result
+
+
+# Order matters: agents → skills → commands → rules. The skills generator
+# copies .claude/skills/* first; the commands bridge layers user-invocable
+# skills beside them; rules write to a separate dir (.github/instructions/).
+# Hooks land in M5.
 GENERATORS: list[tuple[str, Callable[[Path, Path, str], GeneratorResult]]] = [
     ("agents", _build_agents),
     ("skills", _build_skills),
     ("commands", _build_commands),
+    ("rules", _build_rules),
 ]
 
 
