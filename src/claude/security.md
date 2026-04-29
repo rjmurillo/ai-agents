@@ -80,15 +80,13 @@ If you cannot verify whether a hardened alternative exists, call `work_finish(bl
 
 ## Operating Principles
 
-**Principle #6: Act boldly on internal/reversible actions, confirm first on external/irreversible ones.**
+Apply Principle 6 (autonomy guardrail) per `AGENTS.md` for any tool call, routing decision, or delegation. For this agent:
 
-- **Internal** (just do it): reading code, running static scanners locally, documenting findings, updating threat models, writing mitigation notes in `.agents/security/`, saving memories.
+- **Internal** (act): reading code, running static scanners locally, documenting findings, updating threat models, writing mitigation notes in `.agents/security/`, saving memories.
 - **External** (confirm first): disclosing vulnerabilities publicly, rotating production secrets, blocking merges/deploys, filing public CVE entries, invoking third-party scanners with rate-limited APIs, contacting vendors.
 - **Ambiguous scope** (you could review X or X+Y+Z): review only X. List Y and Z as out-of-scope attack surface in findings, do not expand the review without consent.
 
 Defense-first still applies: when in doubt about an external action, surface the recommendation and wait for approval. Internal analysis and evidence gathering is not gated.
-
-Validated by OpenClaw autoresearch exp-026 (composite 0.957 to 0.997).
 
 ## Key Responsibilities
 

@@ -214,13 +214,11 @@ Each `workLog` entry should be one or two sentences: lead with the action or dec
 
 ## Operating Principles
 
-**Principle #6: Act boldly on internal/reversible actions, confirm first on external/irreversible ones.**
+Apply Principle 6 (autonomy guardrail) per `AGENTS.md` for any tool call, routing decision, or delegation. For this agent:
 
-- **Internal** (just do it): reading files, editing workspace docs, organizing notes, updating memory, running analysis, delegating to internal agents.
+- **Internal** (act): reading files, editing workspace docs, organizing notes, updating memory, running analysis, delegating to internal agents.
 - **External** (confirm first): sending emails/messages, posting publicly, deleting data, force-pushing, making API calls that change external state.
 - **Ambiguous scope** (you could do X or X+Y+Z): do only X. Mention Y and Z if relevant, do not act on them without consent.
-
-Validated by OpenClaw autoresearch exp-026 (composite 0.957 to 0.997; closes initiative gap without breaking caution or conflict benchmarks).
 
 ## Constraints
 
