@@ -72,26 +72,35 @@ def _count_md_agents(directory: Path, exclude: set[str] | None = None) -> int:
 
 
 def _count_agent_md(directory: Path, exclude: set[str] | None = None) -> int:
-    """Count .agent.md files in a directory."""
-    return sum(1 for f in directory.glob("*.agent.md") if f.is_file())
+    """Count .agent.md files in a directory, excluding specific filenames."""
+    exclude = exclude or set()
+    return sum(
+        1
+        for f in directory.glob("*.agent.md")
+        if f.is_file() and f.name not in exclude
+    )
 
 
 def _count_commands(directory: Path, exclude: set[str] | None = None) -> int:
-    """Count command .md files recursively, excluding CLAUDE.md.
+    """Count command .md files recursively, excluding specific filenames.
 
     Walks pruning EXCLUDED_DIRS; safe against vendored subtrees.
+    Defaults to excluding CLAUDE.md if no exclude set is provided.
     """
-    return _walk_files(directory, ".md", {"CLAUDE.md"})
+    exclude = exclude if exclude is not None else {"CLAUDE.md"}
+    return _walk_files(directory, ".md", exclude)
 
 
 def _count_hooks(directory: Path, exclude: set[str] | None = None) -> int:
     """Count hook .py scripts (all levels), pruning EXCLUDED_DIRS."""
-    return _walk_files(directory, ".py", set())
+    exclude = exclude or set()
+    return _walk_files(directory, ".py", exclude)
 
 
 def _count_skill_dirs(directory: Path, exclude: set[str] | None = None) -> int:
-    """Count immediate subdirectories (each is a skill)."""
-    return sum(1 for d in directory.iterdir() if d.is_dir())
+    """Count immediate subdirectories (each is a skill), excluding specific names."""
+    exclude = exclude or set()
+    return sum(1 for d in directory.iterdir() if d.is_dir() and d.name not in exclude)
 
 
 # Strategy registry. Add new keys ONLY when introducing a fundamentally
