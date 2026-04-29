@@ -24,7 +24,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import re
 import shutil
 import subprocess
@@ -409,9 +408,6 @@ def run(
         audit.blocklist_violations.extend(violations)
         audit.overall_exit = max(audit.overall_exit, 3)
 
-    if audit_format == "json":
-        sys.stdout.write(_format_audit_json(audit))
-
     if check:
         # Limit staleness check to paths the generators actually own. Other
         # working-tree drift (e.g. uv.lock) is the user's responsibility,
@@ -425,7 +421,10 @@ def run(
             print("STALENESS DETECTED — uncommitted regen drift:", file=sys.stderr)
             for p in diff:
                 print(f"  {p}", file=sys.stderr)
-            return 2
+            audit.overall_exit = 2
+
+    if audit_format == "json":
+        sys.stdout.write(_format_audit_json(audit))
 
     return audit.overall_exit
 
