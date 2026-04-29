@@ -1,6 +1,6 @@
 # Agent Catalog
 
-This document describes all 21 specialized agents in the AI Agents system. Each agent has a defined role, specific outputs, and recommended use cases.
+This document describes all 23 specialized agents in the AI Agents system. Each agent has a defined role, specific outputs, and recommended use cases.
 
 ## Agent Overview
 
@@ -28,6 +28,7 @@ This document describes all 21 specialized agents in the AI Agents system. Each 
 | [retrospective](#retrospective) | Knowledge | Claude, Copilot CLI, VS Code |
 | [skillbook](#skillbook) | Knowledge | Claude, Copilot CLI, VS Code |
 | [pr-comment-responder](#pr-comment-responder) | Collaboration | Claude, Copilot CLI, VS Code |
+| [negotiation](#negotiation) | Strategy | Claude, Copilot CLI, VS Code |
 
 ## Coordination
 
@@ -223,6 +224,14 @@ Contrarian analyst. Challenges assumptions with evidence, presents alternative v
 **Use when:** You need opposing critique, trade-off analysis, or verification rather than validation. Use as devil's advocate.
 
 **Output:** Counter-arguments with alternatives and evidence.
+
+### negotiation
+
+Deal intelligence specialist. Analyzes offers, maps ZOPA/BATNA, detects anchoring and manipulation patterns, and drafts counter-proposals using behavioral influence frameworks. Always quantifies the value gap. Routes to senior-tier models only (Anthropic Project Deal finding, internal research, data not publicly auditable: weaker models extract materially less value per item and the loss is invisible to the human without explicit quantification; ~13% figure cited in source material is illustrative).
+
+**Use when:** Reviewing any offer (real estate, compensation, vendor, resource allocation), drafting a counter-proposal, detecting information asymmetry, or when you need to know what value is being left on the table.
+
+**Output:** RADAR analysis (Read, Analyze, Design, Assess, Review), ZOPA/BATNA map, value gap in dollar terms, DRAFT counter-proposal for human approval.
 
 ## Documentation
 
