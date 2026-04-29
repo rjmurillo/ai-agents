@@ -76,6 +76,59 @@ def test_format_audit_json_round_trip() -> None:
     assert payload["results"][0]["outputs"] == 72
 
 
+def test_format_audit_md_emits_per_matcher_hook_rows() -> None:
+    """Hook entries render as a per-platform subsection (P1-5).
+
+    Security review needs the matcher -> file mapping in the rendered
+    audit so it can reconstruct what each generated script does without
+    grepping source.
+    """
+    audit = build_all.BuildAudit(started_at=0.0, duration_s=0.0, overall_exit=0)
+    audit.results.append(
+        build_all.GeneratorResult(
+            artifact="hooks",
+            platform="copilot-cli",
+            outputs=2,
+            hook_entries=[
+                {
+                    "event_source": "PreToolUse",
+                    "event_target": "preToolUse",
+                    "matcher": "Bash(git commit*)",
+                    "script": "PreToolUse/guard.py",
+                    "target": "src/copilot-cli/hooks/preToolUse/guard__Bash_git_commit_abc123.py",
+                    "action": "emitted",
+                },
+                {
+                    "event_source": "SubagentStop",
+                    "event_target": "",
+                    "matcher": "",
+                    "script": "SubagentStop/foo.py",
+                    "target": "(dropped)",
+                    "action": "dropped",
+                },
+            ],
+        )
+    )
+    md = build_all._format_audit_md(audit)
+    assert "### Hooks (copilot-cli)" in md
+    assert "Bash(git commit*)" in md
+    assert "guard__Bash_git_commit_abc123.py" in md
+    # Dropped row uses (none) for empty matcher and (dropped) target.
+    assert "| SubagentStop | (none) | (dropped) | dropped |" in md
+
+
+def test_format_audit_md_no_hook_subsection_when_no_hook_entries() -> None:
+    """A hooks generator with no hook_entries omits the subsection."""
+    audit = build_all.BuildAudit(started_at=0.0, duration_s=0.0, overall_exit=0)
+    audit.results.append(
+        build_all.GeneratorResult(
+            artifact="skills", platform="copilot-cli", outputs=1
+        )
+    )
+    md = build_all._format_audit_md(audit)
+    assert "### Hooks" not in md
+
+
 # Blocklist enforcement (REQ-003-011) ---------------------------------------
 
 

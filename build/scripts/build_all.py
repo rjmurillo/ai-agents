@@ -53,7 +53,14 @@ sys.path.insert(0, str(_BUILD_DIR))
 
 @dataclass
 class GeneratorResult:
-    """One generator's contribution to the audit log."""
+    """One generator's contribution to the audit log.
+
+    ``hook_entries`` carries optional per-script audit detail emitted by
+    the hooks generator (REQ-003-007). Each entry is a dict with the
+    keys ``event_source``, ``event_target``, ``matcher``, ``script``,
+    and ``action`` so security review can reconstruct the matcher ->
+    file mapping without grepping source.
+    """
 
     artifact: str
     platform: str
@@ -62,6 +69,7 @@ class GeneratorResult:
     skipped: int = 0
     notices: list[str] = field(default_factory=list)
     exit_code: int = 0
+    hook_entries: list[dict[str, str]] = field(default_factory=list)
 
 
 @dataclass
@@ -241,6 +249,35 @@ def _build_hooks(repo_root: Path, config_path: Path, platform: str) -> Generator
             f"{platform}: dropped {run_result.dropped} hook entr"
             f"{'y' if run_result.dropped == 1 else 'ies'} (eventDrop)"
         )
+    # Surface the per-script audit detail to the rendered markdown so
+    # security review sees matcher -> file mapping without grep. The
+    # generator owns the suffix scheme; we re-derive the on-disk
+    # filename here using the same helper.
+    from generate_hooks import _matcher_suffix
+
+    output_scripts = stanza.get("outputScripts")
+    for entry in run_result.entries:
+        if entry.action == "emitted" and isinstance(output_scripts, str) and entry.event_target:
+            stem = Path(entry.script).stem
+            suffix = _matcher_suffix(entry.matcher) if entry.matcher else ""
+            file_name = f"{stem}__{suffix}.py" if suffix else f"{stem}.py"
+            target = f"{output_scripts}/{entry.event_target}/{file_name}"
+        elif entry.action == "dropped":
+            target = "(dropped)"
+        elif entry.action == "sentinel-skipped":
+            target = "(NO-REGEN)"
+        else:
+            target = ""
+        result.hook_entries.append(
+            {
+                "event_source": entry.event_source,
+                "event_target": entry.event_target or "",
+                "matcher": entry.matcher or "",
+                "script": entry.script,
+                "target": target,
+                "action": entry.action,
+            }
+        )
     return result
 
 
@@ -319,6 +356,26 @@ def _format_audit_md(audit: BuildAudit) -> str:
             f"| {r.artifact} | {r.platform} | {r.inputs} | {r.outputs} "
             f"| {r.skipped} | {r.exit_code} |"
         )
+    # Per-script hook detail (REQ-003-007): one subsection per platform
+    # whose hooks generator produced entries. Lets security review map
+    # each generated file back to its source matcher without grep.
+    for r in audit.results:
+        if r.artifact != "hooks" or not r.hook_entries:
+            continue
+        lines.append("")
+        lines.append(f"### Hooks ({r.platform})")
+        lines.append("")
+        lines.append("| Claude Event | Matcher | Target | Action |")
+        lines.append("|---|---|---|---|")
+        for entry in r.hook_entries:
+            matcher = entry.get("matcher") or "(none)"
+            lines.append(
+                f"| {entry.get('event_source', '')} "
+                f"| {matcher} "
+                f"| {entry.get('target', '')} "
+                f"| {entry.get('action', '')} |"
+            )
+
     if audit.blocklist_violations:
         lines.append("")
         lines.append("## Blocklist violations")
@@ -347,6 +404,7 @@ def _format_audit_json(audit: BuildAudit) -> str:
                 "skipped": r.skipped,
                 "notices": r.notices,
                 "exit_code": r.exit_code,
+                "hook_entries": r.hook_entries,
             }
             for r in audit.results
         ],
