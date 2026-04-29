@@ -7,16 +7,66 @@ under ``.claude/hooks/`` into the Copilot output tree, and emits a
 ``hooks.json`` with the Copilot wire shape (``version: 1`` wrapper,
 lowercase event names, no ``matcher`` field, ``cwd``-relative invocation).
 
-This module ships the **core** in M5-T1. The matcher shim injector
-(REQ-003-007 step 5) and idempotency (M5-T3) are added in subsequent
-commits. Until then, scripts are copied verbatim and the Copilot config
-omits matcher information; entries with a Claude-side ``matcher``
-silently cover all tool calls.
+Each Claude hook with a ``matcher`` is wrapped in a tiny Python shim
+that buffers stdin once, classifies the matcher, and either dispatches
+to the original script or exits 0 silently when the matcher does not
+fire. Scripts without a matcher are copied verbatim.
 
-EXIT CODES:
-  0 - success
-  1 - logic error (script not found, copy failure)
-  2 - configuration error (missing stanza, malformed JSON, etc.)
+MATCHER GRAMMAR
+---------------
+
+Three classes are supported (see :func:`classify_matcher`):
+
+- ``regex``: pattern starts with ``^`` AND ends with ``$``.
+  Example: ``^(Edit|Write)$`` (anchored full-tool-name match).
+- ``tool-glob``: pattern matches ``^[A-Za-z_]\\w*\\((.*)\\)$``.
+  Example: ``Bash(git commit*|gh pr create*)`` (toolName then
+  fnmatch on the args). ``|`` inside the parens is OR-folded across
+  branches; whitespace in tool args is collapsed before matching.
+- ``bare``: anything else; treated as a literal tool name.
+  Example: ``mcp__serena__write_memory``.
+
+Adding a new matcher kind requires updating BOTH classifiers
+(:func:`classify_matcher` build-time and ``_shim_classify`` runtime,
+inlined into the shim template by :func:`_build_shim`) plus the
+parametrized tests in ``tests/build_scripts/test_generate_hooks.py``.
+
+FILENAME SCHEME
+---------------
+
+When two matchers point at the same source script (e.g. one guard
+script registered under both ``Bash(git commit*)`` and
+``Bash(gh pr create*)``), the generator writes one shimmed copy per
+matcher to the output tree. Filenames carry a sanitized matcher
+suffix plus a 6-char SHA-1 hash so distinct matchers MUST produce
+distinct filenames; the hash closes a silent-clobber gate-bypass
+class of bug. See :func:`_matcher_suffix`.
+
+SHIM CRASH POLICY
+-----------------
+
+The shim exits with code 0 when the matcher does not fire (no-op
+allow), 0 with the wrapped script's exit code when it does fire, and
+2 to stderr on any internal error: missing ``toolName`` field,
+malformed JSON on stdin, regex parse failure. NEVER 0 silently on a
+malformed input; that would silently allow tool calls past a
+broken hook.
+
+DEBUG TRACE
+-----------
+
+Set ``COPILOT_HOOK_DEBUG=1`` in the environment to make every shim
+write a one-line trace to stderr after the dispatch decision. The
+trace records the matcher, classified kind, and fired bool. Unset
+means no trace and no perf cost beyond a single
+``os.environ.get``.
+
+EXIT CODES
+----------
+
+- 0: success
+- 1: logic error (script not found, copy failure)
+- 2: configuration error (missing stanza, malformed JSON, etc.)
 
 Per ADR-035 Exit Code Standardization.
 """
