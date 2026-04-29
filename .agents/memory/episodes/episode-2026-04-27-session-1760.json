@@ -1,0 +1,20 @@
+{
+  "id": "episode-2026-04-27-session-1760",
+  "session": "2026-04-27-session-1760",
+  "timestamp": "2026-04-29T04:02:16.350746+00:00",
+  "outcome": "partial",
+  "task": "",
+  "decisions": [],
+  "events": [],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 0
+  },
+  "lessons": [
+    "\"Evidence\": \"Deferred; lessons captured in PR description\""
+  ]
+}

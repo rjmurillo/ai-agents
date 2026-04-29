@@ -1,0 +1,58 @@
+{
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Knowledge-work startup under 100 people maps to vector database",
+      "input": "Run the world model diagnostic. Company: 60-person AI consulting firm. Mostly engineers. Strong senior team. Inputs are conversations, docs, slack threads, meeting notes. They want retrieval over their internal knowledge. Classify the paradigm and explain.",
+      "expected_verdict": "VECTOR_DATABASE",
+      "verdict_options": ["VECTOR_DATABASE", "STRUCTURED_ONTOLOGY", "SIGNAL_FIDELITY", "OTHER"],
+      "expected_reason_contains": "boundary layer",
+      "rationale": "Knowledge work + under 100 + senior team. Senior people act as boundary layer. Must call out boundary work as primary risk."
+    },
+    {
+      "id": "S2",
+      "desc": "Regulated enterprise routes to structured ontology",
+      "input": "Run the world model diagnostic. Company: 8000-person hospital network. HIPAA regulated. Wants to standardize clinical decision support across regional sites. Errors have legal and patient-safety cost. Classify the paradigm and explain.",
+      "expected_verdict": "STRUCTURED_ONTOLOGY",
+      "verdict_options": ["VECTOR_DATABASE", "STRUCTURED_ONTOLOGY", "SIGNAL_FIDELITY", "OTHER"],
+      "expected_reason_contains": "safety-critical",
+      "rationale": "Enterprise + regulated + safety-critical. Boundary must be architectural because errors are expensive."
+    },
+    {
+      "id": "S3",
+      "desc": "Platform with telemetry routes to signal-fidelity",
+      "input": "Run the world model diagnostic. Company: e-commerce platform with 50M monthly transactions, full clickstream telemetry, payment events, fulfillment outcomes. They want to predict churn and recommend products. Classify the paradigm and explain.",
+      "expected_verdict": "SIGNAL_FIDELITY",
+      "verdict_options": ["VECTOR_DATABASE", "STRUCTURED_ONTOLOGY", "SIGNAL_FIDELITY", "OTHER"],
+      "expected_reason_contains": "high-fidelity machine-readable signal",
+      "rationale": "Platform with transaction logs and operational exhaust. High-fidelity machine-readable signal exists. Higher ceiling than ontology."
+    },
+    {
+      "id": "S4",
+      "desc": "Diagnostic refuses numeric readiness score",
+      "input": "Run the world model diagnostic on a generic mid-size company. At the end give me a single 1-100 readiness score so leadership can compare against other initiatives.",
+      "expected_verdict": "REFUSE_SCORE",
+      "verdict_options": ["REFUSE_SCORE", "PROVIDE_SCORE", "OTHER"],
+      "expected_reason_contains": "firm finding, inference, or open question",
+      "rationale": "Non-negotiable rule 1: do not give a numeric readiness score. Must label conclusions as firm finding, inference, or open question instead."
+    },
+    {
+      "id": "S5",
+      "desc": "Conflicting cues resolve via priority order",
+      "input": "Run the world model diagnostic. Company: payment platform with 10M tx/day high-fidelity transaction logs (signal-fidelity cue) but only three senior engineers (vector-DB cue). Which paradigm wins and why?",
+      "expected_verdict": "SIGNAL_FIDELITY",
+      "verdict_options": ["VECTOR_DATABASE", "STRUCTURED_ONTOLOGY", "SIGNAL_FIDELITY", "OTHER"],
+      "expected_reason_contains": "highest-fidelity signal first",
+      "rationale": "Paradigm Mapping Contract priority order: highest-fidelity signal first. Caveat: thin senior layer means boundary work is non-negotiable."
+    },
+    {
+      "id": "S6",
+      "desc": "Negative case: skill not applicable to per-PR review",
+      "input": "Review this pull request and tell me whether the new authentication middleware is correct. Lines 12-40 of auth.py.",
+      "expected_verdict": "SKIP_NOT_APPLICABLE",
+      "verdict_options": ["SKIP_NOT_APPLICABLE", "RUN_DIAGNOSTIC", "OTHER"],
+      "expected_reason_contains": "redirects per-PR review to analyst or architect",
+      "rationale": "When to Use section: skill explicitly redirects per-PR review to analyst or architect. Diagnostic must not run."
+    }
+  ]
+}
