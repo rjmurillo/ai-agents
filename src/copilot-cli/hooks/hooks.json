@@ -1,0 +1,211 @@
+{
+  "hooks": {
+    "postToolUse": [
+      {
+        "bash": "python3 -u \"./hooks/postToolUse/invoke_markdown_auto_lint__Write_Edit.py\"",
+        "cwd": ".",
+        "powershell": "py -3 -u \"./hooks/postToolUse/invoke_markdown_auto_lint__Write_Edit.py\"",
+        "timeoutSec": 30,
+        "type": "command"
+      },
+      {
+        "bash": "python3 -u \"./hooks/postToolUse/invoke_adr_lifecycle_hook__Write_Edit.py\"",
+        "cwd": ".",
+        "powershell": "py -3 -u \"./hooks/postToolUse/invoke_adr_lifecycle_hook__Write_Edit.py\"",
+        "timeoutSec": 30,
+        "type": "command"
+      },
+      {
+        "bash": "python3 -u \"./hooks/postToolUse/invoke_adr_lifecycle_hook__Bash.py\"",
+        "cwd": ".",
+        "powershell": "py -3 -u \"./hooks/postToolUse/invoke_adr_lifecycle_hook__Bash.py\"",
+        "timeoutSec": 30,
+        "type": "command"
+      },
+      {
+        "bash": "python3 -u \"./hooks/postToolUse/invoke_observation_sync__mcp_serena_write_memory.py\"",
+        "cwd": ".",
+        "powershell": "py -3 -u \"./hooks/postToolUse/invoke_observation_sync__mcp_serena_write_memory.py\"",
+        "timeoutSec": 30,
+        "type": "command"
+      }
+    ],
+    "preToolUse": [
+      {
+        "bash": "python3 -u \"./hooks/preToolUse/invoke_routing_gates__Bash.py\"",
+        "cwd": ".",
+        "powershell": "py -3 -u \"./hooks/preToolUse/invoke_routing_gates__Bash.py\"",
+        "timeoutSec": 5,
+        "type": "command"
+      },
+      {
+        "bash": "python3 -u \"./hooks/preToolUse/invoke_skill_first_guard__Bash.py\"",
+        "cwd": ".",
+        "powershell": "py -3 -u \"./hooks/preToolUse/invoke_skill_first_guard__Bash.py\"",
+        "timeoutSec": 30,
+        "type": "command"
+      },
+      {
+        "bash": "python3 -u \"./hooks/preToolUse/invoke_correction_applier__Bash.py\"",
+        "cwd": ".",
+        "powershell": "py -3 -u \"./hooks/preToolUse/invoke_correction_applier__Bash.py\"",
+        "timeoutSec": 3,
+        "type": "command"
+      },
+      {
+        "bash": "python3 -u \"./hooks/preToolUse/invoke_session_log_guard__Bash_git_commit.py\"",
+        "cwd": ".",
+        "powershell": "py -3 -u \"./hooks/preToolUse/invoke_session_log_guard__Bash_git_commit.py\"",
+        "timeoutSec": 30,
+        "type": "command"
+      },
+      {
+        "bash": "python3 -u \"./hooks/preToolUse/invoke_branch_context_guard__Bash_git_commit.py\"",
+        "cwd": ".",
+        "powershell": "py -3 -u \"./hooks/preToolUse/invoke_branch_context_guard__Bash_git_commit.py\"",
+        "timeoutSec": 30,
+        "type": "command"
+      },
+      {
+        "bash": "python3 -u \"./hooks/preToolUse/invoke_adr_review_guard__Bash_git_commit.py\"",
+        "cwd": ".",
+        "powershell": "py -3 -u \"./hooks/preToolUse/invoke_adr_review_guard__Bash_git_commit.py\"",
+        "timeoutSec": 30,
+        "type": "command"
+      },
+      {
+        "bash": "python3 -u \"./hooks/preToolUse/invoke_branch_protection_guard__Bash_git_commit.py\"",
+        "cwd": ".",
+        "powershell": "py -3 -u \"./hooks/preToolUse/invoke_branch_protection_guard__Bash_git_commit.py\"",
+        "timeoutSec": 30,
+        "type": "command"
+      },
+      {
+        "bash": "python3 -u \"./hooks/preToolUse/invoke_security_commit_gate__Bash_git_commit.py\"",
+        "cwd": ".",
+        "powershell": "py -3 -u \"./hooks/preToolUse/invoke_security_commit_gate__Bash_git_commit.py\"",
+        "timeoutSec": 10,
+        "type": "command"
+      },
+      {
+        "bash": "python3 -u \"./hooks/preToolUse/invoke_prompt_eval_gate__Bash_git_commit.py\"",
+        "cwd": ".",
+        "powershell": "py -3 -u \"./hooks/preToolUse/invoke_prompt_eval_gate__Bash_git_commit.py\"",
+        "timeoutSec": 10,
+        "type": "command"
+      },
+      {
+        "bash": "python3 -u \"./hooks/preToolUse/invoke_session_log_guard__Bash_gh_pr_create.py\"",
+        "cwd": ".",
+        "powershell": "py -3 -u \"./hooks/preToolUse/invoke_session_log_guard__Bash_gh_pr_create.py\"",
+        "timeoutSec": 30,
+        "type": "command"
+      },
+      {
+        "bash": "python3 -u \"./hooks/preToolUse/invoke_security_gate__Write_Edit.py\"",
+        "cwd": ".",
+        "powershell": "py -3 -u \"./hooks/preToolUse/invoke_security_gate__Write_Edit.py\"",
+        "timeoutSec": 30,
+        "type": "command"
+      },
+      {
+        "bash": "python3 -u \"./hooks/preToolUse/invoke_branch_context_guard__Bash_git_push.py\"",
+        "cwd": ".",
+        "powershell": "py -3 -u \"./hooks/preToolUse/invoke_branch_context_guard__Bash_git_push.py\"",
+        "timeoutSec": 30,
+        "type": "command"
+      },
+      {
+        "bash": "python3 -u \"./hooks/preToolUse/invoke_branch_protection_guard__Bash_git_push.py\"",
+        "cwd": ".",
+        "powershell": "py -3 -u \"./hooks/preToolUse/invoke_branch_protection_guard__Bash_git_push.py\"",
+        "timeoutSec": 30,
+        "type": "command"
+      },
+      {
+        "bash": "python3 -u \"./hooks/preToolUse/invoke_retrospective_gate__Bash_git_push.py\"",
+        "cwd": ".",
+        "powershell": "py -3 -u \"./hooks/preToolUse/invoke_retrospective_gate__Bash_git_push.py\"",
+        "timeoutSec": 30,
+        "type": "command"
+      },
+      {
+        "bash": "python3 -u \"./hooks/preToolUse/invoke_adr_architect_gate__Edit_Write.py\"",
+        "cwd": ".",
+        "powershell": "py -3 -u \"./hooks/preToolUse/invoke_adr_architect_gate__Edit_Write.py\"",
+        "timeoutSec": 30,
+        "type": "command"
+      }
+    ],
+    "sessionEnd": [
+      {
+        "bash": "python3 -u \"./hooks/sessionEnd/invoke_skill_learning.py\"",
+        "cwd": ".",
+        "powershell": "py -3 -u \"./hooks/sessionEnd/invoke_skill_learning.py\"",
+        "timeoutSec": 30,
+        "type": "command"
+      },
+      {
+        "bash": "python3 -u \"./hooks/sessionEnd/invoke_session_validator.py\"",
+        "cwd": ".",
+        "powershell": "py -3 -u \"./hooks/sessionEnd/invoke_session_validator.py\"",
+        "timeoutSec": 30,
+        "type": "command"
+      }
+    ],
+    "sessionStart": [
+      {
+        "bash": "python3 -u \"./hooks/sessionStart/invoke_session_initialization_enforcer.py\"",
+        "cwd": ".",
+        "powershell": "py -3 -u \"./hooks/sessionStart/invoke_session_initialization_enforcer.py\"",
+        "timeoutSec": 30,
+        "type": "command"
+      },
+      {
+        "bash": "python3 -u \"./hooks/sessionStart/invoke_memory_first_enforcer.py\"",
+        "cwd": ".",
+        "powershell": "py -3 -u \"./hooks/sessionStart/invoke_memory_first_enforcer.py\"",
+        "timeoutSec": 30,
+        "type": "command"
+      },
+      {
+        "bash": "python3 -u \"./hooks/sessionStart/invoke_session_start_memory_first.py\"",
+        "cwd": ".",
+        "powershell": "py -3 -u \"./hooks/sessionStart/invoke_session_start_memory_first.py\"",
+        "timeoutSec": 30,
+        "type": "command"
+      },
+      {
+        "bash": "python3 -u \"./hooks/sessionStart/invoke_adr_change_detection.py\"",
+        "cwd": ".",
+        "powershell": "py -3 -u \"./hooks/sessionStart/invoke_adr_change_detection.py\"",
+        "timeoutSec": 30,
+        "type": "command"
+      }
+    ],
+    "userPromptSubmitted": [
+      {
+        "bash": "python3 -u \"./hooks/userPromptSubmitted/invoke_autonomous_execution_detector.py\"",
+        "cwd": ".",
+        "powershell": "py -3 -u \"./hooks/userPromptSubmitted/invoke_autonomous_execution_detector.py\"",
+        "timeoutSec": 30,
+        "type": "command"
+      },
+      {
+        "bash": "python3 -u \"./hooks/userPromptSubmitted/invoke_research_then_implement.py\"",
+        "cwd": ".",
+        "powershell": "py -3 -u \"./hooks/userPromptSubmitted/invoke_research_then_implement.py\"",
+        "timeoutSec": 3,
+        "type": "command"
+      },
+      {
+        "bash": "python3 -u \"./hooks/userPromptSubmitted/invoke_user_prompt_memory_check.py\"",
+        "cwd": ".",
+        "powershell": "py -3 -u \"./hooks/userPromptSubmitted/invoke_user_prompt_memory_check.py\"",
+        "timeoutSec": 30,
+        "type": "command"
+      }
+    ]
+  },
+  "version": 1
+}
