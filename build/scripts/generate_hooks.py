@@ -89,6 +89,12 @@ def classify_matcher(pattern: str) -> tuple[str, dict[str, str]]:
     1. Pattern starts with ``^`` AND ends with ``$`` -> regex.
     2. Pattern matches ``^[A-Za-z_]\\w*\\(.*\\)$`` -> tool-glob.
     3. Otherwise -> bare tool name.
+
+    MIRROR: ``classify_matcher`` (build-time, this function) and
+    ``_shim_classify`` (runtime, inlined into the shim template by
+    :func:`_build_shim`) MUST agree on the grammar. Update both when
+    the grammar changes; the live-corpus test only exercises the
+    build-time version, so a runtime-only drift will not be caught.
     """
     if pattern.startswith("^") and pattern.endswith("$"):
         return MATCHER_REGEX, {"pattern": pattern}
@@ -190,6 +196,9 @@ _MATCHER = {matcher!r}
 
 
 def _shim_classify(pattern):
+    # MIRROR: classify_matcher (build-time, build/scripts/generate_hooks.py)
+    # and _shim_classify (runtime, this inlined copy) MUST agree on the
+    # grammar. Update both when the grammar changes.
     if pattern.startswith("^") and pattern.endswith("$"):
         return "regex", {{"pattern": pattern}}
     m = _re.match(r"^([A-Za-z_][A-Za-z0-9_]*)\\((.*)\\)$", pattern)
