@@ -19,10 +19,10 @@ from pathlib import Path
 import pytest
 
 from scripts.validation.skill_frontmatter import (
-    DATED_SNAPSHOT_PATTERN,
-    VALID_MODEL_ALIASES,
     _NAME_PATTERN,
     _XML_TAG_PATTERN,
+    DATED_SNAPSHOT_PATTERN,
+    VALID_MODEL_ALIASES,
     parse_frontmatter,
 )
 
