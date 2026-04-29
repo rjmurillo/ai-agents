@@ -49,6 +49,7 @@ from generate_agents_common import (  # noqa: E402
     read_yaml_frontmatter,
 )
 from yaml_loader import ConfigError, load_platform_config  # noqa: E402
+from regen_guard import detect_reason as regen_detect_reason  # noqa: E402
 
 
 def read_artifacts_stanza(config_path: Path, artifact: str) -> dict[str, object] | None:
@@ -289,6 +290,16 @@ def generate_agents(
             elif what_if:
                 print(f"  Would generate: {output_file}")
             else:
+                # REQ-003-008: respect NO-REGEN sentinel (in-file marker or
+                # .noregen sidecar). Skip the write and emit NOTICE so the
+                # operator sees the protection happened.
+                reason = regen_detect_reason(output_file)
+                if reason is not None:
+                    print(
+                        f"  NOTICE: skipped {output_file} "
+                        f"(NO-REGEN: {reason})"
+                    )
+                    continue
                 output_dir.mkdir(parents=True, exist_ok=True)
                 output_file.write_bytes(output_content.encode("utf-8"))
                 print(f"  Generated: {platform_name}")
