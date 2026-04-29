@@ -8,6 +8,7 @@ import json
 import sys
 from copy import deepcopy
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -24,7 +25,7 @@ load_document = mod.load_document
 main = mod.main
 
 
-def _minimal_valid_document() -> dict:
+def _minimal_valid_document() -> dict[str, Any]:
     return {
         "schema_version": "1.0.0",
         "team": {"name": "Platform"},
@@ -259,7 +260,7 @@ class TestLoadDocument:
     def test_load_from_file(self, tmp_path: Path) -> None:
         target = tmp_path / "model.json"
         target.write_text(json.dumps(_minimal_valid_document()))
-        document = load_document(str(target))
+        document = load_document(str(target), validate_path=False)
         assert document["team"]["name"] == "Platform"
 
     def test_load_from_stdin(self) -> None:
@@ -270,12 +271,18 @@ class TestLoadDocument:
 
     def test_load_missing_file_raises(self, tmp_path: Path) -> None:
         with pytest.raises(FileNotFoundError):
-            load_document(str(tmp_path / "missing.json"))
+            load_document(str(tmp_path / "missing.json"), validate_path=False)
 
     def test_load_invalid_json_raises(self, tmp_path: Path) -> None:
         target = tmp_path / "bad.json"
         target.write_text("{not json")
         with pytest.raises(json.JSONDecodeError):
+            load_document(str(target), validate_path=False)
+
+    def test_path_traversal_blocked(self, tmp_path: Path) -> None:
+        target = tmp_path / "model.json"
+        target.write_text(json.dumps(_minimal_valid_document()))
+        with pytest.raises(PermissionError, match="path traversal blocked"):
             load_document(str(target))
 
 
@@ -287,7 +294,7 @@ class TestMainCLI:
     ) -> None:
         target = tmp_path / "model.json"
         target.write_text(json.dumps(_minimal_valid_document()))
-        rc = main([str(target)])
+        rc = main(["--skip-path-validation", str(target)])
         captured = capsys.readouterr()
         assert rc == 0
         assert "ok" in captured.out
@@ -299,7 +306,7 @@ class TestMainCLI:
         bad = _minimal_valid_document()
         del bad["team"]
         target.write_text(json.dumps(bad))
-        rc = main([str(target)])
+        rc = main(["--skip-path-validation", str(target)])
         captured = capsys.readouterr()
         assert rc == 1
         assert "team" in captured.err
@@ -307,7 +314,7 @@ class TestMainCLI:
     def test_main_returns_2_for_missing_file(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        rc = main([str(tmp_path / "missing.json")])
+        rc = main(["--skip-path-validation", str(tmp_path / "missing.json")])
         captured = capsys.readouterr()
         assert rc == 2
         assert "file not found" in captured.err
@@ -317,10 +324,20 @@ class TestMainCLI:
     ) -> None:
         target = tmp_path / "bad.json"
         target.write_text("{not json")
-        rc = main([str(target)])
+        rc = main(["--skip-path-validation", str(target)])
         captured = capsys.readouterr()
         assert rc == 1
         assert "invalid JSON" in captured.err
+
+    def test_main_blocks_traversal(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        target = tmp_path / "model.json"
+        target.write_text(json.dumps(_minimal_valid_document()))
+        rc = main([str(target)])
+        captured = capsys.readouterr()
+        assert rc == 2
+        assert "path traversal blocked" in captured.err
 
     def test_main_no_args_exits_2(self, capsys: pytest.CaptureFixture[str]) -> None:
         with pytest.raises(SystemExit) as excinfo:

@@ -17,7 +17,7 @@ The skill emits a single canonical JSON document. The optional markdown views (`
 }
 ```
 
-All seven keys are required. A missing key is a schema failure.
+All eight keys are required. A missing key is a schema failure.
 
 ## `schema_version`
 
@@ -144,7 +144,7 @@ Only items where `documentation_status` is `none` or `partial` should appear her
 
 The validator (`scripts/validate_operating_model.py`) enforces:
 
-- All seven top-level keys present.
+- All eight top-level keys present.
 - `schema_version` is the literal string `"1.0.0"`.
 - `team.name` is a non-empty string.
 - `metadata.interview_date` matches `YYYY-MM-DD`.

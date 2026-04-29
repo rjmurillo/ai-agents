@@ -21,6 +21,7 @@ import argparse
 import json
 import re
 import sys
+from pathlib import Path
 from typing import Any
 
 SCHEMA_VERSION = "1.0.0"
@@ -109,6 +110,9 @@ def _validate_rhythms(rhythms: Any) -> list[str]:
         errors.append("rhythms.cadences: must be a list")
     else:
         for i, cadence in enumerate(cadences):
+            if not isinstance(cadence, dict):
+                errors.append(f"rhythms.cadences[{i}]: must be an object")
+                continue
             errors.extend(
                 _validate_enum(cadence, "source", ALLOWED_SOURCE, f"rhythms.cadences[{i}]")
             )
@@ -128,6 +132,9 @@ def _validate_decisions(decisions: Any) -> list[str]:
     else:
         for i, right in enumerate(rights):
             prefix = f"decisions.decision_rights[{i}]"
+            if not isinstance(right, dict):
+                errors.append(f"{prefix}: must be an object")
+                continue
             errors.extend(_validate_enum(right, "formality", ALLOWED_FORMALITY, prefix))
             errors.extend(_validate_enum(right, "source", ALLOWED_SOURCE, prefix))
     triggers = decisions.get("review_triggers", [])
@@ -147,6 +154,9 @@ def _validate_dependencies(dependencies: Any) -> list[str]:
             continue
         for i, item in enumerate(items):
             prefix = f"dependencies.{direction}[{i}]"
+            if not isinstance(item, dict):
+                errors.append(f"{prefix}: must be an object")
+                continue
             errors.extend(_validate_enum(item, "criticality", ALLOWED_CRITICALITY, prefix))
             errors.extend(_validate_enum(item, "source", ALLOWED_SOURCE, prefix))
     return errors
@@ -161,6 +171,9 @@ def _validate_institutional_knowledge(knowledge: Any) -> list[str]:
         errors.append("institutional_knowledge.tacit: must be a list")
     else:
         for i, item in enumerate(tacit):
+            if not isinstance(item, dict):
+                errors.append(f"institutional_knowledge.tacit[{i}]: must be an object")
+                continue
             errors.extend(
                 _validate_enum(
                     item,
@@ -182,6 +195,9 @@ def _validate_friction(friction: Any) -> list[str]:
     else:
         for i, blocker in enumerate(blockers):
             prefix = f"friction.blockers[{i}]"
+            if not isinstance(blocker, dict):
+                errors.append(f"{prefix}: must be an object")
+                continue
             errors.extend(_validate_enum(blocker, "impact", ALLOWED_IMPACT, prefix))
             errors.extend(_validate_enum(blocker, "category", ALLOWED_CATEGORY, prefix))
     return errors
@@ -230,12 +246,64 @@ def _validate_enum(
     return []
 
 
-def load_document(path: str) -> Any:
-    """Read and parse the JSON document. Raises ValueError on bad input."""
+def _resolve_path_safely(path: str) -> Path:
+    """Resolve a CLI path argument, blocking traversal that escapes the cwd boundary.
+
+    Resolves symlinks via Path.resolve() so symlink-based traversal cannot bypass
+    containment. Anchors relative paths to the current working directory and rejects
+    any resolved path that escapes both the cwd and the repository root (when one
+    can be located).
+    """
+    candidate = Path(path)  # security-scan: ignore CWE-22
+    resolved = (
+        candidate.resolve() if candidate.is_absolute() else (Path.cwd() / candidate).resolve()
+    )
+
+    cwd = Path.cwd().resolve()
+    if resolved.is_relative_to(cwd):
+        return resolved
+
+    repo_root = _find_repo_root()
+    if repo_root is not None and resolved.is_relative_to(repo_root):
+        return resolved
+
+    raise PermissionError(
+        f"path traversal blocked: '{path}' resolves to '{resolved}' which is outside cwd '{cwd}'"
+    )
+
+
+def _find_repo_root() -> Path | None:
+    """Walk upward from this file until a .git directory is found."""
+    for parent in Path(__file__).resolve().parents:  # security-scan: ignore CWE-22
+        if (parent / ".git").exists():
+            return parent
+    return None
+
+
+def load_document(path: str, validate_path: bool = True) -> Any:
+    """Read and parse JSON from a file path or stdin.
+
+    Args:
+        path: File path, or '-' for stdin.
+        validate_path: When True (default), enforce CWE-22 containment via
+            ``_resolve_path_safely``. Tests may pass False to read fixture
+            files outside the repository (for example, ``pytest`` ``tmp_path``).
+
+    Raises:
+        FileNotFoundError: when the file does not exist.
+        OSError: when the file cannot be read.
+        json.JSONDecodeError: when input is not valid JSON.
+        PermissionError: when ``validate_path`` is True and ``path`` resolves
+            outside the cwd or repository root.
+    """
     if path == "-":
         text = sys.stdin.read()
     else:
-        with open(path, encoding="utf-8") as handle:
+        if validate_path:
+            target = _resolve_path_safely(path)
+        else:
+            target = Path(path)  # security-scan: ignore CWE-22
+        with open(target, encoding="utf-8") as handle:  # security-scan: ignore CWE-22
             text = handle.read()
     return json.loads(text)
 
@@ -249,12 +317,20 @@ def main(argv: list[str] | None = None) -> int:
         "path",
         help="Path to operating-model.json. Use '-' to read from stdin.",
     )
+    parser.add_argument(
+        "--skip-path-validation",
+        action="store_true",
+        help="Skip CWE-22 path containment check (for testing only).",
+    )
     args = parser.parse_args(argv)
 
     try:
-        document = load_document(args.path)
+        document = load_document(args.path, validate_path=not args.skip_path_validation)
     except FileNotFoundError:
         print(f"error: file not found: {args.path}", file=sys.stderr)
+        return 2
+    except PermissionError as exc:
+        print(f"error: {exc}", file=sys.stderr)
         return 2
     except json.JSONDecodeError as exc:
         print(f"error: invalid JSON: {exc}", file=sys.stderr)

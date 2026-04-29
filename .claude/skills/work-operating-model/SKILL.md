@@ -18,7 +18,7 @@ A conversation-first elicitation skill. Surface what is documented, what is taci
 | `interview team operating model` | Start the 5-layer interview |
 | `how does this team actually work` | Start the 5-layer interview |
 | `resume operating model interview` | Continue from the last completed layer |
-| `validate operating model` | Run `scripts/validate_operating_model.py` against an output JSON |
+| `validate operating model` | Run scripts/validate_operating_model.py against an output JSON |
 
 ## When to Use
 
@@ -57,13 +57,31 @@ The interview proceeds in order. Each layer answers one question and produces on
 
 For the full prompt list per layer, read `references/layer-questions.md`. For the output JSON contract, read `references/entry-contract.md`.
 
-## Workflow
+## Process
+
+The interview runs in three phases.
+
+### Phase 1: Open
 
 1. **Open**: Confirm scope (team name, what they own, size). Write the `team` section.
+
+### Phase 2: Layer Pass
+
 2. **Layer pass**: For each layer 1 through 5, ask the question, capture answers, record them in the relevant output section. After each layer, summarize back to the user and confirm before moving on.
 3. **Distinguish**: For every captured item, mark it as `documented` (link the doc) or `tacit` (note the source person). Disagreement between sources is a finding, not an error.
+
+### Phase 3: Close and Validate
+
 4. **Close**: Write the JSON to `<workspace>/operating-model.json` (caller chooses workspace). Optionally also emit `USER.md`, `SOUL.md`, `HEARTBEAT.md` as human-readable views derived from the JSON. The JSON is canonical; the markdown files are projections.
 5. **Validate**: Run `python3 .claude/skills/work-operating-model/scripts/validate_operating_model.py <path-to-json>`. Exit 0 means the schema holds.
+
+## Scripts
+
+| Script | Purpose | Exit Codes |
+|--------|---------|------------|
+| `scripts/validate_operating_model.py <path>` | Validate operating-model.json against schema v1.0.0 | 0 ok, 1 schema failure, 2 invalid usage |
+
+Pass `--skip-path-validation` to bypass CWE-22 path containment when reading fixtures from outside the repo (tests only).
 
 ## Resume Across Sessions
 
@@ -92,7 +110,7 @@ The validator (`scripts/validate_operating_model.py`) enforces these and returns
 |--------------|---------|-----|
 | Treat the interview as a survey to fill in alone | Misses tacit knowledge entirely | Hold the conversation; capture during the talk |
 | Merge `documented` and `tacit` into one bucket | Erases the gap that is the whole point | Tag every item explicitly |
-| Skip layer 4 because it is hard | Layer 4 is where most useful findings live | Ask anyway; record `null` answers |
+| Skip layer 4 because it is hard | Layer 4 is where most useful findings live | Ask anyway; if unanswered, record it in `metadata.skipped_layers` with a reason |
 | Edit the JSON by hand without reopening the conversation | Drift between model and reality | Re-interview, then update |
 | Run the interview once and call the model done | Operating models drift | Re-validate quarterly; bump `metadata.interview_date` |
 
@@ -103,7 +121,7 @@ Before declaring an operating model complete:
 - [ ] All 5 layers either captured or explicitly skipped (recorded in `metadata.skipped_layers`).
 - [ ] Every item in every layer marked `documented` or `tacit`.
 - [ ] `metadata.interview_status` is `complete`.
-- [ ] `python3 scripts/validate_operating_model.py operating-model.json` exits 0.
+- [ ] `python3 .claude/skills/work-operating-model/scripts/validate_operating_model.py operating-model.json` exits 0.
 - [ ] The team representative has read the final JSON (or its `USER.md` projection) and agreed.
 
 ## References
