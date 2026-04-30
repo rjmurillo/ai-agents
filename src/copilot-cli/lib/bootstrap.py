@@ -27,6 +27,7 @@ need the lib path without auto-setup.
 
 from __future__ import annotations
 
+import inspect
 import os
 import sys
 from pathlib import Path
@@ -51,7 +52,6 @@ def resolve_plugin_lib_dir(hook_file: str | Path | None = None) -> str | None:
         return str(Path(plugin_root).resolve() / "lib")
 
     if hook_file is None:
-        import inspect
         frame = inspect.currentframe()
         if frame is not None and frame.f_back is not None:
             hook_file = frame.f_back.f_globals.get("__file__")

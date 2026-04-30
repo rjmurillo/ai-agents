@@ -1,6 +1,10 @@
 """Shared utilities for Claude Code hook scripts.
 
 Migrated from .claude/hooks/Common/HookUtilities.psm1 per issue #1053.
+
+Bootstrap path resolution lives in ``scripts/hook_utilities/bootstrap.py``
+(canonical) and its synced copy at ``.claude/lib/bootstrap.py``. Hooks
+import from there, not from this module.
 """
 
 from __future__ import annotations
@@ -12,53 +16,6 @@ from pathlib import Path
 from datetime import UTC, datetime
 
 _GIT_COMMIT_PATTERN = re.compile(r"(?:^|\s)git\s+(commit|ci)")
-
-
-def resolve_plugin_lib_dir(hook_file: str | Path | None = None) -> str | None:
-    """Resolve the plugin lib directory for hook imports.
-
-    Checks CLAUDE_PLUGIN_ROOT environment variable first, then walks up
-    from the hook file location looking for .claude-plugin/plugin.json
-    (the plugin manifest marker). The sibling lib/ is the plugin's lib dir.
-
-    Args:
-        hook_file: Path to the hook file (__file__). If None, uses the
-            calling module's __file__ via stack inspection.
-
-    Returns:
-        Absolute path to the lib directory as a string, or None if not found.
-        Caller should handle None appropriately (e.g., sys.exit with hook-
-        specific exit code).
-
-    Example:
-        _lib_dir = resolve_plugin_lib_dir(__file__)
-        if _lib_dir is None or not os.path.isdir(_lib_dir):
-            print("Plugin lib directory not found", file=sys.stderr)
-            sys.exit(2)  # or 0 for non-blocking hooks
-        if _lib_dir not in sys.path:
-            sys.path.insert(0, _lib_dir)
-    """
-    plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
-    if plugin_root:
-        return str(Path(plugin_root).resolve() / "lib")
-
-    if hook_file is None:
-        import inspect
-        frame = inspect.currentframe()
-        if frame is not None and frame.f_back is not None:
-            hook_file = frame.f_back.f_globals.get("__file__")
-        if hook_file is None:
-            return None
-
-    cur = Path(hook_file).resolve().parent
-    while True:
-        if (cur / ".claude-plugin" / "plugin.json").is_file():
-            return str(cur / "lib")
-        if cur.parent == cur:
-            break
-        cur = cur.parent
-
-    return None
 _GIT_PUSH_PATTERN = re.compile(r"(?:^|\s)git\s+push(?:\s|$)")
 # M7-T3: `gh pr create` dispatches to session_log_guard alongside `git commit`.
 # Hooks registered for both commands need to recognize both.

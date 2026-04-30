@@ -1,6 +1,10 @@
 """Canonical: scripts/hook_utilities/utilities.py. Sync via scripts/sync_plugin_lib.py.
 
 Migrated from .claude/hooks/Common/HookUtilities.psm1 per issue #1053.
+
+Bootstrap path resolution lives in ``scripts/hook_utilities/bootstrap.py``
+(canonical) and its synced copy at ``.claude/lib/bootstrap.py``. Hooks
+import from there, not from this module.
 """
 
 from __future__ import annotations
