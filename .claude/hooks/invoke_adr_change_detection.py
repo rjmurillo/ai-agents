@@ -89,10 +89,13 @@ def main() -> int:
         return 0
 
     try:
-        # nosemgrep: python.lang.security.audit.dangerous-subprocess-use-tainted-env-args
-        # project_root is sanitized by get_project_root() (path-traversal check
-        # vs script_dir at lines 49-55) and validated to contain .git/ and the
-        # exact detect_script file (lines 72, 88). argv-list form, no shell.
+        # nosemgrep: dangerous-subprocess-use-tainted-env-args
+        # Tainted source (CLAUDE_PROJECT_DIR -> project_root) is contained
+        # by get_project_root(): the script's own resolved path MUST be
+        # under the env-supplied root (CWE-22 defense). detect_script is
+        # then a fixed path under that validated root, gated by
+        # .exists(). List form blocks CWE-78 shell injection. The 10s
+        # timeout bounds blocking.
         result = subprocess.run(
             [sys.executable, detect_script, "--base-path", project_root, "--include-untracked"],
             capture_output=True,
