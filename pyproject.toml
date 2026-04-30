@@ -7,8 +7,8 @@ requires-python = ">=3.10"
 license = {text = "MIT"}
 
 dependencies = [
-    "anthropic==0.96.0",
-    "markdown-it-py>=3.0.0",
+    "anthropic==0.97.0",
+    "markdown-it-py>=4.0.0",
     "python-frontmatter==1.1.0",
     "PyYAML==6.0.3",
     "tiktoken>=0.12.0",
@@ -20,8 +20,8 @@ dev = [
     "pytest-cov>=7.1.0",
     "bandit>=1.9.4",
     "pip-audit>=2.10.0",
-    "ruff>=0.15.11",
-    "mypy>=1.20.1",
+    "ruff>=0.15.12",
+    "mypy>=1.20.2",
 ]
 
 [build-system]
@@ -114,3 +114,8 @@ disallow_any_generics = false
 [[tool.mypy.overrides]]
 module = "semantic_hooks.*"
 disallow_any_generics = false
+
+[dependency-groups]
+dev = [
+    "pytest-cov>=7.1.0",
+]

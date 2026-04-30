@@ -18,6 +18,13 @@ import argparse
 import sys
 from pathlib import Path
 
+# Add project root to path for imports
+_SCRIPT_DIR = Path(__file__).resolve().parent
+_PROJECT_ROOT = _SCRIPT_DIR.parent
+sys.path.insert(0, str(_PROJECT_ROOT))
+
+from scripts.utils.path_validation import validate_safe_path  # noqa: E402
+
 try:
     import yaml
 except ImportError:
@@ -33,6 +40,22 @@ REQUIRED_TOP_LEVEL_KEYS = [
     "worktree_constraints",
     "related_memories",
     "thread_resolution",
+    "invocation_limits",
+    "output_constraints",
+]
+
+INVOCATION_LIMIT_FIELDS = [
+    "all_open_max_prs",
+    "all_open_overflow_action",
+    "completion_gate_max_retries",
+    "completion_gate_overflow_action",
+]
+
+OUTPUT_CONSTRAINT_FIELDS = [
+    "per_pr_max_response_tokens",
+    "summary_format",
+    "summary_format_allowed_values",
+    "summary_required_columns",
 ]
 
 REQUIRED_SCRIPT_KEYS = [
@@ -140,7 +163,108 @@ def validate_config(config: dict) -> list[str]:
                 "thread_resolution missing field: batch_graphql_template"
             )
 
+    if "invocation_limits" in config:
+        _validate_invocation_limits(config["invocation_limits"], errors)
+
+    if "output_constraints" in config:
+        _validate_output_constraints(config["output_constraints"], errors)
+
     return errors
+
+
+def _validate_invocation_limits(il: object, errors: list[str]) -> None:
+    """Validate invocation_limits section.
+
+    Guards against non-mapping values (e.g., null) and checks types and
+    ranges per CodeRabbit feedback on PR #1671.
+    """
+    if not isinstance(il, dict):
+        errors.append("invocation_limits must be a mapping")
+        return
+
+    for field in INVOCATION_LIMIT_FIELDS:
+        if field not in il:
+            errors.append(f"invocation_limits missing field: {field}")
+
+    max_prs = il.get("all_open_max_prs")
+    if max_prs is not None and (not isinstance(max_prs, int) or isinstance(max_prs, bool) or max_prs < 1):
+        errors.append(
+            "invocation_limits.all_open_max_prs must be an integer >= 1"
+        )
+
+    retries = il.get("completion_gate_max_retries")
+    if retries is not None and (not isinstance(retries, int) or isinstance(retries, bool) or retries < 0):
+        errors.append(
+            "invocation_limits.completion_gate_max_retries must be an integer >= 0"
+        )
+
+    for field in ("all_open_overflow_action", "completion_gate_overflow_action"):
+        value = il.get(field)
+        if value is not None and (not isinstance(value, str) or not value.strip()):
+            errors.append(
+                f"invocation_limits.{field} must be a non-empty string"
+            )
+
+
+def _validate_output_constraints(oc: object, errors: list[str]) -> None:
+    """Validate output_constraints section.
+
+    Guards against non-mapping values (e.g., null) and checks types and
+    ranges per CodeRabbit feedback on PR #1671.
+    """
+    if not isinstance(oc, dict):
+        errors.append("output_constraints must be a mapping")
+        return
+
+    for field in OUTPUT_CONSTRAINT_FIELDS:
+        if field not in oc:
+            errors.append(f"output_constraints missing field: {field}")
+
+    max_tokens = oc.get("per_pr_max_response_tokens")
+    if max_tokens is not None and (
+        not isinstance(max_tokens, int) or isinstance(max_tokens, bool) or max_tokens < 1
+    ):
+        errors.append(
+            "output_constraints.per_pr_max_response_tokens must be an integer >= 1"
+        )
+
+    summary_format = oc.get("summary_format")
+    if summary_format is not None and (
+        not isinstance(summary_format, str) or not summary_format.strip()
+    ):
+        errors.append(
+            "output_constraints.summary_format must be a non-empty string"
+        )
+
+    allowed = oc.get("summary_format_allowed_values")
+    if allowed is not None and (
+        not isinstance(allowed, list)
+        or len(allowed) == 0
+        or any(not isinstance(v, str) or not v.strip() for v in allowed)
+    ):
+        errors.append(
+            "output_constraints.summary_format_allowed_values must be a non-empty list of non-empty strings"
+        )
+
+    if (
+        isinstance(summary_format, str)
+        and isinstance(allowed, list)
+        and all(isinstance(v, str) for v in allowed)
+        and summary_format not in allowed
+    ):
+        errors.append(
+            "output_constraints.summary_format must be one of summary_format_allowed_values"
+        )
+
+    cols = oc.get("summary_required_columns")
+    if (
+        not isinstance(cols, list)
+        or len(cols) == 0
+        or any(not isinstance(c, str) or not c.strip() for c in cols)
+    ):
+        errors.append(
+            "output_constraints.summary_required_columns must be a non-empty list of non-empty strings"
+        )
 
 
 def main() -> int:
@@ -155,7 +279,13 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    config_path = Path(args.config_path)
+    # CWE-22: Validate path stays within project root before opening.
+    try:
+        config_path = validate_safe_path(args.config_path, _PROJECT_ROOT)
+    except (ValueError, FileNotFoundError) as e:
+        print(f"ERROR: Invalid config path: {e}", file=sys.stderr)
+        return 2
+
     if not config_path.exists():
         print(f"ERROR: Config file not found: {config_path}", file=sys.stderr)
         return 2

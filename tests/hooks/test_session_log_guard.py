@@ -140,6 +140,61 @@ class TestMainAllow:
         assert main() == 0
 
 
+class TestM7T3MultiMatcherSessionLogGuard:
+    """M7-T3: hook fires for both git commit AND gh pr create commands.
+
+    Pre-fix the body only checked is_git_commit_command, so the
+    pr-create matcher copy fired its shim then no-opped silently.
+    """
+
+    def test_pr_create_with_valid_session_log_passes(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        sessions_dir = tmp_path / ".agents" / "sessions"
+        sessions_dir.mkdir(parents=True)
+        log_file = sessions_dir / "2026-03-01-session-01.json"
+        log_file.write_text(
+            json.dumps({"session_id": "test", "work": "x" * 200, "extra": "y" * 100})
+        )
+
+        monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(tmp_path))
+        data = json.dumps(
+            {"tool_input": {"command": 'gh pr create --title "x" --body "y"'}}
+        )
+        monkeypatch.setattr("sys.stdin", io.StringIO(data))
+
+        with patch(
+            "invoke_session_log_guard.get_today_session_log", return_value=log_file
+        ):
+            assert main() == 0
+
+    def test_pr_create_without_session_log_blocks(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Without a session log, pr create MUST block (exit 2)."""
+        sessions_dir = tmp_path / ".agents" / "sessions"
+        sessions_dir.mkdir(parents=True)
+        # No log files in sessions_dir.
+
+        monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(tmp_path))
+        data = json.dumps({"tool_input": {"command": "gh pr create --fill"}})
+        monkeypatch.setattr("sys.stdin", io.StringIO(data))
+
+        with patch("invoke_session_log_guard.get_today_session_log", return_value=None):
+            rc = main()
+        # Body returns 2 when blocking; before this fix the hook returned 0
+        # (silently allowed) for pr-create commands.
+        assert rc == 2
+
+    def test_unrelated_command_still_no_op(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A non-commit, non-pr-create command MUST exit 0 without checking."""
+        data = json.dumps({"tool_input": {"command": "gh pr view 123"}})
+        monkeypatch.setattr("sys.stdin", io.StringIO(data))
+        assert main() == 0
+
+
 class TestMainBlock:
     """Tests for main() blocking commits."""
 

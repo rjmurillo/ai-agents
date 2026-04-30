@@ -1,7 +1,9 @@
 {
-  "name": "copilot-cli-agents",
-  "description": "23 agent definitions for GitHub Copilot CLI",
-  "version": "0.3.0",
+  "name": "copilot-cli-toolkit",
+  "description": "24 agent definitions, 79 reusable skills, 28 lifecycle hooks for GitHub Copilot CLI workflows",
+  "version": "0.4.0",
   "author": { "name": "rjmurillo" },
-  "agents": ["./"]
+  "agents": "./",
+  "skills": "./skills",
+  "commands": "./skills"
 }

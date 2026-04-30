@@ -33,4 +33,3 @@ priority: high
 - `.agents/steering/agent-prompts.md`. Prompt standards
 - `.agents/steering/claude-skills.md`. Skill authoring standards
 - `.agents/architecture/ADR-042-python-migration-strategy.md`. Python-first
-- `.github/instructions/claude-skills.instructions.md`. Copilot entry point

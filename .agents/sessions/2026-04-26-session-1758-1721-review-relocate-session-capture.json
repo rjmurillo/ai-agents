@@ -1,0 +1,135 @@
+{
+  "session": {
+    "number": 1758,
+    "date": "2026-04-26",
+    "branch": "feature/1692-session-capture-protocol",
+    "startingCommit": "62c654bc",
+    "objective": "PR #1721 review: relocate Session Capture Protocol from wiki/ to .serena/memories, strip external refs from distributed agents"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena active via system-reminder: ADR-007 Memory-First protocol loaded"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "mcp__serena__initial_instructions loaded via system-reminder at session start"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md read; no active cross-session handoff on this branch"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pr-review-config.yaml scripts: get_pr_context.py, get_unresolved_review_threads.py, add_pr_review_thread_reply.py, resolve_pr_review_thread.py, get_pr_checks.py"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md and CLAUDE.md read via system-reminder at session start"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "PROJECT-CONSTRAINTS.md referenced in AGENTS.md; routing to pr-review skill per CLAUDE.md skill-first routing"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "ADR-007 memory-index queried; memory/MEMORY.md loaded via system context"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "feature/1692-session-capture-protocol"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On feature/1692-session-capture-protocol"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "62c654bc"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST sessionStart items populated with evidence"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md not staged or modified"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".serena/memories/session/session-capture-protocol.md updated: removed stale Location callout; no new cross-session memory required since changes are path fixes"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "npx markdownlint-cli2 on 7 changed files: 0 errors in changed files; 18 pre-existing errors in unrelated files (milestone-planner, roadmap, spec-generator, .gstack reports, README)"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Staged: .agents/SESSION-PROTOCOL.md .claude/agents/orchestrator.md .serena/memories/session/session-capture-protocol.md src/claude/orchestrator.md src/copilot-cli/orchestrator.agent.md src/vs-code-agents/orchestrator.agent.md templates/agents/orchestrator.shared.md wiki/concepts/Session Capture Protocol.md (deleted); commit pending"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This session log passes validate_session_json.py --pre-commit"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Identified 3 unresolved PR #1721 threads; all from rjmurillo: (1) SESSION-PROTOCOL.md path broken, (2) orchestrator.md path broken, (3) wiki/ directory alien to repo",
+      "result": "Root cause: wiki/concepts/ dir introduced in prior commits; .serena/memories/session/session-capture-protocol.md already exists as canonical location"
+    },
+    {
+      "action": "Deleted wiki/concepts/Session Capture Protocol.md and wiki/ directory; updated 6 cross-references to .serena/memories/session/session-capture-protocol.md",
+      "result": "All paths fixed; then user raised distribution concern: external .serena refs useless in 3P vendored repos"
+    },
+    {
+      "action": "Stripped external file/Serena-memory refs from all 5 distributed agent files (templates/+src/+.claude/agents/); inline Capture/Skip content is self-sufficient for vendored use",
+      "result": "Agents no longer reference repo-local .serena/memories; SESSION-PROTOCOL.md ref also simplified to inline description"
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "Reply to 3 unresolved threads and resolve them",
+    "Push commit to remote feature branch",
+    "Verify CI passes"
+  ]
+}

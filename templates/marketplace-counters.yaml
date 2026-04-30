@@ -1,0 +1,65 @@
+schemaVersion: "1.0"
+# Source-of-truth mapping from marketplace.json plugin name to count rules.
+# Structure: plugins.<plugin-name>.<count-label>.{strategy, sourceDir, exclude?}
+#
+# Counts are derived at validation time (via the named strategy) and compared
+# against count tokens parsed out of the plugin description in marketplace.json.
+#
+# Strategies map to functions in build/scripts/validate_marketplace_counts.py
+# (md_agents, agent_md, commands, hooks, skill_dirs). Adding a NEW plugin
+# requires only:
+#   1. Add a stanza below.
+#   2. Add count tokens to the plugin description in marketplace.json.
+# No Python edits (REQ-003-004).
+#
+# Adding a NEW STRATEGY does require Python: register a counter function
+# in STRATEGIES in validate_marketplace_counts.py. Strategies are reusable
+# building blocks; per-plugin mapping is config.
+plugins:
+  claude-agents:
+    agent:
+      strategy: "md_agents"
+      sourceDir: "src/claude"
+      exclude: ["AGENTS.md"]
+  copilot-cli-agents:
+    agent:
+      strategy: "agent_md"
+      sourceDir: "src/copilot-cli"
+  project-toolkit:
+    agent:
+      strategy: "md_agents"
+      sourceDir: ".claude/agents"
+      exclude: ["AGENTS.md", "CLAUDE.md"]
+    slash command:
+      strategy: "commands"
+      sourceDir: ".claude/commands"
+    lifecycle hook:
+      strategy: "hooks"
+      sourceDir: ".claude/hooks"
+    reusable skill:
+      strategy: "skill_dirs"
+      sourceDir: ".claude/skills"
+  claude-toolkit:
+    agent:
+      strategy: "md_agents"
+      sourceDir: ".claude/agents"
+      exclude: ["AGENTS.md", "CLAUDE.md"]
+    reusable skill:
+      strategy: "skill_dirs"
+      sourceDir: ".claude/skills"
+    slash command:
+      strategy: "commands"
+      sourceDir: ".claude/commands"
+    lifecycle hook:
+      strategy: "hooks"
+      sourceDir: ".claude/hooks"
+  copilot-cli-toolkit:
+    agent:
+      strategy: "agent_md"
+      sourceDir: "src/copilot-cli"
+    reusable skill:
+      strategy: "skill_dirs"
+      sourceDir: "src/copilot-cli/skills"
+    lifecycle hook:
+      strategy: "hooks"
+      sourceDir: "src/copilot-cli/hooks"
