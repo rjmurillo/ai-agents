@@ -47,7 +47,7 @@ SHIM CRASH POLICY
 
 The shim exits with code 0 when the matcher does not fire (no-op
 allow), 0 with the wrapped script's exit code when it does fire, and
-2 to stderr on any internal error: missing ``toolName`` field,
+2 to stderr on any internal error: missing ``tool_name`` field,
 malformed JSON on stdin, regex parse failure. NEVER 0 silently on a
 malformed input; that would silently allow tool calls past a
 broken hook.
@@ -168,8 +168,8 @@ def classify_matcher(pattern: str) -> tuple[str, dict[str, str]]:
 def normalize_tool_args(tool_args: object) -> str:
     r"""Stringify and collapse \s+ to a single space; strip ends.
 
-    REQ-003-007 step 5: applied to ``toolArgs`` at runtime, NOT to the
-    pattern. ``dict`` toolArgs that carry a ``command`` field (e.g.
+    REQ-003-007 step 5: applied to ``tool_input`` at runtime, NOT to the
+    pattern. ``dict`` tool_input that carry a ``command`` field (e.g.
     ``{"command": "git commit -m foo"}`` from Bash) are reduced to that
     string; other dicts are stringified via ``json.dumps`` for stable
     comparison.
@@ -217,7 +217,7 @@ def _build_shim(matcher: str) -> str:
     - dispatches by classified matcher kind;
     - exits 0 silently when the matcher does not fire (no-op = allow);
     - exits 2 to stderr on any internal error (regex parse, JSON decode,
-      missing toolName) so Copilot CLI surfaces the failure rather than
+      missing tool_name) so Copilot CLI surfaces the failure rather than
       silently allowing the tool call;
     - calls the wrapped ``_original_main(_raw)`` only on a positive
       match, propagating its exit code.
@@ -258,7 +258,7 @@ def _shim_classify(pattern):
 
 
 def _shim_normalize_args(tool_args):
-    r"""Stringify and whitespace-normalize toolArgs for fnmatch comparison.
+    r"""Stringify and whitespace-normalize tool_input for fnmatch comparison.
 
     REQ-003-007: collapse \\s+ to a single space and strip ends. Pattern
     is NOT normalized; authors write patterns assuming single spaces.
@@ -296,15 +296,15 @@ def _shim_glob_match(args_glob, tool_args_norm):
 
 def _shim_should_fire(payload):
     kind, params = _shim_classify(_MATCHER)
-    tool_name = payload.get("toolName")
+    tool_name = payload.get("tool_name")
     if not isinstance(tool_name, str):
-        raise ValueError("hook input missing string `toolName` field")
+        raise ValueError("hook input missing string `tool_name` field")
     if kind == "regex":
         return _re.fullmatch(params["pattern"], tool_name) is not None
     if kind == "tool-glob":
         if tool_name != params["toolName"]:
             return False
-        norm_args = _shim_normalize_args(payload.get("toolArgs"))
+        norm_args = _shim_normalize_args(payload.get("tool_input"))
         return _shim_glob_match(params["argsGlob"], norm_args)
     # bare
     return tool_name == params["toolName"]

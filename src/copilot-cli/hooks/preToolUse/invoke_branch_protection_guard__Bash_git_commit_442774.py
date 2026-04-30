@@ -28,7 +28,7 @@ def _shim_classify(pattern):
 
 
 def _shim_normalize_args(tool_args):
-    r"""Stringify and whitespace-normalize toolArgs for fnmatch comparison.
+    r"""Stringify and whitespace-normalize tool_input for fnmatch comparison.
 
     REQ-003-007: collapse \s+ to a single space and strip ends. Pattern
     is NOT normalized; authors write patterns assuming single spaces.
@@ -66,15 +66,15 @@ def _shim_glob_match(args_glob, tool_args_norm):
 
 def _shim_should_fire(payload):
     kind, params = _shim_classify(_MATCHER)
-    tool_name = payload.get("toolName")
+    tool_name = payload.get("tool_name")
     if not isinstance(tool_name, str):
-        raise ValueError("hook input missing string `toolName` field")
+        raise ValueError("hook input missing string `tool_name` field")
     if kind == "regex":
         return _re.fullmatch(params["pattern"], tool_name) is not None
     if kind == "tool-glob":
         if tool_name != params["toolName"]:
             return False
-        norm_args = _shim_normalize_args(payload.get("toolArgs"))
+        norm_args = _shim_normalize_args(payload.get("tool_input"))
         return _shim_glob_match(params["argsGlob"], norm_args)
     # bare
     return tool_name == params["toolName"]

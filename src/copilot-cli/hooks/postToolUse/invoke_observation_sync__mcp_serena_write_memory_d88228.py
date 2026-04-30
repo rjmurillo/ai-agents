@@ -28,7 +28,7 @@ def _shim_classify(pattern):
 
 
 def _shim_normalize_args(tool_args):
-    r"""Stringify and whitespace-normalize toolArgs for fnmatch comparison.
+    r"""Stringify and whitespace-normalize tool_input for fnmatch comparison.
 
     REQ-003-007: collapse \s+ to a single space and strip ends. Pattern
     is NOT normalized; authors write patterns assuming single spaces.
@@ -66,15 +66,15 @@ def _shim_glob_match(args_glob, tool_args_norm):
 
 def _shim_should_fire(payload):
     kind, params = _shim_classify(_MATCHER)
-    tool_name = payload.get("toolName")
+    tool_name = payload.get("tool_name")
     if not isinstance(tool_name, str):
-        raise ValueError("hook input missing string `toolName` field")
+        raise ValueError("hook input missing string `tool_name` field")
     if kind == "regex":
         return _re.fullmatch(params["pattern"], tool_name) is not None
     if kind == "tool-glob":
         if tool_name != params["toolName"]:
             return False
-        norm_args = _shim_normalize_args(payload.get("toolArgs"))
+        norm_args = _shim_normalize_args(payload.get("tool_input"))
         return _shim_glob_match(params["argsGlob"], norm_args)
     # bare
     return tool_name == params["toolName"]
@@ -159,16 +159,33 @@ def _original_main(stdin_bytes):
     from hook_utilities.guards import skip_if_consumer_repo  # noqa: E402
 
 
-    def _get_repo_root() -> str:
-        """Resolve the repository root from environment or git.
+    def _get_repo_root() -> str | None:
+        """Resolve the repository root from environment or git, with traversal guard.
 
-        Validates that CLAUDE_PROJECT_DIR resolves to an existing directory
-        before trusting it; falls through to git/cwd otherwise.
+        Returns ``None`` when ``CLAUDE_PROJECT_DIR`` is set but does not contain
+        this hook script. Without that guard, an attacker who can set the env
+        var could redirect downstream subprocess calls (line 113 -- launches
+        ``$repo_root/.serena/scripts/import_observations_to_forgetful.py``) at
+        any directory they control. The list-form ``subprocess.run`` blocks
+        CWE-78 shell injection; the containment check here blocks CWE-22 by
+        refusing to honor a project root that does not contain the live hook
+        file. Mirrors the pattern in ``invoke_adr_change_detection.get_project_root``.
         """
+        script_dir = str(Path(__file__).resolve().parent)
         env_dir = os.environ.get("CLAUDE_PROJECT_DIR", "").strip()
-        if env_dir and Path(env_dir).is_dir():
+        if env_dir:
+            resolved_script = os.path.realpath(script_dir)
+            resolved_root = os.path.realpath(env_dir)
+            if not resolved_script.startswith(resolved_root + os.sep):
+                print(
+                    f"observation-sync: CLAUDE_PROJECT_DIR='{env_dir}' does not "
+                    f"contain script '{script_dir}' -- refusing (CWE-22)",
+                    file=sys.stderr,
+                )
+                return None
             return env_dir
-        result = subprocess.run(
+        # Fixed argv, no user data. Safe.
+        result = subprocess.run(  # nosemgrep: dangerous-subprocess-use-tainted-env-args
             ["git", "rev-parse", "--show-toplevel"],
             capture_output=True,
             text=True,
@@ -229,7 +246,16 @@ def _original_main(stdin_bytes):
 
 
     def _run_import(repo_root: str, observation_file: Path) -> None:
-        """Run the import script for a single observation file."""
+        """Run the import script for a single observation file.
+
+        Caller MUST pass a ``repo_root`` returned by :func:`_get_repo_root`,
+        which enforces a CWE-22 containment guard (env-supplied root must
+        contain this script). Combined with list-form ``subprocess.run``
+        (CWE-78 shell injection blocked) and the ``observation_file``
+        validation in :func:`_find_observation_file` (path traversal blocked
+        via ``is_relative_to``), the tainted env source is fully neutralized
+        before reaching the subprocess invocation below.
+        """
         import_script = (
             Path(repo_root) / ".serena" / "scripts" / "import_observations_to_forgetful.py"
         )
@@ -240,11 +266,11 @@ def _original_main(stdin_bytes):
             )
             return
 
-        # nosemgrep: python.lang.security.audit.dangerous-subprocess-use-tainted-env-args
-        # repo_root is sanitized by _get_repo_root() (is_dir() guard above);
-        # import_script is validated by the is_file() check immediately above.
-        # argv-list form, no shell. observation_file is the path of a memory
-        # file we just received via the hook payload, not user-controlled.
+        # nosemgrep: dangerous-subprocess-use-tainted-env-args
+        # Tainted source (CLAUDE_PROJECT_DIR -> repo_root) is contained by
+        # _get_repo_root(); script path is validated by .is_file() check;
+        # observation_file is validated by _find_observation_file. List form
+        # blocks shell metacharacter injection. Defense-in-depth complete.
         result = subprocess.run(
             [
                 sys.executable,
@@ -301,6 +327,8 @@ def _original_main(stdin_bytes):
                 return 0
 
             repo_root = _get_repo_root()
+            if repo_root is None:
+                return 0  # Containment guard tripped; non-blocking exit.
             observation_file = _find_observation_file(repo_root, memory_name)
             if not observation_file:
                 print(

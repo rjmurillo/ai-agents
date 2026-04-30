@@ -118,7 +118,7 @@ def _write_script(scripts_dir: Path, event: str, name: str, body: str = "") -> P
         body = (
             "import sys, json\n"
             "data = json.load(sys.stdin) if sys.stdin else {}\n"
-            'print("FIRED:" + (data.get("toolName") or ""))\n'
+            'print("FIRED:" + (data.get("tool_name") or ""))\n'
             "sys.exit(0)\n"
         )
     target.write_text(body, encoding="utf-8")
@@ -229,21 +229,21 @@ def test_glob_or_match_empty_pattern_matches_empty_string():
 _TRACE_SCRIPT = (
     "import sys, json\n"
     "data = json.load(sys.stdin) if sys.stdin else {}\n"
-    'print("FIRED:" + (data.get("toolName") or ""))\n'
+    'print("FIRED:" + (data.get("tool_name") or ""))\n'
     "sys.exit(0)\n"
 )
 
 
 def test_inject_shim_fires_on_regex_match():
     transformed = inject_shim(_TRACE_SCRIPT, "^Edit$")
-    proc = _run_shim(transformed, {"toolName": "Edit"})
+    proc = _run_shim(transformed, {"tool_name": "Edit"})
     assert proc.returncode == 0
     assert proc.stdout.startswith("FIRED:Edit")
 
 
 def test_inject_shim_no_op_on_regex_miss():
     transformed = inject_shim(_TRACE_SCRIPT, "^Edit$")
-    proc = _run_shim(transformed, {"toolName": "Read"})
+    proc = _run_shim(transformed, {"tool_name": "Read"})
     assert proc.returncode == 0
     assert "FIRED" not in proc.stdout
 
@@ -252,7 +252,7 @@ def test_inject_shim_fires_on_tool_glob_match():
     transformed = inject_shim(_TRACE_SCRIPT, "Bash(git commit*)")
     proc = _run_shim(
         transformed,
-        {"toolName": "Bash", "toolArgs": {"command": "git commit -m 'x'"}},
+        {"tool_name": "Bash", "tool_input": {"command": "git commit -m 'x'"}},
     )
     assert proc.returncode == 0
     assert proc.stdout.startswith("FIRED:Bash")
@@ -262,7 +262,7 @@ def test_inject_shim_no_op_on_tool_glob_args_miss():
     transformed = inject_shim(_TRACE_SCRIPT, "Bash(git commit*)")
     proc = _run_shim(
         transformed,
-        {"toolName": "Bash", "toolArgs": {"command": "git push"}},
+        {"tool_name": "Bash", "tool_input": {"command": "git push"}},
     )
     assert proc.returncode == 0
     assert "FIRED" not in proc.stdout
@@ -270,7 +270,7 @@ def test_inject_shim_no_op_on_tool_glob_args_miss():
 
 def test_inject_shim_no_op_on_tool_glob_wrong_tool():
     transformed = inject_shim(_TRACE_SCRIPT, "Bash(git commit*)")
-    proc = _run_shim(transformed, {"toolName": "Edit"})
+    proc = _run_shim(transformed, {"tool_name": "Edit"})
     assert proc.returncode == 0
     assert "FIRED" not in proc.stdout
 
@@ -279,7 +279,7 @@ def test_inject_shim_fires_on_bare_match_any_args():
     transformed = inject_shim(_TRACE_SCRIPT, "Bash")
     proc = _run_shim(
         transformed,
-        {"toolName": "Bash", "toolArgs": {"command": "anything goes"}},
+        {"tool_name": "Bash", "tool_input": {"command": "anything goes"}},
     )
     assert proc.returncode == 0
     assert proc.stdout.startswith("FIRED:Bash")
@@ -287,14 +287,14 @@ def test_inject_shim_fires_on_bare_match_any_args():
 
 def test_inject_shim_no_op_on_bare_miss():
     transformed = inject_shim(_TRACE_SCRIPT, "Bash")
-    proc = _run_shim(transformed, {"toolName": "Edit"})
+    proc = _run_shim(transformed, {"tool_name": "Edit"})
     assert proc.returncode == 0
     assert "FIRED" not in proc.stdout
 
 
 def test_inject_shim_fires_on_mcp_namespaced_bare():
     transformed = inject_shim(_TRACE_SCRIPT, "mcp__serena__write_memory")
-    proc = _run_shim(transformed, {"toolName": "mcp__serena__write_memory"})
+    proc = _run_shim(transformed, {"tool_name": "mcp__serena__write_memory"})
     assert proc.returncode == 0
     assert proc.stdout.startswith("FIRED:mcp__serena__write_memory")
 
@@ -302,7 +302,7 @@ def test_inject_shim_fires_on_mcp_namespaced_bare():
 def test_inject_shim_multi_pipe_glob_first_branch():
     transformed = inject_shim(_TRACE_SCRIPT, "Bash(npm test*|pytest*)")
     proc = _run_shim(
-        transformed, {"toolName": "Bash", "toolArgs": {"command": "npm test"}}
+        transformed, {"tool_name": "Bash", "tool_input": {"command": "npm test"}}
     )
     assert proc.returncode == 0
     assert proc.stdout.startswith("FIRED:Bash")
@@ -311,7 +311,7 @@ def test_inject_shim_multi_pipe_glob_first_branch():
 def test_inject_shim_multi_pipe_glob_second_branch():
     transformed = inject_shim(_TRACE_SCRIPT, "Bash(npm test*|pytest*)")
     proc = _run_shim(
-        transformed, {"toolName": "Bash", "toolArgs": {"command": "pytest -v"}}
+        transformed, {"tool_name": "Bash", "tool_input": {"command": "pytest -v"}}
     )
     assert proc.returncode == 0
     assert proc.stdout.startswith("FIRED:Bash")
@@ -320,7 +320,7 @@ def test_inject_shim_multi_pipe_glob_second_branch():
 def test_inject_shim_multi_pipe_glob_neither_branch():
     transformed = inject_shim(_TRACE_SCRIPT, "Bash(npm test*|pytest*)")
     proc = _run_shim(
-        transformed, {"toolName": "Bash", "toolArgs": {"command": "cargo build"}}
+        transformed, {"tool_name": "Bash", "tool_input": {"command": "cargo build"}}
     )
     assert proc.returncode == 0
     assert "FIRED" not in proc.stdout
@@ -330,7 +330,7 @@ def test_inject_shim_whitespace_normalization_double_space():
     transformed = inject_shim(_TRACE_SCRIPT, "Bash(git commit*)")
     proc = _run_shim(
         transformed,
-        {"toolName": "Bash", "toolArgs": {"command": "git  commit  -m  foo"}},
+        {"tool_name": "Bash", "tool_input": {"command": "git  commit  -m  foo"}},
     )
     assert proc.returncode == 0
     assert proc.stdout.startswith("FIRED:Bash")
@@ -340,7 +340,7 @@ def test_inject_shim_whitespace_normalization_double_space():
 
 
 def test_inject_shim_exits_2_on_missing_tool_name():
-    """A payload without `toolName` is a config error: exit 2 to stderr."""
+    """A payload without `tool_name` is a config error: exit 2 to stderr."""
     transformed = inject_shim(_TRACE_SCRIPT, "Bash")
     proc = _run_shim(transformed, {"foo": "bar"})
     assert proc.returncode == 2
@@ -379,7 +379,7 @@ def test_copilot_hook_debug_env_emits_trace():
     transformed = inject_shim(_TRACE_SCRIPT, "Bash(git commit*)")
     proc = _run_shim_with_env(
         transformed,
-        {"toolName": "Bash", "toolArgs": {"command": "git commit -m foo"}},
+        {"tool_name": "Bash", "tool_input": {"command": "git commit -m foo"}},
         env_extra={"COPILOT_HOOK_DEBUG": "1"},
     )
     assert proc.returncode == 0
@@ -394,7 +394,7 @@ def test_copilot_hook_debug_unset_emits_no_trace():
     # Explicitly clear the var via env_extra={"COPILOT_HOOK_DEBUG": ""}.
     proc = _run_shim_with_env(
         transformed,
-        {"toolName": "Bash", "toolArgs": {"command": "git commit -m foo"}},
+        {"tool_name": "Bash", "tool_input": {"command": "git commit -m foo"}},
         env_extra={"COPILOT_HOOK_DEBUG": ""},
     )
     assert proc.returncode == 0
@@ -410,7 +410,7 @@ def test_inject_shim_error_message_includes_matcher():
     ``[<matcher>]`` so support tickets can identify the offending hook.
     """
     transformed = inject_shim(_TRACE_SCRIPT, "Bash(git commit*)")
-    proc = _run_shim(transformed, {"foo": "bar"})  # missing toolName
+    proc = _run_shim(transformed, {"foo": "bar"})  # missing tool_name
     assert proc.returncode == 2
     assert "[Bash(git commit*)]" in proc.stderr
 
@@ -463,10 +463,10 @@ def test_inject_shim_re_runs_dispatch_correctly():
     """After re-injection with a different matcher, the new matcher fires."""
     once = inject_shim(_TRACE_SCRIPT, "Bash")
     twice = inject_shim(once, "^Edit$")
-    proc_match = _run_shim(twice, {"toolName": "Edit"})
+    proc_match = _run_shim(twice, {"tool_name": "Edit"})
     assert proc_match.returncode == 0
     assert "FIRED" in proc_match.stdout
-    proc_miss = _run_shim(twice, {"toolName": "Bash"})
+    proc_miss = _run_shim(twice, {"tool_name": "Bash"})
     assert proc_miss.returncode == 0
     assert "FIRED" not in proc_miss.stdout
 
@@ -503,10 +503,10 @@ def test_inject_shim_stdin_replay_lets_original_read_same_bytes():
         "raw = sys.stdin.read()\n"
         'print("LEN:" + str(len(raw)))\n'
         "data = json.loads(raw)\n"
-        'print("TOOL:" + data["toolName"])\n'
+        'print("TOOL:" + data["tool_name"])\n'
     )
     transformed = inject_shim(body, "Bash")
-    payload = {"toolName": "Bash", "extra": "x" * 50}
+    payload = {"tool_name": "Bash", "extra": "x" * 50}
     expected_len = len(json.dumps(payload))
     proc = _run_shim(transformed, payload)
     assert proc.returncode == 0
@@ -891,7 +891,7 @@ def test_inject_shim_case_sensitive_tool_name():
     customer hooks cannot be silently bypassed by case differences.
     """
     transformed = inject_shim(_TRACE_SCRIPT, "Bash")
-    proc = _run_shim(transformed, {"toolName": "bash"})
+    proc = _run_shim(transformed, {"tool_name": "bash"})
     assert proc.returncode == 0
     assert "FIRED" not in proc.stdout
 
@@ -1089,6 +1089,38 @@ def test_split_future_imports_handles_multiple() -> None:
         "from __future__ import division\n"
     )
     assert rest == "import os\n"
+
+
+def test_shim_reads_snake_case_wire_format() -> None:
+    """Shim MUST read ``tool_name``/``tool_input`` from payload, not camelCase.
+
+    Claude Code (and Copilot CLI per its hook payload spec) emit snake_case
+    keys. CodeRabbit caught the regression: shim was reading ``toolName``,
+    so every shimmed hook would raise ValueError on real input and exit 2,
+    silently bypassing every gate. Test by pasting a snake_case payload
+    through the shim and asserting normal dispatch.
+    """
+    body = (
+        "import sys, json\n"
+        "data = json.load(sys.stdin)\n"
+        'print("OK:" + data["tool_name"])\n'
+    )
+    transformed = generate_hooks.inject_shim(body, "Bash(git commit*)")
+    payload = {"tool_name": "Bash", "tool_input": {"command": "git commit -m x"}}
+    proc = _run_shim(transformed, payload)
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout.startswith("OK:Bash")
+
+
+def test_shim_rejects_camelcase_payload_with_clear_error() -> None:
+    """A payload with the legacy ``toolName`` key (no ``tool_name``) MUST fail
+    loud with exit 2, not silently allow. This locks the regression: the
+    shim used to ACCEPT camelCase and reject snake_case (the reverse of
+    what real input looks like)."""
+    transformed = generate_hooks.inject_shim("import sys; sys.exit(0)\n", "Bash")
+    proc = _run_shim(transformed, {"toolName": "Bash"})
+    assert proc.returncode == 2
+    assert "tool_name" in proc.stderr
 
 
 def test_all_generated_hooks_parse_as_python() -> None:
