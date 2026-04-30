@@ -27,8 +27,12 @@ ENV/
 .pytest_cache/
 .pytest_tmp/
 .ruff_cache/
-dist/
-build/
+# Anchored to repo root: the legacy python build/dist outputs live at /build
+# and /dist. An unanchored `build/` rule silently shadowed
+# `src/copilot-cli/skills/build/` (the M4 generated `/build` slash-command
+# skill), which made local file-counts diverge from CI.
+/dist/
+/build/
 
 # Agent PR scratch files
 .agents/pr-comments/
