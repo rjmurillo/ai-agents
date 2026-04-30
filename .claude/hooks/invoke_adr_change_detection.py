@@ -89,6 +89,10 @@ def main() -> int:
         return 0
 
     try:
+        # nosemgrep: python.lang.security.audit.dangerous-subprocess-use-tainted-env-args
+        # project_root is sanitized by get_project_root() (path-traversal check
+        # vs script_dir at lines 49-55) and validated to contain .git/ and the
+        # exact detect_script file (lines 72, 88). argv-list form, no shell.
         result = subprocess.run(
             [sys.executable, detect_script, "--base-path", project_root, "--include-untracked"],
             capture_output=True,
