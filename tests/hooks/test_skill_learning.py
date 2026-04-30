@@ -228,20 +228,21 @@ class TestSafeBaseDirM7T5:
         result = invoke_skill_learning._detect_safe_base_dir()
         assert result == proj.resolve()
 
-    def test_safe_base_dir_falls_back_to_known_safe_dir_when_no_git(
+    def test_safe_base_dir_falls_back_to_sentinel_when_no_git(
         self, tmp_path, monkeypatch
     ):
-        """When walk-up exhausts without finding .git, fall back to
-        Path.home() (or /tmp). This is safer than trusting cwd because
-        cwd can be deleted between calls and is attacker-influenceable.
+        """When walk-up exhausts without finding .git, fall back to a
+        non-existent sentinel path so every downstream containment check
+        fails closed. Returning a real directory (cwd, /tmp, $HOME) would
+        silently disable CWE-22 containment if the walk-up exhausts.
         """
         monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
+        # tmp_path is below /tmp; walk-up from /tmp/pytest-of-X/... will
+        # never find a .git ancestor inside the test sandbox, so the
+        # fallback path runs.
         monkeypatch.chdir(tmp_path)
         result = invoke_skill_learning._detect_safe_base_dir()
-        # Walk up from tmp_path; should not find .git inside the test
-        # sandbox, so it falls back to home() (or /tmp if home is missing).
-        expected = Path.home() if Path.home().exists() else Path("/tmp")
-        assert result == expected
+        assert result == Path("/__nonexistent_containment_sentinel__")
 
 
 class TestWriteLearningNotification:

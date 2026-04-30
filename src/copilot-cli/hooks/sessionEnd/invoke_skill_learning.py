@@ -100,7 +100,16 @@ def _detect_safe_base_dir() -> Path:
     Without this guard, an attacker who can set the env var to '/' would
     defeat every write-path guard in this file. Mirrors the pattern in
     ``invoke_observation_sync._get_repo_root``.
+
+    Returns a non-existent sentinel path on failure to ensure all containment
+    checks fail rather than allowing writes to world-writable directories.
     """
+    # Sentinel path that should never exist. When returned, all _is_relative_to
+    # checks will fail, ensuring no writes are permitted in degenerate cases.
+    # Using /tmp would effectively disable containment since any path under
+    # /tmp would pass validation.
+    sentinel = Path("/__nonexistent_containment_sentinel__")
+
     script_dir = str(Path(__file__).resolve().parent)
     env_dir = os.environ.get("CLAUDE_PROJECT_DIR", "").strip()
     if env_dir:
@@ -126,15 +135,15 @@ def _detect_safe_base_dir() -> Path:
     try:
         cur = Path.cwd().resolve()
     except OSError:
-        # cwd may have been deleted; fall back to a known-safe directory
-        return Path.home() if Path.home().exists() else Path("/tmp")
+        # cwd may have been deleted; return sentinel to fail all containment checks
+        return sentinel
     while True:
         if (cur / ".git").exists():
             return cur
         parent = cur.parent
         if parent == cur:
-            # No .git found; fall back to a known-safe directory
-            return Path.home() if Path.home().exists() else Path("/tmp")
+            # No .git found; return sentinel to fail all containment checks
+            return sentinel
         cur = parent
 
 
