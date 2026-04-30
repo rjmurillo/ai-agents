@@ -19,7 +19,6 @@ from .utilities import (
     is_git_push_command,
     is_pr_create_command,
     is_session_logged_command,
-    resolve_plugin_lib_dir,
 )
 
 __all__ = [
@@ -32,6 +31,5 @@ __all__ = [
     "is_pr_create_command",
     "is_project_repo",
     "is_session_logged_command",
-    "resolve_plugin_lib_dir",
     "skip_if_consumer_repo",
 ]

@@ -34,13 +34,29 @@ import time
 from datetime import UTC, datetime
 from pathlib import Path
 
-# Bootstrap: find lib directory and set up imports (see bootstrap.py for details)
-_p = Path(__file__).resolve().parent
-while _p.parent != _p and not (_p / ".claude-plugin" / "plugin.json").is_file():
-    _p = _p.parent
-sys.path.insert(0, str(_p / "lib"))
-from bootstrap import setup_hook_lib_path  # noqa: E402
-setup_hook_lib_path(__file__, fail_exit_code=0)  # Fail open when lib not found
+# Bootstrap: find lib directory via env var or manifest walk-up.
+# CLAUDE_PLUGIN_ROOT honored when set; otherwise walk up from __file__
+# looking for .claude-plugin/plugin.json (the plugin marker). Sibling
+# lib/ is the plugin's lib dir. Layout-independent: works in source
+# tree (.claude/) and in the deeper src/<provider>/hooks/<event>/ copy.
+_plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+if _plugin_root:
+    _lib_dir = str(Path(_plugin_root).resolve() / "lib")
+else:
+    _cur = Path(__file__).resolve().parent
+    _lib_dir = None
+    while True:
+        if (_cur / ".claude-plugin" / "plugin.json").is_file():
+            _lib_dir = str(_cur / "lib")
+            break
+        if _cur.parent == _cur:
+            break
+        _cur = _cur.parent
+if _lib_dir is None or not os.path.isdir(_lib_dir):
+    print("Plugin lib directory not found", file=sys.stderr)
+    sys.exit(0)
+if _lib_dir not in sys.path:
+    sys.path.insert(0, _lib_dir)  # Fail open when lib not found
 
 try:
     from hook_utilities import get_project_directory, get_today_session_log
