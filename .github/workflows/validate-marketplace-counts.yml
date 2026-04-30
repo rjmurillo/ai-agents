@@ -70,6 +70,16 @@ jobs:
           enable-pester: false
           enable-git-hooks: false
 
+      - name: Diagnose Python environment
+        run: |
+          set -x
+          which python3
+          python3 --version
+          python3 -c "import sys; print('sys.path:', sys.path)"
+          python3 -c "import yaml; print('PyYAML:', yaml.__version__)" || echo "PyYAML NOT INSTALLED"
+          ls -la build/scripts/yaml_loader.py
+          ls -la templates/marketplace-counters.yaml
+
       - name: Validate marketplace.json counts
         run: python3 build/scripts/validate_marketplace_counts.py
 
