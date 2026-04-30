@@ -80,10 +80,29 @@ from hook_utilities.guards import skip_if_consumer_repo  # noqa: E402
 # matches what every other hook in the codebase does. Either source is the
 # user's actual project root, regardless of where this script's file lives.
 def _detect_safe_base_dir() -> Path:
+    """Detect the safe base directory for path containment.
+
+    CWE-22 containment guard: When CLAUDE_PROJECT_DIR is set, verify that
+    this hook script resides under that directory before trusting it.
+    Without this guard, an attacker who can set the env var to '/' would
+    defeat every write-path guard in this file. Mirrors the pattern in
+    ``invoke_observation_sync._get_repo_root``.
+    """
+    script_dir = str(Path(__file__).resolve().parent)
     env_dir = os.environ.get("CLAUDE_PROJECT_DIR", "").strip()
     if env_dir:
         try:
-            return Path(env_dir).resolve(strict=False)
+            resolved_script = os.path.realpath(script_dir)
+            resolved_root = os.path.realpath(env_dir)
+            if not resolved_script.startswith(resolved_root + os.sep):
+                print(
+                    f"skill-learning: CLAUDE_PROJECT_DIR='{env_dir}' does not "
+                    f"contain script '{script_dir}' -- refusing (CWE-22)",
+                    file=sys.stderr,
+                )
+                # Fall through to git-based detection instead of trusting env
+            else:
+                return Path(env_dir).resolve(strict=False)
         except OSError:
             pass
     try:
