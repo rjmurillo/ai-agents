@@ -31,15 +31,6 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 COPILOT_PLUGIN_SRC = REPO_ROOT / "src" / "copilot-cli"
 COPILOT_PLUGIN_MANIFEST = COPILOT_PLUGIN_SRC / ".claude-plugin" / "plugin.json"
 COPILOT_HOOKS_FILE = COPILOT_PLUGIN_SRC / "hooks" / "hooks.json"
-COPILOT_PLUGIN_SKILLS = COPILOT_PLUGIN_SRC / "skills"
-
-# skills/ is gated on M3-T2 (generate_skills.py); skip skill tests at
-# collection time so the copytree fixture does not run on a tree that
-# cannot satisfy them.
-_SKILLS_REASON = "skills/ not generated yet (gated on M3-T2 generate_skills.py)"
-_skills_skipif = pytest.mark.skipif(
-    not COPILOT_PLUGIN_SKILLS.exists(), reason=_SKILLS_REASON
-)
 
 # Copilot CLI hook event names (camelCase). Distinct from Claude (PascalCase).
 VALID_COPILOT_EVENTS = {
@@ -88,15 +79,11 @@ class TestInstalledManifest:
         assert data.get("name") == "copilot-cli-toolkit"
 
     def test_manifest_declares_required_paths(self, installed_plugin: Path) -> None:
-        """plugin.json must point at the agents surface.
-
-        The skills surface is gated on M3-T2 (generate_skills.py); the manifest
-        re-declares "skills"/"commands" once that generator ships and produces
-        a non-empty skills/ tree.
-        """
+        """plugin.json must point at the agents and skills surface."""
         manifest = installed_plugin / ".claude-plugin" / "plugin.json"
         data = json.loads(manifest.read_text(encoding="utf-8"))
-        assert "agents" in data, "plugin.json missing 'agents' field"
+        for field in ("agents", "skills"):
+            assert field in data, f"plugin.json missing '{field}' field"
 
 
 class TestInstalledHooks:
@@ -151,13 +138,11 @@ class TestInstalledArtifactReadability:
         text = sample.read_text(encoding="utf-8")
         assert text.strip(), f"{sample.name} is empty"
 
-    @_skills_skipif
     def test_at_least_one_skill_dir(self, installed_plugin: Path) -> None:
         skills_dir = installed_plugin / "skills"
         skill_dirs = [d for d in skills_dir.iterdir() if d.is_dir()]
         assert skill_dirs, "Install must contain at least one skill directory"
 
-    @_skills_skipif
     def test_sample_skill_md_readable(self, installed_plugin: Path) -> None:
         skills_dir = installed_plugin / "skills"
         # Find first skill with a SKILL.md file (canonical contract).
