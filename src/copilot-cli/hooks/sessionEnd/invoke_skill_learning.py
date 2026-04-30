@@ -126,13 +126,15 @@ def _detect_safe_base_dir() -> Path:
     try:
         cur = Path.cwd().resolve()
     except OSError:
-        return Path.cwd()
+        # cwd may have been deleted; fall back to a known-safe directory
+        return Path.home() if Path.home().exists() else Path("/tmp")
     while True:
         if (cur / ".git").exists():
             return cur
         parent = cur.parent
         if parent == cur:
-            return Path.cwd()
+            # No .git found; fall back to a known-safe directory
+            return Path.home() if Path.home().exists() else Path("/tmp")
         cur = parent
 
 
