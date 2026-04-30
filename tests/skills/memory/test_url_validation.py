@@ -1,9 +1,11 @@
-"""Tests for `_validate_http_url` in memory skills.
+"""Tests for `validate_http_url` in the memory skill.
 
 Security-critical: locks the M7 URL scheme allowlist that blocks
-CWE-918 SSRF and CWE-22 file:// local file read via urllib. The same
-helper is duplicated in two files (memory_router.py and
-measure_memory_performance.py); both copies are tested here.
+CWE-918 SSRF and CWE-22 file:// local file read via urllib. The helper
+lives in `.claude/skills/memory/memory_core/url_validation.py` and is
+imported by both `memory_router.py` and `measure_memory_performance.py`.
+This test exercises the helper directly (single source of truth) and
+asserts that both consumers import the same name.
 """
 
 from __future__ import annotations
@@ -15,11 +17,17 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
+URL_VALIDATION_PATH = (
+    REPO_ROOT / ".claude" / "skills" / "memory" / "memory_core" / "url_validation.py"
+)
 
 
-def _load_module(rel_path: str, name: str):
-    src = REPO_ROOT / rel_path
-    spec = importlib.util.spec_from_file_location(name, src)
+def _load_standalone(rel_path: Path, name: str):
+    """Load a Python module from a path with no relative-import context.
+
+    Suitable only for modules that do NOT use relative imports themselves.
+    """
+    spec = importlib.util.spec_from_file_location(name, rel_path)
     assert spec is not None and spec.loader is not None
     mod = importlib.util.module_from_spec(spec)
     sys.modules[name] = mod
@@ -28,49 +36,30 @@ def _load_module(rel_path: str, name: str):
 
 
 @pytest.fixture(scope="module")
-def memory_router():
-    return _load_module(
-        ".claude/skills/memory/memory_core/memory_router.py",
-        "memory_router_under_test",
-    )
+def url_validation():
+    return _load_standalone(URL_VALIDATION_PATH, "url_validation_under_test")
 
 
-@pytest.fixture(scope="module")
-def measure_memory():
-    return _load_module(
-        ".claude/skills/memory/scripts/measure_memory_performance.py",
-        "measure_memory_under_test",
-    )
-
-
-# Both copies share the same allowlist contract; parametrize ----------------
-
-
-@pytest.fixture(params=["memory_router", "measure_memory"])
-def validate(request, memory_router, measure_memory):
-    mod = {"memory_router": memory_router, "measure_memory": measure_memory}[
-        request.param
-    ]
-    return mod._validate_http_url
+@pytest.fixture
+def validate(url_validation):
+    return url_validation.validate_http_url
 
 
 # Positive cases ------------------------------------------------------------
 
 
 def test_accepts_http(validate) -> None:
-    # measure_memory returns the endpoint; memory_router returns None.
-    # Both MUST not raise.
-    result = validate("http://localhost:8020/mcp")
-    assert result is None or result == "http://localhost:8020/mcp"
+    assert validate("http://localhost:8020/mcp") == "http://localhost:8020/mcp"
 
 
 def test_accepts_https(validate) -> None:
-    result = validate("https://example.com/api")
-    assert result is None or result == "https://example.com/api"
+    assert validate("https://example.com/api") == "https://example.com/api"
 
 
 def test_accepts_http_with_port(validate) -> None:
-    validate("http://10.0.0.1:8080/path")  # Should not raise.
+    assert (
+        validate("http://10.0.0.1:8080/path") == "http://10.0.0.1:8080/path"
+    )
 
 
 # Negative: blocked schemes -------------------------------------------------
@@ -110,7 +99,8 @@ def test_rejects_empty_string(validate) -> None:
 
 
 def test_rejects_no_scheme(validate) -> None:
-    """A bare host:port has scheme='' (urlparse heuristic)."""
+    """A bare host:port may parse with scheme='localhost' or '' depending
+    on the value; either is rejected."""
     with pytest.raises(ValueError, match="scheme"):
         validate("localhost:8080/path")
 
@@ -129,8 +119,38 @@ def test_error_message_includes_rejected_scheme(validate) -> None:
     assert "file" in str(exc_info.value)
 
 
-def test_allowlist_is_frozen(memory_router, measure_memory) -> None:
+def test_allowlist_is_frozen(url_validation) -> None:
     """The scheme allowlist MUST be immutable (frozenset)."""
-    for mod in (memory_router, measure_memory):
-        assert isinstance(mod._ALLOWED_URL_SCHEMES, frozenset)
-        assert mod._ALLOWED_URL_SCHEMES == {"http", "https"}
+    assert isinstance(url_validation.ALLOWED_URL_SCHEMES, frozenset)
+    assert url_validation.ALLOWED_URL_SCHEMES == {"http", "https"}
+
+
+# Consumer-side smoke: both downstream modules MUST import the helper -------
+
+
+def test_memory_router_imports_validate_http_url() -> None:
+    """memory_router uses `from .url_validation import validate_http_url`;
+    verify the symbol is exported from the canonical module."""
+    text = (
+        REPO_ROOT
+        / ".claude"
+        / "skills"
+        / "memory"
+        / "memory_core"
+        / "memory_router.py"
+    ).read_text(encoding="utf-8")
+    assert "from .url_validation import validate_http_url" in text
+
+
+def test_measure_memory_imports_validate_http_url() -> None:
+    """measure_memory_performance uses
+    `from memory_core.url_validation import validate_http_url`."""
+    text = (
+        REPO_ROOT
+        / ".claude"
+        / "skills"
+        / "memory"
+        / "scripts"
+        / "measure_memory_performance.py"
+    ).read_text(encoding="utf-8")
+    assert "from memory_core.url_validation import validate_http_url" in text
