@@ -74,7 +74,7 @@ The agents follow a 7-phase pipeline. Each phase has a defined input, a command 
 
 The pipeline splits into two modes by who must be present:
 
-- **Day Shift (human decision required):** Grill Me interview responses, PRD review, ship decision
+- **Day Shift (human decision required):** Grill Me interview responses, PRD review, QA gate sign-off, ship decision
 - **Night Shift (AFK or autonomous):** `/build` loops, `/test` gate runs, `/review` passes
 
 ### Pipeline at a glance
