@@ -209,6 +209,102 @@ def test_build_skills_skips_when_stanza_absent(tmp_path: Path) -> None:
     assert any("no artifacts.skills stanza" in n for n in result.notices)
 
 
+# _build_lib (M7-T1) --------------------------------------------------------
+
+
+def test_build_lib_skips_when_stanza_absent(tmp_path: Path) -> None:
+    cfg = tmp_path / "p.yaml"
+    cfg.write_text('schemaVersion: "1.0"\nprovider: "p"\n')
+    result = build_all._build_lib(tmp_path, cfg, "p")
+    assert result.exit_code == 0
+    assert any("no artifacts.lib stanza" in n for n in result.notices)
+
+
+def test_build_lib_copies_python_packages_excluding_pycache(tmp_path: Path) -> None:
+    """M7-T1: lib/ MUST land in the output, __pycache__ MUST be excluded."""
+    src = tmp_path / ".claude" / "lib"
+    pkg = src / "hook_utilities"
+    pkg.mkdir(parents=True)
+    (pkg / "__init__.py").write_text("# pkg\n", encoding="utf-8")
+    (pkg / "guards.py").write_text("def f(): return 1\n", encoding="utf-8")
+    cache = pkg / "__pycache__"
+    cache.mkdir()
+    (cache / "guards.cpython-314.pyc").write_text("noise", encoding="utf-8")
+
+    cfg = tmp_path / "p.yaml"
+    cfg.write_text(
+        'schemaVersion: "1.0"\nprovider: "p"\n'
+        "artifacts:\n"
+        "  lib:\n"
+        '    sourceDir: ".claude/lib"\n'
+        '    outputDir: "out/lib"\n'
+        '    mode: "directory-copy"\n'
+    )
+    result = build_all._build_lib(tmp_path, cfg, "p")
+    assert result.exit_code == 0
+    out = tmp_path / "out" / "lib"
+    assert (out / "hook_utilities" / "guards.py").is_file()
+    assert (out / "hook_utilities" / "__init__.py").is_file()
+    # __pycache__ must NOT have been copied
+    assert not (out / "hook_utilities" / "__pycache__").exists()
+    # Counts reflect .py files only
+    assert result.inputs == 2
+    assert result.outputs == 2
+
+
+def test_build_lib_rejects_outdir_outside_repo(tmp_path: Path) -> None:
+    """Containment guard: outputDir resolving outside repo root MUST fail."""
+    cfg = tmp_path / "p.yaml"
+    cfg.write_text(
+        'schemaVersion: "1.0"\nprovider: "p"\n'
+        "artifacts:\n"
+        "  lib:\n"
+        '    sourceDir: ".claude/lib"\n'
+        '    outputDir: "../escape/lib"\n'
+    )
+    result = build_all._build_lib(tmp_path, cfg, "p")
+    assert result.exit_code == 2
+    assert any("escapes repo root" in n for n in result.notices)
+
+
+def test_build_lib_handles_missing_source(tmp_path: Path) -> None:
+    cfg = tmp_path / "p.yaml"
+    cfg.write_text(
+        'schemaVersion: "1.0"\nprovider: "p"\n'
+        "artifacts:\n"
+        "  lib:\n"
+        '    sourceDir: ".claude/lib"\n'
+        '    outputDir: "out/lib"\n'
+    )
+    result = build_all._build_lib(tmp_path, cfg, "p")
+    assert result.exit_code == 0
+    assert any("lib source dir missing" in n for n in result.notices)
+
+
+def test_build_lib_overwrites_stale_output(tmp_path: Path) -> None:
+    """Repeated invocations MUST replace stale files (rmtree-then-copytree)."""
+    src = tmp_path / ".claude" / "lib"
+    src.mkdir(parents=True)
+    (src / "fresh.py").write_text("# new\n", encoding="utf-8")
+
+    out = tmp_path / "out" / "lib"
+    out.mkdir(parents=True)
+    (out / "stale.py").write_text("# stale\n", encoding="utf-8")
+
+    cfg = tmp_path / "p.yaml"
+    cfg.write_text(
+        'schemaVersion: "1.0"\nprovider: "p"\n'
+        "artifacts:\n"
+        "  lib:\n"
+        '    sourceDir: ".claude/lib"\n'
+        '    outputDir: "out/lib"\n'
+    )
+    result = build_all._build_lib(tmp_path, cfg, "p")
+    assert result.exit_code == 0
+    assert (out / "fresh.py").is_file()
+    assert not (out / "stale.py").exists()
+
+
 # CLI integration -----------------------------------------------------------
 
 

@@ -199,6 +199,70 @@ def _build_rules(repo_root: Path, config_path: Path, platform: str) -> Generator
     return result
 
 
+def _build_lib(repo_root: Path, config_path: Path, platform: str) -> GeneratorResult:
+    """Copy `.claude/lib/` to the platform's lib output directory (M7-T1).
+
+    Hook scripts under `src/<provider>/hooks/<event>/` import
+    ``hook_utilities`` from the sibling ``lib/`` of the plugin manifest.
+    Without this step, every shimmed hook crashes on import in the
+    install layout because the lib tree is never copied. M7-T1 closes
+    that gap by mirroring `.claude/lib/` (the canonical source) to
+    ``src/copilot-cli/lib/`` (the install destination), excluding
+    ``__pycache__`` directories.
+
+    Skips silently when the platform has no ``artifacts.lib`` stanza.
+    """
+    try:
+        cfg = load_platform_config(config_path)
+    except ConfigError:
+        cfg = {}
+    artifacts = cfg.get("artifacts") if isinstance(cfg.get("artifacts"), dict) else {}
+    stanza = artifacts.get("lib") if isinstance(artifacts, dict) else None
+    if not isinstance(stanza, dict):
+        result = GeneratorResult(artifact="lib", platform=platform, exit_code=0)
+        result.notices.append(f"{platform}: no artifacts.lib stanza; skipped")
+        return result
+
+    src_rel = stanza.get("sourceDir")
+    out_rel = stanza.get("outputDir")
+    if not isinstance(src_rel, str) or not isinstance(out_rel, str):
+        result = GeneratorResult(artifact="lib", platform=platform, exit_code=2)
+        result.notices.append(
+            f"{platform}: artifacts.lib missing sourceDir or outputDir"
+        )
+        return result
+
+    src = (repo_root / src_rel).resolve()
+    out = (repo_root / out_rel).resolve()
+    repo_root_resolved = repo_root.resolve()
+    # Containment guard: refuse to write outside the repo root.
+    if not str(out).startswith(str(repo_root_resolved) + "/") and out != repo_root_resolved:
+        result = GeneratorResult(artifact="lib", platform=platform, exit_code=2)
+        result.notices.append(
+            f"{platform}: artifacts.lib.outputDir escapes repo root: {out_rel}"
+        )
+        return result
+
+    result = GeneratorResult(artifact="lib", platform=platform, exit_code=0)
+    if not src.is_dir():
+        result.notices.append(f"{platform}: lib source dir missing: {src_rel}")
+        return result
+
+    import shutil as _shutil
+
+    if out.exists():
+        _shutil.rmtree(out)
+    _shutil.copytree(
+        src,
+        out,
+        ignore=_shutil.ignore_patterns("__pycache__", "*.pyc", "*.pyo"),
+    )
+
+    result.inputs = sum(1 for _ in src.rglob("*.py") if "__pycache__" not in _.parts)
+    result.outputs = sum(1 for _ in out.rglob("*.py") if "__pycache__" not in _.parts)
+    return result
+
+
 def _build_hooks(repo_root: Path, config_path: Path, platform: str) -> GeneratorResult:
     """Generate Copilot CLI hook config (REQ-003-007, M5-T6).
 
@@ -281,15 +345,18 @@ def _build_hooks(repo_root: Path, config_path: Path, platform: str) -> Generator
     return result
 
 
-# Order matters: agents → skills → commands → rules → hooks. The skills
-# generator copies .claude/skills/* first; the commands bridge layers
-# user-invocable skills beside them; rules write to a separate dir
-# (.github/instructions/); hooks write src/copilot-cli/hooks/.
+# Order matters: agents → skills → commands → rules → lib → hooks.
+# The skills generator copies .claude/skills/* first; the commands bridge
+# layers user-invocable skills beside them; rules write to a separate dir
+# (.github/instructions/); lib MUST land before hooks so the manifest-
+# walk-up bootstrap in shimmed hooks finds .claude-plugin/plugin.json
+# alongside lib/; hooks write src/copilot-cli/hooks/.
 GENERATORS: list[tuple[str, Callable[[Path, Path, str], GeneratorResult]]] = [
     ("agents", _build_agents),
     ("skills", _build_skills),
     ("commands", _build_commands),
     ("rules", _build_rules),
+    ("lib", _build_lib),
     ("hooks", _build_hooks),
 ]
 

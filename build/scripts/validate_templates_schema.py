@@ -54,6 +54,7 @@ AGENTS_KEYS = {
     "excludeFilenames",
 }
 SKILLS_KEYS = {"sourceDir", "outputDir", "mode"}
+LIB_KEYS = {"sourceDir", "outputDir", "mode"}
 COMMANDS_KEYS = {
     "sourceDir",
     "outputDir",
@@ -83,6 +84,7 @@ ARTIFACT_DISPATCH = {
     "skills": SKILLS_KEYS,
     "commands": COMMANDS_KEYS,
     "rules": RULES_KEYS,
+    "lib": LIB_KEYS,
     "hooks": HOOKS_KEYS,
 }
 
@@ -91,6 +93,7 @@ PATH_FIELDS_BY_ARTIFACT = {
     "skills": ("sourceDir", "outputDir"),
     "commands": ("sourceDir", "outputDir"),
     "rules": ("sourceDir", "outputDir"),
+    "lib": ("sourceDir", "outputDir"),
     "hooks": ("settingsSource", "scriptSource", "outputConfig", "outputScripts"),
 }
 
