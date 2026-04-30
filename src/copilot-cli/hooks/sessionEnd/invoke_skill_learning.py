@@ -65,9 +65,41 @@ if _lib_dir not in sys.path:
 
 from hook_utilities.guards import skip_if_consumer_repo  # noqa: E402
 
-# Base directory for all project operations to prevent path traversal / arbitrary writes
-# We treat the repository root (three levels up from this file) as the safe base.
-SAFE_BASE_DIR = Path(__file__).resolve().parents[3]
+# Base directory for all project operations (path traversal floor / arbitrary
+# write blocker).
+#
+# M7-T5: was ``Path(__file__).resolve().parents[3]``, which assumed a specific
+# source-layout depth. After the REQ-003-007 hook generator copies this script
+# to ``src/copilot-cli/hooks/sessionEnd/<name>.py`` (one extra level deep),
+# ``parents[3]`` lands at ``.../src``, not the repo root. Pattern loading,
+# session lookup, and memory writes then resolve under non-existent
+# ``src/.claude``, ``src/.agents``, ``src/.serena`` paths.
+#
+# Fix: derive the safe base from the runtime environment. ``CLAUDE_PROJECT_DIR``
+# is set per-invocation; falling back to a walk-up from cwd looking for ``.git``
+# matches what every other hook in the codebase does. Either source is the
+# user's actual project root, regardless of where this script's file lives.
+def _detect_safe_base_dir() -> Path:
+    env_dir = os.environ.get("CLAUDE_PROJECT_DIR", "").strip()
+    if env_dir:
+        try:
+            return Path(env_dir).resolve(strict=False)
+        except OSError:
+            pass
+    try:
+        cur = Path.cwd().resolve()
+    except OSError:
+        return Path.cwd()
+    while True:
+        if (cur / ".git").exists():
+            return cur
+        parent = cur.parent
+        if parent == cur:
+            return Path.cwd()
+        cur = parent
+
+
+SAFE_BASE_DIR = _detect_safe_base_dir()
 OBSERVATIONS_SUFFIX = "-observations.md"
 PROJECT_DIR: Path | None = None
 
@@ -198,9 +230,17 @@ def _ensure_patterns_loaded(project_dir: Path) -> None:
 
 # LLM fallback configuration
 CONFIDENCE_THRESHOLD = float(os.getenv("SKILL_LEARNING_CONFIDENCE_THRESHOLD", "0.7"))
-USE_LLM_FALLBACK = os.getenv("SKILL_LEARNING_USE_LLM", "true").lower() == "true"
+# M7-T6: privacy default flipped from true to false. The pre-fix default
+# uploaded session transcripts to Anthropic on every Stop hook fire unless
+# the operator explicitly opted out, with the API key sourced implicitly
+# from environment or .env. Both are PII / credential surprises. Now the
+# operator MUST explicitly set SKILL_LEARNING_USE_LLM=true to opt in.
+USE_LLM_FALLBACK = os.getenv("SKILL_LEARNING_USE_LLM", "false").lower() == "true"
 LLM_MODEL = "claude-haiku-4-5-20251001"
 LLM_MAX_TOKENS = 200
+# M7-T6: bound the synchronous outbound call. Per .claude/rules/release-it.md
+# every external integration MUST timeout; SessionEnd hooks are user-facing.
+LLM_TIMEOUT_SEC = float(os.getenv("SKILL_LEARNING_LLM_TIMEOUT_SEC", "10"))
 
 # Try to import Anthropic SDK (optional dependency)
 try:
@@ -388,37 +428,17 @@ def check_skill_context(text: str, skill: str) -> bool:
 
 
 def get_api_key() -> str | None:
-    """Get Anthropic API key from environment or config files."""
-    # Try environment variable first
-    api_key = os.getenv("ANTHROPIC_API_KEY")
-    if api_key:
-        return api_key
+    """Get Anthropic API key from environment.
 
-    # Try .env file in project root (prefer validated project directory)
-    env_root = PROJECT_DIR
-    if env_root is None:
-        env_value = os.getenv("CLAUDE_PROJECT_DIR")
-        candidate_root: Path | None = None
-        if env_value:
-            try:
-                candidate_root = Path(env_value).resolve(strict=False)
-            except Exception:
-                candidate_root = None
-        # Only trust CLAUDE_PROJECT_DIR if it is inside SAFE_BASE_DIR
-        if candidate_root is not None and _is_relative_to(candidate_root, SAFE_BASE_DIR):
-            env_root = candidate_root
-        else:
-            # Fall back to a safe default within the repository
-            env_root = SAFE_BASE_DIR
-
-    env_file = env_root / ".env"
-    if env_file.exists():
-        with open(env_file, encoding="utf-8") as f:
-            for line in f:
-                if line.startswith("ANTHROPIC_API_KEY="):
-                    return line.split("=", 1)[1].strip().strip('"\'')
-
-    return None
+    M7-T6: implicit ``.env`` pickup removed. The pre-fix code silently
+    parsed ``.env`` files for ``ANTHROPIC_API_KEY``, surprising operators
+    who did not realize a hook would scan their credential files. The
+    operator MUST now provide ``ANTHROPIC_API_KEY`` (or an explicit
+    ``SKILL_LEARNING_API_KEY``) via the environment to opt into the LLM
+    fallback path. Combined with the ``USE_LLM_FALLBACK`` opt-in flag,
+    this gives the operator full control over both intent and credential.
+    """
+    return os.getenv("SKILL_LEARNING_API_KEY") or os.getenv("ANTHROPIC_API_KEY")
 
 
 def classify_learning_by_llm(
@@ -476,10 +496,14 @@ Respond in JSON format:
   "reasoning": "Why this is/isn't a learning"
 }}"""
 
+        # M7-T6: timeout bounds the synchronous call so a stalled API
+        # cannot wedge the SessionEnd hook indefinitely. The Anthropic
+        # SDK accepts a per-call timeout in seconds.
         message = client.messages.create(
             model=LLM_MODEL,
             max_tokens=LLM_MAX_TOKENS,
-            messages=[{"role": "user", "content": prompt}]
+            messages=[{"role": "user", "content": prompt}],
+            timeout=LLM_TIMEOUT_SEC,
         )
 
         response_text = message.content[0].text.strip()
