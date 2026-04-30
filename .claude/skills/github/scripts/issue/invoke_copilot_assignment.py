@@ -233,11 +233,11 @@ def _get_coderabbit_plan(
     for comment in rabbit_comments:
         body = comment.get("body", "")
 
-        m = re.search(f"{impl_pattern}([\\s\\S]*?)(?=##|$)", body)
+        m = re.search(f"{impl_pattern}([\\s\\S]*?)(?=##|$)", body)  # nosemgrep: skill-ldap-injection
         if m:
             plan["implementation"] = m.group(1).strip()
 
-        m = re.search(
+        m = re.search(  # nosemgrep: skill-ldap-injection
             f"{issues_pattern}([\\s\\S]*?)(?=</details>|<details>|##|$)",
             body,
         )
@@ -247,7 +247,7 @@ def _get_coderabbit_plan(
                 f"#{g1 or g2}" for g1, g2 in issue_matches
             })
 
-        m = re.search(
+        m = re.search(  # nosemgrep: skill-ldap-injection
             f"{prs_pattern}([\\s\\S]*?)(?=</details>|<details>|##|$)",
             body,
         )
@@ -278,14 +278,14 @@ def _get_ai_triage_info(
     body = triage_comment.get("body", "")
 
     for field in ("Priority", "Category"):
-        m = re.search(
+        m = re.search(  # nosemgrep: skill-ldap-injection
             rf"(?m)^\s*\|\s*\*\*{field}\*\*\s*\|\s*`([^`]+)`",
             body,
         )
         if m:
             triage[field.lower()] = m.group(1).strip()
         else:
-            m = re.search(rf"(?m)^{field}[:\s]+(\S+)", body)
+            m = re.search(rf"(?m)^{field}[:\s]+(\S+)", body)  # nosemgrep: skill-ldap-injection
             if m:
                 triage[field.lower()] = m.group(1)
 

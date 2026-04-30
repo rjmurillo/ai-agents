@@ -86,14 +86,13 @@ def main() -> int:
         return 0
 
     try:
-        # nosemgrep: dangerous-subprocess-use-tainted-env-args
         # Tainted source (CLAUDE_PROJECT_DIR -> project_root) is contained
         # by get_project_root(): the script's own resolved path MUST be
         # under the env-supplied root (CWE-22 defense). detect_script is
         # then a fixed path under that validated root, gated by
         # .exists(). List form blocks CWE-78 shell injection. The 10s
         # timeout bounds blocking.
-        result = subprocess.run(
+        result = subprocess.run(  # nosemgrep: dangerous-subprocess-use-tainted-env-args
             [sys.executable, detect_script, "--base-path", project_root, "--include-untracked"],
             capture_output=True,
             text=True,

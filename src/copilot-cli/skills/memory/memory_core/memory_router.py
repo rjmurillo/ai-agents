@@ -258,12 +258,12 @@ def invoke_forgetful_search(
     }).encode("utf-8")
 
     try:
-        req = urllib.request.Request(
+        req = urllib.request.Request(  # nosemgrep: insecure-transport,dynamic-urllib-use-detected
             endpoint,
             data=request_body,
             headers={"Content-Type": "application/json"},
             method="POST",
-        )
+        )  # loopback-only dev MCP endpoint; CWE-918 SSRF mitigated by validate_http_url scheme allowlist
         # nosemgrep: request-with-tainted-url-from-urllib
         # endpoint scheme validated above; only http/https reach this call.
         with urllib.request.urlopen(req, timeout=10) as resp:

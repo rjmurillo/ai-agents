@@ -99,7 +99,7 @@ def get_decision_type(text: str) -> str:
         return "test"
     if re.search(r'recover|fix|retry|fallback', lower):
         return "recovery"
-    if re.search(r'route|delegate|agent|handoff', lower):
+    if re.search(r'route|delegate|agent|handoff', lower):  # nosemgrep: skill-ldap-injection
         return "routing"
     return "implementation"
 

@@ -684,7 +684,7 @@ def run_compilability_check(
                         content,
                     )
                     for param in named_params:
-                        if not re.search(rf"\b{re.escape(param)}\b", actual.signature):
+                        if not re.search(rf"\b{re.escape(param)}\b", actual.signature):  # nosemgrep: skill-ldap-injection
                             finding_counter += 1
                             findings.append(Finding(
                                 id=f"compile-{finding_counter:04d}",

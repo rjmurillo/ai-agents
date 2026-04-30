@@ -83,10 +83,9 @@ def run_git(args: list[str]) -> str:
             tok.startswith("--upload-pack=") or tok.startswith("--exec=")
         ):
             raise ValueError(f"run_git: forbidden git option {tok!r}")
-    # nosemgrep: dangerous-subprocess-use-tainted-env-args
     # List form (CWE-78 shell injection blocked) + read-only verb allowlist
     # + transport-flag denylist + 30s timeout. Defense-in-depth complete.
-    result = subprocess.run(
+    result = subprocess.run(  # nosemgrep: dangerous-subprocess-use-tainted-env-args
         ["git"] + args,
         capture_output=True,
         text=True,
@@ -151,12 +150,11 @@ def find_dependents(target: str) -> list[str]:
     target_path = Path(target)
     search_term = target_path.stem if target_path.exists() else target
 
-    # nosemgrep: dangerous-subprocess-use-tainted-env-args
     # `git grep -e <pattern> --` treats the term as a literal regex pattern,
     # never as a flag (the `-e` and `--` separator both prevent flag
     # interpretation). List form blocks shell injection. 30s timeout
     # bounds blocking. search_term is used as a needle, not as a path.
-    result = subprocess.run(
+    result = subprocess.run(  # nosemgrep: dangerous-subprocess-use-tainted-env-args
         ["git", "grep", "-l", "-e", search_term, "--", "*.md", "*.py", "*.ps1", "*.yml", "*.yaml"],
         capture_output=True,
         text=True,

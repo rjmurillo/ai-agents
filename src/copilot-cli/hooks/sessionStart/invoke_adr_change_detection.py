@@ -18,29 +18,13 @@ import subprocess
 import sys
 from pathlib import Path
 
-_plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
-if _plugin_root:
-    _lib_dir = str(Path(_plugin_root).resolve() / "lib")
-else:
-    # Walk up from this hook looking for .claude-plugin/plugin.json
-    # (the plugin manifest marker). The sibling lib/ is the plugin's
-    # lib dir. Works regardless of source vs install layout depth;
-    # robust to the M5 generator copying this file to a different
-    # directory level under src/<provider>/hooks/<event>/.
-    _cur = Path(__file__).resolve().parent
-    _lib_dir = None
-    while True:
-        if (_cur / ".claude-plugin" / "plugin.json").is_file():
-            _lib_dir = str(_cur / "lib")
-            break
-        if _cur.parent == _cur:
-            break
-        _cur = _cur.parent
-if _lib_dir is None or not os.path.isdir(_lib_dir):
-    print("Plugin lib directory not found", file=sys.stderr)
-    sys.exit(2)
-if _lib_dir not in sys.path:
-    sys.path.insert(0, _lib_dir)
+# Bootstrap: find lib directory and set up imports (see bootstrap.py for details)
+_p = Path(__file__).resolve().parent
+while _p.parent != _p and not (_p / ".claude-plugin" / "plugin.json").is_file():
+    _p = _p.parent
+sys.path.insert(0, str(_p / "lib"))
+from bootstrap import setup_hook_lib_path  # noqa: E402
+setup_hook_lib_path(__file__, fail_exit_code=2)
 
 from hook_utilities.guards import skip_if_consumer_repo  # noqa: E402
 
@@ -102,14 +86,13 @@ def main() -> int:
         return 0
 
     try:
-        # nosemgrep: dangerous-subprocess-use-tainted-env-args
         # Tainted source (CLAUDE_PROJECT_DIR -> project_root) is contained
         # by get_project_root(): the script's own resolved path MUST be
         # under the env-supplied root (CWE-22 defense). detect_script is
         # then a fixed path under that validated root, gated by
         # .exists(). List form blocks CWE-78 shell injection. The 10s
         # timeout bounds blocking.
-        result = subprocess.run(
+        result = subprocess.run(  # nosemgrep: dangerous-subprocess-use-tainted-env-args
             [sys.executable, detect_script, "--base-path", project_root, "--include-untracked"],
             capture_output=True,
             text=True,

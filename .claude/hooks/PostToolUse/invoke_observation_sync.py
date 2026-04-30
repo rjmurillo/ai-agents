@@ -159,12 +159,11 @@ def _run_import(repo_root: str, observation_file: Path) -> None:
         )
         return
 
-    # nosemgrep: dangerous-subprocess-use-tainted-env-args
     # Tainted source (CLAUDE_PROJECT_DIR -> repo_root) is contained by
     # _get_repo_root(); script path is validated by .is_file() check;
     # observation_file is validated by _find_observation_file. List form
     # blocks shell metacharacter injection. Defense-in-depth complete.
-    result = subprocess.run(
+    result = subprocess.run(  # nosemgrep: dangerous-subprocess-use-tainted-env-args
         [
             sys.executable,
             str(import_script),

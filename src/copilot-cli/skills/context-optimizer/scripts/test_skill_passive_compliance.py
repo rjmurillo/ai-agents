@@ -100,7 +100,7 @@ def check_skill_has_actions(skill_path: Path) -> CheckResult:
 
     found_verbs = [
         verb for verb in action_verbs
-        if re.search(rf"\b{verb}\b", content, re.IGNORECASE)
+        if re.search(rf"\b{verb}\b", content, re.IGNORECASE)  # nosemgrep: skill-ldap-injection
     ]
 
     # Check for PowerShell script references
