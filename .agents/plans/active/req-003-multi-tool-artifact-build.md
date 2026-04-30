@@ -94,6 +94,39 @@
 | M6-T4 | Integration test: `jq '[.plugins[].name] \| unique \| length == (.plugins \| length)'` (uniqueness assertion) + counter green + no legacy deletions | S | REQ-003-003, -012 |
 | M6-T5 | End-to-end integration test: source change in `.claude/agents/` → `build_all.py` → install Copilot CLI plugin into clean dir → verify agent appears via `copilot plugin list` | M | REQ-003-007 verification |
 
+### M7 — Vendor Install Hardening (M+M+L+M+S+M, ~4 days, BLOCKING release)
+
+Triggered by PR #1819 review (CodeRabbit + user). M6 marketplace flip ships an
+`copilot-cli-toolkit` plugin whose hooks crash on import in any non-source
+install: hook scripts resolve sibling `lib/` via `parents[N]` of `__file__`,
+which is wrong for the deeper output tree, and `lib/` itself is not generated
+to `src/copilot-cli/`. Generated instruction files leak internal `.agents/`
+and `.claude/` paths that do not exist downstream. Multi-matcher hooks ship
+per-matcher copies whose body still filters on a single original command.
+
+Without M7, the plugin is unusable. M6 stays "shipped as artifact" but the
+release announcement waits on M7 green.
+
+| ID | Task | Size | REQ |
+|----|------|------|-----|
+| M7-T1 | Generator ships `lib/` to `src/copilot-cli/lib/` (copy `.claude/lib/` recursively, exclude `__pycache__`); `build_all.py` wires a `generate_lib` step | M | REQ-003-007 |
+| M7-T2 | Hook scripts resolve sibling `lib/` via plugin-manifest walk-up (find `.claude-plugin/plugin.json` ancestor) instead of `parents[N]`; runtime works regardless of source vs install layout. Source-side change in `.claude/hooks/`; generator unchanged | M | REQ-003-007 |
+| M7-T3 | Multi-matcher hook body splitting: generator detects per-matcher branches in source (annotation comment or registered metadata) and emits matcher-scoped bodies; alternative one-body-many-matchers approach captured in design notes if T3 cost > 1L | L | REQ-003-007 |
+| M7-T4 | `generate_rules.py` vendor-install sanitization: drop `applyTo` glob entries that point at `.agents/`, `.claude/`, or `.serena/`; rewrite cross-ecosystem reference URLs (`.claude/skills/<name>` → `.github/instructions/...` or drop if no equivalent); test gate ensures generated `.github/instructions/*.md` reference no internal-only paths | M | REQ-003-006 |
+| M7-T5 | `invoke_skill_learning.py` anchor on `hook_input["cwd"]` (validated) instead of `Path(__file__).parents[3]`; restores correctness when copied to deeper output layout | S | REQ-003-007 |
+| M7-T6 | `invoke_skill_learning.py` privacy + reliability: flip `SKILL_LEARNING_USE_LLM` default from true to false (explicit opt-in); require `SKILL_LEARNING_USE_LLM=true` AND `SKILL_LEARNING_API_KEY` set explicitly (no implicit `.env` pickup); add `timeout=` on the Anthropic `client.messages.create()` call per `.claude/rules/release-it.md` | M | REQ-003-007 (defense-in-depth on copied hooks) |
+
+**M7 ordering**: T1+T2 unblock all hook execution and must land first as a pair.
+T4 unblocks correct vendor instruction-file emission. T3 unblocks correct
+multi-matcher behavior; can ship after T1+T2 since broken split is silent
+no-op rather than crash. T5+T6 are source-side correctness fixes orthogonal
+to T1-T4.
+
+**Tracking**: replies on PR #1819 threads PRRT_kwDOQoWRls5-cpKh,
+PRRT_kwDOQoWRls5-cqcT, PRRT_kwDOQoWRls5-cram, PRRT_kwDOQoWRls5-fGP-,
+PRRT_kwDOQoWRls5-fGQH, PRRT_kwDOQoWRls5-fGQb, PRRT_kwDOQoWRls5-fGQd cite
+this milestone and stay unresolved until the matching task lands.
+
 ## Decision Log
 
 | Date | Decision | Rationale | Alternatives Considered |
