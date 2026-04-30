@@ -158,10 +158,12 @@ The [Fastest Start](#fastest-start) commands install the full toolkit. For compo
 
 | Component | Install Command | What You Get |
 |-----------|----------------|--------------|
-| Claude agents only | `/plugin install claude-agents@ai-agents` | 24 specialized agent definitions for Claude Code (no skills, commands, or hooks) |
-| Copilot CLI agents only | `/plugin install copilot-cli-agents@ai-agents` | 24 agent definitions for Copilot CLI (no skills or hooks) |
-| Claude full toolkit | `/plugin install claude-toolkit@ai-agents` | 23 agents, 23 commands, 29 hooks, 69 skills (Claude Code) |
-| Copilot full toolkit | `/plugin install copilot-cli-toolkit@ai-agents` | 24 agents, 28 hooks, 81 skills (Copilot CLI) |
+| Claude agents only | `/plugin install claude-agents@ai-agents` | 24 agent definitions from `src/claude/` (no skills, commands, or hooks) |
+| Copilot CLI agents only | `/plugin install copilot-cli-agents@ai-agents` | 24 agent definitions from `src/copilot-cli/` (no skills or hooks) |
+| Claude full toolkit | `/plugin install claude-toolkit@ai-agents` | 23 agents, 23 commands, 29 hooks, 69 skills from `.claude/` (Claude Code) |
+| Copilot full toolkit | `/plugin install copilot-cli-toolkit@ai-agents` | 24 agents, 28 hooks, 81 skills from `src/copilot-cli/` (Copilot CLI) |
+
+The agents-only plugins (`claude-agents`, `copilot-cli-agents`) pull from `src/<platform>/` and ship 24 agents each. The full toolkits pull from a different source (`./.claude` for Claude, the same `src/copilot-cli` dir for Copilot) where Claude's roster is 23. The "23 vs 24" gap is real: `src/claude/` and `.claude/agents/` are two different curated sets, kept in sync where they overlap but with each set including agents the other does not. The Fastest Start path uses the full toolkit, so the headline "23 agents" reflects what most users get.
 
 ### Verify Installation
 
