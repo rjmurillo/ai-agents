@@ -11,8 +11,6 @@ import warnings
 from pathlib import Path
 from datetime import UTC, datetime
 
-from bootstrap import resolve_plugin_lib_dir  # noqa: F401 - re-exported
-
 _GIT_COMMIT_PATTERN = re.compile(r"(?:^|\s)git\s+(commit|ci)")
 _GIT_PUSH_PATTERN = re.compile(r"(?:^|\s)git\s+push(?:\s|$)")
 # M7-T3: `gh pr create` dispatches to session_log_guard alongside `git commit`.
