@@ -119,7 +119,6 @@ ignores:
   - "tmp/**"
   - "**/*.ps1"
   - "**/*.psm1"
-  - ".factory/**"
 
   # User instruction files - these are APPENDED to existing user files during installation
   # and cannot start with H1 (MD041). They are simple, controlled content that we manually
@@ -133,14 +132,8 @@ ignores:
   - "docs/autonomous-pr-monitor.md"
   - "docs/autonomous-issue-development.md"
 
-  # Skills treated as third-party plugins per PR #331 - excluded via glob pattern above
-  # - ".claude/skills/adr-review/agent-prompts.md"  # No longer needed with glob exclusion
-  - ".claude/skills/decision-critic/**"
-  - ".claude/skills/doc-sync/**"
-  - ".claude/skills/incoherence/**"
-  - ".claude/skills/programming-advisor/**"
-  - ".claude/skills/prompt-engineer/**"
-  - ".claude/skills/SkillForge/**"
+  # Skills treated as third-party plugins per PR #331 - blanket exclusion
+  - ".claude/skills/**"
 
   # TEMPORARY: Agent definition files (.github/agents/*.agent.md) have pre-existing linting
   # issues being fixed in a separate PR. This exclusion unblocks PR #847.
