@@ -31,6 +31,15 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 COPILOT_PLUGIN_SRC = REPO_ROOT / "src" / "copilot-cli"
 COPILOT_PLUGIN_MANIFEST = COPILOT_PLUGIN_SRC / ".claude-plugin" / "plugin.json"
 COPILOT_HOOKS_FILE = COPILOT_PLUGIN_SRC / "hooks" / "hooks.json"
+COPILOT_PLUGIN_SKILLS = COPILOT_PLUGIN_SRC / "skills"
+
+# skills/ is gated on M3-T2 (generate_skills.py); skip skill tests at
+# collection time so the copytree fixture does not run on a tree that
+# cannot satisfy them.
+_SKILLS_REASON = "skills/ not generated yet (gated on M3-T2 generate_skills.py)"
+_skills_skipif = pytest.mark.skipif(
+    not COPILOT_PLUGIN_SKILLS.exists(), reason=_SKILLS_REASON
+)
 
 # Copilot CLI hook event names (camelCase). Distinct from Claude (PascalCase).
 VALID_COPILOT_EVENTS = {
@@ -142,17 +151,15 @@ class TestInstalledArtifactReadability:
         text = sample.read_text(encoding="utf-8")
         assert text.strip(), f"{sample.name} is empty"
 
+    @_skills_skipif
     def test_at_least_one_skill_dir(self, installed_plugin: Path) -> None:
         skills_dir = installed_plugin / "skills"
-        if not skills_dir.exists():
-            pytest.skip("skills/ not generated yet (gated on M3-T2 generate_skills.py)")
         skill_dirs = [d for d in skills_dir.iterdir() if d.is_dir()]
         assert skill_dirs, "Install must contain at least one skill directory"
 
+    @_skills_skipif
     def test_sample_skill_md_readable(self, installed_plugin: Path) -> None:
         skills_dir = installed_plugin / "skills"
-        if not skills_dir.exists():
-            pytest.skip("skills/ not generated yet (gated on M3-T2 generate_skills.py)")
         # Find first skill with a SKILL.md file (canonical contract).
         for skill in sorted(skills_dir.iterdir()):
             if not skill.is_dir():

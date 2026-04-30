@@ -140,7 +140,7 @@ def _build_counter(rule: dict, repo_root: Path) -> Callable[[], int]:
                 f"strategy '{strategy_name}': exclude must be a list of strings"
             )
         exclude = set(exclude_raw)
-    allow_missing = bool(rule.get("allowMissing", False))
+    allow_missing = rule.get("allowMissing", False) is True
     fn = STRATEGIES[strategy_name]
     target = repo_root / source_dir
     if not target.exists():
