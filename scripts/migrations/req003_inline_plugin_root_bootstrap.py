@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# DELETE-AFTER-MERGE: This script is one-shot. It is idempotent on re-run
+# but unnecessary post-PR-1819-merge: every production hook is already on
+# the inline manifest-walk-up bootstrap. Delete with the next housekeeping
+# pass once PR #1819 has shipped to consumers.
 """REQ-003: replace `setup_hook_lib_path` call with inline bootstrap.
 
 ADR-047 ships a test (`tests/test_plugin_path_resolution.py`) that
@@ -19,10 +23,12 @@ Idempotent: detects the inline pattern and skips already-migrated files.
 
 Run with:
     python3 scripts/migrations/req003_inline_plugin_root_bootstrap.py
+    python3 scripts/migrations/req003_inline_plugin_root_bootstrap.py --dry-run
 """
 
 from __future__ import annotations
 
+import argparse
 import re
 import sys
 from pathlib import Path
@@ -62,7 +68,7 @@ else:
             break
         _cur = _cur.parent
 if _lib_dir is None or not os.path.isdir(_lib_dir):
-    print("Plugin lib directory not found", file=sys.stderr)
+    print(f"Plugin lib directory not found: {{_lib_dir}} (CLAUDE_PLUGIN_ROOT={{_plugin_root!r}})", file=sys.stderr)
     sys.exit({exit_code})
 if _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)'''
@@ -70,8 +76,13 @@ if _lib_dir not in sys.path:
 ALREADY_MIGRATED_MARKER = 'os.environ.get("CLAUDE_PLUGIN_ROOT")'
 
 
-def migrate_file(path: Path) -> str:
-    """Return one of: migrated, already-migrated, skipped-no-pattern, error."""
+def migrate_file(path: Path, *, dry_run: bool = False) -> str:
+    """Return one of: migrated, already-migrated, skipped-no-pattern, error.
+
+    When ``dry_run`` is True the file on disk is not modified, but the
+    return value is identical to a real run. ``migrated`` then means
+    "would have been migrated".
+    """
     text = path.read_text(encoding="utf-8")
     match = OLD_PATTERN.search(text)
     if match is None:
@@ -83,11 +94,29 @@ def migrate_file(path: Path) -> str:
     new_text = OLD_PATTERN.sub(lambda _m: replacement, text, count=1)
     if new_text == text:
         return "error"
-    path.write_text(new_text, encoding="utf-8")
+    if not dry_run:
+        path.write_text(new_text, encoding="utf-8")
     return "migrated"
 
 
-def main() -> int:
+def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description=(
+            "Migrate hooks from setup_hook_lib_path to the inline "
+            "manifest-walk-up bootstrap pattern."
+        )
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Print planned changes without writing to disk.",
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = _parse_args(argv)
+
     if not HOOKS_DIR.is_dir():
         print(f"hooks dir not found: {HOOKS_DIR}", file=sys.stderr)
         return 2
@@ -106,9 +135,11 @@ def main() -> int:
         # Only consider hooks that actually import from the shared lib.
         if "from hook_utilities" not in content and "from github_core" not in content:
             continue
-        outcome = migrate_file(path)
+        outcome = migrate_file(path, dry_run=args.dry_run)
         results[outcome].append(str(path.relative_to(REPO_ROOT)))
 
+    if args.dry_run:
+        print("(dry-run: no files modified)")
     for outcome, files in results.items():
         print(f"{outcome}: {len(files)}")
         for f in files:

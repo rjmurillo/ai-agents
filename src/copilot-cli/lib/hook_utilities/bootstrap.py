@@ -88,7 +88,12 @@ def setup_hook_lib_path(hook_file: str | Path, fail_exit_code: int = 2) -> str:
     """
     lib_dir = resolve_plugin_lib_dir(hook_file)
     if lib_dir is None or not os.path.isdir(lib_dir):
-        print("Plugin lib directory not found", file=sys.stderr)
+        plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+        print(
+            f"Plugin lib directory not found: {lib_dir} "
+            f"(CLAUDE_PLUGIN_ROOT={plugin_root!r})",
+            file=sys.stderr,
+        )
         sys.exit(fail_exit_code)
     if lib_dir not in sys.path:
         sys.path.insert(0, lib_dir)
