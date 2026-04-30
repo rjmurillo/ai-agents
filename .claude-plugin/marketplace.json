@@ -18,8 +18,18 @@
     },
     {
       "name": "project-toolkit",
-      "description": "Complete project development toolkit: 23 agents, 24 slash commands, 29 lifecycle hooks, and 69 reusable skills for Claude Code workflows",
+      "description": "Complete project development toolkit: 23 agents, 23 slash commands, 29 lifecycle hooks, and 69 reusable skills for Claude Code workflows",
       "source": "./.claude"
+    },
+    {
+      "name": "claude-toolkit",
+      "description": "23 agents, 69 reusable skills, 23 slash commands, 29 lifecycle hooks - canonical Claude Code authoring source",
+      "source": "./.claude"
+    },
+    {
+      "name": "copilot-cli-toolkit",
+      "description": "24 agent definitions, 81 reusable skills, 28 lifecycle hooks for GitHub Copilot CLI - generated from Claude canonical sources",
+      "source": "./src/copilot-cli"
     }
   ]
 }

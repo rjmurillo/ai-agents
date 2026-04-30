@@ -4,6 +4,11 @@
 Counts agents, commands, hooks, and skills from source directories and
 compares them against the counts embedded in marketplace.json descriptions.
 
+The plugin -> (label, strategy, sourceDir, exclude) mapping lives in
+templates/marketplace-counters.yaml so adding a new plugin requires no
+Python edits (REQ-003-004). Strategies remain Python because they are
+reusable building blocks across plugins.
+
 Exit codes:
     0 - All counts match
     1 - One or more counts are stale
@@ -19,12 +24,38 @@ import sys
 from collections.abc import Callable
 from pathlib import Path
 
+from yaml_loader import ConfigError, load_platform_config
+
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 MARKETPLACE_JSON = REPO_ROOT / ".claude-plugin" / "marketplace.json"
+COUNTERS_YAML = REPO_ROOT / "templates" / "marketplace-counters.yaml"
 
-# Maps plugin name to a dict of (label -> counting function).
-# Each counting function returns an int.
-PLUGIN_COUNTERS: dict[str, dict[str, Callable[[], int]]] = {}
+
+# --- Counter strategies (reusable building blocks) -----------------------
+
+
+# Directories pruned during recursive walks. Same set as
+# validate_plugin_manifests.py (PR #1795); prevents CI hang on
+# large vendored trees or symlink loops.
+_EXCLUDED_DIRS = frozenset({"node_modules", ".git", "worktrees", "cache", "__pycache__"})
+
+
+def _walk_files(directory: Path, suffix: str, exclude_names: set[str]) -> int:
+    """Count files matching suffix, pruning EXCLUDED_DIRS during descent.
+
+    Replaces ``directory.rglob('*.<suffix>')`` which walks excluded subtrees
+    before discarding matches. ``os.walk`` with in-place ``dirnames`` mutation
+    prunes BEFORE descending — safe against vendored bloat and symlink loops.
+    """
+    import os
+
+    count = 0
+    for dirpath, dirnames, filenames in os.walk(directory):
+        dirnames[:] = [d for d in dirnames if d not in _EXCLUDED_DIRS]
+        for name in filenames:
+            if name.endswith(suffix) and name not in exclude_names:
+                count += 1
+    return count
 
 
 def _count_md_agents(directory: Path, exclude: set[str] | None = None) -> int:
@@ -40,50 +71,114 @@ def _count_md_agents(directory: Path, exclude: set[str] | None = None) -> int:
     )
 
 
-def _count_agent_md(directory: Path) -> int:
-    """Count .agent.md files in a directory."""
-    return sum(1 for f in directory.glob("*.agent.md") if f.is_file())
-
-
-def _count_commands(directory: Path) -> int:
-    """Count command .md files recursively, excluding CLAUDE.md."""
+def _count_agent_md(directory: Path, exclude: set[str] | None = None) -> int:
+    """Count .agent.md files in a directory, excluding specific filenames."""
+    exclude = exclude or set()
     return sum(
         1
-        for f in directory.rglob("*.md")
-        if f.is_file() and f.name != "CLAUDE.md"
+        for f in directory.glob("*.agent.md")
+        if f.is_file() and f.name not in exclude
     )
 
 
-def _count_hooks(directory: Path) -> int:
-    """Count hook .py scripts (all levels)."""
-    return sum(1 for f in directory.rglob("*.py") if f.is_file())
+def _count_commands(directory: Path, exclude: set[str] | None = None) -> int:
+    """Count command .md files recursively, excluding specific filenames.
+
+    Walks pruning EXCLUDED_DIRS; safe against vendored subtrees.
+    Defaults to excluding CLAUDE.md if no exclude set is provided.
+    """
+    exclude = exclude if exclude is not None else {"CLAUDE.md"}
+    return _walk_files(directory, ".md", exclude)
 
 
-def _count_skill_dirs(directory: Path) -> int:
-    """Count immediate subdirectories (each is a skill)."""
-    return sum(1 for d in directory.iterdir() if d.is_dir())
+def _count_hooks(directory: Path, exclude: set[str] | None = None) -> int:
+    """Count hook .py scripts (all levels), pruning EXCLUDED_DIRS."""
+    exclude = exclude or set()
+    return _walk_files(directory, ".py", exclude)
 
 
-PLUGIN_COUNTERS["claude-agents"] = {
-    "agent": lambda: _count_md_agents(
-        REPO_ROOT / "src" / "claude",
-        exclude={"AGENTS.md"},
-    ),
+def _count_skill_dirs(directory: Path, exclude: set[str] | None = None) -> int:
+    """Count immediate subdirectories (each is a skill), excluding specific names."""
+    exclude = exclude or set()
+    return sum(1 for d in directory.iterdir() if d.is_dir() and d.name not in exclude)
+
+
+# Strategy registry. Add new keys ONLY when introducing a fundamentally
+# new counting algorithm; per-plugin mapping belongs in marketplace-counters.yaml.
+STRATEGIES: dict[str, Callable[[Path, set[str] | None], int]] = {
+    "md_agents": _count_md_agents,
+    "agent_md": _count_agent_md,
+    "commands": _count_commands,
+    "hooks": _count_hooks,
+    "skill_dirs": _count_skill_dirs,
 }
 
-PLUGIN_COUNTERS["copilot-cli-agents"] = {
-    "agent": lambda: _count_agent_md(REPO_ROOT / "src" / "copilot-cli"),
-}
 
-PLUGIN_COUNTERS["project-toolkit"] = {
-    "agent": lambda: _count_md_agents(
-        REPO_ROOT / ".claude" / "agents",
-        exclude={"AGENTS.md", "CLAUDE.md"},
-    ),
-    "slash command": lambda: _count_commands(REPO_ROOT / ".claude" / "commands"),
-    "lifecycle hook": lambda: _count_hooks(REPO_ROOT / ".claude" / "hooks"),
-    "reusable skill": lambda: _count_skill_dirs(REPO_ROOT / ".claude" / "skills"),
-}
+# --- Config loading -------------------------------------------------------
+
+
+def _build_counter(rule: dict, repo_root: Path) -> Callable[[], int]:
+    """Bind one (strategy, sourceDir, exclude?) rule into a zero-arg counter."""
+    strategy_name = rule.get("strategy")
+    source_dir = rule.get("sourceDir")
+    if strategy_name not in STRATEGIES:
+        raise ConfigError(
+            f"unknown strategy '{strategy_name}'. "
+            f"Registered: {sorted(STRATEGIES)}"
+        )
+    if not isinstance(source_dir, str) or not source_dir:
+        raise ConfigError(
+            f"strategy '{strategy_name}': sourceDir must be a non-empty string"
+        )
+    exclude_raw = rule.get("exclude")
+    exclude: set[str] | None = None
+    if exclude_raw is not None:
+        if not isinstance(exclude_raw, list) or not all(
+            isinstance(x, str) for x in exclude_raw
+        ):
+            raise ConfigError(
+                f"strategy '{strategy_name}': exclude must be a list of strings"
+            )
+        exclude = set(exclude_raw)
+    fn = STRATEGIES[strategy_name]
+    target = repo_root / source_dir
+    if not target.exists():
+        raise ConfigError(
+            f"strategy '{strategy_name}': sourceDir '{source_dir}' "
+            f"does not exist (resolved to '{target}')"
+        )
+    return lambda: fn(target, exclude)
+
+
+def load_plugin_counters(
+    config_path: Path = COUNTERS_YAML, repo_root: Path = REPO_ROOT
+) -> dict[str, dict[str, Callable[[], int]]]:
+    """Load plugin -> {label -> counter-fn} mapping from YAML."""
+    data = load_platform_config(config_path)
+    plugins = data.get("plugins")
+    if not isinstance(plugins, dict):
+        raise ConfigError(
+            f"{config_path}: top-level `plugins` must be a mapping"
+        )
+    counters: dict[str, dict[str, Callable[[], int]]] = {}
+    for plugin_name, labels in plugins.items():
+        if not isinstance(labels, dict):
+            raise ConfigError(
+                f"plugins.{plugin_name}: must be a mapping of label -> rule"
+            )
+        per_label: dict[str, Callable[[], int]] = {}
+        for label, rule in labels.items():
+            if not isinstance(rule, dict):
+                raise ConfigError(
+                    f"plugins.{plugin_name}.{label}: must be a mapping"
+                )
+            per_label[label] = _build_counter(rule, repo_root)
+        counters[plugin_name] = per_label
+    return counters
+
+
+# --- Description parsing --------------------------------------------------
+
 
 # Pattern: captures a number followed by a label.
 # Example: "23 specialized agent definitions" -> (23, "agent")
@@ -121,18 +216,33 @@ def parse_counts_from_description(description: str) -> dict[str, int]:
     return results
 
 
-def validate(fix: bool = False) -> int:
-    """Validate marketplace.json counts. Returns 0 on success, 1 on mismatch."""
-    if not MARKETPLACE_JSON.exists():
-        print(f"Error: {MARKETPLACE_JSON} not found", file=sys.stderr)
+# --- Validation -----------------------------------------------------------
+
+
+def validate(
+    fix: bool = False,
+    counters_path: Path = COUNTERS_YAML,
+    marketplace_path: Path | None = None,
+    repo_root: Path = REPO_ROOT,
+) -> int:
+    """Validate marketplace.json counts. Returns 0 success, 1 mismatch, 2 config."""
+    marketplace = marketplace_path or MARKETPLACE_JSON
+    if not marketplace.exists():
+        print(f"Error: {marketplace} not found", file=sys.stderr)
         return 2
 
-    with open(MARKETPLACE_JSON) as f:
+    with open(marketplace) as f:
         try:
             data = json.load(f)
         except json.JSONDecodeError as e:
-            print(f"Error: Failed to parse {MARKETPLACE_JSON}: {e}", file=sys.stderr)
+            print(f"Error: Failed to parse {marketplace}: {e}", file=sys.stderr)
             return 2
+
+    try:
+        plugin_counters = load_plugin_counters(counters_path, repo_root)
+    except ConfigError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 2
 
     plugins = data.get("plugins", [])
     mismatches: list[str] = []
@@ -141,7 +251,7 @@ def validate(fix: bool = False) -> int:
     for plugin in plugins:
         name = plugin.get("name", "")
         description = plugin.get("description", "")
-        counters = PLUGIN_COUNTERS.get(name)
+        counters = plugin_counters.get(name)
         if not counters:
             continue
 
@@ -187,7 +297,7 @@ def validate(fix: bool = False) -> int:
         for plugin in plugins:
             if plugin["name"] in fixes:
                 plugin["description"] = fixes[plugin["name"]]
-        with open(MARKETPLACE_JSON, "w") as f:
+        with open(marketplace, "w") as f:
             json.dump(data, f, indent=2)
             f.write("\n")
         print("\nFixed: marketplace.json updated with correct counts.")

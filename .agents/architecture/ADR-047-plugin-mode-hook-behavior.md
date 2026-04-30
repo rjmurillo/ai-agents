@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Accepted (amended 2026-04-29; see Amendments section)
 
 ## Date
 
@@ -60,21 +60,29 @@ When a required directory (e.g., `.agents/`, `.agents/sessions/`) does not exist
 
 ### Standard Import Boilerplate
 
-Every hook or skill script that imports from `.claude/lib/` MUST use this pattern with path validation:
+Every hook or skill script that imports from `.claude/lib/` MUST use this pattern with path validation. The pattern checks `CLAUDE_PLUGIN_ROOT` first, then walks up from `__file__` looking for the `.claude-plugin/plugin.json` manifest marker:
 
 ```python
+# Bootstrap: find lib directory via env var or manifest walk-up.
+# CLAUDE_PLUGIN_ROOT honored when set; otherwise walk up from __file__
+# looking for .claude-plugin/plugin.json (the plugin marker). Sibling
+# lib/ is the plugin's lib dir. Layout-independent: works in source
+# tree (.claude/) and in the deeper src/<provider>/hooks/<event>/ copy.
 _plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
-_workspace = os.environ.get("GITHUB_WORKSPACE")
 if _plugin_root:
-    _lib_dir = os.path.join(_plugin_root, "lib")
-elif _workspace:
-    _lib_dir = os.path.join(_workspace, ".claude", "lib")
+    _lib_dir = str(Path(_plugin_root).resolve() / "lib")
 else:
-    _lib_dir = os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "lib")
-    )
-if not os.path.isdir(_lib_dir):
-    print(f"Plugin lib directory not found: {_lib_dir}", file=sys.stderr)
+    _cur = Path(__file__).resolve().parent
+    _lib_dir = None
+    while True:
+        if (_cur / ".claude-plugin" / "plugin.json").is_file():
+            _lib_dir = str(_cur / "lib")
+            break
+        if _cur.parent == _cur:
+            break
+        _cur = _cur.parent
+if _lib_dir is None or not os.path.isdir(_lib_dir):
+    print(f"Plugin lib directory not found: {_lib_dir} (CLAUDE_PLUGIN_ROOT={_plugin_root!r})", file=sys.stderr)
     sys.exit(2)  # Config error per ADR-035
 if _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
@@ -215,6 +223,33 @@ When creating a new hook or skill script:
 5. Never gate behavior on `CLAUDE_PLUGIN_ROOT` presence
 6. Test with `CLAUDE_PLUGIN_ROOT=/tmp/test python3 hook.py` to verify plugin mode
 7. **Test with malicious environment variables to verify rejection** (`CLAUDE_PROJECT_DIR=../../etc`)
+
+## Amendments
+
+### 2026-04-29 — Manifest walk-up replaces `GITHUB_WORKSPACE`/`parents[N]` resolver
+
+**Change**: The Standard Import Boilerplate now resolves the lib directory using two branches: `CLAUDE_PLUGIN_ROOT` env var, then a walk up from `__file__` looking for `.claude-plugin/plugin.json`. The previous three-branch resolver (`CLAUDE_PLUGIN_ROOT` → `GITHUB_WORKSPACE` → relative `parents[4]/lib`) is replaced.
+
+**Why**:
+
+- **Layout independence**. The `parents[4]` form hard-codes the depth from `__file__` to the lib directory. It works for `.claude/hooks/<Event>/<hook>.py` (depth 4) but breaks for the deeper plugin layout `src/<provider>/hooks/<Event>/<hook>.py` (depth 5) and for skill scripts at unrelated depths. The manifest walk-up resolves correctly in every layout because it stops on the plugin marker, not a count. The shipped migration script (`scripts/migrations/req003_inline_plugin_root_bootstrap.py:46-68`) already implements the layout-independent form, and 23 hooks now use it.
+- **`GITHUB_WORKSPACE` is redundant**. In CI, the working tree contains a `.claude-plugin/plugin.json` marker at the repository root. The walk-up finds it without an env-var hint. Keeping `GITHUB_WORKSPACE` adds a third branch with no behavior the walk-up doesn't already provide.
+- **One resolver, one mental model**. Two branches are easier to grep, easier to audit, and easier to keep correct across 40+ files than three.
+
+**Behavioral compatibility**: The two-branch form is a strict superset of the three-branch form for every layout this project ships:
+
+| Scenario | Old resolver | New resolver | Result |
+|----------|--------------|--------------|--------|
+| Plugin install (`CLAUDE_PLUGIN_ROOT` set) | branch 1 | branch 1 | identical |
+| GitHub Actions checkout | `GITHUB_WORKSPACE`/.claude/lib | walk-up finds repo root marker | identical |
+| Source tree, depth-4 hook | `parents[4]/lib` | walk-up finds `.claude-plugin/plugin.json` | identical |
+| Source tree, depth-5 hook (`src/<provider>/...`) | wrong path (off by one) | walk-up still finds marker | **fixed** |
+
+**Error message**: The error string was widened to include the resolved `_lib_dir` and the value of `CLAUDE_PLUGIN_ROOT` so the failure mode (env-var typo vs missing marker) is diagnosable from the stderr alone.
+
+**Test impact**: `tests/test_plugin_path_resolution.py` continues to assert the literal string `os.environ.get("CLAUDE_PLUGIN_ROOT")` is present in every hook with a lib import. The test does NOT assert `GITHUB_WORKSPACE` is present, so the test passes both before and after this amendment.
+
+**Migration**: The 23 production hooks were migrated to the manifest-walk-up form by `scripts/migrations/req003_inline_plugin_root_bootstrap.py` as part of REQ-003. Re-running the migration is idempotent.
 
 ## Related Decisions
 

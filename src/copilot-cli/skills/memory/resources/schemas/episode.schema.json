@@ -1,0 +1,126 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "episode.schema.json",
+  "title": "Episode Schema",
+  "description": "Schema for reflexion memory episodes extracted from session logs (ADR-038)",
+  "type": "object",
+  "required": ["id", "session", "timestamp", "outcome", "task", "decisions", "events", "metrics"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^episode-.+$",
+      "description": "Unique episode identifier (format: episode-{session-id})"
+    },
+    "session": {
+      "type": "string",
+      "description": "Source session log identifier"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Episode creation timestamp"
+    },
+    "outcome": {
+      "type": "string",
+      "enum": ["success", "partial", "failure"],
+      "description": "Overall episode outcome"
+    },
+    "task": {
+      "type": "string",
+      "description": "High-level task description"
+    },
+    "decisions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "timestamp", "type", "context", "chosen", "outcome"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^d\\d{3}$"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["design", "implementation", "test", "recovery", "routing"]
+          },
+          "context": {
+            "type": "string"
+          },
+          "options": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "chosen": {
+            "type": "string"
+          },
+          "rationale": {
+            "type": "string"
+          },
+          "outcome": {
+            "type": "string",
+            "enum": ["success", "partial", "failure"]
+          },
+          "effects": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "IDs of decisions/events caused by this decision"
+          }
+        }
+      }
+    },
+    "events": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "timestamp", "type", "content"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^e\\d{3}$"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["tool_call", "error", "milestone", "handoff", "commit", "test"]
+          },
+          "content": {
+            "type": "string"
+          },
+          "caused_by": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "IDs of decisions/events that caused this"
+          },
+          "leads_to": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "IDs of decisions/events this leads to"
+          }
+        }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "properties": {
+        "duration_minutes": { "type": "number" },
+        "tool_calls": { "type": "integer" },
+        "errors": { "type": "integer" },
+        "recoveries": { "type": "integer" },
+        "commits": { "type": "integer" },
+        "files_changed": { "type": "integer" }
+      }
+    },
+    "lessons": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Key lessons learned from this episode"
+    }
+  }
+}

@@ -23,21 +23,34 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
+# Bootstrap: find lib directory via env var or manifest walk-up.
+# CLAUDE_PLUGIN_ROOT honored when set; otherwise walk up from __file__
+# looking for .claude-plugin/plugin.json (the plugin marker). Sibling
+# lib/ is the plugin's lib dir. Layout-independent: works in source
+# tree (.claude/) and in the deeper src/<provider>/hooks/<event>/ copy.
 _plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
 if _plugin_root:
     _lib_dir = str(Path(_plugin_root).resolve() / "lib")
 else:
-    _lib_dir = str(Path(__file__).resolve().parents[2] / "lib")
-if not os.path.isdir(_lib_dir):
-    print(f"Plugin lib directory not found: {_lib_dir}", file=sys.stderr)
-    sys.exit(2)  # Config error per ADR-035
+    _cur = Path(__file__).resolve().parent
+    _lib_dir = None
+    while True:
+        if (_cur / ".claude-plugin" / "plugin.json").is_file():
+            _lib_dir = str(_cur / "lib")
+            break
+        if _cur.parent == _cur:
+            break
+        _cur = _cur.parent
+if _lib_dir is None or not os.path.isdir(_lib_dir):
+    print(f"Plugin lib directory not found: {_lib_dir} (CLAUDE_PLUGIN_ROOT={_plugin_root!r})", file=sys.stderr)
+    sys.exit(2)
 if _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
 
 from hook_utilities import (  # noqa: E402
     get_project_directory,
     get_today_session_log,
-    is_git_commit_command,
+    is_session_logged_command,
 )
 from hook_utilities.guards import skip_if_consumer_repo  # noqa: E402
 
@@ -106,7 +119,10 @@ def main() -> int:
         if not command:
             return 0
 
-        if not is_git_commit_command(command):
+        # M7-T3: this hook is registered under both `Bash(git commit*)` and
+        # `Bash(gh pr create*)` matchers. Without recognizing both commands,
+        # the pr-creation copy fired its shim correctly but no-opped here.
+        if not is_session_logged_command(command):
             return 0
 
         project_dir = get_project_directory()
@@ -129,7 +145,7 @@ def main() -> int:
                 protocol_ref = "\nSee: `.agents/SESSION-PROTOCOL.md` for full details.\n"
 
             output = f"""
-## BLOCKED: No Session Log Found
+## BLOCKED [E_NO_SESSION_LOG]: No Session Log Found
 
 **YOU MUST create a session log before committing.**
 
@@ -157,7 +173,10 @@ Session logs go in: `.agents/sessions/{today}-session-NN.json`
 **Sessions Directory**: {sessions_dir}
 {protocol_ref}"""
             print(output)
-            print("Session blocked: No session log found for today", file=sys.stderr)
+            print(
+                "[E_NO_SESSION_LOG] Session blocked: No session log found for today",
+                file=sys.stderr,
+            )
             return 2
 
         evidence = check_session_log_evidence(session_log)
@@ -165,7 +184,7 @@ Session logs go in: `.agents/sessions/{today}-session-NN.json`
         if not evidence["valid"]:
             reason = evidence["reason"]
             output = f"""
-## BLOCKED: Session Log Empty or Invalid
+## BLOCKED [E_EMPTY_SESSION_LOG]: Session Log Empty or Invalid
 
 **Reason**: {reason}
 
@@ -186,7 +205,11 @@ Session log MUST contain:
 **Current Session Log**: {session_log.name}
 """
             print(output)
-            print("Session blocked: Session log has insufficient evidence", file=sys.stderr)
+            print(
+                "[E_EMPTY_SESSION_LOG] Session blocked: Session log has "
+                "insufficient evidence",
+                file=sys.stderr,
+            )
             return 2
 
         return 0

@@ -17,6 +17,8 @@ from scripts.hook_utilities.utilities import (
     is_git_commit_command,
     is_git_commit_or_push_command,
     is_git_push_command,
+    is_pr_create_command,
+    is_session_logged_command,
 )
 
 __all__ = [
@@ -26,6 +28,8 @@ __all__ = [
     "is_git_commit_command",
     "is_git_commit_or_push_command",
     "is_git_push_command",
+    "is_pr_create_command",
     "is_project_repo",
+    "is_session_logged_command",
     "skip_if_consumer_repo",
 ]
