@@ -34,8 +34,6 @@ while _p.parent != _p and not (_p / ".claude-plugin" / "plugin.json").is_file():
 sys.path.insert(0, str(_p / "lib"))
 from bootstrap import setup_hook_lib_path  # noqa: E402
 setup_hook_lib_path(__file__, fail_exit_code=2)
-if _lib_dir not in sys.path:
-    sys.path.insert(0, _lib_dir)
 
 from hook_utilities.guards import skip_if_consumer_repo  # noqa: E402
 
