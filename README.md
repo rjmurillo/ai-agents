@@ -20,13 +20,15 @@ For platform teams, engineering managers, and orgs that want AI-assisted develop
 
 ## Fastest Start
 
-```bash
-npx @rjmurillo/ai-agents init
-cd your-repo
-claude   # start coding with 21 agents, 62 skills, and 57 ADRs
+Open your repo in Claude Code or GitHub Copilot CLI, then paste:
+
+```text
+/install-plugin rjmurillo/ai-agents
 ```
 
-That's it. The `init` command vendors a curated `.claude/` kit into your repo. You get agents, skills, commands, and governance on first launch.
+The same command works in both tools. Restart your AI tool when it finishes, and you're coding with 21 agents, 62 skills, and 57 ADRs.
+
+See [Verify Installation](#verify-installation) to confirm agents loaded, or [More Installation Options](#alternative-full-installation) for component-level installs and a TUI installer.
 
 ### What You Get
 
@@ -41,9 +43,9 @@ That's it. The `init` command vendors a curated `.claude/` kit into your repo. Y
 
 ### Troubleshooting
 
-- **`npx` command not found:** Install [Node.js](https://nodejs.org/) (LTS). npm and npx ship with it.
-- **Agents not responding after init:** Restart your editor to reload agent definitions. Then run `analyst: Hello, are you available?` to verify.
 - **`/install-plugin` not recognized:** You are in a regular terminal, not inside Claude Code or Copilot CLI. Run the command inside your AI tool.
+- **Plugin install fails or hangs:** Confirm your AI tool is up to date. Claude Code's `/install-plugin` requires v1.0.x or newer; Copilot CLI requires the latest stable release.
+- **Agents not responding after install:** Restart your editor to reload agent definitions, then run `analyst: Hello, are you available?` (Claude) or `@orchestrator Hello, are you available?` (Copilot Chat) to verify.
 
 ---
 
@@ -132,29 +134,15 @@ The agents themselves use the platform specific handoffs to invoke subagents, ke
 
 ## Alternative: Full Installation
 
-If you prefer the existing plugin marketplace or TUI installer over `npx ai-agents init`, use one of the methods below.
+The [Fastest Start](#fastest-start) above is the recommended path. Use the methods below when you want component-level control (agents only, toolkit only) or a TUI-driven installer.
 
 > **Requirements:** Python 3.10+ and [UV](https://docs.astral.sh/uv/) package manager (for skill-installer method only). The `/install-plugin` method has no prerequisites.
 >
 > See [CONTRIBUTING.md](CONTRIBUTING.md#prerequisites) for full development setup including Python 3.14.x, pre-commit hooks, and test dependencies.
 
-### Quick Install (Recommended)
+### Quick Install (CLI marketplace)
 
-The fastest way to get started is the CLI marketplace. Run the install command from within your AI coding tool.
-
-**Claude Code** (in Claude Code CLI):
-
-```text
-/install-plugin rjmurillo/ai-agents
-```
-
-**GitHub Copilot CLI** (in Copilot CLI):
-
-```text
-/install-plugin rjmurillo/ai-agents
-```
-
-This installs the full agent set for your platform. You can also install individual components:
+The [Fastest Start](#fastest-start) command (`/install-plugin rjmurillo/ai-agents`) installs the full agent set for your platform. If you want only a subset, use the component-level commands below from inside your AI coding tool:
 
 | Component | Install Command | What You Get |
 |-----------|----------------|--------------|
