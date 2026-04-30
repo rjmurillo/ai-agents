@@ -23,10 +23,23 @@ _plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
 if _plugin_root:
     _lib_dir = str(Path(_plugin_root).resolve() / "lib")
 else:
-    _lib_dir = str(Path(__file__).resolve().parents[1] / "lib")
-if not os.path.isdir(_lib_dir):
-    print(f"Plugin lib directory not found: {_lib_dir}", file=sys.stderr)
-    sys.exit(2)  # Config error per ADR-035
+    # Walk up from this hook looking for .claude-plugin/plugin.json
+    # (the plugin manifest marker). The sibling lib/ is the plugin's
+    # lib dir. Works regardless of source vs install layout depth;
+    # robust to the M5 generator copying this file to a different
+    # directory level under src/<provider>/hooks/<event>/.
+    _cur = Path(__file__).resolve().parent
+    _lib_dir = None
+    while True:
+        if (_cur / ".claude-plugin" / "plugin.json").is_file():
+            _lib_dir = str(_cur / "lib")
+            break
+        if _cur.parent == _cur:
+            break
+        _cur = _cur.parent
+if _lib_dir is None or not os.path.isdir(_lib_dir):
+    print("Plugin lib directory not found", file=sys.stderr)
+    sys.exit(2)
 if _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
 
