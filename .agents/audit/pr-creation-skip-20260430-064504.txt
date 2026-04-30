@@ -1,0 +1,6 @@
+Timestamp: 2026-04-30 06:45:04
+Branch: fix/markdownlint-globs-perf -> main
+Title: fix(lint): markdownlint config no longer fans out per-file invocations
+User: richard
+Validation: SKIPPED
+Reason: Pre-flight validators (session-log gate, detect_skill_violation timeout) tripped on untracked working-tree noise; PR diff is one tracked file (.markdownlint-cli2.yaml) verified via git log -p

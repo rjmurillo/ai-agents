@@ -4,15 +4,22 @@ This guide walks you through installing and using the AI Agents system in your p
 
 ## Fastest Start
 
-```bash
-npx @rjmurillo/ai-agents init
-cd your-repo
-claude   # start coding with 21 agents, 62 skills, and 57 ADRs
+Each AI tool has its own plugin install flow. Pick yours and paste the command(s) inside the CLI session.
+
+**Claude Code.** One command installs the full toolkit; restart Claude Code when it finishes.
+
+```text
+/install-plugin rjmurillo/ai-agents
 ```
 
-The `init` command vendors a curated `.claude/` kit into your repo. No Python, no UV, no TUI. Just Node.js.
+**GitHub Copilot CLI.** Two steps: register the marketplace, then install the toolkit. No restart needed afterward.
 
-After init, verify agents loaded:
+```text
+/plugin marketplace add rjmurillo/ai-agents
+/plugin install project-toolkit@ai-agents
+```
+
+After install, verify agents loaded:
 
 ```text
 analyst: Hello, are you available?
@@ -36,7 +43,7 @@ For the skill-installer method, you also need Python 3.10+ and [UV](https://docs
 
 ## Step 1: Install
 
-The fastest method uses the built-in plugin marketplace. Run this command inside your AI coding tool (not a regular terminal):
+The fastest method uses the built-in plugin marketplace. Run the commands below inside your AI coding tool (not a regular terminal).
 
 **Claude Code:**
 
@@ -46,13 +53,14 @@ The fastest method uses the built-in plugin marketplace. Run this command inside
 
 **GitHub Copilot CLI:**
 
-GitHub Copilot CLI does not support the `/install-plugin` command. Use [skill-installer](installation.md) instead:
-
-```bash
-uvx --from git+https://github.com/rjmurillo/skill-installer skill-installer interactive
+```text
+/plugin marketplace add rjmurillo/ai-agents
+/plugin install project-toolkit@ai-agents
 ```
 
-This installs all agents for your platform. For selective installation, see [docs/installation.md](installation.md).
+The Copilot CLI flow can also run as one-liners from a regular shell: `copilot plugin marketplace add rjmurillo/ai-agents` then `copilot plugin install project-toolkit@ai-agents`.
+
+This installs the full toolkit for your platform. For selective installation, see [docs/installation.md](installation.md).
 
 ## Step 2: Verify
 
