@@ -1,6 +1,6 @@
 # AI Agent System
 
-For platform teams, engineering managers, and orgs that want AI-assisted development with real governance. 57 ADRs, session protocol, review gates built in.
+For platform teams, engineering managers, and orgs that want AI-assisted development with real governance. Session protocol, review gates, and ADR-steered agent behavior built in.
 
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/rjmurillo/ai-agents)
 
@@ -28,33 +28,35 @@ Each AI tool has its own plugin install flow. Pick yours and paste the command(s
 /install-plugin rjmurillo/ai-agents
 ```
 
-**GitHub Copilot CLI.** Two steps: register the marketplace, then install the toolkit. No restart needed afterward; Copilot CLI picks agents up automatically.
+**GitHub Copilot CLI.** Two steps: register the marketplace, then install the Copilot-targeted toolkit. No restart needed afterward; Copilot CLI picks agents up automatically.
 
 ```text
 /plugin marketplace add rjmurillo/ai-agents
-/plugin install project-toolkit@ai-agents
+/plugin install copilot-cli-toolkit@ai-agents
 ```
 
-Either path lands you with 23 agents, 70 skills, and 58 ADRs. See [Verify Installation](#verify-installation) for the per-tool sanity check, or [More Installation Options](#alternative-full-installation) for component-level installs and a TUI alternative.
+A Claude install lands 23 agents, 23 commands, 29 hooks, and 69 skills. A Copilot install lands 24 agents, 28 hooks, and 81 skills generated from the same canonical sources. See [Verify Installation](#verify-installation) for the per-tool sanity check, or [More Installation Options](#alternative-full-installation) for component-level installs (agents only, etc.).
 
 ### What You Get
 
-| Component | Count | What it does |
-|-----------|-------|--------------|
-| Agents | 23 | Specialized roles: analyst, architect, implementer, QA, security, and more |
-| Skills | 70 | Reusable workflows: git, PR management, testing, linting, session protocol |
-| Commands | 17+ | Slash commands for lifecycle phases: /spec, /plan, /build, /test, /review, /ship |
-| ADRs | 58 | Architectural Decision Records that steer agent behavior |
-| Session protocol | 1 | Structured session logs with commit gates and evidence tracking |
-| Review gates | 5 | Pre-PR validation across architecture, security, quality, tests, standards |
+| Component | Claude Code | Copilot CLI |
+|-----------|-------------|-------------|
+| Agents | 23 | 24 |
+| Skills | 69 | 81 |
+| Slash commands | 23 | n/a (interactive only) |
+| Lifecycle hooks | 29 | 28 |
+| Session protocol | 1 | 1 |
+| Review gates | 5 | 5 |
+
+Specialized agent roles include analyst, architect, implementer, QA, security, devops, and more. See the [Agent Catalog](#agent-catalog) for the full list.
 
 ### Troubleshooting
 
-- **`/install-plugin` not recognized:** That command is Claude Code only. In Copilot CLI use the two-step flow (`/plugin marketplace add rjmurillo/ai-agents` then `/plugin install project-toolkit@ai-agents`).
-- **Copilot CLI install fails with "No plugin.json found in repository":** This repo is a marketplace, not a single plugin. Run `/plugin marketplace add rjmurillo/ai-agents` first, then `/plugin install project-toolkit@ai-agents`.
+- **`/install-plugin` not recognized:** That command is Claude Code only. In Copilot CLI use the two-step flow (`/plugin marketplace add rjmurillo/ai-agents` then `/plugin install copilot-cli-toolkit@ai-agents`).
+- **Copilot CLI install fails with "No plugin.json found in repository":** This repo is a marketplace, not a single plugin. Run `/plugin marketplace add rjmurillo/ai-agents` first, then `/plugin install copilot-cli-toolkit@ai-agents`.
 - **`/plugin` not recognized in Copilot CLI:** Update Copilot CLI to a recent stable release; plugin support is required. Run `copilot --version` in a regular terminal to check.
 - **Plugin install fails or hangs:** Confirm your AI tool is on a recent stable release that supports the install command, then retry. Check the version per tool: in Claude Code use `/version` or the title bar; for Copilot CLI run `copilot --version` in a regular terminal.
-- **Agents not responding after install:** Restart Claude Code (Copilot CLI does not need a restart). Then verify with `Task(subagent_type="analyst", prompt="Hello, are you available?")` in Claude Code, `copilot --list-agents` in Copilot CLI, or `@orchestrator Hello, are you available?` in VS Code Copilot Chat.
+- **Agents not responding after install:** Restart Claude Code (Copilot CLI does not need a restart). Then verify with `Task(subagent_type="analyst", prompt="Hello, are you available?")` in Claude Code, `copilot plugin list` in Copilot CLI to confirm `copilot-cli-toolkit@ai-agents` is installed, or `@orchestrator Hello, are you available?` in VS Code Copilot Chat.
 
 ---
 
@@ -86,7 +88,6 @@ Either path lands you with 23 agents, 70 skills, and 58 ADRs. See [Verify Instal
     - [Quick Install (CLI marketplace)](#quick-install-cli-marketplace)
     - [Verify Installation](#verify-installation)
     - [Supported Platforms](#supported-platforms)
-    - [Install via skill-installer](#install-via-skill-installer)
   - [Quick Start](#quick-start)
     - [Examples](#examples)
       - [Simple Scenarios](#simple-scenarios)
@@ -111,20 +112,20 @@ Either path lands you with 23 agents, 70 skills, and 58 ADRs. See [Verify Instal
 
 AI Agents is a coordinated multi-agent system for software development. It provides specialized AI agents that handle different phases of the development lifecycle, from research and planning through implementation and quality assurance.
 
-The orchestrator is the hub of operations. Within it has logic from taking everything from a "vibe" or a "shower thought" and building out a fully functional spec with acceptance criteria and user stories, to taking a well defined idea as input and executing on it. There are 21 agents that cover the roles of software development, from vision and strategy, to architecture, implementation, and verification. Each role looks at something specific, like the critic that just looks to poke holes in other agents' (or your own) work, or DevOps that's concerned about how you deploy and operate the thing you just built.
+The orchestrator is the hub of operations. Within it has logic from taking everything from a "vibe" or a "shower thought" and building out a fully functional spec with acceptance criteria and user stories, to taking a well defined idea as input and executing on it. The Claude bundle ships 23 agents and the Copilot bundle ships 24 agents that cover the roles of software development, from vision and strategy, to architecture, implementation, and verification. Each role looks at something specific, like the critic that just looks to poke holes in other agents' (or your own) work, or DevOps that's concerned about how you deploy and operate the thing you just built.
 
 The agents themselves use the platform specific handoffs to invoke subagents, keeping the orchestrator context clean. A great example of this is orchestrator facilitating creating and debating an [Architectural Decision Record](https://adr.github.io/) from research and drafting, to discussion, iterating on the issues, tie breaking when agents don't agree. And then  extracting persistent knowledge to steer future agents to adhere. Artifacts are stored in your memory system if you have one enabled, and Markdown files for easy reference to both agents and humans.
 
 ### Core Capabilities
 
-- **21 specialized agents** for different development phases (analysis, architecture, implementation, QA, etc.)
+- **23+ specialized agents** for different development phases (analysis, architecture, implementation, QA, etc.)
 - **Explicit handoff protocols** between agents with clear accountability
 - **Multi-Agent Impact Analysis Framework** for comprehensive planning
 - **Cross-session memory** with citation verification, graph traversal, and health reporting via Serena + Forgetful
 - **Self-improvement system** with skill tracking and retrospectives
 - **Quality gates** with pre-PR validation, session protocol enforcement, and automated CI checks
-- **50+ reusable skills** for common development workflows (git, PR management, testing, linting)
-- **TUI-based installation** via [skill-installer](https://github.com/rjmurillo/skill-installer)
+- **69+ reusable skills** for common development workflows (git, PR management, testing, linting)
+- **One-step plugin install** through Claude Code's `/install-plugin` or Copilot CLI's `/plugin marketplace add` flow
 - **AI-powered CI/CD** with issue triage, PR quality gates, and spec validation
 
 ### Key Concepts
@@ -134,7 +135,7 @@ The agents themselves use the platform specific handoffs to invoke subagents, ke
 | **Agent** | A specialized AI persona with a defined role (analyst, implementer, security, etc.) |
 | **Orchestrator** | The coordinating agent that routes tasks to specialists and synthesizes results |
 | **Handoff** | Explicit transfer of context and control between agents with clear accountability |
-| **Skill** | A reusable workflow component for common tasks (50+ included: git, PR, testing, linting) |
+| **Skill** | A reusable workflow component for common tasks (69+ included: git, PR, testing, linting) |
 | **Memory** | Cross-session context persistence via Serena + Forgetful for knowledge retention |
 | **ADR** | Architectural Decision Record—structured documents capturing design decisions |
 | **Quality Gate** | Validation checkpoint (critic review, QA pass, security scan) before proceeding |
@@ -143,21 +144,24 @@ The agents themselves use the platform specific handoffs to invoke subagents, ke
 
 ## Alternative: Full Installation
 
-The [Fastest Start](#fastest-start) above is the recommended path. Use the methods below when you want component-level control (agents only, toolkit only) or a TUI-driven installer.
+The [Fastest Start](#fastest-start) above is the recommended path. Use the commands below when you want component-level control (agents only, no skills, etc.).
 
-> **Requirements:** Python 3.10+ and [UV](https://docs.astral.sh/uv/) package manager (for the skill-installer TUI only). The native plugin commands (`/install-plugin` in Claude Code, `/plugin install` in Copilot CLI) have no extra prerequisites.
->
-> See [CONTRIBUTING.md](CONTRIBUTING.md#prerequisites) for full development setup including Python 3.14.x, pre-commit hooks, and test dependencies.
+> See [CONTRIBUTING.md](CONTRIBUTING.md#prerequisites) for development setup including Python 3.14.x, pre-commit hooks, and test dependencies. Day-to-day plugin use does not need either.
 
 ### Quick Install (CLI marketplace)
 
-The [Fastest Start](#fastest-start) commands above install the full toolkit. For component-level installs, use the commands below from inside your AI coding tool. The `/plugin install <component>@ai-agents` form works in both tools, but in Copilot CLI you must register the marketplace first with `/plugin marketplace add rjmurillo/ai-agents` (Claude Code's `/install-plugin` registers and installs in one step).
+The [Fastest Start](#fastest-start) commands install the full toolkit. For component-level installs, register the marketplace once and then install just the parts you want. In Claude Code you can also use `/install-plugin rjmurillo/ai-agents` as a one-step shortcut that registers the marketplace and prompts for plugin selection.
+
+```text
+/plugin marketplace add rjmurillo/ai-agents
+```
 
 | Component | Install Command | What You Get |
 |-----------|----------------|--------------|
-| Claude agents only | `/plugin install claude-agents@ai-agents` | 24 specialized agents for Claude Code |
-| Copilot CLI agents only | `/plugin install copilot-cli-agents@ai-agents` | 24 agent definitions for Copilot CLI |
-| Full project toolkit | `/plugin install project-toolkit@ai-agents` | 23 agents, 17+ commands, 29 hooks, 70 skills (Claude Code only) |
+| Claude agents only | `/plugin install claude-agents@ai-agents` | 24 specialized agent definitions for Claude Code (no skills, commands, or hooks) |
+| Copilot CLI agents only | `/plugin install copilot-cli-agents@ai-agents` | 24 agent definitions for Copilot CLI (no skills or hooks) |
+| Claude full toolkit | `/plugin install claude-toolkit@ai-agents` | 23 agents, 23 commands, 29 hooks, 69 skills (Claude Code) |
+| Copilot full toolkit | `/plugin install copilot-cli-toolkit@ai-agents` | 24 agents, 28 hooks, 81 skills (Copilot CLI) |
 
 ### Verify Installation
 
@@ -172,8 +176,10 @@ Task(subagent_type="analyst", prompt="Hello, are you available?")
 **GitHub Copilot CLI:**
 
 ```bash
-copilot --list-agents
+copilot plugin list
 ```
+
+The output should include `copilot-cli-toolkit@ai-agents` (or whichever component you installed). To exercise an agent end-to-end, run `copilot -p "analyst: respond with 'available'"`.
 
 **VS Code (Copilot Chat):**
 
@@ -189,24 +195,7 @@ copilot --list-agents
 | **GitHub Copilot CLI** | `src/copilot-cli/` | Use `--agent` flag, `/agent` to select, or call out agent by name |
 | **VS Code / GitHub Copilot** | `src/vs-code-agents/` | Use `@agent` syntax in Copilot Chat |
 
-### Install via skill-installer
-
-For a TUI-based interactive installation experience, use [skill-installer](https://github.com/rjmurillo/skill-installer).
-
-**Prerequisites:** Python 3.10+ and [UV](https://docs.astral.sh/uv/) package manager.
-
-```bash
-# Run without installing (one-liner)
-uvx --from git+https://github.com/rjmurillo/skill-installer skill-installer interactive
-
-# Or install globally for repeated use
-uv tool install git+https://github.com/rjmurillo/skill-installer
-skill-installer interactive
-```
-
-Navigate the TUI to browse and install agents for your platform.
-
-See [docs/installation.md](docs/installation.md) for complete installation documentation, including UV setup, platform-specific paths, troubleshooting, and post-installation steps.
+See [docs/installation.md](docs/installation.md) for complete installation documentation, including platform-specific paths, troubleshooting, and post-installation steps.
 
 ---
 
@@ -308,7 +297,7 @@ Six slash commands that map to the development lifecycle. Each one activates the
 | Define what to build | `/spec` | CVA analysis, testable acceptance criteria, critic review |
 | Plan how to build it | `/plan` | Milestones, atomic tasks (S/M/L), dependency graph, risk register |
 | Build incrementally | `/build` | TDD slices, atomic commits, code quality scoring |
-| Prove it works | `/test` | 6 quality gates (functional, security, DevOps, DX, observability) |
+| Prove it works | `/test` | 6 quality gates (functional, non-functional, security, DevOps, DX, observability) |
 | Review before merge | `/review` | 5-axis review (architecture, security, quality, tests, standards) |
 | Ship to production | `/ship` | Pre-flight checks, PR creation, ship report |
 
@@ -382,31 +371,35 @@ flowchart LR
 
 ### Agent Catalog
 
-| Agent | Purpose | Output |
-|-------|---------|--------|
-| **orchestrator** | Task coordination and routing | Delegated results from specialists |
-| **analyst** | Research, feasibility analysis, trade-off evaluation | Quantitative findings with evidence |
-| **architect** | System design evaluation, ADRs, pattern enforcement | Rated assessments (Strong/Adequate/Needs-Work) |
-| **milestone-planner** | Milestones and work packages | Implementation plans with acceptance criteria |
-| **implementer** | Production code and tests | Code, tests, commits |
-| **critic** | Plan stress-testing, gap identification | Verdicts: APPROVE / APPROVE WITH CONDITIONS / REJECT |
-| **qa** | Test strategy and verification | Test reports, coverage analysis |
-| **security** | Threat modeling, vulnerability assessment | Threat matrices with CWE/CVSS ratings |
-| **devops** | CI/CD pipelines, operational planning | Infrastructure configs, maintenance estimates |
-| **roadmap** | Strategic prioritization, RICE/KANO analysis | Priority stacks, cost-benefit analysis |
-| **retrospective** | Learning extraction | Actionable insights, skill updates |
-| **memory** | Cross-session context | Retrieved knowledge, stored observations |
-| **skillbook** | Skill management | Atomic strategy updates |
-| **explainer** | PRDs and documentation | Specs, user guides |
-| **task-decomposer** | Atomic task breakdown | Estimable work items with done criteria |
-| **backlog-generator** | Proactive task discovery | Sized tasks from project state analysis |
-| **high-level-advisor** | Strategic decisions, unblocking | Verdicts: GO / CONDITIONAL GO / NO-GO |
-| **independent-thinker** | Challenge assumptions, devil's advocate | Counter-arguments with alternatives |
-| **pr-comment-responder** | PR review handling | Triaged responses, resolution tracking |
-| **spec-generator** | Requirement specifications, EARS format | Structured specs with acceptance criteria |
-| **debug** | Debugging assistance, root cause analysis | Diagnostic findings with resolution steps |
-| **backlog-generator** | Proactive task discovery when idle | Discovered tasks for backlog |
-| **janitor** | Code and documentation cleanup | Refactoring and cleanup suggestions |
+The Claude Code bundle ships 23 agents and the Copilot CLI bundle ships 24 (Copilot adds `backlog-generator`, Claude adds `spec-generator`; both bundles include the rest). Both bundles share the same templates.
+
+| Agent | Purpose | Output | Bundle |
+|-------|---------|--------|--------|
+| **orchestrator** | Task coordination and routing | Delegated results from specialists | both |
+| **analyst** | Research, feasibility analysis, trade-off evaluation | Quantitative findings with evidence | both |
+| **architect** | System design evaluation, ADRs, pattern enforcement | Rated assessments (Strong/Adequate/Needs-Work) | both |
+| **milestone-planner** | Milestones and work packages | Implementation plans with acceptance criteria | both |
+| **implementer** | Production code and tests | Code, tests, commits | both |
+| **critic** | Plan stress-testing, gap identification | Verdicts: APPROVE / APPROVE WITH CONDITIONS / REJECT | both |
+| **qa** | Test strategy and verification | Test reports, coverage analysis | both |
+| **security** | Threat modeling, vulnerability assessment | Threat matrices with CWE/CVSS ratings | both |
+| **devops** | CI/CD pipelines, operational planning | Infrastructure configs, maintenance estimates | both |
+| **roadmap** | Strategic prioritization, RICE/KANO analysis | Priority stacks, cost-benefit analysis | both |
+| **retrospective** | Learning extraction | Actionable insights, skill updates | both |
+| **memory** | Cross-session context | Retrieved knowledge, stored observations | both |
+| **skillbook** | Skill management | Atomic strategy updates | both |
+| **explainer** | PRDs and documentation | Specs, user guides | both |
+| **task-decomposer** | Atomic task breakdown | Estimable work items with done criteria | both |
+| **high-level-advisor** | Strategic decisions, unblocking | Verdicts: GO / CONDITIONAL GO / NO-GO | both |
+| **independent-thinker** | Challenge assumptions, devil's advocate | Counter-arguments with alternatives | both |
+| **pr-comment-responder** | PR review handling | Triaged responses, resolution tracking | both |
+| **debug** | Debugging assistance, root cause analysis | Diagnostic findings with resolution steps | both |
+| **janitor** | Code and documentation cleanup | Refactoring and cleanup suggestions | both |
+| **issue-feature-review** | Feature-request triage on GitHub issues | Constructive verdict with next steps | both |
+| **merge-resolver** | Resolve git/PR merge conflicts | Pattern-based resolution plan | both |
+| **negotiation** | Offer analysis and counter-proposals | Value-gap analysis with RADAR protocol | both |
+| **spec-generator** | Requirement specifications, EARS format | Structured specs with acceptance criteria | Claude Code only |
+| **backlog-generator** | Proactive task discovery when idle | Sized tasks from project state analysis | Copilot CLI only |
 
 See [AGENTS.md](AGENTS.md) for detailed agent documentation.
 
@@ -422,7 +415,7 @@ ai-agents/
 ├── scripts/                 # Validation and utility scripts
 ├── docs/                    # Documentation
 ├── .agents/                 # Agent artifacts (ADRs, plans, etc.)
-├── .claude-plugin/          # skill-installer manifest
+├── .claude-plugin/          # Plugin marketplace manifest (marketplace.json)
 ├── .github/copilot-instructions.md  # GitHub Copilot instructions
 ├── CLAUDE.md                        # Claude Code instructions
 └── AGENTS.md                        # Detailed usage guide
@@ -444,37 +437,19 @@ ai-agents/
 <details>
 <summary><strong>/install-plugin command not recognized</strong></summary>
 
-- Ensure you're running inside **Claude Code CLI** or **GitHub Copilot CLI**, not a regular terminal
-- The command is built into the AI tool, not your shell
-- Alternative: Use the [skill-installer method](#alternative-install-via-skill-installer)
+- `/install-plugin` is a Claude Code CLI shortcut. In Copilot CLI use the explicit two-step flow:
+  1. `/plugin marketplace add rjmurillo/ai-agents`
+  2. `/plugin install copilot-cli-toolkit@ai-agents`
+- Ensure you're running inside Claude Code CLI or Copilot CLI, not a regular shell. The command is built into the AI tool.
 
 </details>
 
 <details>
 <summary><strong>Python version errors when running tests</strong></summary>
 
-- This project requires **Python 3.14.x** for development
-- The `.python-version` file pins the exact version (currently 3.14.3)
+- This project requires **Python 3.14.x** for development. End users installing the plugins do not need Python.
+- The `.python-version` file pins the exact version (currently 3.14.4)
 - See [CONTRIBUTING.md](CONTRIBUTING.md#prerequisites) for detailed setup
-
-</details>
-
-<details>
-<summary><strong>skill-installer TUI not launching</strong></summary>
-
-- Ensure [UV](https://docs.astral.sh/uv/) is installed: `curl -LsSf https://astral.sh/uv/install.sh | sh`
-- Try the direct uvx command: `uvx --from git+https://github.com/rjmurillo/skill-installer skill-installer interactive`
-- Check Python version: requires 3.10+
-
-</details>
-
-<details>
-<summary><strong>skill-installer clone fails with short name (e.g., <code>rjmurillo/skill-installer</code>)</strong></summary>
-
-- Pass the **full GitHub URL** to `uvx --from`, not the shorthand `owner/repo` form
-- Correct: `uvx --from git+https://github.com/rjmurillo/skill-installer skill-installer interactive`
-- Incorrect: `uvx --from rjmurillo/skill-installer skill-installer interactive`
-- `uvx` resolves `git+<url>` specifiers; bare `owner/repo` is not a valid source
 
 </details>
 
@@ -537,8 +512,8 @@ This project uses a **template-based generation system**. To modify agents:
 | Document | Description |
 |----------|-------------|
 | [docs/getting-started.md](docs/getting-started.md) | Step-by-step setup guide |
-| [docs/agent-catalog.md](docs/agent-catalog.md) | All 21 agents with capabilities and examples |
-| [docs/skill-reference.md](docs/skill-reference.md) | All 49 skills with usage descriptions |
+| [docs/agent-catalog.md](docs/agent-catalog.md) | All agents with capabilities and examples (23 in Claude bundle, 24 in Copilot bundle) |
+| [docs/skill-reference.md](docs/skill-reference.md) | All skills with usage descriptions (69 in Claude bundle, 81 in Copilot bundle) |
 | [docs/architecture.md](docs/architecture.md) | Plugin structure, template system, design decisions |
 | [docs/customization.md](docs/customization.md) | How to extend and customize agents, skills, and hooks |
 | [docs/installation.md](docs/installation.md) | Complete installation guide |

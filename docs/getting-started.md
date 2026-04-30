@@ -6,17 +6,17 @@ This guide walks you through installing and using the AI Agents system in your p
 
 Each AI tool has its own plugin install flow. Pick yours and paste the command(s) inside the CLI session.
 
-**Claude Code.** One command installs the full toolkit; restart Claude Code when it finishes.
+**Claude Code.** Use the one-step shortcut to register the marketplace and install the full Claude toolkit; restart Claude Code when it finishes.
 
 ```text
 /install-plugin rjmurillo/ai-agents
 ```
 
-**GitHub Copilot CLI.** Two steps: register the marketplace, then install the toolkit. No restart needed afterward.
+**GitHub Copilot CLI.** Two steps: register the marketplace, then install the Copilot-targeted toolkit. No restart needed afterward.
 
 ```text
 /plugin marketplace add rjmurillo/ai-agents
-/plugin install project-toolkit@ai-agents
+/plugin install copilot-cli-toolkit@ai-agents
 ```
 
 After install, verify agents loaded:
@@ -39,7 +39,7 @@ You need one of these AI coding tools:
 - [GitHub Copilot CLI](https://docs.github.com/en/copilot/how-tos/use-copilot-agents/use-copilot-cli)
 - [VS Code with GitHub Copilot](https://marketplace.visualstudio.com/items?itemName=GitHub.copilot)
 
-For the skill-installer method, you also need Python 3.10+ and [UV](https://docs.astral.sh/uv/).
+End users do not need Python or any build tooling to install the plugins. Contributors do; see [CONTRIBUTING.md](../CONTRIBUTING.md#prerequisites).
 
 ## Step 1: Install
 
@@ -55,12 +55,12 @@ The fastest method uses the built-in plugin marketplace. Run the commands below 
 
 ```text
 /plugin marketplace add rjmurillo/ai-agents
-/plugin install project-toolkit@ai-agents
+/plugin install copilot-cli-toolkit@ai-agents
 ```
 
-The Copilot CLI flow can also run as one-liners from a regular shell: `copilot plugin marketplace add rjmurillo/ai-agents` then `copilot plugin install project-toolkit@ai-agents`.
+The Copilot CLI flow also works from a regular shell: `copilot plugin marketplace add rjmurillo/ai-agents` then `copilot plugin install copilot-cli-toolkit@ai-agents`.
 
-This installs the full toolkit for your platform. For selective installation, see [docs/installation.md](installation.md).
+This installs the full toolkit for your platform. The Claude bundle ships 23 agents, 23 commands, 29 hooks, and 69 skills. The Copilot bundle ships 24 agents, 28 hooks, and 81 skills. For selective installation (agents only, etc.), see [docs/installation.md](installation.md).
 
 ## Step 2: Understand the Workflow
 
@@ -133,8 +133,10 @@ Task(subagent_type="analyst", prompt="Hello, are you available?")
 **GitHub Copilot CLI:**
 
 ```bash
-copilot --list-agents
+copilot plugin list
 ```
+
+The output should include `copilot-cli-toolkit@ai-agents` (or whichever component you installed). To exercise an agent end-to-end, run `copilot -p "analyst: respond with 'available'"`.
 
 **VS Code (Copilot Chat):**
 
@@ -191,8 +193,8 @@ Each agent produces structured output specific to its role:
 ## What Next
 
 - Understand the 7-phase pipeline in [Step 2: Understand the Workflow](#step-2-understand-the-workflow)
-- Browse all 21 agents in the [Agent Catalog](agent-catalog.md)
-- See all 49 skills in the [Skill Reference](skill-reference.md)
+- Browse the agents in the [Agent Catalog](agent-catalog.md) (23 in Claude bundle, 24 in Copilot bundle)
+- See the skills in the [Skill Reference](skill-reference.md) (69 in Claude bundle, 81 in Copilot bundle)
 - Understand the system design in [Architecture](architecture.md)
 - Learn how to extend and customize in [Customization](customization.md)
 - Review the full [Installation Guide](installation.md) for advanced setup options
