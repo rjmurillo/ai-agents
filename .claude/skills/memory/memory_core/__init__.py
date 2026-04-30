@@ -38,8 +38,15 @@ from .schema_validation import (  # noqa: F401
     test_schema_valid,
     write_validated_json,
 )
+from .url_validation import (  # noqa: F401
+    ALLOWED_URL_SCHEMES,
+    validate_http_url,
+)
 
 __all__ = [
+    # URL validation
+    "ALLOWED_URL_SCHEMES",
+    "validate_http_url",
     # Schema validation
     "ValidationResult",
     "WriteResult",

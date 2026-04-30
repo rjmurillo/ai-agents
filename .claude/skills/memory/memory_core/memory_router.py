@@ -215,25 +215,7 @@ def invoke_serena_search(
     return results
 
 
-_ALLOWED_URL_SCHEMES = frozenset({"http", "https"})
-
-
-def _validate_http_url(endpoint: str) -> None:
-    """Reject non-HTTP(S) schemes before passing a URL to urllib.
-
-    ``urllib.request.urlopen`` accepts ``file://``, ``ftp://``, and other
-    schemes. An attacker who controls the endpoint argument could read
-    arbitrary local files (CWE-918 SSRF / CWE-22 path traversal via
-    file:// scheme). Restricting to http/https eliminates the class.
-    """
-    from urllib.parse import urlparse
-
-    parsed = urlparse(endpoint)
-    if parsed.scheme not in _ALLOWED_URL_SCHEMES:
-        raise ValueError(
-            f"endpoint scheme {parsed.scheme!r} not allowed; "
-            f"only {sorted(_ALLOWED_URL_SCHEMES)} accepted"
-        )
+from .url_validation import validate_http_url
 
 
 def invoke_forgetful_search(
@@ -257,7 +239,7 @@ def invoke_forgetful_search(
     results: list[MemoryResult] = []
 
     try:
-        _validate_http_url(endpoint)
+        validate_http_url(endpoint)
     except ValueError as exc:
         logger.warning("Forgetful search rejected: %s", exc)
         return []

@@ -22,6 +22,9 @@ from datetime import UTC, datetime
 from pathlib import Path
 from urllib.parse import urlparse
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from memory_core.url_validation import validate_http_url
+
 DEFAULT_QUERIES = [
     "PowerShell array handling patterns",
     "git pre-commit hook validation",
@@ -34,25 +37,6 @@ DEFAULT_QUERIES = [
 ]
 
 FORGETFUL_ENDPOINT = "http://localhost:8020/mcp"
-_ALLOWED_URL_SCHEMES = frozenset({"http", "https"})
-
-
-def _validate_http_url(endpoint: str) -> str:
-    """Reject non-HTTP(S) schemes before passing a URL to urllib.
-
-    ``urllib.request.urlopen`` accepts ``file://``, ``ftp://``, and other
-    schemes by default; an attacker who controls the endpoint argument
-    could read arbitrary local files or reach unintended services.
-    Restricting the scheme to http/https eliminates that class of bug
-    (semgrep ``request-with-tainted-url-from-urllib``).
-    """
-    parsed = urlparse(endpoint)
-    if parsed.scheme not in _ALLOWED_URL_SCHEMES:
-        raise ValueError(
-            f"endpoint scheme {parsed.scheme!r} not allowed; "
-            f"only {sorted(_ALLOWED_URL_SCHEMES)} accepted"
-        )
-    return endpoint
 
 
 def test_forgetful_available(endpoint: str = FORGETFUL_ENDPOINT) -> bool:
@@ -193,7 +177,7 @@ def measure_forgetful_search(
     # Validate endpoint scheme once before any network call (CWE-918 SSRF
     # mitigation; rejects file:// and other unintended schemes).
     try:
-        _validate_http_url(endpoint)
+        validate_http_url(endpoint)
     except ValueError as exc:
         result["Error"] = str(exc)
         return result
