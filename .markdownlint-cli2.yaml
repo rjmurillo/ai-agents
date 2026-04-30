@@ -89,7 +89,7 @@ ignores:
   # recurses through `.git/objects/`, npm cache trees, mypy/pytest/ruff
   # caches, and worktree mirrors -- counting every directory entry
   # along the way. Pre-fix the full-repo lint enumerated 373,381 paths
-  # to find ~585 real `.md` files. This list narrows the walk to the
+  # to find 696 real `.md` files. This list narrows the walk to the
   # source tree.
   - ".git/**"
   - "**/node_modules/**"
