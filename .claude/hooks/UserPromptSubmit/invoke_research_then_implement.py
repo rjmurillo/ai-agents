@@ -37,10 +37,7 @@ else:
         if _cur.parent == _cur:
             break
         _cur = _cur.parent
-if _lib_dir is None or not os.path.isdir(_lib_dir):
-    print("Plugin lib directory not found", file=sys.stderr)
-    sys.exit(2)
-if _lib_dir not in sys.path:
+if _lib_dir is not None and os.path.isdir(_lib_dir) and _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
 
 try:
