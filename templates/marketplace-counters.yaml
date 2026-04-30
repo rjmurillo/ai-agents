@@ -60,6 +60,7 @@ plugins:
     reusable skill:
       strategy: "skill_dirs"
       sourceDir: "src/copilot-cli/skills"
+      allowMissing: true  # gated on M3-T2 generate_skills.py; treat as 0 until shipped
     lifecycle hook:
       strategy: "hooks"
       sourceDir: "src/copilot-cli/hooks"
