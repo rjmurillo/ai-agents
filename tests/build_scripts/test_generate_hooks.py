@@ -1021,3 +1021,90 @@ def test_live_corpus_every_matcher_classifies(tmp_path: Path) -> None:
             seen_kinds.add(kind)
     # The live corpus exercises all three classes.
     assert seen_kinds == {MATCHER_REGEX, MATCHER_TOOL_GLOB, MATCHER_BARE}
+
+
+# Future-import hoist (CodeRabbit critical: PEP 236 violation) ---------------
+
+
+def test_future_import_hoisted_above_shim() -> None:
+    """``from __future__ import`` MUST land at module top, not inside the wrapper.
+
+    PEP 236 requires future imports at module level; the wrapper would
+    otherwise indent them into ``_original_main()`` and produce a
+    SyntaxError. Regression: pre-fix output had 19/28 generated hooks
+    failing ``py_compile`` for this exact reason.
+    """
+    body = (
+        '#!/usr/bin/env python3\n"""docstring."""\n'
+        "from __future__ import annotations\n\n"
+        "import json\n"
+        "print('hi')\n"
+    )
+    out = generate_hooks.inject_shim(body, "Bash(git commit*)")
+    # First non-blank line must be the future import.
+    first = next(line for line in out.splitlines() if line.strip())
+    assert first == "from __future__ import annotations"
+    # And it must NOT also appear indented inside _original_main.
+    assert "    from __future__ import annotations" not in out
+    # The generated module must parse.
+    compile(out, "<generated>", "exec")
+
+
+def test_future_import_round_trip_stable_after_strip() -> None:
+    """strip_shim → inject_shim is byte-stable when body had future imports."""
+    body = (
+        '#!/usr/bin/env python3\n"""doc."""\n'
+        "from __future__ import annotations\n"
+        "import os\n"
+        "print(os.getcwd())\n"
+    )
+    matcher = "^Edit$"
+    once = generate_hooks.inject_shim(body, matcher)
+    twice = generate_hooks.inject_shim(once, matcher)
+    assert once == twice
+    # Stripping then re-injecting yields the same artifact.
+    restripped = generate_hooks.inject_shim(generate_hooks.strip_shim(once), matcher)
+    assert once == restripped
+
+
+def test_inject_without_future_import_no_prefix() -> None:
+    """Bodies without future imports get no leading blank line / prefix."""
+    body = "import os\nprint(os.getcwd())\n"
+    out = generate_hooks.inject_shim(body, "Edit")
+    # Shim sentinel is the first content line (no future-import prefix).
+    first = out.split("\n", 1)[0]
+    assert first == "# AUTO-GENERATED MATCHER SHIM (REQ-003-007)"
+
+
+def test_split_future_imports_handles_multiple() -> None:
+    """All future imports get hoisted in source order; rest is preserved."""
+    body = (
+        "from __future__ import annotations\n"
+        "from __future__ import division\n"
+        "import os\n"
+    )
+    future_block, rest = generate_hooks._split_future_imports(body)
+    assert future_block == (
+        "from __future__ import annotations\n"
+        "from __future__ import division\n"
+    )
+    assert rest == "import os\n"
+
+
+def test_all_generated_hooks_parse_as_python() -> None:
+    """Every checked-in generated hook MUST compile.
+
+    Guards against the PEP 236 regression where ``from __future__`` lines
+    were indented into the function wrapper. Without this gate, broken
+    hooks ship and fail at first invocation.
+    """
+    hooks_dir = REPO_ROOT / "src" / "copilot-cli" / "hooks"
+    if not hooks_dir.is_dir():
+        pytest.skip("generated hooks not present in this checkout")
+    failures: list[str] = []
+    for path in sorted(hooks_dir.rglob("*.py")):
+        try:
+            compile(path.read_text(encoding="utf-8"), str(path), "exec")
+        except SyntaxError as exc:
+            failures.append(f"{path.relative_to(REPO_ROOT)}: {exc}")
+    assert not failures, "Generated hooks have syntax errors:\n" + "\n".join(failures)

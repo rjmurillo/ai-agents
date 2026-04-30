@@ -376,6 +376,39 @@ def _wrap_body_in_function(body: str) -> str:
     )
 
 
+_FUTURE_IMPORT_RE = _re.compile(r"^\s*from\s+__future__\s+import\b.*$")
+
+
+def _split_future_imports(body: str) -> tuple[str, str]:
+    """Hoist ``from __future__`` imports out of ``body`` for module-level emission.
+
+    Python requires ``from __future__`` imports at module top level (PEP 236);
+    placing them inside a function body is a SyntaxError. The matcher shim
+    wraps the original script body in ``_original_main()``, so any
+    ``from __future__ import ...`` that appears in the source must be lifted
+    above the wrapper.
+
+    Returns ``(future_block, rest)``. ``future_block`` is a normalized
+    sequence of leading-whitespace-stripped future imports each terminated
+    by ``\\n``; empty when the body has none. ``rest`` is the body with
+    those lines removed.
+
+    Round-trip safety: :func:`strip_shim` collects future imports from the
+    pre-shim head and re-prepends them so re-injection is byte-stable.
+    """
+    future_lines: list[str] = []
+    rest_lines: list[str] = []
+    for line in body.splitlines(keepends=True):
+        if _FUTURE_IMPORT_RE.match(line):
+            stripped = line.lstrip()
+            if not stripped.endswith("\n"):
+                stripped += "\n"
+            future_lines.append(stripped)
+        else:
+            rest_lines.append(line)
+    return "".join(future_lines), "".join(rest_lines)
+
+
 def is_shimmed(source: str) -> bool:
     """Return True when ``source`` already carries the matcher shim.
 
@@ -393,11 +426,18 @@ def inject_shim(original: str, matcher: str) -> str:
     than stacked. A second :func:`inject_shim` call yields the same
     output as a first call against the never-shimmed body, preserving
     the invariant that the file contains exactly ONE shim block.
+
+    ``from __future__`` imports are hoisted above the shim block so the
+    generated file remains a valid Python module (PEP 236 requires future
+    imports at module top level; the wrapper would otherwise indent them
+    into a function body and produce a SyntaxError).
     """
     stripped = strip_shim(original) if is_shimmed(original) else original
+    future_block, body = _split_future_imports(stripped)
     shim = _build_shim(matcher)
-    wrapped = _wrap_body_in_function(stripped)
-    return shim + "\n" + wrapped + "\n_shim_dispatch()\n"
+    wrapped = _wrap_body_in_function(body)
+    prefix = future_block + "\n" if future_block else ""
+    return prefix + shim + "\n" + wrapped + "\n_shim_dispatch()\n"
 
 
 def _find_shim_bounds(lines: list[str]) -> tuple[int, int] | None:
@@ -489,6 +529,11 @@ def strip_shim(source: str) -> str:
     The shim header, the ``def _original_main`` wrapper, and the trailing
     ``_shim_dispatch()`` call are all removed; the original script body
     is restored from the wrapper's indented lines.
+
+    Future-import hoist round-trip: :func:`inject_shim` lifts
+    ``from __future__`` imports above the shim. On strip, those lines
+    appear in the pre-shim head; we re-prepend them to the reconstructed
+    body so a strip-then-inject cycle is byte-stable.
     """
     if _SHIM_BEGIN not in source:
         return source
@@ -499,7 +544,14 @@ def strip_shim(source: str) -> str:
     begin_idx, end_idx = bounds
     head = "".join(lines[:begin_idx])
     body = _extract_original_body(lines[end_idx + 1 :])
-    return head + body
+    # The pre-shim head only ever holds hoisted ``from __future__``
+    # imports plus an injected blank-line separator. Re-prepend the
+    # imports to the body and drop any other whitespace so a strip-then-
+    # inject cycle is byte-stable. Any non-future content in the head is
+    # an external edit; the file is "DO NOT EDIT BY HAND" so we discard
+    # rather than try to round-trip unspecified content.
+    head_future, _ = _split_future_imports(head)
+    return head_future + body
 
 
 @dataclass
