@@ -89,7 +89,7 @@ ignores:
   # recurses through `.git/objects/`, npm cache trees, mypy/pytest/ruff
   # caches, and worktree mirrors -- counting every directory entry
   # along the way. Pre-fix the full-repo lint enumerated 373,381 paths
-  # to find ~585 real `.md` files. This list narrows the walk to the
+  # to find 696 real `.md` files. This list narrows the walk to the
   # source tree.
   - ".git/**"
   - "**/node_modules/**"
@@ -99,7 +99,6 @@ ignores:
   - ".pytest_tmp/**"
   - ".ruff_cache/**"
   - "ai_agents.egg-info/**"
-  - "build/**"
   - "dist/**"
   # Worktrees are duplicate working copies, not unique source.
   - ".claude/worktrees/**"
@@ -119,7 +118,6 @@ ignores:
   - "tmp/**"
   - "**/*.ps1"
   - "**/*.psm1"
-  - ".factory/**"
 
   # User instruction files - these are APPENDED to existing user files during installation
   # and cannot start with H1 (MD041). They are simple, controlled content that we manually
@@ -133,25 +131,13 @@ ignores:
   - "docs/autonomous-pr-monitor.md"
   - "docs/autonomous-issue-development.md"
 
-  # Skills treated as third-party plugins per PR #331 - excluded via glob pattern above
-  # - ".claude/skills/adr-review/agent-prompts.md"  # No longer needed with glob exclusion
-  - ".claude/skills/decision-critic/**"
-  - ".claude/skills/doc-sync/**"
-  - ".claude/skills/incoherence/**"
-  - ".claude/skills/programming-advisor/**"
-  - ".claude/skills/prompt-engineer/**"
-  - ".claude/skills/SkillForge/**"
+  # Skills treated as third-party plugins per PR #331 - blanket exclusion
+  - ".claude/skills/**"
 
   # TEMPORARY: Agent definition files (.github/agents/*.agent.md) have pre-existing linting
   # issues being fixed in a separate PR. This exclusion unblocks PR #847.
   # TODO: Remove this exclusion after the linting fix PR merges
   - ".github/agents/**/*.agent.md"
-
-  # SkillForge specification files - These are XML files with .md extension used by the
-  # SkillForge skill generation process. Markdown linting is not applicable to XML content.
-  - ".claude/skills/**/SKILL_SPEC.md"
-  - ".claude/skills/**/SKILL_SPEC.xml"
-  - ".claude/skills/**/PHASE1_ANALYSIS.md"
 
   # CLAUDE.md files are managed by the claude-mem plugin which prepends <claude-mem-context>
   # HTML tags, violating MD033 and MD041. These are tool-managed metadata, not authored markdown.

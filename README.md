@@ -20,30 +20,41 @@ For platform teams, engineering managers, and orgs that want AI-assisted develop
 
 ## Fastest Start
 
-```bash
-npx @rjmurillo/ai-agents init
-cd your-repo
-claude   # start coding with 21 agents, 62 skills, and 57 ADRs
+Each AI tool has its own plugin install flow. Pick yours and paste the command(s) inside the CLI session.
+
+**Claude Code.** One command installs the full set; restart Claude Code when it finishes.
+
+```text
+/install-plugin rjmurillo/ai-agents
 ```
 
-That's it. The `init` command vendors a curated `.claude/` kit into your repo. You get agents, skills, commands, and governance on first launch.
+**GitHub Copilot CLI.** Two steps: register the marketplace, then install the toolkit. No restart needed afterward; Copilot CLI picks agents up automatically.
+
+```text
+/plugin marketplace add rjmurillo/ai-agents
+/plugin install project-toolkit@ai-agents
+```
+
+Either path lands you with 23 agents, 70 skills, and 58 ADRs. See [Verify Installation](#verify-installation) for the per-tool sanity check, or [More Installation Options](#alternative-full-installation) for component-level installs and a TUI alternative.
 
 ### What You Get
 
 | Component | Count | What it does |
 |-----------|-------|--------------|
-| Agents | 21 | Specialized roles: analyst, architect, implementer, QA, security, and more |
-| Skills | 62 | Reusable workflows: git, PR management, testing, linting, session protocol |
-| Commands | 15+ | Slash commands for lifecycle phases: /spec, /plan, /build, /test, /review, /ship |
-| ADRs | 57 | Architectural Decision Records that steer agent behavior |
+| Agents | 23 | Specialized roles: analyst, architect, implementer, QA, security, and more |
+| Skills | 70 | Reusable workflows: git, PR management, testing, linting, session protocol |
+| Commands | 17+ | Slash commands for lifecycle phases: /spec, /plan, /build, /test, /review, /ship |
+| ADRs | 58 | Architectural Decision Records that steer agent behavior |
 | Session protocol | 1 | Structured session logs with commit gates and evidence tracking |
 | Review gates | 5 | Pre-PR validation across architecture, security, quality, tests, standards |
 
 ### Troubleshooting
 
-- **`npx` command not found:** Install [Node.js](https://nodejs.org/) (LTS). npm and npx ship with it.
-- **Agents not responding after init:** Restart your editor to reload agent definitions. Then run `analyst: Hello, are you available?` to verify.
-- **`/install-plugin` not recognized:** You are in a regular terminal, not inside Claude Code or Copilot CLI. Run the command inside your AI tool.
+- **`/install-plugin` not recognized:** That command is Claude Code only. In Copilot CLI use the two-step flow (`/plugin marketplace add rjmurillo/ai-agents` then `/plugin install project-toolkit@ai-agents`).
+- **Copilot CLI install fails with "No plugin.json found in repository":** This repo is a marketplace, not a single plugin. Run `/plugin marketplace add rjmurillo/ai-agents` first, then `/plugin install project-toolkit@ai-agents`.
+- **`/plugin` not recognized in Copilot CLI:** Update Copilot CLI to a recent stable release; plugin support is required. Run `copilot --version` in a regular terminal to check.
+- **Plugin install fails or hangs:** Confirm your AI tool is on a recent stable release that supports the install command, then retry. Check the version per tool: in Claude Code use `/version` or the title bar; for Copilot CLI run `copilot --version` in a regular terminal.
+- **Agents not responding after install:** Restart Claude Code (Copilot CLI does not need a restart). Then verify with `Task(subagent_type="analyst", prompt="Hello, are you available?")` in Claude Code, `copilot --list-agents` in Copilot CLI, or `@orchestrator Hello, are you available?` in VS Code Copilot Chat.
 
 ---
 
@@ -72,7 +83,7 @@ That's it. The `init` command vendors a curated `.claude/` kit into your repo. Y
     - [Core Capabilities](#core-capabilities)
     - [Key Concepts](#key-concepts)
   - [Alternative: Full Installation](#alternative-full-installation)
-    - [Quick Install (Recommended)](#quick-install-recommended)
+    - [Quick Install (CLI marketplace)](#quick-install-cli-marketplace)
     - [Verify Installation](#verify-installation)
     - [Supported Platforms](#supported-platforms)
     - [Install via skill-installer](#install-via-skill-installer)
@@ -132,35 +143,21 @@ The agents themselves use the platform specific handoffs to invoke subagents, ke
 
 ## Alternative: Full Installation
 
-If you prefer the existing plugin marketplace or TUI installer over `npx ai-agents init`, use one of the methods below.
+The [Fastest Start](#fastest-start) above is the recommended path. Use the methods below when you want component-level control (agents only, toolkit only) or a TUI-driven installer.
 
-> **Requirements:** Python 3.10+ and [UV](https://docs.astral.sh/uv/) package manager (for skill-installer method only). The `/install-plugin` method has no prerequisites.
+> **Requirements:** Python 3.10+ and [UV](https://docs.astral.sh/uv/) package manager (for the skill-installer TUI only). The native plugin commands (`/install-plugin` in Claude Code, `/plugin install` in Copilot CLI) have no extra prerequisites.
 >
 > See [CONTRIBUTING.md](CONTRIBUTING.md#prerequisites) for full development setup including Python 3.14.x, pre-commit hooks, and test dependencies.
 
-### Quick Install (Recommended)
+### Quick Install (CLI marketplace)
 
-The fastest way to get started is the CLI marketplace. Run the install command from within your AI coding tool.
-
-**Claude Code** (in Claude Code CLI):
-
-```text
-/install-plugin rjmurillo/ai-agents
-```
-
-**GitHub Copilot CLI** (in Copilot CLI):
-
-```text
-/install-plugin rjmurillo/ai-agents
-```
-
-This installs the full agent set for your platform. You can also install individual components:
+The [Fastest Start](#fastest-start) commands above install the full toolkit. For component-level installs, use the commands below from inside your AI coding tool. The `/plugin install <component>@ai-agents` form works in both tools, but in Copilot CLI you must register the marketplace first with `/plugin marketplace add rjmurillo/ai-agents` (Claude Code's `/install-plugin` registers and installs in one step).
 
 | Component | Install Command | What You Get |
 |-----------|----------------|--------------|
-| Claude agents only | `/plugin install claude-agents@ai-agents` | 26 specialized agents for Claude Code |
-| Copilot CLI agents only | `/plugin install copilot-cli-agents@ai-agents` | Agent definitions for Copilot CLI |
-| Full project toolkit | `/plugin install project-toolkit@ai-agents` | Agents, skills, hooks, and commands |
+| Claude agents only | `/plugin install claude-agents@ai-agents` | 24 specialized agents for Claude Code |
+| Copilot CLI agents only | `/plugin install copilot-cli-agents@ai-agents` | 24 agent definitions for Copilot CLI |
+| Full project toolkit | `/plugin install project-toolkit@ai-agents` | 23 agents, 17+ commands, 29 hooks, 70 skills (Claude Code only) |
 
 ### Verify Installation
 

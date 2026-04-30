@@ -18,12 +18,12 @@
     },
     {
       "name": "project-toolkit",
-      "description": "Complete project development toolkit: 23 agents, 23 slash commands, 29 lifecycle hooks, and 67 reusable skills for Claude Code workflows",
+      "description": "Complete project development toolkit: 23 agents, 24 slash commands, 29 lifecycle hooks, and 69 reusable skills for Claude Code workflows",
       "source": "./.claude"
     },
     {
       "name": "claude-toolkit",
-      "description": "23 agents, 67 reusable skills, 23 slash commands, 29 lifecycle hooks - canonical Claude Code authoring source",
+      "description": "23 agents, 69 reusable skills, 24 slash commands, 29 lifecycle hooks - canonical Claude Code authoring source",
       "source": "./.claude"
     },
     {
