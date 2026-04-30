@@ -1,0 +1,129 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "causal-graph.schema.json",
+  "title": "Causal Graph Schema",
+  "description": "Schema for causal reasoning graphs tracking cause-effect relationships (ADR-038)",
+  "type": "object",
+  "required": ["version", "updated", "nodes", "edges", "patterns"],
+  "properties": {
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+$",
+      "description": "Schema version"
+    },
+    "updated": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Last update timestamp"
+    },
+    "nodes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "type", "label"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^n\\d{3,}$"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["decision", "event", "outcome", "pattern", "error"]
+          },
+          "label": {
+            "type": "string"
+          },
+          "episodes": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Episode IDs where this node appears"
+          },
+          "frequency": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Number of occurrences"
+          },
+          "success_rate": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Success rate when this node is involved"
+          }
+        }
+      }
+    },
+    "edges": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["source", "target", "type"],
+        "properties": {
+          "source": {
+            "type": "string",
+            "description": "Source node ID"
+          },
+          "target": {
+            "type": "string",
+            "description": "Target node ID"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["causes", "enables", "prevents", "correlates"],
+            "description": "Relationship type"
+          },
+          "weight": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Confidence weight"
+          },
+          "evidence_count": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Number of episodes supporting this edge"
+          }
+        }
+      }
+    },
+    "patterns": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "trigger", "action"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^p\\d{3,}$"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "trigger": {
+            "type": "string",
+            "description": "Condition that triggers this pattern"
+          },
+          "action": {
+            "type": "string",
+            "description": "Recommended action when triggered"
+          },
+          "success_rate": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "occurrences": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "last_used": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      }
+    }
+  }
+}

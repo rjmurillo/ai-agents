@@ -35,6 +35,7 @@ if TYPE_CHECKING:
 # Add build directory to path for imports
 _SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(_SCRIPT_DIR))
+sys.path.insert(0, str(_SCRIPT_DIR / "scripts"))
 
 from generate_agents_common import (  # noqa: E402
     convert_frontmatter_for_platform,
@@ -47,12 +48,46 @@ from generate_agents_common import (  # noqa: E402
     read_toolset_definitions,
     read_yaml_frontmatter,
 )
+from yaml_loader import ConfigError, load_platform_config  # noqa: E402
+from regen_guard import detect_reason as regen_detect_reason  # noqa: E402
+
+
+def read_artifacts_stanza(config_path: Path, artifact: str) -> dict[str, object] | None:
+    """Read a single ``artifacts.<artifact>`` stanza via the shared loader.
+
+    The custom regex parser used by ``read_platform_config`` flattens nested
+    keys into the parent section. That works for one-level legacy blocks but
+    cannot represent the deeper ``artifacts.<artifact>.{key}`` shape REQ-003
+    introduces. This helper uses ``yaml_loader.load_platform_config`` to read
+    the YAML correctly under the same safety contract (safe_load, no anchors,
+    schemaVersion check).
+
+    Returns ``None`` if the file or stanza is absent, so the generator can
+    fall back to the legacy block.
+    """
+    if not config_path.exists():
+        return None
+    try:
+        cfg = load_platform_config(config_path)
+    except ConfigError as exc:
+        print(f"Warning: artifacts read failed for {config_path}: {exc}", file=sys.stderr)
+        return None
+    artifacts = cfg.get("artifacts")
+    if not isinstance(artifacts, dict):
+        return None
+    stanza = artifacts.get(artifact)
+    return stanza if isinstance(stanza, dict) else None
 
 
 def read_platform_config(config_path: Path) -> dict[str, object] | None:
     """Read platform configuration from a YAML file.
 
-    Parses simple YAML with top-level keys and nested sections.
+    Parses simple YAML with top-level keys, nested sections, and two-level nesting.
+    Supports structures like:
+        legacy:
+          frontmatter:
+            model: "..."
+            includeNameField: true
     """
     if not config_path.exists():
         print(f"Error: Platform config not found: {config_path}", file=sys.stderr)
@@ -61,27 +96,50 @@ def read_platform_config(config_path: Path) -> dict[str, object] | None:
     content = config_path.read_text(encoding="utf-8")
     config: dict[str, object] = {}
     current_section: str | None = None
+    current_subsection: str | None = None
 
     for line in re.split(r"\r?\n", content):
         if re.match(r"^\s*#", line) or not line.strip():
             continue
 
-        # Section header (key with no value)
+        # Section header (key with no value, no indent)
         section_match = re.match(r"^(\w+):\s*$", line)
         if section_match:
             current_section = section_match.group(1)
+            current_subsection = None
             config[current_section] = {}
             continue
 
-        # Nested key-value (indented)
-        nested_match = re.match(r"^\s+(\w+):\s*(.*)$", line)
-        if nested_match:
+        # Subsection header (2-space indent, key with no value) - two-level nesting
+        subsection_match = re.match(r"^  (\w+):\s*$", line)
+        if subsection_match and current_section:
+            current_subsection = subsection_match.group(1)
+            section_value = config.get(current_section)
+            if isinstance(section_value, dict):
+                section_value[current_subsection] = {}
+            continue
+
+        # Deeply nested key-value (4-space indent) - belongs to subsection
+        deep_nested_match = re.match(r"^    (\w+):\s*(.+)$", line)
+        if deep_nested_match and current_section and current_subsection:
+            key = deep_nested_match.group(1)
+            value = _parse_yaml_value(deep_nested_match.group(2).strip())
+            section_value = config.get(current_section)
+            if isinstance(section_value, dict):
+                subsection_value = section_value.get(current_subsection)
+                if isinstance(subsection_value, dict):
+                    subsection_value[key] = value
+            continue
+
+        # Nested key-value (2-space indent with value) - belongs to section
+        nested_match = re.match(r"^  (\w+):\s*(.+)$", line)
+        if nested_match and current_section:
+            current_subsection = None
             key = nested_match.group(1)
             value = _parse_yaml_value(nested_match.group(2).strip())
-            if current_section:
-                section_value = config.get(current_section)
-                if isinstance(section_value, dict):
-                    section_value[key] = value
+            section_value = config.get(current_section)
+            if isinstance(section_value, dict):
+                section_value[key] = value
             continue
 
         # Top-level key-value
@@ -91,6 +149,7 @@ def read_platform_config(config_path: Path) -> dict[str, object] | None:
             value = _parse_yaml_value(top_match.group(2).strip())
             config[key] = value
             current_section = None
+            current_subsection = None
 
     return config
 
@@ -134,6 +193,14 @@ def generate_agents(
         for config_file in sorted(platforms_path.glob("*.yaml")):
             config = read_platform_config(config_file)
             if config:
+                # REQ-003-001: Read the artifacts.agents stanza via the
+                # shared yaml_loader (proper YAML, anchor rejection, schema
+                # version check). Stash it under a private key for the loop
+                # below; legacy block still wins for output paths today to
+                # preserve current on-disk layout (REQ-003-010 no-regress).
+                stanza = read_artifacts_stanza(config_file, "agents")
+                if stanza is not None:
+                    config["__agents_stanza__"] = stanza
                 platforms.append(config)
 
     if not platforms:
@@ -179,8 +246,20 @@ def generate_agents(
         body = parsed["body"]
 
         for platform in platforms:
-            platform_name = str(platform.get("platform", ""))
-            output_dir_relative = str(platform.get("outputDir", ""))
+            # Support new schema (artifacts.agents stanza), legacy block, and old schema.
+            # Resolution order for output path/extension:
+            #   1. legacy.{outputDir,fileExtension}  (preserves on-disk layout)
+            #   2. artifacts.agents.{outputDir,outputSuffix} (REQ-003-001 schema)
+            #   3. platform top-level (oldest fallback)
+            platform_name = str(platform.get("provider", platform.get("platform", "")))
+            legacy = platform.get("legacy") if isinstance(platform.get("legacy"), dict) else {}
+            stanza = platform.get("__agents_stanza__") if isinstance(platform.get("__agents_stanza__"), dict) else {}
+            output_dir_relative = str(
+                legacy.get(
+                    "outputDir",
+                    stanza.get("outputDir", platform.get("outputDir", "")),
+                )
+            )
 
             # Remove src/ prefix if present since output_root is already src/
             prefix_match = re.match(r"^src/(.*)$", output_dir_relative)
@@ -188,7 +267,12 @@ def generate_agents(
                 output_dir_relative = prefix_match.group(1)
 
             output_dir = output_root / output_dir_relative
-            file_ext = str(platform.get("fileExtension", ".md"))
+            file_ext = str(
+                legacy.get(
+                    "fileExtension",
+                    stanza.get("outputSuffix", platform.get("fileExtension", ".md")),
+                )
+            )
             output_file = output_dir / f"{agent_name}{file_ext}"
 
             # Security check
@@ -207,7 +291,8 @@ def generate_agents(
             # Expand toolset references
             # Use toolsFrom alias if set (e.g., visual-studio reuses vscode tools)
             tools_value = transformed_fm.get("tools")
-            toolset_platform = str(platform.get("toolsFrom", platform_name))
+            tools_from_val = legacy.get("toolsFrom") if legacy.get("toolsFrom") else platform.get("toolsFrom")
+            toolset_platform = str(tools_from_val) if tools_from_val else platform_name
             if (
                 toolsets
                 and isinstance(tools_value, str)
@@ -218,8 +303,8 @@ def generate_agents(
                 )
 
             # Transform body
-            handoff_syntax = str(platform.get("handoffSyntax", ""))
-            memory_prefix = str(platform.get("memoryPrefix", "cloudmcp-manager/"))
+            handoff_syntax = str(legacy.get("handoffSyntax", platform.get("handoffSyntax", "")))
+            memory_prefix = str(legacy.get("memoryPrefix", platform.get("memoryPrefix", "cloudmcp-manager/")))
 
             transformed_body = convert_handoff_syntax(body, handoff_syntax)
             transformed_body = convert_memory_prefix(transformed_body, memory_prefix)
@@ -234,6 +319,16 @@ def generate_agents(
             elif what_if:
                 print(f"  Would generate: {output_file}")
             else:
+                # REQ-003-008: respect NO-REGEN sentinel (in-file marker or
+                # .noregen sidecar). Skip the write and emit NOTICE so the
+                # operator sees the protection happened.
+                reason = regen_detect_reason(output_file)
+                if reason is not None:
+                    print(
+                        f"  NOTICE: skipped {output_file} "
+                        f"(NO-REGEN: {reason})"
+                    )
+                    continue
                 output_dir.mkdir(parents=True, exist_ok=True)
                 output_file.write_bytes(output_content.encode("utf-8"))
                 print(f"  Generated: {platform_name}")

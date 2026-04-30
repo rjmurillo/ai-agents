@@ -1,0 +1,449 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<skill-specification>
+  <metadata>
+    <name>buy-vs-build-framework</name>
+    <version>1.0.0</version>
+    <tier>4</tier>
+    <tier-rationale>Principal/VP level decision framework requiring strategic judgment, cross-functional alignment, and long-term consequence analysis</tier-rationale>
+    <timelessness-score>9</timelessness-score>
+    <timelessness-rationale>
+      Economic fundamentals (make vs buy) unchanged for 100+ years. Strategic concepts (core vs context) from Wardley Mapping remain relevant 20+ years later. Decision structures universal across domains. -1 point for potential AI automation disruption to build costs.
+    </timelessness-rationale>
+    <model>claude-opus-4-5</model>
+    <model-rationale>Requires deep reasoning, strategic synthesis, and multi-stakeholder perspective balancing. Opus needed for nuanced judgment.</model-rationale>
+    <license>MIT</license>
+  </metadata>
+
+  <description>
+    <short>Strategic framework for evaluating build, buy, partner, or defer decisions with four-phase process, tiered TCO analysis, and integration with decision quality tools.</short>
+    <detailed>
+      Guide Principal+ leaders through systematic evaluation of strategic sourcing decisions. Four-phase process (Classify → Analyze → Evaluate → Decide) ensures thorough analysis without over-engineering. Integrates with cynefin-classifier for problem domain assessment, pre-mortem for risk identification, decision-critic for assumption validation, and ADR review for consensus. Includes tiered depth (quick/standard/deep) based on decision magnitude, TCO calculator scripts, and reassessment triggers for decision maintenance.
+    </detailed>
+  </description>
+
+  <triggers>
+    <trigger>`evaluate build vs buy for {capability}`</trigger>
+    <trigger>`should we build or buy {system}`</trigger>
+    <trigger>`core vs context analysis`</trigger>
+    <trigger>`strategic sourcing decision for {feature}`</trigger>
+    <trigger>`make or buy decision`</trigger>
+  </triggers>
+
+  <when-to-use>
+    <scenario>Evaluating whether to develop in-house vs purchase vendor solution</scenario>
+    <scenario>Strategic capability investment requires multi-stakeholder alignment</scenario>
+    <scenario>Need structured TCO analysis to justify budget allocation</scenario>
+    <scenario>Decision has long-term strategic implications (2+ year horizon)</scenario>
+    <scenario>Team split on approach and need objective framework</scenario>
+  </when-to-use>
+
+  <when-not-to-use>
+    <alternative skill="cynefin-classifier">Use first if unsure whether problem is analyzable or requires experimentation</alternative>
+    <alternative skill="decision-critic">Use instead if decision already made and need validation</alternative>
+    <alternative skill="planner">Use instead for execution planning after sourcing decision made</alternative>
+    <alternative>Trivial decisions (&lt;$10K, reversible, no strategic impact) - use judgment</alternative>
+  </when-not-to-use>
+
+  <process>
+    <phase number="0" name="Depth Selection">
+      <purpose>Select appropriate analysis depth to prevent over-engineering</purpose>
+      <inputs>
+        <input>Decision budget ($)</input>
+        <input>Strategic impact (low/medium/high)</input>
+        <input>Reversibility (easy/moderate/hard)</input>
+      </inputs>
+      <decision-matrix>
+        <tier name="Quick" duration="1-2 hours">
+          <criteria>&lt;$50K budget</criteria>
+          <criteria>Low strategic impact</criteria>
+          <criteria>Easily reversible</criteria>
+          <output>Core vs Context + Simple TCO + Go/No-go</output>
+        </tier>
+        <tier name="Standard" duration="1-2 days">
+          <criteria>$50K-$500K budget</criteria>
+          <criteria>Moderate strategic impact</criteria>
+          <criteria>Semi-reversible (migration possible but costly)</criteria>
+          <output>Full four phases + Decision matrix + ADR</output>
+        </tier>
+        <tier name="Deep" duration="1-2 weeks">
+          <criteria>&gt;$500K budget</criteria>
+          <criteria>High strategic impact</criteria>
+          <criteria>Irreversible or very costly to reverse</criteria>
+          <output>Full four phases + POCs + External research + Consensus panel + Comprehensive ADR</output>
+        </tier>
+      </decision-matrix>
+      <rationale>Prevents analysis paralysis on small decisions while ensuring rigorous analysis for strategic decisions. Time-boxes effort proportional to decision magnitude.</rationale>
+    </phase>
+
+    <phase number="1" name="Classify">
+      <purpose>Determine if capability is Core or Context to strategic position</purpose>
+      <integration skill="cynefin-classifier">Optional pre-step if problem domain unclear</integration>
+      <framework>
+        <dimension name="Core vs Context">
+          <core>
+            <definition>Competitive differentiator, unique to business model, source of customer value</definition>
+            <examples>Amazon's recommendation engine, Netflix's content algorithm, Uber's matching system</examples>
+            <signal>Customers choose you BECAUSE of this capability</signal>
+            <default-bias>Build (unless constraints prevent)</default-bias>
+          </core>
+          <context>
+            <definition>Table stakes, required but not differentiating, industry-standard</definition>
+            <examples>Auth systems, payment processing, email delivery, CRM</examples>
+            <signal>Customers assume you have this, don't care how</signal>
+            <default-bias>Buy (unless no viable vendors or regulatory constraints)</default-bias>
+          </context>
+        </dimension>
+      </framework>
+      <outputs>
+        <output>Core or Context classification with justification</output>
+        <output>Strategic importance score (1-10)</output>
+        <output>Red line criteria (Never Build / Never Buy)</output>
+      </outputs>
+      <exit-criteria>
+        <criterion>Classification documented with 3+ supporting reasons</criterion>
+        <criterion>Stakeholder consensus on Core vs Context (or disagreement documented)</criterion>
+      </exit-criteria>
+      <rationale>Core vs Context is primary determinant of build vs buy. Core capabilities justify higher build investment. Context capabilities favor buy unless vendors inadequate.</rationale>
+    </phase>
+
+    <phase number="2" name="Analyze">
+      <purpose>Quantify total cost of ownership and assess team capacity</purpose>
+      <script name="calculate_tco.py">
+        <purpose>Calculate NPV, IRR, break-even timeline for each option</purpose>
+        <inputs>
+          <input>Initial costs (build: dev time, buy: licenses, partner: integration)</input>
+          <input>Ongoing costs (build: maintenance, buy: subscriptions, partner: rev share)</input>
+          <input>Growth assumptions (user growth, feature expansion)</input>
+          <input>Discount rate (typically 10-15% for tech projects)</input>
+          <input>Time horizon (3, 5, 10 years)</input>
+        </inputs>
+        <outputs>
+          <output>NPV for each option (with confidence intervals)</output>
+          <output>IRR for build option</output>
+          <output>Break-even timeline (when does build overtake buy?)</output>
+          <output>Sensitivity analysis (which assumptions most affect outcome?)</output>
+        </outputs>
+        <exit-codes>
+          <code value="0">Success, clear financial case</code>
+          <code value="10">Warning: Negative NPV detected</code>
+          <code value="11">Error: Missing required cost categories</code>
+        </exit-codes>
+      </script>
+      <cost-categories>
+        <build>
+          <initial>Engineering time, design, architecture, tooling setup</initial>
+          <ongoing>Maintenance, bug fixes, feature enhancements, infrastructure, support</ongoing>
+          <hidden>Opportunity cost (team could work on other projects), onboarding new team members, tech debt paydown</hidden>
+        </build>
+        <buy>
+          <initial>License fees, implementation services, integration, training</initial>
+          <ongoing>Subscription fees, support contracts, upgrade costs</ongoing>
+          <hidden>Vendor lock-in risk, integration debt, workflow constraints</hidden>
+        </buy>
+        <partner>
+          <initial>Integration work, legal agreements, POC validation</initial>
+          <ongoing>Revenue share, relationship management, co-development coordination</ongoing>
+          <hidden>Roadmap misalignment, partner dependency, revenue complexity</hidden>
+        </partner>
+      </cost-categories>
+      <capacity-assessment>
+        <questions>
+          <question>Does team have required skills? (If no, add training/hiring costs)</question>
+          <question>Does team have capacity without delaying strategic projects?</question>
+          <question>Can team maintain long-term? (Avoid orphaned code)</question>
+          <question>Does build option develop strategic capabilities for future?</question>
+        </questions>
+      </capacity-assessment>
+      <exit-criteria>
+        <criterion>TCO calculated for all viable options (3, 5, 10 year horizons)</criterion>
+        <criterion>Sensitivity analysis identifies top 3 cost drivers</criterion>
+        <criterion>Team capacity assessment documented (skills, bandwidth, maintenance)</criterion>
+      </exit-criteria>
+      <rationale>Financial analysis grounds decision in economics. Hidden costs often dominate (opportunity cost, maintenance). Capacity assessment prevents overcommitment.</rationale>
+    </phase>
+
+    <phase number="3" name="Evaluate">
+      <purpose>Score options across strategic, operational, and risk dimensions</purpose>
+      <script name="score_decision.py">
+        <purpose>Calculate weighted decision scores with sensitivity analysis</purpose>
+        <inputs>
+          <input>Criteria weights (strategic alignment, time to value, cost, risk, etc.)</input>
+          <input>Option scores for each criterion (1-10 scale)</input>
+        </inputs>
+        <outputs>
+          <output>Weighted total scores for each option</output>
+          <output>Sensitivity analysis (how much do weights affect ranking?)</output>
+          <output>Tie-breaker recommendations if scores within 10%</output>
+        </outputs>
+        <exit-codes>
+          <code value="0">Clear winner (>20% score gap)</code>
+          <code value="1">Tie requires human judgment (scores within 10%)</code>
+        </exit-codes>
+      </script>
+      <decision-criteria>
+        <strategic-dimension weight="40%">
+          <criterion>Strategic alignment (Core capability? Competitive advantage?)</criterion>
+          <criterion>Market signaling (What does choice signal to customers/competitors?)</criterion>
+          <criterion>Optionality (Does choice preserve future options? Reversible?)</criterion>
+          <criterion>Asymmetric upside (Unlimited upside potential? Can productize?)</criterion>
+        </strategic-dimension>
+        <operational-dimension weight="30%">
+          <criterion>Time to value (How fast can we deliver?)</criterion>
+          <criterion>Team fit (Skills match? Enjoyable work?)</criterion>
+          <criterion>Integration complexity (How hard to integrate with existing systems?)</criterion>
+          <criterion>Maintenance burden (Long-term operational load?)</criterion>
+        </operational-dimension>
+        <risk-dimension weight="30%">
+          <criterion>Vendor risk (Financial stability, M&A risk, product EOL risk)</criterion>
+          <criterion>Execution risk (Can team actually deliver?)</criterion>
+          <criterion>Regulatory risk (Compliance constraints?)</criterion>
+          <criterion>Lock-in risk (How hard to switch later?)</criterion>
+        </risk-dimension>
+      </decision-criteria>
+      <integration skill="pre-mortem">Run pre-mortem on leading option to surface hidden failure modes</integration>
+      <exit-criteria>
+        <criterion>All criteria scored for all options (with justifications)</criterion>
+        <criterion>Pre-mortem completed for leading option</criterion>
+        <criterion>If tie (&lt;10% gap), document tie-breaker rationale</criterion>
+      </exit-criteria>
+      <rationale>Multi-dimensional scoring prevents single-factor optimization. Pre-mortem surfaces blindspots. Explicit weighting makes values transparent.</rationale>
+    </phase>
+
+    <phase number="4" name="Decide">
+      <purpose>Make final decision, document rationale, plan reassessment</purpose>
+      <decision-matrix>
+        <option name="Build">
+          <when>Core capability + team capacity + favorable TCO</when>
+          <when>No viable vendors OR vendor lock-in unacceptable</when>
+          <when>Strategic capability development desired</when>
+        </option>
+        <option name="Buy">
+          <when>Context capability + viable vendors + faster time to value</when>
+          <when>Team lacks capacity OR skills</when>
+          <when>Commodity capability with mature market</when>
+        </option>
+        <option name="Partner">
+          <when>Shared value creation opportunity (rev share, co-development)</when>
+          <when>Strategic alliance benefits beyond technology</when>
+          <when>Neither build nor buy individually compelling</when>
+        </option>
+        <option name="Defer">
+          <when>Unclear requirements OR high uncertainty</when>
+          <when>Market immature (wait for consolidation)</when>
+          <when>Problem may not need solving (validate demand first)</when>
+        </option>
+      </decision-matrix>
+      <integration skill="decision-critic">Feed final rationale to decision-critic for assumption validation</integration>
+      <integration skill="adr-review">Automatically trigger ADR creation + multi-agent review for Standard/Deep tier decisions</integration>
+      <adr-requirements>
+        <field>Decision (Build/Buy/Partner/Defer)</field>
+        <field>Context (Problem being solved, strategic importance)</field>
+        <field>Considered options (All options evaluated)</field>
+        <field>Decision drivers (Top 3 factors that determined outcome)</field>
+        <field>Consequences (Expected outcomes, risks, mitigations)</field>
+        <field>Reassessment triggers (10 triggers from framework)</field>
+        <field>Decision-maker (Who owns this decision?)</field>
+      </adr-requirements>
+      <reassessment-plan>
+        <script name="check_reassessment_triggers.py">
+          <purpose>Detect when original assumptions have drifted, triggering re-evaluation</purpose>
+          <inputs>
+            <input>Original assumptions (costs, timelines, strategic priorities)</input>
+            <input>Current state (actual costs, market conditions, team capacity)</input>
+          </inputs>
+          <outputs>
+            <output>Drift analysis (which assumptions changed by how much?)</output>
+            <output>Re-evaluation recommendation (Stay course / Minor adjustment / Full re-evaluation)</output>
+          </outputs>
+          <exit-codes>
+            <code value="0">Assumptions hold, stay course</code>
+            <code value="10">Minor drift (&lt;20%), monitor closely</code>
+            <code value="11">Major drift (>20%), re-evaluation required</code>
+          </exit-codes>
+        </script>
+        <triggers>
+          <trigger>Cost assumption changes &gt;20%</trigger>
+          <trigger>Time horizon shifts materially</trigger>
+          <trigger>Strategic priority shifts (context to core or vice versa)</trigger>
+          <trigger>Vendor viability concerns (M&A, financials, EOL)</trigger>
+          <trigger>Team capacity changes (key departures, hiring surge)</trigger>
+          <trigger>Competitive dynamics shift (urgency increases)</trigger>
+          <trigger>Regulatory changes</trigger>
+          <trigger>Technology disruption (new tech makes decision obsolete)</trigger>
+          <trigger>Customer demand signal (explicit preference for hosted vs self-hosted)</trigger>
+          <trigger>Annual review (minimum every 12 months)</trigger>
+        </triggers>
+        <schedule>
+          <quick-tier>Review at 6 months</quick-tier>
+          <standard-tier>Review at 6, 12, 24 months</standard-tier>
+          <deep-tier>Review at 6, 12, 24, 36 months</deep-tier>
+        </schedule>
+      </reassessment-plan>
+      <exit-criteria>
+        <criterion>Decision documented in ADR (Standard/Deep tier)</criterion>
+        <criterion>Decision-critic validation complete (no blocking issues)</criterion>
+        <criterion>Reassessment schedule established</criterion>
+        <criterion>Stakeholder sign-off obtained</criterion>
+      </exit-criteria>
+      <rationale>Explicit decision matrix makes reasoning transparent. Reassessment plan acknowledges decisions aren't permanent. ADR provides audit trail for future reference.</rationale>
+    </phase>
+  </process>
+
+  <scripts>
+    <script name="calculate_tco.py" category="calculation">
+      <purpose>Calculate NPV, IRR, break-even timeline for build/buy/partner options</purpose>
+      <dependencies>Python 3.8+, standard library only</dependencies>
+      <result-structure>
+        <field>npv_build: float</field>
+        <field>npv_buy: float</field>
+        <field>npv_partner: float</field>
+        <field>irr_build: float</field>
+        <field>breakeven_years: float</field>
+        <field>sensitivity: dict[str, float]</field>
+      </result-structure>
+      <verification>Validates all cost categories present, NPV calculations correct</verification>
+    </script>
+    <script name="score_decision.py" category="calculation">
+      <purpose>Calculate weighted decision scores with sensitivity analysis</purpose>
+      <dependencies>Python 3.8+, standard library only</dependencies>
+      <result-structure>
+        <field>scores: dict[str, float]</field>
+        <field>winner: str</field>
+        <field>confidence: str (high/medium/low based on gap)</field>
+        <field>sensitivity: dict[str, float]</field>
+      </result-structure>
+      <verification>Validates criteria are MECE, weights sum to 100%</verification>
+    </script>
+    <script name="check_reassessment_triggers.py" category="validation">
+      <purpose>Detect assumption drift, recommend re-evaluation</purpose>
+      <dependencies>Python 3.8+, standard library only</dependencies>
+      <result-structure>
+        <field>drift_analysis: dict[str, float]</field>
+        <field>recommendation: str (stay_course/monitor/reevaluate)</field>
+        <field>triggered_rules: list[str]</field>
+      </result-structure>
+      <verification>Compares original vs current assumptions, flags material changes</verification>
+    </script>
+    <script name="score_vendor.py" category="calculation">
+      <purpose>Score vendor stability, pricing, feature fit</purpose>
+      <dependencies>Python 3.8+, standard library only</dependencies>
+      <result-structure>
+        <field>vendor_score: float (0-100)</field>
+        <field>risk_flags: list[str]</field>
+        <field>recommendation: str (pass/yellow_flag/red_flag)</field>
+      </result-structure>
+      <verification>Validates data completeness, applies scoring rubric consistently</verification>
+    </script>
+  </scripts>
+
+  <templates>
+    <template name="core-vs-context-analysis.md">
+      <purpose>Structured analysis template for Phase 1 classification</purpose>
+      <sections>
+        <section>Capability Definition</section>
+        <section>Customer Value Proposition</section>
+        <section>Competitive Analysis</section>
+        <section>Core vs Context Assessment</section>
+        <section>Strategic Importance Score</section>
+      </sections>
+    </template>
+    <template name="tco-analysis.md">
+      <purpose>TCO calculation worksheet for Phase 2</purpose>
+      <sections>
+        <section>Build Costs (Initial, Ongoing, Hidden)</section>
+        <section>Buy Costs (Initial, Ongoing, Hidden)</section>
+        <section>Partner Costs (Initial, Ongoing, Hidden)</section>
+        <section>NPV Calculations (3, 5, 10 year horizons)</section>
+        <section>Sensitivity Analysis</section>
+      </sections>
+    </template>
+    <template name="decision-matrix.md">
+      <purpose>Multi-criteria decision matrix for Phase 3</purpose>
+      <sections>
+        <section>Strategic Criteria (40% weight)</section>
+        <section>Operational Criteria (30% weight)</section>
+        <section>Risk Criteria (30% weight)</section>
+        <section>Weighted Scores</section>
+        <section>Sensitivity Analysis</section>
+      </sections>
+    </template>
+    <template name="adr-buy-vs-build.md">
+      <purpose>ADR template for documenting final decision</purpose>
+      <sections>
+        <section>Decision</section>
+        <section>Context</section>
+        <section>Considered Options</section>
+        <section>Decision Drivers</section>
+        <section>Consequences</section>
+        <section>Reassessment Triggers</section>
+        <section>Decision-Maker</section>
+      </sections>
+    </template>
+  </templates>
+
+  <references>
+    <reference name="core-vs-context.md">
+      <purpose>Deep dive on Core vs Context classification from Wardley Mapping</purpose>
+      <content>Historical evolution of strategic positioning, examples across industries, common misclassifications</content>
+    </reference>
+    <reference name="tco-methodology.md">
+      <purpose>TCO calculation methodology, cost categories, hidden cost patterns</purpose>
+      <content>Financial analysis best practices, NPV/IRR formulas, sensitivity analysis techniques</content>
+    </reference>
+    <reference name="partnership-models.md">
+      <purpose>Partnership structures (co-development, revenue share, strategic alliance)</purpose>
+      <content>When to partner vs build/buy, partnership negotiation patterns, success metrics</content>
+    </reference>
+    <reference name="vendor-evaluation.md">
+      <purpose>Vendor assessment framework (stability, pricing, features, support)</purpose>
+      <content>Due diligence checklist, red flags, reference checking, POC evaluation</content>
+    </reference>
+    <reference name="reassessment-playbook.md">
+      <purpose>How to re-evaluate decisions when assumptions change</purpose>
+      <content>Trigger detection, drift analysis, escalation paths, sunk cost fallacy mitigation</content>
+    </reference>
+  </references>
+
+  <quality-gates>
+    <gate phase="1">Core vs Context classification has stakeholder consensus</gate>
+    <gate phase="2">TCO calculated for 3, 5, 10 year horizons with sensitivity analysis</gate>
+    <gate phase="3">Pre-mortem completed for leading option</gate>
+    <gate phase="4">Decision-critic validation passed (no blocking issues)</gate>
+    <gate phase="4">ADR created with reassessment triggers (Standard/Deep tier)</gate>
+  </quality-gates>
+
+  <verification>
+    <self-verification>
+      <check>All scripts run without errors (exit code 0 for valid inputs)</check>
+      <check>Templates render with sample data</check>
+      <check>Integration points with other skills documented</check>
+      <check>Reassessment triggers comprehensive (10 triggers minimum)</check>
+    </self-verification>
+    <user-verification>
+      <check>User confirms classification (Core vs Context) matches business reality</check>
+      <check>User validates TCO assumptions are reasonable</check>
+      <check>User agrees with decision matrix weighting</check>
+      <check>User approves final decision and reassessment plan</check>
+    </user-verification>
+  </verification>
+
+  <anti-patterns>
+    <anti-pattern>Using framework for trivial decisions (&lt;$10K, reversible) - causes analysis paralysis</anti-pattern>
+    <anti-pattern>Skipping pre-mortem on high-risk decisions - misses hidden failure modes</anti-pattern>
+    <anti-pattern>Not documenting decision rationale - future team can't understand why</anti-pattern>
+    <anti-pattern>Forgetting reassessment plan - decision becomes stale as assumptions drift</anti-pattern>
+    <anti-pattern>Optimizing for single dimension (e.g., only cost) - ignores strategic value</anti-pattern>
+  </anti-patterns>
+
+  <evolution>
+    <timelessness-rationale>
+      Economic fundamentals of make-vs-buy tradeoff date to industrial revolution, remain unchanged. Strategic positioning concepts (core vs context) from Wardley Mapping (2005) remain relevant 20+ years later. Decision structures universal across software, hardware, services. Human cognitive biases (sunk cost, confirmation bias) don't change. Principal/VP decision-making authority stable across decades.
+    </timelessness-rationale>
+    <potential-changes>
+      <change>AI code generation could shift build costs radically downward</change>
+      <change>Vendor consolidation (only 1-2 vendors) changes buy calculus</change>
+      <change>Open source maturity creates "free" middle ground</change>
+      <mitigation>Framework includes "Defer" option and reassessment triggers to adapt to shifts</mitigation>
+    </potential-changes>
+  </evolution>
+</skill-specification>

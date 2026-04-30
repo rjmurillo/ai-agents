@@ -1,0 +1,129 @@
+#!/usr/bin/env python3
+"""Assign users to a GitHub Issue.
+
+Supports @me shorthand for the current authenticated user.
+
+Exit codes follow ADR-035:
+    0 - Success
+    1 - Invalid parameters / logic error
+    3 - External error (API failure)
+    4 - Auth error (not authenticated)
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import subprocess
+import sys
+
+_plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+_workspace = os.environ.get("GITHUB_WORKSPACE")
+if _plugin_root:
+    _lib_dir = os.path.join(_plugin_root, "lib")
+elif _workspace:
+    _lib_dir = os.path.join(_workspace, ".claude", "lib")
+else:
+    _lib_dir = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "lib")
+    )
+if not os.path.isdir(_lib_dir):
+    print(f"Plugin lib directory not found: {_lib_dir}", file=sys.stderr)
+    sys.exit(2)  # Config error per ADR-035
+if _lib_dir not in sys.path:
+    sys.path.insert(0, _lib_dir)
+
+from github_core.api import (  # noqa: E402
+    assert_gh_authenticated,
+    error_and_exit,
+    resolve_repo_params,
+)
+from github_core.output import (  # noqa: E402
+    add_output_format_arg,
+    get_output_format,
+    write_skill_error,
+    write_skill_output,
+)
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Assign users to a GitHub Issue.",
+    )
+    parser.add_argument("--owner", default="", help="Repository owner")
+    parser.add_argument("--repo", default="", help="Repository name")
+    parser.add_argument("--issue", type=int, required=True, help="Issue number")
+    parser.add_argument(
+        "--assignees",
+        nargs="+",
+        required=True,
+        help='GitHub usernames to assign. Use "@me" for current user.',
+    )
+    add_output_format_arg(parser)
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+
+    assert_gh_authenticated()
+    resolved = resolve_repo_params(args.owner, args.repo)
+    owner, repo = resolved.owner, resolved.repo
+    fmt = get_output_format(args.output_format)
+
+    assignees: list[str] = args.assignees
+    if not assignees:
+        print("No assignees to add.", file=sys.stderr)
+        return 0
+
+    applied: list[str] = []
+    failed: list[str] = []
+
+    for assignee in assignees:
+        result = subprocess.run(
+            [
+                "gh", "issue", "edit", str(args.issue),
+                "--repo", f"{owner}/{repo}",
+                "--add-assignee", assignee,
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode == 0:
+            applied.append(assignee)
+        else:
+            failed.append(assignee)
+
+    data = {
+        "issue": args.issue,
+        "applied": applied,
+        "failed": failed,
+        "total_applied": len(applied),
+    }
+
+    if failed:
+        write_skill_error(
+            f"Failed to assign: {', '.join(failed)}",
+            3,
+            error_type="ApiError",
+            output_format=fmt,
+            script_name="set_issue_assignee.py",
+            extra=data,
+        )
+        raise SystemExit(3)
+
+    write_skill_output(
+        data,
+        output_format=fmt,
+        human_summary=f"Assigned {len(applied)} user(s) to issue #{args.issue}",
+        status="PASS",
+        script_name="set_issue_assignee.py",
+    )
+
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -1,0 +1,6 @@
+Timestamp: 2026-04-28 14:46:28
+Branch: feat/req-003-multi-tool-build -> main
+Title: feat(spec+plan+adr): REQ-003 multi-tool artifact build system [DRAFT]
+User: richard
+Validation: SKIPPED
+Reason: doc-only PR; skill detector script times out; spec+plan+ADR + debate log committed in this branch; manual review of validation rules in PR description
