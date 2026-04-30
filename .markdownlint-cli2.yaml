@@ -75,29 +75,48 @@ config:
   # First line heading - required by default
   MD041: true
 
-globs:
-  - "**/*.md"
-  - "!node_modules/**"
-  - "!.venv/**"
-  - "!.agents/**"
-  - "!.serena/memories/**"
-  - "!.flowbaby/**"
-  - "!.claude/skills/**"
-  - "!tmp/**"
-  - "!.factory/**"
-  # CodeQL assets are generated/managed separately; exclude from linting
-  - "!.codeql/**"
+# NOTE: top-level `globs:` removed deliberately. markdownlint-cli2 ADDS
+# config globs to any files passed on the command line, so a hook that
+# lints one touched file (`markdownlint-cli2 --fix path/to/file.md`)
+# would also walk every `**/*.md` in the repo and take minutes per
+# invocation. Callers that want to lint the whole repo MUST pass
+# `**/*.md` (or a narrower glob) on the command line; see
+# `scripts/validation/pre_pr.py` for the canonical full-repo call.
+# `ignores:` stays in config so explicit walks still honor exclusions.
 
 ignores:
-  - "node_modules/**"
+  # Version control and build artifacts. Without these, a `**/*.md` walk
+  # recurses through `.git/objects/`, npm cache trees, mypy/pytest/ruff
+  # caches, and worktree mirrors -- counting every directory entry
+  # along the way. Pre-fix the full-repo lint enumerated 373,381 paths
+  # to find ~585 real `.md` files. This list narrows the walk to the
+  # source tree.
+  - ".git/**"
+  - "**/node_modules/**"
   - ".venv/**"
+  - ".mypy_cache/**"
+  - ".pytest_cache/**"
+  - ".pytest_tmp/**"
+  - ".ruff_cache/**"
+  - "ai_agents.egg-info/**"
+  - "build/**"
+  - "dist/**"
+  # Worktrees are duplicate working copies, not unique source.
+  - ".claude/worktrees/**"
+  # Internal tooling outputs and provider caches: not authored .md.
   - ".agents/**"
+  - ".serena/**"
+  - ".claude-mem/**"
+  - ".forgetful/**"
+  - ".diffray/**"
   - ".flowbaby/**"
-  - ".serena/memories/**"
-  - "tmp/**"
   - ".factory/**"
-  # CodeQL assets are generated/managed separately; exclude from linting
   - ".codeql/**"
+  - ".baseline/**"
+  - ".gemini/**"
+  - ".vscode/**"
+  - ".config/**"
+  - "tmp/**"
   - "**/*.ps1"
   - "**/*.psm1"
   - ".factory/**"
