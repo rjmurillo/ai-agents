@@ -1,0 +1,291 @@
+---
+name: analysis-provenance
+version: 1.0.0
+model: claude-sonnet-4-6
+description: Identify code ownership before modifying validators or linters. Checks file headers for provenance indicators, reviews documentation, and determines provenance as UPSTREAM, LOCAL, VENDOR, or UNKNOWN. Prevents accidental modification of upstream tools.
+license: MIT
+user-invocable: true
+---
+
+# Analysis Provenance
+
+Identify code ownership before modifying validators, linters, or tool configurations.
+
+## Triggers
+
+- `check provenance before modifying`
+- `is this file upstream or local`
+- `who owns this validator`
+- `check code ownership`
+- `analyze provenance`
+
+---
+
+## Quick Start
+
+```bash
+# Check provenance of a single file
+python3 .claude/skills/analysis-provenance/scripts/check_provenance.py --target .config/markdownlint.json
+
+# Check provenance of a directory
+python3 .claude/skills/analysis-provenance/scripts/check_provenance.py --target .config/
+
+# JSON output for automation
+python3 .claude/skills/analysis-provenance/scripts/check_provenance.py --target PSScriptAnalyzerSettings.psd1 --format json
+```
+
+---
+
+## Quick Reference
+
+| Category | Meaning | Action |
+|----------|---------|--------|
+| **UPSTREAM** | External dependency (npm, pip, NuGet) | Configure, do not modify |
+| **LOCAL** | Project-owned code | Modify as needed |
+| **VENDOR** | Copied/vendored upstream code | Avoid modification, track upstream |
+| **UNKNOWN** | Cannot determine | Investigate before modifying |
+
+---
+
+## When to Use
+
+Use this skill **before**:
+
+- Modifying any validator or linter behavior
+- Changing tool configuration files
+- Investigating unexpected validation failures
+- Updating analyzer settings
+
+---
+
+## Process
+
+```mermaid
+graph TD
+    A[Target file or directory] --> B["1. Target Resolution<br/>Resolve paths, check exists"]
+    B --> C["2. Directory Analysis<br/>node_modules, .venv, vendor,<br/>.gitmodules"]
+    C --> D["3. Package Manifest Analysis<br/>package.json, requirements,<br/>lockfiles"]
+    D --> E["4. File Header Analysis<br/>First 20 lines: generated<br/>markers, copyright notices"]
+    E --> F["5. Provenance Determination<br/>Weight signals, return<br/>category + evidence"]
+    F --> G["Decision:<br/>UPSTREAM - configure only<br/>LOCAL - safe to modify<br/>VENDOR - track upstream<br/>UNKNOWN - investigate first"]
+```
+
+---
+
+## Decision Tree
+
+```
+Need to modify a validator/linter?
+│
+├─ Run: python3 .claude/skills/analysis-provenance/scripts/check_provenance.py --target <file>
+│
+├─ Result: UPSTREAM
+│  ├─ Do NOT modify the tool/file directly
+│  ├─ Adjust local configuration instead
+│  ├─ Check for configuration override options
+│  └─ If no override exists, document why the rule is suppressed
+│
+└─ Result: LOCAL
+   ├─ Safe to modify as needed
+   ├─ Follow project coding standards
+   └─ Test changes before committing
+```
+
+---
+
+## Command Reference
+
+From the repository root, run:
+
+```bash
+python3 .claude/skills/analysis-provenance/scripts/check_provenance.py --target <path> [options]
+```
+
+| Parameter | Required | Default | Description |
+|-----------|----------|---------|-------------|
+| `--target` | Yes | - | File or directory to analyze |
+| `--format` | No | text | Output format: text, json |
+| `--verbose` | No | false | Include all evidence details |
+
+| Exit Code | Meaning |
+|-----------|---------|
+| 0 | Provenance determined successfully |
+| 1 | Script error (file not found, invalid arguments) |
+
+---
+
+## Anti-Patterns
+
+| Avoid | Why | Instead |
+|-------|-----|---------|
+| Modifying files in node_modules | Changes lost on npm install | Configure via local config files |
+| Editing vendored code | Breaks upstream tracking | Document suppression, fork if needed |
+| Skipping provenance check | Accidental upstream modification | Always check before modifying |
+| Assuming config is local | May be generated or vendored | Verify with this skill |
+
+---
+
+## Verification
+
+After running provenance check:
+
+- [ ] Category determined (UPSTREAM/LOCAL/VENDOR/UNKNOWN)
+- [ ] Evidence provided with signal types
+- [ ] Recommendation matches category
+- [ ] Exit code is 0 (successful analysis)
+
+---
+
+## Related Skills
+
+| Skill | Relationship |
+|-------|--------------|
+| [style-enforcement](../style-enforcement/SKILL.md) | Configure vs modify validators |
+| [programming-advisor](../programming-advisor/SKILL.md) | Evaluate external solutions |
+| [analyze](../analyze/SKILL.md) | Broad codebase investigation |
+
+---
+
+<details>
+<summary><strong>Detection Signals Reference</strong></summary>
+
+### Upstream Indicators
+
+| Signal | Location | Example |
+|--------|----------|---------|
+| Package manifest entry | `package.json` | `"markdownlint-cli2": "^0.12.1"` |
+| Node modules path | `node_modules/` | Any file under this directory |
+| Python site-packages | `.venv/`, `site-packages/` | Any file under these directories |
+| NuGet cache | `.nuget/`, `packages/` | Any file under these directories |
+| File header comment | First 20 lines | "Generated by", "DO NOT EDIT", copyright notice |
+| Git submodule | `.gitmodules` | Path matches submodule |
+
+### Local Indicators
+
+| Signal | Location | Example |
+|--------|----------|---------|
+| Under project root | Outside dependency directories | `src/`, `.config/`, `scripts/` |
+| No external version | Not in lockfiles | Custom script |
+| Project copyright | File header | Project-specific copyright |
+| Git tracked | `.git/` | In project git history |
+
+### Vendor Indicators
+
+| Signal | Location | Example |
+|--------|----------|---------|
+| `vendor/` directory | Project root | `vendor/third-party/` |
+| Vendor comment | File header | "Vendored from <URL>" |
+| `VENDORED.md` reference | Same directory | Documents upstream source |
+
+</details>
+
+<details>
+<summary><strong>Examples</strong></summary>
+
+### Check Validator Config (LOCAL)
+
+```bash
+python3 .claude/skills/analysis-provenance/scripts/check_provenance.py --target .markdownlint.json
+```
+
+```
+Provenance Check: .markdownlint.json
+====================================
+Category: LOCAL
+Confidence: HIGH
+Evidence:
+  - File is under project root
+  - File is tracked in git
+  - No external package reference found
+Recommendation: Safe to modify as needed.
+```
+
+### Check External Tool (UPSTREAM)
+
+```bash
+python3 .claude/skills/analysis-provenance/scripts/check_provenance.py --target node_modules/markdownlint-cli2/lib/main.js
+```
+
+```
+Provenance Check: node_modules/markdownlint-cli2/lib/main.js
+============================================================
+Category: UPSTREAM
+Confidence: HIGH
+Evidence:
+  - Located in node_modules directory
+  - Package: markdownlint-cli2@0.12.1 (package.json)
+  - npm registry: https://registry.npmjs.org/
+Recommendation: Do NOT modify. Configure via .markdownlint.json instead.
+```
+
+### JSON Output
+
+```bash
+python3 .claude/skills/analysis-provenance/scripts/check_provenance.py --target PSScriptAnalyzerSettings.psd1 --format json
+```
+
+```json
+{
+  "target": "PSScriptAnalyzerSettings.psd1",
+  "category": "LOCAL",
+  "confidence": "HIGH",
+  "evidence": [
+    {"signal": "project_root", "value": true},
+    {"signal": "git_tracked", "value": true},
+    {"signal": "external_package", "value": false}
+  ],
+  "recommendation": "Safe to modify as needed."
+}
+```
+
+</details>
+
+<details>
+<summary><strong>Common Validator/Linter Files</strong></summary>
+
+| Tool | Config Files | Typical Provenance |
+|------|--------------|-------------------|
+| markdownlint | `.markdownlint.json`, `.markdownlint-cli2.jsonc` | LOCAL |
+| PSScriptAnalyzer | `PSScriptAnalyzerSettings.psd1` | LOCAL |
+| ESLint | `.eslintrc.json`, `eslint.config.js` | LOCAL |
+| Prettier | `.prettierrc`, `.prettierrc.json` | LOCAL |
+| StyleCop | `.stylecop.json` | LOCAL |
+| EditorConfig | `.editorconfig` | LOCAL |
+| Tool binaries | `node_modules/`, `.venv/` | UPSTREAM |
+
+</details>
+
+<details>
+<summary><strong>Integration with Agent Workflow</strong></summary>
+
+### Before Modifying Validators
+
+```bash
+# Check provenance FIRST
+python3 .claude/skills/analysis-provenance/scripts/check_provenance.py \
+  --target <validator-file>
+
+# If UPSTREAM: adjust config
+# If LOCAL: modify file
+```
+
+### In Pre-commit Hooks
+
+```yaml
+# Prevent accidental upstream modifications
+- id: provenance-check
+  name: Provenance Check
+  entry: python3 .claude/skills/analysis-provenance/scripts/check_provenance.py
+  args: [--target, node_modules, --exit-on-upstream]
+  language: python
+```
+
+</details>
+
+---
+
+## Timelessness: 8/10
+
+Dependency management and provenance tracking are fundamental software engineering practices.
+The upstream vs local distinction applies regardless of package manager or language.
+Configuration over modification is a timeless pattern for external dependencies.

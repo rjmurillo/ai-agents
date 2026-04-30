@@ -1,0 +1,53 @@
+{
+  "rule_path": ".claude/rules/unified-software-engineering.md",
+  "rule_id": "unified-software-engineering",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "DRY vs premature abstraction conflict",
+      "input": "I noticed three places where we serialize a User to JSON. The shapes are 80% similar but each has 1-2 fields the others do not. Should I extract a shared serializer? Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "duplicated knowledge",
+        "coincidental",
+        "premature",
+        "wait"
+      ],
+      "expected_gate": "do-not-merge-coincidental-similarity",
+      "rationale": "Rule clarifies DRY targets duplicated knowledge, not duplicated text. Coincidental similarity should stay separate."
+    },
+    {
+      "id": "S2",
+      "desc": "Strong consistency vs eventual consistency choice",
+      "input": "We have a Cart and an Inventory aggregate. When checkout happens, the Cart converts to an Order and inventory must decrement. Should this be one transaction across both aggregates or eventual? Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "consistency boundary",
+        "eventual",
+        "aggregate",
+        "domain event"
+      ],
+      "expected_gate": "respect-aggregate-boundary",
+      "rationale": "Rule mandates one aggregate per local transaction; cross-aggregate work goes through events with explicit consistency semantics."
+    },
+    {
+      "id": "S3",
+      "desc": "Adding shallow pass-through layer",
+      "input": "I want to add a Service class that just delegates each method to a Repository. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "shallow",
+        "pass-through",
+        "remove",
+        "no value"
+      ],
+      "expected_gate": "reject-shallow-layer",
+      "rationale": "Cross-references philosophy-of-software-design. Unified rule should still reject shallow layers."
+    },
+    {
+      "id": "S4",
+      "desc": "Pure CSS styling question (negative case)",
+      "input": "What's the best way to center a div vertically and horizontally using CSS flexbox? Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "Pure CSS styling question has no relevance to software engineering principles like DRY, aggregates, or layer design. Rule should not activate."
+    }
+  ]
+}

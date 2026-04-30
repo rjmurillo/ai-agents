@@ -1,0 +1,55 @@
+{
+  "rule_path": ".claude/rules/refactoring.md",
+  "rule_id": "refactoring",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "User asks to refactor and add a feature in one commit",
+      "input": "I want to extract the validateInput method into a helper class AND add support for a new email format. Should I do this in one commit? Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "two hats",
+        "separate commits",
+        "preserve behavior",
+        "refactor first"
+      ],
+      "expected_gate": "split-refactor-from-feature",
+      "rationale": "Refactoring rule's core discipline: refactor preserves behavior, feature changes behavior. Never mix in one commit."
+    },
+    {
+      "id": "S2",
+      "desc": "Refactoring without tests on legacy code",
+      "input": "I want to extract a long method in a 500-line class that has no tests. Plan the work in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "characterization",
+        "tests first",
+        "behavior preserving",
+        "extract"
+      ],
+      "expected_gate": "tests-before-refactor",
+      "rationale": "Without tests, refactoring is editing in the dark. Rule mandates characterization tests first."
+    },
+    {
+      "id": "S3",
+      "desc": "Drive-by stylistic cleanup during feature PR",
+      "input": "I'm adding a new payment method. While I'm in the file, I noticed some inconsistent naming. Should I fix it in this PR? Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "drive-by",
+        "separate PR",
+        "scope discipline"
+      ],
+      "expected_gate": "reject-drive-by-cleanup",
+      "rationale": "Refactoring rule explicitly rejects 'while I was in there' cleanups in feature PRs."
+    },
+    {
+      "id": "S4",
+      "desc": "Pure feature addition with no restructuring (negative case)",
+      "input": "I want to add a brand-new endpoint to export invoices as CSV. There is no existing export path to refactor. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "new behavior",
+        "feature"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "Net-new behavior change, not a behavior-preserving structural change. Refactoring rule should not activate."
+    }
+  ]
+}
