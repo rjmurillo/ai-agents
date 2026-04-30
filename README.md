@@ -20,21 +20,23 @@ For platform teams, engineering managers, and orgs that want AI-assisted develop
 
 ## Fastest Start
 
-The install path differs by tool. Pick yours below.
+Each AI tool has its own plugin install command. Pick yours and paste inside the CLI session.
 
-**Claude Code** — paste inside the CLI, then restart Claude Code:
+**Claude Code** — paste inside the CLI, then restart Claude Code when it finishes:
 
 ```text
 /install-plugin rjmurillo/ai-agents
 ```
 
-**GitHub Copilot CLI** — Copilot CLI does not support `/install-plugin`. Run [skill-installer](https://github.com/rjmurillo/skill-installer) from a regular terminal (no restart needed afterward; Copilot CLI picks agents up automatically):
+**GitHub Copilot CLI** — paste inside the CLI session (no restart needed afterward; Copilot CLI picks agents up automatically):
 
-```bash
-uvx --from git+https://github.com/rjmurillo/skill-installer skill-installer interactive
+```text
+/plugin install rjmurillo/ai-agents
 ```
 
-Either path lands you with 21 agents, 62 skills, and 57 ADRs. See [Verify Installation](#verify-installation) for the per-tool sanity check, or [More Installation Options](#alternative-full-installation) for component-level installs.
+The Copilot CLI command also works as a one-liner from a regular terminal: `copilot plugin install rjmurillo/ai-agents`.
+
+Either path lands you with 21 agents, 62 skills, and 57 ADRs. See [Verify Installation](#verify-installation) for the per-tool sanity check, or [More Installation Options](#alternative-full-installation) for component-level installs and a TUI alternative.
 
 ### What You Get
 
@@ -49,9 +51,8 @@ Either path lands you with 21 agents, 62 skills, and 57 ADRs. See [Verify Instal
 
 ### Troubleshooting
 
-- **`/install-plugin` not recognized in Claude Code:** You are in a regular terminal, not inside the Claude Code CLI. Run the command from inside Claude Code, not your shell.
-- **`/install-plugin` not recognized in Copilot CLI:** Copilot CLI does not support `/install-plugin`. Use the skill-installer command above instead.
-- **`uvx` command not found:** Install [UV](https://docs.astral.sh/uv/) (`curl -LsSf https://astral.sh/uv/install.sh | sh`); skill-installer requires Python 3.10+ and UV.
+- **`/install-plugin` not recognized:** That's the Claude Code command. In Copilot CLI use `/plugin install rjmurillo/ai-agents` instead. In a regular shell, neither slash command works — run the appropriate tool first, or use `copilot plugin install rjmurillo/ai-agents` directly.
+- **`/plugin` not recognized in Copilot CLI:** Update Copilot CLI to a recent stable release; plugin support is required. Verify with `copilot --version` from a regular terminal.
 - **Plugin install fails or hangs:** Confirm your AI tool is on a recent stable release that supports the install command, then retry. Check your installed version from inside the tool before retrying.
 - **Agents not responding after install:** Restart Claude Code (Copilot CLI does not need a restart). Then verify with `Task(subagent_type="analyst", prompt="Hello, are you available?")` in Claude Code, `copilot --list-agents` in Copilot CLI, or `@orchestrator Hello, are you available?` in VS Code Copilot Chat.
 
@@ -144,13 +145,13 @@ The agents themselves use the platform specific handoffs to invoke subagents, ke
 
 The [Fastest Start](#fastest-start) above is the recommended path. Use the methods below when you want component-level control (agents only, toolkit only) or a TUI-driven installer.
 
-> **Requirements:** Python 3.10+ and [UV](https://docs.astral.sh/uv/) package manager (for skill-installer method only). The `/install-plugin` method has no prerequisites.
+> **Requirements:** Python 3.10+ and [UV](https://docs.astral.sh/uv/) package manager (for the skill-installer TUI only). The native plugin commands (`/install-plugin` in Claude Code, `/plugin install` in Copilot CLI) have no extra prerequisites.
 >
 > See [CONTRIBUTING.md](CONTRIBUTING.md#prerequisites) for full development setup including Python 3.14.x, pre-commit hooks, and test dependencies.
 
 ### Quick Install (CLI marketplace)
 
-The [Fastest Start](#fastest-start) `/install-plugin rjmurillo/ai-agents` command installs the full agent set inside Claude Code. If you want only a subset, use the component-level commands below from inside Claude Code (these `/plugin install` commands are Claude Code only — Copilot CLI users select components through skill-installer instead, see [Install via skill-installer](#install-via-skill-installer)):
+The [Fastest Start](#fastest-start) commands above install the full agent set. If you want only a subset, use the component-level commands below from inside your AI coding tool. The `/plugin install ...@ai-agents` form works in both Claude Code and Copilot CLI; in Copilot CLI you may need to register the marketplace first with `/plugin marketplace add rjmurillo/ai-agents`.
 
 | Component | Install Command | What You Get |
 |-----------|----------------|--------------|
