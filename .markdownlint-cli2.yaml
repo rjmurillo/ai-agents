@@ -99,7 +99,6 @@ ignores:
   - ".pytest_tmp/**"
   - ".ruff_cache/**"
   - "ai_agents.egg-info/**"
-  - "build/**"
   - "dist/**"
   # Worktrees are duplicate working copies, not unique source.
   - ".claude/worktrees/**"
