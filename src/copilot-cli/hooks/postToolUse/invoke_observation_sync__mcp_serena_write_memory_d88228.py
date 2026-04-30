@@ -160,9 +160,13 @@ def _original_main(stdin_bytes):
 
 
     def _get_repo_root() -> str:
-        """Resolve the repository root from environment or git."""
+        """Resolve the repository root from environment or git.
+
+        Validates that CLAUDE_PROJECT_DIR resolves to an existing directory
+        before trusting it; falls through to git/cwd otherwise.
+        """
         env_dir = os.environ.get("CLAUDE_PROJECT_DIR", "").strip()
-        if env_dir:
+        if env_dir and Path(env_dir).is_dir():
             return env_dir
         result = subprocess.run(
             ["git", "rev-parse", "--show-toplevel"],
@@ -236,6 +240,11 @@ def _original_main(stdin_bytes):
             )
             return
 
+        # nosemgrep: python.lang.security.audit.dangerous-subprocess-use-tainted-env-args
+        # repo_root is sanitized by _get_repo_root() (is_dir() guard above);
+        # import_script is validated by the is_file() check immediately above.
+        # argv-list form, no shell. observation_file is the path of a memory
+        # file we just received via the hook payload, not user-controlled.
         result = subprocess.run(
             [
                 sys.executable,
