@@ -121,7 +121,7 @@ def _has_path_scope(frontmatter: dict[str, str | None]) -> bool:
     return False
 
 
-def _filter_internal_globs(value: str) -> str:
+def _filter_internal_globs(value: str) -> tuple[str, list[str]]:
     """Drop comma-separated glob entries pointing at internal-only paths.
 
     Source rules under `.claude/rules/` declare ``applyTo``/``paths`` with
@@ -129,14 +129,27 @@ def _filter_internal_globs(value: str) -> str:
     Some of those entries (`.agents/`, `.claude/`, `.serena/` prefixes) only
     exist in the source repository; for any downstream consumer they are
     dead references that match nothing and add noise. Drop them and keep
-    everything else verbatim. Returns ``""`` when every entry was internal,
-    so callers can decide whether to synthesize a universal scope.
+    everything else verbatim.
+
+    Returns ``(filtered, dropped)`` where ``filtered`` is the comma-joined
+    survivors and ``dropped`` is the list of removed entries (so the
+    caller can log or audit them). When every entry was internal,
+    ``filtered`` is the empty string and the caller should synthesize a
+    universal scope.
     """
     if not value or not value.strip():
-        return value
+        return value, []
     parts = [p.strip() for p in value.split(",")]
-    kept = [p for p in parts if p and not p.startswith(_INTERNAL_PATH_PREFIXES)]
-    return ",".join(kept)
+    kept: list[str] = []
+    dropped: list[str] = []
+    for p in parts:
+        if not p:
+            continue
+        if p.startswith(_INTERNAL_PATH_PREFIXES):
+            dropped.append(p)
+        else:
+            kept.append(p)
+    return ",".join(kept), dropped
 
 
 def _remap_frontmatter(
@@ -168,7 +181,15 @@ def _remap_frontmatter(
         # runs once on `applyTo` regardless of whether the source used
         # `paths`, `applyTo`, or `globs`.
         if new_key == "applyTo" and isinstance(value, str):
-            value = _filter_internal_globs(value)
+            value, dropped = _filter_internal_globs(value)
+            for entry in dropped:
+                # Visible warning per dropped entry so plugin authors
+                # see what was filtered (and why) without grepping the
+                # generator source.
+                print(
+                    f"  WARNING: dropped internal-only glob from applyTo: {entry!r}",
+                    file=sys.stderr,
+                )
         result[new_key] = value
     # If the post-filter applyTo is empty but the source had a scope,
     # the source was entirely internal-only globs. Synthesize universal

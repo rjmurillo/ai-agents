@@ -14,10 +14,23 @@ Exit Codes (Claude Hook Semantics, exempt from ADR-035):
 from __future__ import annotations
 
 import json
+import logging
 import os
 import subprocess
 import sys
 from pathlib import Path
+
+# Security-rejection logger. Structured WARNING records let SIEM and grep
+# tooling categorize containment-guard rejections without parsing prose.
+# Code prefix convention mirrors .agents/governance/FAILURE-MODES.md.
+_SECURITY_LOG = logging.getLogger("ai_agents.hooks.observation_sync.security")
+if not _SECURITY_LOG.handlers:
+    _handler = logging.StreamHandler(sys.stderr)
+    _handler.setFormatter(
+        logging.Formatter("%(levelname)s %(name)s [%(code)s]: %(message)s")
+    )
+    _SECURITY_LOG.addHandler(_handler)
+    _SECURITY_LOG.setLevel(logging.WARNING)
 
 _plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
 if _plugin_root:
@@ -45,6 +58,12 @@ if _lib_dir not in sys.path:
 
 from hook_utilities.guards import skip_if_consumer_repo  # noqa: E402
 
+# Hoisted from `_get_repo_root` per `/simplify` review: `__file__` is
+# invariant for the lifetime of the process, so resolving it once at
+# module load saves a `stat()` syscall on every PostToolUse hook fire
+# (this hook runs after every Serena memory write -- a hot path).
+_SCRIPT_DIR_RESOLVED: str = os.path.realpath(str(Path(__file__).resolve().parent))
+
 
 def _get_repo_root() -> str | None:
     """Resolve the repository root from environment or git, with traversal guard.
@@ -58,16 +77,19 @@ def _get_repo_root() -> str | None:
     refusing to honor a project root that does not contain the live hook
     file. Mirrors the pattern in ``invoke_adr_change_detection.get_project_root``.
     """
-    script_dir = str(Path(__file__).resolve().parent)
     env_dir = os.environ.get("CLAUDE_PROJECT_DIR", "").strip()
     if env_dir:
-        resolved_script = os.path.realpath(script_dir)
         resolved_root = os.path.realpath(env_dir)
-        if not resolved_script.startswith(resolved_root + os.sep):
-            print(
-                f"observation-sync: CLAUDE_PROJECT_DIR='{env_dir}' does not "
-                f"contain script '{script_dir}' -- refusing (CWE-22)",
-                file=sys.stderr,
+        if not _SCRIPT_DIR_RESOLVED.startswith(resolved_root + os.sep):
+            _SECURITY_LOG.warning(
+                "CLAUDE_PROJECT_DIR does not contain hook script -- refusing",
+                extra={
+                    "code": "E_CWE22_PROJECT_DIR_MISMATCH",
+                    "env_dir": env_dir,
+                    "script_dir": _SCRIPT_DIR_RESOLVED,
+                    "cwe": "CWE-22",
+                    "hook": "observation-sync",
+                },
             )
             return None
         return env_dir

@@ -180,15 +180,45 @@ class TestPrivacyDefaultsM7T6:
 
 
 class TestSafeBaseDirM7T5:
-    """M7-T5: SAFE_BASE_DIR derives from runtime env, not __file__ ancestors."""
+    """M7-T5: SAFE_BASE_DIR derives from runtime env, not __file__ ancestors.
 
-    def test_safe_base_dir_honors_claude_project_dir(self, tmp_path, monkeypatch):
-        monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(tmp_path))
+    The function honors ``CLAUDE_PROJECT_DIR`` when it contains the live
+    hook script (CWE-22 containment guard added by commit be11bd53). When
+    the env var is set but does not contain the script, it falls through
+    to the git walk-up — refusing to trust an attacker-controlled env that
+    points outside the script's true repository.
+    """
+
+    def test_safe_base_dir_honors_claude_project_dir_when_contains_script(
+        self, monkeypatch, tmp_path
+    ):
+        # Use the actual repo root (which DOES contain the hook script) to
+        # exercise the trusted-env path. The repo root is two parents above
+        # tests/hooks/.
+        repo_root = Path(__file__).resolve().parents[2]
+        monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(repo_root))
         result = invoke_skill_learning._detect_safe_base_dir()
-        assert result == tmp_path.resolve()
+        assert result == repo_root.resolve()
+
+    def test_safe_base_dir_refuses_env_outside_script_falls_through_to_git(
+        self, tmp_path, monkeypatch
+    ):
+        """CWE-22 guard: env that does not contain the script is rejected;
+        fall through to git walk-up."""
+        # Build a fake project with .git so the git walk-up succeeds.
+        proj = tmp_path / "project"
+        (proj / ".git").mkdir(parents=True)
+        sub = proj / "sub" / "dir"
+        sub.mkdir(parents=True)
+        # Env points at tmp_path which does NOT contain the script.
+        monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(tmp_path))
+        monkeypatch.chdir(sub)
+        result = invoke_skill_learning._detect_safe_base_dir()
+        # MUST NOT be tmp_path; MUST be the git root from cwd walk-up.
+        assert result != tmp_path.resolve()
+        assert result == proj.resolve()
 
     def test_safe_base_dir_walks_up_to_git_when_env_unset(self, tmp_path, monkeypatch):
-        # Build a fake project: tmp_path/project/.git, cwd at project/sub/dir
         proj = tmp_path / "project"
         (proj / ".git").mkdir(parents=True)
         sub = proj / "sub" / "dir"
@@ -202,7 +232,6 @@ class TestSafeBaseDirM7T5:
         monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
         monkeypatch.chdir(tmp_path)
         result = invoke_skill_learning._detect_safe_base_dir()
-        # No .git anywhere along the walk; result should be cwd
         assert result == Path.cwd()
 
 

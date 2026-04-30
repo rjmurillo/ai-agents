@@ -145,7 +145,7 @@ def main() -> int:
                 protocol_ref = "\nSee: `.agents/SESSION-PROTOCOL.md` for full details.\n"
 
             output = f"""
-## BLOCKED: No Session Log Found
+## BLOCKED [E_NO_SESSION_LOG]: No Session Log Found
 
 **YOU MUST create a session log before committing.**
 
@@ -173,7 +173,10 @@ Session logs go in: `.agents/sessions/{today}-session-NN.json`
 **Sessions Directory**: {sessions_dir}
 {protocol_ref}"""
             print(output)
-            print("Session blocked: No session log found for today", file=sys.stderr)
+            print(
+                "[E_NO_SESSION_LOG] Session blocked: No session log found for today",
+                file=sys.stderr,
+            )
             return 2
 
         evidence = check_session_log_evidence(session_log)
@@ -181,7 +184,7 @@ Session logs go in: `.agents/sessions/{today}-session-NN.json`
         if not evidence["valid"]:
             reason = evidence["reason"]
             output = f"""
-## BLOCKED: Session Log Empty or Invalid
+## BLOCKED [E_EMPTY_SESSION_LOG]: Session Log Empty or Invalid
 
 **Reason**: {reason}
 
@@ -202,7 +205,11 @@ Session log MUST contain:
 **Current Session Log**: {session_log.name}
 """
             print(output)
-            print("Session blocked: Session log has insufficient evidence", file=sys.stderr)
+            print(
+                "[E_EMPTY_SESSION_LOG] Session blocked: Session log has "
+                "insufficient evidence",
+                file=sys.stderr,
+            )
             return 2
 
         return 0

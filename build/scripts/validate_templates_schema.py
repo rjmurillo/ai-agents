@@ -54,7 +54,11 @@ AGENTS_KEYS = {
     "excludeFilenames",
 }
 SKILLS_KEYS = {"sourceDir", "outputDir", "mode"}
-LIB_KEYS = {"sourceDir", "outputDir", "mode"}
+# `lib` only supports directory-copy today; no `mode` selector. If a
+# second mode (symlink, etc.) lands later, add `mode` to LIB_KEYS and
+# enforce it in `_build_lib`. Until then, an unused field is documentation
+# rot.
+LIB_KEYS = {"sourceDir", "outputDir"}
 COMMANDS_KEYS = {
     "sourceDir",
     "outputDir",

@@ -199,3 +199,24 @@ All blocking items resolved. Conditions expanded from 5 to 7 (security additions
 - `.agents/plans/active/req-003-multi-tool-artifact-build.md` (migration tracking)
 - `.agents/incidents/2026-04-27-pir-plugin-manifest-schema-1773.md` (PR #1773 root-cause framing)
 - `.agents/sessions/2026-04-28-session-1761-req-003-adr-006-amendment-config-data-exception.json` (session evidence)
+
+---
+
+## Round 3 — 2026-04-29 — severity gate removed
+
+Triggered by M4 implementation feedback: 11 rules in live `.claude/rules/` lacked path scope under the Round 2 severity-gate rules. User pushback: "if we tripped over that many rules, the system is wrong, not the rules."
+
+**Decision (no debate; user direct override of Round 2 design)**: rules are universal across providers; unscoped rules default to `applyTo: "**"`. Severity field, governance-keyword scan, and conditional skip logic from Round 2 are removed.
+
+**Verdict**: ACCEPT (no agent vote; user as authoritative deciding party).
+
+**Rationale**: Round 2 severity gate was speculative complexity. Conditions 6+7 (YAML safe_load + pattern hardening) remain in force; they're unrelated to rules severity.
+
+**Files updated**:
+- ADR-006 amendment section "Round 3 amendment-of-amendment"
+- REQ-003 spec REQ-003-006 simplified
+- `build/scripts/generate_rules.py` simplified (severity branches removed)
+- `templates/platforms/copilot-cli.yaml` (`skipIfNoPathScope` dropped)
+- `build/scripts/validate_templates_schema.py` (RULES_KEYS updated)
+- `tests/build_scripts/test_generate_rules.py` (severity tests replaced with universal-default test)
+- `tests/build_scripts/test_validate_templates_schema.py` (skipIfNoPathScope removed from valid fixture)

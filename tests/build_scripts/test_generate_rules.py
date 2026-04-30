@@ -262,6 +262,45 @@ def test_serena_internal_path_filtered(tmp_path: Path) -> None:
     assert "docs/**" in fm
 
 
+def test_filter_emits_warning_per_dropped_glob(tmp_path: Path, capsys) -> None:
+    """Each dropped internal-only glob MUST emit a stderr warning.
+
+    Plugin authors who write `.agents/foo/**` in `paths` need a visible
+    signal that the entry was filtered, not silent disappearance.
+    """
+    _write_rule(
+        tmp_path / "rules_src",
+        "noisy",
+        frontmatter='paths: ".agents/x/**,docs/**,.claude/y/**"\n',
+        body="b\n",
+    )
+    cfg = _write_config(tmp_path)
+    rc, _ = generate_rules.generate_rules(cfg, tmp_path)
+    assert rc == 0
+    captured = capsys.readouterr()
+    assert "WARNING: dropped internal-only glob" in captured.err
+    assert ".agents/x/**" in captured.err
+    assert ".claude/y/**" in captured.err
+    # Surviving entry MUST NOT appear in warnings
+    assert "docs/**" not in captured.err.split("WARNING:")[-1].split("\n")[0]
+
+
+def test_filter_returns_dropped_list_for_caller_audit() -> None:
+    """`_filter_internal_globs` returns (filtered, dropped) so callers
+    can decide how to surface the audit."""
+    filtered, dropped = generate_rules._filter_internal_globs(
+        ".agents/a/**, docs/**, .claude/b/**, .serena/c/**"
+    )
+    assert filtered == "docs/**"
+    assert sorted(dropped) == sorted([".agents/a/**", ".claude/b/**", ".serena/c/**"])
+
+
+def test_filter_returns_empty_dropped_when_nothing_filtered() -> None:
+    filtered, dropped = generate_rules._filter_internal_globs("docs/**, src/**")
+    assert filtered == "docs/**,src/**"
+    assert dropped == []
+
+
 def test_filter_handles_whitespace_around_commas(tmp_path: Path) -> None:
     """`paths: ".agents/x/**, docs/**"` (note the space) must still filter."""
     _write_rule(

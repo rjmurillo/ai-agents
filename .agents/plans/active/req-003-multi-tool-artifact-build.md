@@ -127,6 +127,28 @@ PRRT_kwDOQoWRls5-cqcT, PRRT_kwDOQoWRls5-cram, PRRT_kwDOQoWRls5-fGP-,
 PRRT_kwDOQoWRls5-fGQH, PRRT_kwDOQoWRls5-fGQb, PRRT_kwDOQoWRls5-fGQd cite
 this milestone and stay unresolved until the matching task lands.
 
+**Breaking changes shipped by M7** (operator-visible; document in any
+release notes that cite this PR):
+
+- **`SKILL_LEARNING_USE_LLM` default flipped from `true` to `false`**
+  (M7-T6). The pre-fix Stop hook uploaded session transcripts to
+  Anthropic on every invocation unless the operator explicitly opted
+  out. Operators who want the LLM-fallback classification now MUST set
+  `SKILL_LEARNING_USE_LLM=true`.
+- **`get_api_key()` no longer reads `.env` files** (M7-T6). Operators
+  MUST provide `SKILL_LEARNING_API_KEY` (preferred) or
+  `ANTHROPIC_API_KEY` via the environment.
+- **`invoke_session_log_guard` now blocks pr-creation commands without a
+  session log** (M7-T3). Pre-fix the hook silently no-opped for the
+  pr-creation matcher; operators may now see new "BLOCKED" output where
+  previously they saw nothing. The block is the intended security gate
+  behavior.
+- **Generated `.github/instructions/*.md` files may have lost `applyTo`
+  entries** (M7-T4). Globs starting with `.agents/`, `.claude/`, or
+  `.serena/` are filtered as internal-only. Plugin authors will see a
+  `WARNING: dropped internal-only glob from applyTo:` line per dropped
+  entry on the build's stderr.
+
 ## Decision Log
 
 | Date | Decision | Rationale | Alternatives Considered |

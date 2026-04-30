@@ -30,7 +30,6 @@ artifacts:
   lib:
     sourceDir: ".claude/lib"
     outputDir: "src/copilot-cli/lib"
-    mode: "directory-copy"
   hooks:
     settingsSource: ".claude/settings.json"
     scriptSource: ".claude/hooks"

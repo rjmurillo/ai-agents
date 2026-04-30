@@ -238,7 +238,6 @@ def test_build_lib_copies_python_packages_excluding_pycache(tmp_path: Path) -> N
         "  lib:\n"
         '    sourceDir: ".claude/lib"\n'
         '    outputDir: "out/lib"\n'
-        '    mode: "directory-copy"\n'
     )
     result = build_all._build_lib(tmp_path, cfg, "p")
     assert result.exit_code == 0
@@ -481,3 +480,16 @@ def test_generators_registry_includes_m4_artifacts() -> None:
     # Order matters: agents first (runs once), then skills, commands, rules.
     assert artifact_names.index("skills") < artifact_names.index("commands")
     assert artifact_names.index("commands") < artifact_names.index("rules")
+
+
+def test_generators_registry_includes_m7_lib_before_hooks() -> None:
+    """M7-T1 acceptance: `lib` MUST be in the registry AND precede `hooks`.
+
+    The hook bootstrap walks up looking for `.claude-plugin/plugin.json`
+    and then loads the sibling `lib/`. If `lib` runs after `hooks`, the
+    runtime in a clean install would never find lib (the hook output
+    tree exists before its lib sibling is populated).
+    """
+    artifact_names = [name for name, _ in build_all.GENERATORS]
+    assert "lib" in artifact_names
+    assert artifact_names.index("lib") < artifact_names.index("hooks")

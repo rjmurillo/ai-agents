@@ -28,6 +28,11 @@ dev = [
     { name = "ruff" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "pytest-cov" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "anthropic", specifier = "==0.97.0" },
@@ -43,6 +48,9 @@ requires-dist = [
     { name = "tiktoken", specifier = ">=0.12.0" },
 ]
 provides-extras = ["dev"]
+
+[package.metadata.requires-dev]
+dev = [{ name = "pytest-cov", specifier = ">=7.1.0" }]
 
 [[package]]
 name = "annotated-types"

@@ -1091,6 +1091,26 @@ def test_split_future_imports_handles_multiple() -> None:
     assert rest == "import os\n"
 
 
+def test_split_future_imports_only_future_yields_empty_rest() -> None:
+    """Degenerate case: body of nothing but future imports.
+
+    ``rest`` MUST be empty; ``future_block`` MUST contain every line.
+    Without this, `inject_shim` would wrap an empty body and the
+    generated `_original_main()` would be syntactically empty.
+    """
+    body = (
+        "from __future__ import annotations\n"
+        "from __future__ import division\n"
+    )
+    future_block, rest = generate_hooks._split_future_imports(body)
+    assert rest == ""
+    assert future_block == body
+    # Sanity: a shim built from this MUST still parse (the wrapper has
+    # `return 0` which alone is a valid function body).
+    out = generate_hooks.inject_shim(body, "Edit")
+    compile(out, "<empty-body>", "exec")
+
+
 def test_shim_reads_snake_case_wire_format() -> None:
     """Shim MUST read ``tool_name``/``tool_input`` from payload, not camelCase.
 

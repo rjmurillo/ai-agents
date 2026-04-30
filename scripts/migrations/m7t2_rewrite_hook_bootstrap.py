@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Delete after PR #1819 merges. Idempotent but unnecessary once all
+# source hooks under .claude/hooks/ have been migrated to the marker-walk
+# bootstrap; the script no-ops on already-migrated files.
 """M7-T2 one-shot migration: replace `parents[N]` lib resolution in hooks.
 
 Source hooks under `.claude/hooks/` resolve their sibling `lib/` via

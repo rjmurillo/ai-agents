@@ -33,11 +33,24 @@ Related:
 """
 
 import json
+import logging
 import os
 import re
 import sys
 from datetime import datetime
 from pathlib import Path
+
+# Security-rejection logger. Structured WARNING records let SIEM and grep
+# tooling categorize containment-guard rejections without parsing prose.
+# Code prefix convention mirrors .agents/governance/FAILURE-MODES.md.
+_SECURITY_LOG = logging.getLogger("ai_agents.hooks.skill_learning.security")
+if not _SECURITY_LOG.handlers:
+    _sec_handler = logging.StreamHandler(sys.stderr)
+    _sec_handler.setFormatter(
+        logging.Formatter("%(levelname)s %(name)s [%(code)s]: %(message)s")
+    )
+    _SECURITY_LOG.addHandler(_sec_handler)
+    _SECURITY_LOG.setLevel(logging.WARNING)
 
 _plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
 if _plugin_root:
@@ -95,10 +108,15 @@ def _detect_safe_base_dir() -> Path:
             resolved_script = os.path.realpath(script_dir)
             resolved_root = os.path.realpath(env_dir)
             if not resolved_script.startswith(resolved_root + os.sep):
-                print(
-                    f"skill-learning: CLAUDE_PROJECT_DIR='{env_dir}' does not "
-                    f"contain script '{script_dir}' -- refusing (CWE-22)",
-                    file=sys.stderr,
+                _SECURITY_LOG.warning(
+                    "CLAUDE_PROJECT_DIR does not contain hook script -- refusing",
+                    extra={
+                        "code": "E_CWE22_PROJECT_DIR_MISMATCH",
+                        "env_dir": env_dir,
+                        "script_dir": script_dir,
+                        "cwe": "CWE-22",
+                        "hook": "skill-learning",
+                    },
                 )
                 # Fall through to git-based detection instead of trusting env
             else:

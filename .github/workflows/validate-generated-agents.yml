@@ -119,6 +119,19 @@ jobs:
           echo "Running build_all.py --check..."
           python3 build/scripts/build_all.py --check
 
+      - name: Plugin lib sync check (M7-T1)
+        if: steps.should-run.outputs.skip != 'true'
+        # `scripts/hook_utilities/` and `scripts/github_core/` are the
+        # canonical sources; `.claude/lib/` carries plugin-distributed
+        # copies with relative imports. The sync script has a --check
+        # mode that exits 1 on any drift between source and copy.
+        # Without this gate, a contributor could add a function to
+        # scripts/hook_utilities/ without running the sync script and
+        # the lib copy would silently fall behind.
+        run: |
+          echo "Running sync_plugin_lib.py --check..."
+          python3 scripts/sync_plugin_lib.py --check
+
       - name: Validate GitHub Actions SHA Pinning
         if: steps.should-run.outputs.skip != 'true'
         shell: bash
