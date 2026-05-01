@@ -47,16 +47,26 @@ def _agent_files() -> list[Path]:
 
 @pytest.mark.parametrize("path", _agent_files(), ids=lambda p: str(p.relative_to(REPO_ROOT)))
 def test_agent_carries_autonomy_guardrail_citation(path: Path) -> None:
-    """Each guardrail-participating agent prompt cites AGENTS.md once."""
+    """Each guardrail-participating agent prompt carries the citation exactly once.
+
+    The substring checks that came before this version passed even when the
+    citation appeared zero times on the same line as the AGENTS.md reference,
+    or when it appeared more than once. We assert exactly one line that
+    contains both tokens together so a stray duplicate or a split-across-lines
+    citation is caught.
+    """
     assert path.exists(), f"Expected agent prompt at {path}"
     text = path.read_text(encoding="utf-8")
-    assert CITATION_PHRASE in text, (
-        f"{path.relative_to(REPO_ROOT)} is missing the '{CITATION_PHRASE}' citation. "
-        "Re-add the one-line pointer to AGENTS.md so the autonomy rule remains visible."
-    )
-    assert CITATION_TARGET in text, (
-        f"{path.relative_to(REPO_ROOT)} cites the guardrail but does not reference "
-        f"{CITATION_TARGET}. The citation must point back to the canonical rule."
+    citation_lines = [
+        line
+        for line in text.splitlines()
+        if CITATION_PHRASE in line and CITATION_TARGET in line
+    ]
+    assert len(citation_lines) == 1, (
+        f"{path.relative_to(REPO_ROOT)} must contain exactly one one-line autonomy "
+        f"guardrail citation with both {CITATION_PHRASE!r} and {CITATION_TARGET!r}. "
+        f"Found {len(citation_lines)}. Re-add or deduplicate the one-line pointer "
+        "to AGENTS.md so the autonomy rule remains visible without drift."
     )
 
 
