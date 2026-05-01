@@ -191,21 +191,28 @@ class TestValidateModel:
     """Tests for model field validation."""
 
     def test_valid_alias_sonnet(self) -> None:
-        assert validate_model("claude-sonnet-4-5") == []
+        assert validate_model("claude-sonnet-4-6") == []
 
     def test_valid_alias_opus(self) -> None:
-        assert validate_model("claude-opus-4-5") == []
+        assert validate_model("claude-opus-4-6") == []
 
     def test_valid_alias_haiku(self) -> None:
         assert validate_model("claude-haiku-4-5") == []
+
+    def test_invalid_alias_sonnet_4_5(self) -> None:
+        # Sonnet is pinned to 4.6; 4.5 alias is no longer accepted.
+        errors = validate_model("claude-sonnet-4-5")
+        assert any("Invalid model identifier" in e for e in errors)
+
+    def test_invalid_alias_opus_4_5(self) -> None:
+        # Opus is pinned to 4.6; 4.5 alias is no longer accepted.
+        errors = validate_model("claude-opus-4-5")
+        assert any("Invalid model identifier" in e for e in errors)
 
     def test_valid_cli_shortcut(self) -> None:
         assert validate_model("sonnet") == []
         assert validate_model("opus") == []
         assert validate_model("haiku") == []
-
-    def test_valid_dated_snapshot(self) -> None:
-        assert validate_model("claude-sonnet-4-5-20250929") == []
 
     def test_valid_dated_snapshot_sonnet_4_6(self) -> None:
         assert validate_model("claude-sonnet-4-6-20251015") == []
@@ -215,6 +222,11 @@ class TestValidateModel:
 
     def test_valid_dated_snapshot_haiku_4_5(self) -> None:
         assert validate_model("claude-haiku-4-5-20250801") == []
+
+    def test_invalid_dated_snapshot_sonnet_4_5(self) -> None:
+        # Sonnet 4.5 dated snapshots are no longer accepted.
+        errors = validate_model("claude-sonnet-4-5-20250929")
+        assert any("Invalid model identifier" in e for e in errors)
 
     def test_invalid_dated_snapshot_haiku_4_6(self) -> None:
         # Haiku is pinned to 4.5; 4.6 snapshots must not validate.
@@ -232,7 +244,7 @@ class TestValidateModel:
         assert any("Invalid model identifier" in e for e in errors)
 
     def test_invalid_dated_snapshot_format(self) -> None:
-        errors = validate_model("claude-sonnet-4-5-abc")
+        errors = validate_model("claude-sonnet-4-6-abc")
         assert any("Invalid model identifier" in e for e in errors)
 
 
@@ -244,8 +256,17 @@ class TestValidateModel:
 class TestValidateAllowedTools:
     """Tests for allowed-tools field validation."""
 
-    def test_valid_tools(self) -> None:
+    def test_valid_tools_lowercase(self) -> None:
+        # Copilot CLI naming.
         assert validate_allowed_tools("bash,view,edit") == []
+
+    def test_valid_tools_pascal_case(self) -> None:
+        # Claude Code canonical naming.
+        assert validate_allowed_tools("Read,Write,Edit,Glob,Grep") == []
+
+    def test_valid_tools_pascal_case_extended(self) -> None:
+        # Extended Claude Code tool surface used by skills under .claude/skills/.
+        assert validate_allowed_tools("Bash,Task,WebFetch,WebSearch,NotebookEdit") == []
 
     def test_none_is_optional(self) -> None:
         assert validate_allowed_tools(None) == []
@@ -255,6 +276,10 @@ class TestValidateAllowedTools:
 
     def test_wildcard_allowed(self) -> None:
         assert validate_allowed_tools("bash,mcp*") == []
+
+    def test_command_prefix_wildcard_allowed(self) -> None:
+        # `Bash(pwsh:*)` pattern from .agents/analysis/claude-code-skill-frontmatter-2026.md.
+        assert validate_allowed_tools("Bash(pwsh:*),Bash(git:*),Read") == []
 
     def test_unknown_tool_rejected(self) -> None:
         errors = validate_allowed_tools("bash,invalid-tool-name")
@@ -393,7 +418,7 @@ class TestValidateSkillFile:
         skill_file.write_text(
             "---\nname: full-skill\n"
             "description: Full skill with all fields\n"
-            "model: claude-sonnet-4-5\n"
+            "model: claude-sonnet-4-6\n"
             "allowed-tools:\n  - bash\n  - edit\n---"
         )
         result = validate_skill_file(skill_file)
