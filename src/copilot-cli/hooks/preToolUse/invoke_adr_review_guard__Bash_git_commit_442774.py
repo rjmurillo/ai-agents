@@ -184,7 +184,7 @@ def _original_main(stdin_bytes):
     )
     from hook_utilities.guards import skip_if_consumer_repo  # noqa: E402
 
-    _ADR_PATTERN = re.compile(r"ADR-\d+(?:-[\w-]+)*\.md$", re.IGNORECASE)
+    _ADR_PATTERN = re.compile(r"(?:^|[\\/])ADR-\d+(?:-\w+)*\.md$", re.IGNORECASE)
     _CANONICAL_SOURCE_PATTERN = re.compile(r"SESSION-PROTOCOL\.md$", re.IGNORECASE)
 
     _REVIEW_PATTERNS = [
