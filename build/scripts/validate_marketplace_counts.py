@@ -173,9 +173,9 @@ def load_plugin_counters(
     marketplace_key: str | None = None
     if marketplace_path is not None:
         try:
-            marketplace_key = str(marketplace_path.resolve().relative_to(repo_root))
+            marketplace_key = str(marketplace_path.resolve().relative_to(repo_root)).replace("\\", "/")
         except ValueError:
-            marketplace_key = str(marketplace_path)
+            marketplace_key = str(marketplace_path).replace("\\", "/")
 
     counters: dict[str, dict[str, Callable[[], int]]] = {}
     for plugin_name, labels in plugins.items():
