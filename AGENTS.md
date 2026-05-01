@@ -28,7 +28,7 @@ Read first, reason second. Pre-training as last resort.
 
 **Always**: Python for new scripts (ADR-042)|Verify branch|Update Serena|Check skills|Assign issues|Use PR template|Atomic commits (≤5 files)|Scoped lint|Pin Actions to SHA|Run `gh act` locally
 **Ask First**: Architecture changes|New ADRs|Breaking changes|Security-sensitive
-**Autonomy (Principle 6)**: Internal+reversible (read, edit, delegate-internal, memory write): act. External (PR, post, side-effect) | Irreversible (delete, overwrite, revoke): confirm first. Ambiguous (could expand routing): act on minimal scope, flag remainder without acting. exp-026 validated. Overrides any "act immediately" guidance in agent prompts.
+**Autonomy Guardrail**: Internal+reversible (read, edit, delegate-internal, memory write): act|External (PR, post, side-effect) or Irreversible (delete, overwrite, revoke): confirm first|Ambiguous (could expand routing): act on minimal scope, flag remainder|Source: exp-026|Overrides "act immediately" guidance in agent prompts. Distinct from `agent-design-principles.md` Principle 6 (Consistent Interface).
 **Never**: Commit secrets|Update HANDOFF.md|Use bash|Skip validation|Logic in YAML (ADR-006)|Raw gh when skills exist|Force push|Skip hooks|Internal refs in src/
 
 ## Context Type Decision

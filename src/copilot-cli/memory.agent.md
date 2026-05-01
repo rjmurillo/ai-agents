@@ -13,7 +13,7 @@ tier: integration
 ---
 # Memory Agent
 
-> **Autonomy Guardrail**: Apply Principle 6 from `AGENTS.md`—confirm before external/irreversible actions.
+> **Autonomy Guardrail**: Apply the autonomy rule from `AGENTS.md`—confirm before external/irreversible actions.
 
 ## Core Identity
 
