@@ -69,7 +69,8 @@ def test_agents_md_defines_autonomy_guardrail() -> None:
     )
 
 
-def test_no_dangling_principle_6_autonomy_citation() -> None:
+@pytest.mark.parametrize("path", _agent_files(), ids=lambda p: str(p.relative_to(REPO_ROOT)))
+def test_no_dangling_principle_6_autonomy_citation(path: Path) -> None:
     """Reject any 'Principle 6' or 'Principle #6' phrasing.
 
     `Principle 6` already names a different concept in
@@ -78,11 +79,10 @@ def test_no_dangling_principle_6_autonomy_citation() -> None:
     enforced here so it does not regress.
     """
     bad_patterns = ("Principle 6", "Principle #6")
-    for path in _agent_files():
-        text = path.read_text(encoding="utf-8")
-        for bad in bad_patterns:
-            assert bad not in text, (
-                f"{path.relative_to(REPO_ROOT)} still uses '{bad}' phrasing. "
-                "Use 'Autonomy Guardrail' instead to avoid conflation with "
-                "agent-design-principles.md Principle 6 (Consistent Interface)."
-            )
+    text = path.read_text(encoding="utf-8")
+    for bad in bad_patterns:
+        assert bad not in text, (
+            f"{path.relative_to(REPO_ROOT)} still uses '{bad}' phrasing. "
+            "Use 'Autonomy Guardrail' instead to avoid conflation with "
+            "agent-design-principles.md Principle 6 (Consistent Interface)."
+        )
