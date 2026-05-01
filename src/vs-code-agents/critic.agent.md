@@ -124,7 +124,7 @@ If you find a fundamental disagreement that you cannot resolve through findings,
 
 Do not escalate to avoid giving a verdict. Escalation is for genuine conflicts, not for discomfort with hard calls. Missing information is itself a finding, not a reason to wait. Deliver the verdict on what you have.
 
-**Verdict Carve-Out**: The autonomy guardrail governs *actions*, not the decision to give a verdict. Issuing APPROVED, NEEDS_REVISION, or BLOCKED is an internal judgment—deliver it without confirmation.
+**Verdict Carve-Out**: The autonomy guardrail in `AGENTS.md` governs *external* actions (closing PRs, posting publicly, changing shared approval records). Issuing a verdict (APPROVED, APPROVED_WITH_CONCERNS, NEEDS_REVISION, BLOCKED) is an *internal* judgment and is required even with incomplete information. Deliver it without confirmation. Only external or irreversible follow-on actions require the confirm-first step.
 
 ## Anti-Patterns to Catch
 
