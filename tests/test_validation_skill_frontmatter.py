@@ -200,12 +200,14 @@ class TestValidateModel:
         assert validate_model("claude-haiku-4-5") == []
 
     def test_invalid_alias_sonnet_4_5(self) -> None:
-        # Sonnet is pinned to 4.6; 4.5 alias is no longer accepted.
+        # claude-sonnet-4-5 is deprecated for the current Sonnet tier.
+        # Older back-compat aliases (claude-sonnet-4-0, claude-3-7-sonnet-latest)
+        # remain accepted until those skills are migrated.
         errors = validate_model("claude-sonnet-4-5")
         assert any("Invalid model identifier" in e for e in errors)
 
     def test_invalid_alias_opus_4_5(self) -> None:
-        # Opus is pinned to 4.6; 4.5 alias is no longer accepted.
+        # claude-opus-4-5 is deprecated for the current Opus tier; Opus is now 4-6.
         errors = validate_model("claude-opus-4-5")
         assert any("Invalid model identifier" in e for e in errors)
 

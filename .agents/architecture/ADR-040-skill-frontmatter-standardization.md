@@ -81,7 +81,7 @@ name: skill-identifier       # Required (Official): matches directory name
 version: X.Y.Z              # Required (SkillForge): semantic versioning
 description: ...            # Required (Official): trigger mechanism with keywords
 license: MIT                # Required (SkillForge): SPDX identifier
-model: claude-{tier}-4-{5|6} # Required (SkillForge): model alias or snapshot
+model: claude-sonnet-4-6     # Required (SkillForge): use claude-opus-4-6, claude-sonnet-4-6, or claude-haiku-4-5
 allowed-tools: Read, Grep   # Optional (Official): tool restrictions
 metadata:                   # Optional (SkillForge): domain-specific fields
   domains: [...]
@@ -224,7 +224,7 @@ allowed-tools: Bash(gh:*), Bash(pwsh:*), Read, Write
 - Validate against SkillForge packaging requirements
 - Branch: `fix/update-skills-valid-frontmatter`
 
-**Changes Required** (original plan; superseded — see note above):
+**Changes Required** (original plan; superseded, see note above):
 - 11 skills: Move `model: claude-opus-4-6` from top-level to `metadata.model`
 - 12 skills: Move `model: claude-sonnet-4-6` from top-level to `metadata.model`
 - 4 skills: Move `model: claude-haiku-4-5` from top-level to `metadata.model`

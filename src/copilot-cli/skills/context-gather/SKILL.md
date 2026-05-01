@@ -20,6 +20,8 @@ user-invocable: true
 
 **Usage**: `/context-gather <detailed task description>`
 
+> Renamed 2026-04-30. Previously `/context_gather`. The underscore form is no longer recognized; use the hyphenated name.
+
 ---
 
 Use the **context-retrieval** subagent to gather context for the following task:
