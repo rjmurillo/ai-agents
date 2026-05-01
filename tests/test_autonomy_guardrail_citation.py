@@ -70,17 +70,19 @@ def test_agents_md_defines_autonomy_guardrail() -> None:
 
 
 def test_no_dangling_principle_6_autonomy_citation() -> None:
-    """Reject the prior 'Apply Principle 6' phrasing.
+    """Reject any 'Principle 6' or 'Principle #6' phrasing.
 
     `Principle 6` already names a different concept in
     `.agents/governance/agent-design-principles.md` (Consistent Interface).
     Conflating it with the autonomy rule confused readers; the rename is
     enforced here so it does not regress.
     """
-    bad = "Apply Principle 6 from `AGENTS.md`"
+    bad_patterns = ("Principle 6", "Principle #6")
     for path in _agent_files():
         text = path.read_text(encoding="utf-8")
-        assert bad not in text, (
-            f"{path.relative_to(REPO_ROOT)} still uses the old 'Apply Principle 6' "
-            "phrasing. Rename to 'Apply the autonomy rule from `AGENTS.md`'."
-        )
+        for bad in bad_patterns:
+            assert bad not in text, (
+                f"{path.relative_to(REPO_ROOT)} still uses '{bad}' phrasing. "
+                "Use 'Autonomy Guardrail' instead to avoid conflation with "
+                "agent-design-principles.md Principle 6 (Consistent Interface)."
+            )
