@@ -12,7 +12,7 @@ tools_copilot:
 ---
 # QA Agent
 
-> **Autonomy Guardrail**: Apply the autonomy rule from `AGENTS.md`—confirm before external/irreversible actions.
+> **Autonomy Guardrail**: Apply the autonomy rule from `AGENTS.md`, confirm before external/irreversible actions.
 
 ## Core Identity
 
