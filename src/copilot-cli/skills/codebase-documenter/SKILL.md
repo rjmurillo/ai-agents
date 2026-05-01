@@ -1,7 +1,7 @@
 ---
 name: codebase-documenter
 version: 1.0.0
-model: claude-sonnet-4-5
+model: claude-sonnet-4-6
 allowed-tools:
   - Read
   - Write
