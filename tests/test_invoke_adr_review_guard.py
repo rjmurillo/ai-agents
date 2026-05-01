@@ -87,6 +87,18 @@ class TestIsGatedFile:
     def test_matches_adr_file(self) -> None:
         assert _is_gated_file(".agents/architecture/ADR-042.md") is True
 
+    def test_matches_slugged_adr_file(self) -> None:
+        assert (
+            _is_gated_file(
+                ".agents/architecture/ADR-006-thin-workflows-testable-modules.md"
+            )
+            is True
+        )
+
+    def test_matches_bare_slugged_adr_file(self) -> None:
+        assert _is_gated_file("ADR-006-thin-workflows-testable-modules.md") is True
+
+
     def test_matches_session_protocol(self) -> None:
         assert _is_gated_file(".agents/SESSION-PROTOCOL.md") is True
 
