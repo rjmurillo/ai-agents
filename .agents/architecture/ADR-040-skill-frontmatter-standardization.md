@@ -47,18 +47,18 @@ Adopt the following standardization for all 27 Claude Code skills:
 
 ### 1. Model Identifier Format
 
-**Use aliases by default** (`claude-{tier}-4-5`) for most skills:
+**Use aliases by default** for most skills:
 
 ```yaml
-model: claude-opus-4-5      # Default: auto-updates
-model: claude-sonnet-4-5    # Default: auto-updates
-model: claude-haiku-4-5     # Default: auto-updates
+model: claude-opus-4-6      # Default: auto-updates
+model: claude-sonnet-4-6    # Default: auto-updates
+model: claude-haiku-4-5     # Default: auto-updates (no 4-6 Haiku shipped)
 ```
 
 **Exception: Security-Critical Skills** may use dated snapshots when deterministic behavior is required:
 
 ```yaml
-model: claude-sonnet-4-5-20250929  # Pinned version
+model: claude-sonnet-4-6-20260101  # Pinned version
 ```
 
 **Current Security-Critical Skills** (eligible for snapshot pinning):
@@ -81,7 +81,7 @@ name: skill-identifier       # Required (Official): matches directory name
 version: X.Y.Z              # Required (SkillForge): semantic versioning
 description: ...            # Required (Official): trigger mechanism with keywords
 license: MIT                # Required (SkillForge): SPDX identifier
-model: claude-{tier}-4-5    # Required (SkillForge): model alias or snapshot
+model: claude-{tier}-4-{5|6} # Required (SkillForge): model alias or snapshot
 allowed-tools: Read, Grep   # Optional (Official): tool restrictions
 metadata:                   # Optional (SkillForge): domain-specific fields
   domains: [...]
@@ -115,8 +115,8 @@ Allocate models based on skill complexity:
 
 | Tier | Model | Cost | Use Cases | ai-agents Skills |
 |------|-------|------|-----------|------------------|
-| **Tier 1: Opus** | `claude-opus-4-5` | $5/$25 per MTok | Maximum reasoning, multi-agent orchestration, architectural decisions, meta-programming | 11 skills (40.7%): adr-review, skillcreator, planner, merge-resolver, github, analyze, decision-critic, research-and-incorporate, session-log-fixer, incoherence, memory |
-| **Tier 2: Sonnet** | `claude-sonnet-4-5` | $3/$15 per MTok | Standard workflows, coding, documentation, memory operations, security detection | 12 skills (44.4%): doc-sync, memory systems, pr-comment-responder, programming-advisor, prompt-engineer, security-detection, serena-code-architecture |
+| **Tier 1: Opus** | `claude-opus-4-6` | $5/$25 per MTok | Maximum reasoning, multi-agent orchestration, architectural decisions, meta-programming | 11 skills (40.7%): adr-review, skillcreator, planner, merge-resolver, github, analyze, decision-critic, research-and-incorporate, session-log-fixer, incoherence, memory |
+| **Tier 2: Sonnet** | `claude-sonnet-4-6` | $3/$15 per MTok | Standard workflows, coding, documentation, memory operations, security detection | 12 skills (44.4%): doc-sync, memory systems, pr-comment-responder, programming-advisor, prompt-engineer, security-detection, serena-code-architecture |
 | **Tier 3: Haiku** | `claude-haiku-4-5` | $1/$5 per MTok | Speed-critical, simple pattern matching, high-frequency execution (hooks, validators) | 4 skills (14.8%): fix-markdown-fences, steering-matcher, session |
 
 **Selection Matrix**:
@@ -216,15 +216,17 @@ allowed-tools: Bash(gh:*), Bash(pwsh:*), Read, Write
 
 ### Phase 1: Standardization (In Progress)
 
+> **Superseded 2026-04-30**: The "move into metadata" steps below were reversed. SkillForge validator now requires `name`, `version`, `description`, `license`, and `model` at **top level** (see Field Status table in Section 2 and the validator at `scripts/validation/skill_frontmatter.py`). Skills that ship today have `model` and `version` top-level. The bullets below are retained as historical record of the original Phase 1 plan.
+
 **Session #S356** (2026-01-03):
 - Update all 27 skills to use model aliases
-- Restructure frontmatter (version/model into metadata object, per SkillForge validator)
+- ~~Restructure frontmatter (version/model into metadata object, per SkillForge validator)~~ Reversed; top-level retained.
 - Validate against SkillForge packaging requirements
 - Branch: `fix/update-skills-valid-frontmatter`
 
-**Changes Required**:
-- 11 skills: Move `model: claude-opus-4-5` from top-level to `metadata.model`
-- 12 skills: Move `model: claude-sonnet-4-5` from top-level to `metadata.model`
+**Changes Required** (original plan; superseded — see note above):
+- 11 skills: Move `model: claude-opus-4-6` from top-level to `metadata.model`
+- 12 skills: Move `model: claude-sonnet-4-6` from top-level to `metadata.model`
 - 4 skills: Move `model: claude-haiku-4-5` from top-level to `metadata.model`
 - All skills: Move `version` from top-level to `metadata.version`
 - All skills: Convert dated snapshots to aliases where appropriate
@@ -261,7 +263,7 @@ Frontmatter validation checklist:
 - [ ] Frontmatter starts with `---` on line 1 (no blank lines)
 - [ ] `name`: lowercase, alphanumeric + hyphens, < 64 chars
 - [ ] `description`: includes trigger keywords, < 1024 chars
-- [ ] `model`: valid alias (`claude-{tier}-4-5`) if present
+- [ ] `model`: valid alias (`claude-{tier}-4-6` for Opus/Sonnet, `claude-haiku-4-5`) if present
 - [ ] `allowed-tools`: comma-separated valid tools if present
 - [ ] `tools`: uses block-style array format (hyphen-bulleted), not inline
 - [ ] YAML uses spaces (not tabs) for indentation
@@ -305,7 +307,7 @@ Frontmatter compliance will be verified through:
 
 - Frontmatter starts with `---` on line 1
 - Required fields present (`name`, `description`)
-- Model identifier matches pattern `^claude-(opus|sonnet|haiku)-4-5(-\d{8})?$`
+- Model identifier matches pattern `^claude-((opus|sonnet)-4-6|haiku-4-5)(-\d{8})?$`
 - Description length <=1024 characters
 - YAML syntax valid (no tabs, proper indentation)
 - Arrays use block-style format (not inline `['...']` syntax)
@@ -404,3 +406,20 @@ To detect behavioral regression from model alias updates:
 - `build/Generate-Agents.Common.psm1`
 
 **Session**: 2026-01-13-session-826
+
+### 2026-04-30: Opus/Sonnet 4-5 to 4-6 Migration
+
+**Trigger**: Anthropic shipped Claude Opus 4.6 and Sonnet 4.6. No Haiku 4.6 released.
+
+**Changes**:
+
+1. Validator (`scripts/validation/skill_frontmatter.py`) tightened: `claude-opus-4-5` and `claude-sonnet-4-5` aliases removed from allowlist. Dated 4-5 snapshots for Opus/Sonnet also rejected.
+2. All 69 source skills and 81 generated copies updated to `claude-{opus,sonnet}-4-6`. Haiku stays at `claude-haiku-4-5`.
+3. ADR-040 prescriptive sections updated in place (Sections 1, 3, verification checklist, validation pattern).
+4. `docs/SKILL-AUTHORING.md`, `.agents/architecture/SKILL-STANDARDS-RECONCILED.md`, `.agents/steering/claude-skills.md` updated to match.
+
+**Unchanged**: Five-required-fields structure, alias-vs-snapshot strategy, three-tier model approach, security-critical snapshot pinning policy.
+
+**ADR review**: Architect agent ACCEPT, zero blocking findings. Amendment is a version-string update, not a governance or structural change.
+
+**Reversibility**: Revert the validator commit and bulk-replace 4-6 back to 4-5.

@@ -376,7 +376,7 @@ def build_memory_payload(
         "source_repo": "rjmurillo/ai-agents",
         "source_files": [re.sub(r"^.*?\.serena", ".serena", learning.source_file)],
         "confidence": conf["confidence"],
-        "encoding_agent": "claude-opus-4-5",
+        "encoding_agent": "claude-opus-4-6",
     }
 
 
