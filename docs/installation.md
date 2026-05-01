@@ -1,116 +1,92 @@
 # Installation Guide
 
-This guide covers installation of the AI Agents system using [skill-installer](https://github.com/rjmurillo/skill-installer), a Python-based TUI tool.
+This guide covers native marketplace installation for the AI Agents system.
 
 ## Prerequisites
 
-- Python 3.10+
-- [UV](https://docs.astral.sh/uv/) package manager
+You need one of these AI coding tools:
 
-### Installing UV
+- Claude Code CLI
+- GitHub Copilot CLI
+- VS Code with GitHub Copilot Chat
+- Visual Studio 2022/2026 with GitHub Copilot Chat
 
-**macOS/Linux:**
+For development work on this repository, see [CONTRIBUTING.md](../CONTRIBUTING.md#prerequisites) for Python, uv, and test setup.
+
+## Fastest Start
+
+Use the built-in marketplace support in the CLI you are actually running.
+
+### Claude Code
+
+Run this inside Claude Code:
+
+```text
+/install-plugin rjmurillo/ai-agents
+```
+
+That installs the full Claude toolkit from `.claude-plugin/marketplace.json`.
+
+### GitHub Copilot CLI
+
+Run this inside Copilot CLI:
+
+```text
+/plugin marketplace add rjmurillo/ai-agents
+/plugin install project-toolkit@ai-agents
+```
+
+The same flow also works from a regular shell with the `copilot` prefix:
 
 ```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
+copilot plugin marketplace add rjmurillo/ai-agents
+copilot plugin install project-toolkit@ai-agents
 ```
 
-**Windows (PowerShell):**
+Copilot CLI resolves this repository through `.github/plugin/marketplace.json`.
 
-```powershell
-powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+### VS Code and Visual Studio
+
+Repository-level agents work automatically when the repository contains `.github/agents/` and `.github/copilot-instructions.md`.
+
+Usage examples in Copilot Chat:
+
+```text
+@orchestrator Help me implement a feature
+@analyst Review this code for issues
 ```
 
-## Quick Start (Try Without Installing)
+## Component-Level Installation
 
-Run skill-installer directly without installing it:
+If you want a partial install instead of the full toolkit, use the marketplace commands below.
 
-```bash
-# Latest version
-uvx --from git+https://github.com/rjmurillo/skill-installer skill-installer interactive
+### Claude Code
 
-# Specific version (e.g., v0.2.0)
-uvx --from git+https://github.com/rjmurillo/skill-installer@v0.2.0 skill-installer interactive
+Register the marketplace once if you want explicit component installs instead of `/install-plugin`:
 
-# Older version (e.g., v0.1.0)
-uvx --from git+https://github.com/rjmurillo/skill-installer@v0.1.0 skill-installer interactive
+```text
+/plugin marketplace add rjmurillo/ai-agents
 ```
 
-This launches the TUI where you can browse and install agents.
+| Component | Install Command | What You Get |
+|-----------|----------------|--------------|
+| Claude agents only | `/plugin install claude-agents@ai-agents` | 24 agent definitions from `src/claude/` |
+| Project toolkit | `/plugin install project-toolkit@ai-agents` | 23 agents, 23 slash commands, 29 hooks, and 69 reusable skills from `.claude/` |
 
-## Global Installation
+### GitHub Copilot CLI
 
-Install skill-installer as a tool for repeated use:
+Register the marketplace once:
 
-```bash
-# Latest version (main branch)
-uv tool install git+https://github.com/rjmurillo/skill-installer
-
-# Specific version (e.g., v0.2.0)
-uv tool install git+https://github.com/rjmurillo/skill-installer@v0.2.0
-
-# Older version (e.g., v0.1.0)
-uv tool install git+https://github.com/rjmurillo/skill-installer@v0.1.0
+```text
+/plugin marketplace add rjmurillo/ai-agents
 ```
 
-**Note:** Installing a specific version provides stability and reproducibility. Use latest for bleeding-edge features.
-
-## Adding This Repository as a Source
-
-Add ai-agents as a source for discovering agents:
-
-```bash
-skill-installer source add rjmurillo/ai-agents
-```
-
-## Using the TUI
-
-Launch the interactive interface:
-
-```bash
-skill-installer interactive
-```
-
-**Navigation:**
-
-1. Navigate to the **Discover** tab
-2. Browse available plugins (claude-agents, copilot-cli-agents, vscode-agents)
-3. Select platform(s) to install
-4. Press `i` to install
-
-## CLI Installation (Non-Interactive)
-
-Install specific items without the TUI:
-
-```bash
-# Install Claude agents
-skill-installer install claude-agents --platform claude
-
-# Install Copilot CLI agents
-skill-installer install copilot-cli-agents --platform copilot
-
-# Install VS Code agents
-skill-installer install vscode-agents --platform vscode
-
-# Install Visual Studio agents (repository-level)
-skill-installer install vscode-agents --platform visual-studio
-```
+| Component | Install Command | What You Get |
+|-----------|----------------|--------------|
+| Copilot CLI agents only | `/plugin install copilot-cli-agents@ai-agents` | 24 agent definitions from `src/copilot-cli/` |
+| Copilot full toolkit | `/plugin install project-toolkit@ai-agents` | 24 agents, 28 hooks, 81 skills from `src/copilot-cli/` |
 
 ## Installation Paths
-
-### Global Installation Paths
-
-| Platform | Agents | Skills |
-|----------|--------|--------|
-| Claude Code | `~/.claude/agents/` | `~/.claude/skills/` |
-| Copilot CLI | `~/.copilot/agents/` | N/A |
-| VS Code | `~/.copilot/agents/` | N/A |
-| Visual Studio 2022/2026 | TBD, see note below | N/A |
-
-> **Note (Visual Studio user-level path):** The user-level (global) agent storage path for
-> Visual Studio 2022/2026 is not yet documented by Microsoft. Repository-level installation
-> (`.github/agents/`) works today. User-level support will be added once the path is confirmed.
-> Track progress in [issue #51](https://github.com/rjmurillo/ai-agents/issues/51).
 
 ### Repository Installation Paths
 
@@ -123,45 +99,21 @@ skill-installer install vscode-agents --platform visual-studio
 
 ### Visual Studio 2022/2026 Notes
 
-Visual Studio 2022 (version 17.14+) and Visual Studio 2026 support GitHub Copilot agent mode
-using the same `.github/agents/*.agent.md` format as VS Code. Repository-level agents work
-automatically when you open a solution in a repository containing `.github/agents/`.
+Visual Studio 2022 (version 17.14+) and Visual Studio 2026 support GitHub Copilot agent mode using the same `.github/agents/*.agent.md` format as VS Code. Repository-level agents work automatically when you open a solution in a repository containing `.github/agents/`.
 
-**Requirements:**
+Requirements:
 
 - Visual Studio 2022 version 17.14 or later, or Visual Studio 2026
 - GitHub Copilot subscription
-- "Enable project specific .NET instructions" feature enabled (on by default in VS 2026)
+- "Enable project specific .NET instructions" feature enabled
 
-**Usage in Copilot Chat:**
+## Skills
 
-```text
-@orchestrator Help me implement a feature
-@analyst Review this code for issues
-```
+Claude skills ship as part of `project-toolkit`.
 
-## Skills Installation
+Skills live in `.claude/skills/` in the repository and install into Claude's runtime layout with the rest of the Claude toolkit. The `SKILL.md` file requires YAML frontmatter with `name` and `description` fields.
 
-Skills are reusable prompt modules that extend agent capabilities. They install as part of the `project-toolkit` plugin.
-
-### Installing Skills
-
-Skills are included in the `project-toolkit` plugin:
-
-```bash
-# Via CLI marketplace (recommended)
-skill-installer install project-toolkit --platform claude
-
-# Via TUI
-skill-installer interactive
-# Navigate to Discover > project-toolkit > Install
-```
-
-Skills install to `~/.claude/skills/` for global access, or remain in `.claude/skills/` for repository-scoped use.
-
-### Skill Structure
-
-Each skill follows a standard directory layout:
+Skill directory layout:
 
 ```text
 .claude/skills/{skill-name}/
@@ -171,71 +123,73 @@ Each skill follows a standard directory layout:
   modules/       # Optional: PowerShell modules
 ```
 
-The `SKILL.md` file requires YAML frontmatter with `name` and `description` fields.
-
-### Validating Skill Installation
-
-Run the validation script to confirm skills are structured correctly:
+To validate the repository copy of the skills structure:
 
 ```bash
-# Validate repository skills
 python3 scripts/validate_skill_installation.py
-
-# Validate with details per skill
 python3 scripts/validate_skill_installation.py --verbose
-
-# Also check global installation paths
-python3 scripts/validate_skill_installation.py --check-global
 ```
-
-Exit code 0 means all skills pass validation.
-
-### Skills Troubleshooting
-
-**Skills not discovered by Claude Code:**
-
-1. Confirm the skill directory contains a `SKILL.md` file
-2. Verify the frontmatter `name` matches the directory name
-3. Restart Claude Code after installation
-
-**Frontmatter validation errors:**
-
-Run `python3 scripts/validate_skill_installation.py --verbose` to identify which skills have issues.
 
 ## Uninstallation
 
-Remove installed items:
+Use your tool's native uninstall support.
 
-```bash
-skill-installer uninstall claude-agents
+### Claude Code
+
+```text
+/plugin uninstall claude-agents@ai-agents
+/plugin uninstall project-toolkit@ai-agents
+```
+
+### GitHub Copilot CLI
+
+```text
+/plugin uninstall copilot-cli-agents@ai-agents
+/plugin uninstall project-toolkit@ai-agents
 ```
 
 ## Troubleshooting
 
-### UV Not Found
+### Claude Code
 
-Ensure UV is installed and in your PATH:
+- Restart Claude Code after install so the new agents, hooks, commands, and skills load.
+- If `/install-plugin` is not recognized, update Claude Code to a build that supports plugin marketplaces.
 
-```bash
-which uv  # macOS/Linux
-where.exe uv  # Windows
+### GitHub Copilot CLI
+
+- If `/plugin` is not recognized, update Copilot CLI to a recent stable release.
+- If install fails with "No plugin.json found in repository", add the marketplace first with `/plugin marketplace add rjmurillo/ai-agents`.
+- No restart is needed after Copilot installation.
+
+### VS Code / Visual Studio
+
+- Restart the IDE or reload the window if newly added repository agents do not appear.
+- Repository-level agent loading is the supported path described in `.github/copilot-instructions.md`.
+
+### Verify Installation
+
+Claude Code:
+
+```text
+Task(subagent_type="analyst", prompt="Hello, are you available?")
 ```
 
-If not found, install UV using the commands in the Prerequisites section.
+VS Code / Visual Studio:
 
-### Python Version
-
-skill-installer requires Python 3.10+. Check your version:
-
-```bash
-python --version
+```text
+@orchestrator Hello, are you available?
 ```
 
-### Network Issues
+Copilot CLI:
 
-If downloads fail, check internet connectivity and try again. The tool downloads from GitHub.
+```bash
+copilot plugin list
+copilot --agent analyst --prompt "Hello, are you available?"
+```
 
-### Security Scanning (Recommended)
+The Copilot plugin list should include whichever package you installed, such as `project-toolkit@ai-agents`.
+
+### Security Scanning (Recommended for contributors)
 
 For local security scanning before push, install semgrep:
 
@@ -249,99 +203,29 @@ Or install manually:
 pip install semgrep
 ```
 
-Semgrep runs automatically in the pre-push hook and scans Python, PowerShell, JavaScript, and YAML files for security issues. Blocks push on HIGH/CRITICAL findings.
-
-**Benefits:**
-
-- Fast feedback (<1 minute vs 10-30 minutes for CI)
-- Catches OWASP Top 10 vulnerabilities locally
-- Reduces PR review cycles
+Semgrep runs automatically in the pre-push hook and scans Python, PowerShell, JavaScript, and YAML files for security issues. It blocks push on HIGH/CRITICAL findings.
 
 ### Worktrunk Setup (Optional)
 
 For parallel agent workflows using git worktrees, install Worktrunk:
 
-**Homebrew (macOS and Linux):**
+Homebrew:
 
 ```bash
 brew install max-sixty/worktrunk/wt && wt config shell install
 ```
 
-**Cargo:**
+Cargo:
 
 ```bash
 cargo install worktrunk && wt config shell install
 ```
 
-**Shell integration** is required for `wt switch` command.
-
-**Claude Code Plugin:**
+Claude Code plugin:
 
 ```bash
 claude plugin marketplace add max-sixty/worktrunk
 claude plugin install worktrunk@worktrunk
 ```
 
-The repository includes `.config/wt.toml` with lifecycle hooks that:
-
-- Configure git hooks automatically on worktree creation
-- Copy dependencies (node_modules, .cache) from main worktree
-- Run markdown linting before merge
-
-**See**: [Worktrunk Documentation](https://worktrunk.dev/) and `.config/wt.toml` for complete workflow configuration.
-
-## Post-Installation
-
-### Restart Your Editor
-
-After installation, restart your editor/CLI to load new agents:
-
-- **Claude Code**: Restart Claude Code
-- **VS Code**: Restart VS Code or reload window (`Ctrl+Shift+P` -> "Developer: Reload Window")
-- **Visual Studio**: Restart Visual Studio to load new agents
-- **Copilot CLI**: No restart needed
-
-### Verify Installation
-
-**Validate skills:**
-
-```bash
-python3 scripts/validate_skill_installation.py --check-global --verbose
-```
-
-**Claude Code:**
-
-```python
-# In Claude Code, verify agents are available
-Task(subagent_type="analyst", prompt="Hello, are you available?")
-```
-
-**VS Code:**
-
-```text
-# In VS Code chat
-@orchestrator Hello, are you available?
-```
-
-**Visual Studio:**
-
-```text
-# In Visual Studio Copilot Chat
-@orchestrator Hello, are you available?
-```
-
-**Copilot CLI:**
-
-```bash
-# List available agents
-copilot --list-agents
-
-# Test an agent
-copilot --agent analyst --prompt "Hello, are you available?"
-```
-
-## Related Documentation
-
-- [USING-AGENTS.md](../USING-AGENTS.md) - How to use the agent system
-- [CLAUDE.md](../CLAUDE.md) - Claude Code specific instructions
-- [copilot-instructions.md](../copilot-instructions.md) - GitHub Copilot instructions
+The repository includes `.config/wt.toml` with lifecycle hooks that configure git hooks automatically on worktree creation, copy dependencies from the main worktree, and run markdown linting before merge.

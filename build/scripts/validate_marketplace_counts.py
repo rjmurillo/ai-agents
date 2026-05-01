@@ -28,6 +28,7 @@ from yaml_loader import ConfigError, load_platform_config
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 MARKETPLACE_JSON = REPO_ROOT / ".claude-plugin" / "marketplace.json"
+COPILOT_MARKETPLACE_JSON = REPO_ROOT / ".github" / "plugin" / "marketplace.json"
 COUNTERS_YAML = REPO_ROOT / "templates" / "marketplace-counters.yaml"
 
 
@@ -43,7 +44,7 @@ _EXCLUDED_DIRS = frozenset({"node_modules", ".git", "worktrees", "cache", "__pyc
 def _walk_files(directory: Path, suffix: str, exclude_names: set[str]) -> int:
     """Count files matching suffix, pruning EXCLUDED_DIRS during descent.
 
-    Replaces ``directory.rglob('*.<suffix>')`` which walks excluded subtrees
+    Replaces ``directory.rglob('*.suffix')`` which walks excluded subtrees
     before discarding matches. ``os.walk`` with in-place ``dirnames`` mutation
     prunes BEFORE descending — safe against vendored bloat and symlink loops.
     """
@@ -151,23 +152,59 @@ def _build_counter(rule: dict, repo_root: Path) -> Callable[[], int]:
 
 
 def load_plugin_counters(
-    config_path: Path = COUNTERS_YAML, repo_root: Path = REPO_ROOT
+    config_path: Path = COUNTERS_YAML,
+    repo_root: Path = REPO_ROOT,
+    marketplace_path: Path | None = None,
 ) -> dict[str, dict[str, Callable[[], int]]]:
-    """Load plugin -> {label -> counter-fn} mapping from YAML."""
+    """Load plugin -> {label -> counter-fn} mapping from YAML.
+
+    Supports either a direct label -> rule mapping, or a nested
+    marketplaces.<relative-marketplace-path>.<label> -> rule mapping for cases
+    where the same plugin name exists in multiple native marketplace manifests
+    with platform-specific payloads.
+    """
     data = load_platform_config(config_path)
     plugins = data.get("plugins")
     if not isinstance(plugins, dict):
         raise ConfigError(
             f"{config_path}: top-level `plugins` must be a mapping"
         )
+
+    marketplace_key: str | None = None
+    if marketplace_path is not None:
+        try:
+            marketplace_key = str(marketplace_path.resolve().relative_to(repo_root))
+        except ValueError:
+            marketplace_key = str(marketplace_path)
+
     counters: dict[str, dict[str, Callable[[], int]]] = {}
     for plugin_name, labels in plugins.items():
         if not isinstance(labels, dict):
             raise ConfigError(
                 f"plugins.{plugin_name}: must be a mapping of label -> rule"
             )
+
+        rules = labels
+        marketplaces = labels.get("marketplaces")
+        if marketplaces is not None:
+            if not isinstance(marketplaces, dict):
+                raise ConfigError(
+                    f"plugins.{plugin_name}.marketplaces: must be a mapping"
+                )
+            if marketplace_key is None:
+                raise ConfigError(
+                    f"plugins.{plugin_name}.marketplaces requires marketplace_path"
+                )
+            rules = marketplaces.get(marketplace_key)
+            if rules is None:
+                continue
+            if not isinstance(rules, dict):
+                raise ConfigError(
+                    f"plugins.{plugin_name}.marketplaces.{marketplace_key}: must be a mapping"
+                )
+
         per_label: dict[str, Callable[[], int]] = {}
-        for label, rule in labels.items():
+        for label, rule in rules.items():
             if not isinstance(rule, dict):
                 raise ConfigError(
                     f"plugins.{plugin_name}.{label}: must be a mapping"
@@ -239,7 +276,7 @@ def validate(
             return 2
 
     try:
-        plugin_counters = load_plugin_counters(counters_path, repo_root)
+        plugin_counters = load_plugin_counters(counters_path, repo_root, marketplace)
     except ConfigError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 2
@@ -270,7 +307,6 @@ def validate(
                 mismatches.append(
                     f"  {name}: '{label}' declared={expected}, actual={actual}"
                 )
-                # Build fixed description by replacing the old count.
                 for match in COUNT_PATTERN.finditer(new_description):
                     matched_label = LABEL_MAP.get(match.group(2))
                     if matched_label == label:
@@ -286,10 +322,19 @@ def validate(
             fixes[name] = new_description
 
     if not mismatches:
-        print("marketplace.json counts are up to date.")
+        try:
+            display_path = marketplace.relative_to(repo_root)
+        except ValueError:
+            display_path = marketplace
+        print(f"{display_path} counts are up to date.")
         return 0
 
-    print("Stale counts detected in marketplace.json:")
+    try:
+        display_path = marketplace.relative_to(repo_root)
+    except ValueError:
+        display_path = marketplace
+
+    print(f"Stale counts detected in {display_path}:")
     for msg in mismatches:
         print(msg)
 
@@ -300,11 +345,33 @@ def validate(
         with open(marketplace, "w") as f:
             json.dump(data, f, indent=2)
             f.write("\n")
-        print("\nFixed: marketplace.json updated with correct counts.")
+        print(f"\nFixed: {display_path} updated with correct counts.")
         return 0
 
     print("\nRun with --fix to update marketplace.json automatically.")
     return 1
+
+
+def validate_known_marketplaces(
+    fix: bool = False,
+    counters_path: Path = COUNTERS_YAML,
+    repo_root: Path = REPO_ROOT,
+) -> int:
+    """Validate all native marketplace manifests shipped by the repo."""
+    results = []
+    for marketplace in (MARKETPLACE_JSON, COPILOT_MARKETPLACE_JSON):
+        result = validate(
+            fix=fix,
+            counters_path=counters_path,
+            marketplace_path=marketplace,
+            repo_root=repo_root,
+        )
+        results.append(result)
+    if any(result == 2 for result in results):
+        return 2
+    if any(result == 1 for result in results):
+        return 1
+    return 0
 
 
 def main() -> None:
@@ -316,8 +383,17 @@ def main() -> None:
         action="store_true",
         help="Automatically fix stale counts in marketplace.json.",
     )
+    parser.add_argument(
+        "--marketplace",
+        type=Path,
+        help="Validate one specific marketplace.json instead of all native marketplaces.",
+    )
     args = parser.parse_args()
-    sys.exit(validate(fix=args.fix))
+
+    if args.marketplace is not None:
+        sys.exit(validate(fix=args.fix, marketplace_path=args.marketplace.resolve()))
+
+    sys.exit(validate_known_marketplaces(fix=args.fix))
 
 
 if __name__ == "__main__":

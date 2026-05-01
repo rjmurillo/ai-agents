@@ -20,7 +20,7 @@ ai-agents/
 ├── LICENSE
 │
 ├── docs/                     # Human documentation (this folder)
-│   ├── installation.md       # How to install agents via skill-installer
+│   ├── installation.md       # Native marketplace and repository install paths
 │   ├── ideation-workflow.md  # "shower thought" → PRD/plan workflow
 │   ├── autonomous-*.md       # Autonomous workflows (PR monitor, issue dev)
 │   └── project-structure.md  # (this file)

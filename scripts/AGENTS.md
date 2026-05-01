@@ -162,7 +162,7 @@ flowchart TD
     style Scripts fill:#fff3e0
 ```
 
-> **Note**: Agent installation is handled by [skill-installer](https://github.com/rjmurillo/skill-installer).
+> **Note**: Agent installation is handled through each tool's native marketplace support.
 > See [docs/installation.md](../docs/installation.md) for installation instructions.
 
 ## Agent Catalog

@@ -20,7 +20,7 @@ For platform teams, engineering managers, and orgs that want AI-assisted develop
 
 ## Fastest Start
 
-Each AI tool has its own plugin install flow. Pick yours and paste the command(s) inside the CLI session.
+Each AI tool has its own native marketplace flow. This repo ships a Claude Code marketplace at `.claude-plugin/marketplace.json` and a Copilot CLI marketplace at `.github/plugin/marketplace.json`, so the same repository URL works in both CLIs. Pick yours and paste the command(s) inside the CLI session.
 
 **Claude Code.** One command installs the full set; restart Claude Code when it finishes.
 
@@ -32,7 +32,7 @@ Each AI tool has its own plugin install flow. Pick yours and paste the command(s
 
 ```text
 /plugin marketplace add rjmurillo/ai-agents
-/plugin install copilot-cli-toolkit@ai-agents
+/plugin install project-toolkit@ai-agents
 ```
 
 A Claude install lands 23 agents, 23 commands, 29 hooks, and 69 skills. A Copilot install lands 24 agents, 28 hooks, and 81 skills generated from the same canonical sources. See [Verify Installation](#verify-installation) for the per-tool sanity check, or [More Installation Options](#alternative-full-installation) for component-level installs (agents only, etc.).
@@ -52,11 +52,11 @@ Specialized agent roles include analyst, architect, implementer, QA, security, d
 
 ### Troubleshooting
 
-- **`/install-plugin` not recognized:** That command is Claude Code only. In Copilot CLI use the two-step flow (`/plugin marketplace add rjmurillo/ai-agents` then `/plugin install copilot-cli-toolkit@ai-agents`).
-- **Copilot CLI install fails with "No plugin.json found in repository":** This repo is a marketplace, not a single plugin. Run `/plugin marketplace add rjmurillo/ai-agents` first, then `/plugin install copilot-cli-toolkit@ai-agents`.
+- **`/install-plugin` not recognized:** That command is Claude Code only. In Copilot CLI use the two-step flow (`/plugin marketplace add rjmurillo/ai-agents` then `/plugin install project-toolkit@ai-agents`).
+- **Copilot CLI install fails with "No plugin.json found in repository":** This repo is a marketplace, not a single plugin. Run `/plugin marketplace add rjmurillo/ai-agents` first, then `/plugin install project-toolkit@ai-agents`.
 - **`/plugin` not recognized in Copilot CLI:** Update Copilot CLI to a recent stable release; plugin support is required. Run `copilot --version` in a regular terminal to check.
 - **Plugin install fails or hangs:** Confirm your AI tool is on a recent stable release that supports the install command, then retry. Check the version per tool: in Claude Code use `/version` or the title bar; for Copilot CLI run `copilot --version` in a regular terminal.
-- **Agents not responding after install:** Restart Claude Code (Copilot CLI does not need a restart). Then verify with `Task(subagent_type="analyst", prompt="Hello, are you available?")` in Claude Code, `copilot plugin list` in Copilot CLI to confirm `copilot-cli-toolkit@ai-agents` is installed, or `@orchestrator Hello, are you available?` in VS Code Copilot Chat.
+- **Agents not responding after install:** Restart Claude Code (Copilot CLI does not need a restart). Then verify with `Task(subagent_type="analyst", prompt="Hello, are you available?")` in Claude Code, `copilot plugin list` in Copilot CLI to confirm `project-toolkit@ai-agents` is installed, or `@orchestrator Hello, are you available?` in VS Code Copilot Chat.
 
 ---
 
@@ -150,7 +150,9 @@ The [Fastest Start](#fastest-start) above is the recommended path. Use the comma
 
 ### Quick Install (CLI marketplace)
 
-The [Fastest Start](#fastest-start) commands install the full toolkit. For component-level installs, register the marketplace once and then install just the parts you want. In Claude Code you can also use `/install-plugin rjmurillo/ai-agents` as a one-step shortcut that registers the marketplace and prompts for plugin selection.
+The [Fastest Start](#fastest-start) commands install the full toolkit. For component-level installs, register the marketplace once in the CLI you are using and then install just the parts you want. Claude Code resolves that repository to `.claude-plugin/marketplace.json`; Copilot CLI resolves it to `.github/plugin/marketplace.json`. In Claude Code you can also use `/install-plugin rjmurillo/ai-agents` as a one-step shortcut that registers the marketplace and prompts for plugin selection.
+
+**Claude Code**
 
 ```text
 /plugin marketplace add rjmurillo/ai-agents
@@ -159,9 +161,18 @@ The [Fastest Start](#fastest-start) commands install the full toolkit. For compo
 | Component | Install Command | What You Get |
 |-----------|----------------|--------------|
 | Claude agents only | `/plugin install claude-agents@ai-agents` | 24 agent definitions from `src/claude/` (no skills, commands, or hooks) |
+| Project toolkit | `/plugin install project-toolkit@ai-agents` | 23 agents, 23 slash commands, 29 hooks, and 69 reusable skills from `.claude/` |
+
+**GitHub Copilot CLI**
+
+```text
+/plugin marketplace add rjmurillo/ai-agents
+```
+
+| Component | Install Command | What You Get |
+|-----------|----------------|--------------|
 | Copilot CLI agents only | `/plugin install copilot-cli-agents@ai-agents` | 24 agent definitions from `src/copilot-cli/` (no skills or hooks) |
-| Claude full toolkit | `/plugin install claude-toolkit@ai-agents` | 23 agents, 23 commands, 29 hooks, 69 skills from `.claude/` (Claude Code) |
-| Copilot full toolkit | `/plugin install copilot-cli-toolkit@ai-agents` | 24 agents, 28 hooks, 81 skills from `src/copilot-cli/` (Copilot CLI) |
+| Copilot full toolkit | `/plugin install project-toolkit@ai-agents` | 24 agents, 28 hooks, 81 skills from `src/copilot-cli/` (Copilot CLI) |
 
 The agents-only plugins (`claude-agents`, `copilot-cli-agents`) pull from `src/<platform>/` and ship 24 agents each. The full toolkits pull from a different source (`./.claude` for Claude, the same `src/copilot-cli` dir for Copilot) where Claude's roster is 23. The "23 vs 24" gap is real: `src/claude/` and `.claude/agents/` are two different curated sets, kept in sync where they overlap but with each set including agents the other does not. The Fastest Start path uses the full toolkit, so the headline "23 agents" reflects what most users get.
 
@@ -181,7 +192,7 @@ Task(subagent_type="analyst", prompt="Hello, are you available?")
 copilot plugin list
 ```
 
-The output should include `copilot-cli-toolkit@ai-agents` (or whichever component you installed). To exercise an agent end-to-end, run `copilot -p "analyst: respond with 'available'"`.
+The output should include `project-toolkit@ai-agents` (or whichever component you installed). To exercise an agent end-to-end, run `copilot -p "analyst: respond with 'available'"`.
 
 **VS Code (Copilot Chat):**
 
@@ -417,7 +428,8 @@ ai-agents/
 ├── scripts/                 # Validation and utility scripts
 ├── docs/                    # Documentation
 ├── .agents/                 # Agent artifacts (ADRs, plans, etc.)
-├── .claude-plugin/          # Plugin marketplace manifest (marketplace.json)
+├── .claude-plugin/          # Claude Code marketplace manifest
+├── .github/plugin/          # GitHub Copilot CLI marketplace manifest
 ├── .github/copilot-instructions.md  # GitHub Copilot instructions
 ├── CLAUDE.md                        # Claude Code instructions
 └── AGENTS.md                        # Detailed usage guide
@@ -441,7 +453,7 @@ ai-agents/
 
 - `/install-plugin` is a Claude Code CLI shortcut. In Copilot CLI use the explicit two-step flow:
   1. `/plugin marketplace add rjmurillo/ai-agents`
-  2. `/plugin install copilot-cli-toolkit@ai-agents`
+  2. `/plugin install project-toolkit@ai-agents`
 - Ensure you're running inside Claude Code CLI or Copilot CLI, not a regular shell. The command is built into the AI tool.
 
 </details>

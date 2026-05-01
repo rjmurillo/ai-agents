@@ -40,6 +40,7 @@ jobs:
           filters: |
             paths:
               - '.claude-plugin/marketplace.json'
+              - '.github/plugin/marketplace.json'
               - 'src/claude/**'
               - 'src/copilot-cli/**'
               - '.claude/agents/**'

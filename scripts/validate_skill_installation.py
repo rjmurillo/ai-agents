@@ -147,7 +147,7 @@ def check_global_installation(verbose: bool = False) -> int:
     if not found_any:
         logger.info("")
         logger.info("No global skill installations found.")
-        logger.info("Install with: skill-installer install project-toolkit --platform claude")
+        logger.info("Install with Claude Code's native marketplace flow from docs/installation.md")
         return 0
 
     if all_errors:

@@ -29,16 +29,16 @@ Implement the login form per the plan in .agents/planning/
 
 When handing off between agents:
 
-1. **Announce**: "Completing [task]. Handing off to [agent] for [purpose]"
-2. **Save Artifacts**: Store outputs in appropriate `.agents/` directory
-3. **Route**: Use `/agent [agent_name]`
+1. Announce: "Completing [task]. Handing off to [agent] for [purpose]"
+2. Save artifacts: store outputs in the appropriate `.agents/` directory
+3. Route: use `/agent [agent_name]`
 
 ### Best Practices
 
-1. **Memory First**: Retrieve context before multi-step reasoning
-2. **Clear Handoffs**: Announce next agent and purpose
-3. **Follow Plans**: The plan document is authoritative
-4. **Commit Atomically**: Small, conventional commits
+1. Memory first: retrieve context before multi-step reasoning
+2. Clear handoffs: announce next agent and purpose
+3. Follow plans: the plan document is authoritative
+4. Commit atomically: small, conventional commits
 
 ### Available Agents
 
@@ -46,21 +46,7 @@ See `.github/agents/` for the full catalog. Each agent file contains its descrip
 
 ### Known Limitations
 
-**Note**: User-level (global) agent loading has a known issue. For best results, install agents at the repository level using skill-installer:
+User-level (global) agent loading has a known issue. Use repository-level installation through each tool's native support instead:
 
-```bash
-# One-liner (no install required) - latest version
-uvx --from git+https://github.com/rjmurillo/skill-installer skill-installer interactive
-
-# OR specific version for stability
-uvx --from git+https://github.com/rjmurillo/skill-installer@v0.2.0 skill-installer interactive
-
-# Install globally (latest)
-uv tool install git+https://github.com/rjmurillo/skill-installer
-
-# OR install globally (specific version)
-uv tool install git+https://github.com/rjmurillo/skill-installer@v0.2.0
-
-# Run interactive installer
-skill-installer interactive
-```
+- Copilot CLI: add the marketplace with `/plugin marketplace add rjmurillo/ai-agents`, then install `project-toolkit@ai-agents`
+- VS Code / Visual Studio: open the repository so `.github/agents/` and `.github/copilot-instructions.md` load automatically
