@@ -1,22 +1,29 @@
 ---
 name: security-scan
-description: Scan code content for CWE-22 (path traversal) and CWE-78 (command injection) vulnerabilities before PR submission. Lightweight pattern-based detection for Python, PowerShell, Bash, and C# files. Use when preparing code for review or as a pre-commit gate.
+description: Scan code content for CWE-78 (command injection) vulnerabilities before PR submission. Lightweight pattern-based detection for Python, PowerShell, Bash, and C# files. CWE-22 (path traversal) detection is delegated to CodeQL in CI; see Scope below. Use when preparing code for review or as a pre-commit gate.
 license: MIT
 metadata:
-  version: 1.0.0
+  version: 2.0.0
   model: claude-sonnet-4-6
 ---
 
 # Security Scan
 
-Proactive vulnerability detection for common security issues before PR submission.
+Proactive vulnerability detection for command injection (CWE-78) before PR submission.
+
+## Scope
+
+This skill detects **CWE-78 (command injection)** patterns only. The regex patterns target unambiguous shapes (`subprocess.run(..., shell=True)`, `eval(user_input)`, backtick command substitution, etc.) that produce reliable signal without taint analysis.
+
+**CWE-22 (path traversal) is delegated to CodeQL.** The CodeQL workflow at `.github/workflows/codeql-analysis.yml` runs the `python-security-extended.qls` query suite on every PR, which authoritatively detects CWE-22 across Python, PowerShell, and GitHub Actions code via proper dataflow analysis. Per the buy-vs-build framework analysis (issue #1843), maintaining a custom regex-based CWE-22 detector created false positives (PR #1841 added seven `# security-scan: ignore CWE-22` annotations to silence them) without comparable coverage of real CWE-22 vectors that CodeQL catches in CI. Path-traversal checking is Context (table stakes security, not a competitive differentiator); CodeQL is the right tool.
+
+If a CWE-22 finding surfaces in CI from CodeQL, fix the underlying code or open an issue to triage. Do not add a regex-based CWE-22 check to this scanner.
 
 ## Triggers
 
 | Trigger Phrase | Operation |
 |----------------|-----------|
-| `scan for vulnerabilities` | scan_vulnerabilities.py on staged/specified files |
-| `check for path traversal` | scan_vulnerabilities.py with CWE-22 focus |
+| `scan for vulnerabilities` | scan_vulnerabilities.py on staged/specified files (CWE-78 only) |
 | `check for command injection` | scan_vulnerabilities.py with CWE-78 focus |
 | `pre-PR security scan` | scan_vulnerabilities.py on staged files |
 | `run security scan` | scan_vulnerabilities.py with full scan |
