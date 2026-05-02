@@ -44,7 +44,7 @@ _EXCLUDED_DIRS = frozenset({"node_modules", ".git", "worktrees", "cache", "__pyc
 def _walk_files(directory: Path, suffix: str, exclude_names: set[str]) -> int:
     """Count files matching suffix, pruning EXCLUDED_DIRS during descent.
 
-    Replaces ``directory.rglob('*.suffix')`` which walks excluded subtrees
+    Replaces ``directory.rglob(f'*{suffix}')`` which walks excluded subtrees
     before discarding matches. ``os.walk`` with in-place ``dirnames`` mutation
     prunes BEFORE descending — safe against vendored bloat and symlink loops.
     """
@@ -357,9 +357,19 @@ def validate_known_marketplaces(
     counters_path: Path = COUNTERS_YAML,
     repo_root: Path = REPO_ROOT,
 ) -> int:
-    """Validate all native marketplace manifests shipped by the repo."""
+    """Validate all native marketplace manifests shipped by the repo.
+
+    Marketplace paths are resolved relative to ``repo_root`` so test
+    callers that override the root validate the marketplaces that live
+    inside that root, not the ones derived from the module-level
+    ``REPO_ROOT``.
+    """
+    marketplaces = (
+        repo_root / ".claude-plugin" / "marketplace.json",
+        repo_root / ".github" / "plugin" / "marketplace.json",
+    )
     results = []
-    for marketplace in (MARKETPLACE_JSON, COPILOT_MARKETPLACE_JSON):
+    for marketplace in marketplaces:
         result = validate(
             fix=fix,
             counters_path=counters_path,

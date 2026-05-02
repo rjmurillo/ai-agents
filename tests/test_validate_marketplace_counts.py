@@ -76,6 +76,16 @@ class TestValidateIntegration:
         """Default CLI mode validates every shipped marketplace."""
         assert validate_known_marketplaces(fix=False) == 0
 
+    def test_known_marketplaces_resolve_paths_relative_to_repo_root(
+        self, tmp_path: Path
+    ) -> None:
+        """`repo_root` override must steer the resolver away from the
+        module-level marketplace constants. With an empty fake repo, the
+        function must report a config error (exit 2) instead of silently
+        validating the production manifests under the real REPO_ROOT.
+        """
+        assert validate_known_marketplaces(fix=False, repo_root=tmp_path) == 2
+
 
 class TestValidateWithFixtures:
     """Test validation logic with temporary marketplace.json files."""
