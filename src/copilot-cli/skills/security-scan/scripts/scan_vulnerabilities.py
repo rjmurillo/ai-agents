@@ -395,7 +395,8 @@ def format_json_output(result: ScanResult) -> str:
     detect schema evolution. Readers MUST tolerate unknown fields and treat
     the absence of `schema_version` as v1 (pre-CWE-22-delegation, no
     `summary.delegated_cwes` field). v2 added `summary.delegated_cwes` when
-    CWE-22 detection moved to CodeQL (PR #1851, ADR-054 amendment).
+    CWE-22 detection moved to CodeQL (PR #1851, see
+    `.agents/architecture/ADR-054-local-security-scanning.md` amendment).
     """
     output = {
         "schema_version": _JSON_SCHEMA_VERSION,
@@ -452,7 +453,16 @@ def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(
         description="Scan code for CWE-78 (command injection). CWE-22 path-traversal "
-                    "detection is delegated to CodeQL in CI; see module docstring."
+                    "detection is delegated to CodeQL in CI; see module docstring.",
+        epilog=(
+            "Exit codes:\n"
+            "  0  no vulnerabilities found\n"
+            "  1  scan error (invalid args, file not found, path traversal)\n"
+            "  10 vulnerabilities detected (CI-blocking)\n"
+            "\n"
+            "See .agents/architecture/ADR-054-local-security-scanning.md."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
         "files",
@@ -473,10 +483,12 @@ def main():
         "--cwe",
         type=int,
         action="append",
-        help="Filter by CWE number (only 78 is supported by this scanner). "
-             "CWE-22 is accepted but produces no findings here; detection is "
-             "delegated to CodeQL. The CWE-22 flag is retained for ad-hoc "
-             "invocation symmetry only and may be removed after 2026-08-01.",
+        help=(
+            "Filter by CWE number (only 78 is supported by this scanner). "
+            "CWE-22 is accepted but produces no findings here; detection is "
+            "delegated to CodeQL. "
+            "(Sunset: the CWE-22 flag may be removed after 2026-08-01.)"
+        ),
     )
     parser.add_argument(
         "--format",
