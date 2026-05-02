@@ -9,7 +9,7 @@ test additionally skips when `copilot` is not on PATH (covers contributors
 without Copilot CLI installed; runs in nightly CI when present).
 
 Verification scope (per task M6-T5):
-  1. plugin.json parses and points to agents/, skills/, hooks/hooks.json
+  1. plugin.json parses and preserves only metadata required by marketplace install
   2. hooks.json has version: 1 wrapper + valid event keys
   3. sample agent file readable
   4. sample skill SKILL.md readable
@@ -78,12 +78,17 @@ class TestInstalledManifest:
         data = json.loads(manifest.read_text(encoding="utf-8"))
         assert data.get("name") == "project-toolkit"
 
-    def test_manifest_declares_required_paths(self, installed_plugin: Path) -> None:
-        """plugin.json must point at the agents and skills surface."""
+    def test_manifest_omits_runtime_rejected_discovery_keys(
+        self, installed_plugin: Path
+    ) -> None:
+        """Claude marketplace manifests rely on auto-discovery, not explicit keys."""
         manifest = installed_plugin / ".claude-plugin" / "plugin.json"
         data = json.loads(manifest.read_text(encoding="utf-8"))
-        for field in ("agents", "skills"):
-            assert field in data, f"plugin.json missing '{field}' field"
+        for field in ("agents", "skills", "commands", "hooks"):
+            assert field not in data, (
+                f"plugin.json should omit '{field}' because Claude Code rejects it "
+                "for marketplace manifests"
+            )
 
 
 class TestInstalledHooks:

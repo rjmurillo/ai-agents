@@ -254,7 +254,7 @@ def _resolve_path_safely(path: str) -> Path:
     any resolved path that escapes both the cwd and the repository root (when one
     can be located).
     """
-    candidate = Path(path)  # security-scan: ignore CWE-22
+    candidate = Path(path)
     resolved = (
         candidate.resolve() if candidate.is_absolute() else (Path.cwd() / candidate).resolve()
     )
@@ -274,7 +274,7 @@ def _resolve_path_safely(path: str) -> Path:
 
 def _find_repo_root() -> Path | None:
     """Walk upward from this file until a .git directory is found."""
-    for parent in Path(__file__).resolve().parents:  # security-scan: ignore CWE-22
+    for parent in Path(__file__).resolve().parents:
         if (parent / ".git").exists():
             return parent
     return None
@@ -302,8 +302,8 @@ def load_document(path: str, validate_path: bool = True) -> Any:
         if validate_path:
             target = _resolve_path_safely(path)
         else:
-            target = Path(path)  # security-scan: ignore CWE-22
-        with open(target, encoding="utf-8") as handle:  # security-scan: ignore CWE-22
+            target = Path(path)
+        with open(target, encoding="utf-8") as handle:
             text = handle.read()
     return json.loads(text)
 

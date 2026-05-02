@@ -83,6 +83,46 @@ def _validate_path_field(name: str, value: object) -> list[str]:
     ]
 
 
+# Claude Code 2.1.122 rejects explicit discovery keys in the manifests shipped
+# by this repo's marketplace, even though the published schema still documents
+# these fields. Auto-discovery works when the keys are omitted.
+_MARKETPLACE_RUNTIME_FORBIDDEN_KEYS = ("agents", "skills", "commands", "hooks")
+
+
+def _is_repo_marketplace_manifest(path: Path) -> bool:
+    """Return True when a manifest belongs to this repo's shipped marketplace."""
+    normalized = path.resolve().parts
+    patterns = (
+        (".claude", ".claude-plugin", "plugin.json"),
+        ("src", "claude", ".claude-plugin", "plugin.json"),
+        ("src", "copilot-cli", ".claude-plugin", "plugin.json"),
+    )
+    return any(normalized[-len(pattern):] == pattern for pattern in patterns)
+
+
+def _check_marketplace_runtime_forbidden_keys(
+    path: Path, manifest: dict[str, object]
+) -> list[str]:
+    """Reject discovery keys for this repo's marketplace manifests.
+
+    Issue #1833 reproduces on the plugin manifests shipped by this repository.
+    Those installs succeed when Claude Code auto-discovers the default
+    locations and fail when these keys are declared explicitly.
+    """
+    if not _is_repo_marketplace_manifest(path):
+        return []
+    present = [k for k in _MARKETPLACE_RUNTIME_FORBIDDEN_KEYS if k in manifest]
+    if not present:
+        return []
+    keys = ", ".join(f"`{k}`" for k in present)
+    return [
+        f"{keys}: rejected for this repo's Claude marketplace manifests. "
+        f"Claude Code 2.1.122 rejects explicit discovery keys for the marketplace "
+        f"entries backed by `.claude/`, `src/claude/`, and `src/copilot-cli/`; "
+        f"omit them and rely on auto-discovery instead. See issue #1833."
+    ]
+
+
 def _validate_hook_event_entries(event: str, entries: object) -> list[str]:
     """Each event maps to a list of matcher groups."""
     if not isinstance(entries, list):
@@ -179,23 +219,23 @@ def _validate_hooks(value: object, manifest_dir: Path | None = None) -> list[str
         return [
             f"`hooks`: must be an object or string path (got {type(value).__name__})"
         ]
-    errors: list[str] = []
+    inline_errors: list[str] = []
     for event, entries in value.items():
         if event not in VALID_HOOK_EVENTS:
-            errors.append(
+            inline_errors.append(
                 f"`hooks.{event}`: unknown hook event. "
                 f"Valid: {sorted(VALID_HOOK_EVENTS)}"
             )
             continue
         if isinstance(entries, str):
-            errors.append(
+            inline_errors.append(
                 f"`hooks.{event}`: string value '{entries}' is invalid. "
                 f"Hook events must map to an array of matcher groups, "
                 f"not a directory path. This was the PR #1773 regression."
             )
             continue
-        errors.extend(_validate_hook_event_entries(event, entries))
-    return errors
+        inline_errors.extend(_validate_hook_event_entries(event, entries))
+    return inline_errors
 
 
 def validate_manifest(path: Path) -> list[str]:
@@ -228,6 +268,8 @@ def validate_manifest(path: Path) -> list[str]:
     unknown = set(data.keys()) - ALLOWED_KEYS
     if unknown:
         errors.append(f"Unknown keys: {sorted(unknown)}")
+
+    errors.extend(_check_marketplace_runtime_forbidden_keys(path, data))
 
     for path_field in ("agents", "skills", "commands"):
         if path_field in data:
