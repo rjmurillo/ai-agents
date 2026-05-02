@@ -385,9 +385,20 @@ def format_console_output(result: ScanResult) -> str:
     return "\n".join(output)
 
 
+_JSON_SCHEMA_VERSION = 2
+
+
 def format_json_output(result: ScanResult) -> str:
-    """Format scan result as JSON."""
+    """Format scan result as JSON.
+
+    The output envelope carries `schema_version` so downstream consumers can
+    detect schema evolution. Readers MUST tolerate unknown fields and treat
+    the absence of `schema_version` as v1 (pre-CWE-22-delegation, no
+    `summary.delegated_cwes` field). v2 added `summary.delegated_cwes` when
+    CWE-22 detection moved to CodeQL (PR #1851, ADR-054 amendment).
+    """
     output = {
+        "schema_version": _JSON_SCHEMA_VERSION,
         "scan_timestamp": result.scan_timestamp,
         "files_scanned": result.files_scanned,
         "vulnerabilities": [
@@ -463,8 +474,9 @@ def main():
         type=int,
         action="append",
         help="Filter by CWE number (only 78 is supported by this scanner). "
-             "CWE-22 detection is delegated to CodeQL; this flag is retained for "
-             "backward compatibility with existing CI invocations.",
+             "CWE-22 is accepted but produces no findings here; detection is "
+             "delegated to CodeQL. The CWE-22 flag is retained for ad-hoc "
+             "invocation symmetry only and may be removed after 2026-08-01.",
     )
     parser.add_argument(
         "--format",
@@ -585,6 +597,14 @@ def main():
         output = format_json_output(result)
     else:
         output = format_console_output(result)
+        # Surface CWE-22 delegation in console output too. The JSON envelope
+        # carries `summary.delegated_cwes`, but a console caller running
+        # `--cwe 22` should see the delegation in stdout, not just stderr.
+        if args.cwe and 22 in args.cwe:
+            output += (
+                "\n\nCWE-22: delegated to CodeQL "
+                "(see .github/workflows/codeql-analysis.yml)"
+            )
 
     # Write output
     if args.output:

@@ -71,10 +71,18 @@ def test_cwe78_detected_after_cwe22_delegation(cwe78_fixture: Path) -> None:
 
 
 def test_cwe22_flag_emits_warning_and_zero_findings(clean_python_fixture: Path) -> None:
-    """`--cwe 22` must warn on stderr and report zero findings."""
+    """`--cwe 22` must warn on stderr and report zero findings.
+
+    Pins the literal `WARNING:` prefix so a refactor that renames the marker
+    (e.g., to `NOTICE:` or `INFO:`) is caught — substring-only checks would
+    pass silently.
+    """
     result = _scanner("--cwe", "22", str(clean_python_fixture.relative_to(REPO_ROOT)))
     assert result.returncode == 0, f"Expected clean exit 0, got {result.returncode}"
-    assert "WARNING: --cwe 22" in result.stderr
+    assert result.stderr.startswith("WARNING: --cwe 22"), (
+        f"stderr must start with literal `WARNING: --cwe 22` so callers can "
+        f"reliably grep for it; got: {result.stderr[:80]!r}"
+    )
     assert "delegated to CodeQL" in result.stderr
     assert "python-security-extended.qls" in result.stderr
 
@@ -107,13 +115,18 @@ def test_cwe78_value_accepted(cwe78_fixture: Path) -> None:
 
 
 def test_json_summary_has_delegated_cwes_field(clean_python_fixture: Path) -> None:
-    """`summary.delegated_cwes` must be present and shaped correctly."""
+    """`summary.delegated_cwes` must be present and shaped correctly,
+    and the envelope must carry `schema_version` per ADR-054 amendment."""
     result = _scanner(
         "--format", "json",
         str(clean_python_fixture.relative_to(REPO_ROOT)),
     )
     assert result.returncode == 0
     payload = json.loads(result.stdout)
+    assert payload["schema_version"] == 2, (
+        "JSON envelope must carry schema_version=2 so consumers can detect "
+        "schema evolution"
+    )
     delegated = payload["summary"]["delegated_cwes"]
     assert "CWE-22" in delegated
     entry = delegated["CWE-22"]
@@ -121,6 +134,22 @@ def test_json_summary_has_delegated_cwes_field(clean_python_fixture: Path) -> No
     assert entry["tool"] == "codeql"
     assert entry["query"] == "python-security-extended.qls"
     assert entry["workflow"] == ".github/workflows/codeql-analysis.yml"
+
+
+def test_json_delegated_cwes_present_when_findings_exist(cwe78_fixture: Path) -> None:
+    """`summary.delegated_cwes` must remain in the JSON envelope even when
+    real CWE-78 findings are present. Regression for the case where a
+    refactor of the findings-present codepath could silently drop the field."""
+    result = _scanner(
+        "--format", "json",
+        str(cwe78_fixture.relative_to(REPO_ROOT)),
+    )
+    assert result.returncode == 10, "expected vulnerabilities exit code"
+    payload = json.loads(result.stdout)
+    assert payload["schema_version"] == 2
+    assert "delegated_cwes" in payload["summary"]
+    assert "CWE-22" in payload["summary"]["delegated_cwes"]
+    assert len(payload["vulnerabilities"]) >= 1, "CWE-78 must be detected"
 
 
 def test_directory_outside_cwd_rejected() -> None:
@@ -139,6 +168,50 @@ def test_output_outside_cwd_rejected(clean_python_fixture: Path) -> None:
     )
     assert result.returncode == 1
     assert "Path traversal attempt detected in --output" in result.stderr
+
+
+def test_positional_file_outside_cwd_rejected() -> None:
+    """The `_validate_path` closure also runs on positional file args.
+    Regression for the QA-flagged gap: only `--directory` and `--output`
+    had explicit tests; a positional `../../etc/passwd` would have escaped
+    silently if the closure regressed.
+    """
+    result = _scanner("/etc/passwd")
+    assert result.returncode == 1
+    assert "Path traversal attempt detected in file" in result.stderr
+
+
+def test_cwe_mixed_78_and_22_emits_warning_runs_cwe78(cwe78_fixture: Path) -> None:
+    """`--cwe 78 --cwe 22` (action=append) must run the CWE-78 scan AND emit
+    the CWE-22 delegation warning. The set-difference logic
+    (`set(args.cwe) - {78} - {22}`) yields empty, so no error; the
+    `if 22 in args.cwe` branch fires the warning."""
+    result = _scanner(
+        "--cwe", "78", "--cwe", "22",
+        str(cwe78_fixture.relative_to(REPO_ROOT)),
+    )
+    assert result.returncode == 10, "CWE-78 finding must still be detected"
+    assert "CWE-78" in result.stdout
+    assert result.stderr.startswith("WARNING: --cwe 22"), (
+        "CWE-22 delegation warning must still fire when 22 is in the list"
+    )
+
+
+def test_console_output_includes_cwe22_delegation_when_requested(
+    clean_python_fixture: Path,
+) -> None:
+    """Console output (not just JSON) must surface CWE-22 delegation when
+    `--cwe 22` is requested. JSON callers see `summary.delegated_cwes`;
+    console callers must see an equivalent stdout marker."""
+    result = _scanner(
+        "--cwe", "22",
+        str(clean_python_fixture.relative_to(REPO_ROOT)),
+    )
+    assert result.returncode == 0
+    assert "CWE-22: delegated to CodeQL" in result.stdout, (
+        "console output must mention CWE-22 delegation when --cwe 22 is "
+        "requested; JSON-only signaling is insufficient for console callers"
+    )
 
 
 def test_path_validation_uses_resolve_not_startswith(tmp_path: Path) -> None:
