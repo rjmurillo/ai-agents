@@ -83,7 +83,6 @@ Register the marketplace once:
 
 | Component | Install Command | What You Get |
 |-----------|----------------|--------------|
-| Copilot CLI agents only | `/plugin install copilot-cli-agents@ai-agents` | 24 agent definitions from `src/copilot-cli/` |
 | Copilot full toolkit | `/plugin install project-toolkit@ai-agents` | 24 agents, 28 hooks, 81 skills from `src/copilot-cli/` |
 
 ## Installation Paths
@@ -144,7 +143,6 @@ Use your tool's native uninstall support.
 ### GitHub Copilot CLI
 
 ```text
-/plugin uninstall copilot-cli-agents@ai-agents
 /plugin uninstall project-toolkit@ai-agents
 ```
 

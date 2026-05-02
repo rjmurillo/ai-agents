@@ -171,10 +171,9 @@ The [Fastest Start](#fastest-start) commands install the full toolkit. For compo
 
 | Component | Install Command | What You Get |
 |-----------|----------------|--------------|
-| Copilot CLI agents only | `/plugin install copilot-cli-agents@ai-agents` | 24 agent definitions from `src/copilot-cli/` (no skills or hooks) |
 | Copilot full toolkit | `/plugin install project-toolkit@ai-agents` | 24 agents, 28 hooks, 81 skills from `src/copilot-cli/` (Copilot CLI) |
 
-The agents-only plugins (`claude-agents`, `copilot-cli-agents`) pull from `src/<platform>/` and ship 24 agents each. The full toolkits pull from a different source (`./.claude` for Claude, the same `src/copilot-cli` dir for Copilot) where Claude's roster is 23. The "23 vs 24" gap is real: `src/claude/` and `.claude/agents/` are two different curated sets, kept in sync where they overlap but with each set including agents the other does not. The Fastest Start path uses the full toolkit, so the headline "23 agents" reflects what most users get.
+Claude exposes both an agents-only bundle (`claude-agents`, from `src/claude/`) and the full toolkit (`project-toolkit`, from `./.claude`); the latter ships 23 agents because `src/claude/` and `.claude/agents/` are two different curated sets, kept in sync where they overlap. Copilot CLI installs ship a single `project-toolkit` plugin from `src/copilot-cli/` because that directory's `plugin.json` declares one identity; an agents-only Copilot install would silently register as `project-toolkit` and is therefore not advertised (issue #1840).
 
 ### Verify Installation
 
