@@ -468,6 +468,21 @@ def main():
 
     args = parser.parse_args()
 
+    # Surface a deprecation-style notice when --cwe 22 is requested. The flag is
+    # accepted for backward compatibility with CI invocations but produces no
+    # findings here; CWE-22 detection is delegated to CodeQL. Without this
+    # warning, a caller could mis-read the silent zero-finding result as a
+    # clean bill of health for path traversal.
+    if args.cwe and 22 in args.cwe:
+        print(
+            "WARNING: --cwe 22 selected but CWE-22 detection is delegated to "
+            "CodeQL (see python-security-extended.qls in "
+            ".github/workflows/codeql-analysis.yml). This scanner reports no "
+            "CWE-22 findings; rely on the CodeQL workflow for path-traversal "
+            "coverage.",
+            file=sys.stderr,
+        )
+
     # Validate input paths to prevent path traversal (CWE-22)
     try:
         allowed_base = os.path.abspath(".")

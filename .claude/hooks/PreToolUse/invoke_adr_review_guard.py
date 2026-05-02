@@ -125,6 +125,7 @@ This ensures 6-agent debate before ADR acceptance.
 
 def write_audit_log(message: str) -> None:
     """Write to the hook audit log for infrastructure error visibility."""
+    # audit_log_path is __file__-derived + constant filename; no user input.
     try:
         hook_dir = Path(__file__).resolve().parents[1]
         audit_log_path = hook_dir / "audit.log"
