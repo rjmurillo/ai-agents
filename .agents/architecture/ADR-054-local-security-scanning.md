@@ -7,7 +7,7 @@
 
 ---
 
-## Amendment 2026-05-02 — CWE-22 scope narrowing
+## Amendment 2026-05-02: CWE-22 scope narrowing
 
 The "Catch CWE-22, CWE-78, CWE-079 in 1-5 seconds" goal stated below is narrowed: the internal regex-based `security-scan` skill at `.claude/skills/security-scan/scripts/scan_vulnerabilities.py` no longer detects CWE-22 (path traversal). CWE-22 detection is delegated entirely to CodeQL's `python-security-extended.qls` query suite, which runs on every PR via `.github/workflows/codeql-analysis.yml`.
 

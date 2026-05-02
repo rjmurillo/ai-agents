@@ -15,7 +15,7 @@ Proactive vulnerability detection for command injection (CWE-78) before PR submi
 
 This skill detects **CWE-78 (command injection)** patterns only. The regex patterns target unambiguous shapes (`subprocess.run(..., shell=True)`, `eval(user_input)`, backtick command substitution, etc.) that produce reliable signal without taint analysis.
 
-**CWE-22 (path traversal) is delegated to CodeQL.** The CodeQL workflow at `.github/workflows/codeql-analysis.yml` runs the `python-security-extended.qls` query suite on every PR, which authoritatively detects CWE-22 across Python, PowerShell, and GitHub Actions code via proper dataflow analysis. Per the buy-vs-build framework analysis (issue #1843), maintaining a custom regex-based CWE-22 detector created false positives (PR #1841 added seven `# security-scan: ignore CWE-22` annotations to silence them) without comparable coverage of real CWE-22 vectors that CodeQL catches in CI. Path-traversal checking is Context (table stakes security, not a competitive differentiator); CodeQL is the right tool.
+**CWE-22 (path traversal) is delegated to CodeQL.** The CodeQL workflow runs `python-security-extended.qls` and `actions-security-extended.qls` on every PR, authoritatively detecting CWE-22 across **Python and GitHub Actions** code (the two languages CodeQL supports for this repo per `codeql-config.yml`). PowerShell, Bash, and C# are NOT covered by CodeQL; for those languages, CWE-22 detection relies on code review and any future static analyzer adoption. Per the buy-vs-build framework analysis (issue #1843), maintaining a custom regex-based CWE-22 detector created false positives (PR #1841 added seven suppression annotations to silence them) without comparable coverage of real CWE-22 vectors that CodeQL catches in CI. Path-traversal checking is Context (table stakes security, not a competitive differentiator); CodeQL is the right tool for the languages it supports.
 
 If a CWE-22 finding surfaces in CI from CodeQL, fix the underlying code or open an issue to triage. Do not add a regex-based CWE-22 check to this scanner.
 
@@ -25,7 +25,7 @@ If a CWE-22 finding surfaces in CI from CodeQL, fix the underlying code or open 
 |----------------|-----------|
 | `scan for vulnerabilities` | scan_vulnerabilities.py on staged/specified files (CWE-78 only) |
 | `check for command injection` | scan_vulnerabilities.py with CWE-78 focus |
-| `check for path traversal` | NOT handled by this scanner. CWE-22 detection is delegated to CodeQL — see `.github/workflows/codeql-analysis.yml` (`python-security-extended.qls`). |
+| `check for path traversal` | NOT handled by this scanner. CWE-22 detection is delegated to CodeQL (see the CodeQL Analysis workflow, which runs `python-security-extended.qls`). |
 | `pre-PR security scan` | scan_vulnerabilities.py on staged files |
 | `run security scan` | scan_vulnerabilities.py with full scan |
 
@@ -239,7 +239,7 @@ To suppress false positives, add inline comments with justification:
 # security-scan: ignore CWE-78 - command validated by allow_list at line N
 ```
 
-Suppressions are tracked in scan output for audit purposes. The mechanism only applies to CWE classes this scanner detects (CWE-78). For CWE-22, suppress at the CodeQL level using `lgtm` or `codeql[suppress]` comments — see CodeQL docs.
+Suppressions are tracked in scan output for audit purposes. The mechanism only applies to CWE classes this scanner detects (CWE-78). For CWE-22, suppress at the CodeQL level using `lgtm` or `codeql[suppress]` comments (see CodeQL docs).
 
 ---
 
@@ -270,7 +270,7 @@ After running security scan:
 ## References
 
 - [CWE-78: OS Command Injection](https://cwe.mitre.org/data/definitions/78.html)
-- [CWE-22: Path Traversal](https://cwe.mitre.org/data/definitions/22.html) (delegated to CodeQL — see Scope above)
+- [CWE-22: Path Traversal](https://cwe.mitre.org/data/definitions/22.html) (delegated to CodeQL; see Scope above)
 - [OWASP Command Injection](https://owasp.org/www-community/attacks/Command_Injection)
 - [Path Traversal Research (2025)](https://arxiv.org/abs/2505.20186)
 - Analysis: `.agents/analysis/closed-pr-reviewer-patterns-2026-02-08.md`

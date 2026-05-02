@@ -1,4 +1,4 @@
-# CWE-22 Scope Narrowing — Architect Review and Debate Log
+# CWE-22 Scope Narrowing: Architect Review and Debate Log
 
 **Date**: 2026-05-01
 **Reviewer**: architect agent
@@ -17,7 +17,7 @@ edit to the local-security-scanning ADR.
 
 ## Change Under Review
 
-Insert an "Amendment 2026-05-02 — CWE-22 scope narrowing" block after the
+Insert an "Amendment 2026-05-02: CWE-22 scope narrowing" block after the
 metadata separator in the local-security-scanning ADR, and update the
 Status line from `Accepted` to `Accepted (amended 2026-05-02)`.
 
