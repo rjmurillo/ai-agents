@@ -412,9 +412,15 @@ def format_json_output(result: ScanResult) -> str:
             # Delegated CWE classes — this scanner does not detect them; the named
             # detector does. A `summary.by_cwe.get("CWE-22", 0) == 0` reading from
             # this scanner means "not detected here", NOT "no findings"; use the
-            # delegated detector's report for authoritative coverage.
+            # delegated detector's report for authoritative coverage. Each entry
+            # is self-describing: `tool` names the detector, `query` names the
+            # specific rule pack, `workflow` cites where it runs.
             "delegated_cwes": {
-                "CWE-22": "codeql:python-security-extended.qls",
+                "CWE-22": {
+                    "tool": "codeql",
+                    "query": "python-security-extended.qls",
+                    "workflow": ".github/workflows/codeql-analysis.yml",
+                },
             },
         },
         "exit_code": EXIT_VULNERABILITIES if result.vulnerabilities else EXIT_SUCCESS,
@@ -486,7 +492,9 @@ def main():
             "CodeQL (see python-security-extended.qls in "
             ".github/workflows/codeql-analysis.yml). This scanner reports no "
             "CWE-22 findings; rely on the CodeQL workflow for path-traversal "
-            "coverage.",
+            "coverage. If CodeQL flags a CWE-22 finding on your PR, fix the "
+            "code, or add a `lgtm[py/path-injection]` suppression comment "
+            "with justification per CodeQL docs.",
             file=sys.stderr,
         )
 

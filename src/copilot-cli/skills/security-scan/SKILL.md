@@ -25,6 +25,7 @@ If a CWE-22 finding surfaces in CI from CodeQL, fix the underlying code or open 
 |----------------|-----------|
 | `scan for vulnerabilities` | scan_vulnerabilities.py on staged/specified files (CWE-78 only) |
 | `check for command injection` | scan_vulnerabilities.py with CWE-78 focus |
+| `check for path traversal` | NOT handled by this scanner. CWE-22 detection is delegated to CodeQL — see `.github/workflows/codeql-analysis.yml` (`python-security-extended.qls`). |
 | `pre-PR security scan` | scan_vulnerabilities.py on staged files |
 | `run security scan` | scan_vulnerabilities.py with full scan |
 
