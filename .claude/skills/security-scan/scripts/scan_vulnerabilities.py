@@ -486,48 +486,61 @@ def main():
     # findings here; CWE-22 detection is delegated to CodeQL. Without this
     # warning, a caller could mis-read the silent zero-finding result as a
     # clean bill of health for path traversal.
-    if args.cwe and 22 in args.cwe:
-        print(
-            "WARNING: --cwe 22 selected but CWE-22 detection is delegated to "
-            "CodeQL (see python-security-extended.qls in "
-            ".github/workflows/codeql-analysis.yml). This scanner reports no "
-            "CWE-22 findings; rely on the CodeQL workflow for path-traversal "
-            "coverage. If CodeQL flags a CWE-22 finding on your PR, fix the "
-            "code, or add a `lgtm[py/path-injection]` suppression comment "
-            "with justification per CodeQL docs.",
-            file=sys.stderr,
-        )
+    # Validate --cwe values. The scanner only detects CWE-78; CWE-22 is
+    # accepted for backward compatibility (with a stderr warning) and any
+    # other value is a typo that would otherwise produce a misleading
+    # zero-finding result.
+    _SUPPORTED_CWES = {78}
+    _DELEGATED_CWES = {22}
+    if args.cwe:
+        unsupported = set(args.cwe) - _SUPPORTED_CWES - _DELEGATED_CWES
+        if unsupported:
+            print(
+                f"ERROR: --cwe {sorted(unsupported)} not supported by this "
+                f"scanner. Supported: {sorted(_SUPPORTED_CWES)} "
+                f"(delegated to other tools: {sorted(_DELEGATED_CWES)}).",
+                file=sys.stderr,
+            )
+            sys.exit(EXIT_ERROR)
+        if 22 in args.cwe:
+            print(
+                "WARNING: --cwe 22 selected but CWE-22 detection is delegated to "
+                "CodeQL (see python-security-extended.qls in "
+                ".github/workflows/codeql-analysis.yml). This scanner reports no "
+                "CWE-22 findings; rely on the CodeQL workflow for path-traversal "
+                "coverage. If CodeQL flags a CWE-22 finding on your PR, fix the "
+                "code, or add a `lgtm[py/path-injection]` suppression comment "
+                "with justification per CodeQL docs.",
+                file=sys.stderr,
+            )
 
-    # Validate input paths to prevent path traversal (CWE-22)
+    # Validate input paths to prevent path traversal (CWE-22).
+    #
+    # Use Path.resolve() to follow symlinks AND normalize, then
+    # Path.is_relative_to() for componentwise containment. The earlier
+    # implementation used os.path.abspath + str.startswith, which had two
+    # gaps: (a) abspath does not follow symlinks, so a symlink inside the
+    # cwd could point outside; (b) startswith matches by string prefix, so
+    # `/foo/barevil` would falsely satisfy a check against `/foo/bar`.
+    # is_relative_to is path-component aware and Python 3.10+ stdlib (the
+    # project requires 3.10+ per pyproject.toml).
     try:
-        allowed_base = os.path.abspath(".")
+        allowed_base = Path(".").resolve(strict=False)
 
-        # Validate --directory if provided
+        def _validate_path(raw: str, label: str) -> None:
+            candidate = Path(raw).resolve(strict=False)
+            if not candidate.is_relative_to(allowed_base):
+                raise ValueError(
+                    f"Path traversal attempt detected in {label}: {raw}"
+                )
+
         if args.directory:
-            directory_path = os.path.abspath(args.directory)
-            if not directory_path.startswith(allowed_base):
-                raise ValueError(
-                    f"Path traversal attempt detected in --directory: "
-                    f"{args.directory}"
-                )
-
-        # Validate --output if provided
+            _validate_path(args.directory, "--directory")
         if args.output:
-            output_path = os.path.abspath(args.output)
-            if not output_path.startswith(allowed_base):
-                raise ValueError(
-                    f"Path traversal attempt detected in --output: "
-                    f"{args.output}"
-                )
-
-        # Validate positional files
+            _validate_path(args.output, "--output")
         if args.files:
             for file in args.files:
-                file_path = os.path.abspath(file)
-                if not file_path.startswith(allowed_base):
-                    raise ValueError(
-                        f"Path traversal attempt detected in file: {file}"
-                    )
+                _validate_path(file, "file")
     except ValueError as e:
         print(f"ERROR: {e}", file=sys.stderr)
         sys.exit(EXIT_ERROR)
