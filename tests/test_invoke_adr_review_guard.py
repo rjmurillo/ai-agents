@@ -11,7 +11,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 # Add project root to path for hook imports
-_project_root = Path(__file__).resolve().parents[1]  # security-scan: ignore CWE-22
+_project_root = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(_project_root / ".claude" / "hooks" / "PreToolUse"))
 
 from invoke_adr_review_guard import (  # noqa: E402

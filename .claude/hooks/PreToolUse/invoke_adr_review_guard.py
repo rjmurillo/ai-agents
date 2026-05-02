@@ -36,7 +36,7 @@ _plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
 if _plugin_root:
     _lib_dir = str(Path(_plugin_root).resolve() / "lib")
 else:
-    _cur = Path(__file__).resolve().parent  # security-scan: ignore CWE-22
+    _cur = Path(__file__).resolve().parent
     _lib_dir = None
     while True:
         if (_cur / ".claude-plugin" / "plugin.json").is_file():
@@ -125,15 +125,12 @@ This ensures 6-agent debate before ADR acceptance.
 
 def write_audit_log(message: str) -> None:
     """Write to the hook audit log for infrastructure error visibility."""
-    # Path traversal not applicable: __file__ is a CPython built-in set by the
-    # import machinery to the trusted hook source path; audit_log_path is derived
-    # from __file__ plus a constant filename, with no user input in the dataflow.
     try:
-        hook_dir = Path(__file__).resolve().parents[1]  # security-scan: ignore CWE-22
+        hook_dir = Path(__file__).resolve().parents[1]
         audit_log_path = hook_dir / "audit.log"
         timestamp = datetime.now(tz=UTC).strftime("%Y-%m-%d %H:%M:%S")
         entry = f"[{timestamp}] [ADRReviewGuard] {message}\n"
-        with open(audit_log_path, "a", encoding="utf-8") as f:  # security-scan: ignore CWE-22
+        with open(audit_log_path, "a", encoding="utf-8") as f:
             f.write(entry)
     except OSError:
         print(
