@@ -46,7 +46,7 @@ See `.github/agents/` for the full catalog. Each agent file contains its descrip
 
 ### Known Limitations
 
-User-level (global) agent loading has a known issue. Use repository-level installation through each tool's native support instead:
+User-level (global) agent loading has a known issue. Use the supported native install path for each tool instead:
 
-- Copilot CLI: add the marketplace with `/plugin marketplace add rjmurillo/ai-agents`, then install `project-toolkit@ai-agents`
-- VS Code / Visual Studio: open the repository so `.github/agents/` and `.github/copilot-instructions.md` load automatically
+- Copilot CLI: add the marketplace with `/plugin marketplace add rjmurillo/ai-agents`, then run `/plugin install project-toolkit@ai-agents` (a marketplace install, not a repository-level setup)
+- VS Code / Visual Studio: open the repository so `.github/agents/` and `.github/copilot-instructions.md` load automatically (true repository-level loading)

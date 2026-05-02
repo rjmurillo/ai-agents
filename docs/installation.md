@@ -110,7 +110,7 @@ Requirements:
 
 Claude skills ship as part of `project-toolkit`.
 
-Skills live in `.claude/skills/` in the repository and install into Claude's runtime layout with the rest of the Claude toolkit. The `SKILL.md` file requires YAML frontmatter with `name` and `description` fields.
+Skills live in `.claude/skills/` in the repository and install into Claude's runtime layout with the rest of the Claude toolkit. The `SKILL.md` file requires YAML frontmatter with `name`, `version`, and `description` fields, per `.agents/steering/claude-skills.md`.
 
 Skill directory layout:
 

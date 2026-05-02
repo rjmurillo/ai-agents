@@ -35,6 +35,22 @@ def _load_marketplace(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def _is_valid_claude_marketplace_shape(plugins: list[dict]) -> bool:
+    """Return True iff `plugins` matches the rule the production manifest
+    must satisfy: the set of plugin names equals ``CLAUDE_PLUGIN_NAMES``
+    and contains no name in ``CLAUDE_REJECTED_PLUGIN_NAMES``.
+
+    Shared by the production-marketplace test and the synthetic-regression
+    test so both exercise the same decision: weakening this helper would
+    fail both tests at once.
+    """
+    names = {p["name"] for p in plugins}
+    return (
+        names == CLAUDE_PLUGIN_NAMES
+        and names.isdisjoint(CLAUDE_REJECTED_PLUGIN_NAMES)
+    )
+
+
 class TestMarketplaceShape:
     """Validate each CLI sees only its native marketplace entries."""
 
@@ -59,7 +75,10 @@ class TestMarketplaceShape:
 
     def test_claude_marketplace_contains_only_claude_plugins(self) -> None:
         data = _load_marketplace(CLAUDE_MARKETPLACE)
-        assert {p["name"] for p in data["plugins"]} == CLAUDE_PLUGIN_NAMES
+        assert _is_valid_claude_marketplace_shape(data["plugins"]), (
+            "Production Claude marketplace must satisfy the shape rule "
+            "shared with the synthetic-regression test"
+        )
 
     def test_copilot_marketplace_contains_only_copilot_plugins(self) -> None:
         data = _load_marketplace(COPILOT_MARKETPLACE)
@@ -68,7 +87,7 @@ class TestMarketplaceShape:
     def test_claude_marketplace_excludes_copilot_only_plugins(self) -> None:
         data = _load_marketplace(CLAUDE_MARKETPLACE)
         names = {p["name"] for p in data["plugins"]}
-        assert "copilot-cli-agents" not in names
+        assert names.isdisjoint(CLAUDE_REJECTED_PLUGIN_NAMES)
 
 
 class TestSourceDirsExist:
@@ -153,18 +172,15 @@ class TestClaudeMarketplaceRejectsCopilotAgentBundle:
     """Guard against reintroducing Copilot-only agent bundles into Claude's marketplace."""
 
     def test_synthetic_claude_marketplace_with_copilot_plugin_is_invalid_shape(self) -> None:
-        synthetic = {
-            "plugins": [
-                {"name": "project-toolkit", "source": "./.claude"},
-                {"name": "copilot-cli-agents", "source": "./src/copilot-cli"},
-            ],
-        }
-        names = {p["name"] for p in synthetic["plugins"]}
-        assert names != CLAUDE_PLUGIN_NAMES, (
-            "Fixture with a Copilot-only plugin must not match the allowed "
-            "Claude plugin set"
-        )
-        assert names & CLAUDE_REJECTED_PLUGIN_NAMES, (
-            "Fixture must overlap the Claude-rejected name set so the "
-            "marketplace honesty rule has something to catch"
+        synthetic_plugins = [
+            {"name": "project-toolkit", "source": "./.claude"},
+            {"name": "copilot-cli-agents", "source": "./src/copilot-cli"},
+        ]
+        # Drives the same helper as the production test: if anyone weakens
+        # _is_valid_claude_marketplace_shape so it accepts copilot-cli-agents,
+        # the production test starts failing AND this test stops failing,
+        # so the regression cannot land silently.
+        assert not _is_valid_claude_marketplace_shape(synthetic_plugins), (
+            "Claude marketplace must reject any shape that contains a "
+            "Copilot-only plugin name"
         )

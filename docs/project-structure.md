@@ -39,6 +39,8 @@ ai-agents/
 │
 ├── .github/                  # GitHub automation + Copilot integration
 │   ├── agents/               # Copilot/VS Code agents used by GitHub tooling
+│   ├── plugin/               # Copilot CLI native marketplace manifest
+│   │   └── marketplace.json  # `/plugin marketplace add rjmurillo/ai-agents`
 │   ├── prompts/              # Prompts used by workflows (quality gates, triage)
 │   └── workflows/            # CI workflows (keep logic in scripts, not YAML)
 │

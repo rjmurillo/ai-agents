@@ -147,7 +147,11 @@ def check_global_installation(verbose: bool = False) -> int:
     if not found_any:
         logger.info("")
         logger.info("No global skill installations found.")
-        logger.info("Install with Claude Code's native marketplace flow from docs/installation.md")
+        logger.info(
+            "Install via Claude Code:  "
+            "/plugin marketplace add rjmurillo/ai-agents  "
+            "then  /plugin install project-toolkit@ai-agents"
+        )
         return 0
 
     if all_errors:
