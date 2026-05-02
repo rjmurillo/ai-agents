@@ -409,6 +409,13 @@ def format_json_output(result: ScanResult) -> str:
             "total": len(result.vulnerabilities),
             "by_cwe": {},
             "by_severity": {},
+            # Delegated CWE classes — this scanner does not detect them; the named
+            # detector does. A `summary.by_cwe.get("CWE-22", 0) == 0` reading from
+            # this scanner means "not detected here", NOT "no findings"; use the
+            # delegated detector's report for authoritative coverage.
+            "delegated_cwes": {
+                "CWE-22": "codeql:python-security-extended.qls",
+            },
         },
         "exit_code": EXIT_VULNERABILITIES if result.vulnerabilities else EXIT_SUCCESS,
     }

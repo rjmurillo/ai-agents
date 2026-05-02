@@ -17,7 +17,7 @@ These paths hold threat models, benchmarks, workflows, and hooks that protect th
 
 ## SHOULD
 
-1. **Run security scan locally**. SHOULD run the `security-scan` skill (`.claude/skills/security-scan/scripts/scan_vulnerabilities.py`) before pushing.
+1. **Run security scan locally**. SHOULD run the `security-scan` skill (`.claude/skills/security-scan/scripts/scan_vulnerabilities.py`) before pushing. The internal scanner detects CWE-78 (command injection) only; CWE-22 (path traversal) detection is delegated to CodeQL in CI per ADR-054 amendment 2026-05-02.
 2. **Use the `security-detection` skill**. SHOULD detect security-relevant file changes via the skill and route to the security agent.
 3. **Threat modeling**. SHOULD use the `threat-modeling` skill (OWASP STRIDE) for non-trivial changes.
 
