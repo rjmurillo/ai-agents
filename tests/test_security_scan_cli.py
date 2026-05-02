@@ -39,7 +39,7 @@ def _scanner(*args: str, cwd: Path | None = None) -> subprocess.CompletedProcess
 
 
 @pytest.fixture
-def cwe78_fixture(tmp_path: Path) -> Path:
+def cwe78_fixture() -> Path:
     """Write a Python file with one CWE-78 candidate inside the repo tree
     (the scanner rejects paths outside cwd, which is the repo root)."""
     target = REPO_ROOT / "_test_cwe78_smoke.py"
@@ -128,6 +128,17 @@ def test_directory_outside_cwd_rejected() -> None:
     result = _scanner("--directory", "/tmp")
     assert result.returncode == 1
     assert "Path traversal attempt detected" in result.stderr
+
+
+def test_output_outside_cwd_rejected(clean_python_fixture: Path) -> None:
+    """The same path validation must apply to --output. Regression for the
+    QA gap noted on PR #1851: --output had zero test coverage."""
+    result = _scanner(
+        "--output", "/tmp/scan_out.json",
+        str(clean_python_fixture.relative_to(REPO_ROOT)),
+    )
+    assert result.returncode == 1
+    assert "Path traversal attempt detected in --output" in result.stderr
 
 
 def test_path_validation_uses_resolve_not_startswith(tmp_path: Path) -> None:
