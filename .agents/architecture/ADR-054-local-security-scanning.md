@@ -7,15 +7,23 @@
 
 ---
 
-## Amendment 2026-05-02: CWE-22 scope narrowing
+## Amendment 2026-05-02: CWE-22 scope narrowing for the `security-scan` skill
 
-The "Catch CWE-22, CWE-78, CWE-079 in 1-5 seconds" goal stated below is narrowed: the internal regex-based `security-scan` skill at `.claude/skills/security-scan/scripts/scan_vulnerabilities.py` no longer detects CWE-22 (path traversal). CWE-22 detection is delegated entirely to CodeQL's `python-security-extended.qls` query suite, which runs on every PR via `.github/workflows/codeql-analysis.yml`.
+Scope of this amendment: the internal `security-scan` skill at `.claude/skills/security-scan/scripts/scan_vulnerabilities.py`. This is a SEPARATE tool from the semgrep pre-push hook described in the Decision and Implementation sections below. The skill is a regex-based scanner invoked manually or by Claude during code review; the semgrep hook runs in `.githooks/pre-push`. Both fall under the broader "local security scanning" umbrella.
 
-Rationale: PR #1841 demonstrated that the regex CWE-22 patterns generated false positives on safe `Path(__file__)` derivations (seven inline suppression annotations were added across three files to silence them). A buy-vs-build analysis (issue #1843) confirmed CodeQL's taint-tracking dataflow is a strict superset of what the regex caught for CWE-22, and the regex's substring-on-variable-name heuristic missed real attacker-controlled paths anyway. Path-traversal detection is Context (table stakes), not a competitive differentiator; CodeQL is the right tool. The internal scanner remains in scope for CWE-78 (command injection), where the regex shapes (`subprocess shell=True`, `eval(user_input)`, etc.) are unambiguous and produce reliable signal.
+Change: the skill no longer detects CWE-22 (path traversal). CWE-22 detection is delegated to CodeQL's `python-security-extended.qls` query suite, which runs on every PR via `.github/workflows/codeql-analysis.yml`. The skill remains in scope for CWE-78 (command injection).
 
-This amendment does not change ADR-054's core decision (run lightweight security scanning before push). It narrows the scanner's CWE coverage. The 1-5 second pre-push goal applies to CWE-78 and CWE-079; CWE-22 moves to the ~60s CI tier.
+Rationale: PR #1841 demonstrated that the regex CWE-22 patterns generated false positives on safe `Path(__file__)` derivations (seven inline suppression annotations were added across three files to silence them). A buy-vs-build analysis (issue #1843) confirmed CodeQL's taint-tracking dataflow is a strict superset of what the regex caught for CWE-22, and the regex's substring-on-variable-name heuristic missed real attacker-controlled paths anyway. Path-traversal detection is Context (table stakes), not a competitive differentiator; CodeQL is the right tool.
 
-Refs: issue #1843, PR #1841, branch `agent/issue-1843`.
+What this amendment does NOT change:
+
+- The semgrep pre-push hook (`scripts/security/run_semgrep.py`) is untouched. Whatever CWE-22 patterns its `--config auto` ruleset matches continue to fire.
+- ADR-054's core decision (run lightweight security scanning before push) is intact.
+- The pre-push performance budget (1-5 seconds for the semgrep hook) is unchanged.
+
+Authoritative scope statement for the skill: see `.claude/skills/security-scan/SKILL.md` `## Scope`.
+
+Refs: issue #1843, PR #1841, PR #1851, branch `agent/issue-1843`.
 
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: security-scan
-description: Scan code content for CWE-78 (command injection) vulnerabilities before PR submission. Lightweight pattern-based detection for Python, PowerShell, Bash, and C# files. CWE-22 (path traversal) detection is delegated to CodeQL in CI; see Scope below. Use when preparing code for review or as a pre-commit gate.
+description: Detect CWE-78 (command injection) regex patterns in Python, PowerShell, Bash, and C# files before PR submission. CWE-22 is delegated to CodeQL; see Scope.
 license: MIT
 metadata:
   version: 2.0.0
