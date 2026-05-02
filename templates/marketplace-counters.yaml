@@ -21,10 +21,6 @@ plugins:
       strategy: "md_agents"
       sourceDir: "src/claude"
       exclude: ["AGENTS.md"]
-  copilot-cli-agents:
-    agent:
-      strategy: "agent_md"
-      sourceDir: "src/copilot-cli"
   project-toolkit:
     marketplaces:
       .claude-plugin/marketplace.json:

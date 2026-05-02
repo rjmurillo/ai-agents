@@ -19,7 +19,15 @@ CLAUDE_MARKETPLACE = REPO_ROOT / ".claude-plugin" / "marketplace.json"
 COPILOT_MARKETPLACE = REPO_ROOT / ".github" / "plugin" / "marketplace.json"
 
 CLAUDE_PLUGIN_NAMES = {"claude-agents", "project-toolkit"}
-COPILOT_PLUGIN_NAMES = {"copilot-cli-agents", "project-toolkit"}
+COPILOT_PLUGIN_NAMES = {"project-toolkit"}
+
+# Names that previously appeared in Claude's marketplace but advertised
+# Copilot-only bundles. Kept as an explicit denylist so the marketplace-
+# honesty rule (issue #1840) has a named target the test can guard against
+# regression even after both names were dropped from every shipped manifest.
+CLAUDE_REJECTED_PLUGIN_NAMES = frozenset(
+    {"copilot-cli-agents", "copilot-cli-toolkit"}
+)
 
 
 def _load_marketplace(path: Path) -> dict:
@@ -152,4 +160,11 @@ class TestClaudeMarketplaceRejectsCopilotAgentBundle:
             ],
         }
         names = {p["name"] for p in synthetic["plugins"]}
-        assert "copilot-cli-agents" in names
+        assert names != CLAUDE_PLUGIN_NAMES, (
+            "Fixture with a Copilot-only plugin must not match the allowed "
+            "Claude plugin set"
+        )
+        assert names & CLAUDE_REJECTED_PLUGIN_NAMES, (
+            "Fixture must overlap the Claude-rejected name set so the "
+            "marketplace honesty rule has something to catch"
+        )
