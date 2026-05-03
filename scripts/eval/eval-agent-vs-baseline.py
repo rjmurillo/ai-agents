@@ -165,8 +165,16 @@ class FixtureValidator:
         if not paths:
             raise FixtureValidationError("no fixtures supplied")
         fixtures: list[Fixture] = []
+        seen_ids: dict[str, Path] = {}
         for path in paths:
-            fixtures.append(FixtureValidator._validate_one(path))
+            fixture = FixtureValidator._validate_one(path)
+            if fixture.id in seen_ids:
+                raise FixtureValidationError(
+                    f"duplicate fixture id {fixture.id!r}: "
+                    f"first in {seen_ids[fixture.id].name}, again in {path.name}"
+                )
+            seen_ids[fixture.id] = path
+            fixtures.append(fixture)
         return fixtures
 
     @staticmethod
@@ -749,6 +757,18 @@ def _generate_report(
                         "more than 30% of fixtures flaky; methodology unstable"
                     ),
                     "flaky_fixtures": aggregate.flaky_fixtures_detected,
+                    "informational_metrics": {
+                        "agent_recall": aggregate.agent_recall,
+                        "baseline_recall": aggregate.baseline_recall,
+                        "recall_delta": aggregate.recall_delta,
+                        "bootstrap_ci_95": list(aggregate.bootstrap_ci_95),
+                        "recall_with_errors": aggregate.recall_with_errors,
+                        "recall_excluding_errors": aggregate.recall_excluding_errors,
+                        "total_tokens_in": aggregate.total_tokens_in,
+                        "total_tokens_out": aggregate.total_tokens_out,
+                        "cost_estimate_usd": aggregate.cost_estimate_usd,
+                        "error_count": aggregate.error_count,
+                    },
                 }
             ),
             file=sys.stderr,
