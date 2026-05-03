@@ -28,12 +28,22 @@ from _eval_common import (
     MODEL_PRICING_RATES_USD_PER_1K_TOKENS,
     PRICING_RATE_AS_OF,
 )
+from _plan_runner import UnsupportedModelError
 
 BOOTSTRAP_ITERATIONS = 10000
 CI_LOWER_PERCENTILE = 2.5
 CI_UPPER_PERCENTILE = 97.5
 FLAKY_FIXTURE_HALT_FRACTION = 0.30
 CONTINGENCY_PERSISTENT_THRESHOLD = 2  # >=2 of 5 reps → flaky=true
+
+
+class EmptyRunError(Exception):
+    """Raised when `aggregate()` is called with zero records.
+
+    A run that wrote no records cannot produce a meaningful report; the
+    runner should exit `EXIT_LOGIC` rather than ship a success-shaped
+    report full of zeros.
+    """
 
 
 @dataclass(frozen=True)
@@ -47,7 +57,13 @@ class _AssertionTally:
 
 @dataclass
 class AggregateResult:
-    """Output of ReportAggregator. Consumed by ReportWriter."""
+    """Output of ReportAggregator. Consumed by ReportWriter.
+
+    `tokens_estimated` is True when any record contributed to the totals
+    used a token-length heuristic instead of measured `usage` values.
+    Downstream report rendering surfaces this caveat next to the cost
+    estimate.
+    """
 
     agent_recall: float
     baseline_recall: float
@@ -64,6 +80,7 @@ class AggregateResult:
     pricing_rate_as_of: str
     error_count: int
     halt_due_to_flakiness: bool
+    tokens_estimated: bool = True
 
 
 def _records_by_fixture_variant(
@@ -122,22 +139,45 @@ def _per_fixture_pass_rates(
 def _detect_flaky_fixtures(
     per_fixture: dict[str, dict[str, list[float]]],
 ) -> list[str]:
-    """Fixtures with non-zero pass-rate variance across runs (any variant).
+    """Fixtures whose pass-rate disagreement exceeds the AC-10 threshold.
 
-    Per REQ-004 AC-10: non-zero variance on any variant marks the fixture
-    flaky. The contingency protocol decides whether to actually exclude it.
+    Default n_runs=3 protocol: any non-zero variance marks the fixture
+    flaky. That is the smallest reliable signal for three runs.
+
+    Contingency-rerun protocol (n_runs=5): a fixture is flaky only when
+    `CONTINGENCY_PERSISTENT_THRESHOLD` (2) or more runs disagree with the
+    majority. A 1-of-5 failure is a transient blip and is NOT flaky.
+
+    Mixed n_runs across variants: the strictest applicable rule wins per
+    variant. Variants with five or more runs use the contingency rule;
+    others use the variance rule.
     """
     flaky: list[str] = []
     for fixture_id, variants in per_fixture.items():
         for runs in variants.values():
             if not runs:
                 continue
-            mean = sum(runs) / len(runs)
-            variance = sum((r - mean) ** 2 for r in runs) / len(runs)
-            if variance > 0:
+            if _variant_is_flaky(runs):
                 flaky.append(fixture_id)
                 break
     return sorted(flaky)
+
+
+def _variant_is_flaky(runs: list[float]) -> bool:
+    """Apply the appropriate flakiness rule for the given run series."""
+    if len(runs) >= 5:
+        # Pass-rate values are in [0, 1]; the "majority" is the value
+        # carried by ≥3 of 5 runs. The minority count is the disagreement.
+        rounded = [round(r, 6) for r in runs]
+        counts: dict[float, int] = {}
+        for value in rounded:
+            counts[value] = counts.get(value, 0) + 1
+        majority_count = max(counts.values())
+        minority = len(rounded) - majority_count
+        return minority >= CONTINGENCY_PERSISTENT_THRESHOLD
+    mean = sum(runs) / len(runs)
+    variance = sum((r - mean) ** 2 for r in runs) / len(runs)
+    return variance > 0
 
 
 def _recall_from_grouped(
@@ -217,9 +257,19 @@ def _paired_bootstrap_ci(
 def _cost_estimate(
     model_id: str, total_tokens_in: int, total_tokens_out: int
 ) -> float:
+    """Return USD cost for the given token totals. Raises on unpriced models.
+
+    Returning 0.0 for an unpriced model would render a "free run" report
+    that hides the missing price. The runner translates the raised
+    `UnsupportedModelError` into exit code 2 (config) so operators can
+    add the rate to `_eval_common.MODEL_PRICING_RATES_USD_PER_1K_TOKENS`.
+    """
     rates = MODEL_PRICING_RATES_USD_PER_1K_TOKENS.get(model_id)
     if rates is None:
-        return 0.0
+        raise UnsupportedModelError(
+            f"No pricing rate for model_id={model_id!r}. "
+            f"Add it to MODEL_PRICING_RATES_USD_PER_1K_TOKENS in _eval_common.py."
+        )
     return (
         total_tokens_in * rates["input"] + total_tokens_out * rates["output"]
     ) / 1000.0
@@ -243,7 +293,11 @@ class ReportAggregator:
 
     def aggregate(self) -> AggregateResult:
         if not self._records:
-            return _empty_result(self._model_id)
+            raise EmptyRunError(
+                "no records to aggregate; aggregate() requires at least one "
+                "RunRecord. Common cause: every triple was skipped on resume "
+                "with no new work performed."
+            )
         grouped = _records_by_fixture_variant(self._records)
         per_fixture = _per_fixture_pass_rates(grouped)
         flaky_ids = _detect_flaky_fixtures(per_fixture)
@@ -286,6 +340,11 @@ class ReportAggregator:
         total_tokens_out = sum(r.tokens_out for r in self._records)
         cost = _cost_estimate(self._model_id, total_tokens_in, total_tokens_out)
         error_count = sum(1 for r in self._records if r.outcome == "error")
+        # Cost is only authoritative when every contributing record carries
+        # measured token usage. Any estimated record taints the total.
+        tokens_estimated = any(
+            getattr(r, "tokens_estimated", True) for r in self._records
+        )
 
         return AggregateResult(
             agent_recall=agent_recall,
@@ -303,24 +362,7 @@ class ReportAggregator:
             pricing_rate_as_of=PRICING_RATE_AS_OF,
             error_count=error_count,
             halt_due_to_flakiness=halt,
+            tokens_estimated=tokens_estimated,
         )
 
 
-def _empty_result(model_id: str) -> AggregateResult:
-    return AggregateResult(
-        agent_recall=0.0,
-        baseline_recall=0.0,
-        recall_delta=0.0,
-        bootstrap_ci_95=(0.0, 0.0),
-        recall_with_errors=0.0,
-        recall_excluding_errors=0.0,
-        per_fixture_pass_rates={},
-        flakiness=False,
-        flaky_fixtures_excluded=[],
-        total_tokens_in=0,
-        total_tokens_out=0,
-        cost_estimate_usd=0.0,
-        pricing_rate_as_of=PRICING_RATE_AS_OF,
-        error_count=0,
-        halt_due_to_flakiness=False,
-    )

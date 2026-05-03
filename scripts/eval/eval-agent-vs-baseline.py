@@ -43,9 +43,13 @@ from _eval_agent_types import (
 )
 from _eval_api_adapter import AnthropicAPIAdapter, APICallResult
 from _plan_runner import PlanRunner, UnsupportedModelError
-from _report_aggregator import ReportAggregator
+from _report_aggregator import EmptyRunError, ReportAggregator
 from _report_writer import ReportWriter
-from _run_persistence import DuplicateRunError, RunPersistence
+from _run_persistence import (
+    DuplicateRunError,
+    RunDirectoryNotFreshError,
+    RunPersistence,
+)
 from _scoring_engine import build_default_engine
 
 EXIT_OK = 0
@@ -399,6 +403,7 @@ def _execute_one(
         tokens_out=api_result.tokens_out,
         error_category=api_result.error_category,
         attempts=api_result.attempts,
+        tokens_estimated=getattr(api_result, "tokens_estimated", True),
     )
 
 
@@ -445,6 +450,10 @@ def _run_live(
 
     try:
         persistence = RunPersistence(run_dir, resume=bool(args.resume))
+    except RunDirectoryNotFreshError as exc:
+        # Fresh-run mode is forbidden against a populated runs.jsonl.
+        print(f"error: {exc}", file=sys.stderr)
+        return EXIT_LOGIC
     except DuplicateRunError as exc:
         # Bad existing JSONL detected at startup.
         print(f"error: {exc}", file=sys.stderr)
@@ -458,15 +467,32 @@ def _run_live(
     wall_start = _time.monotonic()
     error_count = 0
     total_records = 0
+    resume_skips_count = 0
 
     for fixture in plan.fixtures:
         fixture_path = fixture_path_by_id[fixture.id]
         for variant in plan.variants:
             for run_index in range(plan.n_runs):
-                if persistence.is_completed(fixture.id, variant, run_index):
-                    # Already-complete triples in resume mode are skipped silently
-                    # (REQ-004 AC-9 resume contract). Counted as one record for
-                    # error-rate accounting since the prior run already scored it.
+                # Pre-call skip is only valid under --resume. In fresh-run
+                # mode, RunDirectoryNotFreshError already prevented us from
+                # opening a populated dir, so `is_completed` cannot be True.
+                # Guarding here keeps the contract explicit.
+                if args.resume and persistence.is_completed(
+                    fixture.id, variant, run_index
+                ):
+                    print(
+                        json.dumps(
+                            {
+                                "level": "info",
+                                "event": "resume_skip",
+                                "fixture_id": fixture.id,
+                                "variant": variant,
+                                "run_index": run_index,
+                            }
+                        ),
+                        file=sys.stderr,
+                    )
+                    resume_skips_count += 1
                     total_records += 1
                     continue
                 record = _execute_one(
@@ -488,6 +514,18 @@ def _run_live(
                 if record.outcome == "error":
                     error_count += 1
                 total_records += 1
+
+    if resume_skips_count > 0:
+        print(
+            json.dumps(
+                {
+                    "level": "info",
+                    "event": "resume_skip_summary",
+                    "resume_skips_count": resume_skips_count,
+                }
+            ),
+            file=sys.stderr,
+        )
 
     wall_clock_seconds = _time.monotonic() - wall_start
 
@@ -535,7 +573,34 @@ def _generate_report(
 ) -> int:
     """Aggregate records and write report. Halts on >30% flakiness."""
     aggregator = ReportAggregator(records, model_id=model_id)
-    aggregate = aggregator.aggregate()
+    try:
+        aggregate = aggregator.aggregate()
+    except EmptyRunError as exc:
+        print(
+            json.dumps(
+                {
+                    "level": "error",
+                    "event": "empty_run",
+                    "message": str(exc),
+                    "run_id": run_id,
+                }
+            ),
+            file=sys.stderr,
+        )
+        return EXIT_LOGIC
+    except UnsupportedModelError as exc:
+        print(
+            json.dumps(
+                {
+                    "level": "error",
+                    "event": "unsupported_model",
+                    "message": str(exc),
+                    "model_id": model_id,
+                }
+            ),
+            file=sys.stderr,
+        )
+        return EXIT_CONFIG
 
     if aggregate.halt_due_to_flakiness:
         print(
