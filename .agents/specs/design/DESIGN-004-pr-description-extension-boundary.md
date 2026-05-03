@@ -24,13 +24,13 @@ shorter known extension. The remainder of the input (`l`, `x`, `c`,
 
 ## Decision
 
-Add a single negative lookahead `_EXT_BOUNDARY = r"(?![A-Za-z0-9])"`
+Add a single negative lookahead `_EXT_BOUNDARY = r"(?![A-Za-z0-9_/\\])"`
 immediately after the captured extension in every pattern. This rejects
 any continuation character that would extend a real filename into a
-longer extension or word boundary token.
+longer extension, identifier, or path component.
 
 ```python
-_EXT_BOUNDARY = r"(?![A-Za-z0-9])"
+_EXT_BOUNDARY = r"(?![A-Za-z0-9_/\\])"
 
 FILE_MENTION_PATTERNS: list[re.Pattern[str]] = [
     re.compile(rf"`([^`]+\.({_EXT_GROUP})){_EXT_BOUNDARY}`"),
@@ -42,6 +42,22 @@ FILE_MENTION_PATTERNS: list[re.Pattern[str]] = [
     re.compile(rf"\[([^\]]+\.({_EXT_GROUP})){_EXT_BOUNDARY}\]"),
 ]
 ```
+
+The boundary set is built bottom-up from the false-positive shapes the
+patterns are known to misread:
+
+| Continuation | False positive | Source |
+|---|---|---|
+| `[A-Za-z]` | `runs.jsonl` -> `runs.json` | issue #1874 |
+| `[0-9]` | `app.json2` -> `app.json` | issue #1874 |
+| `_` | `foo.json_schema` -> `foo.json` | PR #1882 review (Copilot) |
+| `/` | `path/to/file.py/extra` -> `path/to/file.py` | PR #1882 review (gemini-code-assist) |
+| `\` | `src\foo.py\bar` -> `src/foo.py` | Cross-platform path-separator parity with `/` |
+
+`.` (period) is intentionally NOT in the set so sentence-ending periods
+(`Updated foo.json. Some comment.`) still match. The remaining
+double-extension gap (`runs.json.bak` -> `runs.json`) is tracked
+separately as #1881.
 
 ## Why this design
 

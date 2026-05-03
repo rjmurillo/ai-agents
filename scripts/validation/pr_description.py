@@ -47,12 +47,19 @@ _EXT_GROUP = r"ps1|md|yml|yaml|json|cs|ts|js|py|sh|bash"
 
 # Negative lookahead anchoring the extension to a token boundary. Rejects
 # any continuation character that would extend a real filename into a
-# longer extension or word (issue #1874). Without this, the body group
-# in `FILE_MENTION_PATTERNS` greedy-backtracks across longer real
-# extensions and produces a known shorter extension as a false positive
-# (`runs.jsonl` -> `runs.json`, `app.tsx` -> `app.ts`,
-# `module.pyc` -> `module.py`, `script.bashrc` -> `script.bash`).
-_EXT_BOUNDARY = r"(?![A-Za-z0-9])"
+# longer extension, identifier, or path component (issue #1874). Without
+# this, the body group in `FILE_MENTION_PATTERNS` greedy-backtracks across
+# longer real tokens and produces a known shorter extension as a false
+# positive. The set covers:
+#   - alphanumerics: `runs.jsonl` -> `runs.json`, `app.tsx` -> `app.ts`,
+#     `module.pyc` -> `module.py`, `script.bashrc` -> `script.bash`
+#   - underscore: `foo.json_schema` -> `foo.json`
+#   - path separators (`/`, `\`): `path/to/file.py/extra` -> `path/to/file.py`
+# Period (`.`) is intentionally NOT included so sentence-ending periods
+# (`Updated foo.json. Some comment.`) still match. The remaining
+# double-extension gap (`runs.json.bak` -> `runs.json`) is tracked
+# separately as #1881.
+_EXT_BOUNDARY = r"(?![A-Za-z0-9_/\\])"
 
 # Default label name that bypasses CRITICAL description-validation failures.
 # Mirrors the existing 'commit-limit-bypass' pattern in pr-validation.yml.

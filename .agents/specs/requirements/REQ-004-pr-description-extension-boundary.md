@@ -48,7 +48,7 @@ Each criterion is independently testable as pass/fail by calling
 `extract_mentioned_files(description)` from
 `scripts.validation.pr_description`.
 
-1. **AC-1 (jsonl)**: WHEN description contains `` `- `runs.jsonl` — 60 records` ``
+1. **AC-1 (jsonl)**: WHEN description contains `` `- `runs.jsonl` (60 records)` ``
    THE extractor SHALL NOT return `runs.json`.
 2. **AC-2 (tsx)**: WHEN description contains `` `app.tsx` ``
    THE extractor SHALL NOT return `app.ts`.
@@ -73,6 +73,21 @@ Each criterion is independently testable as pass/fail by calling
    markdown-link forms
    THE extractor SHALL apply the boundary rule uniformly across all four
    patterns.
+10. **AC-10 (underscore continuation)**: WHEN description contains
+    `` `foo.json_schema` ``
+    THE extractor SHALL NOT return `foo.json`. Added during PR #1882
+    review to guard against identifier-shaped continuations such as
+    `_schema`, `_old`, `_v2`.
+11. **AC-11 (path-separator continuation)**: WHEN description contains
+    a list item `- path/to/file.py/extra`
+    THE extractor SHALL NOT return `path/to/file.py`. Added during PR
+    #1882 review to guard against partial path matches when the
+    extension is followed by an additional path component.
+12. **AC-12 (path-separator regression)**: WHEN description contains a
+    list item `- packages/orders/processor.py`
+    THE extractor SHALL return `packages/orders/processor.py`. Locks
+    down that the boundary widening does not regress real multi-segment
+    paths.
 
 ## Out of scope
 

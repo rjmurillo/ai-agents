@@ -639,6 +639,43 @@ class TestExtensionBoundary:
         assert "runs.jsonl" not in result
         assert "runs.json" not in result
 
+    # Boundary widening: underscore continuation (PR #1882 review feedback).
+    def test_underscore_continuation_does_not_extract(self) -> None:
+        """`foo.json_schema` is an identifier, not a `.json` file. The
+        boundary must reject `_` as a continuation character."""
+        desc = "Updated `foo.json_schema` constant."
+        result = extract_mentioned_files(desc)
+        assert "foo.json" not in result
+
+    def test_underscore_continuation_in_list_item(self) -> None:
+        desc = "- foo.py_old"
+        result = extract_mentioned_files(desc)
+        assert "foo.py" not in result
+
+    # Boundary widening: path-separator continuation (PR #1882 review
+    # feedback).
+    def test_forward_slash_continuation_does_not_extract(self) -> None:
+        """`- path/to/file.py/extra` should not extract `path/to/file.py`
+        because the slash signals the file has more path components."""
+        desc = "- path/to/file.py/extra"
+        result = extract_mentioned_files(desc)
+        assert "path/to/file.py" not in result
+
+    def test_backslash_continuation_does_not_extract(self) -> None:
+        """Windows-style path separator after the extension is also a
+        continuation."""
+        desc = "- src\\foo.py\\bar"
+        result = extract_mentioned_files(desc)
+        # neither the truncated nor the path-prefix-only form
+        assert "src/foo.py" not in result
+        assert "src\\foo.py" not in result
+
+    # Regression: real path with separator inside body still extracts.
+    def test_path_with_separators_still_extracts(self) -> None:
+        desc = "- packages/orders/processor.py"
+        result = extract_mentioned_files(desc)
+        assert "packages/orders/processor.py" in result
+
 
 # ---------------------------------------------------------------------------
 # _strip_informational_sections
