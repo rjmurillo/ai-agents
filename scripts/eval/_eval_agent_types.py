@@ -142,6 +142,7 @@ class Report:
     cost_estimate_usd: float
     error_count: int
     pricing_rate_as_of: str
+    flaky_fixtures_detected: list[str] = field(default_factory=list)
     flaky_fixtures_excluded: list[str] = field(default_factory=list)
     recommendation: RecommendationLiteral | None = None
     recommendation_default: str | None = None

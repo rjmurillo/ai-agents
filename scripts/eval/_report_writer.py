@@ -74,6 +74,7 @@ def _build_report_json(
         "recall_excluding_errors": round(aggregate.recall_excluding_errors, 6),
         "per_fixture_pass_rates": aggregate.per_fixture_pass_rates,
         "flakiness": aggregate.flakiness,
+        "flaky_fixtures_detected": aggregate.flaky_fixtures_detected,
         "flaky_fixtures_excluded": aggregate.flaky_fixtures_excluded,
         "total_tokens_in": aggregate.total_tokens_in,
         "total_tokens_out": aggregate.total_tokens_out,

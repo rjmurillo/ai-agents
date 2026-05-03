@@ -46,15 +46,6 @@ class EmptyRunError(Exception):
     """
 
 
-@dataclass(frozen=True)
-class _AssertionTally:
-    """Aggregated counts for one (fixture, variant) tuple across N runs."""
-
-    passed: int
-    total: int
-    error_runs: int
-
-
 @dataclass
 class AggregateResult:
     """Output of ReportAggregator. Consumed by ReportWriter.
@@ -73,6 +64,7 @@ class AggregateResult:
     recall_excluding_errors: float
     per_fixture_pass_rates: dict[str, dict[str, list[float]]]
     flakiness: bool
+    flaky_fixtures_detected: list[str]
     flaky_fixtures_excluded: list[str]
     total_tokens_in: int
     total_tokens_out: int
@@ -90,27 +82,6 @@ def _records_by_fixture_variant(
     for record in records:
         grouped.setdefault((record.fixture_id, record.variant), []).append(record)
     return grouped
-
-
-def _tally_assertions(records: list[RunRecord]) -> _AssertionTally:
-    """Sum passed and total assertion counts across all runs.
-
-    A run with `outcome=error` contributes its full assertion count to the
-    denominator and zero to the numerator. The flag `error_runs` lets the
-    aggregator subtract the failed runs from the denominator when
-    computing `recall_excluding_errors`.
-    """
-    passed = 0
-    total = 0
-    error_runs = 0
-    for record in records:
-        for assertion in record.assertions:
-            total += 1
-            if record.outcome == "success" and assertion.passed:
-                passed += 1
-        if record.outcome == "error":
-            error_runs += 1
-    return _AssertionTally(passed=passed, total=total, error_runs=error_runs)
 
 
 def _per_run_pass_rate(record: RunRecord) -> float:
@@ -355,6 +326,7 @@ class ReportAggregator:
             recall_excluding_errors=recall_excluding_errors,
             per_fixture_pass_rates=per_fixture,
             flakiness=bool(flaky_ids),
+            flaky_fixtures_detected=list(flaky_ids),
             flaky_fixtures_excluded=excluded,
             total_tokens_in=total_tokens_in,
             total_tokens_out=total_tokens_out,

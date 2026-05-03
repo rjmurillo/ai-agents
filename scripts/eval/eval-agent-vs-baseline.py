@@ -610,7 +610,7 @@ def _generate_report(
                     "message": (
                         "more than 30% of fixtures flaky; methodology unstable"
                     ),
-                    "flaky_fixtures": aggregate.flaky_fixtures_excluded,
+                    "flaky_fixtures": aggregate.flaky_fixtures_detected,
                 }
             ),
             file=sys.stderr,
