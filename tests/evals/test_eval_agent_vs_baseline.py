@@ -153,6 +153,27 @@ class TestScoringEngineVerdict:
         assert result.passed is False
         assert result.extracted is None
 
+    def test_verdict_match_markdown_bold(self):
+        """Verdicts wrapped in markdown bold (**OK**) should be extracted."""
+        engine = build_default_engine()
+        for expected, response in [
+            ("OK", "**OK**\n\nThe code is safe."),
+            ("ESCALATE", "**ESCALATE**\n\nThis needs review."),
+            ("IDENTIFY", "**IDENTIFY**\n\nFound CWE-22."),
+        ]:
+            a = Assertion(kind=AssertionKind.VERDICT, expected_value=expected)
+            result = engine.score(a, response)
+            assert result.passed is True, f"Expected {expected} to pass"
+            assert result.extracted == expected
+
+    def test_verdict_match_markdown_italic(self):
+        """Verdicts wrapped in markdown italic (*OK*) should be extracted."""
+        a = Assertion(kind=AssertionKind.VERDICT, expected_value="OK")
+        engine = build_default_engine()
+        result = engine.score(a, "*OK*\n\nNo issues found.")
+        assert result.passed is True
+        assert result.extracted == "OK"
+
 
 class TestScoringEngineDispatch:
     def test_unknown_kind_raises(self):

@@ -14,7 +14,7 @@ from _eval_agent_types import Assertion, AssertionKind, AssertionResult
 
 Scorer = Callable[[Assertion, str], AssertionResult]
 
-_VERDICT_RE = re.compile(r"^\s*(IDENTIFY|OK|ESCALATE)\b", re.IGNORECASE)
+_VERDICT_RE = re.compile(r"^\s*\*{0,2}(IDENTIFY|OK|ESCALATE)\*{0,2}\b", re.IGNORECASE)
 
 
 def regex_scorer(assertion: Assertion, response: str) -> AssertionResult:
