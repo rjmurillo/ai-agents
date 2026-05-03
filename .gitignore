@@ -41,6 +41,15 @@ ENV/
 .agents/logs/
 .agents/.hook-state/
 
+# Transient PR review reply drafts. The pr-comment-responder skill
+# stages reply bodies as files for `--body-file` posting; once the
+# reply is on the PR thread the local copy has no enduring value.
+# Reply drafts must not accumulate as untracked workspace clutter.
+.agents/audit/pr-*-replies/
+.agents/audit/pr*-reply-*.md
+.agents/audit/pr*-reply.md
+.agents/audit/pr*-body-*.md
+
 # Hook runtime logs and caches
 .claude/hooks/audit.log
 .claude/hooks/Stop/.skill_pattern_cache.json

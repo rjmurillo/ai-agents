@@ -29,7 +29,7 @@ Read first, reason second. Pre-training as last resort.
 **Always**: Python for new scripts (ADR-042)|Verify branch|Update Serena|Check skills|Assign issues|Use PR template|Atomic commits (≤5 files)|Scoped lint|Pin Actions to SHA|Run `gh act` locally
 **Ask First**: Architecture changes|New ADRs|Breaking changes|Security-sensitive
 **Autonomy Guardrail**: Internal+reversible (read,edit,memory): act|External/Irreversible: confirm|Ambiguous: act minimal, flag rest
-**Never**: Commit secrets|Update HANDOFF.md|Use bash|Skip validation|Logic in YAML (ADR-006)|Raw gh when skills exist|Force push|Skip hooks|Internal refs in src/
+**Never**: Commit secrets|Update HANDOFF.md|Use bash|Skip validation|Logic in YAML (ADR-006)|Raw gh when skills exist|Force push|Skip hooks|Internal refs in src/|Stage scratch artifacts in working tree (use `$TMPDIR` / `mktemp`; reply drafts, intermediate bodies, agent rough notes have no enduring value once posted)
 
 ## Context Type Decision
 

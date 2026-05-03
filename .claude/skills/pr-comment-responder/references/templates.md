@@ -30,8 +30,18 @@ SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 # In-thread reply (CORRECT)
 python3 "$SCRIPTS_DIR/pr/post_pr_comment_reply.py" --pull-request [number] --comment-id [id] --body "[response]"
 
-# For multi-line responses
-python3 "$SCRIPTS_DIR/pr/post_pr_comment_reply.py" --pull-request [number] --comment-id [id] --body-file reply.md
+# For multi-line responses, stage the body in a TEMP file ($TMPDIR or /tmp).
+# Do NOT write reply drafts under .agents/, the repo working tree, or any
+# path that survives the session. Reply drafts have no enduring value once
+# posted; staging them under .agents/audit/pr-*-replies/ creates untracked
+# workspace clutter that future agents cannot tell apart from artifacts the
+# PR intentionally archived. .gitignore enforces this.
+REPLY_FILE="$(mktemp -t pr-reply-XXXXXX.md)"
+trap 'rm -f "$REPLY_FILE"' EXIT
+cat > "$REPLY_FILE" <<'EOF'
+[response body]
+EOF
+python3 "$SCRIPTS_DIR/pr/post_pr_comment_reply.py" --pull-request [number] --comment-id [id] --body-file "$REPLY_FILE"
 
 # Top-level PR comment (no comment-id)
 python3 "$SCRIPTS_DIR/pr/post_pr_comment_reply.py" --pull-request [number] --body "[response]"
