@@ -2028,3 +2028,312 @@ class TestRunnerEmptyAndUnsupported:
         assert rc == 2
         captured = capsys.readouterr()
         assert "pricing rate" in captured.err.lower()
+
+
+# ===========================================================================
+# Post-PR-1873-review tightening: kind contract, resume schema, per-fixture
+# halt, recommendation pass-through, CLI input validators.
+# ===========================================================================
+
+
+class TestAssertionKindContract:
+    """`Assertion.__post_init__` enforces kind-vs-field shape (PR 1873)."""
+
+    def test_regex_with_only_pattern_constructs(self):
+        a = Assertion(kind=AssertionKind.REGEX, pattern="(?i)\\bok\\b")
+        assert a.pattern == "(?i)\\bok\\b"
+        assert a.expected_value is None
+
+    def test_regex_without_pattern_raises(self):
+        with pytest.raises(ValueError, match="REGEX assertions require pattern"):
+            Assertion(kind=AssertionKind.REGEX)
+
+    def test_regex_with_expected_value_raises(self):
+        with pytest.raises(ValueError, match="must not set expected_value"):
+            Assertion(
+                kind=AssertionKind.REGEX,
+                pattern="(?i)ok",
+                expected_value="OK",
+            )
+
+    def test_verdict_with_only_expected_value_constructs(self):
+        a = Assertion(kind=AssertionKind.VERDICT, expected_value="OK")
+        assert a.expected_value == "OK"
+        assert a.pattern is None
+
+    def test_verdict_without_expected_value_raises(self):
+        with pytest.raises(ValueError, match="VERDICT assertions require expected_value"):
+            Assertion(kind=AssertionKind.VERDICT)
+
+    def test_verdict_with_pattern_raises(self):
+        with pytest.raises(ValueError, match="must not set pattern"):
+            Assertion(
+                kind=AssertionKind.VERDICT,
+                pattern="(?i)ok",
+                expected_value="OK",
+            )
+
+    def test_validator_rejects_invalid_regex_pattern_at_load_time(self, tmp_path):
+        """Bad regex MUST surface as FixtureValidationError before any API call."""
+        payload = _valid_fixture_payload(
+            assertions=[{"kind": "regex", "pattern": "(unclosed"}],
+        )
+        path = _write_fixture(tmp_path, "F001.json", payload)
+        with pytest.raises(FixtureValidationError, match="not a valid regex"):
+            FixtureValidator.validate_fixtures([path])
+
+    def test_validator_rejects_empty_expected_value_for_verdict(self, tmp_path):
+        payload = _valid_fixture_payload(
+            assertions=[{"kind": "verdict", "expected_value": ""}],
+        )
+        path = _write_fixture(tmp_path, "F001.json", payload)
+        with pytest.raises(FixtureValidationError, match="non-empty string"):
+            FixtureValidator.validate_fixtures([path])
+
+
+class TestRunPersistenceResumeSchemaGuard:
+    """`_load_existing_keys` + `_parse_record` MUST reject incompatible
+    schemaVersion at resume time (PR 1873). A stale runs.jsonl could otherwise
+    seed `_seen`/`_completed` with rows whose shape the writer would accept."""
+
+    def _seed_jsonl(self, run_dir: Path, schema_version) -> Path:
+        run_dir.mkdir(parents=True, exist_ok=True)
+        path = run_dir / "runs.jsonl"
+        record = {
+            "schemaVersion": schema_version,
+            "fixture_id": "F001",
+            "variant": "agent",
+            "run_index": 0,
+            "model_id": "claude-sonnet-4-6",
+            "prompt_sha": "a" * 64,
+            "prompt_ref": "<test>",
+            "fixture_sha": "b" * 64,
+            "raw_response": "OK",
+            "assertions": [
+                {
+                    "kind": "verdict",
+                    "pattern": None,
+                    "expected_value": "OK",
+                    "passed": True,
+                    "extracted": "OK",
+                }
+            ],
+            "outcome": "success",
+            "latency_ms": 10.0,
+            "tokens_in": 5,
+            "tokens_out": 5,
+            "error_category": None,
+            "attempts": 1,
+            "tokens_estimated": True,
+        }
+        path.write_text(json.dumps(record) + "\n", encoding="utf-8")
+        return path
+
+    def test_resume_open_with_old_schema_version_raises(self, tmp_path):
+        run_dir = tmp_path / "runs" / "rid"
+        self._seed_jsonl(run_dir, 0)
+        with pytest.raises(SchemaVersionError, match="schemaVersion=0"):
+            RunPersistence(run_dir, resume=True)
+
+    def test_resume_open_with_future_schema_version_raises(self, tmp_path):
+        run_dir = tmp_path / "runs" / "rid"
+        self._seed_jsonl(run_dir, 99)
+        with pytest.raises(SchemaVersionError, match="schemaVersion=99"):
+            RunPersistence(run_dir, resume=True)
+
+    def test_iter_records_rejects_incompatible_schema_version(self, tmp_path):
+        run_dir = tmp_path / "runs" / "rid"
+        # Seed at correct version so the constructor accepts the resume.
+        self._seed_jsonl(run_dir, SCHEMA_VERSION)
+        persistence = RunPersistence(run_dir, resume=True)
+        # Now mutate the file to an incompatible version and exercise the
+        # downstream parser.
+        (run_dir / "runs.jsonl").write_text(
+            json.dumps({**json.loads((run_dir / "runs.jsonl").read_text()),
+                        "schemaVersion": 99}) + "\n",
+            encoding="utf-8",
+        )
+        with pytest.raises(SchemaVersionError, match="schemaVersion=99"):
+            list(persistence.iter_records())
+
+
+class TestPerFixtureHaltThreshold:
+    """REQ-004 AC-3: error rate >10% halts per FIXTURE, not per record (PR 1873).
+    Distinguishing case: 1 error out of 30 records spread across 5 fixtures.
+    Per-record = 3.3% (would not halt under the old rule); per-fixture = 20%
+    (correctly halts under the spec)."""
+
+    def _setup(self, tmp_path, monkeypatch):
+        agents_dir = tmp_path / "templates" / "agents"
+        agents_dir.mkdir(parents=True)
+        (agents_dir / "security.shared.md").write_text(
+            "agent prompt", encoding="utf-8"
+        )
+        monkeypatch.setattr(cli_mod, "REPO_ROOT", tmp_path)
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-x")
+
+    def test_one_error_in_one_of_five_fixtures_halts_per_fixture(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        self._setup(tmp_path, monkeypatch)
+        fixtures_dir = tmp_path / "fixtures"
+        fixtures_dir.mkdir()
+        for i in range(1, 6):
+            fid = f"F{i:03d}"
+            payload = _valid_fixture_payload(
+                id=fid,
+                assertions=[{"kind": "verdict", "expected_value": "IDENTIFY"}],
+            )
+            _write_fixture(fixtures_dir, f"{fid}.json", payload)
+
+        # Iteration order: fixture × variant × run. First call (F001-agent-0)
+        # errors; the remaining 29 succeed.
+        results = [
+            APICallResult(
+                outcome="error",
+                raw_response=None,
+                tokens_in=0,
+                tokens_out=0,
+                latency_ms=5.0,
+                error_category=ERR_SERVER_ERROR,
+                attempts=3,
+            )
+        ] + [
+            APICallResult(
+                outcome="success",
+                raw_response="IDENTIFY: ok",
+                tokens_in=10,
+                tokens_out=10,
+                latency_ms=5.0,
+                error_category=None,
+                attempts=1,
+            )
+            for _ in range(29)
+        ]
+        adapter = _StubAdapter(results)
+        monkeypatch.setattr(cli_mod, "AnthropicAPIAdapter", lambda: adapter)
+        rc = cli_main([
+            "--agent", "security",
+            "--fixtures", str(fixtures_dir),
+            "--n-runs", "3",
+        ])
+        assert rc == 1
+        captured = capsys.readouterr()
+        assert "fixture-level error rate exceeds 10%" in captured.err
+        # Per-fixture metrics in the structured log:
+        assert '"fixtures_with_errors": 1' in captured.err
+        assert '"executed_fixtures": 5' in captured.err
+        # Per-record values are also logged so operators can correlate; the
+        # per-record fraction here is well below 10% — proving the halt
+        # fired on the per-fixture rule, not the per-record one.
+        assert '"error_count": 1' in captured.err
+        assert '"executed_records": 30' in captured.err
+
+
+class TestReportWriterRecommendationPassThrough:
+    """`ReportWriter.write` accepts a verdict that flows into both
+    report.json and the Markdown narrative (PR 1873)."""
+
+    def _agg(self) -> "AggregateResult":
+        return AggregateResult(
+            agent_recall=0.78,
+            baseline_recall=0.40,
+            recall_delta=0.38,
+            bootstrap_ci_95=(0.20, 0.55),
+            recall_with_errors=0.78,
+            recall_excluding_errors=0.78,
+            per_fixture_pass_rates={"F001": {"agent": [1.0], "baseline": [0.0]}},
+            flakiness=False,
+            flaky_fixtures_detected=[],
+            flaky_fixtures_excluded=[],
+            halt_due_to_flakiness=False,
+            total_tokens_in=100,
+            total_tokens_out=50,
+            cost_estimate_usd=0.01,
+            tokens_estimated=True,
+            error_count=0,
+            pricing_rate_as_of="2026-05-03",
+        )
+
+    def test_default_recommendation_renders_pending(self, tmp_path):
+        writer = ReportWriter(tmp_path / "reports")
+        json_path, md_path = writer.write(
+            aggregate=self._agg(),
+            run_id="rid",
+            model_id="claude-sonnet-4-6",
+            agent_prompt_sha="a" * 64,
+            baseline_prompt_sha="b" * 64,
+            fixture_set_sha="c" * 64,
+            wall_clock_seconds=12.3,
+        )
+        payload = json.loads(json_path.read_text(encoding="utf-8"))
+        assert payload["recommendation"] is None
+        md = md_path.read_text(encoding="utf-8")
+        assert "Pending" in md
+        assert "Verdict" not in md.split("## Recommendation", 1)[1].split("##", 1)[0]
+
+    def test_explicit_recommendation_round_trips(self, tmp_path):
+        writer = ReportWriter(tmp_path / "reports")
+        json_path, md_path = writer.write(
+            aggregate=self._agg(),
+            run_id="rid",
+            model_id="claude-sonnet-4-6",
+            agent_prompt_sha="a" * 64,
+            baseline_prompt_sha="b" * 64,
+            fixture_set_sha="c" * 64,
+            wall_clock_seconds=12.3,
+            recommendation="halt-due-to-flakiness",
+        )
+        payload = json.loads(json_path.read_text(encoding="utf-8"))
+        assert payload["recommendation"] == "halt-due-to-flakiness"
+        md = md_path.read_text(encoding="utf-8")
+        assert "halt-due-to-flakiness" in md
+        assert "Pending" not in md.split("## Recommendation", 1)[1].split("##", 1)[0]
+
+
+class TestCliInputValidators:
+    """Allow-list validators on `--agent`, `--run-id`, and `--resume`
+    prevent CWE-22 path traversal (PR 1873)."""
+
+    def test_agent_name_validator_accepts_canonical_names(self):
+        for name in ("security", "qa", "architect", "agent_x", "agent-x"):
+            assert cli_mod._agent_name_arg(name) == name
+
+    @pytest.mark.parametrize(
+        "bad",
+        [
+            "../../etc/passwd",
+            "Security",  # uppercase
+            "security/x",
+            "security.shared",
+            "1security",
+            "",
+            "a" * 32,  # too long
+        ],
+    )
+    def test_agent_name_validator_rejects_traversal_and_invalid(self, bad):
+        import argparse as _argparse
+        with pytest.raises(_argparse.ArgumentTypeError):
+            cli_mod._agent_name_arg(bad)
+
+    def test_run_id_validator_accepts_iso_uuid_shape(self):
+        # Same shape `_generate_run_id` produces.
+        assert cli_mod._run_id_arg("20260503T182553Z-eaa08f8d")
+
+    @pytest.mark.parametrize("bad", ["..", "/etc/passwd", "rid/../x", "a" * 65])
+    def test_run_id_validator_rejects_traversal(self, bad):
+        import argparse as _argparse
+        with pytest.raises(_argparse.ArgumentTypeError):
+            cli_mod._run_id_arg(bad)
+
+    def test_assert_under_repo_root_rejects_outside(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(cli_mod, "REPO_ROOT", tmp_path)
+        with pytest.raises(FileNotFoundError, match="outside REPO_ROOT"):
+            cli_mod._assert_under_repo_root(tmp_path.parent / "escape")
+
+    def test_assert_under_repo_root_accepts_inside(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(cli_mod, "REPO_ROOT", tmp_path)
+        inside = tmp_path / "evals" / "security-spike"
+        # Does not require existence.
+        resolved = cli_mod._assert_under_repo_root(inside)
+        assert resolved.is_relative_to(tmp_path.resolve())
