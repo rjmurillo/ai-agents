@@ -11,6 +11,11 @@ testResults.xml
 # Transient eval artifacts (ADR-057): re-runnable, not source of truth
 .agents/audit/eval-*/
 
+# Transient PR-creation validation-skip audit logs: one record per
+# `new_pr.py --skip-validation` invocation; reproducible from git
+# history + hook output, not source of truth.
+.agents/audit/pr-creation-skip-*.txt
+
 # Runtime caches
 .cache/
 
@@ -44,6 +49,9 @@ ENV/
 # Hook runtime logs and caches
 .claude/hooks/audit.log
 .claude/hooks/Stop/.skill_pattern_cache.json
+
+# Scheduled-task runtime lock (held while ScheduleWakeup-managed loops run)
+.claude/scheduled_tasks.lock
 
 # IDE settings
 .idea/
