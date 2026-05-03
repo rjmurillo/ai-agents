@@ -33,8 +33,14 @@ from _plan_runner import UnsupportedModelError
 BOOTSTRAP_ITERATIONS = 10000
 CI_LOWER_PERCENTILE = 2.5
 CI_UPPER_PERCENTILE = 97.5
+# ADR-058 §"halt-due-to-flakiness" outcome / REQ-004 AC-10: methodology
+# halts when more than 30% of fixtures are marked flaky after the
+# contingency rerun. The 0.30 fraction is normative; do not adjust without
+# an ADR amendment.
 FLAKY_FIXTURE_HALT_FRACTION = 0.30
-CONTINGENCY_PERSISTENT_THRESHOLD = 2  # >=2 of 5 reps → flaky=true
+# REQ-004 AC-10: a fixture is flaky when its pass rate disagrees on >=2 of
+# 5 contingency reps for the same (prompt_sha, fixture_set_sha).
+CONTINGENCY_PERSISTENT_THRESHOLD = 2
 
 
 class EmptyRunError(Exception):

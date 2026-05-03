@@ -50,11 +50,16 @@ def _build_report_json(
     baseline_prompt_sha: str,
     fixture_set_sha: str,
     wall_clock_seconds: float,
+    recommendation: str | None = None,
 ) -> dict:
     """Serialize the AggregateResult into the report.json shape.
 
-    `recommendation` is null (T4-7 fills in). All field names match
-    DESIGN-004 §5.6 verbatim so external consumers can rely on them.
+    `recommendation` is `null` until a caller supplies the verdict
+    (`graduate-to-CI`, `keep-as-audit`, `scrap`, or
+    `halt-due-to-flakiness`). The runner is the authoritative source;
+    earlier code passed `None` unconditionally, which made the report
+    non-reproducible. All field names match DESIGN-004 §5.6 verbatim so
+    external consumers can rely on them.
     """
     payload = {
         "schemaVersion": SCHEMA_VERSION,
@@ -83,7 +88,7 @@ def _build_report_json(
         "tokens_estimated": aggregate.tokens_estimated,
         "error_count": aggregate.error_count,
         "pricing_rate_as_of": aggregate.pricing_rate_as_of,
-        "recommendation": None,
+        "recommendation": recommendation,
     }
     return payload
 
@@ -137,11 +142,17 @@ def _render_ci_section(aggregate: AggregateResult) -> str:
     )
 
 
-def _render_recommendation_section() -> str:
+def _render_recommendation_section(recommendation: str | None = None) -> str:
+    if recommendation is None:
+        return (
+            "## Recommendation\n\n"
+            "_Pending — T4-7 records the verdict (graduate-to-CI | "
+            "keep-as-audit | scrap | halt-due-to-flakiness) with at "
+            "least two pieces of evidence drawn from the data above._\n"
+        )
     return (
         "## Recommendation\n\n"
-        "_Pending — T4-7 records the verdict (graduate-to-CI | keep-as-audit | scrap) "
-        "with at least two pieces of evidence drawn from the data above._\n"
+        f"**Verdict**: `{recommendation}`\n"
     )
 
 
@@ -191,6 +202,7 @@ def _render_markdown(
     baseline_prompt_sha: str,
     fixture_set_sha: str,
     wall_clock_seconds: float,
+    recommendation: str | None = None,
 ) -> str:
     """Compose REPORT.md in stepdown order: header → summary → details."""
     header = (
@@ -205,7 +217,7 @@ def _render_markdown(
         _render_summary_table(aggregate),
         _render_per_fixture_section(aggregate),
         _render_ci_section(aggregate),
-        _render_recommendation_section(),
+        _render_recommendation_section(recommendation),
         _render_cost_section(aggregate, wall_clock_seconds),
         _render_flakiness_section(aggregate),
     ]
@@ -228,6 +240,7 @@ class ReportWriter:
         baseline_prompt_sha: str,
         fixture_set_sha: str,
         wall_clock_seconds: float,
+        recommendation: str | None = None,
     ) -> tuple[Path, Path]:
         """Render both files. Returns (json_path, markdown_path)."""
         run_reports_dir = self._reports_dir / run_id
@@ -239,6 +252,7 @@ class ReportWriter:
             baseline_prompt_sha=baseline_prompt_sha,
             fixture_set_sha=fixture_set_sha,
             wall_clock_seconds=wall_clock_seconds,
+            recommendation=recommendation,
         )
         report_md = _render_markdown(
             aggregate=aggregate,
@@ -248,6 +262,7 @@ class ReportWriter:
             baseline_prompt_sha=baseline_prompt_sha,
             fixture_set_sha=fixture_set_sha,
             wall_clock_seconds=wall_clock_seconds,
+            recommendation=recommendation,
         )
         json_path = run_reports_dir / "report.json"
         md_path = run_reports_dir / "REPORT.md"
