@@ -408,7 +408,8 @@ evals/
 | Transient API error (408, 429, 5xx, timeout) | Retry max 3, exponential backoff + jitter (base=1s, max=30s); record `outcome=error` after max retries |
 | Non-transient 4xx (any 4xx other than 408 and 429) | Record `outcome=error` immediately; no retry |
 | Error rate > 10% of fixtures | Fail spike; exit code 1; structured message |
-| Duplicate `(fixture_id, variant, run_index)` | Raise `DuplicateRunError`; exit code 1 |
+| Duplicate `(fixture_id, variant, run_index)` in fresh-run mode | Raise `DuplicateRunError`; exit code 1 |
+| Duplicate `(fixture_id, variant, run_index)` in `--resume <RUN_ID>` mode | Skip the triple silently; the API call is not re-issued; this is the resume contract |
 | Unknown `schemaVersion` | Raise `SchemaVersionError`; exit code 2 |
 | Missing required fixture field | Raise `FixtureValidationError`; exit code 2 |
 | Flakiness detected (any fixture has pass-rate variance > 0 across N runs on same SHA) | Set `flakiness=true` in `report.json`; print structured warning; exit code 1 |
