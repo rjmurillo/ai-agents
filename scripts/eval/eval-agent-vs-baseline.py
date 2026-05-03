@@ -384,7 +384,7 @@ def _execute_one(
         # Record the assertion shape with passed=False so downstream
         # aggregation can decide to count or exclude per AC-3.
         scored = [
-            type_assertion_failed(a) for a in fixture.assertions
+            _make_failed_assertion_result(a) for a in fixture.assertions
         ]
 
     return RunRecord(
@@ -407,14 +407,12 @@ def _execute_one(
     )
 
 
-def type_assertion_failed(assertion: Assertion):
+def _make_failed_assertion_result(assertion: Assertion) -> AssertionResult:
     """Construct an AssertionResult representing 'not scored, treat as failed'.
 
     Used when the API call errored; the caller decides via outcome whether
     to count this in `recall_with_errors` vs `recall_excluding_errors`.
     """
-    from _eval_agent_types import AssertionResult
-
     return AssertionResult(
         kind=assertion.kind,
         pattern=assertion.pattern,
