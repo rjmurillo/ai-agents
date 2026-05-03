@@ -14,7 +14,7 @@ from _eval_agent_types import Assertion, AssertionKind, AssertionResult
 
 Scorer = Callable[[Assertion, str], AssertionResult]
 
-_VERDICT_RE = re.compile(r"^\s*(IDENTIFY|OK|ESCALATE)\b", re.IGNORECASE)
+_VERDICT_RE = re.compile(r"\b(IDENTIFY|OK|ESCALATE)\b", re.IGNORECASE)
 
 
 def regex_scorer(assertion: Assertion, response: str) -> AssertionResult:
@@ -38,7 +38,7 @@ def verdict_scorer(assertion: Assertion, response: str) -> AssertionResult:
     expected = assertion.expected_value
     if expected is None:
         raise ValueError("VerdictScorer requires assertion.expected_value to be set")
-    match = _VERDICT_RE.match(response)
+    match = _VERDICT_RE.search(response)
     extracted = match.group(1).upper() if match else None
     passed = extracted is not None and extracted == expected.upper()
     return AssertionResult(
