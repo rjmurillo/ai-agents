@@ -495,17 +495,32 @@ def _run_live(
                     resume_skips_count += 1
                     total_records += 1
                     continue
-                record = _execute_one(
-                    fixture=fixture,
-                    fixture_path=fixture_path,
-                    variant=variant,
-                    run_index=run_index,
-                    model_id=plan.model_id,
-                    agent_prompt=agent_prompt,
-                    agent_prompt_ref=agent_prompt_ref,
-                    adapter=adapter,
-                    scoring_engine=engine,
-                )
+                try:
+                    record = _execute_one(
+                        fixture=fixture,
+                        fixture_path=fixture_path,
+                        variant=variant,
+                        run_index=run_index,
+                        model_id=plan.model_id,
+                        agent_prompt=agent_prompt,
+                        agent_prompt_ref=agent_prompt_ref,
+                        adapter=adapter,
+                        scoring_engine=engine,
+                    )
+                except RuntimeError as exc:
+                    if "ANTHROPIC_API_KEY" in str(exc):
+                        print(
+                            json.dumps(
+                                {
+                                    "level": "error",
+                                    "event": "auth_failure",
+                                    "message": str(exc),
+                                }
+                            ),
+                            file=sys.stderr,
+                        )
+                        return EXIT_AUTH
+                    raise
                 try:
                     persistence.write_record(record)
                 except DuplicateRunError as exc:
@@ -529,8 +544,9 @@ def _run_live(
 
     wall_clock_seconds = _time.monotonic() - wall_start
 
-    if total_records > 0:
-        error_rate = error_count / total_records
+    executed_records = total_records - resume_skips_count
+    if executed_records > 0:
+        error_rate = error_count / executed_records
         if error_rate > MAX_ERROR_RATE:
             print(
                 json.dumps(
@@ -538,7 +554,7 @@ def _run_live(
                         "level": "error",
                         "message": "error rate exceeds 10%; halting before report",
                         "error_count": error_count,
-                        "total_records": total_records,
+                        "executed_records": executed_records,
                         "error_rate": round(error_rate, 4),
                     }
                 ),
