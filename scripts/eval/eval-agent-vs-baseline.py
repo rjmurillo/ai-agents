@@ -43,6 +43,8 @@ from _eval_agent_types import (
 )
 from _eval_api_adapter import AnthropicAPIAdapter, APICallResult
 from _plan_runner import PlanRunner, UnsupportedModelError
+from _report_aggregator import ReportAggregator
+from _report_writer import ReportWriter
 from _run_persistence import DuplicateRunError, RunPersistence
 from _scoring_engine import build_default_engine
 
@@ -80,6 +82,7 @@ AGENT_PROMPT_REF_TEMPLATE = "templates/agents/{agent}.shared.md"
 MAX_ERROR_RATE = 0.10
 
 RUNS_DIR_TEMPLATE = "evals/security-spike/runs/{run_id}"
+REPORTS_DIR = "evals/security-spike/reports"
 
 
 # ---------------------------------------------------------------------------
@@ -241,6 +244,16 @@ def _read_agent_prompt(agent: str) -> tuple[str, str]:
 
 def _fixture_sha(path: Path) -> str:
     return _sha256_text(path.read_text(encoding="utf-8"))
+
+
+def _fixture_set_sha(paths: list[Path]) -> str:
+    """SHA-256 of the joined `<filename>:<file_sha>` lines, sorted by filename.
+
+    DESIGN-004 §5.6 schema: stable identifier for the corpus across reruns
+    that allows the report consumer to verify that two runs hit the same set.
+    """
+    lines = sorted(f"{p.name}:{_fixture_sha(p)}" for p in paths)
+    return _sha256_text("\n".join(lines))
 
 
 def _generate_run_id() -> str:
@@ -441,6 +454,8 @@ def _run_live(
     adapter = AnthropicAPIAdapter()
     engine = build_default_engine()
 
+    import time as _time
+    wall_start = _time.monotonic()
     error_count = 0
     total_records = 0
 
@@ -474,6 +489,8 @@ def _run_live(
                     error_count += 1
                 total_records += 1
 
+    wall_clock_seconds = _time.monotonic() - wall_start
+
     if total_records > 0:
         error_rate = error_count / total_records
         if error_rate > MAX_ERROR_RATE:
@@ -491,14 +508,69 @@ def _run_live(
             )
             return EXIT_LOGIC
 
-    # T4-3 wires the report aggregator + writer here.
+    return _generate_report(
+        records=list(persistence.iter_records()),
+        run_id=run_id,
+        model_id=plan.model_id,
+        agent_prompt=agent_prompt,
+        fixture_paths=fixture_paths,
+        wall_clock_seconds=wall_clock_seconds,
+        run_dir=run_dir,
+        persistence=persistence,
+        error_count=error_count,
+    )
+
+
+def _generate_report(
+    *,
+    records: list[RunRecord],
+    run_id: str,
+    model_id: str,
+    agent_prompt: str,
+    fixture_paths: list[Path],
+    wall_clock_seconds: float,
+    run_dir: Path,
+    persistence: RunPersistence,
+    error_count: int,
+) -> int:
+    """Aggregate records and write report. Halts on >30% flakiness."""
+    aggregator = ReportAggregator(records, model_id=model_id)
+    aggregate = aggregator.aggregate()
+
+    if aggregate.halt_due_to_flakiness:
+        print(
+            json.dumps(
+                {
+                    "level": "error",
+                    "message": (
+                        "more than 30% of fixtures flaky; methodology unstable"
+                    ),
+                    "flaky_fixtures": aggregate.flaky_fixtures_excluded,
+                }
+            ),
+            file=sys.stderr,
+        )
+        return EXIT_LOGIC
+
+    writer = ReportWriter(REPO_ROOT / REPORTS_DIR)
+    json_path, md_path = writer.write(
+        aggregate=aggregate,
+        run_id=run_id,
+        model_id=model_id,
+        agent_prompt_sha=_sha256_text(agent_prompt),
+        baseline_prompt_sha=_sha256_text(BASELINE_PROMPT),
+        fixture_set_sha=_fixture_set_sha(fixture_paths),
+        wall_clock_seconds=wall_clock_seconds,
+    )
     print(
         json.dumps(
             {
                 "level": "info",
-                "message": "run complete (report generation lands in T4-3)",
+                "message": "run complete; report written",
                 "run_id": run_id,
                 "run_dir": str(run_dir),
+                "report_json": str(json_path),
+                "report_md": str(md_path),
                 "written": persistence.written_count(),
                 "skipped_resume": persistence.skipped_count(),
                 "errors": error_count,

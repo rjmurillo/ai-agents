@@ -46,6 +46,8 @@ try:
     plan_mod = _load_module("_plan_runner.py", "_plan_runner")
     adapter_mod = _load_module("_eval_api_adapter.py", "_eval_api_adapter")
     persistence_mod = _load_module("_run_persistence.py", "_run_persistence")
+    aggregator_mod = _load_module("_report_aggregator.py", "_report_aggregator")
+    writer_mod = _load_module("_report_writer.py", "_report_writer")
     cli_mod = _load_module("eval-agent-vs-baseline.py", "eval_agent_vs_baseline")
 finally:
     if _path_added and str(EVAL_DIR) in sys.path:
@@ -80,6 +82,10 @@ ERR_CLIENT_ERROR = adapter_mod.ERR_CLIENT_ERROR
 
 RunPersistence = persistence_mod.RunPersistence
 DuplicateRunError = persistence_mod.DuplicateRunError
+
+ReportAggregator = aggregator_mod.ReportAggregator
+AggregateResult = aggregator_mod.AggregateResult
+ReportWriter = writer_mod.ReportWriter
 
 FixtureValidator = cli_mod.FixtureValidator
 cli_main = cli_mod.main
@@ -938,3 +944,442 @@ class TestRunnerLiveLoop:
         assert rc == 1
         captured = capsys.readouterr()
         assert "error rate exceeds 10%" in captured.err
+
+
+# ===========================================================================
+# T4-3: ReportAggregator
+# ===========================================================================
+
+
+def _success_record(
+    fixture_id: str,
+    variant: str,
+    run_index: int,
+    *,
+    passed: bool = True,
+    n_assertions: int = 1,
+    tokens_in: int = 100,
+    tokens_out: int = 50,
+) -> RunRecord:
+    return RunRecord(
+        fixture_id=fixture_id,
+        variant=variant,
+        run_index=run_index,
+        model_id="claude-sonnet-4-6",
+        prompt_sha="a" * 64,
+        prompt_ref="<test>",
+        fixture_sha="b" * 64,
+        raw_response="IDENTIFY: ok",
+        assertions=[
+            AssertionResult(
+                kind=AssertionKind.VERDICT,
+                pattern=None,
+                expected_value="IDENTIFY",
+                passed=passed,
+                extracted="IDENTIFY" if passed else None,
+            )
+            for _ in range(n_assertions)
+        ],
+        outcome="success",
+        latency_ms=10.0,
+        tokens_in=tokens_in,
+        tokens_out=tokens_out,
+        error_category=None,
+        attempts=1,
+    )
+
+
+def _error_record(fixture_id: str, variant: str, run_index: int) -> RunRecord:
+    return RunRecord(
+        fixture_id=fixture_id,
+        variant=variant,
+        run_index=run_index,
+        model_id="claude-sonnet-4-6",
+        prompt_sha="a" * 64,
+        prompt_ref="<test>",
+        fixture_sha="b" * 64,
+        raw_response=None,
+        assertions=[
+            AssertionResult(
+                kind=AssertionKind.VERDICT,
+                pattern=None,
+                expected_value="IDENTIFY",
+                passed=False,
+                extracted=None,
+            )
+        ],
+        outcome="error",
+        latency_ms=10.0,
+        tokens_in=0,
+        tokens_out=0,
+        error_category="server_error",
+        attempts=3,
+    )
+
+
+def _build_records(
+    fixture_ids: list[str],
+    *,
+    agent_passed: bool,
+    baseline_passed: bool,
+    n_runs: int = 3,
+) -> list[RunRecord]:
+    records: list[RunRecord] = []
+    for fid in fixture_ids:
+        for ri in range(n_runs):
+            records.append(
+                _success_record(fid, "agent", ri, passed=agent_passed)
+            )
+            records.append(
+                _success_record(fid, "baseline", ri, passed=baseline_passed)
+            )
+    return records
+
+
+class TestReportAggregatorRecall:
+    def test_all_pass_recall_is_one(self):
+        records = _build_records(
+            ["F001", "F002"], agent_passed=True, baseline_passed=True
+        )
+        result = ReportAggregator(records, model_id="claude-sonnet-4-6").aggregate()
+        assert result.agent_recall == 1.0
+        assert result.baseline_recall == 1.0
+        assert result.recall_delta == 0.0
+
+    def test_all_fail_recall_is_zero(self):
+        records = _build_records(
+            ["F001", "F002"], agent_passed=False, baseline_passed=False
+        )
+        result = ReportAggregator(records, model_id="claude-sonnet-4-6").aggregate()
+        assert result.agent_recall == 0.0
+        assert result.baseline_recall == 0.0
+
+    def test_recall_with_errors_includes_errors_in_denominator(self):
+        # 1 success run, 1 error run (agent variant). Both variants identical
+        # for symmetry; we focus on the agent recall fields.
+        records = [
+            _success_record("F001", "agent", 0, passed=True),
+            _error_record("F001", "agent", 1),
+            _success_record("F001", "baseline", 0, passed=True),
+            _success_record("F001", "baseline", 1, passed=True),
+        ]
+        result = ReportAggregator(records, model_id="claude-sonnet-4-6").aggregate()
+        # Agent: 1 passed, 2 total assertions → recall_with_errors = 0.5.
+        # Excluding errors: 1 passed, 1 total → recall_excluding_errors = 1.0.
+        assert result.recall_with_errors == 0.5
+        assert result.recall_excluding_errors == 1.0
+        assert result.error_count == 1
+
+    def test_recall_uses_assertion_count_not_fixture_count(self):
+        # One fixture, two assertions on the same response — recall denom
+        # MUST be the assertion count (2), not the fixture count (1).
+        record = RunRecord(
+            fixture_id="F001",
+            variant="agent",
+            run_index=0,
+            model_id="claude-sonnet-4-6",
+            prompt_sha="a" * 64,
+            prompt_ref="<test>",
+            fixture_sha="b" * 64,
+            raw_response="IDENTIFY",
+            assertions=[
+                AssertionResult(
+                    kind=AssertionKind.VERDICT,
+                    pattern=None,
+                    expected_value="IDENTIFY",
+                    passed=True,
+                    extracted="IDENTIFY",
+                ),
+                AssertionResult(
+                    kind=AssertionKind.REGEX,
+                    pattern="CWE-22",
+                    expected_value=None,
+                    passed=False,
+                    extracted=None,
+                ),
+            ],
+            outcome="success",
+            latency_ms=10.0,
+            tokens_in=10,
+            tokens_out=5,
+            error_category=None,
+            attempts=1,
+        )
+        result = ReportAggregator(
+            [record], model_id="claude-sonnet-4-6"
+        ).aggregate()
+        # 1 passed of 2 assertions → 0.5.
+        assert result.agent_recall == 0.5
+
+
+class TestReportAggregatorCI:
+    def test_ci_bounds_are_real_numbers(self):
+        records = _build_records(
+            ["F001", "F002", "F003"],
+            agent_passed=True,
+            baseline_passed=False,
+        )
+        # Use a small bootstrap iteration count to keep the test fast; the
+        # public default is 10000.
+        result = ReportAggregator(
+            records,
+            model_id="claude-sonnet-4-6",
+            bootstrap_iterations=200,
+            rng=__import__("random").Random(123),
+        ).aggregate()
+        ci_low, ci_high = result.bootstrap_ci_95
+        assert isinstance(ci_low, float)
+        assert isinstance(ci_high, float)
+        assert ci_low <= ci_high
+
+    def test_ci_for_identical_variants_centered_on_zero(self):
+        records = _build_records(
+            ["F001", "F002", "F003"],
+            agent_passed=True,
+            baseline_passed=True,
+        )
+        result = ReportAggregator(
+            records,
+            model_id="claude-sonnet-4-6",
+            bootstrap_iterations=500,
+        ).aggregate()
+        ci_low, ci_high = result.bootstrap_ci_95
+        assert ci_low == 0.0
+        assert ci_high == 0.0
+
+
+class TestReportAggregatorFlakiness:
+    def test_identical_runs_no_flakiness(self):
+        records = _build_records(
+            ["F001", "F002"], agent_passed=True, baseline_passed=False
+        )
+        result = ReportAggregator(records, model_id="claude-sonnet-4-6").aggregate()
+        assert result.flakiness is False
+        assert result.flaky_fixtures_excluded == []
+
+    def test_synthetic_variance_marks_flaky(self):
+        # F001 agent variant: pass / fail / pass → variance > 0.
+        records = [
+            _success_record("F001", "agent", 0, passed=True),
+            _success_record("F001", "agent", 1, passed=False),
+            _success_record("F001", "agent", 2, passed=True),
+            _success_record("F002", "agent", 0, passed=True),
+            _success_record("F002", "agent", 1, passed=True),
+            _success_record("F002", "agent", 2, passed=True),
+            _success_record("F001", "baseline", 0, passed=False),
+            _success_record("F001", "baseline", 1, passed=False),
+            _success_record("F001", "baseline", 2, passed=False),
+            _success_record("F002", "baseline", 0, passed=False),
+            _success_record("F002", "baseline", 1, passed=False),
+            _success_record("F002", "baseline", 2, passed=False),
+        ]
+        result = ReportAggregator(records, model_id="claude-sonnet-4-6").aggregate()
+        assert result.flakiness is True
+        # 1 of 2 fixtures flaky = 50%, > 30% halt threshold.
+        assert result.halt_due_to_flakiness is True
+
+    def test_one_flaky_of_four_excluded_not_halted(self):
+        # F001 flaky; F002, F003, F004 stable. 25% flaky → ≤ 30%, no halt.
+        records: list = []
+        for fid in ("F002", "F003", "F004"):
+            for ri in range(3):
+                records.append(_success_record(fid, "agent", ri, passed=True))
+                records.append(_success_record(fid, "baseline", ri, passed=False))
+        # F001 agent variance.
+        records += [
+            _success_record("F001", "agent", 0, passed=True),
+            _success_record("F001", "agent", 1, passed=False),
+            _success_record("F001", "agent", 2, passed=True),
+            _success_record("F001", "baseline", 0, passed=False),
+            _success_record("F001", "baseline", 1, passed=False),
+            _success_record("F001", "baseline", 2, passed=False),
+        ]
+        result = ReportAggregator(
+            records, model_id="claude-sonnet-4-6", bootstrap_iterations=200
+        ).aggregate()
+        assert result.flakiness is True
+        assert result.halt_due_to_flakiness is False
+        assert result.flaky_fixtures_excluded == ["F001"]
+        # Stable subset: F002 F003 F004, agent always passes → recall = 1.0.
+        assert result.agent_recall == 1.0
+        assert result.baseline_recall == 0.0
+
+
+class TestReportAggregatorCost:
+    def test_cost_uses_pricing_constants(self):
+        records = _build_records(
+            ["F001"], agent_passed=True, baseline_passed=True
+        )
+        result = ReportAggregator(records, model_id="claude-sonnet-4-6").aggregate()
+        # 6 records × tokens_in=100, tokens_out=50.
+        # cost = (600 * 0.003 + 300 * 0.015) / 1000 = (1.8 + 4.5)/1000 = 0.0063
+        assert result.cost_estimate_usd == pytest.approx(0.0063)
+        assert result.pricing_rate_as_of == "2026-05-03"
+
+
+# ===========================================================================
+# T4-3: ReportWriter
+# ===========================================================================
+
+
+class TestReportWriter:
+    def _aggregate(self) -> AggregateResult:
+        return AggregateResult(
+            agent_recall=0.82,
+            baseline_recall=0.60,
+            recall_delta=0.22,
+            bootstrap_ci_95=(0.10, 0.34),
+            recall_with_errors=0.80,
+            recall_excluding_errors=0.82,
+            per_fixture_pass_rates={
+                "F001": {"agent": [1.0, 1.0, 1.0], "baseline": [0.5, 0.5, 0.5]},
+            },
+            flakiness=False,
+            flaky_fixtures_excluded=[],
+            total_tokens_in=15360,
+            total_tokens_out=2400,
+            cost_estimate_usd=0.09,
+            pricing_rate_as_of="2026-05-03",
+            error_count=0,
+            halt_due_to_flakiness=False,
+        )
+
+    def test_writes_both_files_atomically(self, tmp_path):
+        writer = ReportWriter(tmp_path / "reports")
+        json_path, md_path = writer.write(
+            aggregate=self._aggregate(),
+            run_id="20260503T140000Z-aaaaaaaa",
+            model_id="claude-sonnet-4-6",
+            agent_prompt_sha="a" * 64,
+            baseline_prompt_sha="b" * 64,
+            fixture_set_sha="c" * 64,
+            wall_clock_seconds=187.0,
+        )
+        assert json_path.exists()
+        assert md_path.exists()
+        # No leftover .tmp files in the directory.
+        leftovers = list(json_path.parent.glob(".*tmp"))
+        assert leftovers == []
+
+    def test_report_json_schema_fields(self, tmp_path):
+        writer = ReportWriter(tmp_path / "reports")
+        json_path, _ = writer.write(
+            aggregate=self._aggregate(),
+            run_id="r1",
+            model_id="claude-sonnet-4-6",
+            agent_prompt_sha="a" * 64,
+            baseline_prompt_sha="b" * 64,
+            fixture_set_sha="c" * 64,
+            wall_clock_seconds=10.0,
+        )
+        payload = json.loads(json_path.read_text(encoding="utf-8"))
+        # Required schema fields per DESIGN-004 §5.6.
+        for key in (
+            "schemaVersion",
+            "run_id",
+            "model_id",
+            "agent_prompt_sha",
+            "baseline_prompt_sha",
+            "fixture_set_sha",
+            "agent_recall",
+            "baseline_recall",
+            "recall_delta",
+            "bootstrap_ci_95",
+            "recall_with_errors",
+            "recall_excluding_errors",
+            "per_fixture_pass_rates",
+            "flakiness",
+            "flaky_fixtures_excluded",
+            "total_tokens_in",
+            "total_tokens_out",
+            "wall_clock_seconds",
+            "cost_estimate_usd",
+            "error_count",
+            "pricing_rate_as_of",
+            "recommendation",
+        ):
+            assert key in payload, f"missing field: {key}"
+        assert payload["schemaVersion"] == 1
+        assert payload["recommendation"] is None  # T4-7 fills in
+
+    def test_report_md_contains_required_sections(self, tmp_path):
+        writer = ReportWriter(tmp_path / "reports")
+        _, md_path = writer.write(
+            aggregate=self._aggregate(),
+            run_id="r2",
+            model_id="claude-sonnet-4-6",
+            agent_prompt_sha="a" * 64,
+            baseline_prompt_sha="b" * 64,
+            fixture_set_sha="c" * 64,
+            wall_clock_seconds=10.0,
+        )
+        body = md_path.read_text(encoding="utf-8")
+        for heading in (
+            "# Eval Report:",
+            "## Summary",
+            "## Per-Fixture Pass Rates",
+            "## Confidence Interval",
+            "## Recommendation",
+            "## Cost and Resource Summary",
+            "## Flakiness",
+        ):
+            assert heading in body, f"missing heading: {heading}"
+
+
+# ===========================================================================
+# T4-3: end-to-end runner with report
+# ===========================================================================
+
+
+class TestRunnerEndToEndReport:
+    def _setup(self, tmp_path, monkeypatch):
+        agents_dir = tmp_path / "templates" / "agents"
+        agents_dir.mkdir(parents=True)
+        (agents_dir / "security.shared.md").write_text(
+            "agent prompt", encoding="utf-8"
+        )
+        monkeypatch.setattr(cli_mod, "REPO_ROOT", tmp_path)
+        return agents_dir
+
+    def test_e2e_writes_report(self, tmp_path, monkeypatch):
+        self._setup(tmp_path, monkeypatch)
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-e2e")
+        fixtures_dir = tmp_path / "fixtures"
+        fixtures_dir.mkdir()
+        _write_fixture(fixtures_dir, "F001.json", _valid_fixture_payload())
+
+        adapter = _StubAdapter(
+            [
+                APICallResult(
+                    outcome="success",
+                    raw_response="IDENTIFY: clean",
+                    tokens_in=100,
+                    tokens_out=50,
+                    latency_ms=10.0,
+                    error_category=None,
+                    attempts=1,
+                )
+                for _ in range(6)
+            ]
+        )
+        monkeypatch.setattr(cli_mod, "AnthropicAPIAdapter", lambda: adapter)
+        rc = cli_main([
+            "--agent",
+            "security",
+            "--fixtures",
+            str(fixtures_dir),
+            "--n-runs",
+            "3",
+        ])
+        assert rc == 0
+        # Report files exist under the run-id directory.
+        reports_root = tmp_path / "evals" / "security-spike" / "reports"
+        run_dirs = list(reports_root.iterdir())
+        assert len(run_dirs) == 1
+        report_json = run_dirs[0] / "report.json"
+        report_md = run_dirs[0] / "REPORT.md"
+        assert report_json.exists()
+        assert report_md.exists()
+        payload = json.loads(report_json.read_text(encoding="utf-8"))
+        assert payload["schemaVersion"] == 1
+        assert payload["recommendation"] is None

@@ -24,7 +24,12 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Iterable
 
-from _eval_agent_types import RunRecord, SCHEMA_VERSION
+from _eval_agent_types import (
+    AssertionKind,
+    AssertionResult,
+    RunRecord,
+    SCHEMA_VERSION,
+)
 
 
 class DuplicateRunError(Exception):
@@ -59,10 +64,8 @@ def _record_to_json_line(record: RunRecord) -> str:
 def _parse_record(line: str) -> RunRecord | None:
     """Parse one JSONL line back to a RunRecord. Returns None on blank lines.
 
-    Used at startup to rebuild the seen-keys set. `AssertionResult` is
-    re-hydrated as a plain `list[dict]` because the writer never reads the
-    rich shape back; downstream callers that need dataclass-form load via
-    a separate routine.
+    Re-hydrates `AssertionResult` from the nested dicts so downstream
+    consumers (the report aggregator) can call `.passed` directly.
     """
     line = line.strip()
     if not line:
@@ -70,6 +73,17 @@ def _parse_record(line: str) -> RunRecord | None:
     payload = json.loads(line)
     schema_version = payload.pop("schemaVersion", None)
     payload["schema_version"] = schema_version
+    raw_assertions = payload.get("assertions", []) or []
+    payload["assertions"] = [
+        AssertionResult(
+            kind=AssertionKind(a["kind"]),
+            pattern=a.get("pattern"),
+            expected_value=a.get("expected_value"),
+            passed=bool(a.get("passed")),
+            extracted=a.get("extracted"),
+        )
+        for a in raw_assertions
+    ]
     return RunRecord(**payload)
 
 
