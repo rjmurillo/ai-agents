@@ -297,7 +297,7 @@ def call_model(
   "total_tokens_out": 2400,
   "wall_clock_seconds": 187,
   "cost_estimate_usd": 0.09,
-  "recommendation": "graduate-to-CI",
+  "recommendation": "graduate-to-CI",  // string | null — null permitted on T4-5's initial commit; T4-7 finalizes to one of the three valid strings
   "error_count": 0
 }
 ```
@@ -362,7 +362,7 @@ evals/
 | Module | Relationship |
 |---|---|
 | `scripts/eval/_anthropic_api.py` | REUSE: `load_api_key()`, retry constants |
-| `scripts/eval/_eval_common.py` | REUSE: `EST_TOKENS_PER_CALL`, `aggregate_multi_run_scores` |
+| `scripts/eval/_eval_common.py` | REUSE `EST_TOKENS_PER_CALL` only. **Do NOT reuse** `aggregate_multi_run_scores` — its dimensional-averaging signature does not match binary pass/fail recall (verified at `_eval_common.py:19-39`). New constants `MODEL_PRICING_RATES_USD_PER_1K_TOKENS` and `PRICING_RATE_AS_OF` are added to this file in T4-1. |
 | `scripts/eval/eval-prompt-change.py` | SIBLING: ADR-057 before/after; do not extend |
 | `scripts/eval/eval-agents.py` | DIFFERENT QUESTION: LLM-as-judge agent quality; do not extend |
 | `tests/evals/security-scenarios.json` | BOOTSTRAP: consider as corpus seed; mark `provenance: paraphrased-from-public` |

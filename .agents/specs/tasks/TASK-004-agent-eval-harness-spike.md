@@ -58,7 +58,7 @@ Every AC in REQ-004 maps to at least one sub-task. ACs that span multiple sub-ta
 | `scripts/eval/eval-agent-vs-baseline.py` | create | CLI entry point, arg parsing, coordinator |
 | `scripts/eval/_eval_agent_types.py` | create | `Fixture`, `Assertion`, `AssertionKind`, `AssertionResult`, `RunRecord`, `Report`, `ExecutionPlan` dataclasses |
 | `scripts/eval/_scoring_engine.py` | create | `ScoringEngine`, `RegexScorer`, `VerdictScorer` |
-| `scripts/eval/_plan_runner.py` | create | `PlanRunner.build_plan()` + cost estimate; pricing rate constant added to `_eval_common.py` (one-line edit allowed within file budget) |
+| `scripts/eval/_plan_runner.py` | create | `PlanRunner.build_plan()` + cost estimate. Includes module-private `_PRICING_RATES_USD_PER_1K_TOKENS = {"claude-sonnet-4-6": {"input": 0.003, "output": 0.015}}` and `_PRICING_RATE_AS_OF = "<ISO date>"`. Kept module-private to stay within T4-1's 5-file budget; if other modules need them later, T4-3 or T4-6 may promote to `_eval_common.py`. |
 | `evals/README.md` | create | Cross-reference `tests/evals/` (ADR-057); also reserves `security-spike/fixtures/` via `.gitkeep` |
 
 **In Scope**:
@@ -143,7 +143,7 @@ Every AC in REQ-004 maps to at least one sub-task. ACs that span multiple sub-ta
 - Flakiness: pass-rate variance > 0 on same-SHA rerun sets `flakiness=true`
 - `recommendation` field in `report.json` (one of: `graduate-to-CI`, `keep-as-audit`, `scrap`)
 - Cost estimate: `(total_tokens_in + total_tokens_out) × published rate`
-- Reuse `aggregate_multi_run_scores` from `_eval_common` where signature matches
+- **Do NOT reuse** `aggregate_multi_run_scores` from `_eval_common.py` — its signature `(run_scores: list[dict], dimensions: list[str])` averages LLM-judge dimensional scores and does NOT match the binary pass/fail recall used here. Implement a new module-private helper in `_report_aggregator.py`. (Confirmed by reading the function body in `scripts/eval/_eval_common.py:19-39`.)
 
 **Out of Scope**: Actual recommendation logic (human decision in T4-7); this task writes the field but leaves it as `null` until T4-6
 
@@ -195,6 +195,7 @@ Every AC in REQ-004 maps to at least one sub-task. ACs that span multiple sub-ta
 
 **Complexity**: S (2–4 hours)
 **Commit tag**: `feat(evals): execute security agent eval spike and commit report`
+**Irreversibility warning**: T4-5 incurs real Anthropic API cost (~$0.09 at current rates per DESIGN-004) and produces a timestamp-keyed run directory. The committed `runs.jsonl` is the audit trail; reverting after T4-6 merges requires a follow-on amendment to the ADR. Validate the corpus and runner end-to-end via `--dry-run` before executing live, and confirm API tier supports 60 sequential calls within session.
 **Files affected** (≤5):
 
 | File | Action | Description |
@@ -234,6 +235,7 @@ Every AC in REQ-004 maps to at least one sub-task. ACs that span multiple sub-ta
 | `.agents/architecture/ADR-NNN-agent-eval-discipline.md` | create | Full ADR covering corpus, scoring, baseline, threshold, cadence |
 
 **In Scope** (all required per AC-6):
+- ADR number reservation: at the START of T4-6, run `ls .agents/architecture/ADR-0*.md | tail -1` to determine the next available number, then claim it immediately by creating the file with frontmatter (status: proposed, empty body). This prevents collision with concurrent ADR PRs.
 - Corpus structure: fixture schema (all fields + `schemaVersion`), provenance rules, held-out criterion
 - Held-out definition: ADR must state explicitly that "held-out" means "not used in prior agent eval (notably ADR-057's prompt-change scenarios)" and NOT "absent from the model's training data"; corpus contamination is acknowledged as out of scope for v1
 - Scoring discipline: deterministic-only for gated path; "LLM-as-judge is explicitly rejected as the gated signal" stated verbatim; advice quality acknowledged as a non-gated advisory sidecar option
@@ -267,7 +269,7 @@ Every AC in REQ-004 maps to at least one sub-task. ACs that span multiple sub-ta
 
 ### T4-7: Decide Graduate-to-CI vs. Audit vs. Scrap {#t4-7}
 
-**Complexity**: XS (1–2 hours)
+**Complexity**: S (2–4 hours). The mechanical field write is XS, but the decision narrative — applying the AC-5 criteria, citing two evidence pieces, defending the verdict to architect-tier review — is the actual work and is consistently underestimated.
 **Commit tag**: `docs(evals): record spike decision in report`
 **Files affected** (≤5):
 
@@ -321,13 +323,15 @@ T4-4 may be started as soon as T4-1 is complete (fixture schema is defined). T4-
 | T4-1 | 1 | 5 |
 | T4-2 | 1 | 4 |
 | T4-3 | 1 | 4 |
-| T4-4 | 1 | 12 (F001–F010 + README + .gitkeep = 12 files: split into two commits if needed) |
+| T4-4a | 1 | 5 (F001–F004 + fixtures/README.md) |
+| T4-4b | 1 | 5 (F005–F008 + a one-line note appended to README, OR no README change → 4 files) |
+| T4-4c | 1 | 3 (F009–F010 + .gitkeep) |
 | T4-5 | 1 | 3 |
 | T4-6 | 1 | 1 |
 | T4-7 | 1 | 2 |
-| **Total** | **7** | **~31 across 7 commits** |
+| **Total** | **9** | **~31 hours across 9 commits** |
 
-T4-4 may need splitting: commit F001–F005 then F006–F010. Each commit ≤5 files.
+T4-4 MUST split into three commits (T4-4a/b/c). Each commit ≤5 files per AGENTS.md. The "if needed" hedge in earlier drafts is removed: the split is mandatory.
 
 ---
 
