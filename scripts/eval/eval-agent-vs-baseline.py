@@ -36,6 +36,7 @@ from _eval_agent_types import (
     SCHEMA_VERSION,
     Assertion,
     AssertionKind,
+    AssertionResult,
     Fixture,
     FixtureValidationError,
     RunRecord,
