@@ -95,6 +95,81 @@ cli_main = cli_mod.main
 
 
 # ---------------------------------------------------------------------------
+# _build_prompt: methodology symmetry (SPIKE-1854 diagnosis)
+# ---------------------------------------------------------------------------
+
+
+class TestBuildPromptSymmetry:
+    """Both variants must receive the same user-message suffix so the verdict-
+    vocabulary contract is symmetric. See
+    .agents/critique/SPIKE-1854-methodology-diagnosis.md for context."""
+
+    def test_both_variants_receive_output_shape_suffix(self):
+        agent_system = "Some agent system prompt"
+        fixture_input = "Review this code."
+
+        _, agent_user = cli_mod._build_prompt(
+            "agent", agent_system, fixture_input
+        )
+        _, baseline_user = cli_mod._build_prompt(
+            "baseline", agent_system, fixture_input
+        )
+
+        assert cli_mod.OUTPUT_SHAPE_SUFFIX in agent_user
+        assert cli_mod.OUTPUT_SHAPE_SUFFIX in baseline_user
+
+    def test_user_messages_are_identical_across_variants(self):
+        """The user message is the only place the output-shape contract lives;
+        both variants must see the exact same user message so the system prompt
+        is the only difference being measured."""
+        agent_system = "Some agent system prompt"
+        fixture_input = "Review this code."
+
+        _, agent_user = cli_mod._build_prompt(
+            "agent", agent_system, fixture_input
+        )
+        _, baseline_user = cli_mod._build_prompt(
+            "baseline", agent_system, fixture_input
+        )
+
+        assert agent_user == baseline_user
+
+    def test_system_prompts_differ_between_variants(self):
+        """The system prompt is the variable being measured (specialization).
+        It must differ between agent and baseline."""
+        agent_system = "Curated security-reviewer system prompt"
+        fixture_input = "Review this code."
+
+        agent_sys, _ = cli_mod._build_prompt(
+            "agent", agent_system, fixture_input
+        )
+        baseline_sys, _ = cli_mod._build_prompt(
+            "baseline", agent_system, fixture_input
+        )
+
+        assert agent_sys != baseline_sys
+        assert agent_sys == agent_system
+        assert baseline_sys == cli_mod.BASELINE_PROMPT
+
+    def test_baseline_prompt_does_not_carry_verdict_instruction(self):
+        """The verdict-vocabulary instruction lives in OUTPUT_SHAPE_SUFFIX, not
+        in BASELINE_PROMPT, so the baseline's role is role-neutralization only."""
+        for token in ("IDENTIFY", "OK", "ESCALATE"):
+            assert token not in cli_mod.BASELINE_PROMPT, (
+                f"BASELINE_PROMPT must not include verdict token {token!r}; "
+                f"the contract belongs in OUTPUT_SHAPE_SUFFIX"
+            )
+
+    def test_output_shape_suffix_carries_verdict_instruction(self):
+        """The shared suffix must carry the verdict vocabulary so both variants
+        see the same contract."""
+        for token in ("IDENTIFY", "OK", "ESCALATE"):
+            assert token in cli_mod.OUTPUT_SHAPE_SUFFIX, (
+                f"OUTPUT_SHAPE_SUFFIX must include verdict token {token!r}"
+            )
+
+
+# ---------------------------------------------------------------------------
 # ScoringEngine
 # ---------------------------------------------------------------------------
 

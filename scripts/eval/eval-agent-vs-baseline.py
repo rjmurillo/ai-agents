@@ -68,15 +68,26 @@ TAG_RE = re.compile(r"^[a-z0-9][a-z0-9_:-]{0,63}$")
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
-# DESIGN-004 §Technology Decisions: deliberately naive baseline. Same
-# response shape as the agent so the scoring engine is symmetric. Any
-# observed lift is attributable to specialization in the agent prompt,
-# not to task framing.
-BASELINE_PROMPT = (
-    "Review the following input. Respond with one word: IDENTIFY, OK, or "
-    "ESCALATE. Then explain in <=80 words."
-)
+# DESIGN-004 §Technology Decisions: deliberately naive baseline. Role-
+# neutralization only. The output-shape contract (verdict vocabulary and
+# brief-explanation cap) is in OUTPUT_SHAPE_SUFFIX below and applied to
+# the user message identically for BOTH variants, so specialization (the
+# system prompt) is the only free variable. See
+# .agents/critique/SPIKE-1854-methodology-diagnosis.md for the rationale.
+BASELINE_PROMPT = "Review the following input."
 BASELINE_PROMPT_REF = "<baseline>"
+
+# Shared output-shape contract appended to the user message for BOTH
+# variants. The verdict scorer (`_scoring_engine.VerdictScorer`) is
+# anchored at the start of the response, so both variants must be told
+# to lead with the verdict token. Without this symmetry, an agent whose
+# system prompt teaches a different vocabulary (e.g. REJECTED, [PASS])
+# scores zero by structure, not by quality.
+OUTPUT_SHAPE_SUFFIX = (
+    "\n\nBegin your response with exactly one word: IDENTIFY, OK, or "
+    "ESCALATE. Then briefly explain in <=80 words."
+)
+OUTPUT_SHAPE_SUFFIX_REF = "<output-shape-suffix>"
 
 # The agent prompt is sourced from the canonical template path. SHA is
 # computed from the file content (UTF-8, no trailing newline trim).
@@ -333,13 +344,17 @@ def _print_plan(plan_lines: list[str]) -> None:
 def _build_prompt(variant: str, agent_prompt: str, fixture_input: str) -> tuple[str, str]:
     """Compose the (system, user) message pair for a variant.
 
-    Agent variant: system = agent prompt; user = fixture input.
-    Baseline variant: system = baseline prompt; user = fixture input.
+    Agent variant: system = agent prompt; user = fixture input + suffix.
+    Baseline variant: system = baseline prompt; user = fixture input + suffix.
+    OUTPUT_SHAPE_SUFFIX is appended to the user message for BOTH variants
+    so the verdict-vocabulary contract is symmetric. Specialization (the
+    system prompt) is the only free variable.
     Returns (system, user_prompt) so token estimates split cleanly.
     """
+    user_prompt = fixture_input + OUTPUT_SHAPE_SUFFIX
     if variant == "agent":
-        return agent_prompt, fixture_input
-    return BASELINE_PROMPT, fixture_input
+        return agent_prompt, user_prompt
+    return BASELINE_PROMPT, user_prompt
 
 
 def _resolve_prompt_metadata(
