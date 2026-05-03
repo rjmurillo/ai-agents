@@ -156,7 +156,7 @@ These projections are illustrative. CI graduation requires a measured-usage proj
 
 ### Worked Example: Security Agent v1 Calibration
 
-This subsection records the actual numbers from the spike run `20260503T165136Z-84f918a9` (model: `claude-sonnet-4-6`, date: 2026-05-03). The numbers are reproduced verbatim from `evals/security-spike/reports/20260503T165136Z-84f918a9/report.json` after the verdict-extraction regex correction (commit `f0bfec3a`) and re-scoring (commit `8f1e5342`).
+This subsection records the actual numbers from the spike run `20260503T165136Z-84f918a9` (model: `claude-sonnet-4-6`, date: 2026-05-03). The numbers are reproduced verbatim from `evals/_archive/security-spike-20260503T165136Z-84f918a9/reports/20260503T165136Z-84f918a9/report.json` (archived per the scrap verdict) after the verdict-extraction regex correction (commit `f0bfec3a`) and re-scoring (commit `8f1e5342`).
 
 | Metric | Value |
 |---|---|
@@ -361,8 +361,8 @@ The Anthropic dependency is already paid by ADR-057. Adding ADR-058 does not dee
 - [REQ-004](../specs/requirements/REQ-004-agent-eval-harness-spike.md): requirements (including AC-6 ADR contract).
 - [DESIGN-004](../specs/design/DESIGN-004-agent-eval-harness-spike.md): runner design.
 - [TASK-004](../specs/tasks/TASK-004-agent-eval-harness-spike.md): task plan.
-- `evals/security-spike/reports/20260503T165136Z-84f918a9/report.json`: authoritative worked-example numbers (post-rescore).
-- `evals/security-spike/reports/20260503T165136Z-84f918a9/REPORT.md`: worked-example markdown narrative (post-rescore).
+- `evals/_archive/security-spike-20260503T165136Z-84f918a9/reports/20260503T165136Z-84f918a9/report.json`: authoritative worked-example numbers (post-rescore; archived per scrap verdict).
+- `evals/_archive/security-spike-20260503T165136Z-84f918a9/reports/20260503T165136Z-84f918a9/REPORT.md`: worked-example markdown narrative (post-rescore; archived per scrap verdict).
 - `scripts/eval/eval-agent-vs-baseline.py`: runner.
 - Commit `f0bfec3a`: fix(eval): extract markdown-formatted verdicts in scoring engine.
 - Commit `8f1e5342`: fix(eval): rescore runs with corrected verdict regex.
