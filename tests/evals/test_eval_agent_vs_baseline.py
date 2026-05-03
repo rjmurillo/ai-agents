@@ -44,6 +44,8 @@ try:
     types_mod = _load_module("_eval_agent_types.py", "_eval_agent_types")
     scoring_mod = _load_module("_scoring_engine.py", "_scoring_engine")
     plan_mod = _load_module("_plan_runner.py", "_plan_runner")
+    adapter_mod = _load_module("_eval_api_adapter.py", "_eval_api_adapter")
+    persistence_mod = _load_module("_run_persistence.py", "_run_persistence")
     cli_mod = _load_module("eval-agent-vs-baseline.py", "eval_agent_vs_baseline")
 finally:
     if _path_added and str(EVAL_DIR) in sys.path:
@@ -68,6 +70,16 @@ build_default_engine = scoring_mod.build_default_engine
 
 PlanRunner = plan_mod.PlanRunner
 UnsupportedModelError = plan_mod.UnsupportedModelError
+
+AnthropicAPIAdapter = adapter_mod.AnthropicAPIAdapter
+APICallResult = adapter_mod.APICallResult
+ERR_RATE_LIMIT = adapter_mod.ERR_RATE_LIMIT
+ERR_SERVER_ERROR = adapter_mod.ERR_SERVER_ERROR
+ERR_TIMEOUT = adapter_mod.ERR_TIMEOUT
+ERR_CLIENT_ERROR = adapter_mod.ERR_CLIENT_ERROR
+
+RunPersistence = persistence_mod.RunPersistence
+DuplicateRunError = persistence_mod.DuplicateRunError
 
 FixtureValidator = cli_mod.FixtureValidator
 cli_main = cli_mod.main
@@ -443,3 +455,486 @@ class TestCliExitCodes:
         assert "planned_calls=6" in captured.out
         assert "cost_estimate_usd=" in captured.out
         assert "rate_as_of=" in captured.out
+
+
+# ===========================================================================
+# T4-2: AnthropicAPIAdapter (mocked transport)
+# ===========================================================================
+
+
+class _FakeTransport:
+    """Records calls and returns scripted responses or raises scripted errors.
+
+    `script` is a list where each element is either a `str` (success body) or
+    a callable that raises an exception. The transport advances through the
+    script on each call; running off the end raises IndexError so tests
+    notice unintended extra retries.
+    """
+
+    def __init__(self, script: list):
+        self.script = list(script)
+        self.calls: list[tuple[str, str, str]] = []
+
+    def __call__(self, prompt: str, model_id: str, system: str) -> str:
+        self.calls.append((prompt, model_id, system))
+        item = self.script.pop(0)
+        if isinstance(item, str):
+            return item
+        item()  # callable that raises
+        raise AssertionError("script item must return str or raise")
+
+
+def _http_error(code: int) -> Exception:
+    return RuntimeError(f"Anthropic API returned HTTP {code}: ...")
+
+
+def _timeout_error() -> Exception:
+    return RuntimeError("Anthropic API request timed out after 120s. ...")
+
+
+class TestAnthropicAPIAdapterSuccess:
+    def test_first_call_succeeds(self):
+        transport = _FakeTransport(script=["IDENTIFY: ok"])
+        adapter = AnthropicAPIAdapter(
+            transport=transport, sleep=lambda _s: None
+        )
+        result = adapter.call_model(
+            prompt="hi",
+            model_id="claude-sonnet-4-6",
+            fixture_id="F001",
+            variant="agent",
+            run_index=0,
+        )
+        assert result.outcome == "success"
+        assert result.raw_response == "IDENTIFY: ok"
+        assert result.attempts == 1
+        assert result.error_category is None
+        assert result.tokens_in > 0
+        assert result.tokens_out > 0
+        assert result.latency_ms >= 0
+
+    def test_429_then_success_categorizes_rate_limit(self):
+        transport = _FakeTransport(
+            script=[lambda: (_ for _ in ()).throw(_http_error(429)), "OK"]
+        )
+        adapter = AnthropicAPIAdapter(
+            transport=transport, sleep=lambda _s: None
+        )
+        result = adapter.call_model(
+            prompt="x",
+            model_id="claude-sonnet-4-6",
+            fixture_id="F002",
+            variant="baseline",
+            run_index=0,
+        )
+        assert result.outcome == "success"
+        assert result.attempts == 2
+        assert result.raw_response == "OK"
+
+    def test_timeout_then_success(self):
+        transport = _FakeTransport(
+            script=[lambda: (_ for _ in ()).throw(_timeout_error()), "ESCALATE"]
+        )
+        adapter = AnthropicAPIAdapter(
+            transport=transport, sleep=lambda _s: None
+        )
+        result = adapter.call_model(
+            prompt="x",
+            model_id="claude-sonnet-4-6",
+            fixture_id="F003",
+            variant="agent",
+            run_index=1,
+        )
+        assert result.outcome == "success"
+        assert result.attempts == 2
+
+
+class TestAnthropicAPIAdapterErrors:
+    def test_500_retried_then_error(self):
+        transport = _FakeTransport(
+            script=[
+                lambda: (_ for _ in ()).throw(_http_error(500)),
+                lambda: (_ for _ in ()).throw(_http_error(500)),
+                lambda: (_ for _ in ()).throw(_http_error(500)),
+            ]
+        )
+        adapter = AnthropicAPIAdapter(
+            transport=transport, sleep=lambda _s: None
+        )
+        result = adapter.call_model(
+            prompt="x",
+            model_id="claude-sonnet-4-6",
+            fixture_id="F004",
+            variant="agent",
+            run_index=0,
+        )
+        assert result.outcome == "error"
+        assert result.error_category == ERR_SERVER_ERROR
+        assert result.attempts == 3
+        assert result.raw_response is None
+
+    def test_400_immediate_error_no_retry(self):
+        transport = _FakeTransport(
+            script=[lambda: (_ for _ in ()).throw(_http_error(400))]
+        )
+        adapter = AnthropicAPIAdapter(
+            transport=transport, sleep=lambda _s: None
+        )
+        result = adapter.call_model(
+            prompt="x",
+            model_id="claude-sonnet-4-6",
+            fixture_id="F005",
+            variant="agent",
+            run_index=0,
+        )
+        assert result.outcome == "error"
+        assert result.error_category == ERR_CLIENT_ERROR
+        assert result.attempts == 1
+
+    def test_408_retried_then_success(self):
+        transport = _FakeTransport(
+            script=[lambda: (_ for _ in ()).throw(_http_error(408)), "OK"]
+        )
+        adapter = AnthropicAPIAdapter(
+            transport=transport, sleep=lambda _s: None
+        )
+        result = adapter.call_model(
+            prompt="x",
+            model_id="claude-sonnet-4-6",
+            fixture_id="F006",
+            variant="agent",
+            run_index=0,
+        )
+        assert result.outcome == "success"
+        assert result.attempts == 2
+
+
+class TestAnthropicAPIAdapterLogging:
+    def test_no_api_key_in_log_lines(self, monkeypatch, capsys):
+        secret = "sk-ant-FAKEKEY-DO-NOT-LEAK-1234567890"
+        monkeypatch.setenv("ANTHROPIC_API_KEY", secret)
+        transport = _FakeTransport(
+            script=[
+                lambda: (_ for _ in ()).throw(_http_error(429)),
+                "scored response",
+            ]
+        )
+        adapter = AnthropicAPIAdapter(
+            transport=transport, sleep=lambda _s: None
+        )
+        adapter.call_model(
+            prompt="user prompt",
+            model_id="claude-sonnet-4-6",
+            fixture_id="F007",
+            variant="agent",
+            run_index=0,
+            system="system prompt",
+        )
+        captured = capsys.readouterr()
+        # Both stdout and stderr must be free of the secret.
+        assert secret not in captured.err
+        assert secret not in captured.out
+        # Two structured log lines (one per attempt).
+        log_lines = [ln for ln in captured.err.splitlines() if ln.startswith("{")]
+        assert len(log_lines) == 2
+        for line in log_lines:
+            payload = json.loads(line)
+            assert payload["fixture_id"] == "F007"
+            assert "attempt" in payload
+            assert "outcome" in payload
+
+
+# ===========================================================================
+# T4-2: RunPersistence
+# ===========================================================================
+
+
+def _make_record(
+    fixture_id: str = "F001",
+    variant: str = "agent",
+    run_index: int = 0,
+    outcome: str = "success",
+) -> RunRecord:
+    return RunRecord(
+        fixture_id=fixture_id,
+        variant=variant,
+        run_index=run_index,
+        model_id="claude-sonnet-4-6",
+        prompt_sha="a" * 64,
+        prompt_ref="templates/agents/security.shared.md",
+        fixture_sha="b" * 64,
+        raw_response="IDENTIFY: ok",
+        assertions=[
+            AssertionResult(
+                kind=AssertionKind.VERDICT,
+                pattern=None,
+                expected_value="IDENTIFY",
+                passed=True,
+                extracted="IDENTIFY",
+            )
+        ],
+        outcome=outcome,
+        latency_ms=100.0,
+        tokens_in=10,
+        tokens_out=20,
+        error_category=None,
+        attempts=1,
+    )
+
+
+class TestRunPersistenceFresh:
+    def test_first_write_succeeds(self, tmp_path):
+        persistence = RunPersistence(tmp_path / "run-1", resume=False)
+        wrote = persistence.write_record(_make_record())
+        assert wrote is True
+        assert persistence.jsonl_path.exists()
+        line = persistence.jsonl_path.read_text(encoding="utf-8").strip()
+        payload = json.loads(line)
+        assert payload["fixture_id"] == "F001"
+        assert payload["schemaVersion"] == 1
+        assert payload["assertions"][0]["kind"] == "verdict"
+
+    def test_duplicate_write_raises_in_fresh_mode(self, tmp_path):
+        persistence = RunPersistence(tmp_path / "run-2", resume=False)
+        persistence.write_record(_make_record())
+        with pytest.raises(DuplicateRunError, match="duplicate"):
+            persistence.write_record(_make_record())
+
+    def test_duplicate_message_includes_path_and_key(self, tmp_path):
+        persistence = RunPersistence(tmp_path / "run-3", resume=False)
+        persistence.write_record(_make_record(fixture_id="F009"))
+        try:
+            persistence.write_record(_make_record(fixture_id="F009"))
+        except DuplicateRunError as exc:
+            assert "F009" in str(exc)
+            assert "runs.jsonl" in str(exc)
+        else:
+            pytest.fail("expected DuplicateRunError")
+
+
+class TestRunPersistenceResume:
+    def test_resume_skips_existing_triple(self, tmp_path):
+        run_dir = tmp_path / "run-resume"
+        first = RunPersistence(run_dir, resume=False)
+        first.write_record(_make_record())
+        # Second open in resume mode: same triple is "already done".
+        second = RunPersistence(run_dir, resume=True)
+        wrote = second.write_record(_make_record())
+        assert wrote is False
+        assert second.skipped_count() == 1
+        assert second.written_count() == 0
+        # Different triple still writes.
+        wrote_other = second.write_record(_make_record(run_index=1))
+        assert wrote_other is True
+        assert second.written_count() == 1
+
+    def test_resume_loads_keys_from_disk(self, tmp_path):
+        run_dir = tmp_path / "run-load"
+        run_dir.mkdir()
+        # Hand-craft a JSONL file with two records.
+        persistence = RunPersistence(run_dir, resume=True)
+        persistence.write_record(_make_record(run_index=0))
+        persistence.write_record(_make_record(run_index=1))
+        # Reopen: both keys should be visible.
+        reopened = RunPersistence(run_dir, resume=True)
+        assert reopened.is_completed("F001", "agent", 0)
+        assert reopened.is_completed("F001", "agent", 1)
+        assert not reopened.is_completed("F001", "agent", 2)
+
+
+class TestRunPersistenceJsonlRoundTrip:
+    def test_iter_records_round_trips(self, tmp_path):
+        persistence = RunPersistence(tmp_path / "rt", resume=False)
+        original = _make_record()
+        persistence.write_record(original)
+        # Round-trip via iter_records.
+        records = list(persistence.iter_records())
+        assert len(records) == 1
+        assert records[0].fixture_id == original.fixture_id
+        assert records[0].variant == original.variant
+        assert records[0].run_index == original.run_index
+        assert records[0].schema_version == 1
+
+
+class TestRunPersistenceSchemaGuard:
+    def test_record_with_wrong_schema_version_raises(self, tmp_path):
+        persistence = RunPersistence(tmp_path / "sv", resume=False)
+        record = _make_record()
+        # Mutate the schema_version on the dataclass (frozen=False on RunRecord).
+        record.schema_version = 99
+        with pytest.raises(DuplicateRunError, match="schemaVersion"):
+            persistence.write_record(record)
+
+
+# ===========================================================================
+# T4-2: CLI integration with mocked adapter
+# ===========================================================================
+
+
+class _StubAdapter:
+    """Adapter substitute. Returns scripted APICallResults by call order."""
+
+    def __init__(self, results: list):
+        self.results = list(results)
+        self.call_count = 0
+
+    def call_model(self, **_kwargs):
+        self.call_count += 1
+        return self.results.pop(0)
+
+
+class TestRunnerLiveLoop:
+    def _setup(self, tmp_path, monkeypatch):
+        # Steer the runner at a temporary REPO_ROOT so writes land under tmp_path.
+        agents_dir = tmp_path / "templates" / "agents"
+        agents_dir.mkdir(parents=True)
+        (agents_dir / "security.shared.md").write_text(
+            "you are the security agent prompt", encoding="utf-8"
+        )
+        monkeypatch.setattr(cli_mod, "REPO_ROOT", tmp_path)
+        # Stub the adapter constructor.
+        return agents_dir
+
+    def test_live_run_writes_jsonl_and_no_secret_in_logs(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        self._setup(tmp_path, monkeypatch)
+        secret = "sk-ant-MUST-NOT-LEAK-9999"
+        monkeypatch.setenv("ANTHROPIC_API_KEY", secret)
+        fixtures_dir = tmp_path / "fixtures"
+        fixtures_dir.mkdir()
+        _write_fixture(
+            fixtures_dir,
+            "F001.json",
+            _valid_fixture_payload(),
+        )
+
+        # 6 calls = 1 fixture × 2 variants × 3 runs.
+        results = [
+            APICallResult(
+                outcome="success",
+                raw_response="IDENTIFY: clean",
+                tokens_in=50,
+                tokens_out=20,
+                latency_ms=10.0,
+                error_category=None,
+                attempts=1,
+            )
+            for _ in range(6)
+        ]
+        adapter = _StubAdapter(results)
+        monkeypatch.setattr(cli_mod, "AnthropicAPIAdapter", lambda: adapter)
+
+        rc = cli_main([
+            "--agent",
+            "security",
+            "--fixtures",
+            str(fixtures_dir),
+            "--n-runs",
+            "3",
+        ])
+        assert rc == 0
+        assert adapter.call_count == 6
+        # Captured logs MUST NOT contain the API key.
+        captured = capsys.readouterr()
+        assert secret not in captured.err
+        assert secret not in captured.out
+        # JSONL file exists with 6 lines.
+        run_dirs = list((tmp_path / "evals" / "security-spike" / "runs").iterdir())
+        assert len(run_dirs) == 1
+        jsonl = run_dirs[0] / "runs.jsonl"
+        lines = [ln for ln in jsonl.read_text(encoding="utf-8").splitlines() if ln.strip()]
+        assert len(lines) == 6
+        for line in lines:
+            payload = json.loads(line)
+            assert payload["schemaVersion"] == 1
+            assert payload["model_id"] == "claude-sonnet-4-6"
+
+    def test_resume_does_not_recall_completed_triples(
+        self, tmp_path, monkeypatch
+    ):
+        self._setup(tmp_path, monkeypatch)
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-resume2")
+        fixtures_dir = tmp_path / "fixtures"
+        fixtures_dir.mkdir()
+        _write_fixture(fixtures_dir, "F001.json", _valid_fixture_payload())
+
+        # First run: complete all 6 calls.
+        all_six = [
+            APICallResult(
+                outcome="success",
+                raw_response="IDENTIFY: ok",
+                tokens_in=10,
+                tokens_out=5,
+                latency_ms=5.0,
+                error_category=None,
+                attempts=1,
+            )
+            for _ in range(6)
+        ]
+        adapter1 = _StubAdapter(list(all_six))
+        monkeypatch.setattr(cli_mod, "AnthropicAPIAdapter", lambda: adapter1)
+        run_id = "20260503T130000Z-cafebabe"
+        rc = cli_main([
+            "--agent",
+            "security",
+            "--fixtures",
+            str(fixtures_dir),
+            "--n-runs",
+            "3",
+            "--run-id",
+            run_id,
+        ])
+        assert rc == 0
+        assert adapter1.call_count == 6
+
+        # Resume: adapter should not be called at all because all 6 triples
+        # are already completed.
+        adapter2 = _StubAdapter([])  # empty: any call would IndexError
+        monkeypatch.setattr(cli_mod, "AnthropicAPIAdapter", lambda: adapter2)
+        rc2 = cli_main([
+            "--agent",
+            "security",
+            "--fixtures",
+            str(fixtures_dir),
+            "--n-runs",
+            "3",
+            "--resume",
+            run_id,
+        ])
+        assert rc2 == 0
+        assert adapter2.call_count == 0
+
+    def test_error_rate_above_10pct_exits_one(self, tmp_path, monkeypatch, capsys):
+        self._setup(tmp_path, monkeypatch)
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-err")
+        fixtures_dir = tmp_path / "fixtures"
+        fixtures_dir.mkdir()
+        _write_fixture(fixtures_dir, "F001.json", _valid_fixture_payload())
+
+        # All 6 calls error → 100% error rate → exits 1.
+        all_errors = [
+            APICallResult(
+                outcome="error",
+                raw_response=None,
+                tokens_in=0,
+                tokens_out=0,
+                latency_ms=5.0,
+                error_category=ERR_SERVER_ERROR,
+                attempts=3,
+            )
+            for _ in range(6)
+        ]
+        adapter = _StubAdapter(all_errors)
+        monkeypatch.setattr(cli_mod, "AnthropicAPIAdapter", lambda: adapter)
+        rc = cli_main([
+            "--agent",
+            "security",
+            "--fixtures",
+            str(fixtures_dir),
+            "--n-runs",
+            "3",
+        ])
+        assert rc == 1
+        captured = capsys.readouterr()
+        assert "error rate exceeds 10%" in captured.err
