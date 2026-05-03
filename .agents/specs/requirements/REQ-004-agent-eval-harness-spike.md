@@ -4,7 +4,7 @@ id: REQ-004
 title: Agent Eval Harness Spike
 status: draft
 priority: P0
-category: complex
+category: non-functional
 epic: SPIKE-1854
 related:
   - DESIGN-004

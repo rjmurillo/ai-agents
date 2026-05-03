@@ -438,13 +438,13 @@ The Anthropic dependency is already paid by ADR-057. Adding ADR-058 does not dee
 - `evals/security-spike/reports/20260503T182553Z-eaa08f8d/report.json`: authoritative v2 worked-example numbers (current).
 - `evals/security-spike/reports/20260503T182553Z-eaa08f8d/REPORT.md`: v2 worked-example markdown narrative.
 - `evals/_archive/security-spike-20260503T165136Z-84f918a9/`: v1 archive, preserved as evidence of the rigged comparison.
-- `scripts/eval/eval-agent-vs-baseline.py`: runner (methodology v2 per commit `61f1b6b8`).
-- Commit `61f1b6b8`: fix(evals): symmetrize verdict-vocabulary contract across variants. The methodology v1->v2 fix.
-- Commit `5f8fd96f`: feat(evals): re-execute spike with fixed methodology; halt-due-to-flakiness. The v2 re-run.
-- Commit `f0bfec3a`: fix(eval): extract markdown-formatted verdicts in scoring engine. (v1 regex fix; correct under the rigged contract; superseded by symmetry fix.)
-- Commit `8f1e5342`: fix(eval): rescore runs with corrected verdict regex. (v1 rescore; superseded.)
-- `.agents/critique/SPIKE-1854-methodology-diagnosis.md`: four-agent diagnostic review establishing v1 invalidation.
-- `.agents/critique/ADR-058-debate-log.md`: architect-led multi-perspective review (original ratification).
-- `.agents/critique/ADR-058-amendment-debate-log.md`: architect-led multi-perspective review of inflight amendments (second amendment, pre-diagnosis).
-- `.agents/critique/ADR-058-third-amendment-debate-log.md`: architect-led multi-perspective review of the third amendment (v1 invalidation, v2 worked example, symmetry requirement, halt-due-to-flakiness outcome).
-- [Issue #1875](https://github.com/rjmurillo/ai-agents/issues/1875): tracker for follow-on form-factor methodology ADR.
+- `scripts/eval/eval-agent-vs-baseline.py`: runner (methodology v2 per commit `61f1b6b8` (2026-05-03)).
+- Commit `61f1b6b8` (2026-05-03): fix(evals): symmetrize verdict-vocabulary contract across variants. The methodology v1->v2 fix.
+- Commit `5f8fd96f` (2026-05-03): feat(evals): re-execute spike with fixed methodology; halt-due-to-flakiness. The v2 re-run.
+- Commit `f0bfec3a` (2026-05-03): fix(eval): extract markdown-formatted verdicts in scoring engine. (v1 regex fix; correct under the rigged contract; superseded by symmetry fix.)
+- Commit `8f1e5342` (2026-05-03): fix(eval): rescore runs with corrected verdict regex. (v1 rescore; superseded.)
+- `.agents/critique/SPIKE-1854-methodology-diagnosis.md` (2026-05-03): four-agent diagnostic review establishing v1 invalidation.
+- `.agents/critique/ADR-058-debate-log.md` (2026-05-03): architect-led multi-perspective review (original ratification).
+- `.agents/critique/ADR-058-amendment-debate-log.md` (2026-05-03): architect-led multi-perspective review of inflight amendments (second amendment, pre-diagnosis).
+- `.agents/critique/ADR-058-third-amendment-debate-log.md` (2026-05-03): architect-led multi-perspective review of the third amendment (v1 invalidation, v2 worked example, symmetry requirement, halt-due-to-flakiness outcome).
+- [Issue #1875](https://github.com/rjmurillo/ai-agents/issues/1875) (2026-05-03): tracker for follow-on form-factor methodology ADR.

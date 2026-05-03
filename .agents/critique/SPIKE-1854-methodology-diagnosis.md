@@ -1,5 +1,13 @@
 # Spike #1854 — Methodology Diagnosis (Team Review)
 
+> **Status**: Historical evidence — preserved as the diagnostic record that
+> invalidated the v1 spike's two committed verdicts (`keep-as-audit` and the
+> bot's flipped `scrap`). The methodology fix landed in commit `61f1b6b8`
+> and the v2 re-execution in commit `5f8fd96f`. ADR-058 §"v1 invalidation"
+> is the authoritative narrative; this file is its source artifact and
+> MUST NOT be edited to reflect later developments. See ADR-058 for the
+> superseding v2 worked example and the symmetry-requirement codification.
+
 **Date**: 2026-05-03
 **Subject**: Both spike verdicts (`keep-as-audit` and the bot's flipped `scrap`) are invalid because of an asymmetric experimental design.
 **Trigger**: User skepticism about the 33pp baseline-recall swing (16.7% → 50.0%) from a single regex fix.
