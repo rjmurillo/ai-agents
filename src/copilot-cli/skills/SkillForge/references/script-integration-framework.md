@@ -447,6 +447,7 @@ Skills can leverage hooks for automatic script invocation during tool use.
 ### Hook + Script Integration Pattern
 
 **Skill frontmatter:**
+
 ```yaml
 ---
 name: validated-generator
@@ -468,6 +469,7 @@ Read `$TOOL_INPUT` and `$TOOL_OUTPUT` from environment variables inside the scri
 Avoid interpolating these values directly in shell command strings.
 
 **Script requirements for hook integration:**
+
 1. Accept input via `$TOOL_INPUT` or `$TOOL_OUTPUT` environment variables
 2. Exit code 0 allows tool execution to proceed
 3. Exit code non-0 blocks tool execution (PreToolUse) or flags error (PostToolUse)
