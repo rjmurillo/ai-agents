@@ -43,10 +43,23 @@ DEFAULT_MAX_RETRIES = 3
 _BACKOFF_BASE_SEC = 1.0
 _BACKOFF_MAX_SEC = 30.0
 
+# Total wall-time budget across all attempts for one logical call.
+# `_anthropic_api.call_api` uses a 120s per-attempt timeout; with 3 retries
+# the worst case before this guard was 6 minutes per call. 180s caps the
+# guarantee at one slow attempt without forfeiting fast retries.
+DEFAULT_TOTAL_TIMEOUT_SEC = 180.0
+ERR_TOTAL_TIMEOUT = "timeout_total"
+
 
 @dataclass(frozen=True)
 class APICallResult:
-    """Outcome of one (possibly-retried) API call. DESIGN-004 §5.4."""
+    """Outcome of one (possibly-retried) API call. DESIGN-004 §5.4.
+
+    `tokens_estimated` is True when token counts are derived from a
+    text-length heuristic instead of a `usage` envelope returned by the
+    API. The eval pipeline propagates this flag into `runs.jsonl` and the
+    aggregated report so cost numbers are not presented as authoritative.
+    """
 
     outcome: OutcomeLiteral
     raw_response: str | None
@@ -55,6 +68,7 @@ class APICallResult:
     latency_ms: float
     error_category: str | None
     attempts: int
+    tokens_estimated: bool = True
 
 
 # Match the HTTP-status hint that `_anthropic_api.call_api` puts into its
@@ -152,12 +166,14 @@ class AnthropicAPIAdapter:
         transport: Transport | None = None,
         sleep: Callable[[float], None] = time.sleep,
         clock: Callable[[], float] = time.monotonic,
+        total_timeout_seconds: float = DEFAULT_TOTAL_TIMEOUT_SEC,
     ) -> None:
         # Lazy default: only resolve the API key when the adapter actually
         # needs the production transport. Tests inject `transport` directly.
         self._transport = transport
         self._sleep = sleep
         self._clock = clock
+        self._total_timeout_seconds = total_timeout_seconds
 
     def _resolve_transport(self) -> Transport:
         if self._transport is None:
@@ -188,6 +204,36 @@ class AnthropicAPIAdapter:
 
         while attempt < max_retries:
             attempt += 1
+            # Wall-budget guard: if elapsed already exceeds the total budget,
+            # do not start another attempt. Logged once and returned as a
+            # `timeout_total` error so the operator can distinguish it from
+            # per-attempt timeouts.
+            elapsed = self._clock() - start_total
+            if attempt > 1 and elapsed >= self._total_timeout_seconds:
+                _emit_log(
+                    {
+                        "fixture_id": fixture_id,
+                        "variant": variant,
+                        "run_index": run_index,
+                        "model_id": model_id,
+                        "attempt": attempt,
+                        "outcome": "error",
+                        "latency_ms": round(elapsed * 1000.0, 2),
+                        "tokens_in": 0,
+                        "tokens_out": 0,
+                        "error_category": ERR_TOTAL_TIMEOUT,
+                    }
+                )
+                return APICallResult(
+                    outcome="error",
+                    raw_response=None,
+                    tokens_in=0,
+                    tokens_out=0,
+                    latency_ms=round(elapsed * 1000.0, 2),
+                    error_category=ERR_TOTAL_TIMEOUT,
+                    attempts=attempt - 1,
+                    tokens_estimated=True,
+                )
             attempt_start = self._clock()
             try:
                 raw = transport(prompt, model_id, system)
@@ -219,14 +265,45 @@ class AnthropicAPIAdapter:
                         latency_ms=round(total_latency_ms, 2),
                         error_category=category,
                         attempts=attempt,
+                        tokens_estimated=True,
                     )
-                # Transient + budget remaining → backoff and retry.
-                self._sleep(_backoff_delay_seconds(attempt))
+                # Transient + budget remaining → backoff and retry, but only
+                # if the next attempt + its backoff fits inside the wall
+                # budget. Otherwise abort with `timeout_total`.
+                backoff = _backoff_delay_seconds(attempt)
+                projected = (self._clock() - start_total) + backoff
+                if projected >= self._total_timeout_seconds:
+                    total_latency_ms = (self._clock() - start_total) * 1000.0
+                    _emit_log(
+                        {
+                            "fixture_id": fixture_id,
+                            "variant": variant,
+                            "run_index": run_index,
+                            "model_id": model_id,
+                            "attempt": attempt,
+                            "outcome": "error",
+                            "latency_ms": round(total_latency_ms, 2),
+                            "tokens_in": 0,
+                            "tokens_out": 0,
+                            "error_category": ERR_TOTAL_TIMEOUT,
+                        }
+                    )
+                    return APICallResult(
+                        outcome="error",
+                        raw_response=None,
+                        tokens_in=0,
+                        tokens_out=0,
+                        latency_ms=round(total_latency_ms, 2),
+                        error_category=ERR_TOTAL_TIMEOUT,
+                        attempts=attempt,
+                        tokens_estimated=True,
+                    )
+                self._sleep(backoff)
                 continue
 
-            # Success path. Token counts are not exposed by `_anthropic_api`,
-            # so estimate downstream. Adapter records 0/0 here; the runner
-            # may overwrite from a future API client that returns usage.
+            # Success path. Token counts are estimated from text length until
+            # `_anthropic_api.call_api` surfaces a `usage` envelope; callers
+            # see `tokens_estimated=True` so cost numbers carry that caveat.
             latency_ms = (self._clock() - attempt_start) * 1000.0
             total_latency_ms = (self._clock() - start_total) * 1000.0
             tokens_in = _estimate_tokens(prompt) + _estimate_tokens(system)
@@ -253,6 +330,7 @@ class AnthropicAPIAdapter:
                 latency_ms=round(total_latency_ms, 2),
                 error_category=None,
                 attempts=attempt,
+                tokens_estimated=True,
             )
 
         # Exhausted retries on transient error without ever getting an

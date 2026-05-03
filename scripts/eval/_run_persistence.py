@@ -5,9 +5,13 @@ DESIGN-004 §5.5, REQ-004 AC-9. Records are appended one per line to
 `(fixture_id, variant, run_index)` triple is the idempotency key.
 
 Two modes (DESIGN-004 §Failure Modes):
-- **Fresh-run**: collision raises `DuplicateRunError`; the runner exits 1.
-- **Resume**: collision means "already done"; the writer skips silently.
-  Caller asks `is_completed(...)` before issuing the API call.
+- **Fresh-run**: opening an already-populated `runs.jsonl` raises
+  `RunDirectoryNotFreshError`. Any later collision in the loop raises
+  `DuplicateRunError`. Both surface to the runner as exit 1.
+- **Resume**: existing records are loaded; `is_completed(...)` reports
+  True only for triples whose prior record was `outcome="success"`.
+  Errored triples are retried by default. The writer skips silently
+  when the same successful triple is asked to write a second time.
 
 Atomic write: each append happens via write-temp-then-rename of the
 JSONL file (small, append-only) to avoid partial lines when the process
@@ -34,6 +38,12 @@ from _eval_agent_types import (
 
 class DuplicateRunError(Exception):
     """Raised when a fresh-run mode write hits an already-recorded triple."""
+
+
+class RunDirectoryNotFreshError(Exception):
+    """Raised when fresh-run mode opens a run dir whose `runs.jsonl` is
+    already populated. Mixed prompt SHAs and silently skipped triples are
+    only safe under explicit `--resume`."""
 
 
 # Public to make the format obvious at the call site and to give tests a
@@ -100,11 +110,25 @@ class RunPersistence:
         self._run_dir = run_dir
         self._resume = resume
         self._jsonl_path = run_dir / RUNS_FILENAME
+        # All triples that already exist on disk, regardless of outcome.
         self._seen: set[tuple[str, str, int]] = set()
+        # Triples whose prior outcome was `success`. Drives `is_completed`
+        # so `--resume` retries errored runs by default.
+        self._completed: set[tuple[str, str, int]] = set()
         self._counters = _Counters()
         run_dir.mkdir(parents=True, exist_ok=True)
         if self._jsonl_path.exists():
             self._load_existing_keys()
+            # Fresh-run mode against a non-empty run dir is a protocol
+            # violation: it would mix prompt SHAs and silently skip prior
+            # triples. Resume must be opt-in.
+            if not self._resume and self._seen:
+                raise RunDirectoryNotFreshError(
+                    f"{self._jsonl_path} already contains "
+                    f"{len(self._seen)} record(s); refusing to write in "
+                    f"fresh-run mode. Pass --resume <RUN_ID> to continue, "
+                    f"or choose a new run directory."
+                )
 
     @property
     def run_dir(self) -> Path:
@@ -140,15 +164,27 @@ class RunPersistence:
                         f"{self._jsonl_path}: line {line_no} missing identity field"
                     )
                 self._seen.add(key)  # type: ignore[arg-type]
+                if payload.get("outcome") == "success":
+                    self._completed.add(key)  # type: ignore[arg-type]
 
     def is_completed(self, fixture_id: str, variant: str, run_index: int) -> bool:
-        return (fixture_id, variant, run_index) in self._seen
+        """True only when the prior record was `outcome="success"`.
+
+        Errored triples are NOT considered completed. Under `--resume`,
+        callers see them as still-to-run and retry them.
+        """
+        return (fixture_id, variant, run_index) in self._completed
 
     def write_record(self, record: RunRecord) -> bool:
         """Append a record. Returns True on write, False on resume-skip.
 
         Raises `DuplicateRunError` in fresh-run mode if the key already
         exists. Validates `schemaVersion` matches the supported version.
+
+        In resume mode, a key whose prior record was `outcome="success"`
+        is skipped (returns False). A key whose prior record was
+        `outcome="error"` is replaced in place: the errored line is
+        removed and the new record is appended.
         """
         if record.schema_version != SCHEMA_VERSION:
             raise DuplicateRunError(
@@ -158,8 +194,15 @@ class RunPersistence:
         key = _record_key(record)
         if key in self._seen:
             if self._resume:
-                self._counters.skipped_resume += 1
-                return False
+                if key in self._completed:
+                    self._counters.skipped_resume += 1
+                    return False
+                # Errored prior record: replace it with the retry.
+                self._atomic_replace(key, record)
+                if record.outcome == "success":
+                    self._completed.add(key)
+                self._counters.written += 1
+                return True
             raise DuplicateRunError(
                 f"duplicate {key} in {self._jsonl_path}; "
                 f"each (fixture_id, variant, run_index) must be unique"
@@ -167,6 +210,8 @@ class RunPersistence:
         line = _record_to_json_line(record)
         self._atomic_append(line + "\n")
         self._seen.add(key)
+        if record.outcome == "success":
+            self._completed.add(key)
         self._counters.written += 1
         return True
 
@@ -211,6 +256,52 @@ class RunPersistence:
             os.replace(tmp_path, self._jsonl_path)
         except Exception:
             # Best-effort cleanup; do not mask the original error.
+            try:
+                os.unlink(tmp_path)
+            except FileNotFoundError:
+                pass
+            raise
+
+    def _atomic_replace(
+        self, key: tuple[str, str, int], record: RunRecord
+    ) -> None:
+        """Replace any record matching `key` with `record`, atomically.
+
+        Used when `--resume` retries a triple whose prior outcome was
+        `error`. Reads the file, drops every line whose identity triple
+        matches, appends the new line, then renames over the original.
+        """
+        new_line = _record_to_json_line(record) + "\n"
+        kept: list[str] = []
+        if self._jsonl_path.exists():
+            with self._jsonl_path.open("r", encoding="utf-8") as fh:
+                for raw_line in fh:
+                    stripped = raw_line.strip()
+                    if not stripped:
+                        continue
+                    payload = json.loads(stripped)
+                    existing_key = (
+                        payload.get("fixture_id"),
+                        payload.get("variant"),
+                        payload.get("run_index"),
+                    )
+                    if existing_key == key:
+                        continue
+                    if not raw_line.endswith("\n"):
+                        raw_line += "\n"
+                    kept.append(raw_line)
+
+        fd, tmp_path = tempfile.mkstemp(
+            prefix=".runs.", suffix=".jsonl.tmp", dir=str(self._run_dir)
+        )
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as tmp:
+                tmp.writelines(kept)
+                tmp.write(new_line)
+                tmp.flush()
+                os.fsync(tmp.fileno())
+            os.replace(tmp_path, self._jsonl_path)
+        except Exception:
             try:
                 os.unlink(tmp_path)
             except FileNotFoundError:

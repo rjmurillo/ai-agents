@@ -89,6 +89,11 @@ class RunRecord:
 
     DESIGN-004 §5.5. Persistence and idempotency live in T4-2; T4-1 only
     defines the shape so T4-2 can `from _eval_agent_types import RunRecord`.
+
+    `tokens_estimated` defaults to True because the Anthropic API helper
+    used by the spike does not surface a `usage` envelope yet; the adapter
+    derives token counts from text length. Once `_anthropic_api.call_api`
+    returns measured usage, callers will set this False on success records.
     """
 
     fixture_id: str
@@ -106,6 +111,7 @@ class RunRecord:
     tokens_out: int
     error_category: str | None
     attempts: int
+    tokens_estimated: bool = True
     schema_version: int = SCHEMA_VERSION
 
 
