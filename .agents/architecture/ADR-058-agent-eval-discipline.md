@@ -40,6 +40,55 @@ A prompt change that affects the agent body should be evaluated against both gat
 
 Adopt the agent-vs-baseline efficacy methodology defined below as the standard for empirical validation of agent specialization. The methodology is offline-only at v1. It produces a deterministic-only gated signal, supplemented by an optional advisory LLM-as-judge sidecar.
 
+### v1 Invalidation (BOTH committed v1 verdicts retracted)
+
+The v1 spike (`20260503T165136Z-84f918a9`, archived at `evals/_archive/security-spike-20260503T165136Z-84f918a9/`) produced two verdicts in sequence: an original `keep-as-audit` (+8.3pp) and a bot-flipped `scrap` (-25.0pp) after a verdict-extraction regex fix. **Both verdicts are invalid.** They were measurement artifacts of an asymmetric experimental design, not measurements of agent specialization value.
+
+A four-agent diagnostic review (`analyst`, `critic`, `independent-thinker`, `security`) converged on the diagnosis at `.agents/critique/SPIKE-1854-methodology-diagnosis.md`. The root cause: the verdict scorer checks for one of three tokens at the start of the response (`IDENTIFY|OK|ESCALATE`), but only the **baseline** was instructed to produce that vocabulary. The agent's system prompt teaches a different verdict vocabulary (`[PASS]/[FAIL]/REJECTED/DO NOT MERGE/[BLOCKED]`) and never mentions the scorer's tokens. Result: the agent received a structural shutout — 0 of 30 verdict-assertion passes across all v1 runs.
+
+The original `keep-as-audit` verdict was an artifact of the buggy regex equally suppressing both variants' markdown-bold verdicts. The flipped `scrap` was an artifact of fixing the regex for the baseline only (the agent never produced the relevant tokens in any form, raw or markdown). Neither delta reflects agent specialization value.
+
+**v1 numbers, retained as a record of what the rigged comparison produced** (do NOT cite these as evidence of agent quality):
+
+| Reading | Agent recall | Baseline recall | Signed delta | Verdict |
+|---|---|---|---|---|
+| Original (broken regex) | 16.7% | 8.3% | +8.3pp | `keep-as-audit` (invalid) |
+| Re-scored (fixed regex, still rigged contract) | 25.0% | 50.0% | -25.0pp | `scrap` (invalid) |
+
+The v1 archive is preserved as evidence at `evals/_archive/security-spike-20260503T165136Z-84f918a9/`. Future readers should treat that directory as a teaching example of what an asymmetric output-shape contract looks like in practice.
+
+The methodology fix landed at commit `61f1b6b8`: a shared `OUTPUT_SHAPE_SUFFIX` is now appended to the **user message** of both variants. The v2 re-run at commit `5f8fd96f` (RUN_ID `20260503T182553Z-eaa08f8d`) produces the worked example below.
+
+### Experimental Design Symmetry (Normative)
+
+The agent variant and the baseline variant **MUST** receive identical user messages. Only the system prompt MAY differ between variants. This is the load-bearing experimental control that makes the comparison a measurement of system-prompt content rather than of any other variable.
+
+**Canonical implementation**: `OUTPUT_SHAPE_SUFFIX` in `scripts/eval/eval-agent-vs-baseline.py`. The suffix is appended to the fixture's input string before the user message is constructed for either variant. The runner's `_build_prompt(variant, agent_prompt, fixture_input)` function MUST construct the user message identically for both variants. The current implementation is:
+
+```python
+user_prompt = fixture_input + OUTPUT_SHAPE_SUFFIX
+if variant == "agent":
+    return agent_prompt, user_prompt
+return BASELINE_PROMPT, user_prompt
+```
+
+`BASELINE_PROMPT` is now a role-neutralization prompt only (`"Review the following input."`). The output-shape contract is no longer in the baseline's system prompt; it is in the user message that both variants receive.
+
+**Symmetry checks the runner enforces** (the runner MUST hold all six identical between variants on every run):
+
+| Symmetry property | What is held identical | Where enforced |
+|---|---|---|
+| Model | `claude-sonnet-4-6` for both variants | `AnthropicAPIAdapter` model field |
+| Temperature | `temperature=0` for both variants | Hard-coded in `AnthropicAPIAdapter` |
+| Fixture input | Same `fixture.input` string passed to both variants | `_build_prompt` accepts one `fixture_input` argument |
+| Retry policy | Same retry handler wraps both variants' API calls | `AnthropicAPIAdapter` retry branch |
+| Scoring engine | `_scoring_engine.py::VerdictScorer` and `RegexScorer` applied to both variants' raw responses | `_scoring_engine.py` |
+| Output-shape contract | `OUTPUT_SHAPE_SUFFIX` appended to both variants' user message | `_build_prompt` |
+
+A change to any of these MUST be documented as a methodology amendment. A change that breaks symmetry (for example, applying `OUTPUT_SHAPE_SUFFIX` to only one variant) MUST be rejected at code review and CI.
+
+**Why this is normative.** The v1 spike violated symmetry on the output-shape contract: only the baseline was told what tokens the scorer would check. The result was a structural shutout for the agent that two committed verdicts misread as a measurement. The symmetry requirement is the methodology's primary defense against that class of error. It is not negotiable for offline runs and is a precondition for any future CI graduation.
+
 ### Scope
 
 This methodology applies to agents with **deterministic-scorable output**: agents whose responses contain structured verdicts, pattern-matchable identifiers (CWE numbers, STRIDE categories, severity labels), or other content that can be checked against assertions without LLM judgment. Agents with freeform output (open-ended advice, narrative summaries, multi-step plans) require a different methodology not covered by this ADR.
@@ -58,6 +107,8 @@ A positive `graduate-to-CI` verdict from this methodology proves the **content**
 **Out of scope for this ADR**: the agent-vs-skill question — would the same content delivered as a [skill](../../.claude/skills/) loaded into the parent's context produce equivalent recall, at lower cost (one model call instead of two) and without the subagent-isolation complexity (e.g., the 1M-context bug tracked at anthropics/claude-code#55694)? That is a **form-factor** comparison and requires a separate methodology with a third variant `skill` (parent reads `SKILL.md`, reasons inline, scored against the same fixtures). Until that methodology is built and run, a positive verdict here justifies investing in the **content**, not necessarily in the **agent form**.
 
 A future ADR is expected to cover form-factor evaluation. Tracked at [#1875](https://github.com/rjmurillo/ai-agents/issues/1875).
+
+**Symmetry requirement** (third measurement boundary): a measurement is only valid when both variants face the same output-shape contract. The v1 spike violated this requirement (only the baseline's system prompt taught the scorer's verdict vocabulary; the agent's system prompt taught a different vocabulary that the scorer rejected). Both v1 verdicts were artifacts of that asymmetry, not measurements of agent quality. v1 is the canonical example of what NOT to do; see the v1 invalidation subsection above and the diagnosis at `.agents/critique/SPIKE-1854-methodology-diagnosis.md`. The symmetry requirement is now codified by the `OUTPUT_SHAPE_SUFFIX` pattern and the symmetry checks above.
 
 ### Survivorship Bias Acknowledgment
 
@@ -122,15 +173,16 @@ There is no single threshold. The threshold is the CI lower bound > 0 in conjunc
 |---|---|---|
 | `graduate-to-CI` | recall delta > 0 AND 95% CI lower bound > 0 AND flakiness = false AND error count = 0 | A follow-up issue is opened in the project tracker for CI integration scoped to the agent under test only. Multi-agent rollout remains deferred. CI integration requires a separate security review of the runner's API surface. |
 | `keep-as-audit` | positive delta but CI spans zero, OR minor flakiness, OR error count > 0 but < 10% | Runner remains offline-only. A re-run is scheduled for the next Anthropic model bump or quarterly, whichever first. |
-| `scrap` | no meaningful delta (CI centered on zero or negative), OR methodology flaw discovered during spike | `evals/<agent>-spike/` is moved to `evals/_archive/<agent>-spike-<RUN_ID>/`. The methodology ADR (this one or its successor) is marked `status: superseded` with a successor ADR documenting the methodology flaw and what would be tried instead. |
+| `scrap` | no meaningful delta (CI centered on zero or negative) under a symmetric experimental design, OR methodology flaw discovered during spike | `evals/<agent>-spike/` is moved to `evals/_archive/<agent>-spike-<RUN_ID>/`. The methodology ADR (this one or its successor) is marked `status: superseded` with a successor ADR documenting the methodology flaw and what would be tried instead. |
+| `halt-due-to-flakiness` | flakiness > 30% of fixtures after the contingency rerun (per AC-10) | The methodology produces no graduate / audit / scrap verdict on this run. Investigate variance source (control test: same fixture × same variant × N=10 runs to quantify temperature=0 non-determinism on long context). Consider corpus expansion (N≥30) before next attempt. **Do NOT graduate to CI without resolving the variance.** Underlying numbers may be reported as informational but are non-normative. |
 
-These criteria are normative. The ADR does not soften "scrap" into "needs more work." `scrap` is a real outcome and the methodology treats it as such.
+These criteria are normative. The ADR does not soften "scrap" into "needs more work" or "halt-due-to-flakiness" into a soft pass. Each outcome is a real outcome and the methodology treats it as such. `halt-due-to-flakiness` is in particular not a path to graduation; it is a halt that requires variance investigation before another verdict-grade run is attempted.
 
 ### Decision Owner and SLA
 
-The architect role owns the graduate/audit/scrap decision via Tier 3 architecture review. The decision MUST be ratified in PR review by an architect-tier reviewer before the verdict is committed.
+The architect role owns the graduate / audit / scrap / halt-due-to-flakiness decision via Tier 3 architecture review. The decision MUST be ratified in PR review by an architect-tier reviewer before the verdict is committed.
 
-**SLA fallback**: if no architect-tier reviewer ratifies the verdict within 5 business days of the spike report's PR opening, the decision defaults to `keep-as-audit`. The runner remains offline-only and the next-quarter review serves as the next decision point. This prevents indefinite limbo without forcing a premature `graduate-to-CI` or `scrap`.
+**SLA fallback**: if no architect-tier reviewer ratifies the verdict within 5 business days of the spike report's PR opening, the decision defaults to `keep-as-audit`. The runner remains offline-only and the next-quarter review serves as the next decision point. This prevents indefinite limbo without forcing a premature `graduate-to-CI` or `scrap`. The fallback does NOT apply to `halt-due-to-flakiness` runs: those require explicit variance investigation before another verdict-grade attempt is made; the SLA fallback cannot upgrade a halt to an audit.
 
 ### Re-Baseline Cadence
 
@@ -154,58 +206,78 @@ If this methodology graduates to CI, the projected cost per PR cadence is:
 
 These projections are illustrative. CI graduation requires a measured-usage projection in the graduating-issue's PR description, not this heuristic estimate.
 
-### Worked Example: Security Agent v1 Calibration
+### Worked Example: Security Agent v2 Calibration (halt-due-to-flakiness)
 
-This subsection records the actual numbers from the spike run `20260503T165136Z-84f918a9` (model: `claude-sonnet-4-6`, date: 2026-05-03). The numbers are reproduced verbatim from `evals/_archive/security-spike-20260503T165136Z-84f918a9/reports/20260503T165136Z-84f918a9/report.json` (archived per the scrap verdict) after the verdict-extraction regex correction (commit `f0bfec3a`) and re-scoring (commit `8f1e5342`).
+This subsection records the actual numbers from the v2 spike run `20260503T182553Z-eaa08f8d` (model: `claude-sonnet-4-6`, date: 2026-05-03, methodology version 2 per fix commit `61f1b6b8`). The numbers are reproduced verbatim from `evals/security-spike/reports/20260503T182553Z-eaa08f8d/report.json`. The v2 run supersedes the v1 run `20260503T165136Z-84f918a9` (now archived at `evals/_archive/security-spike-20260503T165136Z-84f918a9/`) whose comparison was structurally rigged. See the v1 invalidation subsection above and the diagnosis at `.agents/critique/SPIKE-1854-methodology-diagnosis.md`.
 
-| Metric | Value |
-|---|---|
-| Agent recall | 25.0% |
-| Baseline recall | 50.0% |
-| Signed delta (agent − baseline) | −25.0pp |
-| 95% bootstrap CI on delta | [−0.7273, +0.1538] |
-| Flakiness | true (F003 excluded) |
-| Errors | 0 |
-| Estimated cost | $1.20 USD |
-| Wall clock | 11 minutes |
+| Metric | All fixtures | Non-flaky subset (F004, F006-F010) |
+|---|---|---|
+| Agent recall | 78.6% | 100.0% |
+| Baseline recall | 40.5% | 57.1% |
+| Signed delta (agent − baseline) | **+38.1pp** | **+42.9pp** |
+| Flakiness | true (40% > 30% halt threshold per AC-10) | false |
+| Errors | 0 | 0 |
+| Estimated cost | $0.89 USD | (subset of all-fixture cost) |
+| Wall clock | ~10 minutes | (subset of all-fixture wall clock) |
 
-**Per-fixture pass rates** (averaged across N=3 runs):
+**Flaky fixtures**: F001, F002, F003, F005 (4 of 10 = 40% > 30% halt threshold).
 
-| Fixture | Verdict | Agent | Baseline | Note |
+**Per-fixture pass rates** (3 runs each, raw):
+
+| Fixture | Verdict | Agent (per run) | Baseline (per run) | Flaky | Note |
+|---|---|---|---|---|---|
+| F001 | IDENTIFY (CWE-22) | 1.00, 0.50, 0.50 | 0.00, 0.00, 0.00 | yes | Verdict varied across runs: ['IDENTIFY', 'ESCALATE', 'ESCALATE']. Both verdicts defensible on a path-traversal fixture. Agent dominates baseline regardless. |
+| F002 | IDENTIFY (STRIDE multi) | 0.50, 1.00, 0.00 | 0.50, 0.50, 0.50 | yes | Verdict varied across runs: ['ESCALATE', 'IDENTIFY', 'ESCALATE']. Same pattern. |
+| F003 | IDENTIFY (CWE-200) | 0.50, 0.50, 0.00 | 0.00, 0.00, 0.00 | yes | Verdict consistent; regex assertion flaky (likely CWE-string variance). |
+| F004 | IDENTIFY | 1.00, 1.00, 1.00 | 0.00, 0.00, 0.00 | no | Agent perfect; baseline structural miss. Content-specialization wins. |
+| F005 | OK | 1.00, 1.00, 1.00 | 1.00, 1.00, 0.00 | yes | Agent perfect; baseline flaky on third run. |
+| F006 | OK / ESCALATE | 1.00, 1.00, 1.00 | 0.00, 0.00, 0.00 | no | Agent perfect; baseline structural miss. |
+| F007 | OK / ESCALATE | 1.00, 1.00, 1.00 | 1.00, 1.00, 1.00 | no | Both perfect. Commodity-LLM-recognizable. |
+| F008 | OK / ESCALATE | 1.00, 1.00, 1.00 | 1.00, 1.00, 1.00 | no | Both perfect. |
+| F009 | OK / ESCALATE | 1.00, 1.00, 1.00 | 1.00, 1.00, 1.00 | no | Both perfect. |
+| F010 | OK / ESCALATE | 1.00, 1.00, 1.00 | 1.00, 1.00, 1.00 | no | Both perfect. |
+
+**Decision per criteria**: **`halt-due-to-flakiness`**. Per AC-10, flakiness on 40% of fixtures (4/10, threshold 30%) halts the spike. The methodology cannot conclude `graduate-to-CI`, `keep-as-audit`, or `scrap` on this run. The bootstrap CI is intentionally not computed (`bootstrap_ci_95: null` in `report.json`); the runner short-circuits CI computation when the flakiness halt fires because the halt invalidates the verdict regardless of the CI shape. Underlying numbers above are reported as informational signal but are non-normative.
+
+**Variance pattern**:
+
+- F001 verdicts across 3 agent runs: `['IDENTIFY', 'ESCALATE', 'ESCALATE']`. Two defensible answers to the same path-traversal fixture (find-the-issue vs needs-escalation).
+- F002 verdicts across 3 agent runs: `['ESCALATE', 'IDENTIFY', 'ESCALATE']`. Same shape on a STRIDE multi-category fixture.
+- F003 / F005: verdict consistent; regex-string variance (CWE-string formatting differs across runs).
+- **Hypothesis**: Anthropic API at temperature=0 is not strictly deterministic on long context (the agent's system prompt is ~8K tokens). Variance manifests on borderline cases where multiple defensible verdicts exist.
+
+**Statistical power note**: with 30 paired observations (10 fixtures × 3 runs), the experiment can reliably detect effects of magnitude ~0.30 or larger. The observed +38.1pp all-fixture delta and +42.9pp non-flaky-subset delta both exceed this band. The directional signal is strong and consistent with the analyst's pre-rerun manual-mapping estimate (~0.80 agent recall under a fair contract). However, statistical power is not the same as verdict; AC-10 halt is AC-10 halt. The signal is informative, not normative.
+
+**Differential diagnosis** for the v2 result:
+
+1. *Agent specialization is real on positive-detection fixtures.* Confirmed on F001, F004, F006: agent identifies CWE patterns the baseline misses. CWE vocabulary in the agent's system prompt produces lift.
+2. *Agent and baseline tie on commodity-recognizable cases.* F007, F008, F009, F010 score 1.00 on both variants. Parts of the security-agent's domain are recognizable to a naive prompt under a fair output-shape contract.
+3. *Borderline-verdict fixtures are flaky under temperature=0 + long context.* F001 and F002 show the agent disagreeing with itself between defensible verdicts across runs. This is a model-side non-determinism finding, not an agent-content finding.
+4. *The +38pp gain is content-driven, not vocabulary-recognition-driven.* Both variants receive the identical user message including `OUTPUT_SHAPE_SUFFIX`. The agent's system prompt does not contain the suffix's vocabulary. The gain on F004 / F006 is from CWE pattern identification, not from priming.
+
+**Comparison with v1 (record of what changed)**:
+
+| Reading | Agent recall | Baseline recall | Signed delta | Verdict |
 |---|---|---|---|---|
-| F001 | IDENTIFY (CWE-22) | 0.50 | 0.00 | Agent identifies path traversal; baseline misses CWE. Agent wins. |
-| F002 | IDENTIFY (STRIDE multi) | 0.50 | 1.00 | Baseline now wins after regex fix; baseline emits the verdict token cleanly while agent's verbose response only partially matches assertions. |
-| F003 | IDENTIFY (CWE-200) | 0.17 | 0.00 | Flaky; excluded from delta. Agent partially correct. |
-| F004 | IDENTIFY | 0.50 | 0.00 | Agent wins verdict; partial CWE match. |
-| F005 | OK | 0.00 | 1.00 | **Agent over-identifies.** Baseline correctly says OK; agent flags an issue that is not present. |
-| F006 | OK / ESCALATE | 0.00 | 0.00 | Both wrong. |
-| F007 | OK / ESCALATE | 0.00 | 1.00 | Baseline wins. Baseline emits clean verdict; agent's verbose narrative fails to lead with a verdict token. |
-| F008 | OK / ESCALATE | 0.00 | 1.00 | Baseline wins. Same pattern as F007. |
-| F009 | OK / ESCALATE | 0.00 | 0.00 | Both wrong. |
-| F010 | OK / ESCALATE | 0.00 | 1.00 | Baseline wins. Same pattern as F007/F008. |
+| v1 original (broken regex) | 16.7% | 8.3% | +8.3pp | `keep-as-audit` (invalid; rigged contract) |
+| v1 re-scored (fixed regex, still rigged contract) | 25.0% | 50.0% | -25.0pp | `scrap` (invalid; rigged contract) |
+| **v2 (symmetric contract)** | **78.6%** | **40.5%** | **+38.1pp** | **`halt-due-to-flakiness`** (per AC-10) |
 
-**Decision per criteria**: `scrap`. The signed delta is negative (−25.0pp); the 95% CI [−0.7273, +0.1538] does not have a positive lower bound; flakiness is true. Two of the three `graduate-to-CI` criteria are decisively failed (recall delta > 0 and CI lower bound > 0). Per the decision criteria, this triggers the `scrap` verdict.
+The v2 numbers point opposite to the v1 re-scored numbers. The reversal is fully explained by the symmetry fix in commit `61f1b6b8`: the v1 comparison forced the agent to compete on a vocabulary it was never told about; the v2 comparison gives both variants the same output-shape contract.
 
-**Correction note**: The original report (committed in `d9c88096`) recorded the verdict as `keep-as-audit` based on `baseline_recall=16.7%` and `recall_delta=+8.3pp`. Those numbers were generated under a buggy verdict-extraction regex that failed to match markdown-bold verdicts (`**OK**`, `**ESCALATE**`). The bug was fixed in commit `f0bfec3a` and the existing run data was re-scored in `8f1e5342`. The corrected numbers above are authoritative.
-
-**Minimum detectable effect**: with N=10 paired observations, the experiment can reliably detect effects of magnitude approximately 0.30 or larger. The observed magnitude of −0.250 is within that detection band. The wide CI [−0.7273, +0.1538] reflects high per-fixture variance (some fixtures cleanly favor agent, others cleanly favor baseline) rather than insufficient sample size for the effect magnitude. The CI's positive arm (+0.1538) does not exceed the detection-band magnitude either, so the experiment does not support a positive-direction conclusion in any direction.
-
-**Differential diagnosis** for the negative-delta result:
-
-1. *Agent's verdict-token emission discipline is worse than baseline's.* Most likely. On the four OK/ESCALATE fixtures where baseline wins (F005, F007, F008, F010), the baseline's terse direct answer leads with the verdict token; the agent's verbose narrative response often buries or fails to produce the expected token format. This is a real finding about the agent prompt's output style, not a corpus problem.
-2. *Agent over-identifies on negative cases.* Confirmed on F005. The agent flags an issue that is not present; the baseline correctly says OK. The agent's specialization in detection appears to lower its specificity.
-3. *Agent wins on positive-detection fixtures.* Confirmed on F001 and F004. The agent's CWE-vocabulary specialization helps when the assertion specifically rewards CWE identification.
-4. *Corpus is too easy for baseline.* The baseline scores 50% on this corpus, indicating the OK/ESCALATE fixtures are closer to commodity LLM-recognition than to specialized security analysis. This is itself a finding: parts of the security-agent's domain may not require security specialization.
-
-**Scope reminder**: this verdict applies to the security agent's *content* (system prompt, role, instructions) compared to a deliberately naive content baseline against the same model on this corpus. It does not address the *form-factor* question (whether the same content delivered as a skill in the parent's context would behave differently). The form-factor question requires a separate methodology with a third variant; see "What This Methodology Measures (and What It Does Not)" near the top of this ADR.
+**Scope reminder**: this result applies to the security agent's *content* (system prompt, role, instructions) compared to a deliberately naive content baseline against the same model on this corpus. It does not address the *form-factor* question (whether the same content delivered as a skill in the parent's context would behave differently). The form-factor question requires a separate methodology with a third variant; see "What This Methodology Measures (and What It Does Not)" near the top of this ADR.
 
 ### Cadence Trigger After This Spike
 
-Per the `scrap` verdict above, the security agent's spike is **not** scheduled for re-run on the standard cadence. The corpus and run dir at `evals/security-spike/` are archived to `evals/_archive/security-spike-20260503T165136Z-84f918a9/` (corpus and reports only — the runner code is preserved at `scripts/eval/eval-agent-vs-baseline.py` because the methodology is intact and reusable for future agents).
+Per the `halt-due-to-flakiness` verdict above, the next trigger for this agent is **not** the standard quarterly cadence. The next trigger is variance investigation followed by corpus expansion:
 
-The next application of this methodology is expected to target a different agent (analyst, qa, or architect) on a fresh corpus. That run will use the corrected runner and produce the methodology's second data point. Until that second data point exists, the methodology is supported by one application that produced a `scrap` verdict due to verdict-token-emission discipline issues in the security agent prompt rather than a flaw in the methodology itself.
+1. **Variance investigation (control test)**: same fixture × same variant × N=10 runs at temperature=0. Quantify the non-determinism. Reference output: a per-fixture variance distribution.
+2. **Corpus expansion**: target N≥30 fixtures so that AC-10's percentage threshold (30%) corresponds to a more meaningful absolute count. At N=10, one flaky fixture is 10% of the corpus and three flaky fixtures already exceed the threshold; at N=30, the threshold corresponds to nine fixtures.
+3. **Borderline-fixture redesign**: F001 and F002 admit multiple defensible verdicts under the current expected-value spec. Revisit the fixture design so the expected verdict is unambiguous, or accept the ambiguity by widening the assertion (e.g., accept either IDENTIFY or ESCALATE on path-traversal scenarios).
 
-**Note on AC-5 divergence**: REQ-004 AC-5's `scrap` consequence text states "the methodology ADR is marked `status: superseded` with a successor ADR documenting the methodology flaw." That text assumed the scrap was triggered by a methodology flaw discovered during the spike. In this case the scrap was triggered by a scoring-engine implementation bug (a regex that failed to match markdown-bold verdicts) which has been fixed by commit `f0bfec3a`. The methodology itself was not flawed. Therefore this ADR keeps `status: proposed` and the runner code is preserved. A follow-up issue will track the corresponding clarification to REQ-004 AC-5.
+Only after these three steps land may the security agent's spike be re-run for a verdict-grade outcome. The standard cadence triggers (model bump, quarterly, prompt edit) do NOT supersede the variance-investigation gate; they apply once the gate has been cleared.
+
+The runner code at `scripts/eval/eval-agent-vs-baseline.py` is preserved and is at methodology version 2 (commit `61f1b6b8`). The corpus at `evals/security-spike/fixtures/` is preserved. The v1 run dir is archived at `evals/_archive/security-spike-20260503T165136Z-84f918a9/` as evidence of the rigged comparison.
 
 ## Considered Options
 
@@ -293,8 +365,9 @@ Run the agent and a deliberately-naive baseline against the same held-out corpus
 | Real third-party secrets rejected at ingest | FixtureValidator | Exit 2 with offending fixture id |
 | Temperature = 0 on every API call | AnthropicAPIAdapter | Hard-coded in adapter |
 | Idempotency on (fixture_id, variant, run_index) | RunPersistence | Raise `DuplicateRunError`, exit 1 |
-| Flakiness > 30% halts spike | ReportAggregator | Exit 1 with structured message |
+| Flakiness > 30% halts spike (`halt-due-to-flakiness` verdict) | ReportAggregator | Halt verdict with structured message; CI not computed |
 | Per-fixture flakiness contingency rerun at N=5 | ReportAggregator | First detection triggers rerun |
+| Identical user message between variants (`OUTPUT_SHAPE_SUFFIX` applied to both) | `_build_prompt` | Single user-prompt construction path; no variant-specific suffix |
 
 ### Not Enforced (architect / reviewer judgment)
 
@@ -346,7 +419,8 @@ The Anthropic dependency is already paid by ADR-057. Adding ADR-058 does not dee
 | ADR-057 | Complementary | Add cross-reference noting ADR-058 covers the orthogonal between-subjects question | Low. Follow-up issue. |
 | ADR-023 | Complementary | None required | Low |
 | ADR-010 | Complementary | None required | Low |
-| `evals/security-spike/` | Source artifact | Archived to `evals/_archive/security-spike-20260503T165136Z-84f918a9/` per scrap verdict (Path 2: corpus archived, runner preserved) | Low |
+| `evals/security-spike/` (v1) | Source artifact | Archived to `evals/_archive/security-spike-20260503T165136Z-84f918a9/` as evidence of rigged comparison; v1 verdicts retracted | Low |
+| `evals/security-spike/` (v2) | Source artifact | Active corpus and run dir under methodology v2 (commit `61f1b6b8`); v2 run `20260503T182553Z-eaa08f8d` produced `halt-due-to-flakiness` | Low |
 | Future agent authors | Direct | Apply this methodology before claiming agent specialization helps | Low |
 
 ## Related Decisions
@@ -361,11 +435,16 @@ The Anthropic dependency is already paid by ADR-057. Adding ADR-058 does not dee
 - [REQ-004](../specs/requirements/REQ-004-agent-eval-harness-spike.md): requirements (including AC-6 ADR contract).
 - [DESIGN-004](../specs/design/DESIGN-004-agent-eval-harness-spike.md): runner design.
 - [TASK-004](../specs/tasks/TASK-004-agent-eval-harness-spike.md): task plan.
-- `evals/_archive/security-spike-20260503T165136Z-84f918a9/reports/20260503T165136Z-84f918a9/report.json`: authoritative worked-example numbers (post-rescore; archived per scrap verdict).
-- `evals/_archive/security-spike-20260503T165136Z-84f918a9/reports/20260503T165136Z-84f918a9/REPORT.md`: worked-example markdown narrative (post-rescore; archived per scrap verdict).
-- `scripts/eval/eval-agent-vs-baseline.py`: runner.
-- Commit `f0bfec3a`: fix(eval): extract markdown-formatted verdicts in scoring engine.
-- Commit `8f1e5342`: fix(eval): rescore runs with corrected verdict regex.
+- `evals/security-spike/reports/20260503T182553Z-eaa08f8d/report.json`: authoritative v2 worked-example numbers (current).
+- `evals/security-spike/reports/20260503T182553Z-eaa08f8d/REPORT.md`: v2 worked-example markdown narrative.
+- `evals/_archive/security-spike-20260503T165136Z-84f918a9/`: v1 archive, preserved as evidence of the rigged comparison.
+- `scripts/eval/eval-agent-vs-baseline.py`: runner (methodology v2 per commit `61f1b6b8`).
+- Commit `61f1b6b8`: fix(evals): symmetrize verdict-vocabulary contract across variants. The methodology v1->v2 fix.
+- Commit `5f8fd96f`: feat(evals): re-execute spike with fixed methodology; halt-due-to-flakiness. The v2 re-run.
+- Commit `f0bfec3a`: fix(eval): extract markdown-formatted verdicts in scoring engine. (v1 regex fix; correct under the rigged contract; superseded by symmetry fix.)
+- Commit `8f1e5342`: fix(eval): rescore runs with corrected verdict regex. (v1 rescore; superseded.)
+- `.agents/critique/SPIKE-1854-methodology-diagnosis.md`: four-agent diagnostic review establishing v1 invalidation.
 - `.agents/critique/ADR-058-debate-log.md`: architect-led multi-perspective review (original ratification).
-- `.agents/critique/ADR-058-amendment-debate-log.md`: architect-led multi-perspective review of inflight amendments (scope clarification + rescore verdict-flip).
+- `.agents/critique/ADR-058-amendment-debate-log.md`: architect-led multi-perspective review of inflight amendments (second amendment, pre-diagnosis).
+- `.agents/critique/ADR-058-third-amendment-debate-log.md`: architect-led multi-perspective review of the third amendment (v1 invalidation, v2 worked example, symmetry requirement, halt-due-to-flakiness outcome).
 - [Issue #1875](https://github.com/rjmurillo/ai-agents/issues/1875): tracker for follow-on form-factor methodology ADR.
