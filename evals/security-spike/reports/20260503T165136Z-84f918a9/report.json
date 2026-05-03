@@ -141,7 +141,7 @@
   "recall_delta": 0.083333,
   "recall_excluding_errors": 0.238095,
   "recall_with_errors": 0.238095,
-  "recommendation": null,
+  "recommendation": "keep-as-audit",
   "run_id": "20260503T165136Z-84f918a9",
   "schemaVersion": 1,
   "tokens_estimated": true,
