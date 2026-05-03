@@ -1,0 +1,151 @@
+{
+  "agent_prompt_sha": "c90b17a396de54a50de064101bcf1489a30d4aad9f1afaeb1a4eb4cfd02f9f47",
+  "agent_recall": 0.25,
+  "baseline_prompt_sha": "2b4a60a1bca3fc0da91bd60ed0f7df81f2f6fb826301445a9471b9b931b5fa28",
+  "baseline_recall": 0.166667,
+  "bootstrap_ci_95": [
+    -0.2,
+    0.307692
+  ],
+  "cost_estimate_usd": 1.2023,
+  "error_count": 0,
+  "fixture_set_sha": "9d77ba35e2acf78f5ee71d441ed39a5fb27b39906b7a3571dbb50f7cf72c136f",
+  "flakiness": true,
+  "flaky_fixtures_excluded": [
+    "F003"
+  ],
+  "model_id": "claude-sonnet-4-6",
+  "per_fixture_pass_rates": {
+    "F001": {
+      "agent": [
+        0.5,
+        0.5,
+        0.5
+      ],
+      "baseline": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "F002": {
+      "agent": [
+        0.5,
+        0.5,
+        0.5
+      ],
+      "baseline": [
+        0.5,
+        0.5,
+        0.5
+      ]
+    },
+    "F003": {
+      "agent": [
+        0.0,
+        0.5,
+        0.0
+      ],
+      "baseline": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "F004": {
+      "agent": [
+        0.5,
+        0.5,
+        0.5
+      ],
+      "baseline": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "F005": {
+      "agent": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "baseline": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    "F006": {
+      "agent": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "baseline": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "F007": {
+      "agent": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "baseline": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "F008": {
+      "agent": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "baseline": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "F009": {
+      "agent": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "baseline": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "F010": {
+      "agent": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "baseline": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    }
+  },
+  "pricing_rate_as_of": "2026-05-03",
+  "recall_delta": 0.083333,
+  "recall_excluding_errors": 0.238095,
+  "recall_with_errors": 0.238095,
+  "recommendation": null,
+  "run_id": "20260503T165136Z-84f918a9",
+  "schemaVersion": 1,
+  "tokens_estimated": true,
+  "total_tokens_in": 252282,
+  "total_tokens_out": 29696,
+  "wall_clock_seconds": 663.11
+}
