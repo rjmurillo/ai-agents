@@ -558,6 +558,89 @@ class TestExtractMentionedFiles:
 
 
 # ---------------------------------------------------------------------------
+# extract_mentioned_files: extension boundary (issue #1874)
+# ---------------------------------------------------------------------------
+
+
+class TestExtensionBoundary:
+    """Regression coverage for issue #1874.
+
+    `FILE_MENTION_PATTERNS` previously greedy-backtracked across longer
+    real extensions, producing a known shorter extension as a false
+    positive (`runs.jsonl` -> `runs.json`, `app.tsx` -> `app.ts`,
+    `module.pyc` -> `module.py`, `script.bashrc` -> `script.bash`).
+    The boundary lookahead `(?![A-Za-z0-9])` after the captured
+    extension rejects continuations that would have produced a different
+    real filename.
+    """
+
+    def test_jsonl_does_not_extract_json(self) -> None:
+        desc = "- `runs.jsonl` - 60 records"
+        result = extract_mentioned_files(desc)
+        assert "runs.json" not in result
+
+    def test_tsx_does_not_extract_ts(self) -> None:
+        desc = "Updated `app.tsx`"
+        result = extract_mentioned_files(desc)
+        assert "app.ts" not in result
+
+    def test_pyc_does_not_extract_py(self) -> None:
+        desc = "Removed stale `module.pyc`"
+        result = extract_mentioned_files(desc)
+        assert "module.py" not in result
+
+    def test_bashrc_does_not_extract_bash(self) -> None:
+        desc = "See `script.bashrc`"
+        result = extract_mentioned_files(desc)
+        assert "script.bash" not in result
+
+    def test_json_still_extracts(self) -> None:
+        desc = "Edited `foo.json`"
+        result = extract_mentioned_files(desc)
+        assert "foo.json" in result
+
+    def test_md_still_extracts(self) -> None:
+        desc = "Updated `bar.md`"
+        result = extract_mentioned_files(desc)
+        assert "bar.md" in result
+
+    def test_list_item_json_still_extracts(self) -> None:
+        desc = "- foo.json"
+        result = extract_mentioned_files(desc)
+        assert "foo.json" in result
+
+    @pytest.mark.parametrize(
+        "desc",
+        [
+            "Inline form: `runs.jsonl` here",
+            "Bold form: **runs.jsonl** here",
+            "- `runs.jsonl` list item",
+            "- runs.jsonl bare list item",
+            "Link form: [runs.jsonl] here",
+        ],
+        ids=["inline", "bold", "list-backtick", "list-bare", "link"],
+    )
+    def test_boundary_applies_to_all_four_patterns(self, desc: str) -> None:
+        """AC-9: the boundary rule must hold uniformly across all four
+        FILE_MENTION_PATTERNS variants (inline code, bold, list item,
+        markdown link)."""
+        result = extract_mentioned_files(desc)
+        assert "runs.json" not in result, (
+            f"expected boundary to reject 'runs.json' from input: {desc!r}; "
+            f"got result={result!r}"
+        )
+
+    def test_actual_file_runs_jsonl_not_extracted(self) -> None:
+        """`.jsonl` is not in `_EXT_GROUP`, so the file should not be
+        extracted at all (current scope per issue #1874 'Out of scope':
+        adding new extensions is a separate decision)."""
+        desc = "- `runs.jsonl` - generated artifact"
+        result = extract_mentioned_files(desc)
+        assert "runs.jsonl" not in result
+        assert "runs.json" not in result
+
+
+# ---------------------------------------------------------------------------
 # _strip_informational_sections
 # ---------------------------------------------------------------------------
 
