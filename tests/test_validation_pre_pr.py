@@ -121,6 +121,25 @@ class TestRunValidation:
         assert result is False
         assert state.failed == 1
 
+    def test_missing_script_skip_does_not_fail(self) -> None:
+        """MissingScriptSkip should be reported as SKIP, not FAIL.
+
+        Regression guard for issue #1850: pre_pr.py must not produce FAIL
+        lines for PowerShell scripts expunged per ADR-042.
+        """
+        from scripts.validation.pre_pr import MissingScriptSkip
+
+        def raise_skip() -> bool:
+            raise MissingScriptSkip("Some-Validator.ps1 not present")
+
+        state = ValidationState()
+        result = run_validation("Test Check", state, raise_skip)
+        assert result is True  # SKIP must not block the gate
+        assert state.skipped == 1
+        assert state.failed == 0
+        assert state.passed == 0
+        assert state.results[0].status == "SKIP"
+
     def test_records_duration(self) -> None:
         state = ValidationState()
         run_validation("Test Check", state, lambda: True)
@@ -151,15 +170,19 @@ class TestValidateSessionEnd:
         result = validate_session_end(tmp_path)
         assert result is True
 
-    def test_missing_script_returns_false(self, tmp_path: Path) -> None:
+    def test_missing_script_raises_skip(self, tmp_path: Path) -> None:
+        from scripts.validation.pre_pr import MissingScriptSkip
+
         sessions = tmp_path / ".agents" / "sessions"
         sessions.mkdir(parents=True)
         (sessions / "2025-12-01-session-1.md").write_text("log", encoding="utf-8")
-        # scripts/Validate-Session.ps1 does not exist
+        # scripts/Validate-Session.ps1 does not exist (ADR-042 expungement).
         (tmp_path / "scripts").mkdir(exist_ok=True)
 
-        result = validate_session_end(tmp_path)
-        assert result is False
+        import pytest
+
+        with pytest.raises(MissingScriptSkip):
+            validate_session_end(tmp_path)
 
 
 # ---------------------------------------------------------------------------
