@@ -33,6 +33,7 @@ from _eval_agent_types import (
     AssertionResult,
     RunRecord,
     SCHEMA_VERSION,
+    SchemaVersionError,
 )
 
 
@@ -76,12 +77,21 @@ def _parse_record(line: str) -> RunRecord | None:
 
     Re-hydrates `AssertionResult` from the nested dicts so downstream
     consumers (the report aggregator) can call `.passed` directly.
+
+    Raises `SchemaVersionError` on incompatible `schemaVersion`. A resume
+    against an older or newer record set MUST fail fast rather than seed
+    the writer with rows that violate the current schema invariants.
     """
     line = line.strip()
     if not line:
         return None
     payload = json.loads(line)
     schema_version = payload.pop("schemaVersion", None)
+    if schema_version != SCHEMA_VERSION:
+        raise SchemaVersionError(
+            f"unsupported schemaVersion={schema_version!r} on record "
+            f"(supported: {SCHEMA_VERSION})"
+        )
     payload["schema_version"] = schema_version
     raw_assertions = payload.get("assertions", []) or []
     payload["assertions"] = [
@@ -154,6 +164,16 @@ class RunPersistence:
                     raise DuplicateRunError(
                         f"{self._jsonl_path}: line {line_no} is not valid JSON ({exc})"
                     ) from exc
+                # Reject incompatible schemas at resume time, before
+                # `_seen`/`_completed` get seeded with rows whose shape
+                # the writer would otherwise accept.
+                schema_version = payload.get("schemaVersion")
+                if schema_version != SCHEMA_VERSION:
+                    raise SchemaVersionError(
+                        f"{self._jsonl_path}: line {line_no} has "
+                        f"schemaVersion={schema_version!r} (supported: "
+                        f"{SCHEMA_VERSION})"
+                    )
                 key = (
                     payload.get("fixture_id"),
                     payload.get("variant"),

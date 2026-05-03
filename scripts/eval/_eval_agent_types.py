@@ -50,10 +50,32 @@ class Assertion:
     expected_value: str | None = None
 
     def __post_init__(self) -> None:
-        if self.pattern is None and self.expected_value is None:
-            raise ValueError(
-                "Assertion requires pattern (REGEX) or expected_value (VERDICT)"
-            )
+        # Tighten the contract: REGEX MUST set `pattern` (and only
+        # `pattern`); VERDICT MUST set `expected_value` (and only
+        # `expected_value`). The previous "at least one is set" rule let
+        # mismatched kind/field pairs slip through to the scorer where
+        # they produced silent zero-pass results. Validate at the
+        # constructor so callers get a typed error before any API call.
+        if self.kind is AssertionKind.REGEX:
+            if self.pattern is None:
+                raise ValueError("REGEX assertions require pattern")
+            if self.expected_value is not None:
+                raise ValueError(
+                    "REGEX assertions must not set expected_value"
+                )
+            return
+        if self.kind is AssertionKind.VERDICT:
+            if self.expected_value is None:
+                raise ValueError("VERDICT assertions require expected_value")
+            if self.pattern is not None:
+                raise ValueError(
+                    "VERDICT assertions must not set pattern"
+                )
+            return
+        # Defensive fallthrough: AssertionKind is a closed enum, but a
+        # future kind added without updating this guard would silently
+        # accept malformed assertions.
+        raise ValueError(f"unsupported AssertionKind: {self.kind!r}")
 
 
 @dataclass(frozen=True)
