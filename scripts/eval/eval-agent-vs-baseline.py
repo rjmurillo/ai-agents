@@ -86,8 +86,8 @@ AGENT_PROMPT_REF_TEMPLATE = "templates/agents/{agent}.shared.md"
 # generating a report. Expressed as the fraction of successful records.
 MAX_ERROR_RATE = 0.10
 
-RUNS_DIR_TEMPLATE = "evals/security-spike/runs/{run_id}"
-REPORTS_DIR = "evals/security-spike/reports"
+RUNS_DIR_TEMPLATE = "evals/{agent}-spike/runs/{run_id}"
+REPORTS_DIR_TEMPLATE = "evals/{agent}-spike/reports"
 
 
 # ---------------------------------------------------------------------------
@@ -445,7 +445,7 @@ def _run_live(
         return EXIT_CONFIG
 
     run_id = args.resume or args.run_id or _generate_run_id()
-    run_dir = REPO_ROOT / RUNS_DIR_TEMPLATE.format(run_id=run_id)
+    run_dir = REPO_ROOT / RUNS_DIR_TEMPLATE.format(agent=args.agent, run_id=run_id)
 
     try:
         persistence = RunPersistence(run_dir, resume=bool(args.resume))
@@ -565,6 +565,7 @@ def _run_live(
         records=list(persistence.iter_records()),
         run_id=run_id,
         model_id=plan.model_id,
+        agent=args.agent,
         agent_prompt=agent_prompt,
         fixture_paths=fixture_paths,
         wall_clock_seconds=wall_clock_seconds,
@@ -579,6 +580,7 @@ def _generate_report(
     records: list[RunRecord],
     run_id: str,
     model_id: str,
+    agent: str,
     agent_prompt: str,
     fixture_paths: list[Path],
     wall_clock_seconds: float,
@@ -632,7 +634,7 @@ def _generate_report(
         )
         return EXIT_LOGIC
 
-    writer = ReportWriter(REPO_ROOT / REPORTS_DIR)
+    writer = ReportWriter(REPO_ROOT / REPORTS_DIR_TEMPLATE.format(agent=agent))
     json_path, md_path = writer.write(
         aggregate=aggregate,
         run_id=run_id,
