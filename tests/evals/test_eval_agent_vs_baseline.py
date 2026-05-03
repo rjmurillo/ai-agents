@@ -79,12 +79,15 @@ ERR_RATE_LIMIT = adapter_mod.ERR_RATE_LIMIT
 ERR_SERVER_ERROR = adapter_mod.ERR_SERVER_ERROR
 ERR_TIMEOUT = adapter_mod.ERR_TIMEOUT
 ERR_CLIENT_ERROR = adapter_mod.ERR_CLIENT_ERROR
+ERR_TOTAL_TIMEOUT = adapter_mod.ERR_TOTAL_TIMEOUT
 
 RunPersistence = persistence_mod.RunPersistence
 DuplicateRunError = persistence_mod.DuplicateRunError
+RunDirectoryNotFreshError = persistence_mod.RunDirectoryNotFreshError
 
 ReportAggregator = aggregator_mod.ReportAggregator
 AggregateResult = aggregator_mod.AggregateResult
+EmptyRunError = aggregator_mod.EmptyRunError
 ReportWriter = writer_mod.ReportWriter
 
 FixtureValidator = cli_mod.FixtureValidator
@@ -1223,7 +1226,7 @@ class TestReportAggregatorCost:
 
 
 class TestReportWriter:
-    def _aggregate(self) -> AggregateResult:
+    def _aggregate(self, *, tokens_estimated: bool = True) -> AggregateResult:
         return AggregateResult(
             agent_recall=0.82,
             baseline_recall=0.60,
@@ -1242,6 +1245,7 @@ class TestReportWriter:
             pricing_rate_as_of="2026-05-03",
             error_count=0,
             halt_due_to_flakiness=False,
+            tokens_estimated=tokens_estimated,
         )
 
     def test_writes_both_files_atomically(self, tmp_path):
@@ -1383,3 +1387,545 @@ class TestRunnerEndToEndReport:
         payload = json.loads(report_json.read_text(encoding="utf-8"))
         assert payload["schemaVersion"] == 1
         assert payload["recommendation"] is None
+
+
+# ===========================================================================
+# /review iteration 1 fixes: B1, H1-H6, T1
+# ===========================================================================
+
+
+# ---------------------------------------------------------------------------
+# B1: fresh-run mode must NOT silently skip existing records
+# ---------------------------------------------------------------------------
+
+
+class TestRunPersistenceFreshRunGuard:
+    """B1: fresh-run mode against a populated runs.jsonl raises."""
+
+    def test_fresh_run_against_nonempty_runs_jsonl_raises(self, tmp_path):
+        run_dir = tmp_path / "run-fresh-guard"
+        # Populate the dir via a first (legal) writer.
+        first = RunPersistence(run_dir, resume=False)
+        first.write_record(_make_record())
+        # Reopening in fresh-run mode must refuse.
+        with pytest.raises(RunDirectoryNotFreshError) as excinfo:
+            RunPersistence(run_dir, resume=False)
+        message = str(excinfo.value)
+        assert "runs.jsonl" in message
+        assert "--resume" in message
+
+    def test_fresh_run_against_empty_dir_succeeds(self, tmp_path):
+        # No file → no guard fires.
+        persistence = RunPersistence(tmp_path / "fresh-empty", resume=False)
+        assert persistence.write_record(_make_record()) is True
+
+    def test_resume_against_nonempty_runs_jsonl_succeeds(self, tmp_path):
+        run_dir = tmp_path / "run-resume-ok"
+        first = RunPersistence(run_dir, resume=False)
+        first.write_record(_make_record())
+        # Resume mode must accept the populated dir.
+        second = RunPersistence(run_dir, resume=True)
+        assert second.is_completed("F001", "agent", 0)
+
+
+class TestRunnerFreshRunMode:
+    """B1 (runner side): pre-call skip is gated on --resume."""
+
+    def _setup(self, tmp_path, monkeypatch):
+        agents_dir = tmp_path / "templates" / "agents"
+        agents_dir.mkdir(parents=True)
+        (agents_dir / "security.shared.md").write_text(
+            "agent prompt", encoding="utf-8"
+        )
+        monkeypatch.setattr(cli_mod, "REPO_ROOT", tmp_path)
+        return agents_dir
+
+    def test_fresh_run_against_populated_dir_exits_one(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        self._setup(tmp_path, monkeypatch)
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-fresh")
+        fixtures_dir = tmp_path / "fixtures"
+        fixtures_dir.mkdir()
+        _write_fixture(fixtures_dir, "F001.json", _valid_fixture_payload())
+
+        # Pre-populate the run dir so the fresh-run guard fires.
+        run_id = "20260503T160000Z-deadbeef"
+        run_dir = (
+            tmp_path / "evals" / "security-spike" / "runs" / run_id
+        )
+        run_dir.mkdir(parents=True)
+        first = RunPersistence(run_dir, resume=False)
+        first.write_record(_make_record())
+
+        adapter = _StubAdapter([])  # any call IndexErrors → proves no calls
+        monkeypatch.setattr(cli_mod, "AnthropicAPIAdapter", lambda: adapter)
+        rc = cli_main([
+            "--agent",
+            "security",
+            "--fixtures",
+            str(fixtures_dir),
+            "--n-runs",
+            "3",
+            "--run-id",
+            run_id,
+        ])
+        assert rc == 1
+        captured = capsys.readouterr()
+        assert "runs.jsonl" in captured.err
+        assert "--resume" in captured.err
+        # Runner refused to call the adapter.
+        assert adapter.call_count == 0
+
+
+# ---------------------------------------------------------------------------
+# H1: tokens_estimated flag flows through record and report
+# ---------------------------------------------------------------------------
+
+
+class TestTokensEstimatedFlag:
+    """H1: every cost number must carry a "this is an estimate" marker."""
+
+    def test_api_call_result_default_is_estimated(self):
+        result = APICallResult(
+            outcome="success",
+            raw_response="ok",
+            tokens_in=10,
+            tokens_out=5,
+            latency_ms=1.0,
+            error_category=None,
+            attempts=1,
+        )
+        assert result.tokens_estimated is True
+
+    def test_record_carries_tokens_estimated_flag(self):
+        record = _make_record()
+        # New default is True for backward compat across persisted shape.
+        assert record.tokens_estimated is True
+
+    def test_record_explicit_false_round_trips_through_persistence(
+        self, tmp_path
+    ):
+        persistence = RunPersistence(tmp_path / "rt-est", resume=False)
+        record = _make_record()
+        record.tokens_estimated = False
+        persistence.write_record(record)
+        line = persistence.jsonl_path.read_text(encoding="utf-8").strip()
+        payload = json.loads(line)
+        assert payload["tokens_estimated"] is False
+        # And reads back as False through iter_records.
+        reopened = RunPersistence(tmp_path / "rt-est", resume=True)
+        records = list(reopened.iter_records())
+        assert records[0].tokens_estimated is False
+
+    def test_aggregate_carries_tokens_estimated_flag(self):
+        # Build records all marked estimated → aggregate.tokens_estimated=True.
+        records = _build_records(
+            ["F001"], agent_passed=True, baseline_passed=True
+        )
+        result = ReportAggregator(
+            records, model_id="claude-sonnet-4-6"
+        ).aggregate()
+        assert result.tokens_estimated is True
+
+    def test_aggregate_all_measured_clears_flag(self):
+        records = _build_records(
+            ["F001"], agent_passed=True, baseline_passed=True
+        )
+        for record in records:
+            record.tokens_estimated = False
+        result = ReportAggregator(
+            records, model_id="claude-sonnet-4-6"
+        ).aggregate()
+        assert result.tokens_estimated is False
+
+    def test_report_json_includes_tokens_estimated(self, tmp_path):
+        writer = ReportWriter(tmp_path / "reports")
+        aggregate = AggregateResult(
+            agent_recall=0.5,
+            baseline_recall=0.5,
+            recall_delta=0.0,
+            bootstrap_ci_95=(0.0, 0.0),
+            recall_with_errors=0.5,
+            recall_excluding_errors=0.5,
+            per_fixture_pass_rates={},
+            flakiness=False,
+            flaky_fixtures_excluded=[],
+            total_tokens_in=100,
+            total_tokens_out=50,
+            cost_estimate_usd=0.001,
+            pricing_rate_as_of="2026-05-03",
+            error_count=0,
+            halt_due_to_flakiness=False,
+            tokens_estimated=True,
+        )
+        json_path, md_path = writer.write(
+            aggregate=aggregate,
+            run_id="r-est",
+            model_id="claude-sonnet-4-6",
+            agent_prompt_sha="a" * 64,
+            baseline_prompt_sha="b" * 64,
+            fixture_set_sha="c" * 64,
+            wall_clock_seconds=1.0,
+        )
+        payload = json.loads(json_path.read_text(encoding="utf-8"))
+        assert payload["tokens_estimated"] is True
+        # MD includes the caveat footnote when tokens are estimated.
+        body = md_path.read_text(encoding="utf-8")
+        assert "estimated" in body.lower()
+        assert "heuristic" in body.lower()
+
+
+# ---------------------------------------------------------------------------
+# H2: empty records → EmptyRunError, runner exits 1
+# ---------------------------------------------------------------------------
+
+
+class TestEmptyRunError:
+    def test_aggregate_with_no_records_raises_empty_run_error(self):
+        with pytest.raises(EmptyRunError):
+            ReportAggregator([], model_id="claude-sonnet-4-6").aggregate()
+
+
+# ---------------------------------------------------------------------------
+# H3: unsupported model → UnsupportedModelError, runner exits 2
+# ---------------------------------------------------------------------------
+
+
+class TestUnsupportedModelInAggregator:
+    def test_aggregate_unsupported_model_raises(self):
+        records = _build_records(
+            ["F001"], agent_passed=True, baseline_passed=True
+        )
+        with pytest.raises(UnsupportedModelError):
+            ReportAggregator(records, model_id="model-without-pricing").aggregate()
+
+
+# ---------------------------------------------------------------------------
+# H4: total wall budget aborts after threshold
+# ---------------------------------------------------------------------------
+
+
+class _SlowTransport:
+    """Fake transport that advances a fake clock and always raises a 500.
+
+    `seconds_per_call` is added to the controlled clock each call. The
+    test injects this transport along with a sleep no-op so the wall
+    budget is the only mechanism that can stop the retry loop.
+    """
+
+    def __init__(self, clock_state: list, seconds_per_call: float):
+        self._state = clock_state
+        self._sec = seconds_per_call
+        self.calls = 0
+
+    def __call__(self, prompt: str, model_id: str, system: str) -> str:
+        self.calls += 1
+        self._state[0] += self._sec
+        raise RuntimeError("Anthropic API returned HTTP 500: synthetic")
+
+
+class TestAdapterTotalWallBudget:
+    def test_total_wall_budget_aborts_after_threshold(self):
+        # Each call burns 120s on the controlled clock. Budget=180s.
+        # Attempt 1: clock 0→120. Backoff projection 120+~1 < 180; retry.
+        # Attempt 2: clock 120→240. Backoff projection 240+~2 >= 180;
+        # the guard aborts before attempt 3. Without the guard the loop
+        # would run all 3 attempts, taking 360s (worst-case 6 minutes
+        # per call in production).
+        clock_state = [0.0]
+
+        def clock() -> float:
+            return clock_state[0]
+
+        slow = _SlowTransport(clock_state, seconds_per_call=120.0)
+        adapter = AnthropicAPIAdapter(
+            transport=slow,
+            sleep=lambda _s: None,
+            clock=clock,
+            total_timeout_seconds=180.0,
+        )
+        result = adapter.call_model(
+            prompt="x",
+            model_id="claude-sonnet-4-6",
+            fixture_id="F-WB",
+            variant="agent",
+            run_index=0,
+        )
+        assert result.outcome == "error"
+        assert result.error_category == ERR_TOTAL_TIMEOUT
+        # 2 calls land; the budget guard prevents a 3rd attempt.
+        assert slow.calls == 2
+
+    def test_wall_budget_does_not_fire_on_fast_calls(self):
+        # Each call is fast; budget never trips, normal retry exhaustion
+        # path runs to completion and returns server_error.
+        clock_state = [0.0]
+
+        def clock() -> float:
+            return clock_state[0]
+
+        fast = _SlowTransport(clock_state, seconds_per_call=0.5)
+        adapter = AnthropicAPIAdapter(
+            transport=fast,
+            sleep=lambda _s: None,
+            clock=clock,
+            total_timeout_seconds=180.0,
+        )
+        result = adapter.call_model(
+            prompt="x",
+            model_id="claude-sonnet-4-6",
+            fixture_id="F-WB-FAST",
+            variant="agent",
+            run_index=0,
+        )
+        # Standard retry exhaustion: 3 attempts, server_error category.
+        assert result.outcome == "error"
+        assert result.error_category == ERR_SERVER_ERROR
+        assert fast.calls == 3
+
+
+# ---------------------------------------------------------------------------
+# H5: --resume retries errored triples
+# ---------------------------------------------------------------------------
+
+
+class TestResumeRetriesErrored:
+    def test_is_completed_false_for_errored_record(self, tmp_path):
+        run_dir = tmp_path / "errored"
+        first = RunPersistence(run_dir, resume=False)
+        first.write_record(_make_record(outcome="error"))
+        # Reopen in resume mode; errored triple should not count as done.
+        second = RunPersistence(run_dir, resume=True)
+        assert second.is_completed("F001", "agent", 0) is False
+
+    def test_resume_retries_errored_triples(self, tmp_path):
+        run_dir = tmp_path / "errored-retry"
+        first = RunPersistence(run_dir, resume=False)
+        first.write_record(_make_record(outcome="error"))
+        # Resume run: writing a new (success) record for the same triple
+        # is allowed and replaces the errored line.
+        second = RunPersistence(run_dir, resume=True)
+        assert second.write_record(_make_record(outcome="success")) is True
+        # File now has exactly one record, marked success.
+        lines = [
+            ln
+            for ln in second.jsonl_path.read_text(encoding="utf-8").splitlines()
+            if ln.strip()
+        ]
+        assert len(lines) == 1
+        payload = json.loads(lines[0])
+        assert payload["outcome"] == "success"
+
+    def test_resume_skips_successful_triples(self, tmp_path):
+        run_dir = tmp_path / "success-skip"
+        first = RunPersistence(run_dir, resume=False)
+        first.write_record(_make_record(outcome="success"))
+        second = RunPersistence(run_dir, resume=True)
+        # Successful prior → write_record returns False.
+        assert second.write_record(_make_record(outcome="success")) is False
+        assert second.skipped_count() == 1
+
+
+# ---------------------------------------------------------------------------
+# H6: resume skips emit a structured log line and a summary count
+# ---------------------------------------------------------------------------
+
+
+class TestResumeSkipLogging:
+    def _setup(self, tmp_path, monkeypatch):
+        agents_dir = tmp_path / "templates" / "agents"
+        agents_dir.mkdir(parents=True)
+        (agents_dir / "security.shared.md").write_text(
+            "agent prompt", encoding="utf-8"
+        )
+        monkeypatch.setattr(cli_mod, "REPO_ROOT", tmp_path)
+        return agents_dir
+
+    def test_resume_logs_each_skip(self, tmp_path, monkeypatch, capsys):
+        self._setup(tmp_path, monkeypatch)
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-skip")
+        fixtures_dir = tmp_path / "fixtures"
+        fixtures_dir.mkdir()
+        _write_fixture(fixtures_dir, "F001.json", _valid_fixture_payload())
+
+        # Phase 1: complete a full run (6 records).
+        adapter1 = _StubAdapter(
+            [
+                APICallResult(
+                    outcome="success",
+                    raw_response="IDENTIFY: ok",
+                    tokens_in=10,
+                    tokens_out=5,
+                    latency_ms=5.0,
+                    error_category=None,
+                    attempts=1,
+                )
+                for _ in range(6)
+            ]
+        )
+        monkeypatch.setattr(cli_mod, "AnthropicAPIAdapter", lambda: adapter1)
+        run_id = "20260503T160000Z-skiplog0"
+        rc = cli_main([
+            "--agent",
+            "security",
+            "--fixtures",
+            str(fixtures_dir),
+            "--n-runs",
+            "3",
+            "--run-id",
+            run_id,
+        ])
+        assert rc == 0
+        capsys.readouterr()  # discard phase-1 logs
+
+        # Phase 2: resume; every triple is already complete → 6 skips.
+        adapter2 = _StubAdapter([])
+        monkeypatch.setattr(cli_mod, "AnthropicAPIAdapter", lambda: adapter2)
+        rc2 = cli_main([
+            "--agent",
+            "security",
+            "--fixtures",
+            str(fixtures_dir),
+            "--n-runs",
+            "3",
+            "--resume",
+            run_id,
+        ])
+        assert rc2 == 0
+        captured = capsys.readouterr()
+        # Parse every JSON log line and filter by `event` key. Substring
+        # matches on the raw line are fragile across quote boundaries.
+        events = []
+        for line in captured.err.splitlines():
+            if not line.startswith("{"):
+                continue
+            try:
+                events.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+        per_triple = [e for e in events if e.get("event") == "resume_skip"]
+        assert len(per_triple) == 6
+        summary = [
+            e for e in events if e.get("event") == "resume_skip_summary"
+        ]
+        assert len(summary) == 1
+        assert summary[0]["resume_skips_count"] == 6
+
+
+# ---------------------------------------------------------------------------
+# T1: AC-10 contingency rerun behavior at n_runs=5 and n_runs=10
+# ---------------------------------------------------------------------------
+
+
+def _passing_runs(fixture_id: str, variant: str, n_runs: int, *, fail_indices: set):
+    return [
+        _success_record(
+            fixture_id, variant, ri, passed=ri not in fail_indices
+        )
+        for ri in range(n_runs)
+    ]
+
+
+class TestContingencyRerun:
+    def test_contingency_rerun_two_of_five_marks_flaky(self):
+        # n_runs=5; agent variant: 2 fail, 3 pass on F001 → flaky=True.
+        records: list = []
+        records += _passing_runs("F001", "agent", 5, fail_indices={1, 3})
+        records += _passing_runs("F001", "baseline", 5, fail_indices=set())
+        # Add stable F002 so percentage of flaky <= 30% (no halt).
+        for fid in ("F002", "F003", "F004"):
+            records += _passing_runs(fid, "agent", 5, fail_indices=set())
+            records += _passing_runs(fid, "baseline", 5, fail_indices=set())
+        result = ReportAggregator(
+            records,
+            model_id="claude-sonnet-4-6",
+            bootstrap_iterations=200,
+        ).aggregate()
+        assert result.flakiness is True
+        assert "F001" in result.flaky_fixtures_excluded
+        # 1 of 4 fixtures flaky = 25%, no halt.
+        assert result.halt_due_to_flakiness is False
+
+    def test_contingency_rerun_one_of_five_not_flaky(self):
+        # n_runs=5; only 1 fail of 5 → transient, NOT flaky.
+        records: list = []
+        records += _passing_runs("F001", "agent", 5, fail_indices={2})
+        records += _passing_runs("F001", "baseline", 5, fail_indices=set())
+        records += _passing_runs("F002", "agent", 5, fail_indices=set())
+        records += _passing_runs("F002", "baseline", 5, fail_indices=set())
+        result = ReportAggregator(
+            records,
+            model_id="claude-sonnet-4-6",
+            bootstrap_iterations=200,
+        ).aggregate()
+        assert result.flakiness is False
+        assert result.flaky_fixtures_excluded == []
+
+    def test_contingency_above_30_pct_halts(self):
+        # 4 of 10 fixtures with ≥2 fail of 5 → 40% flaky → halt=True.
+        records: list = []
+        flaky_ids = {"F001", "F002", "F003", "F004"}
+        for fid in (
+            "F001",
+            "F002",
+            "F003",
+            "F004",
+            "F005",
+            "F006",
+            "F007",
+            "F008",
+            "F009",
+            "F010",
+        ):
+            fails = {0, 2} if fid in flaky_ids else set()
+            records += _passing_runs(fid, "agent", 5, fail_indices=fails)
+            records += _passing_runs(fid, "baseline", 5, fail_indices=set())
+        result = ReportAggregator(
+            records,
+            model_id="claude-sonnet-4-6",
+            bootstrap_iterations=200,
+        ).aggregate()
+        assert result.flakiness is True
+        assert result.halt_due_to_flakiness is True
+        assert sorted(result.flaky_fixtures_excluded) == []  # halt path
+
+
+# ---------------------------------------------------------------------------
+# H2 + H3: runner-side exit codes for new error paths
+# ---------------------------------------------------------------------------
+
+
+class TestRunnerEmptyAndUnsupported:
+    def _setup(self, tmp_path, monkeypatch):
+        agents_dir = tmp_path / "templates" / "agents"
+        agents_dir.mkdir(parents=True)
+        (agents_dir / "security.shared.md").write_text(
+            "agent prompt", encoding="utf-8"
+        )
+        monkeypatch.setattr(cli_mod, "REPO_ROOT", tmp_path)
+        return agents_dir
+
+    def test_runner_unsupported_model_exits_two(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        # Model unsupported is caught in plan-build before live run, which
+        # already exits 2; this test pins that contract so the new
+        # aggregator-side raise does not change CLI behavior for the
+        # common case.
+        self._setup(tmp_path, monkeypatch)
+        fixtures_dir = tmp_path / "fixtures"
+        fixtures_dir.mkdir()
+        _write_fixture(fixtures_dir, "F001.json", _valid_fixture_payload())
+        rc = cli_main([
+            "--dry-run",
+            "--agent",
+            "security",
+            "--fixtures",
+            str(fixtures_dir),
+            "--model",
+            "unpriced-model",
+        ])
+        assert rc == 2
+        captured = capsys.readouterr()
+        assert "pricing rate" in captured.err.lower()
