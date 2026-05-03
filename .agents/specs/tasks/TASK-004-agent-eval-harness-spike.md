@@ -405,7 +405,7 @@ T4-4 MUST split into three commits (T4-4a/b/c). Each commit ≤5 files per AGENT
 | `scripts/eval/_report_aggregator.py` | T4-3 | create |
 | `scripts/eval/_report_writer.py` | T4-3 | create |
 | `tests/evals/test_eval_agent_vs_baseline.py` | T4-2, T4-3 | create, extend |
-| `evals/README.md` | T4-1 | create |
+| `evals/README.md` | T4-4a | create |
 | `evals/security-spike/fixtures/F001–F010.json` | T4-4 | create |
 | `evals/security-spike/fixtures/README.md` | T4-4 | create |
 | `evals/security-spike/runs/<RUN_ID>/runs.jsonl` | T4-5 | create |

@@ -246,7 +246,7 @@ The report MUST state the minimum detectable effect size given the fixture count
 - [ ] Report includes one of three recommendation verdicts: `graduate-to-CI`, `keep-as-audit`, or `scrap`
 - [ ] Recommendation matches the decision criteria table above
 - [ ] Recommendation is supported by at least two pieces of cited evidence from the run data
-- [ ] `report.json` contains `recommendation` field with the verdict string
+- [ ] `report.json` contains `recommendation` field. The field MAY be `null` on records produced by T4-5 (decision pending); T4-7 MUST overwrite with one of `"graduate-to-CI" | "keep-as-audit" | "scrap"`. Schema validators MUST accept null on T4-5 records and reject null on T4-7 records.
 
 **Dependencies**: AC-2 report; bootstrap CI implementation (DESIGN-004 §Scoring)
 
