@@ -61,7 +61,7 @@ flowchart TD
 **Purpose**: Parse arguments, coordinate components, exit with typed codes.
 
 **Responsibilities**:
-- Accept `--agent <name>`, `--fixtures <path>`, `--n-runs <int>`, `--dry-run`, `--run-id <str>`
+- Accept `--agent <name>`, `--fixtures <path>`, `--n-runs <int>`, `--dry-run`, `--run-id <str>`, `--resume <RUN_ID>`
 - Delegate to `FixtureValidator`, `PlanRunner`, `RunPersistence`, `ReportAggregator`
 - Exit 0 = success, 1 = logic/flakiness/duplicate, 2 = config/fixture invalid, 3 = external/API persistent failure
 
@@ -127,9 +127,10 @@ class Assertion:
 @dataclass
 class AssertionResult:
     kind: AssertionKind
-    value: str
+    pattern: str | None        # mirror of input Assertion.pattern (REGEX kind only)
+    expected_value: str | None # mirror of input Assertion.expected_value (VERDICT kind only)
     passed: bool
-    extracted: str | None  # what the scorer extracted from the response
+    extracted: str | None      # what the scorer extracted from the response
 ```
 
 **`ScoringEngine`**:
@@ -157,7 +158,7 @@ class ScoringEngine:
 
 **Responsibilities**:
 - Given validated fixtures, model id, variant count (always 2), and `n_runs`, compute total planned API call count: `len(fixtures) × 2 × n_runs`.
-- Estimate token cost: `(planned_calls × EST_TOKENS_PER_CALL) × published_rate(model_id, as_of=<date>)`. Reuse `EST_TOKENS_PER_CALL` from `_eval_common`. Pricing rate constant lives in `_eval_common.MODEL_PRICING_RATES_USD_PER_1K_TOKENS` (created in T4-2; see Tech Decisions).
+- Estimate token cost: `(planned_calls × EST_TOKENS_PER_CALL) × published_rate(model_id)`. Reuse `EST_TOKENS_PER_CALL` from `_eval_common`. Pricing rate constants `MODEL_PRICING_RATES_USD_PER_1K_TOKENS` and `PRICING_RATE_AS_OF` live in `_eval_common.py` (added in T4-1; both `_plan_runner.py` and `_report_aggregator.py` import from this single owner).
 - On `--dry-run`: print plan + cost to stdout, exit 0; never instantiate `AnthropicAPIAdapter`.
 - On normal run: hand off to `RunPersistence` + `AnthropicAPIAdapter` with the same plan object so the runner uses the same numbers it printed.
 
@@ -247,7 +248,7 @@ def call_model(
   "fixture_sha": "<sha256 of fixture JSON file content, UTF-8>",
   "raw_response": "...",
   "assertions": [
-    {"kind": "verdict", "value": "IDENTIFY", "passed": true, "extracted": "IDENTIFY"}
+    {"kind": "verdict", "pattern": null, "expected_value": "IDENTIFY", "passed": true, "extracted": "IDENTIFY"}
   ],
   "outcome": "success",
   "latency_ms": 1234.5,
@@ -297,8 +298,25 @@ def call_model(
   "total_tokens_out": 2400,
   "wall_clock_seconds": 187,
   "cost_estimate_usd": 0.09,
-  "recommendation": "graduate-to-CI",  // string | null — null permitted on T4-5's initial commit; T4-7 finalizes to one of the three valid strings
-  "error_count": 0
+  "recommendation": "graduate-to-CI",
+  "error_count": 0,
+  "pricing_rate_as_of": "2026-05-03",
+  "flaky_fixtures_excluded": []
+}
+```
+
+### Schema notes
+
+- `recommendation`: type is `string | null`. T4-5's initial commit MAY leave this `null` to indicate the human decision has not yet been made. T4-7 MUST overwrite to one of `"graduate-to-CI" | "keep-as-audit" | "scrap"`. JSON schema validators in tests MUST accept null on records produced by T4-5 and reject null on records produced by T4-7.
+- `flaky_fixtures_excluded`: list of fixture ids excluded from the recall delta after the contingency re-run protocol (REQ-004 AC-10). Empty list when no fixtures were excluded.
+- `recommendation_default`: optional string `"sla-fallback"` when the SLA fallback in T4-7 fired. Absent otherwise.
+
+```json
+// example T4-5 commit (recommendation pending)
+{
+  // ... all other fields ...
+  "recommendation": null,
+  "flaky_fixtures_excluded": []
 }
 ```
 

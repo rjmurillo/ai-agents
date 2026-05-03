@@ -44,7 +44,7 @@ SO THAT every result is reproducible and reviewable.
 **Acceptance Criteria**
 
 - [ ] Each record written to `evals/security-spike/runs/<RUN_ID>/runs.jsonl`
-- [ ] Record contains: `fixture_id`, `variant` (agent|baseline), `run_index`, `model_id`, `prompt_sha`, `prompt_ref` (path to source — agent template path or literal `<baseline>`), `fixture_sha`, `raw_response`, `assertions[]` (each with `kind`, `pattern`, `expected_value`, `passed`), `latency_ms`, `tokens_in`, `tokens_out`, `outcome`, `error_category`, `attempts`
+- [ ] Record contains: `fixture_id`, `variant` (agent|baseline), `run_index`, `model_id`, `prompt_sha`, `prompt_ref` (path to source — agent template path or literal `<baseline>`), `fixture_sha`, `raw_response`, `assertions[]` (each row carries the serialized `AssertionResult`: `kind`, `pattern` or `expected_value` (whichever is set on the input `Assertion`), `passed`, `extracted`), `latency_ms`, `tokens_in`, `tokens_out`, `outcome`, `error_category`, `attempts`
 - [ ] `schemaVersion: 1` present on every record
 - [ ] Two variants always recorded: `agent` and `baseline`
 - [ ] Three run indices (0, 1, 2) produced per (fixture, variant) tuple
@@ -163,7 +163,9 @@ SO THAT the methodology produces a usable signal at all.
 
 - [ ] `prompt_sha` and fixture-set SHA recorded in `report.json`
 - [ ] Flakiness is defined as: any fixture with non-zero pass-rate variance across N runs on the same (prompt_sha, fixture_set_sha). If any fixture has variance > 0, `flakiness=true` is set in `report.json`.
-- [ ] Flakiness flag causes spike to exit with code 1 and a structured message
+- [ ] On first detection of `flakiness=true`, the runner SHALL re-run the offending fixture(s) at N=5 (a contingency-mode rerun, not a halt). If variance persists for ≥2 of 5 reps on the same fixture, that fixture is marked `flaky=true` in its run records and EXCLUDED from the recall delta calculation, with the exclusion documented in `REPORT.md` as a finding.
+- [ ] If after the contingency re-run, more than 30% of fixtures are marked `flaky=true`, the spike halts with exit code 1 and a structured message — the methodology itself is unstable and the spike does not produce a verdict.
+- [ ] If 30% or fewer fixtures are marked `flaky=true`, the spike continues and the report includes both the recall on the stable subset AND the count of excluded flaky fixtures.
 - [ ] Temperature=0 enforced on all API calls
 
 **Dependencies**: AC-2 report; AC-1 SHA recording
