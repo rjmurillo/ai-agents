@@ -79,6 +79,7 @@ def _build_report_json(
         "total_tokens_out": aggregate.total_tokens_out,
         "wall_clock_seconds": round(wall_clock_seconds, 2),
         "cost_estimate_usd": round(aggregate.cost_estimate_usd, 4),
+        "tokens_estimated": aggregate.tokens_estimated,
         "error_count": aggregate.error_count,
         "pricing_rate_as_of": aggregate.pricing_rate_as_of,
         "recommendation": None,
@@ -146,13 +147,21 @@ def _render_recommendation_section() -> str:
 def _render_cost_section(
     aggregate: AggregateResult, wall_clock_seconds: float
 ) -> str:
+    estimate_caveat = (
+        "\n\n_Token counts are estimated from a text-length heuristic "
+        "(~4 chars per token); cost is not authoritative. Replace with "
+        "measured `usage` from the API response in a follow-up._"
+        if aggregate.tokens_estimated
+        else ""
+    )
     return (
         "## Cost and Resource Summary\n\n"
         f"- Total tokens in: {aggregate.total_tokens_in:,}\n"
         f"- Total tokens out: {aggregate.total_tokens_out:,}\n"
         f"- Estimated cost: ${aggregate.cost_estimate_usd:.4f} USD "
         f"(rate as of {aggregate.pricing_rate_as_of})\n"
-        f"- Wall-clock time: {wall_clock_seconds:.1f}s\n"
+        f"- Wall-clock time: {wall_clock_seconds:.1f}s"
+        f"{estimate_caveat}\n"
     )
 
 
