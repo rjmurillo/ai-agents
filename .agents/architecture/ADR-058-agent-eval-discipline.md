@@ -156,14 +156,14 @@ These projections are illustrative. CI graduation requires a measured-usage proj
 
 ### Worked Example: Security Agent v1 Calibration
 
-This subsection records the actual numbers from the spike run `20260503T165136Z-84f918a9` (model: `claude-sonnet-4-6`, date: 2026-05-03). The numbers are reproduced verbatim from `evals/security-spike/reports/20260503T165136Z-84f918a9/REPORT.md`.
+This subsection records the actual numbers from the spike run `20260503T165136Z-84f918a9` (model: `claude-sonnet-4-6`, date: 2026-05-03). The numbers are reproduced verbatim from `evals/security-spike/reports/20260503T165136Z-84f918a9/report.json` after the verdict-extraction regex correction (commit `f0bfec3a`) and re-scoring (commit `8f1e5342`).
 
 | Metric | Value |
 |---|---|
 | Agent recall | 25.0% |
-| Baseline recall | 16.7% |
-| Signed delta (agent − baseline) | +8.3pp |
-| 95% bootstrap CI on delta | [-0.20, +0.31] |
+| Baseline recall | 50.0% |
+| Signed delta (agent − baseline) | −25.0pp |
+| 95% bootstrap CI on delta | [−0.7273, +0.1538] |
 | Flakiness | true (F003 excluded) |
 | Errors | 0 |
 | Estimated cost | $1.20 USD |
@@ -173,35 +173,39 @@ This subsection records the actual numbers from the spike run `20260503T165136Z-
 
 | Fixture | Verdict | Agent | Baseline | Note |
 |---|---|---|---|---|
-| F001 | IDENTIFY (CWE-22) | 0.50 | 0.00 | Agent identifies path traversal; baseline misses CWE. |
-| F002 | IDENTIFY (STRIDE multi) | 0.50 | 0.50 | Tied. The agent-discriminating intent failed on this fixture. |
+| F001 | IDENTIFY (CWE-22) | 0.50 | 0.00 | Agent identifies path traversal; baseline misses CWE. Agent wins. |
+| F002 | IDENTIFY (STRIDE multi) | 0.50 | 1.00 | Baseline now wins after regex fix; baseline emits the verdict token cleanly while agent's verbose response only partially matches assertions. |
 | F003 | IDENTIFY (CWE-200) | 0.17 | 0.00 | Flaky; excluded from delta. Agent partially correct. |
 | F004 | IDENTIFY | 0.50 | 0.00 | Agent wins verdict; partial CWE match. |
 | F005 | OK | 0.00 | 1.00 | **Agent over-identifies.** Baseline correctly says OK; agent flags an issue that is not present. |
-| F006-F010 | OK / ESCALATE | 0.00 | 0.00 | Both wrong. Corpus is too hard on this slice. |
+| F006 | OK / ESCALATE | 0.00 | 0.00 | Both wrong. |
+| F007 | OK / ESCALATE | 0.00 | 1.00 | Baseline wins. Baseline emits clean verdict; agent's verbose narrative fails to lead with a verdict token. |
+| F008 | OK / ESCALATE | 0.00 | 1.00 | Baseline wins. Same pattern as F007. |
+| F009 | OK / ESCALATE | 0.00 | 0.00 | Both wrong. |
+| F010 | OK / ESCALATE | 0.00 | 1.00 | Baseline wins. Same pattern as F007/F008. |
 
-**Decision per criteria**: `keep-as-audit`. The signed delta is positive (+8.3pp) but the 95% CI [-0.20, +0.31] spans zero, so the experiment cannot reject the null hypothesis of no agent benefit at the 95% level. Flakiness is true (F003 excluded). No methodology flaw was discovered.
+**Decision per criteria**: `scrap`. The signed delta is negative (−25.0pp); the 95% CI [−0.7273, +0.1538] does not have a positive lower bound; flakiness is true. Two of the three `graduate-to-CI` criteria are decisively failed (recall delta > 0 and CI lower bound > 0). Per the decision criteria, this triggers the `scrap` verdict.
 
-**Minimum detectable effect**: with N=10 paired observations, the experiment can reliably detect only large effects (delta > approximately 0.30). The +0.083 observed is well below that threshold. This ADR therefore does NOT claim "no difference between agent and baseline." It claims the experiment lacks statistical power to distinguish the observed +8.3pp from no effect. The recommended next step for any future agent measured this way is to expand the corpus before drawing conclusions.
+**Correction note**: The original report (committed in `d9c88096`) recorded the verdict as `keep-as-audit` based on `baseline_recall=16.7%` and `recall_delta=+8.3pp`. Those numbers were generated under a buggy verdict-extraction regex that failed to match markdown-bold verdicts (`**OK**`, `**ESCALATE**`). The bug was fixed in commit `f0bfec3a` and the existing run data was re-scored in `8f1e5342`. The corrected numbers above are authoritative.
 
-**Differential diagnosis** for the delta-near-zero result:
+**Minimum detectable effect**: with N=10 paired observations, the experiment can reliably detect effects of magnitude approximately 0.30 or larger. The observed magnitude of −0.250 is within that detection band. The wide CI [−0.7273, +0.1538] reflects high per-fixture variance (some fixtures cleanly favor agent, others cleanly favor baseline) rather than insufficient sample size for the effect magnitude. The CI's positive arm (+0.1538) does not exceed the detection-band magnitude either, so the experiment does not support a positive-direction conclusion in any direction.
 
-1. *Agent adds no value over baseline for this task.* Possible. F005 (agent over-identifies) is direct evidence that the agent's specialization sometimes hurts.
-2. *Baseline is too specific.* Unlikely. The baseline is a generic LLM prompt without security vocabulary.
-3. *Corpus is too easy.* Unlikely. Both variants score near zero on F006-F010.
-4. *Corpus is too hard.* Likely on F006-F010. Likely contributor to the wide CI.
+**Differential diagnosis** for the negative-delta result:
 
-The reading is: the corpus is too small to draw a strong conclusion, the agent shows a small positive signal on the easier IDENTIFY fixtures, and the agent over-identifies on at least one OK fixture. The right next step is to expand the corpus, not to scrap the agent.
+1. *Agent's verdict-token emission discipline is worse than baseline's.* Most likely. On the four OK/ESCALATE fixtures where baseline wins (F005, F007, F008, F010), the baseline's terse direct answer leads with the verdict token; the agent's verbose narrative response often buries or fails to produce the expected token format. This is a real finding about the agent prompt's output style, not a corpus problem.
+2. *Agent over-identifies on negative cases.* Confirmed on F005. The agent flags an issue that is not present; the baseline correctly says OK. The agent's specialization in detection appears to lower its specificity.
+3. *Agent wins on positive-detection fixtures.* Confirmed on F001 and F004. The agent's CWE-vocabulary specialization helps when the assertion specifically rewards CWE identification.
+4. *Corpus is too easy for baseline.* The baseline scores 50% on this corpus, indicating the OK/ESCALATE fixtures are closer to commodity LLM-recognition than to specialized security analysis. This is itself a finding: parts of the security-agent's domain may not require security specialization.
 
-**Scope reminder**: even if a future re-run with N≥30 produced a positive `graduate-to-CI` verdict, that result would prove the agent's *content* is useful — not that the *agent form* is the right delivery vehicle for that content. The form-factor question (would the same content as a skill loaded into the parent context produce equivalent recall?) requires a separate methodology not covered here. See "What This Methodology Measures (and What It Does Not)" near the top of this ADR.
+**Scope reminder**: this verdict applies to the security agent's *content* (system prompt, role, instructions) compared to a deliberately naive content baseline against the same model on this corpus. It does not address the *form-factor* question (whether the same content delivered as a skill in the parent's context would behave differently). The form-factor question requires a separate methodology with a third variant; see "What This Methodology Measures (and What It Does Not)" near the top of this ADR.
 
 ### Cadence Trigger After This Spike
 
-The next eval run for the security agent is triggered on:
+Per the `scrap` verdict above, the security agent's spike is **not** scheduled for re-run on the standard cadence. The corpus and run dir at `evals/security-spike/` are archived to `evals/_archive/security-spike-20260503T165136Z-84f918a9/` (corpus and reports only — the runner code is preserved at `scripts/eval/eval-agent-vs-baseline.py` because the methodology is intact and reusable for future agents).
 
-1. The next Anthropic model version bump on or after 2026-05-03.
-2. 2026-08-03 (90 days from this run), whichever first.
-3. Any material edit to the security agent prompt or the baseline.
+The next application of this methodology is expected to target a different agent (analyst, qa, or architect) on a fresh corpus. That run will use the corrected runner and produce the methodology's second data point. Until that second data point exists, the methodology is supported by one application that produced a `scrap` verdict due to verdict-token-emission discipline issues in the security agent prompt rather than a flaw in the methodology itself.
+
+**Note on AC-5 divergence**: REQ-004 AC-5's `scrap` consequence text states "the methodology ADR is marked `status: superseded` with a successor ADR documenting the methodology flaw." That text assumed the scrap was triggered by a methodology flaw discovered during the spike. In this case the scrap was triggered by a scoring-engine implementation bug (a regex that failed to match markdown-bold verdicts) which has been fixed by commit `f0bfec3a`. The methodology itself was not flawed. Therefore this ADR keeps `status: proposed` and the runner code is preserved. A follow-up issue will track the corresponding clarification to REQ-004 AC-5.
 
 ## Considered Options
 
@@ -342,7 +346,7 @@ The Anthropic dependency is already paid by ADR-057. Adding ADR-058 does not dee
 | ADR-057 | Complementary | Add cross-reference noting ADR-058 covers the orthogonal between-subjects question | Low. Follow-up issue. |
 | ADR-023 | Complementary | None required | Low |
 | ADR-010 | Complementary | None required | Low |
-| `evals/security-spike/` | Source artifact | Status preserved at `proposed` until verdict ratified | Low |
+| `evals/security-spike/` | Source artifact | Archived to `evals/_archive/security-spike-20260503T165136Z-84f918a9/` per scrap verdict (Path 2: corpus archived, runner preserved) | Low |
 | Future agent authors | Direct | Apply this methodology before claiming agent specialization helps | Low |
 
 ## Related Decisions
@@ -357,6 +361,11 @@ The Anthropic dependency is already paid by ADR-057. Adding ADR-058 does not dee
 - [REQ-004](../specs/requirements/REQ-004-agent-eval-harness-spike.md): requirements (including AC-6 ADR contract).
 - [DESIGN-004](../specs/design/DESIGN-004-agent-eval-harness-spike.md): runner design.
 - [TASK-004](../specs/tasks/TASK-004-agent-eval-harness-spike.md): task plan.
-- `evals/security-spike/reports/20260503T165136Z-84f918a9/REPORT.md`: worked-example numbers.
+- `evals/security-spike/reports/20260503T165136Z-84f918a9/report.json`: authoritative worked-example numbers (post-rescore).
+- `evals/security-spike/reports/20260503T165136Z-84f918a9/REPORT.md`: worked-example markdown narrative (post-rescore).
 - `scripts/eval/eval-agent-vs-baseline.py`: runner.
-- `.agents/critique/ADR-058-debate-log.md`: architect-led multi-perspective review.
+- Commit `f0bfec3a`: fix(eval): extract markdown-formatted verdicts in scoring engine.
+- Commit `8f1e5342`: fix(eval): rescore runs with corrected verdict regex.
+- `.agents/critique/ADR-058-debate-log.md`: architect-led multi-perspective review (original ratification).
+- `.agents/critique/ADR-058-amendment-debate-log.md`: architect-led multi-perspective review of inflight amendments (scope clarification + rescore verdict-flip).
+- [Issue #1875](https://github.com/rjmurillo/ai-agents/issues/1875): tracker for follow-on form-factor methodology ADR.
