@@ -44,6 +44,21 @@ Adopt the agent-vs-baseline efficacy methodology defined below as the standard f
 
 This methodology applies to agents with **deterministic-scorable output**: agents whose responses contain structured verdicts, pattern-matchable identifiers (CWE numbers, STRIDE categories, severity labels), or other content that can be checked against assertions without LLM judgment. Agents with freeform output (open-ended advice, narrative summaries, multi-step plans) require a different methodology not covered by this ADR.
 
+### What This Methodology Measures (and What It Does Not)
+
+This methodology measures **specialization value**: does the agent's curated content (system prompt, role, instructions) add lift over a generic prompt against the same model on the same fixtures? The spike's two variants are both **agent-form**:
+
+| Variant | Form | Content |
+|---|---|---|
+| `agent` | subagent dispatch with system prompt | the agent's curated system prompt |
+| `baseline` | subagent dispatch with system prompt | a deliberately naive system prompt with no domain vocabulary |
+
+A positive `graduate-to-CI` verdict from this methodology proves the **content** is useful. It does **not** prove the **form** (subagent dispatch with restricted tools, separate model invocation, isolation from parent context) is the right delivery vehicle for that content.
+
+**Out of scope for this ADR**: the agent-vs-skill question — would the same content delivered as a [skill](../../.claude/skills/) loaded into the parent's context produce equivalent recall, at lower cost (one model call instead of two) and without the subagent-isolation complexity (e.g., the 1M-context bug tracked at anthropics/claude-code#55694)? That is a **form-factor** comparison and requires a separate methodology with a third variant `skill` (parent reads `SKILL.md`, reasons inline, scored against the same fixtures). Until that methodology is built and run, a positive verdict here justifies investing in the **content**, not necessarily in the **agent form**.
+
+A future ADR is expected to cover form-factor evaluation. Tracked at [#1875](https://github.com/rjmurillo/ai-agents/issues/1875).
+
 ### Survivorship Bias Acknowledgment
 
 The security agent was chosen as the v1 spike subject because its outputs include CWE identifiers and STRIDE categories that can be matched against fixture assertions. This made the methodology easy to demonstrate. It also means this ADR's evidence base is the agent most amenable to deterministic scoring. Generalization to other agents (analyst, qa, architect) requires per-agent calibration and may surface that the methodology does not transfer cleanly. The ADR does not claim that every agent has a deterministic signal of this quality.
@@ -177,6 +192,8 @@ This subsection records the actual numbers from the spike run `20260503T165136Z-
 4. *Corpus is too hard.* Likely on F006-F010. Likely contributor to the wide CI.
 
 The reading is: the corpus is too small to draw a strong conclusion, the agent shows a small positive signal on the easier IDENTIFY fixtures, and the agent over-identifies on at least one OK fixture. The right next step is to expand the corpus, not to scrap the agent.
+
+**Scope reminder**: even if a future re-run with N≥30 produced a positive `graduate-to-CI` verdict, that result would prove the agent's *content* is useful — not that the *agent form* is the right delivery vehicle for that content. The form-factor question (would the same content as a skill loaded into the parent context produce equivalent recall?) requires a separate methodology not covered here. See "What This Methodology Measures (and What It Does Not)" near the top of this ADR.
 
 ### Cadence Trigger After This Spike
 
