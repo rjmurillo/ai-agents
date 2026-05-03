@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "id": "F006",
+  "input": "Code review:\n\n```python\ndef render_user_comment(comment: str) -> str:\n    return f\"<div class='comment'>{comment}</div>\"\n```\n\nContext: this function is invoked from a Jinja2 template via `{{ render_user_comment(c) | escape }}` and the surrounding template uses Jinja2 autoescaping (the project enables `autoescape=True` globally in app config). The reviewer asks: is this an XSS bug because the function returns raw HTML?",
+  "provenance": "synthetic",
+  "assertions": [
+    {"kind": "verdict", "expected_value": "OK"}
+  ],
+  "tags": ["verdict-ok", "false-positive-resistance", "xss", "context-dependent"]
+}
