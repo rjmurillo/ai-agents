@@ -74,14 +74,30 @@ def assert_valid_body_file(body_file: str, allowed_base: str | None = None) -> N
 
     Raises SystemExit if the file does not exist or escapes the allowed base.
 
+    When allowed_base is None, accepts paths within either the repo root or the
+    system temp directory (to support mktemp-based reply staging per ADR guidance).
+
     Args:
         body_file: The file path to validate.
         allowed_base: Optional base directory restriction.
     """
+    import tempfile
+
     from .api import error_and_exit  # lazy import to avoid cycle
 
     if not Path(body_file).exists():
         error_and_exit(f"Body file not found: {body_file}", 2)
 
-    if not is_safe_file_path(body_file, allowed_base):
-        error_and_exit(f"Body file path traversal not allowed: {body_file}", 2)
+    if allowed_base is not None:
+        if not is_safe_file_path(body_file, allowed_base):
+            error_and_exit(f"Body file path traversal not allowed: {body_file}", 2)
+        return
+
+    if is_safe_file_path(body_file, None):
+        return
+
+    tmpdir = os.environ.get("TMPDIR") or tempfile.gettempdir()
+    if is_safe_file_path(body_file, tmpdir):
+        return
+
+    error_and_exit(f"Body file path traversal not allowed: {body_file}", 2)
