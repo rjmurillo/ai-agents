@@ -35,25 +35,38 @@ def load_api_key() -> str:
     if key:
         return key.strip()
 
-    search = Path(__file__).resolve().parent
-    for _ in range(10):
-        env_path = search / ".env"
-        if env_path.exists():
-            for raw_line in env_path.read_text(encoding="utf-8").splitlines():
-                line = raw_line.strip()
-                if line.startswith("#") or "=" not in line:
-                    continue
-                k, v = line.split("=", 1)
-                if k.strip() == "ANTHROPIC_API_KEY":
-                    value = v.strip()
-                    if len(value) >= 2 and value[0] == value[-1] and value[0] in ('"', "'"):
-                        value = value[1:-1]
-                    return value
-        search = search.parent
+    # CWE-22 mitigation: only consult `.env` files inside the repository
+    # root, never walk up arbitrary parent directories. An attacker that
+    # plants a `.env` higher in the filesystem MUST NOT be able to feed
+    # the runner credentials. `parents[2]` is the repo root for this
+    # script's canonical layout (`scripts/eval/_anthropic_api.py`); a
+    # symlink to `__file__` would change `parents[2]`, so reject those
+    # too.
+    here = Path(__file__).resolve(strict=True)
+    if here.is_symlink():
+        raise RuntimeError(
+            "ANTHROPIC_API_KEY load aborted: refusing to resolve symlinked "
+            "module path (CWE-22 defense)."
+        )
+    repo_root = here.parents[2]
+    candidates = [repo_root / ".env"]
+    for env_path in candidates:
+        if env_path.is_symlink() or not env_path.exists():
+            continue
+        for raw_line in env_path.read_text(encoding="utf-8").splitlines():
+            line = raw_line.strip()
+            if line.startswith("#") or "=" not in line:
+                continue
+            k, v = line.split("=", 1)
+            if k.strip() == "ANTHROPIC_API_KEY":
+                value = v.strip()
+                if len(value) >= 2 and value[0] == value[-1] and value[0] in ('"', "'"):
+                    value = value[1:-1]
+                return value
 
     raise RuntimeError(
-        "ANTHROPIC_API_KEY not found in environment or .env file. "
-        "Set the environment variable or add it to a .env file in the repo root."
+        "ANTHROPIC_API_KEY not found in environment or repo-root .env file. "
+        "Set the environment variable or add it to .env at the repo root."
     )
 
 
@@ -63,6 +76,7 @@ def call_api(
     system: str = "",
     model: str = "claude-sonnet-4-20250514",
     max_tokens: int = 1024,
+    temperature: float = 0.0,
 ) -> str:
     """Call the Anthropic Messages API.
 
@@ -85,6 +99,11 @@ def call_api(
         "model": model,
         "max_tokens": max_tokens,
         "messages": messages,
+        # Determinism: the eval pipeline depends on temperature=0 so the
+        # spike output-shape contract (verdict-vocabulary suffix) is
+        # reproducible across reruns. Callers MAY override but MUST
+        # justify in a comment if they do.
+        "temperature": temperature,
     }
     if system:
         body["system"] = system
@@ -105,9 +124,20 @@ def call_api(
         with urllib.request.urlopen(req, timeout=120) as resp:
             result = json.loads(resp.read().decode(errors="replace"))
     except urllib.error.HTTPError as e:
-        error_body = e.read().decode(errors="replace")
+        # CWE-200 mitigation: the response body may contain echoed
+        # request fragments, prompt content, or other sensitive data.
+        # Surface the HTTP status and a short, ASCII-only excerpt so
+        # adapter logs cannot leak prompts. The adapter only forwards
+        # `error_category` to its structured log, but `_categorize_error`
+        # also matches the `"HTTP <code>"` substring of this message,
+        # which we preserve verbatim.
+        try:
+            raw_body = e.read().decode(errors="replace")
+        except Exception:  # noqa: BLE001 - body read is best-effort only
+            raw_body = ""
+        sanitized = "".join(ch for ch in raw_body if 32 <= ord(ch) < 127)[:200]
         raise RuntimeError(
-            f"Anthropic API returned HTTP {e.code}: {error_body[:500]}"
+            f"Anthropic API returned HTTP {e.code}: {sanitized}"
         ) from e
     except urllib.error.URLError as e:
         # urllib often wraps socket.timeout in URLError.reason; classify it

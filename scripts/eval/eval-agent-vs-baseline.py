@@ -100,6 +100,57 @@ MAX_ERROR_RATE = 0.10
 RUNS_DIR_TEMPLATE = "evals/{agent}-spike/runs/{run_id}"
 REPORTS_DIR_TEMPLATE = "evals/{agent}-spike/reports"
 
+# CWE-22 mitigation: `--agent`, `--run-id`, and `--resume` all flow into
+# filesystem path templates above (templates/agents/<agent>.shared.md,
+# evals/<agent>-spike/runs/<run_id>/...). An attacker-controlled value
+# could escape REPO_ROOT. Restrict to strict allow-list regexes at parse
+# time. Defense in depth: resolved paths are also re-checked against
+# REPO_ROOT before any filesystem access (see `_assert_under_repo_root`).
+_AGENT_NAME_RE = re.compile(r"^[a-z][a-z0-9_-]{0,30}$")
+# Run IDs are produced by `_generate_run_id` as ISO8601 + UUID4 hex; allow
+# the same shape plus a small alphanumeric/underscore extension for
+# operator-supplied identifiers.
+_RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
+
+
+def _agent_name_arg(value: str) -> str:
+    """argparse `type=` validator. Returns `value` if it matches the agent
+    allow-list; raises `argparse.ArgumentTypeError` otherwise."""
+    if not _AGENT_NAME_RE.match(value):
+        raise argparse.ArgumentTypeError(
+            f"--agent must match {_AGENT_NAME_RE.pattern} (got {value!r})"
+        )
+    return value
+
+
+def _run_id_arg(value: str) -> str:
+    """argparse `type=` validator for `--run-id` and `--resume`. Same
+    threat model as `_agent_name_arg`: raw input flows into directory
+    templates that are joined to REPO_ROOT."""
+    if not _RUN_ID_RE.match(value):
+        raise argparse.ArgumentTypeError(
+            f"run id must match {_RUN_ID_RE.pattern} (got {value!r})"
+        )
+    return value
+
+
+def _assert_under_repo_root(path: Path) -> Path:
+    """Raise FileNotFoundError if `path` resolves outside REPO_ROOT.
+    Defense-in-depth against path-traversal in case the allow-list above
+    is ever loosened. Does not require `path` to exist."""
+    repo_root = REPO_ROOT.resolve()
+    try:
+        resolved = path.resolve(strict=False)
+    except OSError as exc:
+        raise FileNotFoundError(
+            f"refusing to resolve path {path!s}: {exc}"
+        ) from exc
+    if repo_root not in (resolved, *resolved.parents):
+        raise FileNotFoundError(
+            f"refusing to access {resolved} (outside REPO_ROOT {repo_root})"
+        )
+    return resolved
+
 
 # ---------------------------------------------------------------------------
 # FixtureValidator (DESIGN-004 §5.2, REQ-004 AC-4)
@@ -166,12 +217,16 @@ class FixtureValidator:
     @staticmethod
     def _require_provenance(path: Path, data: dict[str, Any]) -> str:
         provenance = data.get("provenance")
-        if provenance not in ALLOWED_PROVENANCE:
+        # `provenance` may be any JSON-decoded type; non-hashable values
+        # (list, dict) would raise TypeError on `in frozenset[str]`. Guard
+        # before the membership check so callers get a typed validation
+        # error instead of a generic TypeError.
+        if not isinstance(provenance, str) or provenance not in ALLOWED_PROVENANCE:
             raise FixtureValidationError(
                 f"{path.name}: provenance must be one of {sorted(ALLOWED_PROVENANCE)}, "
                 f"got {provenance!r}"
             )
-        return provenance  # type: ignore[return-value]
+        return provenance
 
     @staticmethod
     def _require_assertions(
@@ -207,13 +262,34 @@ class FixtureValidator:
             ) from exc
         pattern = item.get("pattern")
         expected_value = item.get("expected_value")
+        normalized_pattern = pattern if isinstance(pattern, str) else None
+        normalized_expected = (
+            expected_value if isinstance(expected_value, str) else None
+        )
+
+        # Reject malformed regex patterns at fixture-load time so a bad
+        # fixture cannot consume an API call before failing at score
+        # time. `Assertion.__post_init__` enforces kind-vs-field shape;
+        # this layer adds compile-time validation of the regex.
+        if kind is AssertionKind.REGEX and normalized_pattern is not None:
+            try:
+                re.compile(normalized_pattern)
+            except re.error as exc:
+                raise FixtureValidationError(
+                    f"{path.name} ({fixture_id}): assertions[{index}].pattern "
+                    f"is not a valid regex ({exc})"
+                ) from exc
+        if kind is AssertionKind.VERDICT and not normalized_expected:
+            raise FixtureValidationError(
+                f"{path.name} ({fixture_id}): assertions[{index}].expected_value "
+                f"must be a non-empty string for verdict assertions"
+            )
+
         try:
             return Assertion(
                 kind=kind,
-                pattern=pattern if isinstance(pattern, str) else None,
-                expected_value=(
-                    expected_value if isinstance(expected_value, str) else None
-                ),
+                pattern=normalized_pattern,
+                expected_value=normalized_expected,
             )
         except ValueError as exc:
             raise FixtureValidationError(
@@ -250,7 +326,7 @@ def _sha256_text(text: str) -> str:
 def _read_agent_prompt(agent: str) -> tuple[str, str]:
     """Return (prompt_text, prompt_ref). Raises FileNotFoundError on miss."""
     rel = AGENT_PROMPT_REF_TEMPLATE.format(agent=agent)
-    path = REPO_ROOT / rel
+    path = _assert_under_repo_root(REPO_ROOT / rel)
     if not path.exists():
         raise FileNotFoundError(
             f"agent prompt not found at {path} (looked for {agent}.shared.md)"
@@ -299,7 +375,12 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         prog="eval-agent-vs-baseline",
         description="Eval the agent prompt vs. a generic baseline prompt.",
     )
-    parser.add_argument("--agent", required=True, help="agent name (e.g. security)")
+    parser.add_argument(
+        "--agent",
+        required=True,
+        type=_agent_name_arg,
+        help="agent name (allow-listed; e.g. security)",
+    )
     parser.add_argument(
         "--fixtures",
         required=True,
@@ -325,11 +406,13 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--run-id",
         default=None,
+        type=_run_id_arg,
         help="run id (default: ISO8601 + UUID4); used by RunPersistence",
     )
     parser.add_argument(
         "--resume",
         default=None,
+        type=_run_id_arg,
         metavar="RUN_ID",
         help="resume an interrupted run; skip already-completed triples",
     )
@@ -460,7 +543,9 @@ def _run_live(
         return EXIT_CONFIG
 
     run_id = args.resume or args.run_id or _generate_run_id()
-    run_dir = REPO_ROOT / RUNS_DIR_TEMPLATE.format(agent=args.agent, run_id=run_id)
+    run_dir = _assert_under_repo_root(
+        REPO_ROOT / RUNS_DIR_TEMPLATE.format(agent=args.agent, run_id=run_id)
+    )
 
     try:
         persistence = RunPersistence(run_dir, resume=bool(args.resume))
@@ -482,6 +567,15 @@ def _run_live(
     error_count = 0
     total_records = 0
     resume_skips_count = 0
+    # REQ-004 AC-3: the >10% halt threshold is computed per fixture, not
+    # per record. A localized outage that errors every variant/run for
+    # one fixture out of ten matches the spec at 10% even though the
+    # per-record fraction may be much higher; conversely, scattered
+    # transient errors across many fixtures must not silently slip under
+    # the gate. Track unique fixture IDs that touched the runner and
+    # those that produced at least one `outcome="error"`.
+    executed_fixtures: set[str] = set()
+    fixtures_with_errors: set[str] = set()
 
     for fixture in plan.fixtures:
         fixture_path = fixture_path_by_id[fixture.id]
@@ -540,8 +634,10 @@ def _run_live(
                 except DuplicateRunError as exc:
                     print(f"error: {exc}", file=sys.stderr)
                     return EXIT_LOGIC
+                executed_fixtures.add(fixture.id)
                 if record.outcome == "error":
                     error_count += 1
+                    fixtures_with_errors.add(fixture.id)
                 total_records += 1
 
     if resume_skips_count > 0:
@@ -559,14 +655,24 @@ def _run_live(
     wall_clock_seconds = _time.monotonic() - wall_start
 
     executed_records = total_records - resume_skips_count
-    if executed_records > 0:
-        error_rate = error_count / executed_records
+    if executed_fixtures:
+        # Per-fixture error rate: REQ-004 AC-3. Keep `error_count` and
+        # `executed_records` in the structured log so operators can
+        # correlate with the per-record counts in the report.
+        fixtures_with_errors_count = len(fixtures_with_errors)
+        executed_fixtures_count = len(executed_fixtures)
+        error_rate = fixtures_with_errors_count / executed_fixtures_count
         if error_rate > MAX_ERROR_RATE:
             print(
                 json.dumps(
                     {
                         "level": "error",
-                        "message": "error rate exceeds 10%; halting before report",
+                        "message": (
+                            "fixture-level error rate exceeds 10%; "
+                            "halting before report"
+                        ),
+                        "fixtures_with_errors": fixtures_with_errors_count,
+                        "executed_fixtures": executed_fixtures_count,
                         "error_count": error_count,
                         "executed_records": executed_records,
                         "error_rate": round(error_rate, 4),
@@ -649,7 +755,9 @@ def _generate_report(
         )
         return EXIT_LOGIC
 
-    writer = ReportWriter(REPO_ROOT / REPORTS_DIR_TEMPLATE.format(agent=agent))
+    writer = ReportWriter(
+        _assert_under_repo_root(REPO_ROOT / REPORTS_DIR_TEMPLATE.format(agent=agent))
+    )
     json_path, md_path = writer.write(
         aggregate=aggregate,
         run_id=run_id,

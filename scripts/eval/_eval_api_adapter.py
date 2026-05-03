@@ -146,13 +146,16 @@ def _default_transport_factory() -> Transport:
     api_key = load_api_key()
 
     def _call(prompt: str, model_id: str, system: str) -> str:
-        # temperature=0 is enforced via call_api defaults; we additionally
-        # build messages explicitly so future kwargs do not leak.
+        # Determinism is contractual for this adapter (REQ-004 AC-3 /
+        # ADR-058 §"Experimental Design Symmetry"). Pass temperature=0
+        # explicitly here rather than relying on `call_api`'s default so
+        # a future helper change cannot silently break reproducibility.
         return call_api(
             api_key=api_key,
             messages=[{"role": "user", "content": prompt}],
             system=system,
             model=model_id,
+            temperature=0.0,
         )
 
     return _call
