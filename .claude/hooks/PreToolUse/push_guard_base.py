@@ -79,6 +79,8 @@ def _match_glob(path: str, pattern: str) -> bool:
         return False
     if not path.endswith(suffix):
         return False
+    if len(path) < len(prefix) + len(suffix):
+        return False
     middle = path[len(prefix):len(path) - len(suffix)] if suffix else path[len(prefix):]
     if "/" in middle:
         return False
