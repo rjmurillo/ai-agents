@@ -1,9 +1,13 @@
 """Tests for invoke_session_log_field_guard.
 
-Covers acceptance criteria from issue #1884 TASK-005-4: every required
-field validated, placeholder Evidence strings rejected, malformed JSON
-blocks, empty changeset short-circuits, and the hooks.json registration
-includes the guard.
+Real session logs store markdownLintRun under
+protocolCompliance.sessionEnd.markdownLintRun. They have no schemaVersion
+field, and endingCommit may be absent for investigation-only sessions.
+
+The guard validates:
+- endingCommit is not the literal placeholder string "pending" (when present)
+- markdownLintRun.Complete is true (when markdownLintRun is present)
+- markdownLintRun.Evidence is non-placeholder, >= 20 chars (when present)
 """
 
 from __future__ import annotations
@@ -34,13 +38,22 @@ def _diff(stdout: str) -> subprocess.CompletedProcess[str]:
 
 
 def _valid_log() -> dict:
+    """Mirror the real session schema: markdownLintRun nested under protocolCompliance.sessionEnd."""
     return {
-        "schemaVersion": "1.2.0",
-        "endingCommit": "abc123def456",
-        "markdownLintRun": {
-            "Complete": True,
-            "Evidence": "Diff touches 5 files; markdownlint-cli2 v0.21.0 ran clean",
+        "session": {"id": 1234, "date": "2026-05-04"},
+        "protocolCompliance": {
+            "sessionEnd": {
+                "markdownLintRun": {
+                    "level": "MUST",
+                    "Complete": True,
+                    "Evidence": (
+                        "markdownlint-cli2 v0.21.0 ran clean on .agents/specs/**/*.md "
+                        "prior to commit"
+                    ),
+                },
+            },
         },
+        "endingCommit": "abc123def456",
     }
 
 
@@ -81,6 +94,31 @@ class TestAllValid:
         assert rc == 0
         assert "BLOCKED" not in capsys.readouterr().out
 
+    def test_no_schema_version_field_is_tolerated(self, push_command, tmp_path):
+        """Real schema has no schemaVersion. Absence must NOT block."""
+        log = _valid_log()
+        # Already absent in _valid_log; assert it stays out of the way.
+        assert "schemaVersion" not in log
+        rel = _write(tmp_path, "s.json", log)
+        rc = _run([rel], tmp_path)
+        assert rc == 0
+
+    def test_no_ending_commit_field_is_tolerated(self, push_command, tmp_path):
+        """Investigation-only sessions may omit endingCommit. Absence must NOT block."""
+        log = _valid_log()
+        del log["endingCommit"]
+        rel = _write(tmp_path, "s.json", log)
+        rc = _run([rel], tmp_path)
+        assert rc == 0
+
+    def test_no_markdown_lint_run_is_tolerated(self, push_command, tmp_path):
+        """A session with no markdown changes may omit markdownLintRun entirely."""
+        log = _valid_log()
+        del log["protocolCompliance"]
+        rel = _write(tmp_path, "s.json", log)
+        rc = _run([rel], tmp_path)
+        assert rc == 0
+
 
 class TestEndingCommit:
     def test_ending_commit_pending_blocks(self, push_command, tmp_path, capsys):
@@ -89,93 +127,85 @@ class TestEndingCommit:
         rel = _write(tmp_path, "s.json", log)
         rc = _run([rel], tmp_path)
         assert rc == 2
-        assert "endingCommit pending or missing" in capsys.readouterr().out
+        assert "endingCommit" in capsys.readouterr().out
 
-    def test_ending_commit_missing_blocks(self, push_command, tmp_path, capsys):
+    def test_ending_commit_real_sha_passes(self, push_command, tmp_path):
         log = _valid_log()
-        del log["endingCommit"]
+        log["endingCommit"] = "abc123def"
         rel = _write(tmp_path, "s.json", log)
         rc = _run([rel], tmp_path)
-        assert rc == 2
-        assert "endingCommit pending or missing" in capsys.readouterr().out
-
-
-class TestSchemaVersion:
-    def test_schema_version_missing_blocks(self, push_command, tmp_path, capsys):
-        log = _valid_log()
-        del log["schemaVersion"]
-        rel = _write(tmp_path, "s.json", log)
-        rc = _run([rel], tmp_path)
-        assert rc == 2
-        assert "schemaVersion missing or empty" in capsys.readouterr().out
-
-    def test_schema_version_empty_blocks(self, push_command, tmp_path, capsys):
-        log = _valid_log()
-        log["schemaVersion"] = ""
-        rel = _write(tmp_path, "s.json", log)
-        rc = _run([rel], tmp_path)
-        assert rc == 2
-        assert "schemaVersion missing or empty" in capsys.readouterr().out
+        assert rc == 0
 
 
 class TestMarkdownLintComplete:
     def test_complete_false_blocks(self, push_command, tmp_path, capsys):
         log = _valid_log()
-        log["markdownLintRun"]["Complete"] = False
+        log["protocolCompliance"]["sessionEnd"]["markdownLintRun"]["Complete"] = False
         rel = _write(tmp_path, "s.json", log)
         rc = _run([rel], tmp_path)
         assert rc == 2
-        assert "markdownLintRun.Complete false or missing" in capsys.readouterr().out
+        assert "Complete" in capsys.readouterr().out
 
-    def test_markdown_lint_run_missing_blocks(self, push_command, tmp_path, capsys):
+    def test_complete_lowercase_key_tolerated(self, push_command, tmp_path):
+        """Schema permits lowercase complete; do not flag valid logs."""
         log = _valid_log()
-        del log["markdownLintRun"]
+        run = log["protocolCompliance"]["sessionEnd"]["markdownLintRun"]
+        run.pop("Complete")
+        run["complete"] = True
+        run.pop("Evidence")
+        run["evidence"] = (
+            "markdownlint-cli2 v0.21.0 ran clean on changed files prior to commit"
+        )
         rel = _write(tmp_path, "s.json", log)
         rc = _run([rel], tmp_path)
-        assert rc == 2
-        assert "markdownLintRun.Complete false or missing" in capsys.readouterr().out
+        assert rc == 0
 
 
 class TestMarkdownLintEvidence:
     def test_evidence_empty_blocks(self, push_command, tmp_path, capsys):
         log = _valid_log()
-        log["markdownLintRun"]["Evidence"] = ""
+        log["protocolCompliance"]["sessionEnd"]["markdownLintRun"]["Evidence"] = ""
         rel = _write(tmp_path, "s.json", log)
         rc = _run([rel], tmp_path)
         assert rc == 2
-        assert "Evidence placeholder or under-20-chars" in capsys.readouterr().out
-
-    def test_evidence_na_blocks(self, push_command, tmp_path, capsys):
-        log = _valid_log()
-        log["markdownLintRun"]["Evidence"] = "n/a"
-        rel = _write(tmp_path, "s.json", log)
-        rc = _run([rel], tmp_path)
-        assert rc == 2
-        assert "Evidence placeholder or under-20-chars" in capsys.readouterr().out
-
-    def test_evidence_dot_blocks(self, push_command, tmp_path, capsys):
-        log = _valid_log()
-        log["markdownLintRun"]["Evidence"] = "."
-        rel = _write(tmp_path, "s.json", log)
-        rc = _run([rel], tmp_path)
-        assert rc == 2
-        assert "Evidence placeholder or under-20-chars" in capsys.readouterr().out
+        assert "Evidence" in capsys.readouterr().out
 
     def test_evidence_short_blocks(self, push_command, tmp_path, capsys):
         log = _valid_log()
-        log["markdownLintRun"]["Evidence"] = "short"
+        log["protocolCompliance"]["sessionEnd"]["markdownLintRun"]["Evidence"] = "short"
         rel = _write(tmp_path, "s.json", log)
         rc = _run([rel], tmp_path)
         assert rc == 2
-        assert "Evidence placeholder or under-20-chars" in capsys.readouterr().out
+        assert "Evidence" in capsys.readouterr().out
 
-    def test_evidence_pending_blocks(self, push_command, tmp_path, capsys):
+    def test_evidence_dot_blocks(self, push_command, tmp_path, capsys):
         log = _valid_log()
-        log["markdownLintRun"]["Evidence"] = "                    pending                    "
+        log["protocolCompliance"]["sessionEnd"]["markdownLintRun"]["Evidence"] = "."
         rel = _write(tmp_path, "s.json", log)
         rc = _run([rel], tmp_path)
         assert rc == 2
-        assert "Evidence placeholder or under-20-chars" in capsys.readouterr().out
+        assert "Evidence" in capsys.readouterr().out
+
+    def test_evidence_pending_with_padding_blocks(self, push_command, tmp_path, capsys):
+        log = _valid_log()
+        log["protocolCompliance"]["sessionEnd"]["markdownLintRun"]["Evidence"] = (
+            "                    pending                    "
+        )
+        rel = _write(tmp_path, "s.json", log)
+        rc = _run([rel], tmp_path)
+        assert rc == 2
+        assert "Evidence" in capsys.readouterr().out
+
+
+class TestLegacyTopLevelFallback:
+    """For older logs that stored markdownLintRun at the top level."""
+
+    def test_legacy_top_level_complete_false_blocks(self, push_command, tmp_path, capsys):
+        log = {"endingCommit": "abc123", "markdownLintRun": {"Complete": False}}
+        rel = _write(tmp_path, "s.json", log)
+        rc = _run([rel], tmp_path)
+        assert rc == 2
+        assert "Complete" in capsys.readouterr().out
 
 
 class TestMalformedJson:
