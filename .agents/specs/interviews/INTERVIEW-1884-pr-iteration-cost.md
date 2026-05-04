@@ -156,8 +156,8 @@ No retries (read-only, deterministic). No replay. No schema evolution beyond wha
 
 ### Out of scope
 
-- FM-3 (PR description staleness) — tracked as #1885.
-- FM-5 (spec-before-code) — governance change, not in scope here.
+- FM-3 (PR description staleness): tracked as #1885.
+- FM-5 (spec-before-code): governance change, not in scope here.
 - Auto-fix of violations.
 - Git pre-push hooks (Claude Code PreToolUse only).
 - CI workflow changes (CI remains backstop).

@@ -43,21 +43,21 @@ From tracing all commits in PRs #1790, #1796, and #1766:
   the fact, each attempt tightens the regex one notch.
 - `Validate Marketplace Counts` fires 6 of 15 commits on #1766: agent count in marketplace
   JSON drifts from actual file count every time a new file is added.
-- `Respond to @rjmurillo-bot` fails persistently across PRs — automation artifact, not
+- `Respond to @rjmurillo-bot` fails persistently across PRs: automation artifact, not
   human-driven. Skipping this in the cost analysis.
 
 ### Review Comment Taxonomy (across all deep-dived PRs)
 
 Categories with exemplar PRs and comment counts:
 
-**A. Em-dash / style violations** — 25+ comments across #1790, #1766, #1721, #1873, #1851
+**A. Em-dash / style violations**: 25+ comments across #1790, #1766, #1721, #1873, #1851
 - The project bans em/en dashes in Markdown. The agent that authors content (rjmurillo-bot)
   uses them anyway. Each new file gets flagged. These are always caught by Copilot in review,
   never pre-flight.
 - Examples: #1790 (16 em-dash fix commits), #1766 (multiple files flagged on 3 separate review
   rounds), #1873 (em-dash sweep took 5 commits across INTERVIEW/PLAN/REQ/ADR/README).
 
-**B. Marketplace / count contract breaks** — 15+ comments across #1766, #1790, #1796
+**B. Marketplace / count contract breaks**: 15+ comments across #1766, #1790, #1796
 - `marketplace.json` and `SEMANTIC_INDEX.yaml` maintain agent/skill/command counts. Any PR
   that adds files must also update these counts or CI fails.
 - #1766: 6 commits fixing "Validate Marketplace Counts" failures. Agent count wrong in catalog,
@@ -65,15 +65,15 @@ Categories with exemplar PRs and comment counts:
 - This is a derived-data problem: the source of truth is the files, the counts are duplicated
   in manifests, and the agent does not audit the manifest before push.
 
-**C. PR description does not match diff** — 8+ fires across #1796, #1790
+**C. PR description does not match diff**: 8+ fires across #1796, #1790
 - The `Validate PR` check compares the PR description against actual changed files. When the
   scope evolves during implementation, the description becomes stale.
-- #1796: Commit 1 immediately fails "Description matches diff — FAIL" because the PR was
+- #1796: Commit 1 immediately fails "Description matches diff: FAIL" because the PR was
   opened before implementation was complete.
 - #1790: 8 commits fail "Validate PR" as the scope shifts from adding a new governance file
   to centralizing it into AGENTS.md to renaming it.
 
-**D. Session log / protocol compliance failures** — 10+ comments across #1796, #1766, #1721
+**D. Session log / protocol compliance failures**: 10+ comments across #1796, #1766, #1721
 - Every PR is expected to include a `schemaVersion` field in session JSON, an `endingCommit`
   SHA (not "pending"), and complete `markdownLintRun` evidence.
 - #1796: Copilot flags missing schemaVersion, "pending" endingCommit, incorrect
@@ -82,7 +82,7 @@ Categories with exemplar PRs and comment counts:
 - #1766: "endingCommit is pending" even though this field must be a real SHA.
 - Pattern: agents fill in session logs with placeholder values and never replace them.
 
-**E. Generated files out of sync with templates** — 8+ comments across #1766, #1790
+**E. Generated files out of sync with templates**: 8+ comments across #1766, #1790
 - The build system generates `src/claude/*.md`, `src/vs-code-agents/*.md`,
   `src/copilot-cli/*.md` from `templates/agents/*.md`. When a template changes, all three
   targets must be regenerated.
@@ -91,16 +91,16 @@ Categories with exemplar PRs and comment counts:
 - #1790: After renaming "Principle 6" to "Autonomy Guardrail", generated files still
   contained the old name. Tests catch this but they were written mid-PR.
 
-**F. Scope executed before design confirmed** — high commit counts on #1873, #1819
+**F. Scope executed before design confirmed**: high commit counts on #1873, #1819
 - #1873 (59 commits, 9221 additions): The entire eval harness was built during the PR.
   Spec/plan/test/implementation all evolved in the same branch. Copilot and rjmurillo found
   spec-to-implementation mismatches (AC-10 contingency not implemented, RecommendationLiteral
   missing a variant, module docstring contradicting actual behavior) because there was no
   stable spec before coding started.
-- #1819 (120 commits, 656 files): Multi-tool artifact build — spec+plan+ADR in one PR. The
+- #1819 (120 commits, 656 files): Multi-tool artifact build: spec+plan+ADR in one PR. The
   commit log shows spec iteration (rounds 3, 4, 5) happening alongside implementation.
 
-**G. Copilot re-raising already-declined comments** — 5+ instances in #1796, #1790
+**G. Copilot re-raising already-declined comments**: 5+ instances in #1796, #1790
 - #1796: rjmurillo explicitly declines a comment (with evidence: "project targets Python 3.14,
   `datetime.UTC` required by ruff"). Same or similar comment reappears from Copilot on the
   next review round.
@@ -219,7 +219,7 @@ Metric: (review comments + fix commits) × PRs affected.
   `evals/`, `wiki/`, `docs/`, `src/` before the Bash tool triggers a push.
 - This eliminates FM-1 entirely. 40+ fix commits across 5 PRs in 14 days.
 - Reference: `.claude/rules/code-quality.md` style self-review already calls this out under
-  "No commented-out code / dead branches" — add a markdownlint enforcement clause.
+  "No commented-out code / dead branches": add a markdownlint enforcement clause.
 
 ### R-2 (High leverage): Auto-derive manifest counts at CI time
 - File: `scripts/validation/pre_pr.py` and `.github/workflows/validate-pr.yml`
@@ -227,7 +227,7 @@ Metric: (review comments + fix commits) × PRs affected.
   generator step (count actual files in `src/claude/`, `.claude/skills/`, etc.) that runs
   both pre-push and in CI. Fail if the committed count does not match the filesystem.
 - This eliminates FM-2. 20+ fix commits across 3 PRs.
-- Reference: `.agents/architecture/ADR-006-thin-workflows-testable-modules.md` — the count
+- Reference: `.agents/architecture/ADR-006-thin-workflows-testable-modules.md`: the count
   derivation belongs in a testable Python module, not in hand-maintained JSON.
 
 ### R-3 (High leverage): Add pre-push session-log validator
