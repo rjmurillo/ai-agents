@@ -69,6 +69,7 @@ GLOBS = [
     ".claude/skills/*/SKILL.md",
     ".claude/commands/*.md",
     ".claude-plugin/marketplace.json",
+    ".github/plugin/marketplace.json",
 ]
 FIX_HINT = (
     "Run python3 build/scripts/validate_marketplace_counts.py --fix "
