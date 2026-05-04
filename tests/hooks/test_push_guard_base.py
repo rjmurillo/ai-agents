@@ -189,11 +189,12 @@ class TestGitDiffFallback:
         push_command: None,
         tmp_path: Path,
     ) -> None:
-        seen: dict[str, list[str]] = {"args": []}
+        seen: dict[str, list[str]] = {"refs": []}
 
         def fake_run(args: list[str], **_kw: object) -> subprocess.CompletedProcess[str]:
-            seen["args"].append(args[3])
-            if args[3] == "@{push}..HEAD":
+            ref = args[-1]
+            seen["refs"].append(ref)
+            if ref == "@{push}..HEAD":
                 return _bad_diff()
             return _ok_diff("docs/a.md\n")
 
@@ -210,10 +211,51 @@ class TestGitDiffFallback:
             rc = run_guard(validator, ["*.md"], "test")
 
         assert rc == 0
-        assert "@{push}..HEAD" in seen["args"]
-        assert "origin/main...HEAD" in seen["args"]
+        assert "@{push}..HEAD" in seen["refs"]
+        assert "origin/main...HEAD" in seen["refs"]
         assert captured["matching"] == ["docs/a.md"]
         assert captured["all"] == ["docs/a.md"]
+
+    def test_primary_empty_does_not_fallback(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        push_command: None,
+        tmp_path: Path,
+    ) -> None:
+        """Empty primary diff is success, not failure: no fallback (R-D mitigation)."""
+        seen: dict[str, list[str]] = {"refs": []}
+
+        def fake_run(args: list[str], **_kw: object) -> subprocess.CompletedProcess[str]:
+            seen["refs"].append(args[-1])
+            return _ok_diff("")
+
+        with patch("push_guard_base.subprocess.run", side_effect=fake_run), patch(
+            "push_guard_base.get_project_directory", return_value=str(tmp_path)
+        ):
+            rc = run_guard(_always_violates, ["*.md"], "test")
+
+        assert rc == 0
+        assert seen["refs"] == ["@{push}..HEAD"]
+
+    def test_diff_filter_excludes_deletions(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        push_command: None,
+        tmp_path: Path,
+    ) -> None:
+        """Diff command requests --diff-filter=AM; deleted files never reach validators."""
+        seen: dict[str, list[str]] = {"args": []}
+
+        def fake_run(args: list[str], **_kw: object) -> subprocess.CompletedProcess[str]:
+            seen["args"] = args
+            return _ok_diff("docs/a.md\n")
+
+        with patch("push_guard_base.subprocess.run", side_effect=fake_run), patch(
+            "push_guard_base.get_project_directory", return_value=str(tmp_path)
+        ):
+            run_guard(_no_violations, ["*.md"], "test")
+
+        assert "--diff-filter=AM" in seen["args"]
 
     def test_both_diffs_fail_returns_zero(
         self,
@@ -228,18 +270,6 @@ class TestGitDiffFallback:
             rc = run_guard(_always_violates, ["*.md"], "test")
         assert rc == 0
         assert "fail-open" in capsys.readouterr().err
-
-    def test_both_diffs_empty_returns_zero(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-        push_command: None,
-        tmp_path: Path,
-    ) -> None:
-        with patch(
-            "push_guard_base.subprocess.run", return_value=_ok_diff("")
-        ), patch("push_guard_base.get_project_directory", return_value=str(tmp_path)):
-            rc = run_guard(_always_violates, ["*.md"], "test")
-        assert rc == 0
 
 
 class TestFailOpen:

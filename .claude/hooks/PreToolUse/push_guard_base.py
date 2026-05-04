@@ -64,10 +64,27 @@ GIT_DIFF_TIMEOUT = 10
 def _match_glob(path: str, pattern: str) -> bool:
     """Match path against a glob pattern.
 
-    Uses fnmatch for single-segment patterns. Multi-segment patterns
-    (those containing /) use a prefix+suffix string check because
-    fnmatch and pathlib.match do not anchor * to a single path segment.
+    Two distinct shapes by design:
+
+    1. Single-segment patterns (no /): use fnmatch. ``*.md`` matches any
+       ``.md`` file at any depth (e.g., ``foo.md`` and ``a/b/c.md`` both
+       match). This is the right semantics for whole-tree validators
+       like markdownlint.
+
+    2. Multi-segment patterns (contains /): use prefix+suffix matching
+       with the ``*`` constrained to a single path segment. ``.claude/skills/*/SKILL.md``
+       matches ``.claude/skills/foo/SKILL.md`` but NOT
+       ``.claude/skills/foo/bar/SKILL.md``. This is the right semantics
+       for structured-tree validators like manifest count.
+
+    fnmatch and pathlib.match both fail to anchor ``*`` to a single
+    segment, which is why multi-segment patterns are handled manually.
     See issue 1884 pre-mortem R-E.
+
+    The two shapes match different intents on purpose. Callers should
+    pick the shape that matches their semantics: simple suffix matching
+    via ``*.ext`` for "anywhere in the tree", or full prefix+single-segment
+    matching for "exact directory structure".
     """
     if "/" not in pattern:
         return fnmatch.fnmatch(path, pattern)
@@ -114,18 +131,30 @@ def _run_git_diff(args: list[str], cwd: str) -> tuple[int, str]:
 
 
 def _changed_files(cwd: str) -> list[str] | None:
-    """Return list of files changed vs upstream, or None on infra failure."""
-    rc, out = _run_git_diff(
-        ["git", "diff", "--name-only", "@{push}..HEAD"],
-        cwd=cwd,
-    )
-    if rc == 0 and out.strip():
+    """Return added/modified files committed but not yet pushed.
+
+    Uses ``git diff --name-only --diff-filter=AM @{push}..HEAD`` so deleted
+    files are excluded (validators read files; missing paths would raise
+    FileNotFoundError). Falls back to ``origin/main...HEAD`` ONLY when the
+    primary command fails (non-zero exit, e.g., no upstream tracking).
+
+    A successful primary command with empty output means "nothing committed
+    beyond the remote tip" and is returned as an empty list. Falling back to
+    ``origin/main...HEAD`` in that case would reintroduce all branch history
+    and trip validators on previously-pushed work.
+
+    Returns:
+        - List of A/M paths (possibly empty) when the diff command succeeded.
+        - None only when both the primary and the fallback commands failed.
+    """
+    args = ["--name-only", "--diff-filter=AM"]
+    rc, out = _run_git_diff(["git", "diff", *args, "@{push}..HEAD"], cwd=cwd)
+    if rc == 0:
         return [line for line in out.splitlines() if line.strip()]
     rc2, out2 = _run_git_diff(
-        ["git", "diff", "--name-only", "origin/main...HEAD"],
-        cwd=cwd,
+        ["git", "diff", *args, "origin/main...HEAD"], cwd=cwd
     )
-    if rc2 == 0 and out2.strip():
+    if rc2 == 0:
         return [line for line in out2.splitlines() if line.strip()]
     return None
 
