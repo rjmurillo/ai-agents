@@ -632,6 +632,15 @@ def _run_live(
                         scoring_engine=engine,
                     )
                 except RuntimeError as exc:
+                    # Defense in depth: prior to commit 0df0f324 the
+                    # adapter propagated `RuntimeError` from
+                    # `load_api_key()`; that was caught here and mapped
+                    # to `EXIT_AUTH`. The adapter now returns
+                    # `APICallResult(error_category="auth")` instead, so
+                    # this branch is reached only by genuinely
+                    # unexpected propagation. Keep the substring match
+                    # as a safety net for any future construction-time
+                    # raise the adapter does not categorize.
                     if "ANTHROPIC_API_KEY" in str(exc):
                         print(
                             json.dumps(
@@ -645,6 +654,24 @@ def _run_live(
                         )
                         return EXIT_AUTH
                     raise
+                # Adapter-categorized auth failure (transport
+                # construction failed; today: missing
+                # `ANTHROPIC_API_KEY`). Honor the AGENTS.md exit-code
+                # contract: auth-class errors exit with `EXIT_AUTH`.
+                if record.error_category == "auth":
+                    print(
+                        json.dumps(
+                            {
+                                "level": "error",
+                                "event": "auth_failure",
+                                "fixture_id": record.fixture_id,
+                                "variant": record.variant,
+                                "run_index": record.run_index,
+                            }
+                        ),
+                        file=sys.stderr,
+                    )
+                    return EXIT_AUTH
                 try:
                     persistence.write_record(record)
                 except DuplicateRunError as exc:
