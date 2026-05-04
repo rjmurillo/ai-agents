@@ -40,14 +40,16 @@ def load_api_key() -> str:
     # plants a `.env` higher in the filesystem MUST NOT be able to feed
     # the runner credentials. `parents[2]` is the repo root for this
     # script's canonical layout (`scripts/eval/_anthropic_api.py`); a
-    # symlink to `__file__` would change `parents[2]`, so reject those
-    # too.
-    here = Path(__file__).resolve(strict=True)
-    if here.is_symlink():
+    # symlink to `__file__` would relocate `parents[2]`, so reject those
+    # too. The check MUST run before `resolve()` because `resolve()`
+    # dereferences the symlink and would mask the attacker-controlled path.
+    raw = Path(__file__)
+    if raw.is_symlink():
         raise RuntimeError(
             "ANTHROPIC_API_KEY load aborted: refusing to resolve symlinked "
             "module path (CWE-22 defense)."
         )
+    here = raw.resolve(strict=True)
     repo_root = here.parents[2]
     candidates = [repo_root / ".env"]
     for env_path in candidates:
