@@ -34,11 +34,14 @@
   at `.agents/steering/documentation.md` (Formatting Violations table,
   lines 220-228) forbids em/en dashes. Run one audit and fix all matches
   in a single commit; otherwise per-file bot flags (Copilot in
-  particular) arrive across multiple rounds. Audit one-liner:
+  particular) arrive across multiple rounds. Audit one-liner (uses
+  ripgrep, the project's default search tool, which honors PCRE
+  natively and is portable across BSD and GNU systems unlike
+  `grep -P`):
 
   ```bash
-  grep -rlP '\xe2\x80\x94' <dirs>   # em-dashes
-  grep -rlP '\xe2\x80\x93' <dirs>   # en-dashes
+  rg -l '\x{2014}' <dirs>   # em-dashes (U+2014)
+  rg -l '\x{2013}' <dirs>   # en-dashes (U+2013)
   ```
 
   (Session PR #1873, 2026-05-03; fix landed across rounds 3-4)
@@ -60,11 +63,12 @@
 
 ## Edge Cases (MED confidence)
 
-- **`git reset --hard origin` is not a valid reset target.** `origin` is
-  a remote name, not a commit-ish, so the command silently does nothing
-  useful. Use `git reset --hard @{u}` (the tracked upstream) or
-  `git reset --hard origin/<branch>` (named ref). (Session PR #1873,
-  2026-05-03)
+- **`git reset --hard origin` is not a valid reset target.** `origin`
+  is a remote name, not a commit-ish; the command exits non-zero with
+  `fatal: ambiguous argument 'origin': unknown revision or path not in
+  the working tree`. Use `git reset --hard @{u}` (the tracked upstream)
+  or `git reset --hard origin/<branch>` (named ref). (Session PR
+  #1873, 2026-05-03)
 
 - **Test count drift after pulling remote commits.** The remote /pr-review
   routine added tests independently. Local count went 94, 123, 126, 127
