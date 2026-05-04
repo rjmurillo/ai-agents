@@ -23,16 +23,16 @@
   mapped skill script exists for the operation.** The
   `PreToolUse:Bash` guard examines the `gh` invocation, looks up the
   matching skill script in its mapping, and rejects with a redirect to
-  that script. Operations without a mapped skill (for example `gh pr
-  edit --body-file <path>`) are not blocked. Default behavior: prefer
+  that script. Operations without a mapped skill (for example
+  `gh pr edit --body-file <path>`) are not blocked. Default behavior: prefer
   the skill script. Fall back to raw `gh` only when the guard does not
   redirect. (Session PR #1873, 2026-05-03; reinforces AGENTS.md "Never
   use raw gh when skills exist")
 
 ## Preferences (MED confidence)
 
-- **Reply + resolve in one shot via `add_pr_review_thread_reply.py
-  --resolve`.** Avoids a separate GraphQL `resolveReviewThread`
+- **Reply + resolve in one shot via `add_pr_review_thread_reply.py --resolve`.**
+  Avoids a separate GraphQL `resolveReviewThread`
   mutation. For batches of N threads, write a small Python loop that
   calls the script per `(thread_id, body)` pair; this completed 19
   threads in <30 seconds in round 1 and 8 in round 4. (Session PR #1873,

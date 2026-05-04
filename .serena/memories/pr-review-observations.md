@@ -7,7 +7,10 @@
 
 - **Disable or coordinate with deferred remote /pr-review routines before
   iterating locally.** A scheduled remote routine racing local edits caused 4
-  of 5 rounds to need `git reset --hard origin` + cherry-pick reconciliation.
+  of 5 rounds to need `git reset --hard @{u}` (or
+  `git reset --hard origin/<branch>`) plus cherry-pick reconciliation.
+  `git reset --hard origin` alone is not a valid reset target since
+  `origin` is a remote name, not a commit-ish.
   Symptoms: `git push` rejected, conflicts on duplicate same-named exception
   classes, identical fixes shipped from both sides. Mitigations: (1) do not
   schedule a remote /pr-review while planning local edits, OR (2) commit and
