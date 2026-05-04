@@ -129,18 +129,27 @@ def _original_main(stdin_bytes):
     """Block git push when session logs carry placeholder values.
 
     Thin adapter over :mod:`push_guard_base`. Activates on
-    ``.agents/sessions/*.json`` files in the push changeset and validates
-    four structural fields:
+    ``.agents/sessions/*.json`` files in the push changeset.
 
-    - ``schemaVersion`` present and non-empty
-    - ``endingCommit`` present and not the literal ``"pending"``
-    - ``markdownLintRun.Complete`` is ``true``
-    - ``markdownLintRun.Evidence`` is a non-placeholder string >= 20 chars
+    Schema (matches scripts/validate_session_json.py):
+
+    - ``endingCommit``: tolerated absent (investigation-only sessions); the
+      literal placeholder ``"pending"`` is rejected.
+    - ``protocolCompliance.sessionEnd.markdownLintRun``: required (per the
+      canonical session validator). Both ``Complete`` and ``complete`` keys
+      are accepted; same for ``Evidence`` and ``evidence``. ``Complete``
+      must be ``true``. ``Evidence`` must be a non-placeholder string with
+      >= 20 characters after stripping. A legacy top-level
+      ``markdownLintRun`` is accepted as a fallback for older logs.
+
+    This guard does NOT validate ``schemaVersion`` (no such field in the
+    real schema) or any field beyond the three above.
 
     Hook Type: PreToolUse
     Exit Codes (Claude Hook Semantics, exempt from ADR-035):
-        0 = Allow (no session-log files, all fields valid)
-        2 = Block (any field placeholder, missing, or malformed JSON)
+        0 = Allow (no session-log files in changeset, all fields valid)
+        2 = Block (markdownLintRun missing/incomplete, Evidence placeholder,
+            endingCommit literal "pending", or malformed JSON)
     """
 
 
@@ -251,6 +260,16 @@ def _original_main(stdin_bytes):
         return run.get("evidence")
 
 
+    def _check_markdown_lint_present(path: str, data: dict) -> list[str]:
+        """Canonical validator requires markdownLintRun. Missing is a violation."""
+        if _markdown_lint_run(data) is None:
+            return [
+                f"{path}:protocolCompliance.sessionEnd.markdownLintRun missing "
+                "(required by scripts/validate_session_json.py)"
+            ]
+        return []
+
+
     def _check_markdown_lint_complete(path: str, data: dict) -> list[str]:
         run = _markdown_lint_run(data)
         if run is None:
@@ -302,6 +321,7 @@ def _original_main(stdin_bytes):
 
         violations: list[str] = []
         violations.extend(_ending_commit_is_placeholder(rel_path, data))
+        violations.extend(_check_markdown_lint_present(rel_path, data))
         violations.extend(_check_markdown_lint_complete(rel_path, data))
         violations.extend(_check_markdown_lint_evidence(rel_path, data))
         return violations

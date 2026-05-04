@@ -168,11 +168,12 @@ def _run_git_diff(args: list[str], cwd: str) -> tuple[int, str]:
 
 
 def _changed_files(cwd: str, name: str = "guard") -> list[str] | None:
-    """Return added/modified files committed but not yet pushed.
+    """Return added/copied/modified/renamed files committed but not yet pushed.
 
-    Uses ``git diff --name-only --diff-filter=AM @{push}..HEAD`` so deleted
-    files are excluded (validators read files; missing paths would raise
-    FileNotFoundError). Falls back to ``origin/main...HEAD`` ONLY when the
+    Uses ``git diff --name-only --diff-filter=ACMR @{push}..HEAD``. Renames
+    are included so the post-rename path reaches the validator. Deletions and
+    type-changes are excluded so validators that read the file do not hit
+    FileNotFoundError. Falls back to ``origin/main...HEAD`` ONLY when the
     primary command fails (non-zero exit, e.g., no upstream tracking).
 
     A successful primary command with empty output means "nothing committed
@@ -181,7 +182,7 @@ def _changed_files(cwd: str, name: str = "guard") -> list[str] | None:
     and trip validators on previously-pushed work.
 
     Returns:
-        - List of A/M paths (possibly empty) when the diff command succeeded.
+        - List of A/C/M/R paths (possibly empty) when the diff command succeeded.
         - None only when both the primary and the fallback commands failed.
     """
     # ACMR includes Add/Copy/Modify/Rename so renamed files are still
