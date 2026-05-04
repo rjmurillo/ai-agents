@@ -940,6 +940,47 @@ class TestRunPersistenceMalformedJsonl:
         assert not issubclass(MalformedRunRecordError, DuplicateRunError)
         assert not issubclass(DuplicateRunError, MalformedRunRecordError)
 
+    def test_iter_records_invalid_json_raises_malformed(self, tmp_path):
+        # `iter_records` calls `_parse_record`, which calls `json.loads`.
+        # Without an explicit catch, a corrupt line escapes as
+        # `json.JSONDecodeError` and bypasses the runner's config-class
+        # error mapping. The wrapper turns it into
+        # `MalformedRunRecordError` with the offending line number.
+        # Pattern matches `test_iter_records_rejects_incompatible_schema_version`:
+        # seed a valid file so the constructor accepts the resume, then
+        # mutate the file to exercise the iterator path.
+        run_dir = tmp_path / "iter-mal"
+        run_dir.mkdir(parents=True)
+        valid = json.dumps(
+            {
+                "fixture_id": "F001",
+                "variant": "agent",
+                "run_index": 0,
+                "model_id": "claude-sonnet-4-6",
+                "prompt_sha": "p" * 64,
+                "prompt_ref": "<test>",
+                "fixture_sha": "f" * 64,
+                "raw_response": "ok",
+                "assertions": [],
+                "outcome": "success",
+                "latency_ms": 1.0,
+                "tokens_in": 1,
+                "tokens_out": 1,
+                "error_category": None,
+                "attempts": 1,
+                "tokens_estimated": True,
+                "schemaVersion": 1,
+            }
+        )
+        (run_dir / "runs.jsonl").write_text(valid + "\n", encoding="utf-8")
+        persistence = RunPersistence(run_dir, resume=True)
+        # Now corrupt the file to exercise the iterator path.
+        (run_dir / "runs.jsonl").write_text(
+            valid + "\n{not valid json\n", encoding="utf-8"
+        )
+        with pytest.raises(MalformedRunRecordError, match=r"line 2 is not valid JSON"):
+            list(persistence.iter_records())
+
 
 # ===========================================================================
 # T4-2: CLI integration with mocked adapter
@@ -2359,6 +2400,112 @@ class TestReportWriterRecommendationPassThrough:
         md = md_path.read_text(encoding="utf-8")
         assert "halt-due-to-flakiness" in md
         assert "Pending" not in md.split("## Recommendation", 1)[1].split("##", 1)[0]
+
+    def _agg_halted(self) -> "AggregateResult":
+        # Variant of _agg() with the flakiness gate tripped: AC-10 halt
+        # implies flakiness, so both flags are set.
+        return AggregateResult(
+            agent_recall=0.78,
+            baseline_recall=0.40,
+            recall_delta=0.38,
+            bootstrap_ci_95=(0.11, 0.64),
+            recall_with_errors=0.78,
+            recall_excluding_errors=0.78,
+            per_fixture_pass_rates={"F001": {"agent": [1.0], "baseline": [0.0]}},
+            flakiness=True,
+            flaky_fixtures_detected=["F001", "F002", "F003", "F005"],
+            flaky_fixtures_excluded=["F001", "F002", "F003", "F005"],
+            halt_due_to_flakiness=True,
+            total_tokens_in=100,
+            total_tokens_out=50,
+            cost_estimate_usd=0.01,
+            tokens_estimated=True,
+            error_count=0,
+            pricing_rate_as_of="2026-05-03",
+        )
+
+    def test_ci_section_marks_halt_run(self, tmp_path):
+        # When the run is halt-due-to-flakiness, the CI section MUST
+        # carry a caveat so a CI that excludes zero is not misread as
+        # blessing the halted verdict.
+        writer = ReportWriter(tmp_path / "reports")
+        _, md_path = writer.write(
+            aggregate=self._agg_halted(),
+            run_id="rid",
+            model_id="claude-sonnet-4-6",
+            agent_prompt_sha="a" * 64,
+            baseline_prompt_sha="b" * 64,
+            fixture_set_sha="c" * 64,
+            wall_clock_seconds=12.3,
+            recommendation="halt-due-to-flakiness",
+        )
+        ci_section = (
+            md_path.read_text(encoding="utf-8")
+            .split("## Confidence Interval", 1)[1]
+            .split("##", 1)[0]
+        )
+        assert "halted at AC-10" in ci_section
+        assert "does not unblock the verdict" in ci_section
+
+    def test_ci_section_marks_flaky_no_halt_run(self, tmp_path):
+        # Flaky-but-not-halted (variance present, but threshold not
+        # crossed): note that flaky fixtures are excluded from the
+        # delta, without claiming the verdict is blocked.
+        agg = AggregateResult(
+            agent_recall=0.78,
+            baseline_recall=0.40,
+            recall_delta=0.38,
+            bootstrap_ci_95=(0.20, 0.55),
+            recall_with_errors=0.78,
+            recall_excluding_errors=0.78,
+            per_fixture_pass_rates={"F001": {"agent": [1.0], "baseline": [0.0]}},
+            flakiness=True,
+            flaky_fixtures_detected=["F001"],
+            flaky_fixtures_excluded=["F001"],
+            halt_due_to_flakiness=False,
+            total_tokens_in=100,
+            total_tokens_out=50,
+            cost_estimate_usd=0.01,
+            tokens_estimated=True,
+            error_count=0,
+            pricing_rate_as_of="2026-05-03",
+        )
+        writer = ReportWriter(tmp_path / "reports")
+        _, md_path = writer.write(
+            aggregate=agg,
+            run_id="rid",
+            model_id="claude-sonnet-4-6",
+            agent_prompt_sha="a" * 64,
+            baseline_prompt_sha="b" * 64,
+            fixture_set_sha="c" * 64,
+            wall_clock_seconds=12.3,
+        )
+        ci_section = (
+            md_path.read_text(encoding="utf-8")
+            .split("## Confidence Interval", 1)[1]
+            .split("##", 1)[0]
+        )
+        assert "flaky fixtures are excluded" in ci_section
+        assert "halted at AC-10" not in ci_section
+
+    def test_ci_section_no_caveat_on_clean_run(self, tmp_path):
+        writer = ReportWriter(tmp_path / "reports")
+        _, md_path = writer.write(
+            aggregate=self._agg(),
+            run_id="rid",
+            model_id="claude-sonnet-4-6",
+            agent_prompt_sha="a" * 64,
+            baseline_prompt_sha="b" * 64,
+            fixture_set_sha="c" * 64,
+            wall_clock_seconds=12.3,
+        )
+        ci_section = (
+            md_path.read_text(encoding="utf-8")
+            .split("## Confidence Interval", 1)[1]
+            .split("##", 1)[0]
+        )
+        assert "halted at AC-10" not in ci_section
+        assert "flaky fixtures are excluded" not in ci_section
 
 
 class TestCliInputValidators:

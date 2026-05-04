@@ -277,8 +277,19 @@ class RunPersistence:
         if not self._jsonl_path.exists():
             return
         with self._jsonl_path.open("r", encoding="utf-8") as fh:
-            for line in fh:
-                record = _parse_record(line)
+            for line_no, line in enumerate(fh, 1):
+                # `_parse_record` calls `json.loads` directly; surface a
+                # parse failure as `MalformedRunRecordError` (with the
+                # line number) so the CLI's startup catch maps it to
+                # EXIT_CONFIG. Without this guard, `JSONDecodeError`
+                # would escape `iter_records` and bypass the documented
+                # config-class error contract.
+                try:
+                    record = _parse_record(line)
+                except json.JSONDecodeError as exc:
+                    raise MalformedRunRecordError(
+                        f"{self._jsonl_path}: line {line_no} is not valid JSON ({exc})"
+                    ) from exc
                 if record is not None:
                     yield record
 

@@ -37,6 +37,8 @@ Pass rate per run (variant: agent | baseline).
 
 ## Confidence Interval
 
+**Note**: this run halted at AC-10's flakiness gate. The CI below is reported for diagnostic context; statistical significance does not unblock the verdict, which is fixed at `halt-due-to-flakiness` until the variance source is investigated and the methodology is re-run.
+
 Paired bootstrap, n=10000 resamples at fixture level. The 95% CI on the signed recall delta is **[+11.11pp, +64.29pp]**. The interval **excludes** zero, so the observed delta is statistically distinguishable from no effect.
 
 ## Recommendation

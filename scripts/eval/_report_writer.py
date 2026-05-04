@@ -149,8 +149,32 @@ def _render_per_fixture_section(aggregate: AggregateResult) -> str:
 def _render_ci_section(aggregate: AggregateResult) -> str:
     ci_low, ci_high = aggregate.bootstrap_ci_95
     excludes_zero = ci_low > 0 or ci_high < 0
+    # Guard the significance language. Per ADR-058, a halt-due-to-flakiness
+    # run cannot graduate or scrap regardless of the CI shape: AC-10
+    # halts before the verdict gate runs. Without this caveat, a halted
+    # run with a CI that excludes zero reads as if the agent had a
+    # blessed positive verdict, which the methodology explicitly forbids.
+    halted = aggregate.halt_due_to_flakiness
+    flaky_no_halt = aggregate.flakiness and not halted
+    if halted:
+        caveat = (
+            "**Note**: this run halted at AC-10's flakiness gate. The CI "
+            "below is reported for diagnostic context; statistical "
+            "significance does not unblock the verdict, which is fixed at "
+            "`halt-due-to-flakiness` until the variance source is "
+            "investigated and the methodology is re-run.\n\n"
+        )
+    elif flaky_no_halt:
+        caveat = (
+            "**Note**: at least one fixture exhibited non-zero pass-rate "
+            "variance; flaky fixtures are excluded from the delta computed "
+            "below. The CI describes the stable subset only.\n\n"
+        )
+    else:
+        caveat = ""
     return (
         "## Confidence Interval\n\n"
+        f"{caveat}"
         f"Paired bootstrap, n=10000 resamples at fixture level. The 95% CI on the "
         f"signed recall delta is **[{_format_pp(ci_low)}, {_format_pp(ci_high)}]**. "
         f"The interval {'**excludes** zero' if excludes_zero else '**includes** zero'}, "
