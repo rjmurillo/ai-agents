@@ -565,6 +565,11 @@ def _run_live(
         # Bad existing JSONL detected at startup.
         print(f"error: {exc}", file=sys.stderr)
         return EXIT_LOGIC
+    except SchemaVersionError as exc:
+        # Existing JSONL carries an unsupported schemaVersion.
+        # Per DESIGN-004 §Failure Modes, this is a config-class failure.
+        print(f"error: {exc}", file=sys.stderr)
+        return EXIT_CONFIG
 
     fixture_path_by_id = {f.id: p for f, p in zip(fixtures, fixture_paths)}
     adapter = AnthropicAPIAdapter()
@@ -642,6 +647,9 @@ def _run_live(
                 except DuplicateRunError as exc:
                     print(f"error: {exc}", file=sys.stderr)
                     return EXIT_LOGIC
+                except SchemaVersionError as exc:
+                    print(f"error: {exc}", file=sys.stderr)
+                    return EXIT_CONFIG
                 executed_fixtures.add(fixture.id)
                 if record.outcome == "error":
                     error_count += 1

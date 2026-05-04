@@ -7,7 +7,10 @@ DESIGN-004 §5.5, REQ-004 AC-9. Records are appended one per line to
 Two modes (DESIGN-004 §Failure Modes):
 - **Fresh-run**: opening an already-populated `runs.jsonl` raises
   `RunDirectoryNotFreshError`. Any later collision in the loop raises
-  `DuplicateRunError`. Both surface to the runner as exit 1.
+  `DuplicateRunError`; an unsupported `schemaVersion` raises
+  `SchemaVersionError`. The runner maps `DuplicateRunError` to exit 1
+  (logic) and `SchemaVersionError` to exit 2 (config) per
+  AGENTS.md exit-code contract and DESIGN-004 §Failure Modes.
 - **Resume**: existing records are loaded; `is_completed(...)` reports
   True only for triples whose prior record was `outcome="success"`.
   Errored triples are retried by default. The writer skips silently
@@ -199,7 +202,9 @@ class RunPersistence:
         """Append a record. Returns True on write, False on resume-skip.
 
         Raises `DuplicateRunError` in fresh-run mode if the key already
-        exists. Validates `schemaVersion` matches the supported version.
+        exists. Validates `schemaVersion` matches the supported version,
+        raising `SchemaVersionError` on mismatch (DESIGN-004 §Failure
+        Modes; runner exits with code 2).
 
         In resume mode, a key whose prior record was `outcome="success"`
         is skipped (returns False). A key whose prior record was

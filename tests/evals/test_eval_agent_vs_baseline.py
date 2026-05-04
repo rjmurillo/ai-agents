@@ -867,7 +867,7 @@ class TestRunPersistenceSchemaGuard:
         record = _make_record()
         # Mutate the schema_version on the dataclass (frozen=False on RunRecord).
         record.schema_version = 99
-        with pytest.raises(DuplicateRunError, match="schemaVersion"):
+        with pytest.raises(SchemaVersionError, match="schemaVersion"):
             persistence.write_record(record)
 
 
