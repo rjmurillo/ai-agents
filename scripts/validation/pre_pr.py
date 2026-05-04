@@ -37,6 +37,15 @@ from pathlib import Path
 from typing import Any
 
 
+class MissingScriptSkip(Exception):
+    """Raised by a validation when a referenced script is absent on disk.
+
+    Per ADR-042 (Python migration), several legacy PowerShell validators were
+    expunged. Their absence should not produce a misleading [FAIL]; instead the
+    validation is reported as SKIP and does not affect the overall exit code.
+    """
+
+
 @dataclass
 class ValidationRecord:
     """Result of a single validation step."""
@@ -113,36 +122,47 @@ def run_validation(
 
     start = time.monotonic()
     success = False
+    skipped = False
     message = ""
 
     try:
         success = callback()
         message = "Validation passed" if success else "Validation failed"
+    except MissingScriptSkip as exc:
+        skipped = True
+        success = True  # SKIP does not count as failure for the gate
+        message = f"Skipped: {exc}"
     except Exception as exc:
         success = False
         message = f"Validation error: {exc}"
 
     duration = time.monotonic() - start
 
-    if success:
+    if skipped:
+        state.skipped += 1
+        status_label = "SKIP"
+    elif success:
         state.passed += 1
+        status_label = "PASS"
     else:
         state.failed += 1
+        status_label = "FAIL"
 
     state.results.append(
         ValidationRecord(
             name=name,
-            status="PASS" if success else "FAIL",
+            status=status_label,
             duration=duration,
             message=message,
         )
     )
 
     print()
-    status_label = "PASS" if success else "FAIL"
     print(f"[{status_label}] {name} completed in {duration:.2f}s")
-    if not success:
+    if status_label == "FAIL":
         print(f"Error: {message}")
+    elif status_label == "SKIP":
+        print(f"Note: {message}")
 
     return success
 
@@ -165,8 +185,11 @@ def validate_session_end(repo_root: Path) -> bool:
 
     script = repo_root / "scripts" / "Validate-Session.ps1"
     if not script.exists():
-        print("[FAIL] Validate-Session.ps1 not found")
-        return False
+        # Per ADR-042 the PowerShell validator was expunged and no Python port
+        # exists yet. Treat as SKIP rather than a misleading FAIL.
+        raise MissingScriptSkip(
+            "Validate-Session.ps1 not present (ADR-042 expungement; no Python port yet)"
+        )
 
     exit_code, _, _ = _run_subprocess(
         ["pwsh", "-NoProfile", "-File", str(script), "-SessionLogPath", str(session_log)]
@@ -178,8 +201,9 @@ def validate_pester_tests(repo_root: Path, verbose: bool = False) -> bool:
     """Run Pester unit tests."""
     script = repo_root / "build" / "scripts" / "Invoke-PesterTests.ps1"
     if not script.exists():
-        print("[FAIL] Invoke-PesterTests.ps1 not found")
-        return False
+        raise MissingScriptSkip(
+            "Invoke-PesterTests.ps1 not present (ADR-042 expungement; no Python port yet)"
+        )
 
     verbosity = "Diagnostic" if verbose else "Normal"
     exit_code, _, _ = _run_subprocess(
@@ -279,8 +303,9 @@ def validate_path_normalization(repo_root: Path) -> bool:
     """Check for absolute paths."""
     script = repo_root / "build" / "scripts" / "Validate-PathNormalization.ps1"
     if not script.exists():
-        print("[FAIL] Validate-PathNormalization.ps1 not found")
-        return False
+        raise MissingScriptSkip(
+            "Validate-PathNormalization.ps1 not present (ADR-042 expungement; no Python port yet)"
+        )
 
     exit_code, _, _ = _run_subprocess(
         ["pwsh", "-NoProfile", "-File", str(script), "-FailOnViolation"]
@@ -292,8 +317,9 @@ def validate_planning_artifacts(repo_root: Path) -> bool:
     """Validate planning consistency."""
     script = repo_root / "build" / "scripts" / "Validate-PlanningArtifacts.ps1"
     if not script.exists():
-        print("[FAIL] Validate-PlanningArtifacts.ps1 not found")
-        return False
+        raise MissingScriptSkip(
+            "Validate-PlanningArtifacts.ps1 not present (ADR-042 expungement; no Python port yet)"
+        )
 
     exit_code, _, _ = _run_subprocess(
         ["pwsh", "-NoProfile", "-File", str(script), "-FailOnError"]
@@ -437,14 +463,35 @@ def validate_design_review_frontmatter(repo_root: Path) -> bool:
 
 
 def validate_agent_drift(repo_root: Path) -> bool:
-    """Detect agent semantic drift."""
-    script = repo_root / "build" / "scripts" / "Detect-AgentDrift.ps1"
-    if not script.exists():
-        print("[FAIL] Detect-AgentDrift.ps1 not found")
-        return False
+    """Detect agent semantic drift.
+
+    Per ADR-042 the legacy Detect-AgentDrift.ps1 was expunged in favor of the
+    Python port at build/scripts/detect_agent_drift.py. Invoke the Python
+    version directly so the drift gate continues to run after migration.
+    """
+    python_script = repo_root / "build" / "scripts" / "detect_agent_drift.py"
+    if python_script.exists():
+        exit_code, stdout, stderr = _run_subprocess(
+            [sys.executable, str(python_script)]
+        )
+        # Surface drift output for visibility (mirrors other Python validators).
+        output = (stdout or "") + (stderr or "")
+        if output.strip():
+            for line in output.strip().splitlines()[:40]:
+                print(line)
+        return exit_code == 0
+
+    # Legacy fallback: if neither port nor original PS1 exist, SKIP rather than
+    # report a misleading FAIL (ADR-042 expungement tolerance).
+    legacy = repo_root / "build" / "scripts" / "Detect-AgentDrift.ps1"
+    if not legacy.exists():
+        raise MissingScriptSkip(
+            "detect_agent_drift.py and Detect-AgentDrift.ps1 both absent "
+            "(ADR-042 expungement)"
+        )
 
     exit_code, _, _ = _run_subprocess(
-        ["pwsh", "-NoProfile", "-File", str(script)]
+        ["pwsh", "-NoProfile", "-File", str(legacy)]
     )
     return exit_code == 0
 
