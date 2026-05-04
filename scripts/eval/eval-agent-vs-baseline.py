@@ -748,7 +748,26 @@ def _generate_report(
         )
         return EXIT_CONFIG
 
-    if aggregate.halt_due_to_flakiness:
+    # Halt-due-to-flakiness is a verdict per ADR-058 amendment 3. Emit
+    # the report (with `recommendation="halt-due-to-flakiness"`) before
+    # returning EXIT_LOGIC so the audit trail is reproducible from the
+    # runner; without this, halt-flakiness produces no committed
+    # artifact and the v2 spike report has to be hand-curated.
+    halt = aggregate.halt_due_to_flakiness
+    writer = ReportWriter(
+        _assert_under_repo_root(REPO_ROOT / REPORTS_DIR_TEMPLATE.format(agent=agent))
+    )
+    json_path, md_path = writer.write(
+        aggregate=aggregate,
+        run_id=run_id,
+        model_id=model_id,
+        agent_prompt_sha=_sha256_text(agent_prompt),
+        baseline_prompt_sha=_sha256_text(BASELINE_PROMPT),
+        fixture_set_sha=_fixture_set_sha(fixture_paths),
+        wall_clock_seconds=wall_clock_seconds,
+        recommendation="halt-due-to-flakiness" if halt else None,
+    )
+    if halt:
         print(
             json.dumps(
                 {
@@ -757,6 +776,11 @@ def _generate_report(
                         "more than 30% of fixtures flaky; methodology unstable"
                     ),
                     "flaky_fixtures": aggregate.flaky_fixtures_detected,
+                    "report_json": str(json_path),
+                    "report_md": str(md_path),
+                    # Informational metrics: even though halt blocks the
+                    # graduate/keep/scrap verdict, operators still want
+                    # the recall numbers and CI for the audit trail.
                     "informational_metrics": {
                         "agent_recall": aggregate.agent_recall,
                         "baseline_recall": aggregate.baseline_recall,
@@ -774,19 +798,6 @@ def _generate_report(
             file=sys.stderr,
         )
         return EXIT_LOGIC
-
-    writer = ReportWriter(
-        _assert_under_repo_root(REPO_ROOT / REPORTS_DIR_TEMPLATE.format(agent=agent))
-    )
-    json_path, md_path = writer.write(
-        aggregate=aggregate,
-        run_id=run_id,
-        model_id=model_id,
-        agent_prompt_sha=_sha256_text(agent_prompt),
-        baseline_prompt_sha=_sha256_text(BASELINE_PROMPT),
-        fixture_set_sha=_fixture_set_sha(fixture_paths),
-        wall_clock_seconds=wall_clock_seconds,
-    )
     print(
         json.dumps(
             {

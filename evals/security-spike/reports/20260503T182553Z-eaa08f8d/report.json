@@ -3,26 +3,22 @@
   "agent_recall": 0.785714,
   "baseline_prompt_sha": "f2837b5416a8d4cb076234938c32a077f9101ccefce42d3ae2c398c69122e445",
   "baseline_recall": 0.404762,
-  "bootstrap_ci_95": null,
+  "bootstrap_ci_95": [
+    0.111111,
+    0.642857
+  ],
   "cost_estimate_usd": 0.8884,
   "error_count": 0,
-  "fixture_set_sha": "unknown",
+  "fixture_set_sha": "9d77ba35e2acf78f5ee71d441ed39a5fb27b39906b7a3571dbb50f7cf72c136f",
   "flakiness": true,
-  "flakiness_actual_pct": 40.0,
-  "flakiness_halt_threshold_pct": 30,
-  "flaky_fixtures_excluded": [
+  "flaky_fixtures_detected": [
     "F001",
     "F002",
     "F003",
     "F005"
   ],
-  "halt_due_to_flakiness": true,
-  "methodology_fix_commit": "61f1b6b8",
-  "methodology_version": 2,
+  "flaky_fixtures_excluded": [],
   "model_id": "claude-sonnet-4-6",
-  "non_flaky_subset_agent_recall": 1.0,
-  "non_flaky_subset_baseline_recall": 0.571429,
-  "non_flaky_subset_delta": 0.428571,
   "per_fixture_pass_rates": {
     "F001": {
       "agent": [
@@ -152,9 +148,8 @@
   "recommendation": "halt-due-to-flakiness",
   "run_id": "20260503T182553Z-eaa08f8d",
   "schemaVersion": 1,
-  "supersedes_run_id": "20260503T165136Z-84f918a9",
   "tokens_estimated": true,
   "total_tokens_in": 253266,
   "total_tokens_out": 8574,
-  "wall_clock_seconds": null
+  "wall_clock_seconds": 620.0
 }
