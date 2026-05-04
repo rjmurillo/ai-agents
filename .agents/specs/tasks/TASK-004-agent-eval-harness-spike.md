@@ -18,7 +18,7 @@ updated: 2026-05-02
 
 ## Design Context
 
-- DESIGN-004: Agent Eval Harness Spike — `scripts/eval/eval-agent-vs-baseline.py`, polymorphic `ScoringEngine`, persistence layout, bootstrap CI
+- DESIGN-004: Agent Eval Harness Spike: `scripts/eval/eval-agent-vs-baseline.py`, polymorphic `ScoringEngine`, persistence layout, bootstrap CI
 
 ## Objective
 
@@ -49,7 +49,7 @@ Every AC in REQ-004 maps to at least one sub-task. ACs that span multiple sub-ta
 
 ### T4-1: Scaffolding, Fixture Schema, and Assertion Strategy {#t4-1}
 
-**Complexity**: S (2–4 hours)
+**Complexity**: S (2-4 hours)
 **Commit tag**: `feat(evals): scaffold eval-agent-vs-baseline runner and fixture schema`
 **Files affected** (≤5):
 
@@ -87,7 +87,7 @@ Every AC in REQ-004 maps to at least one sub-task. ACs that span multiple sub-ta
 
 ### T4-2: Runner, Retry, and Idempotency {#t4-2}
 
-**Complexity**: M (4–8 hours)
+**Complexity**: M (4-8 hours)
 **Commit tag**: `feat(evals): add runner loop, API adapter, and idempotency guard`
 **Files affected** (≤5):
 
@@ -125,7 +125,7 @@ Every AC in REQ-004 maps to at least one sub-task. ACs that span multiple sub-ta
 
 ### T4-3: Reporting (Recall, Bootstrap CI, Distribution) {#t4-3}
 
-**Complexity**: M (4–8 hours)
+**Complexity**: M (4-8 hours)
 **Commit tag**: `feat(evals): add report aggregator and writer with bootstrap CI`
 **Files affected** (≤5):
 
@@ -144,7 +144,7 @@ Every AC in REQ-004 maps to at least one sub-task. ACs that span multiple sub-ta
 - Flakiness: pass-rate variance > 0 on same-SHA rerun sets `flakiness=true`
 - `recommendation` field in `report.json` (one of: `graduate-to-CI`, `keep-as-audit`, `scrap`)
 - Cost estimate: `_report_aggregator.py` imports `MODEL_PRICING_RATES_USD_PER_1K_TOKENS` and `PRICING_RATE_AS_OF` from `_eval_common.py` (constants added in T4-1). Compute `(total_tokens_in × input_rate + total_tokens_out × output_rate) / 1000`. Include `pricing_rate_as_of` in the report so historical reports remain interpretable when rates change.
-- **Do NOT reuse** `aggregate_multi_run_scores` from `_eval_common.py` — its signature `(run_scores: list[dict], dimensions: list[str])` averages LLM-judge dimensional scores and does NOT match the binary pass/fail recall used here. Implement a new module-private helper in `_report_aggregator.py`. (Confirmed by reading the function body in `scripts/eval/_eval_common.py:19-39`.)
+- **Do NOT reuse** `aggregate_multi_run_scores` from `_eval_common.py`: its signature `(run_scores: list[dict], dimensions: list[str])` averages LLM-judge dimensional scores and does NOT match the binary pass/fail recall used here. Implement a new module-private helper in `_report_aggregator.py`. (Confirmed by reading the function body in `scripts/eval/_eval_common.py:19-39`.)
 
 **Out of Scope**: Actual recommendation logic (human decision in T4-7); this task writes the field but leaves it as `null` until T4-6
 
@@ -161,11 +161,11 @@ Every AC in REQ-004 maps to at least one sub-task. ACs that span multiple sub-ta
 
 ### T4-4: Corpus Build (10 Fixtures with Provenance) {#t4-4}
 
-**Complexity**: M (4–8 hours total across three commits)
+**Complexity**: M (4-8 hours total across three commits)
 
 T4-4 splits into three commits to fit the AGENTS.md ≤5-file rule. The split is mandatory.
 
-#### T4-4a — fixtures part 1 + landscape README {#t4-4a}
+#### T4-4a: fixtures part 1 + landscape README {#t4-4a}
 
 **Commit tag**: `feat(evals): seed eval corpus with first fixture batch and landscape README`
 **Files affected** (5):
@@ -180,7 +180,7 @@ T4-4 splits into three commits to fit the AGENTS.md ≤5-file rule. The split is
 
 **Pilot gate (P0 risk R1 mitigation)**: Before committing, run a single agent-discriminating fixture from this batch through both variants live (one fixture × 2 variants = 2 API calls). Confirm the naive baseline fails it. If the baseline passes the agent-discriminating fixture, redesign the fixture before commit.
 
-#### T4-4b — fixtures part 2 + corpus README {#t4-4b}
+#### T4-4b: fixtures part 2 + corpus README {#t4-4b}
 
 **Commit tag**: `feat(evals): add fixture batch 2 and corpus design rationale`
 **Files affected** (5):
@@ -193,7 +193,7 @@ T4-4 splits into three commits to fit the AGENTS.md ≤5-file rule. The split is
 | `evals/security-spike/fixtures/F008.json` | create | Eighth fixture |
 | `evals/security-spike/fixtures/README.md` | create | Corpus provenance notes; per-fixture rationale; explicit "agent-discriminating" section listing which fixtures and why naive baseline cannot score correctly |
 
-#### T4-4c — fixtures part 3 + directory marker {#t4-4c}
+#### T4-4c: fixtures part 3 + directory marker {#t4-4c}
 
 **Commit tag**: `feat(evals): finalize corpus to 10 fixtures`
 **Files affected** (3):
@@ -231,7 +231,7 @@ T4-4 splits into three commits to fit the AGENTS.md ≤5-file rule. The split is
 
 ### T4-5: Execute Spike and Write Report {#t4-5}
 
-**Complexity**: S (2–4 hours)
+**Complexity**: S (2-4 hours)
 **Commit tag**: `feat(evals): execute security agent eval spike and commit report`
 **Irreversibility warning**: T4-5 incurs real Anthropic API cost (~$0.09 at current rates per DESIGN-004) and produces a timestamp-keyed run directory. The committed `runs.jsonl` is the audit trail; reverting after T4-6 merges requires a follow-on amendment to the ADR. Validate the corpus and runner end-to-end via `--dry-run` before executing live, and confirm API tier supports 60 sequential calls within session.
 **Files affected** (≤5):
@@ -247,14 +247,14 @@ T4-4 splits into three commits to fit the AGENTS.md ≤5-file rule. The split is
 - Verify exit code 0
 - Verify `flakiness=false` (or document if true and investigate)
 - Verify error count = 0 (or document errors)
-- Leave `recommendation` as `null` — set in T4-7
+- Leave `recommendation` as `null`: set in T4-7
 
 **Out of Scope**: Final recommendation (T4-7); ADR (T4-6)
 
 **Acceptance Criteria**:
 - [ ] 60 records in `runs.jsonl` (10 fixtures × 2 variants × 3 runs) on first pass; additional records if contingency re-runs were triggered
 - [ ] `report.json` present with all required fields
-- [ ] If `flakiness=true` on first pass: contingency protocol executed per REQ-004 AC-10 — re-run flaky fixtures at N=5; mark `flaky=true` on fixtures with persistent variance; exclude them from delta with a documented note in `REPORT.md`
+- [ ] If `flakiness=true` on first pass: contingency protocol executed per REQ-004 AC-10: re-run flaky fixtures at N=5; mark `flaky=true` on fixtures with persistent variance; exclude them from delta with a documented note in `REPORT.md`
 - [ ] If >30% of fixtures end up `flaky=true`, exit code 1 and stop (methodology unstable; T4-6 cannot proceed)
 - [ ] `recall_delta` is a real number with CI bounds (computed on the non-flaky subset if any fixtures were excluded)
 - [ ] No API key or response body appears in any committed file other than `runs.jsonl`
@@ -265,7 +265,7 @@ T4-4 splits into three commits to fit the AGENTS.md ≤5-file rule. The split is
 
 ### T4-6: Write ADR {#t4-6}
 
-**Complexity**: M (4–8 hours)
+**Complexity**: M (4-8 hours)
 **Commit tag**: `docs(adr): add ADR-NNN agent eval discipline`
 **Files affected** (≤5):
 
@@ -274,7 +274,7 @@ T4-4 splits into three commits to fit the AGENTS.md ≤5-file rule. The split is
 | `.agents/architecture/ADR-NNN-agent-eval-discipline.md` | create | Full ADR covering corpus, scoring, baseline, threshold, cadence |
 
 **In Scope** (all required per AC-6):
-- ADR number reservation: at the START of the T4-6 working session, run `ls .agents/architecture/ADR-0*.md | tail -1` to determine the next available number. Claim it locally by creating the file with frontmatter (status: proposed) and the full body in a single working session. The placeholder and full content land in **one commit**, not two — the budget table reflects this. This prevents collision with concurrent ADR PRs while staying within the file budget.
+- ADR number reservation: at the START of the T4-6 working session, run `ls .agents/architecture/ADR-0*.md | tail -1` to determine the next available number. Claim it locally by creating the file with frontmatter (status: proposed) and the full body in a single working session. The placeholder and full content land in **one commit**, not two: the budget table reflects this. This prevents collision with concurrent ADR PRs while staying within the file budget.
 - Corpus structure: fixture schema (all fields + `schemaVersion`), provenance rules, held-out criterion
 - Held-out definition: ADR must state explicitly that "held-out" means "not used in prior agent eval (notably ADR-057's prompt-change scenarios)" and NOT "absent from the model's training data"; corpus contamination is acknowledged as out of scope for v1
 - Scoring discipline: deterministic-only for gated path; "LLM-as-judge is explicitly rejected as the gated signal" stated verbatim; advice quality acknowledged as a non-gated advisory sidecar option
@@ -308,7 +308,7 @@ T4-4 splits into three commits to fit the AGENTS.md ≤5-file rule. The split is
 
 ### T4-7: Decide Graduate-to-CI vs. Audit vs. Scrap {#t4-7}
 
-**Complexity**: S (2–4 hours). The mechanical field write is XS, but the decision narrative — applying the AC-5 criteria, citing two evidence pieces, defending the verdict to architect-tier review — is the actual work and is consistently underestimated.
+**Complexity**: S (2-4 hours). The mechanical field write is XS, but the decision narrative: applying the AC-5 criteria, citing two evidence pieces, defending the verdict to architect-tier review: is the actual work and is consistently underestimated.
 **Commit tag**: `docs(evals): record spike decision in report`
 **Files affected** (≤5):
 
@@ -372,15 +372,15 @@ T4-4 may be started as soon as T4-1 is complete (fixture schema is defined). T4-
 | T4-1 | 1 | 5 |
 | T4-2 | 1 | 4 |
 | T4-3 | 1 | 4 |
-| T4-4a | 1 | 5 (F001–F004 + evals/README.md) |
-| T4-4b | 1 | 5 (F005–F008 + fixtures/README.md) |
-| T4-4c | 1 | 3 (F009–F010 + runs/.gitkeep) |
+| T4-4a | 1 | 5 (F001-F004 + evals/README.md) |
+| T4-4b | 1 | 5 (F005-F008 + fixtures/README.md) |
+| T4-4c | 1 | 3 (F009-F010 + runs/.gitkeep) |
 | T4-5 | 1 | 3 |
 | T4-6 | 1 | 1 |
-| T4-7 | 1–4 | 2 (graduate-to-CI or keep-as-audit) OR up to 9 files across 4 commits (scrap path: archives runner + 6 modules + test file) |
-| **Total** | **9 (typical) — up to 12 (scrap path)** | **~31 hours typical; +1–3 hours for scrap-path archival** |
+| T4-7 | 1-4 | 2 (graduate-to-CI or keep-as-audit) OR up to 9 files across 4 commits (scrap path: archives runner + 6 modules + test file) |
+| **Total** | **9 (typical): up to 12 (scrap path)** | **~31 hours typical; +1-3 hours for scrap-path archival** |
 
-T4-4 MUST split into three commits (T4-4a/b/c). Each commit ≤5 files per AGENTS.md. The split is mandatory. T4-7's commit count varies with the verdict — see scrap-path archival in T4-7 in-scope.
+T4-4 MUST split into three commits (T4-4a/b/c). Each commit ≤5 files per AGENTS.md. The split is mandatory. T4-7's commit count varies with the verdict: see scrap-path archival in T4-7 in-scope.
 
 ---
 
@@ -406,7 +406,7 @@ T4-4 MUST split into three commits (T4-4a/b/c). Each commit ≤5 files per AGENT
 | `scripts/eval/_report_writer.py` | T4-3 | create |
 | `tests/evals/test_eval_agent_vs_baseline.py` | T4-2, T4-3 | create, extend |
 | `evals/README.md` | T4-4a | create |
-| `evals/security-spike/fixtures/F001–F010.json` | T4-4 | create |
+| `evals/security-spike/fixtures/F001-F010.json` | T4-4 | create |
 | `evals/security-spike/fixtures/README.md` | T4-4 | create |
 | `evals/security-spike/runs/<RUN_ID>/runs.jsonl` | T4-5 | create |
 | `evals/security-spike/reports/<RUN_ID>/report.json` | T4-5, T4-7 | create, modify |

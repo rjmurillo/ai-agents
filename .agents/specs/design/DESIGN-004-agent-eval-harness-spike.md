@@ -18,7 +18,7 @@ updated: 2026-05-02
 
 ## Requirements Addressed
 
-- REQ-004 Cluster A ([#req-cluster-a]): Spike runner — record, reproduce, report (AC-1, AC-2, AC-3, AC-7, AC-8, AC-9, AC-10)
+- REQ-004 Cluster A ([#req-cluster-a]): Spike runner: record, reproduce, report (AC-1, AC-2, AC-3, AC-7, AC-8, AC-9, AC-10)
 - REQ-004 Cluster B ([#req-cluster-b]): Fixture validation (AC-4)
 - REQ-004 Cluster C ([#req-cluster-c]): Decision-anchored report (AC-5)
 - REQ-004 Cluster D ([#req-cluster-d]): ADR methodology documentation (AC-6)
@@ -56,7 +56,7 @@ flowchart TD
 
 ## Component Architecture
 
-### 5.1 CLI Entry Point — `eval-agent-vs-baseline.py`
+### 5.1 CLI Entry Point: `eval-agent-vs-baseline.py`
 
 **Purpose**: Parse arguments, coordinate components, exit with typed codes.
 
@@ -145,7 +145,7 @@ class ScoringEngine:
 
 **Concrete scorers** (registered at startup, not embedded in engine):
 
-- `RegexScorer`: `re.search(assertion.value, response, re.IGNORECASE)` — passed if match found
+- `RegexScorer`: `re.search(assertion.value, response, re.IGNORECASE)`: passed if match found
 - `VerdictScorer`: extracts first token from response matching `IDENTIFY|OK|ESCALATE`; passed if it equals `assertion.value` (case-insensitive)
 
 **Rationale**: Strategy pattern means adding `AstScorer` later requires zero edits to `ScoringEngine` or `Fixture` schema. The CVA identifies assertion interface as the greatest abstraction risk; making it explicit and polymorphic now prevents a rewrite when the second kind arrives.
@@ -266,7 +266,7 @@ def call_model(
 **Purpose**: Compute recall, bootstrap CI, flakiness. Implements AC-2, AC-3, AC-5, AC-10.
 
 **Responsibilities**:
-- Compute aggregations directly. **Do not reuse** `_eval_common.aggregate_multi_run_scores` — its signature is `(run_scores: list[dict[str, Any]], dimensions: list[str])` averaging LLM-as-judge dimensional scores, which does not match the binary pass/fail recall model used here. A new module-private helper is added inside `_report_aggregator.py` instead.
+- Compute aggregations directly. **Do not reuse** `_eval_common.aggregate_multi_run_scores`: its signature is `(run_scores: list[dict[str, Any]], dimensions: list[str])` averaging LLM-as-judge dimensional scores, which does not match the binary pass/fail recall model used here. A new module-private helper is added inside `_report_aggregator.py` instead.
 - Recall denominator = total assertion count across all fixtures (not just passed fixtures)
 - `recall_with_errors`: errors count as failed assertions
 - `recall_excluding_errors`: errors excluded from denominator
@@ -352,7 +352,7 @@ evals/
   README.md           # cross-references tests/evals/ (ADR-057)
 ```
 
-`RUN_ID` = `<ISO8601-compact>-<uuid4>` — no collisions by construction.
+`RUN_ID` = `<ISO8601-compact>-<uuid4>`: no collisions by construction.
 
 ---
 
@@ -380,7 +380,7 @@ evals/
 | Module | Relationship |
 |---|---|
 | `scripts/eval/_anthropic_api.py` | REUSE: `load_api_key()`, retry constants |
-| `scripts/eval/_eval_common.py` | REUSE `EST_TOKENS_PER_CALL` only. **Do NOT reuse** `aggregate_multi_run_scores` — its dimensional-averaging signature does not match binary pass/fail recall (verified at `_eval_common.py:19-39`). New constants `MODEL_PRICING_RATES_USD_PER_1K_TOKENS` and `PRICING_RATE_AS_OF` are added to this file in T4-1. |
+| `scripts/eval/_eval_common.py` | REUSE `EST_TOKENS_PER_CALL` only. **Do NOT reuse** `aggregate_multi_run_scores`: its dimensional-averaging signature does not match binary pass/fail recall (verified at `_eval_common.py:19-39`). New constants `MODEL_PRICING_RATES_USD_PER_1K_TOKENS` and `PRICING_RATE_AS_OF` are added to this file in T4-1. |
 | `scripts/eval/eval-prompt-change.py` | SIBLING: ADR-057 before/after; do not extend |
 | `scripts/eval/eval-agents.py` | DIFFERENT QUESTION: LLM-as-judge agent quality; do not extend |
 | `tests/evals/security-scenarios.json` | BOOTSTRAP: consider as corpus seed; mark `provenance: paraphrased-from-public` |
