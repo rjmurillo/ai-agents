@@ -347,6 +347,23 @@ class TestMatchGlob:
             is False
         )
 
+    def test_overlap_edge_case_no_match(self) -> None:
+        """Prefix+suffix overlap must not yield false positives.
+
+        When a path is shorter than prefix+suffix combined, startswith
+        and endswith can both pass against overlapping characters,
+        leaving an empty middle slice that trivially passes the '/'
+        check. The framework guards against this with a length check.
+        """
+        # `.claude/skills/SKILL.md` overlap-matches the .claude/skills/*/SKILL.md
+        # prefix (.claude/skills/, 15 chars) and suffix (/SKILL.md, 9 chars)
+        # against a 23-char path. Without the length guard, the false
+        # positive would slip through.
+        assert (
+            _match_glob(".claude/skills/SKILL.md", ".claude/skills/*/SKILL.md")
+            is False
+        )
+
     def test_filter_combines_multiple_globs(self) -> None:
         paths = [
             "docs/a.md",
