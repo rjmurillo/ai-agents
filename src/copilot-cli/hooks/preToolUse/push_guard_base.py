@@ -159,6 +159,11 @@ def _run_git_diff(args: list[str], cwd: str) -> tuple[int, str]:
         )
     except (subprocess.TimeoutExpired, FileNotFoundError, OSError) as exc:
         return 1, f"{type(exc).__name__}: {exc}"
+    if proc.returncode != 0:
+        # On non-zero, return stderr (where git writes "fatal: ..." messages)
+        # so the caller can report the real cause instead of just "non-zero exit".
+        msg = (proc.stderr or proc.stdout).strip() or "non-zero exit"
+        return proc.returncode, msg
     return proc.returncode, proc.stdout
 
 
