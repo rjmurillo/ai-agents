@@ -37,7 +37,7 @@ quantifies where the rework comes from and ranks interventions by iteration cost
 From tracing all commits in PRs #1790, #1796, and #1766:
 
 - `Validate PR` fails repeatedly, caused by: PR description not matching diff, missing issue
-  linkage keywords, QA report absent for code-touching PRs. Fires on commits 1, 3, 5, 8... 
+  linkage keywords, QA report absent for code-touching PRs. Fires on commits 1, 3, 5, 8...
   meaning the fix loop repeats 3-4 times per PR before the description settles.
 - `Run Python Tests` fails 3 commits in a row on #1790 (commits 15-17): tests written after
   the fact, each attempt tightens the regex one notch.

@@ -2,17 +2,19 @@
 type: task
 id: TASK-005
 title: Implement pre-push validation hooks for PR iteration cost reduction
-status: draft
-priority: high
+status: todo
+priority: P1
 complexity: L
 related:
   - DESIGN-005
   - REQ-005
   - issue: 1884
+  - issue: 1885
 blocked_by: []
 blocks: []
 assignee: implementer
-date: 2026-05-03
+created: 2026-05-03
+updated: 2026-05-04
 ---
 
 # TASK-005: Implement pre-push validation hooks for PR iteration cost reduction
@@ -74,8 +76,10 @@ can be reviewed and merged independently without blocking subsequent work.
 
 **Implementation Notes**
 
-Copy the lib-bootstrap block verbatim from `invoke_session_log_guard.py` lines 31-48. Do not
-paraphrase or shorten; the exact walk-up logic handles both source-tree and installed layouts.
+Copy the lib-bootstrap block verbatim from the comment-and-code block in
+`invoke_session_log_guard.py` (currently lines 26-49 at HEAD; re-confirm exact range when
+implementing). Do not paraphrase or shorten; the exact walk-up logic handles both source-tree
+and installed layouts.
 
 Use `fnmatch.fnmatch` for glob matching against the flat path list from `git diff --name-only`.
 For patterns like `.claude/skills/*/SKILL.md`, use `pathlib.PurePosixPath` matching or a
@@ -102,6 +106,7 @@ two-step filter (directory depth check + filename check) since `fnmatch` does no
 **Acceptance Criteria**
 
 - [ ] Hook calls `shutil.which("markdownlint-cli2")`. If None, prints WARN to stderr, returns 0.
+- [ ] Logs `markdownlint-cli2 --version` output to stderr before running validation (AC-3a).
 - [ ] Runs `markdownlint-cli2 <files...>` with `timeout=60`, `shell=False`.
 - [ ] On timeout (`subprocess.TimeoutExpired`), returns violation line
   `[TIMEOUT] markdownlint-cli2 exceeded 60s` and exits 2.
@@ -157,9 +162,9 @@ with filesystem. Reuses existing `build/scripts/validate_marketplace_counts.py` 
 
 The existing script at `build/scripts/validate_marketplace_counts.py` handles all count
 derivation, regex parsing, and fix mode. Config lives in `templates/marketplace-counters.yaml`.
-SEMANTIC_INDEX.yaml is NOT part of this validation (removed per Amendment 2).
-The hook is a thin adapter: bootstrap, detect relevant files, call the existing function,
-translate exit codes. No pre_pr.py extension needed (CI already runs the script).
+`docs/SEMANTIC_INDEX.yaml` is NOT part of this validation; it is a semantic search index, not a
+count manifest. The hook is a thin adapter: bootstrap, detect relevant files, call the existing
+function, translate exit codes. No `pre_pr.py` extension needed (CI already runs the script).
 
 ---
 
@@ -195,10 +200,17 @@ translate exit codes. No pre_pr.py extension needed (CI already runs the script)
 
 **Implementation Notes**
 
-The `markdownLintRun.scanned` check is conditioned on two things: (a) the key exists in the
-session log and (b) the changeset contains `.md` files. If the key is absent, skip the check
-(not a violation). If the key exists but the list is empty and `*.md` files are in the
-changeset, that is a violation.
+The `markdownLintRun` schema is `{Complete: bool, Evidence: str}`. There is no `.scanned`
+field. The check has two parts:
+- `markdownLintRun.Complete` must be present and `true`. Missing key, `false`, or other type is
+  a violation.
+- `markdownLintRun.Evidence` must be a non-empty string and not a placeholder (e.g., `""`,
+  `"pending"`, `"TBD"`, `"n/a"`). The list of placeholder strings is defined in the test
+  fixture and kept narrow to avoid false positives.
+
+The validator does not attempt to verify that `Evidence` semantically matches the diff. That is
+intractable given session logs may be written before the final edit. Structural completeness is
+the contract.
 
 ---
 
@@ -237,13 +249,3 @@ All milestones are within the 5-file atomic commit limit.
 
 ---
 
-## Amendments Applied
-
-Per REQ-005 Amendments 1-7:
-
-- M3 simplified: no new `scripts/validation/manifest_counts.py` or `pre_pr.py` extension.
-  Hook calls existing `build/scripts/validate_marketplace_counts.py`.
-- SEMANTIC_INDEX.yaml removed from scope.
-- Session log field check uses actual schema: `{Complete: bool, Evidence: str}`.
-- Success metric: 50% reduction in mechanical-error iterations (not "1-2 rounds").
-- #1885 (FM-3) is a blocking follow-up, not optional.

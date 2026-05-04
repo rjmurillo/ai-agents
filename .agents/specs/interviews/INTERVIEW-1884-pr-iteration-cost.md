@@ -1,11 +1,35 @@
 ---
+type: interview
 issue: 1884
-related: 1885
-date: 2026-05-03
+related:
+  - REQ-005
+  - DESIGN-005
+  - TASK-005
+  - issue: 1885
 slug: pr-iteration-cost
+status: historical
+created: 2026-05-03
+updated: 2026-05-04
 ---
 
 # Interview: Reduce PR review iteration cost
+
+> **Status: historical transcript.** This file captures the requirements interview as it
+> happened on 2026-05-03. After the interview, gap analysis, pre-mortem, and decision-critic
+> review surfaced four BLOCK findings and a REVISE verdict. The final scope and acceptance
+> criteria live in `REQ-005-pr-iteration-cost.md`. Where this transcript and REQ-005 disagree,
+> REQ-005 wins. Notable post-interview changes:
+>
+> - `docs/SEMANTIC_INDEX.yaml` removed from scope (it has no count fields; it is a semantic
+>   search index).
+> - `scripts/validation/manifest_counts.py` not created. The existing
+>   `build/scripts/validate_marketplace_counts.py` is the canonical validator and is wired to
+>   the hook.
+> - Session log schema confirmed as `markdownLintRun: {Complete: bool, Evidence: str}`. There
+>   is no `.scanned: list[str]` field; the validator checks `Complete`/`Evidence`, not
+>   `.scanned`.
+> - Success metric revised to "50% reduction in mechanical-error iterations." FM-3 (#1885) is
+>   a blocking follow-up, not an optional enhancement.
 
 ## Problem (confirmed)
 

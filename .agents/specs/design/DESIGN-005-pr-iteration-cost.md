@@ -2,22 +2,26 @@
 type: design
 id: DESIGN-005
 title: Pre-push validation hooks for PR iteration cost reduction
+status: draft
+priority: P1
 related:
   - REQ-005
   - issue: 1884
+  - issue: 1885
 adr: []
 author: spec-agent
-date: 2026-05-03
+created: 2026-05-03
+updated: 2026-05-04
 ---
 
 # DESIGN-005: Pre-push validation hooks for PR iteration cost reduction
 
 ## Requirements Addressed
 
-- REQ-005-US1: Block markdown style violations pre-push (AC-1, AC-2, AC-3)
-- REQ-005-US2: Block manifest count drift pre-push (AC-4, AC-5, AC-9)
+- REQ-005-US1: Block markdown style violations pre-push (AC-1, AC-2, AC-3, AC-3a)
+- REQ-005-US2: Block marketplace count drift pre-push (AC-4, AC-5, AC-9)
 - REQ-005-US3: Block session log placeholder values pre-push (AC-6, AC-7)
-- REQ-005-CROSS: Shared hook framework (AC-8, AC-10)
+- REQ-005-CROSS: Shared hook framework (AC-8, AC-10, AC-11)
 
 ## Design Overview
 
@@ -86,6 +90,8 @@ Fix and re-push.
 - Activate on glob `*.md`.
 - Check `shutil.which("markdownlint-cli2")`. If absent, print WARN to stderr and return 0
   (fail-open, per AC-3). Do not return 2.
+- Log the markdownlint-cli2 binary version to stderr (`markdownlint-cli2 --version`) before
+  running the validation, per AC-3a, for diagnostic purposes.
 - Run `markdownlint-cli2 <file1> <file2> ...` as a subprocess (argument list, no shell,
   timeout 60s). The binary uses the repo's `.markdownlint-cli2.yaml` config automatically when
   run from the repo root.
@@ -110,7 +116,7 @@ def _validate_markdown(md_files: list[str], _all: list[str]) -> list[str]:
 
 **Responsibilities**:
 - Activate on globs: `templates/agents/*.md`, `.claude/skills/*/SKILL.md`,
-  `.claude/commands/*.md`.
+  `.claude/commands/*.md`, `.claude-plugin/marketplace.json`.
 - Add `build/scripts/` to `sys.path` and import
   `validate_marketplace_counts.validate_known_marketplaces(repo_root=project_dir)`.
 - On return code 1 (mismatch): capture stdout, format as violation lines,
@@ -140,8 +146,8 @@ used in CI via `validate-marketplace-counts.yml`. Config in `templates/marketpla
 **Hook imports this directly.** No new script needed. The hook calls
 `validate_known_marketplaces(repo_root=project_dir)` and translates exit code 1 to a block.
 
-**NOTE**: `SEMANTIC_INDEX.yaml` is NOT part of marketplace count validation. Removed from scope
-per Amendment 2 in REQ-005.
+**NOTE**: `docs/SEMANTIC_INDEX.yaml` is NOT part of marketplace count validation; it is a
+semantic search index, not a count manifest, and is not in scope for this work.
 
 **NOTE**: `pre_pr.py` extension is NOT needed. CI already runs this script via
 `validate-marketplace-counts.yml`. The hook provides the pre-push gate.
@@ -158,10 +164,10 @@ per Amendment 2 in REQ-005.
 - Activate on glob `.agents/sessions/*.json`.
 - For each matching file, parse JSON. On parse failure, produce violation line
   `<path>: JSON parse error - <message>` and block.
-- Check three fields per AC-6 (amended schema):
+- Check three fields per AC-6:
   - `schemaVersion` present and non-empty.
   - `endingCommit` present and not the literal string `"pending"`.
-  - `markdownLintRun.Complete` is `true` (not `false` or absent) and
+  - `markdownLintRun.Complete` is `true` (not `false` or absent) AND
     `markdownLintRun.Evidence` is a non-empty, non-placeholder string.
 - Produce violation lines as `<path>:<field> <reason>`.
 
@@ -242,8 +248,10 @@ hook overhead. Other two hooks have no explicit timeout (default 30s is sufficie
 
 Both `invoke_session_log_guard.py` and `invoke_skill_first_guard.py` establish the template:
 
-1. **Bootstrap block** (lines 31-48 in `invoke_session_log_guard.py`): walk up from `__file__`
-   looking for `.claude-plugin/plugin.json`. Copy verbatim into each new hook.
+1. **Bootstrap block** (the comment-and-code block at lines 26-49 of
+   `invoke_session_log_guard.py` at this PR's HEAD): walk up from `__file__` looking for
+   `.claude-plugin/plugin.json`. Copy verbatim into each new hook. Re-confirm exact line range
+   when implementing in case the file has changed.
 2. **`skip_if_consumer_repo(guard_name)`**: first call in `main()`, returns 0 if in consumer
    repo. All new hooks call this.
 3. **`sys.stdin.isatty()` guard**: return 0 early if no stdin pipe.
@@ -278,7 +286,8 @@ validator-specific logic.
   the project root, not CWD, to prevent path traversal if CWD differs.
 - No network calls. No secrets. No PII.
 - All file access is read-only.
-- `manifest_counts.py` does not write any files.
+- The hooks invoke `validate_marketplace_counts.py` without `--fix`; that mode (which writes)
+  is reserved for the agent to invoke explicitly when fixing a flagged drift.
 
 ---
 
@@ -302,20 +311,8 @@ Integration smoke test (optional M5) exercises the full hook against a temporary
 
 ---
 
-## Amendments Applied
-
-Per REQ-005 Amendments 1-7 (from gap analysis, pre-mortem, and decision-critic REVISE verdict):
-
-1. AC-3 exit code made explicit (exit zero on WARN).
-2. Manifest count hook calls EXISTING `build/scripts/validate_marketplace_counts.py` instead of
-   creating new `scripts/validation/manifest_counts.py`. SEMANTIC_INDEX.yaml removed from scope.
-3. Session log `markdownLintRun` schema corrected: `{Complete: bool, Evidence: str}`, not
-   `.scanned: list[str]`.
-4. Shared framework is net-new. Existing hooks not refactored.
-5. Success metric revised to "50% reduction in mechanical-error iterations."
-6. Hook matcher pattern `Bash(git push*)` confirmed. Negative bypass test required.
-7. markdownlint-cli2 version logged for diagnostics. Version pinning deferred.
-
 ## Open Questions
 
-None. All confirmed during PRD interview and amended post-review.
+None. All confirmed during the interview at
+`.agents/specs/interviews/INTERVIEW-1884-pr-iteration-cost.md` and during gap-analysis,
+pre-mortem, and decision-critic review.
