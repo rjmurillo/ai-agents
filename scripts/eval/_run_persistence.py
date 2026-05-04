@@ -338,16 +338,35 @@ class RunPersistence:
         kept: list[str] = []
         if self._jsonl_path.exists():
             with self._jsonl_path.open("r", encoding="utf-8") as fh:
-                for raw_line in fh:
+                for line_no, raw_line in enumerate(fh, 1):
                     stripped = raw_line.strip()
                     if not stripped:
                         continue
-                    payload = json.loads(stripped)
+                    # Same MalformedRunRecordError contract that
+                    # `_load_existing_keys` and `iter_records` honor
+                    # (DESIGN-004 §Failure Modes). A partial-write or
+                    # corrupt line in `runs.jsonl` MUST surface as a
+                    # config-class error, not as an unhandled
+                    # `JSONDecodeError` from the resume-retry path.
+                    try:
+                        payload = json.loads(stripped)
+                    except json.JSONDecodeError as exc:
+                        raise MalformedRunRecordError(
+                            f"{self._jsonl_path}: line {line_no} is not valid JSON ({exc})"
+                        ) from exc
+                    # Validate identity fields the same way
+                    # `_load_existing_keys` does, so a corrupt line
+                    # cannot silently slip into `kept` and round-trip
+                    # to disk.
                     existing_key = (
                         payload.get("fixture_id"),
                         payload.get("variant"),
                         payload.get("run_index"),
                     )
+                    if None in existing_key:
+                        raise MalformedRunRecordError(
+                            f"{self._jsonl_path}: line {line_no} missing identity field"
+                        )
                     if existing_key == key:
                         continue
                     if not raw_line.endswith("\n"):

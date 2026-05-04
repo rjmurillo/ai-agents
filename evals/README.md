@@ -10,7 +10,7 @@ This directory holds **production-runnable** eval material:
 - Run records (`runs/<RUN_ID>/runs.jsonl`) and aggregated reports (`reports/<RUN_ID>/REPORT.md`, `report.json`) produced by live runs.
 - README files documenting corpus design and provenance.
 
-`evals/` is the **system of record** for spike-eval inputs and outputs. The runner refuses to ingest a corpus from anywhere else.
+`evals/` is the **system of record** for the committed spike-eval inputs and outputs. The runner accepts any directory via `--fixtures <path>`; the convention is to point it at `evals/<agent>-spike/fixtures/` so committed fixtures, runs, and reports stay co-located. Pointing the runner elsewhere is operator-supported (for example, when iterating on a draft corpus before commit) but the resulting artifacts are not part of the system of record until they land under `evals/`.
 
 ## Relationship to `tests/evals/`
 
