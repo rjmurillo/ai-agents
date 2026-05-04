@@ -196,11 +196,55 @@ class AnthropicAPIAdapter:
     ) -> APICallResult:
         """Issue one API call (with up to `max_retries` retries on transient errors).
 
-        Returns `APICallResult` regardless of outcome. Never raises on transport
-        failure; the caller inspects `outcome` and `error_category`. Logs one
-        structured line per attempt to stderr.
+        Returns `APICallResult` regardless of outcome, including the case
+        where transport construction itself fails (for example, no
+        `ANTHROPIC_API_KEY` available to `_default_transport_factory`).
+        Construction failure is categorized as `auth` since the production
+        transport's only resolve-time dependency is `load_api_key()`.
+        Never raises on transport failure; the caller inspects `outcome`
+        and `error_category`. Logs one structured line per attempt to
+        stderr.
         """
-        transport = self._resolve_transport()
+        resolve_start = self._clock()
+        try:
+            transport = self._resolve_transport()
+        except Exception as exc:  # noqa: BLE001 - categorize-then-decide
+            latency_ms = (self._clock() - resolve_start) * 1000.0
+            # Best-effort categorization: today the only resolve-time
+            # raise is `load_api_key()` raising RuntimeError when no key
+            # is configured (or the CWE-22 symlink defense fires). Both
+            # are auth-class. Reuse the HTTP-status-aware classifier for
+            # any future resolve-time error that happens to carry an
+            # HTTP code in its message.
+            category = _categorize_error(exc)
+            if category in (ERR_SERVER_ERROR, ERR_UNKNOWN):
+                # No HTTP signal: the failure is at config-resolution
+                # time, which the contract above pins as `auth`.
+                category = ERR_AUTH
+            _emit_log(
+                {
+                    "fixture_id": fixture_id,
+                    "variant": variant,
+                    "run_index": run_index,
+                    "model_id": model_id,
+                    "attempt": 0,
+                    "outcome": "error",
+                    "latency_ms": round(latency_ms, 2),
+                    "tokens_in": 0,
+                    "tokens_out": 0,
+                    "error_category": category,
+                }
+            )
+            return APICallResult(
+                outcome="error",
+                raw_response=None,
+                tokens_in=0,
+                tokens_out=0,
+                latency_ms=round(latency_ms, 2),
+                error_category=category,
+                attempts=0,
+                tokens_estimated=True,
+            )
         attempt = 0
         last_category: str | None = None
         start_total = self._clock()

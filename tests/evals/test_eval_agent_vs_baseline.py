@@ -79,6 +79,7 @@ ERR_RATE_LIMIT = adapter_mod.ERR_RATE_LIMIT
 ERR_SERVER_ERROR = adapter_mod.ERR_SERVER_ERROR
 ERR_TIMEOUT = adapter_mod.ERR_TIMEOUT
 ERR_CLIENT_ERROR = adapter_mod.ERR_CLIENT_ERROR
+ERR_AUTH = adapter_mod.ERR_AUTH
 ERR_TOTAL_TIMEOUT = adapter_mod.ERR_TOTAL_TIMEOUT
 
 RunPersistence = persistence_mod.RunPersistence
@@ -713,6 +714,38 @@ class TestAnthropicAPIAdapterErrors:
         )
         assert result.outcome == "success"
         assert result.attempts == 2
+
+
+class TestAnthropicAPIAdapterTransportConstruction:
+    """`call_model` MUST honor its docstring contract:
+    'Returns APICallResult regardless of outcome'. Before this guard,
+    `_resolve_transport()` ran outside the try/except so a missing
+    ANTHROPIC_API_KEY (RuntimeError raised by `load_api_key()` inside
+    `_default_transport_factory`) would propagate, forcing every
+    caller to special-case construction failure separately from
+    transport failure."""
+
+    def test_resolve_failure_returns_auth_error_result(self, monkeypatch):
+        # Replace the production transport factory with one that raises
+        # the same RuntimeError shape `load_api_key()` would emit.
+        def _explode() -> object:
+            raise RuntimeError("ANTHROPIC_API_KEY not found in environment")
+
+        monkeypatch.setattr(adapter_mod, "_default_transport_factory", _explode)
+        adapter = AnthropicAPIAdapter()  # transport=None -> uses factory
+        result = adapter.call_model(
+            prompt="x",
+            model_id="claude-sonnet-4-6",
+            fixture_id="F004",
+            variant="agent",
+            run_index=0,
+        )
+        assert result.outcome == "error"
+        assert result.error_category == ERR_AUTH
+        assert result.attempts == 0
+        assert result.raw_response is None
+        assert result.tokens_in == 0
+        assert result.tokens_out == 0
 
 
 class TestAnthropicAPIAdapterLogging:
