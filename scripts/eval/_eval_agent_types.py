@@ -17,7 +17,17 @@ SCHEMA_VERSION: int = 1
 ProvenanceLiteral = Literal["synthetic", "public-cve", "paraphrased-from-public"]
 VariantLiteral = Literal["agent", "baseline"]
 OutcomeLiteral = Literal["success", "error"]
-RecommendationLiteral = Literal["graduate-to-CI", "keep-as-audit", "scrap"]
+# ADR-058 promotes `halt-due-to-flakiness` to a fourth verdict outcome
+# emitted when REQ-004 AC-10's flakiness gate trips. The runtime, the
+# report writer, and `tests/evals/test_eval_agent_vs_baseline.py`
+# (assert payload["recommendation"] == "halt-due-to-flakiness") already
+# use this value; the type literal is the last surface that lagged.
+RecommendationLiteral = Literal[
+    "graduate-to-CI",
+    "keep-as-audit",
+    "scrap",
+    "halt-due-to-flakiness",
+]
 
 
 class AssertionKind(str, Enum):
