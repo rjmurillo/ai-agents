@@ -41,6 +41,19 @@ def _format_pct(value: float) -> str:
     return f"{value * 100:.1f}%"
 
 
+def _format_pp(value: float) -> str:
+    """Render a signed fraction as percentage points (e.g. +38.10pp).
+
+    The summary table mixes recall (percent) with the recall delta and CI
+    bounds (formerly raw fractions like +0.3810). A fraction next to a
+    percent value is easy to misread as percentage points; using the
+    explicit `pp` suffix removes the ambiguity. The JSON shape is
+    unchanged: `report.json` still carries raw fractions for downstream
+    tooling.
+    """
+    return f"{value * 100:+.2f}pp"
+
+
 def _build_report_json(
     *,
     aggregate: AggregateResult,
@@ -101,8 +114,8 @@ def _render_summary_table(aggregate: AggregateResult) -> str:
         "|---|---|\n"
         f"| Agent recall | {_format_pct(aggregate.agent_recall)} |\n"
         f"| Baseline recall | {_format_pct(aggregate.baseline_recall)} |\n"
-        f"| Signed delta (agent - baseline) | {aggregate.recall_delta:+.4f} |\n"
-        f"| 95% bootstrap CI | [{ci_low:+.4f}, {ci_high:+.4f}] |\n"
+        f"| Signed delta (agent - baseline) | {_format_pp(aggregate.recall_delta)} |\n"
+        f"| 95% bootstrap CI | [{_format_pp(ci_low)}, {_format_pp(ci_high)}] |\n"
         f"| Recall with errors | {_format_pct(aggregate.recall_with_errors)} |\n"
         f"| Recall excluding errors | {_format_pct(aggregate.recall_excluding_errors)} |\n"
         f"| Error count | {aggregate.error_count} |\n"
@@ -135,7 +148,7 @@ def _render_ci_section(aggregate: AggregateResult) -> str:
     return (
         "## Confidence Interval\n\n"
         f"Paired bootstrap, n=10000 resamples at fixture level. The 95% CI on the "
-        f"signed recall delta is **[{ci_low:+.4f}, {ci_high:+.4f}]**. "
+        f"signed recall delta is **[{_format_pp(ci_low)}, {_format_pp(ci_high)}]**. "
         f"The interval {'**excludes** zero' if excludes_zero else '**includes** zero'}, "
         f"so the observed delta is "
         f"{'statistically distinguishable from no effect' if excludes_zero else 'not statistically distinguishable from no effect at the 95% level'}.\n"
@@ -146,8 +159,8 @@ def _render_recommendation_section(recommendation: str | None = None) -> str:
     if recommendation is None:
         return (
             "## Recommendation\n\n"
-            "_Pending — T4-7 records the verdict (graduate-to-CI | "
-            "keep-as-audit | scrap | halt-due-to-flakiness) with at "
+            "_Pending. T4-7 records the verdict (graduate-to-CI, "
+            "keep-as-audit, scrap, or halt-due-to-flakiness) with at "
             "least two pieces of evidence drawn from the data above._\n"
         )
     return (

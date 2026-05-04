@@ -11,8 +11,8 @@
 |---|---|
 | Agent recall | 78.6% |
 | Baseline recall | 40.5% |
-| Signed delta (agent - baseline) | +0.3810 |
-| 95% bootstrap CI | [+0.1111, +0.6429] |
+| Signed delta (agent - baseline) | +38.10pp |
+| 95% bootstrap CI | [+11.11pp, +64.29pp] |
 | Recall with errors | 78.6% |
 | Recall excluding errors | 78.6% |
 | Error count | 0 |
@@ -37,7 +37,7 @@ Pass rate per run (variant: agent | baseline).
 
 ## Confidence Interval
 
-Paired bootstrap, n=10000 resamples at fixture level. The 95% CI on the signed recall delta is **[+0.1111, +0.6429]**. The interval **excludes** zero, so the observed delta is statistically distinguishable from no effect.
+Paired bootstrap, n=10000 resamples at fixture level. The 95% CI on the signed recall delta is **[+11.11pp, +64.29pp]**. The interval **excludes** zero, so the observed delta is statistically distinguishable from no effect.
 
 ## Recommendation
 
