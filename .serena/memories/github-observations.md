@@ -7,16 +7,11 @@
 
 - **Run `.claude/skills/github/scripts/pr/*.py` with a Python interpreter
   that has project deps available; `uv run python` is the simplest
-  guaranteed path.** Bare `python3` fails with
-  `ModuleNotFoundError: No module named 'yaml'` only when PyYAML is not
-  on the interpreter's `sys.path`; if a system Python already has the
-  project deps installed, bare `python3` works. The github_core package
-  imports `yaml` at module load. Concrete failures observed in this
-  session with the system `python3` (PyYAML absent) on:
-  `get_pr_context.py`, `test_pr_merged.py`, `get_pr_review_threads.py`,
-  `get_unresolved_review_threads.py`, `get_unaddressed_comments.py`,
-  `get_pr_checks.py`, and `add_pr_review_thread_reply.py`. Default to
-  `uv run python` to make the choice deterministic regardless of which
+  guaranteed path.** The scripts import `github_core` (at
+  `.claude/lib/github_core/`), which imports `yaml` at module load.
+  Bare `python3` fails with `ModuleNotFoundError: No module named 'yaml'`
+  when PyYAML is not on the interpreter's `sys.path`. `uv run python`
+  resolves the project venv deterministically regardless of which
   interpreter `python3` resolves to. (Session PR #1873, 2026-05-03)
 
 - **Raw `gh` may be blocked by `invoke_skill_first_guard.py` when a
@@ -49,14 +44,9 @@
 ## Edge Cases (MED confidence)
 
 - **`get_unaddressed_comments.py` writes a human-readable summary to
-  stderr and JSON to stdout.** Streams are clean if you redirect them
-  separately. The header-mixed-with-JSON failure surfaces only when you
-  capture combined output via `2>&1` or `> file 2>&1`, where the stderr
-  header lands on the first line and breaks `json.loads`. Two options:
-  (1) write stdout-only: `script.py --pull-request N > out.json` (no
-  stderr capture); (2) if you must capture combined output, strip the
-  first line before `json.loads`, for example via `tail -n +2 file` or
-  splitting on the first newline. Failure mode if not handled:
+  stderr and JSON to stdout.** Capture stdout only
+  (`script.py --pull-request N > out.json`); a `2>&1` combined capture
+  prepends the stderr header to the JSON and trips
   `json.JSONDecodeError: Extra data: line 1 column 12 (char 11)`.
   (Session PR #1873, 2026-05-03)
 

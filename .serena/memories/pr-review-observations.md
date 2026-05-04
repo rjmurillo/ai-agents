@@ -6,16 +6,11 @@
 ## Constraints (HIGH confidence)
 
 - **Disable or coordinate with deferred remote /pr-review routines before
-  iterating locally.** A scheduled remote routine racing local edits caused 4
-  of 5 rounds to need `git reset --hard @{u}` (or
-  `git reset --hard origin/<branch>`) plus cherry-pick reconciliation.
-  `git reset --hard origin` alone is not a valid reset target since
-  `origin` is a remote name, not a commit-ish.
-  Symptoms: `git push` rejected, conflicts on duplicate same-named exception
-  classes, identical fixes shipped from both sides. Mitigations: (1) do not
-  schedule a remote /pr-review while planning local edits, OR (2) commit and
-  push immediately after each fix to minimize the divergence window. (Session
-  PR #1873, 2026-05-03)
+  iterating locally.** A scheduled remote routine racing local edits causes
+  push rejection and rebase conflicts on duplicate fixes. Mitigations:
+  (1) do not schedule a remote /pr-review while planning local edits, or
+  (2) commit and push immediately after each fix to minimize the
+  divergence window. (Session PR #1873, 2026-05-03)
 
 - **Verify bot-flagged claims at byte level before fixing.** Copilot raised
   false positives in this session: an em-dash claim on a line with 0
@@ -35,24 +30,26 @@
   Compliance WARN (3/4 sections). Always add a top-level `-` bullet summary
   first; subsections may follow. (Session PR #1873, 2026-05-03)
 
-- **Em-dash policy is sweep-style, not file-by-file.** Project doc style at
-  `.agents/steering/documentation.md` lines 221-229 forbids em/en dashes.
-  When this applies, run a single audit
-  (`grep -rlP '\xe2\x80\x94' <dirs>` for em-dashes, `\xe2\x80\x93`
-  for en-dashes; or a Python byte-count) and fix all matches
-  in one commit batch. Per-file flags from review bots (Copilot in
-  particular) will arrive across multiple rounds otherwise. (Session PR
-  #1873, 2026-05-03; fix landed across rounds 3-4)
+- **Em-dash policy is sweep-style, not file-by-file.** Project doc style
+  at `.agents/steering/documentation.md` (Formatting Violations table,
+  lines 220-228) forbids em/en dashes. Run one audit and fix all matches
+  in a single commit; otherwise per-file bot flags (Copilot in
+  particular) arrive across multiple rounds. Audit one-liner:
+
+  ```bash
+  grep -rlP '\xe2\x80\x94' <dirs>   # em-dashes
+  grep -rlP '\xe2\x80\x93' <dirs>   # en-dashes
+  ```
+
+  (Session PR #1873, 2026-05-03; fix landed across rounds 3-4)
 
 - **Adapter to runner contracts must be coordinated.** When changing an
-  exception-vs-typed-result contract at one side of a boundary, audit every
-  catch site on the other side. Concrete instance: remote commit `0df0f324`
-  changed `AnthropicAPIAdapter.call_model` to return
-  `APICallResult(error_category="auth")` instead of raising `RuntimeError`,
-  but did not update the runner. The runner's
-  `if "ANTHROPIC_API_KEY" in str(exc)` catch became dead code; `EXIT_AUTH`
-  was unreachable. Fix landed in commit `0ba277c4`. (Session PR #1873,
-  2026-05-03)
+  exception-vs-typed-result contract at one side of a boundary, audit
+  every catch site on the other side. A typed-result conversion that
+  leaves the old exception catch in place produces dead code (the
+  caller never enters the catch) and silently breaks downstream exit
+  codes that depended on it. (Session PR #1873, 2026-05-03; concrete
+  instance preserved in the session log)
 
 - **Archive evidence: won't-fix with rationale.** Files under
   `evals/_archive/` are preserved verbatim per the policy in their parent
@@ -62,6 +59,12 @@
   #1873, 2026-05-03)
 
 ## Edge Cases (MED confidence)
+
+- **`git reset --hard origin` is not a valid reset target.** `origin` is
+  a remote name, not a commit-ish, so the command silently does nothing
+  useful. Use `git reset --hard @{u}` (the tracked upstream) or
+  `git reset --hard origin/<branch>` (named ref). (Session PR #1873,
+  2026-05-03)
 
 - **Test count drift after pulling remote commits.** The remote /pr-review
   routine added tests independently. Local count went 94, 123, 126, 127
