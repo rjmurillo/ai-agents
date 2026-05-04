@@ -22,8 +22,12 @@ updated: 2026-05-04
 ## Objective
 
 Implement three Claude Code PreToolUse hooks that block `git push` on markdown style violations,
-manifest count drift, and session log placeholder values. Deliver as four milestones so each
-can be reviewed and merged independently without blocking subsequent work.
+manifest count drift, and session log placeholder values. Deliver as four milestones in
+sequence (M1, then M2, then M3, then M4) because all three appended hooks modify
+`.claude/hooks/hooks.json` and parallel branches would collide on that file.
+
+For full milestone exit criteria, dependency graph, risk register, and pre-mortem mitigations
+that this task list inherits, see `.agents/plans/active/PLAN-1884-pr-iteration-cost.md`.
 
 ## In Scope
 
@@ -66,12 +70,19 @@ can be reviewed and merged independently without blocking subsequent work.
 - [ ] `run_guard(validator_fn, globs, name)` reads stdin JSON, extracts command, runs
   `git diff --name-only @{push}..HEAD` (subprocess, no shell) to get committed-but-not-pushed
   files. If that fails (no upstream), falls back to `git diff --name-only origin/main...HEAD`.
-  Filters paths by globs, calls `validator_fn` only when matches exist.
+  If both fail, returns 0 (fail-open) with a stderr warning. Filters paths by globs, calls
+  `validator_fn` only when matches exist.
 - [ ] Returns 0 when no matching files in changeset.
 - [ ] Returns 2 when `validator_fn` returns non-empty violation list.
 - [ ] Prints `## BLOCKED [E_<CODE>]: <name>` header and each violation line on stdout.
 - [ ] Returns 0 (fail-open) and prints to stderr on any unhandled exception.
 - [ ] `skip_if_consumer_repo` called before any logic.
+- [ ] AC-11: a unit test asserts the hook entry in `hooks.json` uses the matcher
+  `Bash(git push*)` exactly. This is the documented invariant; PreToolUse hooks are
+  runtime-enforced and `--no-verify` does not apply, so this test is the static contract.
+- [ ] Glob matching for nested patterns like `.claude/skills/*/SKILL.md` uses prefix+suffix
+  string check (`startswith` plus `endswith`), NOT `fnmatch.fnmatch` (which fails on nested
+  paths) and NOT `pathlib.PurePosixPath.match` (which also fails on the same input).
 - [ ] All tests pass. Coverage >= 80%.
 
 **Implementation Notes**
@@ -80,6 +91,17 @@ Copy the lib-bootstrap block verbatim from the comment-and-code block in
 `invoke_session_log_guard.py` (currently lines 26-49 at HEAD; re-confirm exact range when
 implementing). Do not paraphrase or shorten; the exact walk-up logic handles both source-tree
 and installed layouts.
+
+For glob matching, `.claude/skills/*/SKILL.md` cannot be matched with `fnmatch` or
+`pathlib.match` because both fail on multi-segment paths. Implement a small helper:
+
+```python
+def _matches_skill_pattern(path: str) -> bool:
+    return path.startswith('.claude/skills/') and path.endswith('/SKILL.md')
+```
+
+Apply the same prefix+suffix shape to other multi-segment patterns. Document the helper inline
+so future maintainers see the rationale.
 
 Use `fnmatch.fnmatch` for glob matching against the flat path list from `git diff --name-only`.
 For patterns like `.claude/skills/*/SKILL.md`, use `pathlib.PurePosixPath` matching or a
@@ -108,12 +130,17 @@ two-step filter (directory depth check + filename check) since `fnmatch` does no
 - [ ] Hook calls `shutil.which("markdownlint-cli2")`. If None, prints WARN to stderr, returns 0.
 - [ ] Logs `markdownlint-cli2 --version` output to stderr before running validation (AC-3a).
 - [ ] Runs `markdownlint-cli2 <files...>` with `timeout=60`, `shell=False`.
-- [ ] On timeout (`subprocess.TimeoutExpired`), returns violation line
-  `[TIMEOUT] markdownlint-cli2 exceeded 60s` and exits 2.
+- [ ] On `subprocess.TimeoutExpired`: prints prominent stderr warning
+  `[TIMEOUT] markdownlint-cli2 exceeded 60s; allowing push`, returns 0 (fail-open).
+  Reverses the original block-on-timeout decision per pre-mortem mitigation: infrastructure
+  latency is not a real lint violation and should not block work.
+- [ ] On `OSError` (wrong-architecture binary, missing shared libraries): prints stderr warning
+  `[OSError] markdownlint-cli2 failed to invoke: <message>; allowing push`, returns 0
+  (fail-open).
 - [ ] On non-zero exit, passes markdownlint output lines through as violations.
 - [ ] On zero exit (no violations), returns 0.
 - [ ] On empty changeset (no `*.md` files), returns 0 without invoking binary.
-- [ ] `hooks.json` entry added with `timeout: 70`.
+- [ ] `hooks.json` entry added with `timeout: 70` (subprocess 60s + 10s overhead).
 - [ ] All tests pass. Coverage >= 80%.
 
 **Implementation Notes**
@@ -150,7 +177,11 @@ with filesystem. Reuses existing `build/scripts/validate_marketplace_counts.py` 
 - [ ] Hook activates only when changeset includes files matching `templates/agents/*.md`,
   `.claude/skills/*/SKILL.md`, `.claude/commands/*.md`, or `.claude-plugin/marketplace.json`.
 - [ ] Adds `build/scripts/` to `sys.path` and imports
-  `validate_marketplace_counts.validate_known_marketplaces(repo_root=project_dir)`.
+  `validate_marketplace_counts.validate_known_marketplaces`. The hook MUST pass
+  `repo_root=project_dir` explicitly. The validator's module-level `REPO_ROOT` constant is
+  resolved at import time relative to `__file__`, which can resolve incorrectly under
+  alternate `sys.path` layouts (e.g., editable installs, test environments). Tests MUST
+  assert that the explicit parameter is forwarded, not shadowed.
 - [ ] On return code 1 (mismatch), captures stdout and formats as violation lines.
   Includes hint: "Run `python3 build/scripts/validate_marketplace_counts.py --fix` to auto-correct."
 - [ ] On return code 2 (config error), produces violation with parse-error message.
@@ -191,8 +222,12 @@ function, translate exit codes. No `pre_pr.py` extension needed (CI already runs
   `<path>: JSON parse error - <message>` and blocks.
 - [ ] Checks `schemaVersion` is present and non-empty.
 - [ ] Checks `endingCommit` is present and not the literal string `"pending"`.
-- [ ] Checks `markdownLintRun.Complete` is `true` (not `false` or absent) and
-  `markdownLintRun.Evidence` is a non-empty, non-placeholder string.
+- [ ] Checks `markdownLintRun.Complete` is `true` (not `false` or absent).
+- [ ] Checks `markdownLintRun.Evidence` is a non-placeholder string. The check, in order:
+  - `Evidence.strip()` length >= 20 characters (pre-mortem mitigation against single-character
+    bypasses).
+  - `Evidence.strip().lower()` not in placeholder set:
+    `{"", "pending", "tbd", "n/a", "none", "done", "."}`.
 - [ ] Produces violation line `<path>:<field> <reason>` for each failed check.
 - [ ] Returns 0 when all checks pass.
 - [ ] Returns 0 immediately when no `.agents/sessions/*.json` in changeset.
@@ -243,9 +278,16 @@ All milestones are within the 5-file atomic commit limit.
 
 ## Recommended Delivery Order
 
-1. M1 (framework) first. M2, M3, M4 can proceed in any order after M1 merges.
-2. M3 imports from existing `build/scripts/validate_marketplace_counts.py` (no new script prerequisite).
-3. M2, M3, M4 are independent of each other once M1 is merged.
+Sequential: M1 -> M2 -> M3 -> M4.
+
+Each of M2, M3, M4 modifies `.claude/hooks/hooks.json` (appends one entry to the
+`Bash(git push*)` block). Parallel branches would collide on that file. Sequencing trades
+parallel speed for clean merges.
+
+If parallel implementation is unavoidable, the documented strategy is: M2 ships first; M3
+and M4 each rebase on the merged M2 (and then M3) before pushing.
+
+M3 imports from existing `build/scripts/validate_marketplace_counts.py` (no new script).
 
 ---
 

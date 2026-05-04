@@ -98,7 +98,11 @@ Fix and re-push.
 - Capture stdout/stderr. On non-zero exit, parse violation lines. Each line from
   markdownlint-cli2 is already in `<file>:<line> <rule> <description>` format; pass through
   unchanged.
-- On timeout, return violation line `[TIMEOUT] markdownlint-cli2 exceeded 60s` and exit 2.
+- On `subprocess.TimeoutExpired`: print prominent stderr warning and return 0 (fail-open).
+  Infrastructure latency is not a lint violation and should not block work. The original
+  block-on-timeout decision was reversed per pre-mortem mitigation R-H.
+- On `OSError` (wrong-architecture binary, missing libs): print stderr warning, return 0
+  (fail-open).
 
 **Validator signature**:
 ```python
@@ -275,7 +279,9 @@ validator-specific logic.
 | Count SoR | Filesystem globs (via existing validator) | Per `.claude/rules/templates.md` and PRD Data model |
 | Framework pattern | Strategy (CVA) | Three validators share identical shell; differ only in body |
 | Manifest count validation | Reuse existing `build/scripts/validate_marketplace_counts.py` | DRY; already runs in CI |
-| Timeout (markdownlint) | 60s subprocess, 70s hook | Large changeset upper bound; fail closed on timeout |
+| Timeout (markdownlint) | 60s subprocess, 70s hook, fail-open on timeout | Large changeset upper bound; CI runner latency under load is infrastructure noise, not a lint violation. See PLAN-1884 R-H. |
+| Glob matching | Prefix+suffix string check for multi-segment patterns | `fnmatch.fnmatch` and `pathlib.match` both fail to match `.claude/skills/foo/SKILL.md` against `.claude/skills/*/SKILL.md`. Pre-mortem mitigation R-E. |
+| Marketplace validator import | Always pass `repo_root=project_dir` explicitly to `validate_known_marketplaces` | Validator's module-level `REPO_ROOT` resolves at import time and is fragile under alternate `sys.path`. Pre-mortem mitigation R-F. |
 
 ---
 
