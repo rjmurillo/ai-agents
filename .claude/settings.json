@@ -101,7 +101,7 @@
           {
             "type": "command",
             "command": "python3 -u .claude/hooks/PreToolUse/invoke_markdownlint_guard.py",
-            "timeout": 70,
+            "timeout": 90,
             "statusMessage": "Checking markdownlint violations on changed .md files (BLOCKING)"
           },
           {
@@ -117,7 +117,7 @@
           {
             "type": "command",
             "command": "python3 -u .claude/hooks/PreToolUse/invoke_pr_description_guard.py",
-            "timeout": 70,
+            "timeout": 90,
             "statusMessage": "Checking PR description vs diff (BLOCKING)"
           }
         ]

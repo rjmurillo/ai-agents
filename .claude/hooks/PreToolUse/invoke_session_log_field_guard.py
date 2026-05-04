@@ -106,14 +106,18 @@ def _markdown_lint_run(data: dict) -> dict | None:
 
     Canonical: protocolCompliance.sessionEnd.markdownLintRun
     Legacy/top-level: markdownLintRun
+
+    Defensive: a malformed log might set protocolCompliance or sessionEnd
+    to a list or string. Treat any non-dict node along the path as missing
+    rather than raising AttributeError.
     """
-    canonical = (
-        data.get("protocolCompliance", {})
-        .get("sessionEnd", {})
-        .get("markdownLintRun")
-    )
-    if isinstance(canonical, dict):
-        return canonical
+    pc = data.get("protocolCompliance")
+    if isinstance(pc, dict):
+        end = pc.get("sessionEnd")
+        if isinstance(end, dict):
+            canonical = end.get("markdownLintRun")
+            if isinstance(canonical, dict):
+                return canonical
     top = data.get("markdownLintRun")
     if isinstance(top, dict):
         return top

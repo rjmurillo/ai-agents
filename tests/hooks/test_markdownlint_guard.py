@@ -132,15 +132,47 @@ class TestViolations:
 
 
 class TestBinaryAbsent:
-    def test_binary_missing_fails_open(self, push_command, tmp_path, capsys):
+    def test_binary_and_npx_missing_fails_open(self, push_command, tmp_path, capsys):
         def lint(args):
-            raise AssertionError("subprocess should not run when binary missing")
+            raise AssertionError("subprocess should not run when neither tool present")
 
+        # which_value=None applies to BOTH markdownlint-cli2 and npx
         rc = _run("docs/a.md\n", lint, tmp_path, which_value=None)
         assert rc == 0
         err = capsys.readouterr().err
-        assert f"{guard.BINARY} not found on PATH" in err
+        assert "neither markdownlint-cli2 nor npx found" in err
         assert "fail-open" in err
+
+    def test_binary_missing_falls_back_to_npx(self, push_command, tmp_path, capsys):
+        """When markdownlint-cli2 is not on PATH but npx is, use npx as documented."""
+        captured_args: list[list[str]] = []
+
+        def lint(args):
+            captured_args.append(list(args))
+            if "--version" in args:
+                return _ok(stdout="0.21.0\n")
+            return _ok()
+
+        # Mock shutil.which: return None for markdownlint-cli2, a path for npx.
+        def which_side_effect(name: str) -> str | None:
+            return "/usr/bin/npx" if name == "npx" else None
+
+        dispatcher = _make_dispatcher("docs/a.md\n", lint)
+        with patch("push_guard_base.subprocess.run", side_effect=dispatcher), \
+             patch("push_guard_base.get_project_directory", return_value=str(tmp_path)), \
+             patch.object(guard.shutil, "which", side_effect=which_side_effect), \
+             patch("invoke_markdownlint_guard.get_project_directory", return_value=str(tmp_path)):
+            rc = guard.main()
+
+        assert rc == 0
+        # Confirm npx was used in the lint invocation (not --version, not git diff)
+        lint_calls = [
+            a for a in captured_args
+            if "--version" not in a and a and a[0] != "git"
+        ]
+        assert lint_calls, "Expected lint invocation"
+        assert lint_calls[0][0] == "npx"
+        assert lint_calls[0][1] == guard.BINARY
 
 
 class TestTimeout:
