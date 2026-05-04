@@ -303,14 +303,15 @@ class ReportAggregator:
             rng=self._rng,
         )
 
-        # `recall_with_errors` keeps the full set; `recall_excluding_errors`
-        # removes assertion rows from error-outcome runs from the denominator.
-        # Both report on the agent variant; baseline error accounting matches.
+        # `recall_with_errors` uses the same stable subset as headline recall;
+        # `recall_excluding_errors` removes assertion rows from error-outcome
+        # runs from the denominator. Both report on the agent variant and use
+        # the same fixture set as the headline metrics for comparability.
         recall_with_errors = _recall_from_grouped(
-            grouped, "agent", fixture_ids=all_fixture_ids, include_errors=True
+            grouped, "agent", fixture_ids=stable_ids, include_errors=True
         )
         recall_excluding_errors = _recall_from_grouped(
-            grouped, "agent", fixture_ids=all_fixture_ids, include_errors=False
+            grouped, "agent", fixture_ids=stable_ids, include_errors=False
         )
 
         total_tokens_in = sum(r.tokens_in for r in self._records)
