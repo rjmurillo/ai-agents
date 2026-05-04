@@ -182,7 +182,8 @@ If parallel implementation is required for time pressure, the documented strateg
 
 - Modification of `build/scripts/validate_marketplace_counts.py`.
 - Extension of `pre_pr.py` (CI already runs the script).
-- `docs/SEMANTIC_INDEX.yaml` in activation globs.
+- `docs/SEMANTIC_INDEX.yaml`. It is a semantic search index, not a count manifest, and is
+  explicitly NOT in the activation glob list. The hook does not look at it.
 
 **Dependencies**: M1 and M2 merged.
 

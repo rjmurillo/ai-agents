@@ -303,14 +303,15 @@ Each AC maps to at least one pytest test file. Test files live under `tests/hook
 
 | AC | Test file | Cases |
 |----|-----------|-------|
-| AC-1, AC-2 | `test_markdownlint_guard.py` | positive (clean files pass), negative (violation blocks), timeout blocks |
-| AC-3 | `test_markdownlint_guard.py` | binary absent -> WARN + allow |
-| AC-4, AC-5 | `test_manifest_count_guard.py` | counts match pass, agent count mismatch blocks, skill count mismatch blocks, config error blocks |
-| AC-6, AC-7 | `test_session_log_field_guard.py` | all fields valid pass, pending endingCommit blocks, missing schemaVersion blocks, markdownLintRun.Complete=false blocks, empty Evidence blocks, malformed JSON blocks |
+| AC-1, AC-2 | `test_markdownlint_guard.py` | positive (clean files pass), negative (violation blocks) |
+| AC-3 | `test_markdownlint_guard.py` | binary absent -> WARN + allow; subprocess timeout -> WARN + allow (fail-open per pre-mortem R-H); OSError -> WARN + allow |
+| AC-4, AC-5 | `test_manifest_count_guard.py` | counts match pass, agent count mismatch blocks, skill count mismatch blocks, config error blocks, repo_root forwarded explicitly |
+| AC-6, AC-7 | `test_session_log_field_guard.py` | all fields valid pass, pending endingCommit blocks, missing schemaVersion blocks, markdownLintRun.Complete=false blocks, empty Evidence blocks, short Evidence (<20 chars) blocks, placeholder Evidence ("none", ".") blocks, malformed JSON blocks |
 | AC-8 | All three test files | empty changeset exits 0 without subprocess |
-| AC-9 | (existing tests in `tests/` for `validate_marketplace_counts.py`) | Already covered |
-| AC-10 | All test files | coverage >= 80% enforced by CI |
-| shared framework | `test_push_guard_base.py` | consumer repo skip, empty stdin, exception fail-open |
+| AC-9 | (existing tests in `tests/` for the marketplace-counts validator) | Already covered |
+| AC-10 | All test files | coverage >= 80% asserted by `pytest --cov-fail-under=80` in M1 test setup; CI threshold enforcement (workflow change) is deferred |
+| AC-11 | `test_push_guard_base.py` | hooks.json matcher equals `Bash(git push*)` exactly |
+| shared framework | `test_push_guard_base.py` | consumer repo skip, empty stdin, exception fail-open, `@{push}..HEAD` fallback to `origin/main...HEAD`, double-fallback returns 0 |
 
 Tests mock `subprocess.run` and filesystem I/O. No real git repo required in unit tests.
 Integration smoke test (optional M5) exercises the full hook against a temporary git repo.

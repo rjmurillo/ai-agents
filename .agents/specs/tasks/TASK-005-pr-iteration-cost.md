@@ -103,9 +103,10 @@ def _matches_skill_pattern(path: str) -> bool:
 Apply the same prefix+suffix shape to other multi-segment patterns. Document the helper inline
 so future maintainers see the rationale.
 
-Use `fnmatch.fnmatch` for glob matching against the flat path list from `git diff --name-only`.
-For patterns like `.claude/skills/*/SKILL.md`, use `pathlib.PurePosixPath` matching or a
-two-step filter (directory depth check + filename check) since `fnmatch` does not handle `**`.
+For single-segment glob patterns (e.g., `*.md`), `fnmatch.fnmatch` is acceptable. For all
+multi-segment patterns (e.g., `.claude/skills/*/SKILL.md`, `templates/agents/*.md`), use the
+prefix+suffix helper shown above. Do not use `pathlib.PurePosixPath.match`; it has the same
+multi-segment limitation as `fnmatch`.
 
 ---
 

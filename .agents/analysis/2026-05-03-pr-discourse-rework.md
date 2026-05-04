@@ -58,12 +58,18 @@ Categories with exemplar PRs and comment counts:
   rounds), #1873 (em-dash sweep took 5 commits across INTERVIEW/PLAN/REQ/ADR/README).
 
 **B. Marketplace / count contract breaks**: 15+ comments across #1766, #1790, #1796
-- `marketplace.json` and `SEMANTIC_INDEX.yaml` maintain agent/skill/command counts. Any PR
-  that adds files must also update these counts or CI fails.
-- #1766: 6 commits fixing "Validate Marketplace Counts" failures. Agent count wrong in catalog,
-  wrong in marketplace JSON, wrong in SEMANTIC_INDEX.
-- This is a derived-data problem: the source of truth is the files, the counts are duplicated
-  in manifests, and the agent does not audit the manifest before push.
+- `.claude-plugin/marketplace.json` plugin description strings embed agent/skill/command/hook
+  counts as numbers in natural-language descriptions. The CI workflow `validate-marketplace-counts.yml`
+  runs `build/scripts/validate_marketplace_counts.py`, which parses the descriptions via regex
+  and compares against filesystem-derived counts using `templates/marketplace-counters.yaml`.
+- #1766: 6 commits fixing "Validate Marketplace Counts" failures. The counts in the
+  marketplace plugin descriptions drifted from the filesystem.
+- This is a derived-data problem: the source of truth is the files, the counts are
+  hand-maintained in description prose, and the agent does not audit the descriptions before
+  push.
+- Note: `docs/SEMANTIC_INDEX.yaml` is sometimes mentioned in the same context but is a
+  semantic search index (with fields like `total_docs_indexed`), not an agent/skill/command
+  count manifest.
 
 **C. PR description does not match diff**: 8+ fires across #1796, #1790
 - The `Validate PR` check compares the PR description against actual changed files. When the
@@ -117,9 +123,11 @@ Categories with exemplar PRs and comment counts:
    They appear in generated content (agent templates, skills, specs, ADRs). The agent that
    generates content does not run the style linter pre-push.
 
-2. Marketplace count drift causes 30-40% of CI failures in content-adding PRs. The count is
-   maintained in at least 3 places (marketplace.json, SEMANTIC_INDEX.yaml, agent-catalog.md)
-   and none are auto-updated.
+2. Marketplace count drift causes 30-40% of CI failures in content-adding PRs. Counts are
+   embedded in `.claude-plugin/marketplace.json` plugin description prose ("24 specialized
+   agent definitions"). They are hand-maintained and drift when files are added or removed.
+   The existing CI validator parses descriptions via regex, but only after multiple commits
+   have already failed.
 
 3. Session logs are filled with placeholders ("pending", missing schemaVersion) and committed
    without resolution. This triggers Copilot review comments and sometimes CI validation.
@@ -147,10 +155,11 @@ Categories with exemplar PRs and comment counts:
    pre-commit hook or a pre-push script ran markdownlint on all .md files in the changeset,
    this class would be zero.
 
-2. **Manifests with derived counts have no auto-update mechanism** (HIGH). The
-   marketplace.json, SEMANTIC_INDEX.yaml, and agent-catalog.md count fields drift whenever
-   files are added. The fix loop is: fail CI, count actual files, patch JSON, repeat. This
-   could be replaced by a script that derives the count from the filesystem at CI time.
+2. **Marketplace description counts have no pre-push gate** (HIGH). The numbers embedded in
+   `.claude-plugin/marketplace.json` plugin descriptions ("24 specialized agent definitions")
+   drift whenever files are added or removed. The fix loop is: fail CI, run
+   `build/scripts/validate_marketplace_counts.py --fix`, repeat. The existing validator runs
+   in CI but not pre-push; wiring it to a pre-push hook closes the loop locally.
 
 3. **Spec-before-code discipline is inconsistently enforced** (HIGH). The session gates say
    to gate on issues with confirmed spec/plan artifacts. PRs #1873 and #1819 show the spec
@@ -189,9 +198,10 @@ Metric: (review comments + fix commits) × PRs affected.
 - Root cause: pre-push markdownlint does not cover all .md files authored by agents
 - Iteration cost: HIGH (appears in every substantial content PR)
 
-### FM-2: Derived-count manifest drift (marketplace.json, SEMANTIC_INDEX, agent-catalog)
+### FM-2: Marketplace description-string count drift (.claude-plugin/marketplace.json)
 - PRs affected: #1766, #1790, #1796 (3 PRs, 20+ fix commits, 6 CI failure loops on #1766)
-- Root cause: counts are maintained by hand, no auto-derivation
+- Root cause: counts embedded in plugin description prose are hand-maintained; the existing
+  validator runs in CI but not pre-push
 - Iteration cost: HIGH
 
 ### FM-3: PR description stale vs diff (Validate PR fails on commit 1-3)
@@ -221,14 +231,15 @@ Metric: (review comments + fix commits) × PRs affected.
 - Reference: `.claude/rules/code-quality.md` style self-review already calls this out under
   "No commented-out code / dead branches": add a markdownlint enforcement clause.
 
-### R-2 (High leverage): Auto-derive manifest counts at CI time
-- File: `scripts/validation/pre_pr.py` and `.github/workflows/validate-pr.yml`
-- Change: Replace hardcoded counts in marketplace.json and SEMANTIC_INDEX.yaml with a
-  generator step (count actual files in `src/claude/`, `.claude/skills/`, etc.) that runs
-  both pre-push and in CI. Fail if the committed count does not match the filesystem.
+### R-2 (High leverage): Wire existing marketplace count validator to pre-push
+- File: new pre-push hook under `.claude/hooks/PreToolUse/`
+- Change: Add a PreToolUse hook that imports
+  `build/scripts/validate_marketplace_counts.validate_known_marketplaces` and blocks the push
+  on non-zero return. The validator already exists, runs in CI, parses the description-string
+  counts, and supports a `--fix` mode. The new hook simply moves the gate left.
 - This eliminates FM-2. 20+ fix commits across 3 PRs.
 - Reference: `.agents/architecture/ADR-006-thin-workflows-testable-modules.md`: the count
-  derivation belongs in a testable Python module, not in hand-maintained JSON.
+  derivation logic already lives in a testable Python module.
 
 ### R-3 (High leverage): Add pre-push session-log validator
 - File: `.claude/skills/session-end/` SKILL.md or the pre-push hook
