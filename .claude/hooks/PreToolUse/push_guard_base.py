@@ -50,8 +50,8 @@ import json
 import os
 import subprocess
 import sys
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
 # Bootstrap: find lib directory via env var or manifest walk-up.
 # CLAUDE_PLUGIN_ROOT honored when set; otherwise walk up from __file__
@@ -156,7 +156,7 @@ def _run_git_diff(args: list[str], cwd: str) -> tuple[int, str]:
     return proc.returncode, proc.stdout
 
 
-def _changed_files(cwd: str) -> list[str] | None:
+def _changed_files(cwd: str, name: str = "guard") -> list[str] | None:
     """Return added/modified files committed but not yet pushed.
 
     Uses ``git diff --name-only --diff-filter=AM @{push}..HEAD`` so deleted
@@ -181,11 +181,19 @@ def _changed_files(cwd: str) -> list[str] | None:
     rc, out = _run_git_diff(["git", "diff", *args, "@{push}..HEAD"], cwd=cwd)
     if rc == 0:
         return [line for line in out.splitlines() if line.strip()]
+    primary_reason = out.splitlines()[0] if out else "non-zero exit"
     rc2, out2 = _run_git_diff(
         ["git", "diff", *args, "origin/main...HEAD"], cwd=cwd
     )
     if rc2 == 0:
         return [line for line in out2.splitlines() if line.strip()]
+    fallback_reason = out2.splitlines()[0] if out2 else "non-zero exit"
+    print(
+        f"[{name}] git diff failed on both refs; allowing push (fail-open). "
+        f"primary=@{{push}}..HEAD: {primary_reason}; "
+        f"fallback=origin/main...HEAD: {fallback_reason}",
+        file=sys.stderr,
+    )
     return None
 
 
@@ -269,13 +277,8 @@ def run_guard(
             return 0
 
         project_dir = get_project_directory()
-        all_changed = _changed_files(project_dir)
+        all_changed = _changed_files(project_dir, name=name)
         if all_changed is None:
-            print(
-                f"[{name}] git diff produced no upstream comparison; "
-                f"allowing push (fail-open).",
-                file=sys.stderr,
-            )
             return 0
 
         matching = _filter_by_globs(all_changed, globs)
