@@ -40,8 +40,11 @@ a separate function/class injected via the Strategy pattern (CVA from PRD).
   bootstrap block verbatim to maintain consistency).
 - Call `skip_if_consumer_repo(guard_name)` and return 0 if in consumer repo.
 - Read stdin JSON, extract `tool_input.command`.
-- Run `git diff --name-only HEAD` as a subprocess (argument list, no shell, timeout 10s) to
-  produce the changed-file list. On empty diff or subprocess failure, return 0 (fail-open).
+- Run `git diff --name-only @{push}..HEAD` as a subprocess (argument list, no shell, timeout 10s)
+  to produce the changed-file list (files committed locally but not yet pushed). If that fails
+  (e.g., no upstream configured), fall back to `git diff --name-only origin/main...HEAD`. On
+  subprocess failure after fallback, return 0 (fail-open). Note: empty diff is valid (nothing to
+  push), so return 0 without running validators.
 - Expose `run_guard(validator_fn, globs, name)` where:
   - `globs` is the list of path patterns that activate the validator.
   - `validator_fn(matching_files, all_changed_files) -> list[str]` returns violation lines.
@@ -260,7 +263,7 @@ validator-specific logic.
 |----------|--------|-----------|
 | Subprocess call style | Argument list, no `shell=True` | CWE-78 mitigation; matches `pre_pr.py` pattern |
 | markdownlint-cli2 absence handling | WARN + allow | Tooling gap != code problem; AC-3 |
-| Changeset source | `git diff --name-only HEAD` | Changed files only; not full repo scan |
+| Changeset source | `git diff --name-only @{push}..HEAD` (fallback: `origin/main...HEAD`) | Committed but not-yet-pushed files; per ADR-043 |
 | Count SoR | Filesystem globs (via existing validator) | Per `.claude/rules/templates.md` and PRD Data model |
 | Framework pattern | Strategy (CVA) | Three validators share identical shell; differ only in body |
 | Manifest count validation | Reuse existing `build/scripts/validate_marketplace_counts.py` | DRY; already runs in CI |

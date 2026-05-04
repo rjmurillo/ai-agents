@@ -62,8 +62,9 @@ can be reviewed and merged independently without blocking subsequent work.
 **Acceptance Criteria**
 
 - [ ] `run_guard(validator_fn, globs, name)` reads stdin JSON, extracts command, runs
-  `git diff --name-only HEAD` (subprocess, no shell), filters paths by globs, calls
-  `validator_fn` only when matches exist.
+  `git diff --name-only @{push}..HEAD` (subprocess, no shell) to get committed-but-not-pushed
+  files. If that fails (no upstream), falls back to `git diff --name-only origin/main...HEAD`.
+  Filters paths by globs, calls `validator_fn` only when matches exist.
 - [ ] Returns 0 when no matching files in changeset.
 - [ ] Returns 2 when `validator_fn` returns non-empty violation list.
 - [ ] Prints `## BLOCKED [E_<CODE>]: <name>` header and each violation line on stdout.
