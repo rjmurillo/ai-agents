@@ -83,6 +83,7 @@ ERR_TOTAL_TIMEOUT = adapter_mod.ERR_TOTAL_TIMEOUT
 
 RunPersistence = persistence_mod.RunPersistence
 DuplicateRunError = persistence_mod.DuplicateRunError
+MalformedRunRecordError = persistence_mod.MalformedRunRecordError
 RunDirectoryNotFreshError = persistence_mod.RunDirectoryNotFreshError
 
 ReportAggregator = aggregator_mod.ReportAggregator
@@ -869,6 +870,42 @@ class TestRunPersistenceSchemaGuard:
         record.schema_version = 99
         with pytest.raises(SchemaVersionError, match="schemaVersion"):
             persistence.write_record(record)
+
+
+class TestRunPersistenceMalformedJsonl:
+    """Existing on-disk JSONL that does not parse, or parses but lacks an
+    identity field, must surface as `MalformedRunRecordError` so the CLI
+    maps it to EXIT_CONFIG (2) per DESIGN-004 §Failure Modes. Treating
+    on-disk corruption as a logic-class duplicate misleads operators."""
+
+    def _seed(self, tmp_path, line: str):
+        run_dir = tmp_path / "mal"
+        run_dir.mkdir(parents=True)
+        (run_dir / "runs.jsonl").write_text(line, encoding="utf-8")
+        return run_dir
+
+    def test_invalid_json_line_raises_malformed(self, tmp_path):
+        run_dir = self._seed(tmp_path, "{not valid json\n")
+        with pytest.raises(MalformedRunRecordError, match="not valid JSON"):
+            RunPersistence(run_dir, resume=True)
+
+    def test_missing_identity_field_raises_malformed(self, tmp_path):
+        # Valid JSON, but missing `variant` and `run_index`.
+        run_dir = self._seed(
+            tmp_path,
+            json.dumps({"fixture_id": "F001", "schemaVersion": 1}) + "\n",
+        )
+        with pytest.raises(
+            MalformedRunRecordError, match=r"missing identity field\(s\): variant, run_index"
+        ):
+            RunPersistence(run_dir, resume=True)
+
+    def test_malformed_is_distinct_from_duplicate_run_error(self):
+        # Sanity: the new exception is its own class, so a CLI catch on
+        # `DuplicateRunError` cannot accidentally absorb on-disk
+        # corruption and downgrade it to EXIT_LOGIC.
+        assert not issubclass(MalformedRunRecordError, DuplicateRunError)
+        assert not issubclass(DuplicateRunError, MalformedRunRecordError)
 
 
 # ===========================================================================

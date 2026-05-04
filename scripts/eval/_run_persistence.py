@@ -7,10 +7,13 @@ DESIGN-004 §5.5, REQ-004 AC-9. Records are appended one per line to
 Two modes (DESIGN-004 §Failure Modes):
 - **Fresh-run**: opening an already-populated `runs.jsonl` raises
   `RunDirectoryNotFreshError`. Any later collision in the loop raises
-  `DuplicateRunError`; an unsupported `schemaVersion` raises
-  `SchemaVersionError`. The runner maps `DuplicateRunError` to exit 1
-  (logic) and `SchemaVersionError` to exit 2 (config) per
-  AGENTS.md exit-code contract and DESIGN-004 §Failure Modes.
+  `DuplicateRunError`. An unsupported `schemaVersion` raises
+  `SchemaVersionError`. A `runs.jsonl` line that does not parse, or
+  parses but lacks an identity field, raises
+  `MalformedRunRecordError`. The runner maps `DuplicateRunError` to
+  exit 1 (logic) and `SchemaVersionError` plus
+  `MalformedRunRecordError` to exit 2 (config) per AGENTS.md
+  exit-code contract and DESIGN-004 §Failure Modes.
 - **Resume**: existing records are loaded; `is_completed(...)` reports
   True only for triples whose prior record was `outcome="success"`.
   Errored triples are retried by default. The writer skips silently
@@ -41,7 +44,27 @@ from _eval_agent_types import (
 
 
 class DuplicateRunError(Exception):
-    """Raised when a fresh-run mode write hits an already-recorded triple."""
+    """Raised when a fresh-run mode write hits an already-recorded triple.
+
+    Maps to runner exit code 1 (logic). The cause is in-process: two
+    write attempts at the same `(fixture_id, variant, run_index)`
+    triple within one runner invocation. An on-disk format defect
+    (corrupt JSON, missing identity field) is a different failure
+    class; see `MalformedRunRecordError`.
+    """
+
+
+class MalformedRunRecordError(Exception):
+    """Raised when an existing `runs.jsonl` line cannot be parsed back
+    into a `RunRecord`.
+
+    Triggers: invalid JSON; a top-level record missing one of the
+    identity fields (`fixture_id`, `variant`, `run_index`). Maps to
+    runner exit code 2 (config) per DESIGN-004 §Failure Modes; this is
+    on-disk corruption, not a logic-class duplicate. Includes the
+    JSONL path, the offending line number, and the missing field name
+    so an operator can repair the file.
+    """
 
 
 class RunDirectoryNotFreshError(Exception):
@@ -66,8 +89,9 @@ def _record_to_json_line(record: RunRecord) -> str:
     internal `schema_version` attribute on serialization."""
     payload: dict[str, Any] = asdict(record)
     payload["schemaVersion"] = payload.pop("schema_version")
-    # AssertionKind is a StrEnum; asdict leaves it as the enum object on
-    # nested dataclasses, which json cannot serialize. Coerce here.
+    # AssertionKind is a `str, Enum` mixin (not stdlib StrEnum); asdict
+    # leaves it as the enum object on nested dataclasses, which json
+    # cannot serialize. Coerce to its string value here.
     for assertion in payload.get("assertions", []):
         kind = assertion.get("kind")
         if hasattr(kind, "value"):
@@ -164,7 +188,7 @@ class RunPersistence:
                 try:
                     payload = json.loads(stripped)
                 except json.JSONDecodeError as exc:
-                    raise DuplicateRunError(
+                    raise MalformedRunRecordError(
                         f"{self._jsonl_path}: line {line_no} is not valid JSON ({exc})"
                     ) from exc
                 # Reject incompatible schemas at resume time, before
@@ -177,14 +201,17 @@ class RunPersistence:
                         f"schemaVersion={schema_version!r} (supported: "
                         f"{SCHEMA_VERSION})"
                     )
-                key = (
-                    payload.get("fixture_id"),
-                    payload.get("variant"),
-                    payload.get("run_index"),
-                )
+                identity_fields = ("fixture_id", "variant", "run_index")
+                key = tuple(payload.get(name) for name in identity_fields)
                 if None in key:
-                    raise DuplicateRunError(
-                        f"{self._jsonl_path}: line {line_no} missing identity field"
+                    missing = [
+                        name
+                        for name, value in zip(identity_fields, key)
+                        if value is None
+                    ]
+                    raise MalformedRunRecordError(
+                        f"{self._jsonl_path}: line {line_no} missing identity "
+                        f"field(s): {', '.join(missing)}"
                     )
                 self._seen.add(key)  # type: ignore[arg-type]
                 if payload.get("outcome") == "success":

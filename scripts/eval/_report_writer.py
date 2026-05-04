@@ -2,8 +2,12 @@
 
 DESIGN-004 §5.7. Writes both files via write-temp-then-rename so a
 crash mid-write does not leave a partial report on disk. The
-`recommendation` field is left as `null` here; T4-7 overwrites with
-one of `graduate-to-CI`, `keep-as-audit`, or `scrap`.
+`recommendation` field is whatever the caller supplies: `None` for
+T4-5 records (decision pending), one of `graduate-to-CI`,
+`keep-as-audit`, `scrap` when T4-7 records the manual verdict, or
+`halt-due-to-flakiness` when AC-10's flakiness gate trips and the
+runner records the halt automatically. The writer does not interpret
+the value; it persists what the caller passes.
 """
 
 from __future__ import annotations

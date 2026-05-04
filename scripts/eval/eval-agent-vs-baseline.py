@@ -48,6 +48,7 @@ from _report_aggregator import EmptyRunError, ReportAggregator
 from _report_writer import ReportWriter
 from _run_persistence import (
     DuplicateRunError,
+    MalformedRunRecordError,
     RunDirectoryNotFreshError,
     RunPersistence,
 )
@@ -565,9 +566,11 @@ def _run_live(
         # Bad existing JSONL detected at startup.
         print(f"error: {exc}", file=sys.stderr)
         return EXIT_LOGIC
-    except SchemaVersionError as exc:
-        # Existing JSONL carries an unsupported schemaVersion.
-        # Per DESIGN-004 §Failure Modes, this is a config-class failure.
+    except (SchemaVersionError, MalformedRunRecordError) as exc:
+        # Existing JSONL carries an unsupported schemaVersion, or a
+        # line cannot be parsed back into a record. Per DESIGN-004
+        # §Failure Modes, both are config-class failures: the on-disk
+        # data needs operator repair before the runner can proceed.
         print(f"error: {exc}", file=sys.stderr)
         return EXIT_CONFIG
 
