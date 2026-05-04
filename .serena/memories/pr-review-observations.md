@@ -26,12 +26,11 @@
 ## Preferences (MED confidence)
 
 - **PR template `## Changes` section requires bullets immediately after the
-  heading.** `validate_pr_description.py` regex
-  `(?ms)##\s+Changes\s*\n+(?!##)\s*[-*]` requires a `-` or `*` bullet line
-  before any `###` subheader. A body that goes straight from `## Changes` to
-  `### Final result (...)` produces a Template Compliance WARN (3/4
-  sections). Always add a top-level `-` bullet summary first; subsections
-  may follow. (Session PR #1873, 2026-05-03)
+  heading.** See `github-observations.md` Preferences section for the
+  authoritative regex pattern and behavior documentation. A body that goes
+  straight from `## Changes` to `### Final result (...)` produces a Template
+  Compliance WARN (3/4 sections). Always add a top-level `-` bullet summary
+  first; subsections may follow. (Session PR #1873, 2026-05-03)
 
 - **Em-dash policy is sweep-style, not file-by-file.** Project doc style at
   `.agents/steering/documentation.md` lines 221-229 forbids em/en dashes.
