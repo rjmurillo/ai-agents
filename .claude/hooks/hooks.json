@@ -104,6 +104,11 @@
             "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/PreToolUse/invoke_markdownlint_guard.py\"",
             "timeout": 70,
             "statusMessage": "Checking markdownlint violations on changed .md files (BLOCKING)"
+          },
+          {
+            "type": "command",
+            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/PreToolUse/invoke_manifest_count_guard.py\"",
+            "statusMessage": "Checking marketplace count drift (BLOCKING)"
           }
         ]
       },
