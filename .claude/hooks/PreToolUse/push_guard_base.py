@@ -60,6 +60,10 @@ from hook_utilities.guards import skip_if_consumer_repo  # noqa: E402
 
 GIT_DIFF_TIMEOUT = 10
 
+# Cap stdin read so a malicious or buggy upstream cannot OOM the hook
+# (CWE-400). Real Claude Code tool_input commands are well below 1 MiB.
+MAX_STDIN_BYTES = 1_048_576
+
 
 def _match_glob(path: str, pattern: str) -> bool:
     """Match path against a glob pattern.
@@ -162,12 +166,16 @@ def _changed_files(cwd: str) -> list[str] | None:
 def _read_stdin_command() -> str | None:
     if sys.stdin.isatty():
         return None
-    raw = sys.stdin.read()
+    raw = sys.stdin.read(MAX_STDIN_BYTES + 1)
+    if len(raw) > MAX_STDIN_BYTES:
+        return None
     if not raw.strip():
         return None
     try:
         payload = json.loads(raw)
     except (json.JSONDecodeError, ValueError):
+        return None
+    if not isinstance(payload, dict):
         return None
     tool_input = payload.get("tool_input")
     if not isinstance(tool_input, dict):

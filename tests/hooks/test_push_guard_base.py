@@ -119,6 +119,40 @@ class TestStdinShapes:
         monkeypatch.setattr("sys.stdin", io.StringIO(payload))
         assert run_guard(_always_violates, ["*.md"], "test") == 0
 
+    def test_empty_command_string_returns_zero(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Empty string command is falsy and should short-circuit."""
+        payload = json.dumps({"tool_input": {"command": ""}})
+        monkeypatch.setattr("sys.stdin", io.StringIO(payload))
+        assert run_guard(_always_violates, ["*.md"], "test") == 0
+
+    def test_tool_input_missing_command_key_returns_zero(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """tool_input present as dict but no command key."""
+        payload = json.dumps({"tool_input": {"other": "value"}})
+        monkeypatch.setattr("sys.stdin", io.StringIO(payload))
+        assert run_guard(_always_violates, ["*.md"], "test") == 0
+
+    def test_json_list_payload_returns_zero(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """JSON top-level is a list, not a dict; must not raise AttributeError."""
+        monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps([1, 2, 3])))
+        assert run_guard(_always_violates, ["*.md"], "test") == 0
+
+    def test_oversized_stdin_returns_zero(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """CWE-400: stdin larger than the cap is rejected without OOM."""
+        # 2 MiB of valid-looking JSON whitespace prefix; cap is 1 MiB.
+        oversize = " " * (1_048_577) + json.dumps(
+            {"tool_input": {"command": "git push"}}
+        )
+        monkeypatch.setattr("sys.stdin", io.StringIO(oversize))
+        assert run_guard(_always_violates, ["*.md"], "test") == 0
+
 
 class TestGlobFiltering:
     """AC: no matching files returns 0 without invoking validator."""
@@ -257,6 +291,46 @@ class TestGitDiffFallback:
 
         assert "--diff-filter=AM" in seen["args"]
 
+    def test_subprocess_timeout_falls_back_then_fails_open(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        push_command: None,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """TimeoutExpired in primary diff falls through to fallback; both timing out fails open."""
+
+        def fake_run(args: list[str], **_kw: object) -> subprocess.CompletedProcess[str]:
+            raise subprocess.TimeoutExpired(cmd=args, timeout=10)
+
+        with patch("push_guard_base.subprocess.run", side_effect=fake_run), patch(
+            "push_guard_base.get_project_directory", return_value=str(tmp_path)
+        ):
+            rc = run_guard(_always_violates, ["*.md"], "test-guard")
+
+        assert rc == 0
+        assert "fail-open" in capsys.readouterr().err
+
+    def test_subprocess_oserror_falls_back_then_fails_open(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        push_command: None,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Missing git binary or OSError on both invocations exits 0 with stderr warning."""
+
+        def fake_run(args: list[str], **_kw: object) -> subprocess.CompletedProcess[str]:
+            raise FileNotFoundError("git: command not found")
+
+        with patch("push_guard_base.subprocess.run", side_effect=fake_run), patch(
+            "push_guard_base.get_project_directory", return_value=str(tmp_path)
+        ):
+            rc = run_guard(_always_violates, ["*.md"], "test-guard")
+
+        assert rc == 0
+        assert "fail-open" in capsys.readouterr().err
+
     def test_both_diffs_fail_returns_zero(
         self,
         monkeypatch: pytest.MonkeyPatch,
@@ -346,6 +420,19 @@ class TestMatchGlob:
             _match_glob("templates/agents/sub/y.md", "templates/agents/*.md")
             is False
         )
+
+    def test_multi_star_pattern_uses_fnmatch_fallback(self) -> None:
+        """Patterns with more than one * fall through to fnmatch.
+
+        fnmatch's `*` matches any sequence including `/`, so the result is
+        recursive cross-segment. This is the documented behavior of the
+        fallback path. Callers needing strict single-segment matching must
+        use exactly one `*` (the prefix+suffix path).
+        """
+        # Two stars: fnmatch matches whatever the shell glob would match.
+        assert _match_glob("a/x/b/y.md", "a/*/b/*.md") is True
+        # fnmatch does NOT anchor `*` to a path segment, so this also matches.
+        assert _match_glob("a/x/y/b/z.md", "a/*/b/*.md") is True
 
     def test_overlap_edge_case_no_match(self) -> None:
         """Prefix+suffix overlap must not yield false positives.
