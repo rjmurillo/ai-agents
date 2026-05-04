@@ -118,8 +118,15 @@ def _match_glob(path: str, pattern: str) -> bool:
         prefix, tail = pattern.split("/**/", 1)
         if not path.startswith(prefix + "/"):
             return False
-        basename = path.rsplit("/", 1)[-1]
-        return fnmatch.fnmatch(basename, tail)
+        suffix = path[len(prefix) + 1:]
+        if "/" not in tail:
+            basename = suffix.rsplit("/", 1)[-1]
+            return fnmatch.fnmatch(basename, tail)
+        for i in range(len(suffix)):
+            if i == 0 or suffix[i - 1] == "/":
+                if fnmatch.fnmatch(suffix[i:], tail):
+                    return True
+        return False
     star_count = pattern.count("*")
     if star_count != 1:
         return fnmatch.fnmatch(path, pattern)
