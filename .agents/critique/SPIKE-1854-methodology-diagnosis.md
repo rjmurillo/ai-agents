@@ -1,6 +1,6 @@
-# Spike #1854 — Methodology Diagnosis (Team Review)
+# Spike #1854: Methodology Diagnosis (Team Review)
 
-> **Status**: Historical evidence — preserved as the diagnostic record that
+> **Status**: Historical evidence, preserved as the diagnostic record that
 > invalidated the v1 spike's two committed verdicts (`keep-as-audit` and the
 > bot's flipped `scrap`). The methodology fix landed in commit `61f1b6b8`
 > and the v2 re-execution in commit `5f8fd96f`. ADR-058 §"v1 invalidation"
@@ -14,7 +14,7 @@
 
 ## Verdict (consensus across all four reviewers)
 
-**`BOTH WRONG — methodology rigged; re-run after fix.`**
+**`BOTH WRONG, methodology rigged; re-run after fix.`**
 
 The eval scored agent and baseline against a verdict-vocabulary contract (`IDENTIFY|OK|ESCALATE`) that **only the baseline was instructed to satisfy**. The agent's system prompt teaches a different vocabulary (`[PASS]/[FAIL]/REJECTED/DO NOT MERGE/[BLOCKED]`). The verdict scorer is anchored at start-of-response, so any response that doesn't begin with one of the three tokens fails the verdict assertion regardless of correctness.
 
@@ -26,10 +26,10 @@ Four agents reviewed the spike artifacts independently. All four reached the sam
 
 | Reviewer | Verdict | Headline |
 |---|---|---|
-| `analyst` | `methodology rigged — fix needed` | Manual vocabulary mapping puts agent recall at ~0.80, not 0.25 |
-| `critic` | `BOTH WRONG — methodology rigged; re-run after fix` | Regex fix unblocked latent baseline scores; agent never affected |
+| `analyst` | `methodology rigged, fix needed` | Manual vocabulary mapping puts agent recall at ~0.80, not 0.25 |
+| `critic` | `BOTH WRONG, methodology rigged; re-run after fix` | Regex fix unblocked latent baseline scores; agent never affected |
 | `independent-thinker` | most-plausible: vocabulary mismatch | Falsifier: append shared verdict instruction to both variants |
-| `security` | `COMPARISON ASYMMETRIC — 3 findings` | Three named asymmetries; F1 + F2 are BLOCKERs |
+| `security` | `COMPARISON ASYMMETRIC, 3 findings` | Three named asymmetries; F1 + F2 are BLOCKERs |
 
 ## Evidence
 
@@ -83,14 +83,14 @@ No shared output-shape instruction is appended to either variant's user message.
 |---|---|---|
 | F005 (OK) | `## Security Review: Token Verification & Minting\n\n**Scope**: …` | `OK\n\nThe code is sound for its stated purpose. …` |
 | F007 (OK) | `## Security Assessment: SQL Injection Risk in list_items\n\n**Finding**: …` | `**OK**\n\nThe sort_by interpolation is safe here because …` |
-| F008 (ESCALATE) | `# Security Architecture Review: Bearer Token Forwarding to Third-Party AI Provider\n\n**Reviewer**: Security Agent\n\n**Verdict**: REJECTED — Do not merge as-is\n\n…` | `**ESCALATE**\n\nForwarding authentication tokens outside your trust boundary is a significant security architecture change …` |
+| F008 (ESCALATE) | `# Security Architecture Review: Bearer Token Forwarding to Third-Party AI Provider\n\n**Reviewer**: Security Agent\n\n**Verdict**: REJECTED, Do not merge as-is\n\n…` | `**ESCALATE**\n\nForwarding authentication tokens outside your trust boundary is a significant security architecture change …` |
 | F010 (ESCALATE) | `# Security Review: Embeddable Widget Architecture\n\n**Verdict: REJECTED**\n\nIndividual approvals are not composable. …` | `**ESCALATE**\n\nThe three approved-individually items combine into a critical vulnerability chain …` |
 
 In every case the agent identifies the security posture correctly using its native vocabulary (`REJECTED` for ESCALATE-class issues, `[PASS]` for OK-class issues). In every case the verdict scorer rejects the agent because the response doesn't START with `IDENTIFY|OK|ESCALATE`.
 
 ## Why the 33pp swing happened
 
-Before the bot's fix, the verdict regex was approximately `^\s*(IDENTIFY|OK|ESCALATE)\b` — no markdown-bold support. Many baseline responses began with `**OK**` or `**ESCALATE**` (the model adds markdown emphasis even when not instructed to). Those failed extraction → baseline scored 0.
+Before the bot's fix, the verdict regex was approximately `^\s*(IDENTIFY|OK|ESCALATE)\b`, no markdown-bold support. Many baseline responses began with `**OK**` or `**ESCALATE**` (the model adds markdown emphasis even when not instructed to). Those failed extraction → baseline scored 0.
 
 After the bot's fix added `\*{0,2}` to wrap the optional bold markers, baseline responses with `**OK**` extraction worked → baseline scored 1.
 
@@ -121,7 +121,7 @@ This is a sanity bound, not a rigorous re-eval. A proper re-eval requires re-run
 
 ## The fix
 
-Append a shared output-shape instruction to **both** variants' user message (not the system prompt — keep both system prompts as they are so we measure what each system prompt elicits, but force both to ALSO produce the verdict token at the start of the response):
+Append a shared output-shape instruction to **both** variants' user message (not the system prompt, keep both system prompts as they are so we measure what each system prompt elicits, but force both to ALSO produce the verdict token at the start of the response):
 
 ```python
 # Appended to user message for both variants:

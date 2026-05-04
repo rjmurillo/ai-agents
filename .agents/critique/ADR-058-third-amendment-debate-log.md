@@ -41,7 +41,7 @@ The fix landed at commit `61f1b6b8`: a shared `OUTPUT_SHAPE_SUFFIX` is now appen
 
 **On the symmetry requirement**. The new `OUTPUT_SHAPE_SUFFIX` pattern is the correct fix and must be normative going forward. The principle is broader than this one fix: agent and baseline must receive **identical user messages** so that the only free variable is the system prompt content. The runner must enforce this in code (it now does, in `_build_prompt`), and the ADR must enforce this in writing.
 
-**On the v2 result**. The v2 numbers are honest but the run halted at AC-10 flakiness threshold (4/10 fixtures = 40% > 30%). This means the methodology cannot conclude `graduate-to-CI`, `keep-as-audit`, or `scrap` on this run. The honest verdict is `halt-due-to-flakiness` — a fourth outcome the original ADR did not enumerate but which is implicit in AC-10's halt rule. This must be documented as a first-class outcome in the decision criteria table.
+**On the v2 result**. The v2 numbers are honest but the run halted at AC-10 flakiness threshold (4/10 fixtures = 40% > 30%). This means the methodology cannot conclude `graduate-to-CI`, `keep-as-audit`, or `scrap` on this run. The honest verdict is `halt-due-to-flakiness`, a fourth outcome the original ADR did not enumerate but which is implicit in AC-10's halt rule. This must be documented as a first-class outcome in the decision criteria table.
 
 **On the directional signal**. The v2 non-flaky-subset shows agent 100.0% vs baseline 57.1% (+42.9pp). All-fixture shows 78.6% vs 40.5% (+38.1pp). This is consistent with the analyst's pre-rerun manual-mapping estimate (~0.80) and with the independent-thinker's falsifier (positive delta survives the symmetry fix). The v2 signal is large and points opposite to the bot's flipped scrap. But AC-10 halt is AC-10 halt; the signal is informative, not normative.
 
@@ -58,7 +58,7 @@ The fix landed at commit `61f1b6b8`: a shared `OUTPUT_SHAPE_SUFFIX` is now appen
 5. Update the cadence trigger subsection to reflect that the next trigger is variance investigation + corpus expansion, not the quarterly fallback.
 6. Add a third paragraph to "What this methodology measures" about the symmetry requirement; cite v1 as the canonical example of what to NOT do.
 7. Cross-reference `evals/_archive/security-spike-20260503T165136Z-84f918a9/` as preserved evidence.
-8. Preserve the second-amendment scope clarification (specialization vs form-factor) — that section is still correct and useful.
+8. Preserve the second-amendment scope clarification (specialization vs form-factor), that section is still correct and useful.
 9. Preserve the v1 numbers somewhere (in the v1 invalidation subsection, as a "this is what the rigged comparison produced" record).
 
 ### Critic Position

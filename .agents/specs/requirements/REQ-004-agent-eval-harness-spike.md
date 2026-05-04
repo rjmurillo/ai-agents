@@ -10,7 +10,7 @@ related:
   - DESIGN-004
 author: spec-agent
 created: 2026-05-02
-updated: 2026-05-02
+updated: 2026-05-04
 ---
 
 # REQ-004: Agent Eval Harness Spike
