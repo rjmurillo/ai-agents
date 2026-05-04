@@ -22,23 +22,21 @@ from pathlib import Path
 
 _plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
 if _plugin_root:
-    _root = Path(_plugin_root).resolve()
-    _hooks_dir = str(_root / "hooks" / "PreToolUse")
-    _lib_dir = str(_root / "lib")
-    _scripts_dir = str(_root / "build" / "scripts")
+    _resolved_root = Path(_plugin_root).resolve()
+    _hooks_dir = str(_resolved_root / "hooks" / "PreToolUse")
+    _lib_dir = str(_resolved_root / "lib")
 else:
     _cur = Path(__file__).resolve().parent
-    _root = None
+    _hooks_dir = None
+    _lib_dir = None
     while True:
         if (_cur / ".claude-plugin" / "plugin.json").is_file():
-            _root = _cur
+            _hooks_dir = str(_cur / "hooks" / "PreToolUse")
+            _lib_dir = str(_cur / "lib")
             break
         if _cur.parent == _cur:
             break
         _cur = _cur.parent
-    _hooks_dir = str(_root / "hooks" / "PreToolUse") if _root else None
-    _lib_dir = str(_root / "lib") if _root else None
-    _scripts_dir = str(_root / "build" / "scripts") if _root else None
 if _hooks_dir is None or not os.path.isdir(_hooks_dir):
     print(
         f"Plugin hooks directory not found: {_hooks_dir} "
@@ -57,19 +55,27 @@ if _hooks_dir not in sys.path:
     sys.path.insert(0, _hooks_dir)
 if _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
-if _scripts_dir and os.path.isdir(_scripts_dir) and _scripts_dir not in sys.path:
-    sys.path.insert(0, _scripts_dir)
 
 from push_guard_base import run_guard  # noqa: E402
 from hook_utilities import get_project_directory  # noqa: E402
 
 GUARD_NAME = "manifest-count"
+# Globs cover every source directory the marketplace counter walks per
+# templates/marketplace-counters.yaml. ** matches any directory depth so
+# nested hooks (e.g., .claude/hooks/PreToolUse/...) are detected too.
 GLOBS = [
-    "templates/agents/*.md",
-    ".claude/skills/*/SKILL.md",
-    ".claude/commands/*.md",
     ".claude-plugin/marketplace.json",
     ".github/plugin/marketplace.json",
+    "src/claude/*.md",
+    ".claude/agents/*.md",
+    ".claude/commands/*.md",
+    ".claude/hooks/*.py",
+    ".claude/hooks/**/*.py",
+    ".claude/skills/*/SKILL.md",
+    "src/copilot-cli/*.agent.md",
+    "src/copilot-cli/hooks/*.py",
+    "src/copilot-cli/hooks/**/*.py",
+    "src/copilot-cli/skills/*/SKILL.md",
 ]
 FIX_HINT = (
     "Run python3 build/scripts/validate_marketplace_counts.py --fix "
@@ -77,29 +83,52 @@ FIX_HINT = (
 )
 
 
-def _validate(_matching: list[str], _all_changed: list[str]) -> list[str]:
+def _import_validator(project_dir: Path):
+    """Import validate_known_marketplaces, adding build/scripts to sys.path if needed."""
     try:
         from validate_marketplace_counts import validate_known_marketplaces
+        return validate_known_marketplaces
+    except ImportError:
+        pass
+    scripts_dir = project_dir / "build" / "scripts"
+    if scripts_dir.is_dir() and str(scripts_dir) not in sys.path:
+        sys.path.insert(0, str(scripts_dir))
+    from validate_marketplace_counts import validate_known_marketplaces
+    return validate_known_marketplaces
+
+
+def _validate(_matching: list[str], _all_changed: list[str]) -> list[str]:
+    project_dir = Path(get_project_directory())
+    try:
+        validate_known_marketplaces = _import_validator(project_dir)
     except ImportError as exc:
         return [
             f"build/scripts/validate_marketplace_counts.py: import error - {exc}"
         ]
 
-    project_dir = Path(get_project_directory())
-    buf = io.StringIO()
-    with contextlib.redirect_stdout(buf):
+    out_buf = io.StringIO()
+    err_buf = io.StringIO()
+    with contextlib.redirect_stdout(out_buf), contextlib.redirect_stderr(err_buf):
         rc = validate_known_marketplaces(repo_root=project_dir)
 
-    captured = buf.getvalue().splitlines()
+    captured = out_buf.getvalue().splitlines()
+    err_lines = [line for line in err_buf.getvalue().splitlines() if line.strip()]
 
     if rc == 0:
         return []
 
     if rc == 2:
-        first = captured[0] if captured else "config error"
-        return [f"build/scripts/validate_marketplace_counts.py: config error - {first}"]
+        # Config errors land on stderr (validator's own pattern). Surface
+        # them in the violation list so the agent sees the real cause
+        # instead of a generic "config error" placeholder.
+        detail = " ; ".join(err_lines) if err_lines else (
+            captured[0] if captured else "config error"
+        )
+        return [f"build/scripts/validate_marketplace_counts.py: config error - {detail}"]
 
     violations = [line for line in captured if line.strip()]
+    if err_lines:
+        violations.extend(err_lines)
     violations.append(FIX_HINT)
     return violations
 

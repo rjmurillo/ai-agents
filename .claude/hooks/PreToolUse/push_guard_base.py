@@ -114,6 +114,12 @@ def _match_glob(path: str, pattern: str) -> bool:
     """
     if "/" not in pattern:
         return fnmatch.fnmatch(path, pattern)
+    if "/**/" in pattern:
+        prefix, tail = pattern.split("/**/", 1)
+        if not path.startswith(prefix + "/"):
+            return False
+        basename = path.rsplit("/", 1)[-1]
+        return fnmatch.fnmatch(basename, tail)
     star_count = pattern.count("*")
     if star_count != 1:
         return fnmatch.fnmatch(path, pattern)
