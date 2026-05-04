@@ -25,7 +25,7 @@
 
 ## Milestones
 
-### MS-1 — Scaffolding ready for offline use
+### MS-1: Scaffolding ready for offline use
 
 **Member sub-tasks**: T4-1 (scaffolding + scoring + plan runner + dry-run), T4-4 (corpus build, 3 commits)
 
@@ -37,9 +37,9 @@
 - `ScoringEngine`, `FixtureValidator`, `PlanRunner` unit tests pass; one test asserts `schemaVersion: 2` raises `SchemaVersionError`
 - No real API call made anywhere in the test suite (mocked at `AnthropicAPIAdapter` boundary)
 
-**Independence claim**: Ships as a standalone PR. The scaffolding, fixture schema, corpus, and dry-run CLI are useful without any live model call — corpus reviewers can audit fixtures, and the schema contract is locked.
+**Independence claim**: Ships as a standalone PR. The scaffolding, fixture schema, corpus, and dry-run CLI are useful without any live model call, corpus reviewers can audit fixtures, and the schema contract is locked.
 
-**Reversibility**: LOW cost. No run data written. New top-level `evals/` directory is easily deleted. No changes to existing `scripts/eval/` logic — only additions and one module-private edit to `_plan_runner.py`.
+**Reversibility**: LOW cost. No run data written. New top-level `evals/` directory is easily deleted. No changes to existing `scripts/eval/` logic, only additions and one module-private edit to `_plan_runner.py`.
 
 **Approximate share of total effort**: T4-1 (3h) + T4-4 (6h) ≈ **30%** of total.
 
@@ -47,7 +47,7 @@
 
 ---
 
-### MS-2 — Runner produces verifiable JSONL output
+### MS-2: Runner produces verifiable JSONL output
 
 **Member sub-tasks**: T4-2 (runner + retry + idempotency), T4-3 (reporting: recall, bootstrap CI, distribution, flakiness)
 
@@ -61,7 +61,7 @@
 - `ANTHROPIC_API_KEY` absent from all log lines (asserted in test)
 - Error rate > 10% triggers exit code 1 (tested with mocked failures)
 
-**Independence claim**: Ships as a PR layered on MS-1. Delivers a fully operational offline eval loop — anyone can re-run the spike and reproduce the same JSONL given the same prompt and fixture SHAs. The report renders a complete numeric picture before any human decision is made.
+**Independence claim**: Ships as a PR layered on MS-1. Delivers a fully operational offline eval loop, anyone can re-run the spike and reproduce the same JSONL given the same prompt and fixture SHAs. The report renders a complete numeric picture before any human decision is made.
 
 **Reversibility**: MEDIUM. Introduces live Anthropic API usage. Run directories are timestamped + UUID, so rollback is trivial. Runner code is additive; no existing file is broken. The `recommendation: null` choice keeps the report structurally valid until MS-3 finalizes the verdict.
 
@@ -71,7 +71,7 @@
 
 ---
 
-### MS-3 — Decision and methodology locked
+### MS-3: Decision and methodology locked
 
 **Member sub-tasks**: T4-5 (execute spike), T4-6 (write ADR + reserve number), T4-7 (decision)
 
@@ -89,7 +89,7 @@
 
 **Reversibility**: HIGH cost on `graduate-to-CI`. The ADR is effectively one-way once merged (supersession requires a follow-on ADR). Run data is immutable by design. The `scrap` path is documented and recoverable: archive `evals/security-spike/` AND the runner code in `scripts/eval/eval-agent-vs-baseline.py` plus the six new modules to `evals/_archive/security-spike-<RUN_ID>/scripts/`.
 
-**Approximate share of total effort**: T4-5 (3h) + T4-6 (6h) + T4-7 (3h) ≈ **30%** of total. T4-7 sized S (not XS) because the decision narrative — applying AC-5 criteria, citing evidence, defending to architect review — is the actual work.
+**Approximate share of total effort**: T4-5 (3h) + T4-6 (6h) + T4-7 (3h) ≈ **30%** of total. T4-7 sized S (not XS) because the decision narrative, applying AC-5 criteria, citing evidence, defending to architect review, is the actual work.
 
 **Parallel opportunities**: T4-6 ADR draft can begin while T4-5 is executing (~2 minutes of API calls), since the ADR structure is known. T4-7 is blocked on both T4-5 and T4-6 completion.
 
@@ -129,7 +129,7 @@ Sorted by `Likelihood × Impact` descending. P0 = blocks ship; P1 = high pain bu
 
 | # | Risk | Likelihood | Impact | Priority | Mitigation | Owner |
 |---|------|------------|--------|----------|------------|-------|
-| R1 | Agent-discriminating fixtures look discriminating but aren't — naive baseline passes them, producing a false null delta and a misleading verdict | HIGH | HIGH | **P0** | Add T4-4 pre-flight gate: run a single fixture through both variants live before committing the full corpus. Confirm baseline recall < 0.70 on the agent-discriminating subset. Write rationale into `fixtures/README.md` for each agent-discriminating fixture | T4-4 |
+| R1 | Agent-discriminating fixtures look discriminating but aren't, naive baseline passes them, producing a false null delta and a misleading verdict | HIGH | HIGH | **P0** | Add T4-4 pre-flight gate: run a single fixture through both variants live before committing the full corpus. Confirm baseline recall < 0.70 on the agent-discriminating subset. Write rationale into `fixtures/README.md` for each agent-discriminating fixture | T4-4 |
 | R2 | `aggregate_multi_run_scores` reuse contradiction propagates and the implementer averages binary recall as floats | MEDIUM | HIGH | **P0** | TASK-004 and DESIGN-004 now explicitly state "Do NOT reuse"; cross-reference table fixed; verified by reading `_eval_common.py:19-39`. Resolved at plan time | T4-3 |
 | R3 | Pricing constants missing from any module → AC-8 cost-line format check fails on T4-1 | HIGH | MEDIUM | **P1** | Pricing constants `MODEL_PRICING_RATES_USD_PER_1K_TOKENS` and `PRICING_RATE_AS_OF` are module-public in `_eval_common.py` (added in T4-1). Both `_plan_runner.py` and `_report_aggregator.py` import from this single owner. Single source of truth; no peer-import. Resolved at plan time. | T4-1 |
 | R4 | Flakiness false-positive at temperature=0 halts the spike at T4-5 with no report | MEDIUM | HIGH | **P1** | If `flakiness=true` on first run, T4-5 contingency: re-run N=5; if variance persists for the same fixture on ≥2 of 5 reps, mark that fixture `flaky=true` in JSON and exclude from delta with documented note. AC-10 allows fixture-level exclusion with documentation | T4-5 |
@@ -148,8 +148,8 @@ Sorted by `Likelihood × Impact` descending. P0 = blocks ship; P1 = high pain bu
 
 Two P0 risks remain at start-of-execution:
 
-1. **R1** (corpus quality) — must be resolved during T4-4 with the pilot gate
-2. **R2** (`aggregate_multi_run_scores`) — already mitigated at plan time via TASK-004 + DESIGN-004 fixes
+1. **R1** (corpus quality), must be resolved during T4-4 with the pilot gate
+2. **R2** (`aggregate_multi_run_scores`), already mitigated at plan time via TASK-004 + DESIGN-004 fixes
 
 ---
 
@@ -197,13 +197,13 @@ None. Plan is shippable with mitigations in place. P0 risk R1 (corpus quality) r
 
 ## Deferred Items (out of scope for this plan)
 
-- Multi-agent eval coverage (qa, analyst, etc.) — requires the methodology ADR (T4-6) to land first
-- CI gate for the spike runner — gated by T4-7 graduate-to-CI verdict
-- Cross-model variance study (Sonnet/Opus/Haiku matrix) — single-model spike only
-- Held-out corpus expansion to N≥30 — graduate-to-CI prerequisite per ADR cadence section
-- LLM-as-judge advice-quality eval as a gated signal — explicitly rejected; permitted only as advisory sidecar
-- Conflation with ADR-057 prompt-change validation — different question, no merge
-- Workaround eval per #1868 (skill 1M-context bug) — separate work item, but shares the eval pattern designed here
+- Multi-agent eval coverage (qa, analyst, etc.), requires the methodology ADR (T4-6) to land first
+- CI gate for the spike runner, gated by T4-7 graduate-to-CI verdict
+- Cross-model variance study (Sonnet/Opus/Haiku matrix), single-model spike only
+- Held-out corpus expansion to N≥30, graduate-to-CI prerequisite per ADR cadence section
+- LLM-as-judge advice-quality eval as a gated signal, explicitly rejected; permitted only as advisory sidecar
+- Conflation with ADR-057 prompt-change validation, different question, no merge
+- Workaround eval per #1868 (skill 1M-context bug), separate work item, but shares the eval pattern designed here
 
 ---
 
@@ -211,6 +211,6 @@ None. Plan is shippable with mitigations in place. P0 risk R1 (corpus quality) r
 
 - Issue: #1854 (`spike: prove the eval-harness shape with one agent + write the ADR`)
 - Spec PR: #1870 (draft, in review)
-- Cross-references ADR-057 (prompt-change before/after — different question)
+- Cross-references ADR-057 (prompt-change before/after, different question)
 - Surfaced workaround issue: #1868 (skill subprocess + 1M context bug)
 - Upstream: anthropics/claude-code#55694

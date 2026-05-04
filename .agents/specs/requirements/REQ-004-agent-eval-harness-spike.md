@@ -17,7 +17,7 @@ updated: 2026-05-02
 
 ## Context
 
-The project has no mechanism that proves a given agent's context recipe produces measurably better outputs than the same model with a generic prompt. This spike learns what shape an "agent works" eval takes for ONE agent (the `security` agent), then writes the ADR that describes how to scale the methodology — or whether to.
+The project has no mechanism that proves a given agent's context recipe produces measurably better outputs than the same model with a generic prompt. This spike learns what shape an "agent works" eval takes for ONE agent (the `security` agent), then writes the ADR that describes how to scale the methodology, or whether to.
 
 Three user stories frame the need:
 
@@ -29,11 +29,11 @@ Three user stories frame the need:
 
 ## Requirement Clusters
 
-### Cluster A: Spike Runner — Record, Reproduce, Report {#req-cluster-a}
+### Cluster A: Spike Runner: Record, Reproduce, Report {#req-cluster-a}
 
 Covers AC-1, AC-2, AC-3, AC-7, AC-8, AC-9, AC-10.
 
-#### AC-1 — Per-run record {#req-ac1}
+#### AC-1: Per-run record {#req-ac1}
 
 **Requirement Statement**
 
@@ -44,7 +44,7 @@ SO THAT every result is reproducible and reviewable.
 **Acceptance Criteria**
 
 - [ ] Each record written to `evals/security-spike/runs/<RUN_ID>/runs.jsonl`
-- [ ] Record contains: `fixture_id`, `variant` (agent|baseline), `run_index`, `model_id`, `prompt_sha`, `prompt_ref` (path to source — agent template path or literal `<baseline>`), `fixture_sha`, `raw_response`, `assertions[]` (each row carries the serialized `AssertionResult`: `kind`, `pattern` or `expected_value` (whichever is set on the input `Assertion`), `passed`, `extracted`), `latency_ms`, `tokens_in`, `tokens_out`, `outcome`, `error_category`, `attempts`
+- [ ] Record contains: `fixture_id`, `variant` (agent|baseline), `run_index`, `model_id`, `prompt_sha`, `prompt_ref` (path to source, agent template path or literal `<baseline>`), `fixture_sha`, `raw_response`, `assertions[]` (each row carries the serialized `AssertionResult`: `kind`, `pattern` or `expected_value` (whichever is set on the input `Assertion`), `passed`, `extracted`), `latency_ms`, `tokens_in`, `tokens_out`, `outcome`, `error_category`, `attempts`
 - [ ] `schemaVersion: 1` present on every record
 - [ ] Two variants always recorded: `agent` and `baseline`
 - [ ] Three run indices (0, 1, 2) produced per (fixture, variant) tuple
@@ -53,7 +53,7 @@ SO THAT every result is reproducible and reviewable.
 
 ---
 
-#### AC-2 — Markdown + JSON report {#req-ac2}
+#### AC-2: Markdown + JSON report {#req-ac2}
 
 **Requirement Statement**
 
@@ -76,7 +76,7 @@ SO THAT the spike's findings are inspectable and re-derivable.
 
 ---
 
-#### AC-3 — Partial-failure accounting {#req-ac3}
+#### AC-3: Partial-failure accounting {#req-ac3}
 
 **Requirement Statement**
 
@@ -95,7 +95,7 @@ SO THAT a transient outage does not silently change the headline number.
 
 ---
 
-#### AC-7 — Schema versioning {#req-ac7}
+#### AC-7: Schema versioning {#req-ac7}
 
 **Requirement Statement**
 
@@ -113,7 +113,7 @@ SO THAT future schema evolution does not silently corrupt historical data.
 
 ---
 
-#### AC-8 — Dry-run mode {#req-ac8}
+#### AC-8: Dry-run mode {#req-ac8}
 
 **Requirement Statement**
 
@@ -132,7 +132,7 @@ SO THAT cost surprises are avoided before commit.
 
 ---
 
-#### AC-9 — Idempotency guard {#req-ac9}
+#### AC-9: Idempotency guard {#req-ac9}
 
 **Requirement Statement**
 
@@ -151,7 +151,7 @@ SO THAT idempotency violations are detected loudly.
 
 ---
 
-#### AC-10 — Reproducibility / flakiness gate {#req-ac10}
+#### AC-10: Reproducibility / flakiness gate {#req-ac10}
 
 **Requirement Statement**
 
@@ -176,7 +176,7 @@ SO THAT the methodology produces a usable signal at all.
 
 Covers AC-4.
 
-#### AC-4 — Corpus integrity {#req-ac4}
+#### AC-4: Corpus integrity {#req-ac4}
 
 **Requirement Statement**
 
@@ -193,7 +193,7 @@ SO THAT the corpus stays clean.
 - [ ] Any fixture with `provenance` indicating real credentials, tokens, or third-party secrets is rejected at ingest with exit code 2
 - [ ] Validation error message names the offending fixture id and field
 - [ ] Validation runs before any API call (enforced by `--dry-run` flow too)
-- [ ] Empty fixtures directory (zero `.json` files) exits with code 2 and message `no fixtures found at <path>` — matches the "config" exit class per AGENTS.md
+- [ ] Empty fixtures directory (zero `.json` files) exits with code 2 and message `no fixtures found at <path>`, matches the "config" exit class per AGENTS.md
 
 **Dependencies**: Fixture schema (DESIGN-004 §Data Model)
 
@@ -203,7 +203,7 @@ SO THAT the corpus stays clean.
 
 Covers AC-5.
 
-#### AC-5 — Decision-anchored report {#req-ac5}
+#### AC-5: Decision-anchored report {#req-ac5}
 
 **Requirement Statement**
 
@@ -217,7 +217,7 @@ SO THAT the decision is anchored in measured behavior, not opinion.
 |---|---|---|
 | `graduate-to-CI` | recall delta > 0 AND 95% CI lower bound > 0 AND flakiness = false AND error count = 0 | A follow-up issue is opened in the project tracker for CI integration scoped to the security agent only; multi-agent rollout remains deferred. |
 | `keep-as-audit` | positive delta but CI spans zero, OR minor flakiness, OR error count > 0 but < 10% | Runner remains offline-only. A re-run is scheduled for the next Anthropic model bump or quarterly, whichever first. The ADR cadence section is the authoritative trigger. |
-| `scrap` | no meaningful delta (CI centered on zero or negative), OR methodology flaw discovered during spike | `evals/security-spike/` is moved to `evals/_archive/security-spike-<RUN_ID>/`; the ADR is marked `status: superseded` with a successor ADR documenting the methodology flaw and what would be tried instead. The decision is not face-saving — `scrap` is a real outcome and the spec treats it as such. |
+| `scrap` | no meaningful delta (CI centered on zero or negative), OR methodology flaw discovered during spike | `evals/security-spike/` is moved to `evals/_archive/security-spike-<RUN_ID>/`; the ADR is marked `status: superseded` with a successor ADR documenting the methodology flaw and what would be tried instead. The decision is not face-saving, `scrap` is a real outcome and the spec treats it as such. |
 
 **Decision owner**: the architect role, via Tier 3 architecture review. The decision MUST be ratified in PR review by an architect-tier reviewer before the report is merged.
 
@@ -239,7 +239,7 @@ The report MUST state the minimum detectable effect size given the fixture count
 **Acceptance Criteria**
 
 - [ ] Report states agent recall, baseline recall, signed delta, and 95% bootstrap CI bounds
-- [ ] Report MAY include an "Advice Quality (Advisory)" section using LLM-as-judge scoring on the agent's narrative response (mitigation specificity, STRIDE classification correctness, etc.). This section is **non-gated** — it informs the human reviewer but never determines the recommendation verdict. Section MUST be labeled `Advisory: not part of the gated signal.` if included. Deterministic recall remains the only metric that drives the decision criteria.
+- [ ] Report MAY include an "Advice Quality (Advisory)" section using LLM-as-judge scoring on the agent's narrative response (mitigation specificity, STRIDE classification correctness, etc.). This section is **non-gated**, it informs the human reviewer but never determines the recommendation verdict. Section MUST be labeled `Advisory: not part of the gated signal.` if included. Deterministic recall remains the only metric that drives the decision criteria.
 - [ ] Report states whether the delta is statistically significant (CI excludes zero)
 - [ ] Report states the minimum detectable effect size given fixture count
 - [ ] Report includes differential diagnosis when 95% CI includes zero (all four causes addressed)
@@ -256,7 +256,7 @@ The report MUST state the minimum detectable effect size given the fixture count
 
 Covers AC-6.
 
-#### AC-6 — ADR: eval discipline {#req-ac6}
+#### AC-6: ADR: eval discipline {#req-ac6}
 
 **Requirement Statement**
 
@@ -279,7 +279,7 @@ SO THAT future agent authors apply the same discipline without re-deriving it.
 - [ ] ADR includes "Baseline selection" subsection: baseline must NOT contain the task-specific vocabulary the agent specializes in; it must be deliberately naive
 - [ ] ADR includes a worked example of threshold calibration using the spike's actual numbers
 - [ ] ADR includes "CI cost projection" section: estimated cost per run at the project's PR cadence (e.g., (planned_calls × tokens × rate) × monthly PR count = monthly cost)
-- [ ] ADR includes "Decision owner and scrap consequences" subsection: names the role (architect, via Tier 3 architecture review) that owns the graduate/audit/scrap decision; defines what each decision means operationally — `graduate-to-CI` triggers CI integration follow-up issue; `keep-as-audit` leaves the runner as offline-only and schedules a re-run on next model bump; `scrap` archives `evals/security-spike/` (move to `evals/_archive/`) and marks this ADR `status: superseded` with a successor ADR explaining the methodology flaw discovered.
+- [ ] ADR includes "Decision owner and scrap consequences" subsection: names the role (architect, via Tier 3 architecture review) that owns the graduate/audit/scrap decision; defines what each decision means operationally, `graduate-to-CI` triggers CI integration follow-up issue; `keep-as-audit` leaves the runner as offline-only and schedules a re-run on next model bump; `scrap` archives `evals/security-spike/` (move to `evals/_archive/`) and marks this ADR `status: superseded` with a successor ADR explaining the methodology flaw discovered.
 - [ ] ADR acknowledges survivorship bias: security was chosen because it has the crispest deterministic signal; not all agents are like security
 - [ ] ADR addresses the "advice quality" gap explicitly: deterministic scoring measures detection recall, not advice quality. The spike report MAY include an LLM-as-judge sidecar for advice quality as advisory data only; the gated signal is deterministic recall.
 
@@ -293,11 +293,11 @@ The project ships specialized agent prompts but has no empirical evidence that s
 
 ## Dependencies
 
-- `scripts/eval/_anthropic_api.py` — reuse `load_api_key()` and retry logic
-- `scripts/eval/_eval_common.py` — reuse `EST_TOKENS_PER_CALL` only; `aggregate_multi_run_scores` is for LLM-as-judge dimensional averaging and is **not** reused (binary pass/fail recall has a different shape)
-- `tests/evals/security-scenarios.json` — bootstrap material for fixture corpus
-- ADR-057 — cross-reference; do not conflict
-- `.claude/rules/security.md` and `.agents/governance/SECURITY-REVIEW-PROTOCOL.md` — security constraints
+- `scripts/eval/_anthropic_api.py`, reuse `load_api_key()` and retry logic
+- `scripts/eval/_eval_common.py`, reuse `EST_TOKENS_PER_CALL` only; `aggregate_multi_run_scores` is for LLM-as-judge dimensional averaging and is **not** reused (binary pass/fail recall has a different shape)
+- `tests/evals/security-scenarios.json`, bootstrap material for fixture corpus
+- ADR-057, cross-reference; do not conflict
+- `.claude/rules/security.md` and `.agents/governance/SECURITY-REVIEW-PROTOCOL.md`, security constraints
 
 ## Out of Scope
 
