@@ -133,7 +133,7 @@
         "bash": "python3 -u \"./hooks/preToolUse/invoke_markdownlint_guard__Bash_git_push_0e93bf.py\"",
         "cwd": ".",
         "powershell": "py -3 -u \"./hooks/preToolUse/invoke_markdownlint_guard__Bash_git_push_0e93bf.py\"",
-        "timeoutSec": 70,
+        "timeoutSec": 90,
         "type": "command"
       },
       {
@@ -154,7 +154,7 @@
         "bash": "python3 -u \"./hooks/preToolUse/invoke_pr_description_guard__Bash_git_push_0e93bf.py\"",
         "cwd": ".",
         "powershell": "py -3 -u \"./hooks/preToolUse/invoke_pr_description_guard__Bash_git_push_0e93bf.py\"",
-        "timeoutSec": 70,
+        "timeoutSec": 90,
         "type": "command"
       },
       {

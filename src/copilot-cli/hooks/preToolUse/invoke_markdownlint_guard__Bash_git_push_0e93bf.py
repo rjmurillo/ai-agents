@@ -200,10 +200,26 @@ def _original_main(stdin_bytes):
     VERSION_TIMEOUT = 5
 
 
-    def _log_version() -> None:
+    def _resolve_invocation() -> list[str] | None:
+        """Pick the markdownlint invocation per ADR-043 / SESSION-PROTOCOL.
+
+        Direct binary on PATH wins (works on dev machines with global install).
+        Falls back to ``npx markdownlint-cli2`` (the documented invocation for
+        fresh checkouts where only Node and the project's package.json are
+        available). Returns None if neither tool is on PATH; the caller
+        fail-opens in that case.
+        """
+        if shutil.which(BINARY) is not None:
+            return [BINARY]
+        if shutil.which("npx") is not None:
+            return ["npx", BINARY]
+        return None
+
+
+    def _log_version(invocation: list[str]) -> None:
         try:
             proc = subprocess.run(
-                [BINARY, "--version"],
+                [*invocation, "--version"],
                 capture_output=True,
                 text=True,
                 timeout=VERSION_TIMEOUT,
@@ -212,7 +228,11 @@ def _original_main(stdin_bytes):
             )
             version = (proc.stdout or proc.stderr).strip().splitlines()
             first_line = version[0] if version else "(unknown)"
-            print(f"[{GUARD_NAME}] using {BINARY} {first_line}", file=sys.stderr)
+            runner = invocation[0]
+            print(
+                f"[{GUARD_NAME}] using {runner} {BINARY} {first_line}",
+                file=sys.stderr,
+            )
         except (subprocess.TimeoutExpired, OSError):
             print(
                 f"[{GUARD_NAME}] could not determine {BINARY} version",
@@ -221,15 +241,16 @@ def _original_main(stdin_bytes):
 
 
     def _validate(matching: list[str], _all_changed: list[str]) -> list[str]:
-        if shutil.which(BINARY) is None:
+        invocation = _resolve_invocation()
+        if invocation is None:
             print(
-                f"[{GUARD_NAME}] {BINARY} not found on PATH; "
+                f"[{GUARD_NAME}] neither {BINARY} nor npx found on PATH; "
                 f"allowing push (fail-open)",
                 file=sys.stderr,
             )
             return []
 
-        _log_version()
+        _log_version(invocation)
 
         project_dir = get_project_directory()
         try:
@@ -238,7 +259,7 @@ def _original_main(stdin_bytes):
             # report violations in files outside the changeset, which is
             # exactly the noise the pre-push gate is meant to avoid.
             proc = subprocess.run(
-                [BINARY, "--no-globs", *matching],
+                [*invocation, "--no-globs", *matching],
                 capture_output=True,
                 text=True,
                 timeout=SUBPROCESS_TIMEOUT,
