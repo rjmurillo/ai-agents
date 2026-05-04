@@ -173,7 +173,11 @@ def _changed_files(cwd: str) -> list[str] | None:
         - List of A/M paths (possibly empty) when the diff command succeeded.
         - None only when both the primary and the fallback commands failed.
     """
-    args = ["--name-only", "--diff-filter=AM"]
+    # ACMR includes Add/Copy/Modify/Rename so renamed files are still
+    # validated (their new path is on disk and should be checked).
+    # Excludes only Deleted and Type-change so validators do not see
+    # paths that vanished. See PR #1887 review round 2.
+    args = ["--name-only", "--diff-filter=ACMR"]
     rc, out = _run_git_diff(["git", "diff", *args, "@{push}..HEAD"], cwd=cwd)
     if rc == 0:
         return [line for line in out.splitlines() if line.strip()]
@@ -256,6 +260,12 @@ def run_guard(
     try:
         command = _read_stdin_command()
         if command is None:
+            return 0
+        # Defense in depth: even when the harness matcher is `Bash(git push*)`,
+        # confirm the command shape before doing any work. A misregistered
+        # matcher or a future change in matcher semantics should not turn this
+        # framework into a generic Bash interceptor.
+        if not command.lstrip().startswith("git push"):
             return 0
 
         project_dir = get_project_directory()

@@ -142,6 +142,46 @@ class TestStdinShapes:
         monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps([1, 2, 3])))
         assert run_guard(_always_violates, ["*.md"], "test") == 0
 
+    def test_non_git_push_command_returns_zero(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """Defense in depth: framework is push-specific even if matcher widens."""
+        payload = json.dumps({"tool_input": {"command": "git status"}})
+        monkeypatch.setattr("sys.stdin", io.StringIO(payload))
+        called = {"validator": False}
+
+        def validator(_m: list[str], _a: list[str]) -> list[str]:
+            called["validator"] = True
+            return ["should not run"]
+
+        with patch(
+            "push_guard_base.subprocess.run", return_value=_ok_diff("docs/a.md\n")
+        ), patch("push_guard_base.get_project_directory", return_value=str(tmp_path)):
+            rc = run_guard(validator, ["*.md"], "test")
+
+        assert rc == 0
+        assert called["validator"] is False
+
+    def test_git_push_with_leading_whitespace_runs(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """Leading whitespace in command is tolerated; lstrip handles it."""
+        payload = json.dumps({"tool_input": {"command": "   git push origin HEAD"}})
+        monkeypatch.setattr("sys.stdin", io.StringIO(payload))
+        called = {"validator": False}
+
+        def validator(_m: list[str], _a: list[str]) -> list[str]:
+            called["validator"] = True
+            return []
+
+        with patch(
+            "push_guard_base.subprocess.run", return_value=_ok_diff("docs/a.md\n")
+        ), patch("push_guard_base.get_project_directory", return_value=str(tmp_path)):
+            rc = run_guard(validator, ["*.md"], "test")
+
+        assert rc == 0
+        assert called["validator"] is True
+
     def test_oversized_stdin_returns_zero(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -285,13 +325,19 @@ class TestGitDiffFallback:
         assert rc == 0
         assert seen["refs"] == ["@{push}..HEAD"]
 
-    def test_diff_filter_excludes_deletions(
+    def test_diff_filter_includes_renames_excludes_deletions(
         self,
         monkeypatch: pytest.MonkeyPatch,
         push_command: None,
         tmp_path: Path,
     ) -> None:
-        """Diff command requests --diff-filter=AM; deleted files never reach validators."""
+        """Diff filter is ACMR: renamed files still validate; deletions skip.
+
+        AM alone excluded renames, which would let an agent rename a session
+        log or markdown file past the guard without revalidation. ACMR
+        keeps deletions excluded (no FileNotFoundError downstream) while
+        ensuring renames are surfaced. PR #1887 review round 2.
+        """
         seen: dict[str, list[str]] = {"args": []}
 
         def fake_run(args: list[str], **_kw: object) -> subprocess.CompletedProcess[str]:
@@ -303,7 +349,8 @@ class TestGitDiffFallback:
         ):
             run_guard(_no_violations, ["*.md"], "test")
 
-        assert "--diff-filter=AM" in seen["args"]
+        assert "--diff-filter=ACMR" in seen["args"]
+        assert "--diff-filter=AM" not in seen["args"]
 
     def test_subprocess_timeout_falls_back_then_fails_open(
         self,
