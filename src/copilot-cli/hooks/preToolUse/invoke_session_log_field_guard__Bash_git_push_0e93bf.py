@@ -149,10 +149,19 @@ def _original_main(stdin_bytes):
     import sys
     from pathlib import Path
 
+    def _find_hooks_dir(root: Path) -> str | None:
+        """Return hooks dir, trying both PreToolUse (Claude) and preToolUse (copilot-cli)."""
+        for variant in ("PreToolUse", "preToolUse"):
+            candidate = root / "hooks" / variant
+            if candidate.is_dir():
+                return str(candidate)
+        return None
+
+
     _plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
     if _plugin_root:
         _resolved_root = Path(_plugin_root).resolve()
-        _hooks_dir = str(_resolved_root / "hooks" / "PreToolUse")
+        _hooks_dir = _find_hooks_dir(_resolved_root)
         _lib_dir = str(_resolved_root / "lib")
     else:
         _cur = Path(__file__).resolve().parent
@@ -160,7 +169,7 @@ def _original_main(stdin_bytes):
         _lib_dir = None
         while True:
             if (_cur / ".claude-plugin" / "plugin.json").is_file():
-                _hooks_dir = str(_cur / "hooks" / "PreToolUse")
+                _hooks_dir = _find_hooks_dir(_cur)
                 _lib_dir = str(_cur / "lib")
                 break
             if _cur.parent == _cur:
