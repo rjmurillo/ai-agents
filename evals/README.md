@@ -16,6 +16,8 @@ This directory holds **production-runnable** eval material:
 
 `tests/evals/` holds **scenario JSON for prompt-behavioral evaluation per ADR-057** (before/after prompt-change). Those scenarios drive `scripts/eval/eval-prompt-change.py` and are not held-out for the agent-vs-baseline spike.
 
+ADR-057's prompt-change scenarios answer a different question than the agent-vs-baseline corpus: ADR-057 asks "did this prompt edit help or hurt?", while the agent-vs-baseline corpus asks "does this agent's specialization beat a generic baseline?".
+
 | Directory | Purpose | Driven by |
 |---|---|---|
 | `tests/evals/*-scenarios.json` | Prompt-change before/after (ADR-057) | `scripts/eval/eval-prompt-change.py` |
