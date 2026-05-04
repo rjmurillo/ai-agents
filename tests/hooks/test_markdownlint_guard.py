@@ -85,6 +85,29 @@ class TestCleanFiles:
         assert rc == 0
         assert "BLOCKED" not in capsys.readouterr().out
 
+    def test_invokes_with_no_globs_flag(self, push_command, tmp_path):
+        """--no-globs is required so markdownlint lints only the changed
+        files, not the repo's default **/*.md set. Pre-mortem mitigation:
+        unrelated pre-existing violations would otherwise block valid pushes.
+        """
+        captured_args: list[list[str]] = []
+
+        def lint(args):
+            captured_args.append(list(args))
+            if "--version" in args:
+                return _ok(stdout="0.21.0\n")
+            return _ok()
+
+        _run("docs/a.md\n", lint, tmp_path)
+
+        # Find the lint invocation (not --version) and assert --no-globs
+        lint_calls = [a for a in captured_args if "--version" not in a]
+        assert lint_calls, "Expected at least one markdownlint-cli2 invocation"
+        for call_args in lint_calls:
+            assert "--no-globs" in call_args, (
+                f"--no-globs missing from invocation: {call_args}"
+            )
+
 
 class TestViolations:
     def test_violation_blocks_with_structured_output(self, push_command, tmp_path, capsys):

@@ -111,13 +111,15 @@ class TestAllValid:
         rc = _run([rel], tmp_path)
         assert rc == 0
 
-    def test_no_markdown_lint_run_is_tolerated(self, push_command, tmp_path):
-        """A session with no markdown changes may omit markdownLintRun entirely."""
+    def test_missing_markdown_lint_run_blocks(self, push_command, tmp_path, capsys):
+        """Canonical validator requires markdownLintRun; absence is a violation."""
         log = _valid_log()
         del log["protocolCompliance"]
         rel = _write(tmp_path, "s.json", log)
         rc = _run([rel], tmp_path)
-        assert rc == 0
+        assert rc == 2
+        out = capsys.readouterr().out
+        assert "markdownLintRun missing" in out
 
 
 class TestEndingCommit:
@@ -138,6 +140,15 @@ class TestEndingCommit:
 
 
 class TestMarkdownLintComplete:
+    def test_markdown_lint_run_missing_blocks(self, push_command, tmp_path, capsys):
+        """markdownLintRun is required by scripts/validate_session_json.py."""
+        log = _valid_log()
+        del log["protocolCompliance"]["sessionEnd"]["markdownLintRun"]
+        rel = _write(tmp_path, "s.json", log)
+        rc = _run([rel], tmp_path)
+        assert rc == 2
+        assert "markdownLintRun missing" in capsys.readouterr().out
+
     def test_complete_false_blocks(self, push_command, tmp_path, capsys):
         log = _valid_log()
         log["protocolCompliance"]["sessionEnd"]["markdownLintRun"]["Complete"] = False
