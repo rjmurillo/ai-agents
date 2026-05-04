@@ -243,10 +243,10 @@ The report MUST state the minimum detectable effect size given the fixture count
 - [ ] Report states whether the delta is statistically significant (CI excludes zero)
 - [ ] Report states the minimum detectable effect size given fixture count
 - [ ] Report includes differential diagnosis when 95% CI includes zero (all four causes addressed)
-- [ ] Report includes one of three recommendation verdicts: `graduate-to-CI`, `keep-as-audit`, or `scrap`
+- [ ] Report includes one of four recommendation verdicts: `graduate-to-CI`, `keep-as-audit`, `scrap`, or `halt-due-to-flakiness` (the halt verdict is reserved for AC-10's flakiness gate)
 - [ ] Recommendation matches the decision criteria table above
 - [ ] Recommendation is supported by at least two pieces of cited evidence from the run data
-- [ ] `report.json` contains `recommendation` field. The field MAY be `null` on records produced by T4-5 (decision pending); T4-7 MUST overwrite with one of `"graduate-to-CI" | "keep-as-audit" | "scrap"`. Schema validators MUST accept null on T4-5 records and reject null on T4-7 records.
+- [ ] `report.json` contains `recommendation` field. The field MAY be `null` on records produced by T4-5 (decision pending); T4-7 MUST overwrite with one of `"graduate-to-CI" | "keep-as-audit" | "scrap" | "halt-due-to-flakiness"`. The halt verdict is set automatically by the runner when AC-10's flakiness gate trips and supersedes T4-7's manual decision. Schema validators MUST accept null on T4-5 records and reject null on T4-7 records.
 
 **Dependencies**: AC-2 report; bootstrap CI implementation (DESIGN-004 §Scoring)
 

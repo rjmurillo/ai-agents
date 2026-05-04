@@ -18,8 +18,11 @@ from _eval_common import (
 # prompt. Held in a tuple to make the structure obvious at the call site.
 VARIANTS: tuple[str, ...] = ("agent", "baseline")
 
-# Token estimation: roughly half input, half output. Refined when the live
-# run produces measured numbers; for the dry-run preview, midpoint is fine.
+# Token estimation: 70/30 input/output split. Reflects observed v1/v2 spike
+# traces (input ~ system prompt + user message; output ~ short verdict +
+# brief explanation, capped at 80 words by OUTPUT_SHAPE_SUFFIX). Refined
+# when the live run produces measured numbers; for the dry-run preview,
+# this heuristic is fine.
 _INPUT_TOKEN_FRACTION = 0.7
 _OUTPUT_TOKEN_FRACTION = 1.0 - _INPUT_TOKEN_FRACTION
 
