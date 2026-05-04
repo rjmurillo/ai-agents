@@ -5,20 +5,29 @@
 
 ## Constraints (HIGH confidence)
 
-- **Always invoke `.claude/skills/github/scripts/pr/*.py` via `uv run python`,
-  never bare `python3`.** Bare `python3` produces
-  `ModuleNotFoundError: No module named 'yaml'` because the github_core
-  package depends on PyYAML, which is in the project's `uv` venv. Concrete
-  failures observed: `get_pr_context.py`, `test_pr_merged.py`,
-  `get_pr_review_threads.py`, `get_unresolved_review_threads.py`,
-  `get_unaddressed_comments.py`, `get_pr_checks.py`, and
-  `add_pr_review_thread_reply.py` all fail this way. Fix: prepend
-  `uv run` to every invocation. (Session PR #1873, 2026-05-03)
+- **Run `.claude/skills/github/scripts/pr/*.py` with a Python interpreter
+  that has project deps available; `uv run python` is the simplest
+  guaranteed path.** Bare `python3` fails with
+  `ModuleNotFoundError: No module named 'yaml'` only when PyYAML is not
+  on the interpreter's `sys.path`; if a system Python already has the
+  project deps installed, bare `python3` works. The github_core package
+  imports `yaml` at module load. Concrete failures observed in this
+  session with the system `python3` (PyYAML absent) on:
+  `get_pr_context.py`, `test_pr_merged.py`, `get_pr_review_threads.py`,
+  `get_unresolved_review_threads.py`, `get_unaddressed_comments.py`,
+  `get_pr_checks.py`, and `add_pr_review_thread_reply.py`. Default to
+  `uv run python` to make the choice deterministic regardless of which
+  interpreter `python3` resolves to. (Session PR #1873, 2026-05-03)
 
-- **Raw `gh` is blocked by `invoke_skill_first_guard.py`.** Pre-tool-use
-  hook redirects to the skill scripts. This is the correct pattern — do
-  not work around the guard. (Session PR #1873, 2026-05-03; reinforces
-  AGENTS.md "Never use raw gh when skills exist")
+- **Raw `gh` may be blocked by `invoke_skill_first_guard.py` when a
+  mapped skill script exists for the operation.** The
+  `PreToolUse:Bash` guard examines the `gh` invocation, looks up the
+  matching skill script in its mapping, and rejects with a redirect to
+  that script. Operations without a mapped skill (for example `gh pr
+  edit --body-file <path>`) are not blocked. Default behavior: prefer
+  the skill script. Fall back to raw `gh` only when the guard does not
+  redirect. (Session PR #1873, 2026-05-03; reinforces AGENTS.md "Never
+  use raw gh when skills exist")
 
 ## Preferences (MED confidence)
 
@@ -39,17 +48,23 @@
 
 ## Edge Cases (MED confidence)
 
-- **`get_unaddressed_comments.py` prefixes its JSON output with a one-line
-  human-readable header (`PR #N: M comments needing action | NEW(M)`)
-  before the JSON document.** Strip the first line before passing to
-  `json.loads`, e.g. `tail -n +2 file.json` or split on first newline.
-  Otherwise `json.JSONDecodeError: Extra data: line 1 column 12 (char
-  11)`. (Session PR #1873, 2026-05-03)
+- **`get_unaddressed_comments.py` writes a human-readable summary to
+  stderr and JSON to stdout.** Streams are clean if you redirect them
+  separately. The header-mixed-with-JSON failure surfaces only when you
+  capture combined output via `2>&1` or `> file 2>&1`, where the stderr
+  header lands on the first line and breaks `json.loads`. Two options:
+  (1) write stdout-only: `script.py --pull-request N > out.json` (no
+  stderr capture); (2) if you must capture combined output, strip the
+  first line before `json.loads`, for example via `tail -n +2 file` or
+  splitting on the first newline. Failure mode if not handled:
+  `json.JSONDecodeError: Extra data: line 1 column 12 (char 11)`.
+  (Session PR #1873, 2026-05-03)
 
 - **`gh pr edit --body-file <path>` is the right path for replacing PR
   body content.** Skill scripts do not include a PR-edit wrapper; raw
-  `gh pr edit` is acceptable for this specific operation since no skill
-  exists to delegate to. (Session PR #1873, 2026-05-03)
+  `gh pr edit` is acceptable for this specific operation since
+  `invoke_skill_first_guard.py` does not redirect it (no mapped skill).
+  (Session PR #1873, 2026-05-03)
 
 ## Notes for Review (LOW confidence)
 

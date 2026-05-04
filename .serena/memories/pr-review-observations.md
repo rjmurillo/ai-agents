@@ -16,11 +16,12 @@
 
 - **Verify bot-flagged claims at byte level before fixing.** Copilot raised
   false positives in this session: an em-dash claim on a line with 0
-  em-dashes (verified with `python3 -c "data.count(b'\xe2\x80\x94')"`); a
-  `|| Metric |` table claim on rows that `cat -A` showed have a single `|`.
-  Adopt a verification step: `grep -P` for the unicode char or `cat -A` the
-  exact line before any cosmetic edit driven by a bot flag. (Session PR
-  #1873, 2026-05-03)
+  em-dashes; a `|| Metric |` table claim on rows that `cat -A` showed have
+  a single `|`. Verification one-liner that actually runs:
+  `python3 -c 'import sys; print(open(sys.argv[1], "rb").read().count(chr(0x2014).encode("utf-8")))' path/to/file.md`
+  for em-dashes (U+2014); swap `0x2014` for `0x2013` to count en-dashes.
+  Or `cat -A path/to/file.md` for table-rendering claims. Verify before
+  any cosmetic edit driven by a bot flag. (Session PR #1873, 2026-05-03)
 
 ## Preferences (MED confidence)
 
@@ -35,13 +36,14 @@
 - **Em-dash policy is sweep-style, not file-by-file.** Project doc style at
   `.agents/steering/documentation.md` lines 221-229 forbids em/en dashes.
   When this applies, run a single audit
-  (`grep -rln $'—' <dirs>` or a Python byte-count) and fix all matches
+  (`grep -rlP '\xe2\x80\x94' <dirs>` for em-dashes, `\xe2\x80\x93`
+  for en-dashes; or a Python byte-count) and fix all matches
   in one commit batch. Per-file flags from review bots (Copilot in
   particular) will arrive across multiple rounds otherwise. (Session PR
-  #1873, 2026-05-03 — fix landed across rounds 3-4)
+  #1873, 2026-05-03; fix landed across rounds 3-4)
 
-- **Adapter ↔ runner contracts must be coordinated.** When changing an
-  exception ↔ typed-result contract at one side of a boundary, audit every
+- **Adapter to runner contracts must be coordinated.** When changing an
+  exception-vs-typed-result contract at one side of a boundary, audit every
   catch site on the other side. Concrete instance: remote commit `0df0f324`
   changed `AnthropicAPIAdapter.call_model` to return
   `APICallResult(error_category="auth")` instead of raising `RuntimeError`,
@@ -60,7 +62,7 @@
 ## Edge Cases (MED confidence)
 
 - **Test count drift after pulling remote commits.** The remote /pr-review
-  routine added tests independently. Local count went 94 → 123 → 126 → 127
+  routine added tests independently. Local count went 94, 123, 126, 127
   across rounds. After `git fetch` + `git reset`, re-run pytest before
   asserting "no regressions." (Session PR #1873, 2026-05-03)
 
@@ -72,7 +74,7 @@
 
 ## Notes for Review (LOW confidence)
 
-- **Round-over-round comment count converged 19 → 5 → 8 → 7 → 1 across 5
+- **Round-over-round comment count converged 19, 5, 8, 7, 1 across 5
   rounds.** Convergence is the expected shape of /pr-review iteration on a
   large PR (51 files, 8K added lines). Roughly 5 rounds to clean for a PR
   of that size, mostly noise after round 3. (Session PR #1873, 2026-05-03)
