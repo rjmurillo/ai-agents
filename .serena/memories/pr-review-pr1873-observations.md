@@ -35,9 +35,10 @@
   lines 220-228) forbids em/en dashes. Run one audit and fix all matches
   in a single commit; otherwise per-file bot flags (Copilot in
   particular) arrive across multiple rounds. Audit one-liner (uses
-  ripgrep, the project's default search tool, which honors PCRE
-  natively and is portable across BSD and GNU systems unlike
-  `grep -P`):
+  ripgrep, the project's default search tool; its default Rust
+  regex engine supports Unicode escapes like `\x{2014}` and avoids
+  the `grep -P` portability gap on BSD systems. PCRE2 in `rg` is
+  opt-in via `-P` and not needed here):
 
   ```bash
   rg -l '\x{2014}' <dirs>   # em-dashes (U+2014)

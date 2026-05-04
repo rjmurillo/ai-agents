@@ -45,7 +45,7 @@
 
 - **`get_unaddressed_comments.py` writes a human-readable summary to
   stderr and JSON to stdout.** Capture stdout only, e.g.
-  `uv run python .claude/skills/github/scripts/pr/get_unaddressed_comments.py --pull-request 1883 > out.json`;
+  `uv run python .claude/skills/github/scripts/pr/get_unaddressed_comments.py --pull-request 1873 > out.json`;
   a `2>&1` combined capture prepends the stderr header to the JSON
   and trips `json.JSONDecodeError: Extra data: line 1 column 12 (char 11)`.
   (Session PR #1873, 2026-05-03)
