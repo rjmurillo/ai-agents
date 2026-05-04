@@ -207,7 +207,7 @@ class RunPersistence:
         removed and the new record is appended.
         """
         if record.schema_version != SCHEMA_VERSION:
-            raise DuplicateRunError(
+            raise SchemaVersionError(
                 f"unsupported schemaVersion={record.schema_version} "
                 f"(supported: {SCHEMA_VERSION})"
             )
