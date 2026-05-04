@@ -98,6 +98,12 @@
             "type": "command",
             "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/PreToolUse/invoke_retrospective_gate.py\"",
             "statusMessage": "Verifying retrospective evidence (ADR-033)"
+          },
+          {
+            "type": "command",
+            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/PreToolUse/invoke_markdownlint_guard.py\"",
+            "timeout": 70,
+            "statusMessage": "Checking markdownlint violations on changed .md files (BLOCKING)"
           }
         ]
       },
