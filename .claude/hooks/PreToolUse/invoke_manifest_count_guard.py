@@ -24,6 +24,7 @@ _plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
 if _plugin_root:
     _root = Path(_plugin_root).resolve()
     _hooks_dir = str(_root / "hooks" / "PreToolUse")
+    _lib_dir = str(_root / "lib")
     _scripts_dir = str(_root / "build" / "scripts")
 else:
     _cur = Path(__file__).resolve().parent
@@ -36,6 +37,7 @@ else:
             break
         _cur = _cur.parent
     _hooks_dir = str(_root / "hooks" / "PreToolUse") if _root else None
+    _lib_dir = str(_root / "lib") if _root else None
     _scripts_dir = str(_root / "build" / "scripts") if _root else None
 if _hooks_dir is None or not os.path.isdir(_hooks_dir):
     print(
@@ -44,8 +46,17 @@ if _hooks_dir is None or not os.path.isdir(_hooks_dir):
         file=sys.stderr,
     )
     sys.exit(2)
+if _lib_dir is None or not os.path.isdir(_lib_dir):
+    print(
+        f"Plugin lib directory not found: {_lib_dir} "
+        f"(CLAUDE_PLUGIN_ROOT={_plugin_root!r})",
+        file=sys.stderr,
+    )
+    sys.exit(2)
 if _hooks_dir not in sys.path:
     sys.path.insert(0, _hooks_dir)
+if _lib_dir not in sys.path:
+    sys.path.insert(0, _lib_dir)
 if _scripts_dir and os.path.isdir(_scripts_dir) and _scripts_dir not in sys.path:
     sys.path.insert(0, _scripts_dir)
 
