@@ -233,8 +233,12 @@ def _original_main(stdin_bytes):
 
         project_dir = get_project_directory()
         try:
+            # --no-globs: lint only the explicit file args. Without this flag
+            # markdownlint-cli2 walks the repo's default **/*.md set and may
+            # report violations in files outside the changeset, which is
+            # exactly the noise the pre-push gate is meant to avoid.
             proc = subprocess.run(
-                [BINARY, *matching],
+                [BINARY, "--no-globs", *matching],
                 capture_output=True,
                 text=True,
                 timeout=SUBPROCESS_TIMEOUT,

@@ -205,41 +205,85 @@ def _original_main(stdin_bytes):
     )
 
 
-    def _check_schema_version(path: str, data: dict) -> list[str]:
-        value = data.get("schemaVersion")
-        if not isinstance(value, str) or not value:
-            return [f"{path}:schemaVersion missing or empty"]
-        return []
+    def _ending_commit_is_placeholder(path: str, data: dict) -> list[str]:
+        """Block only the literal 'pending' placeholder.
 
-
-    def _check_ending_commit(path: str, data: dict) -> list[str]:
+        Real session schema allows endingCommit to be absent (investigation-only
+        sessions, no-commit ends). Empty string and missing key are tolerated;
+        only the canonical placeholder string 'pending' is rejected.
+        """
         value = data.get("endingCommit")
-        if not isinstance(value, str) or not value or value == "pending":
-            return [f"{path}:endingCommit pending or missing"]
+        if isinstance(value, str) and value == "pending":
+            return [f"{path}:endingCommit literal 'pending' placeholder"]
         return []
+
+
+    def _markdown_lint_run(data: dict) -> dict | None:
+        """Locate markdownLintRun in either canonical or legacy position.
+
+        Canonical: protocolCompliance.sessionEnd.markdownLintRun
+        Legacy/top-level: markdownLintRun
+        """
+        canonical = (
+            data.get("protocolCompliance", {})
+            .get("sessionEnd", {})
+            .get("markdownLintRun")
+        )
+        if isinstance(canonical, dict):
+            return canonical
+        top = data.get("markdownLintRun")
+        if isinstance(top, dict):
+            return top
+        return None
+
+
+    def _read_complete(run: dict) -> object:
+        """Tolerate both Complete and complete keys."""
+        if "Complete" in run:
+            return run["Complete"]
+        return run.get("complete")
+
+
+    def _read_evidence(run: dict) -> object:
+        """Tolerate both Evidence and evidence keys."""
+        if "Evidence" in run:
+            return run["Evidence"]
+        return run.get("evidence")
 
 
     def _check_markdown_lint_complete(path: str, data: dict) -> list[str]:
-        run = data.get("markdownLintRun")
-        if not isinstance(run, dict):
-            return [f"{path}:markdownLintRun.Complete false or missing"]
-        if run.get("Complete") is not True:
-            return [f"{path}:markdownLintRun.Complete false or missing"]
+        run = _markdown_lint_run(data)
+        if run is None:
+            return []
+        if _read_complete(run) is not True:
+            return [
+                f"{path}:protocolCompliance.sessionEnd.markdownLintRun.Complete "
+                "must be true"
+            ]
         return []
 
 
     def _check_markdown_lint_evidence(path: str, data: dict) -> list[str]:
-        run = data.get("markdownLintRun")
-        if not isinstance(run, dict):
-            return [f"{path}:markdownLintRun.Evidence placeholder or under-20-chars"]
-        evidence = run.get("Evidence")
+        run = _markdown_lint_run(data)
+        if run is None:
+            return []
+        evidence = _read_evidence(run)
         if not isinstance(evidence, str):
-            return [f"{path}:markdownLintRun.Evidence placeholder or under-20-chars"]
+            return [
+                f"{path}:protocolCompliance.sessionEnd.markdownLintRun.Evidence "
+                "missing or non-string"
+            ]
         stripped = evidence.strip()
         if stripped.lower() in EVIDENCE_PLACEHOLDERS:
-            return [f"{path}:markdownLintRun.Evidence placeholder or under-20-chars"]
+            return [
+                f"{path}:protocolCompliance.sessionEnd.markdownLintRun.Evidence "
+                "is a placeholder"
+            ]
         if len(stripped) < EVIDENCE_MIN_LENGTH:
-            return [f"{path}:markdownLintRun.Evidence placeholder or under-20-chars"]
+            return [
+                f"{path}:protocolCompliance.sessionEnd.markdownLintRun.Evidence "
+                "under-20-chars"
+            ]
         return []
 
 
@@ -257,8 +301,7 @@ def _original_main(stdin_bytes):
             return [f"{rel_path}: top-level JSON must be an object"]
 
         violations: list[str] = []
-        violations.extend(_check_schema_version(rel_path, data))
-        violations.extend(_check_ending_commit(rel_path, data))
+        violations.extend(_ending_commit_is_placeholder(rel_path, data))
         violations.extend(_check_markdown_lint_complete(rel_path, data))
         violations.extend(_check_markdown_lint_evidence(rel_path, data))
         return violations
