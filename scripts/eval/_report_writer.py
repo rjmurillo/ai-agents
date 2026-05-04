@@ -15,7 +15,6 @@ from __future__ import annotations
 import json
 import os
 import tempfile
-from dataclasses import asdict
 from pathlib import Path
 
 from _eval_agent_types import SCHEMA_VERSION

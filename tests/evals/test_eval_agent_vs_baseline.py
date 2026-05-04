@@ -933,6 +933,33 @@ class TestRunPersistenceMalformedJsonl:
         ):
             RunPersistence(run_dir, resume=True)
 
+    @pytest.mark.parametrize(
+        "field, bad_value, expected_msg",
+        [
+            ("fixture_id", 42, r"fixture_id'.*expected str.*got int"),
+            ("variant", 0, r"variant'.*expected str.*got int"),
+            ("run_index", "0", r"run_index'.*expected int.*got str"),
+            ("run_index", True, r"run_index'.*expected int.*got bool"),
+        ],
+    )
+    def test_identity_field_wrong_type_raises_malformed(
+        self, tmp_path, field, bad_value, expected_msg
+    ):
+        # Without type validation, a `"run_index": "0"` line would build
+        # a `(str, str, str)` key in `_seen`, while in-memory writes use
+        # `(str, str, int)`, letting an idempotency-equivalent triple
+        # slip past the duplicate guard.
+        payload = {
+            "fixture_id": "F001",
+            "variant": "agent",
+            "run_index": 0,
+            "schemaVersion": 1,
+        }
+        payload[field] = bad_value
+        run_dir = self._seed(tmp_path, json.dumps(payload) + "\n")
+        with pytest.raises(MalformedRunRecordError, match=expected_msg):
+            RunPersistence(run_dir, resume=True)
+
     def test_malformed_is_distinct_from_duplicate_run_error(self):
         # Sanity: the new exception is its own class, so a CLI catch on
         # `DuplicateRunError` cannot accidentally absorb on-disk

@@ -213,6 +213,30 @@ class RunPersistence:
                         f"{self._jsonl_path}: line {line_no} missing identity "
                         f"field(s): {', '.join(missing)}"
                     )
+                # Identity contract: in-memory keys are (str, str, int)
+                # per `_record_key`. A line that types `run_index` as a
+                # string (or `fixture_id` as a number) would create a
+                # tuple that does not match writes from this process and
+                # let an idempotency-equivalent triple slip past the
+                # `_seen` guard. Validate types here (after the presence
+                # check above so the missing-field error stays multi-field).
+                identity_types: tuple[tuple[str, type, object], ...] = (
+                    ("fixture_id", str, key[0]),
+                    ("variant", str, key[1]),
+                    ("run_index", int, key[2]),
+                )
+                for name, expected_type, value in identity_types:
+                    # `bool` is a subclass of `int`; reject it explicitly so
+                    # `"run_index": true` cannot pass the int check.
+                    if (
+                        not isinstance(value, expected_type)
+                        or (expected_type is int and isinstance(value, bool))
+                    ):
+                        raise MalformedRunRecordError(
+                            f"{self._jsonl_path}: line {line_no} identity field "
+                            f"{name!r} has wrong type (expected "
+                            f"{expected_type.__name__}, got {type(value).__name__})"
+                        )
                 self._seen.add(key)  # type: ignore[arg-type]
                 if payload.get("outcome") == "success":
                     self._completed.add(key)  # type: ignore[arg-type]

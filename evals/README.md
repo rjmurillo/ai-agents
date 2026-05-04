@@ -35,7 +35,7 @@ evals/
     reports/<RUN_ID>/  # REPORT.md + report.json per live run (T4-5/T4-7)
 ```
 
-`<RUN_ID>` is `<ISO8601-compact>-<uuid4>` per DESIGN-004 §Persistence Layout.
+`<RUN_ID>` is `<ISO8601-compact>Z-<uuid4-hex8>` per DESIGN-004 §Persistence Layout. The runner builds it as `now().strftime("%Y%m%dT%H%M%SZ") + "-" + uuid4().hex[:8]` (e.g., `20260503T182553Z-eaa08f8d`); operators MAY substitute their own value via `--run-id <value>` provided it matches the same shape.
 
 ## Cross-references
 
