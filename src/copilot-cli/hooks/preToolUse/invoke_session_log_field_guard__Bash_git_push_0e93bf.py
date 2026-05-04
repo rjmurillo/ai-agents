@@ -236,9 +236,9 @@ def _original_main(stdin_bytes):
         if not isinstance(evidence, str):
             return [f"{path}:markdownLintRun.Evidence placeholder or under-20-chars"]
         stripped = evidence.strip()
-        if len(stripped) < EVIDENCE_MIN_LENGTH:
-            return [f"{path}:markdownLintRun.Evidence placeholder or under-20-chars"]
         if stripped.lower() in EVIDENCE_PLACEHOLDERS:
+            return [f"{path}:markdownLintRun.Evidence placeholder or under-20-chars"]
+        if len(stripped) < EVIDENCE_MIN_LENGTH:
             return [f"{path}:markdownLintRun.Evidence placeholder or under-20-chars"]
         return []
 
