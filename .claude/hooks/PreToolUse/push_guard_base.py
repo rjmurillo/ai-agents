@@ -7,18 +7,40 @@ used in log lines and error codes. The framework owns:
 
 - bootstrap of ``hook_utilities``
 - consumer-repo skip
-- stdin parsing
+- stdin parsing (with size cap)
 - ``git diff --name-only @{push}..HEAD`` with ``origin/main...HEAD``
   fallback
 - glob filtering (single-segment via fnmatch, multi-segment via prefix
   plus suffix string check; see issue 1884 pre-mortem R-E)
 - structured stdout block on violation
+- a machine-parseable ``EVENT=<json>`` line on stderr for every block
 - fail-open on infrastructure errors
 
 Hook Type: PreToolUse
+
 Exit Codes (Claude Hook Semantics, exempt from ADR-035):
-    0 = Allow (no matching files, validator clean, or infra fallback)
-    2 = Block (validator returned violations)
+    0 = Allow (no matching files, validator clean, infra fallback)
+    2 = Block (validator returned violations OR bootstrap failed)
+
+Bootstrap failures (missing plugin lib) exit 2, NOT fail-open. A guard
+that cannot find its lib is a hard misconfiguration; allowing pushes
+silently in that state would defeat the framework. This is the only
+non-fail-open path.
+
+Naming convention:
+    The ``name`` argument becomes ``E_<NAME_UPPER>`` in the error code,
+    with hyphens converted to underscores. Examples:
+        name="markdown-lint"  -> E_MARKDOWN_LINT
+        name="manifest-count" -> E_MANIFEST_COUNT
+        name="session-log"    -> E_SESSION_LOG
+
+When NOT to use this framework:
+    - PostToolUse hooks (different hook semantics).
+    - Hooks that do not consult ``git diff`` (this framework is push-time
+      specific).
+    - Hooks that need different exit code semantics (e.g., must always
+      block on infrastructure errors). Those should compose differently
+      or stay self-contained.
 """
 
 from __future__ import annotations
@@ -186,16 +208,31 @@ def _read_stdin_command() -> str | None:
     return command
 
 
-def _emit_violations(name: str, violations: list[str]) -> None:
+def _emit_violations(
+    name: str,
+    violations: list[str],
+    matching_count: int,
+    all_changed_count: int,
+) -> None:
     code = name.upper().replace("-", "_")
     header = f"\n## BLOCKED [E_{code}]: {name}\n"
     body = "\n".join(violations)
     footer = "\nFix and re-push.\n"
     print(f"{header}\n{body}\n{footer}")
     print(
-        f"[E_{code}] {name} blocked: {len(violations)} violation(s)",
+        f"[E_{code}] {name} blocked: {len(violations)} violation(s) "
+        f"matched={matching_count}/{all_changed_count} files",
         file=sys.stderr,
     )
+    event = {
+        "guard": name,
+        "code": f"E_{code}",
+        "outcome": "block",
+        "violations": len(violations),
+        "matched_files": matching_count,
+        "changed_files": all_changed_count,
+    }
+    print(f"EVENT={json.dumps(event, separators=(',', ':'))}", file=sys.stderr)
 
 
 def run_guard(
@@ -239,11 +276,16 @@ def run_guard(
         if not violations:
             return 0
 
-        _emit_violations(name, violations)
+        _emit_violations(name, violations, len(matching), len(all_changed))
         return 2
 
     except Exception as exc:
-        print(f"{name} guard error: {type(exc).__name__}: {exc}", file=sys.stderr)
+        print(
+            f"{name} guard error: {type(exc).__name__}: {exc}; "
+            f"check validator implementation and changed-file paths. "
+            f"Allowing push (fail-open).",
+            file=sys.stderr,
+        )
         return 0
 
 

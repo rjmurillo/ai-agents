@@ -212,6 +212,20 @@ class TestValidatorViolations:
         assert "bad: line 2" in out.out
         assert "Fix and re-push." in out.out
         assert "[E_MARKDOWN_LINT] markdown-lint blocked: 2 violation(s)" in out.err
+        # Machine-parseable event line (Observability gate ask).
+        assert "EVENT=" in out.err
+        event_line = next(
+            line for line in out.err.splitlines() if line.startswith("EVENT=")
+        )
+        event = json.loads(event_line.removeprefix("EVENT="))
+        assert event == {
+            "guard": "markdown-lint",
+            "code": "E_MARKDOWN_LINT",
+            "outcome": "block",
+            "violations": 2,
+            "matched_files": 1,
+            "changed_files": 1,
+        }
 
 
 class TestGitDiffFallback:
