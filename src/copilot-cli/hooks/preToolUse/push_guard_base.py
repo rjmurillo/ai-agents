@@ -62,6 +62,7 @@ import os
 import subprocess
 import sys
 from collections.abc import Callable
+from datetime import datetime, timezone
 from pathlib import Path
 
 # Bootstrap: find lib directory via env var or manifest walk-up.
@@ -91,6 +92,11 @@ if _lib_dir not in sys.path:
 from hook_utilities import get_project_directory  # noqa: E402
 from hook_utilities.guards import skip_if_consumer_repo  # noqa: E402
 
+# Re-export for sibling guards that delegate plugin path resolution to
+# _bootstrap. They import via this module so the static path-resolution
+# tests (ADR-047) recognize the canonical pattern.
+__all__ = ["run_guard", "get_project_directory"]
+
 GIT_DIFF_TIMEOUT = 10
 
 # Cap stdin read so a malicious or buggy upstream cannot OOM the hook
@@ -98,10 +104,54 @@ GIT_DIFF_TIMEOUT = 10
 MAX_STDIN_BYTES = 1_048_576
 
 
+def _match_double_star(path: str, pattern: str) -> bool:
+    """Multi-segment pattern with ``/**/`` (e.g., ``.claude/hooks/**/*.py``).
+
+    Path must start with the prefix; the tail is then matched against any
+    contiguous sequence of segments in the remainder. Single-segment tails
+    use a fast basename match; multi-segment tails use a sliding-window
+    fnmatch over segment groups.
+    """
+    prefix, tail = pattern.split("/**/", 1)
+    if not path.startswith(prefix + "/"):
+        return False
+    suffix = path[len(prefix) + 1:]
+    if "/" not in tail:
+        basename = suffix.rsplit("/", 1)[-1]
+        return fnmatch.fnmatch(basename, tail)
+    tail_parts = tail.split("/")
+    suffix_parts = suffix.split("/")
+    if len(suffix_parts) < len(tail_parts):
+        return False
+    for start in range(len(suffix_parts) - len(tail_parts) + 1):
+        if all(
+            fnmatch.fnmatch(suffix_parts[start + j], tail_parts[j])
+            for j in range(len(tail_parts))
+        ):
+            return True
+    return False
+
+
+def _match_single_star_path(path: str, pattern: str) -> bool:
+    """Multi-segment pattern with exactly one ``*`` (e.g., ``.claude/skills/*/SKILL.md``).
+
+    The ``*`` is constrained to a single path segment via prefix+suffix
+    matching with an overlap guard. fnmatch alone would let ``*`` cross
+    path separators; pathlib.match has the same limitation.
+    """
+    prefix, suffix = pattern.split("*", 1)
+    if not path.startswith(prefix) or not path.endswith(suffix):
+        return False
+    if len(path) < len(prefix) + len(suffix):
+        return False
+    middle = path[len(prefix):len(path) - len(suffix)] if suffix else path[len(prefix):]
+    return "/" not in middle
+
+
 def _match_glob(path: str, pattern: str) -> bool:
     """Match path against a glob pattern.
 
-    Two distinct shapes by design:
+    Three shapes by design:
 
     1. Single-segment patterns (no /): use fnmatch. ``*.md`` matches any
        ``.md`` file at any depth (e.g., ``foo.md`` and ``a/b/c.md`` both
@@ -126,38 +176,10 @@ def _match_glob(path: str, pattern: str) -> bool:
     if "/" not in pattern:
         return fnmatch.fnmatch(path, pattern)
     if "/**/" in pattern:
-        prefix, tail = pattern.split("/**/", 1)
-        if not path.startswith(prefix + "/"):
-            return False
-        suffix = path[len(prefix) + 1:]
-        if "/" not in tail:
-            basename = suffix.rsplit("/", 1)[-1]
-            return fnmatch.fnmatch(basename, tail)
-        tail_parts = tail.split("/")
-        suffix_parts = suffix.split("/")
-        if len(suffix_parts) < len(tail_parts):
-            return False
-        for start in range(len(suffix_parts) - len(tail_parts) + 1):
-            if all(
-                fnmatch.fnmatch(suffix_parts[start + j], tail_parts[j])
-                for j in range(len(tail_parts))
-            ):
-                return True
-        return False
-    star_count = pattern.count("*")
-    if star_count != 1:
+        return _match_double_star(path, pattern)
+    if pattern.count("*") != 1:
         return fnmatch.fnmatch(path, pattern)
-    prefix, suffix = pattern.split("*", 1)
-    if not path.startswith(prefix):
-        return False
-    if not path.endswith(suffix):
-        return False
-    if len(path) < len(prefix) + len(suffix):
-        return False
-    middle = path[len(prefix):len(path) - len(suffix)] if suffix else path[len(prefix):]
-    if "/" in middle:
-        return False
-    return True
+    return _match_single_star_path(path, pattern)
 
 
 def _filter_by_globs(paths: list[str], globs: list[str]) -> list[str]:
