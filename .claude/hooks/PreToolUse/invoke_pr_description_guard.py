@@ -118,14 +118,21 @@ def _discover_pr_number(project_dir: str) -> int | None:
         )
         return None
     if proc.returncode != 0:
-        # Most common cause: no PR open for the current branch yet. Other
-        # cases (gh auth missing, network) also fall here. Either way the
-        # right answer is fail-open with a stderr breadcrumb.
-        stderr_first = (proc.stderr or "").strip().splitlines()
-        reason = stderr_first[0] if stderr_first else "non-zero exit"
+        # Distinguish the common failure modes so on-call can act on the
+        # real cause: no-PR-yet, auth, network, or generic.
+        stderr_text = (proc.stderr or "").strip()
+        stderr_lower = stderr_text.lower()
+        first_line = stderr_text.splitlines()[0] if stderr_text else "non-zero exit"
+        if "no pull requests found" in stderr_lower or "no commits between" in stderr_lower:
+            cause = "no PR found for current branch"
+        elif "authent" in stderr_lower or "not logged" in stderr_lower or "token" in stderr_lower:
+            cause = "gh auth failure"
+        elif "network" in stderr_lower or "could not resolve" in stderr_lower or "timed out" in stderr_lower:
+            cause = "gh network failure"
+        else:
+            cause = "gh pr view failed"
         print(
-            f"[{GUARD_NAME}] no PR found for current branch ({reason}); "
-            f"allowing push (fail-open)",
+            f"[{GUARD_NAME}] {cause} ({first_line}); allowing push (fail-open)",
             file=sys.stderr,
         )
         return None
@@ -247,7 +254,11 @@ def _validate(_matching: list[str], _all_changed: list[str]) -> list[str]:
 
 
 def main() -> int:
-    return run_guard(_validate, GLOBS, GUARD_NAME)
+    # include_deletions=True: pr_description.py compares the description
+    # against the FULL PR diff (including deletions), so this guard must
+    # fire on deletion-only pushes too. The validator never reads the
+    # listed paths.
+    return run_guard(_validate, GLOBS, GUARD_NAME, include_deletions=True)
 
 
 if __name__ == "__main__":

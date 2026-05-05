@@ -391,6 +391,56 @@ class TestGitDiffFallback:
         assert rc == 0
         assert seen["refs"] == ["@{push}..HEAD"]
 
+    def test_include_deletions_uses_acmrd_filter(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        push_command: None,
+        tmp_path: Path,
+    ) -> None:
+        """run_guard(include_deletions=True) requests ACMRD so deletions surface.
+
+        Required for guards (manifest-count, pr-description) that fire on
+        any change including deletion-only pushes.
+        """
+        seen: dict[str, list[str]] = {"args": []}
+
+        def fake_run(args: list[str], **_kw: object) -> subprocess.CompletedProcess[str]:
+            if "symbolic-ref" in args:
+                return _ok_diff("origin/main\n")
+            seen["args"] = args
+            return _ok_diff("docs/a.md\n")
+
+        with patch("push_guard_base.subprocess.run", side_effect=fake_run), patch(
+            "push_guard_base.get_project_directory", return_value=str(tmp_path)
+        ):
+            run_guard(_no_violations, ["*.md"], "test", include_deletions=True)
+
+        assert "--diff-filter=ACMRD" in seen["args"]
+        assert "--diff-filter=ACMR" not in seen["args"]
+
+    def test_default_excludes_deletions(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        push_command: None,
+        tmp_path: Path,
+    ) -> None:
+        """Default (include_deletions=False) keeps the ACMR filter."""
+        seen: dict[str, list[str]] = {"args": []}
+
+        def fake_run(args: list[str], **_kw: object) -> subprocess.CompletedProcess[str]:
+            if "symbolic-ref" in args:
+                return _ok_diff("origin/main\n")
+            seen["args"] = args
+            return _ok_diff("docs/a.md\n")
+
+        with patch("push_guard_base.subprocess.run", side_effect=fake_run), patch(
+            "push_guard_base.get_project_directory", return_value=str(tmp_path)
+        ):
+            run_guard(_no_violations, ["*.md"], "test")
+
+        assert "--diff-filter=ACMR" in seen["args"]
+        assert "--diff-filter=ACMRD" not in seen["args"]
+
     def test_diff_filter_includes_renames_excludes_deletions(
         self,
         monkeypatch: pytest.MonkeyPatch,

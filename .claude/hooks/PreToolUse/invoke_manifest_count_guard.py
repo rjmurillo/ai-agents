@@ -143,7 +143,11 @@ def _validate(_matching: list[str], _all_changed: list[str]) -> list[str]:
 
 
 def main() -> int:
-    return run_guard(_validate, GLOBS, GUARD_NAME)
+    # include_deletions=True: the marketplace counter walks the live
+    # filesystem regardless of which paths the diff lists, so we must
+    # fire on deletion-only pushes too. The validator never reads the
+    # listed paths, so deleted entries cannot trigger FileNotFoundError.
+    return run_guard(_validate, GLOBS, GUARD_NAME, include_deletions=True)
 
 
 if __name__ == "__main__":

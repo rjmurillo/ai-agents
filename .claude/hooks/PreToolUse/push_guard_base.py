@@ -180,14 +180,24 @@ def _run_git_diff(args: list[str], cwd: str) -> tuple[int, str]:
     return proc.returncode, proc.stdout
 
 
-def _changed_files(cwd: str, name: str = "guard") -> list[str] | None:
-    """Return added/copied/modified/renamed files committed but not yet pushed.
+def _changed_files(
+    cwd: str,
+    name: str = "guard",
+    include_deletions: bool = False,
+) -> list[str] | None:
+    """Return changed files committed but not yet pushed.
 
-    Uses ``git diff --name-only --diff-filter=ACMR @{push}..HEAD``. Renames
+    Default filter is ``--diff-filter=ACMR`` (Add/Copy/Modify/Rename). Renames
     are included so the post-rename path reaches the validator. Deletions and
     type-changes are excluded so validators that read the file do not hit
     FileNotFoundError. Falls back to ``origin/main...HEAD`` ONLY when the
     primary command fails (non-zero exit, e.g., no upstream tracking).
+
+    When ``include_deletions=True`` the filter becomes ``ACMRD`` so guards
+    that need to fire on deletion-only pushes (e.g., the marketplace count
+    guard, which derives counts from the filesystem regardless of the diff
+    contents) still see those changes. Such guards must not read the listed
+    paths, since deleted files are gone from the working tree.
 
     A successful primary command with empty output means "nothing committed
     beyond the remote tip" and is returned as an empty list. Falling back to
@@ -200,9 +210,11 @@ def _changed_files(cwd: str, name: str = "guard") -> list[str] | None:
     """
     # ACMR includes Add/Copy/Modify/Rename so renamed files are still
     # validated (their new path is on disk and should be checked).
-    # Excludes only Deleted and Type-change so validators do not see
-    # paths that vanished. See PR #1887 review round 2.
-    args = ["--name-only", "--diff-filter=ACMR"]
+    # Excludes Deleted and Type-change so validators do not see paths
+    # that vanished. include_deletions=True opts back into ACMRD for
+    # guards that fire on deletion-only pushes (PR #1887 review round 9).
+    diff_filter = "ACMRD" if include_deletions else "ACMR"
+    args = ["--name-only", f"--diff-filter={diff_filter}"]
     rc, out = _run_git_diff(["git", "diff", *args, "@{push}..HEAD"], cwd=cwd)
     if rc == 0:
         return [line for line in out.splitlines() if line.strip()]
@@ -296,6 +308,7 @@ def run_guard(
     validator_fn: Callable[[list[str], list[str]], list[str]],
     globs: list[str],
     name: str,
+    include_deletions: bool = False,
 ) -> int:
     """Execute a pre-push guard.
 
@@ -304,6 +317,10 @@ def run_guard(
             Returns a list of violation lines. Empty list means clean.
         globs: Path patterns that activate the validator.
         name: Short guard name. Becomes ``E_<NAME_UPPER>`` in error code.
+        include_deletions: When ``True``, the diff filter is ``ACMRD`` so
+            deletion-only pushes still surface to the validator. Default
+            ``False`` excludes deletions to protect validators that read
+            the listed paths.
 
     Returns:
         Exit code: 0 to allow, 2 to block.
@@ -322,7 +339,9 @@ def run_guard(
             return 0
 
         project_dir = get_project_directory()
-        all_changed = _changed_files(project_dir, name=name)
+        all_changed = _changed_files(
+            project_dir, name=name, include_deletions=include_deletions
+        )
         if all_changed is None:
             return 0
 
