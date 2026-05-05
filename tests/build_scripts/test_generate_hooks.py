@@ -1090,6 +1090,28 @@ def test_main_epilogue_emits_return_main_trailer() -> None:
     compile(out, "<generated>", "exec")
 
 
+def test_def_main_without_epilogue_keeps_return_zero() -> None:
+    """def main() WITHOUT 'if __name__ == "__main__": sys.exit(main())' keeps return 0.
+
+    The epilogue, not just the def, gates the return main() trailer.
+    Without this gate a script that defines main() but invokes it inline
+    at module level would get an unreachable return main() injected;
+    harmless but confusing. _has_main_function_and_epilogue uses logical
+    AND for exactly this reason; pin the contract.
+    """
+    body = (
+        "import sys\n"
+        "def main() -> int:\n"
+        "    return 2\n"
+        "main()\n"  # invoked inline, no epilogue
+    )
+    out = generate_hooks.inject_shim(body, "Edit")
+    wrapped = out.split("def _original_main")[1].split("_shim_dispatch")[0]
+    assert "    return 0\n" in wrapped
+    assert "    return main()" not in wrapped
+    compile(out, "<generated>", "exec")
+
+
 def test_no_main_epilogue_keeps_return_zero_trailer() -> None:
     """Scripts that fall off the bottom keep the existing ``return 0`` trailer.
 

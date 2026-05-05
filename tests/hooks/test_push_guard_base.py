@@ -611,6 +611,45 @@ class TestMatchGlob:
         # fnmatch does NOT anchor `*` to a path segment, so this also matches.
         assert _match_glob("a/x/y/b/z.md", "a/*/b/*.md") is True
 
+    def test_double_star_basename_only_match(self) -> None:
+        """Critical: /**/ with single-segment tail (e.g., .claude/hooks/**/*.py).
+
+        This is what M3 uses in production via GLOBS. Without coverage,
+        a bug here silently misses or incorrectly matches files under
+        nested hook directories.
+        """
+        assert (
+            _match_glob(".claude/hooks/PreToolUse/foo.py", ".claude/hooks/**/*.py")
+            is True
+        )
+
+    def test_double_star_basename_deeply_nested_match(self) -> None:
+        assert (
+            _match_glob(
+                ".claude/hooks/PreToolUse/sub/foo.py", ".claude/hooks/**/*.py"
+            )
+            is True
+        )
+
+    def test_double_star_prefix_mismatch_no_match(self) -> None:
+        assert (
+            _match_glob("other/PreToolUse/foo.py", ".claude/hooks/**/*.py")
+            is False
+        )
+
+    def test_double_star_extension_mismatch_no_match(self) -> None:
+        assert (
+            _match_glob(".claude/hooks/PreToolUse/foo.md", ".claude/hooks/**/*.py")
+            is False
+        )
+
+    def test_double_star_multi_part_tail_match(self) -> None:
+        """/**/ with multi-segment tail (e.g., a/**/b/c.py) uses sliding match."""
+        assert _match_glob("a/x/y/b/c.py", "a/**/b/c.py") is True
+
+    def test_double_star_multi_part_tail_no_match(self) -> None:
+        assert _match_glob("a/x/y/d/c.py", "a/**/b/c.py") is False
+
     def test_overlap_edge_case_no_match(self) -> None:
         """Prefix+suffix overlap must not yield false positives.
 
