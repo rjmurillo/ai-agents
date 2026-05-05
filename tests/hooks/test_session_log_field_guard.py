@@ -7,7 +7,8 @@ field, and endingCommit may be absent for investigation-only sessions.
 The guard validates:
 - endingCommit is not the literal placeholder string "pending" (when present)
 - markdownLintRun.Complete is true (when markdownLintRun is present)
-- markdownLintRun.Evidence is non-placeholder, >= 20 chars (when present)
+- markdownLintRun.Evidence is non-placeholder (when present); aligned with
+  scripts/validate_session_json.py CONTRADICTION_PATTERNS (no length floor)
 """
 
 from __future__ import annotations
@@ -181,13 +182,22 @@ class TestMarkdownLintEvidence:
         assert rc == 2
         assert "Evidence" in capsys.readouterr().out
 
-    def test_evidence_short_blocks(self, push_command, tmp_path, capsys):
+    def test_evidence_short_non_placeholder_allows(self, push_command, tmp_path, capsys):
+        """Short but non-placeholder evidence must NOT block.
+
+        scripts/validate_session_json.py only rejects evidence that matches
+        a contradiction pattern (placeholders like 'TODO', 'TBD', 'pending');
+        it does not enforce a minimum length. Real session logs include
+        short-but-valid evidence such as '0 errors'
+        (.agents/sessions/2026-01-09-session-385.json). The pre-push guard
+        must accept what CI accepts, otherwise it creates a false local
+        block that the canonical validator would not raise.
+        """
         log = _valid_log()
-        log["protocolCompliance"]["sessionEnd"]["markdownLintRun"]["Evidence"] = "short"
+        log["protocolCompliance"]["sessionEnd"]["markdownLintRun"]["Evidence"] = "0 errors"
         rel = _write(tmp_path, "s.json", log)
         rc = _run([rel], tmp_path)
-        assert rc == 2
-        assert "Evidence" in capsys.readouterr().out
+        assert rc == 0
 
     def test_evidence_dot_blocks(self, push_command, tmp_path, capsys):
         log = _valid_log()

@@ -42,7 +42,13 @@ from hook_utilities import get_project_directory  # noqa: E402
 
 GUARD_NAME = "session-log-field"
 GLOBS = [".agents/sessions/*.json"]
-EVIDENCE_MIN_LENGTH = 20
+# Aligned with scripts/validate_session_json.py CONTRADICTION_PATTERNS:
+# the canonical validator only rejects evidence that contradicts a
+# "complete: true" claim (placeholders like "TODO", "TBD", "pending",
+# "N/A", "skipped", "deferred"). It does NOT enforce a minimum length;
+# real session logs include short-but-valid evidence such as "0 errors".
+# This guard mirrors that contract: empty or placeholder strings block,
+# any other non-empty string allows.
 EVIDENCE_PLACEHOLDERS = frozenset(
     {"", "pending", "tbd", "n/a", "none", "done", "."}
 )
@@ -139,11 +145,6 @@ def _check_markdown_lint_evidence(path: str, data: dict) -> list[str]:
         return [
             f"{path}:protocolCompliance.sessionEnd.markdownLintRun.Evidence "
             "is a placeholder"
-        ]
-    if len(stripped) < EVIDENCE_MIN_LENGTH:
-        return [
-            f"{path}:protocolCompliance.sessionEnd.markdownLintRun.Evidence "
-            "under-20-chars"
         ]
     return []
 
