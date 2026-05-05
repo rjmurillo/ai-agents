@@ -348,6 +348,6 @@ def _original_main(stdin_bytes):
 
     if __name__ == "__main__":
         sys.exit(main())
-    return 0
+    return main()
 
 _shim_dispatch()
