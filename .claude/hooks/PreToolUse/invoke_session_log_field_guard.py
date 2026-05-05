@@ -30,6 +30,7 @@ Exit Codes (Claude Hook Semantics, exempt from ADR-035):
 from __future__ import annotations
 
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -49,8 +50,10 @@ GLOBS = [".agents/sessions/*.json"]
 # real session logs include short-but-valid evidence such as "0 errors".
 # This guard mirrors that contract: empty or placeholder strings block,
 # any other non-empty string allows.
-EVIDENCE_PLACEHOLDERS = frozenset(
-    {"", "pending", "tbd", "n/a", "not available", "skipped", "deferred", "will validate", "will run", "todo"}
+# Uses regex word-boundary matching (same as canonical validator) so that
+# evidence like "TODO: check output" is correctly rejected.
+CONTRADICTION_PATTERNS = re.compile(
+    r"(?i)\b(not available|skipped|N/A|deferred|will validate|will run|TODO|pending|TBD)\b"
 )
 
 
@@ -141,7 +144,7 @@ def _check_markdown_lint_evidence(path: str, data: dict) -> list[str]:
             "missing or non-string"
         ]
     stripped = evidence.strip()
-    if stripped.lower() in EVIDENCE_PLACEHOLDERS:
+    if not stripped or CONTRADICTION_PATTERNS.search(stripped):
         return [
             f"{path}:protocolCompliance.sessionEnd.markdownLintRun.Evidence "
             "is a placeholder"
