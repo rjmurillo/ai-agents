@@ -62,7 +62,6 @@ import os
 import subprocess
 import sys
 from collections.abc import Callable
-from datetime import datetime, timezone
 from pathlib import Path
 
 # Bootstrap: find lib directory via env var or manifest walk-up.
