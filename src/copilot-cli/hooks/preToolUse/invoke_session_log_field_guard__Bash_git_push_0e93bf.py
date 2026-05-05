@@ -156,54 +156,12 @@ def _original_main(stdin_bytes):
 
 
     import json
-    import os
     import sys
     from pathlib import Path
 
-    def _find_hooks_dir(root: Path) -> str | None:
-        """Return hooks dir, trying both PreToolUse (Claude) and preToolUse (copilot-cli)."""
-        for variant in ("PreToolUse", "preToolUse"):
-            candidate = root / "hooks" / variant
-            if candidate.is_dir():
-                return str(candidate)
-        return None
+    from _bootstrap import ensure_plugin_paths
 
-
-    _plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
-    if _plugin_root:
-        _resolved_root = Path(_plugin_root).resolve()
-        _hooks_dir = _find_hooks_dir(_resolved_root)
-        _lib_dir = str(_resolved_root / "lib")
-    else:
-        _cur = Path(__file__).resolve().parent
-        _hooks_dir = None
-        _lib_dir = None
-        while True:
-            if (_cur / ".claude-plugin" / "plugin.json").is_file():
-                _hooks_dir = _find_hooks_dir(_cur)
-                _lib_dir = str(_cur / "lib")
-                break
-            if _cur.parent == _cur:
-                break
-            _cur = _cur.parent
-    if _hooks_dir is None or not os.path.isdir(_hooks_dir):
-        print(
-            f"Plugin hooks directory not found: {_hooks_dir} "
-            f"(CLAUDE_PLUGIN_ROOT={_plugin_root!r})",
-            file=sys.stderr,
-        )
-        sys.exit(2)
-    if _lib_dir is None or not os.path.isdir(_lib_dir):
-        print(
-            f"Plugin lib directory not found: {_lib_dir} "
-            f"(CLAUDE_PLUGIN_ROOT={_plugin_root!r})",
-            file=sys.stderr,
-        )
-        sys.exit(2)
-    if _hooks_dir not in sys.path:
-        sys.path.insert(0, _hooks_dir)
-    if _lib_dir not in sys.path:
-        sys.path.insert(0, _lib_dir)
+    ensure_plugin_paths()
 
     from push_guard_base import run_guard  # noqa: E402
     from hook_utilities import get_project_directory  # noqa: E402
