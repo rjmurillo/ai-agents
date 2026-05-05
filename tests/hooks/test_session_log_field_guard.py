@@ -199,9 +199,15 @@ class TestMarkdownLintEvidence:
         rc = _run([rel], tmp_path)
         assert rc == 0
 
-    def test_evidence_dot_blocks(self, push_command, tmp_path, capsys):
+    def test_evidence_canonical_placeholder_blocks(self, push_command, tmp_path, capsys):
+        """Each value in EVIDENCE_PLACEHOLDERS must block.
+
+        After 7c44aea9 the set mirrors scripts/validate_session_json.py
+        CONTRADICTION_PATTERNS exactly. Sample one of the patterns the
+        canonical regex also catches.
+        """
         log = _valid_log()
-        log["protocolCompliance"]["sessionEnd"]["markdownLintRun"]["Evidence"] = "."
+        log["protocolCompliance"]["sessionEnd"]["markdownLintRun"]["Evidence"] = "todo"
         rel = _write(tmp_path, "s.json", log)
         rc = _run([rel], tmp_path)
         assert rc == 2
