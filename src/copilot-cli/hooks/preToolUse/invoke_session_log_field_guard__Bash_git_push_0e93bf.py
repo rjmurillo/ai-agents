@@ -176,7 +176,7 @@ def _original_main(stdin_bytes):
     # This guard mirrors that contract: empty or placeholder strings block,
     # any other non-empty string allows.
     EVIDENCE_PLACEHOLDERS = frozenset(
-        {"", "pending", "tbd", "n/a", "none", "done", "."}
+        {"", "pending", "tbd", "n/a", "not available", "skipped", "deferred", "will validate", "will run", "todo"}
     )
 
 
