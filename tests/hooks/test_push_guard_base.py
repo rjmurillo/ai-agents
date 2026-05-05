@@ -526,6 +526,68 @@ class TestGitDiffFallback:
 class TestFailOpen:
     """AC: any unhandled exception in body returns 0."""
 
+    def test_validator_exception_emits_fail_open_event(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        push_command: None,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Validator exception path emits structured EVENT for telemetry.
+
+        Without this, a hostile or buggy validator silently allows every
+        push and the only signal is human-prose stderr that no telemetry
+        pipeline parses. Gate 6 critical finding from /test round 11.
+        """
+        def boom(_m: list[str], _a: list[str]) -> list[str]:
+            raise RuntimeError("validator crashed in test")
+
+        with patch(
+            "push_guard_base.subprocess.run",
+            return_value=_ok_diff("docs/a.md\n"),
+        ), patch("push_guard_base.get_project_directory", return_value=str(tmp_path)):
+            rc = run_guard(boom, ["*.md"], "test-guard")
+
+        assert rc == 0
+        err_lines = capsys.readouterr().err.splitlines()
+        event_lines = [line for line in err_lines if line.startswith("EVENT=")]
+        assert len(event_lines) == 1, f"Expected one EVENT line, got: {event_lines}"
+        event = json.loads(event_lines[0].removeprefix("EVENT="))
+        assert event["guard"] == "test-guard"
+        assert event["code"] == "E_TEST_GUARD"
+        assert event["outcome"] == "fail_open"
+        assert event["reason"] == "exception"
+        assert "RuntimeError" in event["detail"]
+
+    def test_diff_failure_emits_fail_open_event(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        push_command: None,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Both git diff refs failing emits a structured fail-open EVENT.
+
+        A repo state where neither @{push}..HEAD nor the detected default
+        base resolves should not silently bypass every guard.
+        """
+        def fake_run(args: list[str], **_kw: object) -> subprocess.CompletedProcess[str]:
+            return _bad_diff()
+
+        with patch("push_guard_base.subprocess.run", side_effect=fake_run), patch(
+            "push_guard_base.get_project_directory", return_value=str(tmp_path)
+        ):
+            rc = run_guard(_always_violates, ["*.md"], "diff-test")
+
+        assert rc == 0
+        err_lines = capsys.readouterr().err.splitlines()
+        event_lines = [line for line in err_lines if line.startswith("EVENT=")]
+        assert len(event_lines) == 1
+        event = json.loads(event_lines[0].removeprefix("EVENT="))
+        assert event["outcome"] == "fail_open"
+        assert event["reason"] == "diff_failed"
+        assert event["guard"] == "diff-test"
+
     def test_validator_exception_fails_open(
         self,
         monkeypatch: pytest.MonkeyPatch,

@@ -41,6 +41,17 @@ When NOT to use this framework:
     - Hooks that need different exit code semantics (e.g., must always
       block on infrastructure errors). Those should compose differently
       or stay self-contained.
+
+Operations and telemetry:
+    Every block emits ``EVENT={...}`` to stderr with a fixed schema
+    (``guard``, ``code``, ``outcome="block"``, ``violations``,
+    ``matched_files``, ``changed_files``). Every fail-open path also emits
+    ``EVENT={...}`` with ``outcome="fail_open"`` plus a ``reason`` and a
+    free-form ``detail``. A telemetry pipeline that greps for ``^EVENT=``
+    sees both classes of events; ratios of fail-opens to blocks are the
+    primary signal that a guard is degraded. See PR #1887 and issue #1884
+    for the behavior contract; a dedicated runbook is tracked as a
+    follow-up.
 """
 
 from __future__ import annotations
@@ -232,6 +243,7 @@ def _changed_files(
         f"fallback={fallback_ref}...HEAD: {fallback_reason}",
         file=sys.stderr,
     )
+    _emit_fail_open(name, "diff_failed", f"primary: {primary_reason}; fallback: {fallback_reason}")
     return None
 
 
@@ -275,6 +287,23 @@ def _read_stdin_command() -> str | None:
     if not isinstance(command, str) or not command:
         return None
     return command
+
+
+def _emit_fail_open(name: str, reason: str, detail: str) -> None:
+    """Emit a structured EVENT line when the framework allows a push without
+    running (or completing) the validator. Pairs with the block-time EVENT
+    so a telemetry pipeline can count fail-opens per guard per day; without
+    this signal a hostile or buggy validator could silently allow every push.
+    """
+    code = name.upper().replace("-", "_")
+    event = {
+        "guard": name,
+        "code": f"E_{code}",
+        "outcome": "fail_open",
+        "reason": reason,
+        "detail": detail,
+    }
+    print(f"EVENT={json.dumps(event, separators=(',', ':'))}", file=sys.stderr)
 
 
 def _emit_violations(
@@ -363,6 +392,7 @@ def run_guard(
             f"Allowing push (fail-open).",
             file=sys.stderr,
         )
+        _emit_fail_open(name, "exception", f"{type(exc).__name__}: {exc}")
         return 0
 
 
