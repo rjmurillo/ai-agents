@@ -59,6 +59,7 @@ from __future__ import annotations
 import fnmatch
 import json
 import os
+import re
 import subprocess
 import sys
 from collections.abc import Callable
@@ -101,6 +102,13 @@ GIT_DIFF_TIMEOUT = 10
 # Cap stdin read so a malicious or buggy upstream cannot OOM the hook
 # (CWE-400). Real Claude Code tool_input commands are well below 1 MiB.
 MAX_STDIN_BYTES = 1_048_576
+
+# Match git push at the start of the command, with any whitespace
+# between ``git`` and ``push``. The Copilot shim collapses runs of
+# whitespace before matching ``Bash(git push*)``, so the literal prefix
+# ``git push`` is too strict. ``re.match`` anchors at the start, but
+# accept optional leading whitespace too for robustness.
+_GIT_PUSH_RE = re.compile(r"\s*git\s+push(\s|$)")
 
 
 def _match_double_star(path: str, pattern: str) -> bool:
@@ -406,7 +414,14 @@ def run_guard(
         # confirm the command shape before doing any work. A misregistered
         # matcher or a future change in matcher semantics should not turn this
         # framework into a generic Bash interceptor.
-        if not command.lstrip().startswith("git push"):
+        #
+        # The Copilot shim normalizes ``\s+`` to single space before matching
+        # ``Bash(git push*)``, so a real command like ``git    push origin``
+        # fires the wrapper. Match that normalization here: accept any
+        # whitespace between ``git`` and ``push``, with optional leading
+        # whitespace. Otherwise the wrapper fires but this short-circuits
+        # to 0 and bypasses every guard.
+        if not _GIT_PUSH_RE.match(command):
             return 0
 
         project_dir = get_project_directory()

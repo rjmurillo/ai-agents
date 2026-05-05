@@ -182,6 +182,53 @@ class TestStdinShapes:
         assert rc == 0
         assert called["validator"] is True
 
+    def test_git_push_with_internal_whitespace_runs(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """Multi-space ``git    push`` must reach the validator.
+
+        The Copilot matcher shim collapses ``\\s+`` to a single space
+        before deciding whether ``Bash(git push*)`` fires. If the
+        framework's command-shape check insisted on the literal
+        ``git push`` substring, a real command like
+        ``git    push origin HEAD`` would fire the wrapper and then
+        short-circuit to 0, bypassing every guard. PR #1887 review
+        thread PRRT_kwDOQoWRls5_r7Mf.
+        """
+        payload = json.dumps({"tool_input": {"command": "git    push origin HEAD"}})
+        monkeypatch.setattr("sys.stdin", io.StringIO(payload))
+        called = {"validator": False}
+
+        def validator(_m: list[str], _a: list[str]) -> list[str]:
+            called["validator"] = True
+            return []
+
+        with patch(
+            "push_guard_base.subprocess.run", return_value=_ok_diff("docs/a.md\n")
+        ), patch("push_guard_base.get_project_directory", return_value=str(tmp_path)):
+            rc = run_guard(validator, ["*.md"], "test")
+
+        assert rc == 0
+        assert called["validator"] is True
+
+    def test_git_pushd_command_does_not_run(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """``git pushd`` (or ``git push-something`` without whitespace) must
+        NOT match. The shape check requires ``git`` and ``push`` to be
+        separated by whitespace and not be part of a larger token."""
+        payload = json.dumps({"tool_input": {"command": "git pushd"}})
+        monkeypatch.setattr("sys.stdin", io.StringIO(payload))
+        called = {"validator": False}
+
+        def validator(_m: list[str], _a: list[str]) -> list[str]:
+            called["validator"] = True
+            return []
+
+        rc = run_guard(validator, ["*.md"], "test")
+        assert rc == 0
+        assert called["validator"] is False
+
     def test_oversized_stdin_returns_zero(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -721,6 +768,22 @@ class TestHooksJsonContract:
             / "hooks.json"
         )
         data = json.loads(hooks_path.read_text(encoding="utf-8"))
+        pre_tool_use = data["hooks"]["PreToolUse"]
+        matchers = [block.get("matcher") for block in pre_tool_use]
+        assert "Bash(git push*)" in matchers
+
+    def test_settings_json_has_git_push_matcher(self) -> None:
+        """AC-11 at the source.
+
+        ``build/scripts/generate_hooks.py`` emits ``hooks.json`` from
+        ``.claude/settings.json``; locking the contract only at the
+        generated layer would let a regression that drops the matcher
+        from the source pass while the mirror is stale.
+        """
+        settings_path = (
+            Path(__file__).resolve().parents[2] / ".claude" / "settings.json"
+        )
+        data = json.loads(settings_path.read_text(encoding="utf-8"))
         pre_tool_use = data["hooks"]["PreToolUse"]
         matchers = [block.get("matcher") for block in pre_tool_use]
         assert "Bash(git push*)" in matchers
