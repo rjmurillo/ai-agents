@@ -139,8 +139,10 @@ def _original_main(stdin_bytes):
       canonical session validator). Both ``Complete`` and ``complete`` keys
       are accepted; same for ``Evidence`` and ``evidence``. ``Complete``
       must be ``true``. ``Evidence`` must be a non-placeholder string with
-      >= 20 characters after stripping. A legacy top-level
-      ``markdownLintRun`` is accepted as a fallback for older logs.
+      >= 20 characters after stripping. The canonical path is the only
+      accepted location: a legacy top-level ``markdownLintRun`` block is
+      treated as missing so this guard cannot pass logs that
+      ``scripts/validate_session_json.py`` would reject.
 
     This guard does NOT validate ``schemaVersion`` (no such field in the
     real schema) or any field beyond the three above.
