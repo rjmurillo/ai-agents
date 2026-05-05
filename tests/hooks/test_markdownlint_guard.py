@@ -232,3 +232,24 @@ class TestHooksJsonRegistration:
         )
         commands = [hook.get("command", "") for hook in push_block["hooks"]]
         assert any("invoke_markdownlint_guard.py" in cmd for cmd in commands)
+
+    def test_settings_json_includes_markdownlint_guard(self):
+        """Source-of-truth check.
+
+        ``build/scripts/generate_hooks.py`` reads ``.claude/settings.json``
+        and emits the generated ``hooks.json`` mirror. Testing only the
+        mirror would let a regression that drops the registration from
+        the source pass as long as the mirror was stale. Assert the
+        source explicitly so the contract is locked at both layers.
+        """
+        settings_path = (
+            Path(__file__).resolve().parents[2] / ".claude" / "settings.json"
+        )
+        data = json.loads(settings_path.read_text(encoding="utf-8"))
+        push_block = next(
+            block
+            for block in data["hooks"]["PreToolUse"]
+            if block.get("matcher") == "Bash(git push*)"
+        )
+        commands = [hook.get("command", "") for hook in push_block["hooks"]]
+        assert any("invoke_markdownlint_guard.py" in cmd for cmd in commands)

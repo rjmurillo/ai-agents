@@ -155,3 +155,17 @@ class TestHooksJsonRegistration:
         )
         commands = [hook.get("command", "") for hook in push_block["hooks"]]
         assert any("invoke_manifest_count_guard.py" in cmd for cmd in commands)
+
+    def test_settings_json_includes_manifest_count_guard(self):
+        """Source-of-truth check; see test_pr_description_guard for rationale."""
+        settings_path = (
+            Path(__file__).resolve().parents[2] / ".claude" / "settings.json"
+        )
+        data = json.loads(settings_path.read_text(encoding="utf-8"))
+        push_block = next(
+            block
+            for block in data["hooks"]["PreToolUse"]
+            if block.get("matcher") == "Bash(git push*)"
+        )
+        commands = [hook.get("command", "") for hook in push_block["hooks"]]
+        assert any("invoke_manifest_count_guard.py" in cmd for cmd in commands)

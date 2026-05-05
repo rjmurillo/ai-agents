@@ -43,9 +43,17 @@ LIB_DIR_VALIDATION_PATTERNS = (
 # Files that delegate plugin-path resolution to a shared bootstrap helper.
 # Importing the helper satisfies the CLAUDE_PLUGIN_ROOT and lib-validation
 # requirements transitively; the canonical resolution lives in the helper.
+#
+# The exemption is gated on TWO independent signals so a stray comment or
+# docstring mentioning the import cannot disable the ADR-047 assertion:
+# the file MUST contain both an actual import statement AND an actual
+# invocation of ``ensure_plugin_paths()``. A hook that imports without
+# calling, or calls without importing, fails the gate and falls back to
+# the inline-pattern checks.
 SHARED_BOOTSTRAP_IMPORT_MARKERS = (
     "from _bootstrap import",
 )
+SHARED_BOOTSTRAP_CALL_MARKER = "ensure_plugin_paths()"
 
 
 def _collect_python_files(directory: Path) -> list[Path]:
@@ -70,11 +78,15 @@ def _has_lib_dir_validation(content: str) -> bool:
 def _delegates_to_shared_bootstrap(content: str) -> bool:
     """Check if the file delegates plugin-path resolution to ``_bootstrap``.
 
-    The shared ``_bootstrap`` helper resolves CLAUDE_PLUGIN_ROOT and
-    validates the lib directory; consumers that import it satisfy
-    ADR-047 transitively without inlining the boilerplate.
+    Requires BOTH signals: an import statement AND a call to
+    ``ensure_plugin_paths()``. Either signal alone could appear in
+    a comment or docstring without producing real delegation, so the
+    exemption is granted only when both are present (the canonical
+    consumer pattern).
     """
-    return any(marker in content for marker in SHARED_BOOTSTRAP_IMPORT_MARKERS)
+    has_import = any(marker in content for marker in SHARED_BOOTSTRAP_IMPORT_MARKERS)
+    has_call = SHARED_BOOTSTRAP_CALL_MARKER in content
+    return has_import and has_call
 
 
 class TestPluginPathResolution:
