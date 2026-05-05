@@ -1067,6 +1067,66 @@ def test_future_import_round_trip_stable_after_strip() -> None:
     assert once == restripped
 
 
+def test_main_epilogue_emits_return_main_trailer() -> None:
+    """Scripts with the canonical main+epilogue shape get ``return main()``.
+
+    Without this, the wrapper falls through to the trailing ``return 0``
+    and every shimmed guard reports success regardless of validator
+    outcome (the bug fixed by PR #1887 generator update). Lock the
+    behavior so a future refactor cannot silently re-break it.
+    """
+    body = (
+        "#!/usr/bin/env python3\n"
+        '"""guard."""\n'
+        "import sys\n\n"
+        "def main() -> int:\n"
+        "    return 2\n\n"
+        'if __name__ == "__main__":\n'
+        "    sys.exit(main())\n"
+    )
+    out = generate_hooks.inject_shim(body, "Bash(git push*)")
+    assert "    return main()" in out
+    assert "    return 0\n" not in out.split("def _original_main")[1].split("_shim_dispatch")[0]
+    compile(out, "<generated>", "exec")
+
+
+def test_no_main_epilogue_keeps_return_zero_trailer() -> None:
+    """Scripts that fall off the bottom keep the existing ``return 0`` trailer.
+
+    Backwards compatibility: pre-fix scripts (and any future ones that
+    legitimately use module-level statements without a main()) must not
+    regress.
+    """
+    body = "import os\nprint(os.getcwd())\n"
+    out = generate_hooks.inject_shim(body, "Edit")
+    wrapped = out.split("def _original_main")[1].split("_shim_dispatch")[0]
+    assert "    return 0\n" in wrapped
+    assert "    return main()" not in wrapped
+    compile(out, "<generated>", "exec")
+
+
+def test_strip_round_trip_with_main_epilogue() -> None:
+    """strip_shim then inject_shim is byte-stable for canonical-shape scripts.
+
+    The strip helper must accept both ``return 0`` and ``return main()``
+    trailers; otherwise the round-trip leaks the synthetic trailer back
+    into the recovered body.
+    """
+    body = (
+        "#!/usr/bin/env python3\n"
+        '"""g."""\n'
+        "import sys\n\n"
+        "def main() -> int:\n"
+        "    return 0\n\n"
+        'if __name__ == "__main__":\n'
+        "    sys.exit(main())\n"
+    )
+    matcher = "Bash(git push*)"
+    once = generate_hooks.inject_shim(body, matcher)
+    twice = generate_hooks.inject_shim(generate_hooks.strip_shim(once), matcher)
+    assert once == twice
+
+
 def test_inject_without_future_import_no_prefix() -> None:
     """Bodies without future imports get no leading blank line / prefix."""
     body = "import os\nprint(os.getcwd())\n"

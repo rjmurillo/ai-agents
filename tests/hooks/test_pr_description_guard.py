@@ -196,6 +196,58 @@ class TestNoPrOpen:
         assert "fail-open" in err
 
 
+class TestGhFailureClassification:
+    """gh pr view non-zero is classified by stderr content for actionable messages."""
+
+    def test_auth_failure_is_classified(self, push_command, tmp_path, capsys):
+        def gh(_args):
+            return _fail(
+                4,
+                stdout="",
+                stderr="error: not authenticated; please run gh auth login\n",
+            )
+
+        def validator(_args):
+            raise AssertionError("validator should not run")
+
+        rc = _run("src/foo.py\n", gh, validator, tmp_path)
+        assert rc == 0
+        err = capsys.readouterr().err
+        assert "gh auth failure" in err
+        assert "no PR found" not in err
+
+    def test_network_failure_is_classified(self, push_command, tmp_path, capsys):
+        def gh(_args):
+            return _fail(
+                3,
+                stdout="",
+                stderr="could not resolve api.github.com: network unreachable\n",
+            )
+
+        def validator(_args):
+            raise AssertionError("validator should not run")
+
+        rc = _run("src/foo.py\n", gh, validator, tmp_path)
+        assert rc == 0
+        err = capsys.readouterr().err
+        assert "gh network failure" in err
+
+    def test_generic_failure_is_classified(self, push_command, tmp_path, capsys):
+        def gh(_args):
+            return _fail(1, stdout="", stderr="some unexpected gh error\n")
+
+        def validator(_args):
+            raise AssertionError("validator should not run")
+
+        rc = _run("src/foo.py\n", gh, validator, tmp_path)
+        assert rc == 0
+        err = capsys.readouterr().err
+        assert "gh pr view failed" in err
+        # Generic message should NOT misattribute as no-PR or auth.
+        assert "no PR found" not in err
+        assert "gh auth failure" not in err
+
+
 class TestGhMissing:
     def test_gh_binary_missing_fails_open(
         self, push_command, tmp_path, capsys
