@@ -201,8 +201,9 @@ def _changed_files(cwd: str, name: str = "guard") -> list[str] | None:
     if rc == 0:
         return [line for line in out.splitlines() if line.strip()]
     primary_reason = out.splitlines()[0] if out else "non-zero exit"
+    fallback_ref = _detect_default_base_ref(cwd)
     rc2, out2 = _run_git_diff(
-        ["git", "diff", *args, "origin/main...HEAD"], cwd=cwd
+        ["git", "diff", *args, f"{fallback_ref}...HEAD"], cwd=cwd
     )
     if rc2 == 0:
         return [line for line in out2.splitlines() if line.strip()]
@@ -210,10 +211,29 @@ def _changed_files(cwd: str, name: str = "guard") -> list[str] | None:
     print(
         f"[{name}] git diff failed on both refs; allowing push (fail-open). "
         f"primary=@{{push}}..HEAD: {primary_reason}; "
-        f"fallback=origin/main...HEAD: {fallback_reason}",
+        f"fallback={fallback_ref}...HEAD: {fallback_reason}",
         file=sys.stderr,
     )
     return None
+
+
+def _detect_default_base_ref(cwd: str) -> str:
+    """Resolve the remote default branch (e.g., origin/main, origin/develop).
+
+    Hardcoding origin/main mis-scopes pushes for PRs that target a different
+    base. ``git symbolic-ref refs/remotes/origin/HEAD`` returns the default
+    branch as configured at clone time; we fall back to origin/main only when
+    that lookup fails.
+    """
+    rc, out = _run_git_diff(
+        ["git", "symbolic-ref", "--short", "refs/remotes/origin/HEAD"],
+        cwd=cwd,
+    )
+    if rc == 0:
+        ref = out.strip()
+        if ref:
+            return ref
+    return "origin/main"
 
 
 def _read_stdin_command() -> str | None:

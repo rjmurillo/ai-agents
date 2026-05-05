@@ -319,7 +319,7 @@ def _original_main(stdin_bytes):
         try:
             proc = subprocess.run(
                 [
-                    "python3",
+                    sys.executable,
                     VALIDATOR_PATH,
                     "--pr-number",
                     str(pr_num),

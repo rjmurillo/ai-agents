@@ -228,25 +228,29 @@ def _original_main(stdin_bytes):
 
 
     def _markdown_lint_run(data: dict) -> dict | None:
-        """Locate markdownLintRun in either canonical or legacy position.
+        """Locate markdownLintRun at the canonical path.
 
-        Canonical: protocolCompliance.sessionEnd.markdownLintRun
-        Legacy/top-level: markdownLintRun
+        Canonical: protocolCompliance.sessionEnd.markdownLintRun.
+
+        The canonical session validator (scripts/validate_session_json.py) reads
+        only this path. A previous version of this guard accepted a legacy
+        top-level fallback, but that created a gap: a session log with only
+        top-level markdownLintRun would pass this pre-push guard yet still fail
+        the canonical CI validator. Aligning to the canonical path closes the gap.
 
         Defensive: a malformed log might set protocolCompliance or sessionEnd
         to a list or string. Treat any non-dict node along the path as missing
         rather than raising AttributeError.
         """
         pc = data.get("protocolCompliance")
-        if isinstance(pc, dict):
-            end = pc.get("sessionEnd")
-            if isinstance(end, dict):
-                canonical = end.get("markdownLintRun")
-                if isinstance(canonical, dict):
-                    return canonical
-        top = data.get("markdownLintRun")
-        if isinstance(top, dict):
-            return top
+        if not isinstance(pc, dict):
+            return None
+        end = pc.get("sessionEnd")
+        if not isinstance(end, dict):
+            return None
+        canonical = end.get("markdownLintRun")
+        if isinstance(canonical, dict):
+            return canonical
         return None
 
 
