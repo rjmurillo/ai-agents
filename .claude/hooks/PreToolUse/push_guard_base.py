@@ -269,13 +269,34 @@ def _changed_files(
 
 
 def _detect_default_base_ref(cwd: str) -> str:
-    """Resolve the remote default branch (e.g., origin/main, origin/develop).
+    """Resolve the right base ref to diff against when ``@{push}`` is unset.
 
-    Hardcoding origin/main mis-scopes pushes for PRs that target a different
-    base. ``git symbolic-ref refs/remotes/origin/HEAD`` returns the default
-    branch as configured at clone time; we fall back to origin/main only when
-    that lookup fails.
+    The fallback hierarchy mirrors what a careful engineer would inspect by
+    hand:
+
+    1. The current branch's configured upstream (``@{u}``). When the user has
+       set tracking explicitly (``git branch --set-upstream-to=...``), this
+       is the right answer for both mainline branches and *derivative PRs*
+       that target a parent feature branch rather than ``main``. Hardcoding
+       ``origin/main`` here would pull in the parent branch's history and
+       fire guards on files that are not part of the outgoing push.
+    2. The remote's default branch via ``refs/remotes/origin/HEAD``. This is
+       the documented "what does the remote consider default" answer and
+       handles the common case of a brand-new feature branch with no
+       upstream set yet.
+    3. ``origin/main`` as a last-resort literal so a misconfigured clone
+       still produces a sensible (if imperfect) reference.
     """
+    rc, out = _run_git_diff(
+        ["git", "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"],
+        cwd=cwd,
+    )
+    if rc == 0:
+        ref = out.strip()
+        # rev-parse prints "@{upstream}" verbatim when no upstream is set;
+        # filter that out so we do not feed an unresolvable ref to git diff.
+        if ref and "@" not in ref:
+            return ref
     rc, out = _run_git_diff(
         ["git", "symbolic-ref", "--short", "refs/remotes/origin/HEAD"],
         cwd=cwd,

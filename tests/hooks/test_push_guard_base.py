@@ -280,7 +280,11 @@ class TestGitDiffFallback:
         seen: dict[str, list[str]] = {"refs": []}
 
         def fake_run(args: list[str], **_kw: object) -> subprocess.CompletedProcess[str]:
-            # symbolic-ref lookup for default base branch
+            # No upstream set on this branch: rev-parse @{u} fails, fallback
+            # walks to symbolic-ref refs/remotes/origin/HEAD which returns
+            # origin/main as the remote default.
+            if "rev-parse" in args:
+                return _bad_diff()
             if "symbolic-ref" in args:
                 return subprocess.CompletedProcess(
                     args=args, returncode=0, stdout="origin/main\n", stderr=""
@@ -324,6 +328,8 @@ class TestGitDiffFallback:
         seen: dict[str, list[str]] = {"refs": []}
 
         def fake_run(args: list[str], **_kw: object) -> subprocess.CompletedProcess[str]:
+            if "rev-parse" in args:
+                return _bad_diff()
             if "symbolic-ref" in args:
                 return subprocess.CompletedProcess(
                     args=args, returncode=0, stdout="origin/develop\n", stderr=""
@@ -344,16 +350,105 @@ class TestGitDiffFallback:
         assert "origin/develop...HEAD" in seen["refs"]
         assert "origin/main...HEAD" not in seen["refs"]
 
+    def test_fallback_prefers_upstream_over_origin_head(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        push_command: None,
+        tmp_path: Path,
+    ) -> None:
+        """Derivative PRs target a parent feature branch, not the remote default.
+
+        When the user has set ``branch.<name>.merge`` (``git push -u``,
+        ``git branch --set-upstream-to``), ``rev-parse @{u}`` returns that
+        explicit upstream. The fallback must prefer it over
+        ``refs/remotes/origin/HEAD`` so a derivative branch's diff scope
+        matches what the user actually intends to push, not all of
+        ``origin/main`` history.
+
+        See PR #1887 review thread PRRT_kwDOQoWRls5_rGKQ.
+        """
+        seen: dict[str, list[str]] = {"refs": []}
+
+        def fake_run(args: list[str], **_kw: object) -> subprocess.CompletedProcess[str]:
+            if "rev-parse" in args:
+                # Branch is configured to track the parent feature branch.
+                return subprocess.CompletedProcess(
+                    args=args,
+                    returncode=0,
+                    stdout="origin/feat/parent-1880\n",
+                    stderr="",
+                )
+            if "symbolic-ref" in args:
+                # symbolic-ref would return origin/main, but we should NOT
+                # reach this branch when @{u} succeeds.
+                return subprocess.CompletedProcess(
+                    args=args, returncode=0, stdout="origin/main\n", stderr=""
+                )
+            ref = args[-1]
+            seen["refs"].append(ref)
+            if ref == "@{push}..HEAD":
+                return _bad_diff()
+            return _ok_diff("docs/a.md\n")
+
+        with patch("push_guard_base.subprocess.run", side_effect=fake_run), patch(
+            "push_guard_base.get_project_directory", return_value=str(tmp_path)
+        ):
+            rc = run_guard(_no_violations, ["*.md"], "test")
+
+        assert rc == 0
+        assert "origin/feat/parent-1880...HEAD" in seen["refs"]
+        assert "origin/main...HEAD" not in seen["refs"]
+
+    def test_fallback_ignores_unresolved_upstream_token(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        push_command: None,
+        tmp_path: Path,
+    ) -> None:
+        """``rev-parse`` may print ``@{upstream}`` verbatim when none is set.
+
+        Some git versions return rc=0 with the literal token instead of
+        failing. Treat that as "no upstream" and walk to the symbolic-ref
+        fallback rather than feeding an unresolvable ref to ``git diff``.
+        """
+        seen: dict[str, list[str]] = {"refs": []}
+
+        def fake_run(args: list[str], **_kw: object) -> subprocess.CompletedProcess[str]:
+            if "rev-parse" in args:
+                return subprocess.CompletedProcess(
+                    args=args, returncode=0, stdout="@{upstream}\n", stderr=""
+                )
+            if "symbolic-ref" in args:
+                return subprocess.CompletedProcess(
+                    args=args, returncode=0, stdout="origin/main\n", stderr=""
+                )
+            ref = args[-1]
+            seen["refs"].append(ref)
+            if ref == "@{push}..HEAD":
+                return _bad_diff()
+            return _ok_diff("docs/a.md\n")
+
+        with patch("push_guard_base.subprocess.run", side_effect=fake_run), patch(
+            "push_guard_base.get_project_directory", return_value=str(tmp_path)
+        ):
+            rc = run_guard(_no_violations, ["*.md"], "test")
+
+        assert rc == 0
+        assert "origin/main...HEAD" in seen["refs"]
+        assert all("@{" not in ref for ref in seen["refs"] if ref != "@{push}..HEAD")
+
     def test_fallback_falls_back_to_main_when_symbolic_ref_fails(
         self,
         monkeypatch: pytest.MonkeyPatch,
         push_command: None,
         tmp_path: Path,
     ) -> None:
-        """If origin/HEAD lookup fails, default to origin/main."""
+        """If both rev-parse @{u} and origin/HEAD lookup fail, default to origin/main."""
         seen: dict[str, list[str]] = {"refs": []}
 
         def fake_run(args: list[str], **_kw: object) -> subprocess.CompletedProcess[str]:
+            if "rev-parse" in args:
+                return _bad_diff()
             if "symbolic-ref" in args:
                 return _bad_diff()
             ref = args[-1]
@@ -405,6 +500,8 @@ class TestGitDiffFallback:
         seen: dict[str, list[str]] = {"args": []}
 
         def fake_run(args: list[str], **_kw: object) -> subprocess.CompletedProcess[str]:
+            if "rev-parse" in args:
+                return _bad_diff()
             if "symbolic-ref" in args:
                 return _ok_diff("origin/main\n")
             seen["args"] = args
@@ -428,6 +525,8 @@ class TestGitDiffFallback:
         seen: dict[str, list[str]] = {"args": []}
 
         def fake_run(args: list[str], **_kw: object) -> subprocess.CompletedProcess[str]:
+            if "rev-parse" in args:
+                return _bad_diff()
             if "symbolic-ref" in args:
                 return _ok_diff("origin/main\n")
             seen["args"] = args
