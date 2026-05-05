@@ -122,10 +122,16 @@ def _match_glob(path: str, pattern: str) -> bool:
         if "/" not in tail:
             basename = suffix.rsplit("/", 1)[-1]
             return fnmatch.fnmatch(basename, tail)
-        for i in range(len(suffix)):
-            if i == 0 or suffix[i - 1] == "/":
-                if fnmatch.fnmatch(suffix[i:], tail):
-                    return True
+        tail_parts = tail.split("/")
+        suffix_parts = suffix.split("/")
+        if len(suffix_parts) < len(tail_parts):
+            return False
+        for start in range(len(suffix_parts) - len(tail_parts) + 1):
+            if all(
+                fnmatch.fnmatch(suffix_parts[start + j], tail_parts[j])
+                for j in range(len(tail_parts))
+            ):
+                return True
         return False
     star_count = pattern.count("*")
     if star_count != 1:
