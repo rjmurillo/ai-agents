@@ -280,6 +280,11 @@ class TestGitDiffFallback:
         seen: dict[str, list[str]] = {"refs": []}
 
         def fake_run(args: list[str], **_kw: object) -> subprocess.CompletedProcess[str]:
+            # symbolic-ref lookup for default base branch
+            if "symbolic-ref" in args:
+                return subprocess.CompletedProcess(
+                    args=args, returncode=0, stdout="origin/main\n", stderr=""
+                )
             ref = args[-1]
             seen["refs"].append(ref)
             if ref == "@{push}..HEAD":
@@ -303,6 +308,67 @@ class TestGitDiffFallback:
         assert "origin/main...HEAD" in seen["refs"]
         assert captured["matching"] == ["docs/a.md"]
         assert captured["all"] == ["docs/a.md"]
+
+    def test_fallback_uses_detected_default_branch(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        push_command: None,
+        tmp_path: Path,
+    ) -> None:
+        """Fallback must use origin/HEAD (detected) not hardcoded origin/main.
+
+        For PRs targeting a non-main base (e.g., origin/develop),
+        origin/main...HEAD pulls in unrelated history. PR #1887 review
+        round 8 mitigation.
+        """
+        seen: dict[str, list[str]] = {"refs": []}
+
+        def fake_run(args: list[str], **_kw: object) -> subprocess.CompletedProcess[str]:
+            if "symbolic-ref" in args:
+                return subprocess.CompletedProcess(
+                    args=args, returncode=0, stdout="origin/develop\n", stderr=""
+                )
+            ref = args[-1]
+            seen["refs"].append(ref)
+            if ref == "@{push}..HEAD":
+                return _bad_diff()
+            return _ok_diff("docs/a.md\n")
+
+        with patch("push_guard_base.subprocess.run", side_effect=fake_run), patch(
+            "push_guard_base.get_project_directory", return_value=str(tmp_path)
+        ):
+            rc = run_guard(_no_violations, ["*.md"], "test")
+
+        assert rc == 0
+        # Fallback must point at the detected default branch, not origin/main.
+        assert "origin/develop...HEAD" in seen["refs"]
+        assert "origin/main...HEAD" not in seen["refs"]
+
+    def test_fallback_falls_back_to_main_when_symbolic_ref_fails(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        push_command: None,
+        tmp_path: Path,
+    ) -> None:
+        """If origin/HEAD lookup fails, default to origin/main."""
+        seen: dict[str, list[str]] = {"refs": []}
+
+        def fake_run(args: list[str], **_kw: object) -> subprocess.CompletedProcess[str]:
+            if "symbolic-ref" in args:
+                return _bad_diff()
+            ref = args[-1]
+            seen["refs"].append(ref)
+            if ref == "@{push}..HEAD":
+                return _bad_diff()
+            return _ok_diff("docs/a.md\n")
+
+        with patch("push_guard_base.subprocess.run", side_effect=fake_run), patch(
+            "push_guard_base.get_project_directory", return_value=str(tmp_path)
+        ):
+            rc = run_guard(_no_violations, ["*.md"], "test")
+
+        assert rc == 0
+        assert "origin/main...HEAD" in seen["refs"]
 
     def test_primary_empty_does_not_fallback(
         self,

@@ -193,7 +193,7 @@ def _validate(_matching: list[str], _all_changed: list[str]) -> list[str]:
     try:
         proc = subprocess.run(
             [
-                "python3",
+                sys.executable,
                 VALIDATOR_PATH,
                 "--pr-number",
                 str(pr_num),

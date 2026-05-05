@@ -208,15 +208,28 @@ class TestMarkdownLintEvidence:
         assert "Evidence" in capsys.readouterr().out
 
 
-class TestLegacyTopLevelFallback:
-    """For older logs that stored markdownLintRun at the top level."""
+class TestNoLegacyFallback:
+    """Top-level markdownLintRun must NOT pass the guard.
 
-    def test_legacy_top_level_complete_false_blocks(self, push_command, tmp_path, capsys):
-        log = {"endingCommit": "abc123", "markdownLintRun": {"Complete": False}}
+    The canonical scripts/validate_session_json.py reads only
+    protocolCompliance.sessionEnd.markdownLintRun. Accepting a top-level
+    fallback would let a log pass the pre-push guard but still fail CI;
+    that gap is closed.
+    """
+
+    def test_top_level_only_is_treated_as_missing(self, push_command, tmp_path, capsys):
+        log = {
+            "endingCommit": "abc123",
+            "markdownLintRun": {
+                "Complete": True,
+                "Evidence": "markdownlint ran clean over the whole tree",
+            },
+        }
         rel = _write(tmp_path, "s.json", log)
         rc = _run([rel], tmp_path)
         assert rc == 2
-        assert "Complete" in capsys.readouterr().out
+        # Reports as canonical-path-missing, not Complete=false.
+        assert "markdownLintRun missing" in capsys.readouterr().out
 
 
 class TestMalformedJson:
