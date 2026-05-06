@@ -165,7 +165,7 @@ def _original_main(stdin_bytes):
 
     ensure_plugin_paths()
 
-    from push_guard_base import run_guard  # noqa: E402
+    from push_guard_base import emit_fail_open, run_guard  # noqa: E402
     from hook_utilities import get_project_directory  # noqa: E402
 
     GUARD_NAME = "markdown-lint"
@@ -222,6 +222,7 @@ def _original_main(stdin_bytes):
                 f"allowing push (fail-open)",
                 file=sys.stderr,
             )
+            emit_fail_open(GUARD_NAME, "binary_missing", f"{BINARY} and npx not on PATH")
             return []
 
         _log_version(invocation)
@@ -247,12 +248,14 @@ def _original_main(stdin_bytes):
                 f"allowing push",
                 file=sys.stderr,
             )
+            emit_fail_open(GUARD_NAME, "timeout", f"{BINARY} exceeded {SUBPROCESS_TIMEOUT}s")
             return []
         except OSError as exc:
             print(
                 f"[OSError] {BINARY} failed to invoke: {exc}; allowing push",
                 file=sys.stderr,
             )
+            emit_fail_open(GUARD_NAME, "oserror", f"{type(exc).__name__}: {exc}")
             return []
 
         if proc.returncode == 0:

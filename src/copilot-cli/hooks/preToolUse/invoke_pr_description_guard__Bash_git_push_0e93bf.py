@@ -168,7 +168,7 @@ def _original_main(stdin_bytes):
 
     ensure_plugin_paths()
 
-    from push_guard_base import run_guard  # noqa: E402
+    from push_guard_base import emit_fail_open, run_guard  # noqa: E402
     from hook_utilities import get_project_directory  # noqa: E402
 
     GUARD_NAME = "pr-description"
@@ -191,6 +191,7 @@ def _original_main(stdin_bytes):
                 f"[{GUARD_NAME}] gh CLI not on PATH; allowing push (fail-open)",
                 file=sys.stderr,
             )
+            emit_fail_open(GUARD_NAME, "gh_missing", "gh CLI not on PATH")
             return None
         try:
             proc = subprocess.run(
@@ -208,6 +209,7 @@ def _original_main(stdin_bytes):
                 f"allowing push (fail-open)",
                 file=sys.stderr,
             )
+            emit_fail_open(GUARD_NAME, "gh_timeout", f"gh pr view exceeded {GH_TIMEOUT}s")
             return None
         except (FileNotFoundError, OSError) as exc:
             print(
@@ -215,6 +217,7 @@ def _original_main(stdin_bytes):
                 f"allowing push (fail-open)",
                 file=sys.stderr,
             )
+            emit_fail_open(GUARD_NAME, "gh_oserror", f"{type(exc).__name__}: {exc}")
             return None
         if proc.returncode != 0:
             # Distinguish the common failure modes so on-call can act on the
@@ -224,16 +227,21 @@ def _original_main(stdin_bytes):
             first_line = stderr_text.splitlines()[0] if stderr_text else "non-zero exit"
             if "no pull requests found" in stderr_lower or "no commits between" in stderr_lower:
                 cause = "no PR found for current branch"
+                reason = "no_pr_for_branch"
             elif "authent" in stderr_lower or "not logged" in stderr_lower or "token" in stderr_lower:
                 cause = "gh auth failure"
+                reason = "gh_auth_failure"
             elif "network" in stderr_lower or "could not resolve" in stderr_lower or "timed out" in stderr_lower:
                 cause = "gh network failure"
+                reason = "gh_network_failure"
             else:
                 cause = "gh pr view failed"
+                reason = "gh_nonzero_exit"
             print(
                 f"[{GUARD_NAME}] {cause} ({first_line}); allowing push (fail-open)",
                 file=sys.stderr,
             )
+            emit_fail_open(GUARD_NAME, reason, f"{cause}: {first_line}")
             return None
         raw = proc.stdout.strip()
         if not raw:
@@ -242,6 +250,7 @@ def _original_main(stdin_bytes):
                 f"allowing push (fail-open)",
                 file=sys.stderr,
             )
+            emit_fail_open(GUARD_NAME, "gh_empty_output", "gh pr view returned empty PR number")
             return None
         try:
             return int(raw)
@@ -251,6 +260,7 @@ def _original_main(stdin_bytes):
                 f"{raw!r}; allowing push (fail-open)",
                 file=sys.stderr,
             )
+            emit_fail_open(GUARD_NAME, "gh_nonnumeric_output", f"PR number was {raw!r}")
             return None
 
 
@@ -318,12 +328,22 @@ def _original_main(stdin_bytes):
                 f"{VALIDATOR_TIMEOUT}s; allowing push (fail-open)",
                 file=sys.stderr,
             )
+            emit_fail_open(
+                GUARD_NAME,
+                "validator_timeout",
+                f"{VALIDATOR_PATH} exceeded {VALIDATOR_TIMEOUT}s",
+            )
             return []
         except (FileNotFoundError, OSError) as exc:
             print(
                 f"[{GUARD_NAME}] {VALIDATOR_PATH} failed to invoke: {exc}; "
                 f"allowing push (fail-open)",
                 file=sys.stderr,
+            )
+            emit_fail_open(
+                GUARD_NAME,
+                "validator_oserror",
+                f"{VALIDATOR_PATH} failed to invoke: {type(exc).__name__}: {exc}",
             )
             return []
 
