@@ -10,6 +10,8 @@ license: MIT
 
 Collect multi-source context before planning or implementation. Searches Forgetful Memory, Serena, Context7, DeepWiki, and web sources, then returns a focused summary that downstream commands can detect and skip redundant fetches.
 
+> **Model choice (behavior change from prior `/context-gather` slash command)**: this skill declares `model: claude-sonnet-4-6`, downgraded from the slash command's `opus`. Context retrieval is search-and-synthesis work, not deep reasoning; the cost-appropriate tier per ADR-002 model selection is sonnet. Skill behavior is otherwise unchanged.
+
 ## Triggers
 
 | Phrase | Context |

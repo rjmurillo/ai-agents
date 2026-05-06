@@ -118,3 +118,43 @@ class TestStructure:
 
     def test_spec_005_referenced(self, skill_content: str) -> None:
         assert "SPEC-005" in skill_content, "SKILL.md must reference SPEC-005"
+
+    def test_context_retrieval_subagent_exists(self) -> None:
+        """SKILL.md delegates to the context-retrieval subagent; verify the
+        subagent file exists so renaming/deleting it is caught immediately."""
+        repo_root = SKILL_DIR.parents[2]
+        subagent = repo_root / ".claude" / "agents" / "context-retrieval.md"
+        assert subagent.exists(), (
+            f"SKILL.md delegates to context-retrieval subagent but {subagent} is missing"
+        )
+
+    def test_trigger_phrase_count_in_range(self, skill_content: str) -> None:
+        """`.claude/skills/CLAUDE.md` mandates 3-5 trigger phrases per skill."""
+        triggers_section = skill_content.split("## Triggers")[1]
+        next_section = triggers_section.find("\n## ")
+        if next_section != -1:
+            triggers_section = triggers_section[:next_section]
+        backtick_phrases = re.findall(r"`([^`]+)`", triggers_section)
+        count = len(backtick_phrases)
+        assert 3 <= count <= 5, (
+            f"Triggers section has {count} backtick-wrapped phrases; "
+            f"`.claude/skills/CLAUDE.md` requires 3-5"
+        )
+
+    def test_triggers_backtick_wrapped(self, skill_content: str) -> None:
+        """Trigger phrases must be backtick-wrapped, not quote-wrapped."""
+        triggers_section = skill_content.split("## Triggers")[1]
+        next_section = triggers_section.find("\n## ")
+        if next_section != -1:
+            triggers_section = triggers_section[:next_section]
+        # Look for the table body rows; each leading column must contain backticks
+        table_rows = [
+            line for line in triggers_section.splitlines()
+            if line.startswith("|") and "---" not in line and "Phrase" not in line
+        ]
+        for row in table_rows:
+            first_col = row.split("|")[1] if len(row.split("|")) > 1 else ""
+            if first_col.strip():
+                assert "`" in first_col, (
+                    f"Trigger row first column missing backticks: {row.strip()}"
+                )

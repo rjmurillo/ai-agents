@@ -30,8 +30,8 @@ Edit seven lifecycle command files to add dedicated skill invocations per the DE
 
 | AC | Owning sub-task(s) | Notes |
 |---|---|---|
-| AC-1 (spec session-init) | T5-1 | Presence-gated on `.agents/SESSION-PROTOCOL.md` |
-| AC-2 (ship session-end + reflect) | T5-2 | session-end presence-gated; reflect always |
+| AC-1 (spec session-init) | T5-1 | Always-bundle; session-init skill owns missing-marker handling (Q2 resolution) |
+| AC-2 (ship session-end + reflect) | T5-2 | session-end always-bundle; reflect with min-delta guard (5+ files) |
 | AC-3 (plan pre-mortem) | T5-3 | Replaces inline analyst prompt at Step 6 |
 | AC-4 (plan decision-critic) | T5-3 | Replaces inline critic prompt at Step 7 |
 | AC-5 (build preflight chain) | T5-4 | context-gather -> steering-matcher -> conditional chestertons-fence |
@@ -56,7 +56,7 @@ Edit seven lifecycle command files to add dedicated skill invocations per the DE
 **Files affected** (0):
 
 **In Scope**:
-- Verify all 16 skills in the BundleRegistry exist: `ls .claude/skills/{session-init,session-end,reflect,pre-mortem,decision-critic,context-gather,steering-matcher,chestertons-fence,threat-modeling,slo-designer,observability,doc-accuracy,merge-resolver}/SKILL.md`
+- Verify the 13 unique skills referenced in the BundleRegistry (15 total invocations) exist: `ls .claude/skills/{session-init,session-end,reflect,pre-mortem,decision-critic,context-gather,steering-matcher,chestertons-fence,threat-modeling,slo-designer,observability,doc-accuracy,merge-resolver}/SKILL.md`
 - If any skill is missing, STOP and report. Do not proceed to T5-1.
 
 **Out of Scope**: creating missing skills.

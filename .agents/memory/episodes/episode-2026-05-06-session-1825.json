@@ -1,51 +1,59 @@
 {
   "id": "episode-2026-05-06-session-1825",
   "session": "2026-05-06-session-1825",
-  "timestamp": "2026-05-06T08:44:06.220360+00:00",
-  "outcome": "success",
-  "task": "Author SPEC-005 command-skill bundling REQ DESIGN TASK artifacts and analysis",
+  "timestamp": "2026-05-06T09:20:26.293641+00:00",
+  "outcome": "failure",
+  "task": "",
   "decisions": [],
   "events": [
     {
       "id": "e001",
-      "timestamp": "2026-05-06T08:44:06.213652+00:00",
-      "type": "observation",
-      "content": "Pre-commit hook ran markdownlint-cli2 on staged files; 0 errors reported (SUCCESS: Markdown files OK)",
+      "timestamp": "2026-05-06T09:20:26.282270+00:00",
+      "type": "error",
+      "content": "\"Evidence\": \"Pre-commit hook ran markdownlint-cli2 on staged files; 0 errors reported (SUCCESS: Markdown files OK)\"",
       "caused_by": [],
       "leads_to": []
     },
     {
       "id": "e002",
-      "timestamp": "2026-05-06T08:44:06.213652+00:00",
-      "type": "action",
-      "content": "Ran requirements-interview skill; walked design tree (scope, user stories, data model, integrations, failure modes, security, observability)",
+      "timestamp": "2026-05-06T09:20:26.282270+00:00",
+      "type": "error",
+      "content": "\"summary\": \"Ran requirements-interview skill; walked design tree (scope, user stories, data model, integrations, failure modes, security, observability)\"",
       "caused_by": [],
       "leads_to": []
     },
     {
       "id": "e003",
-      "timestamp": "2026-05-06T08:44:06.213652+00:00",
-      "type": "observation",
-      "content": "Analyst gap review surfaced 3 Critical and 4 Important findings; decision-critic returned REVISE; pre-mortem identified 5 additional failure modes",
+      "timestamp": "2026-05-06T09:20:26.282270+00:00",
+      "type": "error",
+      "content": "\"summary\": \"Analyst gap review surfaced 3 Critical and 4 Important findings; decision-critic returned REVISE; pre-mortem identified 5 additional failure modes\"",
       "caused_by": [],
       "leads_to": []
     },
     {
       "id": "e004",
-      "timestamp": "2026-05-06T08:44:06.213652+00:00",
-      "type": "action",
-      "content": "Adversarial review (independent-thinker) raised C1-C6. C1 closed by user (PR #1894 is the matching bundle-via-prose precedent at the agent layer; bundle-via-prose is house style, not a workaround). C5 applied as plan-level fix (BUNDLE_CHECK_ENFORCED=0 default + xfail marks; M1 stays GREEN). C6 acknowledged as deliberate dogfooding.",
+      "timestamp": "2026-05-06T09:20:26.282270+00:00",
+      "type": "error",
+      "content": "\"summary\": \"Adversarial review (independent-thinker) raised C1-C6. C1 closed by user (PR #1894 is the matching bundle-via-prose precedent at the agent layer; bundle-via-prose is house style, not a workaround). C5 applied as plan-level fix (BUNDLE_CHECK_ENFORCED=0 default + xfail marks; M1 stays GREEN). C6 acknowledged as deliberate dogfooding.\"",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-05-06T09:20:26.282270+00:00",
+      "type": "test",
+      "content": "\"summary\": \"Promoted /context-gather slash command to .claude/skills/context-gather/SKILL.md via SkillForge orchestrator. Resolved T5-0 verification blocker (BundleRegistry references context-gather as Skill, not slash command). Old command file deleted. SkillForge validator 19/19; 17 pytest pass.\"",
       "caused_by": [],
       "leads_to": []
     }
   ],
   "metrics": {
-    "duration_minutes": 45,
-    "tool_calls": 12,
-    "errors": 0,
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 4,
     "recoveries": 0,
     "commits": 3,
-    "files_changed": 6
+    "files_changed": 0
   },
   "lessons": []
 }

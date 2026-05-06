@@ -160,6 +160,18 @@
     {
       "step": 12,
       "summary": "User approved Q2 + Q3 spec amendments. Applied to REQ-005 (AC-1, AC-2, AC-12, AC-14 rewritten), DESIGN-005 (BundleRegistry session-init/session-end gate type to always; Presence-Marker Table runtime-conditionals only; Testing Strategy advisory framing), TASK-005 (T5-1, T5-2 drop conditional logic; T5-8 advisory WARN with BUNDLE_CHECK_ENFORCED env var gating). Q4 auto-resolved (Tier 2 holds; no system-wide CI contract). All four open questions resolved."
+    },
+    {
+      "step": 13,
+      "summary": "Promoted /context-gather slash command to .claude/skills/context-gather/SKILL.md via SkillForge orchestrator. Resolved T5-0 verification blocker (BundleRegistry references context-gather as Skill, not slash command). Old command file deleted. SkillForge validator 19/19; 17 pytest pass."
+    },
+    {
+      "step": 14,
+      "summary": "Pushed branch docs/spec-005-command-skill-bundling, refreshed marketplace counters (-1 slash command, +1 skill), opened PR #1899 (draft). Increment 1 contains 4 commits."
+    },
+    {
+      "step": 15,
+      "summary": "Ran /review on increment 1 (orchestrator-coordinated 5-axis review). Findings: I-1 (skill count 16->13), I-2 (AC traceability matrix contradicts AC-1/AC-2 prose), I-5 (model downgrade behavior change), S-1 (test subagent existence), S-2 (test trigger count + backtick). All applied. Tests grew 17->20."
     }
   ],
   "endingCommit": "",
