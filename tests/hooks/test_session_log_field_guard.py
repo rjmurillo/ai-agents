@@ -99,7 +99,14 @@ class TestAllValid:
         assert "BLOCKED" not in capsys.readouterr().out
 
     def test_no_schema_version_field_is_tolerated(self, push_command, tmp_path):
-        """Real schema has no schemaVersion. Absence must NOT block."""
+        """schemaVersion is declared but not enforced. Absence must NOT block.
+
+        ``.agents/schemas/session-log.schema.json`` declares ``schemaVersion``
+        as an optional property. The canonical
+        ``scripts/validate_session_json.py`` does not enforce it, so this
+        guard intentionally matches the canonical validator: the field's
+        absence is tolerated rather than rejected.
+        """
         log = _valid_log()
         # Already absent in _valid_log; assert it stays out of the way.
         assert "schemaVersion" not in log
