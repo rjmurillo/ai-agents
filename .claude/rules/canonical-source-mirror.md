@@ -18,7 +18,7 @@ This rule binds any new component under `.claude/hooks/`, `scripts/validation/`,
 - A build script that "extends" a schema defined in another module.
 - An adapter that "aligns with" the wire format produced by an existing emitter.
 
-If your code contains the words **matches**, **mirrors**, **aligned with**, **same as**, **per <path>**, or **identical to** in a docstring or top-level comment, this rule applies.
+If your code contains the words **matches**, **mirrors**, **aligned with**, **same as**, **per `<path>`**, or **identical to** in a docstring or top-level comment, this rule applies.
 
 ## What the first commit MUST do
 
