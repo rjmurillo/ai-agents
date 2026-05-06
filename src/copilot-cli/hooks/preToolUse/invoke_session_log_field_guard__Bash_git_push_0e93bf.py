@@ -148,21 +148,31 @@ def _original_main(stdin_bytes):
     Thin adapter over :mod:`push_guard_base`. Activates on
     ``.agents/sessions/*.json`` files in the push changeset.
 
-    Schema (matches scripts/validate_session_json.py):
+    Schema (compatible with scripts/validate_session_json.py):
 
     - ``endingCommit``: tolerated absent (investigation-only sessions); the
       literal placeholder ``"pending"`` is rejected.
     - ``protocolCompliance.sessionEnd.markdownLintRun``: required (per the
       canonical session validator). Both ``Complete`` and ``complete`` keys
       are accepted; same for ``Evidence`` and ``evidence``. ``Complete``
-      must be ``true``. ``Evidence`` must be a non-placeholder string with
-      >= 20 characters after stripping. The canonical path is the only
-      accepted location: a legacy top-level ``markdownLintRun`` block is
-      treated as missing so this guard cannot pass logs that
-      ``scripts/validate_session_json.py`` would reject.
+      must be ``true``. ``Evidence`` must be a non-empty, non-placeholder
+      string; placeholder detection uses the same word-boundary
+      CONTRADICTION_PATTERNS regex as the canonical validator. The canonical
+      path is the only accepted location: a legacy top-level
+      ``markdownLintRun`` block is treated as missing so this guard cannot
+      pass logs that ``scripts/validate_session_json.py`` would reject.
 
-    This guard does NOT validate ``schemaVersion`` (no such field in the
-    real schema) or any field beyond the three above.
+    Stricter than canonical (intentional, documented here so the divergence
+    is not silent):
+
+    - The canonical validator records a *warning* for "Missing evidence" on
+      a complete=true item. This pre-push guard *blocks* on missing or
+      non-string evidence so the placeholder problem cannot reach CI in the
+      first place.
+    - This guard does not validate the optional ``schemaVersion`` field.
+      The schema at ``.agents/schemas/session-log.schema.json`` declares it
+      but the canonical Python validator does not enforce it; this guard
+      matches the canonical validator's enforcement, not the schema text.
 
     Hook Type: PreToolUse
     Exit Codes (Claude Hook Semantics, exempt from ADR-035):
@@ -186,15 +196,18 @@ def _original_main(stdin_bytes):
 
     GUARD_NAME = "session-log-field"
     GLOBS = [".agents/sessions/*.json"]
-    # Aligned with scripts/validate_session_json.py CONTRADICTION_PATTERNS:
-    # the canonical validator only rejects evidence that contradicts a
-    # "complete: true" claim (placeholders like "TODO", "TBD", "pending",
-    # "N/A", "skipped", "deferred"). It does NOT enforce a minimum length;
-    # real session logs include short-but-valid evidence such as "0 errors".
-    # This guard mirrors that contract: empty or placeholder strings block,
-    # any other non-empty string allows.
-    # Uses regex word-boundary matching (same as canonical validator) so that
-    # evidence like "TODO: check output" is correctly rejected.
+    # Placeholder regex is the SAME word-boundary pattern as the canonical
+    # scripts/validate_session_json.py CONTRADICTION_PATTERNS, so any string
+    # that would trigger the canonical evidence-contradiction warning will
+    # trip this guard. Real session logs include short-but-valid evidence
+    # such as "0 errors" so no minimum-length floor is enforced.
+    #
+    # Note on enforcement-strength divergence (kept stricter than canonical
+    # on purpose): the canonical validator only records a *warning* when a
+    # complete=true item is missing evidence, while this pre-push guard
+    # *blocks* missing or non-string evidence. The intent is that placeholder
+    # evidence in a session log never reaches CI to begin with; the
+    # pre-push guard is the strictest layer in the chain.
     CONTRADICTION_PATTERNS = re.compile(
         r"(?i)\b(not available|skipped|N/A|deferred|will validate|will run|TODO|pending|TBD)\b"
     )

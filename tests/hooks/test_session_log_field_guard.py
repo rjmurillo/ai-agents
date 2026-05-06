@@ -1,8 +1,11 @@
 """Tests for invoke_session_log_field_guard.
 
 Real session logs store markdownLintRun under
-protocolCompliance.sessionEnd.markdownLintRun. They have no schemaVersion
-field, and endingCommit may be absent for investigation-only sessions.
+protocolCompliance.sessionEnd.markdownLintRun. The optional schemaVersion
+field is declared in .agents/schemas/session-log.schema.json but the
+canonical scripts/validate_session_json.py does not validate it; this
+guard intentionally matches the canonical validator (no schemaVersion
+enforcement). endingCommit may be absent for investigation-only sessions.
 
 The guard validates:
 - endingCommit is not the literal placeholder string "pending" (when present)
