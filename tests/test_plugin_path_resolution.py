@@ -13,6 +13,7 @@ and ensures the standard boilerplate includes path validation per ADR-047.
 
 from __future__ import annotations
 
+import ast
 from pathlib import Path
 
 import pytest
@@ -44,16 +45,18 @@ LIB_DIR_VALIDATION_PATTERNS = (
 # Importing the helper satisfies the CLAUDE_PLUGIN_ROOT and lib-validation
 # requirements transitively; the canonical resolution lives in the helper.
 #
-# The exemption is gated on TWO independent signals so a stray comment or
-# docstring mentioning the import cannot disable the ADR-047 assertion:
-# the file MUST contain both an actual import statement AND an actual
-# invocation of ``ensure_plugin_paths()``. A hook that imports without
-# calling, or calls without importing, fails the gate and falls back to
-# the inline-pattern checks.
-SHARED_BOOTSTRAP_IMPORT_MARKERS = (
-    "from _bootstrap import",
-)
-SHARED_BOOTSTRAP_CALL_MARKER = "ensure_plugin_paths()"
+# The exemption is granted only when AST analysis confirms BOTH:
+#   1. an actual ``ImportFrom`` node with module == "_bootstrap" that
+#      imports ``ensure_plugin_paths``, and
+#   2. an actual ``Call`` node whose ``func`` resolves to
+#      ``ensure_plugin_paths`` (or ``_bootstrap.ensure_plugin_paths``).
+#
+# A docstring or comment that merely mentions the import string and the
+# call string would have satisfied a substring-only check; the AST-based
+# check rejects that because text inside string literals is not parsed
+# as code.
+_BOOTSTRAP_MODULE = "_bootstrap"
+_BOOTSTRAP_FUNC = "ensure_plugin_paths"
 
 
 def _collect_python_files(directory: Path) -> list[Path]:
@@ -78,15 +81,45 @@ def _has_lib_dir_validation(content: str) -> bool:
 def _delegates_to_shared_bootstrap(content: str) -> bool:
     """Check if the file delegates plugin-path resolution to ``_bootstrap``.
 
-    Requires BOTH signals: an import statement AND a call to
-    ``ensure_plugin_paths()``. Either signal alone could appear in
-    a comment or docstring without producing real delegation, so the
-    exemption is granted only when both are present (the canonical
-    consumer pattern).
+    Uses AST analysis (not substring matching) so a docstring or comment
+    that happens to contain the import or call text cannot grant the
+    exemption. A file qualifies only when its parsed AST contains:
+
+    1. ``from _bootstrap import ... ensure_plugin_paths ...`` AND
+    2. an actual call to ``ensure_plugin_paths()`` (bare name) or
+       ``_bootstrap.ensure_plugin_paths()`` (attribute form).
+
+    A SyntaxError or any AST traversal failure conservatively denies
+    the exemption: a file the test cannot parse has not proven
+    delegation, so it must satisfy the inline-pattern checks instead.
     """
-    has_import = any(marker in content for marker in SHARED_BOOTSTRAP_IMPORT_MARKERS)
-    has_call = SHARED_BOOTSTRAP_CALL_MARKER in content
-    return has_import and has_call
+    try:
+        tree = ast.parse(content)
+    except SyntaxError:
+        return False
+
+    has_import = False
+    has_call = False
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module == _BOOTSTRAP_MODULE:
+            for alias in node.names:
+                if alias.name == _BOOTSTRAP_FUNC:
+                    has_import = True
+                    break
+        elif isinstance(node, ast.Call):
+            func = node.func
+            if isinstance(func, ast.Name) and func.id == _BOOTSTRAP_FUNC:
+                has_call = True
+            elif (
+                isinstance(func, ast.Attribute)
+                and func.attr == _BOOTSTRAP_FUNC
+                and isinstance(func.value, ast.Name)
+                and func.value.id == _BOOTSTRAP_MODULE
+            ):
+                has_call = True
+        if has_import and has_call:
+            return True
+    return False
 
 
 class TestPluginPathResolution:
