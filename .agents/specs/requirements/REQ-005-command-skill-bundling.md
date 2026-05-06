@@ -41,17 +41,20 @@ SO THAT protocol drift, lost learning, and inconsistent quality are eliminated a
 ### AC-1: /spec session-init
 
 WHEN `/spec` is invoked,
-THE SYSTEM SHALL invoke `Skill(skill="session-init")` if `.agents/SESSION-PROTOCOL.md` exists,
-otherwise log `BUNDLE: spec -> session-init (skipped:no-marker)` and continue without aborting,
-SO THAT session logs are created for repo maintainers while external plugin installers can still run `/spec` without `.agents/` infrastructure.
+THE SYSTEM SHALL invoke `Skill(skill="session-init")` unconditionally,
+SO THAT session logs are created for every spec session.
 
-User stories covered: US-1, US-3.
+The `session-init` skill is responsible for handling missing `.agents/SESSION-PROTOCOL.md` (its own precondition); commands do not gate on external infrastructure markers. This matches the PR #1894 pattern where prose-driven bundling at the agent layer ships universal behavior and skills own their own preconditions.
+
+User stories covered: US-1.
 
 ### AC-2: /ship session-end and reflect
 
 WHEN `/ship` completes PR creation successfully,
-THE SYSTEM SHALL invoke `Skill(skill="session-end")` first (presence-gated on `.agents/SESSION-PROTOCOL.md`), then `Skill(skill="reflect")` (always, unconditional; minimum-delta guard: skip if diff is fewer than 5 changed files),
+THE SYSTEM SHALL invoke `Skill(skill="session-end")` first (unconditional), then `Skill(skill="reflect")` (unconditional; minimum-delta guard: skip if diff is fewer than 5 changed files),
 SO THAT learnings persist and the session log validates after every ship, without noisy reflect invocations on trivial changes.
+
+The `session-end` skill owns its own missing-marker behavior internally; commands do not gate on `.agents/SESSION-PROTOCOL.md` presence (matches PR #1894 precedent: skills own their preconditions).
 
 User stories covered: US-1.
 
@@ -125,13 +128,13 @@ Note: this is a static contract (the marker exists in the file text), not runtim
 
 User stories covered: US-7.
 
-### AC-12: Presence-gate skip behavior
+### AC-12: Runtime-conditional skip behavior
 
-WHEN a presence-gated skill's marker file is absent,
-THE SYSTEM SHALL emit `BUNDLE: <command> -> <skill> (skipped:no-marker)` and continue without aborting the command,
-SO THAT external plugin installers running without `.agents/` infrastructure are not blocked.
+WHEN a skill's runtime gate condition is not met (`chestertons-fence` when no diff file is older than six months; `merge-resolver` when `gh pr view --json mergeable -q '.mergeable'` is not `CONFLICTING`/`UNKNOWN`),
+THE SYSTEM SHALL emit `BUNDLE: <command> -> <skill> (skipped:condition-not-met)` and continue without aborting the command,
+SO THAT runtime-conditional skills do not fire when their precondition is absent.
 
-User stories covered: US-3.
+Note: AC-12 applies only to **runtime conditionals**, not to external-infrastructure presence checks. Skills that depend on `.agents/` infrastructure (e.g., `session-init`, `session-end`) own their own missing-marker handling internally per AC-1 and AC-2.
 
 ### AC-13: Failed skill warn-and-continue
 
@@ -139,11 +142,13 @@ WHEN a bundled skill invocation returns an error,
 THE SYSTEM SHALL emit `BUNDLE: <command> -> <skill> (failed:<reason>)` and continue to downstream steps without retrying,
 SO THAT a transient skill failure does not abort the entire lifecycle command.
 
-### AC-14: pre_pr.py bundle coverage check
+### AC-14: pre_pr.py bundle coverage check (advisory)
 
 WHEN `scripts/validation/pre_pr.py` runs,
-THE SYSTEM SHALL parse each command file for required `Skill(skill="...")` invocations and block the PR if any AC-required invocation is absent from its target command file,
-SO THAT bundle coverage cannot regress silently via a direct command edit.
+THE SYSTEM SHALL parse each command file for required `Skill(skill="...")` invocations and emit an advisory WARN (not BLOCKING) finding for any AC-required invocation absent from its target command file,
+SO THAT bundle coverage drift is surfaced to reviewers without converting the registry into a system-wide CI gate that would push the change to Tier 3.
+
+Advisory framing matches PR #1894's approach to prose-driven changes: drift is detected and surfaced, but humans (PR reviewers) are the enforcement layer. A future spec MAY escalate this to BLOCKING once the registry has stabilized over multiple PRs and an ADR captures the decision.
 
 ---
 

@@ -81,17 +81,16 @@ Edit seven lifecycle command files to add dedicated skill invocations per the DE
 
 **In Scope**:
 - Insert Step 0 before "1. Clarify the problem" per DESIGN-005 spec.md diff.
-- Presence check: `.agents/SESSION-PROTOCOL.md` using `Read` or `Bash(test -f ...)`. MUST NOT interpolate `$ARGUMENTS`.
-- BUNDLE marker: emit `BUNDLE: spec -> session-init (invoked)` on success, `BUNDLE: spec -> session-init (skipped:no-marker)` when absent, `BUNDLE: spec -> session-init (failed:<reason>)` on error.
-- Renumber existing steps 1-9 to 1-9 (Step 0 is unnumbered or labeled 0 to avoid renumbering the existing flow).
+- Always-bundle (no presence-check at the command layer; session-init skill owns its own missing-marker handling per Q2 resolution).
+- BUNDLE marker: emit `BUNDLE: spec -> session-init (invoked)` on success, `BUNDLE: spec -> session-init (failed:<reason>)` on error.
+- Step 0 is unnumbered or labeled 0 to avoid renumbering the existing flow.
 
 **Out of Scope**: Changes to session-init skill internals.
 
 **Acceptance Criteria**:
 - [ ] `.claude/commands/spec.md` contains `Skill(skill="session-init")`.
-- [ ] The invocation is presence-gated: skip text references `.agents/SESSION-PROTOCOL.md`.
+- [ ] The invocation is unconditional (no presence-check at command layer; skill owns its own marker handling).
 - [ ] `BUNDLE: spec -> session-init` appears in the file (as a comment or inline note).
-- [ ] No user input is interpolated into any shell check for the presence marker.
 - [ ] Existing Steps 1-9 are structurally unchanged (content, order, intent).
 
 **Done when**: `grep -n 'session-init' .claude/commands/spec.md` returns at least one match containing `Skill(skill="session-init")`.
@@ -110,16 +109,16 @@ Edit seven lifecycle command files to add dedicated skill invocations per the DE
 
 **In Scope**:
 - Insert post-ship step between current Step 4 (Create PR) and Step 5 (Report) per DESIGN-005 ship.md diff.
-- `session-end`: presence-gated on `.agents/SESSION-PROTOCOL.md`.
-- `reflect`: invoked unconditionally unless diff is fewer than 5 changed files (minimum-delta guard to prevent noisy memory writes on trivial changes).
+- `session-end`: unconditional invocation (skill owns its own missing-marker handling per Q2 resolution).
+- `reflect`: invoked when diff has 5 or more changed files; otherwise emit `BUNDLE: ship -> reflect (skipped:condition-not-met)`. Minimum-delta guard prevents noisy memory writes on trivial changes.
 - BUNDLE markers for both skills, including failure path.
 - Renumber "Report" to Step 6.
 
 **Out of Scope**: Changes to session-end or reflect skill internals.
 
 **Acceptance Criteria**:
-- [ ] `.claude/commands/ship.md` contains `Skill(skill="session-end")` with presence-gate note.
-- [ ] `.claude/commands/ship.md` contains `Skill(skill="reflect")` unconditionally.
+- [ ] `.claude/commands/ship.md` contains `Skill(skill="session-end")` invoked unconditionally.
+- [ ] `.claude/commands/ship.md` contains `Skill(skill="reflect")` with min-delta guard prose (5+ changed files).
 - [ ] `BUNDLE: ship -> session-end` and `BUNDLE: ship -> reflect` appear in the file.
 - [ ] Failure handling documented: both skills warn-and-continue.
 - [ ] Pre-flight checks (Steps 1-3) unchanged.
@@ -300,11 +299,12 @@ Edit seven lifecycle command files to add dedicated skill invocations per the DE
 - Follows pytest 8+ conventions.
 - Coverage target: 80% (business logic per AGENTS.md floor).
 
-**pre_pr.py check**:
+**pre_pr.py check (advisory, per Q3 resolution)**:
 - Add a new validation function `check_command_bundle_coverage()` that runs the same parse against the live command files.
-- On any missing invocation, emit a BLOCKING finding with: `file`, `expected_skill`, `ac_reference`.
-- Integrate with existing `pre_pr.py` runner so it appears in the standard pre-PR output.
-- Exit codes follow AGENTS.md contract: 0=ok, 1=logic (missing bundle = logic error).
+- On any missing invocation, emit an **advisory WARN** finding (not BLOCKING) with: `file`, `expected_skill`, `ac_reference`. Drift is surfaced to reviewers; PR review is the enforcement layer (matches PR #1894 pattern for prose-driven changes).
+- Function gated behind `BUNDLE_CHECK_ENFORCED` env var (default `0`, advisory). When set to `1`, findings escalate to BLOCKING — reserved for a future spec once the registry has stabilized.
+- Integrate with existing `pre_pr.py` runner so it appears in the standard pre-PR output (under WARN category).
+- Exit codes follow AGENTS.md contract: 0=ok regardless of advisory findings (env var `0`); 1=logic if env var is `1` and any bundle is missing.
 
 **BundleRegistry (shared module, imported by both test and pre_pr)**:
 
@@ -335,16 +335,16 @@ Both `tests/test_command_bundles.py` and the new function in `scripts/validation
 **Out of Scope**: Runtime execution of skills. Testing skill behavior. The test is a static contract check only.
 
 **Acceptance Criteria**:
-- [ ] `tests/test_command_bundles.py` exists and all 15 parametrized test cases pass when T5-1 through T5-7 are complete.
+- [ ] `tests/test_command_bundles.py` exists. Rows for not-yet-edited commands carry `@pytest.mark.xfail` so CI stays green during M1 (per plan §M1 Stays Green).
 - [ ] Each test case names the command file and skill clearly in its ID (e.g., `test_bundle[spec.md-session-init]`).
-- [ ] Running `pytest tests/test_command_bundles.py` exits 0 after all command edits land.
+- [ ] Running `pytest tests/test_command_bundles.py` exits 0 throughout (xfail counts as pass; M3 closing commit removes xfail marks).
 - [ ] `scripts/validation/pre_pr.py` includes `check_command_bundle_coverage()`.
-- [ ] Running `pre_pr.py` against a command file with a missing registry entry produces a BLOCKING finding.
-- [ ] Running `pre_pr.py` against complete command files produces no BLOCKING findings related to bundles.
-- [ ] New pre_pr.py function has a unit test in `tests/test_pre_pr.py` (or equivalent existing test file) covering: all-present (pass), one-missing (BLOCKING), empty-registry (pass).
+- [ ] Running `pre_pr.py` against a command file with a missing registry entry produces a WARN finding (not BLOCKING) when `BUNDLE_CHECK_ENFORCED=0` (default), and BLOCKING when `BUNDLE_CHECK_ENFORCED=1`.
+- [ ] Running `pre_pr.py` against complete command files produces no findings related to bundles regardless of env var.
+- [ ] New pre_pr.py function has a unit test in `tests/test_pre_pr.py` (or equivalent existing test file) covering: all-present (pass), one-missing under env=0 (WARN), one-missing under env=1 (BLOCKING), empty-registry (pass).
 - [ ] Python style and exit code contract match existing `pre_pr.py` conventions.
 
-**Done when**: `pytest tests/test_command_bundles.py` exits 0 (requires T5-1 through T5-7 complete), `python3 scripts/validation/pre_pr.py` produces no BLOCKING issues, and the CWE-78 path-quoting test passes (verifies all `git log` commands in build.md and review.md quote file paths).
+**Done when**: `pytest tests/test_command_bundles.py` exits 0 (xfails as designed during M1; un-xfailed rows pass), `python3 scripts/validation/pre_pr.py` produces no BLOCKING issues with `BUNDLE_CHECK_ENFORCED=0` (default; advisory WARN findings are expected during M1/M2), and the CWE-78 path-quoting test passes (verifies all `git log` commands in build.md and review.md quote file paths).
 
 ---
 

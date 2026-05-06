@@ -34,8 +34,8 @@ The registry is the canonical mapping. Every `Skill(skill="...")` call added by 
 
 | Command file | Skill name | Gate type | Phase | Presence marker | AC# |
 |---|---|---|---|---|---|
-| `spec.md` | `session-init` | presence | preflight | `.agents/SESSION-PROTOCOL.md` | AC-1 |
-| `ship.md` | `session-end` | presence | postflight | `.agents/SESSION-PROTOCOL.md` | AC-2 |
+| `spec.md` | `session-init` | always | preflight | (none; skill owns missing-marker handling) | AC-1 |
+| `ship.md` | `session-end` | always | postflight | (none; skill owns missing-marker handling) | AC-2 |
 | `ship.md` | `reflect` | always | postflight | (none) | AC-2 |
 | `plan.md` | `pre-mortem` | always | step-6 | (none) | AC-3 |
 | `plan.md` | `decision-critic` | always | step-7 | (none) | AC-4 |
@@ -59,13 +59,14 @@ The registry is the canonical mapping. Every `Skill(skill="...")` call added by 
 
 ## Presence-Marker Table
 
-| Skill | Command | Marker | Check method |
+Only **runtime conditionals** appear here. External-infrastructure presence checks (e.g., `.agents/SESSION-PROTOCOL.md` for session-init/session-end) are owned by the skill itself, not by the command, per Q2 resolution.
+
+| Skill | Command | Runtime gate | Check method |
 |---|---|---|---|
-| `session-init` | `spec.md` | `.agents/SESSION-PROTOCOL.md` | `Read` or `Bash(test -f ...)` |
-| `session-end` | `ship.md` | `.agents/SESSION-PROTOCOL.md` | `Read` or `Bash(test -f ...)` |
 | `chestertons-fence` | `build.md` | diff contains file with last commit > 6 months old | `Bash(git log --format=%at -1 -- "<file>")` — quote path to prevent CWE-78 |
 | `chestertons-fence` | `review.md` | diff touches file with last commit > 6 months old | same as above |
 | `merge-resolver` | `pr-review.md` | `gh pr view --json mergeable -q '.mergeable'` returns `CONFLICTING` or `UNKNOWN` | `gh pr view $PR --json mergeable -q '.mergeable'` |
+| `threat-modeling` | `test.md` | complexity tier from Step 0 is 3 or higher | (read tier from prior step output) |
 
 Security note: presence checks MUST use `Read` or `Bash(test -f <literal-path>)`. User-supplied input MUST NOT be interpolated into any shell command (CWE-78 prevention).
 
@@ -116,11 +117,11 @@ The test file parses command files for both the `Skill(skill="...")` call and th
 ```markdown
 ## Process
 
-0. **Session init** (presence-gated): If `.agents/SESSION-PROTOCOL.md` exists, invoke `Skill(skill="session-init")` and emit `BUNDLE: spec -> session-init (invoked)`. Otherwise emit `BUNDLE: spec -> session-init (skipped:no-marker)` and continue.
+0. **Session init**: Emit `BUNDLE: spec -> session-init (invoked)`, then invoke `Skill(skill="session-init")`. The skill owns its own missing-marker handling internally. If the skill returns an error, emit `BUNDLE: spec -> session-init (failed:<reason>)` and continue.
 1. Clarify the problem (what, who, why, constraints)
 ```
 
-Satisfies: AC-1, AC-11, AC-12.
+Satisfies: AC-1, AC-11, AC-13.
 
 ---
 
@@ -136,13 +137,13 @@ Satisfies: AC-1, AC-11, AC-12.
 **After**:
 ```markdown
 5. **Post-ship learnings**: After PR creation succeeds:
-   - Emit `BUNDLE: ship -> session-end (invoked)` or `BUNDLE: ship -> session-end (skipped:no-marker)` based on presence of `.agents/SESSION-PROTOCOL.md`, then invoke `Skill(skill="session-end")` if marker present.
-   - Emit `BUNDLE: ship -> reflect (invoked)`, then invoke `Skill(skill="reflect")` unconditionally.
+   - Emit `BUNDLE: ship -> session-end (invoked)`, then invoke `Skill(skill="session-end")` unconditionally. The skill owns its own missing-marker handling.
+   - **Reflect with min-delta guard**: If the diff has 5 or more changed files, emit `BUNDLE: ship -> reflect (invoked)` and invoke `Skill(skill="reflect")`. Otherwise emit `BUNDLE: ship -> reflect (skipped:condition-not-met)` and continue.
    - If either skill returns an error, emit `BUNDLE: ship -> <skill> (failed:<reason>)` and continue.
 6. Report: what shipped, PR link, any warnings
 ```
 
-Satisfies: AC-2, AC-11, AC-12, AC-13.
+Satisfies: AC-2, AC-11, AC-13.
 
 ---
 
@@ -370,11 +371,11 @@ Satisfies: AC-10, AC-11, AC-13.
 
 | Layer | Artifact | What is verified |
 |---|---|---|
-| Static parse | `tests/test_command_bundles.py` | Each command file contains the `Skill(skill="...")` calls from the BundleRegistry. Parses markdown; does not execute commands. |
-| Pre-PR gate | `scripts/validation/pre_pr.py` (new check) | Same parser as test file; blocks PRs where required invocations are absent. |
-| Shared registry | `tests/conftest.py` or `tests/bundle_registry.py` | Single source of truth for BUNDLE_REGISTRY list, imported by both test and pre_pr.py. Avoids copy-paste drift between consumers. |
-| Manual smoke | Run `/spec` on a repo with `.agents/SESSION-PROTOCOL.md` present and absent | Verify `BUNDLE:` text appears in command file and behavior matches. |
-| CWE-78 check | `tests/test_command_bundles.py` | All git log commands in build.md and review.md quote file paths (grep for `-- "<`). |
+| Static parse | `tests/test_command_bundles.py` | Each command file contains the `Skill(skill="...")` calls from the BundleRegistry. Parses markdown; does not execute commands. Tests use `xfail` marks for not-yet-edited rows so CI stays green during M1/M2. |
+| Pre-PR advisory | `scripts/validation/pre_pr.py` (new check) | Same parser as test file; emits **advisory WARN** findings (not BLOCKING) for missing invocations. Gated behind `BUNDLE_CHECK_ENFORCED` env var (default `0`); `1` upgrades to BLOCKING in a future spec. |
+| Shared registry | `scripts/validation/bundle_registry.py` | Single source of truth for BUNDLE_REGISTRY list, imported by both test and pre_pr.py. Avoids copy-paste drift between consumers. |
+| Manual smoke | Run `/spec` and `/ship` on a clean repo | Verify `BUNDLE:` text appears in command file and skill invocations succeed. |
+| CWE-78 check | `tests/test_command_bundles.py` | All git log commands in build.md and review.md quote file paths (independent regex grep, NOT shared with the bundle parser). |
 
 ---
 
