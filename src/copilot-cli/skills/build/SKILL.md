@@ -50,3 +50,9 @@ The agent should self-check:
 - No code without understanding the existing patterns first.
 - Favor delegation over inheritance. A makes B, or A uses B. Never both.
 - Three similar lines beat a premature abstraction.
+
+## Optional Final Gate: Guard Maturity Report
+
+Optionally invoke Skill(skill="guard-maturity") at the end of the build to print the Hook Maturity Model report for the push guards. This gate is **informational at landing**; promote it to mandatory after 30 days of real telemetry have accumulated in `.agents/telemetry/`. Until then, an empty report is expected and not a failure.
+
+Rationale: the retrospective on PR #1887 (`.agents/retrospective/2026-05-05-pr-1887-iteration-paradox.md`) flagged that 95+ crystallized hooks earlier accumulated without measurement. The build flow surfaces the maturity report so contributors see the cost of new guards alongside the work they are landing. See `docs/guard-maturity-runbook.md` for how to read the output.
