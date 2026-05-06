@@ -1,0 +1,43 @@
+{
+  "id": "episode-2026-05-06-session-1825",
+  "session": "2026-05-06-session-1825",
+  "timestamp": "2026-05-06T07:42:24.475595+00:00",
+  "outcome": "failure",
+  "task": "",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-05-06T07:42:24.466537+00:00",
+      "type": "error",
+      "content": "\"Evidence\": \"Pre-commit hook ran markdownlint-cli2 on staged files; 0 errors reported (SUCCESS: Markdown files OK)\"",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-05-06T07:42:24.466537+00:00",
+      "type": "error",
+      "content": "\"summary\": \"Ran requirements-interview skill; walked design tree (scope, user stories, data model, integrations, failure modes, security, observability)\"",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-05-06T07:42:24.466537+00:00",
+      "type": "error",
+      "content": "\"summary\": \"Analyst gap review surfaced 3 Critical and 4 Important findings; decision-critic returned REVISE; pre-mortem identified 5 additional failure modes\"",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 3,
+    "recoveries": 0,
+    "commits": 2,
+    "files_changed": 0
+  },
+  "lessons": []
+}
