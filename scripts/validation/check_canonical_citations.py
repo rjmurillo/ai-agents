@@ -3,7 +3,7 @@
 
 This script enforces the spirit of `.claude/rules/canonical-source-mirror.md`
 at the file-rule layer. When a Python source file under
-`.claude/hooks/`, `scripts/validation/`, or `build/scripts/` contains a
+`.claude/hooks/`, `scripts/validation/`, `build/scripts/`, or `.claude/skills/` contains a
 docstring or top-level comment that asserts the file "matches", "mirrors",
 or is "aligned with" some other source, this check verifies that within the
 same file there is at least one path-like reference (e.g.
@@ -87,6 +87,7 @@ def _scan_roots(repo_root: Path) -> list[Path]:
         repo_root / ".claude" / "hooks",
         repo_root / "scripts" / "validation",
         repo_root / "build" / "scripts",
+        repo_root / ".claude" / "skills",
     ]
     return [c for c in candidates if c.is_dir()]
 
@@ -269,7 +270,7 @@ def main(argv: list[str] | None = None) -> int:
     if not roots:
         print(
             "[SKIP] no scan roots present "
-            "(.claude/hooks, scripts/validation, build/scripts).",
+            "(.claude/hooks, scripts/validation, build/scripts, .claude/skills).",
         )
         return 0
 

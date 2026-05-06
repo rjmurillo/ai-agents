@@ -43,11 +43,12 @@ ccc = _load_module()
 
 @pytest.fixture()
 def fake_repo(tmp_path: Path) -> Path:
-    """Create the three scan-root directories that the script inspects."""
+    """Create the four scan-root directories that the script inspects."""
     for sub in (
         ".claude/hooks",
         "scripts/validation",
         "build/scripts",
+        ".claude/skills",
     ):
         (tmp_path / sub).mkdir(parents=True, exist_ok=True)
     return tmp_path
@@ -278,9 +279,10 @@ def test_main_no_violations_returns_zero(
 
 
 def test_main_violations_default_warns_returns_zero(
-    fake_repo: Path, capsys: pytest.CaptureFixture[str]
+    fake_repo: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """In soft-warn mode, violations produce output but exit 0."""
+    monkeypatch.delenv("STRICT_CANONICAL_CHECK", raising=False)
     _write_file(
         fake_repo,
         ".claude/hooks/v.py",
