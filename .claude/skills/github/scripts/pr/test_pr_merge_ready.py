@@ -10,6 +10,14 @@ Performs comprehensive merge readiness check:
 By default, only REQUIRED checks block merge. Non-required failing checks
 are reported but do not affect CanMerge unless --include-non-required is set.
 
+Multiple rows for the same check name (debounce supersession: a CANCELLED
+run plus a later SUCCESS run) are deduplicated by name. The verdict per
+name is FAIL if any conclusion is a real failure; OK if any conclusion is
+SUCCESS / NEUTRAL / SKIPPED; PENDING if any status is IN_PROGRESS / PENDING.
+A name whose only conclusion is CANCELLED carries no opinion and does not
+block. The PR #1887 retrospective records four false-FAIL reports caused
+by counting CANCELLED debounce rows as failed required checks.
+
 Exit codes follow ADR-035:
     0 - PR is ready to merge
     1 - PR is not ready to merge
@@ -24,6 +32,7 @@ import argparse
 import json
 import os
 import sys
+from collections import defaultdict
 
 _plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
 _workspace = os.environ.get("GITHUB_WORKSPACE")
@@ -100,6 +109,200 @@ query($owner: String!, $repo: String!, $number: Int!) {
 
 
 # ---------------------------------------------------------------------------
+# Classification helpers
+# ---------------------------------------------------------------------------
+
+# Conclusions that count as success for a CheckRun. Aligned with the existing
+# script behavior: SUCCESS, NEUTRAL, and SKIPPED have always been treated as
+# non-blocking by this code.
+_PASSING_CONCLUSIONS = frozenset({"SUCCESS", "NEUTRAL", "SKIPPED"})
+
+# CANCELLED is NOT a real failure: it indicates a workflow run that was
+# superseded (typically by a debounce mechanism that cancels the older run
+# in favor of a fresh one). The PR #1887 retrospective records four false-
+# FAIL reports caused by counting CANCELLED debounce rows as failed required
+# checks; the dedupe logic in _classify_check_contexts treats a CANCELLED
+# row as carrying no opinion when paired with a SUCCESS row of the same name.
+_NO_OPINION_CONCLUSIONS = frozenset({"CANCELLED"})
+
+# StatusContext states that count as success.
+_PASSING_STATUS_STATES = frozenset({"SUCCESS", "EXPECTED"})
+
+
+def _check_run_verdict(rows: list[dict]) -> str:
+    """Reduce multiple CheckRun rows for one name to a single verdict.
+
+    Verdict precedence:
+      1. FAIL  - any row has a real failure conclusion (not in the passing
+                 or no-opinion sets, e.g. FAILURE, TIMED_OUT, ACTION_REQUIRED).
+      2. PENDING - any row has status != COMPLETED.
+      3. OK    - any row has a passing conclusion.
+      4. SKIP  - all rows are CANCELLED (no real opinion); not blocking.
+
+    Aligns with the brief in the PR #1887 retrospective: "OK if any SUCCESS
+    exists and no FAILURE; FAIL if any FAILURE; PENDING if any IN_PROGRESS."
+    """
+    has_failure = False
+    has_pending = False
+    has_passing = False
+
+    for row in rows:
+        status = row.get("status", "")
+        conclusion = row.get("conclusion", "")
+
+        if status != "COMPLETED":
+            has_pending = True
+            continue
+        if conclusion in _PASSING_CONCLUSIONS:
+            has_passing = True
+        elif conclusion in _NO_OPINION_CONCLUSIONS:
+            # CANCELLED row: contributes nothing (no opinion).
+            continue
+        else:
+            has_failure = True
+
+    if has_failure:
+        return "FAIL"
+    if has_passing:
+        return "OK"
+    if has_pending:
+        return "PENDING"
+    return "SKIP"
+
+
+def _status_context_verdict(rows: list[dict]) -> str:
+    """Reduce multiple StatusContext rows for one name to a single verdict.
+
+    StatusContext does not surface CANCELLED; the typical states are SUCCESS,
+    EXPECTED, PENDING, FAILURE, ERROR. We apply the same precedence as the
+    CheckRun verdict so callers can treat the two row types uniformly.
+    """
+    has_failure = False
+    has_pending = False
+    has_passing = False
+
+    for row in rows:
+        state = row.get("state", "")
+        if state == "PENDING":
+            has_pending = True
+        elif state in _PASSING_STATUS_STATES:
+            has_passing = True
+        else:
+            has_failure = True
+
+    if has_failure:
+        return "FAIL"
+    if has_passing:
+        return "OK"
+    if has_pending:
+        return "PENDING"
+    return "SKIP"
+
+
+def _classify_check_contexts(
+    contexts: list[dict],
+    *,
+    failed_required: list[str],
+    pending_required: list[str],
+    failed_non_required: list[str],
+    pending_non_required: list[str],
+) -> None:
+    """Group rollup contexts by name and append blocking names to the lists.
+
+    Multiple rows under the same name (debounce supersession) are collapsed
+    via _check_run_verdict / _status_context_verdict before being routed to
+    the failed/pending buckets. A name whose verdict is OK or SKIP appends
+    to nothing; the caller computes passed_checks from the surviving names.
+
+    The is_required flag is taken from any row that carries it; if the rows
+    disagree, we OR them (treating the name as required if any row says so),
+    because the rollup may produce both a CheckRun and a StatusContext for
+    the same logical check and the required flag may live on only one.
+    """
+    grouped_check_runs: dict[str, list[dict]] = defaultdict(list)
+    grouped_status_contexts: dict[str, list[dict]] = defaultdict(list)
+    is_required_by_name: dict[str, bool] = {}
+
+    for ctx in contexts:
+        typename = ctx.get("__typename")
+        if typename == "CheckRun":
+            name = ctx.get("name", "unknown")
+            grouped_check_runs[name].append(ctx)
+        elif typename == "StatusContext":
+            name = ctx.get("context", "unknown")
+            grouped_status_contexts[name].append(ctx)
+        else:
+            continue
+
+        is_required_by_name[name] = (
+            is_required_by_name.get(name, False) or bool(ctx.get("isRequired", False))
+        )
+
+    for name, rows in grouped_check_runs.items():
+        verdict = _check_run_verdict(rows)
+        is_required = is_required_by_name.get(name, False)
+        _route_verdict(
+            name,
+            verdict,
+            is_required,
+            failed_required,
+            pending_required,
+            failed_non_required,
+            pending_non_required,
+        )
+
+    for name, rows in grouped_status_contexts.items():
+        if name in grouped_check_runs:
+            # Already classified via CheckRun; the StatusContext mirror would
+            # otherwise double-count. The rollup may publish both for the
+            # same logical check.
+            continue
+        verdict = _status_context_verdict(rows)
+        is_required = is_required_by_name.get(name, False)
+        _route_verdict(
+            name,
+            verdict,
+            is_required,
+            failed_required,
+            pending_required,
+            failed_non_required,
+            pending_non_required,
+        )
+
+
+def _route_verdict(
+    name: str,
+    verdict: str,
+    is_required: bool,
+    failed_required: list[str],
+    pending_required: list[str],
+    failed_non_required: list[str],
+    pending_non_required: list[str],
+) -> None:
+    """Append name to the appropriate bucket given its verdict and required flag."""
+    if verdict == "FAIL":
+        (failed_required if is_required else failed_non_required).append(name)
+    elif verdict == "PENDING":
+        (pending_required if is_required else pending_non_required).append(name)
+
+
+def _count_passed_checks(contexts: list[dict], blocked: list[str]) -> int:
+    """Count distinct check names that are not in any blocking bucket.
+
+    Uses the post-dedupe blocked list to compute "everything else passed".
+    """
+    distinct_names: set[str] = set()
+    for ctx in contexts:
+        typename = ctx.get("__typename")
+        if typename == "CheckRun":
+            distinct_names.add(ctx.get("name", "unknown"))
+        elif typename == "StatusContext":
+            distinct_names.add(ctx.get("context", "unknown"))
+    blocked_set = set(blocked)
+    return len(distinct_names - blocked_set)
+
+
+# ---------------------------------------------------------------------------
 # Core logic
 # ---------------------------------------------------------------------------
 
@@ -169,45 +372,17 @@ def check_merge_readiness(
             rollup = commit.get("commit", {}).get("statusCheckRollup")
             if rollup:
                 contexts = rollup.get("contexts", {}).get("nodes", [])
-                for ctx in contexts:
-                    typename = ctx.get("__typename")
-
-                    if typename == "CheckRun":
-                        name = ctx.get("name", "unknown")
-                        status = ctx.get("status", "")
-                        conclusion = ctx.get("conclusion", "")
-                        is_required = ctx.get("isRequired", False)
-
-                        if status != "COMPLETED":
-                            if is_required:
-                                pending_required.append(name)
-                            else:
-                                pending_non_required.append(name)
-                        elif conclusion not in ("SUCCESS", "NEUTRAL", "SKIPPED"):
-                            if is_required:
-                                failed_required.append(name)
-                            else:
-                                failed_non_required.append(name)
-                        else:
-                            passed_checks += 1
-
-                    elif typename == "StatusContext":
-                        name = ctx.get("context", "unknown")
-                        state = ctx.get("state", "")
-                        is_required = ctx.get("isRequired", False)
-
-                        if state == "PENDING":
-                            if is_required:
-                                pending_required.append(name)
-                            else:
-                                pending_non_required.append(name)
-                        elif state not in ("SUCCESS", "EXPECTED"):
-                            if is_required:
-                                failed_required.append(name)
-                            else:
-                                failed_non_required.append(name)
-                        else:
-                            passed_checks += 1
+                _classify_check_contexts(
+                    contexts,
+                    failed_required=failed_required,
+                    pending_required=pending_required,
+                    failed_non_required=failed_non_required,
+                    pending_non_required=pending_non_required,
+                )
+                passed_checks = _count_passed_checks(
+                    contexts,
+                    blocked=failed_required + pending_required + failed_non_required + pending_non_required,
+                )
 
         # Always block on required check failures
         if failed_required:
