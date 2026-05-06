@@ -86,6 +86,16 @@ def _no_consumer_repo_skip():
         yield
 
 
+@pytest.fixture(autouse=True)
+def _no_gh_base_ref():
+    """Default tests to "no PR open" so the fallback chain exercises @{u}
+    and origin/HEAD. Tests that specifically target the gh path opt back
+    in by patching ``push_guard_base._gh_base_ref`` with their own value.
+    """
+    with patch("push_guard_base._gh_base_ref", return_value=None):
+        yield
+
+
 class TestStdinShapes:
     """AC: tty, empty, missing tool_input, missing command all return 0."""
 
@@ -444,6 +454,51 @@ class TestGitDiffFallback:
 
         assert rc == 0
         assert "origin/feat/parent-1880...HEAD" in seen["refs"]
+        assert "origin/main...HEAD" not in seen["refs"]
+
+    def test_fallback_prefers_pr_base_when_gh_returns_one(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        push_command: None,
+        tmp_path: Path,
+    ) -> None:
+        """When gh pr view returns baseRefName, that wins over @{u}/origin/HEAD.
+
+        Once a PR exists, baseRefName is ground truth even when the user
+        has not set local upstream tracking. This handles the
+        derivative-PR case where the PR is opened against a parent
+        feature branch but the developer has not run ``git push -u`` yet.
+        See PR #1887 review thread r3189474805.
+        """
+        seen: dict[str, list[str]] = {"refs": []}
+
+        def fake_run(args: list[str], **_kw: object) -> subprocess.CompletedProcess[str]:
+            # rev-parse and symbolic-ref would also succeed here, but the
+            # gh path takes precedence and should short-circuit them.
+            if "rev-parse" in args:
+                return subprocess.CompletedProcess(
+                    args=args, returncode=0, stdout="origin/main\n", stderr=""
+                )
+            if "symbolic-ref" in args:
+                return subprocess.CompletedProcess(
+                    args=args, returncode=0, stdout="origin/main\n", stderr=""
+                )
+            ref = args[-1]
+            seen["refs"].append(ref)
+            if ref == "@{push}..HEAD":
+                return _bad_diff()
+            return _ok_diff("docs/a.md\n")
+
+        with patch("push_guard_base.subprocess.run", side_effect=fake_run), patch(
+            "push_guard_base.get_project_directory", return_value=str(tmp_path)
+        ), patch(
+            "push_guard_base._gh_base_ref",
+            return_value="origin/feat/derivative-base",
+        ):
+            rc = run_guard(_no_violations, ["*.md"], "test")
+
+        assert rc == 0
+        assert "origin/feat/derivative-base...HEAD" in seen["refs"]
         assert "origin/main...HEAD" not in seen["refs"]
 
     def test_fallback_ignores_unresolved_upstream_token(

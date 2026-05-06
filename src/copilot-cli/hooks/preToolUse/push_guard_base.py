@@ -8,8 +8,11 @@ used in log lines and error codes. The framework owns:
 - bootstrap of ``hook_utilities``
 - consumer-repo skip
 - stdin parsing (with size cap)
-- ``git diff --name-only @{push}..HEAD`` with ``origin/main...HEAD``
-  fallback
+- ``git diff --name-only @{push}..HEAD`` with a fallback chain that
+  prefers the per-branch upstream (``@{u}``) and only falls through to
+  ``refs/remotes/origin/HEAD`` (typically ``origin/main``) when no
+  upstream is set; ``origin/main`` is the literal last resort. See
+  ``_detect_default_base_ref`` for the rationale.
 - glob filtering (single-segment via fnmatch, multi-segment via prefix
   plus suffix string check; see issue 1884 pre-mortem R-E)
 - structured stdout block on violation
@@ -95,7 +98,13 @@ from hook_utilities.guards import skip_if_consumer_repo  # noqa: E402
 # Re-export for sibling guards that delegate plugin path resolution to
 # _bootstrap. They import via this module so the static path-resolution
 # tests (ADR-047) recognize the canonical pattern.
-__all__ = ["run_guard", "get_project_directory"]
+#
+# ``emit_fail_open`` (the public alias of ``_emit_fail_open``) lets
+# guard-level fail-open paths emit the same structured EVENT line that
+# the framework emits on its own fail-open paths. Without it, the
+# telemetry pipeline cannot distinguish "guard ran clean" from "guard
+# silently bypassed because gh/markdownlint/etc. was missing".
+__all__ = ["run_guard", "get_project_directory", "emit_fail_open"]
 
 GIT_DIFF_TIMEOUT = 10
 
@@ -276,25 +285,69 @@ def _changed_files(
     return None
 
 
+_GH_TIMEOUT = 5
+
+
+def _gh_base_ref(cwd: str) -> str | None:
+    """Return ``origin/<baseRefName>`` for the open PR, or None.
+
+    When a PR exists for the current branch, ``baseRefName`` is the
+    ground truth. This handles the derivative-PR case where the user
+    has not run ``git push -u`` yet but the PR is already opened
+    against a non-default base. Fail-open semantics: any gh failure
+    (missing CLI, no PR, auth, network) returns None and the caller
+    falls through to the next signal in the chain.
+    """
+    import shutil  # local import to keep top-level imports minimal
+
+    if shutil.which("gh") is None:
+        return None
+    try:
+        proc = subprocess.run(
+            ["gh", "pr", "view", "--json", "baseRefName", "-q", ".baseRefName"],
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            timeout=_GH_TIMEOUT,
+            shell=False,
+            check=False,
+        )
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+        return None
+    if proc.returncode != 0:
+        return None
+    base = proc.stdout.strip()
+    if not base:
+        return None
+    return f"origin/{base}"
+
+
 def _detect_default_base_ref(cwd: str) -> str:
     """Resolve the right base ref to diff against when ``@{push}`` is unset.
 
     The fallback hierarchy mirrors what a careful engineer would inspect by
     hand:
 
-    1. The current branch's configured upstream (``@{u}``). When the user has
-       set tracking explicitly (``git branch --set-upstream-to=...``), this
-       is the right answer for both mainline branches and *derivative PRs*
-       that target a parent feature branch rather than ``main``. Hardcoding
-       ``origin/main`` here would pull in the parent branch's history and
-       fire guards on files that are not part of the outgoing push.
-    2. The remote's default branch via ``refs/remotes/origin/HEAD``. This is
-       the documented "what does the remote consider default" answer and
-       handles the common case of a brand-new feature branch with no
-       upstream set yet.
-    3. ``origin/main`` as a last-resort literal so a misconfigured clone
+    1. The PR's actual ``baseRefName`` via ``gh pr view``. This is the
+       ground truth once a PR exists and handles the derivative-PR case
+       where the user has not run ``git push -u`` yet but the PR is
+       already opened against a non-default base. Fail-open: any gh
+       failure (missing CLI, no PR, auth, network) falls to step 2.
+    2. The current branch's configured upstream (``@{u}``). When the user
+       has set tracking explicitly (``git push -u``,
+       ``git branch --set-upstream-to=...``), this is the right answer
+       for both mainline branches and derivative branches before the PR
+       exists. Hardcoding ``origin/main`` here would pull in the parent
+       branch's history.
+    3. The remote's default branch via ``refs/remotes/origin/HEAD``. The
+       documented "what does the remote consider default" answer for a
+       brand-new feature branch with no upstream and no PR yet.
+    4. ``origin/main`` as a last-resort literal so a misconfigured clone
        still produces a sensible (if imperfect) reference.
     """
+    pr_base = _gh_base_ref(cwd)
+    if pr_base:
+        return pr_base
     rc, out = _run_git_diff(
         ["git", "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"],
         cwd=cwd,
@@ -354,6 +407,15 @@ def _emit_fail_open(name: str, reason: str, detail: str) -> None:
         "detail": detail,
     }
     print(f"EVENT={json.dumps(event, separators=(',', ':'))}", file=sys.stderr)
+
+
+# Public alias so guard-level fail-open paths (markdownlint binary
+# missing, gh CLI missing, gh timeout, ...) can emit the same EVENT
+# shape the framework uses for its own fail-open paths. Without a
+# stable public name, callers would have to reach into the leading-
+# underscore symbol, which the linter and reviewers flag as a private
+# import.
+emit_fail_open = _emit_fail_open
 
 
 def _emit_violations(
