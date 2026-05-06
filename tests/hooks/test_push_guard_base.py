@@ -539,6 +539,46 @@ class TestGitDiffFallback:
         assert "origin/main...HEAD" in seen["refs"]
         assert all("@{" not in ref for ref in seen["refs"] if ref != "@{push}..HEAD")
 
+    def test_fallback_accepts_branch_name_with_at_sign(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        push_command: None,
+        tmp_path: Path,
+    ) -> None:
+        """Git refnames legitimately permit ``@`` in branch names.
+
+        ``origin/release@v2`` is a valid ref; the filter that screens out
+        the unresolved ``@{upstream}`` token must target the literal
+        ``@{`` sequence, not a bare ``@``. PR #1887 review thread
+        PRRT_kwDOQoWRls5_2ZzQ.
+        """
+        seen: dict[str, list[str]] = {"refs": []}
+
+        def fake_run(args: list[str], **_kw: object) -> subprocess.CompletedProcess[str]:
+            if "rev-parse" in args:
+                return subprocess.CompletedProcess(
+                    args=args, returncode=0, stdout="origin/release@v2\n", stderr=""
+                )
+            if "symbolic-ref" in args:
+                # Should not be reached: rev-parse already returned a real ref.
+                return subprocess.CompletedProcess(
+                    args=args, returncode=0, stdout="origin/main\n", stderr=""
+                )
+            ref = args[-1]
+            seen["refs"].append(ref)
+            if ref == "@{push}..HEAD":
+                return _bad_diff()
+            return _ok_diff("docs/a.md\n")
+
+        with patch("push_guard_base.subprocess.run", side_effect=fake_run), patch(
+            "push_guard_base.get_project_directory", return_value=str(tmp_path)
+        ):
+            rc = run_guard(_no_violations, ["*.md"], "test")
+
+        assert rc == 0
+        assert "origin/release@v2...HEAD" in seen["refs"]
+        assert "origin/main...HEAD" not in seen["refs"]
+
     def test_fallback_falls_back_to_main_when_symbolic_ref_fails(
         self,
         monkeypatch: pytest.MonkeyPatch,

@@ -354,7 +354,17 @@ def _detect_default_base_ref(cwd: str) -> str:
     )
     if rc == 0:
         ref = out.strip()
-        if ref:
+        # rev-parse prints "@{upstream}" or "HEAD@{upstream}" verbatim when
+        # no upstream is set; filter that out so we do not feed an
+        # unresolvable ref to git diff. The filter targets the literal
+        # ``@{`` token that only appears in the unresolved form, NOT a bare
+        # ``@`` (git refnames legitimately permit ``@`` in branch names like
+        # ``origin/release@v2``). Defense in depth: while modern git returns
+        # rc != 0 on unresolved upstream, some older versions and edge
+        # configurations have been observed to return rc=0 with the literal
+        # token; the regression test
+        # ``test_fallback_ignores_unresolved_upstream_token`` locks this in.
+        if ref and "@{" not in ref:
             return ref
     rc, out = _run_git_diff(
         ["git", "symbolic-ref", "--short", "refs/remotes/origin/HEAD"],
