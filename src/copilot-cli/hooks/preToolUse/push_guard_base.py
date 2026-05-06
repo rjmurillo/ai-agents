@@ -354,9 +354,7 @@ def _detect_default_base_ref(cwd: str) -> str:
     )
     if rc == 0:
         ref = out.strip()
-        # rev-parse prints "@{upstream}" verbatim when no upstream is set;
-        # filter that out so we do not feed an unresolvable ref to git diff.
-        if ref and "@" not in ref:
+        if ref:
             return ref
     rc, out = _run_git_diff(
         ["git", "symbolic-ref", "--short", "refs/remotes/origin/HEAD"],
