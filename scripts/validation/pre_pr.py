@@ -469,12 +469,17 @@ def validate_build_gates(repo_root: Path) -> bool:
     removes the code-qualities-assessment / taste-lints / doc-accuracy
     invocations, the iteration paradox documented in PR #1887 returns.
     Lock the contract here. See ``check_build_gates.py`` for the rules.
+
+    Unlike legacy validators (which use MissingScriptSkip for graceful
+    deprecation), this validator is a new mandatory gate. If the script
+    is deleted, that deletion itself is the violation being caught.
     """
     script = repo_root / "scripts" / "validation" / "check_build_gates.py"
     if not script.exists():
-        raise MissingScriptSkip(
-            "scripts/validation/check_build_gates.py not present"
-        )
+        print("[FAIL] scripts/validation/check_build_gates.py is missing")
+        print("  This validator is a mandatory gate, not a legacy script.")
+        print("  Restore the file or remove the build gates validation intentionally.")
+        return False
     exit_code, stdout, stderr = _run_subprocess(
         [sys.executable, str(script), "--repo-root", str(repo_root)]
     )

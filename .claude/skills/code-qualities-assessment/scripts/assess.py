@@ -72,7 +72,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--changed-only",
         action="store_true",
-        help="Only assess changed files (git diff)"
+        help="Only assess changed files (git diff HEAD)"
+    )
+    parser.add_argument(
+        "--diff-base",
+        help="Assess files changed since specified base ref (e.g., 'main')"
     )
     parser.add_argument(
         "--format",
@@ -121,13 +125,22 @@ def load_config(config_path: str) -> dict:
         }
 
 
-def get_files_to_assess(target: str, changed_only: bool) -> list[Path]:
+def get_files_to_assess(
+    target: str, changed_only: bool, diff_base: str | None
+) -> list[Path]:
     """Get list of files to assess"""
     import subprocess
     from glob import glob
 
-    if changed_only:
-        # Get changed files from git
+    if diff_base:
+        result = subprocess.run(
+            ["git", "diff", "--name-only", diff_base],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        files = [Path(f) for f in result.stdout.strip().split('\n') if f]
+    elif changed_only:
         result = subprocess.run(
             ["git", "diff", "--name-only", "HEAD"],
             capture_output=True,
@@ -146,7 +159,6 @@ def get_files_to_assess(target: str, changed_only: bool) -> list[Path]:
                     list(target_path.rglob("*.cs")) + \
                     list(target_path.rglob("*.java"))
         else:
-            # Glob pattern
             files = [Path(f) for f in glob(target, recursive=True)]
 
     return [f for f in files if f.exists()]
@@ -421,7 +433,7 @@ def main() -> int:
 
     # Get files to assess
     try:
-        files = get_files_to_assess(target_path, args.changed_only)
+        files = get_files_to_assess(target_path, args.changed_only, args.diff_base)
     except Exception as e:
         print(f"Error getting files: {e}", file=sys.stderr)
         return 1

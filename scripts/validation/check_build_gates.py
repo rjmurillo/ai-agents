@@ -83,7 +83,8 @@ def collect_violations(repo_root: Path) -> list[GateViolation]:
     text = build_md.read_text(encoding="utf-8")
     violations: list[GateViolation] = []
 
-    if not _MANDATORY_SECTION.search(text):
+    section_match = _MANDATORY_SECTION.search(text)
+    if not section_match:
         violations.append(
             GateViolation(
                 kind="section",
@@ -95,16 +96,20 @@ def collect_violations(repo_root: Path) -> list[GateViolation]:
                 ),
             )
         )
+        return violations
+
+    mandatory_section_text = text[section_match.start() :]
 
     for skill_name, pattern in _REQUIRED_GATES:
-        if not pattern.search(text):
+        if not pattern.search(mandatory_section_text):
             violations.append(
                 GateViolation(
                     kind="skill",
                     name=skill_name,
                     message=(
-                        f"build.md must invoke Skill(skill=\"{skill_name}\") as an "
-                        f"exit gate. See "
+                        f"build.md must invoke Skill(skill=\"{skill_name}\") under the "
+                        f"'## Mandatory Exit Gates' section. A mention elsewhere in the "
+                        f"file does not satisfy the contract. See "
                         f".agents/retrospective/2026-05-05-pr-1887-iteration-paradox.md "
                         f"Layer 2 for context."
                     ),
