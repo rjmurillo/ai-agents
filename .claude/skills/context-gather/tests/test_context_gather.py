@@ -92,7 +92,7 @@ class TestStructure:
         next_section = anti_pattern_section.find("\n## ")
         if next_section != -1:
             anti_pattern_section = anti_pattern_section[:next_section]
-        row_count = anti_pattern_section.count("\n|") - 1  # subtract header row
+        row_count = anti_pattern_section.count("\n|") - 2  # subtract header and separator rows
         assert row_count >= 3, f"Anti-Patterns table has {row_count} entries, need at least 3"
 
     def test_verification_section_exists(self, skill_content: str) -> None:
