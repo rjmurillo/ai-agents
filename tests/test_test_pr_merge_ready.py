@@ -174,14 +174,99 @@ class TestCheckMergeReadiness:
             result = check_merge_readiness("o", "r", 42, ignore_ci=True)
         assert result["CanMerge"] is True
 
-    def test_pr_not_found_exits_2(self):
-        with patch(
-            "test_pr_merge_ready.gh_graphql",
-            return_value={"repository": {"pullRequest": None}},
-        ):
-            with pytest.raises(SystemExit) as exc:
-                check_merge_readiness("o", "r", 999)
+    def test_pr_not_found_exits_2(self, caplog):
+        import logging
+        with caplog.at_level(logging.WARNING, logger="test_pr_merge_ready"):
+            with patch(
+                "test_pr_merge_ready.gh_graphql",
+                return_value={"repository": {"pullRequest": None}},
+            ):
+                with pytest.raises(SystemExit) as exc:
+                    check_merge_readiness("o", "r", 999)
             assert exc.value.code == 2
+        # Boundary observability: failed paths must emit a structured
+        # `op=merge_ready_failed reason=...` log line so an operator can
+        # grep failures across scripts using a unified taxonomy.
+        assert any(
+            "op=merge_ready_failed" in r.message
+            and "reason=pr_not_found" in r.message
+            for r in caplog.records
+        ), "merge_ready failure path must log op=merge_ready_failed reason=pr_not_found"
+
+    def test_pr_not_found_via_could_not_resolve_exits_2(self, caplog):
+        """gh_graphql RuntimeError with 'Could not resolve' maps to exit 2."""
+        import logging
+        with caplog.at_level(logging.WARNING, logger="test_pr_merge_ready"):
+            with patch(
+                "test_pr_merge_ready.gh_graphql",
+                side_effect=RuntimeError("Could not resolve to a PullRequest"),
+            ):
+                with pytest.raises(SystemExit) as exc:
+                    check_merge_readiness("o", "r", 999)
+            assert exc.value.code == 2
+        assert any(
+            "op=merge_ready_failed" in r.message
+            and "reason=pr_not_found" in r.message
+            for r in caplog.records
+        )
+
+    def test_graphql_error_exits_3_with_log(self, caplog):
+        """A non-'Could not resolve' RuntimeError exits 3 and logs reason=graphql_error."""
+        import logging
+        with caplog.at_level(logging.WARNING, logger="test_pr_merge_ready"):
+            with patch(
+                "test_pr_merge_ready.gh_graphql",
+                side_effect=RuntimeError("rate limit exceeded"),
+            ):
+                with pytest.raises(SystemExit) as exc:
+                    check_merge_readiness("o", "r", 42)
+            assert exc.value.code == 3
+        assert any(
+            "op=merge_ready_failed" in r.message
+            and "reason=graphql_error" in r.message
+            for r in caplog.records
+        )
+
+    def test_threads_pagination_fallback_when_inline_truncated(self, caplog):
+        """When totalCount > inline first:100, falls back to paginated helper.
+
+        The merge-ready GraphQL query embeds a ``reviewThreads(first: 100)``
+        page for round-trip economy. If a PR has more than 100 threads, that
+        page is a lower bound; we MUST call get_unresolved_review_threads
+        for an exact count to avoid the same silent-truncation failure mode
+        as PR #1887. This test asserts the fallback fires and the unresolved
+        count comes from the paginated helper, not the truncated inline page.
+        """
+        import logging
+        pr_data = json.loads(json.dumps(_OPEN_PR))
+        # Simulate a PR with totalCount=150 but only 100 inline nodes.
+        threads = pr_data["repository"]["pullRequest"]["reviewThreads"]
+        threads["totalCount"] = 150
+        threads["nodes"] = [
+            {"id": f"PRRT_{i}", "isResolved": False} for i in range(100)
+        ]
+
+        # Paginated helper returns 7 unresolved (the "real" count).
+        fake_unresolved = [
+            {"id": f"PRRT_real_{i}", "isResolved": False} for i in range(7)
+        ]
+        with caplog.at_level(logging.INFO, logger="test_pr_merge_ready"):
+            with patch(
+                "test_pr_merge_ready.gh_graphql", return_value=pr_data,
+            ), patch(
+                "test_pr_merge_ready.get_unresolved_review_threads",
+                return_value=fake_unresolved,
+            ) as mock_paginated:
+                result = check_merge_readiness("o", "r", 42, ignore_ci=True)
+
+        mock_paginated.assert_called_once_with("o", "r", 42)
+        assert result["UnresolvedThreads"] == 7, (
+            "Fallback must use paginated helper count, not the inline 100"
+        )
+        assert any(
+            "op=merge_ready_threads_paginating" in r.message
+            for r in caplog.records
+        ), "Fallback path must log the paginating signal"
 
     def test_cancelled_with_later_success_does_not_block(self):
         """PR #1887 false-FAIL pattern: a CANCELLED debounce row plus a later
