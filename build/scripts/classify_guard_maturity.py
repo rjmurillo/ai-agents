@@ -7,9 +7,11 @@ signal derived from block rate.
 
 Tiers (evaluated in order; first match wins):
 
-- ``Harmful``: any age, ≥1 intercept, fitness < ``-0.02``. Remove
+- ``Harmful``: any age, ≥3 intercepts, fitness < ``-0.02``. Remove
   immediately. A guard that mostly fails open or that catches things it
-  should not is doing harm; it normalizes bypass.
+  should not is doing harm; it normalizes bypass. Requires minimum of 3
+  intercepts to avoid false classification from transient infrastructure
+  failures.
 - ``Proficient``: ≥60 days since first event, ≥10 intercepts, fitness
   ≥ ``+0.02``. Promote and keep.
 - ``Mature``: ≥30 days since first event, ≥5 intercepts, fitness ≥ 0.
@@ -68,6 +70,7 @@ from pathlib import Path
 
 # Tier thresholds. Modify here to adjust policy; tests pin the canonical
 # transitions so a change here is intentional.
+HARMFUL_INTERCEPTS_MIN = 3
 HARMFUL_FITNESS_MAX = -0.02
 PROFICIENT_FITNESS_MIN = 0.02
 PROFICIENT_AGE_DAYS = 60.0
@@ -101,7 +104,9 @@ def classify_one(summary: dict, treat_unseen_as_inert: bool = False) -> str:
     age = summary.get("days_since_first_event")
 
     # Harmful first: a known-bad guard at any age is a remove-on-sight.
-    if intercepts >= 1 and fitness < HARMFUL_FITNESS_MAX:
+    # Require minimum intercepts to avoid false classification from a single
+    # transient infrastructure failure (e.g., network error on first event).
+    if intercepts >= HARMFUL_INTERCEPTS_MIN and fitness < HARMFUL_FITNESS_MAX:
         return "Harmful"
 
     if age is None:
