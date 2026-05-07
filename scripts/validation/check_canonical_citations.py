@@ -23,9 +23,13 @@ output on stdout). Set the environment variable `STRICT_CANONICAL_CHECK=1`
 to upgrade warnings to a hard FAIL (exit 1).
 
 EXIT CODES:
-  0 - Success (no violations, OR violations only in soft-warn mode)
+  0 - Success (no violations; OR violations only in soft-warn mode; OR no
+      scan roots present, which prints `[SKIP] no scan roots present` and
+      treats the absence as benign — vendor installs without `.claude/`
+      should not be a hard failure here)
   1 - Violations found AND STRICT_CANONICAL_CHECK=1
-  2 - Configuration error (no scan roots present)
+  2 - Configuration error (currently unused; reserved for future paths
+      that genuinely cannot proceed)
 """
 
 from __future__ import annotations

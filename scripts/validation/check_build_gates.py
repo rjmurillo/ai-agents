@@ -80,7 +80,14 @@ def collect_violations(repo_root: Path) -> list[GateViolation]:
     if not build_md.is_file():
         raise FileNotFoundError(f"missing build.md at {build_md}")
 
-    text = build_md.read_text(encoding="utf-8")
+    try:
+        text = build_md.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        # An unreadable or invalid-encoding build.md is a caller-environment
+        # config error (exit 2 per ADR-035); raise OSError so main()'s
+        # except handler maps it to the correct exit code rather than
+        # dumping a traceback.
+        raise OSError(f"cannot read build.md at {build_md}: {exc}") from exc
     violations: list[GateViolation] = []
 
     if not _MANDATORY_SECTION.search(text):
@@ -146,7 +153,7 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         violations = collect_violations(repo_root)
-    except FileNotFoundError as exc:
+    except (FileNotFoundError, OSError, UnicodeDecodeError) as exc:
         print(f"[FAIL] {exc}", file=sys.stderr)
         return 2
 
