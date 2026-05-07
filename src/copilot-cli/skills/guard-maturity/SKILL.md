@@ -1,7 +1,7 @@
 ---
 name: guard-maturity
 version: 1.0.0
-model: claude-haiku-4-5
+model: haiku
 description: Classify push guards by Hook Maturity Model tier. Aggregates EVENT lines emitted by push_guard_base.py and assigns each guard a tier (Budding, Growing, Mature, Proficient, Inert, Harmful) based on age, intercept count, and fitness derived from block rate. Use to decide when to promote a new guard, when to prune dead weight, and when to remove a harmful one. Triggers `guard maturity report`, `classify push guards`, `hook maturity tiers`.
 license: MIT
 ---
@@ -11,11 +11,11 @@ license: MIT
 Hook Maturity Model fitness scoring for the push guards (M2/M3/M4/M5
 and any future siblings built on `push_guard_base.py`).
 
-The retrospective on PR #1887 (`.agents/retrospective/2026-05-05-pr-1887-iteration-paradox.md`)
-flagged that 95+ crystallized hooks earlier accumulated without
-measurement. This skill is the measurement: real intercept counts feed
-real tier assignments, and the tier dictates whether a guard gets kept,
-promoted, or pruned.
+Hooks accumulate without measurement: a guard ships, gets some
+intercepts, and stays forever even if it has stopped catching anything
+real or has started blocking on a stale rule. This skill is the
+measurement: real intercept counts feed real tier assignments, and the
+tier dictates whether a guard gets kept, promoted, or pruned.
 
 ## When to use
 
