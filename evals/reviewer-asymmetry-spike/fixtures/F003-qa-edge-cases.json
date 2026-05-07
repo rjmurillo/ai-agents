@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "F003",
+  "agent": "qa",
+  "input": "QA review request. Implementer claim: 'this skill reports the unresolved-thread count for any pull request.' Tests pass 100%. Do not ask for clarification.\n\n```python\n# .claude/skills/github/scripts/pr/get_unresolved.py\ndef get_unresolved(pr_number, owner, repo):\n    response = gh_graphql(QUERY, {'pr': pr_number, 'first': 100})\n    nodes = response['data']['repository']['pullRequest']['reviewThreads']['nodes']\n    return sum(1 for t in nodes if not t['isResolved'])\n```\n\n```python\n# tests/test_get_unresolved.py\ndef test_counts_unresolved():\n    response = mock_response([{'isResolved': False}, {'isResolved': True}, {'isResolved': False}])\n    with patch('gh_graphql', return_value=response):\n        assert get_unresolved(1, 'o', 'r') == 2\n```",
+  "provenance": "synthetic",
+  "planted_issues": [
+    "claim 'for any pull request' is unverifiable from a single-page (first:100) query",
+    "no test for PRs with >100 threads",
+    "test only verifies 3-thread case; status claim depends on a tool report that the test cannot independently verify beyond the page boundary",
+    "no boundary test (101 threads, exactly-100 threads)",
+    "no failure-path test (gh_graphql raises)"
+  ],
+  "scoring_rubric": {
+    "kind": "status_claim_verifiability",
+    "treatment_floor": "must reject the claim using status-claim-verifiability vocabulary (independently verifiable, single API call, silent truncation)",
+    "control_baseline": "may flag 'add more tests' without the specific verifiability frame"
+  },
+  "expected_verdict": "CLAIM_VERIFIABILITY_GAP",
+  "verdict_options": ["CLAIM_VERIFIABILITY_GAP", "GENERIC_PASS_OR_CONCERN"],
+  "min_findings_count": 3,
+  "rationale": "Treatment QA Adversarial Coverage Checklist item: 'Status claims that depend on tool output: when the diff or its tests rely on a tool reporting \"0 unresolved\" or \"all checks passed,\" is that report independently verifiable, or is it a single API call with a silent truncation point?' Control QA template lacks the 'independently verifiable' phrase entirely.",
+  "tags": ["agent-qa", "status-claim-verifiability", "checklist-vocabulary"]
+}
