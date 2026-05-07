@@ -11,8 +11,10 @@ Sources:
 2. STDIN piped from a one-shot ``git push 2>&1`` capture.
 3. Explicit ``--source <file_or_dir>``.
 
-Aggregator is lenient: malformed lines are skipped with a stderr
-warning, never raised. ``--guard <name>`` lets a caller include a guard
+Aggregator is lenient: malformed lines are silently skipped (return None
+from ``_parse_event_line``); they never raise. Volume is expected to be
+high enough that warning per-line would be noise; the test suite asserts
+the silent-skip contract. ``--guard <name>`` lets a caller include a guard
 in the output even when it had zero events (so the classifier can mark
 it Inert).
 
