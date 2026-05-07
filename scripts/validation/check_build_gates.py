@@ -129,7 +129,8 @@ def _build_parser() -> argparse.ArgumentParser:
         "--repo-root",
         type=Path,
         default=None,
-        help="Repository root. Defaults to two levels above this script.",
+        help="Repository root. Defaults to three levels above this script "
+             "(scripts/validation/<script> -> repo root).",
     )
     return parser
 
