@@ -142,8 +142,8 @@ def _check_run_verdict(rows: list[dict]) -> str:
     Verdict precedence:
       1. FAIL  - any row has a real failure conclusion (not in the passing
                  or no-opinion sets, e.g. FAILURE, TIMED_OUT, ACTION_REQUIRED).
-      2. PENDING - any row has status != COMPLETED.
-      3. OK    - any row has a passing conclusion.
+      2. OK    - any row has a passing conclusion.
+      3. PENDING - any row has status != COMPLETED (and no passing row).
       4. SKIP  - all rows are CANCELLED (no real opinion); not blocking.
 
     Aligns with the brief in the PR #1887 retrospective: "OK if any SUCCESS

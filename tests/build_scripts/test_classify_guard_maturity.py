@@ -116,18 +116,17 @@ def test_proficient_just_misses_intercept_count_falls_back_to_mature():
 
 
 def test_mature_just_misses_intercept_count_falls_back_to_growing():
-    # 30+ days, 4 intercepts (< 5), positive fitness -> falls into the
-    # Growing band only if age < 30. At 30 days exactly with <5 intercepts,
-    # we hit none of (Inert, Proficient, Mature, Growing) and land on Budding.
+    # 30+ days, 4 intercepts (< 5), positive fitness -> Growing because
+    # it doesn't meet Mature's intercept threshold but is productive.
     s = _summary(blocks=4, age=30.0)
-    assert cgm.classify_one(s) == "Budding"
+    assert cgm.classify_one(s) == "Growing"
 
 
-def test_growing_at_exactly_30_days_drops_to_budding_quiet_patch():
+def test_growing_at_exactly_30_days_with_intercepts():
     s = _summary(blocks=1, age=30.0)
     # 30 days exact: not Inert (intercepts > 0), not Mature (intercepts < 5),
-    # not Growing (age >= 30 limit), so it lands in Budding's catch-all.
-    assert cgm.classify_one(s) == "Budding"
+    # so it falls into Growing (productive guard that hasn't matured yet).
+    assert cgm.classify_one(s) == "Growing"
 
 
 def test_fitness_centered_on_block_rate():

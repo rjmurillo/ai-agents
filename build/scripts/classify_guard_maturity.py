@@ -17,8 +17,9 @@ Tiers (evaluated in order; first match wins):
 - ``Inert``: ≥30 days since first event, 0 intercepts. Prune candidate.
   Either no real diff has tripped it, or the validator is too narrow to
   fire.
-- ``Growing``: 14-30 days since first event, ≥1 intercept. Adolescent;
-  too young for promotion, too productive to drop.
+- ``Growing``: ≥14 days since first event, ≥1 intercept, does not meet
+  Mature/Proficient thresholds. Adolescent; too young for promotion, too
+  productive to drop.
 - ``Budding``: <14 days since first event. New, anything goes.
 
 A guard with no events at all but listed by ``--guard`` falls into
@@ -125,8 +126,9 @@ def classify_one(summary: dict, treat_unseen_as_inert: bool = False) -> str:
             and fitness >= 0):
         return "Mature"
 
-    # Growing: adolescent age, has fired at least once.
-    if GROWING_AGE_MIN_DAYS <= age < INERT_AGE_DAYS and intercepts >= 1:
+    # Growing: adolescent age, has fired at least once but doesn't meet
+    # Mature/Proficient thresholds.
+    if age >= GROWING_AGE_MIN_DAYS and intercepts >= 1:
         return "Growing"
 
     # Budding: too young to assess, or in a quiet patch.
