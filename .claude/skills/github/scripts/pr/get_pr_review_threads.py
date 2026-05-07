@@ -53,11 +53,12 @@ from github_core.api import (  # noqa: E402
 )
 
 # Page size for the reviewThreads connection. GitHub GraphQL caps connection
-# pages at 100; we ask for 100 and iterate until pageInfo.hasNextPage is false.
-# The PR #1887 retrospective records that the earlier first:100 single-page
-# query masked 6+ unresolved threads twice in that cycle, because the script
-# silently truncated on PRs whose thread count crossed the page boundary.
-_THREADS_PAGE_SIZE = 100
+# pages at 100; the query below asks for `first: 100` and iterates until
+# pageInfo.hasNextPage is false. Hardcoded in the query string (GraphQL
+# does not support arithmetic on constants); kept as a comment so a future
+# editor can see the intended ceiling. Earlier in this codebase, a single-
+# page first:100 query silently truncated PRs whose thread count crossed
+# the page boundary; the loop closes that cliff.
 
 # Safety bound: a PR with more than 5000 review threads is almost certainly
 # either a runaway state or a query targeting the wrong PR. We exit the loop

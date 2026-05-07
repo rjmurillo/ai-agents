@@ -45,17 +45,20 @@ if _lib_dir not in sys.path:
 
 from github_core.api import (  # noqa: E402
     assert_gh_authenticated,
+    count_unresolved_threads,
     error_and_exit,
+    filter_unresolved_threads,
     gh_graphql,
     resolve_repo_params,
 )
 
 # Page size for the reviewThreads connection. GitHub GraphQL caps connection
-# pages at 100; we ask for 100 and iterate until pageInfo.hasNextPage is false.
-# The PR #1887 retrospective records that the earlier first:100 single-page
-# query masked 6+ unresolved threads twice in that cycle, because the script
-# silently truncated on PRs whose thread count crossed the page boundary.
-_THREADS_PAGE_SIZE = 100
+# pages at 100; the query below asks for `first: 100` and iterates until
+# pageInfo.hasNextPage is false. Hardcoded in the query string (GraphQL
+# does not support arithmetic on constants); kept as a comment so a future
+# editor can see the intended ceiling. Earlier in this codebase, a single-
+# page first:100 query silently truncated PRs whose thread count crossed
+# the page boundary; the loop closes that cliff.
 
 # Safety bound: a PR with more than 5000 review threads is almost certainly
 # either a runaway state or a query targeting the wrong PR. We exit the loop
@@ -231,7 +234,9 @@ def _collect_all_threads(
         data = _run_threads_query(owner, repo, pr, comments_limit, cursor)
         review_threads = _extract_review_threads(data, owner, repo, pr, pages_seen)
         if review_threads is None:
-            return None, 0, False
+            if pages_seen == 1:
+                return None, 0, False
+            break
 
         page_nodes = review_threads.get("nodes", [])
         aggregated.extend(page_nodes)
@@ -323,12 +328,12 @@ def main(argv: list[str] | None = None) -> int:
         error_and_exit(f"PR #{pr} not found or has no review threads", 2)
 
     if args.unresolved_only:
-        threads = [t for t in threads if not t.get("isResolved", True)]
+        threads = filter_unresolved_threads(threads)
 
     transformed = [_transform_thread(t, args.include_comments) for t in threads]
 
     total = len(threads)
-    unresolved = sum(1 for t in threads if not t.get("isResolved", True))
+    unresolved = count_unresolved_threads(threads)
 
     output = {
         "success": True,
