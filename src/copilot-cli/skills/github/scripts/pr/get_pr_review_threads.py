@@ -19,8 +19,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import os
 import sys
+import warnings
+
+logger = logging.getLogger(__name__)
 
 _plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
 _workspace = os.environ.get("GITHUB_WORKSPACE")
@@ -55,8 +59,12 @@ _THREADS_PAGE_SIZE = 100
 
 # Safety bound: a PR with more than 5000 review threads is almost certainly
 # either a runaway state or a query targeting the wrong PR. We exit the loop
-# rather than spin forever; the cap is reported in the output so callers can
-# see it tripped.
+# rather than spin forever. When the loop exits by cap, we emit a
+# warnings.warn and surface a `pagination_truncated: true` field in the JSON
+# output so a caller cannot mistake "5000 threads" for "complete result".
+# The PR #1887 retrospective records that a silent first:100 truncation hid
+# 6+ unresolved threads; a silent at-cap truncation would reproduce the same
+# false-zero failure class.
 _MAX_THREAD_PAGES = 50
 
 _THREADS_QUERY = """\
@@ -136,21 +144,82 @@ def _run_threads_query(
     return gh_graphql(_THREADS_QUERY, variables)
 
 
+def _extract_review_threads(
+    data: dict, owner: str, repo: str, pr: int, pages_seen: int,
+) -> dict | None:
+    """Pull the reviewThreads dict from a GraphQL response, defensively.
+
+    Returns the reviewThreads object on success, ``None`` when any of the
+    intermediate fields is missing. Each missing-field branch logs a
+    distinct ``op=review_threads_failed reason=...`` line so an operator
+    grepping the failure surface can distinguish the failure mode without
+    reading source.
+    """
+    repository = data.get("repository") or {}
+    pull_request_obj = repository.get("pullRequest")
+    if pull_request_obj is None:
+        logger.warning(
+            "op=review_threads_failed pr=%d owner=%s repo=%s page=%d "
+            "reason=pr_not_found",
+            pr, owner, repo, pages_seen,
+        )
+        return None
+    review_threads = pull_request_obj.get("reviewThreads")
+    if review_threads is None:
+        logger.warning(
+            "op=review_threads_failed pr=%d owner=%s repo=%s page=%d "
+            "reason=field_missing",
+            pr, owner, repo, pages_seen,
+        )
+        return None
+    if review_threads.get("nodes") is None:
+        logger.warning(
+            "op=review_threads_failed pr=%d owner=%s repo=%s page=%d "
+            "reason=nodes_missing",
+            pr, owner, repo, pages_seen,
+        )
+        return None
+    return review_threads
+
+
+def _log_pagination_progress(
+    pr: int, pages_seen: int, cursor_in: str | None,
+    page_info: dict, page_nodes: list, aggregated_count: int,
+) -> None:
+    """Emit the per-page DEBUG line. Full cursor is logged so adjacent
+    pages with shared 8-char prefixes can be distinguished by an operator
+    inspecting DEBUG output.
+    """
+    logger.debug(
+        "op=review_threads_page pr=%d page=%d cursor_in=%s end_cursor=%s "
+        "nodes=%d cumulative=%d has_next=%s",
+        pr,
+        pages_seen,
+        cursor_in if cursor_in else "<start>",
+        page_info.get("endCursor"),
+        len(page_nodes),
+        aggregated_count,
+        bool(page_info.get("hasNextPage")),
+    )
+
+
 def _collect_all_threads(
     owner: str, repo: str, pr: int, comments_limit: int,
-) -> tuple[list[dict] | None, int]:
+) -> tuple[list[dict] | None, int, bool]:
     """Page through all reviewThreads for a PR.
 
-    Returns a tuple of (nodes, total_count). The nodes list aggregates every
-    page until pageInfo.hasNextPage is false or _MAX_THREAD_PAGES is reached.
-    Returns (None, 0) when the PR or its reviewThreads field is missing, so
-    the caller can distinguish "no threads on a real PR" (empty list, total
-    >=0) from "PR not found" (None nodes).
+    Returns a tuple ``(nodes, total_count, truncated)``.
+
+    Return contract:
+    - ``nodes is None`` means the PR was not found, or its reviewThreads
+      connection was missing from the GraphQL response. Distinguish via
+      the ``op=review_threads_failed reason=...`` log line.
+    - ``nodes == []`` means the PR exists and has zero review threads.
+    - ``truncated is True`` means the loop exited at ``_MAX_THREAD_PAGES``
+      (5000-thread ceiling) while ``hasNextPage`` was still true; triggers
+      ``warnings.warn``.
 
     Raises RuntimeError on transport failures, propagated from gh_graphql.
-    The PR #1887 retrospective records that the prior first:100 single-page
-    query reported "0 unresolved" twice while 6+ unresolved threads sat on
-    the second page; this loop closes that pagination cliff.
     """
     aggregated: list[dict] = []
     total_count = 0
@@ -160,30 +229,37 @@ def _collect_all_threads(
     while pages_seen < _MAX_THREAD_PAGES:
         pages_seen += 1
         data = _run_threads_query(owner, repo, pr, comments_limit, cursor)
-
-        review_threads = (
-            data.get("repository", {})
-            .get("pullRequest", {})
-            .get("reviewThreads")
-        )
+        review_threads = _extract_review_threads(data, owner, repo, pr, pages_seen)
         if review_threads is None:
-            return None, 0
+            return None, 0, False
 
-        page_nodes = review_threads.get("nodes")
-        if page_nodes is None:
-            return None, 0
-
+        page_nodes = review_threads.get("nodes", [])
         aggregated.extend(page_nodes)
         total_count = review_threads.get("totalCount", total_count)
 
         page_info = review_threads.get("pageInfo") or {}
+        _log_pagination_progress(
+            pr, pages_seen, cursor, page_info, page_nodes, len(aggregated),
+        )
+
         if not page_info.get("hasNextPage"):
             break
         cursor = page_info.get("endCursor")
         if not cursor:
             break
+    else:
+        # while-else fires when pages_seen reaches the cap without a break.
+        # The last-seen page reported hasNextPage=true; surface it.
+        warnings.warn(
+            f"Hit _MAX_THREAD_PAGES={_MAX_THREAD_PAGES} for PR #{pr}; "
+            f"result truncated at {len(aggregated)} threads "
+            f"(reported total_count={total_count}). "
+            f"Re-run with a higher cap or paginate caller-side.",
+            stacklevel=2,
+        )
+        return aggregated, total_count, True
 
-    return aggregated, total_count
+    return aggregated, total_count, False
 
 
 def _transform_thread(thread: dict, include_comments: bool) -> dict:
@@ -234,7 +310,9 @@ def main(argv: list[str] | None = None) -> int:
     comments_limit = 50 if args.include_comments else 1
 
     try:
-        threads, _total_count = _collect_all_threads(owner, repo, pr, comments_limit)
+        threads, _total_count, truncated = _collect_all_threads(
+            owner, repo, pr, comments_limit,
+        )
     except RuntimeError as exc:
         msg = str(exc)
         if "Could not resolve" in msg:
@@ -260,8 +338,17 @@ def main(argv: list[str] | None = None) -> int:
         "total_threads": total,
         "resolved_count": total - unresolved,
         "unresolved_count": unresolved,
+        "pagination_truncated": truncated,
         "threads": transformed,
     }
+    # Truncation is signaled to consumers via two channels:
+    # - `pagination_truncated: bool` field in JSON output (machine-readable)
+    # - `warnings.warn` emitted by `_collect_all_threads` (human-readable on
+    #   stderr). Python's default warnings filter prints UserWarning to
+    #   stderr at most once per call site; CI pipelines reading stderr for
+    #   diagnostics see the warning without our adding a second print line.
+    # No second `print(WARNING ...)` here: duplicate stderr output would
+    # confuse callers parsing for a single signal.
 
     print(json.dumps(output, indent=2))
     return 0
