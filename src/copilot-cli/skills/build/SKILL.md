@@ -22,7 +22,7 @@ Before implementation, Task(subagent_type="analyst"): Read `.claude/skills/analy
 
 ## Pre-Mortem (Risk Identification)
 
-Before any code changes, invoke Skill(skill="pre-mortem") on the task as briefed. Capture the top 2-3 critical risks and their mitigations into the session log. The retrospective on PR #1887 (`.agents/retrospective/2026-05-05-pr-1887-iteration-paradox.md`) flagged that risks surfaced by reviewers late in the cycle were knowable up front. A 5-minute pre-mortem is cheaper than a 10-round bot review.
+Before any code changes, invoke Skill(skill="pre-mortem") on the task as briefed. Capture the top 2-3 critical risks and their mitigations into the session log. Risks surfaced by reviewers late in the cycle are usually knowable up front. A 5-minute pre-mortem is cheaper than a 10-round bot review.
 
 ## Agent
 
@@ -48,7 +48,7 @@ The agent should self-check:
 
 ## Mandatory Exit Gates
 
-The build is not complete until all three gates below return clean. These are **hard preconditions for declaring done**, not advisory output. If any gate returns findings, the implementer must address them in the same `/build` cycle. Do not kick the can to PR review; that is exactly the iteration cost the retrospective on PR #1887 (`.agents/retrospective/2026-05-05-pr-1887-iteration-paradox.md`) names as the failure mode this gate fixes.
+The build is not complete until all three gates below return clean. These are **hard preconditions for declaring done**, not advisory output. If any gate returns findings, the implementer must address them in the same `/build` cycle. Do not kick the can to PR review; advisory framing here produces the iteration paradox where reviewers flag what the implementer should have caught, multiplying the cost of every revision.
 
 Run, in order:
 
