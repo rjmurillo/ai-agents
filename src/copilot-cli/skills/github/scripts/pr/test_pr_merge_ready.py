@@ -446,6 +446,12 @@ def _evaluate_review_threads(
     nodes = threads.get("nodes", [])
 
     if total_threads > len(nodes):
+        # Calculate inline count as a lower bound before the paginated call.
+        # This preserves the "never allow false-zero" invariant per PR #1887
+        # retrospective: if the paginated call fails and returns [], we fall
+        # back to the inline count rather than incorrectly reporting 0.
+        inline_unresolved_count = count_unresolved_threads(nodes)
+
         # Inline first:100 page truncated. Fall back to paginated helper
         # so unresolved_count is exact, not a lower bound.
         logger.info(
@@ -453,7 +459,9 @@ def _evaluate_review_threads(
             pr_number, total_threads, len(nodes),
         )
         unresolved_threads = get_unresolved_review_threads(owner, repo, pr_number)
-        unresolved_count = len(unresolved_threads)
+        # Use inline count as floor: if paginated call fails (returns []),
+        # fall back to the known lower bound from the inline page.
+        unresolved_count = max(inline_unresolved_count, len(unresolved_threads))
     else:
         # Single source of truth for "unresolved" semantics; both branches
         # honor the same rule.
