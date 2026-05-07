@@ -753,6 +753,18 @@ def get_unresolved_review_threads(
         if status == FetchStatus.TRANSPORT_ERROR:
             return []
         if status == FetchStatus.STRUCTURAL_MISSING:
+            if pages_seen > 1:
+                warnings.warn(
+                    f"Mid-pagination structural failure for PR "
+                    f"#{pull_request} on page {pages_seen}; result truncated "
+                    f"at {len(aggregated)} threads. Reason: structural_failure.",
+                    stacklevel=2,
+                )
+                logger.warning(
+                    "op=review_threads_failed pr=%d owner=%s repo=%s "
+                    "page=%d aggregated=%d reason=structural_failure",
+                    pull_request, owner, repo, pages_seen, len(aggregated),
+                )
             break
         assert review_threads is not None  # noqa: S101
         page_nodes = review_threads.get("nodes", [])
