@@ -18,11 +18,45 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[4]
+
+def _resolve_repo_root() -> Path:
+    """Locate the repo root robustly across install shapes.
+
+    The same source file lives at two different depths:
+    - canonical: ``.claude/skills/guard-maturity/scripts/run_report.py`` →
+      ``parents[4]`` is the repo root.
+    - copilot-cli mirror: ``src/copilot-cli/skills/guard-maturity/scripts/
+      run_report.py`` → ``parents[4]`` is ``<repo>/src``, NOT the repo
+      root. A naive ``parents[4]`` makes ``AGGREGATE`` / ``CLASSIFY`` point
+      at ``<repo>/src/build/scripts/...`` which does not exist.
+
+    Resolution order:
+    1. ``CLAUDE_PLUGIN_ROOT`` env var (vendor install / harness).
+    2. ``GITHUB_WORKSPACE`` env var (CI).
+    3. Walk up from ``__file__`` looking for ``AGENTS.md`` (in-repo
+       canonical) or ``.git`` (any local clone).
+    4. Fall back to ``parents[4]`` (preserves prior behavior for the
+       canonical layout when none of the above is present).
+    """
+    plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+    if plugin_root and Path(plugin_root).is_dir():
+        return Path(plugin_root)
+    workspace = os.environ.get("GITHUB_WORKSPACE")
+    if workspace and Path(workspace).is_dir():
+        return Path(workspace)
+    here = Path(__file__).resolve()
+    for parent in here.parents:
+        if (parent / "AGENTS.md").is_file() or (parent / ".git").is_dir():
+            return parent
+    return here.parents[4]
+
+
+REPO_ROOT = _resolve_repo_root()
 AGGREGATE = REPO_ROOT / "build" / "scripts" / "aggregate_guard_intercepts.py"
 CLASSIFY = REPO_ROOT / "build" / "scripts" / "classify_guard_maturity.py"
 
@@ -39,6 +73,23 @@ TIER_ORDER = {
 }
 
 
+def _parse_subprocess_json(stdout: str, child_label: str) -> dict:
+    """Parse JSON from a child subprocess's stdout with a controlled error.
+
+    A successful (returncode 0) child whose stdout is empty or non-JSON is
+    a contract violation. Raise SystemExit(3) (external error per ADR-035)
+    rather than letting json.JSONDecodeError dump a traceback.
+    """
+    try:
+        return json.loads(stdout)
+    except (json.JSONDecodeError, ValueError) as exc:
+        sys.stderr.write(
+            f"error: {child_label} returned non-JSON stdout "
+            f"({len(stdout)} bytes): {exc}\n"
+        )
+        raise SystemExit(3) from exc
+
+
 def _run_aggregate(known_guards: list[str], source: str | None) -> dict:
     cmd = [sys.executable, str(AGGREGATE)]
     for g in known_guards:
@@ -49,7 +100,7 @@ def _run_aggregate(known_guards: list[str], source: str | None) -> dict:
     if proc.returncode != 0:
         sys.stderr.write(proc.stderr)
         raise SystemExit(proc.returncode)
-    return json.loads(proc.stdout)
+    return _parse_subprocess_json(proc.stdout, "aggregate_guard_intercepts.py")
 
 
 def _run_classify(summary: dict, treat_unseen_as_inert: bool) -> dict:
@@ -66,7 +117,7 @@ def _run_classify(summary: dict, treat_unseen_as_inert: bool) -> dict:
     if proc.returncode != 0:
         sys.stderr.write(proc.stderr)
         raise SystemExit(proc.returncode)
-    return json.loads(proc.stdout)
+    return _parse_subprocess_json(proc.stdout, "classify_guard_maturity.py")
 
 
 def _format_table(report: dict) -> str:
@@ -76,7 +127,7 @@ def _format_table(report: dict) -> str:
     )
     if not rows:
         return "(no guards in report)\n"
-    header = f"{'tier':<11} {'guard':<22} {'intercepts':>10} {'fitness':>8} {'age_days':>9}"
+    header = f"{'tier':<11} {'guard':<22} {'intercepts':>10} {'fitness':>7} {'age_days':>9}"
     lines = [header, "-" * len(header)]
     for r in rows:
         age = r.get("days_since_first_event")
