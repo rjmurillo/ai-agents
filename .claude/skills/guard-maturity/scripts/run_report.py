@@ -95,12 +95,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--guard",
         action="append",
-        default=[
-            "markdown-lint",
-            "manifest-count",
-            "pr-description",
-            "session-log",
-        ],
+        default=None,
         help=("Guard name to include even with zero events. Repeatable. "
               "Defaults cover M2-M5."),
     )
@@ -120,6 +115,14 @@ def main(argv: list[str] | None = None) -> int:
         help="Emit raw JSON instead of the human-readable table.",
     )
     args = parser.parse_args(argv)
+
+    if args.guard is None:
+        args.guard = [
+            "markdown-lint",
+            "manifest-count",
+            "pr-description",
+            "session-log",
+        ]
 
     summary = _run_aggregate(args.guard, args.source)
     report = _run_classify(summary, args.treat_unseen_as_inert)
