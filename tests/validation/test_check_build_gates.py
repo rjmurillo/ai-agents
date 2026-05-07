@@ -5,8 +5,11 @@ mandatory exit-gate skill invocations and the ``Mandatory Exit Gates``
 section heading. PR #1887's retrospective documents the failure mode the
 script defends against.
 
-Tests use temporary file trees rather than the live repository, so the
-test result does not depend on whether someone has just edited build.md.
+Most tests use temporary file trees so the result does not depend on
+whether someone has just edited build.md. ``test_real_repo_build_md_passes``
+is the deliberate exception: it runs against the real
+``.claude/commands/build.md`` to guard against regressions in the
+file itself, complementing the synthetic fixtures.
 """
 
 from __future__ import annotations

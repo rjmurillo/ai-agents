@@ -336,9 +336,11 @@ class TestMain:
         unresolved threads. A silent at-cap exit at _MAX_THREAD_PAGES would
         reproduce the same false-zero failure mode at the 5000-thread
         boundary. This test asserts: (1) the loop stops at exactly the cap;
-        (2) warnings.warn fires; (3) the JSON output carries
-        pagination_truncated=True so consumers cannot mistake a capped
-        result for a complete one; (4) a stderr WARNING line is printed.
+        (2) warnings.warn fires (captured via pytest.warns); (3) the JSON
+        output carries pagination_truncated=True so consumers cannot
+        mistake a capped result for a complete one. The warnings.warn at
+        cap is the user-visible signal; no duplicate stderr print is
+        emitted (a second print would confuse JSON parsers).
         """
         cap = _mod._MAX_THREAD_PAGES
 
