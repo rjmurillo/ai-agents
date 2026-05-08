@@ -81,12 +81,13 @@ The completion gate is dispatchable: each criterion in `completion_criteria` run
 ```bash
 python3 .claude/skills/github/scripts/pr/run_completion_gate.py \
     --config .claude/commands/pr-review-config.yaml \
-    --pull-request {pr}
+    --pull-request {pr} \
+    --json
 ```
 
-The dispatcher exits 0 if every criterion passes, 1 if any criterion fails. On failure, do NOT loop. Looping on a failing verifier produces the same wrong answer; the retry-on-failure behavior was the wrong design and has been removed (see retrospective `2026-05-05-pr-1887-iteration-paradox.md`, Layer 6: Reporting-Without-Acting Anti-Pattern).
+The dispatcher exits 0 if every criterion passes, 1 if any criterion fails, 2 on a config error. On failure, do NOT loop. Looping on a failing verifier produces the same wrong answer; the retry-on-failure behavior was the wrong design and has been removed (see retrospective `2026-05-05-pr-1887-iteration-paradox.md`, Layer 6: Reporting-Without-Acting Anti-Pattern).
 
-When the dispatcher exits 1, surface the failing criterion's name, command, and parsed output, then halt. Do not claim completion. Do not re-run the gate hoping for a different answer. Investigate the underlying failure and address it; once addressed, the gate may be re-run.
+When the dispatcher exits 1, surface the failing criterion's `name`, `command`, `reason`, and a stdout/stderr excerpt from the JSON output, then halt. Do not claim completion. Do not re-run the gate hoping for a different answer. Investigate the underlying failure and address it; once addressed, the gate may be re-run. The `--json` mode emits the verifier evidence inline; the table mode (default) prints the same fields below each FAIL row.
 
 `fail_open: false` (the default for every criterion in this config) means a verifier that errors or returns malformed output also fails the gate. A verifier that cannot verify is not evidence that the criterion holds.
 

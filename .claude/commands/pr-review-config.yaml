@@ -55,11 +55,15 @@ error_recovery:
 # the source of truth; the criterion passes only when its `pass_when`
 # expression evaluates true against that JSON. A criterion fails closed
 # (passed=false) on any of:
-#   - non-zero exit code with non-JSON stdout
-#   - JSON stdout that does not contain the required fields
+#   - command failed to run (FileNotFoundError, timeout)
+#   - command exited non-zero (any non-zero status, regardless of stdout)
+#   - command stdout is not a JSON object
 #   - pass_when evaluating false
-# unless `fail_open: true` is set, in which case the criterion passes on
-# command/parse error (it still fails on a clean false from pass_when).
+# `fail_open: true` flips the dispatch-error cases (command/timeout,
+# non-zero exit, non-JSON stdout) to pass. It does NOT flip the
+# pass_when-false case, and a *broken* pass_when expression (DSL syntax
+# error or pass_when_python lambda exception) always fails closed; that
+# is a config bug, not a verifier outage.
 #
 # This replaces the prior narrative criteria (e.g. "0 unresolved threads")
 # whose verdict was claimed by the agent. The agent now dispatches and

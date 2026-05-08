@@ -88,10 +88,11 @@ The completion gate is dispatchable. Each criterion in `completion_criteria` run
 ```bash
 python3 .claude/skills/github/scripts/pr/run_completion_gate.py \
     --config .claude/commands/pr-review-config.yaml \
-    --pull-request {pr}
+    --pull-request {pr} \
+    --json
 ```
 
-Exit 0 = all criteria passed; exit 1 = at least one failed. On failure, do NOT loop. The retry-on-failure behavior was the wrong design and has been removed (see retrospective `2026-05-05-pr-1887-iteration-paradox.md`, Layer 6: Reporting-Without-Acting Anti-Pattern). Surface the failing criterion's name and command output, then halt.
+Exit 0 = all criteria passed; exit 1 = at least one failed; exit 2 = config error. On failure, do NOT loop. The retry-on-failure behavior was the wrong design and has been removed (see retrospective `2026-05-05-pr-1887-iteration-paradox.md`, Layer 6: Reporting-Without-Acting Anti-Pattern). Surface the failing criterion's `name`, `command`, `reason`, and stdout/stderr excerpt from the JSON output, then halt. The default table mode prints the same fields below each FAIL row.
 
 ## Related Memories
 
