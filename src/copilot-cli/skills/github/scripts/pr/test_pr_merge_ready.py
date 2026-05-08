@@ -19,6 +19,15 @@ A name whose only conclusion is CANCELLED carries no opinion and does not
 block. The PR #1887 retrospective records four false-FAIL reports caused
 by counting CANCELLED debounce rows as failed required checks.
 
+The output JSON includes a ``fetched_pages_complete`` field that is true
+only when both ``reviewThreads`` and ``statusCheckRollup.contexts`` were
+returned in their entirety by the inline GraphQL query. The /pr-review
+completion gate's pass_when expression requires this flag to be true; a
+partial fetch that happens to find no failing checks is not evidence
+that no failing checks exist. This addresses the pagination-cliff
+masking failure documented in retrospective
+2026-05-05-pr-1887-iteration-paradox.md.
+
 Exit codes follow ADR-035:
     0 - PR is ready to merge
     1 - PR is not ready to merge
@@ -91,6 +100,7 @@ query($owner: String!, $repo: String!, $number: Int!) {
                         statusCheckRollup {
                             state
                             contexts(first: 100) {
+                                totalCount
                                 nodes {
                                     ... on CheckRun {
                                         __typename
@@ -460,8 +470,16 @@ def _evaluate_pr_state(pr: dict, reasons: list[str]) -> str:
 def _evaluate_review_threads(
     pr: dict, ignore_threads: bool, reasons: list[str],
     owner: str, repo: str, pr_number: int,
-) -> tuple[int, int]:
-    """Count unresolved threads and append reason; return (unresolved, total).
+) -> tuple[int, int, bool]:
+    """Count unresolved threads and append reason.
+
+    Returns ``(unresolved, total, pages_complete)``. ``pages_complete`` is
+    True when the inline ``reviewThreads(first: 100)`` page returned every
+    thread (``totalCount <= len(nodes)``); False when the page truncated.
+    The flag is purely about the inline GraphQL response: even if the
+    paginated fallback below produces an exact ``unresolved`` count, a
+    truncated inline page means the snapshot is partial and the
+    /pr-review completion gate fails closed via ``fetched_pages_complete``.
 
     The merge-ready GraphQL query embeds a ``reviewThreads(first: 100)``
     inline page to keep the round-trip cheap. When ``totalCount`` exceeds
@@ -472,10 +490,11 @@ def _evaluate_review_threads(
     fires when the page is incomplete, so the fast path stays cheap.
     """
     if ignore_threads:
-        return 0, 0
+        return 0, 0, True
     threads = pr.get("reviewThreads", {})
     total_threads = threads.get("totalCount", 0)
     nodes = threads.get("nodes", [])
+    pages_complete = total_threads <= len(nodes)
 
     if total_threads > len(nodes):
         # Calculate inline count as a lower bound before the paginated call.
@@ -501,7 +520,7 @@ def _evaluate_review_threads(
 
     if unresolved_count > 0:
         reasons.append(f"{unresolved_count} unresolved review thread(s)")
-    return unresolved_count, total_threads
+    return unresolved_count, total_threads, pages_complete
 
 
 def _evaluate_ci_checks(
@@ -509,11 +528,17 @@ def _evaluate_ci_checks(
     ignore_ci: bool,
     include_non_required: bool,
     reasons: list[str],
-) -> tuple[list[str], list[str], list[str], list[str], int, bool, int]:
+) -> tuple[list[str], list[str], list[str], list[str], int, bool, int, bool]:
     """Classify rollup contexts and append CI reasons.
 
     Returns ``(failed_required, pending_required, failed_non_required,
-    pending_non_required, passed_checks, ci_passing, rollup_rows)``.
+    pending_non_required, passed_checks, ci_passing, rollup_rows,
+    pages_complete)``. ``pages_complete`` is True when the inline
+    ``contexts(first: 100)`` page returned every status context
+    (``totalCount <= len(nodes)``); False when the page truncated. A
+    truncated context page can hide a failing required check, so the
+    /pr-review completion gate fails closed via ``fetched_pages_complete``
+    rather than trusting a partial snapshot.
     """
     failed_required: list[str] = []
     pending_required: list[str] = []
@@ -523,17 +548,23 @@ def _evaluate_ci_checks(
     passed_checks = 0
     ci_passing = True
     rollup_rows = 0
+    pages_complete = True
 
     if ignore_ci:
         return (failed_required, pending_required, failed_non_required,
-                pending_non_required, passed_checks, ci_passing, rollup_rows)
+                pending_non_required, passed_checks, ci_passing,
+                rollup_rows, pages_complete)
 
     commits = pr.get("commits", {}).get("nodes", [])
     if commits:
         rollup = commits[0].get("commit", {}).get("statusCheckRollup")
         if rollup:
-            contexts = rollup.get("contexts", {}).get("nodes", []) or []
+            contexts_obj = rollup.get("contexts", {}) or {}
+            total_contexts = contexts_obj.get("totalCount")
+            contexts = contexts_obj.get("nodes", []) or []
             rollup_rows = len(contexts)
+            if total_contexts is not None:
+                pages_complete = total_contexts <= len(contexts)
             _classify_check_contexts(
                 contexts,
                 failed_required=failed_required,
@@ -554,7 +585,8 @@ def _evaluate_ci_checks(
         failed_non_required, pending_non_required, include_non_required,
     )
     return (failed_required, pending_required, failed_non_required,
-            pending_non_required, passed_checks, ci_passing, rollup_rows)
+            pending_non_required, passed_checks, ci_passing,
+            rollup_rows, pages_complete)
 
 
 def _append_ci_reasons(
@@ -627,15 +659,16 @@ def check_merge_readiness(
 
     reasons: list[str] = []
     mergeable = _evaluate_pr_state(pr, reasons)
-    unresolved_count, total_threads = _evaluate_review_threads(
+    unresolved_count, total_threads, threads_pages_complete = _evaluate_review_threads(
         pr, ignore_threads, reasons, owner, repo, pr_number,
     )
     (failed_required, pending_required, failed_non_required,
      pending_non_required, passed_checks, ci_passing,
-     rollup_rows) = _evaluate_ci_checks(
+     rollup_rows, contexts_pages_complete) = _evaluate_ci_checks(
         pr, ignore_ci, include_non_required, reasons,
     )
     can_merge = len(reasons) == 0
+    fetched_pages_complete = threads_pages_complete and contexts_pages_complete
     _emit_merge_ready_log(
         pr_number, owner, repo, rollup_rows,
         failed_required + pending_required
@@ -661,6 +694,7 @@ def check_merge_readiness(
         "PassedChecks": passed_checks,
         "CIPassing": ci_passing,
         "IncludeNonRequired": include_non_required,
+        "fetched_pages_complete": fetched_pages_complete,
         "Reasons": reasons,
     }
 
