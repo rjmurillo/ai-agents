@@ -159,6 +159,31 @@ def validate_config(config: dict) -> list[str]:
                 errors.append(
                     f"completion_criteria[{i}].fail_open must be a boolean"
                 )
+            # Per Copilot review: presence is not enough; reject empty
+            # or wrong-typed values that would slip past the dispatcher
+            # only to crash later.
+            if "name" in item and (
+                not isinstance(item["name"], str) or not item["name"].strip()
+            ):
+                errors.append(
+                    f"completion_criteria[{i}].name must be a non-empty string"
+                )
+            if "command" in item and (
+                not isinstance(item["command"], str)
+                or not item["command"].strip()
+            ):
+                errors.append(
+                    f"completion_criteria[{i}].command must be a non-empty string"
+                )
+            for field in ("pass_when", "pass_when_python"):
+                if field in item and (
+                    not isinstance(item[field], str)
+                    or not item[field].strip()
+                ):
+                    errors.append(
+                        f"completion_criteria[{i}].{field} must be a "
+                        f"non-empty string"
+                    )
 
     if "error_recovery" in config:
         for i, item in enumerate(config["error_recovery"]):

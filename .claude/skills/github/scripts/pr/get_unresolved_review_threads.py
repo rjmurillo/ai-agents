@@ -108,7 +108,13 @@ def fetch_unresolved_threads_paginated(
     cursor: str | None = None
     fetched_pages_complete = False
 
-    for _ in range(_MAX_PAGES):
+    # ``page_index`` tracks the page count for diagnostic messages. Per
+    # Copilot review: the prior implementation used
+    # ``len(all_unresolved)`` in the error message, which is the number
+    # of threads collected so far, not the page index. They are the same
+    # only by coincidence (when each page contains zero or one
+    # unresolved thread). An explicit counter avoids the misreport.
+    for page_index in range(1, _MAX_PAGES + 1):
         variables: dict = {
             "owner": owner,
             "name": repo,
@@ -121,7 +127,7 @@ def fetch_unresolved_threads_paginated(
             data = gh_graphql(_QUERY, variables)
         except RuntimeError as exc:
             print(
-                f"Failed to query review threads (page {len(all_unresolved)}+): {exc}",
+                f"Failed to query review threads (page {page_index}): {exc}",
                 file=sys.stderr,
             )
             return all_unresolved, False

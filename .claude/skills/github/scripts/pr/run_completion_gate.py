@@ -73,7 +73,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import shlex
 import subprocess
 import sys
@@ -327,9 +326,13 @@ def _validate_criterion_schema(criterion: dict) -> tuple[str, str, str | None, s
 
     Schema rules (mirror scripts/validate_pr_review_config.py):
       * ``verification`` must be ``"command"`` (only kind supported).
-      * ``command`` must be a non-empty string.
-      * Exactly one of ``pass_when`` / ``pass_when_python`` must be set
-        (Copilot review feedback: both-set is ambiguous).
+      * ``command`` must be a non-empty string. Bot review feedback:
+        if YAML parses ``command`` as a list (e.g. due to indentation),
+        ``_format_command`` would crash later; catch the type error here.
+      * ``fail_open``, when present, must be a real bool. Truthy
+        non-bools (``"yes"``, ``1``) silently change gate behavior;
+        reject them at schema time.
+      * Exactly one of ``pass_when`` / ``pass_when_python`` must be set.
     """
     if not isinstance(criterion, dict):
         raise ConfigError(f"criterion is not a mapping: {criterion!r}")
@@ -342,8 +345,16 @@ def _validate_criterion_schema(criterion: dict) -> tuple[str, str, str | None, s
             f"{verification!r} (expected 'command')",
         )
     cmd_template = criterion.get("command", "")
-    if not cmd_template:
-        raise ConfigError(f"criterion {name!r}: missing command")
+    if not isinstance(cmd_template, str) or not cmd_template:
+        raise ConfigError(
+            f"criterion {name!r}: command must be a non-empty string "
+            f"(got {type(cmd_template).__name__})",
+        )
+    if "fail_open" in criterion and not isinstance(criterion["fail_open"], bool):
+        raise ConfigError(
+            f"criterion {name!r}: fail_open must be a boolean "
+            f"(got {type(criterion['fail_open']).__name__})",
+        )
 
     pass_when = criterion.get("pass_when")
     pass_when_python = criterion.get("pass_when_python")
@@ -384,7 +395,9 @@ def _evaluate_criterion(criterion: dict, pr_number: int) -> dict:
         green the gate.
     """
     name, cmd_template, pass_when, pass_when_python = _validate_criterion_schema(criterion)
-    fail_open = bool(criterion.get("fail_open", False))
+    # Schema check above already proved this is a real bool (or absent);
+    # no permissive truthiness coercion here.
+    fail_open = criterion.get("fail_open", False)
 
     result: dict = {
         "name": name,
@@ -440,10 +453,18 @@ def _evaluate_criterion(criterion: dict, pr_number: int) -> dict:
             verdict = _eval_pass_when_python(parsed, pass_when_python)
         else:
             verdict = _eval_pass_when(parsed, pass_when)
-    except (ValueError, SyntaxError, TypeError, KeyError, NameError, AttributeError) as exc:
+    except Exception as exc:  # noqa: BLE001
         # A broken pass_when expression is a config bug, not a verifier
         # outage. fail_open does NOT apply: masking a typo with a
         # green gate would defeat the dispatcher's purpose.
+        #
+        # Catching ``Exception`` (broad) is intentional: a
+        # ``pass_when_python`` lambda body can raise anything
+        # (``ZeroDivisionError``, ``IndexError``, custom domain
+        # exceptions). Per CodeRabbit review, the prior tight-list
+        # catch (ValueError, KeyError, ...) let those leak through.
+        # ``KeyboardInterrupt`` and ``SystemExit`` are NOT caught
+        # because they inherit from ``BaseException``.
         result["reason"] = f"pass_when error (fails closed): {exc}"
         result["passed"] = False
         return result
@@ -463,7 +484,13 @@ def _evaluate_criterion(criterion: dict, pr_number: int) -> dict:
 
 
 def _print_table(rows: list[dict]) -> None:
-    """Print a per-criterion result table to stdout."""
+    """Print a per-criterion result table to stdout.
+
+    For failing rows, also prints the verifier's command and a short
+    excerpt of stdout/stderr so the operator can triage without re-running
+    the verifier separately. Per CodeRabbit review feedback: an operator
+    reading the table should see the same evidence the JSON consumer sees.
+    """
     print()
     print("Completion Gate Results")
     print("=" * 60)
@@ -472,8 +499,19 @@ def _print_table(rows: list[dict]) -> None:
     for row in rows:
         marker = "PASS" if row["passed"] else "FAIL"
         print(f"{marker:<6} {row['name']:<48}")
-        if not row["passed"] and row["reason"]:
-            print(f"       reason: {row['reason']}")
+        if not row["passed"]:
+            if row.get("reason"):
+                print(f"       reason: {row['reason']}")
+            if row.get("command"):
+                print(f"       command: {row['command']}")
+            stdout_excerpt = (row.get("stdout") or "").strip()
+            if stdout_excerpt:
+                excerpt = stdout_excerpt.splitlines()[0][:200]
+                print(f"       stdout: {excerpt}")
+            stderr_excerpt = (row.get("stderr") or "").strip()
+            if stderr_excerpt:
+                excerpt = stderr_excerpt.splitlines()[0][:200]
+                print(f"       stderr: {excerpt}")
     print("-" * 60)
 
 
