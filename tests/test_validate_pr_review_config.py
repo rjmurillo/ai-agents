@@ -45,7 +45,13 @@ VALID_CONFIG: dict = {
         {"scenario": "PR not found", "action": "Skip"},
     ],
     "completion_criteria": [
-        {"criterion": "All comments addressed", "verification": "Check threads", "required": True},
+        {
+            "name": "All comments addressed",
+            "verification": "command",
+            "command": "python3 script.py --pull-request {pr}",
+            "pass_when": "stdout-json.unresolved_count == 0",
+            "fail_open": False,
+        },
     ],
     "failure_handling": [
         {"type": "Merge conflicts", "action": "Resolve"},
@@ -100,9 +106,48 @@ class TestValidateConfig:
 
     def test_missing_completion_criteria_field(self) -> None:
         config = copy.deepcopy(VALID_CONFIG)
-        del config["completion_criteria"][0]["required"]
+        del config["completion_criteria"][0]["name"]
         errors = validate_config(config)
-        assert any("completion_criteria[0] missing field: required" in e for e in errors)
+        assert any("completion_criteria[0] missing field: name" in e for e in errors)
+
+    def test_missing_completion_criteria_pass_when(self) -> None:
+        # Either pass_when or pass_when_python must be present.
+        config = copy.deepcopy(VALID_CONFIG)
+        del config["completion_criteria"][0]["pass_when"]
+        errors = validate_config(config)
+        assert any(
+            "completion_criteria[0] missing field: pass_when" in e
+            for e in errors
+        )
+
+    def test_completion_criteria_pass_when_python_accepted(self) -> None:
+        # pass_when_python is the documented escape hatch when the DSL is
+        # too narrow; using it instead of pass_when must validate cleanly.
+        config = copy.deepcopy(VALID_CONFIG)
+        del config["completion_criteria"][0]["pass_when"]
+        config["completion_criteria"][0]["pass_when_python"] = (
+            "lambda d: d.get('x', 0) == 0"
+        )
+        errors = validate_config(config)
+        assert errors == []
+
+    def test_completion_criteria_verification_must_be_command(self) -> None:
+        config = copy.deepcopy(VALID_CONFIG)
+        config["completion_criteria"][0]["verification"] = "narrative"
+        errors = validate_config(config)
+        assert any(
+            "completion_criteria[0].verification must be 'command'" in e
+            for e in errors
+        )
+
+    def test_completion_criteria_fail_open_must_be_bool(self) -> None:
+        config = copy.deepcopy(VALID_CONFIG)
+        config["completion_criteria"][0]["fail_open"] = "yes"
+        errors = validate_config(config)
+        assert any(
+            "completion_criteria[0].fail_open must be a boolean" in e
+            for e in errors
+        )
 
     def test_missing_error_recovery_field(self) -> None:
         config = copy.deepcopy(VALID_CONFIG)

@@ -76,7 +76,12 @@ CLAUDE_CODE_ONLY_KEYS = [
 
 REQUIRED_SCRIPT_SECTIONS = ["claude_code", "copilot"]
 
-COMPLETION_CRITERIA_FIELDS = ["criterion", "verification", "required"]
+# Each completion criterion is a dispatchable verification: a command whose
+# stdout JSON drives a pass_when expression. The agent no longer narrates
+# verdicts; the command output IS the verdict. See pr-review-config.yaml
+# header comments for the pass_when DSL.
+COMPLETION_CRITERIA_REQUIRED_FIELDS = ["name", "verification", "command"]
+COMPLETION_CRITERIA_PASS_FIELDS = ["pass_when", "pass_when_python"]
 ERROR_RECOVERY_FIELDS = ["scenario", "action"]
 CHECK_FAILURE_FIELDS = ["check_type", "action"]
 FAILURE_HANDLING_FIELDS = ["type", "action"]
@@ -112,11 +117,33 @@ def validate_config(config: dict) -> list[str]:
 
     if "completion_criteria" in config:
         for i, item in enumerate(config["completion_criteria"]):
-            for field in COMPLETION_CRITERIA_FIELDS:
+            if not isinstance(item, dict):
+                errors.append(
+                    f"completion_criteria[{i}] must be a mapping"
+                )
+                continue
+            for field in COMPLETION_CRITERIA_REQUIRED_FIELDS:
                 if field not in item:
                     errors.append(
                         f"completion_criteria[{i}] missing field: {field}"
                     )
+            # Exactly one of pass_when / pass_when_python must be set.
+            if not any(f in item for f in COMPLETION_CRITERIA_PASS_FIELDS):
+                errors.append(
+                    f"completion_criteria[{i}] missing field: pass_when "
+                    f"(or pass_when_python)"
+                )
+            verification = item.get("verification")
+            if verification is not None and verification != "command":
+                errors.append(
+                    f"completion_criteria[{i}].verification must be "
+                    f"'command' (got {verification!r})"
+                )
+            fail_open = item.get("fail_open")
+            if fail_open is not None and not isinstance(fail_open, bool):
+                errors.append(
+                    f"completion_criteria[{i}].fail_open must be a boolean"
+                )
 
     if "error_recovery" in config:
         for i, item in enumerate(config["error_recovery"]):
