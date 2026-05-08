@@ -597,6 +597,37 @@ else
     record_skip "Agent drift detection (no src/template files changed)"
 fi
 
+# 11b. Build pipeline staleness (build_all.py --check)
+#
+# Catches generator drift the CI "Validate Generated Files" gate would
+# otherwise reject (~90s + bot-rescan cost). Local cost is sub-second.
+# Fires unconditionally; build_all.py covers agents, skills, commands,
+# rules->instructions, and hooks->copilot. PR #1897 round 6 staleness
+# failure on .github/instructions/canonical-source-mirror.instructions.md
+# is the canonical example this guards against.
+BUILD_ALL_SCRIPT="$REPO_ROOT/build/scripts/build_all.py"
+
+if [ -f "$BUILD_ALL_SCRIPT" ]; then
+    if command -v python3 &> /dev/null; then
+        BUILD_ALL_OUTPUT=$(mktemp)
+        TEMP_FILES+=("$BUILD_ALL_OUTPUT")
+        if python3 "$BUILD_ALL_SCRIPT" --check > "$BUILD_ALL_OUTPUT" 2>&1; then
+            record_pass "Build pipeline staleness (build_all.py --check)"
+        else
+            echo_info "  build_all.py --check output:"
+            grep -E "STALENESS|^---|^==" "$BUILD_ALL_OUTPUT" | head -20
+            record_fail "Build pipeline staleness detected"
+            echo_info "  Fix: python3 build/scripts/build_all.py"
+            echo_info "  Then commit the regenerated files."
+        fi
+        rm -f "$BUILD_ALL_OUTPUT"
+    else
+        record_skip "Build pipeline staleness (python3 not available)"
+    fi
+else
+    record_skip "Build pipeline staleness (script not found)"
+fi
+
 # 12. Path normalization
 PATH_NORM_SCRIPT="$REPO_ROOT/build/scripts/Validate-PathNormalization.ps1"
 
