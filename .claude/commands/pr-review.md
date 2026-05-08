@@ -91,6 +91,10 @@ When the dispatcher exits 1, surface the failing criterion's `name`, `command`, 
 
 `fail_open: false` (the default for every criterion in this config) means a verifier that errors or returns malformed output also fails the gate. A verifier that cannot verify is not evidence that the criterion holds.
 
+### Trust boundary on the PR branch
+
+When `/pr-review` runs after `gh pr checkout`, the dispatcher reads `pr-review-config.yaml` from the PR's working tree. A malicious PR can change `completion_criteria.command` or `pass_when_python` and the dispatcher will execute it. Before invoking `/pr-review` on a PR that you do not control, INSPECT the diff for any change to `.claude/commands/pr-review-config.yaml`. The same caution applies to any test/lint/build a reviewer runs on a PR branch; this gate just makes the execution path explicit. Hardening (loading the config from `main` or refusing to run on divergence) is tracked as a follow-up to PR #1898.
+
 ## Related Memories
 
 See `related_memories` in config for Serena memories to consult during PR review.
