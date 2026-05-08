@@ -94,6 +94,9 @@ if str(_PROJECT_ROOT) not in sys.path:
 
 from scripts.utils.path_validation import validate_safe_path  # noqa: E402
 
+# PyYAML is a hard dependency for this script. The rest of the codebase
+# already requires PyYAML; matching that is simpler than maintaining a
+# stdlib-only loader and avoids the schema-drift risk of a partial parser.
 try:
     import yaml  # type: ignore[import-untyped]
     _HAVE_YAML = True
@@ -108,29 +111,41 @@ except ImportError:  # pragma: no cover - exercised when PyYAML missing
 
 
 _DEFAULT_CONFIG_PATH = (
-    Path(__file__).resolve().parents[4] / "commands" / "pr-review-config.yaml"
+    _PROJECT_ROOT / ".claude" / "commands" / "pr-review-config.yaml"
 )
 
 
+class ConfigError(Exception):
+    """Schema or load error in the completion-gate config.
+
+    Raised by :func:`_load_config` and :func:`_evaluate_criterion` to
+    distinguish a config bug (which the dispatcher exits 2 for, per
+    ADR-035) from a criterion that legitimately failed (exit 1).
+    """
+
+
 def _load_config(path: Path) -> dict:
-    """Load a YAML config file. Raises on parse failure or missing file."""
+    """Load a YAML config file. Raises ConfigError on any failure mode."""
     if not path.is_file():
-        raise FileNotFoundError(f"Config file not found: {path}")
-
-    text = path.read_text(encoding="utf-8")
-
-    if _HAVE_YAML:
+        raise ConfigError(f"Config file not found: {path}")
+    if not _HAVE_YAML:
+        raise ConfigError(
+            "PyYAML is required to parse the completion-gate config; "
+            "install it via `pip install pyyaml`.",
+        )
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise ConfigError(f"Cannot read config {path}: {exc}") from exc
+    try:
         data = yaml.safe_load(text)  # type: ignore[union-attr]
-        if not isinstance(data, dict):
-            raise ValueError(
-                f"Config root must be a mapping, got {type(data).__name__}"
-            )
-        return data
-
-    raise RuntimeError(
-        "PyYAML is required to parse the completion-gate config; "
-        "install it via `pip install pyyaml`."
-    )
+    except yaml.YAMLError as exc:  # type: ignore[union-attr]
+        raise ConfigError(f"Cannot parse config {path}: {exc}") from exc
+    if not isinstance(data, dict):
+        raise ConfigError(
+            f"Config root must be a mapping, got {type(data).__name__}",
+        )
+    return data
 
 
 # ---------------------------------------------------------------------------
@@ -197,12 +212,17 @@ def _eval_atom(data: dict, atom: list[str]) -> bool:
 def _eval_pass_when(data: dict, expr: str) -> bool:
     """Evaluate a pass_when expression against parsed stdout-json data.
 
-    Tokens are split on whitespace (literals must not contain spaces).
-    Atoms are joined left-to-right with ``AND`` / ``OR`` connectives;
-    AND and OR have equal precedence and evaluate strictly in order
-    (no parentheses). Short-circuiting follows the connective.
+    Tokens are split with ``shlex.split(posix=False)`` so double-quoted
+    string literals stay intact (``"PR merged"`` remains one token, not
+    two). Atoms are joined left-to-right with ``AND`` / ``OR``
+    connectives; AND and OR have equal precedence and evaluate strictly
+    in order (no parentheses). Atoms are pure dict lookups, so the
+    evaluation order does not affect correctness.
     """
-    tokens = expr.split()
+    try:
+        tokens = shlex.split(expr, posix=False)
+    except ValueError as exc:
+        raise ValueError(f"pass_when tokenization failed: {exc}") from exc
     if not tokens:
         raise ValueError("pass_when expression is empty")
 
@@ -300,14 +320,70 @@ def _parse_stdout_json(stdout: str) -> dict | None:
     return None
 
 
+def _validate_criterion_schema(criterion: dict) -> tuple[str, str, str | None, str | None]:
+    """Schema-check one criterion. Raises ConfigError on any violation.
+
+    Returns ``(name, command, pass_when, pass_when_python)``.
+
+    Schema rules (mirror scripts/validate_pr_review_config.py):
+      * ``verification`` must be ``"command"`` (only kind supported).
+      * ``command`` must be a non-empty string.
+      * Exactly one of ``pass_when`` / ``pass_when_python`` must be set
+        (Copilot review feedback: both-set is ambiguous).
+    """
+    if not isinstance(criterion, dict):
+        raise ConfigError(f"criterion is not a mapping: {criterion!r}")
+
+    name = criterion.get("name", "<unnamed>")
+    verification = criterion.get("verification", "command")
+    if verification != "command":
+        raise ConfigError(
+            f"criterion {name!r}: unsupported verification kind "
+            f"{verification!r} (expected 'command')",
+        )
+    cmd_template = criterion.get("command", "")
+    if not cmd_template:
+        raise ConfigError(f"criterion {name!r}: missing command")
+
+    pass_when = criterion.get("pass_when")
+    pass_when_python = criterion.get("pass_when_python")
+    if pass_when and pass_when_python:
+        raise ConfigError(
+            f"criterion {name!r}: pass_when and pass_when_python are "
+            f"mutually exclusive; specify exactly one",
+        )
+    if not pass_when and not pass_when_python:
+        raise ConfigError(
+            f"criterion {name!r}: missing pass_when or pass_when_python",
+        )
+    return name, cmd_template, pass_when, pass_when_python
+
+
 def _evaluate_criterion(criterion: dict, pr_number: int) -> dict:
     """Run one criterion's command and evaluate its pass_when expression.
 
     Returns a dict with: name, passed (bool), reason (str), command (str),
-    exit_code (int|None), parsed (bool).
+    exit_code (int|None), parsed (bool), stdout (str), stderr (str).
+
+    Raises :class:`ConfigError` on any schema violation; the caller
+    (``main``) translates that to exit 2 per ADR-035. Once the schema
+    check passes, the function never raises: command failures, malformed
+    output, and broken pass_when expressions are all reported as a
+    failed criterion (with ``fail_open`` honored where applicable).
+
+    Failure semantics:
+      * Command not found / timeout / non-zero exit -> dispatch error;
+        ``passed = fail_open``.
+      * Stdout is not a JSON object -> dispatch error;
+        ``passed = fail_open``.
+      * pass_when raises (DSL syntax error, bad literal, broken lambda)
+        -> evaluator failure; ``passed = False`` regardless of
+        ``fail_open``. A verifier that ran successfully but whose
+        contract cannot be evaluated is a config bug, not a verifier
+        outage; masking it with ``fail_open`` would let a typo silently
+        green the gate.
     """
-    name = criterion.get("name", "<unnamed>")
-    verification = criterion.get("verification", "command")
+    name, cmd_template, pass_when, pass_when_python = _validate_criterion_schema(criterion)
     fail_open = bool(criterion.get("fail_open", False))
 
     result: dict = {
@@ -317,18 +393,9 @@ def _evaluate_criterion(criterion: dict, pr_number: int) -> dict:
         "command": "",
         "exit_code": None,
         "parsed": False,
+        "stdout": "",
+        "stderr": "",
     }
-
-    if verification != "command":
-        result["reason"] = (
-            f"unsupported verification kind: {verification!r}"
-        )
-        return result
-
-    cmd_template = criterion.get("command", "")
-    if not cmd_template:
-        result["reason"] = "criterion has no command"
-        return result
 
     argv = _format_command(cmd_template, pr_number)
     result["command"] = " ".join(argv)
@@ -347,30 +414,38 @@ def _evaluate_criterion(criterion: dict, pr_number: int) -> dict:
         return result
 
     result["exit_code"] = proc.returncode
+    result["stdout"] = proc.stdout
+    result["stderr"] = proc.stderr
+
+    if proc.returncode != 0:
+        result["reason"] = (
+            f"command exited non-zero ({proc.returncode}); "
+            f"fail_open={fail_open}; stderr={proc.stderr.strip()[:200]!r}"
+        )
+        result["passed"] = fail_open
+        return result
+
     parsed = _parse_stdout_json(proc.stdout)
     if parsed is None:
         result["reason"] = (
-            f"command stdout is not a JSON object "
-            f"(exit={proc.returncode}); fail_open={fail_open}"
+            f"command stdout is not a JSON object; fail_open={fail_open}"
         )
         result["passed"] = fail_open
         return result
 
     result["parsed"] = True
 
-    pass_when = criterion.get("pass_when")
-    pass_when_python = criterion.get("pass_when_python")
     try:
         if pass_when_python:
             verdict = _eval_pass_when_python(parsed, pass_when_python)
-        elif pass_when:
-            verdict = _eval_pass_when(parsed, pass_when)
         else:
-            result["reason"] = "criterion has no pass_when expression"
-            return result
+            verdict = _eval_pass_when(parsed, pass_when)
     except (ValueError, SyntaxError, TypeError, KeyError, NameError, AttributeError) as exc:
-        result["reason"] = f"pass_when error: {exc}; fail_open={fail_open}"
-        result["passed"] = fail_open
+        # A broken pass_when expression is a config bug, not a verifier
+        # outage. fail_open does NOT apply: masking a typo with a
+        # green gate would defeat the dispatcher's purpose.
+        result["reason"] = f"pass_when error (fails closed): {exc}"
+        result["passed"] = False
         return result
 
     result["passed"] = verdict
@@ -448,30 +523,35 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         config = _load_config(config_path)
-    except (FileNotFoundError, ValueError, RuntimeError) as exc:
+    except ConfigError as exc:
         print(f"Failed to load config {config_path}: {exc}", file=sys.stderr)
         return 2
 
     criteria = config.get("completion_criteria")
+    # Reject anything other than a list. The previous ``if not criteria``
+    # accepted a dict that is non-empty, which would silently iterate the
+    # dict's keys (CodeRabbit review feedback).
+    if not isinstance(criteria, list):
+        print(
+            f"completion_criteria must be a list, got "
+            f"{type(criteria).__name__}",
+            file=sys.stderr,
+        )
+        return 2
     if not criteria:
         print("No completion_criteria in config", file=sys.stderr)
         return 2
 
     rows: list[dict] = []
-    for criterion in criteria:
-        if not isinstance(criterion, dict):
-            rows.append(
-                {
-                    "name": "<malformed>",
-                    "passed": False,
-                    "reason": f"criterion is not a mapping: {criterion!r}",
-                    "command": "",
-                    "exit_code": None,
-                    "parsed": False,
-                }
-            )
-            continue
-        rows.append(_evaluate_criterion(criterion, args.pull_request))
+    try:
+        for criterion in criteria:
+            rows.append(_evaluate_criterion(criterion, args.pull_request))
+    except ConfigError as exc:
+        # Schema bug in a criterion: exit 2 per ADR-035, do not pretend
+        # the gate ran. Distinguishes a malformed config from a verifier
+        # legitimately reporting failure.
+        print(f"Config error in completion_criteria: {exc}", file=sys.stderr)
+        return 2
 
     if args.json:
         print(

@@ -128,10 +128,21 @@ def validate_config(config: dict) -> list[str]:
                         f"completion_criteria[{i}] missing field: {field}"
                     )
             # Exactly one of pass_when / pass_when_python must be set.
-            if not any(f in item for f in COMPLETION_CRITERIA_PASS_FIELDS):
+            # Both-set is ambiguous because the dispatcher silently picks
+            # pass_when_python first; reject it at validation time so
+            # the ambiguity never reaches runtime.
+            present = [
+                f for f in COMPLETION_CRITERIA_PASS_FIELDS if f in item
+            ]
+            if not present:
                 errors.append(
                     f"completion_criteria[{i}] missing field: pass_when "
                     f"(or pass_when_python)"
+                )
+            elif len(present) > 1:
+                errors.append(
+                    f"completion_criteria[{i}] has both pass_when and "
+                    f"pass_when_python; specify exactly one"
                 )
             verification = item.get("verification")
             if verification is not None and verification != "command":

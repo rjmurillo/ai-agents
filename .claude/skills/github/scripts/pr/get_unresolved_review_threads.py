@@ -177,8 +177,14 @@ def main(argv: list[str] | None = None) -> int:
         owner, repo, args.pull_request,
     )
 
+    # ``success`` reflects whether the *snapshot* is trustworthy. When
+    # pagination cannot prove completeness (an underlying GraphQL error
+    # or a missing ``endCursor``), the count and threads are at best a
+    # lower bound; the dispatcher's pass_when (which requires
+    # ``fetched_pages_complete == true``) already fails closed in that
+    # case, but emitting ``success: true`` would lie to other consumers.
     output = {
-        "success": True,
+        "success": fetched_pages_complete,
         "pull_request": args.pull_request,
         "owner": owner,
         "repo": repo,
