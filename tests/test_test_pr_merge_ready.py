@@ -471,3 +471,148 @@ class TestMain:
         ):
             rc = main(["--pull-request", "42"])
         assert rc == 1
+
+
+# ---------------------------------------------------------------------------
+# Tests: fetched_pages_complete pagination cliff signal
+#
+# The /pr-review completion gate's pass_when expression requires the
+# script's output to include fetched_pages_complete=true. A partial fetch
+# that happens to find no failing checks is not evidence that no failing
+# checks exist; the flag exists so the gate can fail closed in that case.
+# ---------------------------------------------------------------------------
+
+
+def _pr_payload_with_totals(
+    *,
+    review_threads_total: int = 0,
+    review_threads_nodes: list[dict] | None = None,
+    contexts_total: int = 0,
+    contexts_nodes: list[dict] | None = None,
+) -> dict:
+    """Synthetic GraphQL payload that exercises the totalCount-vs-nodes check."""
+    return {
+        "repository": {
+            "pullRequest": {
+                "number": 1,
+                "state": "OPEN",
+                "isDraft": False,
+                "mergeable": "MERGEABLE",
+                "mergeStateStatus": "CLEAN",
+                "reviewThreads": {
+                    "totalCount": review_threads_total,
+                    "nodes": review_threads_nodes or [],
+                },
+                "commits": {
+                    "nodes": [
+                        {
+                            "commit": {
+                                "statusCheckRollup": {
+                                    "state": "SUCCESS",
+                                    "contexts": {
+                                        "totalCount": contexts_total,
+                                        "nodes": contexts_nodes or [],
+                                    },
+                                },
+                            },
+                        },
+                    ],
+                },
+            },
+        },
+    }
+
+
+class TestFetchedPagesCompleteFlag:
+    def test_complete_within_first_page(self):
+        payload = _pr_payload_with_totals(
+            review_threads_total=2,
+            review_threads_nodes=[
+                {"id": "t1", "isResolved": True},
+                {"id": "t2", "isResolved": True},
+            ],
+            contexts_total=1,
+            contexts_nodes=[
+                {
+                    "__typename": "CheckRun",
+                    "name": "ci",
+                    "status": "COMPLETED",
+                    "conclusion": "SUCCESS",
+                    "isRequired": True,
+                },
+            ],
+        )
+        with patch("test_pr_merge_ready.gh_graphql", return_value=payload):
+            result = check_merge_readiness("o", "r", 1)
+        assert result["fetched_pages_complete"] is True
+        assert result["CanMerge"] is True
+
+    def test_incomplete_when_more_threads_than_returned(self):
+        # totalCount > len(nodes): GitHub has more threads than we fetched.
+        payload = _pr_payload_with_totals(
+            review_threads_total=150,
+            review_threads_nodes=[
+                {"id": f"t{i}", "isResolved": True} for i in range(100)
+            ],
+            contexts_total=1,
+            contexts_nodes=[
+                {
+                    "__typename": "CheckRun",
+                    "name": "ci",
+                    "status": "COMPLETED",
+                    "conclusion": "SUCCESS",
+                    "isRequired": True,
+                },
+            ],
+        )
+        with patch("test_pr_merge_ready.gh_graphql", return_value=payload):
+            result = check_merge_readiness("o", "r", 1)
+        assert result["fetched_pages_complete"] is False
+
+    def test_incomplete_when_more_contexts_than_returned(self):
+        payload = _pr_payload_with_totals(
+            review_threads_total=0,
+            review_threads_nodes=[],
+            contexts_total=200,
+            contexts_nodes=[
+                {
+                    "__typename": "CheckRun",
+                    "name": f"ci-{i}",
+                    "status": "COMPLETED",
+                    "conclusion": "SUCCESS",
+                    "isRequired": True,
+                }
+                for i in range(100)
+            ],
+        )
+        with patch("test_pr_merge_ready.gh_graphql", return_value=payload):
+            result = check_merge_readiness("o", "r", 1)
+        assert result["fetched_pages_complete"] is False
+
+    def test_complete_with_failing_required_check(self):
+        payload = _pr_payload_with_totals(
+            review_threads_total=0,
+            contexts_total=2,
+            contexts_nodes=[
+                {
+                    "__typename": "CheckRun",
+                    "name": "ci",
+                    "status": "COMPLETED",
+                    "conclusion": "FAILURE",
+                    "isRequired": True,
+                },
+                {
+                    "__typename": "CheckRun",
+                    "name": "lint",
+                    "status": "COMPLETED",
+                    "conclusion": "SUCCESS",
+                    "isRequired": True,
+                },
+            ],
+        )
+        with patch("test_pr_merge_ready.gh_graphql", return_value=payload):
+            result = check_merge_readiness("o", "r", 1)
+        assert result["fetched_pages_complete"] is True
+        assert result["CIPassing"] is False
+        assert "ci" in result["FailedRequiredChecks"]
+        assert result["CanMerge"] is False
