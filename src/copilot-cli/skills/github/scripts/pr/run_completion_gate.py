@@ -82,13 +82,13 @@ from typing import Any
 
 # Resolve the project root so ``scripts.utils.path_validation`` is
 # importable. The dispatcher lives at
-# ``<repo>/.claude/skills/github/scripts/pr/run_completion_gate.py``,
-# so ``parents[4]`` (i.e. five levels up from the file) is the repo
+# ``<repo>/src/copilot-cli/skills/github/scripts/pr/run_completion_gate.py``,
+# so ``parents[5]`` (i.e. six levels up from the file) is the repo
 # root. The same lookup pattern is used by other Python scripts in the
 # repo (e.g. validate_pr_review_config.py at scripts/, which uses
 # ``parent.parent``).
 _SCRIPT_DIR = Path(__file__).resolve().parent
-_PROJECT_ROOT = _SCRIPT_DIR.parents[4]
+_PROJECT_ROOT = _SCRIPT_DIR.parents[5]
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
