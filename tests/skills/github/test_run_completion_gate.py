@@ -178,6 +178,23 @@ class TestPassWhenDsl:
                 'stdout-json.x == "unterminated',
             )
 
+    def test_dangling_and_connective_rejected(self):
+        # Per Copilot review: ``x == 1 AND`` (with no atom after AND)
+        # silently passed before because the loop checked ``i < len``
+        # only at the top.
+        with pytest.raises(ValueError, match="dangling connective"):
+            _dispatcher._eval_pass_when(
+                {"x": 1},
+                "stdout-json.x == 1 AND",
+            )
+
+    def test_dangling_or_connective_rejected(self):
+        with pytest.raises(ValueError, match="dangling connective"):
+            _dispatcher._eval_pass_when(
+                {"x": 1},
+                "stdout-json.x == 0 OR",
+            )
+
 
 # ---------------------------------------------------------------------------
 # Dispatcher integration tests
@@ -886,6 +903,64 @@ class TestSchemaTypeChecks:
         )
         assert rc == 2
         assert "fail_open must be a boolean" in capsys.readouterr().err
+
+    def test_pass_when_as_list_rejected(self, repo_root, tmp_path, capsys):
+        # Per Copilot review: pass_when must also be type-checked, not
+        # just present. A list-valued pass_when (YAML indentation) would
+        # crash the DSL tokenizer later.
+        config_path = _write_config(
+            tmp_path,
+            [
+                {
+                    "name": "Listy",
+                    "verification": "command",
+                    "command": "echo ignored",
+                    "pass_when": ["stdout-json.x == 0"],
+                },
+            ],
+        )
+        rc = _dispatcher.main(
+            ["--config", str(config_path), "--pull-request", "1"],
+        )
+        assert rc == 2
+        assert "pass_when must be a non-empty string" in capsys.readouterr().err
+
+    def test_missing_name_rejected(self, repo_root, tmp_path, capsys):
+        # Per Copilot review: name was previously defaulted to <unnamed>
+        # which could silently slip past. The dispatcher now mirrors the
+        # validator and requires it explicitly.
+        config_path = _write_config(
+            tmp_path,
+            [
+                {
+                    "verification": "command",
+                    "command": "echo ignored",
+                    "pass_when": "stdout-json.x == 0",
+                },
+            ],
+        )
+        rc = _dispatcher.main(
+            ["--config", str(config_path), "--pull-request", "1"],
+        )
+        assert rc == 2
+        assert "missing required field: name" in capsys.readouterr().err
+
+    def test_missing_verification_rejected(self, repo_root, tmp_path, capsys):
+        config_path = _write_config(
+            tmp_path,
+            [
+                {
+                    "name": "No-verification",
+                    "command": "echo ignored",
+                    "pass_when": "stdout-json.x == 0",
+                },
+            ],
+        )
+        rc = _dispatcher.main(
+            ["--config", str(config_path), "--pull-request", "1"],
+        )
+        assert rc == 2
+        assert "missing required field: verification" in capsys.readouterr().err
 
 
 class TestPassWhenPythonBroadException:
