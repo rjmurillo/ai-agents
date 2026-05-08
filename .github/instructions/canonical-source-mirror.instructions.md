@@ -1,6 +1,5 @@
 ---
-applyTo: ".claude/hooks/**,scripts/validation/**,build/scripts/**,.claude/skills/**"
-priority: high
+applyTo: scripts/validation/**,build/scripts/**
 ---
 
 # Canonical Source Mirror Rule
