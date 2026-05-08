@@ -52,6 +52,28 @@ in-repo, in-tree, and reviewed alongside this script. Do not extend
 this dispatcher to load config from network input or user-supplied
 absolute paths.
 
+PR-branch trust boundary
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+When the dispatcher is invoked by ``/pr-review`` after checking out a
+PR branch (via ``gh pr checkout``), the config it reads is the PR
+branch's copy of ``pr-review-config.yaml`` -- NOT the trusted version
+on ``main``. A malicious PR can edit ``completion_criteria.command``
+or ``pass_when_python`` to execute arbitrary code on the reviewer's
+machine. ``validate_safe_path`` keeps the file inside the repo; it
+does NOT make the file trusted.
+
+This is the same trust the reviewer extends by running tests or
+linters on a PR branch, but the surface here is more direct: the
+dispatcher *will* run whatever command appears in the config.
+Reviewers SHOULD inspect any change to ``pr-review-config.yaml`` in
+the PR diff before invoking ``/pr-review`` on it. A future hardening
+(see CodeRabbit review on PR #1898) is to load the config from a
+trusted source (e.g. ``git show main:...``) instead of the working
+tree, or to refuse to run if the working-tree config diverges from
+``main``. Both options are deferred as follow-up work because they
+require restructuring the workflow's config-resolution path.
+
 Substitution
 ------------
 
@@ -81,13 +103,13 @@ from typing import Any
 
 # Resolve the project root so ``scripts.utils.path_validation`` is
 # importable. The dispatcher lives at
-# ``<repo>/src/copilot-cli/skills/github/scripts/pr/run_completion_gate.py``,
-# so ``parents[5]`` (i.e. six levels up from the file) is the repo
+# ``<repo>/.claude/skills/github/scripts/pr/run_completion_gate.py``,
+# so ``parents[4]`` (i.e. five levels up from the file) is the repo
 # root. The same lookup pattern is used by other Python scripts in the
 # repo (e.g. validate_pr_review_config.py at scripts/, which uses
 # ``parent.parent``).
 _SCRIPT_DIR = Path(__file__).resolve().parent
-_PROJECT_ROOT = _SCRIPT_DIR.parents[5]
+_PROJECT_ROOT = _SCRIPT_DIR.parents[4]
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
