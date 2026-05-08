@@ -25,11 +25,18 @@ is not evidence that zero unresolved threads exist.
 Part of the "Acknowledged vs Resolved" lifecycle model:
 NEW -> ACKNOWLEDGED (eyes reaction) -> REPLIED -> RESOLVED (thread marked resolved)
 
-Exit codes follow ADR-035:
-    0 - Success
+Exit codes follow ADR-035, with one deliberate deviation noted below:
+    0 - Snapshot returned (may be incomplete; see ``fetched_pages_complete``)
     2 - Config/usage error (invalid parameters)
-    3 - External error (API failure)
     4 - Auth error
+
+API/pagination failures do NOT exit 3. They return 0 with
+``success: false`` and ``fetched_pages_complete: false`` so the
+/pr-review completion gate's ``pass_when`` (which requires
+``fetched_pages_complete == true``) remains the single source of
+truth for the verdict. Mixing exit-3 with the JSON-flag contract
+would force every consumer to handle two failure surfaces; one
+surface is enough.
 """
 
 from __future__ import annotations

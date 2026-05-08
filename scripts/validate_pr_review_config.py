@@ -115,7 +115,22 @@ def validate_config(config: dict) -> list[str]:
                             f"Missing script in scripts.{section}: {script_key}"
                         )
 
-    if "completion_criteria" in config:
+    completion_criteria = config.get("completion_criteria")
+    if completion_criteria is not None and not isinstance(
+        completion_criteria, list,
+    ):
+        # Per Copilot review: if YAML parses ``completion_criteria`` as
+        # a mapping or string, the per-element loop would iterate
+        # keys/chars and emit a noisy series of "must be a mapping"
+        # errors. Reject the container shape with a single clear
+        # message and skip per-criterion validation. Other sections of
+        # the config still get validated below. Mirrors the
+        # dispatcher's behavior.
+        errors.append(
+            f"completion_criteria must be a list "
+            f"(got {type(completion_criteria).__name__})"
+        )
+    elif "completion_criteria" in config:
         for i, item in enumerate(config["completion_criteria"]):
             if not isinstance(item, dict):
                 errors.append(

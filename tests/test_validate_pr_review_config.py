@@ -195,6 +195,25 @@ class TestValidateConfig:
             "name must be a non-empty string" in e for e in errors
         )
 
+    def test_completion_criteria_must_be_list_not_dict(self) -> None:
+        # Per Copilot review: a YAML-parsed dict would have iterated
+        # keys/chars and emitted noisy per-key "must be a mapping"
+        # errors. The validator now rejects the container shape with a
+        # single clear error message.
+        config = copy.deepcopy(VALID_CONFIG)
+        config["completion_criteria"] = {"key": "value"}
+        errors = validate_config(config)
+        # Single, clear error about the container; not a swarm.
+        container_errors = [
+            e for e in errors if "completion_criteria must be a list" in e
+        ]
+        assert len(container_errors) == 1
+        # And no per-element noise:
+        per_element_errors = [
+            e for e in errors if e.startswith("completion_criteria[")
+        ]
+        assert per_element_errors == []
+
     def test_completion_criteria_verification_must_be_command(self) -> None:
         config = copy.deepcopy(VALID_CONFIG)
         config["completion_criteria"][0]["verification"] = "narrative"
