@@ -69,6 +69,15 @@ it produces the same wrong answer on retry.
 - DSL is not parens-aware
 - `pass_when_python` is an eval surface
 - Adding operators requires parser changes
+- **PR-branch trust boundary**: when `/pr-review` runs after
+  `gh pr checkout`, the config it reads is the PR branch's copy. A
+  malicious PR can change `completion_criteria.command` or
+  `pass_when_python` and the dispatcher will execute it. This is the
+  same trust a reviewer extends by running tests/linters on a PR
+  branch, but more direct. Mitigations documented in the dispatcher
+  docstring and the `/pr-review` workflow; structural hardening
+  (loading config from `main` or refusing to run on divergence) is
+  deferred as follow-up. Surfaced by CodeRabbit review on PR #1898.
 
 ## References
 
