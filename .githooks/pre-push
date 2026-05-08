@@ -607,22 +607,31 @@ fi
 # is the canonical example this guards against.
 BUILD_ALL_SCRIPT="$REPO_ROOT/build/scripts/build_all.py"
 
-if [ -f "$BUILD_ALL_SCRIPT" ]; then
-    if command -v python3 &> /dev/null; then
+if [ -L "$BUILD_ALL_SCRIPT" ]; then
+    record_warn "build_all.py is a symlink (skipping)"
+elif [ -f "$BUILD_ALL_SCRIPT" ]; then
+    # Use set_python_cmd (uv-aware) instead of bare python3:
+    # build_all.py imports yaml (PyYAML via build/yaml_loader.py), a
+    # third-party package typically only available inside the project's
+    # venv. Bare python3 raises ImportError and the hook misreports it
+    # as "staleness detected" instead of the real "PyYAML not in
+    # system Python" diagnosis. Pattern matches Phase-2/4 sites
+    # (workflow validation L476, pytest L635, semgrep L674).
+    if set_python_cmd; then
         BUILD_ALL_OUTPUT=$(mktemp)
         TEMP_FILES+=("$BUILD_ALL_OUTPUT")
-        if python3 "$BUILD_ALL_SCRIPT" --check > "$BUILD_ALL_OUTPUT" 2>&1; then
+        if "${PYTHON_CMD[@]}" "$BUILD_ALL_SCRIPT" --check > "$BUILD_ALL_OUTPUT" 2>&1; then
             record_pass "Build pipeline staleness (build_all.py --check)"
         else
             echo_info "  build_all.py --check output:"
             grep -E "STALENESS|^---|^==" "$BUILD_ALL_OUTPUT" | head -20
             record_fail "Build pipeline staleness detected"
-            echo_info "  Fix: python3 build/scripts/build_all.py"
+            echo_info "  Fix: ${PYTHON_CMD[*]} build/scripts/build_all.py"
             echo_info "  Then commit the regenerated files."
         fi
         rm -f "$BUILD_ALL_OUTPUT"
     else
-        record_skip "Build pipeline staleness (python3 not available)"
+        record_skip "Build pipeline staleness (no Python available)"
     fi
 else
     record_skip "Build pipeline staleness (script not found)"
