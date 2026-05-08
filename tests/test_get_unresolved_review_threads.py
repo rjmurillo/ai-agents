@@ -1,4 +1,10 @@
-"""Tests for get_unresolved_review_threads.py skill script."""
+"""Tests for get_unresolved_review_threads.py skill script.
+
+The script now emits a JSON object with ``unresolved_count`` and
+``fetched_pages_complete``. Pagination is handled in the script (not by
+the api.py helper) so the explicit completeness flag can drive the
+/pr-review completion gate's pass_when expression.
+"""
 
 from __future__ import annotations
 
@@ -34,6 +40,25 @@ def _import_script(name: str):
 _mod = _import_script("get_unresolved_review_threads")
 main = _mod.main
 build_parser = _mod.build_parser
+
+
+def _page(
+    *, nodes: list[dict], has_next: bool, end_cursor: str | None = None,
+) -> dict:
+    """Build a synthetic GraphQL response page for the reviewThreads query."""
+    return {
+        "repository": {
+            "pullRequest": {
+                "reviewThreads": {
+                    "pageInfo": {
+                        "hasNextPage": has_next,
+                        "endCursor": end_cursor,
+                    },
+                    "nodes": nodes,
+                },
+            },
+        },
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -73,7 +98,7 @@ class TestMain:
                 main(["--pull-request", "1"])
             assert exc.value.code == 4
 
-    def test_negative_pr_exits_1(self):
+    def test_negative_pr_exits_2(self):
         with patch(
             "get_unresolved_review_threads.assert_gh_authenticated",
         ), patch(
@@ -84,34 +109,109 @@ class TestMain:
                 main(["--pull-request", "-1"])
             assert exc.value.code == 2
 
-    def test_success_outputs_json(self, capsys):
-        threads = [{"id": "t1", "isResolved": False}]
+    def test_single_page_complete(self, capsys):
+        nodes = [{"id": "t1", "isResolved": False}]
         with patch(
             "get_unresolved_review_threads.assert_gh_authenticated",
         ), patch(
             "get_unresolved_review_threads.resolve_repo_params",
             return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
-            "get_unresolved_review_threads.get_unresolved_review_threads",
-            return_value=threads,
+            "get_unresolved_review_threads.gh_graphql",
+            return_value=_page(nodes=nodes, has_next=False),
         ):
             rc = main(["--pull-request", "42"])
         assert rc == 0
         output = json.loads(capsys.readouterr().out)
-        assert len(output) == 1
-        assert output[0]["id"] == "t1"
+        assert output["unresolved_count"] == 1
+        assert output["fetched_pages_complete"] is True
+        assert output["threads"][0]["id"] == "t1"
 
-    def test_empty_threads(self, capsys):
+    def test_zero_threads_complete(self, capsys):
         with patch(
             "get_unresolved_review_threads.assert_gh_authenticated",
         ), patch(
             "get_unresolved_review_threads.resolve_repo_params",
             return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
-            "get_unresolved_review_threads.get_unresolved_review_threads",
-            return_value=[],
+            "get_unresolved_review_threads.gh_graphql",
+            return_value=_page(nodes=[], has_next=False),
         ):
             rc = main(["--pull-request", "1"])
         assert rc == 0
         output = json.loads(capsys.readouterr().out)
-        assert output == []
+        assert output["unresolved_count"] == 0
+        assert output["fetched_pages_complete"] is True
+        assert output["threads"] == []
+
+    def test_multipage_aggregates_only_unresolved(self, capsys):
+        page1 = _page(
+            nodes=[
+                {"id": "t1", "isResolved": True},
+                {"id": "t2", "isResolved": False},
+            ],
+            has_next=True,
+            end_cursor="cur-a",
+        )
+        page2 = _page(
+            nodes=[
+                {"id": "t3", "isResolved": False},
+                {"id": "t4", "isResolved": True},
+            ],
+            has_next=False,
+        )
+        with patch(
+            "get_unresolved_review_threads.assert_gh_authenticated",
+        ), patch(
+            "get_unresolved_review_threads.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "get_unresolved_review_threads.gh_graphql",
+            side_effect=[page1, page2],
+        ):
+            rc = main(["--pull-request", "42"])
+        assert rc == 0
+        output = json.loads(capsys.readouterr().out)
+        assert output["unresolved_count"] == 2
+        assert {t["id"] for t in output["threads"]} == {"t2", "t3"}
+        assert output["fetched_pages_complete"] is True
+
+    def test_graphql_error_marks_incomplete(self, capsys):
+        with patch(
+            "get_unresolved_review_threads.assert_gh_authenticated",
+        ), patch(
+            "get_unresolved_review_threads.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "get_unresolved_review_threads.gh_graphql",
+            side_effect=RuntimeError("transport failed"),
+        ):
+            rc = main(["--pull-request", "42"])
+        assert rc == 0
+        output = json.loads(capsys.readouterr().out)
+        # On API failure we still exit 0 and let the gate's
+        # fetched_pages_complete flag drive the pass/fail decision.
+        assert output["fetched_pages_complete"] is False
+        assert output["unresolved_count"] == 0
+
+    def test_missing_cursor_marks_incomplete(self, capsys):
+        # hasNextPage true but endCursor absent: cannot continue, must
+        # report incomplete rather than silently truncate.
+        page1 = _page(
+            nodes=[{"id": "t1", "isResolved": False}],
+            has_next=True,
+            end_cursor=None,
+        )
+        with patch(
+            "get_unresolved_review_threads.assert_gh_authenticated",
+        ), patch(
+            "get_unresolved_review_threads.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "get_unresolved_review_threads.gh_graphql",
+            return_value=page1,
+        ):
+            rc = main(["--pull-request", "42"])
+        assert rc == 0
+        output = json.loads(capsys.readouterr().out)
+        assert output["fetched_pages_complete"] is False
