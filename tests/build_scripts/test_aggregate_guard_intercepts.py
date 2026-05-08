@@ -202,13 +202,18 @@ def test_bad_now_returns_config_error(tmp_path, capsys):
     assert "invalid --now" in captured.err
 
 
-def test_missing_source_warns_and_falls_through(tmp_path, capsys):
+def test_missing_source_returns_config_error(tmp_path, capsys):
+    """An explicit ``--source`` pointing at a non-existent path is a caller
+    config error (exit 2 per ADR-035), not a "no events to aggregate" data
+    case (exit 1). The caller's exit-code handling depends on this split:
+    config errors require fixing the invocation; logic errors are normal
+    no-data flow that may be expected when guards are inert.
+    """
     missing = tmp_path / "does-not-exist"
     rc = agi.main(["--source", str(missing), "--now", _FIXED_NOW])
     captured = capsys.readouterr()
-    # No events, no guards -> logic error 1.
-    assert rc == 1
-    assert "source not found" in captured.err
+    assert rc == 2
+    assert "--source path does not exist" in captured.err
 
 
 def test_event_without_guard_is_skipped(tmp_path, capsys):

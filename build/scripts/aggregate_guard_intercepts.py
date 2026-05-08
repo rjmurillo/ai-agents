@@ -225,7 +225,18 @@ def main(argv: list[str] | None = None) -> int:
     if args.stdin:
         events = _events_from_stdin()
     elif args.source:
-        events = _events_from_path(Path(args.source))
+        source_path = Path(args.source)
+        if not source_path.exists():
+            # Explicit --source pointing at a non-existent path is a caller
+            # config error, not "no events to aggregate" data. Distinguish
+            # from the empty-results case below so the caller's exit-code
+            # handling routes correctly per ADR-035 (2=config, 1=logic).
+            print(
+                f"error: --source path does not exist: {source_path}",
+                file=sys.stderr,
+            )
+            return 2
+        events = _events_from_path(source_path)
     elif DEFAULT_SOURCE.exists():
         events = _events_from_path(DEFAULT_SOURCE)
     elif not sys.stdin.isatty():
