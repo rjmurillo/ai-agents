@@ -620,14 +620,31 @@ elif [ -f "$BUILD_ALL_SCRIPT" ]; then
     if set_python_cmd; then
         BUILD_ALL_OUTPUT=$(mktemp)
         TEMP_FILES+=("$BUILD_ALL_OUTPUT")
-        if "${PYTHON_CMD[@]}" "$BUILD_ALL_SCRIPT" --check > "$BUILD_ALL_OUTPUT" 2>&1; then
+        "${PYTHON_CMD[@]}" "$BUILD_ALL_SCRIPT" --check > "$BUILD_ALL_OUTPUT" 2>&1
+        BUILD_ALL_RC=$?
+        if [ $BUILD_ALL_RC -eq 0 ]; then
             record_pass "Build pipeline staleness (build_all.py --check)"
         else
+            # Filter for staleness markers (header + indented stale-file
+            # paths) when present; fall back to unfiltered head when the
+            # failure is something else (ImportError, config error, exit
+            # 2 from a non-staleness path). Mirrors the L359 markdown-lint
+            # pattern. Without the fallback, non-staleness failures would
+            # print zero useful output while record_fail still misreports
+            # "staleness detected".
             echo_info "  build_all.py --check output:"
-            grep -E "STALENESS|^---|^==" "$BUILD_ALL_OUTPUT" | head -20
-            record_fail "Build pipeline staleness detected"
-            echo_info "  Fix: ${PYTHON_CMD[*]} build/scripts/build_all.py"
-            echo_info "  Then commit the regenerated files."
+            grep -E "STALENESS|^  [./]" "$BUILD_ALL_OUTPUT" 2>/dev/null | head -20 \
+                || head -20 "$BUILD_ALL_OUTPUT"
+            if grep -qE "STALENESS DETECTED" "$BUILD_ALL_OUTPUT" 2>/dev/null; then
+                record_fail "Build pipeline staleness detected (exit $BUILD_ALL_RC)"
+                echo_info "  Fix: ${PYTHON_CMD[*]} build/scripts/build_all.py"
+                echo_info "  Then commit the regenerated files."
+            else
+                record_fail "Build pipeline check failed (exit $BUILD_ALL_RC; not staleness)"
+                echo_info "  Fix: investigate the output above; staleness markers absent."
+                echo_info "  Common causes: missing PyYAML in active Python; build_all"
+                echo_info "  config-load error (exit 2); broken generator stanza."
+            fi
         fi
         rm -f "$BUILD_ALL_OUTPUT"
     else
