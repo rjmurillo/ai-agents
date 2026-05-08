@@ -83,7 +83,15 @@ Replying does NOT resolve threads. Use `add_thread_reply` then `resolve_thread` 
 
 ## Completion Gate
 
-ALL criteria from `completion_criteria` in config must pass before claiming completion. If ANY fails, loop back. See `failure_handling` and `error_recovery` in config for recovery actions.
+The completion gate is dispatchable. Each criterion in `completion_criteria` runs an external command, and the command's stdout JSON drives the verdict via the `pass_when` expression. Run the dispatcher exactly once per PR:
+
+```bash
+python3 .claude/skills/github/scripts/pr/run_completion_gate.py \
+    --config .claude/commands/pr-review-config.yaml \
+    --pull-request {pr}
+```
+
+Exit 0 = all criteria passed; exit 1 = at least one failed. On failure, do NOT loop. The retry-on-failure behavior was the wrong design and has been removed (see retrospective `2026-05-05-pr-1887-iteration-paradox.md`, Layer 6: Reporting-Without-Acting Anti-Pattern). Surface the failing criterion's name and command output, then halt.
 
 ## Related Memories
 
