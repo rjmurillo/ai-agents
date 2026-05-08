@@ -57,6 +57,19 @@ def _make_proc(stdout: str = "", stderr: str = "", returncode: int = 0):
     )
 
 
+@pytest.fixture
+def repo_root(tmp_path, monkeypatch):
+    """Treat tmp_path as the repo root so validate_safe_path accepts configs.
+
+    The dispatcher locks ``--config`` to paths under ``_PROJECT_ROOT`` to
+    block path traversal (CWE-22). Tests need to write throwaway configs
+    in tmp_path; monkeypatching the resolved root preserves the
+    production guard while keeping the tests hermetic.
+    """
+    monkeypatch.setattr(_dispatcher, "_PROJECT_ROOT", tmp_path)
+    return tmp_path
+
+
 def _write_config(tmp_path: Path, criteria: list[dict]) -> Path:
     """Write a minimal config YAML with only completion_criteria.
 
@@ -158,7 +171,7 @@ class TestPassWhenDsl:
 class TestRunCompletionGate:
     """End-to-end main() exercises with mocked subprocess.run."""
 
-    def test_all_pass_exits_zero(self, tmp_path, capsys):
+    def test_all_pass_exits_zero(self, repo_root, tmp_path, capsys):
         config_path = _write_config(
             tmp_path,
             [
@@ -207,7 +220,7 @@ class TestRunCompletionGate:
         assert result["all_passed"] is True
         assert all(c["passed"] for c in result["criteria"])
 
-    def test_one_fail_exits_one(self, tmp_path, capsys):
+    def test_one_fail_exits_one(self, repo_root, tmp_path, capsys):
         config_path = _write_config(
             tmp_path,
             [
@@ -242,7 +255,7 @@ class TestRunCompletionGate:
         assert "pass_when evaluated false" in result["criteria"][0]["reason"]
 
     def test_command_error_fails_closed_when_fail_open_false(
-        self, tmp_path, capsys,
+        self, repo_root, tmp_path, capsys,
     ):
         config_path = _write_config(
             tmp_path,
@@ -274,7 +287,7 @@ class TestRunCompletionGate:
         assert result["criteria"][0]["passed"] is False
         assert "command failed to run" in result["criteria"][0]["reason"]
 
-    def test_command_error_passes_when_fail_open_true(self, tmp_path, capsys):
+    def test_command_error_passes_when_fail_open_true(self, repo_root, tmp_path, capsys):
         config_path = _write_config(
             tmp_path,
             [
@@ -304,7 +317,7 @@ class TestRunCompletionGate:
         result = json.loads(capsys.readouterr().out)
         assert result["criteria"][0]["passed"] is True
 
-    def test_malformed_json_fails_closed(self, tmp_path, capsys):
+    def test_malformed_json_fails_closed(self, repo_root, tmp_path, capsys):
         config_path = _write_config(
             tmp_path,
             [
@@ -335,7 +348,7 @@ class TestRunCompletionGate:
         assert result["criteria"][0]["passed"] is False
         assert "not a JSON object" in result["criteria"][0]["reason"]
 
-    def test_missing_config_returns_two(self, tmp_path):
+    def test_missing_config_returns_two(self, repo_root, tmp_path):
         rc = _dispatcher.main(
             [
                 "--config", str(tmp_path / "does-not-exist.yaml"),
@@ -345,7 +358,7 @@ class TestRunCompletionGate:
         )
         assert rc == 2
 
-    def test_negative_pr_returns_two(self, tmp_path):
+    def test_negative_pr_returns_two(self, repo_root, tmp_path):
         config_path = _write_config(
             tmp_path,
             [
@@ -362,7 +375,7 @@ class TestRunCompletionGate:
         )
         assert rc == 2
 
-    def test_pr_substitution(self, tmp_path):
+    def test_pr_substitution(self, repo_root, tmp_path):
         config_path = _write_config(
             tmp_path,
             [
@@ -395,7 +408,7 @@ class TestRunCompletionGate:
         # The {pr} placeholder must have been substituted before tokenizing.
         assert "1234" in " ".join(captured["argv"])
 
-    def test_pass_when_python_escape_hatch(self, tmp_path):
+    def test_pass_when_python_escape_hatch(self, repo_root, tmp_path):
         config_path = _write_config(
             tmp_path,
             [
@@ -422,3 +435,247 @@ class TestRunCompletionGate:
             )
 
         assert rc == 0
+
+
+# ---------------------------------------------------------------------------
+# Negative branch coverage: rejection paths in the dispatcher.
+# These exercise branches that the production-code review identified as
+# reachable but untested. Each test covers one branch so that a future
+# regression localizes the failure.
+# ---------------------------------------------------------------------------
+
+
+class TestPassWhenDslNegativeBranches:
+    """Cover error-path branches of the pass_when DSL evaluator."""
+
+    def test_empty_expression_raises(self):
+        with pytest.raises(ValueError):
+            _dispatcher._eval_pass_when({}, "")
+
+    def test_missing_connective_between_atoms_raises(self):
+        # "a == 0 b == 1" lacks AND/OR between the two atoms; the parser
+        # should reject rather than silently accept.
+        with pytest.raises(ValueError):
+            _dispatcher._eval_pass_when(
+                {"a": 0, "b": 1},
+                "stdout-json.a == 0 stdout-json.b == 1",
+            )
+
+
+class TestPassWhenPythonNegativeBranches:
+    """Cover the eval-rejection paths in _eval_pass_when_python.
+
+    These branches are security-relevant: they bound the surface that
+    the eval call will accept. AGENTS.md sets the security-critical
+    coverage floor at 100%; missing these branches violates that floor.
+    """
+
+    def test_non_string_rejected(self):
+        with pytest.raises(ValueError, match="must be a string"):
+            _dispatcher._eval_pass_when_python({}, 123)  # type: ignore[arg-type]
+
+    def test_non_lambda_rejected(self):
+        with pytest.raises(ValueError, match="must be a lambda"):
+            _dispatcher._eval_pass_when_python({}, "1 + 1")
+
+    def test_multiline_rejected(self):
+        with pytest.raises(ValueError, match="single line"):
+            _dispatcher._eval_pass_when_python(
+                {}, "lambda d: d\n.get('x')",
+            )
+
+    def test_non_callable_result_rejected(self):
+        # A lambda that yields a non-callable value (defensive guard for
+        # a future expression form that does not produce a function).
+        # `lambda d: 1` is callable, so we exercise the guard via the
+        # boolean coercion: the function must be a callable in the
+        # is-checked sense. We force the result to a non-callable by
+        # supplying a degenerate expression that startswith "lambda" but
+        # whose body is parsed as something other than a function.
+        # Python forbids that at parse-time, so this branch is reached
+        # only via the ``isinstance(expr, str)`` + ``startswith`` path.
+        # The only way to exercise the ``not callable(func)`` line is to
+        # call _eval_pass_when_python with an expression that compiles
+        # but produces a non-callable. None such exists for ``lambda``,
+        # so we confirm the guard via direct unit-style exercise: feed
+        # a value that bypasses the startswith check by patching it.
+        with patch.object(
+            _dispatcher, "eval", return_value=42, create=True,
+        ):
+            with pytest.raises(ValueError, match="did not yield a callable"):
+                _dispatcher._eval_pass_when_python({}, "lambda d: True")
+
+
+class TestDispatcherCriterionRejectionPaths:
+    """Reachable production branches in _evaluate_criterion that the
+    earlier tests did not cover.
+    """
+
+    def test_unsupported_verification_kind(self, repo_root, tmp_path, capsys):
+        config_path = _write_config(
+            tmp_path,
+            [
+                {
+                    "name": "Bogus",
+                    "verification": "magic",
+                    "command": "echo ignored",
+                    "pass_when": "stdout-json.x == 0",
+                },
+            ],
+        )
+        rc = _dispatcher.main(
+            ["--config", str(config_path), "--pull-request", "1", "--json"],
+        )
+        assert rc == 1
+        result = json.loads(capsys.readouterr().out)
+        assert result["criteria"][0]["passed"] is False
+        assert "unsupported verification" in result["criteria"][0]["reason"]
+
+    def test_missing_command_field(self, repo_root, tmp_path, capsys):
+        config_path = _write_config(
+            tmp_path,
+            [
+                {
+                    "name": "No-cmd",
+                    "verification": "command",
+                    "pass_when": "stdout-json.x == 0",
+                },
+            ],
+        )
+        rc = _dispatcher.main(
+            ["--config", str(config_path), "--pull-request", "1", "--json"],
+        )
+        assert rc == 1
+        result = json.loads(capsys.readouterr().out)
+        assert "no command" in result["criteria"][0]["reason"]
+
+    def test_missing_pass_when_expression(self, repo_root, tmp_path, capsys):
+        config_path = _write_config(
+            tmp_path,
+            [
+                {
+                    "name": "No-expr",
+                    "verification": "command",
+                    "command": "echo ignored",
+                },
+            ],
+        )
+        with patch.object(
+            _dispatcher.subprocess, "run",
+            return_value=_make_proc(stdout=json.dumps({"x": 0})),
+        ):
+            rc = _dispatcher.main(
+                ["--config", str(config_path), "--pull-request", "1", "--json"],
+            )
+        assert rc == 1
+        result = json.loads(capsys.readouterr().out)
+        assert "no pass_when expression" in result["criteria"][0]["reason"]
+
+    def test_timeout_fails_closed_when_fail_open_false(
+        self, repo_root, tmp_path, capsys,
+    ):
+        config_path = _write_config(
+            tmp_path,
+            [
+                {
+                    "name": "Slow",
+                    "verification": "command",
+                    "command": "sleep 9999",
+                    "pass_when": "stdout-json.x == 0",
+                    "fail_open": False,
+                },
+            ],
+        )
+        with patch.object(
+            _dispatcher.subprocess, "run",
+            side_effect=subprocess.TimeoutExpired(cmd=["sleep"], timeout=1),
+        ):
+            rc = _dispatcher.main(
+                ["--config", str(config_path), "--pull-request", "1", "--json"],
+            )
+        assert rc == 1
+        result = json.loads(capsys.readouterr().out)
+        assert result["criteria"][0]["passed"] is False
+        assert "command failed to run" in result["criteria"][0]["reason"]
+
+    def test_timeout_passes_when_fail_open_true(
+        self, repo_root, tmp_path, capsys,
+    ):
+        config_path = _write_config(
+            tmp_path,
+            [
+                {
+                    "name": "Lenient",
+                    "verification": "command",
+                    "command": "sleep 9999",
+                    "pass_when": "stdout-json.x == 0",
+                    "fail_open": True,
+                },
+            ],
+        )
+        with patch.object(
+            _dispatcher.subprocess, "run",
+            side_effect=subprocess.TimeoutExpired(cmd=["sleep"], timeout=1),
+        ):
+            rc = _dispatcher.main(
+                ["--config", str(config_path), "--pull-request", "1", "--json"],
+            )
+        assert rc == 0
+
+
+class TestDispatcherMainRejectionPaths:
+    """Reachable branches in main() that earlier tests did not cover."""
+
+    def test_empty_completion_criteria_returns_two(
+        self, repo_root, tmp_path, capsys,
+    ):
+        config_path = _write_config(tmp_path, [])
+        rc = _dispatcher.main(
+            ["--config", str(config_path), "--pull-request", "1"],
+        )
+        assert rc == 2
+        assert "No completion_criteria" in capsys.readouterr().err
+
+    def test_malformed_criterion_not_a_mapping(
+        self, repo_root, tmp_path, capsys,
+    ):
+        # YAML parses "- foo" as a list element of type str, not dict.
+        # Write the config directly to exercise the "not isinstance dict"
+        # branch in main().
+        config_path = tmp_path / "pr-review-config.yaml"
+        config_path.write_text(
+            "completion_criteria:\n  - 'this is a string, not a mapping'\n",
+            encoding="utf-8",
+        )
+        rc = _dispatcher.main(
+            ["--config", str(config_path), "--pull-request", "1", "--json"],
+        )
+        assert rc == 1
+        result = json.loads(capsys.readouterr().out)
+        assert result["criteria"][0]["name"] == "<malformed>"
+        assert "not a mapping" in result["criteria"][0]["reason"]
+
+    def test_path_traversal_rejected(self, tmp_path):
+        # No repo_root fixture: --config points outside the production
+        # _PROJECT_ROOT (which is the actual repo root); the dispatcher
+        # MUST reject with exit 2 before reading the file.
+        outside = tmp_path / "evil.yaml"
+        outside.write_text("completion_criteria: []\n", encoding="utf-8")
+        rc = _dispatcher.main(
+            ["--config", str(outside), "--pull-request", "1"],
+        )
+        assert rc == 2
+
+
+class TestFormatCommandTypeGuard:
+    """The integer assertion in _format_command bounds CWE-78 risk."""
+
+    def test_string_pr_number_rejected(self):
+        with pytest.raises(TypeError, match="pr_number must be int"):
+            _dispatcher._format_command("echo {pr}", "1; rm -rf /")  # type: ignore[arg-type]
+
+    def test_bool_pr_number_rejected(self):
+        # bools are int subclasses in Python; the guard rejects them
+        # explicitly so a downstream caller cannot smuggle True/False.
+        with pytest.raises(TypeError, match="pr_number must be int"):
+            _dispatcher._format_command("echo {pr}", True)  # type: ignore[arg-type]

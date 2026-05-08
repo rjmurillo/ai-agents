@@ -36,6 +36,33 @@ parsed stdout-json dict and must return a truthy/falsy value. This is
 provided as an escape hatch when a criterion's logic does not fit the
 DSL; prefer ``pass_when`` where possible.
 
+Trust model
+-----------
+
+This dispatcher executes ``command`` strings and ``pass_when_python``
+lambdas read from the YAML config. The config path MUST be controlled
+by the repository, never user-supplied beyond the validated default.
+Path traversal protection: ``--config`` is canonicalised and rejected
+unless it lives under the repository root via
+``scripts.utils.path_validation.validate_safe_path``. The
+``pass_when_python`` evaluator runs ``eval`` with an empty
+``__builtins__`` dict; this is NOT a sandbox (Python's class hierarchy
+remains reachable) and is only acceptable because the config is
+in-repo, in-tree, and reviewed alongside this script. Do not extend
+this dispatcher to load config from network input or user-supplied
+absolute paths.
+
+Substitution
+------------
+
+Only ``{pr}`` is substituted into ``command`` templates, and the
+substituted value is the integer ``--pull-request`` argument validated
+by argparse (``type=int``) plus a positivity check. Other ``{...}``
+slots present in the surrounding ``pr-review-config.yaml`` (for
+example ``{thread_id}`` or ``{body}`` in the thread-resolution scripts)
+belong to other consumers and are not handled here. Future maintainers
+extending this dispatcher must re-validate every new slot they add.
+
 Exit codes follow ADR-035:
     0 - All criteria passed
     1 - At least one criterion failed (or had an evaluation error)
@@ -53,10 +80,20 @@ import sys
 from pathlib import Path
 from typing import Any
 
-# stdlib YAML loader is not available; we use a tiny inline loader for the
-# narrow shape we need. PyYAML is preferred when present (matches the rest
-# of the codebase), but standard library only is the contract for this
-# script. The loader handles enough of YAML to parse pr-review-config.yaml.
+# Resolve the project root so ``scripts.utils.path_validation`` is
+# importable. The dispatcher lives at
+# ``<repo>/.claude/skills/github/scripts/pr/run_completion_gate.py``,
+# so ``parents[4]`` (i.e. five levels up from the file) is the repo
+# root. The same lookup pattern is used by other Python scripts in the
+# repo (e.g. validate_pr_review_config.py at scripts/, which uses
+# ``parent.parent``).
+_SCRIPT_DIR = Path(__file__).resolve().parent
+_PROJECT_ROOT = _SCRIPT_DIR.parents[4]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from scripts.utils.path_validation import validate_safe_path  # noqa: E402
+
 try:
     import yaml  # type: ignore[import-untyped]
     _HAVE_YAML = True
@@ -206,12 +243,23 @@ def _eval_pass_when_python(data: dict, expr: str) -> bool:
 
     The expression must be a single ``lambda d: ...`` form. The lambda
     receives the parsed stdout-json dict.
+
+    Security: this function calls ``eval``. The empty ``__builtins__``
+    dict does NOT sandbox the expression (Python's class hierarchy is
+    still reachable). The trust model lives in the module docstring:
+    the config that supplies ``expr`` MUST be repo-controlled. Reject
+    obviously malformed expressions before eval to keep the surface
+    visible to maintainers.
     """
+    if not isinstance(expr, str):
+        raise ValueError("pass_when_python must be a string")
     expr = expr.strip()
     if not expr.startswith("lambda"):
         raise ValueError(
             "pass_when_python must be a lambda expression"
         )
+    if "\n" in expr or "\r" in expr:
+        raise ValueError("pass_when_python must be a single line")
     func = eval(expr, {"__builtins__": {}}, {})  # noqa: S307
     if not callable(func):
         raise ValueError("pass_when_python did not yield a callable")
@@ -224,7 +272,16 @@ def _eval_pass_when_python(data: dict, expr: str) -> bool:
 
 
 def _format_command(template: str, pr_number: int) -> list[str]:
-    """Render a command template with ``{pr}`` substitution and split it."""
+    """Render a command template with ``{pr}`` substitution and split it.
+
+    ``pr_number`` MUST be an int. The CLI is the only validated entry
+    point: argparse coerces ``--pull-request`` to int and ``main``
+    rejects non-positive values before this function is reached. This
+    assertion documents that contract for any future caller and
+    forecloses CWE-78 via stringly-typed PR identifiers.
+    """
+    if not isinstance(pr_number, int) or isinstance(pr_number, bool):
+        raise TypeError(f"pr_number must be int, got {type(pr_number).__name__}")
     rendered = template.replace("{pr}", str(pr_number))
     return shlex.split(rendered)
 
@@ -380,7 +437,15 @@ def main(argv: list[str] | None = None) -> int:
         print("Pull request number must be positive.", file=sys.stderr)
         return 2
 
-    config_path = Path(args.config)
+    try:
+        config_path = validate_safe_path(args.config, _PROJECT_ROOT)
+    except (FileNotFoundError, ValueError) as exc:
+        print(
+            f"Refusing to load config from unsafe path {args.config!r}: {exc}",
+            file=sys.stderr,
+        )
+        return 2
+
     try:
         config = _load_config(config_path)
     except (FileNotFoundError, ValueError, RuntimeError) as exc:
