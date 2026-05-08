@@ -131,6 +131,19 @@ class TestValidateConfig:
         errors = validate_config(config)
         assert errors == []
 
+    def test_completion_criteria_both_pass_when_fields_rejected(self) -> None:
+        # Per Copilot review: both-set is ambiguous because the
+        # dispatcher silently picks pass_when_python first. The
+        # validator must reject it before runtime.
+        config = copy.deepcopy(VALID_CONFIG)
+        config["completion_criteria"][0]["pass_when_python"] = (
+            "lambda d: True"
+        )
+        errors = validate_config(config)
+        assert any(
+            "both pass_when and pass_when_python" in e for e in errors
+        )
+
     def test_completion_criteria_verification_must_be_command(self) -> None:
         config = copy.deepcopy(VALID_CONFIG)
         config["completion_criteria"][0]["verification"] = "narrative"

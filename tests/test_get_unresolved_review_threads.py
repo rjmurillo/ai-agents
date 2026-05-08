@@ -193,6 +193,10 @@ class TestMain:
         # fetched_pages_complete flag drive the pass/fail decision.
         assert output["fetched_pages_complete"] is False
         assert output["unresolved_count"] == 0
+        # Per Copilot review: success must mirror fetched_pages_complete
+        # so other consumers do not treat an incomplete snapshot as a
+        # success-shaped reply.
+        assert output["success"] is False
 
     def test_missing_cursor_marks_incomplete(self, capsys):
         # hasNextPage true but endCursor absent: cannot continue, must
@@ -215,3 +219,4 @@ class TestMain:
         assert rc == 0
         output = json.loads(capsys.readouterr().out)
         assert output["fetched_pages_complete"] is False
+        assert output["success"] is False

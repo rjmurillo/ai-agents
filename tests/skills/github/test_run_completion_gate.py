@@ -162,6 +162,22 @@ class TestPassWhenDsl:
             data, "stdout-json.outer.inner == 42",
         ) is True
 
+    def test_quoted_string_with_space_stays_intact(self):
+        # Per Gemini review: previous expr.split() broke on
+        # ``"PR merged"``, splitting it into ``['"PR', 'merged"']``. The
+        # shlex.split tokenizer keeps the literal as a single token.
+        data = {"label": "PR merged"}
+        assert _dispatcher._eval_pass_when(
+            data, 'stdout-json.label == "PR merged"',
+        ) is True
+
+    def test_unbalanced_quotes_rejected(self):
+        with pytest.raises(ValueError, match="tokenization failed"):
+            _dispatcher._eval_pass_when(
+                {"x": 1},
+                'stdout-json.x == "unterminated',
+            )
+
 
 # ---------------------------------------------------------------------------
 # Dispatcher integration tests
@@ -348,6 +364,103 @@ class TestRunCompletionGate:
         assert result["criteria"][0]["passed"] is False
         assert "not a JSON object" in result["criteria"][0]["reason"]
 
+    def test_non_zero_exit_treated_as_dispatch_error(
+        self, repo_root, tmp_path, capsys,
+    ):
+        # Per Copilot review: a non-zero verifier exit is a dispatch
+        # error, not a "the verifier ran fine, parse its stdout"
+        # success path. Verifier output may be a stale snapshot; trust
+        # the exit code first.
+        config_path = _write_config(
+            tmp_path,
+            [
+                {
+                    "name": "Crashy",
+                    "verification": "command",
+                    "command": "false",
+                    "pass_when": "stdout-json.x == 0",
+                    "fail_open": False,
+                },
+            ],
+        )
+        with patch.object(
+            _dispatcher.subprocess, "run",
+            return_value=_make_proc(
+                stdout=json.dumps({"x": 0}),
+                stderr="something went wrong",
+                returncode=3,
+            ),
+        ):
+            rc = _dispatcher.main(
+                ["--config", str(config_path), "--pull-request", "1", "--json"],
+            )
+        assert rc == 1
+        result = json.loads(capsys.readouterr().out)
+        assert result["criteria"][0]["passed"] is False
+        assert "exited non-zero" in result["criteria"][0]["reason"]
+        # Verifier output is preserved in the result for triage:
+        assert result["criteria"][0]["stderr"] == "something went wrong"
+
+    def test_broken_pass_when_fails_closed_even_when_fail_open_true(
+        self, repo_root, tmp_path, capsys,
+    ):
+        # Per CodeRabbit review: a broken pass_when expression is a
+        # config bug, not a verifier outage. fail_open MUST NOT mask
+        # it; otherwise a typo in the gate definition silently greens
+        # the gate.
+        config_path = _write_config(
+            tmp_path,
+            [
+                {
+                    "name": "Broken expr",
+                    "verification": "command",
+                    "command": "echo {}",
+                    "pass_when": "stdout-json.x !@# 0",  # nonsense op
+                    "fail_open": True,  # MUST be ignored for this case
+                },
+            ],
+        )
+        with patch.object(
+            _dispatcher.subprocess, "run",
+            return_value=_make_proc(stdout=json.dumps({"x": 0})),
+        ):
+            rc = _dispatcher.main(
+                ["--config", str(config_path), "--pull-request", "1", "--json"],
+            )
+        assert rc == 1
+        result = json.loads(capsys.readouterr().out)
+        assert result["criteria"][0]["passed"] is False
+        assert "fails closed" in result["criteria"][0]["reason"]
+
+    def test_verifier_stdout_preserved_in_result(
+        self, repo_root, tmp_path, capsys,
+    ):
+        # Per CodeRabbit review: the result row must include the
+        # verifier's stdout/stderr so the failing criterion can be
+        # debugged from the gate output alone.
+        config_path = _write_config(
+            tmp_path,
+            [
+                {
+                    "name": "Verbose",
+                    "verification": "command",
+                    "command": "echo ignored",
+                    "pass_when": "stdout-json.unresolved_count == 99",
+                },
+            ],
+        )
+        verifier_out = json.dumps({"unresolved_count": 0})
+        with patch.object(
+            _dispatcher.subprocess, "run",
+            return_value=_make_proc(stdout=verifier_out, returncode=0),
+        ):
+            rc = _dispatcher.main(
+                ["--config", str(config_path), "--pull-request", "1", "--json"],
+            )
+        assert rc == 1
+        result = json.loads(capsys.readouterr().out)
+        assert result["criteria"][0]["stdout"] == verifier_out
+
     def test_missing_config_returns_two(self, repo_root, tmp_path):
         rc = _dispatcher.main(
             [
@@ -512,6 +625,10 @@ class TestDispatcherCriterionRejectionPaths:
     """
 
     def test_unsupported_verification_kind(self, repo_root, tmp_path, capsys):
+        # Schema bug: verification kind unknown. Per CodeRabbit review
+        # feedback, malformed criteria are config errors (exit 2), not
+        # gate failures (exit 1). Distinguishes a typo from a verifier
+        # legitimately reporting a problem.
         config_path = _write_config(
             tmp_path,
             [
@@ -526,10 +643,8 @@ class TestDispatcherCriterionRejectionPaths:
         rc = _dispatcher.main(
             ["--config", str(config_path), "--pull-request", "1", "--json"],
         )
-        assert rc == 1
-        result = json.loads(capsys.readouterr().out)
-        assert result["criteria"][0]["passed"] is False
-        assert "unsupported verification" in result["criteria"][0]["reason"]
+        assert rc == 2
+        assert "unsupported verification" in capsys.readouterr().err
 
     def test_missing_command_field(self, repo_root, tmp_path, capsys):
         config_path = _write_config(
@@ -545,9 +660,8 @@ class TestDispatcherCriterionRejectionPaths:
         rc = _dispatcher.main(
             ["--config", str(config_path), "--pull-request", "1", "--json"],
         )
-        assert rc == 1
-        result = json.loads(capsys.readouterr().out)
-        assert "no command" in result["criteria"][0]["reason"]
+        assert rc == 2
+        assert "missing command" in capsys.readouterr().err
 
     def test_missing_pass_when_expression(self, repo_root, tmp_path, capsys):
         config_path = _write_config(
@@ -560,16 +674,35 @@ class TestDispatcherCriterionRejectionPaths:
                 },
             ],
         )
-        with patch.object(
-            _dispatcher.subprocess, "run",
-            return_value=_make_proc(stdout=json.dumps({"x": 0})),
-        ):
-            rc = _dispatcher.main(
-                ["--config", str(config_path), "--pull-request", "1", "--json"],
-            )
-        assert rc == 1
-        result = json.loads(capsys.readouterr().out)
-        assert "no pass_when expression" in result["criteria"][0]["reason"]
+        rc = _dispatcher.main(
+            ["--config", str(config_path), "--pull-request", "1", "--json"],
+        )
+        assert rc == 2
+        assert "missing pass_when" in capsys.readouterr().err
+
+    def test_pass_when_and_pass_when_python_both_set_rejected(
+        self, repo_root, tmp_path, capsys,
+    ):
+        # Per Copilot review: both-set is ambiguous because the
+        # dispatcher silently picks pass_when_python first. Reject at
+        # schema time so the ambiguity never reaches runtime.
+        config_path = _write_config(
+            tmp_path,
+            [
+                {
+                    "name": "Both",
+                    "verification": "command",
+                    "command": "echo ignored",
+                    "pass_when": "stdout-json.x == 0",
+                    "pass_when_python": "lambda d: d['x'] == 0",
+                },
+            ],
+        )
+        rc = _dispatcher.main(
+            ["--config", str(config_path), "--pull-request", "1", "--json"],
+        )
+        assert rc == 2
+        assert "mutually exclusive" in capsys.readouterr().err
 
     def test_timeout_fails_closed_when_fail_open_false(
         self, repo_root, tmp_path, capsys,
@@ -640,8 +773,8 @@ class TestDispatcherMainRejectionPaths:
         self, repo_root, tmp_path, capsys,
     ):
         # YAML parses "- foo" as a list element of type str, not dict.
-        # Write the config directly to exercise the "not isinstance dict"
-        # branch in main().
+        # CodeRabbit review feedback: a non-mapping criterion is a
+        # config bug, not a gate result. Exit 2.
         config_path = tmp_path / "pr-review-config.yaml"
         config_path.write_text(
             "completion_criteria:\n  - 'this is a string, not a mapping'\n",
@@ -650,10 +783,39 @@ class TestDispatcherMainRejectionPaths:
         rc = _dispatcher.main(
             ["--config", str(config_path), "--pull-request", "1", "--json"],
         )
-        assert rc == 1
-        result = json.loads(capsys.readouterr().out)
-        assert result["criteria"][0]["name"] == "<malformed>"
-        assert "not a mapping" in result["criteria"][0]["reason"]
+        assert rc == 2
+        assert "not a mapping" in capsys.readouterr().err
+
+    def test_completion_criteria_not_a_list_rejected(
+        self, repo_root, tmp_path, capsys,
+    ):
+        # Per CodeRabbit: a dict in this slot would be silently iterated
+        # as keys. Reject explicitly.
+        config_path = tmp_path / "pr-review-config.yaml"
+        config_path.write_text(
+            "completion_criteria:\n  some_key: some_value\n",
+            encoding="utf-8",
+        )
+        rc = _dispatcher.main(
+            ["--config", str(config_path), "--pull-request", "1"],
+        )
+        assert rc == 2
+        assert "must be a list" in capsys.readouterr().err
+
+    def test_unreadable_config_returns_two(
+        self, repo_root, tmp_path, capsys,
+    ):
+        # Per CodeRabbit: yaml.YAMLError must be caught and exit 2.
+        config_path = tmp_path / "pr-review-config.yaml"
+        config_path.write_text(
+            "this is not: valid: yaml: at: all:\n  - [unbalanced",
+            encoding="utf-8",
+        )
+        rc = _dispatcher.main(
+            ["--config", str(config_path), "--pull-request", "1"],
+        )
+        assert rc == 2
+        assert "Failed to load config" in capsys.readouterr().err
 
     def test_path_traversal_rejected(self, tmp_path):
         # No repo_root fixture: --config points outside the production
