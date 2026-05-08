@@ -174,14 +174,259 @@ class TestCheckMergeReadiness:
             result = check_merge_readiness("o", "r", 42, ignore_ci=True)
         assert result["CanMerge"] is True
 
-    def test_pr_not_found_exits_2(self):
-        with patch(
-            "test_pr_merge_ready.gh_graphql",
-            return_value={"repository": {"pullRequest": None}},
-        ):
-            with pytest.raises(SystemExit) as exc:
-                check_merge_readiness("o", "r", 999)
+    def test_pr_not_found_exits_2(self, caplog):
+        import logging
+        with caplog.at_level(logging.WARNING, logger="test_pr_merge_ready"):
+            with patch(
+                "test_pr_merge_ready.gh_graphql",
+                return_value={"repository": {"pullRequest": None}},
+            ):
+                with pytest.raises(SystemExit) as exc:
+                    check_merge_readiness("o", "r", 999)
             assert exc.value.code == 2
+        # Boundary observability: failed paths must emit a structured
+        # `op=merge_ready_failed reason=...` log line so an operator can
+        # grep failures across scripts using a unified taxonomy.
+        assert any(
+            "op=merge_ready_failed" in r.message
+            and "reason=pr_not_found" in r.message
+            for r in caplog.records
+        ), "merge_ready failure path must log op=merge_ready_failed reason=pr_not_found"
+
+    def test_pr_not_found_via_could_not_resolve_exits_2(self, caplog):
+        """gh_graphql RuntimeError with 'Could not resolve' maps to exit 2."""
+        import logging
+        with caplog.at_level(logging.WARNING, logger="test_pr_merge_ready"):
+            with patch(
+                "test_pr_merge_ready.gh_graphql",
+                side_effect=RuntimeError("Could not resolve to a PullRequest"),
+            ):
+                with pytest.raises(SystemExit) as exc:
+                    check_merge_readiness("o", "r", 999)
+            assert exc.value.code == 2
+        assert any(
+            "op=merge_ready_failed" in r.message
+            and "reason=pr_not_found" in r.message
+            for r in caplog.records
+        )
+
+    def test_graphql_error_exits_3_with_log(self, caplog):
+        """A non-'Could not resolve' RuntimeError exits 3 and logs reason=graphql_error."""
+        import logging
+        with caplog.at_level(logging.WARNING, logger="test_pr_merge_ready"):
+            with patch(
+                "test_pr_merge_ready.gh_graphql",
+                side_effect=RuntimeError("rate limit exceeded"),
+            ):
+                with pytest.raises(SystemExit) as exc:
+                    check_merge_readiness("o", "r", 42)
+            assert exc.value.code == 3
+        assert any(
+            "op=merge_ready_failed" in r.message
+            and "reason=graphql_error" in r.message
+            for r in caplog.records
+        )
+
+    def test_threads_pagination_fallback_when_inline_truncated(self, caplog):
+        """When totalCount > inline first:100, falls back to paginated helper
+        and uses ``max(inline, paginated)`` as a floor.
+
+        The merge-ready GraphQL query embeds a ``reviewThreads(first: 100)``
+        page for round-trip economy. If a PR has more than 100 threads, that
+        page is a lower bound; the code calls get_unresolved_review_threads
+        for an exact count. Per the floor invariant added in 8ca3b0e8, the
+        result is ``max(inline_unresolved, len(paginated))`` so a transport
+        failure in the paginated call (returns []) does not silently zero
+        the count when inline showed unresolved threads.
+
+        This test exercises the realistic case: paginated returns MORE than
+        inline (paginated saw all threads; inline was truncated to 100).
+        """
+        import logging
+        pr_data = json.loads(json.dumps(_OPEN_PR))
+        threads = pr_data["repository"]["pullRequest"]["reviewThreads"]
+        threads["totalCount"] = 150
+        # Inline first:100 page: 100 unresolved threads.
+        threads["nodes"] = [
+            {"id": f"PRRT_{i}", "isResolved": False} for i in range(100)
+        ]
+
+        # Paginated helper sees all 150 and reports 105 unresolved
+        # (45 of the 150 happen to be resolved; not visible in inline).
+        fake_unresolved = [
+            {"id": f"PRRT_real_{i}", "isResolved": False} for i in range(105)
+        ]
+        with caplog.at_level(logging.INFO, logger="test_pr_merge_ready"):
+            with patch(
+                "test_pr_merge_ready.gh_graphql", return_value=pr_data,
+            ), patch(
+                "test_pr_merge_ready.get_unresolved_review_threads",
+                return_value=fake_unresolved,
+            ) as mock_paginated:
+                result = check_merge_readiness("o", "r", 42, ignore_ci=True)
+
+        mock_paginated.assert_called_once_with("o", "r", 42)
+        assert result["UnresolvedThreads"] == 105, (
+            "Pagination fallback should use paginated count when it exceeds "
+            "the inline floor (105 paginated > 100 inline)"
+        )
+        assert any(
+            "op=merge_ready_threads_paginating" in r.message
+            for r in caplog.records
+        ), "Fallback path must log the paginating signal"
+
+    def test_threads_pagination_fallback_floor_on_transport_failure(self):
+        """Pagination floor invariant: when get_unresolved_review_threads
+        returns [] (transport error per its 'never raises' contract), the
+        unresolved count falls back to the inline-page count rather than
+        silently zeroing. Codifies the 8ca3b0e8 fix.
+        """
+        pr_data = json.loads(json.dumps(_OPEN_PR))
+        threads = pr_data["repository"]["pullRequest"]["reviewThreads"]
+        threads["totalCount"] = 150
+        # 42 unresolved, 58 resolved on inline page.
+        threads["nodes"] = (
+            [{"id": f"u{i}", "isResolved": False} for i in range(42)]
+            + [{"id": f"r{i}", "isResolved": True} for i in range(58)]
+        )
+
+        with patch(
+            "test_pr_merge_ready.gh_graphql", return_value=pr_data,
+        ), patch(
+            "test_pr_merge_ready.get_unresolved_review_threads",
+            return_value=[],  # simulate transport-failure []
+        ):
+            result = check_merge_readiness("o", "r", 42, ignore_ci=True)
+
+        assert result["UnresolvedThreads"] == 42, (
+            "Floor invariant: paginated [] (transport error) must fall back "
+            "to inline_unresolved_count, not silently zero"
+        )
+
+    def test_cancelled_with_later_success_does_not_block(self):
+        """PR #1887 false-FAIL pattern: a CANCELLED debounce row plus a later
+        SUCCESS row for the same check name was reported as a failed required
+        check. After dedupe, the verdict for that name is OK and CanMerge is
+        True. The retrospective records four false-FAIL reports caused by
+        this exact pattern.
+        """
+        pr_data = json.loads(json.dumps(_OPEN_PR))
+        commit = pr_data["repository"]["pullRequest"]["commits"]["nodes"][0]["commit"]
+        commit["statusCheckRollup"]["contexts"]["nodes"] = [
+            {
+                "__typename": "CheckRun",
+                "name": "ci/build",
+                "status": "COMPLETED",
+                "conclusion": "CANCELLED",
+                "isRequired": True,
+            },
+            {
+                "__typename": "CheckRun",
+                "name": "ci/build",
+                "status": "COMPLETED",
+                "conclusion": "SUCCESS",
+                "isRequired": True,
+            },
+        ]
+        with patch("test_pr_merge_ready.gh_graphql", return_value=pr_data):
+            result = check_merge_readiness("o", "r", 42)
+
+        assert result["CanMerge"] is True, (
+            f"CANCELLED+SUCCESS dedupe failed; reasons: {result['Reasons']}"
+        )
+        assert result["FailedRequiredChecks"] == [], (
+            "ci/build was incorrectly reported as a failed required check"
+        )
+        assert result["CIPassing"] is True
+
+    def test_cancelled_with_later_failure_blocks(self):
+        """Counterpart to the OK case: CANCELLED + FAILURE on the same name
+        must still report FAIL. The dedupe rule is "any FAILURE wins"; it
+        must not let a CANCELLED row hide a real failure.
+        """
+        pr_data = json.loads(json.dumps(_OPEN_PR))
+        commit = pr_data["repository"]["pullRequest"]["commits"]["nodes"][0]["commit"]
+        commit["statusCheckRollup"]["contexts"]["nodes"] = [
+            {
+                "__typename": "CheckRun",
+                "name": "ci/test",
+                "status": "COMPLETED",
+                "conclusion": "CANCELLED",
+                "isRequired": True,
+            },
+            {
+                "__typename": "CheckRun",
+                "name": "ci/test",
+                "status": "COMPLETED",
+                "conclusion": "FAILURE",
+                "isRequired": True,
+            },
+        ]
+        with patch("test_pr_merge_ready.gh_graphql", return_value=pr_data):
+            result = check_merge_readiness("o", "r", 42)
+
+        assert result["CanMerge"] is False
+        assert result["FailedRequiredChecks"] == ["ci/test"]
+
+    def test_cancelled_only_does_not_block(self):
+        """Edge case: a check name whose only conclusion is CANCELLED has no
+        opinion and must not block. (Without a passing or failing run, the
+        check has not produced a verdict; treating it as a failed required
+        check is the bug the retrospective documents.)
+        """
+        pr_data = json.loads(json.dumps(_OPEN_PR))
+        commit = pr_data["repository"]["pullRequest"]["commits"]["nodes"][0]["commit"]
+        commit["statusCheckRollup"]["contexts"]["nodes"] = [
+            {
+                "__typename": "CheckRun",
+                "name": "ci/lint",
+                "status": "COMPLETED",
+                "conclusion": "CANCELLED",
+                "isRequired": True,
+            },
+        ]
+        with patch("test_pr_merge_ready.gh_graphql", return_value=pr_data):
+            result = check_merge_readiness("o", "r", 42)
+
+        assert result["FailedRequiredChecks"] == []
+        assert result["CanMerge"] is True
+
+    def test_pending_then_cancelled_then_success_is_ok(self):
+        """Three-row case: an in-progress row, a cancelled supersedence, and
+        a successful final run. Verdict is OK because SUCCESS exists and
+        nothing is FAILURE.
+        """
+        pr_data = json.loads(json.dumps(_OPEN_PR))
+        commit = pr_data["repository"]["pullRequest"]["commits"]["nodes"][0]["commit"]
+        commit["statusCheckRollup"]["contexts"]["nodes"] = [
+            {
+                "__typename": "CheckRun",
+                "name": "ci/build",
+                "status": "IN_PROGRESS",
+                "conclusion": "",
+                "isRequired": True,
+            },
+            {
+                "__typename": "CheckRun",
+                "name": "ci/build",
+                "status": "COMPLETED",
+                "conclusion": "CANCELLED",
+                "isRequired": True,
+            },
+            {
+                "__typename": "CheckRun",
+                "name": "ci/build",
+                "status": "COMPLETED",
+                "conclusion": "SUCCESS",
+                "isRequired": True,
+            },
+        ]
+        with patch("test_pr_merge_ready.gh_graphql", return_value=pr_data):
+            result = check_merge_readiness("o", "r", 42)
+
+        assert result["CanMerge"] is True
+        assert result["FailedRequiredChecks"] == []
+        assert result["PendingRequiredChecks"] == []
 
 
 # ---------------------------------------------------------------------------

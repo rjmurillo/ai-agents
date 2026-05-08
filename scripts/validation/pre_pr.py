@@ -10,10 +10,12 @@ Validation sequence:
     3. Markdown Lint (auto-fix and validate)
     4. Workflow YAML (validate GitHub Actions workflows)
     5. Design Review Frontmatter (validate DESIGN-REVIEW YAML frontmatter)
-    6. YAML Style (check YAML style with yamllint) [skip if --quick]
-    7. Path Normalization (check for absolute paths) [skip if --quick, requires PS1]
-    8. Planning Artifacts (validate planning consistency) [skip if --quick, requires PS1]
-    9. Agent Drift (detect semantic drift) [skip if --quick, requires PS1]
+    6. Build Command Exit Gates (PR #1887 retrospective Layer 2)
+    7. Canonical Citation Check (heuristic mirror-claim citation; soft warn)
+    8. YAML Style (check YAML style with yamllint) [skip if --quick]
+    9. Path Normalization (check for absolute paths) [skip if --quick, requires PS1]
+   10. Planning Artifacts (validate planning consistency) [skip if --quick, requires PS1]
+   11. Agent Drift (detect semantic drift) [skip if --quick, requires PS1]
 
 Exit codes follow ADR-035:
     0 - Success (all validations passed)
@@ -462,6 +464,60 @@ def validate_design_review_frontmatter(repo_root: Path) -> bool:
     return all_passed
 
 
+def validate_build_gates(repo_root: Path) -> bool:
+    """Verify ``.claude/commands/build.md`` still wires the required exit gates.
+
+    The /build command is the implementer's exit path. If a future edit
+    removes the code-qualities-assessment / taste-lints / doc-accuracy
+    invocations, the iteration paradox documented in PR #1887 returns.
+    Lock the contract here. See ``check_build_gates.py`` for the rules.
+    """
+    script = repo_root / "scripts" / "validation" / "check_build_gates.py"
+    if not script.exists():
+        raise MissingScriptSkip(
+            "scripts/validation/check_build_gates.py not present"
+        )
+    exit_code, stdout, stderr = _run_subprocess(
+        [sys.executable, str(script), "--repo-root", str(repo_root)]
+    )
+    output = (stdout or "") + (stderr or "")
+    if output.strip():
+        for line in output.strip().splitlines()[:40]:
+            print(line)
+    return exit_code == 0
+
+
+def validate_canonical_citations(repo_root: Path) -> bool:
+    """Heuristic check for uncited mirror-claims.
+
+    Soft-warn by default. Set STRICT_CANONICAL_CHECK=1 in the environment
+    to upgrade to a hard failure. Always returns True in soft-warn mode
+    so a single uncited claim does not block the PR pipeline.
+
+    See: `.claude/rules/canonical-source-mirror.md` and PR #1887
+    retrospective Layer 4.
+    """
+    script = repo_root / "scripts" / "validation" / "check_canonical_citations.py"
+    if not script.exists():
+        print("[WARNING] check_canonical_citations.py not found (skipping)")
+        return True
+
+    exit_code, stdout, stderr = _run_subprocess(
+        [sys.executable, str(script), "--repo-root", str(repo_root)]
+    )
+
+    output = stdout.strip()
+    if output:
+        print(output)
+    if stderr.strip():
+        print(stderr.strip())
+
+    # Default mode is soft-warn; the script already exits 0 unless
+    # STRICT_CANONICAL_CHECK=1 is set. Treat any non-zero exit as a fail
+    # so CI can opt into strict mode by setting the env var.
+    return exit_code == 0
+
+
 def validate_agent_drift(repo_root: Path) -> bool:
     """Detect agent semantic drift.
 
@@ -589,6 +645,21 @@ def main(argv: list[str] | None = None) -> int:
         "Design Review Frontmatter",
         state,
         lambda: validate_design_review_frontmatter(repo_root),
+    )
+
+    # 3.7 Build Command Exit Gates (PR #1887 retrospective Layer 2)
+    run_validation(
+        "Build Command Exit Gates",
+        state,
+        lambda: validate_build_gates(repo_root),
+    )
+
+    # 3.8 Canonical Citation Check (heuristic; soft warn unless
+    # STRICT_CANONICAL_CHECK=1; PR #1887 retrospective Layer 4)
+    run_validation(
+        "Canonical Citation Check",
+        state,
+        lambda: validate_canonical_citations(repo_root),
     )
 
     # 3.9 YAML Style (skip if quick)

@@ -8,12 +8,15 @@ from __future__ import annotations
 
 from .api import (  # noqa: F401
     DEFAULT_RATE_THRESHOLDS,
+    FetchStatus,
     RateLimitResult,
     RepoInfo,
     assert_gh_authenticated,
     check_workflow_rate_limit,
+    count_unresolved_threads,
     create_issue_comment,
     error_and_exit,
+    filter_unresolved_threads,
     get_all_prs_with_comments,
     get_issue_comments,
     get_repo_info,
@@ -23,6 +26,7 @@ from .api import (  # noqa: F401
     gh_graphql,
     is_gh_authenticated,
     resolve_repo_params,
+    safe_log_str,
     update_issue_comment,
 )
 from .bot_config import (  # noqa: F401
@@ -50,6 +54,7 @@ from .validation import (  # noqa: F401
 
 __all__ = [
     "DEFAULT_RATE_THRESHOLDS",
+    "FetchStatus",
     "GhCliClient",
     "GitHubClient",
     "RateLimitResult",
@@ -57,8 +62,10 @@ __all__ = [
     "assert_gh_authenticated",
     "assert_valid_body_file",
     "check_workflow_rate_limit",
+    "count_unresolved_threads",
     "create_issue_comment",
     "error_and_exit",
+    "filter_unresolved_threads",
     "get_all_prs_with_comments",
     "get_bot_authors",
     "get_bot_authors_config",
@@ -77,6 +84,7 @@ __all__ = [
     "is_github_name_valid",
     "is_safe_file_path",
     "resolve_repo_params",
+    "safe_log_str",
     "update_issue_comment",
     "write_skill_error",
     "write_skill_output",

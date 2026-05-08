@@ -20,6 +20,10 @@ Before implementation, Task(subagent_type="analyst"): Read `.claude/skills/analy
 - Tier 3: Validate approach before coding. Active mentorship pattern (check in at milestones).
 - Tier 4-5: Proof-of-concept first. Get design sign-off before full implementation.
 
+## Pre-Mortem (Risk Identification)
+
+Before any code changes, invoke Skill(skill="pre-mortem") on the task as briefed. Capture the top 2-3 critical risks and their mitigations into the session log. Risks surfaced by reviewers late in the cycle are usually knowable up front. A 5-minute pre-mortem is cheaper than a 10-round bot review.
+
 ## Agent
 
 Task(subagent_type="implementer"): You are a senior engineer. Discover the project's tech stack, coding patterns, and test conventions by reading the codebase. Build in thin vertical slices. Test-first when the project has tests. Commit atomically.
@@ -35,14 +39,24 @@ For each slice:
 
 ## Quality Signals
 
-After implementation, invoke Skill(skill="code-qualities-assessment") to score the result.
-
 The agent should self-check:
 
 - Is this hard to test? That indicates a design problem, not a test problem.
 - Does every method read like a sentence? (Programming by Intention)
 - Is coupling intentional or accidental?
 - Would a stranger understand this code without asking questions?
+
+## Mandatory Exit Gates
+
+The build is not complete until all three gates below return clean. These are **hard preconditions for declaring done**, not advisory output. If any gate returns findings, the implementer must address them in the same `/build` cycle. Do not kick the can to PR review; advisory framing here produces the iteration paradox where reviewers flag what the implementer should have caught, multiplying the cost of every revision.
+
+Run, in order:
+
+1. Skill(skill="code-qualities-assessment") with `--changed-only` against the changed files. Reject the build if any new or modified method scores below the configured thresholds in `.qualityrc.json`.
+2. Skill(skill="taste-lints") against the changed files (use `--git-staged` or pass paths explicitly). Reject the build on any error-level violation; address every warning surfaced on lines you touched.
+3. Skill(skill="doc-accuracy") with `--diff-base main` so it audits changed comments, docstrings, and prose. Reject the build on any critical or high finding in code or docs you authored.
+
+If a gate flags an item that is genuinely out of scope for this build, document the rationale in the session log and link to the follow-up issue. "I will fix it in review" is not an acceptable rationale.
 
 ## Guardrails
 
