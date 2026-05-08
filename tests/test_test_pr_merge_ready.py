@@ -589,6 +589,140 @@ class TestFetchedPagesCompleteFlag:
             result = check_merge_readiness("o", "r", 1)
         assert result["fetched_pages_complete"] is False
 
+    def test_pagination_resolves_truncation(self):
+        # Inline page is truncated (totalCount=150 > 100 nodes) AND
+        # hasNextPage=True with a real cursor: the script paginates
+        # the remainder via a follow-up query and reports
+        # fetched_pages_complete=True. This is the live-PR scenario:
+        # accumulated CI runs grow past the inline 100-cap.
+        first_page_nodes = [
+            {
+                "__typename": "CheckRun",
+                "name": f"ci-{i}",
+                "status": "COMPLETED",
+                "conclusion": "SUCCESS",
+                "isRequired": False,
+            }
+            for i in range(100)
+        ]
+        merge_ready_payload = {
+            "repository": {
+                "pullRequest": {
+                    "number": 1,
+                    "state": "OPEN",
+                    "isDraft": False,
+                    "mergeable": "MERGEABLE",
+                    "mergeStateStatus": "CLEAN",
+                    "reviewThreads": {"totalCount": 0, "nodes": []},
+                    "commits": {
+                        "nodes": [
+                            {
+                                "commit": {
+                                    "oid": "abc123",
+                                    "statusCheckRollup": {
+                                        "state": "SUCCESS",
+                                        "contexts": {
+                                            "totalCount": 150,
+                                            "pageInfo": {
+                                                "hasNextPage": True,
+                                                "endCursor": "cursor-1",
+                                            },
+                                            "nodes": first_page_nodes,
+                                        },
+                                    },
+                                },
+                            },
+                        ],
+                    },
+                },
+            },
+        }
+        # Follow-up page: 50 more contexts, hasNextPage=False.
+        followup_payload = {
+            "repository": {
+                "object": {
+                    "statusCheckRollup": {
+                        "contexts": {
+                            "pageInfo": {
+                                "hasNextPage": False,
+                                "endCursor": None,
+                            },
+                            "nodes": [
+                                {
+                                    "__typename": "CheckRun",
+                                    "name": f"ci-{i}",
+                                    "status": "COMPLETED",
+                                    "conclusion": "SUCCESS",
+                                    "isRequired": False,
+                                }
+                                for i in range(100, 150)
+                            ],
+                        },
+                    },
+                },
+            },
+        }
+        with patch(
+            "test_pr_merge_ready.gh_graphql",
+            side_effect=[merge_ready_payload, followup_payload],
+        ):
+            result = check_merge_readiness("o", "r", 1)
+        assert result["fetched_pages_complete"] is True
+        assert result["CIPassing"] is True
+        assert result["CanMerge"] is True
+
+    def test_pagination_failure_keeps_incomplete(self):
+        # Same setup but the follow-up call raises RuntimeError. The
+        # script must report fetched_pages_complete=False (fail closed).
+        first_page_nodes = [
+            {
+                "__typename": "CheckRun",
+                "name": f"ci-{i}",
+                "status": "COMPLETED",
+                "conclusion": "SUCCESS",
+                "isRequired": False,
+            }
+            for i in range(100)
+        ]
+        merge_ready_payload = {
+            "repository": {
+                "pullRequest": {
+                    "number": 1, "state": "OPEN", "isDraft": False,
+                    "mergeable": "MERGEABLE", "mergeStateStatus": "CLEAN",
+                    "reviewThreads": {"totalCount": 0, "nodes": []},
+                    "commits": {
+                        "nodes": [
+                            {
+                                "commit": {
+                                    "oid": "abc123",
+                                    "statusCheckRollup": {
+                                        "state": "SUCCESS",
+                                        "contexts": {
+                                            "totalCount": 150,
+                                            "pageInfo": {
+                                                "hasNextPage": True,
+                                                "endCursor": "cursor-1",
+                                            },
+                                            "nodes": first_page_nodes,
+                                        },
+                                    },
+                                },
+                            },
+                        ],
+                    },
+                },
+            },
+        }
+        with patch(
+            "test_pr_merge_ready.gh_graphql",
+            side_effect=[
+                merge_ready_payload,
+                RuntimeError("transport failed"),
+            ],
+        ):
+            result = check_merge_readiness("o", "r", 1)
+        assert result["fetched_pages_complete"] is False
+
     def test_complete_with_failing_required_check(self):
         payload = _pr_payload_with_totals(
             review_threads_total=0,
