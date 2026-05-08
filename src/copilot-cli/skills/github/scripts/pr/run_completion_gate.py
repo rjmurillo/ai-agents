@@ -101,15 +101,23 @@ import sys
 from pathlib import Path
 from typing import Any
 
-# Resolve the project root so ``scripts.utils.path_validation`` is
-# importable. The dispatcher lives at
-# ``<repo>/.claude/skills/github/scripts/pr/run_completion_gate.py``,
-# so ``parents[4]`` (i.e. five levels up from the file) is the repo
-# root. The same lookup pattern is used by other Python scripts in the
-# repo (e.g. validate_pr_review_config.py at scripts/, which uses
-# ``parent.parent``).
-_SCRIPT_DIR = Path(__file__).resolve().parent
-_PROJECT_ROOT = _SCRIPT_DIR.parents[4]
+# Resolve the project root by walking up to find the ``scripts/``
+# package. A fixed ``parents[N]`` index works for the canonical
+# ``.claude/skills/.../pr/`` location but breaks for the
+# ``src/copilot-cli/skills/.../pr/`` mirror (one extra ``src/`` level)
+# and would break again for any future deployed install. The walk
+# resolves the right root regardless of where the script lives.
+def _resolve_project_root() -> Path:
+    here = Path(__file__).resolve().parent
+    for ancestor in (here, *here.parents):
+        if (ancestor / "scripts" / "utils" / "path_validation.py").is_file():
+            return ancestor
+    # Fall back to the original heuristic if the marker is missing
+    # (e.g. when the script is bundled without the scripts/ tree).
+    return Path(__file__).resolve().parents[4]
+
+
+_PROJECT_ROOT = _resolve_project_root()
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
