@@ -251,8 +251,10 @@ class TestMainOutputPath:
             result = main()
             assert result == 0
             captured = capsys.readouterr()
-            assert "Self-Improving Agent" in captured.out
-            assert "pnpm" in captured.out
+            # Advisory text now goes to stderr (commit 92df3875: stdout
+            # must be valid JSON or empty for hook payloads).
+            assert "Self-Improving Agent" in captured.err
+            assert "pnpm" in captured.err
 
     @patch("invoke_correction_applier.skip_if_consumer_repo", return_value=False)
     @patch(

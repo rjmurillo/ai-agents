@@ -45,7 +45,13 @@ VALID_CONFIG: dict = {
         {"scenario": "PR not found", "action": "Skip"},
     ],
     "completion_criteria": [
-        {"criterion": "All comments addressed", "verification": "Check threads", "required": True},
+        {
+            "name": "All comments addressed",
+            "verification": "command",
+            "command": "python3 script.py --pull-request {pr}",
+            "pass_when": "stdout-json.unresolved_count == 0",
+            "fail_open": False,
+        },
     ],
     "failure_handling": [
         {"type": "Merge conflicts", "action": "Resolve"},
@@ -100,9 +106,131 @@ class TestValidateConfig:
 
     def test_missing_completion_criteria_field(self) -> None:
         config = copy.deepcopy(VALID_CONFIG)
-        del config["completion_criteria"][0]["required"]
+        del config["completion_criteria"][0]["name"]
         errors = validate_config(config)
-        assert any("completion_criteria[0] missing field: required" in e for e in errors)
+        assert any("completion_criteria[0] missing field: name" in e for e in errors)
+
+    def test_missing_completion_criteria_pass_when(self) -> None:
+        # Either pass_when or pass_when_python must be present.
+        config = copy.deepcopy(VALID_CONFIG)
+        del config["completion_criteria"][0]["pass_when"]
+        errors = validate_config(config)
+        assert any(
+            "completion_criteria[0] missing field: pass_when" in e
+            for e in errors
+        )
+
+    def test_completion_criteria_pass_when_python_accepted(self) -> None:
+        # pass_when_python is the documented escape hatch when the DSL is
+        # too narrow; using it instead of pass_when must validate cleanly.
+        config = copy.deepcopy(VALID_CONFIG)
+        del config["completion_criteria"][0]["pass_when"]
+        config["completion_criteria"][0]["pass_when_python"] = (
+            "lambda d: d.get('x', 0) == 0"
+        )
+        errors = validate_config(config)
+        assert errors == []
+
+    def test_completion_criteria_both_pass_when_fields_rejected(self) -> None:
+        # Per Copilot review: both-set is ambiguous because the
+        # dispatcher silently picks pass_when_python first. The
+        # validator must reject it before runtime.
+        config = copy.deepcopy(VALID_CONFIG)
+        config["completion_criteria"][0]["pass_when_python"] = (
+            "lambda d: True"
+        )
+        errors = validate_config(config)
+        assert any(
+            "both pass_when and pass_when_python" in e for e in errors
+        )
+
+    def test_completion_criteria_null_pass_when_rejected(self) -> None:
+        # YAML `pass_when:` with no value yields None. The key exists
+        # but the value is falsy. The validator must reject this so it
+        # matches the dispatcher's truthiness check.
+        config = copy.deepcopy(VALID_CONFIG)
+        config["completion_criteria"][0]["pass_when"] = None
+        errors = validate_config(config)
+        assert any(
+            "completion_criteria[0] missing field: pass_when" in e
+            for e in errors
+        )
+
+    def test_completion_criteria_empty_pass_when_rejected(self) -> None:
+        # YAML `pass_when: ""` yields an empty string. Now caught by
+        # both the truthiness check (missing field) and the type check
+        # (must be a non-empty string).
+        config = copy.deepcopy(VALID_CONFIG)
+        config["completion_criteria"][0]["pass_when"] = ""
+        errors = validate_config(config)
+        assert any(
+            "completion_criteria[0] missing field: pass_when" in e
+            for e in errors
+        )
+
+    def test_completion_criteria_command_must_be_string(self) -> None:
+        # Per Copilot review: presence is not enough. A YAML config that
+        # parses ``command`` as a list (indentation slip-up) would only
+        # crash later in the dispatcher; reject at validation time.
+        config = copy.deepcopy(VALID_CONFIG)
+        config["completion_criteria"][0]["command"] = ["echo", "ignored"]
+        errors = validate_config(config)
+        assert any(
+            "command must be a non-empty string" in e for e in errors
+        )
+
+    def test_completion_criteria_pass_when_must_be_nonempty_string(self) -> None:
+        config = copy.deepcopy(VALID_CONFIG)
+        config["completion_criteria"][0]["pass_when"] = ""
+        errors = validate_config(config)
+        assert any(
+            "pass_when must be a non-empty string" in e for e in errors
+        )
+
+    def test_completion_criteria_name_must_be_nonempty_string(self) -> None:
+        config = copy.deepcopy(VALID_CONFIG)
+        config["completion_criteria"][0]["name"] = "   "
+        errors = validate_config(config)
+        assert any(
+            "name must be a non-empty string" in e for e in errors
+        )
+
+    def test_completion_criteria_must_be_list_not_dict(self) -> None:
+        # Per Copilot review: a YAML-parsed dict would have iterated
+        # keys/chars and emitted noisy per-key "must be a mapping"
+        # errors. The validator now rejects the container shape with a
+        # single clear error message.
+        config = copy.deepcopy(VALID_CONFIG)
+        config["completion_criteria"] = {"key": "value"}
+        errors = validate_config(config)
+        # Single, clear error about the container; not a swarm.
+        container_errors = [
+            e for e in errors if "completion_criteria must be a list" in e
+        ]
+        assert len(container_errors) == 1
+        # And no per-element noise:
+        per_element_errors = [
+            e for e in errors if e.startswith("completion_criteria[")
+        ]
+        assert per_element_errors == []
+
+    def test_completion_criteria_verification_must_be_command(self) -> None:
+        config = copy.deepcopy(VALID_CONFIG)
+        config["completion_criteria"][0]["verification"] = "narrative"
+        errors = validate_config(config)
+        assert any(
+            "completion_criteria[0].verification must be 'command'" in e
+            for e in errors
+        )
+
+    def test_completion_criteria_fail_open_must_be_bool(self) -> None:
+        config = copy.deepcopy(VALID_CONFIG)
+        config["completion_criteria"][0]["fail_open"] = "yes"
+        errors = validate_config(config)
+        assert any(
+            "completion_criteria[0].fail_open must be a boolean" in e
+            for e in errors
+        )
 
     def test_missing_error_recovery_field(self) -> None:
         config = copy.deepcopy(VALID_CONFIG)
