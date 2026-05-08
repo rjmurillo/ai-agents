@@ -147,7 +147,7 @@ class TestValidateConfig:
     def test_completion_criteria_null_pass_when_rejected(self) -> None:
         # YAML `pass_when:` with no value yields None. The key exists
         # but the value is falsy. The validator must reject this so it
-        # matches the dispatcher's truthiness check (bug fix).
+        # matches the dispatcher's truthiness check.
         config = copy.deepcopy(VALID_CONFIG)
         config["completion_criteria"][0]["pass_when"] = None
         errors = validate_config(config)
@@ -157,15 +157,42 @@ class TestValidateConfig:
         )
 
     def test_completion_criteria_empty_pass_when_rejected(self) -> None:
-        # YAML `pass_when: ""` yields an empty string. The key exists
-        # but the value is falsy. The validator must reject this so it
-        # matches the dispatcher's truthiness check (bug fix).
+        # YAML `pass_when: ""` yields an empty string. Now caught by
+        # both the truthiness check (missing field) and the type check
+        # (must be a non-empty string).
         config = copy.deepcopy(VALID_CONFIG)
         config["completion_criteria"][0]["pass_when"] = ""
         errors = validate_config(config)
         assert any(
             "completion_criteria[0] missing field: pass_when" in e
             for e in errors
+        )
+
+    def test_completion_criteria_command_must_be_string(self) -> None:
+        # Per Copilot review: presence is not enough. A YAML config that
+        # parses ``command`` as a list (indentation slip-up) would only
+        # crash later in the dispatcher; reject at validation time.
+        config = copy.deepcopy(VALID_CONFIG)
+        config["completion_criteria"][0]["command"] = ["echo", "ignored"]
+        errors = validate_config(config)
+        assert any(
+            "command must be a non-empty string" in e for e in errors
+        )
+
+    def test_completion_criteria_pass_when_must_be_nonempty_string(self) -> None:
+        config = copy.deepcopy(VALID_CONFIG)
+        config["completion_criteria"][0]["pass_when"] = ""
+        errors = validate_config(config)
+        assert any(
+            "pass_when must be a non-empty string" in e for e in errors
+        )
+
+    def test_completion_criteria_name_must_be_nonempty_string(self) -> None:
+        config = copy.deepcopy(VALID_CONFIG)
+        config["completion_criteria"][0]["name"] = "   "
+        errors = validate_config(config)
+        assert any(
+            "name must be a non-empty string" in e for e in errors
         )
 
     def test_completion_criteria_verification_must_be_command(self) -> None:

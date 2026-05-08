@@ -661,7 +661,7 @@ class TestDispatcherCriterionRejectionPaths:
             ["--config", str(config_path), "--pull-request", "1", "--json"],
         )
         assert rc == 2
-        assert "missing command" in capsys.readouterr().err
+        assert "command must be a non-empty string" in capsys.readouterr().err
 
     def test_missing_pass_when_expression(self, repo_root, tmp_path, capsys):
         config_path = _write_config(
@@ -841,3 +841,147 @@ class TestFormatCommandTypeGuard:
         # explicitly so a downstream caller cannot smuggle True/False.
         with pytest.raises(TypeError, match="pr_number must be int"):
             _dispatcher._format_command("echo {pr}", True)  # type: ignore[arg-type]
+
+
+class TestSchemaTypeChecks:
+    """Per Copilot review: tighten value-type checks in
+    _validate_criterion_schema so YAML quirks (lists where strings are
+    expected, ``"yes"`` instead of ``true``) surface as ConfigError
+    rather than crashing later in the dispatch path.
+    """
+
+    def test_command_as_list_rejected(self, repo_root, tmp_path, capsys):
+        config_path = _write_config(
+            tmp_path,
+            [
+                {
+                    "name": "Listy",
+                    "verification": "command",
+                    "command": ["echo", "ignored"],
+                    "pass_when": "stdout-json.x == 0",
+                },
+            ],
+        )
+        rc = _dispatcher.main(
+            ["--config", str(config_path), "--pull-request", "1"],
+        )
+        assert rc == 2
+        assert "command must be a non-empty string" in capsys.readouterr().err
+
+    def test_fail_open_string_yes_rejected(self, repo_root, tmp_path, capsys):
+        config_path = _write_config(
+            tmp_path,
+            [
+                {
+                    "name": "Trickier",
+                    "verification": "command",
+                    "command": "echo ignored",
+                    "pass_when": "stdout-json.x == 0",
+                    "fail_open": "yes",
+                },
+            ],
+        )
+        rc = _dispatcher.main(
+            ["--config", str(config_path), "--pull-request", "1"],
+        )
+        assert rc == 2
+        assert "fail_open must be a boolean" in capsys.readouterr().err
+
+
+class TestPassWhenPythonBroadException:
+    """Per CodeRabbit: a pass_when_python lambda body can raise anything
+    (ZeroDivisionError, IndexError, custom exceptions). The dispatcher
+    must catch all of them and fail closed.
+    """
+
+    def test_zero_division_in_lambda_fails_closed(
+        self, repo_root, tmp_path, capsys,
+    ):
+        config_path = _write_config(
+            tmp_path,
+            [
+                {
+                    "name": "Divides",
+                    "verification": "command",
+                    "command": "echo ignored",
+                    "pass_when_python": "lambda d: 1 / 0",
+                    "fail_open": True,  # MUST be ignored (config bug)
+                },
+            ],
+        )
+        with patch.object(
+            _dispatcher.subprocess, "run",
+            return_value=_make_proc(stdout=json.dumps({"x": 0})),
+        ):
+            rc = _dispatcher.main(
+                ["--config", str(config_path), "--pull-request", "1", "--json"],
+            )
+        assert rc == 1
+        result = json.loads(capsys.readouterr().out)
+        assert result["criteria"][0]["passed"] is False
+        assert "fails closed" in result["criteria"][0]["reason"]
+
+    def test_index_error_in_lambda_fails_closed(
+        self, repo_root, tmp_path, capsys,
+    ):
+        config_path = _write_config(
+            tmp_path,
+            [
+                {
+                    "name": "OutOfBounds",
+                    "verification": "command",
+                    "command": "echo ignored",
+                    "pass_when_python": "lambda d: d['items'][5] == 'x'",
+                    "fail_open": True,
+                },
+            ],
+        )
+        with patch.object(
+            _dispatcher.subprocess, "run",
+            return_value=_make_proc(stdout=json.dumps({"items": []})),
+        ):
+            rc = _dispatcher.main(
+                ["--config", str(config_path), "--pull-request", "1", "--json"],
+            )
+        assert rc == 1
+        result = json.loads(capsys.readouterr().out)
+        assert "fails closed" in result["criteria"][0]["reason"]
+
+
+class TestTableModeShowsEvidence:
+    """Per CodeRabbit: the non-JSON path also needs to surface the
+    verifier's command and stdout/stderr so an operator triaging from
+    the terminal output has the same evidence the JSON consumer sees.
+    """
+
+    def test_failing_row_shows_command_and_output(
+        self, repo_root, tmp_path, capsys,
+    ):
+        config_path = _write_config(
+            tmp_path,
+            [
+                {
+                    "name": "ShowMe",
+                    "verification": "command",
+                    "command": "echo evidence",
+                    "pass_when": "stdout-json.unresolved_count == 99",
+                },
+            ],
+        )
+        with patch.object(
+            _dispatcher.subprocess, "run",
+            return_value=_make_proc(
+                stdout=json.dumps({"unresolved_count": 0}),
+                stderr="warning from verifier",
+                returncode=0,
+            ),
+        ):
+            rc = _dispatcher.main(
+                ["--config", str(config_path), "--pull-request", "1"],
+            )
+        assert rc == 1
+        out = capsys.readouterr().out
+        assert "FAIL   ShowMe" in out
+        assert "command:" in out
+        assert "stdout:" in out
+        assert "warning from verifier" in out
