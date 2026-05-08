@@ -41,7 +41,7 @@ tier dictates whether a guard gets kept, promoted, or pruned.
 
 | Tier | Age | Intercepts | Fitness | Action |
 |---|---|---|---|---|
-| Harmful | any | ≥1 | < -0.02 | Remove immediately |
+| Harmful | any | ≥3 | < -0.02 | Remove immediately |
 | Proficient | ≥60 days | ≥10 | ≥ +0.02 | Promote, keep watching |
 | Mature | ≥30 days | ≥5 | ≥ 0 | Keep, low review |
 | Growing | 14-30 days | ≥1 | any | Adolescent, hold |
@@ -56,7 +56,7 @@ the classifier's module docstring.
 ```bash
 # Default: read .agents/telemetry/*.jsonl, classify, print report.
 python3 build/scripts/aggregate_guard_intercepts.py \
-  --guard markdown-lint --guard manifest-count --guard pr-description --guard session-log \
+  --guard markdown-lint --guard manifest-count --guard pr-description --guard session-log-field \
   | python3 build/scripts/classify_guard_maturity.py
 ```
 

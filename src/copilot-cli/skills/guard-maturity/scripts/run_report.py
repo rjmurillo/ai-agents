@@ -199,7 +199,7 @@ def main(argv: list[str] | None = None) -> int:
             "markdown-lint",
             "manifest-count",
             "pr-description",
-            "session-log",
+            "session-log-field",
         ]
 
     summary = _run_aggregate(args.guard, args.source)
