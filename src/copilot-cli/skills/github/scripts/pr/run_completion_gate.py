@@ -275,6 +275,14 @@ def _eval_pass_when(data: dict, expr: str) -> bool:
                 f"Expected AND/OR, got {pending_op!r}"
             )
         i += 1
+        # Per Copilot review: a trailing connective with no atom after
+        # it (e.g. ``x == 1 AND``) silently passed before because the
+        # outer loop checked ``i < len(tokens)`` only at the top. Catch
+        # it explicitly: an AND/OR must be followed by another atom.
+        if i >= len(tokens):
+            raise ValueError(
+                f"pass_when ends with dangling connective {pending_op!r}",
+            )
 
     return bool(result)
 
@@ -359,8 +367,23 @@ def _validate_criterion_schema(criterion: dict) -> tuple[str, str, str | None, s
     if not isinstance(criterion, dict):
         raise ConfigError(f"criterion is not a mapping: {criterion!r}")
 
-    name = criterion.get("name", "<unnamed>")
-    verification = criterion.get("verification", "command")
+    # Per Copilot review: presence-with-default lets a missing or
+    # wrong-typed ``name``/``verification`` slip through. Require them
+    # explicitly and type-check ``name`` so the validator and the
+    # dispatcher reject the same configs.
+    if "name" not in criterion:
+        raise ConfigError("criterion missing required field: name")
+    name = criterion["name"]
+    if not isinstance(name, str) or not name.strip():
+        raise ConfigError(
+            f"criterion: name must be a non-empty string "
+            f"(got {type(name).__name__})",
+        )
+    if "verification" not in criterion:
+        raise ConfigError(
+            f"criterion {name!r}: missing required field: verification",
+        )
+    verification = criterion["verification"]
     if verification != "command":
         raise ConfigError(
             f"criterion {name!r}: unsupported verification kind "
@@ -380,6 +403,21 @@ def _validate_criterion_schema(criterion: dict) -> tuple[str, str, str | None, s
 
     pass_when = criterion.get("pass_when")
     pass_when_python = criterion.get("pass_when_python")
+    # Type-check both expression fields when present. The validator
+    # already does this; mirror it here so a config that bypasses
+    # the standalone validator (direct dispatcher invocation) cannot
+    # smuggle a non-string into the eval/DSL paths.
+    for field, value in (
+        ("pass_when", pass_when),
+        ("pass_when_python", pass_when_python),
+    ):
+        if field in criterion and (
+            not isinstance(value, str) or not value.strip()
+        ):
+            raise ConfigError(
+                f"criterion {name!r}: {field} must be a non-empty string "
+                f"(got {type(value).__name__})",
+            )
     if pass_when and pass_when_python:
         raise ConfigError(
             f"criterion {name!r}: pass_when and pass_when_python are "
