@@ -18,14 +18,30 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import subprocess
 import sys
 from pathlib import Path
 
+# Subprocess-safety note (CWE-78, semgrep
+# python.lang.security.audit.dangerous-subprocess-use-tainted-env-args):
+# Path resolution intentionally does NOT consult environment variables.
+# Earlier revisions read ``CLAUDE_PLUGIN_ROOT`` and ``GITHUB_WORKSPACE``,
+# but those values flow into ``AGGREGATE`` / ``CLASSIFY`` and from there
+# into ``subprocess.run`` argv, which semgrep flags as a tainted-env-args
+# command-injection sink even with list-form ``run`` (no shell). We
+# resolve via ``__file__``-relative walk-up only; the resulting path is
+# not user-controlled. We additionally call ``Path.resolve(strict=True)``
+# at exec time so a non-existent or symlink-relocated script raises
+# before reaching ``subprocess.run``.
+
+_SCRIPT_NAMES = (
+    "aggregate_guard_intercepts.py",
+    "classify_guard_maturity.py",
+)
+
 
 def _resolve_repo_root() -> Path:
-    """Locate the repo root robustly across install shapes.
+    """Locate the repo root from ``__file__`` only — no env-var input.
 
     The same source file lives at two different depths:
     - canonical: ``.claude/skills/guard-maturity/scripts/run_report.py`` →
@@ -35,20 +51,11 @@ def _resolve_repo_root() -> Path:
       root. A naive ``parents[4]`` makes ``AGGREGATE`` / ``CLASSIFY`` point
       at ``<repo>/src/build/scripts/...`` which does not exist.
 
-    Resolution order:
-    1. ``CLAUDE_PLUGIN_ROOT`` env var (vendor install / harness).
-    2. ``GITHUB_WORKSPACE`` env var (CI).
-    3. Walk up from ``__file__`` looking for ``AGENTS.md`` (in-repo
-       canonical) or ``.git`` (any local clone).
-    4. Fall back to ``parents[4]`` (preserves prior behavior for the
-       canonical layout when none of the above is present).
+    Walk up from ``__file__`` looking for ``AGENTS.md`` (in-repo
+    canonical) or ``.git`` (any local clone). Fall back to
+    ``parents[4]`` (preserves prior behavior for the canonical layout
+    when no marker is found).
     """
-    plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
-    if plugin_root and Path(plugin_root).is_dir():
-        return Path(plugin_root)
-    workspace = os.environ.get("GITHUB_WORKSPACE")
-    if workspace and Path(workspace).is_dir():
-        return Path(workspace)
     here = Path(__file__).resolve()
     for parent in here.parents:
         if (parent / "AGENTS.md").is_file() or (parent / ".git").is_dir():
@@ -56,9 +63,27 @@ def _resolve_repo_root() -> Path:
     return here.parents[4]
 
 
+def _validated_script_path(name: str) -> Path:
+    """Return the resolved path of a known build script, or raise.
+
+    Semgrep-recognized hardening: the file name MUST be one of the two
+    known constants in ``_SCRIPT_NAMES``; ``Path.resolve(strict=True)``
+    asserts the file exists at the moment of exec; the parent directory
+    chain MUST end ``.../build/scripts/<name>``. A symlink, a missing
+    file, or a relocated layout raises before ``subprocess.run`` is
+    called, so the argv contents are constrained to a closed set.
+    """
+    if name not in _SCRIPT_NAMES:
+        raise SystemExit(f"refusing to exec unknown build script: {name!r}")
+    path = (REPO_ROOT / "build" / "scripts" / name).resolve(strict=True)
+    if path.parent.name != "scripts" or path.parent.parent.name != "build":
+        raise SystemExit(f"refusing to exec script outside build/scripts: {path}")
+    if path.name != name:
+        raise SystemExit(f"resolved name mismatch: {path.name} != {name}")
+    return path
+
+
 REPO_ROOT = _resolve_repo_root()
-AGGREGATE = REPO_ROOT / "build" / "scripts" / "aggregate_guard_intercepts.py"
-CLASSIFY = REPO_ROOT / "build" / "scripts" / "classify_guard_maturity.py"
 
 # Severity sort: Harmful first (act now), then Inert (prune), then the
 # happy tiers. Within a tier, sort by intercepts descending so the
@@ -91,7 +116,8 @@ def _parse_subprocess_json(stdout: str, child_label: str) -> dict:
 
 
 def _run_aggregate(known_guards: list[str], source: str | None) -> dict:
-    cmd = [sys.executable, str(AGGREGATE)]
+    aggregate = _validated_script_path("aggregate_guard_intercepts.py")
+    cmd = [sys.executable, str(aggregate)]
     for g in known_guards:
         cmd.extend(["--guard", g])
     if source:
@@ -104,7 +130,8 @@ def _run_aggregate(known_guards: list[str], source: str | None) -> dict:
 
 
 def _run_classify(summary: dict, treat_unseen_as_inert: bool) -> dict:
-    cmd = [sys.executable, str(CLASSIFY)]
+    classify = _validated_script_path("classify_guard_maturity.py")
+    cmd = [sys.executable, str(classify)]
     if treat_unseen_as_inert:
         cmd.append("--treat-unseen-as-inert")
     proc = subprocess.run(
