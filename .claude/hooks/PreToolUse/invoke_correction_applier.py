@@ -215,7 +215,8 @@ def main() -> int:
         for source, text in shown:
             lines.append(f"- [{source}] {text}")
 
-        print("\n".join(lines))
+        # Output to stderr (advisory), not stdout (which must be valid JSON or empty)
+        print("\n".join(lines), file=sys.stderr)
     except Exception as exc:
         print(f"[{hook_name}] Error (fail-open): {exc}", file=sys.stderr)
     return 0

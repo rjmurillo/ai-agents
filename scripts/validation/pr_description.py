@@ -45,6 +45,22 @@ SIGNIFICANT_DIRS_PATTERN: re.Pattern[str] = re.compile(
 # File extension pattern for extracting file references from description
 _EXT_GROUP = r"ps1|md|yml|yaml|json|cs|ts|js|py|sh|bash"
 
+# Negative lookahead anchoring the extension to a token boundary. Rejects
+# any continuation character that would extend a real filename into a
+# longer extension, identifier, or path component (issue #1874). Without
+# this, the body group in `FILE_MENTION_PATTERNS` greedy-backtracks across
+# longer real tokens and produces a known shorter extension as a false
+# positive. The set covers:
+#   - alphanumerics: `runs.jsonl` -> `runs.json`, `app.tsx` -> `app.ts`,
+#     `module.pyc` -> `module.py`, `script.bashrc` -> `script.bash`
+#   - underscore: `foo.json_schema` -> `foo.json`
+#   - path separators (`/`, `\`): `path/to/file.py/extra` -> `path/to/file.py`
+# Period (`.`) is intentionally NOT included so sentence-ending periods
+# (`Updated foo.json. Some comment.`) still match. The remaining
+# double-extension gap (`runs.json.bak` -> `runs.json`) is tracked
+# separately as #1881.
+_EXT_BOUNDARY = r"(?![A-Za-z0-9_/\\])"
+
 # Default label name that bypasses CRITICAL description-validation failures.
 # Mirrors the existing 'commit-limit-bypass' pattern in pr-validation.yml.
 DEFAULT_BYPASS_LABEL = "description-validation-bypass"
@@ -70,14 +86,17 @@ _CONTEXTUAL_SECTION_NAMES: tuple[str, ...] = (
 # backtick-wrapped paths (`- \`path/file.ext\`: description`). The autonomous
 # PR template uses backtick-wrapped paths; using [^\s`]+ stops cleanly at the
 # trailing backtick instead of relying on normalize_path to strip it.
+#
+# Every pattern appends `_EXT_BOUNDARY` after the captured extension so the
+# match cannot terminate inside a longer real extension (issue #1874).
 FILE_MENTION_PATTERNS: list[re.Pattern[str]] = [
-    re.compile(rf"`([^`]+\.({_EXT_GROUP}))`"),  # inline code
-    re.compile(rf"\*\*([^*]+\.({_EXT_GROUP}))\*\*"),  # bold
+    re.compile(rf"`([^`]+\.({_EXT_GROUP})){_EXT_BOUNDARY}`"),  # inline code
+    re.compile(rf"\*\*([^*]+\.({_EXT_GROUP})){_EXT_BOUNDARY}\*\*"),  # bold
     re.compile(
-        rf"^\s*[-*+]\s+`?([^\s`]+\.({_EXT_GROUP}))`?",
+        rf"^\s*[-*+]\s+`?([^\s`]+\.({_EXT_GROUP})){_EXT_BOUNDARY}`?",
         re.MULTILINE,
     ),  # list items (optionally backtick-wrapped)
-    re.compile(rf"\[([^\]]+\.({_EXT_GROUP}))\]"),  # markdown links
+    re.compile(rf"\[([^\]]+\.({_EXT_GROUP})){_EXT_BOUNDARY}\]"),  # markdown links
 ]
 
 # Summary text patterns that identify a <details> block as bot-generated

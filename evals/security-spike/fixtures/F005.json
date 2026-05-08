@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "id": "F005",
+  "input": "Code review:\n\n```python\nimport hmac, hashlib, secrets\n\ndef verify_token(provided: str, expected: str) -> bool:\n    a = provided.encode(\"utf-8\")\n    b = expected.encode(\"utf-8\")\n    return hmac.compare_digest(a, b)\n\ndef new_session_token() -> str:\n    return secrets.token_urlsafe(32)\n```\n\nThe `verify_token` helper is used to compare a token from a request header against a stored token. `new_session_token` mints session tokens. Anything to flag for security?",
+  "provenance": "synthetic",
+  "assertions": [
+    {"kind": "verdict", "expected_value": "OK"}
+  ],
+  "tags": ["verdict-ok", "false-positive-resistance", "constant-time"]
+}

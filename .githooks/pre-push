@@ -597,6 +597,70 @@ else
     record_skip "Agent drift detection (no src/template files changed)"
 fi
 
+# 11b. Build pipeline staleness (build_all.py --check)
+#
+# Catches generator drift the CI "Validate Generated Files" gate would
+# otherwise reject (~90s + bot-rescan cost). Local cost is sub-second.
+# Fires unconditionally; build_all.py covers agents, skills, commands,
+# rules->instructions, and hooks->copilot. PR #1897 round 6 staleness
+# failure on .github/instructions/canonical-source-mirror.instructions.md
+# is the canonical example this guards against.
+BUILD_ALL_SCRIPT="$REPO_ROOT/build/scripts/build_all.py"
+
+if [ -L "$BUILD_ALL_SCRIPT" ]; then
+    record_warn "build_all.py is a symlink (skipping)"
+elif [ -f "$BUILD_ALL_SCRIPT" ]; then
+    # Use set_python_cmd (uv-aware) instead of bare python3:
+    # build_all.py imports yaml (PyYAML via build/yaml_loader.py), a
+    # third-party package typically only available inside the project's
+    # venv. Bare python3 raises ImportError and the hook misreports it
+    # as "staleness detected" instead of the real "PyYAML not in
+    # system Python" diagnosis. Pattern matches Phase-2/4 sites
+    # (workflow validation L476, pytest L635, semgrep L674).
+    if set_python_cmd; then
+        BUILD_ALL_OUTPUT=$(mktemp)
+        TEMP_FILES+=("$BUILD_ALL_OUTPUT")
+        "${PYTHON_CMD[@]}" "$BUILD_ALL_SCRIPT" --check > "$BUILD_ALL_OUTPUT" 2>&1
+        BUILD_ALL_RC=$?
+        if [ $BUILD_ALL_RC -eq 0 ]; then
+            record_pass "Build pipeline staleness (build_all.py --check)"
+        else
+            # Branch on whether the failure carries STALENESS markers.
+            # Each branch picks BOTH the output filter AND the message
+            # together so the user sees the right output for the right
+            # failure. The earlier `grep ... | head -20 || head -20`
+            # fallback is broken: head -20 always exits 0 (it succeeds
+            # on empty stdin), so the `||` branch is dead code. Issue
+            # #1924 tracks the same bug at L359 (markdown-lint pattern
+            # this section was originally modeled on).
+            echo_info "  build_all.py --check output:"
+            if grep -qE "STALENESS DETECTED" "$BUILD_ALL_OUTPUT" 2>/dev/null; then
+                # Staleness path: filter to header + indented stale-file
+                # paths (build_all.py prints stale paths indented two
+                # spaces; verified locally on PR #1915 round 3).
+                grep -E "STALENESS|^  [./]" "$BUILD_ALL_OUTPUT" | head -20
+                record_fail "Build pipeline staleness detected (exit $BUILD_ALL_RC)"
+                echo_info "  Fix: ${PYTHON_CMD[*]} build/scripts/build_all.py"
+                echo_info "  Then commit the regenerated files."
+            else
+                # Non-staleness path: show unfiltered head so the actual
+                # failure (ImportError on missing PyYAML, exit 2 from
+                # config-load error, broken generator stanza) is visible.
+                head -20 "$BUILD_ALL_OUTPUT"
+                record_fail "Build pipeline check failed (exit $BUILD_ALL_RC; not staleness)"
+                echo_info "  Fix: investigate the output above; staleness markers absent."
+                echo_info "  Common causes: missing PyYAML in active Python; build_all"
+                echo_info "  config-load error (exit 2); broken generator stanza."
+            fi
+        fi
+        rm -f "$BUILD_ALL_OUTPUT"
+    else
+        record_skip "Build pipeline staleness (no Python available)"
+    fi
+else
+    record_skip "Build pipeline staleness (script not found)"
+fi
+
 # 12. Path normalization
 PATH_NORM_SCRIPT="$REPO_ROOT/build/scripts/Validate-PathNormalization.ps1"
 
