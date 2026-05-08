@@ -131,8 +131,12 @@ def validate_config(config: dict) -> list[str]:
             # Both-set is ambiguous because the dispatcher silently picks
             # pass_when_python first; reject it at validation time so
             # the ambiguity never reaches runtime.
+            # Check both key presence AND truthiness: a key with null or ""
+            # passes `f in item` but fails the dispatcher's `if not pass_when`
+            # check at runtime. Matching truthiness here ensures the validator
+            # rejects configs that would fail at dispatch time.
             present = [
-                f for f in COMPLETION_CRITERIA_PASS_FIELDS if f in item
+                f for f in COMPLETION_CRITERIA_PASS_FIELDS if item.get(f)
             ]
             if not present:
                 errors.append(

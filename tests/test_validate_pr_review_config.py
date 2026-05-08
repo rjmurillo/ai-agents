@@ -144,6 +144,30 @@ class TestValidateConfig:
             "both pass_when and pass_when_python" in e for e in errors
         )
 
+    def test_completion_criteria_null_pass_when_rejected(self) -> None:
+        # YAML `pass_when:` with no value yields None. The key exists
+        # but the value is falsy. The validator must reject this so it
+        # matches the dispatcher's truthiness check (bug fix).
+        config = copy.deepcopy(VALID_CONFIG)
+        config["completion_criteria"][0]["pass_when"] = None
+        errors = validate_config(config)
+        assert any(
+            "completion_criteria[0] missing field: pass_when" in e
+            for e in errors
+        )
+
+    def test_completion_criteria_empty_pass_when_rejected(self) -> None:
+        # YAML `pass_when: ""` yields an empty string. The key exists
+        # but the value is falsy. The validator must reject this so it
+        # matches the dispatcher's truthiness check (bug fix).
+        config = copy.deepcopy(VALID_CONFIG)
+        config["completion_criteria"][0]["pass_when"] = ""
+        errors = validate_config(config)
+        assert any(
+            "completion_criteria[0] missing field: pass_when" in e
+            for e in errors
+        )
+
     def test_completion_criteria_verification_must_be_command(self) -> None:
         config = copy.deepcopy(VALID_CONFIG)
         config["completion_criteria"][0]["verification"] = "narrative"
