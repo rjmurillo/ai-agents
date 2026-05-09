@@ -1,0 +1,18 @@
+{
+  "id": "episode-2026-05-09-session-1826",
+  "session": "2026-05-09-session-1826",
+  "timestamp": "2026-05-09T22:17:30.418630+00:00",
+  "outcome": "partial",
+  "task": "",
+  "decisions": [],
+  "events": [],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 2,
+    "files_changed": 0
+  },
+  "lessons": []
+}
