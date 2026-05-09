@@ -146,6 +146,37 @@ def test_halt_emission_format_present(spec_text: str) -> None:
         assert required_key in spec_text, f"halt emission key missing: {required_key}"
 
 
+def test_halt_emission_example_block_well_formed(spec_text: str) -> None:
+    """QA F1: the example `step0-halt` block in spec.md must parse cleanly:
+    every required key is present, every key has a non-empty value, the
+    trigger value is one of H1-H5. This pins the documented exemplar so
+    a future spec.md edit that breaks the format example is caught."""
+    block_match = re.search(
+        r"```step0-halt\n(.*?)\n```",
+        spec_text,
+        re.DOTALL,
+    )
+    assert block_match is not None, "no `step0-halt` example block in spec.md"
+    body = block_match.group(1)
+    parsed: dict[str, str] = {}
+    for line in body.splitlines():
+        if ":" not in line:
+            continue
+        key, _, value = line.partition(":")
+        parsed[key.strip()] = value.strip()
+    required_keys = {"trigger", "question", "answer", "test_failed", "deferral"}
+    missing = required_keys - parsed.keys()
+    assert not missing, f"step0-halt example missing keys: {missing}"
+    for key in required_keys:
+        assert parsed[key], f"step0-halt example key '{key}' has empty value"
+    assert parsed["trigger"] in {"H1", "H2", "H3", "H4", "H5"}, (
+        f"step0-halt example trigger must be H1-H5, got {parsed['trigger']!r}"
+    )
+    assert parsed["question"].startswith("Q") and " " in parsed["question"], (
+        f"step0-halt example question must be 'Qn Label' shape, got {parsed['question']!r}"
+    )
+
+
 def test_q1_q5_differentiation_in_spec_md(spec_text: str) -> None:
     """Gate 5 #1: Q1 (requesters) and Q5 (production signals) must be
     differentiated in spec.md prose. Prevent the two questions from
