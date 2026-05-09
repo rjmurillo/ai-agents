@@ -67,6 +67,7 @@ Write the answers as a structured block (the `## Step 0 First Principles` block)
 | `someday` | indefinite future |
 | `down the road` | indefinite future |
 | `nice to have` | low-priority aspiration |
+<!-- step0:hedge-table-end -->
 
 Single words `should`, `might`, `could` are NOT hedges in this list. They conflict with RFC 2119 requirement language and produce false positives.
 

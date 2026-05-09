@@ -1,16 +1,21 @@
-"""Drift guards for the 6 lifecycle command files.
+"""Drift guards for the lifecycle command files.
 
 Refs #1926. These tests catch the configuration drift pattern that
-surfaces when a 7th lifecycle command is added without updating the
+surfaces when a new lifecycle command is added without updating the
 two parallel exclusion lists in `.markdownlint-cli2.yaml` and
 `.githooks/pre-commit`.
 
-The lifecycle commands (`spec`, `plan`, `build`, `test`, `review`, `ship`)
-have YAML frontmatter + `@CLAUDE.md` body shape with no H1 heading and
-no Triggers/Verification sections. They are excluded from markdownlint
-MD041 and SkillForge structural validation. Adding a 7th command without
-updating both lists silently re-includes the new file in CI lint and
-validator passes.
+A "lifecycle command" is a `.claude/commands/<name>.md` file whose body
+opens with `@CLAUDE.md` (the marker that distinguishes lifecycle slash-
+commands from ordinary command files). Lifecycle commands have YAML
+frontmatter + `@CLAUDE.md` body shape with no H1 heading and no
+Triggers/Verification sections. They are excluded from markdownlint
+MD041 and SkillForge structural validation.
+
+The canonical set is derived from the filesystem at test time, so adding
+a new lifecycle command (a new file under `.claude/commands/` whose body
+starts with `@CLAUDE.md`) automatically extends the drift checks. The
+test set is no longer a hand-maintained constant.
 """
 
 from __future__ import annotations
@@ -23,9 +28,43 @@ COMMANDS_DIR = PROJECT_ROOT / ".claude" / "commands"
 MARKDOWNLINT_CONFIG = PROJECT_ROOT / ".markdownlint-cli2.yaml"
 PRE_COMMIT_HOOK = PROJECT_ROOT / ".githooks" / "pre-commit"
 
-# Canonical set. Update this set + both exclusion lists together when
-# a new lifecycle command lands.
-LIFECYCLE_COMMANDS = {"spec", "plan", "build", "test", "review", "ship"}
+
+def _discover_lifecycle_commands() -> set[str]:
+    """Discover lifecycle commands by scanning `.claude/commands/*.md` for
+    files whose body opens with `@CLAUDE.md`. The first non-frontmatter,
+    non-blank line of the body is the marker."""
+    discovered: set[str] = set()
+    for path in COMMANDS_DIR.glob("*.md"):
+        text = path.read_text(encoding="utf-8")
+        # Strip YAML frontmatter if present.
+        body = re.sub(r"^---\r?\n.*?\r?\n---\r?\n", "", text, count=1, flags=re.DOTALL)
+        for line in body.splitlines():
+            stripped = line.strip()
+            if not stripped:
+                continue
+            if stripped.startswith("@CLAUDE.md"):
+                discovered.add(path.stem)
+            break
+    return discovered
+
+
+# Canonical set, derived from filesystem at import time. If the discovery
+# logic itself drifts, `test_canonical_set_matches_known_lifecycle_commands`
+# below pins it against the documented set.
+LIFECYCLE_COMMANDS = _discover_lifecycle_commands()
+
+
+def test_canonical_set_matches_known_lifecycle_commands() -> None:
+    """Sanity: the auto-discovered set matches the documented set as of
+    issue #1926. If a new lifecycle command lands, update this expected
+    set in the same PR — that signals the author has consciously taken
+    on the additional drift-guard surface."""
+    expected = {"spec", "plan", "build", "test", "review", "ship"}
+    assert LIFECYCLE_COMMANDS == expected, (
+        f"discovered lifecycle commands {LIFECYCLE_COMMANDS} != "
+        f"documented {expected}; update both this set and the exclusion "
+        f"lists in `.markdownlint-cli2.yaml` and `.githooks/pre-commit`"
+    )
 
 
 def test_lifecycle_commands_exist_in_claude_commands_dir() -> None:

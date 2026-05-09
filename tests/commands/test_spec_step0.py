@@ -118,6 +118,25 @@ def test_auto_mode_halt_token_in_skill_md(skill_text: str) -> None:
     assert "STEP_0_REQUIRES_ELICITATION" in skill_text
 
 
+def test_ac6_step0_block_directive_in_spec_md(spec_text: str) -> None:
+    """AC-6 (static): spec.md instructs the agent to emit `## Step 0
+    First Principles` as the first PRD section. The string must appear
+    verbatim in the instruction prose so the model sees the exact label
+    it must produce."""
+    assert "## Step 0 First Principles" in spec_text, (
+        "spec.md must reference the canonical PRD block label `## Step 0 First Principles`"
+    )
+
+
+def test_ac6_q1_to_q6_subhead_directive_in_spec_md(spec_text: str) -> None:
+    """AC-6 (static): spec.md instructs the agent to emit `### Q1..Q6`
+    subheads under the Step 0 PRD block. The instruction must reference
+    each label so the model produces the canonical structure."""
+    assert "### Q1..Q6" in spec_text or all(
+        f"### Q{n}" in spec_text for n in range(1, 7)
+    ), "spec.md must reference Q1..Q6 subhead directives for the PRD block"
+
+
 def test_halt_emission_format_present(spec_text: str) -> None:
     """REQ-006-12 + Gate 5 #2: spec.md MUST define the machine-readable
     `step0-halt` fenced-block format (info-string + 5 keys). Free-form
@@ -281,8 +300,19 @@ def test_rfc_2119_should_in_q5_does_not_trigger_h1(hedge_phrases: list[str]) -> 
 def test_quoted_hedge_in_q5_triggers_h1_parser_side(hedge_phrases: list[str]) -> None:
     """Documented limitation: parser cannot distinguish authored hedge from
     quoted-counter-example hedge. Spec REQ-006-02 says the boundary is
-    instruction-level; this test pins parser behavior so a future fix that
-    adds quote-aware exclusion is detectable."""
+    instruction-level (the LLM is told to apply the hedge check only to
+    author-supplied answers, not to quoted instruction text); the parser
+    pins the false-positive shape.
+
+    Forward path: a future commit that adds quote-aware exclusion to
+    `hedge_match` (skipping phrases inside `"..."` or fenced blocks)
+    will need to update this test to assert `is None`. The current
+    behavior is acceptable for v1 because:
+      1. The instruction-level rule already guards the runtime path.
+      2. The parser is a CI safety net, not the enforcement layer.
+      3. REQ-006-13 kill criteria provide an operational rollback if
+         the false-positive rate exceeds 30%.
+    """
     answers = baseline_answers()
     answers["Q5"] = 'The old ticket said "would be nice"; we observed timeouts in #1700.'
     assert evaluate_step0(answers, hedge_phrases) == "H1"

@@ -43,15 +43,21 @@ def parse_hedge_phrases(spec_text: str) -> list[str]:
     """Parse the canonical hedge phrase list out of the Step 0 block.
 
     The list is rendered as a markdown table with phrases in the first
-    column inside backticks. Returns the phrases in source order.
+    column inside backticks. The table boundary is anchored on a stable
+    HTML-comment sentinel `<!-- step0:hedge-table-end -->` rather than
+    surrounding prose; the sentinel is invisible in rendered markdown
+    but visible to this parser. Returns the phrases in source order.
     """
     block_match = re.search(
-        r"\*\*Canonical hedge phrase list\*\*.*?\| Phrase.*?\n(.*?)\n\nSingle words",
+        r"\*\*Canonical hedge phrase list\*\*.*?\| Phrase.*?\n(.*?)\n<!-- step0:hedge-table-end -->",
         spec_text,
         re.DOTALL,
     )
     if block_match is None:
-        raise ValueError("hedge phrase table not found in spec.md")
+        raise ValueError(
+            "hedge phrase table not found in spec.md "
+            "(expected `<!-- step0:hedge-table-end -->` sentinel)"
+        )
     table = block_match.group(1)
     phrases = re.findall(r"\| `([^`]+)` \|", table)
     if not phrases:
@@ -209,15 +215,28 @@ def extract_step1_paragraph(text: str) -> str:
 
 
 def extract_tier5_bullet(text: str) -> str:
-    match = re.search(r"   - Tier 5 \(Principal\):.*?$", text, re.MULTILINE)
+    """Extract the entire Tier 5 bullet, anchored on the next sibling
+    bullet (`   - Tier `) or a blank-line terminator. Greedy match to
+    end-of-line is insufficient because the bullet may wrap across
+    physical lines."""
+    match = re.search(
+        r"   - Tier 5 \(Principal\):.*?(?=\n   - Tier |\n\n|\n4\. )",
+        text,
+        re.DOTALL,
+    )
     if match is None:
         raise ValueError("Tier 5 bullet not found")
     return match.group(0)
 
 
 def extract_step9_block(text: str) -> str:
+    """Extract the Step 9 block, anchored on the next H2 heading OR
+    end-of-file. Files that end with the Step 9 block (no trailing H2)
+    are also handled."""
     match = re.search(
-        r"\n9\. Task\(subagent_type=\"critic\"\).*?(?=\n## )", text, re.DOTALL
+        r"\n9\. Task\(subagent_type=\"critic\"\).*?(?=\n## |\Z)",
+        text,
+        re.DOTALL,
     )
     if match is None:
         raise ValueError("Step 9 block not found")
