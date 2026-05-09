@@ -122,13 +122,13 @@ If any criterion fires, the gate is loosened or removed in a follow-up PR.
 
 ---
 
-1. Clarify the problem (what, who, why, constraints)
+1. Clarify the problem. Step 0 already captured demand (Q1), status quo (Q2), specificity (Q3), wedge (Q4), observation (Q5), and future-fit (Q6). **Do not re-elicit Q1-Q6 here.** Step 1 scope is narrower: clarify constraints, non-functional requirements, integration touch points, and edge cases not already addressed by the Q4 wedge.
 2. **Run the adversarial requirements interview**: Invoke Skill(skill="requirements-interview") to walk the design tree before any further analysis. The skill grills the user on user stories, data model, integrations, failure modes, security, observability, and scope boundaries. For every question it must propose a recommended answer; if the codebase can answer it (grep the repo first), it does so without asking. Output is a structured PRD that every downstream step consumes. Carry the PRD forward unchanged through steps 3-9; do not drop sections.
 3. **Classify complexity tier**: Task(subagent_type="analyst"): Read `.claude/skills/analyze/references/engineering-complexity-tiers.md`. Using the structured PRD from step 2, classify the problem as Tier 1-5 based on scope, ambiguity, cross-team dependencies, and reversibility. Return the tier number, rationale, and recommended spec depth. Use this to calibrate remaining steps:
    - Tier 1-2 (Entry/Mid): Simple acceptance criteria. Skip CVA if single use case.
    - Tier 3 (Senior): CVA analysis required. Cross-team input. Design review gate.
    - Tier 4 (Staff): Alternatives analysis mandatory. ADR required. Stakeholder alignment. Challenge: "can this be decomposed into a simpler tier?"
-   - Tier 5 (Principal): Governance review. Multi-org consensus. Explicit "why not simpler?" challenge. If complexity can be driven out, do it before specifying.
+   - Tier 5 (Principal): Governance review. Multi-org consensus. Re-validate Step 0 Q4 (Narrowest Wedge) in the context of emerged complexity. If the wedge can be narrowed further without losing the unblocking value identified in Q3, narrow it before proceeding. (Replaces the v1 standalone "why not simpler?" challenge — Step 0 Q4 is the canonical wedge question for every tier.)
 4. Search for existing solutions in the codebase (grep for related patterns). Use the PRD's Integrations and Data model sections to scope the search.
 5. **CVA analysis (conditional)**: If the complexity tier is 3-5, or Tier 1-2 with multiple use cases, invoke Skill(skill="cva-analysis"): identify commonalities across the PRD's user stories, then variabilities, then relationships. Otherwise (Tier 1-2 single-use-case), set `CVA summary: N/A (single-use-case Tier 1-2)` and proceed.
 6. **Formalize the PRD into durable artifacts**: Task(subagent_type="spec-generator"). Pass every PRD section from step 2 (Problem, User stories, Data model, Integrations, Failure modes, Security, Observability, Acceptance criteria, Out of scope, Deferred, Open questions) plus the complexity tier from step 3 and the CVA summary from step 5 (which may be the `N/A` placeholder for skipped runs). The spec-generator agent writes:
@@ -138,7 +138,17 @@ If any criterion fires, the gate is loosened or removed in a follow-up PR.
    The full PRD must be passed as input so spec-generator does not re-ask questions the interview already answered. Acceptance criteria use EARS syntax (`WHEN ... THE SYSTEM SHALL ... SO THAT ...`).
 7. Task(subagent_type="analyst"): You are a requirements analyst. Your job is to find gaps, ambiguities, and untestable requirements. Review every PRD section, not just acceptance criteria. For each requirement, ask: can this be verified pass/fail? Flag anything vague.
 8. Invoke Skill(skill="decision-critic"): challenge assumptions before committing
-9. Task(subagent_type="critic"): You are a skeptical reviewer. Run a pre-mortem: assume this spec ships and fails. What broke first? What was missing?
+9. Task(subagent_type="critic"): You are a skeptical reviewer. Run a pre-mortem: assume this spec ships and fails. What broke first? What was missing? Then run three binary Step 0 validity checks against the final PRD; the critic SHALL NOT return APPROVED while any of 9a/9b/9c is FAIL.
+
+   - **Check 9a — Demand Reality drift**:
+     - PASS: PRD acceptance criteria, user stories, OR success metric reference at least one entity (person, team, system, metric, ticket, file path) named in Step 0 Q1.
+     - FAIL otherwise. On FAIL: cite Q1 entities and the PRD's current entities verbatim.
+   - **Check 9b — Desperate Specificity drift**:
+     - PASS: PRD user stories or acceptance criteria still treat the Q3-named blocked entity as the primary unblocking target.
+     - FAIL if (a) the spec's primary user shifted to a different audience, OR (b) Q3's named entity does not appear in the PRD. On FAIL: cite Q3's entity and the PRD's current primary user verbatim.
+   - **Check 9c — Narrowest Wedge drift**:
+     - PASS: every PRD acceptance criterion either traces to the Q4 wedge or narrows it.
+     - FAIL if any acceptance criterion adds scope beyond Q4 without a documented wedge revision. On FAIL: cite Q4 verbatim and list the AC entries that exceed the wedge.
 
 ## Evaluation Axes
 
