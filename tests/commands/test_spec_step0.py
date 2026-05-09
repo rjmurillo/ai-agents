@@ -18,7 +18,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.commands._step0_parser import (
+from tests.commands.step0_parser import (
     baseline_answers,
     evaluate_step0,
     extract_step0_block,
