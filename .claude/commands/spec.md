@@ -99,6 +99,27 @@ Generic categories fail this test.
 
 When any trigger fires, halt and do not proceed to Step 1.
 
+**Halt message schema** (every halt MUST emit these five fields):
+
+1. **Trigger ID**: `H1`, `H2`, `H3`, `H4`, or `H5`.
+2. **Question**: number and label that failed (`Q3 Desperate Specificity`).
+3. **Failing answer**: the author's answer verbatim, or the matched hedge phrase quoted.
+4. **Operational test that failed**: name the rule that was violated (e.g., `Q3 specificity test condition 1, 2, and 3 all failed`).
+5. **Deferral instruction**: a single line telling the author what to do (`Re-invoke /spec after naming a specific blocked entity, citing a ticket, or providing a verbatim quote of the original ask.`).
+
+**Auto-mode behavior**: under auto-mode invocation (no human elicitation possible), the agent MUST halt with reason `STEP_0_REQUIRES_ELICITATION`, list each unanswered question, and return to the orchestrator. The agent MAY populate Step 0 from the source artifact (issue body, PR description) only when the source artifact contains the required structured fields verbatim. Free-form synthesis of Step 0 answers by the agent is prohibited. (Note: `STEP_0_REQUIRES_ELICITATION` is a prose convention in this version; no orchestrator caller currently parses it. Future iteration will add machine-readable halt protocol.)
+
+**Kill criteria for the gate itself**: at 30 invocations, this gate is reviewed against four kill criteria documented in `REQ-006-13`:
+
+1. False-positive rate ≥30% (halts followed by re-invocation with cosmetic word changes).
+2. Bypass rate ≥20%.
+3. Author abandonment ≥3 sessions in 7 days.
+4. 30 consecutive passes with zero halts (recalibration trigger, not a kill).
+
+If any criterion fires, the gate is loosened or removed in a follow-up PR.
+
+**Tally instruction**: after each Step 0 evaluation (whether pass or halt), append one line to `.agents/sessions/STEP-0-METRICS.md`. Create the file lazily if absent, with header line `# Step 0 Metrics (one line per /spec invocation)`. Each tally line: `<ISO-8601 timestamp> | <pass|fail> | <halt-trigger-or-none> | <halt-question-or-none>`. Absence of the file does not block `/spec`; the tally is review-only data for the kill criteria above.
+
 ---
 
 1. Clarify the problem (what, who, why, constraints)
