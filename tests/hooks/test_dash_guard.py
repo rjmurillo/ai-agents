@@ -84,12 +84,21 @@ def test_node_modules_fixture_has_em_dash(fixture_dir: Path) -> None:
 import subprocess
 
 
-# Bash fragment adapted from .githooks/pre-commit lines 326-360 (the dash-check
-# section). Intentionally simplified for testing: omits informational output
-# lines (file header, fix instructions, rule reference) that don't affect
-# detection logic, and redirects echo_error/echo_info to stderr for test
-# assertions. The detection logic (grep pattern, exclusion paths, exit status)
-# matches the canonical source.
+# Bash fragment adapted from .githooks/pre-commit (the dash-check section).
+# Intentionally simplified for testing:
+#   - Omits informational output lines (file header, fix instructions,
+#     rule reference) that don't affect detection logic.
+#   - Redirects echo_error/echo_info to stderr for test assertions.
+#   - Scans the WORKING TREE file (`grep -- "$dash_file"`) instead of the
+#     STAGED BLOB (`git show ":$dash_file" | grep ...`). The canonical hook
+#     uses `git show` so partial staging cannot fool the check; the test
+#     fragment trades that fidelity for the ability to materialize files
+#     in tmp_path without running `git init` and `git add` per test.
+#     Integration tests that exercise the staged-blob path (a follow-up
+#     not yet written) would init a temp repo, stage fixtures via
+#     `git add`, then invoke the real hook script.
+# The detection logic (regex pattern, exclusion paths, exit status) matches
+# the canonical source byte-for-byte.
 _HOOK_FRAGMENT = r"""
 set -e
 EXIT_STATUS=0

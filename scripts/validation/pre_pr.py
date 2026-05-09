@@ -240,10 +240,10 @@ def _gh_base_ref(repo_root: Path) -> str | None:
     """Return ``origin/<baseRefName>`` for the open PR, or None.
 
     Mirrors ``_gh_base_ref`` in ``.claude/hooks/PreToolUse/push_guard_base.py``
-    (function defined at line 287; called from the chain at line 348-350)
-    per ``.claude/rules/canonical-source-mirror.md``. Verbatim canonical
-    rationale, quoted from ``push_guard_base.py:_detect_default_base_ref``
-    docstring lines 331-336:
+    (find via ``grep -n '^def _gh_base_ref' .claude/hooks/PreToolUse/push_guard_base.py``;
+    called from ``_detect_default_base_ref``'s fallback chain) per
+    ``.claude/rules/canonical-source-mirror.md``. Verbatim canonical
+    rationale, quoted from the ``_detect_default_base_ref`` docstring step 1:
 
         "1. The PR's actual ``baseRefName`` via ``gh pr view``. This is the
            ground truth once a PR exists and handles the derivative-PR case
@@ -276,10 +276,10 @@ def _resolve_branch_base_ref(repo_root: Path) -> str | None:
     """Resolve the branch base ref using the canonical fallback chain.
 
     Mirrors ``_detect_default_base_ref`` in
-    ``.claude/hooks/PreToolUse/push_guard_base.py`` (function at line 325;
-    canonical chain documented at lines 328-385) per
-    ``.claude/rules/canonical-source-mirror.md``. The canonical chain,
-    quoted verbatim from the docstring at lines 331-346:
+    ``.claude/hooks/PreToolUse/push_guard_base.py`` (find via
+    ``grep -n '^def _detect_default_base_ref' .claude/hooks/PreToolUse/push_guard_base.py``)
+    per ``.claude/rules/canonical-source-mirror.md``. The canonical chain,
+    quoted verbatim from the ``_detect_default_base_ref`` docstring:
 
         "1. The PR's actual ``baseRefName`` via ``gh pr view``. This is the
             ground truth once a PR exists and handles the derivative-PR case
@@ -300,13 +300,13 @@ def _resolve_branch_base_ref(repo_root: Path) -> str | None:
 
     Stricter than canonical: this function additionally validates the
     PR base ref is locally resolvable via ``git rev-parse --verify``
-    before returning it (see lines 282-287). The canonical assumes the
-    ref is valid because the caller will pass it to ``git diff`` and
-    fail there. This pre-validation lets the chain fall through cleanly
-    when the PR base exists on GitHub but is not yet fetched locally
-    (a common state right after the user opens the PR but before the
-    next ``git fetch``). The fallback chain itself (steps 2-4) is
-    identical to the canonical.
+    before returning it (see the ``rev-parse --verify`` check below in
+    the implementation). The canonical assumes the ref is valid because
+    the caller will pass it to ``git diff`` and fail there. This
+    pre-validation lets the chain fall through cleanly when the PR base
+    exists on GitHub but is not yet fetched locally (a common state
+    right after the user opens the PR but before the next ``git fetch``).
+    The fallback chain itself (steps 2-4) is identical to the canonical.
 
     Returns the first ref that resolves, or None when none resolve.
     """
