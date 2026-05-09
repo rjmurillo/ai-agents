@@ -190,7 +190,7 @@ model: claude-haiku-4-5
 ```yaml
 ---
 name: doc-accuracy
-description: Multi-phase documentation verification treating code as source of truth. Consolidates incoherence, doc-coverage, doc-sync, and comment-analyzer into a single workflow. Use when auditing documentation accuracy, verifying code examples compile, checking behavioral claims, or running pre-release doc audits.
+description: Multi-phase documentation verification treating code as source of truth. Single canonical entrypoint for documentation auditing; replaced the former doc-coverage and doc-sync skills (deleted 2026-05-09) and absorbs incoherence detection and comment analysis into one workflow. Use when auditing documentation accuracy, verifying code examples compile, checking behavioral claims, or running pre-release doc audits.
 license: MIT
 model: claude-sonnet-4-6
 ---
