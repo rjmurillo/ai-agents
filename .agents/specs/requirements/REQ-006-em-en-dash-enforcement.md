@@ -293,10 +293,10 @@ SO THAT Copilot CLI agents reading the mirror see the same prohibition.
 
 **Context**
 
-`build/scripts/generate_rules.py --what-if` validates that `universal.instructions.md` mirrors
-`universal.md`. Adding the prohibition rule to `universal.md` without regenerating the mirror
-causes `build/scripts/generate_rules.py --what-if` to exit 2 (staleness). Running `build/scripts/generate_rules.py` regenerates the
-mirror.
+After editing `universal.md`, run `python3 build/scripts/generate_rules.py` to regenerate the
+mirror. Verify with `git diff .github/instructions/universal.instructions.md` which shows the
+new rule text in the diff when the mirror has been correctly updated. The `--what-if` flag
+produces a dry-run showing what would change; it does not fail on staleness.
 
 **Acceptance Criteria**
 

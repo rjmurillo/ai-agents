@@ -173,9 +173,10 @@ exit 0
 **Responsibilities**:
 
 - Determine the merge-base using the same fallback chain as
-  `.claude/hooks/PreToolUse/push_guard_base.py:_detect_default_base_ref` (line 328-368):
-  prefer `@{u}` (per-branch upstream), fall back to `refs/remotes/origin/HEAD`, last resort
-  is `origin/main`. Then run `git diff <merge-base>...HEAD --name-only` for the branch-diff
+  `.claude/hooks/PreToolUse/push_guard_base.py:_detect_default_base_ref` (function defined at
+  line 325; canonical chain at lines 328-385): (1) `gh pr view --json baseRefName` when a PR
+  exists, (2) `@{u}` (per-branch upstream), (3) `refs/remotes/origin/HEAD`, (4) `origin/main`
+  as last resort. Then run `git diff <merge-base>...HEAD --name-only` for the branch-diff
   file list.
 - Filter to `*.md` files.
 - Skip vendored paths (`node_modules/`, `.venv/`, `.serena/cache/`).
@@ -235,8 +236,8 @@ to regenerate `.github/instructions/universal.instructions.md`. Verify with
 | Locale safety | `LC_ALL=C.UTF-8` prefix on grep | Ensures UTF-8 byte matching on both GNU and BSD grep |
 | Branch-diff scan | Python `re` inside `pre_pr.py` `validate_dash_prohibition()` | Consistent with existing validator pattern in `pre_pr.py` |
 | Mirror propagation | `build/scripts/generate_rules.py` (existing) | Canonical generator; no new tooling |
-| Hook fail-open | Exit 0 on unhandled exception | Consistent with all existing hooks in repo |
-| Merge-commit skip | `git rev-parse -q --verify MERGE_HEAD` | Canonical pattern already in repo hooks |
+| commit-msg fail-open | Exit 0 when `$1` is absent or not a file | Infrastructure failure (no message file provided) should not block a legitimate commit; only actual violations exit 1 |
+| Merge-commit skip | `IS_MERGE=1` check (file-existence at `.git/MERGE_HEAD`, line 136-139) | Canonical pattern in `.githooks/pre-commit`; does NOT use `git rev-parse -q --verify MERGE_HEAD` |
 | Vendor exclusion | Prefix filter in Python before grep | Simpler and more testable than `grep --exclude-dir` in subprocess |
 
 ## Security Considerations

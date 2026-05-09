@@ -290,8 +290,10 @@ exit 0
 **Acceptance Criteria**
 
 - [ ] `validate_dash_prohibition()` function exists in `pre_pr.py`.
-- [ ] The function uses the pre-push ref detection fallback chain (`@{u}` then
-  `refs/remotes/origin/HEAD` then `origin/main`) to determine the merge-base, then runs
+- [ ] The function uses the full base-ref fallback chain from
+  `.claude/hooks/PreToolUse/push_guard_base.py:_detect_default_base_ref` (line 325, chain at
+  lines 328-385): (1) `gh pr view baseRefName` when a PR exists, (2) `@{u}`, (3)
+  `refs/remotes/origin/HEAD`, (4) `origin/main` as last resort. Then runs
   `git diff <merge-base>...HEAD --name-only`.
 - [ ] The function filters to `*.md` files and excludes vendored paths.
 - [ ] The function returns `False` (matching existing `validate_*` pattern in pre_pr.py:177)
@@ -299,8 +301,9 @@ exit 0
 - [ ] The function returns `True` when no `*.md` files in the branch diff contain dashes.
 - [ ] `pre_pr.py` calls `validate_dash_prohibition()` as part of its standard check suite.
 - [ ] Tests cover: violations found (returns False), clean branch (returns True), empty
-  diff (returns True), git command failure (raises subprocess error which the runner
-  translates to exit 2 per AGENTS.md exit-code contract; pre_pr.py:594).
+  diff (returns True), base-ref unresolvable (returns True, fail-open), git diff failure
+  (returns True, fail-open). The function itself returns bool; the runner at pre_pr.py:717
+  translates False to exit code 1 per AGENTS.md exit-code contract.
 - [ ] All new tests pass in CI.
 
 **Implementation Notes**
