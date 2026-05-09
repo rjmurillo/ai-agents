@@ -29,7 +29,75 @@ The six questions, asked in order:
 
 Write the answers as a structured block (the `## Step 0 First Principles` block) with six `### Q1..Q6` subheads, each containing the author's verbatim answer. This block becomes the first section of the PRD produced in Step 6 and is consumed unchanged by Steps 1, 2, 3, and 9. Do not paraphrase; downstream steps depend on the verbatim answers.
 
-After writing the block, evaluate it against the gate logic in the next subsection.
+#### Step 0 gate logic
+
+**Pass criteria** (all must be true):
+
+1. All six fields have non-empty answers.
+2. No answer contains a hedge phrase from the canonical list below.
+3. Q1 passes the aspirational test.
+4. Q3 passes the specificity test.
+5. Q5 passes the speculative test.
+
+**Canonical hedge phrase list** (multi-word phrases only; case-insensitive substring match; applied to author answers, not to system prompts or quoted instruction text):
+
+| Phrase | Why it hedges |
+|---|---|
+| `would be nice` | aspirational |
+| `would be useful` | aspirational |
+| `would be helpful` | aspirational |
+| `we believe` | belief, not observation |
+| `we expect` | prediction, not observation |
+| `we anticipate` | prediction, not observation |
+| `we predict` | prediction, not observation |
+| `we hope` | aspiration |
+| `we assume` | assumption, not evidence |
+| `stakeholders want` | unnamed audience |
+| `users want` | unnamed audience |
+| `customers want` | unnamed audience |
+| `should we` | self-questioning, not commitment |
+| `might be useful` | speculation |
+| `might be needed` | speculation |
+| `could be useful` | speculation |
+| `probably` | hedging (single word, but unambiguous) |
+| `eventually` | indefinite future |
+| `someday` | indefinite future |
+| `down the road` | indefinite future |
+| `nice to have` | low-priority aspiration |
+
+Single words `should`, `might`, `could` are NOT hedges in this list. They conflict with RFC 2119 requirement language and produce false positives.
+
+**Operational test for Q1 "aspirational"** (any one condition makes Q1 aspirational, triggering H3):
+
+1. The answer names no specific person, team, system, or data source.
+2. The answer uses future tense or conditional mood about demand existence (`would want`, `if customers start`, `when we have`, `would be useful`).
+3. The answer is a generic category (`users in general`, `engineers`, `the team`, `stakeholders`, `developers`).
+
+**Operational test for Q3 "specific"** (the answer must satisfy at least one):
+
+1. A named individual (`Alice on the Payments team`).
+2. A named team (`the Bleu/Delos rotation`, `the SRE on-call`).
+3. A uniquely identified system or component with a version, environment, or instance qualifier (`the auth service in prod-east`, `the GraphQL pagination in get_pr_review_threads.py`).
+
+Generic categories fail this test.
+
+**Operational test for Q5 "speculative"** (Q5 is speculative if all three are absent — any one of the three present prevents the halt):
+
+1. The answer contains a direct quote (text in `"..."` or fenced block) from a ticket, message, comment, log, or document.
+2. The answer cites a metric, log entry, file path, commit SHA, PR number, or named artifact.
+3. The answer names a specific person, team, or system that described the problem.
+
+**Halt triggers** (any one fires the halt):
+
+| ID | Trigger |
+|---|---|
+| H1 | Any answer contains a hedge phrase from the canonical list. |
+| H2 | Q5 fails the speculative test. |
+| H3 | Q1 fails the aspirational test. |
+| H4 | Q3 fails the specificity test. |
+| H5 | Fewer than six questions answered (partial completion). |
+
+When any trigger fires, halt and do not proceed to Step 1.
 
 ---
 
