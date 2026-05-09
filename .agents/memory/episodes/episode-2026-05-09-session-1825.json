@@ -1,0 +1,35 @@
+{
+  "id": "episode-2026-05-09-session-1825",
+  "session": "2026-05-09-session-1825",
+  "timestamp": "2026-05-09T21:49:44.240491+00:00",
+  "outcome": "failure",
+  "task": "",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-05-09T21:49:44.237332+00:00",
+      "type": "error",
+      "content": "\"Evidence\": \"markdownlint-cli2 exercised on .agents/analysis/skill-triage-2026-05-09.md (excluded by config glob !.agents/** so 0 file lint, 0 errors); analysis report follows standard markdown structure\"",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-05-09T21:49:44.237332+00:00",
+      "type": "test",
+      "content": "{\"step\": \"Configure workspace per CONTRIBUTING.md\", \"outcome\": \"core.hooksPath set, .venv created, dev deps installed, Pester 5.7.1 verified\"},",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 1,
+    "recoveries": 0,
+    "commits": 5,
+    "files_changed": 0
+  },
+  "lessons": []
+}
