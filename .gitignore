@@ -97,6 +97,9 @@ worktree--/
 
 .claude/worktrees/
 
+# doc-accuracy gate output (skill produces large reports under .doc-accuracy/)
+.doc-accuracy/
+
 # Node / Bun (packages/)
 node_modules/
 bun.lockb
