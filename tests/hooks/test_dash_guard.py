@@ -205,5 +205,90 @@ def test_hook_blocks_multiple_files(fixture_dir: Path) -> None:
     )
 
 
+# ---------------------------------------------------------------------------
+# M3b integration tests: .githooks/commit-msg hook
+# ---------------------------------------------------------------------------
+#
+# The commit-msg hook receives the draft commit message file path as $1.
+# These tests write a temporary file and invoke the hook directly.
+
+COMMIT_MSG_HOOK = REPO_ROOT / ".githooks" / "commit-msg"
+
+
+def _run_commit_msg_hook(
+    message: str, tmp_path: Path,
+) -> subprocess.CompletedProcess[str]:
+    """Run the commit-msg hook with a draft message file."""
+    msg_file = tmp_path / "COMMIT_EDITMSG"
+    msg_file.write_text(message, encoding="utf-8")
+    return subprocess.run(  # noqa: S603 - controlled command
+        [str(COMMIT_MSG_HOOK), str(msg_file)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def test_commit_msg_hook_exists_and_executable() -> None:
+    """The commit-msg hook file exists and is executable."""
+    assert COMMIT_MSG_HOOK.is_file(), f"hook missing: {COMMIT_MSG_HOOK}"
+    assert COMMIT_MSG_HOOK.stat().st_mode & 0o111, "hook must be executable"
+
+
+def test_commit_msg_hook_passes_clean_message(tmp_path: Path) -> None:
+    """Clean commit message exits 0."""
+    result = _run_commit_msg_hook(
+        "feat(scope): no prohibited characters here\n", tmp_path,
+    )
+    assert result.returncode == 0
+    assert result.stderr == ""
+
+
+def test_commit_msg_hook_blocks_em_dash(tmp_path: Path) -> None:
+    """REQ-006-AC3: commit message with U+2014 exits 1."""
+    result = _run_commit_msg_hook(
+        "feat: bad message \u2014 with em-dash\n", tmp_path,
+    )
+    assert result.returncode == 1
+    assert "em-dash" in result.stderr.lower()
+
+
+def test_commit_msg_hook_blocks_en_dash(tmp_path: Path) -> None:
+    """REQ-006-AC3: commit message with U+2013 exits 1."""
+    result = _run_commit_msg_hook(
+        "feat: bad message \u2013 with en-dash\n", tmp_path,
+    )
+    assert result.returncode == 1
+    assert "en-dash" in result.stderr.lower()
+
+
+def test_commit_msg_hook_blocks_dash_in_subject_line(tmp_path: Path) -> None:
+    """The subject line is checked, not just the body."""
+    result = _run_commit_msg_hook(
+        "feat: subject \u2014 line\n\nclean body\n", tmp_path,
+    )
+    assert result.returncode == 1
+
+
+def test_commit_msg_hook_blocks_dash_in_body(tmp_path: Path) -> None:
+    """The body is checked, not just the subject."""
+    result = _run_commit_msg_hook(
+        "feat: clean subject\n\nbody with \u2013 en-dash here\n",
+        tmp_path,
+    )
+    assert result.returncode == 1
+
+
+def test_commit_msg_hook_passes_when_file_path_missing(tmp_path: Path) -> None:
+    """No-arg invocation fails open (returns 0). Infrastructure failure is not a violation."""
+    result = subprocess.run(  # noqa: S603 - controlled command
+        [str(COMMIT_MSG_HOOK)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0
+
+
 # M4 (pre_pr.py validate_dash_prohibition) tests extend this module in the
 # next milestone.
