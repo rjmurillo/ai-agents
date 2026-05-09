@@ -168,9 +168,16 @@ def test_hook_blocks_en_dash(fixture_dir: Path, tmp_path: Path) -> None:
     assert "Em/en-dash prohibition" in result.stderr
 
 
-def test_hook_passes_clean_fixture(fixture_dir: Path) -> None:
-    """REQ-006-AC10: hook exits 0 on clean markdown."""
-    result = _run_hook_fragment("tests/hooks/fixtures/no_dash_clean.md")
+def test_hook_passes_clean_fixture(fixture_dir: Path, tmp_path: Path) -> None:
+    """REQ-006-AC10: hook exits 0 on clean markdown.
+
+    Materializes a clean file under tmp_path outside any exclusion prefix
+    so grep actually runs on the content (not skipped by path filter).
+    """
+    target = tmp_path / "src" / "clean.md"
+    target.parent.mkdir(parents=True)
+    target.write_text("Clean markdown with no prohibited characters.\n", encoding="utf-8")
+    result = _run_hook_fragment("src/clean.md", cwd=tmp_path)
     assert result.returncode == 0
     assert result.stderr == ""
 
