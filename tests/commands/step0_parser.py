@@ -105,7 +105,7 @@ def q1_aspirational(answer: str) -> bool:
     """REQ-006-04 operational test: any one of three conditions makes Q1 aspirational.
 
     Three conditions; any one fires:
-    1. No specific named entity (person, team name, system, ticket, file).
+    1. Fewer than three specific named entities (person, team name, system, ticket, file).
     2. Future tense or conditional mood about demand existence.
     3. Generic category appearing WITHOUT a specific named entity (so
        "the team would benefit" fires; "Alice on the Payments team"
