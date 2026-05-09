@@ -404,3 +404,97 @@ class TestMain:
         # All external tools pass
         result = main(["--quick", "--skip-tests"])
         assert result in (0, 1)
+
+
+# ---------------------------------------------------------------------------
+# validate_dash_prohibition (Issue #1923, REQ-006-AC7, M4)
+# ---------------------------------------------------------------------------
+
+
+class TestValidateDashProhibition:
+    """Tests for the branch-wide em/en-dash check."""
+
+    def test_returns_true_when_no_base_ref_resolves(self, tmp_path: Path) -> None:
+        from scripts.validation.pre_pr import validate_dash_prohibition
+
+        # tmp_path is not a git repo; no ref will resolve.
+        assert validate_dash_prohibition(tmp_path) is True
+
+    def test_returns_true_for_clean_branch(self, tmp_path: Path) -> None:
+        from scripts.validation.pre_pr import validate_dash_prohibition
+
+        with patch("scripts.validation.pre_pr._resolve_branch_base_ref") as mock_ref, \
+             patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+            mock_ref.return_value = "origin/main"
+            mock_run.return_value = (0, "README.md\nsrc/foo.py\n", "")
+            (tmp_path / "README.md").write_text("clean content\n", encoding="utf-8")
+            assert validate_dash_prohibition(tmp_path) is True
+
+    def test_returns_false_on_em_dash(self, tmp_path: Path) -> None:
+        from scripts.validation.pre_pr import validate_dash_prohibition
+
+        bad = tmp_path / "doc.md"
+        bad.write_text(f"prose with {chr(0x2014)} em-dash\n", encoding="utf-8")
+        with patch("scripts.validation.pre_pr._resolve_branch_base_ref") as mock_ref, \
+             patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+            mock_ref.return_value = "origin/main"
+            mock_run.return_value = (0, "doc.md\n", "")
+            assert validate_dash_prohibition(tmp_path) is False
+
+    def test_returns_false_on_en_dash(self, tmp_path: Path) -> None:
+        from scripts.validation.pre_pr import validate_dash_prohibition
+
+        bad = tmp_path / "range.md"
+        bad.write_text(f"range 1{chr(0x2013)}10\n", encoding="utf-8")
+        with patch("scripts.validation.pre_pr._resolve_branch_base_ref") as mock_ref, \
+             patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+            mock_ref.return_value = "origin/main"
+            mock_run.return_value = (0, "range.md\n", "")
+            assert validate_dash_prohibition(tmp_path) is False
+
+    def test_skips_vendored_paths(self, tmp_path: Path) -> None:
+        from scripts.validation.pre_pr import validate_dash_prohibition
+
+        vendored = tmp_path / "node_modules" / "pkg" / "README.md"
+        vendored.parent.mkdir(parents=True)
+        vendored.write_text(f"upstream prose with {chr(0x2014)} dash\n", encoding="utf-8")
+        with patch("scripts.validation.pre_pr._resolve_branch_base_ref") as mock_ref, \
+             patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+            mock_ref.return_value = "origin/main"
+            mock_run.return_value = (0, "node_modules/pkg/README.md\n", "")
+            assert validate_dash_prohibition(tmp_path) is True
+
+    def test_skips_test_fixtures_dir(self, tmp_path: Path) -> None:
+        from scripts.validation.pre_pr import validate_dash_prohibition
+
+        fixture = tmp_path / "tests" / "hooks" / "fixtures" / "dash_violations.md"
+        fixture.parent.mkdir(parents=True)
+        fixture.write_text(f"intentional {chr(0x2014)}\n", encoding="utf-8")
+        with patch("scripts.validation.pre_pr._resolve_branch_base_ref") as mock_ref, \
+             patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+            mock_ref.return_value = "origin/main"
+            mock_run.return_value = (0, "tests/hooks/fixtures/dash_violations.md\n", "")
+            assert validate_dash_prohibition(tmp_path) is True
+
+    def test_includes_github_instructions_tree(self, tmp_path: Path) -> None:
+        """REQ-006-AC4: .github/instructions/ is NOT excluded."""
+        from scripts.validation.pre_pr import validate_dash_prohibition
+
+        mirror = tmp_path / ".github" / "instructions" / "universal.instructions.md"
+        mirror.parent.mkdir(parents=True)
+        mirror.write_text(f"prose {chr(0x2014)} dash\n", encoding="utf-8")
+        with patch("scripts.validation.pre_pr._resolve_branch_base_ref") as mock_ref, \
+             patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+            mock_ref.return_value = "origin/main"
+            mock_run.return_value = (0, ".github/instructions/universal.instructions.md\n", "")
+            assert validate_dash_prohibition(tmp_path) is False
+
+    def test_returns_true_when_git_diff_fails(self, tmp_path: Path) -> None:
+        """Fail open on git subprocess failure (do not block on infra issues)."""
+        from scripts.validation.pre_pr import validate_dash_prohibition
+
+        with patch("scripts.validation.pre_pr._resolve_branch_base_ref") as mock_ref, \
+             patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+            mock_ref.return_value = "origin/main"
+            mock_run.return_value = (128, "", "fatal: bad revision")
+            assert validate_dash_prohibition(tmp_path) is True
