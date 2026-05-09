@@ -134,6 +134,8 @@ If any criterion fires, the gate is loosened or removed in a follow-up PR.
 
 **Tally instruction**: after each Step 0 evaluation (whether pass or halt), append one line to `.agents/sessions/STEP-0-METRICS.md`. Create the file lazily if absent, with header line `# Step 0 Metrics (one line per /spec invocation)`. Each tally line: `<ISO-8601 timestamp> | <pass|fail> | <halt-trigger-or-none> | <halt-question-or-none>`. Absence of the file does not block `/spec`; the tally is review-only data for the kill criteria above.
 
+**Archival policy**: after each kill-criteria review (every 30 invocations or when a kill criterion fires, whichever comes first), rotate the tally file: rename `.agents/sessions/STEP-0-METRICS.md` to `.agents/sessions/STEP-0-METRICS-YYYYMMDD.md` (using the review date) and start a fresh file with the same header. The rotated file is the audit trail for that review window. The active file SHALL NOT exceed 100 entries before rotation.
+
 ---
 
 1. Clarify the problem. Step 0 already captured demand (Q1), status quo (Q2), specificity (Q3), wedge (Q4), observation (Q5), and future-fit (Q6). **Do not re-elicit Q1-Q6 here.** Step 1 scope is narrower: clarify constraints, non-functional requirements, integration touch points, and edge cases not already addressed by the Q4 wedge.
