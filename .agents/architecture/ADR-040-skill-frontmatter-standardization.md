@@ -116,7 +116,7 @@ Allocate models based on skill complexity:
 | Tier | Model | Cost | Use Cases | ai-agents Skills |
 |------|-------|------|-----------|------------------|
 | **Tier 1: Opus** | `claude-opus-4-6` | $5/$25 per MTok | Maximum reasoning, multi-agent orchestration, architectural decisions, meta-programming | 11 skills (40.7%): adr-review, skillcreator, planner, merge-resolver, github, analyze, decision-critic, research-and-incorporate, session-log-fixer, incoherence, memory |
-| **Tier 2: Sonnet** | `claude-sonnet-4-6` | $3/$15 per MTok | Standard workflows, coding, documentation, memory operations, security detection | 12 skills (44.4%): doc-sync, memory systems, pr-comment-responder, programming-advisor, prompt-engineer, security-detection, serena-code-architecture |
+| **Tier 2: Sonnet** | `claude-sonnet-4-6` | $3/$15 per MTok | Standard workflows, coding, documentation, memory operations, security detection | 11 skills (42.3%): doc-accuracy, memory systems, pr-comment-responder, programming-advisor, prompt-engineer, security-detection, serena-code-architecture |
 | **Tier 3: Haiku** | `claude-haiku-4-5` | $1/$5 per MTok | Speed-critical, simple pattern matching, high-frequency execution (hooks, validators) | 4 skills (14.8%): fix-markdown-fences, steering-matcher, session |
 
 **Selection Matrix**:
