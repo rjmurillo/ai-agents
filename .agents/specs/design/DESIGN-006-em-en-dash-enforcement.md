@@ -70,16 +70,20 @@ and iterate it with `while IFS= read -r`.
   Do NOT filter `.github/instructions/` (REQ-006-AC4).
 - Run `LC_ALL=C.UTF-8 grep -lI` with the literal em-dash and en-dash bytes across the
   filtered file list. Use `-I` to skip binary files, `-l` for file-name-only output.
-- If violations found: call `record_fail` with each offending file name and the fix instruction.
+- If violations found: call `echo_error "Em/en-dash prohibition violated"` followed by
+  `echo_info` lines listing each offending file and the fix instruction; set `EXIT_STATUS=1`.
 - Fix instruction text (verbatim): "replace U+2014 with comma, period, or colon; replace
   U+2013 with hyphen in numeric ranges; or restructure the sentence."
-- If no violations: call `record_pass`.
+- No action needed when no violations are found (the canonical hook pattern stays silent
+  on a successful section).
 
 **Interfaces**:
 
 - Input: `STAGED_MD_FILES` (newline-delimited string already computed by line 186).
-- Output: `record_fail`/`record_pass` calls following existing hook pattern; exit code
-  contributed via `EXIT_STATUS` accumulator (per existing hook behavior).
+- Output: `echo_error` + `echo_info` lines on stderr/stdout per existing hook pattern
+  (`.githooks/pre-commit:39, 47, 51, 55`); failures contribute to `EXIT_STATUS=1`
+  (`pre-commit:60`). No `record_fail` or `record_pass` helpers exist in this hook;
+  the early spec text claiming so was wrong and has been corrected.
 
 **Locale safety**: Prefix grep with `LC_ALL=C.UTF-8` to ensure UTF-8 byte matching works on
 both GNU grep (Linux) and BSD grep (macOS) regardless of the user's default locale.

@@ -49,13 +49,17 @@ universal.md rule close the enforcement gap.
 
 ### Branch 5: Security
 
-- CWE-78 mitigated: null-delimited file list, bash array iteration, no interpolation.
+- CWE-78 mitigated: pre-commit reuses `STAGED_MD_FILES` (newline-delimited, built at
+  `.githooks/pre-commit:186`) and iterates via `while IFS= read -r dash_file <<<
+  "$STAGED_MD_FILES"` (no word-splitting on filenames with spaces). Files are passed quoted
+  to `grep`. commit-msg hook receives `$1` from git directly. pre_pr.py uses Python lists.
+  No shell interpolation of filenames anywhere.
 - No network calls, no secrets. CONFIRMED.
 
 ### Branch 6: Observability
 
 - Hook stderr output with file list and fix instruction. CONFIRMED.
-- record_fail/record_pass pattern. CONFIRMED.
+- Output pattern: `echo_error` + `EXIT_STATUS=1` (canonical pattern at `.githooks/pre-commit`; no `record_fail`/`record_pass` helpers exist, contrary to early draft; verified by grep). CONFIRMED.
 - No telemetry. CONFIRMED.
 
 ### Branch 7: Scope Boundaries

@@ -22,8 +22,11 @@ updated: 2026-05-09
 Add four enforcement points that prevent em-dashes (U+2014) and en-dashes (U+2013) from
 reaching bot reviewers: a pre-commit hook for staged files, a commit-msg hook for draft
 messages, a branch-wide check in `pre_pr.py`, and a prohibition rule in `universal.md` with
-mirror propagation. Deliver in sequence M1 through M4 because M3 modifies `hooks.json` and M4
-modifies `pre_pr.py`; parallel execution would cause merge conflicts.
+mirror propagation. Deliver in sequence M1 through M4 because M3 modifies
+`.githooks/pre-commit` (and adds `.githooks/commit-msg`) and M4 modifies
+`scripts/validation/pre_pr.py`; parallel execution would cause merge conflicts. M3 does NOT
+modify `hooks.json` (standard git hooks operate independently of Claude Code's hook
+registration system).
 
 ## In Scope
 
@@ -111,7 +114,8 @@ Landing fixtures first keeps M3 focused on hook code only.
 **Acceptance Criteria**
 
 - [ ] `dash_violations.md` contains literal U+2014 and U+2013 characters in its body
-  (verifiable via `grep -P '\xe2\x80\x94' fixture` and `grep -P '\xe2\x80\x93' fixture`).
+  (verifiable cross-platform via `LC_ALL=C.UTF-8 grep -c $'\xe2\x80\x94' fixture` and
+  the equivalent for U+2013; `grep -P` is GNU-only and not portable to BSD grep on macOS).
 - [ ] `no_dash_clean.md` contains neither U+2014 nor U+2013.
 - [ ] `instructions_tree/dash_violations.md` contains literal U+2014.
 - [ ] `node_modules/dash_violations.md` contains literal U+2014.
@@ -165,7 +169,9 @@ REQ-006-AC9, REQ-006-AC10, REQ-006-AC11
 
 **Acceptance Criteria**
 
-- [ ] Pre-commit hook exits 1 (via `record_fail`) when a staged `*.md` file contains U+2014.
+- [ ] Pre-commit hook section emits `echo_error "Em/en-dash prohibition violated"` and sets
+  `EXIT_STATUS=1` when a staged `*.md` file contains U+2014. The hook overall exits 1
+  because `EXIT_STATUS` is non-zero at hook completion.
 - [ ] Pre-commit hook exits 1 when a staged `*.md` file contains U+2013.
 - [ ] Pre-commit hook records pass when no staged `*.md` files contain dashes.
 - [ ] Pre-commit hook skips the check when `IS_MERGE=1` (canonical variable defined at
@@ -279,7 +285,7 @@ exit 0
 | File | Action | Description |
 |------|--------|-------------|
 | `scripts/validation/pre_pr.py` | Edit | Add `validate_dash_prohibition()` function and call it from the main check runner |
-| `tests/validation/test_pre_pr.py` | Edit (or create) | Add tests for `validate_dash_prohibition()` positive, negative, and empty-diff cases |
+| `tests/test_validation_pre_pr.py` | Edit | Add `TestValidateDashProhibition` class with tests for `validate_dash_prohibition()` (positive, negative, empty-diff, vendored-skip, fixtures-skip, base-ref-failure cases) |
 
 **Acceptance Criteria**
 
@@ -330,7 +336,8 @@ M4 (pre_pr.py validate_dash_prohibition)
 ```
 
 M1 and M2 can land in the same PR. M3 and M4 must be separate commits because they touch
-different files and `hooks.json` is modified only in M3.
+different files. Neither M3 nor M4 modifies `hooks.json`; standard git hooks at `.githooks/`
+operate independently of Claude Code's `hooks.json` registration system.
 
 ## Effort Estimate
 

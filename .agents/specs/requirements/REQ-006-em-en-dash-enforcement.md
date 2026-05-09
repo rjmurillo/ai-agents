@@ -66,7 +66,8 @@ set has no dashes and a one-process check when it does.
 
 **Dependencies**
 
-- `git diff --cached --name-only -z` for staged file list
+- `STAGED_MD_FILES` already computed by `.githooks/pre-commit:186` from the broader
+  `STAGED_FILES` list; the dash-check section reuses it without invoking `git diff` itself.
 - `grep` with `-I` flag (binary skip) and `-l` flag (file-name-only output)
 - pre-commit hook infrastructure (`.githooks/pre-commit`, the repo's standard git hook)
 
