@@ -1,0 +1,124 @@
+{
+  "prompts": {
+    "workflow": [
+      {"prompt": "Walk me through the canonical workflow command sequence for shipping a feature in this repo.", "expected": "Lifecycle commands /spec /plan /build /test /review /ship are canonical. Workflow skill is DEPRECATED. Scripts in workflow/ may be stale; prefer lifecycle slash commands."},
+      {"prompt": "I see scripts under .claude/skills/workflow/. Should I run them directly?", "expected": "Skill is deprecated. Scripts may still be referenced but not called directly. Use /spec /plan /build /test /review /ship instead."},
+      {"prompt": "What replaces the legacy workflow skill commands?", "expected": "Six lifecycle commands: /spec (requirements), /plan (decompose), /build (implement), /test (validate), /review (code review), /ship (PR + merge)."},
+      {"prompt": "I want to bundle planning, implementation, and testing into a single skill invocation. Use the workflow skill?", "expected": "No. Workflow is deprecated. Each lifecycle phase has its own command. Run /spec then /plan then /build then /test sequentially."},
+      {"prompt": "Why was the workflow skill deprecated?", "expected": "Replaced by lifecycle commands that match phases of dev lifecycle. Lifecycle commands are slash commands, not skills. Better separation of concerns and clearer entry criteria."},
+      {"prompt": "Can I still trigger the workflow skill if I find an old reference to it?", "expected": "Skill marked DEPRECATED. Do not invoke. Map the legacy phase to the matching lifecycle slash command."}
+    ],
+    "session": [
+      {"prompt": "I am about to commit but staged only investigation artifacts. Can I skip QA?", "expected": "Per ADR-034, yes. Use Test-InvestigationEligibility to validate staged files match the investigation allowlist (.agents/sessions/, .agents/analysis/, .serena/memories/). Mark verdict SKIPPED investigation-only with evidence."},
+      {"prompt": "What allowlist paths qualify a session for investigation-only QA exemption?", "expected": ".agents/sessions/, .agents/analysis/, .agents/retrospective/, .serena/memories/, .agents/security/. Code or config staged disqualifies."},
+      {"prompt": "List the session protocol gates that fire at session start, mid, pre-PR, and end.", "expected": "Start: Serena init, HANDOFF.md, session log. Mid: commit count budget. Pre-PR: pre_pr.py, security scan. End: complete log, preserve HANDOFF, lint, commit, validate JSON."},
+      {"prompt": "Do I create the session log at session start or end?", "expected": "At start. Use session-init skill to create JSON under .agents/sessions/YYYY-MM-DD-session-NN.json. Update through session, validate at end with session-end."},
+      {"prompt": "What command runs Test-InvestigationEligibility for ADR-034 compliance?", "expected": "session skill exposes Test-InvestigationEligibility. Run before commit when staged files appear to be docs/investigation. Returns eligibility verdict for the investigation-only QA skip."},
+      {"prompt": "Where do session protocol rules live in this repo?", "expected": ".agents/SESSION-PROTOCOL.md is canonical. AGENTS.md > Session Protocol Gates summarizes. ADR-007 governs session log requirement."}
+    ],
+    "session-qa-eligibility": [
+      {"prompt": "Staged files include .agents/sessions/2026-05-09-session-01.json and one .py change. Investigation-only exempt?", "expected": "No. Python file staged. Investigation-only requires ALL staged files to be investigation artifacts. The .py disqualifies."},
+      {"prompt": "Which ADR governs the investigation-only QA skip?", "expected": "ADR-034 investigation session QA exemption. Defines allowed paths and verdict format SKIPPED investigation-only."},
+      {"prompt": "Can I skip QA for a docs-only commit using this skill?", "expected": "No. Docs-only is a separate exemption with verdict SKIPPED docs-only. This skill checks investigation-only specifically (allowlisted research paths)."},
+      {"prompt": "What evidence string does the investigation skip emit?", "expected": "SKIPPED investigation-only. Pre-commit hook recognizes this verbatim verdict and bypasses QA validation."},
+      {"prompt": "I staged a .agents/security/threat-model-update.md file. Eligible?", "expected": "Yes if only investigation paths staged. .agents/security/ is on the allowlist."},
+      {"prompt": "If a file in src/ is staged with session log artifacts, what is the verdict?", "expected": "Not eligible. Any production code disqualifies. Run full QA."}
+    ],
+    "session-migration": [
+      {"prompt": "We have legacy markdown session logs. How do we migrate to JSON?", "expected": "Use session-migration skill. Reads .agents/sessions/*.md, converts to JSON schema matching scripts/validate_session_json.py. Idempotent and auditable."},
+      {"prompt": "What is the JSON schema target for migrated session logs?", "expected": "Schema enforced by scripts/validate_session_json.py. Required fields include session id, date, branch, gates, evidence, end-of-session validation."},
+      {"prompt": "Can I run the migration on a single legacy file?", "expected": "Yes, skill supports targeted migration with file path argument. Useful when a PR contains a markdown session log that needs conversion."},
+      {"prompt": "Why was session log format changed from markdown to JSON?", "expected": "JSON enables deterministic validation by scripts/validate_session_json.py. Markdown frontmatter parsing is fragile. JSON allows machine-readable gate evidence."},
+      {"prompt": "Is the migration destructive?", "expected": "Replaces .md with .json. Original committed history preserved by git. Validate output before deleting source. Run validator after migration."},
+      {"prompt": "Migration produced a JSON file that fails validate_session_json.py. Next step?", "expected": "Inspect missing required fields. Common gaps: end evidence, branch, gate verdicts. Hand-edit JSON, rerun validator. Do not regenerate unless source markdown changed."}
+    ],
+    "session-log-fixer": [
+      {"prompt": "GitHub Actions failed with verdict NON_COMPLIANT on Session Protocol Validation. How do I diagnose?", "expected": "Use session-log-fixer skill. With deterministic validation, Job Summary lists exact MUST requirements that failed. No artifact downloads needed."},
+      {"prompt": "Aggregate Results job failed for session validation. What does the skill recommend?", "expected": "Read the Job Summary from the failed run. Each missing requirement is named explicitly. Fix the session JSON locally, push, rerun."},
+      {"prompt": "Session JSON missing 'end' evidence. Skill guidance?", "expected": "Fixer guides adding end-of-session evidence: commit SHA, lint results, memory updates, validator pass. Use session-end skill to populate then commit."},
+      {"prompt": "How does session-log-fixer differ from session-end?", "expected": "session-end populates end-of-session evidence pre-commit. session-log-fixer triages and repairs CI failures after the fact when validation fails server-side."},
+      {"prompt": "Do I need to download the workflow artifact to fix session validation?", "expected": "No. Deterministic validation surfaces failures directly in Job Summary. Read summary, edit JSON, push."},
+      {"prompt": "What error pattern does the fixer recognize?", "expected": "MUST requirement(s) not met, NON_COMPLIANT verdict, Aggregate Results job failure in Session Protocol Validation workflow."}
+    ],
+    "memory": [
+      {"prompt": "Explain the four memory tiers per ADR-007 and which tool serves each.", "expected": "Tier 1 Semantic (Serena+Forgetful search). Tier 2 Episodic (session replay). Tier 3 Causal (decision patterns). Memory-first architecture: search before reasoning."},
+      {"prompt": "I need to find prior decisions about ARM runner cost. Which tier?", "expected": "Tier 1 Semantic. Search Serena memories with cost runner ARM keywords. Read matched memory file. Forgetful is fallback."},
+      {"prompt": "Difference between Serena and Forgetful in this 4-tier system?", "expected": "Serena: project-scoped, LSP-aware, file-based memories under .serena/memories/. Forgetful: cross-project, semantic search via MCP. Both Tier 1."},
+      {"prompt": "When does Tier 2 Episodic memory apply?", "expected": "Replaying prior sessions to understand what was tried, what worked, what failed. Read .agents/sessions/ JSON logs in date order. Useful for retrospectives."},
+      {"prompt": "Tier 3 Causal memory captures what?", "expected": "Decision patterns: why a choice was made, what alternatives considered, what trade-offs accepted. Lives in ADRs and retrospective files. Used to avoid repeating past mistakes."},
+      {"prompt": "What is the memory-first rule from ADR-007?", "expected": "Query memory before reasoning. Pre-training is last resort. Read first, reason second. Evidence in session log."}
+    ],
+    "memory-documentary": [
+      {"prompt": "Generate a documentary on how this repo decided to use Python over PowerShell for new scripts.", "expected": "Search all 4 memory systems (Claude-Mem, Forgetful, Serena, DeepWiki), .agents/ artifacts, GitHub issues. Cite ADR-042. Investigative-journalism style with citation chain."},
+      {"prompt": "What memory sources does the documentary search?", "expected": "Claude-Mem, Forgetful, Serena, DeepWiki, .agents/ artifacts, GitHub issues. Six sources with full citation chain."},
+      {"prompt": "Output style for the documentary skill?", "expected": "Investigative journalism analysis. Evidence-based. Full citation chain per claim. Not summaries, not opinions."},
+      {"prompt": "Cite the format expected for evidence chains.", "expected": "Each claim links to source: ADR file, session log, memory entry, or issue with line/section anchor. Reader can verify each claim independently."},
+      {"prompt": "When should I use memory-documentary vs ad-hoc memory search?", "expected": "Documentary for investigative reports needing comprehensive cross-source synthesis with citation rigor. Ad-hoc search for single-question lookups."},
+      {"prompt": "Can the documentary skill answer 'what did we decide about X' across project history?", "expected": "Yes. That is its core use case. Searches all memory systems, traces decision evolution, presents findings with citations."}
+    ],
+    "memory-enhancement": [
+      {"prompt": "How do I add a citation to an existing memory entry?", "expected": "Use memory-enhancement skill. Adds source link (file:line, ADR, issue) to memory metadata. Citation increases confidence score and survives reinforcement cycles."},
+      {"prompt": "What is the confidence score on a memory entry?", "expected": "Operational metadata tracking memory reliability. Reinforced by usage. Citation validity, link counts, freshness contribute. Stored separately from memory content."},
+      {"prompt": "I think a memory's code reference is stale. How do I check?", "expected": "Skill verifies code references: opens cited file:line, confirms symbol exists. Stale references flagged for invalidation."},
+      {"prompt": "Difference between memory-enhancement and curating-memories?", "expected": "memory-enhancement focuses on metadata: citations, code reference validity, confidence. Curating focuses on content: updating, marking obsolete, linking related entries. Both target memory quality."},
+      {"prompt": "Where does confidence score persist across sessions?", "expected": "In memory operational metadata (separate stream from content). Per ADR rules, this is its own SoR; not regenerable from sources. Updated at-least-once with idempotency keys."},
+      {"prompt": "What triggers a memory health check?", "expected": "Periodic curation, manual audit, or reflect skill output. Skill scans citations, validates code refs, surfaces low-confidence entries."}
+    ],
+    "using-forgetful-memory": [
+      {"prompt": "How should I structure a new Forgetful memory entry?", "expected": "Apply Zettelkasten atomic memory principles. One concept per entry. Linked to related entries via slugs. Importance score reflects frequency of intended retrieval."},
+      {"prompt": "When should I create a Forgetful memory vs query existing?", "expected": "Always query first. Create only when no existing entry covers the concept atomically. Prevents fragmentation."},
+      {"prompt": "Importance scoring in Forgetful, how is it computed?", "expected": "Reflects expected retrieval frequency and breadth of applicability. Cross-project memories higher importance. Single-incident memories lower."},
+      {"prompt": "Can I use Forgetful for cross-project knowledge?", "expected": "Yes. Forgetful is cross-project by design. Serena is project-scoped. Choose Forgetful for patterns reusable beyond this repo."},
+      {"prompt": "What is the atomicity test for a memory?", "expected": "One concept, one entry. If you need 'and' to summarize, split. Each entry must be independently meaningful and retrievable."},
+      {"prompt": "Why is Forgetful unavailable in this session per ADR-007?", "expected": "Session start hook reported Forgetful unavailable. Use Serena instead. ADR-007 mandates memory-first; Serena fills the Tier 1 role when Forgetful is offline."}
+    ],
+    "curating-memories": [
+      {"prompt": "I found a memory that contradicts current code. What should I do?", "expected": "Mark obsolete or update. Curating-memories skill: read current state, verify if memory still applies, update content with new ground truth or mark superseded with link to replacement."},
+      {"prompt": "How do I link two related memories?", "expected": "Add cross-reference in each entry pointing to the other slug. Builds knowledge graph. Curating skill enforces bidirectional linking."},
+      {"prompt": "When does a memory need curation?", "expected": "Stale citations, contradicted by new code, frequently retrieved but low confidence, missing links to related concepts."},
+      {"prompt": "Difference between updating a memory and marking it obsolete?", "expected": "Update: content still valid, just needs refresh (new file path, updated counts). Obsolete: superseded by another memory or no longer applies. Mark with date and replacement link."},
+      {"prompt": "What is the bidirectional link rule?", "expected": "If memory A links to B, B should link back to A. Prevents one-way orphans. Curating skill audits and adds missing back-links."},
+      {"prompt": "How does curation differ from creating a new memory?", "expected": "Curation modifies existing entries. Creation adds new ones. Curation prevents fragmentation; should be tried before creation when overlap exists."}
+    ],
+    "exploring-knowledge-graph": [
+      {"prompt": "Walk through deep memory traversal for the question 'what do you know about ADR-007?'", "expected": "Start with memory-index. Follow ADR-007 entity. Traverse relations: depends-on, references, observations. Read each linked entry. Aggregate into structured answer."},
+      {"prompt": "When should I use exploring-knowledge-graph instead of a single memory search?", "expected": "When question requires comprehensive context, not a specific fact. Investigating cross-cutting concept like 'session protocol' or 'memory architecture'. Single search misses related entries."},
+      {"prompt": "What relations does the knowledge graph track?", "expected": "Entity references, observations, depends-on, supersedes, related-to. Stored in memory frontmatter or inline links. Forms a directed graph for traversal."},
+      {"prompt": "How deep should graph traversal go?", "expected": "Two hops typically. Beyond two hops dilutes signal. Stop when answer covers the question or new entries become tangential."},
+      {"prompt": "If I find an orphan memory (no incoming or outgoing links), what does it indicate?", "expected": "Possible curation gap. Run curating-memories to add links if relevant. Or mark for review: orphans may indicate the memory is stale or never integrated."},
+      {"prompt": "Can graph traversal answer 'what changed since X'?", "expected": "Partially. Graph captures structure not history. For temporal questions, combine traversal with git log or session log replay."}
+    ],
+    "doc-coverage": [
+      {"prompt": "Audit my Python module for missing docstrings.", "expected": "doc-coverage skill scans for symbols without docstrings: classes, functions, methods. Reports gaps by file:line. Coverage thresholds enforced per AGENTS.md (100% security, 80% business, 60% docs)."},
+      {"prompt": "What documentation types does the skill detect?", "expected": "Python docstrings, XML docs (C#), JSDoc (JS/TS), CHANGELOG entries, README sections. Cross-language coverage report."},
+      {"prompt": "How do I gate a PR on doc coverage?", "expected": "Run doc-coverage in pre-commit or CI. Fail when coverage below threshold for the file's category. Categories from .agents/governance: security 100, business 80, docs 60."},
+      {"prompt": "CHANGELOG gap detection, how does it work?", "expected": "Skill checks for unreleased entries when source files have changed since last release. Flags missing CHANGELOG updates."},
+      {"prompt": "Difference between doc-coverage and doc-accuracy?", "expected": "doc-coverage detects missing documentation. doc-accuracy verifies existing documentation against code. doc-accuracy explicitly consolidates doc-coverage in its workflow per its description."},
+      {"prompt": "Output format expected from doc-coverage?", "expected": "Coverage report with specific gaps by file and symbol. JSON or markdown. Suitable for pre-commit hooks and CI pipelines."}
+    ],
+    "doc-sync": [
+      {"prompt": "I added a new agent under templates/. What docs need updating?", "expected": "doc-sync updates CLAUDE.md navigation indexes and README.md architecture docs. Runs after code changes that affect repo structure or agent catalog."},
+      {"prompt": "When should I run doc-sync?", "expected": "After adding/removing agents, skills, ADRs. After repo structure changes. As part of /ship or pre-PR validation."},
+      {"prompt": "What is the difference between doc-sync and doc-accuracy?", "expected": "doc-sync maintains navigation indexes (CLAUDE.md, README.md). doc-accuracy verifies documentation accuracy against code. doc-accuracy consolidates doc-sync per its description."},
+      {"prompt": "Does doc-sync update individual file docstrings?", "expected": "No. doc-sync targets navigation and architecture docs. For per-symbol docs use doc-coverage. For accuracy verification use doc-accuracy."},
+      {"prompt": "How does doc-sync detect drift?", "expected": "Compares CLAUDE.md indexes against actual files. Flags entries pointing to deleted files. Adds entries for new files matching the index pattern."},
+      {"prompt": "Run doc-sync triggers what files to change typically?", "expected": "Top-level CLAUDE.md, subdirectory CLAUDE.md files, README.md sections referencing structure. Atomic commit per ADR-008."}
+    ],
+    "doc-accuracy": [
+      {"prompt": "Run a pre-release documentation audit. What does doc-accuracy do?", "expected": "Multi-phase verification treating code as source of truth. Consolidates incoherence, doc-coverage, doc-sync, comment-analyzer. Verifies code examples compile, behavioral claims match implementation."},
+      {"prompt": "Does doc-accuracy replace doc-coverage and doc-sync?", "expected": "Per skill description it consolidates them into a single workflow. doc-coverage and doc-sync may be redundant when doc-accuracy is invoked."},
+      {"prompt": "What phases does the doc-accuracy workflow include?", "expected": "Coverage detection, sync of indexes, incoherence detection (docs vs code), comment analysis. Single audit produces consolidated report."},
+      {"prompt": "Behavioral claim verification, how?", "expected": "Reads doc claim, locates implementation, asserts claim matches code behavior. Flags drift. Code is authoritative; doc adjusts."},
+      {"prompt": "Which phase is most expensive?", "expected": "Behavioral claim verification. Requires reading code, understanding intent, comparing to doc. Other phases are largely structural."},
+      {"prompt": "When is doc-accuracy most useful?", "expected": "Pre-release audits, cross-cutting documentation reviews, confirming docs survived a refactor. More thorough than individual sub-skills."}
+    ],
+    "codebase-documenter": [
+      {"prompt": "Bootstrap docs for a new project with no README. What does the skill produce?", "expected": "Scaffolds README.md, ARCHITECTURE.md, API.md, CODE_COMMENTS standards from templates. One-time bootstrap. Documented standards for ongoing maintenance."},
+      {"prompt": "When does codebase-documenter NOT apply?", "expected": "Existing well-documented codebases. For drift detection use doc-accuracy. For navigation index sync use doc-sync. For per-symbol gaps use doc-coverage."},
+      {"prompt": "Templates included in the scaffold?", "expected": "README, ARCHITECTURE, API, CODE_COMMENTS. Each with documented standards section explaining the template's intent."},
+      {"prompt": "Difference between codebase-documenter and doc-accuracy?", "expected": "codebase-documenter creates initial docs. doc-accuracy verifies existing docs. Different lifecycle phases: bootstrap vs maintenance."},
+      {"prompt": "Can the skill update existing README files?", "expected": "Skill is bootstrap-focused. Updating existing docs better handled by doc-sync (indexes) or doc-accuracy (verify). Running bootstrap on existing docs risks overwrite."},
+      {"prompt": "What standards does the CODE_COMMENTS template encode?", "expected": "Comment policy from project rules: WHY not WHAT, no narration, intention-revealing names beat comments. Aligns with .claude/rules/code-quality.md guidance."}
+    ]
+  }
+}
