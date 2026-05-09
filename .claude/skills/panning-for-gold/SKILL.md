@@ -47,6 +47,19 @@ The script creates missing subdirectories on demand. It never overwrites an exis
 
 ## Process
 
+### Phase 0: Front-gate (run before Extract)
+
+Before triaging, run the six forcing questions against the input itself (see `front-gate-before-pipeline` skill if available; otherwise apply inline):
+
+1. **Demand Reality** — Is anyone (including you) actually waiting on insight from this brain dump, or did you capture it because something was on your mind?
+2. **Status Quo** — What happens if this transcript sits untriaged for another month? If "nothing breaks," that's a signal.
+3. **Desperate Specificity** — Name the specific decision, person, or artifact that needs the gold-found output.
+4. **Narrowest Wedge** — Could you extract one high-signal thread by hand in 10 minutes instead of running the full three-phase pipeline?
+5. **Observation** — Have you re-read the transcript recently, or are you triaging from memory of why it felt important when captured?
+6. **Future-fit** — If extraction produces nothing actionable, will you delete the gold-found file or let it accumulate?
+
+**Halt criteria**: if Demand Reality is aspirational ("might be useful someday") or Desperate Specificity can't name a downstream consumer, the right move is to discard the transcript or archive it unprocessed. Triaging unmotivated capture produces gold-found files nobody reads.
+
 ### Phase 1: Extract
 
 Build a pass1 inventory from a transcript without filtering. Every thread that surfaces is recorded.
@@ -73,6 +86,12 @@ Evaluations are independent. They can be authored serially or in parallel.
 ### Phase 3: Synthesize
 
 Combine the final inventory and the evaluation files into a gold-found markdown file. The gold-found file groups threads by signal level (High, Medium, Low) and includes a metadata block at the top.
+
+**Elaboration gate (mandatory for High-signal threads)**: For each High-signal thread, force one explicit connection to an existing artifact — a skill, an ADR, a Serena memory, an open issue, a prior session log. Write the connection as a one-liner under the thread: `Connects to: <artifact name> (<one-line why>).`
+
+If no connection exists, treat that as a flag, not a feature. Genuinely novel insights are rare; usually "no connection" means either (a) the thread isn't as high-signal as it looked, or (b) you haven't searched hard enough. Run a vault/skill/session search before promoting it. The forcing function catches false positives and produces compounding knowledge instead of orphan notes.
+
+This is the elaboration principle (Make It Stick) applied at the synthesis layer: new findings are only durable knowledge once wired to existing entities. Standalone artifacts decay; connected ones compound.
 
 ## CLI
 
