@@ -1,0 +1,29 @@
+{
+  "id": "episode-2026-05-09-session-1828",
+  "session": "2026-05-09-session-1828",
+  "timestamp": "2026-05-09T23:15:36.133070+00:00",
+  "outcome": "partial",
+  "task": "",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-05-09T23:15:36.130515+00:00",
+      "type": "commit",
+      "content": "Commit: f937a114",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 6,
+    "files_changed": 0
+  },
+  "lessons": [
+    "\"retrospectiveInvoked\": {\"level\": \"SHOULD\", \"Complete\": false, \"Evidence\": \"Retrospective deferred. Lessons captured in commit messages and adversarial agent reports.\"}"
+  ]
+}
