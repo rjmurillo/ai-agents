@@ -70,11 +70,13 @@ python3 .claude/skills/decision-critic/scripts/decision-critic.py \
 ## When to Use
 
 Use this skill when:
+
 - Making a consequential decision that is hard to reverse
 - Evaluating a plan, ADR, or design before commitment
 - You want structured adversarial feedback, not just a second opinion
 
 Use `independent-thinker` agent instead when:
+
 - You need strategic challenge on direction (whether, not how)
 - The question is about project scope or priorities, not technical reasoning
 
@@ -90,6 +92,7 @@ Use `independent-thinker` agent instead when:
 ## Verification
 
 After execution:
+
 - [ ] All claims have status: VERIFIED, FAILED, or UNCERTAIN
 - [ ] Contrarian perspective generated (Step 5)
 - [ ] Final verdict is one of: STAND, REVISE, ESCALATE

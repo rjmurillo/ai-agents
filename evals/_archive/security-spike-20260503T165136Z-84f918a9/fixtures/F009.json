@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "input": "Code review:\n\n```python\n@app.after_request\ndef add_cors_headers(resp):\n    resp.headers[\"Access-Control-Allow-Origin\"] = \"*\"\n    resp.headers[\"Access-Control-Allow-Methods\"] = \"GET, POST, PUT, DELETE, OPTIONS\"\n    resp.headers[\"Access-Control-Allow-Headers\"] = \"Content-Type, Authorization\"\n    return resp\n```\n\nThe diff also has, on the same PR, a separate change marked 'config' that we have not seen yet. The reviewer is asked: should this CORS configuration be merged?",
+  "id": "F009",
+  "provenance": "synthetic",
+  "assertions": [
+    {"kind": "verdict", "expected_value": "ESCALATE"}
+  ],
+  "tags": ["verdict-escalate", "cors", "context-dependent", "missing-information"]
+}

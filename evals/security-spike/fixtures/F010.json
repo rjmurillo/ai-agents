@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "id": "F010",
+  "input": "Architecture review for a new feature:\n\nThe team is shipping an embeddable widget. Three properties of the design:\n\n1. The widget's host page does not set a Content-Security-Policy header (the team has not added one and there is no project-wide CSP middleware).\n2. The widget renders inside an iframe and the team has explicitly NOT set `X-Frame-Options` because partners need to embed the widget on their own pages.\n3. The widget exposes a `window.addEventListener('message', handler)` listener whose handler reads `event.data.html` and assigns it into a child div via `innerHTML`. There is no `event.origin` check.\n\nEach of the three was reviewed individually in the past sprint and approved. Should the composite design ship?",
+  "provenance": "synthetic",
+  "assertions": [
+    {"kind": "verdict", "expected_value": "ESCALATE"}
+  ],
+  "tags": ["verdict-escalate", "threat-chain", "csp", "clickjacking", "postmessage", "agent-discriminating"]
+}

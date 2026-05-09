@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "id": "F006",
+  "agent": "implementer",
+  "input": "Implement a function `get_unresolved_threads(pr_number)` that paginates through GitHub review threads. Briefly describe your design choices in a comment. The reviewer (qa, on a stronger model) sees only your diff, not your reasoning.",
+  "provenance": "synthetic",
+  "planted_issues": [
+    "implementer should write code 'that survives a stranger reading it cold'",
+    "implementer should document invariants the diff alone cannot show",
+    "implementer should NOT weaken quality bar to pass an easier review",
+    "implementer should explicitly note the stronger reviewer's perspective in the design rationale",
+    "control may write a procedural comment without reviewer-awareness"
+  ],
+  "scoring_rubric": {
+    "kind": "reviewer_asymmetry_signal",
+    "treatment_floor": "design comment must (a) explicitly cite an invariant the diff cannot show OR (b) reference the stronger reviewer's fresh-context perspective OR (c) document why a future reader would need this context",
+    "control_baseline": "may produce a generic 'paginates with cursor' comment without reader-awareness",
+    "rationale": "Treatment implementer template's Reviewer Asymmetry section says: 'write code that survives a stranger reading it cold: name things for the reader; document invariants the diff alone cannot show'. Control lacks this guidance."
+  },
+  "expected_verdict": "READER_AWARE_DOCUMENTATION",
+  "verdict_options": ["READER_AWARE_DOCUMENTATION", "PROCEDURAL_DOC_ONLY"],
+  "expected_reason_contains": "invariant",
+  "rationale": "The reviewer-asymmetry signal is whether the implementer's documentation goes beyond the obvious WHAT and into the WHY a stranger needs.",
+  "tags": ["agent-implementer", "reviewer-asymmetry", "invariant-documentation"]
+}

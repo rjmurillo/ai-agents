@@ -97,6 +97,7 @@ python3 scripts/incoherence.py --step-number 14 --total-steps 22 --thoughts "Rec
 ### Phase 1: Detection (Steps 1-13)
 
 **Parent orchestration (Steps 1-3)**:
+
 1. Codebase survey
 2. Dimension selection (pick 3-5 from catalog A-K)
 3. Exploration dispatch to sub-agents

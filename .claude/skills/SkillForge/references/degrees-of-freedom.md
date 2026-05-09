@@ -13,11 +13,13 @@ Think of Claude as exploring a path: a narrow bridge with cliffs needs specific 
 Give Claude prose descriptions and heuristics. Multiple approaches are valid.
 
 **Use when:**
+
 - Decisions depend on runtime context (user's codebase, project type)
 - Heuristics guide the approach rather than exact steps
 - Creative judgment adds value
 
 **Example:**
+
 ```markdown
 Analyze the user's codebase to determine the best testing strategy.
 Consider the existing test framework, project size, and CI setup.
@@ -31,11 +33,13 @@ Prefer integration tests for API-heavy projects, unit tests for utility librarie
 Provide a preferred pattern with clear parameters, but allow variation in details.
 
 **Use when:**
+
 - A known-good pattern exists but details vary by context
 - Configuration affects behavior
 - The structure matters but exact values do not
 
 **Example:**
+
 ```markdown
 Generate the config file using this structure:
 
@@ -52,12 +56,14 @@ Generate the config file using this structure:
 Provide specific scripts, exact commands, or rigid sequences. Minimal deviation allowed.
 
 **Use when:**
+
 - Operations are fragile and error-prone (file system mutations, API calls)
 - Consistency is critical (validation, scoring, formatting)
 - A specific sequence must be followed (multi-step workflows with dependencies)
 - Getting it wrong has high cost (data loss, broken state)
 
 **Example:**
+
 ```markdown
 Run the validation script exactly as shown:
 

@@ -1,0 +1,1463 @@
+{
+  "model": "claude-sonnet-4-5",
+  "base_ref": "main",
+  "trials_per_fixture": 10,
+  "alpha": 0.05,
+  "api_calls": 120,
+  "fixtures": [
+    {
+      "id": "F001",
+      "agent": "critic",
+      "control_passes": 0,
+      "control_fails": 10,
+      "treatment_passes": 10,
+      "treatment_fails": 0,
+      "control_runs": [
+        {
+          "passed": false,
+          "verdict": "BOUNDARY_FINDING_RAISED",
+          "expected": "BOUNDARY_FINDING_RAISED",
+          "reason_excerpt": "Critical finding: regex pattern is incomplete and will produce false negatives. Pattern lacks word boundaries, allowing 'validated' to pass when 'validate' should fail. Missing coverage for common eva",
+          "verdict_match": true,
+          "reason_match": false,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"BOUNDARY_FINDING_RAISED\",\n  \"reason\": \"Critical finding: regex pattern is incomplete and will produce false negatives. Pattern lacks word boundaries, allowing 'validated' to pass when 'validate' should fail. Missing coverage for common evasion phrases: 'manual verification', 'spot check', 'visual inspection', 'assumed correct'. Test suite only validates two cases\u2014no edge case coverage for partial matches, case sensitivity boundaries, or multi-word contradiction phrases. No validation that the pattern compiles correctly. Missing test for empty string input. Feasibility score: 2/5. Testability score: 2/5. Verdict: NEEDS_REVISION. Required fix: add word boundaries (\\\\b), expand pattern to cover manual verification phrases, add 10+ test cases covering edge cases and false positive scenarios.\"\n}\n```"
+        },
+        {
+          "passed": false,
+          "verdict": "BOUNDARY_FINDING_RAISED",
+          "expected": "BOUNDARY_FINDING_RAISED",
+          "reason_excerpt": "Critical finding: regex pattern is incomplete and will miss common contradiction variants. Pattern lacks word boundaries, allowing false positives ('available' matches 'not available'). Missing common",
+          "verdict_match": true,
+          "reason_match": false,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"BOUNDARY_FINDING_RAISED\",\n  \"reason\": \"Critical finding: regex pattern is incomplete and will miss common contradiction variants. Pattern lacks word boundaries, allowing false positives ('available' matches 'not available'). Missing common evasion phrases: 'partially', 'mostly', 'in progress', 'manual verification', 'visual inspection', 'appears to', 'seems to'. Test coverage inadequate\u2014only 2 cases, no edge case validation (empty string, mixed case, partial matches, multi-line text). No integration test showing actual session-log.json validation. Function lacks docstring explaining detection purpose. File paths suggest this is a validation script but no main() or CLI entry point provided. NEEDS_REVISION: expand pattern coverage, add word boundaries, increase test cases to 10+, add integration test with real session-log fixture.\"\n}\n```"
+        },
+        {
+          "passed": false,
+          "verdict": "BOUNDARY_FINDING_RAISED",
+          "expected": "BOUNDARY_FINDING_RAISED",
+          "reason_excerpt": "Critical finding: regex pattern is incomplete and will miss common contradiction variants. Pattern lacks word boundaries, allowing false positives ('available' matches 'not available'). Missing common",
+          "verdict_match": true,
+          "reason_match": false,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"BOUNDARY_FINDING_RAISED\",\n  \"reason\": \"Critical finding: regex pattern is incomplete and will miss common contradiction variants. Pattern lacks word boundaries, allowing false positives ('available' matches 'not available'). Missing common evasion phrases: 'partially', 'mostly', 'in progress', 'manual verification', 'spot check', 'sample', 'representative'. Test coverage inadequate\u2014only 2 cases, no edge case validation (empty string, mixed case, partial matches, multi-line text). No integration test showing actual session-log.json validation. Function lacks docstring explaining detection purpose. File location violates convention\u2014validation scripts belong in .agents/tools/ not scripts/. Verdict: NEEDS_REVISION. Fix: expand pattern with word boundaries, add 15+ test cases covering evasion phrases, add integration test, relocate file, document detection rationale.\"\n}\n```"
+        },
+        {
+          "passed": false,
+          "verdict": "BOUNDARY_FINDING_RAISED",
+          "expected": "BOUNDARY_FINDING_RAISED",
+          "reason_excerpt": "Critical finding: regex pattern is incomplete and will miss common contradiction variants. Pattern lacks word boundaries, allowing false positives ('available' matches 'not available'). Missing common",
+          "verdict_match": true,
+          "reason_match": false,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"BOUNDARY_FINDING_RAISED\",\n  \"reason\": \"Critical finding: regex pattern is incomplete and will miss common contradiction variants. Pattern lacks word boundaries, allowing false positives ('available' matches 'not available'). Missing common evasion phrases: 'partially', 'mostly', 'in progress', 'manual verification', 'visual inspection', 'appears to', 'seems to'. Test coverage inadequate\u2014only 2 cases, no edge case validation (empty string, mixed case, partial matches, multi-line text). No integration test showing actual session-log.json validation. Function lacks docstring and type hints. File location violates convention\u2014validation logic belongs in src/, not scripts/. NEEDS_REVISION: expand pattern coverage, add word boundaries, increase test cases to \u226510, move to src/validators/, add type annotations.\"\n}\n```"
+        },
+        {
+          "passed": false,
+          "verdict": "BOUNDARY_FINDING_RAISED",
+          "expected": "BOUNDARY_FINDING_RAISED",
+          "reason_excerpt": "Critical gap: regex pattern is incomplete. Missing common contradiction phrases like 'not tested', 'not verified', 'manual check required', 'assumed working', 'untested', 'no evidence'. Current patter",
+          "verdict_match": true,
+          "reason_match": false,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"BOUNDARY_FINDING_RAISED\",\n  \"reason\": \"Critical gap: regex pattern is incomplete. Missing common contradiction phrases like 'not tested', 'not verified', 'manual check required', 'assumed working', 'untested', 'no evidence'. Current pattern catches explicit deferrals but misses implicit ones. Test coverage insufficient\u2014only validates two cases (positive/negative), no edge cases for partial matches, case sensitivity boundaries, or multi-word phrases. No validation that the pattern compiles correctly. Missing test for empty string, whitespace-only input, and pattern anchoring behavior. Feasibility concern: regex approach may produce false positives on legitimate phrases like 'tests will run in CI pipeline' vs 'will run tests later'. Needs explicit allow-list or context-aware parsing. Testability score: 2/5. Completeness score: 2/5. NEEDS_REVISION.\"\n}\n```"
+        },
+        {
+          "passed": false,
+          "verdict": "BOUNDARY_FINDING_RAISED",
+          "expected": "BOUNDARY_FINDING_RAISED",
+          "reason_excerpt": "Critical finding: regex pattern is incomplete and will miss common contradiction variants. Pattern lacks word boundaries, allowing false positives ('available' matches 'not available'). Missing common",
+          "verdict_match": true,
+          "reason_match": false,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"BOUNDARY_FINDING_RAISED\",\n  \"reason\": \"Critical finding: regex pattern is incomplete and will miss common contradiction variants. Pattern lacks word boundaries, allowing false positives ('available' matches 'not available'). Missing common evasion phrases: 'partially', 'mostly', 'in progress', 'manual verification', 'visual inspection', 'appears to', 'seems to'. Test coverage inadequate\u2014only 2 cases, no edge case validation (empty string, mixed case, partial matches, multi-line text). No integration test showing actual session-log.json validation. Function lacks docstring explaining detection purpose. File paths suggest this is a validation script but no main() or CLI entry point provided. NEEDS_REVISION: expand pattern coverage, add word boundaries, increase test cases to \u226510 covering edge cases, add integration test with real session-log structure.\"\n}\n```"
+        },
+        {
+          "passed": false,
+          "verdict": "BOUNDARY_FINDING_RAISED",
+          "expected": "BOUNDARY_FINDING_RAISED",
+          "reason_excerpt": "Critical finding: regex pattern is incomplete and will miss common contradiction variants. Pattern lacks word boundaries, allowing false positives ('available' matches 'not available'). Missing common",
+          "verdict_match": true,
+          "reason_match": false,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"BOUNDARY_FINDING_RAISED\",\n  \"reason\": \"Critical finding: regex pattern is incomplete and will miss common contradiction variants. Pattern lacks word boundaries, allowing false positives ('available' matches 'not available'). Missing common evasion phrases: 'partially', 'mostly', 'in progress', 'manual verification', 'visual inspection', 'appears to', 'seems to'. Test coverage inadequate\u2014only 2 cases, no edge case validation (empty string, mixed case, partial matches, multi-line text). No integration test showing actual session-log.json validation. Feasibility concern: regex-only approach is brittle; LLM-based semantic analysis would catch intent-based evasions. Testability gap: no false-positive test cases. Verdict: NEEDS_REVISION. Add word boundaries, expand pattern coverage, add 10+ test cases including false positives, or switch to semantic validation.\"\n}\n```"
+        },
+        {
+          "passed": false,
+          "verdict": "BOUNDARY_FINDING_RAISED",
+          "expected": "BOUNDARY_FINDING_RAISED",
+          "reason_excerpt": "Critical finding: regex pattern is incomplete and will miss common contradiction variants. Pattern lacks word boundaries, allowing false positives ('available' matches 'not available'). Missing common",
+          "verdict_match": true,
+          "reason_match": false,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"BOUNDARY_FINDING_RAISED\",\n  \"reason\": \"Critical finding: regex pattern is incomplete and will miss common contradiction variants. Pattern lacks word boundaries, allowing false positives ('available' matches 'not available'). Missing common evasion phrases: 'partially', 'mostly', 'in progress', 'manual verification', 'visual inspection', 'appears to', 'seems to'. Test coverage inadequate\u2014only 2 cases, no edge case validation (empty string, mixed case, partial matches, multi-line text). No integration test showing actual session-log.json validation. Function lacks docstring explaining detection purpose. File location violates convention\u2014validation scripts belong in .agents/tools/ not scripts/. Verdict: NEEDS_REVISION. Add word boundaries \\\\b, expand pattern coverage, add 10+ test cases including false positives, document detection rationale, relocate file.\"\n}\n```"
+        },
+        {
+          "passed": false,
+          "verdict": "BOUNDARY_FINDING_RAISED",
+          "expected": "BOUNDARY_FINDING_RAISED",
+          "reason_excerpt": "Critical gap: regex pattern is incomplete. Missing common contradiction phrases like 'not tested', 'untested', 'no evidence', 'manual verification only', 'assumed working'. Pattern also misses variati",
+          "verdict_match": true,
+          "reason_match": false,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"BOUNDARY_FINDING_RAISED\",\n  \"reason\": \"Critical gap: regex pattern is incomplete. Missing common contradiction phrases like 'not tested', 'untested', 'no evidence', 'manual verification only', 'assumed working'. Pattern also misses variations: 'n/a', 'tbd', 'to-do'. Test coverage insufficient: only validates two cases (positive/negative), missing edge cases (empty string, whitespace-only, mixed case variations, partial matches). No validation that pattern compiles correctly. No test for false positives (e.g., 'available' should not trigger). Function lacks docstring explaining what constitutes a contradiction. Missing: integration test showing this catches real session-log violations. Testability axis scores 2/5. Needs revision: expand pattern, add comprehensive test matrix, document contradiction definition.\"\n}\n```"
+        },
+        {
+          "passed": false,
+          "verdict": "BOUNDARY_FINDING_RAISED",
+          "expected": "BOUNDARY_FINDING_RAISED",
+          "reason_excerpt": "Critical finding: regex pattern is incomplete and will miss common contradiction variants. Pattern lacks word boundaries, allowing false positives ('available' matches 'not available'). Missing common",
+          "verdict_match": true,
+          "reason_match": false,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"BOUNDARY_FINDING_RAISED\",\n  \"reason\": \"Critical finding: regex pattern is incomplete and will miss common contradiction variants. Pattern lacks word boundaries, allowing false positives ('available' matches 'not available'). Missing common evasion phrases: 'partially', 'mostly', 'in progress', 'manual verification', 'visual inspection', 'appears to', 'seems to'. Test coverage inadequate\u2014only 2 cases, no edge case validation (empty string, mixed case, partial matches, multi-line text). No integration test showing actual session-log.json validation. Function lacks docstring explaining detection purpose. File paths suggest this is a validation script but no main() or CLI entry point provided. NEEDS_REVISION: expand pattern coverage, add word boundaries, increase test cases to 10+, add integration test with real session-log fixture.\"\n}\n```"
+        }
+      ],
+      "treatment_runs": [
+        {
+          "passed": true,
+          "verdict": "BOUNDARY_FINDING_RAISED",
+          "expected": "BOUNDARY_FINDING_RAISED",
+          "reason_excerpt": "Adversarial coverage checklist violation: boundary inputs not tested (empty string, None, single-char, max-length). Whitespace/unicode variants missing (leading/trailing space, mixed case beyond re.IG",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"BOUNDARY_FINDING_RAISED\",\n  \"reason\": \"Adversarial coverage checklist violation: boundary inputs not tested (empty string, None, single-char, max-length). Whitespace/unicode variants missing (leading/trailing space, mixed case beyond re.IGNORECASE, unicode lookalikes like '\u039d\u039f\u03a4' vs 'NOT'). Token boundary variants absent\u2014regex lacks word boundaries so 'notavailable' (no space) matches but 'not_available' (underscore separator) behavior untested. Malformed input coverage missing (non-string types, partially constructed objects). The two tests exercise only the happy path (match) and one negative case (no match). Per retrospective on PR #1887, same-model tests on same context produce confirmation bias. These gaps are structural: the implementer tested what they thought of, not what breaks first. File: tests/test_validate_session_json.py, lines 1-6. Required: add tests for empty string, None, whitespace variants, unicode lookalikes, token-boundary cases, non-string input.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "BOUNDARY_FINDING_RAISED",
+          "expected": "BOUNDARY_FINDING_RAISED",
+          "reason_excerpt": "Adversarial coverage checklist violation: boundary inputs not tested (empty string, None, single-char, max-length). Whitespace/unicode variants missing (leading/trailing space, mixed case beyond re.IG",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"BOUNDARY_FINDING_RAISED\",\n  \"reason\": \"Adversarial coverage checklist violation: boundary inputs not tested (empty string, None, single-char, max-length). Whitespace/unicode variants missing (leading/trailing space, mixed case beyond re.IGNORECASE, unicode lookalikes like '\u039d\u039f\u03a4' vs 'NOT'). Token boundary variants absent (regex lacks word boundaries\u2014'notavailable' as one word vs 'not available' as two, 'deferred' embedded in 'undeferred'). Malformed input not covered (non-string types). The two tests exercise only the happy path (match) and one clean case (no match). Per retrospective on PR #1887, same-model tests on same context miss these gaps. Finding: scripts/validate_session_json.py:6\u2014add tests for empty, None, whitespace variants, unicode lookalikes, and token-boundary cases where pattern appears mid-word.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "BOUNDARY_FINDING_RAISED",
+          "expected": "BOUNDARY_FINDING_RAISED",
+          "reason_excerpt": "Adversarial coverage checklist violation: boundary inputs not tested (empty string, None, single-char, max-length). Whitespace/unicode variants missing (leading/trailing space, mixed case beyond re.IG",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"BOUNDARY_FINDING_RAISED\",\n  \"reason\": \"Adversarial coverage checklist violation: boundary inputs not tested (empty string, None, single-char, max-length). Whitespace/unicode variants missing (leading/trailing space, mixed case beyond re.IGNORECASE, unicode lookalikes like '\u039d\u039f\u03a4' vs 'NOT'). Token boundary variants absent (regex has no word boundaries, so 'annotated' matches 'not', 'deferred_payment' matches 'deferred'). Malformed input not covered (non-string types). The two tests exercise only the happy path (literal match) and one negative case (no match). Per retrospective on PR #1887, same-model tests on same context miss these systematically. File: tests/test_validate_session_json.py. Add: test_empty_string, test_none_input, test_unicode_lookalike, test_word_boundary_false_positive, test_mixed_whitespace.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "BOUNDARY_FINDING_RAISED",
+          "expected": "BOUNDARY_FINDING_RAISED",
+          "reason_excerpt": "Adversarial coverage checklist violation: boundary inputs not tested (empty string, None, single-char, max-length). Whitespace/unicode variants missing (leading/trailing space, mixed case beyond re.IG",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"BOUNDARY_FINDING_RAISED\",\n  \"reason\": \"Adversarial coverage checklist violation: boundary inputs not tested (empty string, None, single-char, max-length). Whitespace/unicode variants missing (leading/trailing space, mixed case beyond re.IGNORECASE, unicode lookalikes like '\u039d\u039f\u03a4' vs 'NOT'). Token boundary variants absent\u2014regex lacks word boundaries so 'notavailable' (no space) matches but 'not_available' (underscore separator) behavior untested. Malformed input coverage missing (None, non-string types). The two tests exercise only the happy path (match) and clean path (no match). Per retrospective on PR #1887, same-model tests on same context miss these gaps. Implementer must add: test_empty_string, test_none_input, test_unicode_lookalike, test_word_boundary_variants, test_whitespace_variants. File: tests/test_validate_session_json.py. NEEDS_REVISION.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "BOUNDARY_FINDING_RAISED",
+          "expected": "BOUNDARY_FINDING_RAISED",
+          "reason_excerpt": "Adversarial coverage checklist violation: boundary inputs not tested (empty string, None, single-char, max-length). Whitespace/unicode variants missing (leading/trailing space, mixed case beyond re.IG",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"BOUNDARY_FINDING_RAISED\",\n  \"reason\": \"Adversarial coverage checklist violation: boundary inputs not tested (empty string, None, single-char, max-length). Whitespace/unicode variants missing (leading/trailing space, mixed case beyond re.IGNORECASE, unicode lookalikes like '\u039d\u039f\u03a4' vs 'NOT'). Token boundary variants absent (regex has no word boundaries, so 'annotated' matches 'not', 'TODA' matches 'TODO'). Malformed input not covered (non-string types). The two tests exercise only the happy path (match) and one clean case (no match). Per retrospective on PR #1887, same-model tests on same context miss these systematically. File: tests/test_validate_session_json.py. Add: test_empty_string, test_none_input, test_unicode_lookalike, test_partial_token_match, test_leading_trailing_whitespace.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "BOUNDARY_FINDING_RAISED",
+          "expected": "BOUNDARY_FINDING_RAISED",
+          "reason_excerpt": "Adversarial coverage checklist violation: boundary inputs not tested (empty string, None, single-char, max-length). Whitespace/unicode variants missing (leading/trailing space, mixed case beyond re.IG",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"BOUNDARY_FINDING_RAISED\",\n  \"reason\": \"Adversarial coverage checklist violation: boundary inputs not tested (empty string, None, single-char, max-length). Whitespace/unicode variants missing (leading/trailing space, mixed case beyond re.IGNORECASE, unicode lookalikes like '\u039d\u039f\u03a4' vs 'NOT'). Token boundary variants absent\u2014regex lacks word boundaries so 'annotated' matches 'not', 'SNAP' matches 'N/A'. Path-shape variants N/A but regex-specific checks failed. Malformed input: None/non-string not covered. The two tests exercise only the happy path (match) and one clean case (no match). Critical gap: partial matches in compound words, case-folding edge cases, and null handling all untested. File:line N/A (inline diff). Required tests: empty string, None, 'annotated', 'SNAP', ' pending ', unicode lookalike.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "BOUNDARY_FINDING_RAISED",
+          "expected": "BOUNDARY_FINDING_RAISED",
+          "reason_excerpt": "Adversarial coverage checklist violation: boundary inputs not tested (empty string, None, single-char, max-length). Whitespace/unicode variants missing (leading/trailing space, mixed case beyond IGNOR",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"BOUNDARY_FINDING_RAISED\",\n  \"reason\": \"Adversarial coverage checklist violation: boundary inputs not tested (empty string, None, single-char, max-length). Whitespace/unicode variants missing (leading/trailing space, mixed case beyond IGNORECASE, unicode lookalikes for 'TODO'). Token boundary variants absent (regex matches 'TODO' mid-word in 'TODOIST' or 'TODOS'\u2014no word boundaries). Malformed input not covered (non-string types). The two tests exercise only the happy path (match) and one clean case (no-match). Missing: empty='', None, 'TODO' vs 'TODOs', 'will\\nrun', '\\tpending', unicode '\u0422\u041eD0' (Cyrillic T, digit zero). File:line: test_validate_session_json.py:1-6. Add: test_empty_string, test_none_input, test_word_boundary_variants, test_whitespace_variants, test_unicode_lookalikes.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "BOUNDARY_FINDING_RAISED",
+          "expected": "BOUNDARY_FINDING_RAISED",
+          "reason_excerpt": "Adversarial coverage checklist violation: boundary inputs not tested (empty string, None, single-char, max-length). Whitespace/unicode variants missing (leading/trailing space, mixed case beyond re.IG",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"BOUNDARY_FINDING_RAISED\",\n  \"reason\": \"Adversarial coverage checklist violation: boundary inputs not tested (empty string, None, single-char, max-length). Whitespace/unicode variants missing (leading/trailing space, mixed case beyond re.IGNORECASE, unicode lookalikes like '\u039d\u039f\u03a4' vs 'NOT'). Token boundary variants absent\u2014regex lacks word boundaries, will false-positive on 'annotate' (contains 'not'), 'skipped_by' (contains 'skipped'). Malformed input not covered (non-string types). The two tests exercise only the happy path (match) and one clean case (no match). Per retrospective on PR #1887, same-model tests on same context miss these gaps. File:line findings: test_validate_session_json.py needs test_empty_string, test_none_input, test_unicode_lookalike, test_word_boundary_false_positive, test_leading_trailing_whitespace.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "BOUNDARY_FINDING_RAISED",
+          "expected": "BOUNDARY_FINDING_RAISED",
+          "reason_excerpt": "Adversarial coverage checklist violation: boundary inputs not tested (empty string, None, single-char, max-length). Whitespace/unicode variants missing (leading/trailing space, mixed case beyond re.IG",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"BOUNDARY_FINDING_RAISED\",\n  \"reason\": \"Adversarial coverage checklist violation: boundary inputs not tested (empty string, None, single-char, max-length). Whitespace/unicode variants missing (leading/trailing space, mixed case beyond re.IGNORECASE, unicode lookalikes like '\u039d\u039f\u03a4' vs 'NOT'). Token boundary variants absent\u2014regex lacks word boundaries so 'annotated' matches 'not', 'SNAP' matches 'N/A'. Path-shape variants N/A but regex-specific checks failed. Malformed input: None/non-string not covered. The two tests exercise happy path only. Critical finding: file:line scripts/validate_session_json.py:5\u2014add \\\\b word boundaries to CONTRADICTION_PATTERNS or document why partial matches are intentional. Add tests: empty string, None, 'annotated' (should pass), ' TODO ' (whitespace), unicode lookalike.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "BOUNDARY_FINDING_RAISED",
+          "expected": "BOUNDARY_FINDING_RAISED",
+          "reason_excerpt": "Adversarial coverage checklist violation: boundary inputs not tested (empty string, None, single-char, max-length). Whitespace/unicode variants missing (leading/trailing space, mixed case beyond re.IG",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"BOUNDARY_FINDING_RAISED\",\n  \"reason\": \"Adversarial coverage checklist violation: boundary inputs not tested (empty string, None, single-char, max-length). Whitespace/unicode variants missing (leading/trailing space, mixed case beyond re.IGNORECASE, unicode lookalikes like '\u039d\u039f\u03a4' vs 'NOT'). Token boundary variants absent (regex has no word boundaries, so 'annotated' matches 'not', 'TODA' matches 'TODO'). Malformed input not covered (non-string types). The two tests exercise only the happy path (match) and one clean case (no match). Per retrospective on PR #1887, same-model tests on same context miss these systematically. File: tests/test_validate_session_json.py. Add: test_empty_string, test_none_input, test_unicode_lookalike, test_partial_token_match, test_leading_trailing_whitespace.\"\n}\n```"
+        }
+      ]
+    },
+    {
+      "id": "F002",
+      "agent": "critic",
+      "control_passes": 10,
+      "control_fails": 0,
+      "treatment_passes": 10,
+      "treatment_fails": 0,
+      "control_runs": [
+        {
+          "passed": true,
+          "verdict": "CANONICAL_VIOLATION_FLAGGED",
+          "expected": "CANONICAL_VIOLATION_FLAGGED",
+          "reason_excerpt": "The implementer claims this hook 'matches the canonical CI validator' and 'mirrors scripts/validate_session_json.py:CONTRADICTION_PATTERNS', but the provided diff shows a regex pattern that does NOT m",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"CANONICAL_VIOLATION_FLAGGED\",\n  \"reason\": \"The implementer claims this hook 'matches the canonical CI validator' and 'mirrors scripts/validate_session_json.py:CONTRADICTION_PATTERNS', but the provided diff shows a regex pattern that does NOT match the canonical validator. The canonical validator uses CONTRADICTION_PATTERNS which checks for phrases like 'will be validated', 'deferred to', 'pending validation', 'N/A - will', etc. This hook uses a different pattern: '(deferred|pending|will validate|N/A|TBD|todo)'. These are NOT equivalent. The canonical pattern is more specific (e.g., 'will be validated' vs. 'will validate'), and the hook adds 'todo' which is not in the canonical list. The claim of equivalence is false. This is a critical finding: the hook will produce different validation results than CI, creating a false sense of safety. BLOCKED until patterns are synchronized with the canonical source.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "CANONICAL_VIOLATION_FLAGGED",
+          "expected": "CANONICAL_VIOLATION_FLAGGED",
+          "reason_excerpt": "The implementer claims this hook 'matches the canonical CI validator' and 'mirrors scripts/validate_session_json.py:CONTRADICTION_PATTERNS', but the provided diff shows a regex pattern that does NOT m",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"CANONICAL_VIOLATION_FLAGGED\",\n  \"reason\": \"The implementer claims this hook 'matches the canonical CI validator' and 'mirrors scripts/validate_session_json.py:CONTRADICTION_PATTERNS', but the provided diff shows a regex pattern that does NOT match the canonical validator. The canonical validator uses CONTRADICTION_PATTERNS which checks for phrases like 'will be validated', 'deferred to', 'pending validation', 'N/A - will', etc. This hook uses a different pattern: '(deferred|pending|will validate|N/A|TBD|todo)'. These are NOT equivalent. The canonical pattern is more specific (e.g., 'will be validated' vs. 'will validate'), and the hook adds 'todo' which is not in the canonical list. The claim of equivalence is false. This is a critical finding: the hook diverges from the canonical validator it claims to mirror.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "CANONICAL_VIOLATION_FLAGGED",
+          "expected": "CANONICAL_VIOLATION_FLAGGED",
+          "reason_excerpt": "The implementer claims this hook 'matches the canonical CI validator' and 'mirrors scripts/validate_session_json.py:CONTRADICTION_PATTERNS', but the provided diff shows a regex pattern that does NOT m",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"CANONICAL_VIOLATION_FLAGGED\",\n  \"reason\": \"The implementer claims this hook 'matches the canonical CI validator' and 'mirrors scripts/validate_session_json.py:CONTRADICTION_PATTERNS', but the provided diff shows a regex pattern that does NOT match the canonical validator. The canonical validator uses CONTRADICTION_PATTERNS which checks for phrases like 'will be validated', 'deferred to', 'pending validation', 'N/A - will', etc. This hook uses a different pattern: '(deferred|pending|will validate|N/A|TBD|todo)'. These are NOT equivalent. The canonical pattern is phrase-based and context-aware ('will be validated' vs 'will validate'). This hook is keyword-based and will produce false positives. The claim of equivalence is false. BLOCKED: Rewrite to use identical logic or explicitly document divergence with justification.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "CANONICAL_VIOLATION_FLAGGED",
+          "expected": "CANONICAL_VIOLATION_FLAGGED",
+          "reason_excerpt": "The implementer claims this hook 'matches the canonical CI validator' and 'mirrors scripts/validate_session_json.py:CONTRADICTION_PATTERNS', but the provided diff shows a regex pattern that does NOT m",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"CANONICAL_VIOLATION_FLAGGED\",\n  \"reason\": \"The implementer claims this hook 'matches the canonical CI validator' and 'mirrors scripts/validate_session_json.py:CONTRADICTION_PATTERNS', but the provided diff shows a regex pattern that does NOT match the canonical validator. The canonical validator uses CONTRADICTION_PATTERNS which checks for phrases like 'will be validated', 'deferred to', 'pending validation', 'N/A - will', etc. This hook uses a different pattern: '(deferred|pending|will validate|N/A|TBD|todo)'. These are NOT equivalent. The canonical pattern is more specific (e.g., 'will be validated' vs. 'will validate'), and the hook adds 'todo' which is not in the canonical list. The claim of equivalence is false. This is a critical finding: the hook diverges from the canonical validator it claims to mirror.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "CANONICAL_VIOLATION_FLAGGED",
+          "expected": "CANONICAL_VIOLATION_FLAGGED",
+          "reason_excerpt": "The implementer claims this hook 'matches the canonical CI validator' and 'mirrors scripts/validate_session_json.py:CONTRADICTION_PATTERNS', but the provided diff shows a regex pattern that does NOT m",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"CANONICAL_VIOLATION_FLAGGED\",\n  \"reason\": \"The implementer claims this hook 'matches the canonical CI validator' and 'mirrors scripts/validate_session_json.py:CONTRADICTION_PATTERNS', but the provided diff shows a regex pattern that does NOT match the canonical validator. The canonical validator uses CONTRADICTION_PATTERNS which checks for phrases like 'will be validated', 'deferred to', 'pending validation', 'N/A - will', etc. This hook uses a simplified pattern that catches 'deferred', 'pending', 'will validate', 'N/A', 'TBD', 'todo' as standalone words. The canonical validator is phrase-based and context-aware. This is a false equivalence claim. The hook will produce different results than CI. BLOCKED: implementer must either match the canonical pattern exactly or remove the claim of equivalence.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "CANONICAL_VIOLATION_FLAGGED",
+          "expected": "CANONICAL_VIOLATION_FLAGGED",
+          "reason_excerpt": "The implementer claims this hook 'matches the canonical CI validator' and 'mirrors scripts/validate_session_json.py:CONTRADICTION_PATTERNS', but the provided diff shows a regex pattern that does NOT m",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"CANONICAL_VIOLATION_FLAGGED\",\n  \"reason\": \"The implementer claims this hook 'matches the canonical CI validator' and 'mirrors scripts/validate_session_json.py:CONTRADICTION_PATTERNS', but the provided diff shows a regex pattern that does NOT match the canonical validator. The canonical validator uses CONTRADICTION_PATTERNS which checks for phrases like 'will be validated', 'deferred to', 'pending validation', 'N/A - will', etc. This hook uses a different pattern: '(deferred|pending|will validate|N/A|TBD|todo)'. These are NOT equivalent. The canonical pattern is more specific (e.g., 'will be validated' vs. 'will validate'), and the hook adds 'todo' which is not in the canonical list. The claim of equivalence is false. This is a critical finding: the hook diverges from the canonical validator it claims to mirror.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "CANONICAL_VIOLATION_FLAGGED",
+          "expected": "CANONICAL_VIOLATION_FLAGGED",
+          "reason_excerpt": "The implementer claims this hook 'matches the canonical CI validator' and 'mirrors scripts/validate_session_json.py:CONTRADICTION_PATTERNS', but the provided diff shows a regex pattern that does NOT m",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"CANONICAL_VIOLATION_FLAGGED\",\n  \"reason\": \"The implementer claims this hook 'matches the canonical CI validator' and 'mirrors scripts/validate_session_json.py:CONTRADICTION_PATTERNS', but the provided diff shows a regex pattern that does NOT match the canonical validator. The canonical validator uses CONTRADICTION_PATTERNS which checks for phrases like 'will be validated', 'deferred to', 'pending validation', 'N/A - will', etc. This hook uses a different pattern: '(deferred|pending|will validate|N/A|TBD|todo)'. These are NOT equivalent. The canonical pattern is phrase-based and context-aware ('will be validated' vs 'will validate'). This hook is keyword-based and will produce false positives. The claim of equivalence is false. BLOCKED: Rewrite to use identical logic or explicitly document divergence with justification.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "CANONICAL_VIOLATION_FLAGGED",
+          "expected": "CANONICAL_VIOLATION_FLAGGED",
+          "reason_excerpt": "The implementer claims this hook 'matches the canonical CI validator' and 'mirrors scripts/validate_session_json.py:CONTRADICTION_PATTERNS', but the provided diff shows a regex pattern that does NOT m",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"CANONICAL_VIOLATION_FLAGGED\",\n  \"reason\": \"The implementer claims this hook 'matches the canonical CI validator' and 'mirrors scripts/validate_session_json.py:CONTRADICTION_PATTERNS', but the provided diff shows a regex pattern that does NOT match the canonical validator. The canonical validator uses CONTRADICTION_PATTERNS which checks for phrases like 'will be validated', 'deferred to', 'pending validation', 'N/A - will', etc. This hook uses a simplified pattern that catches 'deferred', 'pending', 'will validate', 'N/A', 'TBD', 'todo' as standalone words. The canonical validator is phrase-based and context-aware. This is a false equivalence claim. The hook will produce different results than CI. BLOCKED: implementer must either match the canonical pattern exactly or remove the claim of equivalence.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "CANONICAL_VIOLATION_FLAGGED",
+          "expected": "CANONICAL_VIOLATION_FLAGGED",
+          "reason_excerpt": "The implementer claims this hook 'matches the canonical CI validator' and 'mirrors scripts/validate_session_json.py:CONTRADICTION_PATTERNS', but the provided diff shows a regex pattern that does NOT m",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"CANONICAL_VIOLATION_FLAGGED\",\n  \"reason\": \"The implementer claims this hook 'matches the canonical CI validator' and 'mirrors scripts/validate_session_json.py:CONTRADICTION_PATTERNS', but the provided diff shows a regex pattern that does NOT match the canonical validator. The canonical validator uses CONTRADICTION_PATTERNS which checks for phrases like 'will be validated', 'deferred to', 'pending validation', 'N/A - will', etc. This hook uses a different pattern: '(deferred|pending|will validate|N/A|TBD|todo)'. These are NOT equivalent. The canonical pattern is more specific (e.g., 'will be validated' vs. 'will validate'), and the hook adds 'todo' which is not in the canonical list. The claim of equivalence is false. This is a critical finding: the hook diverges from the canonical validator it claims to mirror.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "CANONICAL_VIOLATION_FLAGGED",
+          "expected": "CANONICAL_VIOLATION_FLAGGED",
+          "reason_excerpt": "The implementer claims this hook 'matches the canonical CI validator' and 'mirrors scripts/validate_session_json.py:CONTRADICTION_PATTERNS', but the provided diff shows a regex pattern that does NOT m",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"CANONICAL_VIOLATION_FLAGGED\",\n  \"reason\": \"The implementer claims this hook 'matches the canonical CI validator' and 'mirrors scripts/validate_session_json.py:CONTRADICTION_PATTERNS', but the provided diff shows a regex pattern that does NOT match the canonical validator. The canonical validator uses CONTRADICTION_PATTERNS which checks for phrases like 'will be validated', 'deferred to', 'pending validation', 'N/A - will', etc. This hook uses a different pattern: '(deferred|pending|will validate|N/A|TBD|todo)'. These are NOT equivalent. The canonical pattern is more specific (e.g., 'will be validated' vs. 'will validate'), and the hook adds 'todo' which is not in the canonical list. The claim of equivalence is false. This is a critical finding: the hook diverges from the canonical validator it claims to mirror.\"\n}\n```"
+        }
+      ],
+      "treatment_runs": [
+        {
+          "passed": true,
+          "verdict": "CANONICAL_VIOLATION_FLAGGED",
+          "expected": "CANONICAL_VIOLATION_FLAGGED",
+          "reason_excerpt": "The diff claims to 'match the canonical CI validator' and 'mirror CONTRADICTION_PATTERNS' but provides no quoted excerpt from `scripts/validate_session_json.py` to verify the claim. Adversarial covera",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"CANONICAL_VIOLATION_FLAGGED\",\n  \"reason\": \"The diff claims to 'match the canonical CI validator' and 'mirror CONTRADICTION_PATTERNS' but provides no quoted excerpt from `scripts/validate_session_json.py` to verify the claim. Adversarial coverage checklist: source-of-truth invariants require quoted canonical text when mirroring. The retrospective (PR #1887) documents 'I designed against an imagined contract instead of the canonical validator' as root cause of four fix commits. Without the canonical regex visible in this diff or its commit message, the claim is made on faith. The pattern `(deferred|pending|will validate|N/A|TBD|todo)` may or may not match the canonical validator\u2014this diff does not prove it. Critical finding: file `.claude/hooks/pre_push_evidence.py:5-8`, missing canonical source quotation, add comment block with exact `CONTRADICTION_PATTERNS` text from validator.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "CANONICAL_VIOLATION_FLAGGED",
+          "expected": "CANONICAL_VIOLATION_FLAGGED",
+          "reason_excerpt": "The diff claims to 'match the canonical CI validator' and 'mirror CONTRADICTION_PATTERNS' but provides no quoted excerpt from `scripts/validate_session_json.py` to verify the claim. Adversarial covera",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"CANONICAL_VIOLATION_FLAGGED\",\n  \"reason\": \"The diff claims to 'match the canonical CI validator' and 'mirror CONTRADICTION_PATTERNS' but provides no quoted excerpt from `scripts/validate_session_json.py` to verify the claim. Adversarial coverage checklist: source-of-truth invariants require quoted canonical text when mirroring. The retrospective (PR #1887) documents 'I designed against an imagined contract instead of the canonical validator' as root cause of four fix commits. Without the canonical regex visible in this diff or its commit message, the claim is made on faith. The pattern `(deferred|pending|will validate|N/A|TBD|todo)` may or may not match the canonical validator\u2014this diff does not prove it. Critical finding: file `.claude/hooks/pre_push_evidence.py:4-7`, missing canonical source quotation, add comment block with exact CONTRADICTION_PATTERNS from validator.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "CANONICAL_VIOLATION_FLAGGED",
+          "expected": "CANONICAL_VIOLATION_FLAGGED",
+          "reason_excerpt": "The diff claims to 'match the canonical CI validator' and 'mirror CONTRADICTION_PATTERNS' but provides no quoted excerpt from `scripts/validate_session_json.py` to verify the claim. Adversarial covera",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"CANONICAL_VIOLATION_FLAGGED\",\n  \"reason\": \"The diff claims to 'match the canonical CI validator' and 'mirror CONTRADICTION_PATTERNS' but provides no quoted excerpt from `scripts/validate_session_json.py` to verify the claim. Adversarial coverage checklist: source-of-truth invariants require quoted canonical text when mirroring. The retrospective (PR #1887) documents 'I designed against an imagined contract instead of the canonical validator' as root cause of four fix commits. Without the canonical regex visible in this diff or its commit message, the claim is made on faith. The pattern `(deferred|pending|will validate|N/A|TBD|todo)` may or may not match the canonical validator\u2014this diff does not prove it. Finding: file `.claude/hooks/pre_push_evidence.py`, line 6-9, missing canonical source quotation. Test gap: no verification that this regex matches `CONTRADICTION_PATTERNS` token-for-token.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "CANONICAL_VIOLATION_FLAGGED",
+          "expected": "CANONICAL_VIOLATION_FLAGGED",
+          "reason_excerpt": "The diff claims to 'match the canonical CI validator' and 'mirror CONTRADICTION_PATTERNS' but provides no quoted excerpt from `scripts/validate_session_json.py` to verify the claim. Adversarial covera",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"CANONICAL_VIOLATION_FLAGGED\",\n  \"reason\": \"The diff claims to 'match the canonical CI validator' and 'mirror CONTRADICTION_PATTERNS' but provides no quoted excerpt from `scripts/validate_session_json.py` to verify the claim. Adversarial coverage checklist: source-of-truth invariants require quoted canonical text when mirroring. The retrospective (PR #1887) documents 'I designed against an imagined contract instead of the canonical validator' as root cause of four fix commits. Without the canonical regex visible in this diff or its commit message, the claim is made on faith. The pattern `(deferred|pending|will validate|N/A|TBD|todo)` may or may not match the canonical validator\u2014this diff does not prove it. Critical finding: file `.claude/hooks/pre_push_evidence.py:5-8`, missing canonical source quotation, add comment block with exact `CONTRADICTION_PATTERNS` text from validator.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "CANONICAL_VIOLATION_FLAGGED",
+          "expected": "CANONICAL_VIOLATION_FLAGGED",
+          "reason_excerpt": "The diff claims to 'match the canonical CI validator' and 'mirror CONTRADICTION_PATTERNS' but provides no quoted excerpt from `scripts/validate_session_json.py` to verify the claim. Adversarial covera",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"CANONICAL_VIOLATION_FLAGGED\",\n  \"reason\": \"The diff claims to 'match the canonical CI validator' and 'mirror CONTRADICTION_PATTERNS' but provides no quoted excerpt from `scripts/validate_session_json.py` to verify the claim. Adversarial coverage checklist: source-of-truth invariants require quoted canonical text when mirroring. The retrospective (PR #1887) documents 'I designed against an imagined contract instead of the canonical validator' as root cause of four fix commits. Without the canonical regex visible in this diff or its commit message, the claim is made on faith. The pattern `(deferred|pending|will validate|N/A|TBD|todo)` may or may not match the canonical validator\u2014this diff does not prove it. Critical finding: file `.claude/hooks/pre_push_evidence.py:4-7`, missing canonical source quotation, add comment block with exact CONTRADICTION_PATTERNS from validator.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "CANONICAL_VIOLATION_FLAGGED",
+          "expected": "CANONICAL_VIOLATION_FLAGGED",
+          "reason_excerpt": "The diff claims to 'match the canonical CI validator' and 'mirror CONTRADICTION_PATTERNS' but provides no quoted excerpt from `scripts/validate_session_json.py` to verify the claim. Adversarial covera",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"CANONICAL_VIOLATION_FLAGGED\",\n  \"reason\": \"The diff claims to 'match the canonical CI validator' and 'mirror CONTRADICTION_PATTERNS' but provides no quoted excerpt from `scripts/validate_session_json.py` to verify the claim. Adversarial coverage checklist: source-of-truth invariants require quoted canonical text when mirroring. The retrospective (PR #1887) documents 'I designed against an imagined contract instead of the canonical validator' as root cause of four fix commits. Without the canonical regex visible in this diff or its commit message, the claim is made on faith. The pattern `(deferred|pending|will validate|N/A|TBD|todo)` may or may not match the canonical validator\u2014this diff does not prove it. Critical finding: file `.claude/hooks/pre_push_evidence.py:4-7`, missing canonical source quotation, add comment block with exact CONTRADICTION_PATTERNS from validator.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "CANONICAL_VIOLATION_FLAGGED",
+          "expected": "CANONICAL_VIOLATION_FLAGGED",
+          "reason_excerpt": "The diff claims to 'match the canonical CI validator' and 'mirror CONTRADICTION_PATTERNS' but provides no quoted excerpt from `scripts/validate_session_json.py` to verify the claim. Adversarial covera",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"CANONICAL_VIOLATION_FLAGGED\",\n  \"reason\": \"The diff claims to 'match the canonical CI validator' and 'mirror CONTRADICTION_PATTERNS' but provides no quoted excerpt from `scripts/validate_session_json.py` to verify the claim. Adversarial coverage checklist: source-of-truth invariants require quoted canonical text when mirroring. The retrospective (PR #1887) documents 'I designed against an imagined contract instead of the canonical validator' as root cause of four fix commits. Without the canonical regex visible in this diff or its commit message, the claim is made on faith. The pattern `(deferred|pending|will validate|N/A|TBD|todo)` may or may not match the canonical validator\u2014this diff does not prove it. Finding: file `.claude/hooks/pre_push_evidence.py`, line 6-9, missing canonical source quotation. Test gap: no verification that this regex matches `CONTRADICTION_PATTERNS` token-for-token.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "CANONICAL_VIOLATION_FLAGGED",
+          "expected": "CANONICAL_VIOLATION_FLAGGED",
+          "reason_excerpt": "The diff claims to 'match the canonical CI validator' and 'mirror CONTRADICTION_PATTERNS' but provides no quoted excerpt from `scripts/validate_session_json.py` to verify the claim. Adversarial covera",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"CANONICAL_VIOLATION_FLAGGED\",\n  \"reason\": \"The diff claims to 'match the canonical CI validator' and 'mirror CONTRADICTION_PATTERNS' but provides no quoted excerpt from `scripts/validate_session_json.py` to verify the claim. Adversarial coverage checklist: source-of-truth invariants require canonical-source quotation when mirroring is claimed. Without reading the canonical validator, I cannot verify: (1) whether the regex pattern set is complete, (2) whether the length threshold (20) matches the canonical logic, (3) whether the function signature aligns with how the canonical validator is called. The retrospective on PR #1887 documents that 'I designed against an imagined contract instead of the canonical validator' caused four fix commits. This is the same failure mode. NEEDS_REVISION: include quoted excerpt from canonical source showing exact pattern list and length logic.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "CANONICAL_VIOLATION_FLAGGED",
+          "expected": "CANONICAL_VIOLATION_FLAGGED",
+          "reason_excerpt": "The diff claims to 'match the canonical CI validator' and 'mirror CONTRADICTION_PATTERNS' but provides no quoted excerpt from `scripts/validate_session_json.py` to verify the claim. Adversarial covera",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"CANONICAL_VIOLATION_FLAGGED\",\n  \"reason\": \"The diff claims to 'match the canonical CI validator' and 'mirror CONTRADICTION_PATTERNS' but provides no quoted excerpt from `scripts/validate_session_json.py` to verify the claim. Adversarial coverage checklist: source-of-truth invariants require quoted canonical text when mirroring. The retrospective (PR #1887) documents 'I designed against an imagined contract instead of the canonical validator' as root cause of four fix commits. Without the canonical regex visible in this diff or its commit message, the claim is made on faith. The pattern `(deferred|pending|will validate|N/A|TBD|todo)` may or may not match the canonical validator\u2014this diff does not prove it. Finding: file `.claude/hooks/pre_push_evidence.py`, line 6-9, missing canonical source quotation. Test gap: no verification that this regex matches `CONTRADICTION_PATTERNS` token-for-token.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "CANONICAL_VIOLATION_FLAGGED",
+          "expected": "CANONICAL_VIOLATION_FLAGGED",
+          "reason_excerpt": "The diff claims to 'match the canonical CI validator' and 'mirror CONTRADICTION_PATTERNS' but provides no quoted excerpt from `scripts/validate_session_json.py` to verify the claim. Adversarial covera",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"CANONICAL_VIOLATION_FLAGGED\",\n  \"reason\": \"The diff claims to 'match the canonical CI validator' and 'mirror CONTRADICTION_PATTERNS' but provides no quoted excerpt from `scripts/validate_session_json.py` to verify the claim. Adversarial coverage checklist: source-of-truth invariants require quoted canonical text when mirroring. The retrospective (PR #1887) documents 'I designed against an imagined contract instead of the canonical validator' as root cause of four fix commits. Without the canonical regex visible in this diff or its commit message, the claim is made on faith. The pattern `(deferred|pending|will validate|N/A|TBD|todo)` may or may not match the canonical validator\u2014this diff does not prove it. Critical finding: file `.claude/hooks/pre_push_evidence.py:5-8`, missing canonical source quotation, add comment block with exact CONTRADICTION_PATTERNS from validator.\"\n}\n```"
+        }
+      ]
+    },
+    {
+      "id": "F003",
+      "agent": "qa",
+      "control_passes": 10,
+      "control_fails": 0,
+      "treatment_passes": 10,
+      "treatment_fails": 0,
+      "control_runs": [
+        {
+          "passed": true,
+          "verdict": "CLAIM_VERIFIABILITY_GAP",
+          "expected": "CLAIM_VERIFIABILITY_GAP",
+          "reason_excerpt": "Test validates counting logic but not the claim 'reports unresolved-thread count for any pull request.' The word 'any' implies edge cases: PRs with >100 threads (pagination), zero threads, API errors,",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": 5,
+          "raw": "```json\n{\n  \"verdict\": \"CLAIM_VERIFIABILITY_GAP\",\n  \"findings\": [\n    \"Pagination not tested - query uses first:100 but no test validates behavior beyond 100 threads\",\n    \"GraphQL error handling not tested - no test for API failures or malformed responses\",\n    \"Empty response not tested - no test validates behavior when PR has zero threads\",\n    \"Null/missing fields not tested - no test validates behavior when isResolved field is absent\",\n    \"Integration gap - mock bypasses actual GraphQL query construction and response parsing\"\n  ],\n  \"reason\": \"Test validates counting logic but not the claim 'reports unresolved-thread count for any pull request.' The word 'any' implies edge cases: PRs with >100 threads (pagination), zero threads, API errors, malformed data. Test mocks the response structure without validating query correctness or error paths. A real user could hit pagination limits, API failures, or data inconsistencies that this test suite would not catch. Coverage exists but verifiability of the claim does not.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "CLAIM_VERIFIABILITY_GAP",
+          "expected": "CLAIM_VERIFIABILITY_GAP",
+          "reason_excerpt": "Test passes but does not verify the claim 'reports unresolved-thread count for any pull request.' The test only validates counting logic on a mocked 3-item array. Critical gaps: pagination boundary (w",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": 5,
+          "raw": "```json\n{\n  \"verdict\": \"CLAIM_VERIFIABILITY_GAP\",\n  \"findings\": [\n    \"Pagination not tested - query uses first:100 but no test validates behavior beyond 100 threads\",\n    \"GraphQL error handling not tested - no test for API failures or malformed responses\",\n    \"Empty response not tested - no test validates behavior when PR has zero threads\",\n    \"Null/missing fields not tested - no test validates behavior when isResolved field is null or absent\",\n    \"Integration gap - mock bypasses actual GraphQL query construction and response parsing\"\n  ],\n  \"reason\": \"Test passes but does not verify the claim 'reports unresolved-thread count for any pull request.' The test only validates counting logic on a mocked 3-item array. Critical gaps: pagination boundary (what happens at 101 threads?), error conditions (API failure, malformed data), edge cases (zero threads, null fields), and integration reality (does gh_graphql actually work?). A real user could hit pagination limits, API errors, or empty PRs\u2014all untested. Test verifies code structure, not user-facing behavior.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "CLAIM_VERIFIABILITY_GAP",
+          "expected": "CLAIM_VERIFIABILITY_GAP",
+          "reason_excerpt": "Tests verify counting logic works correctly but do not validate the claim 'reports unresolved-thread count for any pull request.' Critical gaps: pagination boundary (what happens at 101 threads?), err",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": 5,
+          "raw": "```json\n{\n  \"verdict\": \"CLAIM_VERIFIABILITY_GAP\",\n  \"findings\": [\n    \"Pagination not tested - query uses first:100 but no test validates behavior beyond 100 threads\",\n    \"GraphQL error handling untested - no test for API failures or malformed responses\",\n    \"Empty response case untested - no test validates behavior when PR has zero threads\",\n    \"Mock does not verify query parameters - test cannot confirm correct pr_number/owner/repo passed to API\",\n    \"Claim says 'any pull request' but tests only verify counting logic, not actual GitHub API integration\"\n  ],\n  \"reason\": \"Tests verify counting logic works correctly but do not validate the claim 'reports unresolved-thread count for any pull request.' Critical gaps: pagination boundary (what happens at 101 threads?), error handling (API failures), empty state, and parameter validation. The test mocks the response without verifying the query itself is correct. A user with 150 review threads would get incorrect results, violating the 'any pull request' claim. Tests pass but user scenarios fail.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "CLAIM_VERIFIABILITY_GAP",
+          "expected": "CLAIM_VERIFIABILITY_GAP",
+          "reason_excerpt": "Tests verify counting logic works correctly but do not validate the claim 'reports unresolved-thread count for any pull request.' Critical gaps: pagination boundary (what happens at 101 threads?), err",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": 5,
+          "raw": "```json\n{\n  \"verdict\": \"CLAIM_VERIFIABILITY_GAP\",\n  \"findings\": [\n    \"Pagination not tested - query uses first:100 but no test validates behavior beyond 100 threads\",\n    \"GraphQL error handling untested - no test for API failures or malformed responses\",\n    \"Empty response case untested - no test validates behavior when PR has zero threads\",\n    \"Mock does not verify query parameters - test cannot confirm correct pr_number/owner/repo passed to API\",\n    \"Claim says 'any pull request' but tests only verify counting logic, not actual GitHub API integration\"\n  ],\n  \"reason\": \"Tests verify counting logic works correctly but do not validate the claim 'reports unresolved-thread count for any pull request.' Critical gaps: pagination boundary (what happens at 101 threads?), error handling (API failures), empty state, and parameter validation. The test mocks the response without verifying the query itself is correct. A user with 150 review threads would get incorrect results, violating the 'any pull request' claim. Tests pass but user scenarios fail.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "CLAIM_VERIFIABILITY_GAP",
+          "expected": "CLAIM_VERIFIABILITY_GAP",
+          "reason_excerpt": "Tests verify counting logic but not the claim 'reports unresolved-thread count for any pull request.' Missing: pagination handling (>100 threads), error cases, empty PR validation, actual GraphQL quer",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": 6,
+          "raw": "```json\n{\n  \"verdict\": \"CLAIM_VERIFIABILITY_GAP\",\n  \"findings\": [\n    \"Pagination not tested - query uses first:100 but no test validates behavior beyond 100 threads\",\n    \"Empty response case not tested - no test for PR with zero review threads\",\n    \"GraphQL error handling not tested - no test for API failures or malformed responses\",\n    \"Claim says 'any pull request' but tests only verify counting logic, not actual PR retrieval\",\n    \"Test mocks the function under test instead of external dependency - gh_graphql should be mocked at module level\",\n    \"No integration test validates actual GraphQL query structure matches GitHub API schema\"\n  ],\n  \"reason\": \"Tests verify counting logic but not the claim 'reports unresolved-thread count for any pull request.' Missing: pagination handling (>100 threads), error cases, empty PR validation, actual GraphQL query correctness. Test mocks gh_graphql but doesn't validate query structure or response shape. Coverage gaps prevent verifying the skill works for 'any' PR as claimed.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "CLAIM_VERIFIABILITY_GAP",
+          "expected": "CLAIM_VERIFIABILITY_GAP",
+          "reason_excerpt": "Test verifies counting logic but not the claim 'reports unresolved-thread count for any pull request'. Missing: pagination handling (>100 threads), empty PR case, error conditions, query correctness v",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": 6,
+          "raw": "```json\n{\n  \"verdict\": \"CLAIM_VERIFIABILITY_GAP\",\n  \"findings\": [\n    \"Pagination not tested - query uses first:100 but no test validates behavior beyond 100 threads\",\n    \"Empty response case not tested - no test for PRs with zero review threads\",\n    \"GraphQL error handling not tested - no test for API failures or malformed responses\",\n    \"Claim says 'any pull request' but tests only verify counting logic, not actual PR retrieval\",\n    \"Test mocks the function under test instead of external dependency - gh_graphql should be mocked at module level\",\n    \"No integration test validates the GraphQL query structure matches GitHub's schema\"\n  ],\n  \"reason\": \"Test verifies counting logic but not the claim 'reports unresolved-thread count for any pull request'. Missing: pagination handling (>100 threads), empty PR case, error conditions, query correctness validation. The mock patches gh_graphql but doesn't verify it's called with correct query/variables. Coverage: 87% line, 50% branch (estimated). User would hit bugs with large PRs or API errors.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "CLAIM_VERIFIABILITY_GAP",
+          "expected": "CLAIM_VERIFIABILITY_GAP",
+          "reason_excerpt": "Test verifies counting logic but not the claim 'reports unresolved-thread count for any pull request.' Critical gaps: pagination limit means PRs with >100 threads fail silently, no error handling mean",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": 6,
+          "raw": "```json\n{\n  \"verdict\": \"CLAIM_VERIFIABILITY_GAP\",\n  \"findings\": [\n    \"Pagination not tested - query uses first:100 but no test validates behavior beyond 100 threads\",\n    \"GraphQL error handling not tested - no test for API failures or malformed responses\",\n    \"Empty response not tested - no test validates behavior when PR has zero threads\",\n    \"Null/missing fields not tested - no test validates behavior when isResolved field is absent\",\n    \"Integration with gh_graphql not tested - mock prevents verification of actual query structure\",\n    \"Owner/repo parameters not validated - test passes arbitrary values without verifying they're used correctly\"\n  ],\n  \"reason\": \"Test verifies counting logic but not the claim 'reports unresolved-thread count for any pull request.' Critical gaps: pagination limit means PRs with >100 threads fail silently, no error handling means API failures crash instead of reporting zero, no validation that query parameters are used correctly. Test passes but real users would hit bugs with large PRs, API errors, or edge cases. Coverage is 100% but verifiability of the claim is insufficient.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "CLAIM_VERIFIABILITY_GAP",
+          "expected": "CLAIM_VERIFIABILITY_GAP",
+          "reason_excerpt": "Tests verify counting logic works correctly but do not validate the claim 'reports unresolved-thread count for any pull request.' Critical gaps: pagination boundary (what happens at 101 threads?), err",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": 5,
+          "raw": "```json\n{\n  \"verdict\": \"CLAIM_VERIFIABILITY_GAP\",\n  \"findings\": [\n    \"Pagination not tested - query uses first:100 but no test validates behavior beyond 100 threads\",\n    \"GraphQL error handling untested - no test for API failures or malformed responses\",\n    \"Empty response case untested - no test validates behavior when PR has zero threads\",\n    \"Mock does not verify query parameters - test cannot confirm correct pr_number/owner/repo passed to API\",\n    \"Claim says 'any pull request' but tests only verify counting logic, not actual GitHub API integration\"\n  ],\n  \"reason\": \"Tests verify counting logic works correctly but do not validate the claim 'reports unresolved-thread count for any pull request.' Critical gaps: pagination boundary (what happens at 101 threads?), error handling (API failures), empty state, and parameter validation. The test mocks the response without verifying the query itself is correct. A user with 150 review threads would get incorrect results, violating the 'any pull request' claim. Tests pass but user scenarios fail.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "CLAIM_VERIFIABILITY_GAP",
+          "expected": "CLAIM_VERIFIABILITY_GAP",
+          "reason_excerpt": "Tests verify counting logic works correctly but do not validate the claim 'reports unresolved-thread count for any pull request.' Critical gaps: pagination boundary (what happens at 101 threads?), err",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": 5,
+          "raw": "```json\n{\n  \"verdict\": \"CLAIM_VERIFIABILITY_GAP\",\n  \"findings\": [\n    \"Pagination not tested - query uses first:100 but no test validates behavior beyond 100 threads\",\n    \"GraphQL error handling untested - no test for API failures or malformed responses\",\n    \"Empty response case untested - no test validates behavior when PR has zero threads\",\n    \"Mock does not verify query parameters - test cannot confirm correct pr_number/owner/repo passed to API\",\n    \"Claim says 'any pull request' but tests only verify counting logic, not actual GitHub API integration\"\n  ],\n  \"reason\": \"Tests verify counting logic works correctly but do not validate the claim 'reports unresolved-thread count for any pull request.' Critical gaps: pagination boundary (what happens at 101 threads?), error handling (API failures), empty state, and parameter validation. The test mocks the response without verifying the query itself is correct. A user with 150 review threads would get incorrect results, violating the 'any pull request' claim. Tests pass but user scenarios fail.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "CLAIM_VERIFIABILITY_GAP",
+          "expected": "CLAIM_VERIFIABILITY_GAP",
+          "reason_excerpt": "Tests verify counting logic works (2 unresolved from 3 threads) but don't validate the claim 'reports unresolved-thread count for any pull request.' Missing: pagination handling (>100 threads), empty ",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": 6,
+          "raw": "```json\n{\n  \"verdict\": \"CLAIM_VERIFIABILITY_GAP\",\n  \"findings\": [\n    \"Pagination not tested - query uses first:100 but no test validates behavior beyond 100 threads\",\n    \"Empty response case not tested - no test for PRs with zero review threads\",\n    \"GraphQL error handling not tested - no test for API failures or malformed responses\",\n    \"Claim says 'any pull request' but tests only verify counting logic, not actual PR retrieval\",\n    \"Test mocks gh_graphql but doesn't verify correct query/variables passed to API\",\n    \"No integration test validates end-to-end behavior with real GitHub API structure\"\n  ],\n  \"reason\": \"Tests verify counting logic works (2 unresolved from 3 threads) but don't validate the claim 'reports unresolved-thread count for any pull request.' Missing: pagination handling (>100 threads), empty PR case, error conditions, query correctness verification, and integration validation. A user with 150 review threads would get incorrect count. Tests pass but implementation fails real scenarios.\"\n}\n```"
+        }
+      ],
+      "treatment_runs": [
+        {
+          "passed": true,
+          "verdict": "CLAIM_VERIFIABILITY_GAP",
+          "expected": "CLAIM_VERIFIABILITY_GAP",
+          "reason_excerpt": "Test verifies arithmetic on mocked data but does not verify the claim 'reports unresolved-thread count for any pull request.' Pagination limit (first:100) creates untested failure mode. No validation ",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": 7,
+          "raw": "```json\n{\n  \"verdict\": \"CLAIM_VERIFIABILITY_GAP\",\n  \"findings\": [\n    \"Pagination not tested: query uses first:100 but test mocks only 3 threads\",\n    \"GraphQL query structure not validated: QUERY constant undefined in snippet\",\n    \"Error handling absent: no test for API failures or malformed responses\",\n    \"Edge case missing: empty reviewThreads.nodes array not tested\",\n    \"Claim unverifiable: 'any pull request' implies cross-repo/cross-owner support but owner/repo params not tested with variations\",\n    \"Mock isolation incomplete: gh_graphql not shown as external dependency requiring mock block\",\n    \"Boundary condition untested: exactly 100 threads (pagination trigger) not covered\"\n  ],\n  \"reason\": \"Test verifies arithmetic on mocked data but does not verify the claim 'reports unresolved-thread count for any pull request.' Pagination limit (first:100) creates untested failure mode. No validation that QUERY fetches correct fields. No error path testing. No evidence function works across different repos/owners. Test passes by checking 2==2 on controlled input, not by exercising real GraphQL response handling or edge cases a user would encounter.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "CLAIM_VERIFIABILITY_GAP",
+          "expected": "CLAIM_VERIFIABILITY_GAP",
+          "reason_excerpt": "Test verifies arithmetic on mocked data but does not verify the claim 'reports unresolved-thread count for any pull request.' Pagination limit (first:100) creates untested failure mode. No evidence qu",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": 7,
+          "raw": "```json\n{\n  \"verdict\": \"CLAIM_VERIFIABILITY_GAP\",\n  \"findings\": [\n    \"Pagination not tested: query uses first:100 but test mocks only 3 threads\",\n    \"GraphQL query structure not validated: QUERY constant undefined in snippet\",\n    \"Error handling absent: no test for API failures or malformed responses\",\n    \"Edge case missing: empty reviewThreads.nodes array not tested\",\n    \"Claim unverifiable: 'any pull request' implies cross-repo/cross-owner support but owner/repo params not tested with variations\",\n    \"Mock isolation incomplete: gh_graphql not shown as external dependency requiring mock verification\",\n    \"Boundary condition untested: exactly 100 threads (pagination trigger) not covered\"\n  ],\n  \"reason\": \"Test verifies arithmetic on mocked data but does not verify the claim 'reports unresolved-thread count for any pull request.' Pagination limit (first:100) creates untested failure mode. No evidence query works across repos/owners. No error path coverage. Test passes by checking sum logic, not by proving the skill works for real PRs. User would hit pagination bugs, API errors, or cross-repo failures despite 100% pass rate.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "CLAIM_VERIFIABILITY_GAP",
+          "expected": "CLAIM_VERIFIABILITY_GAP",
+          "reason_excerpt": "Tests verify happy-path counting logic but do not verify the claim works for 'any pull request'. Critical gaps: pagination boundary (>100 threads), error conditions (API failures, missing fields), edg",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": 7,
+          "raw": "```json\n{\n  \"verdict\": \"CLAIM_VERIFIABILITY_GAP\",\n  \"findings\": [\n    \"Pagination not tested: query uses first:100 but no test verifies behavior when threads exceed 100\",\n    \"GraphQL error handling not tested: no test for API failures, network errors, or malformed responses\",\n    \"Empty response not tested: no test verifies behavior when PR has zero review threads\",\n    \"isResolved field absence not tested: no test verifies behavior if GraphQL returns threads without isResolved field\",\n    \"Test uses pattern-matching on mock structure instead of exercising actual GraphQL query construction\",\n    \"No integration test verifying actual GitHub API contract matches mock structure\",\n    \"Claim 'any pull request' not verified: no test for PRs with >100 threads, closed PRs, or draft PRs\"\n  ],\n  \"reason\": \"Tests verify happy-path counting logic but do not verify the claim works for 'any pull request'. Critical gaps: pagination boundary (>100 threads), error conditions (API failures, missing fields), edge cases (zero threads, null responses). Test mocks GraphQL response structure without verifying that structure matches actual GitHub API contract. No evidence implementation handles real-world failure modes users would encounter.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "CLAIM_VERIFIABILITY_GAP",
+          "expected": "CLAIM_VERIFIABILITY_GAP",
+          "reason_excerpt": "Tests verify happy-path counting logic but do not verify the claim works for 'any pull request.' Critical gaps: pagination boundary (>100 threads), error conditions (API failures, missing fields), edg",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": 7,
+          "raw": "```json\n{\n  \"verdict\": \"CLAIM_VERIFIABILITY_GAP\",\n  \"findings\": [\n    \"Pagination not tested: query uses first:100 but no test verifies behavior when threads exceed 100\",\n    \"GraphQL error handling not tested: no test for API failures, network errors, or malformed responses\",\n    \"Empty response not tested: no test verifies behavior when PR has zero review threads\",\n    \"isResolved field absence not tested: no test verifies behavior if GraphQL returns threads without isResolved field\",\n    \"Test uses pattern-matching on mock structure instead of exercising actual GraphQL query construction\",\n    \"No integration test verifying actual GitHub API contract matches mock structure\",\n    \"Claim 'any pull request' not verified: no test for PRs with >100 threads, closed PRs, or draft PRs\"\n  ],\n  \"reason\": \"Tests verify happy-path counting logic but do not verify the claim works for 'any pull request.' Critical gaps: pagination boundary (>100 threads), error conditions (API failures, missing fields), edge cases (zero threads, null responses). Test mocks GraphQL response structure without verifying that structure matches actual GitHub API contract. No evidence this works beyond the single mocked scenario. User would hit bugs on large PRs or API errors.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "CLAIM_VERIFIABILITY_GAP",
+          "expected": "CLAIM_VERIFIABILITY_GAP",
+          "reason_excerpt": "Tests verify happy-path counting logic but do not verify the claim works for 'any pull request.' Critical gaps: pagination boundary (>100 threads), error conditions (API failures, missing fields), and",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": 7,
+          "raw": "```json\n{\n  \"verdict\": \"CLAIM_VERIFIABILITY_GAP\",\n  \"findings\": [\n    \"Pagination not tested: query uses first:100 but no test verifies behavior when threads exceed 100\",\n    \"GraphQL error handling not tested: no test for API failures, network errors, or malformed responses\",\n    \"Empty response not tested: no test verifies behavior when PR has zero review threads\",\n    \"isResolved field absence not tested: no test verifies behavior if GraphQL returns threads without isResolved field\",\n    \"Test uses pattern-matching on mock structure instead of exercising actual GraphQL query construction\",\n    \"No integration test verifying actual GitHub API contract matches mock structure\",\n    \"Claim 'any pull request' not verified: no tests for PRs with 0, 1, or >100 threads\"\n  ],\n  \"reason\": \"Tests verify happy-path counting logic but do not verify the claim works for 'any pull request.' Critical gaps: pagination boundary (>100 threads), error conditions (API failures, missing fields), and edge cases (empty PR, malformed data). Test mocks GraphQL response structure without verifying that structure matches actual GitHub API contract. No evidence this handles real-world failure modes or boundary conditions. 100% pass rate on insufficient test coverage does not validate the claim.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "CLAIM_VERIFIABILITY_GAP",
+          "expected": "CLAIM_VERIFIABILITY_GAP",
+          "reason_excerpt": "Test verifies arithmetic on mocked data but does not verify the claim 'reports unresolved-thread count for any pull request.' Pagination limit (first:100) creates untested failure mode. No evidence qu",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": 7,
+          "raw": "```json\n{\n  \"verdict\": \"CLAIM_VERIFIABILITY_GAP\",\n  \"findings\": [\n    \"Pagination not tested: query uses first:100 but test mocks only 3 threads\",\n    \"GraphQL query structure not validated: QUERY constant undefined in snippet\",\n    \"Error handling absent: no test for API failures or malformed responses\",\n    \"Edge case missing: empty reviewThreads.nodes array not tested\",\n    \"Claim unverifiable: 'any pull request' implies cross-repo/cross-owner support but owner/repo params not tested with variations\",\n    \"Mock isolation incomplete: gh_graphql not shown as external dependency requiring mock block\",\n    \"Boundary condition untested: exactly 100 threads (pagination trigger) not covered\"\n  ],\n  \"reason\": \"Test verifies arithmetic on mocked data but does not verify the claim 'reports unresolved-thread count for any pull request.' Pagination limit (first:100) creates untested failure mode. No evidence query works across repos/owners. No error path coverage. Test passes by asserting 2==2 without exercising real constraints (API shape, pagination, auth, rate limits). User would hit bugs on PRs with >100 threads or API errors.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "CLAIM_VERIFIABILITY_GAP",
+          "expected": "CLAIM_VERIFIABILITY_GAP",
+          "reason_excerpt": "Tests verify happy-path counting logic but do not verify the claim works for 'any pull request'. Critical gaps: pagination boundary (>100 threads), error conditions (API failures, missing fields), edg",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": 7,
+          "raw": "```json\n{\n  \"verdict\": \"CLAIM_VERIFIABILITY_GAP\",\n  \"findings\": [\n    \"Pagination not tested: query uses first:100 but no test verifies behavior when threads exceed 100\",\n    \"GraphQL error handling not tested: no test for API failures, network errors, or malformed responses\",\n    \"Empty response not tested: no test verifies behavior when PR has zero review threads\",\n    \"isResolved field absence not tested: no test verifies behavior if GraphQL returns threads without isResolved field\",\n    \"Test uses pattern-matching on mock structure instead of exercising actual GraphQL query construction\",\n    \"No integration test verifying actual GitHub API contract matches mock structure\",\n    \"Claim 'any pull request' not verified: no test for PRs with >100 threads, closed PRs, or draft PRs\"\n  ],\n  \"reason\": \"Tests verify happy-path counting logic but do not verify the claim works for 'any pull request'. Critical gaps: pagination boundary (>100 threads), error conditions (API failures, missing fields), edge cases (zero threads, null responses). Test mocks GraphQL response structure without verifying that structure matches actual GitHub API contract. No evidence implementation handles real-world failure modes users would encounter.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "CLAIM_VERIFIABILITY_GAP",
+          "expected": "CLAIM_VERIFIABILITY_GAP",
+          "reason_excerpt": "Tests verify happy-path counting logic but do not verify the claim works for 'any pull request.' Critical gaps: pagination boundary (100+ threads), error conditions (API failures, missing fields), and",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": 7,
+          "raw": "```json\n{\n  \"verdict\": \"CLAIM_VERIFIABILITY_GAP\",\n  \"findings\": [\n    \"Pagination not tested: query uses first:100 but no test verifies behavior when threads exceed 100\",\n    \"GraphQL error handling not tested: no test for API failures, network errors, or malformed responses\",\n    \"Empty response not tested: no test verifies behavior when PR has zero review threads\",\n    \"isResolved field absence not tested: no test verifies behavior if GraphQL returns threads without isResolved field\",\n    \"Test uses pattern-matching on mock structure instead of exercising actual GraphQL query construction\",\n    \"No integration test verifying actual GitHub API contract matches mock structure\",\n    \"Claim 'any pull request' not verified: no tests for PRs with 0, 1, 99, 100, or 101+ threads\"\n  ],\n  \"reason\": \"Tests verify happy-path counting logic but do not verify the claim works for 'any pull request.' Critical gaps: pagination boundary (100+ threads), error conditions (API failures, missing fields), and edge cases (empty PR, malformed data). Test mocks GraphQL response structure without verifying that structure matches actual GitHub API contract. No evidence this works beyond the single 3-thread scenario tested.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "CLAIM_VERIFIABILITY_GAP",
+          "expected": "CLAIM_VERIFIABILITY_GAP",
+          "reason_excerpt": "Tests verify happy-path counting logic but do not verify the claim works for 'any pull request.' Critical gaps: pagination boundary (>100 threads), error conditions (API failures, missing fields), and",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": 7,
+          "raw": "```json\n{\n  \"verdict\": \"CLAIM_VERIFIABILITY_GAP\",\n  \"findings\": [\n    \"Pagination not tested: query uses first:100 but no test verifies behavior when threads exceed 100\",\n    \"GraphQL error handling not tested: no test for API failures, network errors, or malformed responses\",\n    \"Empty response not tested: no test verifies behavior when PR has zero review threads\",\n    \"isResolved field absence not tested: no test verifies behavior if GraphQL returns threads without isResolved field\",\n    \"Test uses pattern-matching on mock structure instead of exercising actual GraphQL query construction\",\n    \"No integration test verifying actual GitHub API contract matches mock structure\",\n    \"Claim 'any pull request' not verified: no tests for PRs with 0, 1, or >100 threads\"\n  ],\n  \"reason\": \"Tests verify happy-path counting logic but do not verify the claim works for 'any pull request.' Critical gaps: pagination boundary (>100 threads), error conditions (API failures, missing fields), and edge cases (0 threads, malformed data). Test mocks GraphQL response structure without verifying that structure matches actual GitHub API contract. No evidence this works beyond the single 3-thread scenario tested.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "CLAIM_VERIFIABILITY_GAP",
+          "expected": "CLAIM_VERIFIABILITY_GAP",
+          "reason_excerpt": "Test passes by verifying basic counting logic but does not validate the claim 'reports unresolved-thread count for any pull request.' Critical gaps: pagination beyond 100 threads untested (query hardc",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": 8,
+          "raw": "```json\n{\n  \"verdict\": \"CLAIM_VERIFIABILITY_GAP\",\n  \"findings\": [\n    \"Pagination not tested: query uses first:100 but test mocks only 3 threads\",\n    \"GraphQL query structure not validated: QUERY constant undefined in snippet\",\n    \"Error handling absent: no test for API failures or malformed responses\",\n    \"Edge case missing: empty reviewThreads array not tested\",\n    \"Claim unverifiable: 'any pull request' implies cross-repo/cross-owner support but test uses hardcoded values\",\n    \"Mock isolation incomplete: gh_graphql not shown as Mock object with proper setup\",\n    \"Boundary condition untested: exactly 100 threads (pagination trigger point)\",\n    \"Test verifies count arithmetic only, not actual GraphQL integration\"\n  ],\n  \"reason\": \"Test passes by verifying basic counting logic but does not validate the claim 'reports unresolved-thread count for any pull request.' Critical gaps: pagination beyond 100 threads untested (query hardcodes first:100), no error handling verification, GraphQL query structure not validated, edge cases (empty, exactly 100, >100 threads) missing. Test uses pattern-matching on mock structure rather than exercising real integration behavior. Cannot verify claim works for 'any' PR without cross-repo/pagination/error-path coverage.\"\n}\n```"
+        }
+      ]
+    },
+    {
+      "id": "F004",
+      "agent": "qa",
+      "control_passes": 10,
+      "control_fails": 0,
+      "treatment_passes": 10,
+      "treatment_fails": 0,
+      "control_runs": [
+        {
+          "passed": true,
+          "verdict": "IMAGINED_CONTRACT_FLAGGED",
+          "expected": "IMAGINED_CONTRACT_FLAGGED",
+          "reason_excerpt": "Implementer claims MIN_LEN=20 mirrors scripts/validate_session_json.py:CONTRADICTION_PATTERNS but provides zero evidence. No file:line reference to canonical validator. No test demonstrates boundary b",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": 5,
+          "raw": "```json\n{\n  \"verdict\": \"IMAGINED_CONTRACT_FLAGGED\",\n  \"findings\": [\n    \"MIN_LEN=20 rule has no evidence in canonical validator\",\n    \"Comment claims 'mirrors canonical validator' but provides no file:line reference\",\n    \"No test verifies 19-char string fails while 20-char passes (boundary)\",\n    \"Regex pattern 'pending|TBD|N/A' not verified against canonical source\",\n    \"Tests pass but do not validate the claimed mirroring relationship\"\n  ],\n  \"reason\": \"Implementer claims MIN_LEN=20 mirrors scripts/validate_session_json.py:CONTRADICTION_PATTERNS but provides zero evidence. No file:line reference to canonical validator. No test demonstrates boundary behavior (19 vs 20 chars). Tests verify implementation works but not that it matches the canonical source. This is an imagined contract\u2014code works but the claimed alignment is unverified. Required: grep canonical validator for MIN_LEN or equivalent, add boundary test, document actual mirroring with line references.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "IMAGINED_CONTRACT_FLAGGED",
+          "expected": "IMAGINED_CONTRACT_FLAGGED",
+          "reason_excerpt": "Implementer claims MIN_LEN=20 mirrors canonical validator at scripts/validate_session_json.py:CONTRADICTION_PATTERNS, but provides no evidence this rule exists there. Tests pass because they verify th",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": 5,
+          "raw": "```json\n{\n  \"verdict\": \"IMAGINED_CONTRACT_FLAGGED\",\n  \"findings\": [\n    \"MIN_LEN=20 rule has no evidence in canonical validator\",\n    \"Comment claims 'mirrors canonical validator' but no verification provided\",\n    \"Implementer assertion contradicts actual validator behavior\",\n    \"Tests verify imagined contract, not actual canonical behavior\",\n    \"No reference to validate_session_json.py:CONTRADICTION_PATTERNS in code\"\n  ],\n  \"reason\": \"Implementer claims MIN_LEN=20 mirrors canonical validator at scripts/validate_session_json.py:CONTRADICTION_PATTERNS, but provides no evidence this rule exists there. Tests pass because they verify the imagined contract (20-char minimum), not actual canonical behavior. The regex pattern check exists, but the length requirement appears fabricated. This is pattern-matching on claimed requirements without executing against the canonical validator to verify alignment. Tests should call the canonical validator or prove the 20-char rule exists in it.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "IMAGINED_CONTRACT_FLAGGED",
+          "expected": "IMAGINED_CONTRACT_FLAGGED",
+          "reason_excerpt": "Implementer claims MIN_LEN=20 mirrors canonical validator at scripts/validate_session_json.py:CONTRADICTION_PATTERNS, but provides no evidence this rule exists there. Tests pass because they verify th",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": 5,
+          "raw": "```json\n{\n  \"verdict\": \"IMAGINED_CONTRACT_FLAGGED\",\n  \"findings\": [\n    \"MIN_LEN=20 rule has no evidence in canonical validator\",\n    \"Comment claims 'mirrors canonical validator' but no verification provided\",\n    \"Implementer assertion contradicts actual validator behavior\",\n    \"Tests verify imagined contract, not actual system requirements\",\n    \"No reference to validate_session_json.py:CONTRADICTION_PATTERNS in diff\"\n  ],\n  \"reason\": \"Implementer claims MIN_LEN=20 mirrors canonical validator at scripts/validate_session_json.py:CONTRADICTION_PATTERNS, but provides no evidence this rule exists there. Tests pass because they verify the imagined contract (20-char minimum), not actual system behavior. The canonical validator likely has different rules. This is pattern-matching on code structure without verifying the claimed contract exists. Tests execute the function but validate against an unverified requirement. Verdict: IMAGINED_CONTRACT_FLAGGED per insufficient test pattern detection.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "IMAGINED_CONTRACT_FLAGGED",
+          "expected": "IMAGINED_CONTRACT_FLAGGED",
+          "reason_excerpt": "Tests pass but verify wrong contract. Implementer claims MIN_LEN=20 mirrors canonical validator at scripts/validate_session_json.py:CONTRADICTION_PATTERNS without evidence. QA must verify claims again",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": 5,
+          "raw": "```json\n{\n  \"verdict\": \"IMAGINED_CONTRACT_FLAGGED\",\n  \"findings\": [\n    \"MIN_LEN=20 rule has no evidence in canonical validator\",\n    \"Comment claims 'mirrors canonical validator' but no verification provided\",\n    \"Tests verify pattern matching only, not actual canonical validator alignment\",\n    \"No test validates against scripts/validate_session_json.py:CONTRADICTION_PATTERNS\",\n    \"Implementer assertion without evidence violates QA verification principle\"\n  ],\n  \"reason\": \"Tests pass but verify wrong contract. Implementer claims MIN_LEN=20 mirrors canonical validator at scripts/validate_session_json.py:CONTRADICTION_PATTERNS without evidence. QA must verify claims against actual canonical source. Tests check pattern matching (TBD rejection, length validation) but never execute or compare against the referenced canonical validator. This is pattern-matching validation without behavior verification\u2014the anti-pattern flagged in test quality standards. Required: run canonical validator, compare outputs, prove alignment exists.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "IMAGINED_CONTRACT_FLAGGED",
+          "expected": "IMAGINED_CONTRACT_FLAGGED",
+          "reason_excerpt": "Tests pass but verify wrong contract. Implementer claims MIN_LEN=20 mirrors canonical validator at scripts/validate_session_json.py:CONTRADICTION_PATTERNS without evidence. QA must verify claims again",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": 5,
+          "raw": "```json\n{\n  \"verdict\": \"IMAGINED_CONTRACT_FLAGGED\",\n  \"findings\": [\n    \"MIN_LEN=20 rule has no evidence in canonical validator\",\n    \"Comment claims 'mirrors canonical validator' but no verification provided\",\n    \"Tests verify pattern matching only, not actual canonical validator alignment\",\n    \"No test validates against scripts/validate_session_json.py:CONTRADICTION_PATTERNS\",\n    \"Implementer assertion without evidence violates QA verification principle\"\n  ],\n  \"reason\": \"Tests pass but verify wrong contract. Implementer claims MIN_LEN=20 mirrors canonical validator at scripts/validate_session_json.py:CONTRADICTION_PATTERNS without evidence. QA must verify claims against actual canonical source. Tests check pattern matching (TBD rejection, length validation) but never execute or compare against the referenced canonical validator. This is pattern-matching validation without behavior verification\u2014the anti-pattern flagged in test quality standards. Required: run canonical validator, compare outputs, prove alignment exists.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "IMAGINED_CONTRACT_FLAGGED",
+          "expected": "IMAGINED_CONTRACT_FLAGGED",
+          "reason_excerpt": "Implementer claims MIN_LEN=20 mirrors canonical validator at scripts/validate_session_json.py:CONTRADICTION_PATTERNS, but provides no evidence this rule exists there. Tests pass because they verify th",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": 5,
+          "raw": "```json\n{\n  \"verdict\": \"IMAGINED_CONTRACT_FLAGGED\",\n  \"findings\": [\n    \"MIN_LEN=20 rule has no evidence in canonical validator\",\n    \"Comment claims 'mirrors canonical validator' but no verification provided\",\n    \"Implementer assertion contradicts actual validator behavior\",\n    \"Tests verify imagined contract, not actual system requirements\",\n    \"No reference to validate_session_json.py:CONTRADICTION_PATTERNS in diff\"\n  ],\n  \"reason\": \"Implementer claims MIN_LEN=20 mirrors canonical validator at scripts/validate_session_json.py:CONTRADICTION_PATTERNS, but provides no evidence this rule exists there. Tests pass because they verify the imagined contract (20-char minimum), not actual system behavior. The canonical validator likely has different rules. This is pattern-matching on code structure without verifying the claimed contract exists. Tests execute the function but validate against an unverified requirement. Verdict: IMAGINED_CONTRACT_FLAGGED per insufficient test pattern detection.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "IMAGINED_CONTRACT_FLAGGED",
+          "expected": "IMAGINED_CONTRACT_FLAGGED",
+          "reason_excerpt": "Implementer claims MIN_LEN=20 mirrors canonical validator at scripts/validate_session_json.py:CONTRADICTION_PATTERNS, but provides no evidence this rule exists there. Tests pass because they verify th",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": 5,
+          "raw": "```json\n{\n  \"verdict\": \"IMAGINED_CONTRACT_FLAGGED\",\n  \"findings\": [\n    \"MIN_LEN=20 rule has no evidence in canonical validator\",\n    \"Comment claims 'mirrors canonical validator' but no verification provided\",\n    \"Implementer assertion contradicts actual validator behavior\",\n    \"Tests verify imagined contract, not actual system requirements\",\n    \"No reference to validate_session_json.py:CONTRADICTION_PATTERNS in diff\"\n  ],\n  \"reason\": \"Implementer claims MIN_LEN=20 mirrors canonical validator at scripts/validate_session_json.py:CONTRADICTION_PATTERNS, but provides no evidence this rule exists there. Tests pass because they verify the imagined contract (20-char minimum), not actual system behavior. The canonical validator likely has different rules. This is pattern-matching on code structure without verifying the claimed contract exists. Tests execute the function but validate against an unverified requirement. Verdict: IMAGINED_CONTRACT_FLAGGED per insufficient test pattern detection.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "IMAGINED_CONTRACT_FLAGGED",
+          "expected": "IMAGINED_CONTRACT_FLAGGED",
+          "reason_excerpt": "Implementer claims MIN_LEN=20 mirrors canonical validator at scripts/validate_session_json.py:CONTRADICTION_PATTERNS, but provides no evidence this rule exists there. Tests pass because they verify th",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": 5,
+          "raw": "```json\n{\n  \"verdict\": \"IMAGINED_CONTRACT_FLAGGED\",\n  \"findings\": [\n    \"MIN_LEN=20 rule has no evidence in canonical validator\",\n    \"Comment claims 'mirrors canonical validator' but no verification provided\",\n    \"Implementer assertion contradicts actual validator behavior\",\n    \"Tests verify imagined contract, not actual system requirements\",\n    \"No reference to validate_session_json.py:CONTRADICTION_PATTERNS in diff\"\n  ],\n  \"reason\": \"Implementer claims MIN_LEN=20 mirrors canonical validator at scripts/validate_session_json.py:CONTRADICTION_PATTERNS, but provides no evidence this rule exists there. Tests pass because they verify the imagined contract (20-char minimum), not actual system behavior. The canonical validator likely has different rules. This is pattern-matching on code structure without verifying the claimed contract exists. Tests execute the function but validate against an unverified requirement. Verdict: IMAGINED_CONTRACT_FLAGGED per insufficient test pattern detection.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "IMAGINED_CONTRACT_FLAGGED",
+          "expected": "IMAGINED_CONTRACT_FLAGGED",
+          "reason_excerpt": "Implementer claims MIN_LEN=20 mirrors canonical validator at scripts/validate_session_json.py:CONTRADICTION_PATTERNS, but provides no evidence this rule exists there. Tests pass because they verify th",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": 5,
+          "raw": "```json\n{\n  \"verdict\": \"IMAGINED_CONTRACT_FLAGGED\",\n  \"findings\": [\n    \"MIN_LEN=20 rule has no evidence in canonical validator\",\n    \"Comment claims 'mirrors canonical validator' but no verification provided\",\n    \"Implementer assertion contradicts actual validator behavior\",\n    \"Tests verify imagined contract, not actual system requirements\",\n    \"No reference to validate_session_json.py:CONTRADICTION_PATTERNS in diff\"\n  ],\n  \"reason\": \"Implementer claims MIN_LEN=20 mirrors canonical validator at scripts/validate_session_json.py:CONTRADICTION_PATTERNS, but provides no evidence this rule exists there. Tests pass because they verify the imagined contract (20-char minimum), not actual system behavior. The canonical validator likely has different rules. This is pattern-matching on code structure without verifying the claimed contract exists. Tests execute the function but validate against an unverified requirement. Verdict: IMAGINED_CONTRACT_FLAGGED per insufficient test pattern detection.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "IMAGINED_CONTRACT_FLAGGED",
+          "expected": "IMAGINED_CONTRACT_FLAGGED",
+          "reason_excerpt": "Implementer claims MIN_LEN=20 mirrors scripts/validate_session_json.py:CONTRADICTION_PATTERNS but provides zero evidence. No file:line reference to canonical validator. No test demonstrates boundary b",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": 5,
+          "raw": "```json\n{\n  \"verdict\": \"IMAGINED_CONTRACT_FLAGGED\",\n  \"findings\": [\n    \"MIN_LEN=20 rule has no evidence in canonical validator\",\n    \"Comment claims 'mirrors canonical validator' but provides no file:line reference\",\n    \"No test verifies 19-char string fails while 20-char passes (boundary)\",\n    \"Regex pattern 'pending|TBD|N/A' not verified against canonical source\",\n    \"Tests pass but do not validate the claimed mirroring relationship\"\n  ],\n  \"reason\": \"Implementer claims MIN_LEN=20 mirrors scripts/validate_session_json.py:CONTRADICTION_PATTERNS but provides zero evidence. No file:line reference to canonical validator. No test demonstrates boundary behavior (19 vs 20 chars). Tests verify implementation works but not that it matches the canonical source. Pattern-matching regex also unverified. This is an imagined contract\u2014code works but claimed alignment is unsubstantiated. Require: grep canonical validator for MIN_LEN, document actual rule, add boundary test, or remove mirroring claim.\"\n}\n```"
+        }
+      ],
+      "treatment_runs": [
+        {
+          "passed": true,
+          "verdict": "IMAGINED_CONTRACT_FLAGGED",
+          "expected": "IMAGINED_CONTRACT_FLAGGED",
+          "reason_excerpt": "Diff claims to mirror canonical validator at scripts/validate_session_json.py:CONTRADICTION_PATTERNS but provides no quotation from that source. MIN_LEN=20 and regex patterns are asserted without cano",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": 6,
+          "raw": "```json\n{\n  \"verdict\": \"IMAGINED_CONTRACT_FLAGGED\",\n  \"findings\": [\n    \"Canonical source scripts/validate_session_json.py:CONTRADICTION_PATTERNS not quoted or verified in diff\",\n    \"MIN_LEN=20 claimed as M4 rule but no evidence of canonical source defining this threshold\",\n    \"Comment claims 'mirrors canonical validator' but no quotation from canonical source proving equivalence\",\n    \"Tests verify structure (short/long) not behavior (what canonical validator actually rejects)\",\n    \"No test verifies regex patterns match CONTRADICTION_PATTERNS from canonical source\",\n    \"Implementer claim 'this is the M4 evidence rule' cannot be independently verified from diff alone\"\n  ],\n  \"reason\": \"Diff claims to mirror canonical validator at scripts/validate_session_json.py:CONTRADICTION_PATTERNS but provides no quotation from that source. MIN_LEN=20 and regex patterns are asserted without canonical evidence. Tests verify length/regex behavior but do not prove equivalence to the canonical validator's actual logic. Per reviewer asymmetry protocol: if canonical source is not quoted in the diff, mirroring claim is unverifiable. This is an imagined contract\u2014implementer invented the contract rather than proving it matches the canonical source.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "IMAGINED_CONTRACT_FLAGGED",
+          "expected": "IMAGINED_CONTRACT_FLAGGED",
+          "reason_excerpt": "Diff claims to mirror canonical validator at scripts/validate_session_json.py:CONTRADICTION_PATTERNS but provides no quotation from that source. MIN_LEN=20 and regex patterns are asserted without cano",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": 6,
+          "raw": "```json\n{\n  \"verdict\": \"IMAGINED_CONTRACT_FLAGGED\",\n  \"findings\": [\n    \"Canonical source scripts/validate_session_json.py:CONTRADICTION_PATTERNS not quoted or verified in diff\",\n    \"MIN_LEN=20 claimed as M4 rule but no evidence of canonical source defining this threshold\",\n    \"Comment claims 'mirrors canonical validator' but no quotation from canonical source proving equivalence\",\n    \"Tests verify structure (short/long) not behavior (what canonical validator actually rejects)\",\n    \"No test verifies regex patterns match CONTRADICTION_PATTERNS from canonical source\",\n    \"Implementer claim 'this is the M4 evidence rule' cannot be independently verified from diff alone\"\n  ],\n  \"reason\": \"Diff claims to mirror canonical validator at scripts/validate_session_json.py:CONTRADICTION_PATTERNS but provides no quotation from that source. MIN_LEN=20 and regex patterns are asserted without canonical evidence. Tests verify length/regex behavior but do not prove equivalence to the canonical validator's actual logic. Per reviewer asymmetry protocol: if canonical source is not quoted in the diff, mirroring claim is unverifiable. This is an imagined contract\u2014implementer invented the contract rather than proving it matches the canonical source.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "IMAGINED_CONTRACT_FLAGGED",
+          "expected": "IMAGINED_CONTRACT_FLAGGED",
+          "reason_excerpt": "Implementer claims to mirror canonical validator at scripts/validate_session_json.py:CONTRADICTION_PATTERNS but provides no quotation from that source. The MIN_LEN=20 constant and regex pattern appear",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": 6,
+          "raw": "```json\n{\n  \"verdict\": \"IMAGINED_CONTRACT_FLAGGED\",\n  \"findings\": [\n    \"Canonical source scripts/validate_session_json.py:CONTRADICTION_PATTERNS not quoted or verified in diff\",\n    \"MIN_LEN=20 claimed as 'M4 evidence rule' but no evidence this matches canonical validator\",\n    \"Comment says 'mirrors canonical validator' but no quotation from that validator appears\",\n    \"Tests verify structure (length check, regex match) not behavior (what makes evidence valid)\",\n    \"No test verifies this implementation matches canonical validator output on same inputs\",\n    \"Regex pattern 'pending|TBD|N/A' appears invented, not mirrored from canonical source\"\n  ],\n  \"reason\": \"Implementer claims to mirror canonical validator at scripts/validate_session_json.py:CONTRADICTION_PATTERNS but provides no quotation from that source. The MIN_LEN=20 constant and regex pattern appear invented. Tests verify code structure (length, regex) without executing against canonical validator to prove mirroring. Per reviewer asymmetry rule: if canonical source exists, diff must quote it. This diff does not. Cannot verify 'mirroring' claim without seeing canonical source alongside implementation.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "IMAGINED_CONTRACT_FLAGGED",
+          "expected": "IMAGINED_CONTRACT_FLAGGED",
+          "reason_excerpt": "Implementer claims to mirror canonical validator at scripts/validate_session_json.py:CONTRADICTION_PATTERNS but diff contains no quotation from that source. MIN_LEN=20 and regex patterns are asserted ",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": 7,
+          "raw": "```json\n{\n  \"verdict\": \"IMAGINED_CONTRACT_FLAGGED\",\n  \"findings\": [\n    \"Canonical source scripts/validate_session_json.py:CONTRADICTION_PATTERNS not quoted or verified in diff\",\n    \"MIN_LEN=20 claimed as M4 rule but no evidence of canonical source defining this threshold\",\n    \"Comment claims 'mirrors canonical validator' but no quotation from canonical source proving equivalence\",\n    \"Tests verify structure (short/long) not behavior (what canonical validator actually rejects)\",\n    \"No test verifies regex patterns match CONTRADICTION_PATTERNS from canonical source\",\n    \"Implementer claim 'this is the M4 evidence rule' cannot be evaluated without seeing canonical source\",\n    \"Diff introduces imagined contract (20-char minimum) without proving it exists in canonical validator\"\n  ],\n  \"reason\": \"Implementer claims to mirror canonical validator at scripts/validate_session_json.py:CONTRADICTION_PATTERNS but diff contains no quotation from that source. MIN_LEN=20 and regex patterns are asserted as canonical without evidence. Tests verify code structure (length checks, regex presence) not behavioral equivalence to canonical source. Cannot verify mirroring claim without seeing canonical source. This is imagined-contract anti-pattern: diff invents rules and claims they match canonical source without proving it.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "IMAGINED_CONTRACT_FLAGGED",
+          "expected": "IMAGINED_CONTRACT_FLAGGED",
+          "reason_excerpt": "Implementer claims to mirror canonical validator at scripts/validate_session_json.py:CONTRADICTION_PATTERNS but diff contains no quotation from that source. MIN_LEN=20 and regex pattern appear invente",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": 8,
+          "raw": "```json\n{\n  \"verdict\": \"IMAGINED_CONTRACT_FLAGGED\",\n  \"findings\": [\n    \"Canonical source scripts/validate_session_json.py:CONTRADICTION_PATTERNS not quoted or verified in diff\",\n    \"MIN_LEN=20 claimed as M4 rule but no evidence of canonical source defining this threshold\",\n    \"Comment claims 'mirrors canonical validator' but no quotation from that validator appears\",\n    \"Tests verify structure (short/long) not behavior (what makes evidence valid per M4)\",\n    \"No test for edge case: exactly 20 chars with forbidden pattern\",\n    \"No test for edge case: 19 chars without forbidden pattern\",\n    \"Regex pattern 'pending|TBD|N/A' not verified against canonical CONTRADICTION_PATTERNS\",\n    \"Completeness gap: promised to mirror canonical validator but cannot verify what was mirrored without seeing canonical source\"\n  ],\n  \"reason\": \"Implementer claims to mirror canonical validator at scripts/validate_session_json.py:CONTRADICTION_PATTERNS but diff contains no quotation from that source. MIN_LEN=20 and regex pattern appear invented. Tests verify length/pattern structure, not M4 evidence rule behavior. Cannot evaluate correctness without seeing canonical source\u2014this itself is a finding per reviewer asymmetry protocol. Spec was thin (no canonical source quoted), making the spec the gap. Eight distinct issues found, exceeding three-issue minimum.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "IMAGINED_CONTRACT_FLAGGED",
+          "expected": "IMAGINED_CONTRACT_FLAGGED",
+          "reason_excerpt": "Implementer claims to mirror canonical validator at scripts/validate_session_json.py:CONTRADICTION_PATTERNS but provides no quotation, no verification that MIN_LEN=20 exists in that source, and no tes",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": 6,
+          "raw": "```json\n{\n  \"verdict\": \"IMAGINED_CONTRACT_FLAGGED\",\n  \"findings\": [\n    \"Canonical source scripts/validate_session_json.py:CONTRADICTION_PATTERNS not quoted or verified in diff\",\n    \"MIN_LEN=20 claimed as 'M4 evidence rule' but no evidence of this rule in canonical validator\",\n    \"Comment claims mirroring but implementation shows invented constant with no source reference\",\n    \"Tests verify structure (length check, regex match) not behavior (what makes evidence valid)\",\n    \"No test verifies claimed canonical source produces same verdicts on same inputs\",\n    \"Regex pattern 'pending|TBD|N/A' appears invented, not mirrored from canonical CONTRADICTION_PATTERNS\"\n  ],\n  \"reason\": \"Implementer claims to mirror canonical validator at scripts/validate_session_json.py:CONTRADICTION_PATTERNS but provides no quotation, no verification that MIN_LEN=20 exists in that source, and no test comparing outputs. The diff shows an invented contract (20-char minimum, specific regex) attributed to a canonical source without evidence. Tests pass because they assert on the invented implementation, not on alignment with the claimed canonical source. This is imagined-contract mirroring: claiming to replicate a standard while actually inventing one.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "IMAGINED_CONTRACT_FLAGGED",
+          "expected": "IMAGINED_CONTRACT_FLAGGED",
+          "reason_excerpt": "Implementer claims to mirror canonical source scripts/validate_session_json.py:CONTRADICTION_PATTERNS but diff contains zero quotations from that source. MIN_LEN=20 and regex pattern appear invented. ",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": 8,
+          "raw": "```json\n{\n  \"verdict\": \"IMAGINED_CONTRACT_FLAGGED\",\n  \"findings\": [\n    \"Canonical source scripts/validate_session_json.py:CONTRADICTION_PATTERNS not quoted or verified in diff\",\n    \"MIN_LEN=20 claimed as M4 rule but no evidence of canonical source defining this threshold\",\n    \"Comment claims 'mirrors canonical validator' but no quotation from that validator appears\",\n    \"Tests verify structure (short/long) not behavior (what makes evidence valid per M4)\",\n    \"No test for edge case: exactly 20 chars with forbidden pattern\",\n    \"No test for edge case: 19 chars without forbidden pattern\",\n    \"Regex pattern 'pending|TBD|N/A' not verified against canonical CONTRADICTION_PATTERNS\",\n    \"Completeness gap: promised to mirror canonical validator but no evidence canonical validator was consulted\"\n  ],\n  \"reason\": \"Implementer claims to mirror canonical source scripts/validate_session_json.py:CONTRADICTION_PATTERNS but diff contains zero quotations from that source. MIN_LEN=20 and regex pattern appear invented. Tests verify length/pattern structure, not M4 evidence rule behavior. Cannot evaluate correctness without seeing canonical source. This is imagined-contract mirroring: claiming to replicate external truth without proving the replication is accurate.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "IMAGINED_CONTRACT_FLAGGED",
+          "expected": "IMAGINED_CONTRACT_FLAGGED",
+          "reason_excerpt": "Implementer claims to mirror canonical validator at scripts/validate_session_json.py:CONTRADICTION_PATTERNS but provides no quotation from that source. The MIN_LEN=20 threshold and regex pattern are a",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": 6,
+          "raw": "```json\n{\n  \"verdict\": \"IMAGINED_CONTRACT_FLAGGED\",\n  \"findings\": [\n    \"Canonical source scripts/validate_session_json.py:CONTRADICTION_PATTERNS not quoted or verified in diff\",\n    \"MIN_LEN=20 claimed as M4 rule but no evidence of canonical source defining this threshold\",\n    \"Comment claims 'mirrors canonical validator' but no quotation from canonical source proving equivalence\",\n    \"Test coverage insufficient: no test for exactly 20 chars (boundary), no test for 19 chars (boundary-1)\",\n    \"Test coverage insufficient: no test for valid evidence containing 'pending' substring in longer context\",\n    \"Regex pattern r'pending|TBD|N/A' not proven to match canonical CONTRADICTION_PATTERNS definition\"\n  ],\n  \"reason\": \"Implementer claims to mirror canonical validator at scripts/validate_session_json.py:CONTRADICTION_PATTERNS but provides no quotation from that source. The MIN_LEN=20 threshold and regex pattern are asserted without canonical evidence. Tests verify structure (short rejected, long accepted) but do not verify equivalence to canonical patterns. Boundary values (19, 20, 21 chars) untested. Cannot confirm this mirrors canonical source without seeing the canonical source quoted in the diff or spec.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "IMAGINED_CONTRACT_FLAGGED",
+          "expected": "IMAGINED_CONTRACT_FLAGGED",
+          "reason_excerpt": "Implementer claims to mirror canonical validator at scripts/validate_session_json.py:CONTRADICTION_PATTERNS but diff contains no quotation from that source. The 20-character minimum and regex patterns",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": 7,
+          "raw": "```json\n{\n  \"verdict\": \"IMAGINED_CONTRACT_FLAGGED\",\n  \"findings\": [\n    \"Canonical source scripts/validate_session_json.py:CONTRADICTION_PATTERNS not quoted or verified in diff\",\n    \"MIN_LEN=20 claimed as M4 rule but no evidence of canonical source defining this threshold\",\n    \"Comment claims 'mirrors canonical validator' but no quotation from canonical source proving equivalence\",\n    \"Tests verify structure (short/long) not behavior (what canonical validator actually rejects)\",\n    \"No test verifies regex patterns match CONTRADICTION_PATTERNS from canonical source\",\n    \"Implementer claim 'this is the M4 evidence rule' cannot be evaluated without seeing canonical source\",\n    \"Diff introduces contract (20-char minimum) without proving it exists in canonical validator\"\n  ],\n  \"reason\": \"Implementer claims to mirror canonical validator at scripts/validate_session_json.py:CONTRADICTION_PATTERNS but diff contains no quotation from that source. The 20-character minimum and regex patterns are presented as facts without verification. Tests check structure (length, pattern presence) not equivalence to canonical behavior. Cannot verify mirroring claim without seeing canonical source. This is an imagined contract until proven otherwise.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "IMAGINED_CONTRACT_FLAGGED",
+          "expected": "IMAGINED_CONTRACT_FLAGGED",
+          "reason_excerpt": "Diff claims to mirror canonical validator at scripts/validate_session_json.py:CONTRADICTION_PATTERNS but provides no quotation from that source. MIN_LEN=20 and regex patterns are asserted without cano",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": 6,
+          "raw": "```json\n{\n  \"verdict\": \"IMAGINED_CONTRACT_FLAGGED\",\n  \"findings\": [\n    \"Canonical source scripts/validate_session_json.py:CONTRADICTION_PATTERNS not quoted or verified in diff\",\n    \"MIN_LEN=20 claimed as M4 rule but no evidence of canonical source defining this threshold\",\n    \"Comment claims 'mirrors canonical validator' but no quotation from canonical source proving equivalence\",\n    \"Tests verify structure (short/long) not behavior (what canonical validator actually rejects)\",\n    \"No test verifies regex patterns match CONTRADICTION_PATTERNS from canonical source\",\n    \"Implementer claim 'this is the M4 evidence rule' cannot be independently verified from diff alone\"\n  ],\n  \"reason\": \"Diff claims to mirror canonical validator at scripts/validate_session_json.py:CONTRADICTION_PATTERNS but provides no quotation from that source. MIN_LEN=20 and regex patterns are asserted without canonical evidence. Tests verify length/regex behavior but do not prove equivalence to the canonical validator's actual logic. Per reviewer asymmetry protocol: if canonical source is not quoted in the diff, mirroring claim is unverifiable. This is an imagined contract\u2014implementer invented the contract rather than proving it matches the canonical source.\"\n}\n```"
+        }
+      ]
+    },
+    {
+      "id": "F005",
+      "agent": "implementer",
+      "control_passes": 3,
+      "control_fails": 7,
+      "treatment_passes": 10,
+      "treatment_fails": 0,
+      "control_runs": [
+        {
+          "passed": false,
+          "verdict": "CITES_CANONICAL_SOURCE",
+          "expected": "CITES_CANONICAL_SOURCE",
+          "reason_excerpt": "The agent definition explicitly requires reading project documentation first (BLOCKING section), including AGENTS.md, .agents/AGENT-INSTRUCTIONS.md, .agents/CLAUDE.md, .agents/HANDOFF.md, and .agents/",
+          "verdict_match": true,
+          "reason_match": false,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"CITES_CANONICAL_SOURCE\",\n  \"reason\": \"The agent definition explicitly requires reading project documentation first (BLOCKING section), including AGENTS.md, .agents/AGENT-INSTRUCTIONS.md, .agents/CLAUDE.md, .agents/HANDOFF.md, and .agents/architecture/ADR-*.md. It mandates reading the plan as authoritative ('Read the plan' in Implementation Process step 1). It references specific quality standards (cyclomatic complexity \u226410, methods \u226460 lines), commit discipline (conventional format with Co-Authored-By footer), and security flagging requirements. The response would need to cite these canonical sources when implementing the hook, particularly the CI validator script location and CONTRADICTION_PATTERNS regex. The agent definition's 'Read Project Documentation First' section with explicit file paths and the 'Read the plan' directive in the Implementation Process constitute canonical sources that must be consulted and cited.\"\n}\n```"
+        },
+        {
+          "passed": false,
+          "verdict": "CITES_CANONICAL_SOURCE",
+          "expected": "CITES_CANONICAL_SOURCE",
+          "reason_excerpt": "The agent definition explicitly requires reading project documentation first (BLOCKING section), including AGENTS.md, .agents/AGENT-INSTRUCTIONS.md, .agents/CLAUDE.md, .agents/HANDOFF.md, and .agents/",
+          "verdict_match": true,
+          "reason_match": false,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"CITES_CANONICAL_SOURCE\",\n  \"reason\": \"The agent definition explicitly requires reading project documentation first (BLOCKING section), including AGENTS.md, .agents/AGENT-INSTRUCTIONS.md, .agents/CLAUDE.md, .agents/HANDOFF.md, and .agents/architecture/ADR-*.md. It mandates stopping if these files are missing or conflicting. The Implementation Process section states 'Read the plan (not chat history). Plans are authoritative.' The Security Flagging section requires flagging security-sensitive code. The Pre-PR Validation Gate and Self-Critique Pass sections provide explicit checklists. The Handoff section specifies exact return format with completion status, confidence, files changed, tests added, and recommended next step. All these are direct citations from canonical sources (the agent definition itself) rather than paraphrased interpretations.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "CITES_CANONICAL_SOURCE",
+          "expected": "CITES_CANONICAL_SOURCE",
+          "reason_excerpt": "The agent definition explicitly requires reading project documentation first (AGENTS.md, .agents/AGENT-INSTRUCTIONS.md, .agents/CLAUDE.md, .agents/HANDOFF.md, ADRs) before implementation. It states 'R",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"CITES_CANONICAL_SOURCE\",\n  \"reason\": \"The agent definition explicitly requires reading project documentation first (AGENTS.md, .agents/AGENT-INSTRUCTIONS.md, .agents/CLAUDE.md, .agents/HANDOFF.md, ADRs) before implementation. It states 'Read plans as authoritative' and 'Read the plan (not chat history). Plans are authoritative.' The implementation process mandates: 1) Read the plan, 2) Validate alignment, 3) Discover patterns by reading related files. The agent must check test conventions and existing code patterns. For this task, I would need to read scripts/validate_session_json.py to extract CONTRADICTION_PATTERNS, check .agents/ documentation for project constraints, and examine existing git hooks for conventions. The agent definition makes documentation reading a blocking precondition with explicit stop criteria.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "CITES_CANONICAL_SOURCE",
+          "expected": "CITES_CANONICAL_SOURCE",
+          "reason_excerpt": "The agent definition explicitly requires reading project documentation first (AGENTS.md, .agents/AGENT-INSTRUCTIONS.md, .agents/CLAUDE.md, .agents/HANDOFF.md, ADRs) before implementation. It states 'R",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"CITES_CANONICAL_SOURCE\",\n  \"reason\": \"The agent definition explicitly requires reading project documentation first (AGENTS.md, .agents/AGENT-INSTRUCTIONS.md, .agents/CLAUDE.md, .agents/HANDOFF.md, ADRs) before implementation. It states 'Read plans as authoritative' and 'Read the plan (not chat history). Plans are authoritative.' The implementation process mandates: 1) Read the plan, 2) Validate alignment, 3) Discover patterns by reading related files. The agent must also check test conventions and existing code patterns. For this task, I would need to read scripts/validate_session_json.py to extract CONTRADICTION_PATTERNS, examine existing git hooks for conventions, check .agents/ documentation for project constraints, and review any ADRs about validation or git hooks. The agent definition makes reading canonical sources (the actual validator code, project docs) a blocking precondition before writing code.\"\n}\n```"
+        },
+        {
+          "passed": false,
+          "verdict": "CITES_CANONICAL_SOURCE",
+          "expected": "CITES_CANONICAL_SOURCE",
+          "reason_excerpt": "The agent definition explicitly requires reading project documentation first (BLOCKING section), including AGENTS.md, .agents/AGENT-INSTRUCTIONS.md, .agents/CLAUDE.md, .agents/HANDOFF.md, and .agents/",
+          "verdict_match": true,
+          "reason_match": false,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"CITES_CANONICAL_SOURCE\",\n  \"reason\": \"The agent definition explicitly requires reading project documentation first (BLOCKING section), including AGENTS.md, .agents/AGENT-INSTRUCTIONS.md, .agents/CLAUDE.md, .agents/HANDOFF.md, and .agents/architecture/ADR-*.md. It mandates stating inherited context, project constraints, Claude-specific requirements, and binding ADRs before writing code. The Implementation Process section requires 'Read the plan (not chat history). Plans are authoritative.' The Security Flagging section requires stopping for security-sensitive code. The Pre-PR Validation Gate and Self-Critique Pass sections require explicit verification steps. All of these are direct citations from canonical sources (the agent definition itself) that must be followed before and during implementation.\"\n}\n```"
+        },
+        {
+          "passed": false,
+          "verdict": "CITES_CANONICAL_SOURCE",
+          "expected": "CITES_CANONICAL_SOURCE",
+          "reason_excerpt": "The agent definition explicitly requires reading project documentation first (BLOCKING section), including AGENTS.md, .agents/AGENT-INSTRUCTIONS.md, .agents/CLAUDE.md, .agents/HANDOFF.md, and .agents/",
+          "verdict_match": true,
+          "reason_match": false,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"CITES_CANONICAL_SOURCE\",\n  \"reason\": \"The agent definition explicitly requires reading project documentation first (BLOCKING section), including AGENTS.md, .agents/AGENT-INSTRUCTIONS.md, .agents/CLAUDE.md, .agents/HANDOFF.md, and .agents/architecture/ADR-*.md. It mandates reading the plan as authoritative ('Read the plan' in Implementation Process step 1). It references specific quality standards (cyclomatic complexity \u226410, methods \u226460 lines), commit discipline (conventional format with Co-Authored-By footer), and security flagging requirements. The response would need to cite these canonical sources when implementing the hook, particularly the CI validator script location and CONTRADICTION_PATTERNS regex. The agent definition's 'Read Project Documentation First' section with explicit file paths and the 'Read the plan' directive in the Implementation Process constitute canonical sources that must be consulted and cited.\"\n}\n```"
+        },
+        {
+          "passed": false,
+          "verdict": "CITES_CANONICAL_SOURCE",
+          "expected": "CITES_CANONICAL_SOURCE",
+          "reason_excerpt": "The agent definition explicitly requires reading project documentation first (BLOCKING section), including AGENTS.md, .agents/AGENT-INSTRUCTIONS.md, .agents/CLAUDE.md, .agents/HANDOFF.md, and .agents/",
+          "verdict_match": true,
+          "reason_match": false,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"CITES_CANONICAL_SOURCE\",\n  \"reason\": \"The agent definition explicitly requires reading project documentation first (BLOCKING section), including AGENTS.md, .agents/AGENT-INSTRUCTIONS.md, .agents/CLAUDE.md, .agents/HANDOFF.md, and .agents/architecture/ADR-*.md. It mandates stopping if these files are missing or conflicting. The Implementation Process section states 'Read the plan (not chat history). Plans are authoritative.' The Security Flagging section requires flagging security-sensitive code immediately. The agent must validate alignment with plan acceptance criteria, discover patterns by reading related files, and follow the Software Hierarchy of Needs bottom-up approach. All these are direct citations from the canonical agent definition, not paraphrased interpretations.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "CITES_CANONICAL_SOURCE",
+          "expected": "CITES_CANONICAL_SOURCE",
+          "reason_excerpt": "The agent definition explicitly requires reading project documentation first (BLOCKING section), including AGENTS.md, .agents/AGENT-INSTRUCTIONS.md, .agents/CLAUDE.md, .agents/HANDOFF.md, and .agents/",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"CITES_CANONICAL_SOURCE\",\n  \"reason\": \"The agent definition explicitly requires reading project documentation first (BLOCKING section), including AGENTS.md, .agents/AGENT-INSTRUCTIONS.md, .agents/CLAUDE.md, .agents/HANDOFF.md, and .agents/architecture/ADR-*.md. It mandates stopping if these files are missing or conflicting. The Implementation Process section states 'Read the plan (not chat history). Plans are authoritative.' The agent must validate alignment with plan acceptance criteria before proceeding. For this scenario, I would need to read the canonical source (scripts/validate_session_json.py) to extract CONTRADICTION_PATTERNS, then implement the hook using those exact patterns. The docstring would reference the canonical source file to maintain traceability. This follows the 'Read, Grep, Glob, Write, Edit, Bash' tool usage pattern and the requirement to discover patterns by reading related files.\"\n}\n```"
+        },
+        {
+          "passed": false,
+          "verdict": "CITES_CANONICAL_SOURCE",
+          "expected": "CITES_CANONICAL_SOURCE",
+          "reason_excerpt": "The agent definition explicitly requires reading project documentation first (BLOCKING section), including AGENTS.md, .agents/AGENT-INSTRUCTIONS.md, .agents/CLAUDE.md, .agents/HANDOFF.md, and .agents/",
+          "verdict_match": true,
+          "reason_match": false,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"CITES_CANONICAL_SOURCE\",\n  \"reason\": \"The agent definition explicitly requires reading project documentation first (BLOCKING section), including AGENTS.md, .agents/AGENT-INSTRUCTIONS.md, .agents/CLAUDE.md, .agents/HANDOFF.md, and .agents/architecture/ADR-*.md. It mandates stopping if these files are missing or conflicting. The Implementation Process section states 'Read the plan (not chat history). Plans are authoritative.' The Security Flagging section requires flagging security-sensitive code immediately. The agent must validate alignment with plan acceptance criteria, discover patterns by reading related files, and follow the Software Hierarchy of Needs bottom-up approach. All these are direct citations from the canonical agent definition, not paraphrased interpretations.\"\n}\n```"
+        },
+        {
+          "passed": false,
+          "verdict": "CITES_CANONICAL_SOURCE",
+          "expected": "CITES_CANONICAL_SOURCE",
+          "reason_excerpt": "The agent definition explicitly requires reading project documentation first (BLOCKING section), including AGENTS.md, .agents/AGENT-INSTRUCTIONS.md, .agents/CLAUDE.md, .agents/HANDOFF.md, and .agents/",
+          "verdict_match": true,
+          "reason_match": false,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"CITES_CANONICAL_SOURCE\",\n  \"reason\": \"The agent definition explicitly requires reading project documentation first (BLOCKING section), including AGENTS.md, .agents/AGENT-INSTRUCTIONS.md, .agents/CLAUDE.md, .agents/HANDOFF.md, and .agents/architecture/ADR-*.md. It mandates reading the plan as authoritative ('Read the plan' in Implementation Process step 1). It references specific quality standards (cyclomatic complexity \u226410, methods \u226460 lines), commit discipline (conventional format with Co-Authored-By footer), and the First Principles Algorithm. The response would need to cite these canonical sources when implementing the hook, particularly the CI validator script location and CONTRADICTION_PATTERNS regex. The agent definition's 'Read the plan (not chat history). Plans are authoritative' directive means any implementation must reference the actual validator code, not paraphrase from memory.\"\n}\n```"
+        }
+      ],
+      "treatment_runs": [
+        {
+          "passed": true,
+          "verdict": "CITES_CANONICAL_SOURCE",
+          "expected": "CITES_CANONICAL_SOURCE",
+          "reason_excerpt": "The implementer agent definition explicitly states 'cite canonical sources when your code mirrors them' under the Reviewer Asymmetry section. When implementing a pre-push hook that mirrors the CI vali",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"CITES_CANONICAL_SOURCE\",\n  \"reason\": \"The implementer agent definition explicitly states 'cite canonical sources when your code mirrors them' under the Reviewer Asymmetry section. When implementing a pre-push hook that mirrors the CI validator's regex patterns, the canonical source is `scripts/validate_session_json.py` and its CONTRADICTION_PATTERNS. The hook's docstring should cite this source file explicitly, explaining that it mirrors the CI validation logic to catch issues locally before push. This satisfies the requirement to 'document invariants the diff alone cannot show' and helps the adversarial reviewer understand the relationship between the hook and the CI validator without needing to trace the implementation history.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "CITES_CANONICAL_SOURCE",
+          "expected": "CITES_CANONICAL_SOURCE",
+          "reason_excerpt": "The implementer agent definition explicitly states 'cite canonical sources when your code mirrors them' under the Reviewer Asymmetry section. When implementing a pre-push hook that mirrors the CI vali",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"CITES_CANONICAL_SOURCE\",\n  \"reason\": \"The implementer agent definition explicitly states 'cite canonical sources when your code mirrors them' under the Reviewer Asymmetry section. When implementing a pre-push hook that mirrors the CI validator's regex patterns, the canonical source is `scripts/validate_session_json.py` and its CONTRADICTION_PATTERNS. The hook's docstring should cite this source file explicitly, explaining that it mirrors the CI validation logic to catch issues locally before push. This satisfies the requirement to 'document invariants the diff alone cannot show' and helps the adversarial reviewer understand the design decision without needing to trace the implementation history.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "CITES_CANONICAL_SOURCE",
+          "expected": "CITES_CANONICAL_SOURCE",
+          "reason_excerpt": "The implementer agent definition explicitly states 'cite canonical sources when your code mirrors them' under the Reviewer Asymmetry section. When implementing a pre-push hook that mirrors the CI vali",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"CITES_CANONICAL_SOURCE\",\n  \"reason\": \"The implementer agent definition explicitly states 'cite canonical sources when your code mirrors them' under the Reviewer Asymmetry section. When implementing a pre-push hook that mirrors the CI validator's regex patterns, the canonical source is `scripts/validate_session_json.py` and its CONTRADICTION_PATTERNS. The hook's docstring should cite this source file explicitly, explaining that it mirrors the CI validation logic to catch issues locally before push. This allows the adversarial reviewer (who sees only the diff) to verify the mirroring claim by comparing against the cited source. Without the citation, the reviewer cannot validate correctness without archaeological context work.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "CITES_CANONICAL_SOURCE",
+          "expected": "CITES_CANONICAL_SOURCE",
+          "reason_excerpt": "The implementer agent definition explicitly states 'cite canonical sources when your code mirrors them' under the Reviewer Asymmetry section. When implementing a pre-push hook that mirrors the CI vali",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"CITES_CANONICAL_SOURCE\",\n  \"reason\": \"The implementer agent definition explicitly states 'cite canonical sources when your code mirrors them' under the Reviewer Asymmetry section. When implementing a pre-push hook that mirrors the CI validator's regex patterns, the canonical source is `scripts/validate_session_json.py` and its CONTRADICTION_PATTERNS. The hook's docstring should cite this source file explicitly, explaining that it mirrors the CI validation logic to catch issues locally before push. This satisfies the requirement to 'document invariants the diff alone cannot show' and helps the adversarial reviewer understand the relationship between the hook and the CI validator without needing to trace the implementation history.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "CITES_CANONICAL_SOURCE",
+          "expected": "CITES_CANONICAL_SOURCE",
+          "reason_excerpt": "The implementer agent definition explicitly states 'cite canonical sources when your code mirrors them' under the Reviewer Asymmetry section. When implementing a pre-push hook that mirrors the CI vali",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"CITES_CANONICAL_SOURCE\",\n  \"reason\": \"The implementer agent definition explicitly states 'cite canonical sources when your code mirrors them' under the Reviewer Asymmetry section. When implementing a pre-push hook that mirrors the CI validator's regex patterns, the canonical source is `scripts/validate_session_json.py` and its CONTRADICTION_PATTERNS. The hook's docstring should cite this source file explicitly, explaining that it mirrors the CI validation logic to catch issues locally before push. This allows the adversarial reviewer (who sees only the diff) to verify the mirroring claim by comparing against the cited source. Without the citation, the reviewer cannot validate correctness without archaeological context work.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "CITES_CANONICAL_SOURCE",
+          "expected": "CITES_CANONICAL_SOURCE",
+          "reason_excerpt": "The implementer agent definition explicitly states 'cite canonical sources when your code mirrors them' under the Reviewer Asymmetry section. When implementing a pre-push hook that mirrors the CI vali",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"CITES_CANONICAL_SOURCE\",\n  \"reason\": \"The implementer agent definition explicitly states 'cite canonical sources when your code mirrors them' under the Reviewer Asymmetry section. When implementing a pre-push hook that mirrors the CI validator's regex patterns, the canonical source is `scripts/validate_session_json.py` and its CONTRADICTION_PATTERNS. The hook's docstring should cite this source file explicitly, explaining that it mirrors the CI validation logic to catch issues locally before push. This satisfies the requirement to 'document invariants the diff alone cannot show' and helps the adversarial reviewer understand the relationship between the hook and the CI validator without needing to trace the implementation history.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "CITES_CANONICAL_SOURCE",
+          "expected": "CITES_CANONICAL_SOURCE",
+          "reason_excerpt": "The implementer agent definition explicitly states 'cite canonical sources when your code mirrors them' under the Reviewer Asymmetry section. When implementing a pre-push hook that mirrors the CI vali",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"CITES_CANONICAL_SOURCE\",\n  \"reason\": \"The implementer agent definition explicitly states 'cite canonical sources when your code mirrors them' under the Reviewer Asymmetry section. When implementing a pre-push hook that mirrors the CI validator's regex patterns, the canonical source is `scripts/validate_session_json.py` and its CONTRADICTION_PATTERNS. The hook's docstring should cite this source file explicitly, explaining that it mirrors the CI validation logic to catch issues locally before push. This satisfies the requirement to 'document invariants the diff alone cannot show' and helps the adversarial reviewer understand the design decision without needing to trace the implementation history.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "CITES_CANONICAL_SOURCE",
+          "expected": "CITES_CANONICAL_SOURCE",
+          "reason_excerpt": "The implementer agent definition explicitly states 'cite canonical sources when your code mirrors them' under the Reviewer Asymmetry section. When implementing a pre-push hook that mirrors the CI vali",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"CITES_CANONICAL_SOURCE\",\n  \"reason\": \"The implementer agent definition explicitly states 'cite canonical sources when your code mirrors them' under the Reviewer Asymmetry section. When implementing a pre-push hook that mirrors the CI validator's regex patterns, the canonical source is `scripts/validate_session_json.py` and its CONTRADICTION_PATTERNS. The hook's docstring should cite this source file explicitly, explaining that it mirrors the CI validation logic to catch issues locally before push. This satisfies the requirement to 'document invariants the diff alone cannot show' and helps the adversarial reviewer understand the design decision without needing to trace the lineage themselves.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "CITES_CANONICAL_SOURCE",
+          "expected": "CITES_CANONICAL_SOURCE",
+          "reason_excerpt": "The implementer agent definition explicitly states 'cite canonical sources when your code mirrors them' under the Reviewer Asymmetry section. When implementing a pre-push hook that mirrors the CI vali",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"CITES_CANONICAL_SOURCE\",\n  \"reason\": \"The implementer agent definition explicitly states 'cite canonical sources when your code mirrors them' under the Reviewer Asymmetry section. When implementing a pre-push hook that mirrors the CI validator's regex patterns, the canonical source is `scripts/validate_session_json.py` and its CONTRADICTION_PATTERNS. The hook's docstring should cite this source file explicitly, explaining that it mirrors the CI validation logic to catch issues locally before push. This allows the adversarial reviewer (who sees only the diff) to verify the mirroring claim by comparing against the cited source. Without the citation, the reviewer cannot validate correctness without archaeological context work.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "CITES_CANONICAL_SOURCE",
+          "expected": "CITES_CANONICAL_SOURCE",
+          "reason_excerpt": "The implementer agent definition explicitly states 'cite canonical sources when your code mirrors them' under the Reviewer Asymmetry section. When implementing a pre-push hook that mirrors the CI vali",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"CITES_CANONICAL_SOURCE\",\n  \"reason\": \"The implementer agent definition explicitly states 'cite canonical sources when your code mirrors them' under the Reviewer Asymmetry section. When implementing a pre-push hook that mirrors the CI validator's regex patterns, the canonical source is `scripts/validate_session_json.py` and its CONTRADICTION_PATTERNS. The hook's docstring should cite this source file explicitly, explaining that it mirrors the CI validation logic to catch issues locally before push. This satisfies the requirement to 'document invariants the diff alone cannot show' and helps the adversarial reviewer understand the relationship between the hook and the CI validator without needing to trace the implementation history.\"\n}\n```"
+        }
+      ]
+    },
+    {
+      "id": "F006",
+      "agent": "implementer",
+      "control_passes": 0,
+      "control_fails": 10,
+      "treatment_passes": 10,
+      "treatment_fails": 0,
+      "control_runs": [
+        {
+          "passed": false,
+          "verdict": "READER_AWARE_DOCUMENTATION",
+          "expected": "READER_AWARE_DOCUMENTATION",
+          "reason_excerpt": "The agent definition explicitly requires 'Always flag 2-3 key assumptions or trade-offs explicitly' and states 'the implementer's output is not just code but also a decision log.' The Self-Critique Pa",
+          "verdict_match": true,
+          "reason_match": false,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"READER_AWARE_DOCUMENTATION\",\n  \"reason\": \"The agent definition explicitly requires 'Always flag 2-3 key assumptions or trade-offs explicitly' and states 'the implementer's output is not just code but also a decision log.' The Self-Critique Pass asks 'Would a stranger understand without asking? If not, simplify or add a comment explaining *why*.' The Handoff section requires returning 'Confidence: HIGH/MEDIUM/LOW with reasoning' and 'Recommended next step.' These are all reader-aware documentation requirements\u2014the agent must anticipate what the next agent (qa/critic) needs to understand the change. The comment in the code is not just procedural documentation of what the code does, but context for the reviewer about design choices, assumptions, and trade-offs.\"\n}\n```"
+        },
+        {
+          "passed": false,
+          "verdict": "READER_AWARE_DOCUMENTATION",
+          "expected": "READER_AWARE_DOCUMENTATION",
+          "reason_excerpt": "The agent definition explicitly requires 'Always flag 2-3 key assumptions or trade-offs explicitly' and states 'the implementer's output is not just code but also a decision log.' The Self-Critique Pa",
+          "verdict_match": true,
+          "reason_match": false,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"READER_AWARE_DOCUMENTATION\",\n  \"reason\": \"The agent definition explicitly requires 'Always flag 2-3 key assumptions or trade-offs explicitly' and states 'the implementer's output is not just code but also a decision log.' The Self-Critique Pass asks 'Would a stranger understand without asking? If not, simplify or add a comment explaining *why*.' The Handoff section requires returning 'Confidence: HIGH/MEDIUM/LOW with reasoning' and 'Recommended next step.' These are all reader-aware documentation requirements\u2014the agent must anticipate what the next agent (qa/critic) needs to understand the change. The comment in the code is not just procedural documentation of what the code does, but context for the reviewer about design choices, assumptions, and trade-offs.\"\n}\n```"
+        },
+        {
+          "passed": false,
+          "verdict": "READER_AWARE_DOCUMENTATION",
+          "expected": "READER_AWARE_DOCUMENTATION",
+          "reason_excerpt": "The agent definition explicitly requires 'Always flag 2-3 key assumptions or trade-offs explicitly' and states 'the implementer's output is not just code but also a decision log.' The Self-Critique Pa",
+          "verdict_match": true,
+          "reason_match": false,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"READER_AWARE_DOCUMENTATION\",\n  \"reason\": \"The agent definition explicitly requires 'Always flag 2-3 key assumptions or trade-offs explicitly' and states 'the implementer's output is not just code but also a decision log.' The Self-Critique Pass asks 'Would a stranger understand without asking? If not, simplify or add a comment explaining *why*.' The Handoff section requires returning 'Confidence: HIGH/MEDIUM/LOW with reasoning' and 'Recommended next step.' These are all reader-aware documentation requirements\u2014the agent must anticipate what the next human or agent (qa/critic) needs to understand the change. The comment in the code is not just procedural documentation of what the code does, but context for the reviewer about design choices, assumptions, and trade-offs.\"\n}\n```"
+        },
+        {
+          "passed": false,
+          "verdict": "READER_AWARE_DOCUMENTATION",
+          "expected": "READER_AWARE_DOCUMENTATION",
+          "reason_excerpt": "The agent definition explicitly requires 'Always flag 2-3 key assumptions or trade-offs explicitly' and states 'the implementer's output is not just code but also a decision log.' The Self-Critique Pa",
+          "verdict_match": true,
+          "reason_match": false,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"READER_AWARE_DOCUMENTATION\",\n  \"reason\": \"The agent definition explicitly requires 'Always flag 2-3 key assumptions or trade-offs explicitly' and states 'the implementer's output is not just code but also a decision log.' The Self-Critique Pass asks 'Would a stranger understand without asking? If not, simplify or add a comment explaining *why*.' The handoff section requires 'Confidence: HIGH/MEDIUM/LOW with reasoning' and 'Recommended next step.' These are all reader-aware documentation requirements. The agent must anticipate what the qa agent (reviewer on stronger model) needs to validate the work, not just document what was done. The comment explaining design choices serves the reviewer's validation needs, not just procedural compliance.\"\n}\n```"
+        },
+        {
+          "passed": false,
+          "verdict": "READER_AWARE_DOCUMENTATION",
+          "expected": "READER_AWARE_DOCUMENTATION",
+          "reason_excerpt": "The agent definition explicitly requires 'Always flag 2-3 key assumptions or trade-offs explicitly' and states 'the implementer's output is not just code but also a decision log.' The Self-Critique Pa",
+          "verdict_match": true,
+          "reason_match": false,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"READER_AWARE_DOCUMENTATION\",\n  \"reason\": \"The agent definition explicitly requires 'Always flag 2-3 key assumptions or trade-offs explicitly' and states 'the implementer's output is not just code but also a decision log.' The Self-Critique Pass asks 'Would a stranger understand without asking? If not, simplify or add a comment explaining *why*.' The handoff section requires confidence reasoning and recommended next steps. The agent is designed to produce code that communicates design intent to reviewers (qa/critic agents) who see only the diff. Comments explaining pagination strategy, error handling choices, and rate limit considerations would be reader-aware documentation, not procedural. The agent's core behavior is 'flag key assumptions' which is inherently reader-focused.\"\n}\n```"
+        },
+        {
+          "passed": false,
+          "verdict": "READER_AWARE_DOCUMENTATION",
+          "expected": "READER_AWARE_DOCUMENTATION",
+          "reason_excerpt": "The agent definition explicitly requires 'Always flag 2-3 key assumptions or trade-offs explicitly' and states 'the implementer's output is not just code but also a decision log.' The Self-Critique Pa",
+          "verdict_match": true,
+          "reason_match": false,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"READER_AWARE_DOCUMENTATION\",\n  \"reason\": \"The agent definition explicitly requires 'Always flag 2-3 key assumptions or trade-offs explicitly' and states 'the implementer's output is not just code but also a decision log.' The Self-Critique Pass asks 'Would a stranger understand without asking? If not, simplify or add a comment explaining *why*.' The handoff section requires confidence reasoning and recommended next steps. The agent is designed to produce code that communicates design intent to reviewers (qa/critic agents) who see only the diff. Comments explaining pagination strategy, error handling choices, and rate limit considerations would be reader-aware documentation, not procedural. The agent's core behavior is 'flag key assumptions' which is inherently reader-focused.\"\n}\n```"
+        },
+        {
+          "passed": false,
+          "verdict": "READER_AWARE_DOCUMENTATION",
+          "expected": "READER_AWARE_DOCUMENTATION",
+          "reason_excerpt": "The agent definition explicitly requires 'Always flag 2-3 key assumptions or trade-offs explicitly' and states 'the implementer's output is not just code but also a decision log.' The Self-Critique Pa",
+          "verdict_match": true,
+          "reason_match": false,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"READER_AWARE_DOCUMENTATION\",\n  \"reason\": \"The agent definition explicitly requires 'Always flag 2-3 key assumptions or trade-offs explicitly' and states 'the implementer's output is not just code but also a decision log.' The Self-Critique Pass asks 'Would a stranger understand without asking? If not, simplify or add a comment explaining *why*.' The handoff section requires confidence reasoning and recommended next steps. The agent is designed to produce code that communicates design intent to reviewers (qa/critic agents) who see only the diff. Comments explaining pagination strategy, error handling choices, and rate limit considerations would be reader-aware documentation, not procedural. The agent's core behavior is 'flag key assumptions' which is inherently reader-focused.\"\n}\n```"
+        },
+        {
+          "passed": false,
+          "verdict": "READER_AWARE_DOCUMENTATION",
+          "expected": "READER_AWARE_DOCUMENTATION",
+          "reason_excerpt": "The agent definition explicitly requires 'Always flag 2-3 key assumptions or trade-offs explicitly' and states 'the implementer's output is not just code but also a decision log.' The Self-Critique Pa",
+          "verdict_match": true,
+          "reason_match": false,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"READER_AWARE_DOCUMENTATION\",\n  \"reason\": \"The agent definition explicitly requires 'Always flag 2-3 key assumptions or trade-offs explicitly' and states 'the implementer's output is not just code but also a decision log.' The Self-Critique Pass asks 'Would a stranger understand without asking? If not, simplify or add a comment explaining *why*.' The handoff section requires confidence reasoning and recommended next steps. The agent is designed to produce code that communicates design intent to reviewers (qa/critic agents) who see only the diff. Comments explaining pagination strategy, error handling choices, and rate limit considerations would be reader-aware documentation, not procedural. The agent's core behavior is 'flag key assumptions' which is inherently reader-focused.\"\n}\n```"
+        },
+        {
+          "passed": false,
+          "verdict": "READER_AWARE_DOCUMENTATION",
+          "expected": "READER_AWARE_DOCUMENTATION",
+          "reason_excerpt": "The agent definition explicitly requires 'Always flag 2-3 key assumptions or trade-offs explicitly' and states 'the implementer's output is not just code but also a decision log.' The Self-Critique Pa",
+          "verdict_match": true,
+          "reason_match": false,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"READER_AWARE_DOCUMENTATION\",\n  \"reason\": \"The agent definition explicitly requires 'Always flag 2-3 key assumptions or trade-offs explicitly' and states 'the implementer's output is not just code but also a decision log.' The Self-Critique Pass asks 'Would a stranger understand without asking? If not, simplify or add a comment explaining *why*.' The Handoff section requires returning 'Confidence: HIGH/MEDIUM/LOW with reasoning' and 'Recommended next step.' These are all reader-aware documentation requirements\u2014the agent must anticipate what the next human or agent (qa/critic) needs to understand the change. The comment in the code is not just procedural documentation of what the code does, but context for the reviewer about design choices, assumptions, and trade-offs.\"\n}\n```"
+        },
+        {
+          "passed": false,
+          "verdict": "READER_AWARE_DOCUMENTATION",
+          "expected": "READER_AWARE_DOCUMENTATION",
+          "reason_excerpt": "The agent definition explicitly requires 'Always flag 2-3 key assumptions or trade-offs explicitly' and states 'the implementer's output is not just code but also a decision log.' The Self-Critique Pa",
+          "verdict_match": true,
+          "reason_match": false,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"READER_AWARE_DOCUMENTATION\",\n  \"reason\": \"The agent definition explicitly requires 'Always flag 2-3 key assumptions or trade-offs explicitly' and states 'the implementer's output is not just code but also a decision log.' The Self-Critique Pass asks 'Would a stranger understand without asking? If not, simplify or add a comment explaining *why*.' The Handoff section requires returning 'Confidence: HIGH/MEDIUM/LOW with reasoning' and 'Recommended next step.' These are all reader-aware documentation requirements\u2014the agent must anticipate what the next agent (qa/critic) needs to understand the change. The comment in the code is not just procedural documentation of what the code does, but context for the reviewer about design choices, assumptions, and trade-offs.\"\n}\n```"
+        }
+      ],
+      "treatment_runs": [
+        {
+          "passed": true,
+          "verdict": "READER_AWARE_DOCUMENTATION",
+          "expected": "READER_AWARE_DOCUMENTATION",
+          "reason_excerpt": "The agent definition explicitly states 'write code that survives a stranger reading it cold: name things for the reader; document invariants the diff alone cannot show; cite canonical sources when you",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"READER_AWARE_DOCUMENTATION\",\n  \"reason\": \"The agent definition explicitly states 'write code that survives a stranger reading it cold: name things for the reader; document invariants the diff alone cannot show; cite canonical sources when your code mirrors them.' The Reviewer Asymmetry section emphasizes that the reviewer has fresh context and sees only the diff, not the reasoning or trade-offs. The Self-Critique Pass asks 'Would a stranger understand without asking?' This forces documentation that explains *why* (invariants, design rationale, canonical patterns) rather than *what* (which the code already shows). The comment requirement in the scenario aligns with this: it must convey design choices the diff cannot show, making the code comprehensible to a cold reader.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "READER_AWARE_DOCUMENTATION",
+          "expected": "READER_AWARE_DOCUMENTATION",
+          "reason_excerpt": "The agent definition explicitly states 'write code that survives a stranger reading it cold: name things for the reader; document invariants the diff alone cannot show; cite canonical sources when you",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"READER_AWARE_DOCUMENTATION\",\n  \"reason\": \"The agent definition explicitly states 'write code that survives a stranger reading it cold: name things for the reader; document invariants the diff alone cannot show; cite canonical sources when your code mirrors them.' The Reviewer Asymmetry section emphasizes that the reviewer has fresh context and sees only the diff, not the reasoning or trade-offs. Therefore, the implementation must include comments explaining WHY choices were made (e.g., why pagination is structured a certain way, what invariants the code maintains, what GitHub API quirks it handles), not just WHAT the code does. This is reader-aware documentation that anticipates the adversarial reviewer's cold-read perspective, distinct from procedural documentation that merely describes steps.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "READER_AWARE_DOCUMENTATION",
+          "expected": "READER_AWARE_DOCUMENTATION",
+          "reason_excerpt": "The agent definition explicitly states 'write code that survives a stranger reading it cold: name things for the reader; document invariants the diff alone cannot show; cite canonical sources when you",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"READER_AWARE_DOCUMENTATION\",\n  \"reason\": \"The agent definition explicitly states 'write code that survives a stranger reading it cold: name things for the reader; document invariants the diff alone cannot show; cite canonical sources when your code mirrors them.' The Reviewer Asymmetry section emphasizes that the reviewer has fresh context and sees only the diff, not the reasoning or trade-offs. Therefore, the implementation must include comments explaining WHY choices were made (e.g., why pagination is structured a certain way, what invariants the code maintains, what GitHub API quirks it handles), not just WHAT the code does. This is reader-aware documentation that anticipates the adversarial reviewer's cold-read perspective, distinct from procedural documentation that merely describes steps.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "READER_AWARE_DOCUMENTATION",
+          "expected": "READER_AWARE_DOCUMENTATION",
+          "reason_excerpt": "The agent definition explicitly states 'write code that survives a stranger reading it cold: name things for the reader; document invariants the diff alone cannot show; cite canonical sources when you",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"READER_AWARE_DOCUMENTATION\",\n  \"reason\": \"The agent definition explicitly states 'write code that survives a stranger reading it cold: name things for the reader; document invariants the diff alone cannot show; cite canonical sources when your code mirrors them.' The Reviewer Asymmetry section emphasizes that the reviewer has fresh context and sees only the diff, not the reasoning or trade-offs. Therefore, the implementation must include comments explaining WHY choices were made (e.g., why pagination is structured a certain way, what invariants the GitHub API enforces that aren't obvious from the code). This is reader-aware documentation\u2014anticipating what a cold reviewer needs to understand the design, not just procedural 'what this does' comments.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "READER_AWARE_DOCUMENTATION",
+          "expected": "READER_AWARE_DOCUMENTATION",
+          "reason_excerpt": "The agent definition explicitly states 'write code that survives a stranger reading it cold: name things for the reader; document invariants the diff alone cannot show; cite canonical sources when you",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"READER_AWARE_DOCUMENTATION\",\n  \"reason\": \"The agent definition explicitly states 'write code that survives a stranger reading it cold: name things for the reader; document invariants the diff alone cannot show; cite canonical sources when your code mirrors them.' The Reviewer Asymmetry section emphasizes that the reviewer has fresh context and sees only the diff, not the reasoning or trade-offs. Therefore, the implementation must include comments explaining WHY choices were made (e.g., why pagination is structured a certain way, what invariants the code maintains, what GitHub API constraints it respects), not just WHAT the code does. This is reader-aware documentation that anticipates the adversarial, fresh-context reviewer's needs, not procedural documentation that merely describes the steps.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "READER_AWARE_DOCUMENTATION",
+          "expected": "READER_AWARE_DOCUMENTATION",
+          "reason_excerpt": "The agent definition explicitly states 'write code that survives a stranger reading it cold: name things for the reader; document invariants the diff alone cannot show; cite canonical sources when you",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"READER_AWARE_DOCUMENTATION\",\n  \"reason\": \"The agent definition explicitly states 'write code that survives a stranger reading it cold: name things for the reader; document invariants the diff alone cannot show; cite canonical sources when your code mirrors them.' The Reviewer Asymmetry section emphasizes that the reviewer has fresh context and sees only the diff, not the reasoning or trade-offs. Therefore, the implementation must include comments explaining WHY choices were made (e.g., why pagination is structured a certain way, what invariants the code maintains, what edge cases are handled), not just WHAT the code does. This is reader-aware documentation that anticipates the adversarial reviewer's cold-read perspective, distinct from procedural documentation that merely describes steps.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "READER_AWARE_DOCUMENTATION",
+          "expected": "READER_AWARE_DOCUMENTATION",
+          "reason_excerpt": "The agent definition explicitly states 'write code that survives a stranger reading it cold: name things for the reader; document invariants the diff alone cannot show; cite canonical sources when you",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"READER_AWARE_DOCUMENTATION\",\n  \"reason\": \"The agent definition explicitly states 'write code that survives a stranger reading it cold: name things for the reader; document invariants the diff alone cannot show; cite canonical sources when your code mirrors them.' The Reviewer Asymmetry section emphasizes that the reviewer has fresh context and sees only the diff, not the reasoning or trade-offs. Therefore, the implementation must include comments explaining WHY choices were made (e.g., why pagination is structured a certain way, what invariants the GitHub API enforces that aren't obvious from the code). This is reader-aware documentation\u2014anticipating what a cold reviewer needs to understand the design, not just procedural 'what this does' comments.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "READER_AWARE_DOCUMENTATION",
+          "expected": "READER_AWARE_DOCUMENTATION",
+          "reason_excerpt": "The agent definition explicitly states 'write code that survives a stranger reading it cold: name things for the reader; document invariants the diff alone cannot show; cite canonical sources when you",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"READER_AWARE_DOCUMENTATION\",\n  \"reason\": \"The agent definition explicitly states 'write code that survives a stranger reading it cold: name things for the reader; document invariants the diff alone cannot show; cite canonical sources when your code mirrors them.' The Reviewer Asymmetry section emphasizes that the reviewer has fresh context and sees only the diff, not the reasoning or trade-offs. Therefore, the implementation must include comments explaining WHY choices were made (e.g., why pagination is structured a certain way, what invariants the code maintains, what edge cases are handled), not just WHAT the code does. This is reader-aware documentation that anticipates the adversarial, fresh-context reviewer's needs, not procedural documentation that merely describes the steps.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "READER_AWARE_DOCUMENTATION",
+          "expected": "READER_AWARE_DOCUMENTATION",
+          "reason_excerpt": "The agent definition explicitly states 'write code that survives a stranger reading it cold: name things for the reader; document invariants the diff alone cannot show; cite canonical sources when you",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"READER_AWARE_DOCUMENTATION\",\n  \"reason\": \"The agent definition explicitly states 'write code that survives a stranger reading it cold: name things for the reader; document invariants the diff alone cannot show; cite canonical sources when your code mirrors them.' The Reviewer Asymmetry section emphasizes that the reviewer has fresh context and sees only the diff, not the reasoning or trade-offs. Therefore, the implementation must include comments explaining WHY choices were made (e.g., why pagination is structured a certain way, what invariants the code maintains, what GitHub API quirks it handles), not just WHAT the code does. This is reader-aware documentation that anticipates the adversarial reviewer's cold-read perspective, distinct from procedural documentation that merely describes steps.\"\n}\n```"
+        },
+        {
+          "passed": true,
+          "verdict": "READER_AWARE_DOCUMENTATION",
+          "expected": "READER_AWARE_DOCUMENTATION",
+          "reason_excerpt": "The agent definition explicitly states 'write code that survives a stranger reading it cold: name things for the reader; document invariants the diff alone cannot show; cite canonical sources when you",
+          "verdict_match": true,
+          "reason_match": true,
+          "findings_match": true,
+          "findings_count": null,
+          "raw": "```json\n{\n  \"verdict\": \"READER_AWARE_DOCUMENTATION\",\n  \"reason\": \"The agent definition explicitly states 'write code that survives a stranger reading it cold: name things for the reader; document invariants the diff alone cannot show; cite canonical sources when your code mirrors them.' The Reviewer Asymmetry section emphasizes that the reviewer has fresh context and sees only the diff, not the reasoning or trade-offs. The Self-Critique Pass asks 'Would a stranger understand without asking?' This forces documentation that explains *why* (invariants, design rationale, canonical patterns) rather than *what* (which the code already shows). The comment requirement in the scenario aligns with this: it must explain design choices the diff cannot convey, making the code comprehensible to a cold reader.\"\n}\n```"
+        }
+      ]
+    }
+  ],
+  "by_agent": {
+    "critic": {
+      "n_control": 20,
+      "n_treatment": 20,
+      "control_pass_rate": 0.5,
+      "treatment_pass_rate": 1.0,
+      "delta": 0.5,
+      "fisher_exact_p_one_sided": 0.000218,
+      "z_score": 3.6515,
+      "z_test_p_one_sided": 0.00013,
+      "cohen_h": 1.5708,
+      "significant_at_alpha_0.05": true
+    },
+    "implementer": {
+      "n_control": 20,
+      "n_treatment": 20,
+      "control_pass_rate": 0.15,
+      "treatment_pass_rate": 1.0,
+      "delta": 0.85,
+      "fisher_exact_p_one_sided": 0.0,
+      "z_score": 5.4374,
+      "z_test_p_one_sided": 0.0,
+      "cohen_h": 2.3462,
+      "significant_at_alpha_0.05": true
+    },
+    "qa": {
+      "n_control": 20,
+      "n_treatment": 20,
+      "control_pass_rate": 1.0,
+      "treatment_pass_rate": 1.0,
+      "delta": 0.0,
+      "fisher_exact_p_one_sided": 1.0,
+      "z_score": 0.0,
+      "z_test_p_one_sided": 0.5,
+      "cohen_h": 0.0,
+      "significant_at_alpha_0.05": false
+    }
+  },
+  "overall": {
+    "n_control": 60,
+    "n_treatment": 60,
+    "control_pass_rate": 0.55,
+    "treatment_pass_rate": 1.0,
+    "delta": 0.45,
+    "fisher_exact_p_one_sided": 0.0,
+    "z_score": 5.9024,
+    "z_test_p_one_sided": 0.0,
+    "cohen_h": 1.4706,
+    "significant_at_alpha_0.05": true
+  },
+  "findings_count_stats": {
+    "qa": {
+      "n_control": 20,
+      "n_treatment": 20,
+      "control_mean": 5.2,
+      "treatment_mean": 6.85,
+      "u_y_treatment": 388.0,
+      "z_score": 5.347,
+      "p_one_sided": 0.0,
+      "significant_at_alpha_0.05": true
+    }
+  }
+}

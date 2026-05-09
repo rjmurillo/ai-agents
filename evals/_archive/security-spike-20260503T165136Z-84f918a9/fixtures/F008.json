@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "id": "F008",
+  "input": "Architecture review:\n\nA new internal feature would let our backend forward an end-user's bearer token (issued by our own IDP for our own SaaS) to a third-party AI provider's API as part of a request body. The third party stores request bodies for 30 days for abuse review per their published policy. The product team argues: 'the token is short-lived (60 min) and only grants read access to the user's own resources, so leaking it is low risk.' The token is currently used to authenticate the user against our SaaS. We have never sent this credential outside our trust boundary before. The change has no override mechanism for high-tier customers (regulated industries). Should this be merged as-is?",
+  "provenance": "synthetic",
+  "assertions": [
+    {"kind": "verdict", "expected_value": "ESCALATE"}
+  ],
+  "tags": ["verdict-escalate", "trust-boundary", "policy", "agent-discriminating"]
+}
