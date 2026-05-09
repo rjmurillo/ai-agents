@@ -38,7 +38,10 @@ These rules apply to every change in this repository.
    occurrence; the cost is one or more threads per dash, every PR. The rule binds
    identically to the Copilot-side mirror at
    `.github/instructions/universal.instructions.md`; do not regress one tree
-   while fixing the other. Refs Issue #1923.
+   while fixing the other. **Carve-out**: test fixtures under
+   `tests/hooks/fixtures/` are exempt because they intentionally carry the
+   prohibited bytes to exercise detection logic; the dash-guard hook and the
+   `validate_dash_prohibition` validator both skip that prefix. Refs Issue #1923.
 
 ## References
 

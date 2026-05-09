@@ -341,7 +341,7 @@ if [ "$IS_MERGE" != "1" ] && [ -n "$STAGED_MD_FILES" ]; then
         case "$dash_file" in
             node_modules/*|.venv/*|.serena/cache/*|tests/hooks/fixtures/*) continue ;;
         esac
-        if [ -f "$dash_file" ] && LC_ALL=C.UTF-8 grep -qI $'[\xe2\x80\x93\xe2\x80\x94]' "$dash_file" 2>/dev/null; then
+        if [ -f "$dash_file" ] && LC_ALL=C.UTF-8 grep -qI $'[\xe2\x80\x93\xe2\x80\x94]' -- "$dash_file" 2>/dev/null; then
             DASH_HITS+=("$dash_file")
         fi
     done <<< "$STAGED_MD_FILES"
