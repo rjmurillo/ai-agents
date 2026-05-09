@@ -23,11 +23,11 @@ The six questions, asked in order:
 
 | Label | Question |
 |-------|----------|
-| **Q1 Demand Reality** | Have three or more real people or systems explicitly requested this, or does real production data show the gap? Name them or cite the data. |
+| **Q1 Demand Reality** | Who has explicitly requested this? Name three or more individuals, teams, or systems by name. (Question is about requesters; production signals go to Q5.) |
 | **Q2 Status Quo** | What is the exact workaround users do today, step by step? |
 | **Q3 Desperate Specificity** | Name the single most blocked person or system right now. What exactly are they blocked on? |
 | **Q4 Narrowest Wedge** | What is the smallest possible deliverable that unblocks Q3, measured in hours of implementation? |
-| **Q5 Observation** | What have you directly observed (not predicted) that proves demand? Quote or cite. |
+| **Q5 Observation** | What direct production signal proves the gap exists? Cite a metric, log entry, error count, ticket, retro line, or trend. (Question is about signals; requesters go to Q1.) |
 | **Q6 Future-fit** | If the system grows 10x, does this feature still make sense, or does it become a liability? |
 
 Write the answers as a structured block (the `## Step 0 First Principles` block) with six `### Q1..Q6` subheads, each containing the author's verbatim answer. This block becomes the first section of the PRD produced in Step 6 and is consumed unchanged by Steps 1, 2, 3, and 9. Do not paraphrase; downstream steps depend on the verbatim answers.
@@ -102,13 +102,27 @@ Generic categories fail this test.
 
 When any trigger fires, halt and do not proceed to Step 1.
 
-**Halt message schema** (every halt MUST emit these five fields):
+**Halt emission format** (machine-readable; every halt MUST emit a fenced code block with info-string `step0-halt` containing five `key: value` lines):
 
-1. **Trigger ID**: `H1`, `H2`, `H3`, `H4`, or `H5`.
-2. **Question**: number and label that failed (`Q3 Desperate Specificity`).
-3. **Failing answer**: the author's answer verbatim, or the matched hedge phrase quoted.
-4. **Operational test that failed**: name the rule that was violated (e.g., `Q3 specificity test condition 1, 2, and 3 all failed`).
-5. **Deferral instruction**: a single line telling the author what to do (`Re-invoke /spec after naming a specific blocked entity, citing a ticket, or providing a verbatim quote of the original ask.`).
+````
+```step0-halt
+trigger: H3
+question: Q1 Demand Reality
+answer: "users would want this"
+test_failed: aspirational test condition 2 (future-tense `would want`)
+deferral: Re-invoke /spec after naming three or more specific requesters by name.
+```
+````
+
+The five fields are:
+
+1. `trigger`: `H1`, `H2`, `H3`, `H4`, or `H5`.
+2. `question`: number and label that failed (`Q3 Desperate Specificity`).
+3. `answer`: the author's answer verbatim (or the matched hedge phrase quoted) on a single line; multi-line answers fold to one line with `\n` escapes.
+4. `test_failed`: name the rule that was violated (e.g., `Q3 specificity test conditions 1, 2, 3 all failed`).
+5. `deferral`: a single-line instruction telling the author what to do.
+
+Downstream callers (orchestrators, review skills, CI gates) parse this block by its `step0-halt` info-string. Free-form prose halts that omit the fenced block are non-conforming and SHALL be re-emitted in this format.
 
 **Auto-mode behavior**: under auto-mode invocation (no human elicitation possible), the agent MUST halt with reason `STEP_0_REQUIRES_ELICITATION`, list each unanswered question, and return to the orchestrator. The agent MAY populate Step 0 from the source artifact (issue body, PR description) only when the source artifact contains the required structured fields verbatim. Free-form synthesis of Step 0 answers by the agent is prohibited. (Note: `STEP_0_REQUIRES_ELICITATION` is a prose convention in this version; no orchestrator caller currently parses it. Future iteration will add machine-readable halt protocol.)
 

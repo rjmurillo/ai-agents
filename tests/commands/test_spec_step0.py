@@ -5,7 +5,7 @@ Refs #1926, REQ-006, DESIGN-006, TASK-006, PLAN-1926.
 Verifies the static structure and parser-checkable behavior of Step 0
 instructions in `.claude/commands/spec.md` and its Copilot CLI mirror at
 `src/copilot-cli/skills/spec/SKILL.md`. The parser logic lives in
-`tests/commands/_step0_parser.py`; this file holds only test cases.
+`tests/commands/step0_parser.py`; this file holds only test cases.
 
 Six dynamic LLM-dependent cases (T2, T3, T4, T10, T12, T13) are documented
 manual spot-checks per PLAN-1926; they probe model interpretation of the
@@ -14,6 +14,7 @@ spec, not the spec text itself.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
@@ -118,6 +119,108 @@ def test_auto_mode_halt_token_in_skill_md(skill_text: str) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Drift guard: lifecycle command paths in `.claude/commands/` must match
+# the markdownlint and skill-validator exclusions. Adding a 7th lifecycle
+# command without updating the two exclusion lists silently re-includes
+# the new file in CI lint and validator passes — those passes will fail
+# on the file's lifecycle-shape frontmatter. This test catches the drift.
+# ---------------------------------------------------------------------------
+
+
+COMMANDS_DIR = PROJECT_ROOT / ".claude" / "commands"
+MARKDOWNLINT_CONFIG = PROJECT_ROOT / ".markdownlint-cli2.yaml"
+PRE_COMMIT_HOOK = PROJECT_ROOT / ".githooks" / "pre-commit"
+
+# These lifecycle commands have YAML frontmatter + `@CLAUDE.md` body shape
+# (no H1, no Triggers/Verification sections). They are excluded from
+# markdownlint MD041 and SkillForge structural validation. Other command
+# files (.claude/commands/*.md) follow normal markdown conventions.
+LIFECYCLE_COMMANDS = {"spec", "plan", "build", "test", "review", "ship"}
+
+
+def test_lifecycle_commands_exist_in_claude_commands_dir() -> None:
+    """Every lifecycle command name must have a corresponding .md file."""
+    for cmd in LIFECYCLE_COMMANDS:
+        path = COMMANDS_DIR / f"{cmd}.md"
+        assert path.exists(), f"missing {path}"
+
+
+def test_markdownlint_excludes_match_lifecycle_commands() -> None:
+    """`.markdownlint-cli2.yaml` ignores list must include every lifecycle command twice:
+    once for `.claude/commands/<name>.md` and once for the Copilot CLI
+    mirror at `src/copilot-cli/skills/<name>/SKILL.md`. A 7th lifecycle
+    command added to `.claude/commands/` without two corresponding
+    ignores entries is drift.
+    """
+    config = MARKDOWNLINT_CONFIG.read_text(encoding="utf-8")
+    for cmd in LIFECYCLE_COMMANDS:
+        claude_path = f'.claude/commands/{cmd}.md"'
+        copilot_path = f'src/copilot-cli/skills/{cmd}/SKILL.md"'
+        assert claude_path in config, (
+            f"markdownlint ignores missing entry for {cmd} (Claude Code): {claude_path}"
+        )
+        assert copilot_path in config, (
+            f"markdownlint ignores missing entry for {cmd} (Copilot CLI mirror): {copilot_path}"
+        )
+
+
+def test_halt_emission_format_present(spec_text: str) -> None:
+    """REQ-006-12 + Gate 5 #2: spec.md MUST define the machine-readable
+    `step0-halt` fenced-block format (info-string + 5 keys). Free-form
+    halt prose is non-conforming."""
+    assert "step0-halt" in spec_text, "halt emission info-string missing"
+    for required_key in ["trigger:", "question:", "answer:", "test_failed:", "deferral:"]:
+        assert required_key in spec_text, f"halt emission key missing: {required_key}"
+
+
+def test_q1_q5_differentiation_in_spec_md(spec_text: str) -> None:
+    """Gate 5 #1: Q1 (requesters) and Q5 (production signals) must be
+    differentiated in spec.md prose. Prevent the two questions from
+    collapsing back into duplicated 'evidence' shape."""
+    # Extract the questions table block.
+    table_match = re.search(
+        r"\| Label \| Question \|.*?\| \*\*Q6 Future-fit\*\*",
+        spec_text,
+        re.DOTALL,
+    )
+    assert table_match is not None, "Q1-Q6 table not found"
+    table = table_match.group(0)
+    # Q1 row must reference 'requesters' but not be conflated with signals.
+    q1_row = re.search(r"\*\*Q1 Demand Reality\*\*[^\n]*", table)
+    assert q1_row is not None, "Q1 row not found"
+    q1_text = q1_row.group(0)
+    assert "requested" in q1_text or "requesters" in q1_text, (
+        "Q1 must reference requesters/explicit asks"
+    )
+    # Q5 row must reference 'signal' or 'metric' or similar.
+    q5_row = re.search(r"\*\*Q5 Observation\*\*[^\n]*", table)
+    assert q5_row is not None, "Q5 row not found"
+    q5_text = q5_row.group(0)
+    assert any(token in q5_text.lower() for token in ["signal", "metric", "log", "ticket"]), (
+        "Q5 must reference production-signal evidence (metric/log/ticket)"
+    )
+
+
+def test_pre_commit_hook_excludes_match_lifecycle_commands() -> None:
+    """`.githooks/pre-commit` skill-validator filter must include every
+    lifecycle command in the Copilot CLI exclusion regex. A 7th lifecycle
+    command not in the regex is silently re-included in skill validation.
+    """
+    hook = PRE_COMMIT_HOOK.read_text(encoding="utf-8")
+    # The regex is on a known line; extract the alternation group.
+    match = re.search(
+        r"src/copilot-cli/skills/\(([\w|]+)\)/SKILL\\\.md",
+        hook,
+    )
+    assert match is not None, "pre-commit hook lifecycle exclusion regex not found"
+    regex_commands = set(match.group(1).split("|"))
+    assert regex_commands == LIFECYCLE_COMMANDS, (
+        f"pre-commit hook exclusion regex {regex_commands} != "
+        f"canonical lifecycle commands {LIFECYCLE_COMMANDS}"
+    )
+
+
+# ---------------------------------------------------------------------------
 # Static-2: edited sections byte-identical between spec.md and SKILL.md
 # ---------------------------------------------------------------------------
 
@@ -196,9 +299,11 @@ def test_t5_aspirational_q1_triggers_h3(hedge_phrases: list[str]) -> None:
 
 
 def test_t6_concrete_q1_passes(hedge_phrases: list[str]) -> None:
-    """T6: Q1 with three named teams + ticket numbers passes."""
+    """T6: Q1 with three named teams + ticket numbers passes the aspirational test."""
     answers = baseline_answers()
     assert evaluate_step0(answers, hedge_phrases) is None
+    # Stronger assertion: directly verify the Q1 test branch this case targets.
+    assert not q1_aspirational(answers["Q1"])
 
 
 def test_t7_generic_q3_triggers_h4(hedge_phrases: list[str]) -> None:
@@ -210,9 +315,11 @@ def test_t7_generic_q3_triggers_h4(hedge_phrases: list[str]) -> None:
 
 
 def test_t8_specific_q3_passes(hedge_phrases: list[str]) -> None:
-    """T8: Q3 with named individual + system + frequency passes."""
+    """T8: Q3 with named individual + system + frequency passes the specificity test."""
     answers = baseline_answers()
     assert evaluate_step0(answers, hedge_phrases) is None
+    # Stronger assertion: directly verify the Q3 test branch this case targets.
+    assert q3_specific(answers["Q3"])
 
 
 def test_t11_partial_completion_triggers_h5(hedge_phrases: list[str]) -> None:
