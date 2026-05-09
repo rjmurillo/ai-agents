@@ -381,19 +381,31 @@ def _branch_markdown_files(repo_root: Path) -> list[str] | None:
 def _find_dash_violations(
     repo_root: Path, paths: list[str],
 ) -> list[tuple[str, int]]:
-    """Read each path under ``repo_root`` and return (path, line_num) hits."""
+    """Read each committed path and return (path, line_num) hits.
+
+    Reads file content from the HEAD commit via ``git show HEAD:<path>``
+    rather than the working tree. The list of paths comes from
+    ``git diff <base>...HEAD --name-only``, so the scan target must be
+    the HEAD blob to match the diff scope. Reading the working tree
+    instead would give wrong answers when the working tree differs from
+    HEAD (uncommitted edits, partial staging, or a fresh checkout that
+    has not yet pulled the branch).
+    """
     violations: list[tuple[str, int]] = []
     for relpath in paths:
-        absolute = repo_root / relpath
-        if not absolute.is_file():
-            continue
-        try:
-            text = absolute.read_text(encoding="utf-8", errors="replace")
-        except OSError:
+        exit_code, stdout, _ = _run_subprocess(
+            ["git", "-C", str(repo_root), "show", f"HEAD:{relpath}"],
+            timeout=10,
+        )
+        if exit_code != 0:
+            # File deleted between base and HEAD, or removed at HEAD.
+            # `git diff` with the default --diff-filter would still list
+            # deletions; `git show HEAD:<path>` returns non-zero for
+            # those. Skip silently rather than fail-open the whole scan.
             continue
         violations.extend(
             (relpath, line_num)
-            for line_num, line in enumerate(text.splitlines(), start=1)
+            for line_num, line in enumerate(stdout.splitlines(), start=1)
             if _DASH_RE.search(line)
         )
     return violations

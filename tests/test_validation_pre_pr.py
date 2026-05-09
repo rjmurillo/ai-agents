@@ -433,23 +433,29 @@ class TestValidateDashProhibition:
     def test_returns_false_on_em_dash(self, tmp_path: Path) -> None:
         from scripts.validation.pre_pr import validate_dash_prohibition
 
-        bad = tmp_path / "doc.md"
-        bad.write_text(f"prose with {chr(0x2014)} em-dash\n", encoding="utf-8")
+        # _find_dash_violations now reads HEAD content via `git show`
+        # rather than the working tree. Mock the two subprocess calls
+        # in order: (1) git diff returns the file list, (2) git show
+        # returns the file content as if from HEAD.
         with patch("scripts.validation.pre_pr._resolve_branch_base_ref") as mock_ref, \
              patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
             mock_ref.return_value = "origin/main"
-            mock_run.return_value = (0, "doc.md\n", "")
+            mock_run.side_effect = [
+                (0, "doc.md\n", ""),  # git diff
+                (0, f"prose with {chr(0x2014)} em-dash\n", ""),  # git show
+            ]
             assert validate_dash_prohibition(tmp_path) is False
 
     def test_returns_false_on_en_dash(self, tmp_path: Path) -> None:
         from scripts.validation.pre_pr import validate_dash_prohibition
 
-        bad = tmp_path / "range.md"
-        bad.write_text(f"range 1{chr(0x2013)}10\n", encoding="utf-8")
         with patch("scripts.validation.pre_pr._resolve_branch_base_ref") as mock_ref, \
              patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
             mock_ref.return_value = "origin/main"
-            mock_run.return_value = (0, "range.md\n", "")
+            mock_run.side_effect = [
+                (0, "range.md\n", ""),
+                (0, f"range 1{chr(0x2013)}10\n", ""),
+            ]
             assert validate_dash_prohibition(tmp_path) is False
 
     def test_skips_vendored_paths(self, tmp_path: Path) -> None:
@@ -480,13 +486,13 @@ class TestValidateDashProhibition:
         """REQ-006-AC4: .github/instructions/ is NOT excluded."""
         from scripts.validation.pre_pr import validate_dash_prohibition
 
-        mirror = tmp_path / ".github" / "instructions" / "universal.instructions.md"
-        mirror.parent.mkdir(parents=True)
-        mirror.write_text(f"prose {chr(0x2014)} dash\n", encoding="utf-8")
         with patch("scripts.validation.pre_pr._resolve_branch_base_ref") as mock_ref, \
              patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
             mock_ref.return_value = "origin/main"
-            mock_run.return_value = (0, ".github/instructions/universal.instructions.md\n", "")
+            mock_run.side_effect = [
+                (0, ".github/instructions/universal.instructions.md\n", ""),
+                (0, f"prose {chr(0x2014)} dash\n", ""),
+            ]
             assert validate_dash_prohibition(tmp_path) is False
 
     def test_returns_true_when_git_diff_fails(self, tmp_path: Path) -> None:
@@ -498,3 +504,26 @@ class TestValidateDashProhibition:
             mock_ref.return_value = "origin/main"
             mock_run.return_value = (128, "", "fatal: bad revision")
             assert validate_dash_prohibition(tmp_path) is True
+
+    def test_reads_head_content_not_working_tree(self, tmp_path: Path) -> None:
+        """`_find_dash_violations` reads HEAD via `git show`, not the working tree.
+
+        Working-tree edit could differ from committed content. The branch-wide
+        scan must reflect what is committed (HEAD), since the diff scope
+        comes from `git diff base...HEAD`.
+        """
+        from scripts.validation.pre_pr import validate_dash_prohibition
+
+        # Working tree clean, but HEAD content (mocked) has em-dash:
+        # the function MUST flag it.
+        with patch("scripts.validation.pre_pr._resolve_branch_base_ref") as mock_ref, \
+             patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+            mock_ref.return_value = "origin/main"
+            mock_run.side_effect = [
+                (0, "doc.md\n", ""),
+                # HEAD content has dash; working tree (clean) does not.
+                (0, f"committed em-dash {chr(0x2014)} here\n", ""),
+            ]
+            # No file at tmp_path/doc.md (working tree). Function should
+            # still detect the violation because it reads HEAD content.
+            assert validate_dash_prohibition(tmp_path) is False
