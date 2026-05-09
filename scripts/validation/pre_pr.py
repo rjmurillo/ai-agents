@@ -242,14 +242,11 @@ def _gh_base_ref(repo_root: Path) -> str | None:
     Mirrors ``_gh_base_ref`` in ``.claude/hooks/PreToolUse/push_guard_base.py``
     (find via ``grep -n '^def _gh_base_ref' .claude/hooks/PreToolUse/push_guard_base.py``;
     called from ``_detect_default_base_ref``'s fallback chain) per
-    ``.claude/rules/canonical-source-mirror.md``. Verbatim canonical
-    rationale, quoted from the ``_detect_default_base_ref`` docstring step 1:
-
-        "1. The PR's actual ``baseRefName`` via ``gh pr view``. This is the
-           ground truth once a PR exists and handles the derivative-PR case
-           where the user has not run ``git push -u`` yet but the PR is
-           already opened against a non-default base. Fail-open: any gh
-           failure (missing CLI, no PR, auth, network) falls to step 2."
+    ``.claude/rules/canonical-source-mirror.md``. Rather than embed a
+    paraphrase of the canonical rationale here (which would drift when
+    either side edits prose), the canonical docstring is the source of
+    truth for the why; this function preserves the same fail-open
+    semantics and the same return-value contract.
 
     Implementation differences vs canonical:
     - Canonical uses GitHub Actions' ``GITHUB_HEAD_REF`` for the PR lookup;
@@ -278,25 +275,19 @@ def _resolve_branch_base_ref(repo_root: Path) -> str | None:
     Mirrors ``_detect_default_base_ref`` in
     ``.claude/hooks/PreToolUse/push_guard_base.py`` (find via
     ``grep -n '^def _detect_default_base_ref' .claude/hooks/PreToolUse/push_guard_base.py``)
-    per ``.claude/rules/canonical-source-mirror.md``. The canonical chain,
-    quoted verbatim from the ``_detect_default_base_ref`` docstring:
+    per ``.claude/rules/canonical-source-mirror.md``. Rather than embed a
+    fragile copy of the docstring here (which the bots rightly call out
+    as a load-bearing claim that drifts when either side edits prose),
+    the canonical rationale lives in the canonical file. Read it directly
+    via the grep recipe above; the chain is also summarized below for
+    quick reference, but the canonical is the source of truth.
 
-        "1. The PR's actual ``baseRefName`` via ``gh pr view``. This is the
-            ground truth once a PR exists and handles the derivative-PR case
-            where the user has not run ``git push -u`` yet but the PR is
-            already opened against a non-default base. Fail-open: any gh
-            failure (missing CLI, no PR, auth, network) falls to step 2.
-         2. The current branch's configured upstream (``@{u}``). When the user
-            has set tracking explicitly (``git push -u``,
-            ``git branch --set-upstream-to=...``), this is the right answer
-            for both mainline branches and derivative branches before the PR
-            exists. Hardcoding ``origin/main`` here would pull in the parent
-            branch's history.
-         3. The remote's default branch via ``refs/remotes/origin/HEAD``. The
-            documented "what does the remote consider default" answer for a
-            brand-new feature branch with no upstream and no PR yet.
-         4. ``origin/main`` as a last-resort literal so a misconfigured clone
-            still produces a sensible (if imperfect) reference."
+    Summary of the chain (numbers, not exact wording, are stable):
+
+        1. The PR's actual baseRefName via ``gh pr view`` (when a PR exists).
+        2. The current branch's configured upstream via ``@{u}``.
+        3. The remote's default branch via ``refs/remotes/origin/HEAD``.
+        4. ``origin/main`` as a last-resort literal.
 
     Stricter than canonical: this function additionally validates the
     PR base ref is locally resolvable via ``git rev-parse --verify``
