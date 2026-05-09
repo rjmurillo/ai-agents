@@ -93,19 +93,20 @@ EXIT_STATUS=0
 echo_error() { echo "ERROR: $1" >&2; }
 echo_info() { echo "$1" >&2; }
 if [ "$IS_MERGE" != "1" ] && [ -n "$STAGED_MD_FILES" ]; then
-    DASH_HITS=""
+    # CRITICAL-001: Build array safely to preserve filenames with spaces
+    DASH_HITS=()
     while IFS= read -r dash_file; do
         [ -z "$dash_file" ] && continue
         case "$dash_file" in
             node_modules/*|.venv/*|.serena/cache/*) continue ;;
         esac
         if [ -f "$dash_file" ] && LC_ALL=C.UTF-8 grep -qI $'[\xe2\x80\x93\xe2\x80\x94]' "$dash_file" 2>/dev/null; then
-            DASH_HITS="$DASH_HITS $dash_file"
+            DASH_HITS+=("$dash_file")
         fi
     done <<< "$STAGED_MD_FILES"
-    if [ -n "$DASH_HITS" ]; then
+    if [ ${#DASH_HITS[@]} -gt 0 ]; then
         echo_error "Em/en-dash prohibition violated"
-        for hit in $DASH_HITS; do
+        for hit in "${DASH_HITS[@]}"; do
             echo_info "    $hit"
         done
         EXIT_STATUS=1
