@@ -134,10 +134,6 @@ Analyzes codebase architecture, security posture, or code quality. Produces stru
 
 Assesses code maintainability through 5 foundational qualities: cohesion, coupling, DRY, encapsulation, and testability.
 
-### doc-coverage
-
-Detects missing documentation in code (XML docs, docstrings, JSDoc). Reports coverage gaps by file and symbol.
-
 ### incoherence
 
 Detects contradictions between documentation and code, ambiguous definitions, and inconsistent patterns across the codebase.
@@ -192,9 +188,9 @@ Classifies problems into Cynefin Framework domains (Clear, Complicated, Complex,
 
 ## Documentation
 
-### doc-sync
+### doc-accuracy
 
-Synchronizes CLAUDE.md navigation indexes and README.md architecture diagrams with the current codebase state.
+Multi-phase documentation verification treating code as source of truth. Consolidates incoherence detection, missing-doc coverage, navigation-index sync, and comment analysis into a single workflow.
 
 ### fix-markdown-fences
 

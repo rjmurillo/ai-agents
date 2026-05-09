@@ -189,8 +189,8 @@ model: claude-haiku-4-5
 
 ```yaml
 ---
-name: doc-sync
-description: Synchronizes CLAUDE.md navigation indexes and README.md architecture docs across a repository. Use when asked to "sync docs", "update CLAUDE.md files", "ensure documentation is in sync", or when documentation maintenance is needed after code changes.
+name: doc-accuracy
+description: Multi-phase documentation verification treating code as source of truth. Consolidates incoherence, doc-coverage, doc-sync, and comment-analyzer into a single workflow. Use when auditing documentation accuracy, verifying code examples compile, checking behavioral claims, or running pre-release doc audits.
 license: MIT
 model: claude-sonnet-4-6
 ---
