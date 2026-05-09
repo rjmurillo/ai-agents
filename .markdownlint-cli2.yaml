@@ -151,3 +151,15 @@ ignores:
   - ".claude/commands/test.md"
   - ".claude/commands/review.md"
   - ".claude/commands/ship.md"
+
+  # Copilot CLI mirrors of the lifecycle command files. Same structure as
+  # `.claude/commands/{spec,plan,build,test,review,ship}.md`: YAML frontmatter
+  # followed by `@CLAUDE.md` and prose, with no H1 heading. The Claude Code
+  # paths above were excluded; the Copilot CLI mirrors were missed in that
+  # PR and only surface when hooks are configured (see CONTRIBUTING.md).
+  - "src/copilot-cli/skills/spec/SKILL.md"
+  - "src/copilot-cli/skills/plan/SKILL.md"
+  - "src/copilot-cli/skills/build/SKILL.md"
+  - "src/copilot-cli/skills/test/SKILL.md"
+  - "src/copilot-cli/skills/review/SKILL.md"
+  - "src/copilot-cli/skills/ship/SKILL.md"
