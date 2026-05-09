@@ -6,7 +6,7 @@ Authors: provide context, satisfy preconditions, state expectations.
 Reviewers: explain *why*, reply within ~1 business day, prefer "approve with
 suggestions" for minor issues. The "Notes for Reviewers" section near the
 bottom of this template renders the full norms; see also
-`.gemini/styleguide.md`.
+[.gemini/styleguide.md](../.gemini/styleguide.md).
 -->
 
 ## Summary
@@ -132,7 +132,7 @@ substance, not on catching what tooling already catches.
 - [ ] Builds locally (or N/A)
 - [ ] Pre-PR validation passed (`python3 scripts/validation/pre_pr.py`; pass `--quick` to skip slow validations or `--skip-tests` for very fast iterations)
 - [ ] Lint and formatting clean (scoped to changed files)
-- [ ] Code follows project style guidelines (`.gemini/styleguide.md`)
+- [ ] Code follows project style guidelines ([.gemini/styleguide.md](../.gemini/styleguide.md))
 - [ ] Self-review completed (read the diff as if you did not write it)
 - [ ] Comments added only where the *why* is non-obvious
 - [ ] Documentation updated (if applicable)
