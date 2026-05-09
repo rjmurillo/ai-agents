@@ -348,6 +348,11 @@ _VENDORED_PREFIXES = (
 )
 
 
+def _is_vendored(path: str) -> bool:
+    """True when ``path`` starts with any vendored prefix."""
+    return any(path.startswith(prefix) for prefix in _VENDORED_PREFIXES)
+
+
 def _branch_markdown_files(repo_root: Path) -> list[str] | None:
     """Resolve branch base and return non-vendored markdown paths to scan.
 
@@ -449,11 +454,6 @@ def validate_dash_prohibition(repo_root: Path) -> bool:
         f"[PASS] Em/en-dash prohibition ({len(candidate_paths)} markdown file(s) checked)",
     )
     return True
-
-
-def _is_vendored(path: str) -> bool:
-    """True when ``path`` starts with any vendored prefix."""
-    return any(path.startswith(prefix) for prefix in _VENDORED_PREFIXES)
 
 
 def validate_workflow_yaml(repo_root: Path) -> bool:
