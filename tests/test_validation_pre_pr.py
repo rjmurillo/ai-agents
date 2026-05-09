@@ -426,8 +426,10 @@ class TestValidateDashProhibition:
         with patch("scripts.validation.pre_pr._resolve_branch_base_ref") as mock_ref, \
              patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
             mock_ref.return_value = "origin/main"
-            mock_run.return_value = (0, "README.md\nsrc/foo.py\n", "")
-            (tmp_path / "README.md").write_text("clean content\n", encoding="utf-8")
+            mock_run.side_effect = [
+                (0, "README.md\n", ""),  # git diff
+                (0, "clean content\n", ""),  # git show
+            ]
             assert validate_dash_prohibition(tmp_path) is True
 
     def test_returns_false_on_em_dash(self, tmp_path: Path) -> None:
