@@ -84,9 +84,12 @@ def test_node_modules_fixture_has_em_dash(fixture_dir: Path) -> None:
 import subprocess
 
 
-# Bash fragment mirrors .githooks/pre-commit lines 326-358 (the dash-check
-# section). Kept verbatim per .claude/rules/canonical-source-mirror.md so
-# changes to either side surface as a test diff.
+# Bash fragment adapted from .githooks/pre-commit lines 326-360 (the dash-check
+# section). Intentionally simplified for testing: omits informational output
+# lines (file header, fix instructions, rule reference) that don't affect
+# detection logic, and redirects echo_error/echo_info to stderr for test
+# assertions. The detection logic (grep pattern, exclusion paths, exit status)
+# matches the canonical source.
 _HOOK_FRAGMENT = r"""
 set -e
 EXIT_STATUS=0
