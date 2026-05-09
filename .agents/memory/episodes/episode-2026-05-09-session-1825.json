@@ -1,0 +1,43 @@
+{
+  "id": "episode-2026-05-09-session-1825",
+  "session": "2026-05-09-session-1825",
+  "timestamp": "2026-05-09T23:14:21.269854+00:00",
+  "outcome": "failure",
+  "task": "",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-05-09T23:14:21.267327+00:00",
+      "type": "commit",
+      "content": "Commit: 9adfcdae",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-05-09T23:14:21.267327+00:00",
+      "type": "error",
+      "content": "\"Evidence\": \"pre-commit hook ran markdownlint-cli2 on every commit (15 commits); 0 errors. Em-dashes removed from all 13 changed files in round-2 fix.\"",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-05-09T23:14:21.267327+00:00",
+      "type": "error",
+      "content": "\"Evidence\": \"pytest tests/commands/ passes 59/59; security-scan 0 vulns; golden-principles 0 violations; taste-lints 0 errors.\"",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 2,
+    "recoveries": 0,
+    "commits": 3,
+    "files_changed": 0
+  },
+  "lessons": []
+}

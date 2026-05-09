@@ -19,10 +19,10 @@ imports them directly):
 - `q1_aspirational(answer)`
 - `q3_specific(answer)`
 - `q5_speculative(answer)`
-- `evaluate_step0(answers, phrases)` — returns halt trigger (`H1..H5`) or `None`
-- `baseline_answers()` — fixture data for the canonical "passes" case
+- `evaluate_step0(answers, phrases)`: returns halt trigger (`H1..H5`) or `None`
+- `baseline_answers()`: fixture data for the canonical "passes" case
 - `extract_step0_block`, `extract_step1_paragraph`,
-  `extract_tier5_bullet`, `extract_step9_block` — section extractors for
+  `extract_tier5_bullet`, `extract_step9_block`: section extractors for
   byte-identical comparison between spec.md and SKILL.md
 """
 
@@ -31,11 +31,26 @@ from __future__ import annotations
 import re
 
 # Known technical-term suffixes that follow a hedge word but flip the
-# meaning. Example: `eventually consistent` is a load-bearing distributed-
-# systems term from .claude/rules/data-intensive-applications.md, not a
-# hedge. The suffix set below blocks these from triggering H1.
+# meaning. Example: `eventually consistent` and `eventually-consistent`
+# are load-bearing distributed-systems terms from .claude/rules/
+# data-intensive-applications.md, not hedges. The suffix set below
+# blocks both space-separated and hyphenated forms (cursor PR #1931
+# comment 3213964377). `hedge_match` strips leading whitespace AND
+# hyphens before extracting the suffix word, so `-consistent` from
+# "eventually-consistent" normalizes to `consistent`.
 HEDGE_TECHNICAL_SUFFIXES: dict[str, set[str]] = {
-    "eventually": {"consistent", "consistent.", "consistent,"},
+    # Bare word, plus common trailing punctuation that would otherwise
+    # break the suffix lookup (devin PR #1931 review comment 3213978113).
+    "eventually": {
+        "consistent",
+        "consistent.",
+        "consistent,",
+        "consistent;",
+        "consistent:",
+        "consistent)",
+        "consistent!",
+        "consistent?",
+    },
 }
 
 
@@ -70,7 +85,7 @@ def hedge_match(answer: str, phrases: list[str]) -> str | None:
 
     Match is case-insensitive AND word-boundary-aware. Phrase-specific
     technical-term suffixes (HEDGE_TECHNICAL_SUFFIXES) flip a hedge match
-    to a non-match — `eventually consistent` is a technical term, not a
+    to a non-match. `eventually consistent` is a technical term, not a
     hedge.
     """
     lower = answer.lower()
@@ -78,7 +93,7 @@ def hedge_match(answer: str, phrases: list[str]) -> str | None:
         pattern = r"\b" + re.escape(phrase.lower()) + r"\b"
         for match in re.finditer(pattern, lower):
             suffixes = HEDGE_TECHNICAL_SUFFIXES.get(phrase.lower(), set())
-            after = lower[match.end():].lstrip()
+            after = lower[match.end():].lstrip(" \t-")
             first_word = after.split(maxsplit=1)[0] if after else ""
             if first_word in suffixes:
                 continue
@@ -87,29 +102,44 @@ def hedge_match(answer: str, phrases: list[str]) -> str | None:
 
 
 def q1_aspirational(answer: str) -> bool:
-    """REQ-006-04 operational test: any one condition makes Q1 aspirational.
+    """REQ-006-04 operational test: any one of three conditions makes Q1 aspirational.
 
     Three conditions; any one fires:
     1. No specific named entity (person, team name, system, ticket, file).
     2. Future tense or conditional mood about demand existence.
-    3. Generic category ("the team", "stakeholders", "users in general").
+    3. Generic category appearing WITHOUT a specific named entity (so
+       "the team would benefit" fires; "Alice on the Payments team"
+       does not, because Alice + Payments team is a specific entity).
 
-    The named-entity detector requires a named team (capitalized noun
-    immediately preceding `team`/`service`/`squad`/`rotation`) — bare
-    `team` is NOT a positive signal because "the team" is itself a
-    generic category that should fail Q1.
+    Restored generic-category condition #3 per Copilot PR #1931 comments
+    3213975262 + 3213984488 (round-4 finding): the round-1 simplification
+    dropped this branch; the docstring claimed three conditions while the
+    code only checked two. Now matches the spec.md operational test.
+
+    Named-entity detector recognizes: `Person on the X`, `Capitalized
+    team/service/squad/rotation` (where Capitalized accepts PascalCase
+    like `KeyVault` and acronyms like `SRE` via `[A-Z][a-zA-Z]*`),
+    ticket numbers (`#123`, `PR 123`, `issue 123`), and file paths
+    (`.py`, `.md`, `.json`, `.yml`, `.yaml`, with or without backticks).
     """
     lower = answer.lower()
-    has_named_entity = bool(
-        re.search(
-            r"#\d+|"
-            r"[A-Z][a-z]+ on the |"
-            r"[A-Z][a-z]+ (team|service|squad|rotation)|"
-            r"\.py\b|\.md\b|\.json\b|\.yml\b|\.yaml\b|"
-            r"\bPR \d+|\bissue \d+",
-            answer,
-        )
+    cap_id = r"[A-Z][a-zA-Z]*"
+    team_suffix = r"(?:team|service|squad|rotation)"
+    entity_pattern = (
+        r"#\d+|"
+        rf"{cap_id} on (?:the )?{cap_id} {team_suffix}|"
+        rf"{cap_id} {team_suffix}|"
+        r"\.py\b|\.md\b|\.json\b|\.yml\b|\.yaml\b|"
+        r"\bPR \d+|\bissue \d+"
     )
+    entity_matches = re.findall(entity_pattern, answer)
+    named_entity_count = len(entity_matches)
+    has_named_entity = named_entity_count > 0
+    # Q1 aspirational condition 1 per spec.md and REQ-006-04: "fewer
+    # than three specific requesters". A single named requester is not
+    # enough (Copilot PR #1931 comments 3214013611, 3214013621; devin
+    # 3214020363).
+    has_too_few_requesters = named_entity_count < 3
     has_future_or_conditional = any(
         marker in lower
         for marker in [
@@ -121,8 +151,8 @@ def q1_aspirational(answer: str) -> bool:
             "when we have",
         ]
     )
-    is_generic = any(
-        marker in lower
+    is_generic = (not has_named_entity) and any(
+        re.search(r"\b" + re.escape(marker) + r"\b", lower)
         for marker in [
             "users in general",
             "engineers in general",
@@ -130,21 +160,61 @@ def q1_aspirational(answer: str) -> bool:
             "stakeholders",
             "developers in general",
             "all users",
+            "engineers",
+            "developers",
         ]
     )
-    return (not has_named_entity) or has_future_or_conditional or is_generic
+    return has_future_or_conditional or has_too_few_requesters or is_generic
 
 
 def q3_specific(answer: str) -> bool:
-    """REQ-006-05 operational test: must satisfy at least one specificity branch."""
-    has_named_individual = bool(re.search(r"\b[A-Z][a-z]+ on (the )?[A-Z]?[a-z]+", answer))
-    has_named_team = bool(
-        re.search(r"\b(rotation|on-call|squad|team)\b", answer)
-        and re.search(r"[A-Z][a-z]+", answer)
+    """REQ-006-05 operational test: must satisfy at least one specificity branch.
+
+    Three branches; any one passes:
+    1. Named individual: `Alice on the Payments team`.
+    2. Named team or rotation: any `rotation`/`on-call`/`squad`/`team`
+       qualifier with a preceding identifier (capitalized name OR an
+       acronym-style ALL-CAPS token like `SRE`). Spec.md gives both
+       `Felix on the Bleu/Delos rotation` (capitalized) and
+       `the SRE on-call` (acronym) as valid examples; both must pass.
+    3. Qualified system or component: `in prod-east`, `vN` version,
+       `path/to/file.py`, `path/to/file.md`.
+    """
+    has_named_individual = bool(
+        re.search(
+            # Same trailing-team-suffix gate as q1_aspirational to prevent
+            # "Based on the evidence" or "Reflected on the data" from
+            # matching (cursor PR #1931 commit f21777a6 + comment 3213953383).
+            # Slash-separated team names (`Bleu/Delos rotation`) are
+            # supported via the `(?:/[A-Z][a-zA-Z]*)*` alternation
+            # (devin PR #1931 comment 3214020343).
+            r"\b[A-Z][a-zA-Z]* on (?:the )?[A-Z][a-zA-Z]*(?:/[A-Z][a-zA-Z]*)* (?:team|service|squad|rotation)",
+            answer,
+        )
     )
+    # Named-team: either `the <CapId>` (definite article + capitalized
+    # team identifier) OR a bare acronym (`SRE`, `QA`), IMMEDIATELY
+    # followed by a team-keyword. Bare `[A-Z][a-zA-Z]*` would match
+    # sentence-initial `The` or `Storage`, causing false positives;
+    # the definite article requirement gates these out (cursor PR #1931
+    # commit 3cca172f + comment 3213988623).
+    has_named_team = bool(
+        re.search(
+            r"\b(?:the (?:[A-Z][a-zA-Z]*(?:/[A-Z][a-zA-Z]*)*|[A-Z]{2,})|[A-Z]{2,}) "
+            r"(?:rotation|on-call|squad|team|service)\b",
+            answer,
+        )
+    )
+    # Qualified system: word-bounded environment qualifiers (prevents
+    # `in deviation` from matching `in dev`. devin PR #1931 comment
+    # 3213990126), version `vN`, or file path with optional backticks
+    # (Copilot/cursor PR #1931 comments 3213984514 + 3213988625;
+    # spec.md example uses unquoted `get_pr_review_threads.py`).
     has_qualified_system = bool(
         re.search(
-            r"\bin (prod-|staging|dev|test)|\bv\d+|`[^`]+\.py`|`[^`]+\.md`",
+            r"\bin (?:prod-[a-z]+|staging|dev|test)\b|"
+            r"\bv\d+\b|"
+            r"`?\b[\w./-]+\.(?:py|md|json|yml|yaml)\b`?",
             answer,
         )
     )
@@ -152,13 +222,39 @@ def q3_specific(answer: str) -> bool:
 
 
 def q5_speculative(answer: str) -> bool:
-    """REQ-006-03 operational test: speculative if all three branches absent."""
+    """REQ-006-03 operational test: speculative if all three branches absent.
+
+    Q5 passes if any one of:
+    1. Answer contains a direct quote (text in `"..."` or fenced block).
+    2. Answer cites a metric, log entry, file path, commit SHA, PR
+       number, or named artifact.
+    3. Answer names a specific person, team, or system that described
+       the problem.
+
+    Per Copilot PR #1931 comment 3213984505: condition 3 was previously
+    `[A-Z][a-z]+ (said|reported|escalated|filed)` (person + verb), which
+    rejected named teams/systems. Now also recognizes named teams and
+    PascalCase systems via the same `[A-Z][a-zA-Z]*` pattern q1 uses.
+    """
     has_quote = '"' in answer or "```" in answer
     has_citation = bool(
-        re.search(r"#\d+|PR\s*\d+|issue\s*\d+|`[^`]+`|line\s*\d+", answer, re.IGNORECASE)
+        re.search(
+            r"#\d+|PR\s*\d+|issue\s*\d+|`[^`]+`|line\s*\d+|"
+            # Bare file paths (path/file.py, file.md) without backticks.
+            r"\b[\w./-]+\.(?:py|md|json|yml|yaml)\b",
+            answer,
+            re.IGNORECASE,
+        )
     )
+    # Named source: capitalized identifier (person, team, or PascalCase
+    # system) followed by a reporting verb. Accepts "Felix reported",
+    # "Bleu team escalated", "KeyVault timed out", "the SRE on-call filed".
     has_named_source = bool(
-        re.search(r"\b[A-Z][a-z]+\s+(said|reported|escalated|filed)\b", answer)
+        re.search(
+            r"\b(?:[A-Z][a-zA-Z]*|[A-Z]{2,})(?:\s+\w+){0,3}\s+"
+            r"(?:said|reported|escalated|filed|timed|errored|crashed|failed|exceeded)\b",
+            answer,
+        )
     )
     return not (has_quote or has_citation or has_named_source)
 

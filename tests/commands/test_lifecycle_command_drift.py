@@ -57,7 +57,7 @@ LIFECYCLE_COMMANDS = _discover_lifecycle_commands()
 def test_canonical_set_matches_known_lifecycle_commands() -> None:
     """Sanity: the auto-discovered set matches the documented set as of
     issue #1926. If a new lifecycle command lands, update this expected
-    set in the same PR — that signals the author has consciously taken
+    set in the same PR. That signals the author has consciously taken
     on the additional drift-guard surface."""
     expected = {"spec", "plan", "build", "test", "review", "ship"}
     assert LIFECYCLE_COMMANDS == expected, (
@@ -79,14 +79,24 @@ def test_markdownlint_excludes_match_lifecycle_commands() -> None:
     command twice: once for `.claude/commands/<name>.md` and once for the
     Copilot CLI mirror at `src/copilot-cli/skills/<name>/SKILL.md`.
     """
+    # Match the path inside any YAML quoting (single, double, or
+    # unquoted) by anchoring on the path string itself with surrounding
+    # boundary chars (line break, comment, list marker, quote).
+    # Per coderabbit PR #1931 comment 3213980868: the previous trailing-
+    # double-quote anchor failed if the YAML formatter switched style.
     config = MARKDOWNLINT_CONFIG.read_text(encoding="utf-8")
     for cmd in LIFECYCLE_COMMANDS:
-        claude_path = f'.claude/commands/{cmd}.md"'
-        copilot_path = f'src/copilot-cli/skills/{cmd}/SKILL.md"'
-        assert claude_path in config, (
+        claude_path = f".claude/commands/{cmd}.md"
+        copilot_path = f"src/copilot-cli/skills/{cmd}/SKILL.md"
+        # Use a regex that allows surrounding quotes (any style) or no
+        # quotes; anchored on path-component boundary (start of line,
+        # whitespace, list marker, or quote char).
+        claude_re = rf"(?:^|[\s\-\"'])\.claude/commands/{re.escape(cmd)}\.md(?:[\s\"']|$)"
+        copilot_re = rf"(?:^|[\s\-\"'])src/copilot-cli/skills/{re.escape(cmd)}/SKILL\.md(?:[\s\"']|$)"
+        assert re.search(claude_re, config, re.MULTILINE), (
             f"markdownlint ignores missing entry for {cmd} (Claude Code): {claude_path}"
         )
-        assert copilot_path in config, (
+        assert re.search(copilot_re, config, re.MULTILINE), (
             f"markdownlint ignores missing entry for {cmd} (Copilot CLI mirror): {copilot_path}"
         )
 
@@ -94,13 +104,25 @@ def test_markdownlint_excludes_match_lifecycle_commands() -> None:
 def test_pre_commit_hook_excludes_match_lifecycle_commands() -> None:
     """`.githooks/pre-commit` skill-validator filter must include every
     lifecycle command in the Copilot CLI exclusion regex.
+
+    Per gemini-code-assist review (PR #1931 comment 3213946213): the
+    extraction regex anchors on path-component boundaries (`(?<=^| )` /
+    leading whitespace before `src/`, end-of-pattern `$/SKILL\\.md$`)
+    so the matched alternation cannot accidentally span an unrelated
+    portion of the hook text.
     """
+    # Allow `[\w-]` in alternatives so a hyphenated lifecycle name (e.g.
+    # `foo-bar`) does not break extraction. Per coderabbit PR #1931
+    # comment 3213980871.
     hook = PRE_COMMIT_HOOK.read_text(encoding="utf-8")
     match = re.search(
-        r"src/copilot-cli/skills/\(([\w|]+)\)/SKILL\\\.md",
+        r"\^src/copilot-cli/skills/\(([\w|\-]+)\)/SKILL\\\.md\$",
         hook,
     )
-    assert match is not None, "pre-commit hook lifecycle exclusion regex not found"
+    assert match is not None, (
+        "pre-commit hook lifecycle exclusion regex not found "
+        "(expected anchored `^src/copilot-cli/skills/(...)/SKILL\\.md$` literal)"
+    )
     regex_commands = set(match.group(1).split("|"))
     assert regex_commands == LIFECYCLE_COMMANDS, (
         f"pre-commit hook exclusion regex {regex_commands} != "

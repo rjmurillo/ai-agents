@@ -81,15 +81,17 @@ def test_step1_references_step0_block(spec_text: str) -> None:
 
 
 def test_tier5_replaces_why_not_simpler(spec_text: str) -> None:
-    """AC-8: Tier 5 bullet replaces the standalone 'why not simpler?' challenge.
+    """AC-8: Tier 5 bullet must contain `Re-validate Step 0 Q4` AND must
+    NOT contain the phrase `why not simpler?`.
 
-    The bullet may mention "why not simpler?" as a meta-reference to the v1
-    text being replaced; the structural check is that the active directive
-    is the Q4 re-validation, not the v1 standalone challenge directive.
+    Round-4 update (Copilot PR #1931 comments 3213975201/3213975231/
+    3213975270/3213975277): the meta-reference to v1 text was removed
+    from the spec.md and SKILL.md Tier 5 bullets so the grep check is
+    strict (REQ-006 AC-8: the phrase must be absent).
     """
     tier5_text = extract_tier5_bullet(spec_text)
     assert "Re-validate Step 0 Q4" in tier5_text
-    assert "Explicit why not simpler?" not in tier5_text
+    assert "why not simpler?" not in tier5_text
 
 
 def test_step9_contains_binary_checks(spec_text: str) -> None:
@@ -294,11 +296,18 @@ def test_t6_concrete_q1_passes(hedge_phrases: list[str]) -> None:
 
 
 def test_t7_generic_q3_triggers_h4(hedge_phrases: list[str]) -> None:
-    """T7: generic Q3 ('engineers in general') fires H3 (aspirational) or H4 (specificity)."""
+    """T7: generic Q3 fires H4 specifically.
+
+    The baseline fixture's Q1 names three teams + ticket numbers, so
+    Q1 is concrete (does not fire H3). Q5 cites a specific issue, so
+    H2 does not fire. The only halt left to fire on `engineers in general`
+    is H4 (Q3 specificity). Per Copilot review (PR #1931 comment
+    3213949077): allowing both H3 and H4 means a regression that
+    incorrectly fires H3 on a concrete Q1 would silently pass.
+    """
     answers = baseline_answers()
     answers["Q3"] = "engineers in general"
-    trigger = evaluate_step0(answers, hedge_phrases)
-    assert trigger in {"H3", "H4"}
+    assert evaluate_step0(answers, hedge_phrases) == "H4"
 
 
 def test_t8_specific_q3_passes(hedge_phrases: list[str]) -> None:
@@ -367,6 +376,14 @@ class TestHedgeMatch:
         """`eventually consistent` is a load-bearing technical term, not a hedge."""
         assert hedge_match("Storage is eventually consistent.", hedge_phrases) is None
 
+    def test_eventually_consistent_hyphenated_is_technical_term(self, hedge_phrases: list[str]) -> None:
+        """`eventually-consistent` (hyphenated form) must also be exempt.
+        Per cursor PR #1931 comment 3213964377: hyphen is a non-word boundary
+        for `\\b...\\b`, so the regex matches `eventually` inside
+        `eventually-consistent`. The suffix-table lookup compensates by
+        stripping the hyphen before checking the next word."""
+        assert hedge_match("Storage is eventually-consistent.", hedge_phrases) is None
+
     def test_eventually_alone_is_a_hedge(self, hedge_phrases: list[str]) -> None:
         assert hedge_match("This will eventually work.", hedge_phrases) == "eventually"
 
@@ -382,10 +399,25 @@ class TestQ1Aspirational:
     """Direct unit tests for `q1_aspirational`."""
 
     def test_named_team_passes(self) -> None:
-        assert not q1_aspirational("Bleu team escalated this in #1700.")
+        """Three named teams + tickets passes the >= 3 requesters rule."""
+        assert not q1_aspirational(
+            "Bleu team escalated #1700, Delos team filed #1820, Calc team filed #1850."
+        )
 
     def test_named_service_passes(self) -> None:
-        assert not q1_aspirational("KeyVault service failed three times.")
+        """Three named services satisfy the threshold."""
+        assert not q1_aspirational(
+            "KeyVault service failed three times. Auth service and Payments team filed #1700."
+        )
+
+    def test_pascalcase_service_passes(self) -> None:
+        """Per Copilot PR #1931 comment 3213964257: PascalCase identifiers
+        like `KeyVault`, `RPCEngine`, `SREDashboard` must qualify as named
+        entities. The regex now matches `[A-Z][a-zA-Z]*` to accept any
+        capitalized identifier. Three required to pass the >= 3 rule."""
+        assert not q1_aspirational(
+            "KeyVault team escalated #1700; RPCEngine service filed #1820; the SRE rotation noted #1850."
+        )
 
     def test_ticket_only_passes(self) -> None:
         assert not q1_aspirational("Three teams reported issues in #1700, #1820, #1850.")
@@ -403,6 +435,24 @@ class TestQ1Aspirational:
     def test_no_named_entity_fails(self) -> None:
         assert q1_aspirational("there is demand for this feature")
 
+    def test_one_named_requester_fails_three_or_more_rule(self) -> None:
+        """Q1 aspirational condition 1: fewer than three named requesters
+        triggers H3. A single team name is not enough (Copilot PR #1931
+        comments 3214013611, 3214013613, 3214013621; devin 3214020363)."""
+        assert q1_aspirational("Bleu team escalated KeyVault deploy failures")
+
+    def test_two_named_requesters_fails(self) -> None:
+        """Two named requesters still under the >= 3 threshold."""
+        assert q1_aspirational(
+            "Bleu team and Delos team escalated KeyVault deploy failures"
+        )
+
+    def test_three_or_more_named_requesters_passes(self) -> None:
+        """Three named requesters satisfies the threshold."""
+        assert not q1_aspirational(
+            "Bleu team and Delos team and Calc team escalated #1700, #1820, #1850"
+        )
+
 
 class TestQ3Specific:
     """Direct unit tests for `q3_specific`."""
@@ -412,6 +462,14 @@ class TestQ3Specific:
 
     def test_named_rotation_passes(self) -> None:
         assert q3_specific("the SRE on-call hit this last Tuesday.")
+
+    def test_slash_separated_team_passes(self) -> None:
+        """Spec.md gives `Felix on the Bleu/Delos rotation` as a valid
+        Q3 example. Both `has_named_individual` and `has_named_team`
+        regexes now allow `/`-separated team identifiers (devin PR
+        #1931 comment 3214020343)."""
+        assert q3_specific("Felix on the Bleu/Delos rotation, blocked daily.")
+        assert q3_specific("the Bleu/Delos rotation hit this.")
 
     def test_qualified_system_passes(self) -> None:
         assert q3_specific("the auth service in prod-east times out.")

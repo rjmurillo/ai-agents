@@ -9,7 +9,8 @@ epic: spec-pipeline-quality
 related:
   - DESIGN-006
   - TASK-006
-  - issue: 1926
+tags:
+  - issue-1926
 author: spec-agent
 created: 2026-05-09
 updated: 2026-05-09
@@ -32,7 +33,7 @@ The Step 0 hypothesis was tested against `.agents/retrospective/` for the prior 
 
 | Case | Retrospective | Question | Quote | Cost |
 |---|---|---|---|---|
-| 1 | `2026-05-05-pr-1887-iteration-paradox.md` Phase 6 | Q1, Q5 | "A separate retrospective question — 'is the M2-M5 framework worth building at all if its design space misses the dominant failure modes?' — is out of scope for this retro." | 69 commits, 11+ review rounds; framework solves a real problem but not *the* problem |
+| 1 | `2026-05-05-pr-1887-iteration-paradox.md` Phase 6 | Q1, Q5 | "A separate retrospective question. 'is the M2-M5 framework worth building at all if its design space misses the dominant failure modes?'. is out of scope for this retro." | 69 commits, 11+ review rounds; framework solves a real problem but not *the* problem |
 | 2 | `2026-05-05-pr-1887-iteration-paradox.md` Phase 6 | Q5 | "this PR's iteration cost was driven by multi-bot-reviewer concurrency and pagination-cliff masking, not by the RCA's named failure modes... The RCA picked failure modes it could quantify; the expensive failure modes resist quantification" | RCA #1884 anchored on observable-but-non-dominant failure modes |
 | 3 | `2025-12-15-drift-detection-disaster.md` | Q1 | "Inverted source of truth: Modified Claude to match templates, which is backwards" | Premise inverted from day one; user escalation, context overflow |
 | 4 | `2026-01-03-adr-workflow-bypass.md` | Q1, Q5 | ADR-039 created without delegation; skipped multi-agent workflow | Orphaned 10KB file; session 128 incomplete; work repeated |
@@ -56,11 +57,11 @@ SO THAT no clarification work begins on unvalidated demand.
 
 ### REQ-006-02: Hedge phrase triggers halt
 
-WHEN any Step 0 answer contains a hedge phrase from the canonical list (Section: Hedge Phrase List) as a case-insensitive substring match
+WHEN any Step 0 answer contains a hedge phrase from the canonical list (Section: Hedge Phrase List) as a case-insensitive **word-boundary** match
 THE SYSTEM SHALL halt and cite the specific question that failed and quote the matched phrase
 SO THAT premature specs are blocked at the gate without false-positive halts on RFC 2119 requirement language.
 
-The hedge check applies only to author-supplied answers, not to system-generated prompt text or instruction quotations. Single words "should," "might," and "could" in isolation are not hedges (they conflict with RFC 2119); only the multi-word phrases listed are halt triggers.
+The hedge check applies only to author-supplied answers, not to system-generated prompt text or instruction quotations. The list is mostly multi-word phrases plus a few unambiguous single-word entries (`probably`, `eventually`, `someday`). Single words "should," "might," and "could" in isolation are excluded from the list because they conflict with RFC 2119. The hyphenated technical term `eventually-consistent` is exempted via a suffix-table lookup (`HEDGE_TECHNICAL_SUFFIXES` in `tests/commands/step0_parser.py`).
 
 ### REQ-006-03: Speculative Observation triggers halt (operational test)
 
@@ -82,7 +83,7 @@ THE SYSTEM SHALL halt, cite Question 1 as the failing gate, and document the def
 SO THAT aspirational demand does not consume specification resources.
 
 **Operational test for "aspirational" (any one of the three conditions makes Q1 aspirational)**:
-1. The answer names no specific person, team, system, or data source.
+1. The answer names fewer than three specific requesters (people, teams, systems, or data sources). Q1 explicitly asks for three or more; a single named requester or "two teams" is not enough.
 2. The answer uses future tense or conditional mood about demand existence (examples: "users would want," "if customers start," "when we have," "would be useful").
 3. The answer is generic ("users in general," "engineers," "the team," "stakeholders," "developers").
 
@@ -133,7 +134,7 @@ SO THAT Step 0 violations surface before the spec ships.
 - FAIL if the spec's primary user shifted to a different audience, OR Q3's named entity no longer appears in the PRD.
 
 **Check 9c (Narrowest Wedge drift)**:
-- PASS: the PRD's scope (acceptance criteria + user stories) is bounded by the Q4 wedge — every requirement traces to or narrows the wedge.
+- PASS: the PRD's scope (acceptance criteria + user stories) is bounded by the Q4 wedge. every requirement traces to or narrows the wedge.
 - FAIL if any acceptance criterion adds scope beyond the wedge without the wedge being formally widened in a documented revision.
 
 If any of 9a, 9b, 9c FAILs, the critic SHALL surface the failure as a blocking finding with the specific Q1/Q3/Q4 quote that drifted.
@@ -176,7 +177,7 @@ Measurement: a tally is kept in `.agents/sessions/STEP-0-METRICS.md` (one line p
 
 ## Context
 
-The spec pipeline (`.claude/commands/spec.md`) currently opens with problem clarification (Step 1). Engineers and AI agents frequently skip "why are we doing this?" and proceed directly to "what should it do?". First Principles thinking — applied as a gate, not a retrospective — forces the author to answer six specific questions before spending any downstream resources. The gate pattern mirrors Elon Musk's five-step algorithm (question the requirement first) and the YC "desperate specificity" heuristic.
+The spec pipeline (`.claude/commands/spec.md`) currently opens with problem clarification (Step 1). Engineers and AI agents frequently skip "why are we doing this?" and proceed directly to "what should it do?". First Principles thinking. applied as a gate, not a retrospective. forces the author to answer six specific questions before spending any downstream resources. The gate pattern mirrors Elon Musk's five-step algorithm (question the requirement first) and the YC "desperate specificity" heuristic.
 
 ### Hedge Phrase List (canonical, REQ-006-02)
 
@@ -214,7 +215,7 @@ Authors who need RFC 2119 "should" semantics in a Step 0 answer are using the wr
 2. **H2**: Question 5 (Observation) fails the speculative test (REQ-006-03).
 3. **H3**: Question 1 (Demand Reality) fails the aspirational test (REQ-006-04).
 4. **H4**: Question 3 (Desperate Specificity) fails the specificity test (REQ-006-05).
-5. **H5**: Partial completion — fewer than all six questions answered (REQ-006-11).
+5. **H5**: Partial completion. fewer than all six questions answered (REQ-006-11).
 
 ### Halt Message Schema
 
@@ -240,8 +241,8 @@ Each AC is split into static (file-level) and dynamic (session-level) checks whe
 - [ ] **AC-4**: When Q1 fails the operational aspirational test (REQ-006-04), the halt message contains H3 plus Q1, the failing answer, and the specific condition that failed (no named entity, future tense, OR generic category).
 - [ ] **AC-5**: When Q3 fails the operational specificity test (REQ-006-05), the halt message contains H4 plus Q3, the failing answer, and the specific test branch that failed.
 - [ ] **AC-6 (dynamic)**: When Step 0 passes, the PRD artifact's first section is `## Step 0 First Principles` with six labelled subfields (`### Q1 Demand Reality`, `### Q2 Status Quo`, etc.) each containing the author's verbatim answer.
-- [ ] **AC-7a (static)**: `.claude/commands/spec.md` Step 2 prose contains the directive "Do not re-elicit Q1-Q6." (or semantically equivalent text grep-verifiable as `Q1-Q6` in Step 2).
-- [ ] **AC-7b (static)**: `.claude/commands/spec.md` Step 2 prose references the Step 0 block by name (grep `Step 0` in Step 2 section).
+- [ ] **AC-7a (static)**: `.claude/commands/spec.md` Step 1 prose (item "1. Clarify the problem") contains the directive "Do not re-elicit Q1-Q6 here." (or semantically equivalent text grep-verifiable as `Q1-Q6` in Step 1).
+- [ ] **AC-7b (static)**: `.claude/commands/spec.md` Step 1 prose references the Step 0 block by name (grep `Step 0` in Step 1 paragraph).
 - [ ] **AC-8 (static)**: `.claude/commands/spec.md` Tier 5 bullet does NOT contain the phrase "why not simpler?" AND DOES contain the phrase "Re-validate Step 0 Q4". Both verifiable by grep.
 - [ ] **AC-9**: Step 9 prose contains three labelled checks (Check 9a, 9b, 9c) each phrased as a binary PASS/FAIL assertion per REQ-006-09. Each check has explicit pass conditions.
 - [ ] **AC-10 (static)**: The body delta applied to `src/copilot-cli/skills/spec/SKILL.md` is byte-identical to the delta applied to `.claude/commands/spec.md` for the four edited sections. Verifiable by `diff` of the two files restricted to the edited sections.

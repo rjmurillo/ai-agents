@@ -17,7 +17,7 @@ If $ARGUMENTS is empty, ask the user what problem to solve. Do not proceed witho
 
 ### Step 0: First Principles Gate (blocking, runs before Step 1)
 
-Before any clarification work, answer six forcing questions. The gate exists because every retro citing wasted spec work in the last six months traces to a question this gate forces upfront — the strongest single citation is `.agents/retrospective/2026-05-05-pr-1887-iteration-paradox.md` Phase 6, where the retro itself names the question this gate asks ("is the framework worth building at all if its design space misses the dominant failure modes?") and explicitly defers it as out of scope. That deferral landed after 69 commits.
+Before any clarification work, answer six forcing questions. The gate exists because every retro citing wasted spec work in the last six months traces to a question this gate forces upfront. The strongest single citation is `.agents/retrospective/2026-05-05-pr-1887-iteration-paradox.md` Phase 6, where the retro itself names the question this gate asks ("is the framework worth building at all if its design space misses the dominant failure modes?") and explicitly defers it as out of scope. That deferral landed after 69 commits.
 
 The six questions, asked in order:
 
@@ -30,7 +30,7 @@ The six questions, asked in order:
 | **Q5 Observation** | What direct production signal proves the gap exists? Cite a metric, log entry, error count, ticket, retro line, or trend. (Question is about signals; requesters go to Q1.) |
 | **Q6 Future-fit** | If the system grows 10x, does this feature still make sense, or does it become a liability? |
 
-Write the answers as a structured block (the `## Step 0 First Principles` block) with six `### Q1..Q6` subheads, each containing the author's verbatim answer. This block becomes the first section of the PRD produced in Step 6 and is consumed unchanged by Steps 1, 2, 3, and 9. Do not paraphrase; downstream steps depend on the verbatim answers.
+Write the answers as a structured block (the `## Step 0 First Principles` block) with six `### Q1..Q6` subheads, each containing the author's verbatim answer. The block flows downstream as input: Step 1 (Clarify) reads it as problem context, Step 2 (`requirements-interview`) carries it into the PRD it produces, Step 3 (Tier classification) re-validates Q4 at Tier 5, Step 6 (`spec-generator`) formalizes the PRD into durable artifacts with this block as the first section, and Step 9 (critic pre-mortem) checks that Q1/Q3/Q4 did not drift. Do not paraphrase; downstream steps depend on the verbatim answers.
 
 #### Step 0 gate logic
 
@@ -42,7 +42,7 @@ Write the answers as a structured block (the `## Step 0 First Principles` block)
 4. Q3 passes the specificity test.
 5. Q5 passes the speculative test.
 
-**Canonical hedge phrase list** (multi-word phrases only; case-insensitive substring match; applied to author answers, not to system prompts or quoted instruction text):
+**Canonical hedge phrase list** (a mix of multi-word phrases and a few unambiguous single-word entries `probably`, `eventually`, `someday`, all of which read as hedges in standard English. Case-insensitive word-boundary match: `\bphrase\b`. The hyphenated technical term `eventually-consistent` is exempted via a suffix-table lookup in `step0_parser.py:HEDGE_TECHNICAL_SUFFIXES`. Applied to author answers, not to system prompts or quoted instruction text):
 
 | Phrase | Why it hedges |
 |---|---|
@@ -73,7 +73,7 @@ Single words `should`, `might`, `could` are NOT hedges in this list. They confli
 
 **Operational test for Q1 "aspirational"** (any one condition makes Q1 aspirational, triggering H3):
 
-1. The answer names no specific person, team, system, or data source.
+1. The answer names fewer than three specific requesters (people, teams, systems, or data sources). Q1 explicitly asks for three or more. A single named requester is not enough; either name three or document the deferral and re-invoke when the demand surfaces from more sources.
 2. The answer uses future tense or conditional mood about demand existence (`would want`, `if customers start`, `when we have`, `would be useful`).
 3. The answer is a generic category (`users in general`, `engineers`, `the team`, `stakeholders`, `developers`).
 
@@ -85,7 +85,7 @@ Single words `should`, `might`, `could` are NOT hedges in this list. They confli
 
 Generic categories fail this test.
 
-**Operational test for Q5 "speculative"** (Q5 is speculative if all three are absent — any one of the three present prevents the halt):
+**Operational test for Q5 "speculative"** (Q5 is speculative if all three are absent. Any one of the three present prevents the halt):
 
 1. The answer contains a direct quote (text in `"..."` or fenced block) from a ticket, message, comment, log, or document.
 2. The answer cites a metric, log entry, file path, commit SHA, PR number, or named artifact.
@@ -148,7 +148,7 @@ If any criterion fires, the gate is loosened or removed in a follow-up PR.
    - Tier 1-2 (Entry/Mid): Simple acceptance criteria. Skip CVA if single use case.
    - Tier 3 (Senior): CVA analysis required. Cross-team input. Design review gate.
    - Tier 4 (Staff): Alternatives analysis mandatory. ADR required. Stakeholder alignment. Challenge: "can this be decomposed into a simpler tier?"
-   - Tier 5 (Principal): Governance review. Multi-org consensus. Re-validate Step 0 Q4 (Narrowest Wedge) in the context of emerged complexity. If the wedge can be narrowed further without losing the unblocking value identified in Q3, narrow it before proceeding. (Replaces the v1 standalone "why not simpler?" challenge — Step 0 Q4 is the canonical wedge question for every tier.)
+   - Tier 5 (Principal): Governance review. Multi-org consensus. Re-validate Step 0 Q4 (Narrowest Wedge) in the context of emerged complexity. If the wedge can be narrowed further without losing the unblocking value identified in Q3, narrow it before proceeding. Step 0 Q4 is the canonical wedge question for every tier.
 4. Search for existing solutions in the codebase (grep for related patterns). Use the PRD's Integrations and Data model sections to scope the search.
 5. **CVA analysis (conditional)**: If the complexity tier is 3-5, or Tier 1-2 with multiple use cases, invoke Skill(skill="cva-analysis"): identify commonalities across the PRD's user stories, then variabilities, then relationships. Otherwise (Tier 1-2 single-use-case), set `CVA summary: N/A (single-use-case Tier 1-2)` and proceed.
 6. **Formalize the PRD into durable artifacts**: Task(subagent_type="spec-generator"). Pass every PRD section from step 2 (Problem, User stories, Data model, Integrations, Failure modes, Security, Observability, Acceptance criteria, Out of scope, Deferred, Open questions) plus the complexity tier from step 3 and the CVA summary from step 5 (which may be the `N/A` placeholder for skipped runs). The spec-generator agent writes:
@@ -160,13 +160,13 @@ If any criterion fires, the gate is loosened or removed in a follow-up PR.
 8. Invoke Skill(skill="decision-critic"): challenge assumptions before committing
 9. Task(subagent_type="critic"): You are a skeptical reviewer. Run a pre-mortem: assume this spec ships and fails. What broke first? What was missing? Then run three binary Step 0 validity checks against the final PRD; the critic SHALL NOT return APPROVED while any of 9a/9b/9c is FAIL.
 
-   - **Check 9a — Demand Reality drift**:
+   - **Check 9a, Demand Reality drift**:
      - PASS: PRD acceptance criteria, user stories, OR success metric reference at least one entity (person, team, system, metric, ticket, file path) named in Step 0 Q1.
      - FAIL otherwise. On FAIL: cite Q1 entities and the PRD's current entities verbatim.
-   - **Check 9b — Desperate Specificity drift**:
+   - **Check 9b, Desperate Specificity drift**:
      - PASS: PRD user stories or acceptance criteria still treat the Q3-named blocked entity as the primary unblocking target.
      - FAIL if (a) the spec's primary user shifted to a different audience, OR (b) Q3's named entity does not appear in the PRD. On FAIL: cite Q3's entity and the PRD's current primary user verbatim.
-   - **Check 9c — Narrowest Wedge drift**:
+   - **Check 9c, Narrowest Wedge drift**:
      - PASS: every PRD acceptance criterion either traces to the Q4 wedge or narrows it.
      - FAIL if any acceptance criterion adds scope beyond Q4 without a documented wedge revision. On FAIL: cite Q4 verbatim and list the AC entries that exceed the wedge.
 

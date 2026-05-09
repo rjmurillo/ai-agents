@@ -51,7 +51,7 @@
 
 **Tasks**:
 - TASK-006-5: Mirror to SKILL.md (XS, 1h)
-- TASK-006-6: ~~Verify XML file~~ — **resolved during planning**: `src/copilot-cli/skills/memory/spec/skill-specification.xml` is memory-skill XML metadata, not spec body. No edit needed. (0h)
+- TASK-006-6: ~~Verify XML file~~. **resolved during planning**: `src/copilot-cli/skills/memory/spec/skill-specification.xml` is memory-skill XML metadata, not spec body. No edit needed. (0h)
 
 **Exit Criteria**:
 - [ ] **Edited body sections only** of `src/copilot-cli/skills/spec/SKILL.md` are byte-identical to corresponding sections of `.claude/commands/spec.md`. Frontmatter and any pre-existing prose differences outside edited sections are out of scope. The "byte-identical" claim covers: (a) the new Step 0 block, (b) the Step 1 narrowing replacement text, (c) the Step 3 Tier 5 replacement text, (d) the Step 9 added checks.
@@ -64,7 +64,7 @@
 
 **Outcome**: Acceptance criteria are split into machine-verifiable (static + Python parser) and LLM-dependent (spot-checks). Machine cases are CI-stable; LLM cases are documented manual checks the implementer runs once with transcripts attached.
 
-**Rationale for split** (resolves pre-mortem F1 + critic Finding 6): the original "13 dynamic /spec invocations" plan was structurally untestable — each invocation costs 5-15 min, results are non-deterministic across model versions, no harness exists. Replaced with a Python pytest at `tests/commands/test_spec_step0.py` that:
+**Rationale for split** (resolves pre-mortem F1 + critic Finding 6): the original "13 dynamic /spec invocations" plan was structurally untestable. each invocation costs 5-15 min, results are non-deterministic across model versions, no harness exists. Replaced with a Python pytest at `tests/commands/test_spec_step0.py` that:
 1. Parses the canonical hedge phrase list out of `.claude/commands/spec.md` (extract the fenced table).
 2. Runs `re.search(phrase, answer, re.IGNORECASE)` against each T1-T13 input.
 3. Asserts which trigger fires (H1/H2/H3/H4/H5) per expected outcome.
@@ -77,8 +77,8 @@ This makes T1, T5, T6, T7, T8, T11 fully automated. T2, T3, T4, T10, T12, T13 re
 
 **Exit Criteria**:
 - [ ] `tests/commands/test_spec_step0.py` exists and passes
-- [ ] Static-1 (grep checks) passes — encoded in the same pytest
-- [ ] Static-2 (diff of edited sections between spec.md and SKILL.md is zero) passes — encoded in the same pytest
+- [ ] Static-1 (grep checks) passes. encoded in the same pytest
+- [ ] Static-2 (diff of edited sections between spec.md and SKILL.md is zero) passes. encoded in the same pytest
 - [ ] T2, T3, T4, T10, T12, T13 spot-checks executed; transcripts attached to PR with model+version stamp
 - [ ] Static check that H5 trigger phrase (e.g., "partial completion") is present in Step 0 block (covers T11 statically)
 
@@ -136,7 +136,7 @@ LLM spot-checks (TASK-006-8b: T2, T3, T4, T10, T12, T13) are not commits; they a
 | Step 9 additions overlap an existing critic check | LOW | LOW | Diff Step 9 before/after; merge rather than append if overlap |
 | Hedge phrase list still produces false positives in real use | MED | MED | Kill criteria (REQ-006-13) at 30-invocation review; tally written by Step 0 instruction (M1 exit criteria). At ≥30% false-positive rate, loosen list or remove standalone substring matching |
 | `STEP_0_REQUIRES_ELICITATION` halt has no caller that recognizes it | HIGH | LOW | Documented in plan + ADR-060 as a prose convention only. The halt is enforcement-by-instruction, not enforcement-by-protocol. Acceptable for v1; future iteration adds machine-readable halt protocol when an orchestrator caller is built |
-| Hedge substring matching degrades to LLM judgment-based pattern matching at runtime | HIGH | MED | Pytest parses the canonical hedge list out of spec.md and runs deterministic `re.search` on T1, T5, T6, T7, T8 inputs. The pytest catches drift between spec.md instruction text and real model behavior — the manual spot-checks (T2, T3, T4) document the H1/H2 boundary |
+| Hedge substring matching degrades to LLM judgment-based pattern matching at runtime | HIGH | MED | Pytest parses the canonical hedge list out of spec.md and runs deterministic `re.search` on T1, T5, T6, T7, T8 inputs. The pytest catches drift between spec.md instruction text and real model behavior. the manual spot-checks (T2, T3, T4) document the H1/H2 boundary |
 | spec.md and SKILL.md drift in future edits | HIGH (recurring pattern in this codebase per drift-detection retros) | MED | Pytest Static-2 check (diff of edited sections is zero) runs on every PR touching either file. New retro candidate if this fires |
 | Step 0 itself fails its own kill criteria within first 30 invocations | MED | LOW (designed in) | REQ-006-13 makes this expected; loosen or remove in follow-up PR |
 | LLM spot-checks (T2, T3, T4, T10, T12, T13) take longer than estimated | MED | LOW | Buffer: 1-2h band on TASK-006-8b. If spot-checks exceed 2h, document failures and stop; do not block PR on documenting all 6 |

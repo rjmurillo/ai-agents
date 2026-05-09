@@ -8,7 +8,8 @@ complexity: XS
 related:
   - DESIGN-006
   - REQ-006
-  - issue: 1926
+tags:
+  - issue-1926
 blocked_by: []
 blocks: []
 assignee: implementer
@@ -22,7 +23,7 @@ updated: 2026-05-09
 
 Edit two markdown files (`.claude/commands/spec.md` and `src/copilot-cli/skills/spec/SKILL.md`)
 to insert Step 0 First Principles gate, narrow Step 1, update Step 3 Tier 5, and add three
-Step 9 critic checks. Optionally write ADR-060. No new scripts, CI, or schemas.
+Step 9 critic checks. Optionally write ADR-060. No new CI workflow files or runtime schemas; the work introduces parser-based pytest helpers under `tests/commands/` (test_spec_step0.py, test_lifecycle_command_drift.py, step0_parser.py) so deterministic validation runs in the existing pytest suite.
 
 ## In Scope
 
@@ -56,7 +57,7 @@ Step 9 critic checks. Optionally write ADR-060. No new scripts, CI, or schemas.
 - [ ] Step 0 prose appears in `.claude/commands/spec.md` before the Step 1 heading (AC-1a).
 - [ ] All six questions are present and labelled Q1-Q6 with canonical text from DESIGN-006.
 - [ ] Pass criteria are stated: all six fields non-empty, no hedge phrase in any field, Q1/Q3/Q5 pass operational tests.
-- [ ] Canonical Hedge Phrase List is embedded as a fenced table with phrases-only entries (no standalone "should," "might," "could"). Note explaining RFC 2119 exclusion is present.
+- [ ] Canonical Hedge Phrase List is embedded as a fenced table with mostly multi-word phrases plus a few unambiguous single-word entries (`probably`, `eventually`, `someday`). The list MUST NOT include standalone "should," "might," or "could" (RFC 2119 collision). Note explaining the RFC 2119 exclusion is present.
 - [ ] Operational tests for "speculative" (Q5), "aspirational" (Q1), and "specific" (Q3) are embedded as fenced rules with checkable boolean conditions.
 - [ ] Five halt triggers are stated and numbered H1-H5 (H5 = partial completion explicitly).
 - [ ] HALT directive references the Halt Message Schema (5 required fields: trigger ID, question + label, failing answer verbatim, operational test that failed, deferral instruction).
@@ -143,13 +144,13 @@ before the spec ships.
 **Exact text for the three checks** (binary, with operational pass conditions):
 
 ```
-- **Check 9a — Demand Reality drift**:
+- **Check 9a. Demand Reality drift**:
   - PASS: PRD acceptance criteria, user stories, OR success metric reference at least one entity (person, team, system, metric, ticket, file path) named in Q1.
   - FAIL otherwise. On FAIL: cite Q1 entities and the PRD's current entities verbatim.
-- **Check 9b — Desperate Specificity drift**:
+- **Check 9b. Desperate Specificity drift**:
   - PASS: PRD user stories or acceptance criteria still treat the Q3-named blocked entity as the primary unblocking target.
   - FAIL if (a) the spec's primary user shifted, OR (b) Q3's named entity does not appear in the PRD. On FAIL: cite Q3's entity and the PRD's current primary user verbatim.
-- **Check 9c — Narrowest Wedge drift**:
+- **Check 9c. Narrowest Wedge drift**:
   - PASS: every PRD acceptance criterion either traces to the Q4 wedge or narrows it.
   - FAIL if any AC adds scope beyond Q4 without a documented wedge revision. On FAIL: cite Q4 verbatim and list the AC entries that exceed the wedge.
 - **Critic verdict gate**: if any of 9a/9b/9c is FAIL, the critic emits a blocking finding and cannot return APPROVED.
@@ -266,11 +267,15 @@ None (validation only; evidence documented in PR description).
 
 ## Testing Requirements
 
-Tier 1 complexity. No automated test suite required. Verification is manual per TASK-006-8.
+Tier 1 complexity. Parser-based automated checks are required for deterministic validation; LLM spot-checks are documented as supplemental evidence per TASK-006-8.
 
-If the implementer chooses to add an automated smoke test:
-- A pytest or Pester test that asserts the Step 0 block text appears in `spec.md` before any Step 1 heading text is sufficient.
-- Place under `tests/commands/` if created.
+The pytest harness lives under `tests/commands/`:
+
+- `test_spec_step0.py` (44 tests): static structure, byte-identical mirror, parser-checkable scenarios, halt-emission example block parsing.
+- `test_lifecycle_command_drift.py` (4 tests): canonical lifecycle command set discovered from filesystem; drift-guard against `.markdownlint-cli2.yaml` and `.githooks/pre-commit` exclusion lists.
+- `step0_parser.py` (helper module): canonical Python implementation of REQ-006-02 through REQ-006-05 operational tests.
+
+LLM spot-checks (T2, T3, T4, T10, T12, T13) probe model interpretation; they are documented in PR description, not run by pytest.
 
 ## Effort Estimate
 
