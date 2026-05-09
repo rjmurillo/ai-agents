@@ -391,8 +391,18 @@ def file_matches(actual: str, mentioned: str) -> bool:
     return False
 
 
-# Em/en-dash detection regex. Uses Unicode escape sequences so this source
-# file does not contain U+2014 or U+2013 itself (Issue #1923, REQ-006-AC1).
+# Em/en-dash detection regex for PR title and body validation. The regex is
+# the same shape used by the pre-commit hook section, the commit-msg hook,
+# and `pre_pr.py:_DASH_RE`; this is the PR-description analogue.
+#
+# Uses Unicode escape sequences so this source file does not contain U+2014
+# or U+2013 itself (per `.claude/rules/universal.md` MUST NOT entry 5,
+# Issue #1923). REQ-006 acceptance criteria cover the four enforcement
+# placements: AC1/AC2 (pre-commit hook for staged files), AC3 (commit-msg
+# hook for commit messages), AC7 (pre_pr.py for branch-wide files), and the
+# universal.md prohibition itself (AC8). PR descriptions live in GitHub and
+# are not covered by any AC explicitly; this guard closes that gap and is
+# tracked under the broader Issue #1923 umbrella, not a specific AC.
 _DASH_RE: re.Pattern[str] = re.compile("[\\u2013\\u2014]")
 
 

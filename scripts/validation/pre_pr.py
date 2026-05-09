@@ -239,14 +239,23 @@ def validate_markdown_lint(repo_root: Path) -> bool:
 def _gh_base_ref(repo_root: Path) -> str | None:
     """Return ``origin/<baseRefName>`` for the open PR, or None.
 
-    When a PR exists for the current branch, ``baseRefName`` is the
-    ground truth. This handles the derivative-PR case where the user
-    has not run ``git push -u`` yet but the PR is already opened
-    against a non-default base. Fail-open semantics: any gh failure
-    (missing CLI, no PR, auth, network) returns None and the caller
-    falls through to the next signal in the chain.
+    Mirrors ``_gh_base_ref`` in ``.claude/hooks/PreToolUse/push_guard_base.py``
+    (function defined at line 287; called from the chain at line 348-350)
+    per ``.claude/rules/canonical-source-mirror.md``. Verbatim canonical
+    rationale, quoted from ``push_guard_base.py:_detect_default_base_ref``
+    docstring lines 331-336:
 
-    Mirrors ``_gh_base_ref`` in ``.claude/hooks/PreToolUse/push_guard_base.py``.
+        "1. The PR's actual ``baseRefName`` via ``gh pr view``. This is the
+           ground truth once a PR exists and handles the derivative-PR case
+           where the user has not run ``git push -u`` yet but the PR is
+           already opened against a non-default base. Fail-open: any gh
+           failure (missing CLI, no PR, auth, network) falls to step 2."
+
+    Implementation differences vs canonical:
+    - Canonical uses GitHub Actions' ``GITHUB_HEAD_REF`` for the PR lookup;
+      this function relies on ``gh pr view`` resolving the current branch.
+    - Both return ``origin/<baseRefName>`` on success and ``None`` on any
+      failure (fail-open). Refer to the canonical for the full explanation.
     """
     if not shutil.which("gh"):
         return None
@@ -266,14 +275,38 @@ def _gh_base_ref(repo_root: Path) -> str | None:
 def _resolve_branch_base_ref(repo_root: Path) -> str | None:
     """Resolve the branch base ref using the canonical fallback chain.
 
-    Mirrors the chain in ``.claude/hooks/PreToolUse/push_guard_base.py``
-    (``_detect_default_base_ref`` at lines 325-377) per
-    ``.claude/rules/canonical-source-mirror.md``:
+    Mirrors ``_detect_default_base_ref`` in
+    ``.claude/hooks/PreToolUse/push_guard_base.py`` (function at line 325;
+    canonical chain documented at lines 328-385) per
+    ``.claude/rules/canonical-source-mirror.md``. The canonical chain,
+    quoted verbatim from the docstring at lines 331-346:
 
-        1. ``gh pr view --json baseRefName`` (PR's actual base)
-        2. ``@{u}`` (per-branch upstream)
-        3. ``refs/remotes/origin/HEAD``
-        4. ``origin/main`` (last resort)
+        "1. The PR's actual ``baseRefName`` via ``gh pr view``. This is the
+            ground truth once a PR exists and handles the derivative-PR case
+            where the user has not run ``git push -u`` yet but the PR is
+            already opened against a non-default base. Fail-open: any gh
+            failure (missing CLI, no PR, auth, network) falls to step 2.
+         2. The current branch's configured upstream (``@{u}``). When the user
+            has set tracking explicitly (``git push -u``,
+            ``git branch --set-upstream-to=...``), this is the right answer
+            for both mainline branches and derivative branches before the PR
+            exists. Hardcoding ``origin/main`` here would pull in the parent
+            branch's history.
+         3. The remote's default branch via ``refs/remotes/origin/HEAD``. The
+            documented "what does the remote consider default" answer for a
+            brand-new feature branch with no upstream and no PR yet.
+         4. ``origin/main`` as a last-resort literal so a misconfigured clone
+            still produces a sensible (if imperfect) reference."
+
+    Stricter than canonical: this function additionally validates the
+    PR base ref is locally resolvable via ``git rev-parse --verify``
+    before returning it (see lines 282-287). The canonical assumes the
+    ref is valid because the caller will pass it to ``git diff`` and
+    fail there. This pre-validation lets the chain fall through cleanly
+    when the PR base exists on GitHub but is not yet fetched locally
+    (a common state right after the user opens the PR but before the
+    next ``git fetch``). The fallback chain itself (steps 2-4) is
+    identical to the canonical.
 
     Returns the first ref that resolves, or None when none resolve.
     """
