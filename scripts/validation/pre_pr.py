@@ -86,7 +86,7 @@ def _find_latest_session_log(repo_root: Path) -> Path | None:
 
 
 def _run_subprocess(
-    args: list[str], timeout: int = 300
+    args: list[str], timeout: int = 300, cwd: Path | str | None = None
 ) -> tuple[int, str, str]:
     """Run a subprocess and return (exit_code, stdout, stderr)."""
     try:
@@ -95,6 +95,7 @@ def _run_subprocess(
             capture_output=True,
             text=True,
             timeout=timeout,
+            cwd=cwd,
         )
         return result.returncode, result.stdout, result.stderr
     except FileNotFoundError:
@@ -252,6 +253,7 @@ def _gh_base_ref(repo_root: Path) -> str | None:
     exit_code, stdout, _ = _run_subprocess(
         ["gh", "pr", "view", "--json", "baseRefName", "-q", ".baseRefName"],
         timeout=5,
+        cwd=repo_root,
     )
     if exit_code != 0:
         return None
