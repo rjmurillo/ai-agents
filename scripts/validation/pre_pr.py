@@ -235,19 +235,55 @@ def validate_markdown_lint(repo_root: Path) -> bool:
     return True
 
 
+def _gh_base_ref(repo_root: Path) -> str | None:
+    """Return ``origin/<baseRefName>`` for the open PR, or None.
+
+    When a PR exists for the current branch, ``baseRefName`` is the
+    ground truth. This handles the derivative-PR case where the user
+    has not run ``git push -u`` yet but the PR is already opened
+    against a non-default base. Fail-open semantics: any gh failure
+    (missing CLI, no PR, auth, network) returns None and the caller
+    falls through to the next signal in the chain.
+
+    Mirrors ``_gh_base_ref`` in ``.claude/hooks/PreToolUse/push_guard_base.py``.
+    """
+    if not shutil.which("gh"):
+        return None
+    exit_code, stdout, _ = _run_subprocess(
+        ["gh", "pr", "view", "--json", "baseRefName", "-q", ".baseRefName"],
+        timeout=5,
+    )
+    if exit_code != 0:
+        return None
+    base = stdout.strip()
+    if not base:
+        return None
+    return f"origin/{base}"
+
+
 def _resolve_branch_base_ref(repo_root: Path) -> str | None:
     """Resolve the branch base ref using the canonical fallback chain.
 
     Mirrors the chain in ``.claude/hooks/PreToolUse/push_guard_base.py``
-    (``_detect_default_base_ref`` at line 328-368) per
+    (``_detect_default_base_ref`` at lines 325-377) per
     ``.claude/rules/canonical-source-mirror.md``:
 
-        1. ``@{u}`` (per-branch upstream)
-        2. ``refs/remotes/origin/HEAD``
-        3. ``origin/main`` (last resort)
+        1. ``gh pr view --json baseRefName`` (PR's actual base)
+        2. ``@{u}`` (per-branch upstream)
+        3. ``refs/remotes/origin/HEAD``
+        4. ``origin/main`` (last resort)
 
     Returns the first ref that resolves, or None when none resolve.
     """
+    pr_base = _gh_base_ref(repo_root)
+    if pr_base:
+        exit_code, _, _ = _run_subprocess(
+            ["git", "-C", str(repo_root), "rev-parse", "--verify", "--quiet", pr_base],
+            timeout=10,
+        )
+        if exit_code == 0:
+            return pr_base
+
     candidates = ("@{u}", "refs/remotes/origin/HEAD", "origin/main")
     for ref in candidates:
         exit_code, _, _ = _run_subprocess(
