@@ -40,7 +40,9 @@
     {"step": "Commit B: doc-accuracy description tense + MD040 lint fix", "outcome": "f937a114. Reworded 'Consolidates X' to 'replaced the former X (deleted 2026-05-09)'. Mirrored to src/copilot-cli/ + docs/SKILL-AUTHORING.md. Added 'text' lang identifier to two pre-existing unfenced code blocks."},
     {"step": "Commit C: REQ-006 AC5 + Deferred section + session 1828 log", "outcome": "a3c82a66. AC5 now points at generate_skills.py round-trip idempotence (not nonexistent detect_skill_drift.py). Deferred section lists 4 items routed to follow-up PRs."},
     {"step": "Commit D: ADR-040 + plugin.json factual count corrections", "outcome": "ADR-040:119 doc-sync removed from Tier 2 list, count 12->11, percentage 44.4%->42.3%. plugin.json: dropped literal '23 agents, 23 slash commands, 35 lifecycle hooks, 69 reusable skills' since real counts are 25/24/30/67."},
-    {"step": "Commit E: PLAN Decision Log workflow PRUNE rationale", "outcome": "Documented reversal of analysis F3 (KEEP as deprecation guide) -> spec/plan PRUNE. Cited migration table in docs/workflow-commands.md as the surviving documentation surface."}
+    {"step": "Commit E: PLAN Decision Log workflow PRUNE rationale", "outcome": "adfe9f5d. Documented reversal of analysis F3 (KEEP as deprecation guide) -> spec/plan PRUNE. Cited migration table in docs/workflow-commands.md as the surviving documentation surface."},
+    {"step": "Round 2 verification: 7 adversarial agents re-run", "outcome": "Verdicts: qa APPROVED, roadmap PASS, analyst WARN (3 NEW regressions), architect WARN (1 NEW regression). Architect/analyst flagged: triage-prompts.json doc-accuracy fixture hedge ('may be redundant'); ADR-040 Tier 1/3 percentages stale after Tier 2 changed denominator from 27 to 26."},
+    {"step": "Commit F: Round 2 fix-loop", "outcome": "Strengthened doc-accuracy fixture (deleted, not 'may be redundant'). Recalculated ADR-040 Tier 1 (40.7%->42.3%) and Tier 3 (14.8%->15.4%) on /26 denominator. Added historical caveat to ADR S356 section."}
   ],
   "endingCommit": "",
   "nextSteps": [

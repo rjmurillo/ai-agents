@@ -106,7 +106,7 @@
     ],
     "doc-accuracy": [
       {"prompt": "Run a pre-release documentation audit. What does doc-accuracy do?", "expected": "Multi-phase verification treating code as source of truth. Consolidates incoherence, doc-coverage, doc-sync, comment-analyzer. Verifies code examples compile, behavioral claims match implementation."},
-      {"prompt": "Does doc-accuracy replace doc-coverage and doc-sync?", "expected": "Per skill description it consolidates them into a single workflow. doc-coverage and doc-sync may be redundant when doc-accuracy is invoked."},
+      {"prompt": "Does doc-accuracy replace doc-coverage and doc-sync?", "expected": "Yes. doc-coverage and doc-sync were deleted 2026-05-09 (M1 prune); doc-accuracy is the canonical replacement. Symbol coverage detection lives in doc-accuracy Phase 1; structural index audit lives in Phase 6."},
       {"prompt": "What phases does the doc-accuracy workflow include?", "expected": "Coverage detection, sync of indexes, incoherence detection (docs vs code), comment analysis. Single audit produces consolidated report."},
       {"prompt": "Behavioral claim verification, how?", "expected": "Reads doc claim, locates implementation, asserts claim matches code behavior. Flags drift. Code is authoritative; doc adjusts."},
       {"prompt": "Which phase is most expensive?", "expected": "Behavioral claim verification. Requires reading code, understanding intent, comparing to doc. Other phases are largely structural."},

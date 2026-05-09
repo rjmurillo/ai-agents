@@ -115,9 +115,9 @@ Allocate models based on skill complexity:
 
 | Tier | Model | Cost | Use Cases | ai-agents Skills |
 |------|-------|------|-----------|------------------|
-| **Tier 1: Opus** | `claude-opus-4-6` | $5/$25 per MTok | Maximum reasoning, multi-agent orchestration, architectural decisions, meta-programming | 11 skills (40.7%): adr-review, skillcreator, planner, merge-resolver, github, analyze, decision-critic, research-and-incorporate, session-log-fixer, incoherence, memory |
+| **Tier 1: Opus** | `claude-opus-4-6` | $5/$25 per MTok | Maximum reasoning, multi-agent orchestration, architectural decisions, meta-programming | 11 skills (42.3%): adr-review, skillcreator, planner, merge-resolver, github, analyze, decision-critic, research-and-incorporate, session-log-fixer, incoherence, memory |
 | **Tier 2: Sonnet** | `claude-sonnet-4-6` | $3/$15 per MTok | Standard workflows, coding, documentation, memory operations, security detection | 11 skills (42.3%): doc-accuracy, memory systems, pr-comment-responder, programming-advisor, prompt-engineer, security-detection, serena-code-architecture |
-| **Tier 3: Haiku** | `claude-haiku-4-5` | $1/$5 per MTok | Speed-critical, simple pattern matching, high-frequency execution (hooks, validators) | 4 skills (14.8%): fix-markdown-fences, steering-matcher, session |
+| **Tier 3: Haiku** | `claude-haiku-4-5` | $1/$5 per MTok | Speed-critical, simple pattern matching, high-frequency execution (hooks, validators) | 4 skills (15.4%): fix-markdown-fences, steering-matcher, session |
 
 **Selection Matrix**:
 
@@ -219,14 +219,14 @@ allowed-tools: Bash(gh:*), Bash(pwsh:*), Read, Write
 > **Superseded 2026-04-30**: The "move into metadata" steps below were reversed. SkillForge validator now requires `name`, `version`, `description`, `license`, and `model` at **top level** (see Field Status table in Section 2 and the validator at `scripts/validation/skill_frontmatter.py`). Skills that ship today have `model` and `version` top-level. The bullets below are retained as historical record of the original Phase 1 plan.
 
 **Session #S356** (2026-01-03):
-- Update all 27 skills to use model aliases
+- Update all 27 skills to use model aliases (catalog count at that time; the 2026-05-09 M1 prune reduced the assigned-tier population to 26)
 - ~~Restructure frontmatter (version/model into metadata object, per SkillForge validator)~~ Reversed; top-level retained.
 - Validate against SkillForge packaging requirements
 - Branch: `fix/update-skills-valid-frontmatter`
 
-**Changes Required** (original plan; superseded, see note above):
+**Changes Required** (original plan; superseded, see note above; counts reflect S356 catalog state, not current):
 - 11 skills: Move `model: claude-opus-4-6` from top-level to `metadata.model`
-- 12 skills: Move `model: claude-sonnet-4-6` from top-level to `metadata.model`
+- 12 skills: Move `model: claude-sonnet-4-6` from top-level to `metadata.model` (now 11 after 2026-05-09 prune)
 - 4 skills: Move `model: claude-haiku-4-5` from top-level to `metadata.model`
 - All skills: Move `version` from top-level to `metadata.version`
 - All skills: Convert dated snapshots to aliases where appropriate
