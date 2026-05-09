@@ -12,6 +12,27 @@ If $ARGUMENTS is empty, ask the user what problem to solve. Do not proceed witho
 
 ## Process
 
+### Step 0: First Principles Gate (blocking, runs before Step 1)
+
+Before any clarification work, answer six forcing questions. The gate exists because every retro citing wasted spec work in the last six months traces to a question this gate forces upfront — the strongest single citation is `.agents/retrospective/2026-05-05-pr-1887-iteration-paradox.md` Phase 6, where the retro itself names the question this gate asks ("is the framework worth building at all if its design space misses the dominant failure modes?") and explicitly defers it as out of scope. That deferral landed after 69 commits.
+
+The six questions, asked in order:
+
+| Label | Question |
+|-------|----------|
+| **Q1 Demand Reality** | Have three or more real people or systems explicitly requested this, or does real production data show the gap? Name them or cite the data. |
+| **Q2 Status Quo** | What is the exact workaround users do today, step by step? |
+| **Q3 Desperate Specificity** | Name the single most blocked person or system right now. What exactly are they blocked on? |
+| **Q4 Narrowest Wedge** | What is the smallest possible deliverable that unblocks Q3, measured in hours of implementation? |
+| **Q5 Observation** | What have you directly observed (not predicted) that proves demand? Quote or cite. |
+| **Q6 Future-fit** | If the system grows 10x, does this feature still make sense, or does it become a liability? |
+
+Write the answers as a structured block (the `## Step 0 First Principles` block) with six `### Q1..Q6` subheads, each containing the author's verbatim answer. This block becomes the first section of the PRD produced in Step 6 and is consumed unchanged by Steps 1, 2, 3, and 9. Do not paraphrase; downstream steps depend on the verbatim answers.
+
+After writing the block, evaluate it against the gate logic in the next subsection.
+
+---
+
 1. Clarify the problem (what, who, why, constraints)
 2. **Run the adversarial requirements interview**: Invoke Skill(skill="requirements-interview") to walk the design tree before any further analysis. The skill grills the user on user stories, data model, integrations, failure modes, security, observability, and scope boundaries. For every question it must propose a recommended answer; if the codebase can answer it (grep the repo first), it does so without asking. Output is a structured PRD that every downstream step consumes. Carry the PRD forward unchanged through steps 3-9; do not drop sections.
 3. **Classify complexity tier**: Task(subagent_type="analyst"): Read `.claude/skills/analyze/references/engineering-complexity-tiers.md`. Using the structured PRD from step 2, classify the problem as Tier 1-5 based on scope, ambiguity, cross-team dependencies, and reversibility. Return the tier number, rationale, and recommended spec depth. Use this to calibrate remaining steps:
