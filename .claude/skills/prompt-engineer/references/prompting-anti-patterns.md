@@ -51,6 +51,7 @@ Tradeoff: citation constraints reduce creative output ~15-20% (arXiv 2307.02185)
 ### Engineering Restraint (CLAUDE.md Pattern)
 
 Priority order with explicit conflict resolution:
+
 1. Correctness (money/security/data integrity)
 2. Simplicity + clarity
 3. Maintainability

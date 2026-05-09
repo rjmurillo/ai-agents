@@ -161,6 +161,7 @@ Before presenting the final prompt, verify:
 ## Verification
 
 After optimization:
+
 - [ ] Every change has pattern attribution from reference document
 - [ ] No section contradicts another section
 - [ ] User approved Phase 2 plan before Phase 3 execution
