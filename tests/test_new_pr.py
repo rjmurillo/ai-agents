@@ -389,3 +389,100 @@ class TestWriteAuditLog:
         files = list((tmp_path / ".agents" / "audit").glob("*.txt"))
         content = files[0].read_text()
         assert "fallbackuser" in content
+
+
+# ---------------------------------------------------------------------------
+# Tests: Validation 5 (em/en-dash check on title and body, Issue #1923)
+# ---------------------------------------------------------------------------
+
+
+class TestValidation5DashCheck:
+    """Tests for Validation 5: em/en-dash guard on PR title and body."""
+
+    def test_clean_title_and_body_passes(self, tmp_path, capsys):
+        """No dashes in either title or body, run_validations completes."""
+        with patch(
+            "subprocess.run",
+            return_value=_completed(stdout="src/main.py\n", rc=0),
+        ):
+            run_validations(
+                str(tmp_path), "main", "feat/branch",
+                title="feat: clean title",
+                body="body without dashes",
+            )
+        out = capsys.readouterr()
+        assert "No prohibited characters" in out.out
+
+    def test_em_dash_in_title_blocks(self, tmp_path):
+        """Em-dash in title raises SystemExit(1)."""
+        with patch(
+            "subprocess.run",
+            return_value=_completed(stdout="src/main.py\n", rc=0),
+        ):
+            try:
+                run_validations(
+                    str(tmp_path), "main", "feat/branch",
+                    title=f"feat: bad {chr(0x2014)} title",
+                    body="clean body",
+                )
+            except SystemExit as e:
+                assert e.code == 1
+                return
+            raise AssertionError("Expected SystemExit(1)")
+
+    def test_en_dash_in_body_blocks(self, tmp_path):
+        """En-dash in body raises SystemExit(1)."""
+        with patch(
+            "subprocess.run",
+            return_value=_completed(stdout="src/main.py\n", rc=0),
+        ):
+            try:
+                run_validations(
+                    str(tmp_path), "main", "feat/branch",
+                    title="feat: clean",
+                    body=f"range {chr(0x2013)} 10",
+                )
+            except SystemExit as e:
+                assert e.code == 1
+                return
+            raise AssertionError("Expected SystemExit(1)")
+
+    def test_dash_in_body_file_blocks(self, tmp_path):
+        """Em-dash in body-file path raises SystemExit(1)."""
+        body_file = tmp_path / "body.md"
+        body_file.write_text(
+            f"# Body\n\nLine with em-dash {chr(0x2014)} here\n",
+            encoding="utf-8",
+        )
+        with patch(
+            "subprocess.run",
+            return_value=_completed(stdout="src/main.py\n", rc=0),
+        ):
+            try:
+                run_validations(
+                    str(tmp_path), "main", "feat/branch",
+                    title="feat: clean",
+                    body_file=str(body_file),
+                )
+            except SystemExit as e:
+                assert e.code == 1
+                return
+            raise AssertionError("Expected SystemExit(1)")
+
+    def test_em_dash_error_message_includes_line_number(self, tmp_path, capsys):
+        """Error stderr includes specific line numbers for actionable output."""
+        with patch(
+            "subprocess.run",
+            return_value=_completed(stdout="src/main.py\n", rc=0),
+        ):
+            try:
+                run_validations(
+                    str(tmp_path), "main", "feat/branch",
+                    title="feat: clean",
+                    body=f"line 1 clean\nline 2 has {chr(0x2014)} dash\nline 3 clean\n",
+                )
+            except SystemExit:
+                pass
+            stderr = capsys.readouterr().err
+            assert "line 2" in stderr
+            assert "Em-dash" in stderr or "em-dash" in stderr.lower()

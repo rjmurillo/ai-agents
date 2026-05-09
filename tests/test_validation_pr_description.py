@@ -1629,3 +1629,86 @@ class TestBypassLabel:
         assert "`weird'label`" in body
         # Audit marker still intact.
         assert "<!-- DESCRIPTION-VALIDATION-BYPASS -->" in body
+
+
+# ---------------------------------------------------------------------------
+# validate_no_dashes (Issue #1923, em/en-dash check on PR title and body)
+# ---------------------------------------------------------------------------
+
+
+class TestValidateNoDashes:
+    """Tests for validate_no_dashes: PR title/body em/en-dash detection."""
+
+    def test_clean_title_and_body_returns_no_issues(self) -> None:
+        from scripts.validation.pr_description import validate_no_dashes
+        issues = validate_no_dashes("feat: clean title", "body without dashes")
+        assert issues == []
+
+    def test_em_dash_in_title_returns_critical(self) -> None:
+        from scripts.validation.pr_description import validate_no_dashes
+        issues = validate_no_dashes(
+            f"feat: bad {chr(0x2014)} title", "clean body",
+        )
+        assert len(issues) == 1
+        assert issues[0].severity == "CRITICAL"
+        assert issues[0].issue_type == "Em/en-dash in PR title"
+        assert issues[0].file == "<pr-title>"
+
+    def test_en_dash_in_title_returns_critical(self) -> None:
+        from scripts.validation.pr_description import validate_no_dashes
+        issues = validate_no_dashes(
+            f"feat: range 1{chr(0x2013)}10", "clean body",
+        )
+        assert len(issues) == 1
+        assert issues[0].severity == "CRITICAL"
+
+    def test_em_dash_in_body_returns_critical_with_line_numbers(self) -> None:
+        from scripts.validation.pr_description import validate_no_dashes
+        body = (
+            "Line one is clean.\n"
+            f"Line two has em-dash {chr(0x2014)} here.\n"
+            "Line three is clean.\n"
+        )
+        issues = validate_no_dashes("feat: clean", body)
+        assert len(issues) == 1
+        assert issues[0].severity == "CRITICAL"
+        assert issues[0].issue_type == "Em/en-dash in PR description"
+        assert "line 2" in issues[0].message
+
+    def test_en_dash_in_body_returns_critical(self) -> None:
+        from scripts.validation.pr_description import validate_no_dashes
+        body = f"range {chr(0x2013)} here"
+        issues = validate_no_dashes("feat: clean", body)
+        assert len(issues) == 1
+        assert issues[0].severity == "CRITICAL"
+
+    def test_both_title_and_body_dirty_returns_two_issues(self) -> None:
+        from scripts.validation.pr_description import validate_no_dashes
+        issues = validate_no_dashes(
+            f"feat: bad {chr(0x2014)}",
+            f"body {chr(0x2013)} here",
+        )
+        assert len(issues) == 2
+        assert {i.file for i in issues} == {"<pr-title>", "<pr-body>"}
+
+    def test_many_dash_lines_truncates_sample(self) -> None:
+        from scripts.validation.pr_description import validate_no_dashes
+        body = "\n".join(f"line {n} {chr(0x2014)}" for n in range(1, 11))
+        issues = validate_no_dashes("feat: clean", body)
+        assert len(issues) == 1
+        assert "+5 more" in issues[0].message
+
+    def test_hyphen_does_not_trigger(self) -> None:
+        from scripts.validation.pr_description import validate_no_dashes
+        issues = validate_no_dashes(
+            "feat: hyphen-separated word",
+            "body with multi-word hyphen",
+        )
+        assert issues == []
+
+    def test_unicode_chars_with_e2_80_prefix_do_not_trigger(self) -> None:
+        """U+2019 (right single quote) shares E2 80 prefix; must not match."""
+        from scripts.validation.pr_description import validate_no_dashes
+        body = f"don{chr(0x2019)}t match this"
+        issues = validate_no_dashes("feat: clean", body)
+        assert issues == []
