@@ -8,7 +8,6 @@ complexity: M
 related:
   - DESIGN-006
   - REQ-006
-  - issue: 1923
 blocked_by: []
 blocks: []
 assignee: implementer
@@ -186,23 +185,28 @@ section site. Pattern:
 ```bash
 # Em/en-dash prohibition (Issue #1923, REQ-006-AC1, REQ-006-AC2)
 # Reuses STAGED_MD_FILES (line 186) and IS_MERGE (line 136-139) from this hook.
+# Uses bash array (DASH_HITS) so filenames with spaces are preserved through
+# iteration. Uses echo_error + EXIT_STATUS=1 (canonical pattern; no record_fail
+# helper exists in this hook, contrary to early spec text).
 if [ "$IS_MERGE" != "1" ] && [ -n "$STAGED_MD_FILES" ]; then
-    DASH_HITS=""
-    while IFS= read -r file; do
-        [ -z "$file" ] && continue
-        case "$file" in
+    DASH_HITS=()
+    while IFS= read -r dash_file; do
+        [ -z "$dash_file" ] && continue
+        case "$dash_file" in
             node_modules/*|.venv/*|.serena/cache/*) continue ;;
         esac
-        if LC_ALL=C.UTF-8 grep -qI $'[\xe2\x80\x93\xe2\x80\x94]' "$file" 2>/dev/null; then
-            DASH_HITS="$DASH_HITS $file"
+        if [ -f "$dash_file" ] && LC_ALL=C.UTF-8 grep -qI $'[\xe2\x80\x93\xe2\x80\x94]' "$dash_file" 2>/dev/null; then
+            DASH_HITS+=("$dash_file")
         fi
     done <<< "$STAGED_MD_FILES"
-    if [ -n "$DASH_HITS" ]; then
-        record_fail "Em/en-dash prohibition"
-        echo_info "  Files:$DASH_HITS"
+    if [ ${#DASH_HITS[@]} -gt 0 ]; then
+        echo_error "Em/en-dash prohibition violated"
+        echo_info "  Files containing U+2014 (em-dash) or U+2013 (en-dash):"
+        for hit in "${DASH_HITS[@]}"; do
+            echo_info "    $hit"
+        done
         echo_info "  Fix: replace U+2014 with comma/period/colon; U+2013 with hyphen; or restructure."
-    else
-        record_pass "Em/en-dash prohibition"
+        EXIT_STATUS=1
     fi
 fi
 ```

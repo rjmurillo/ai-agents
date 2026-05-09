@@ -38,7 +38,10 @@ universal.md rule close the enforcement gap.
 
 ### Branch 4: Failure Modes
 
-- Merge commit: skip (reuse existing IS_MERGE_COMMIT). CONFIRMED.
+- Merge commit: skip (reuse existing `IS_MERGE` flag at `.githooks/pre-commit:136-139`,
+  set from `[ -f "$REPO_ROOT/.git/MERGE_HEAD" ]`). CONFIRMED. Note: an earlier draft
+  said `IS_MERGE_COMMIT` and `git rev-parse -q --verify MERGE_HEAD`; both were
+  inaccurate against the canonical hook and corrected during /review.
 - Binary files: grep -I skips. CONFIRMED.
 - grep no-match: || true or check output emptiness. CONFIRMED.
 - Locale: LC_ALL=C.UTF-8 prefix for cross-platform safety. CONFIRMED.
