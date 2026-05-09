@@ -72,7 +72,138 @@ def test_node_modules_fixture_has_em_dash(fixture_dir: Path) -> None:
     assert "\u2014" in text, "vendored fixture should contain U+2014"
 
 
-# M3 (hook integration) and M4 (pre_pr.py validate_dash_prohibition) tests
-# extend this module. They import the production helpers and exercise the
-# detection logic with the same fixtures, so fixture invariants above act
-# as preconditions for those tests.
+# ---------------------------------------------------------------------------
+# M3a integration tests: pre-commit dash-check section
+# ---------------------------------------------------------------------------
+#
+# The dash-check section in .githooks/pre-commit reuses two variables from
+# earlier in the hook: IS_MERGE (line 136) and STAGED_MD_FILES (line 186).
+# These tests reproduce that section in isolation by invoking bash with the
+# two variables pre-set and capturing exit code and stderr.
+
+import subprocess
+
+
+# Bash fragment mirrors .githooks/pre-commit lines 326-358 (the dash-check
+# section). Kept verbatim per .claude/rules/canonical-source-mirror.md so
+# changes to either side surface as a test diff.
+_HOOK_FRAGMENT = r"""
+set -e
+EXIT_STATUS=0
+echo_error() { echo "ERROR: $1" >&2; }
+echo_info() { echo "$1" >&2; }
+if [ "$IS_MERGE" != "1" ] && [ -n "$STAGED_MD_FILES" ]; then
+    DASH_HITS=""
+    while IFS= read -r dash_file; do
+        [ -z "$dash_file" ] && continue
+        case "$dash_file" in
+            node_modules/*|.venv/*|.serena/cache/*) continue ;;
+        esac
+        if [ -f "$dash_file" ] && LC_ALL=C.UTF-8 grep -qI $'[\xe2\x80\x93\xe2\x80\x94]' "$dash_file" 2>/dev/null; then
+            DASH_HITS="$DASH_HITS $dash_file"
+        fi
+    done <<< "$STAGED_MD_FILES"
+    if [ -n "$DASH_HITS" ]; then
+        echo_error "Em/en-dash prohibition violated"
+        for hit in $DASH_HITS; do
+            echo_info "    $hit"
+        done
+        EXIT_STATUS=1
+    fi
+fi
+exit $EXIT_STATUS
+"""
+
+
+def _run_hook_fragment(
+    staged_md_files: str,
+    is_merge: str = "0",
+    cwd: Path | None = None,
+) -> subprocess.CompletedProcess[str]:
+    """Run the dash-check fragment with controlled env."""
+    return subprocess.run(  # noqa: S603 - controlled command, no user input
+        ["bash", "-c", _HOOK_FRAGMENT],
+        env={
+            "IS_MERGE": is_merge,
+            "STAGED_MD_FILES": staged_md_files,
+            "PATH": "/usr/bin:/bin",
+            "LC_ALL": "C.UTF-8",
+        },
+        cwd=cwd if cwd is not None else REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def test_hook_blocks_em_dash(fixture_dir: Path) -> None:
+    """REQ-006-AC1: hook exits 1 on em-dash."""
+    result = _run_hook_fragment("tests/hooks/fixtures/dash_violations.md")
+    assert result.returncode == 1
+    assert "Em/en-dash prohibition" in result.stderr
+
+
+def test_hook_blocks_en_dash(fixture_dir: Path) -> None:
+    """REQ-006-AC2: hook exits 1 on en-dash (covered by same fixture)."""
+    result = _run_hook_fragment("tests/hooks/fixtures/dash_violations.md")
+    assert result.returncode == 1
+
+
+def test_hook_passes_clean_fixture(fixture_dir: Path) -> None:
+    """REQ-006-AC10: hook exits 0 on clean markdown."""
+    result = _run_hook_fragment("tests/hooks/fixtures/no_dash_clean.md")
+    assert result.returncode == 0
+    assert result.stderr == ""
+
+
+def test_hook_blocks_instructions_tree_fixture(fixture_dir: Path) -> None:
+    """REQ-006-AC4: hook applies to .github/instructions/ paths."""
+    result = _run_hook_fragment(
+        "tests/hooks/fixtures/instructions_tree/dash_violations.md",
+    )
+    assert result.returncode == 1
+
+
+def test_hook_skips_node_modules_fixture(fixture_dir: Path) -> None:
+    """REQ-006-AC5: hook skips vendored paths.
+
+    The fixture file lives under tests/hooks/fixtures/node_modules/. The
+    hook's path-prefix filter matches on the leading path segment, so we
+    pass the path with node_modules/ as the prefix to exercise the filter.
+    """
+    result = _run_hook_fragment("node_modules/dash_violations.md")
+    assert result.returncode == 0
+
+
+def test_hook_skips_merge_commit(fixture_dir: Path) -> None:
+    """REQ-006-AC6: hook skips when IS_MERGE=1."""
+    result = _run_hook_fragment(
+        "tests/hooks/fixtures/dash_violations.md",
+        is_merge="1",
+    )
+    assert result.returncode == 0
+
+
+def test_hook_passes_with_no_staged_files(fixture_dir: Path) -> None:
+    """Hook exits 0 (vacuous pass) when STAGED_MD_FILES is empty."""
+    result = _run_hook_fragment("")
+    assert result.returncode == 0
+
+
+def test_hook_blocks_multiple_files(fixture_dir: Path) -> None:
+    """Hook reports all offending files when multiple are staged."""
+    paths = (
+        "tests/hooks/fixtures/dash_violations.md\n"
+        "tests/hooks/fixtures/instructions_tree/dash_violations.md"
+    )
+    result = _run_hook_fragment(paths)
+    assert result.returncode == 1
+    assert "tests/hooks/fixtures/dash_violations.md" in result.stderr
+    assert (
+        "tests/hooks/fixtures/instructions_tree/dash_violations.md"
+        in result.stderr
+    )
+
+
+# M4 (pre_pr.py validate_dash_prohibition) tests extend this module in the
+# next milestone.
