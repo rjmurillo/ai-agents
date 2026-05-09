@@ -1712,3 +1712,75 @@ class TestValidateNoDashes:
         body = f"don{chr(0x2019)}t match this"
         issues = validate_no_dashes("feat: clean", body)
         assert issues == []
+
+
+# ---------------------------------------------------------------------------
+# Bypass label does NOT suppress em/en-dash CRITICAL issues
+# ---------------------------------------------------------------------------
+
+
+class TestBypassLabelExcludesDashViolations:
+    """Verify description-validation-bypass label cannot silence dash CRITICALs.
+
+    Em/en-dash violations are bot-revealed style issues that the entire
+    purpose of Issue #1923 is to mechanically prevent. The bypass label
+    is the escape hatch for file-mention false positives only.
+    """
+
+    def test_bypass_label_with_only_dash_critical_returns_1(self, tmp_path):
+        from unittest.mock import patch
+        from scripts.validation.pr_description import main as pr_main
+        # Mock fetch_pr_data to return a PR with the bypass label and a
+        # body containing a dash. Expect exit 1 (NOT bypassed).
+        with patch("scripts.validation.pr_description.fetch_pr_data") as mock_fetch, \
+             patch("scripts.validation.pr_description.get_repo_info") as mock_repo:
+            from scripts.github_core.api import RepoInfo
+            mock_repo.return_value = RepoInfo(owner="a", repo="b")
+            mock_fetch.return_value = {
+                "title": "feat: clean",
+                "body": f"body with em-dash {chr(0x2014)} here",
+                "files": [],
+                "labels": [{"name": "description-validation-bypass"}],
+            }
+            result = pr_main(["--pr-number", "1", "--ci"])
+            assert result == 1, "dash violations must NOT be bypassable"
+
+    def test_bypass_label_with_only_file_mention_critical_returns_0(
+        self, tmp_path,
+    ):
+        """Bypass label suppresses file-mention CRITICALs (existing behavior)."""
+        from unittest.mock import patch
+        from scripts.validation.pr_description import main as pr_main
+        with patch("scripts.validation.pr_description.fetch_pr_data") as mock_fetch, \
+             patch("scripts.validation.pr_description.get_repo_info") as mock_repo, \
+             patch("scripts.validation.pr_description._emit_bypass_audit"):
+            from scripts.github_core.api import RepoInfo
+            mock_repo.return_value = RepoInfo(owner="a", repo="b")
+            mock_fetch.return_value = {
+                "title": "feat: clean",
+                "body": "Description claims `nonexistent.py` was changed.",
+                "files": [{"path": "real.py"}],
+                "labels": [{"name": "description-validation-bypass"}],
+            }
+            result = pr_main(["--pr-number", "1", "--ci"])
+            assert result == 0, "file-mention CRITICAL bypass should still work"
+
+    def test_bypass_label_with_both_critical_types_returns_1(self, tmp_path):
+        """Mixed CRITICALs: dash takes priority and blocks the merge."""
+        from unittest.mock import patch
+        from scripts.validation.pr_description import main as pr_main
+        with patch("scripts.validation.pr_description.fetch_pr_data") as mock_fetch, \
+             patch("scripts.validation.pr_description.get_repo_info") as mock_repo:
+            from scripts.github_core.api import RepoInfo
+            mock_repo.return_value = RepoInfo(owner="a", repo="b")
+            mock_fetch.return_value = {
+                "title": "feat: clean",
+                "body": (
+                    f"Em-dash {chr(0x2014)} here.\n"
+                    "Description claims `nonexistent.py` was changed."
+                ),
+                "files": [{"path": "real.py"}],
+                "labels": [{"name": "description-validation-bypass"}],
+            }
+            result = pr_main(["--pr-number", "1", "--ci"])
+            assert result == 1, "dash violation must block even when label set"

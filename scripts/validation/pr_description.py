@@ -643,8 +643,27 @@ def main(argv: list[str] | None = None) -> int:
     ]
     bypass_label_lower = args.bypass_label.lower()
     pr_labels_lower = {label.lower() for label in pr_labels}
-    has_critical = any(i.severity == "CRITICAL" for i in issues)
-    if args.ci and has_critical and bypass_label_lower in pr_labels_lower:
+
+    # Em/en-dash violations are NEVER bypassable. The
+    # `description-validation-bypass` label is the documented escape hatch for
+    # file-mention false positives only. Dash violations are bot-revealed
+    # style issues that the entire purpose of Issue #1923 is to mechanically
+    # prevent; allowing the bypass label to suppress them silently would
+    # defeat the rule. Dash criticals always block, before the bypass check.
+    dash_issue_types = {"Em/en-dash in PR title", "Em/en-dash in PR description"}
+    has_dash_critical = any(
+        i.severity == "CRITICAL" and i.issue_type in dash_issue_types
+        for i in issues
+    )
+    if args.ci and has_dash_critical:
+        return print_results(issues, ci=args.ci)
+
+    # File-mention CRITICALs may be bypassed via the bypass label.
+    has_non_dash_critical = any(
+        i.severity == "CRITICAL" and i.issue_type not in dash_issue_types
+        for i in issues
+    )
+    if args.ci and has_non_dash_critical and bypass_label_lower in pr_labels_lower:
         print_results(issues, ci=False)
         print(
             f"\nCRITICAL issues bypassed by '{args.bypass_label}' label. "
