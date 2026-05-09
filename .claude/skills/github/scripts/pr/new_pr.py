@@ -24,8 +24,23 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from validate_pr_description import _CONVENTIONAL_COMMIT_PATTERN  # noqa: E402
 
-_PROJECT_ROOT = Path(__file__).resolve().parents[5]
-sys.path.insert(0, str(_PROJECT_ROOT))
+# Resolve the repo root by walking up looking for the AGENTS.md marker.
+# Required because this file is mirrored to src/copilot-cli/skills/github/
+# scripts/pr/new_pr.py at a different depth (parents[6] vs parents[5]),
+# and a hardcoded parents[N] would break in one of the two locations.
+# The build_all.py generator copies the source verbatim, so depth-agnostic
+# resolution is the only way to keep both copies functional.
+def _find_repo_root() -> Path:
+    candidate = Path(__file__).resolve()
+    for parent in (candidate, *candidate.parents):
+        if (parent / "AGENTS.md").is_file():
+            return parent
+    raise RuntimeError(
+        "Could not locate repo root from " + str(Path(__file__).resolve())
+    )
+
+
+sys.path.insert(0, str(_find_repo_root()))
 from scripts.validation.pr_description import validate_no_dashes  # noqa: E402
 
 # ---------------------------------------------------------------------------

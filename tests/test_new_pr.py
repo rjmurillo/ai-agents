@@ -485,4 +485,7 @@ class TestValidation5DashCheck:
                 pass
             stderr = capsys.readouterr().err
             assert "line 2" in stderr
-            assert "Em-dash" in stderr or "em-dash" in stderr.lower()
+            # After refactor (commit 467353d0) to use validate_no_dashes from
+            # scripts.validation.pr_description, the error wording is
+            # "PR description contains U+2014 or U+2013 (line N). ..."
+            assert "U+2014" in stderr or "U+2013" in stderr
