@@ -98,7 +98,7 @@ if [ "$IS_MERGE" != "1" ] && [ -n "$STAGED_MD_FILES" ]; then
     while IFS= read -r dash_file; do
         [ -z "$dash_file" ] && continue
         case "$dash_file" in
-            node_modules/*|.venv/*|.serena/cache/*) continue ;;
+            node_modules/*|.venv/*|.serena/cache/*|tests/hooks/fixtures/*) continue ;;
         esac
         if [ -f "$dash_file" ] && LC_ALL=C.UTF-8 grep -qI $'[\xe2\x80\x93\xe2\x80\x94]' "$dash_file" 2>/dev/null; then
             DASH_HITS+=("$dash_file")
@@ -137,17 +137,32 @@ def _run_hook_fragment(
     )
 
 
-def test_hook_blocks_em_dash(fixture_dir: Path) -> None:
-    """REQ-006-AC1: hook exits 1 on em-dash."""
-    result = _run_hook_fragment("tests/hooks/fixtures/dash_violations.md")
+def test_hook_blocks_em_dash(fixture_dir: Path, tmp_path: Path) -> None:
+    """REQ-006-AC1: hook exits 1 on em-dash (isolated, em-dash only).
+
+    Materializes a file under tmp_path containing only U+2014 (no en-dash)
+    so this test exercises em-dash detection independently from en-dash.
+    """
+    target = tmp_path / "src" / "doc.md"
+    target.parent.mkdir(parents=True)
+    target.write_text(f"em-dash {chr(0x2014)} here\n", encoding="utf-8")
+    result = _run_hook_fragment("src/doc.md", cwd=tmp_path)
     assert result.returncode == 1
     assert "Em/en-dash prohibition" in result.stderr
 
 
-def test_hook_blocks_en_dash(fixture_dir: Path) -> None:
-    """REQ-006-AC2: hook exits 1 on en-dash (covered by same fixture)."""
-    result = _run_hook_fragment("tests/hooks/fixtures/dash_violations.md")
+def test_hook_blocks_en_dash(fixture_dir: Path, tmp_path: Path) -> None:
+    """REQ-006-AC2: hook exits 1 on en-dash (isolated, en-dash only).
+
+    Uses an en-dash-only fixture so this test cannot pass from em-dash
+    detection alone; the hook must independently detect U+2013.
+    """
+    target = tmp_path / "src" / "range.md"
+    target.parent.mkdir(parents=True)
+    target.write_text(f"range 1{chr(0x2013)}10\n", encoding="utf-8")
+    result = _run_hook_fragment("src/range.md", cwd=tmp_path)
     assert result.returncode == 1
+    assert "Em/en-dash prohibition" in result.stderr
 
 
 def test_hook_passes_clean_fixture(fixture_dir: Path) -> None:
@@ -157,30 +172,80 @@ def test_hook_passes_clean_fixture(fixture_dir: Path) -> None:
     assert result.stderr == ""
 
 
-def test_hook_blocks_instructions_tree_fixture(fixture_dir: Path) -> None:
-    """REQ-006-AC4: hook applies to .github/instructions/ paths."""
+def test_hook_blocks_instructions_tree_fixture(
+    fixture_dir: Path, tmp_path: Path,
+) -> None:
+    """REQ-006-AC4: hook applies to .github/instructions/ paths.
+
+    Materializes a real file under .github/instructions/ in tmp_path; the
+    path-prefix filter must NOT exclude .github/instructions/, so the
+    hook must detect the dash and exit 1.
+    """
+    target = tmp_path / ".github" / "instructions" / "dash_violations.md"
+    target.parent.mkdir(parents=True)
+    target.write_text(
+        f"Mirror tree with {chr(0x2014)} em-dash\n", encoding="utf-8",
+    )
     result = _run_hook_fragment(
-        "tests/hooks/fixtures/instructions_tree/dash_violations.md",
+        ".github/instructions/dash_violations.md", cwd=tmp_path,
     )
     assert result.returncode == 1
+    assert "Em/en-dash prohibition" in result.stderr
 
 
-def test_hook_skips_node_modules_fixture(fixture_dir: Path) -> None:
+def test_hook_skips_node_modules_fixture(
+    fixture_dir: Path, tmp_path: Path,
+) -> None:
     """REQ-006-AC5: hook skips vendored paths.
 
-    The fixture file lives under tests/hooks/fixtures/node_modules/. The
-    hook's path-prefix filter matches on the leading path segment, so we
-    pass the path with node_modules/ as the prefix to exercise the filter.
+    Materializes a real file containing U+2014 under node_modules/ in
+    tmp_path so the path-prefix filter is the only thing that can skip
+    it (without this, the test would pass for the wrong reason: the
+    `[ -f ]` guard fails before the prefix filter runs).
     """
-    result = _run_hook_fragment("node_modules/dash_violations.md")
-    assert result.returncode == 0
-
-
-def test_hook_skips_merge_commit(fixture_dir: Path) -> None:
-    """REQ-006-AC6: hook skips when IS_MERGE=1."""
+    vendored = tmp_path / "node_modules" / "pkg" / "README.md"
+    vendored.parent.mkdir(parents=True)
+    vendored.write_text(
+        f"upstream prose with {chr(0x2014)} em-dash\n", encoding="utf-8",
+    )
     result = _run_hook_fragment(
-        "tests/hooks/fixtures/dash_violations.md",
-        is_merge="1",
+        "node_modules/pkg/README.md", cwd=tmp_path,
+    )
+    assert result.returncode == 0
+    assert "Em/en-dash prohibition" not in result.stderr
+
+
+def test_hook_skips_test_fixtures_dir(
+    fixture_dir: Path, tmp_path: Path,
+) -> None:
+    """tests/hooks/fixtures/ is in the case-statement exclusion.
+
+    Test fixtures intentionally contain U+2014 and U+2013 to exercise
+    the detection logic. Flagging them would block every commit that
+    touches the dash-guard test suite.
+    """
+    target = tmp_path / "tests" / "hooks" / "fixtures" / "doc.md"
+    target.parent.mkdir(parents=True)
+    target.write_text(f"intentional {chr(0x2014)}\n", encoding="utf-8")
+    result = _run_hook_fragment(
+        "tests/hooks/fixtures/doc.md", cwd=tmp_path,
+    )
+    assert result.returncode == 0
+    assert "Em/en-dash prohibition" not in result.stderr
+
+
+def test_hook_skips_merge_commit(fixture_dir: Path, tmp_path: Path) -> None:
+    """REQ-006-AC6: hook skips when IS_MERGE=1.
+
+    Uses a real materialized file outside the fixtures-exclusion prefix so
+    the test verifies the merge-commit short-circuit, not the
+    fixtures-exclusion prefix.
+    """
+    target = tmp_path / "src" / "doc.md"
+    target.parent.mkdir(parents=True)
+    target.write_text(f"em-dash {chr(0x2014)} here\n", encoding="utf-8")
+    result = _run_hook_fragment(
+        "src/doc.md", is_merge="1", cwd=tmp_path,
     )
     assert result.returncode == 0
 
@@ -191,19 +256,17 @@ def test_hook_passes_with_no_staged_files(fixture_dir: Path) -> None:
     assert result.returncode == 0
 
 
-def test_hook_blocks_multiple_files(fixture_dir: Path) -> None:
+def test_hook_blocks_multiple_files(fixture_dir: Path, tmp_path: Path) -> None:
     """Hook reports all offending files when multiple are staged."""
-    paths = (
-        "tests/hooks/fixtures/dash_violations.md\n"
-        "tests/hooks/fixtures/instructions_tree/dash_violations.md"
-    )
-    result = _run_hook_fragment(paths)
+    file_a = tmp_path / "doc-a.md"
+    file_b = tmp_path / "doc-b.md"
+    file_a.write_text(f"em-dash {chr(0x2014)} here\n", encoding="utf-8")
+    file_b.write_text(f"en-dash {chr(0x2013)} here\n", encoding="utf-8")
+    paths = "doc-a.md\ndoc-b.md"
+    result = _run_hook_fragment(paths, cwd=tmp_path)
     assert result.returncode == 1
-    assert "tests/hooks/fixtures/dash_violations.md" in result.stderr
-    assert (
-        "tests/hooks/fixtures/instructions_tree/dash_violations.md"
-        in result.stderr
-    )
+    assert "doc-a.md" in result.stderr
+    assert "doc-b.md" in result.stderr
 
 
 # ---------------------------------------------------------------------------
