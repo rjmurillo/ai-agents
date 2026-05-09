@@ -11,13 +11,13 @@
 
 ## Objectives
 
-- [ ] M1: Add MUST NOT rule to `.claude/rules/universal.md` and regenerate `.github/instructions/universal.instructions.md` via `build/scripts/generate_rules.py` (REQ-006-AC8)
-- [ ] M2: Create test fixtures (`dash_violations.md`, `no_dash_clean.md`, `instructions_tree/`, `node_modules/`) and test skeleton `tests/hooks/test_dash_guard.py` (REQ-006-AC9, AC10, AC11)
-- [ ] M3a: Add dash-check bash section to `.githooks/pre-commit` using `IS_MERGE` and `STAGED_MD_FILES` (REQ-006-AC1, AC2, AC4, AC5, AC6)
-- [ ] M3b: Create `.githooks/commit-msg` bash hook for commit message dash check (REQ-006-AC3)
-- [ ] M3c: Populate test assertions in `tests/hooks/test_dash_guard.py` for M3 hooks
-- [ ] M4: Add `validate_dash_prohibition()` to `scripts/validation/pre_pr.py` and call from check runner (REQ-006-AC7)
-- [ ] M4t: Add pytest coverage for `validate_dash_prohibition()` in `tests/test_validation_pre_pr.py` (`TestValidateDashProhibition` class appended at end of file)
+- [x] M1: Add MUST NOT rule to `.claude/rules/universal.md` and regenerate `.github/instructions/universal.instructions.md` via `build/scripts/generate_rules.py` (REQ-006-AC8): landed in commit 8696c37d
+- [x] M2: Create test fixtures (`dash_violations.md`, `no_dash_clean.md`, `instructions_tree/`, `node_modules/`) and test skeleton `tests/hooks/test_dash_guard.py` (REQ-006-AC9, AC10, AC11): landed in commit 3bfe6785
+- [x] M3a: Add dash-check bash section to `.githooks/pre-commit` using `IS_MERGE` and `STAGED_MD_FILES` (REQ-006-AC1, AC2, AC4, AC5, AC6): landed in commit d187e7b6 (corrected by Cursor in 8dab7446 and f01a06c5)
+- [x] M3b: Create `.githooks/commit-msg` bash hook for commit message dash check (REQ-006-AC3): landed in commit 4f0304a3
+- [x] M3c: Populate test assertions in `tests/hooks/test_dash_guard.py` for M3 hooks: landed in commits d187e7b6, 4f0304a3, 1f84c1e2
+- [x] M4: Add `validate_dash_prohibition()` to `scripts/validation/pre_pr.py` and call from check runner (REQ-006-AC7): landed in commit 56d5a14c (corrected by Cursor in dbc0987e)
+- [x] M4t: Add pytest coverage for `validate_dash_prohibition()` in `tests/test_validation_pre_pr.py` (`TestValidateDashProhibition` class appended at end of file): landed in commit 56d5a14c
 
 ## Decision Log
 

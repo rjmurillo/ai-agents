@@ -6,6 +6,7 @@ status: draft
 priority: P1
 related:
   - REQ-006
+  - TASK-006
 adr: []
 issue: 1923
 author: spec-agent

@@ -1,9 +1,16 @@
 ---
 type: interview
-issue: 1923
+id: INTERVIEW-1923
 title: Em/en-dash prohibition enforcement
 status: complete
+related:
+  - REQ-006
+  - DESIGN-006
+  - TASK-006
+issue: 1923
+author: spec-agent
 created: 2026-05-09
+updated: 2026-05-09
 ---
 
 # Interview: Em/en-dash prohibition enforcement
