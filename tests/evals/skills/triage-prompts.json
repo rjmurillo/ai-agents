@@ -1,12 +1,12 @@
 {
   "prompts": {
     "workflow": [
-      {"prompt": "Walk me through the canonical workflow command sequence for shipping a feature in this repo.", "expected": "Lifecycle commands /spec /plan /build /test /review /ship are canonical. Workflow skill is DEPRECATED. Scripts in workflow/ may be stale; prefer lifecycle slash commands."},
-      {"prompt": "I see scripts under .claude/skills/workflow/. Should I run them directly?", "expected": "Skill is deprecated. Scripts may still be referenced but not called directly. Use /spec /plan /build /test /review /ship instead."},
-      {"prompt": "What replaces the legacy workflow skill commands?", "expected": "Six lifecycle commands: /spec (requirements), /plan (decompose), /build (implement), /test (validate), /review (code review), /ship (PR + merge)."},
-      {"prompt": "I want to bundle planning, implementation, and testing into a single skill invocation. Use the workflow skill?", "expected": "No. Workflow is deprecated. Each lifecycle phase has its own command. Run /spec then /plan then /build then /test sequentially."},
-      {"prompt": "Why was the workflow skill deprecated?", "expected": "Replaced by lifecycle commands that match phases of dev lifecycle. Lifecycle commands are slash commands, not skills. Better separation of concerns and clearer entry criteria."},
-      {"prompt": "Can I still trigger the workflow skill if I find an old reference to it?", "expected": "Skill marked DEPRECATED. Do not invoke. Map the legacy phase to the matching lifecycle slash command."}
+      {"prompt": "Walk me through the canonical workflow command sequence for shipping a feature in this repo.", "expected": "workflow skill was DELETED 2026-05-09 (M1 prune). Use lifecycle slash commands: /spec /plan /build /test /review /ship. These are commands, not skills, and live under .claude/commands/."},
+      {"prompt": "I see scripts under .claude/skills/workflow/. Should I run them directly?", "expected": "Directory does not exist after 2026-05-09. workflow skill was deleted (subsumed by lifecycle commands). Any old references should be updated to /spec /plan /build /test /review /ship."},
+      {"prompt": "What replaces the legacy workflow skill commands?", "expected": "Six lifecycle slash commands replace the deleted workflow skill: /spec (requirements), /plan (decompose), /build (implement), /test (validate), /review (code review), /ship (PR + merge)."},
+      {"prompt": "I want to bundle planning, implementation, and testing into a single skill invocation. Use the workflow skill?", "expected": "workflow skill no longer exists (deleted 2026-05-09). Each lifecycle phase has its own slash command. Run /spec, then /plan, then /build, then /test sequentially."},
+      {"prompt": "Why was the workflow skill deprecated and then deleted?", "expected": "Replaced by lifecycle slash commands (/spec /plan /build /test /review /ship) that match dev lifecycle phases with clearer separation of concerns. Skill was DEPRECATED then deleted in M1 catalog prune (2026-05-09)."},
+      {"prompt": "Can I still trigger the workflow skill if I find an old reference to it?", "expected": "No. Skill was deleted 2026-05-09. Map any legacy phase reference to the matching lifecycle slash command (/spec /plan /build /test /review /ship)."}
     ],
     "session": [
       {"prompt": "I am about to commit but staged only investigation artifacts. Can I skip QA?", "expected": "Per ADR-034, yes. Use Test-InvestigationEligibility to validate staged files match the investigation allowlist (.agents/sessions/, .agents/analysis/, .serena/memories/). Mark verdict SKIPPED investigation-only with evidence."},
@@ -89,20 +89,20 @@
       {"prompt": "Can graph traversal answer 'what changed since X'?", "expected": "Partially. Graph captures structure not history. For temporal questions, combine traversal with git log or session log replay."}
     ],
     "doc-coverage": [
-      {"prompt": "Audit my Python module for missing docstrings.", "expected": "doc-coverage skill scans for symbols without docstrings: classes, functions, methods. Reports gaps by file:line. Coverage thresholds enforced per AGENTS.md (100% security, 80% business, 60% docs)."},
-      {"prompt": "What documentation types does the skill detect?", "expected": "Python docstrings, XML docs (C#), JSDoc (JS/TS), CHANGELOG entries, README sections. Cross-language coverage report."},
-      {"prompt": "How do I gate a PR on doc coverage?", "expected": "Run doc-coverage in pre-commit or CI. Fail when coverage below threshold for the file's category. Categories from .agents/governance: security 100, business 80, docs 60."},
-      {"prompt": "CHANGELOG gap detection, how does it work?", "expected": "Skill checks for unreleased entries when source files have changed since last release. Flags missing CHANGELOG updates."},
-      {"prompt": "Difference between doc-coverage and doc-accuracy?", "expected": "doc-coverage detects missing documentation. doc-accuracy verifies existing documentation against code. doc-accuracy explicitly consolidates doc-coverage in its workflow per its description."},
-      {"prompt": "Output format expected from doc-coverage?", "expected": "Coverage report with specific gaps by file and symbol. JSON or markdown. Suitable for pre-commit hooks and CI pipelines."}
+      {"prompt": "Audit my Python module for missing docstrings.", "expected": "doc-coverage skill was DELETED 2026-05-09 (M1 prune). Use doc-accuracy instead: it scans for symbols without docstrings as part of Phase 1 (symbol coverage detection)."},
+      {"prompt": "What documentation types did the skill detect?", "expected": "doc-coverage was deleted. Functionality absorbed by doc-accuracy. doc-accuracy detects Python docstrings, XML docs, JSDoc, CHANGELOG, README sections."},
+      {"prompt": "How do I gate a PR on doc coverage?", "expected": "Run doc-accuracy (replaces deleted doc-coverage). Fail when coverage below threshold for the file's category. Categories from .agents/governance: security 100, business 80, docs 60."},
+      {"prompt": "CHANGELOG gap detection, how does it work?", "expected": "Run doc-accuracy (the deleted doc-coverage skill is replaced). doc-accuracy checks for unreleased entries when source files have changed since last release."},
+      {"prompt": "Difference between doc-coverage and doc-accuracy?", "expected": "doc-coverage was deleted 2026-05-09. doc-accuracy is the canonical replacement: it absorbs symbol coverage detection in Phase 1 and adds behavioral verification beyond what doc-coverage offered."},
+      {"prompt": "Output format expected from doc-coverage?", "expected": "Skill deleted; use doc-accuracy. Output is a coverage report with specific gaps by file and symbol, suitable for pre-commit hooks and CI pipelines."}
     ],
     "doc-sync": [
-      {"prompt": "I added a new agent under templates/. What docs need updating?", "expected": "doc-sync updates CLAUDE.md navigation indexes and README.md architecture docs. Runs after code changes that affect repo structure or agent catalog."},
-      {"prompt": "When should I run doc-sync?", "expected": "After adding/removing agents, skills, ADRs. After repo structure changes. As part of /ship or pre-PR validation."},
-      {"prompt": "What is the difference between doc-sync and doc-accuracy?", "expected": "doc-sync maintains navigation indexes (CLAUDE.md, README.md). doc-accuracy verifies documentation accuracy against code. doc-accuracy consolidates doc-sync per its description."},
-      {"prompt": "Does doc-sync update individual file docstrings?", "expected": "No. doc-sync targets navigation and architecture docs. For per-symbol docs use doc-coverage. For accuracy verification use doc-accuracy."},
-      {"prompt": "How does doc-sync detect drift?", "expected": "Compares CLAUDE.md indexes against actual files. Flags entries pointing to deleted files. Adds entries for new files matching the index pattern."},
-      {"prompt": "Run doc-sync triggers what files to change typically?", "expected": "Top-level CLAUDE.md, subdirectory CLAUDE.md files, README.md sections referencing structure. Atomic commit per ADR-008."}
+      {"prompt": "I added a new agent under templates/. What docs need updating?", "expected": "doc-sync skill was DELETED 2026-05-09 (M1 prune). Use doc-accuracy: its Phase 6 absorbs structural audit (CLAUDE.md/README.md navigation) that doc-sync used to perform."},
+      {"prompt": "When should I run doc-sync?", "expected": "Skill deleted. Run doc-accuracy after adding/removing agents, skills, ADRs, or repo structure changes. Part of /ship or pre-PR validation."},
+      {"prompt": "What is the difference between doc-sync and doc-accuracy?", "expected": "doc-sync was deleted 2026-05-09. doc-accuracy replaces it: navigation index sync now lives in Phase 6 of the doc-accuracy workflow, plus accuracy verification against code."},
+      {"prompt": "Does doc-sync update individual file docstrings?", "expected": "Skill no longer exists. Use doc-accuracy: per-symbol coverage in Phase 1, structural index sync in Phase 6."},
+      {"prompt": "How does doc-sync detect drift?", "expected": "Skill deleted; doc-accuracy Phase 6 inherits this responsibility. Compares CLAUDE.md indexes against actual files; flags entries pointing to deleted files."},
+      {"prompt": "Run doc-sync triggers what files to change typically?", "expected": "doc-sync deleted; doc-accuracy now handles top-level CLAUDE.md, subdirectory CLAUDE.md files, README.md navigation sections. Atomic commit per ADR-008."}
     ],
     "doc-accuracy": [
       {"prompt": "Run a pre-release documentation audit. What does doc-accuracy do?", "expected": "Multi-phase verification treating code as source of truth. Consolidates incoherence, doc-coverage, doc-sync, comment-analyzer. Verifies code examples compile, behavioral claims match implementation."},
@@ -114,10 +114,10 @@
     ],
     "codebase-documenter": [
       {"prompt": "Bootstrap docs for a new project with no README. What does the skill produce?", "expected": "Scaffolds README.md, ARCHITECTURE.md, API.md, CODE_COMMENTS standards from templates. One-time bootstrap. Documented standards for ongoing maintenance."},
-      {"prompt": "When does codebase-documenter NOT apply?", "expected": "Existing well-documented codebases. For drift detection use doc-accuracy. For navigation index sync use doc-sync. For per-symbol gaps use doc-coverage."},
+      {"prompt": "When does codebase-documenter NOT apply?", "expected": "Existing well-documented codebases. For drift detection, navigation index sync, and per-symbol gaps, use doc-accuracy (it absorbed the deleted doc-sync and doc-coverage skills as of 2026-05-09)."},
       {"prompt": "Templates included in the scaffold?", "expected": "README, ARCHITECTURE, API, CODE_COMMENTS. Each with documented standards section explaining the template's intent."},
       {"prompt": "Difference between codebase-documenter and doc-accuracy?", "expected": "codebase-documenter creates initial docs. doc-accuracy verifies existing docs. Different lifecycle phases: bootstrap vs maintenance."},
-      {"prompt": "Can the skill update existing README files?", "expected": "Skill is bootstrap-focused. Updating existing docs better handled by doc-sync (indexes) or doc-accuracy (verify). Running bootstrap on existing docs risks overwrite."},
+      {"prompt": "Can the skill update existing README files?", "expected": "Skill is bootstrap-focused. Updating existing docs is better handled by doc-accuracy (it covers both index sync and accuracy verification, having absorbed the deleted doc-sync skill in 2026-05-09 M1 prune). Running bootstrap on existing docs risks overwrite."},
       {"prompt": "What standards does the CODE_COMMENTS template encode?", "expected": "Comment policy from project rules: WHY not WHAT, no narration, intention-revealing names beat comments. Aligns with .claude/rules/code-quality.md guidance."}
     ]
   }
