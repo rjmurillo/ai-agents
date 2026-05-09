@@ -88,7 +88,7 @@ def run_validations(
     print()
 
     # Validation 1: Session End (if .agents/ files changed)
-    print("[1/4] Checking Session End protocol...")
+    print("[1/5] Checking Session End protocol...")
     result = subprocess.run(
         ["git", "diff", "--name-only", f"{base}...{head}"],
         capture_output=True,
@@ -126,7 +126,7 @@ def run_validations(
 
     # Validation 2: Skill violation detection (WARNING)
     print()
-    print("[2/4] Checking for skill violations...")
+    print("[2/5] Checking for skill violations...")
     skill_script = os.path.join(repo_root, "scripts/detect_skill_violation.py")
     if os.path.exists(skill_script):
         subprocess.run(
@@ -136,7 +136,7 @@ def run_validations(
 
     # Validation 3: Test coverage detection (WARNING)
     print()
-    print("[3/4] Checking test coverage...")
+    print("[3/5] Checking test coverage...")
     test_script = os.path.join(repo_root, "scripts/detect_test_coverage_gaps.py")
     if os.path.exists(test_script):
         subprocess.run(
@@ -146,7 +146,7 @@ def run_validations(
 
     # Validation 4: PR Description validation (WARNING)
     print()
-    print("[4/4] Validating PR description...")
+    print("[4/5] Validating PR description...")
     validate_script = os.path.join(
         os.path.dirname(os.path.abspath(__file__)),
         "validate_pr_description.py",
@@ -164,6 +164,58 @@ def run_validations(
         # Warning mode: don't fail on exit code
     else:
         print("  Skipped (no title available or validator not found)")
+
+    # Validation 5: Em/en-dash check (CRITICAL, blocks creation)
+    # PR descriptions live in GitHub and never reach `git commit`, so the
+    # .githooks/pre-commit and .githooks/commit-msg hooks cannot scan them.
+    # This is the shift-left guard that prevents dashes from being submitted
+    # at all. Closes the gap that allowed PR #1930 to ship with em/en-dashes
+    # in the description despite the hook implementation.
+    # Rule: .claude/rules/universal.md MUST NOT entry 5. Refs Issue #1923.
+    print()
+    print("[5/5] Em/en-dash check on title and body...")
+    body_content = body or ""
+    if not body_content and body_file and os.path.exists(body_file):
+        try:
+            with open(body_file, encoding="utf-8") as f:
+                body_content = f.read()
+        except OSError as exc:
+            print(f"  WARNING: Could not read body file: {exc}", file=sys.stderr)
+    dash_pattern = re.compile("[\\u2013\\u2014]")
+    dash_violations: list[str] = []
+    if dash_pattern.search(title):
+        dash_violations.append("title")
+    body_lines_with_dashes = [
+        f"line {n}"
+        for n, line in enumerate(body_content.splitlines(), start=1)
+        if dash_pattern.search(line)
+    ]
+    if body_lines_with_dashes:
+        sample = ", ".join(body_lines_with_dashes[:5])
+        if len(body_lines_with_dashes) > 5:
+            sample += f", ... (+{len(body_lines_with_dashes) - 5} more)"
+        dash_violations.append(f"body ({sample})")
+    if dash_violations:
+        print(
+            "ERROR: Em-dash (U+2014) or en-dash (U+2013) found in: "
+            + "; ".join(dash_violations),
+            file=sys.stderr,
+        )
+        print(
+            "  Replace with comma, period, hyphen, or restructure the sentence.",
+            file=sys.stderr,
+        )
+        print(
+            "  Rule: .claude/rules/universal.md MUST NOT entry 5 (Refs Issue #1923).",
+            file=sys.stderr,
+        )
+        print(
+            "  Override (NOT RECOMMENDED): re-run with --skip-validation"
+            " --audit-reason \"...\".",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+    print("  No prohibited characters in title or body.")
 
     print()
     print("All pre-creation validations passed!")
