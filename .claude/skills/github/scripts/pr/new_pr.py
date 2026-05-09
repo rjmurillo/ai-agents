@@ -24,6 +24,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from validate_pr_description import _CONVENTIONAL_COMMIT_PATTERN  # noqa: E402
 
+_PROJECT_ROOT = Path(__file__).resolve().parents[5]
+sys.path.insert(0, str(_PROJECT_ROOT))
+from scripts.validation.pr_description import validate_no_dashes  # noqa: E402
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -181,34 +185,10 @@ def run_validations(
                 body_content = f.read()
         except OSError as exc:
             print(f"  WARNING: Could not read body file: {exc}", file=sys.stderr)
-    dash_pattern = re.compile("[\\u2013\\u2014]")
-    dash_violations: list[str] = []
-    if dash_pattern.search(title):
-        dash_violations.append("title")
-    body_lines_with_dashes = [
-        f"line {n}"
-        for n, line in enumerate(body_content.splitlines(), start=1)
-        if dash_pattern.search(line)
-    ]
-    if body_lines_with_dashes:
-        sample = ", ".join(body_lines_with_dashes[:5])
-        if len(body_lines_with_dashes) > 5:
-            sample += f", ... (+{len(body_lines_with_dashes) - 5} more)"
-        dash_violations.append(f"body ({sample})")
-    if dash_violations:
-        print(
-            "ERROR: Em-dash (U+2014) or en-dash (U+2013) found in: "
-            + "; ".join(dash_violations),
-            file=sys.stderr,
-        )
-        print(
-            "  Replace with comma, period, hyphen, or restructure the sentence.",
-            file=sys.stderr,
-        )
-        print(
-            "  Rule: .claude/rules/universal.md MUST NOT entry 5 (Refs Issue #1923).",
-            file=sys.stderr,
-        )
+    dash_issues = validate_no_dashes(title, body_content)
+    if dash_issues:
+        for issue in dash_issues:
+            print(f"ERROR: {issue.message}", file=sys.stderr)
         print(
             "  Override (NOT RECOMMENDED): re-run with --skip-validation"
             " --audit-reason \"...\".",
