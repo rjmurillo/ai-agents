@@ -24,24 +24,29 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from validate_pr_description import _CONVENTIONAL_COMMIT_PATTERN  # noqa: E402
 
-# Resolve the repo root by walking up looking for the AGENTS.md marker.
-# Required because this file is mirrored to src/copilot-cli/skills/github/
-# scripts/pr/new_pr.py at a different depth (parents[6] vs parents[5]),
-# and a hardcoded parents[N] would break in one of the two locations.
-# The build_all.py generator copies the source verbatim, so depth-agnostic
-# resolution is the only way to keep both copies functional.
-def _find_repo_root() -> Path:
-    candidate = Path(__file__).resolve()
-    for parent in (candidate, *candidate.parents):
-        if (parent / "AGENTS.md").is_file():
-            return parent
-    raise RuntimeError(
-        "Could not locate repo root from " + str(Path(__file__).resolve())
-    )
-
-
-sys.path.insert(0, str(_find_repo_root()))
-from scripts.validation.pr_description import validate_no_dashes  # noqa: E402
+# Em/en-dash detection regex for Validation 5. Inlined here rather than
+# imported from scripts.validation.pr_description because:
+#
+# 1. This file is mirrored verbatim to src/copilot-cli/skills/github/
+#    scripts/pr/new_pr.py by build/scripts/build_all.py. The source and
+#    mirror live at different depths (parents[5] vs parents[6]), so any
+#    cross-package import requires path resolution that works at both
+#    depths. The complexity (walking up looking for a marker, subprocess
+#    git calls, etc.) is not worth it for a 5-line regex.
+# 2. The detection logic is small (compile, search). Drift between the
+#    two definitions (this one and scripts.validation.pr_description's
+#    _DASH_RE) is caught by the test suite (tests/test_new_pr.py and
+#    tests/test_validation_pr_description.py) which exercises both with
+#    the same fixtures.
+# 3. The two layers serve different purposes: this is the pre-creation
+#    guard, scripts.validation.pr_description is the CI fallback. Keeping
+#    them independent lets each fail open or fail closed differently per
+#    its threat model.
+#
+# Uses Unicode escape sequences so this source file does not contain
+# U+2014 or U+2013 itself per `.claude/rules/universal.md` MUST NOT
+# entry 5 (Issue #1923).
+_DASH_RE = re.compile("[\u2013\u2014]")
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -200,10 +205,33 @@ def run_validations(
                 body_content = f.read()
         except OSError as exc:
             print(f"  WARNING: Could not read body file: {exc}", file=sys.stderr)
-    dash_issues = validate_no_dashes(title, body_content)
-    if dash_issues:
-        for issue in dash_issues:
-            print(f"ERROR: {issue.message}", file=sys.stderr)
+    dash_violations: list[str] = []
+    if _DASH_RE.search(title):
+        dash_violations.append("title")
+    body_dash_lines = [
+        f"line {n}"
+        for n, line in enumerate(body_content.splitlines(), start=1)
+        if _DASH_RE.search(line)
+    ]
+    if body_dash_lines:
+        sample = ", ".join(body_dash_lines[:5])
+        if len(body_dash_lines) > 5:
+            sample += f", ... (+{len(body_dash_lines) - 5} more)"
+        dash_violations.append(f"body ({sample})")
+    if dash_violations:
+        print(
+            "ERROR: Em-dash (U+2014) or en-dash (U+2013) found in: "
+            + "; ".join(dash_violations),
+            file=sys.stderr,
+        )
+        print(
+            "  Replace with comma, period, hyphen, or restructure.",
+            file=sys.stderr,
+        )
+        print(
+            "  Rule: .claude/rules/universal.md MUST NOT entry 5 (Issue #1923).",
+            file=sys.stderr,
+        )
         print(
             "  Override (NOT RECOMMENDED): re-run with --skip-validation"
             " --audit-reason \"...\".",
