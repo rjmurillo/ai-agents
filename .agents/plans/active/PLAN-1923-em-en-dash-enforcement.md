@@ -4,7 +4,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Status** | In Progress |
+| **Status** | Completed - pending merge of PR #1930 |
 | **Created** | 2026-05-09 |
 | **Owner** | implementer |
 | **Complexity** | Low |
