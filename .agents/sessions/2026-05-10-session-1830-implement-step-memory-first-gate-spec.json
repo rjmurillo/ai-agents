@@ -127,6 +127,11 @@
       "timestamp": "2026-05-10T02:00:00Z",
       "action": "M1 build complete",
       "detail": "Verified chestertons-fence, memory, exploring-knowledge-graph SKILL.md exist. Documented invocation contracts at .agents/plans/active/req-008-m1-skill-contracts.md. Branch feat/req-008-step-0-5-memory-first-gate created."
+    },
+    {
+      "timestamp": "2026-05-10T02:30:00Z",
+      "action": "commit 1 landed",
+      "detail": "94b50b6f: spec artifacts (REQ-008, DESIGN-008, TASK-008, INTERVIEW-1951, session log, episode). Committing plan artifacts next (req-008-step-0-5-memory-first-gate.md, req-008-m1-skill-contracts.md, STEP-0-METRICS.md)."
     }
   ],
   "endingCommit": "",
