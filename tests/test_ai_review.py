@@ -236,6 +236,22 @@ class TestMergeVerdicts:
         # WARN still wins over unrecognized tokens.
         assert merge_verdicts(["FOOBAR", "WARN"]) == "WARN"
 
+    def test_compliant_treated_as_pass(self):
+        # PR #1965 coderabbit Y14: COMPLIANT is a CI-valid token from the
+        # spec-validation flow; merge as PASS-equivalent.
+        assert merge_verdicts(["COMPLIANT"]) == "PASS"
+        assert merge_verdicts(["PASS", "COMPLIANT"]) == "PASS"
+
+    def test_non_compliant_treated_as_fail(self):
+        # NON_COMPLIANT is in FAIL_VERDICTS now.
+        assert merge_verdicts(["NON_COMPLIANT"]) == "CRITICAL_FAIL"
+        assert merge_verdicts(["PASS", "NON_COMPLIANT"]) == "CRITICAL_FAIL"
+
+    def test_partial_treated_as_warn(self):
+        # PARTIAL is warn-equivalent (used by spec validation).
+        assert merge_verdicts(["PARTIAL"]) == "WARN"
+        assert merge_verdicts(["PASS", "PARTIAL"]) == "WARN"
+
     def test_fail_alone_returns_critical_fail(self):
         # FAIL is in FAIL_VERDICTS; must collapse to CRITICAL_FAIL.
         assert merge_verdicts(["FAIL"]) == "CRITICAL_FAIL"
@@ -287,9 +303,18 @@ class TestExtractVerdict:
         # Token not in the allowed set: pattern requires whole word boundary
         assert extract_verdict("Verdict: MAYBE") == "UNKNOWN"
 
-    def test_first_match_wins(self):
+    def test_last_match_wins(self):
+        # PR #1965 coderabbit Y5: spec says "the response MUST contain a
+        # final line matching..." so the LAST verdict marker is canonical.
         from scripts.ai_review_common.verdict import extract_verdict
-        assert extract_verdict("Verdict: PASS\nVerdict: WARN") == "PASS"
+        assert extract_verdict("Verdict: PASS\nVerdict: WARN") == "WARN"
+
+    def test_extract_needs_review_token(self):
+        # PR #1965 coderabbit Y7: NEEDS_REVIEW is in FAIL_VERDICTS but
+        # was missing from the regex alternation; now included.
+        from scripts.ai_review_common.verdict import extract_verdict
+        assert extract_verdict("Verdict: NEEDS_REVIEW") == "NEEDS_REVIEW"
+        assert extract_verdict("Final verdict: NEEDS_REVIEW") == "NEEDS_REVIEW"
 
     def test_lowercase_token_returns_unknown(self):
         # PR #1965 cluster A: global IGNORECASE caused `Verdict: pass` to match
@@ -314,20 +339,15 @@ class TestExtractVerdict:
         assert extract_verdict("FINAL VERDICT: PASS") == "PASS"
         assert extract_verdict("final verdict: WARN") == "WARN"
 
-    def test_matches_inside_fenced_code_block(self):
-        # Pinned behavior: extract_verdict does NOT skip fenced code blocks.
-        # A skill outputting an example `Verdict: PASS` inside a markdown
-        # fence will have that example parsed as the verdict if it appears
-        # before the real verdict line.
-        # Per /review contract, skills emit the canonical Verdict marker as
-        # the FINAL line, so first-match-wins works in practice. This test
-        # pins the limitation so a future change cannot silently drop it.
+    def test_fenced_code_block_does_not_override_final(self):
+        # PR #1965 coderabbit Y5 (combined with cluster F): an example
+        # verdict inside a fenced code block at the top of output cannot
+        # override the real final verdict line at the bottom. Last-match
+        # semantics make this safe regardless of whether the early example
+        # is in a code block, prose, or anywhere else.
         from scripts.ai_review_common.verdict import extract_verdict
         text = "```text\nVerdict: PASS\n```\n\nReal output here.\n\nVerdict: WARN"
-        assert extract_verdict(text) == "PASS", (
-            "extract_verdict matches first occurrence regardless of fence "
-            "context. Skills must emit Verdict as final line."
-        )
+        assert extract_verdict(text) == "WARN"
 
 
 # ---------------------------------------------------------------------------

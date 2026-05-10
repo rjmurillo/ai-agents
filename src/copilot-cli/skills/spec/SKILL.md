@@ -136,9 +136,9 @@ Downstream callers (orchestrators, review skills, CI gates) parse this block by 
 
 If any criterion fires, the gate is loosened or removed in a follow-up PR.
 
-**Tally instruction**: after each Step 0 evaluation (whether pass or halt), append one line to `.agents/metrics/STEP-0-METRICS.md`. Create the file lazily if absent, with header line `# Step 0 Metrics (one line per /spec invocation)`. Each tally line: `<ISO-8601 timestamp> | <pass|fail> | <halt-trigger-or-none> | <halt-question-or-none>`. Absence of the file does not block `/spec`; the tally is review-only data for the kill criteria above.
+**Tally instruction**: after each Step 0 evaluation (whether pass or halt), append one line to `.agents/metrics/STEP-0-METRICS.md`. Create the file lazily if absent, with header line `# Step 0 Metrics (one line per /spec invocation)`. Each tally line uses UTC ISO-8601 with the literal trailing `Z` (`YYYY-MM-DDTHH:MM:SSZ`) so drift/kill-criteria tooling parses records deterministically (PR #1965 coderabbit Y10): `<UTC YYYY-MM-DDTHH:MM:SSZ> | <pass|fail> | <halt-trigger-or-none> | <halt-question-or-none>`. Absence of the file does not block `/spec`; the tally is review-only data for the kill criteria above.
 
-**Archival policy**: after each kill-criteria review (every 30 invocations or when a kill criterion fires, whichever comes first), rotate the tally file: rename `.agents/metrics/STEP-0-METRICS.md` to `.agents/metrics/STEP-0-METRICS-YYYYMMDD.md` (using the review date) and start a fresh file with the same header. The rotated file is the audit trail for that review window. The active file SHALL NOT exceed 100 entries before rotation.
+**Archival policy**: after each kill-criteria review (every 30 invocations or when a kill criterion fires, whichever comes first), rotate the tally file: rename `.agents/metrics/STEP-0-METRICS.md` to `.agents/metrics/STEP-0-METRICS-YYYYMMDDTHHMMSSZ.md` (using the rotation timestamp in UTC) and start a fresh file with the same header. The timestamped suffix prevents same-day collisions when two rotations land in the same calendar day (PR #1965 coderabbit Y11). The rotated file is the audit trail for that review window. The active file SHALL NOT exceed 100 entries before rotation.
 
 ---
 

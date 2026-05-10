@@ -16,6 +16,14 @@ related:
   - REQ-008-06
   - REQ-008-07
   - REQ-008-08
+  - TASK-008-01
+  - TASK-008-02
+  - TASK-008-03
+  - TASK-008-04
+  - TASK-008-05
+  - TASK-008-06
+  - TASK-008-07
+  - TASK-008-08
 adr:
   - ADR-006 (thin workflows)
   - ADR-035 (exit codes)

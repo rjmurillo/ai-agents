@@ -82,7 +82,13 @@ def main(argv: list[str] | None = None) -> int:
         # symlinks and paths outside the repo root. Matches other GitHub
         # skill scripts (PR #1965 copilot review cluster I).
         assert_valid_body_file(args.body_file)
-        body = Path(args.body_file).read_text(encoding="utf-8")
+        # Generic OSError (read race, decode failure, permission flip after
+        # validation) maps to exit 2 (env) per ADR-035 instead of crashing
+        # with a traceback. PR #1965 coderabbit Y2/Y9.
+        try:
+            body = Path(args.body_file).read_text(encoding="utf-8")
+        except OSError as exc:
+            error_and_exit(f"failed to read body file: {exc}", 2)
     else:
         body = args.body
 

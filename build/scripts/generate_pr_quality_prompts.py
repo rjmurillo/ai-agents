@@ -282,7 +282,11 @@ def regenerate(
     if not canonical_files:
         return 2, ["role=ALL status=config_error error=no_canonical_files"]
 
-    generated_dir.mkdir(parents=True, exist_ok=True)
+    # PR #1965 coderabbit Y4: --dry-run must NOT mutate the filesystem.
+    # Creating generated_dir during a validation-only run dirties the
+    # workspace. Only create when we will actually write.
+    if not dry_run:
+        generated_dir.mkdir(parents=True, exist_ok=True)
 
     drift_count = 0
     error_count = 0

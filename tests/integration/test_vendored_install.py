@@ -58,15 +58,25 @@ def vendored_root(tmp_path: Path) -> Path:
     target.mkdir()
     target_claude = target / ".claude"
     target_claude.mkdir()
+    missing: list[str] = []
     for entry in VENDORED_SUBTREE:
         src = CLAUDE_DIR / entry
         if not src.exists():
+            missing.append(entry)
             continue
         dst = target_claude / entry
         if src.is_dir():
             shutil.copytree(src, dst)
         else:
             shutil.copy2(src, dst)
+    # PR #1965 coderabbit Y12: do not silently skip missing required
+    # subtrees. AC5 is a strict packaging contract; if any of the listed
+    # entries is absent in the source tree, the vendored install would
+    # break in the wild and the test must surface it.
+    assert not missing, (
+        f"vendored fixture: required source entries missing under "
+        f"{CLAUDE_DIR}: {missing}"
+    )
     if CLAUDE_MD.exists():
         shutil.copy2(CLAUDE_MD, target / "CLAUDE.md")
     return target

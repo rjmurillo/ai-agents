@@ -68,10 +68,20 @@ def get_milestone(output: str) -> str:
     return match.group(1) if match else ""
 
 
-FAIL_VERDICTS = frozenset({"CRITICAL_FAIL", "REJECTED", "FAIL", "NEEDS_REVIEW"})
+FAIL_VERDICTS = frozenset(
+    {"CRITICAL_FAIL", "REJECTED", "FAIL", "NEEDS_REVIEW", "NON_COMPLIANT"}
+)
 
 
-_KNOWN_VERDICT_TOKENS: frozenset[str] = frozenset({"PASS", "WARN", "UNKNOWN"}) | FAIL_VERDICTS
+# Tokens accepted by .github/actions/ai-review/action.yml's parse step:
+# PASS, WARN, CRITICAL_FAIL, REJECTED, COMPLIANT, NON_COMPLIANT, PARTIAL, FAIL.
+# Plus NEEDS_REVIEW (added by Issue #470 fix) and UNKNOWN (added by #1934).
+# merge_verdicts must not treat these CI-valid tokens as unknown garbage.
+# PR #1965 coderabbit Y14.
+_KNOWN_VERDICT_TOKENS: frozenset[str] = (
+    frozenset({"PASS", "WARN", "UNKNOWN", "COMPLIANT", "NON_COMPLIANT", "PARTIAL"})
+    | FAIL_VERDICTS
+)
 
 
 def merge_verdicts(verdicts: list[str]) -> str:
@@ -99,7 +109,9 @@ def merge_verdicts(verdicts: list[str]) -> str:
         if v in FAIL_VERDICTS:
             return "CRITICAL_FAIL"
 
-    if "WARN" in verdicts:
+    # WARN and PARTIAL are warn-equivalent. PR #1965 coderabbit Y14:
+    # PARTIAL is a CI-valid token from the spec-validation flow.
+    if "WARN" in verdicts or "PARTIAL" in verdicts:
         return "WARN"
 
     # Any UNKNOWN or any unrecognized token -> UNKNOWN. Do NOT silently
@@ -107,6 +119,7 @@ def merge_verdicts(verdicts: list[str]) -> str:
     if any(v not in _KNOWN_VERDICT_TOKENS or v == "UNKNOWN" for v in verdicts):
         return "UNKNOWN"
 
+    # All remaining tokens are PASS-equivalent (PASS or COMPLIANT).
     return "PASS"
 
 
@@ -115,17 +128,25 @@ def merge_verdicts(verdicts: list[str]) -> str:
 # `Verdict: pass` (lowercase token) is malformed and should return UNKNOWN, not
 # silently match `PASS`. Per PR #1965 cursor + gemini review (cluster A):
 # global (?mi) caused silent verdict misclassification.
+# NEEDS_REVIEW added per PR #1965 coderabbit Y7: it is in FAIL_VERDICTS so a
+# skill emitting `Verdict: NEEDS_REVIEW` must be parsed as that token, not
+# downgraded to UNKNOWN.
 _EXTRACT_VERDICT_PATTERN = re.compile(
-    r"(?m)^\s*(?i:(?:Final\s+)?Verdict):\s*(PASS|WARN|CRITICAL_FAIL|REJECTED|FAIL|UNKNOWN)\b",
+    r"(?m)^\s*(?i:(?:Final\s+)?Verdict):\s*"
+    r"(PASS|WARN|CRITICAL_FAIL|REJECTED|FAIL|NEEDS_REVIEW|UNKNOWN)\b",
 )
 
 
 def extract_verdict(text: str) -> str:
-    """Scan text for a verdict marker and return the matched token.
+    """Scan text for a verdict marker and return the LAST matched token.
 
     Matches lines of the form ``Verdict: <TOKEN>`` or ``Final verdict: <TOKEN>``
     (case-insensitive on the label, exact match on the token). Returns the
-    matched token, or ``UNKNOWN`` when no match is found or input is empty.
+    LAST match (per axis convention "the response MUST contain a final line
+    matching..."); an early example of `Verdict: PASS` inside a code block or
+    explanation cannot override the real final verdict. PR #1965 coderabbit Y5.
+
+    Returns ``UNKNOWN`` when no match is found or input is empty.
 
     Use this to parse skill output that may embed a verdict in multi-line
     markdown, where ``get_verdict`` keyword fallbacks would over-match.
@@ -134,8 +155,8 @@ def extract_verdict(text: str) -> str:
     """
     if not text or not text.strip():
         return "UNKNOWN"
-    match = _EXTRACT_VERDICT_PATTERN.search(text)
-    return match.group(1) if match else "UNKNOWN"
+    matches = _EXTRACT_VERDICT_PATTERN.findall(text)
+    return matches[-1] if matches else "UNKNOWN"
 
 
 _INFRA_PATTERNS = re.compile(
