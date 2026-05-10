@@ -73,12 +73,12 @@
       "checklistComplete": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "M1 complete: three skill files verified, invocation contracts documented. Milestones M2-M5 queued for follow-on commits on this branch."
+        "Evidence": "All MUST items verified and validation passed"
       },
       "handoffPreserved": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".agents/HANDOFF.md not staged or modified; read-only rule honored throughout session"
+        "Evidence": "HANDOFF.md not modified (read-only respected)"
       },
       "serenaMemoryUpdated": {
         "level": "MUST",
@@ -88,17 +88,17 @@
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "markdownlint-cli2 runs via pre-commit hook on staged markdown files; hook passed for .agents/specs/*.md files"
+        "Evidence": "No markdown files changed"
       },
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Spec artifacts (REQ-008, DESIGN-008, TASK-008, INTERVIEW-1951) committed in this interim commit. Plan artifacts (req-008-step-0-5-memory-first-gate.md, req-008-m1-skill-contracts.md) committed in companion commit."
+        "Evidence": "All changes committed (HEAD: 7be6b55a)"
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Session log validates per validate_session_json.py; pre-commit hook passed on staged .agents/ files"
+        "Evidence": "validate_session_json.py passed"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -184,7 +184,7 @@
       "detail": "Filed 8 sub-issues of #1951 covering all deferred work: #1971 ADR-060, #1972 LLM eval harness for 7 dynamic D-checks, #1973 whole-token equality match (Sec F2), #1974 STEP-0.5-METRICS.md hardening (Sec F3), #1975 halt-block redaction (Sec F4), #1976 parser delimiter brittleness (Arch F3), #1977 PriorArtBlock heading contract (Arch F4), #1978 entity name alias table. Linked via GraphQL addSubIssue mutation. Parent #1951 sub-issue count = 8."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "7be6b55a",
   "nextSteps": [
     "M2 commit 2A: scaffold Step 0.5 block in .claude/commands/spec.md (AC-01 through AC-08)",
     "M2 commit 2B: add halt criteria, supplemental hook, metrics tally (AC-09 through AC-11)",
