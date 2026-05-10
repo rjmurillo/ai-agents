@@ -1026,15 +1026,27 @@ else
         if "${PYTHON_CMD[@]}" \
             .claude/skills/github/scripts/pr/get_unresolved_review_threads.py \
             --pull-request "$PR_NUMBER" >"$BOT_CHECK_OUTPUT" 2>/dev/null; then
+            # PR #1989 copilot ZX-: get_unresolved_review_threads.py exits 0
+            # even on an incomplete pagination snapshot. Require
+            # fetched_pages_complete=true before trusting unresolved_count;
+            # otherwise treat as a skip (not a pass) so an incomplete fetch
+            # does not produce false reassurance.
             UNRESOLVED_COUNT=$("${PYTHON_CMD[@]}" -c "
 import json, sys
 try:
     data = json.load(open(sys.argv[1]))
-    print(data.get('unresolved_count', 0))
+    if not data.get('fetched_pages_complete', False):
+        print('INCOMPLETE')
+    else:
+        print(data.get('unresolved_count', 0))
 except Exception:
-    print(0)
-" "$BOT_CHECK_OUTPUT" 2>/dev/null || echo 0)
-            if [ "${UNRESOLVED_COUNT:-0}" -gt 0 ] 2>/dev/null; then
+    print('ERROR')
+" "$BOT_CHECK_OUTPUT" 2>/dev/null || echo 'ERROR')
+            if [ "$UNRESOLVED_COUNT" = "INCOMPLETE" ]; then
+                record_skip "Bot-cascade check (PR #$PR_NUMBER snapshot incomplete)"
+            elif [ "$UNRESOLVED_COUNT" = "ERROR" ]; then
+                record_skip "Bot-cascade check (PR #$PR_NUMBER JSON parse failed)"
+            elif [ "${UNRESOLVED_COUNT:-0}" -gt 0 ] 2>/dev/null; then
                 record_warn "PR #$PR_NUMBER has $UNRESOLVED_COUNT unresolved bot thread(s)"
                 echo_info "  Pushing now will trigger another bot scan and may"
                 echo_info "  open more threads. Batch-fix pattern (Session 14,"

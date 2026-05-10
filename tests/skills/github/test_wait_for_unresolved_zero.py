@@ -616,6 +616,25 @@ class InvokeUnderlyingErrorHandlingTest(unittest.TestCase):
         )
         self.assertEqual((count, complete, exit_code), (-1, False, 0))
 
+    def test_non_dict_payload_returns_negative(self) -> None:
+        """NEGATIVE: JSON is valid but not a dict (null/list/scalar) -> count=-1.
+
+        PR #1989 coderabbit njY: json.loads can return non-dict types;
+        calling .get() on them raises AttributeError. Defensive isinstance
+        check returns the sentinel cleanly.
+        """
+        for payload_str in ("null", "[]", '"a string"', "42"):
+            def runner(*_args: Any, **_kw: Any) -> Any:
+                return mock.Mock(returncode=0, stdout=payload_str, stderr="")
+            count, complete, exit_code = wfz._invoke_underlying(
+                Path("/p.py"), 42, "", "", runner=runner,
+            )
+            self.assertEqual(
+                (count, complete, exit_code),
+                (-1, False, 0),
+                f"payload {payload_str!r} should yield (-1, False, 0)",
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

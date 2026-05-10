@@ -44,7 +44,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import subprocess
 import sys
 import time
@@ -174,6 +173,11 @@ def _invoke_underlying(
     try:
         payload = json.loads(stdout)
     except (json.JSONDecodeError, ValueError):
+        return (-1, False, exit_code)
+    # PR #1989 coderabbit njY: json.loads can return null, list, or scalar.
+    # Calling .get() on a non-dict raises AttributeError. Underlying script
+    # is controlled, but defensive code is cheap and prevents future crashes.
+    if not isinstance(payload, dict):
         return (-1, False, exit_code)
     try:
         count = int(payload.get("unresolved_count", -1))
