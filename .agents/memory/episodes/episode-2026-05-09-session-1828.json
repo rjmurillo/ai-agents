@@ -15,6 +15,14 @@
       "leads_to": []
     },
     {
+      "id": "e002",
+      "timestamp": "2026-05-10T00:02:50.246747+00:00",
+      "type": "milestone",
+      "content": "{\"step\": \"3 rounds /pr-quality:all adversarial review converged to PASS\", \"outcome\": \"Round 1: qa BLOCKED, analyst+roadmap WARN. Round 2: regressions found in Round 1 fixes. Round 3: clean.\"}",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
       "id": "e003",
       "timestamp": "2026-05-10T00:02:50.246747+00:00",
       "type": "test",

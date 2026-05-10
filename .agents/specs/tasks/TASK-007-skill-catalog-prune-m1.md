@@ -2,17 +2,24 @@
 type: task
 id: TASK-007
 title: Skill Catalog Prune M1
-status: open
+status: in-progress
 priority: medium
 complexity: S
+created: 2026-05-09
+updated: 2026-05-10
 related:
   - DESIGN-007
+  - REQ-007
 blocked_by: []
 blocks: []
 assignee: ""
 ---
 
 # TASK-007: Skill Catalog Prune M1
+
+## Design Context
+
+Implements DESIGN-007 (Skill Catalog Prune M1). The design rationale: `doc-accuracy` self-declares in its `Related Skills` table that it `**Replaced**` `doc-coverage` (Symbol extraction logic preserved in Phase 1) and `doc-sync` (Structural audit absorbed into Phase 6). The `workflow` skill is DEPRECATED in its own SKILL.md with no callers in commands, agents, or CI. This task subtracts the three subsumed skills to reduce catalog cognitive load, with zero behavior loss for callers (consolidation paths documented in `doc-accuracy/SKILL.md` and the `docs/workflow-commands.md` migration table).
 
 ## Objective
 
