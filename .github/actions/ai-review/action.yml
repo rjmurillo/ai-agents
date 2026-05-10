@@ -879,11 +879,15 @@ runs:
         milestone=$(echo "$output" | sed -n 's/.*MILESTONE:[[:space:]]*\([^[:space:]]*\).*/\1/p' | head -1)
 
         # Determine exit code based on verdict
-        # Failure verdicts: CRITICAL_FAIL, REJECTED, FAIL, NON_COMPLIANT, NEEDS_REVIEW
+        # Failure verdicts (block): CRITICAL_FAIL, REJECTED, FAIL,
+        # NON_COMPLIANT, NEEDS_REVIEW, UNKNOWN. UNKNOWN added per PR #1965
+        # cursor 6yn7: it sits in $blockingVerdicts in the workflow gate,
+        # so the action's exit_code output must agree, otherwise consumers
+        # of the action see a contradictory pass/block signal.
         # Pass/warning verdicts: PASS, WARN, COMPLIANT, PARTIAL
         exit_code=0
         case "$verdict" in
-          CRITICAL_FAIL|REJECTED|FAIL|NON_COMPLIANT|NEEDS_REVIEW)
+          CRITICAL_FAIL|REJECTED|FAIL|NON_COMPLIANT|NEEDS_REVIEW|UNKNOWN)
             exit_code=1
             ;;
         esac
