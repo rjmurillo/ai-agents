@@ -147,6 +147,11 @@
       "timestamp": "2026-05-10T05:00:00Z",
       "action": "M2 commit 2B drafted",
       "detail": "Added halt criteria section (H6-H11), step0_5-halt block format (5 fields, info-string, parser contract), supplemental Phase 5 hook with phases_needed formula, STEP-0.5-METRICS.md tally directive with examples and archival policy. Removed <!-- step0.5:incomplete-without-2b --> guard string. M2 complete; spec.md grew from 199 to ~340 lines."
+    },
+    {
+      "timestamp": "2026-05-10T06:00:00Z",
+      "action": "M3 commit drafted",
+      "detail": "Appended Check 9d (Prior Art / Constraints elicitation) to Step 9 pre-mortem list. 9d FAIL conditions: (a) section absent; (b) all 3 subsections empty without coverage note; (c) guard-string still present (Step 0.5 partial). Updated Step 9 narrative to reference 9a/9b/9c/9d. 9a/9b/9c bodies untouched per plan."
     }
   ],
   "endingCommit": "",

@@ -12,8 +12,8 @@
 ## Objectives
 
 - [x] M1: Verify three skill SKILL.md files exist and document invocation contract
-- [ ] M2: Insert Step 0.5 block in `.claude/commands/spec.md` (1-2 commits, design locked first)
-- [ ] M3: Append check 9d to Step 9 pre-mortem (serialized after M2)
+- [x] M2: Insert Step 0.5 block in `.claude/commands/spec.md` (2 commits: 1d60205f scaffold, b97378f1 halt+supplemental+metrics)
+- [x] M3: Append check 9d to Step 9 pre-mortem (serialized after M2)
 - [ ] M4: Add static validation tests using heading-anchored parser
 - [ ] M5: Manual + pytest-promoted validation of D1-D14 dynamic checks
 
@@ -151,6 +151,8 @@ Serial chain. M3 was originally parallel with M2 but pre-mortem F6 (merge confli
 | 2026-05-09 | Revised post pre-mortem (7 findings) and critic (6 findings); M2 collapsed, M3 serialized, M1 expanded, M5 partial pytest promotion | planner |
 | 2026-05-09 | Critic v2 surgical fixes: AC-08 explicit in 2A; M4 12-check AC mapping; M5 D-list inlined with citation; 2A guard-string + M3 guard-detection prevents AC-12 false-positive on partial M2 | planner |
 | 2026-05-09 | M1 complete. Three SKILL.md files verified; invocation contracts documented at .agents/plans/active/req-008-m1-skill-contracts.md. Branch feat/req-008-step-0-5-memory-first-gate. | implementer |
+| 2026-05-10 | M2 complete. Step 0.5 inserted into .claude/commands/spec.md across 2 commits (1d60205f scaffold AC-01 to AC-08; b97378f1 halt+supplemental+metrics AC-09 to AC-11). Guard string introduced and removed. spec.md grew from 199 to 339 lines. | implementer |
+| 2026-05-10 | M3 complete. Check 9d appended to Step 9 pre-mortem list (AC-12). 9a/9b/9c untouched. 9d FAIL conditions include guard-string detection per plan. Step 9 narrative updated to cover 9a-9d. | implementer |
 
 ## Risk Register
 

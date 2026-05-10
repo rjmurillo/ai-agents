@@ -352,7 +352,7 @@ Absence of the file does not block `/spec`; the tally is review-only data for th
    The full PRD must be passed as input so spec-generator does not re-ask questions the interview already answered. Acceptance criteria use EARS syntax (`WHEN ... THE SYSTEM SHALL ... SO THAT ...`).
 7. Task(subagent_type="analyst"): You are a requirements analyst. Your job is to find gaps, ambiguities, and untestable requirements. Review every PRD section, not just acceptance criteria. For each requirement, ask: can this be verified pass/fail? Flag anything vague.
 8. Invoke Skill(skill="decision-critic"): challenge assumptions before committing
-9. Task(subagent_type="critic"): You are a skeptical reviewer. Run a pre-mortem: assume this spec ships and fails. What broke first? What was missing? Then run three binary Step 0 validity checks against the final PRD; the critic SHALL NOT return APPROVED while any of 9a/9b/9c is FAIL.
+9. Task(subagent_type="critic"): You are a skeptical reviewer. Run a pre-mortem: assume this spec ships and fails. What broke first? What was missing? Then run four binary checks against the final PRD; the critic SHALL NOT return APPROVED while any of 9a/9b/9c/9d is FAIL. Checks 9a/9b/9c validate Step 0 (forward-looking demand) drift. Check 9d validates Step 0.5 (backward-looking prior art) elicitation.
 
    - **Check 9a, Demand Reality drift**:
      - PASS: PRD acceptance criteria, user stories, OR success metric reference at least one entity (person, team, system, metric, ticket, file path) named in Step 0 Q1.
@@ -363,6 +363,10 @@ Absence of the file does not block `/spec`; the tally is review-only data for th
    - **Check 9c, Narrowest Wedge drift**:
      - PASS: every PRD acceptance criterion either traces to the Q4 wedge or narrows it.
      - FAIL if any acceptance criterion adds scope beyond Q4 without a documented wedge revision. On FAIL: cite Q4 verbatim and list the AC entries that exceed the wedge.
+   - **Check 9d, Prior Art / Constraints elicitation**:
+     - PASS: the PRD contains a "## Prior Art / Constraints" section with at least one sub-section ("### Direct prior art from memory", "### Connected context from exploring-knowledge-graph", or "### Coverage notes") that has either evidence content or a justified coverage note.
+     - FAIL conditions (any one triggers FAIL): (a) the section is absent; (b) all three sub-sections are empty AND no coverage note is present; (c) `.claude/commands/spec.md` contains the literal string `<!-- step0.5:incomplete-without-2b -->` (indicates Step 0.5 is in a partial-implementation state and the PriorArtBlock contract is not yet load-bearing).
+     - On FAIL: surface as a blocking finding. The critic SHALL NOT return APPROVED while check 9d is FAIL.
 
 ## Evaluation Axes
 

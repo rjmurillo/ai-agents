@@ -1,15 +1,24 @@
 {
   "id": "episode-2026-05-10-session-1830",
   "session": "2026-05-10-session-1830",
-  "timestamp": "2026-05-10T06:05:29.011462+00:00",
-  "outcome": "partial",
+  "timestamp": "2026-05-10T06:08:46.895579+00:00",
+  "outcome": "failure",
   "task": "",
   "decisions": [],
-  "events": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-05-10T06:08:46.891981+00:00",
+      "type": "error",
+      "content": "\"detail\": \"Appended Check 9d (Prior Art / Constraints elicitation) to Step 9 pre-mortem list. 9d FAIL conditions: (a) section absent; (b) all 3 subsections empty without coverage note; (c) guard-string still present (Step 0.5 partial). Updated Step 9 narrative to reference 9a/9b/9c/9d. 9a/9b/9c bodies untouched per plan.\"",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
   "metrics": {
     "duration_minutes": 0,
     "tool_calls": 0,
-    "errors": 0,
+    "errors": 1,
     "recoveries": 0,
     "commits": 3,
     "files_changed": 0
