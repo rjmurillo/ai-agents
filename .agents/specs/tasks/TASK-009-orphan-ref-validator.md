@@ -1,21 +1,21 @@
 ---
 type: task
-id: TASK-008
+id: TASK-009
 title: Orphan-Ref Validator Skill Implementation Tasks
 status: in-progress
 complexity: M
 priority: P2
-related: [REQ-008, DESIGN-008]
+related: [REQ-009, DESIGN-009]
 created: 2026-05-10
 updated: 2026-05-10
 author: richard
 ---
 
-# TASK-008: Orphan-Ref Validator Skill Implementation Tasks
+# TASK-009: Orphan-Ref Validator Skill Implementation Tasks
 
 ## Milestones
 
-PR1 (this PR, wedge per REQ-008 Q4 revision; expanded to include AC3 during PR #1979 review):
+PR1 (this PR, wedge per REQ-009 Q4 revision; expanded to include AC3 during PR #1979 review):
 
 | ID | Milestone | ACs covered | Blocking | Effort |
 |---|---|---|---|---|
@@ -27,7 +27,7 @@ PR1 (this PR, wedge per REQ-008 Q4 revision; expanded to include AC3 during PR #
 
 PR1 total: ~5.25h. ACs delivered: AC1, AC2, AC3, AC4 (extract-only; emission delegated to canonical), AC5, AC6, AC7, AC9.
 
-PR2 (follow-up, deferred per REQ-008):
+PR2 (follow-up, deferred per REQ-009):
 
 | ID | Milestone | ACs covered | Effort |
 |---|---|---|---|
@@ -38,17 +38,17 @@ PR2 total: ~1.25h.
 
 ## Tasks
 
-### TASK-008-01: Create skill skeleton
+### TASK-009-01: Create skill skeleton
 
 - Create `.claude/skills/orphan-ref-validator/` directory.
 - Write `SKILL.md` with frontmatter (name, description, license, version) and body sections (Triggers, Inputs, Outputs, Behavior, Failure modes, References).
 - Body ≤500 lines.
-- Acceptance: skill directory exists; `python3 -c "import yaml; yaml.safe_load(open('.claude/skills/orphan-ref-validator/SKILL.md').read().split('---')[1])"` parses frontmatter; section anchors match DESIGN-008.
+- Acceptance: skill directory exists; `python3 -c "import yaml; yaml.safe_load(open('.claude/skills/orphan-ref-validator/SKILL.md').read().split('---')[1])"` parses frontmatter; section anchors match DESIGN-009.
 
-### TASK-008-02: Implement scan.py core (AC1-AC3, AC5, AC6)
+### TASK-009-02: Implement scan.py core (AC1-AC3, AC5, AC6)
 
 - File: `.claude/skills/orphan-ref-validator/scripts/scan.py`
-- Functions per DESIGN-008 components.
+- Functions per DESIGN-009 components.
 - CLI: `argparse` with `--targets PATH...`, `--output {json,human}`, `--repo-root PATH`.
 - Main: `def main(argv=None) -> int` returning ADR-035 exit code.
 - Reference patterns (defined in `patterns.py`):
@@ -65,41 +65,41 @@ PR2 total: ~1.25h.
 - Output: ADR-056 envelope to stdout, then literal final line `VERDICT: <pass|warn|critical_fail>` (UPPERCASE in actual emit).
 - Acceptance: scan.py runs `--help` without error; exits 0 on `--targets /tmp/empty.md`; exits 1 with critical_fail finding on a fixture mentioning `nonexistent-skill`. <!-- orphan-ref-ignore -->
 
-### TASK-008-03: Implement count-claim detection (AC4 partial - extraction only)
+### TASK-009-03: Implement count-claim detection (AC4 partial - extraction only)
 
 - Mirror canonical `COUNT_PATTERN` and `LABEL_MAP` from `build/scripts/validate_marketplace_counts.py` byte-for-byte in `patterns.py` (matches `specialized agent definition`, `agent definition`, `agent`, `slash command`, `lifecycle hook`, `reusable skill` with optional plural).
 - Detection only in PR1: `extract_count_claims` yields `(lineno, count, canonical_label)` triples; emission of `Finding(kind=count_claim)` is delegated to the canonical validator per `.claude/rules/canonical-source-mirror.md`. The canonical reads `templates/marketplace-counters.yaml` for per-plugin `sourceDir` and `exclude` lists and supports `--fix`; orphan-ref-validator does not duplicate that surface.
 - An opt-in `--enforce-counts` flag (`scan_file(enforce_counts=True)`) is reserved for PR2 single-plugin enforcement.
 - Acceptance: extractor emits the canonical labels; no `count_claim` findings emitted in default mode; `tests/test_validate_marketplace_counts.py` continues to enforce counts at the canonical seam.
 
-### TASK-008-04: Test suite (AC9)
+### TASK-009-04: Test suite (AC9)
 
 - File: `.claude/skills/orphan-ref-validator/tests/test_scan.py`
 - Use `pytest` and `tmp_path` fixtures.
-- Cases per DESIGN-008 test table (AC2/3/4 positive+negative, AC5 envelope, AC6 vendored, AC9 edge cases).
+- Cases per DESIGN-009 test table (AC2/3/4 positive+negative, AC5 envelope, AC6 vendored, AC9 edge cases).
 - Coverage gate: `pytest --cov=scripts.scan --cov-fail-under=80`.
 - Acceptance: all tests green; coverage report ≥80% line on scan.py.
 
-### TASK-008-05: Wire into /build (AC7)
+### TASK-009-05: Wire into /build (AC7)
 
 - Edit `.claude/commands/build.md` "Mandatory Exit Gates" section.
 - Add bullet for orphan-ref-validator alongside code-qualities-assessment, taste-lints, doc-accuracy.
 - Acceptance: grep `.claude/commands/build.md` returns the new bullet; `/build` documentation reads correctly.
 
-### TASK-008-06: Wire into /test (AC8)
+### TASK-009-06: Wire into /test (AC8)
 
 - Edit `.claude/commands/test.md` Gate 5 (DX) section.
 - Add bullet for orphan-ref-validator.
 - Acceptance: grep `.claude/commands/test.md` returns the new bullet.
 
-### TASK-008-07: Self-test on the source repo
+### TASK-009-07: Self-test on the source repo
 
 - Run `python3 .claude/skills/orphan-ref-validator/scripts/scan.py` from repo root.
 - Triage findings: classify each as (a) real orphan to fix, (b) false positive to refine pattern, or (c) deferred.
 - Fix real orphans in this PR (≤3 atomic commits); document false positives in pattern refinement.
 - Acceptance: clean scan or documented exceptions; PR description lists triaged findings.
 
-### TASK-008-08: Pre-PR validation
+### TASK-009-08: Pre-PR validation
 
 - Run `python3 scripts/validation/pre_pr.py`.
 - Run pytest on the new tests.

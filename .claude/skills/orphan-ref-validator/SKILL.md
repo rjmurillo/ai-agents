@@ -275,7 +275,7 @@ Repos that want a tighter feedback loop can add a pre-push hook that runs the sk
 
 ## References
 
-- REQ-008, DESIGN-008, TASK-008 (specs in `.agents/specs/`)
+- REQ-009, DESIGN-009, TASK-009 (specs in `.agents/specs/`)
 - ADR-035 (exit codes)
 - ADR-042 (Python first)
 - ADR-056 (skill output envelope)

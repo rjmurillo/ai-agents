@@ -5,7 +5,7 @@ Scans target paths for references to skill names, script paths, and count claims
 that do not match working-tree state. Emits ADR-056 envelope plus final
 ``VERDICT: PASS|WARN|CRITICAL_FAIL`` line. Exit code per ADR-035.
 
-Reference: REQ-008, DESIGN-008, issue #1939, epic #1933.
+Reference: REQ-009, DESIGN-009, issue #1939, epic #1933.
 
 Exit codes:
     0 - PASS or WARN (no critical findings)
@@ -371,7 +371,7 @@ def scan(
 
 def parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Detect orphan refs in structured artifacts (REQ-008)."
+        description="Detect orphan refs in structured artifacts (REQ-009)."
     )
     parser.add_argument(
         "--targets",

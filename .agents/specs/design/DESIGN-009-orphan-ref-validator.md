@@ -1,20 +1,20 @@
 ---
 type: design
-id: DESIGN-008
+id: DESIGN-009
 title: Orphan-Ref Validator Skill Design
 status: draft
 priority: P2
-related: [REQ-008, TASK-008]
+related: [REQ-009, TASK-009]
 created: 2026-05-10
 updated: 2026-05-10
 author: richard
 ---
 
-# DESIGN-008: Orphan-Ref Validator Skill
+# DESIGN-009: Orphan-Ref Validator Skill
 
 ## Requirements Addressed
 
-This design implements REQ-008 acceptance criteria AC1, AC2, AC3, AC5, AC6, AC7, and AC9 (subset). AC4 (count_claim emission) is delegated to `build/scripts/validate_marketplace_counts.py` per `.claude/rules/canonical-source-mirror.md`; the regex and label map mirror the canonical pattern, but emission is gated behind an opt-in flag reserved for PR2. AC8 (/test Gate 5 wiring) is deferred to PR2. Cross-references: REQ-008-AC1 through REQ-008-AC9, ADR-035 (exit codes), ADR-056 (output envelope), `.claude/rules/canonical-source-mirror.md` (citation policy).
+This design implements REQ-009 acceptance criteria AC1, AC2, AC3, AC5, AC6, AC7, and AC9 (subset). AC4 (count_claim emission) is delegated to `build/scripts/validate_marketplace_counts.py` per `.claude/rules/canonical-source-mirror.md`; the regex and label map mirror the canonical pattern, but emission is gated behind an opt-in flag reserved for PR2. AC8 (/test Gate 5 wiring) is deferred to PR2. Cross-references: REQ-009-AC1 through REQ-009-AC9, ADR-035 (exit codes), ADR-056 (output envelope), `.claude/rules/canonical-source-mirror.md` (citation policy).
 
 ## Design Overview
 
@@ -55,7 +55,7 @@ The skill is fail-closed: any unrecognized configuration error returns exit `2`,
 ## Testing Strategy
 
 - **Unit tests**: `tests/test_scan.py` covers each AC positively and negatively, ADR-056 envelope shape (including the `Success: false` exit-2 envelope), ADR-035 exit codes, vendored-install scenarios (skill catalog absent, empty, or pointing at a regular file), ignore directives at both scopes, glob target expansion, walk-prune behavior, symlink containment for both file and directory targets, in-repo symlink-cycle guard, max-findings cap, and edge cases (empty file, secret denylist, oversized files, mixed living-and-dead refs, CWD-not-in-git fallback).
-- **Self-test (TASK-008-07)**: scan the source repo with default scope; iterate filters and ignore directives until VERDICT: PASS; document remaining preexisting orphans surfaced by `--include-adrs` and `--include-skill-descriptions` as out-of-scope follow-up work.
+- **Self-test (TASK-009-07)**: scan the source repo with default scope; iterate filters and ignore directives until VERDICT: PASS; document remaining preexisting orphans surfaced by `--include-adrs` and `--include-skill-descriptions` as out-of-scope follow-up work.
 - **Coverage gate**: `pytest --cov=scripts.scan --cov-fail-under=80`. Achieved coverage on `scan.py` exceeds the 80% floor.
 - **Integration with canonical**: `tests/test_validate_marketplace_counts.py` continues to enforce manifest counts; orphan-ref-validator does not duplicate that path. The two test suites do not overlap.
 
@@ -147,7 +147,7 @@ Body sections:
 - Behavior (per acceptance criteria)
 - Failure modes (vendored install, parse errors)
 - Examples
-- References (REQ-008, ADR-035, ADR-056, ADR-042)
+- References (REQ-009, ADR-035, ADR-056, ADR-042)
 
 ### `tests/test_scan.py` (pytest)
 
@@ -242,10 +242,10 @@ build-gate purpose. The `--include-adrs` flag opts back in for periodic audits.
 
 ### Wedge-PR scope decision (PR1)
 
-PR1 of TASK-008 implements detection for skill_name, script_path, and
+PR1 of TASK-009 implements detection for skill_name, script_path, and
 count_claim refs. count_claim emission is delegated to the canonical
 `build/scripts/validate_marketplace_counts.py` (PR1 ships the regex and label
-map but no Findings). `/test` Gate 5 wiring (REQ-008-AC8) is deferred to PR2.
+map but no Findings). `/test` Gate 5 wiring (REQ-009-AC8) is deferred to PR2.
 
 Real orphans inside `.agents/architecture/` (deleted skills referenced in
 ADR-007, ADR-017, ADR-040) are out of scope for the wedge PR and tracked as a
@@ -263,7 +263,7 @@ follow-up issue.
 
 ### `/test` Gate 5 (DX) -- deferred to PR2
 
-PR1 does not wire `/test` Gate 5; this is REQ-008-AC8, deferred per the Deferred section in REQ-008 and the milestones in TASK-008. PR2 will add:
+PR1 does not wire `/test` Gate 5; this is REQ-009-AC8, deferred per the Deferred section in REQ-009 and the milestones in TASK-009. PR2 will add:
 
 ```markdown
 - [ ] orphan-ref-validator: `python3 .claude/skills/orphan-ref-validator/scripts/scan.py`. CRITICAL_FAIL surfaces in test summary.
@@ -300,4 +300,4 @@ PR1 does not wire `/test` Gate 5; this is REQ-008-AC8, deferred per the Deferred
 
 ## Open Design Decisions
 
-None. All resolved in REQ-008 + this design.
+None. All resolved in REQ-009 + this design.

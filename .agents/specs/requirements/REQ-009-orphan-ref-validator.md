@@ -1,6 +1,6 @@
 ---
 type: requirement
-id: REQ-008
+id: REQ-009
 title: Orphan-Ref Validator Skill
 status: draft
 priority: P2
@@ -8,14 +8,14 @@ category: non-functional
 epic: lifecycle-gate-convergence
 related:
   - REQ-007
-  - DESIGN-008
-  - TASK-008
+  - DESIGN-009
+  - TASK-009
 created: 2026-05-10
 updated: 2026-05-10
 author: richard
 ---
 
-# REQ-008: Orphan-Ref Validator Skill
+# REQ-009: Orphan-Ref Validator Skill
 
 ## Step 0 First Principles
 
@@ -59,15 +59,15 @@ The skill closes this gate by scanning target paths pre-commit and emitting stru
 
 ## Acceptance Criteria
 
-- [ ] REQ-008-AC1: WHEN `/build` ships, THE SYSTEM SHALL provide `.claude/skills/orphan-ref-validator/` with `SKILL.md` (frontmatter + body, ≤500 lines), `.claude/skills/orphan-ref-validator/scripts/scan.py`, and `.claude/skills/orphan-ref-validator/tests/test_scan.py`, SO THAT the skill is discoverable, executable, and testable.
-- [ ] REQ-008-AC2: WHEN a scan target file mentions a skill name (kebab-case identifier matching `[a-z][a-z0-9-]+`) absent from `.claude/skills/`, THE SYSTEM SHALL emit `Finding(kind=skill_name, severity=critical, file, line)`, SO THAT skill-description staleness is detected.
-- [ ] REQ-008-AC3: WHEN a scan target references a script path matching `(build/scripts|scripts/validation|scripts)/[a-zA-Z0-9_/-]+\.py` absent on disk, THE SYSTEM SHALL emit `Finding(kind=script_path, severity=critical, file, line)`, SO THAT unenforceable AC strings are detected.
-- [ ] REQ-008-AC4: WHEN plugin manifest count claims (e.g. "67 skills", "23 agents") diverge from actual catalog enumeration, THE SYSTEM SHALL emit `Finding(kind=count_claim, severity=critical, file, line, expected, actual)`, SO THAT manifest drift is detected.
-- [ ] REQ-008-AC5: WHEN scan completes, THE SYSTEM SHALL emit ADR-056 envelope `{Success, Data: {findings, verdict, counts}, Error, Metadata}` to stdout followed by a final line `VERDICT: PASS|WARN|CRITICAL_FAIL|ERROR` (where `ERROR` accompanies exit code 2 configuration failures and a populated `Error` block per the skill-output schema), SO THAT downstream gates parse machine-readable output.
-- [ ] REQ-008-AC6: WHEN a target path is absent (vendored-install scenario where `.agents/`, `.serena/`, `.github/` may not exist), THE SYSTEM SHALL log INFO `skipping <path>: not present` and continue, NOT raise, SO THAT the skill survives vendored deployment.
-- [ ] REQ-008-AC7: WHEN `/build` runs Mandatory Exit Gates, THE SYSTEM SHALL invoke `orphan-ref-validator` and block on CRITICAL_FAIL, SO THAT orphans cannot pass `/build`.
-- [ ] REQ-008-AC8: WHEN `/test` runs Gate 5 (DX), THE SYSTEM SHALL invoke `orphan-ref-validator` and surface findings in test summary, SO THAT cross-cutting orphan detection runs in test phase.
-- [ ] REQ-008-AC9: WHEN `pytest .claude/skills/orphan-ref-validator/tests/` runs, THE SYSTEM SHALL report ≥80% line coverage on `scan.py` with positive (orphan present), negative (no orphans), and edge cases (empty target file, missing target path, mixed living+dead refs), SO THAT regression risk is bounded.
+- [ ] REQ-009-AC1: WHEN `/build` ships, THE SYSTEM SHALL provide `.claude/skills/orphan-ref-validator/` with `SKILL.md` (frontmatter + body, ≤500 lines), `.claude/skills/orphan-ref-validator/scripts/scan.py`, and `.claude/skills/orphan-ref-validator/tests/test_scan.py`, SO THAT the skill is discoverable, executable, and testable.
+- [ ] REQ-009-AC2: WHEN a scan target file mentions a skill name (kebab-case identifier matching `[a-z][a-z0-9-]+`) absent from `.claude/skills/`, THE SYSTEM SHALL emit `Finding(kind=skill_name, severity=critical, file, line)`, SO THAT skill-description staleness is detected.
+- [ ] REQ-009-AC3: WHEN a scan target references a script path matching `(build/scripts|scripts/validation|scripts)/[a-zA-Z0-9_/-]+\.py` absent on disk, THE SYSTEM SHALL emit `Finding(kind=script_path, severity=critical, file, line)`, SO THAT unenforceable AC strings are detected.
+- [ ] REQ-009-AC4: WHEN plugin manifest count claims (e.g. "67 skills", "23 agents") diverge from actual catalog enumeration, THE SYSTEM SHALL emit `Finding(kind=count_claim, severity=critical, file, line, expected, actual)`, SO THAT manifest drift is detected.
+- [ ] REQ-009-AC5: WHEN scan completes, THE SYSTEM SHALL emit ADR-056 envelope `{Success, Data: {findings, verdict, counts}, Error, Metadata}` to stdout followed by a final line `VERDICT: PASS|WARN|CRITICAL_FAIL|ERROR` (where `ERROR` accompanies exit code 2 configuration failures and a populated `Error` block per the skill-output schema), SO THAT downstream gates parse machine-readable output.
+- [ ] REQ-009-AC6: WHEN a target path is absent (vendored-install scenario where `.agents/`, `.serena/`, `.github/` may not exist), THE SYSTEM SHALL log INFO `skipping <path>: not present` and continue, NOT raise, SO THAT the skill survives vendored deployment.
+- [ ] REQ-009-AC7: WHEN `/build` runs Mandatory Exit Gates, THE SYSTEM SHALL invoke `orphan-ref-validator` and block on CRITICAL_FAIL, SO THAT orphans cannot pass `/build`.
+- [ ] REQ-009-AC8: WHEN `/test` runs Gate 5 (DX), THE SYSTEM SHALL invoke `orphan-ref-validator` and surface findings in test summary, SO THAT cross-cutting orphan detection runs in test phase.
+- [ ] REQ-009-AC9: WHEN `pytest .claude/skills/orphan-ref-validator/tests/` runs, THE SYSTEM SHALL report ≥80% line coverage on `scan.py` with positive (orphan present), negative (no orphans), and edge cases (empty target file, missing target path, mixed living+dead refs), SO THAT regression risk is bounded.
 
 ## Rationale
 

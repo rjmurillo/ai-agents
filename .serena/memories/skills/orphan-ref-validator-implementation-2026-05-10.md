@@ -1,6 +1,6 @@
 # Orphan-Ref-Validator Implementation - 2026-05-10
 
-Implemented `.claude/skills/orphan-ref-validator/` per REQ-008, DESIGN-008, TASK-008. Closes #1939, child of epic #1933.
+Implemented `.claude/skills/orphan-ref-validator/` per REQ-009, DESIGN-009, TASK-009. Closes #1939, child of epic #1933.
 
 ## Wedge Decision
 
@@ -22,7 +22,7 @@ Rationale: ADRs and docs reference proposed-but-unimplemented or deleted-by-supe
 ## Ignore Directives
 
 - `<!-- orphan-ref-ignore-file -->` in the first 50 lines skips the whole file. Used for M1 deletion specs (REQ-007, TASK-007, DESIGN-007), MCP technical specs (mcp-integration-overview, agent-orchestration-mcp-spec, session-state-mcp-spec, skill-catalog-mcp-spec).
-- `<!-- orphan-ref-ignore -->` on a line skips that line. Used for spot ignores in REQ-002, REQ-008, TASK-008, INTERVIEW-1884, DESIGN-008.
+- `<!-- orphan-ref-ignore -->` on a line skips that line. Used for spot ignores in REQ-002, REQ-009, TASK-009, INTERVIEW-1884, DESIGN-009.
 
 ## Filters
 
@@ -48,7 +48,7 @@ Rationale: ADRs and docs reference proposed-but-unimplemented or deleted-by-supe
 
 ## Commits
 
-- 62143d96: spec artifacts (REQ-008, DESIGN-008, TASK-008, INTERVIEW)
+- 62143d96: spec artifacts (REQ-009, DESIGN-009, TASK-009, INTERVIEW)
 - 6957d8fe: skill core (SKILL.md, scan.py, filters.py removed-then-added in C3, tests)
 - 8f34b6a4: M1 spec ignore directives + denylist refactor
 - 0d08807c: MCP architecture spec ignore directives
