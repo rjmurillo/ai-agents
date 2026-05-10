@@ -370,10 +370,15 @@ def main(argv: list[str] | None = None) -> int:
     else:
         print(f"WARNING: Validation script not found: {validate_script}", file=sys.stderr)
 
-    # Rework warning (REQ-010-01..04). Informational only; never blocks
-    # session-end. Sibling-module loader degrades gracefully on missing or
-    # broken `rework_warning.py` so an informational warning does not
-    # escalate into a critical failure (lesson from PR #1989).
+    # Rework warning (REQ-010-01..04). Informational only; MUST NOT block
+    # session-end under any circumstances. Sibling-module loader degrades
+    # gracefully on any failure (missing file, SyntaxError, runtime errors
+    # in compute_rework_warning, etc.). PR #1989 had this bug with a narrow
+    # `(OSError, ImportError, AttributeError)` clause; PR #2004 bot review
+    # caught that exec_module can raise SyntaxError and arbitrary exceptions
+    # from module top-level code. `Exception` is the correct breadth: it
+    # excludes KeyboardInterrupt and SystemExit (BaseException subclasses)
+    # so Ctrl+C still works, but catches every other failure mode.
     print("", file=sys.stderr)
     try:
         import importlib.util as _il
@@ -387,7 +392,7 @@ def main(argv: list[str] | None = None) -> int:
             _items = _rw.compute_rework_warning()
             for _line in _rw.emit_rework_warning_lines(_items):
                 print(_line, file=sys.stderr)
-    except (OSError, ImportError, AttributeError):
+    except Exception:  # noqa: BLE001 — informational; must never block session-end
         print(
             "rework-warning: skipped (sibling module unavailable)",
             file=sys.stderr,

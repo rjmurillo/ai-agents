@@ -16,8 +16,15 @@ times per session and would swamp real signal otherwise:
 
 Canonical source for the git argv: ``git log --name-only -M
 origin/{base}..HEAD --pretty=format:``. The ``-M`` flag enables rename
-detection so a file renamed mid-branch counts once. ``--diff-filter=R``
-is deliberately omitted (would restrict to renames only).
+detection so a file renamed mid-branch is reported under its new name
+only (not as two entries). ``--diff-filter=R`` is deliberately omitted
+(would restrict to renames only and miss ordinary edits).
+
+PR #2004 bot review confirmed empirically (from the captured fixture)
+that ``git log --name-only -M`` does NOT emit ``old => new`` rename
+arrows; it lists the new filename once per commit that touches it.
+The previous _collapse_rename helper was dead code for input that never
+arrives on this argv; deleted per YAGNI.
 
 Exit codes follow ADR-035; functions in this module never exit. They
 degrade to an empty list on git failure so callers do not need to wrap
@@ -48,32 +55,6 @@ def _is_excluded_rework_path(path: str) -> bool:
     )
 
 
-def _collapse_rename(line: str) -> str:
-    """Normalize a git `--name-only -M` rename line to the new path.
-
-    git emits renames in four shapes; all collapse to the new path:
-      - ``old_path => new_path``
-      - ``{old_dir => new_dir}/filename``
-      - ``path/{old_file => new_file}``
-      - ``path/{old_subdir => new_subdir}/filename``
-    """
-    if "=>" not in line:
-        return line.rstrip()
-    if "{" in line and "}" in line:
-        brace_open = line.index("{")
-        brace_close = line.index("}", brace_open)
-        prefix = line[:brace_open]
-        inside = line[brace_open + 1 : brace_close]
-        suffix = line[brace_close + 1 :]
-        new_inside = inside.split("=>", 1)[1].strip()
-        new_path = f"{prefix}{new_inside}{suffix}"
-    else:
-        new_path = line.split("=>", 1)[1].strip()
-    while "//" in new_path:
-        new_path = new_path.replace("//", "/")
-    return new_path.lstrip("/").rstrip()
-
-
 def compute_rework_warning(
     branch_base: str = "main",
     threshold: int = REWORK_THRESHOLD,
@@ -102,7 +83,7 @@ def compute_rework_warning(
 
     counts: Counter[str] = Counter()
     for raw in result.stdout.splitlines():
-        line = _collapse_rename(raw.strip())
+        line = raw.strip()
         if line and not _is_excluded_rework_path(line):
             counts[line] += 1
 

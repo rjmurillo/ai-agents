@@ -45,11 +45,18 @@ def _stub_completed(stdout: str, returncode: int = 0):
     return mock.Mock(stdout=stdout, stderr="", returncode=returncode)
 
 
-class ReqOlR010Tests(unittest.TestCase):
+class Req010Tests(unittest.TestCase):
     """REQ-010 acceptance criteria pinned against captured real fixture."""
 
     @classmethod
     def setUpClass(cls) -> None:
+        # PR #2004 copilot: guard the fixture read so test_fixture_file_exists
+        # produces a clear assertion failure if the fixture is missing,
+        # instead of FileNotFoundError on class setup that prevents any
+        # test from running.
+        if not FIXTURE_PATH.is_file():
+            cls.fixture_text = ""
+            return
         cls.fixture_text = FIXTURE_PATH.read_text(encoding="utf-8")
 
     def test_fixture_file_exists(self) -> None:
