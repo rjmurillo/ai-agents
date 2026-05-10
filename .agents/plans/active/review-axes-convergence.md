@@ -80,7 +80,10 @@ Ordering: M4-01 requires M1-04 + M1-02 + M1-03 + M3-01. M4-02 requires M3-01 (de
 |------|--------|-------|
 | 2026-05-10 | Created plan. /spec completed (REQ-008/DESIGN-008/TASK-008). /plan milestones + decomposition done. Branch `feat/issue-1934-review-axes-convergence` created. | implementer |
 | 2026-05-10 | Revised plan after critic review: corrected parallelism (M1-06 depends on M1-02+M1-03; M1-05 depends on M1-04; M2 starts only after M1-02+M1-03 committed). Added commit map C1-C14 (14 commits, 18 tasks, 4 XS fold). Added task sizing [XS/S/M]. Updated risk register with analyst pre-mortem findings. | implementer |
-| | **Commit map**: C1=M1-01, C2=M1-02, C3=M1-03, C4=M1-04, C5=M1-05, C6=M1-06, C7=M2-01, C8=M2-02, C9=M2-03, C10=M2-04, C11=M2-05, C12=M3-01, C13=M3-02, C14=M4-01. M4-02=gh CLI (no commit). | |
+| 2026-05-10 | M0 PIVOT: discovered scripts/ai_review_common/ Python package already exists with merge_verdicts and get_verdict_emoji. AIReviewCommon.psm1 was retired in PR #1066/#1169. Existing sync_plugin_lib.py pattern (used for github_core, hook_utilities) added .claude/lib/ai_review_common/ as synced copy. 24 importers untouched. New M0 milestone added (1 commit). | implementer |
+| 2026-05-10 | M1+M2+M3 substantially done (12 commits). M1: spec docs, sync infra, UNKNOWN handling+extract_verdict, 6 axes (2 commits), schema fixture+tests. M2: generator+29 tests, CI prompt regen (2 commits), pre-push drift hook. M3: /review rewrite, pr-quality/all.md citation fix. 534 tests pass. No em/en-dashes. | implementer |
+| | **Commits 1-12**: d86cb99e (spec), 9f52354f (sync), d19e8e79 (UNKNOWN+extract_verdict), 9e7f0bda + 234d3c9f (axes), ba5a95f4 (schema tests), 7831d55c (generator+tests), 403b0a7b + b28371f4 (regen prompts), d74221a6 (pre-push hook), 6d884a17 (pr-quality/all.md), cb438de2 (/review rewrite). | |
+| | **Remaining**: M2-04 CI drift-check job, M2-05 hook tests, M4-01 vendored test, M4-02 gh issue sync, exit gates. | |
 
 ## Blockers
 
