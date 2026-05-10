@@ -343,7 +343,7 @@ def scan(
                 # Reserve one slot for the synthetic truncation finding so
                 # the returned list never exceeds ``max_findings``.
                 budget = max_findings - 1
-                if len(result.findings) + len(findings) >= budget:
+                if len(findings) > 0 and len(result.findings) + len(findings) > budget:
                     keep = max(0, budget - len(result.findings))
                     result.findings.extend(findings[:keep])
                     result.refs_checked += refs_checked

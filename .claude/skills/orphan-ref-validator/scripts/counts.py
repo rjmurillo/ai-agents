@@ -61,6 +61,7 @@ Stricter/looser/different than canonical:
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 # Mirror the upstream prune set so counts under .claude/<dir>/ never
@@ -163,27 +164,38 @@ def _count_md_agents(directory: Path, exclude: set[str]) -> int | None:
 
 def _count_md_recursive(directory: Path, exclude: set[str]) -> int | None:
     """Recursive count of ``.md`` files, excluding given filenames and
-    paths that pass through any ``_EXCLUDED_DIR_NAMES`` segment."""
-    if not directory.exists() or not directory.is_dir():
-        return None
-    return sum(
-        1
-        for f in directory.rglob("*.md")
-        if f.is_file()
-        and f.name not in exclude
-        and not _is_excluded(f.relative_to(directory))
-    )
+    pruning ``_EXCLUDED_DIR_NAMES`` subtrees.
+
+    Uses ``os.walk(followlinks=False)`` rather than ``Path.rglob`` so the
+    behavior matches canonical ``validate_marketplace_counts.py`` on
+    Python 3.10-3.12 (where ``Path.rglob`` follows symlinks; ``os.walk``
+    does not by default). A symlinked directory pointing back into the
+    repo would otherwise inflate the count.
+    """
+    return _count_with_suffix(directory, ".md", exclude)
 
 
 def _count_py_recursive(directory: Path) -> int | None:
-    """Recursive count of ``.py`` files, skipping ``_EXCLUDED_DIR_NAMES``."""
+    """Recursive count of ``.py`` files, pruning ``_EXCLUDED_DIR_NAMES``."""
+    return _count_with_suffix(directory, ".py", exclude=set())
+
+
+def _count_with_suffix(
+    directory: Path, suffix: str, exclude: set[str]
+) -> int | None:
     if not directory.exists() or not directory.is_dir():
         return None
-    return sum(
-        1
-        for f in directory.rglob("*.py")
-        if f.is_file() and not _is_excluded(f.relative_to(directory))
-    )
+    total = 0
+    for root, dirnames, filenames in os.walk(directory, followlinks=False):
+        # Prune excluded subtrees in place.
+        dirnames[:] = [d for d in dirnames if d not in _EXCLUDED_DIR_NAMES]
+        for name in filenames:
+            if not name.endswith(suffix):
+                continue
+            if name in exclude:
+                continue
+            total += 1
+    return total
 
 
 def is_manifest_file(path: Path) -> bool:
