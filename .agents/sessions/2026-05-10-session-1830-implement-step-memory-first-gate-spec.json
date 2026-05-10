@@ -170,8 +170,13 @@
     },
     {
       "timestamp": "2026-05-10T09:00:00Z",
-      "action": "review fixes",
-      "detail": "/review surfaced 1 Critical, 5 Important, 7 Suggestion findings across architecture, security, QA. Applied: Critical (weeks unit added to REQ-008 + spec.md); Sec F1 CWE-78 (argv-vector subprocess mandate); Arch F1 (byte-identity mirror test for Step 0.5); QA F2 (entity_count boundary parametrize); QA F4 (phases_needed and supplemental_phase_5_warranted helpers). Deferred: ADR-060 (Arch F2; multi-agent debate cost), Sec F2/F3/F4 suggestions, QA F1 (LLM-only behavioral check), Arch F3/F4. tests/commands/: 131 pass."
+      "action": "review fixes spec layer",
+      "detail": "/review surfaced 1 Critical, 5 Important, 7 Suggestion findings across architecture, security, QA. Spec-layer fixes committed in 6729953d: Critical (weeks unit added to REQ-008 + spec.md); Sec F1 CWE-78 (argv-vector subprocess mandate). Mirrored to Copilot CLI SKILL.md."
+    },
+    {
+      "timestamp": "2026-05-10T09:30:00Z",
+      "action": "review fixes test layer",
+      "detail": "Test-layer fixes ready for commit: Arch F1 (byte-identity mirror test for Step 0.5); QA F2 (entity_count boundary parametrize, 10 cases); QA F4 (phases_needed + supplemental_phase_5_warranted helpers, 13 boundary tests). Deferred: ADR-060 (Arch F2; multi-agent debate cost), Sec F2/F3/F4 suggestions, QA F1 (LLM-only behavioral check), Arch F3/F4. tests/commands/: 131 pass."
     }
   ],
   "endingCommit": "",

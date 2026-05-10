@@ -155,6 +155,7 @@ Serial chain. M3 was originally parallel with M2 but pre-mortem F6 (merge confli
 | 2026-05-10 | M3 complete. Check 9d appended to Step 9 pre-mortem list (AC-12). 9a/9b/9c untouched. 9d FAIL conditions include guard-string detection per plan. Step 9 narrative updated to cover 9a-9d. | implementer |
 | 2026-05-10 | M4 complete. step0_5_parser.py + test_spec_step0_5.py committed; 30 tests pass. Existing test_spec_step0.py byte-identity tests preserved by mirroring Step 0.5 + 9d into Copilot CLI SKILL.md (deferred-item resolved early). 8h-tier contradiction in REQ/DESIGN/spec.md prose corrected: 8h is Tier 3 per mapping. Total tests/commands/: 95 pass. | implementer |
 | 2026-05-10 | M5 complete. Promoted D2/D8/D10/D11 to pytest (12 new tests): D2 ProvisionalTier from "4-6 hours" + 2 entities = Tier 2; D8 step0_5-halt block parser with field-set/trigger validation; D10/D11 metrics tally line parser with state/trigger consistency checks. Manual checks D1, D6, D7, D9, D12, D13, D14 require live /spec invocation or Forgetful MCP simulation; tracked as candidates for ADR-057 LLM eval harness follow-on. Total tests/commands/: 107 pass. | implementer |
+| 2026-05-10 | /review fixes applied. Critical: weeks unit added to REQ-008 + spec.md hours-extraction list (parser already supported it; spec text now matches). Important: Sec F1 CWE-78 mitigation - spec.md mandates argv-vector subprocess invocation, prohibits string concat, requires sanitization regex if argv unavailable; Arch F1 byte-identity test for Step 0.5 mirror added; QA F2 entity_count boundary parametrize (10 cases) added; QA F4 phases_needed and supplemental_phase_5_warranted helpers added with 13 boundary tests. Deferred: ADR-060 (multi-agent debate cost), 3 Suggestions documented. tests/commands/: 131 pass. | implementer |
 
 ## Risk Register
 
@@ -170,11 +171,13 @@ Serial chain. M3 was originally parallel with M2 but pre-mortem F6 (merge confli
 
 ## Deferred (out of scope for this plan)
 
-- Copilot CLI twin (`src/copilot-cli/skills/spec/SKILL.md`) update for Step 0.5
-- ADR for the gate itself (file follow-on if needed after first 30 invocations)
-- Promoting D6/D7/D9/D12/D13/D14 to pytest (tracked issue)
-- File locking on STEP-0.5-METRICS.md
+- ~~Copilot CLI twin (`src/copilot-cli/skills/spec/SKILL.md`) update for Step 0.5~~ DONE in M4 to satisfy byte-identity tests
+- **ADR-060 for Step 0.5 Memory-First Gate** (Arch F2 from /review): defer because adr-review skill is BLOCKING and adds multi-agent debate cost; file as follow-on issue. Justification: spec.md kill-criteria already document removal path; ADR-007 declares the principle this gate implements.
+- Promoting D6/D7/D9/D12/D13/D14 to pytest (tracked issue, ADR-057 eval harness)
+- File locking on STEP-0.5-METRICS.md (Sec F3 suggestion, low risk on single-author repo)
 - Entity name normalization alias table
+- AC-08 auto-mode whole-token equality match instead of substring (Sec F2 suggestion; substring is documented behavior at spec.md:223; harden in follow-on)
+- Halt block PII/secret redaction pre-emit (Sec F4 suggestion; tracked for security follow-on)
 
 ## Blockers
 

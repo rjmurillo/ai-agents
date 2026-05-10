@@ -1,6 +1,13 @@
+# taste-lint: ignore file-size
 """Tests for Step 0.5 Memory-First Gate in /spec command.
 
 Refs #1951, REQ-008, DESIGN-008, TASK-008, plan req-008-step-0-5-memory-first-gate.
+
+File-size suppression rationale: this test module is the unit-test home
+for all 12 ACs and the 4 parser helpers. Splitting by AC fragments the
+test suite without improving cohesion (every test reads the same
+spec.md fixture). Sibling test_spec_step0.py is 522 lines under the
+same justification.
 
 Verifies the static structure of Step 0.5 instructions in
 `.claude/commands/spec.md` against the 12 acceptance criteria. Parser
@@ -30,10 +37,13 @@ from tests.commands.step0_5_parser import (
     has_guard_string,
     parse_halt_block,
     parse_tally_line,
+    phases_needed,
+    supplemental_phase_5_warranted,
 )
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 SPEC_MD = PROJECT_ROOT / ".claude" / "commands" / "spec.md"
+SKILL_MD = PROJECT_ROOT / "src" / "copilot-cli" / "skills" / "spec" / "SKILL.md"
 
 CANONICAL_DEFERRAL_TEXT = (
     "Revise Step 0 Q4 to name blast-radius entities or add explicit "
@@ -44,6 +54,11 @@ CANONICAL_DEFERRAL_TEXT = (
 @pytest.fixture(scope="module")
 def spec_text() -> str:
     return SPEC_MD.read_text(encoding="utf-8")
+
+
+@pytest.fixture(scope="module")
+def skill_text() -> str:
+    return SKILL_MD.read_text(encoding="utf-8")
 
 
 @pytest.fixture(scope="module")
@@ -335,6 +350,68 @@ def test_compute_provisional_tier_no_hours_defaults_to_tier_2():
     assert compute_provisional_tier("", 1) == 2
 
 
+# Entity-count boundary cases (REQ-008 AC-02 entity_tier mapping)
+@pytest.mark.parametrize(
+    "entity_count, expected_entity_tier",
+    [
+        (0, 1),
+        (1, 1),
+        (2, 2),
+        (3, 2),
+        (4, 3),
+        (7, 3),
+        (8, 4),
+        (15, 4),
+        (16, 5),
+        (100, 5),
+    ],
+)
+def test_compute_provisional_tier_entity_count_boundaries(
+    entity_count: int, expected_entity_tier: int
+):
+    """REQ-008 AC-02: 1=T1; 2-3=T2; 4-7=T3; 8-15=T4; >15=T5.
+
+    0 entities maps to Tier 1 (Step 0 Q3 always names at least one
+    entity in practice; this is the conservative floor for empty input).
+    """
+    # Force empty Q4 so result depends only on entity_tier.
+    assert compute_provisional_tier("", entity_count) == max(
+        2, expected_entity_tier
+    )
+
+
+# AC-10 supplemental Phase 5 behavioral cases
+@pytest.mark.parametrize(
+    "tier, expected_phases",
+    [(1, 2), (2, 2), (3, 4), (4, 5), (5, 5)],
+)
+def test_phases_needed_per_tier(tier: int, expected_phases: int):
+    assert phases_needed(tier) == expected_phases
+
+
+@pytest.mark.parametrize(
+    "provisional, actual, expected",
+    [
+        (2, 2, False),
+        (2, 3, True),
+        (2, 4, True),
+        (3, 4, True),
+        (3, 3, False),
+        (4, 5, False),
+        (1, 2, False),
+        (4, 4, False),
+    ],
+)
+def test_supplemental_phase_5_warranted(
+    provisional: int, actual: int, expected: bool
+):
+    """AC-10: supplemental fires when actual tier > provisional AND
+    actual tier needs more phases than provisional already ran."""
+    assert (
+        supplemental_phase_5_warranted(provisional, actual) is expected
+    )
+
+
 # ---------------------------------------------------------------------------
 # Dynamic-check promotion (TASK-008-5 D-list)
 #
@@ -456,3 +533,23 @@ def test_d10_d11_tally_line_rejects_malformed_timestamp():
     line = "2026/05/10 04:30 | pass | none | none"
     with pytest.raises(ValueError, match="canonical format"):
         parse_tally_line(line)
+
+
+# ---------------------------------------------------------------------------
+# Mirror parity: spec.md and Copilot CLI SKILL.md must agree byte-for-byte
+# on the Step 0.5 block. Same invariant as test_spec_step0.py for Step 0.
+# ---------------------------------------------------------------------------
+
+
+def test_step0_5_block_byte_identical_across_spec_and_skill(
+    spec_text: str, skill_text: str
+):
+    """The Step 0.5 block must be byte-identical in both files.
+
+    The Copilot CLI twin at src/copilot-cli/skills/spec/SKILL.md mirrors
+    .claude/commands/spec.md. Drift between them would silently change
+    behavior depending on which entry point a user invoked.
+    """
+    assert extract_step0_5_block(spec_text) == extract_step0_5_block(
+        skill_text
+    )

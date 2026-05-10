@@ -98,6 +98,36 @@ def _entity_count_to_tier(entity_count: int) -> int:
     return 5
 
 
+def phases_needed(tier: int) -> int:
+    """Return the number of exploring-knowledge-graph phases required at a tier.
+
+    Per REQ-008 AC-05/AC-10: Tier 1-2 runs Phases 1-2 (shallow);
+    Tier 3 runs Phases 1-4 (medium); Tier 4-5 runs all 5 phases (deep).
+    Used by AC-10 supplemental trigger logic.
+    """
+    if tier <= 2:
+        return 2
+    if tier == 3:
+        return 4
+    return 5
+
+
+def supplemental_phase_5_warranted(
+    provisional_tier: int, actual_tier: int
+) -> bool:
+    """Return True when Step 3 tier upgrade requires supplemental traversal.
+
+    Per REQ-008 AC-10: supplemental Phase 5 runs when actual_tier
+    classified by Step 3 exceeds the ProvisionalTier set at Step 0.5
+    AND the additional phases required for actual_tier exceed those
+    already run at provisional_tier.
+    """
+    return (
+        actual_tier > provisional_tier
+        and phases_needed(actual_tier) > phases_needed(provisional_tier)
+    )
+
+
 def compute_provisional_tier(q4_text: str, entity_count: int) -> int:
     """Compute ProvisionalTier per REQ-008 AC-02.
 
