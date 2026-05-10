@@ -30,14 +30,14 @@ import subprocess
 from collections import Counter
 
 REWORK_THRESHOLD = 6
-REWORK_EXCLUDED_SUFFIXES = (".session.json",)
-REWORK_EXCLUDED_PREFIXES = ("src/claude/", ".agents/sessions/")
+_REWORK_EXCLUDED_SUFFIXES = (".session.json",)
+_REWORK_EXCLUDED_PREFIXES = ("src/claude/", ".agents/sessions/")
 
 
 def _is_excluded_rework_path(path: str) -> bool:
     """Return True if `path` matches a generated-artifact exclusion pattern."""
-    return any(path.endswith(suffix) for suffix in REWORK_EXCLUDED_SUFFIXES) or any(
-        path.startswith(prefix) for prefix in REWORK_EXCLUDED_PREFIXES
+    return any(path.endswith(suffix) for suffix in _REWORK_EXCLUDED_SUFFIXES) or any(
+        path.startswith(prefix) for prefix in _REWORK_EXCLUDED_PREFIXES
     )
 
 
@@ -63,70 +63,62 @@ def _collapse_rename(line: str) -> str:
     return new_path.lstrip("/").rstrip()
 
 
+_GIT_LOG_ARGV = (
+    "git",
+    "log",
+    "--name-only",
+    "--diff-filter=R",
+    "-M",
+    "{base_ref}",
+    "--pretty=format:",
+)
+
+
+def _run_git_log(branch_base: str) -> str | None:
+    """Run canonical ``git log --name-only --diff-filter=R -M`` against base."""
+    argv = [a.format(base_ref=f"origin/{branch_base}..HEAD") for a in _GIT_LOG_ARGV]
+    try:
+        result = subprocess.run(
+            argv, capture_output=True, text=True, timeout=30, check=False
+        )
+    except (FileNotFoundError, OSError, subprocess.TimeoutExpired):
+        return None
+    return result.stdout if result.returncode == 0 else None
+
+
+def _count_paths(stdout: str) -> Counter[str]:
+    """Tally per-path edit counts, collapsing renames, excluding generated."""
+    counts: Counter[str] = Counter()
+    for raw in stdout.splitlines():
+        line = _collapse_rename(raw.strip())
+        if line and not _is_excluded_rework_path(line):
+            counts[line] += 1
+    return counts
+
+
+def _filter_over_threshold(
+    counts: Counter[str], threshold: int
+) -> list[tuple[str, int]]:
+    """Return ``(path, count)`` >= threshold, sorted by count desc then path asc."""
+    over = [(p, c) for p, c in counts.items() if c >= threshold]
+    over.sort(key=lambda item: (-item[1], item[0]))
+    return over
+
+
 def compute_rework_warning(
     branch_base: str = "main",
     threshold: int = REWORK_THRESHOLD,
 ) -> list[tuple[str, int]]:
-    """Return files edited >= `threshold` times on this branch vs `branch_base`.
+    """Return files edited >= `threshold` times on this branch.
 
-    Canonical source: ``git log --name-only --diff-filter=R -M
-    origin/{branch_base}..HEAD --pretty=format:`` (rename-aware).
-
-    The ``--diff-filter=R`` flag combined with ``-M`` enables rename
-    detection so a file renamed mid-branch is counted as one logical
-    file, not two. The ``--pretty=format:`` empty format suppresses the
-    commit header so output lines are file paths only.
-
-    Returns a list of ``(file_path, count)`` tuples for files at or above
-    the threshold, sorted by count descending then by path ascending for
-    deterministic output.
-
-    Degrades gracefully:
-      - Git not available -> returns ``[]``
-      - Branch base not reachable (e.g. fresh clone) -> returns ``[]``
-      - Empty output (no commits ahead of base) -> returns ``[]``
-
-    Stricter/looser/different than canonical:
-      - This is a NEW check; there is no upstream validator to mirror.
-      - Threshold-6 is local-only; kill-criteria pattern documented inline.
+    Degrades to ``[]`` when git is unavailable, the base is unreachable,
+    or no commits are ahead. Threshold-6 is local-only starter calibration
+    documented in DESIGN-009; kill-criteria pattern mirrors REQ-006-13.
     """
-    try:
-        result = subprocess.run(
-            [
-                "git",
-                "log",
-                "--name-only",
-                "--diff-filter=R",
-                "-M",
-                f"origin/{branch_base}..HEAD",
-                "--pretty=format:",
-            ],
-            capture_output=True,
-            text=True,
-            timeout=30,
-            check=False,
-        )
-    except (FileNotFoundError, OSError, subprocess.TimeoutExpired):
+    stdout = _run_git_log(branch_base)
+    if stdout is None:
         return []
-
-    if result.returncode != 0:
-        return []
-
-    counts: Counter[str] = Counter()
-    for raw_line in result.stdout.splitlines():
-        line = raw_line.strip()
-        if not line:
-            continue
-        line = _collapse_rename(line)
-        if _is_excluded_rework_path(line):
-            continue
-        counts[line] += 1
-
-    over_threshold = [
-        (path, count) for path, count in counts.items() if count >= threshold
-    ]
-    over_threshold.sort(key=lambda item: (-item[1], item[0]))
-    return over_threshold
+    return _filter_over_threshold(_count_paths(stdout), threshold)
 
 
 def emit_rework_warning_lines(items: list[tuple[str, int]]) -> list[str]:
