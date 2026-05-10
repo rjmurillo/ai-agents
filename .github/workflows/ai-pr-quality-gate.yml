@@ -846,7 +846,10 @@ jobs:
 
           # Identify agents with blocking verdicts
           # NEEDS_REVIEW added in Issue #470 fix - indicates AI couldn't produce explicit verdict (occurs when AI response doesn't match expected verdict format, treating ambiguity as blocking)
-          $blockingVerdicts = @('CRITICAL_FAIL', 'REJECTED', 'FAIL', 'NEEDS_REVIEW')
+          # UNKNOWN added in #1934: a skill crash or unparseable verdict surfaces as UNKNOWN.
+          # Per REQ-008-05 UNKNOWN must "force explicit attention"; treat it as blocking
+          # so a silent skill failure cannot pass the gate.
+          $blockingVerdicts = @('CRITICAL_FAIL', 'REJECTED', 'FAIL', 'NEEDS_REVIEW', 'UNKNOWN')
           $failedAgents = @()
           $missingVerdicts = @()
 
