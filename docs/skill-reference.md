@@ -1,6 +1,6 @@
 # Skill Reference
 
-Skills are reusable workflow components that agents and users invoke for common tasks. The AI Agents system includes 49 skills organized by category.
+Skills are reusable workflow components that agents and users invoke for common tasks. Skills are organized by category; counts in the table below reflect the categories documented in this reference.
 
 ## How to Use Skills
 
@@ -29,7 +29,7 @@ Agents invoke skills internally. You do not call skills directly.
 | [Code Quality](#code-quality) | 5 | Style enforcement, linting, doc coverage, analysis |
 | [Architecture and Design](#architecture-and-design) | 7 | ADR review, CVA, decisions, architecture analysis |
 | [Planning and Strategy](#planning-and-strategy) | 4 | Planning, pre-mortem, buy-vs-build, Cynefin |
-| [Documentation](#documentation) | 3 | Doc sync, markdown fixes, context optimization |
+| [Documentation](#documentation) | 3 | Doc accuracy verification, markdown fixes, context optimization |
 | [Development Workflows](#development-workflows) | 5 | Git workflows, merge resolution, metrics, encoding |
 | [Agent and Skill Management](#agent-and-skill-management) | 3 | Skill creation, Serena symbols, reflection |
 | [Research](#research) | 3 | Research, programming advice, prompt engineering |

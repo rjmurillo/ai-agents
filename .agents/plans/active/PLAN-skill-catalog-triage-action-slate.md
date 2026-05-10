@@ -24,8 +24,8 @@ Skill eval (session-1825) ran `eval-knowledge-integration.py` against 15 suspect
 
 | # | Skill | Action | Evidence | Status |
 |---|-------|--------|----------|--------|
-| 1 | `doc-coverage` | PRUNE | `doc-accuracy/SKILL.md` lines 248-249: "Replaced". Lowest delta (+0.50). | `[ ]` pending |
-| 2 | `doc-sync` | PRUNE | `doc-accuracy/SKILL.md` lines 248-249: "Replaced". | `[ ]` pending |
+| 1 | `doc-coverage` | PRUNE | `doc-accuracy/SKILL.md` "Related Skills" table: `**Replaced**: Symbol extraction logic preserved in Phase 1`. Lowest delta (+0.50). | `[ ]` pending |
+| 2 | `doc-sync` | PRUNE | `doc-accuracy/SKILL.md` "Related Skills" table: `**Replaced**: Structural audit absorbed into Phase 6`. | `[ ]` pending |
 | 3 | `workflow` | PRUNE (delete) | DEPRECATED in SKILL.md. No callers in commands/agents/CI. | `[ ]` pending |
 | 4 | `session-qa-eligibility` | FOLD into `session` | Both expose `Test-InvestigationEligibility`. Delta +1.83. | `[ ]` pending |
 | 5 | `session-migration` | SUNSET (audit first) | One-shot md→json work. Verify no remaining .md logs before delete. | `[ ]` pending |

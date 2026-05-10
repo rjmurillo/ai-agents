@@ -20,7 +20,7 @@ SO THAT the catalog is free of subsumed and deprecated skills and `doc-accuracy`
 
 ## Context
 
-`doc-accuracy` self-declares in its SKILL.md (lines 248-249) that it consolidates `doc-coverage` and `doc-sync`. Both subordinate skills remain in the repository, creating two problems: catalog confusion (developers do not know which entrypoint to use) and dead test coverage that asserts routing behavior for skills that should not exist.
+`doc-accuracy` self-declares in its SKILL.md "Related Skills" table that it `**Replaced**` `doc-coverage` (Symbol extraction logic preserved in Phase 1) and `doc-sync` (Structural audit absorbed into Phase 6). Both subordinate skills remain in the repository, creating two problems: catalog confusion (developers do not know which entrypoint to use) and dead test coverage that asserts routing behavior for skills that should not exist.
 
 `workflow` is tagged DEPRECATED in its own SKILL.md with no callers found in commands, agents, or CI. It occupies directory space and is listed in skill routing tables, adding noise.
 
